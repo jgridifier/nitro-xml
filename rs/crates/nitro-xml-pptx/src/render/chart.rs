@@ -8,6 +8,11 @@ use nitro_xml_render::chart::{
 use nitro_xml_render::measure::MeasureBatch;
 use nitro_xml_render::{CommandBuffer, StringTable};
 
+use super::context::{PaintContext, StringIntern};
+use super::dom::{create_child, position_box, set_attr, set_inner_markup_stub};
+use crate::slide::DumpElement;
+
+#[allow(dead_code)] // wired when chart parts resolve from package (#28).
 pub fn paint_pptx_chart_xml(
     xml: &str,
     width: u32,
@@ -45,4 +50,23 @@ pub fn paint_pptx_chart_xml(
         strings,
     );
     parsed.chart_space
+}
+
+/// P9 frame placeholder until chart parts are wired from the package (#28).
+pub fn paint_element_stub<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    el: &DumpElement,
+    parent: u32,
+) {
+    let id = create_child(ctx, parent, "div");
+    position_box(ctx, id, el.x, el.y, el.width, el.height);
+    set_attr(ctx, id, "data-pptx-element", "true");
+    set_attr(ctx, id, "data-pptx-kind", "chart");
+    let w = el.width.max(1.0).round() as u32;
+    let h = el.height.max(1.0).round() as u32;
+    let svg = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" role=\"img\"><rect width=\"100%\" height=\"100%\" fill=\"#f5f5f5\" stroke=\"#999\"/><text x=\"8\" y=\"20\" font-size=\"14\" fill=\"#333\">Chart</text></svg>"
+    );
+    set_inner_markup_stub(ctx, id, &svg);
+    ctx.view_ir.push_painted("chart", el, None);
 }

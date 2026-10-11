@@ -204,7 +204,7 @@ pub fn search_options_from_json(raw: &str) -> SearchOptions {
     opts
 }
 
-pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
+pub fn process_frame(handle: &mut crate::handle::Handle) {
     let events: Vec<Event> = handle.events.pending_snapshot();
     if let Some(ref mut xlsx) = handle.xlsx {
         xlsx.process_events(&events);

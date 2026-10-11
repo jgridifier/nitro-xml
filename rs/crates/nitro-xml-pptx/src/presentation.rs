@@ -175,6 +175,15 @@ impl<'a> Presentation<'a> {
         &self.slide_paths
     }
 
+    pub fn slide_count(&self) -> usize {
+        self.slide_paths.len()
+    }
+
+    /// Slide canvas size in CSS pixels (96 DPI), matching upstream `canvasSize`.
+    pub fn canvas_size(&self) -> (f64, f64) {
+        (self.width as f64, self.height as f64)
+    }
+
     pub fn slide(&mut self, index: usize) -> Result<&Slide, Error> {
         if index >= self.slide_paths.len() {
             return Err(missing_part("slide index"));

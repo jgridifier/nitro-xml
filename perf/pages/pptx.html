@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Nitro XML — pptx viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font: 14px system-ui, sans-serif;
+      }
+      header {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid #ddd;
+      }
+      nitro-pptx {
+        display: block;
+        height: calc(100% - 3rem);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <label>
+        Open
+        <input type="file" id="pick" accept=".pptx,.pptm,.potx,.potm" />
+      </label>
+      <span id="hint">Arrow keys change slides. Set <code>?src=</code> to a fixture URL.</span>
+    </header>
+    <nitro-pptx readonly id="viewer" tabindex="0"></nitro-pptx>
+    <script type="module">
+      import { defineNitroPptx } from "../../packages/nitro-xml/loader/index.js";
+
+      defineNitroPptx();
+      const viewer = document.getElementById("viewer");
+      const pick = document.getElementById("pick");
+      pick.addEventListener("change", () => {
+        const f = pick.files && pick.files[0];
+        if (f) viewer.loadFile(f).catch(console.error);
+      });
+      const params = new URLSearchParams(location.search);
+      const src = params.get("src");
+      if (src) viewer.loadUrl(src).catch(console.error);
+    </script>
+  </body>
+</html>

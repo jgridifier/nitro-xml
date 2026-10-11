@@ -13,4 +13,11 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | `src/level_style.rs` | `PlaceholderStyles.ts`, `MasterElements.ts`, `PlaceholderDefaults.ts` | `lstStyle` / master `txStyles` bullet level styles. |
 | `src/placeholder_defaults.rs` | `PlaceholderLookup.ts`, `PlaceholderDefaults.ts` | Effective placeholder level-style cascade for bullets. |
 | `src/table.rs` | `PptxGraphicFrameParser.ts` | Table row count on graphic-frame dump elements. |
+| `src/render/stage.rs` | `dom/slide-stage.ts` | P1 stage + z-order dispatch into command buffer (#27). |
+| `src/render/shape.rs` | `dom/elements/text-shape.ts` | P2 shape/text box DOM scaffold (#27). |
+| `src/render/text.rs` | `dom/elements/text-block.ts` | P3 text body paragraphs (#27, simplified). |
+| `src/render/picture.rs` | `dom/elements/image.ts` | P5 picture frame (#27, placeholder img). |
+| `src/render/group.rs` | `dom/elements/group.ts` | P6 group transform + child recursion (#27). |
+| `src/render/connector.rs` | `dom/elements/connector.ts` | P7 connector SVG stub (#27). |
+| `src/render/table.rs` | `dom/elements/table.ts` | P8 table grid stub (#27). |
 

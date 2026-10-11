@@ -157,7 +157,6 @@ pub fn extract_ext_lst(xml: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::{load_workbook, parse_all_worksheets};
 
     #[test]

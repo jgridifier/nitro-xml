@@ -8,7 +8,8 @@ use std::collections::BTreeMap;
 use nitro_xml_opc::drawingml::{
     emu_to_pixels, hex_to_rgb_channels, parse_drawing_color_in, parse_drawing_fill,
     parse_drawing_geometry, parse_drawing_line, parse_transform, resolve_drawing_color,
-    DrawingColor, DrawingColorTheme, DrawingFill, DrawingLine, ThemeFormatScheme, EMU_PER_PIXEL,
+    theme_color_slot_for, DrawingColor, DrawingColorTheme, DrawingFill, DrawingLine, ThemeColorMap,
+    ThemeFormatScheme, EMU_PER_PIXEL,
 };
 use nitro_xml_opc::xml::{ns, Element, Node};
 use serde::Serialize;
@@ -151,6 +152,9 @@ pub struct ParseCtx<'a> {
     pub master_tx_styles: Option<&'a MasterTxStyles>,
     /// Presentation theme scheme (`dk1`, `accent1`, …) plus Office defaults.
     pub theme_colors: Option<&'a BTreeMap<String, String>>,
+    /// Master `p:clrMap`, or a layout/slide `a:overrideClrMapping` that replaces it.
+    /// Missing keys fall back to `bg1→lt1`, `tx1→dk1`, `bg2→lt2`, `tx2→dk2`.
+    pub color_map: Option<&'a ThemeColorMap>,
     /// Theme `a:fmtScheme` used by `a:fillRef` / `a:lnRef` (idx 1–3 and 1001–1003).
     pub format_scheme: Option<&'a ThemeFormatScheme>,
 }
@@ -1686,21 +1690,39 @@ struct PaintExtras {
     image_rel_id: Option<String>,
 }
 
-struct SchemeTheme<'a>(&'a BTreeMap<String, String>);
+#[derive(Clone, Copy)]
+struct SchemeTheme<'a> {
+    colors: &'a BTreeMap<String, String>,
+    /// `None` uses the PowerPoint defaults (`bg1→lt1`, …). A present map
+    /// remaps aliases; keys it omits still use those defaults.
+    map: Option<&'a ThemeColorMap>,
+}
 
-impl DrawingColorTheme for SchemeTheme<'_> {
-    fn scheme(&self, name: &str) -> Option<String> {
-        let slot = match name {
+impl SchemeTheme<'_> {
+    fn mapped_slot(&self, name: &str) -> String {
+        if let Some(map) = self.map {
+            if let Some(slot) = theme_color_slot_for(name, map) {
+                return slot.as_str().to_owned();
+            }
+        }
+        match name {
             "bg1" => "lt1",
             "tx1" => "dk1",
             "bg2" => "lt2",
             "tx2" => "dk2",
             other => other,
-        };
-        self.0
-            .get(slot)
+        }
+        .to_owned()
+    }
+}
+
+impl DrawingColorTheme for SchemeTheme<'_> {
+    fn scheme(&self, name: &str) -> Option<String> {
+        let slot = self.mapped_slot(name);
+        self.colors
+            .get(&slot)
             .cloned()
-            .or_else(|| self.0.get(name).cloned())
+            .or_else(|| self.colors.get(name).cloned())
     }
 }
 
@@ -1735,7 +1757,12 @@ pub fn first_paintable_background(
     chain: &[Option<&Element>],
     theme: &BTreeMap<String, String>,
     format_scheme: Option<&ThemeFormatScheme>,
+    color_map: Option<&ThemeColorMap>,
 ) -> Option<BackgroundPaint> {
+    let theme = SchemeTheme {
+        colors: theme,
+        map: color_map,
+    };
     for part in chain.iter().flatten() {
         if let Some(paint) = background_of_c_sld(part, theme, format_scheme) {
             return Some(paint);
@@ -1746,7 +1773,7 @@ pub fn first_paintable_background(
 
 fn background_of_c_sld(
     c_sld: &Element,
-    theme: &BTreeMap<String, String>,
+    theme: SchemeTheme<'_>,
     format_scheme: Option<&ThemeFormatScheme>,
 ) -> Option<BackgroundPaint> {
     let bg = child_local(c_sld, "bg", ns::P)?;
@@ -1789,7 +1816,7 @@ fn background_of_c_sld(
 
 fn background_from_bg_ref(
     bg_ref: &Element,
-    theme: &BTreeMap<String, String>,
+    theme: SchemeTheme<'_>,
     format_scheme: Option<&ThemeFormatScheme>,
 ) -> Option<BackgroundPaint> {
     let idx = attr(bg_ref, "idx")
@@ -1857,7 +1884,10 @@ fn shape_paint_extras(
     ctx: &ParseCtx,
 ) -> PaintExtras {
     let fallback = crate::theme::default_scheme_color_map();
-    let theme = ctx.theme_colors.unwrap_or(&fallback);
+    let theme = SchemeTheme {
+        colors: ctx.theme_colors.unwrap_or(&fallback),
+        map: ctx.color_map,
+    };
     let mut extras = PaintExtras::default();
     match effective_sp_pr.and_then(|sp| parse_drawing_fill(Some(sp))) {
         Some(DrawingFill::None) => extras.fill_mode = Some("none".to_owned()),
@@ -1970,16 +2000,13 @@ fn matrix_line(scheme: Option<&ThemeFormatScheme>, idx: i32) -> Option<&DrawingL
     }
 }
 
-fn ph_hex(color: &DrawingColor, theme: &BTreeMap<String, String>) -> Option<String> {
-    resolve_drawing_color(color, Some(&SchemeTheme(theme)), None).map(|r| r.hex)
+fn ph_hex(color: &DrawingColor, theme: SchemeTheme<'_>) -> Option<String> {
+    resolve_drawing_color(color, Some(&theme), None).map(|r| r.hex)
 }
 
-fn ph_theme<'a>(
-    theme: &'a BTreeMap<String, String>,
-    override_color: Option<&DrawingColor>,
-) -> PhTheme<'a> {
+fn ph_theme<'a>(theme: SchemeTheme<'a>, override_color: Option<&DrawingColor>) -> PhTheme<'a> {
     PhTheme {
-        base: SchemeTheme(theme),
+        base: theme,
         ph: override_color.and_then(|c| ph_hex(c, theme)),
     }
 }
@@ -1987,7 +2014,7 @@ fn ph_theme<'a>(
 fn apply_fill_ref(
     shape: &Element,
     inherited_shape: Option<&Element>,
-    theme: &BTreeMap<String, String>,
+    theme: SchemeTheme<'_>,
     format_scheme: Option<&ThemeFormatScheme>,
     extras: &mut PaintExtras,
 ) {
@@ -2020,7 +2047,7 @@ fn apply_fill_ref(
 fn apply_ln_ref(
     shape: &Element,
     inherited_shape: Option<&Element>,
-    theme: &BTreeMap<String, String>,
+    theme: SchemeTheme<'_>,
     format_scheme: Option<&ThemeFormatScheme>,
     extras: &mut PaintExtras,
 ) {
@@ -2069,7 +2096,7 @@ fn apply_ln_ref(
 fn resolve_matrix_fill(
     fill: &DrawingFill,
     override_color: Option<&DrawingColor>,
-    theme: &BTreeMap<String, String>,
+    theme: SchemeTheme<'_>,
     blend_white: bool,
 ) -> Option<ResolvedFill> {
     let ph = ph_theme(theme, override_color);
@@ -2113,10 +2140,7 @@ fn gradient_flat_color(
         .and_then(|stop| css_color_in(&stop.color, theme, blend_white))
 }
 
-fn first_run_text_paint(
-    tx: &Element,
-    theme: &BTreeMap<String, String>,
-) -> (Option<String>, Option<f64>) {
+fn first_run_text_paint(tx: &Element, theme: SchemeTheme<'_>) -> (Option<String>, Option<f64>) {
     let mut color = None;
     let mut size = None;
     for para in children_local(tx, "p", ns::A) {
@@ -2155,7 +2179,7 @@ fn apply_rpr(
     rpr: Option<&Element>,
     color: &mut Option<String>,
     size: &mut Option<f64>,
-    theme: &BTreeMap<String, String>,
+    theme: SchemeTheme<'_>,
 ) {
     let Some(rpr) = rpr else {
         return;
@@ -2168,7 +2192,7 @@ fn apply_rpr(
     }
 }
 
-fn solid_css(rpr: &Element, theme: &BTreeMap<String, String>) -> Option<String> {
+fn solid_css(rpr: &Element, theme: SchemeTheme<'_>) -> Option<String> {
     let fill = child_local(rpr, "solidFill", ns::A)?;
     let color = parse_drawing_color_in(Some(fill))?;
     css_color(&color, theme, false)
@@ -2182,12 +2206,8 @@ fn sz_to_px(rpr: &Element) -> Option<f64> {
     Some(sz / 100.0 * 96.0 / 72.0)
 }
 
-fn css_color(
-    color: &DrawingColor,
-    theme: &BTreeMap<String, String>,
-    blend_white: bool,
-) -> Option<String> {
-    css_color_in(color, &SchemeTheme(theme), blend_white)
+fn css_color(color: &DrawingColor, theme: SchemeTheme<'_>, blend_white: bool) -> Option<String> {
+    css_color_in(color, &theme, blend_white)
 }
 
 fn css_color_in(
@@ -2217,8 +2237,8 @@ fn css_color_in(
     ))
 }
 
-fn linear_gradient_css(fill: &DrawingFill, theme: &BTreeMap<String, String>) -> Option<String> {
-    linear_gradient_css_in(fill, &SchemeTheme(theme))
+fn linear_gradient_css(fill: &DrawingFill, theme: SchemeTheme<'_>) -> Option<String> {
+    linear_gradient_css_in(fill, &theme)
 }
 
 fn linear_gradient_css_in(fill: &DrawingFill, theme: &dyn DrawingColorTheme) -> Option<String> {
@@ -2282,6 +2302,7 @@ mod tests {
             master_placeholder_levels: None,
             master_tx_styles: None,
             theme_colors: Some(theme),
+            color_map: None,
             format_scheme: None,
         }
     }
@@ -2299,7 +2320,7 @@ mod tests {
           </a:gradFill></p:bgPr></p:bg>
         </p:cSld>"#;
         let doc = parse_xml_str(xml).unwrap();
-        let paint = first_paintable_background(&[Some(&doc.root)], &theme(), None).unwrap();
+        let paint = first_paintable_background(&[Some(&doc.root)], &theme(), None, None).unwrap();
         assert_eq!(paint.color.as_deref(), Some("#FF0000"));
         assert_eq!(
             paint.gradient.as_deref(),
@@ -2320,9 +2341,13 @@ mod tests {
             </p:cSld>"#,
         )
         .unwrap();
-        let paint =
-            first_paintable_background(&[Some(&slide.root), Some(&layout.root)], &theme(), None)
-                .unwrap();
+        let paint = first_paintable_background(
+            &[Some(&slide.root), Some(&layout.root)],
+            &theme(),
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(paint.color.as_deref(), Some("#00FF00"));
         assert!(paint.gradient.is_none());
     }
@@ -2508,7 +2533,7 @@ mod tests {
           <p:bg><p:bgPr><a:blipFill><a:blip r:embed="rId9"/><a:stretch><a:fillRect/></a:stretch></a:blipFill></p:bgPr></p:bg>
         </p:cSld>"#;
         let doc = parse_xml_str(xml).unwrap();
-        let paint = first_paintable_background(&[Some(&doc.root)], &theme(), None).unwrap();
+        let paint = first_paintable_background(&[Some(&doc.root)], &theme(), None, None).unwrap();
         assert_eq!(paint.image_rel_id.as_deref(), Some("rId9"));
         assert!(paint.color.is_none());
     }
@@ -2537,10 +2562,53 @@ mod tests {
         </p:cSld>"#;
         let doc = parse_xml_str(xml).unwrap();
         let paint =
-            first_paintable_background(&[Some(&doc.root)], &theme(), Some(&scheme)).unwrap();
+            first_paintable_background(&[Some(&doc.root)], &theme(), Some(&scheme), None).unwrap();
         assert_eq!(
             paint.gradient.as_deref(),
             Some("linear-gradient(90.00deg, #4472C4 0%, #0000FF 100%)")
         );
+    }
+
+    #[test]
+    fn master_clr_map_routes_bg1_to_dk2() {
+        // Catches: master clrMap bg1="dk2" ignored so slide chrome paints yellow lt1 instead of blue.
+        use nitro_xml_opc::drawingml::ThemeColorSlot;
+        let mut colors = BTreeMap::new();
+        colors.insert("lt1".to_owned(), "#FFFF00".to_owned());
+        colors.insert("dk1".to_owned(), "#000000".to_owned());
+        colors.insert("dk2".to_owned(), "#0066CC".to_owned());
+        let mut map = ThemeColorMap::new();
+        map.insert("bg1".to_owned(), ThemeColorSlot::Dk2);
+        let shape = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="1" name="Chrome"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+            <a:solidFill><a:schemeClr val="bg1"/></a:solidFill>
+          </p:spPr>
+        </p:sp>"#;
+        let doc = parse_xml_str(shape).unwrap();
+        let mut parse = ctx(&colors);
+        parse.color_map = Some(&map);
+        let el = parse_shape(&doc.root, "s".into(), &parse, false).unwrap();
+        assert_eq!(el.fill_color.as_deref(), Some("#0066CC"));
+
+        let bg = r#"<p:cSld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:bg><p:bgPr><a:solidFill><a:schemeClr val="bg1"/></a:solidFill></p:bgPr></p:bg>
+        </p:cSld>"#;
+        let bg_doc = parse_xml_str(bg).unwrap();
+        let paint =
+            first_paintable_background(&[Some(&bg_doc.root)], &colors, None, Some(&map)).unwrap();
+        assert_eq!(paint.color.as_deref(), Some("#0066CC"));
+
+        let unmapped = shape.replace("val=\"bg1\"", "val=\"tx1\"");
+        let el = parse_shape(
+            &parse_xml_str(&unmapped).unwrap().root,
+            "t".into(),
+            &parse,
+            false,
+        )
+        .unwrap();
+        assert_eq!(el.fill_color.as_deref(), Some("#000000"));
     }
 }

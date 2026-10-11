@@ -21,7 +21,7 @@ use crate::slide::{
     unwrap_alternate_content_deep, DumpElement, ParseCtx, ParsedSpTree, SpTreeOptions, EMU_PER_PX,
 };
 use crate::theme::{default_scheme_color_map, is_presentation_theme_path, parse_theme_part, Theme};
-use nitro_xml_opc::drawingml::ThemeFormatScheme;
+use nitro_xml_opc::drawingml::{parse_theme_color_map, ThemeColorMap, ThemeFormatScheme};
 
 pub type Error = OpcError;
 
@@ -503,6 +503,7 @@ impl<'a> Presentation<'a> {
                     .as_ref()
                     .and_then(|lp| self.find_master_for_layout(lp))
             });
+        let color_map = self.slide_color_map(sld, master_path.as_deref());
         let layout_sp_tree = layout_path.as_ref().and_then(|lp| {
             self.layout_xml
                 .get(lp)
@@ -541,6 +542,7 @@ impl<'a> Presentation<'a> {
             master_placeholder_levels: master_ph,
             master_tx_styles: master_tx,
             theme_colors: Some(&theme_colors),
+            color_map: Some(&color_map),
             format_scheme: format_scheme.as_ref(),
         };
         let id_prefix = format!("{}-", path);
@@ -560,8 +562,13 @@ impl<'a> Presentation<'a> {
             slide_parsed
         };
         let has_notes = self.slide_has_notes(&path)?;
-        let (background_color, background_gradient, background_image) =
-            self.slide_background(sld, &path, layout_path.as_deref(), master_path.as_deref());
+        let (background_color, background_gradient, background_image) = self.slide_background(
+            sld,
+            &path,
+            layout_path.as_deref(),
+            master_path.as_deref(),
+            &color_map,
+        );
         let slide = Slide {
             path,
             layout_path,
@@ -577,6 +584,53 @@ impl<'a> Presentation<'a> {
         };
         self.slides[index] = Some(slide);
         Ok(())
+    }
+
+    /// Master's `p:clrMap`. An empty map means PowerPoint alias defaults.
+    fn master_color_map(&self, master_path: Option<&str>) -> ThemeColorMap {
+        let Some(path) = master_path else {
+            return ThemeColorMap::new();
+        };
+        let Some(master) = self
+            .master_xml
+            .get(path)
+            .and_then(|doc| part_root(&doc.root, "sldMaster"))
+        else {
+            return ThemeColorMap::new();
+        };
+        parse_theme_color_map(child_local(master, "clrMap", ns::P))
+    }
+
+    /// `p:clrMapOvr/a:overrideClrMapping`. `a:masterClrMapping` (and a missing
+    /// override) inherit the master map.
+    fn part_clr_map_override(part: &Element) -> Option<ThemeColorMap> {
+        let ovr = child_local(part, "clrMapOvr", ns::P)?;
+        if child_local(ovr, "masterClrMapping", ns::A).is_some() {
+            return None;
+        }
+        let mapping = child_local(ovr, "overrideClrMapping", ns::A)?;
+        let map = parse_theme_color_map(Some(mapping));
+        if map.is_empty() {
+            None
+        } else {
+            Some(map)
+        }
+    }
+
+    /// Layout `clrMapOvr` replaces the master map for layout and master chrome
+    /// parsed through that layout. Otherwise the master's `p:clrMap`.
+    fn layout_color_map(&self, layout_path: &str, master_path: Option<&str>) -> ThemeColorMap {
+        let override_map = self
+            .layout_xml
+            .get(layout_path)
+            .and_then(|doc| part_root(&doc.root, "sldLayout"))
+            .and_then(Self::part_clr_map_override);
+        override_map.unwrap_or_else(|| self.master_color_map(master_path))
+    }
+
+    /// Slide `clrMapOvr` wins; `a:masterClrMapping` keeps the master map.
+    fn slide_color_map(&self, slide: &Element, master_path: Option<&str>) -> ThemeColorMap {
+        Self::part_clr_map_override(slide).unwrap_or_else(|| self.master_color_map(master_path))
     }
 
     fn theme_colors_owned(&self) -> BTreeMap<String, String> {
@@ -596,6 +650,7 @@ impl<'a> Presentation<'a> {
         slide_path: &str,
         layout_path: Option<&str>,
         master_path: Option<&str>,
+        color_map: &ThemeColorMap,
     ) -> (Option<String>, Option<String>, Option<String>) {
         let theme = self.theme_colors_owned();
         let format_scheme = self.format_scheme_owned();
@@ -615,9 +670,12 @@ impl<'a> Presentation<'a> {
             if owner.is_empty() {
                 continue;
             }
-            if let Some(paint) =
-                first_paintable_background(&[Some(part)], &theme, format_scheme.as_ref())
-            {
+            if let Some(paint) = first_paintable_background(
+                &[Some(part)],
+                &theme,
+                format_scheme.as_ref(),
+                Some(color_map),
+            ) {
                 chosen = Some((owner.to_owned(), paint));
                 break;
             }
@@ -743,7 +801,11 @@ impl<'a> Presentation<'a> {
         Some(cloned)
     }
 
-    fn decorative_elements_for_master(&mut self, master_path: &str) -> Result<ParsedSpTree, Error> {
+    fn decorative_elements_for_master(
+        &mut self,
+        master_path: &str,
+        color_map: &ThemeColorMap,
+    ) -> Result<ParsedSpTree, Error> {
         let master_raw = self
             .package
             .text(master_path)?
@@ -771,6 +833,7 @@ impl<'a> Presentation<'a> {
                 master_placeholder_levels: master_ph,
                 master_tx_styles: master_tx,
                 theme_colors: Some(&theme_colors),
+                color_map: Some(color_map),
                 format_scheme: format_scheme.as_ref(),
             };
             let token = Self::part_token(master_path);
@@ -801,11 +864,7 @@ impl<'a> Presentation<'a> {
             part_root(&doc.root, "sldLayout").ok_or_else(|| missing_part("p:sldLayout"))?;
         let show_master = Self::layout_show_master_shapes(sld_layout);
         let master_path = self.layout_to_master.get(layout_path).cloned();
-        let master_sp_tree = master_path.as_ref().and_then(|mp| {
-            self.master_xml
-                .get(mp)
-                .and_then(|d| Self::sp_tree_from_part_root("sldMaster", d))
-        });
+        let color_map = self.layout_color_map(layout_path, master_path.as_deref());
         let mut parsed = ParsedSpTree {
             elements: Vec::new(),
             other_kinds: Vec::new(),
@@ -813,10 +872,15 @@ impl<'a> Presentation<'a> {
         };
         if show_master {
             if let Some(ref mp) = master_path {
-                let master_parsed = self.decorative_elements_for_master(mp)?;
+                let master_parsed = self.decorative_elements_for_master(mp, &color_map)?;
                 concat_parsed(&mut parsed, master_parsed);
             }
         }
+        let master_sp_tree = master_path.as_ref().and_then(|mp| {
+            self.master_xml
+                .get(mp)
+                .and_then(|d| Self::sp_tree_from_part_root("sldMaster", d))
+        });
         let sp_tree = Self::sp_tree_from_part_root("sldLayout", &doc)
             .ok_or_else(|| missing_part("p:spTree"))?;
         let layout_ph = self.layout_placeholder_levels.get(layout_path);
@@ -838,6 +902,7 @@ impl<'a> Presentation<'a> {
                 master_placeholder_levels: master_ph,
                 master_tx_styles: master_tx,
                 theme_colors: Some(&theme_colors),
+                color_map: Some(&color_map),
                 format_scheme: format_scheme.as_ref(),
             };
             let token = Self::part_token(layout_path);
@@ -1207,5 +1272,48 @@ mod tests {
         assert!(joined.contains(&format!("url({bg})")));
         assert!(joined.contains("src"));
         assert!(joined.contains(&src));
+    }
+
+    // Catches: master clrMap bg1="dk2" ignored so slide chrome paints yellow lt1 instead of blue.
+    #[test]
+    fn header_fixture_chrome_uses_dk2_not_lt1() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/pptx/poi-45541_Header.pptx"
+        );
+        let bytes = std::fs::read(path).expect("poi-45541_Header.pptx");
+        let mut opened = Presentation::open(&bytes).unwrap();
+        let slide = opened.slide(0).unwrap();
+        let bg = slide.background_color.clone().unwrap_or_default();
+        let grad = slide.background_gradient.clone().unwrap_or_default();
+        assert!(
+            is_dk2_blue(&bg) || is_dk2_blue(&grad),
+            "bg={bg} grad={grad}"
+        );
+        assert!(
+            !is_lt1_yellow(&bg) && !is_lt1_yellow(&grad),
+            "bg={bg} grad={grad}"
+        );
+        let paints: Vec<String> = slide
+            .elements
+            .iter()
+            .take(5)
+            .map(|el| {
+                el.fill_color
+                    .clone()
+                    .or(el.fill_gradient.clone())
+                    .unwrap_or_default()
+            })
+            .collect();
+        assert!(paints.iter().any(|p| is_dk2_blue(p)), "{paints:?}");
+        assert!(paints.iter().all(|p| !is_lt1_yellow(p)), "{paints:?}");
+    }
+
+    fn is_dk2_blue(paint: &str) -> bool {
+        paint.contains("0066CC") || paint.contains("0, 102, 204") || paint.contains("#0051A5")
+    }
+
+    fn is_lt1_yellow(paint: &str) -> bool {
+        paint.contains("FFFF00") || paint.contains("255, 255, 0")
     }
 }

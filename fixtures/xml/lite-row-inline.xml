@@ -1,0 +1,1 @@
+<root xmlns="urn:main"><data><row r="1" spans="1:3"><c r="A1" t="inlineStr"><is><t xml:space="preserve"> a &amp; b </t></is></c><c r="B1"><f>SUM(A1:A2)&gt;0</f><v>3</v></c><c r="C1"/></row></data></root>

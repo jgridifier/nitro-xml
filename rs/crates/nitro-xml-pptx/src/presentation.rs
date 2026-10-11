@@ -1198,6 +1198,7 @@ mod tests {
                 scale: 1.0,
                 viewport_w: 800,
                 viewport_h: 600,
+                selected_ids: Vec::new(),
             },
         )
         .unwrap();

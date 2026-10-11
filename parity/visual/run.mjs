@@ -50,15 +50,16 @@ function recordRow(rows, c, row) {
 	return hardFail ? 1 : 0;
 }
 
-async function waitReady(page) {
+async function waitReady(page, timeoutMs = 30_000) {
 	await page.waitForFunction(() => {
 		const el = document.getElementById('stage');
 		return el && (el.dataset.ready === '1' || el.dataset.ready === 'err');
-	}, null, { timeout: 30_000 });
+	}, null, { timeout: timeoutMs });
 	const ready = await page.evaluate(() => document.getElementById('stage')?.dataset.ready);
 	if (ready !== '1') {
 		const title = await page.title();
-		throw new Error(`host not ready: ${title}`);
+		const body = await page.evaluate(() => document.getElementById('stage')?.textContent?.slice(0, 400));
+		throw new Error(`host not ready: ${title}${body ? ` — ${body}` : ''}`);
 	}
 }
 
@@ -69,7 +70,7 @@ async function screenshotSide(browser, base, c, side, dpr) {
 	});
 	const page = await context.newPage();
 	await page.goto(hostUrl(base, c, side), { waitUntil: 'networkidle' });
-	await waitReady(page);
+	await waitReady(page, c.kind === 'xlsx-viewer' ? 60_000 : 30_000);
 	const buf = await page.locator('#stage').screenshot({ type: 'png' });
 	await context.close();
 	return buf;
@@ -82,7 +83,7 @@ async function printPdf(browser, base, c, side) {
 	});
 	const page = await context.newPage();
 	await page.goto(hostUrl(base, c, side), { waitUntil: 'networkidle' });
-	await waitReady(page);
+	await waitReady(page, c.kind === 'xlsx-viewer' ? 60_000 : 30_000);
 	await page.emulateMedia({ media: 'print' });
 	const pdf = await page.pdf({
 		width: `${c.width || 480}px`,

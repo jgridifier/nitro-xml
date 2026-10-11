@@ -58,27 +58,46 @@
       const el = document.createElement('nitro-xlsx');
       el.setAttribute('readonly', '');
       stage.appendChild(el);
+      // Size before open so ResizeObserver / first frame get a real viewport.
+      el.style.width = '100%';
+      el.style.height = '100%';
       await el.loadUrl(fixture);
+      // Force a resize so the canvas backing store matches the stage (RO may miss first layout).
+      if (el.document) {
+        const dpr = window.devicePixelRatio || 1;
+        const w = el.clientWidth || width;
+        const h = el.clientHeight || height;
+        const canvas = el.shadowRoot?.querySelector('canvas');
+        if (canvas) {
+          canvas.width = Math.max(1, (w * dpr) | 0);
+          canvas.height = Math.max(1, (h * dpr) | 0);
+        }
+        el.document.pushEvent({
+          kind: 6, // EventKind.Resize
+          time_ms: performance.now(),
+          width: w,
+          height: h,
+          dpr,
+        });
+      }
       // First paint is async via worker ticks + rAF.
-      for (let i = 0; i < 30; i++) {
+      let painted = false;
+      for (let i = 0; i < 60; i++) {
         await waitFrames(2);
+        const msg = el.shadowRoot?.querySelector('.msg');
+        if (msg && !msg.hidden && msg.textContent) {
+          throw new Error(`nitro-xlsx: ${msg.textContent}`);
+        }
         if (el.document) {
-          try {
-            await el.document.tick();
-          } catch {
-            /* ignore transient tick errors during open */
-          }
+          await el.document.tick();
         }
         const canvas = el.shadowRoot?.querySelector('canvas');
-        if (canvas && canvas.width > 0 && canvas.height > 0) {
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            const sample = ctx.getImageData(0, 0, Math.min(8, canvas.width), Math.min(8, canvas.height));
-            // Any non-transparent pixel means something was drawn (or cleared to white).
-            if (sample.data.length > 0) break;
-          }
+        if (canvas && canvas.width > 1 && canvas.height > 1) {
+          painted = true;
+          break;
         }
       }
+      if (!painted) throw new Error('nitro-xlsx: no canvas paint');
       await waitFrames(3);
     }
 

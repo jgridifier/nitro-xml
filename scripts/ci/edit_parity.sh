@@ -23,16 +23,9 @@ fi
 # Validators (#48): soft-skip inside the harness when tools are absent.
 bash scripts/ci/setup-validators.sh || true
 
-# Pinned upstream submodule (TS oracle).
-git submodule update --init --depth 1 upstream
-export UPSTREAM_DIR="$ROOT/upstream"
-if [ "$(git -C "$UPSTREAM_DIR" rev-parse HEAD)" != e66aaec24adc0b68472eae1fc42aa4598e09c352 ]; then
-  echo "edit-parity: upstream not at pin e66aaec" >&2
-  exit 1
-fi
-if [ ! -d "$UPSTREAM_DIR/src/core/node_modules" ] && [ ! -d "$UPSTREAM_DIR/node_modules" ]; then
-  ( cd "$UPSTREAM_DIR" && bun install )
-fi
+# Pinned upstream + ooxml-core dist (required for `ooxml-core/pptx` package imports).
+# shellcheck source=ensure-upstream-oracle.sh
+. scripts/ci/ensure-upstream-oracle.sh "$ROOT"
 
 echo "edit-parity: installing harness deps"
 ( cd parity/roundtrip && bun install )

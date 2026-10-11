@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Viewer / foundation parity: TS oracle vs Rust (job: parity).
 # Runs fixtures/verify --skip-on-demand, then bun parity/run --ci (xml + opc +
-# xlsx worksheet slice (#16) + docx styles/numbering/theme/settings + pptx
+# xlsx worksheet slice (#16) + docx styles/body model (#20/#21) + pptx
 # presentation model today; later LayoutResult / CellItem flip ready when their
 # dumps land). Visual pixelmatch remains #45.
 #
@@ -58,7 +58,7 @@ if [ "$parity_rc" -ne 0 ] || [ "$test_rc" -ne 0 ]; then
   exit 1
 fi
 
-msg="parity: PASS (xml + opc + xlsx worksheet + docx styles + pptx presentation ready)"
+msg="parity: PASS (xml + opc + xlsx worksheet + docx styles/body + pptx presentation ready)"
 echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"

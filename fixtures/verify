@@ -202,17 +202,24 @@ def main() -> int:
             print(f"parity corpus too small for {fmt}: {n_real} < 30", file=sys.stderr)
             sha_errors += 1
 
-    # Perf: >=3 files per tier per format (counting on_demand unless skipped)
+    # Perf: >=3 files per tier per format.
+    # With --skip-on-demand, L/XL file bytes are not regenerated; still require the
+    # manifest to *list* >=3 redistributable entries per L/XL tier per format.
+    listed: dict[str, Counter] = defaultdict(Counter)
+    for fix in doc["fixtures"]:
+        if fix["redistributable"]:
+            listed[fix["format"]][fix["tier"]] += 1
     for fmt in ("xlsx", "docx", "pptx"):
         for tier in ("S", "M", "L", "XL"):
-            n = tier_counts[fmt][tier]
+            n_checked = tier_counts[fmt][tier]
+            n_listed = listed[fmt][tier]
             if args.skip_on_demand and tier in ("L", "XL"):
-                # Still require the committed tiers
-                if tier == "L" and n < 0:
-                    pass
+                if n_listed < 3:
+                    print(f"tier {fmt}/{tier} lists {n_listed} files (need >=3)", file=sys.stderr)
+                    sha_errors += 1
                 continue
-            if n < 3:
-                print(f"tier {fmt}/{tier} has {n} files (need >=3)", file=sys.stderr)
+            if n_checked < 3:
+                print(f"tier {fmt}/{tier} has {n_checked} files (need >=3)", file=sys.stderr)
                 sha_errors += 1
 
     # Painter coverage

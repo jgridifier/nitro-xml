@@ -27,6 +27,10 @@ const TYPES = {
 	'.ttf': 'font/ttf',
 	'.woff': 'font/woff',
 	'.woff2': 'font/woff2',
+	'.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+	'.pptm': 'application/vnd.ms-powerpoint.presentation.macroEnabled.12',
+	'.potx': 'application/vnd.openxmlformats-officedocument.presentationml.template',
+	'.potm': 'application/vnd.ms-powerpoint.template.macroEnabled.12',
 };
 
 function resolveSafe(base, reqPath) {

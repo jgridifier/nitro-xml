@@ -33,6 +33,17 @@ function hostUrl(base, c, side) {
 		});
 		return `${base}/pages/xlsx-viewer.html?${q}`;
 	}
+	if (c.kind === 'pptx-viewer') {
+		const q = new URLSearchParams({
+			side,
+			id: c.id,
+			fixture: `/repo/${c.fixture}`,
+			width: String(c.width || 960),
+			height: String(c.height || 540),
+			slide: String(c.slide ?? 0),
+		});
+		return `${base}/pages/pptx-viewer.html?${q}`;
+	}
 	const q = new URLSearchParams({
 		kind: c.kind,
 		side,
@@ -41,6 +52,11 @@ function hostUrl(base, c, side) {
 		height: String(c.height || 320),
 	});
 	return `${base}/pages/host.html?${q}`;
+}
+
+function readyTimeoutMs(c) {
+	if (c.kind === 'xlsx-viewer' || c.kind === 'pptx-viewer') return 90_000;
+	return 30_000;
 }
 
 function recordRow(rows, c, row) {
@@ -68,12 +84,30 @@ async function screenshotSide(browser, base, c, side, dpr) {
 		viewport: { width: c.width || 480, height: c.height || 320 },
 		deviceScaleFactor: dpr,
 	});
-	const page = await context.newPage();
-	await page.goto(hostUrl(base, c, side), { waitUntil: 'networkidle' });
-	await waitReady(page, c.kind === 'xlsx-viewer' ? 60_000 : 30_000);
-	const buf = await page.locator('#stage').screenshot({ type: 'png' });
-	await context.close();
-	return buf;
+	try {
+		const page = await context.newPage();
+		await page.goto(hostUrl(base, c, side), { waitUntil: 'networkidle' });
+		await waitReady(page, readyTimeoutMs(c));
+		return await page.locator('#stage').screenshot({ type: 'png' });
+	} finally {
+		await context.close();
+	}
+}
+
+/** Record a host/compare failure without aborting the gate (informational cases). */
+function recordHostError(rows, c, mode, dpr, err) {
+	const reason = String(err && err.message ? err.message : err).slice(0, 240);
+	return recordRow(rows, c, {
+		case: c.id,
+		mode,
+		dpr,
+		ok: false,
+		ratio: 1,
+		mismatched: 1,
+		total: 1,
+		threshold: THRESHOLDS[c.format],
+		reason,
+	});
 }
 
 async function printPdf(browser, base, c, side) {
@@ -83,7 +117,7 @@ async function printPdf(browser, base, c, side) {
 	});
 	const page = await context.newPage();
 	await page.goto(hostUrl(base, c, side), { waitUntil: 'networkidle' });
-	await waitReady(page, c.kind === 'xlsx-viewer' ? 60_000 : 30_000);
+	await waitReady(page, readyTimeoutMs(c));
 	await page.emulateMedia({ media: 'print' });
 	const pdf = await page.pdf({
 		width: `${c.width || 480}px`,
@@ -136,6 +170,7 @@ export async function runVisualGate() {
 	const writeSummary = () => {
 		const deferred = VISUAL_CASES.filter((c) => !c.ready).map((c) => `${c.id}: ${c.todo}`);
 		const hardOk = rows.filter((r) => r.ok || r.informational).length;
+		const pptxTable = buildPptxFixtureTable(rows);
 		const summaryLines = [
 			runError
 				? `visual: FAIL (runner error: ${runError})`
@@ -144,12 +179,27 @@ export async function runVisualGate() {
 				const tag = r.ok ? 'OK' : r.informational ? 'INFO' : 'FAIL';
 				return `  ${tag} ${r.case} ${r.mode} dpr=${r.dpr} mismatch=${(r.ratio * 100).toFixed(4)}% (limit ${(r.threshold * 100).toFixed(2)}%)${r.reason ? ` ${r.reason}` : ''}${r.informational && !r.ok ? ' [informational]' : ''}`;
 			}),
+			...(pptxTable.length
+				? [
+						'',
+						'pptx per-fixture pixel table (ts-vs-rust, informational):',
+						'fixture\tdpr1%\tdpr2%\tdpr1_ok\tdpr2_ok\tnote',
+						...pptxTable,
+					]
+				: []),
 			...(deferred.length ? ['deferred:', ...deferred.map((d) => `  - ${d}`)] : []),
 			`diffs: ${DIFFS}`,
 		];
 		const summary = summaryLines.join('\n');
 		writeFileSync(join(OUT, 'summary.txt'), summary + '\n');
-		writeFileSync(join(OUT, 'results.json'), JSON.stringify({ failed, rows, deferred, error: runError ? String(runError) : null }, null, 2));
+		writeFileSync(
+			join(OUT, 'results.json'),
+			JSON.stringify(
+				{ failed, rows, deferred, pptxTable, error: runError ? String(runError) : null },
+				null,
+				2,
+			),
+		);
 		console.log(summary);
 	};
 
@@ -160,49 +210,61 @@ export async function runVisualGate() {
 
 		// Harness self-check: TS-vs-TS at DPR 1 for every ready case (acceptance: green before Rust).
 		for (const c of readyCases()) {
-			const a = await screenshotSide(browser, server.url, c, 'ts', 1);
-			const b = await screenshotSide(browser, server.url, c, 'ts', 1);
-			writeFileSync(join(SHOTS, `${c.id}-ts-dpr1-a.png`), a);
-			writeFileSync(join(SHOTS, `${c.id}-ts-dpr1-b.png`), b);
-			const cmp = comparePngBuffers(a, b, {
-				format: c.format,
-				diffPath: join(DIFFS, `${c.id}-ts-vs-ts-dpr1.png`),
-			});
-			failed += recordRow(rows, c, {
-				case: c.id,
-				mode: 'ts-vs-ts',
-				dpr: 1,
-				ok: cmp.ok,
-				ratio: cmp.ratio,
-				mismatched: cmp.mismatched,
-				total: cmp.total,
-				threshold: THRESHOLDS[c.format],
-			});
-		}
-
-		for (const c of readyCases()) {
-			if (!c.rust) continue;
-			for (const dpr of [1, 2]) {
-				const ts = await screenshotSide(browser, server.url, c, 'ts', dpr);
-				const rust = await screenshotSide(browser, server.url, c, 'rust', dpr);
-				writeFileSync(join(SHOTS, `${c.id}-ts-dpr${dpr}.png`), ts);
-				writeFileSync(join(SHOTS, `${c.id}-rust-dpr${dpr}.png`), rust);
-				const cmp = comparePngBuffers(ts, rust, {
+			try {
+				const a = await screenshotSide(browser, server.url, c, 'ts', 1);
+				const b = await screenshotSide(browser, server.url, c, 'ts', 1);
+				writeFileSync(join(SHOTS, `${c.id}-ts-dpr1-a.png`), a);
+				writeFileSync(join(SHOTS, `${c.id}-ts-dpr1-b.png`), b);
+				const cmp = comparePngBuffers(a, b, {
 					format: c.format,
-					diffPath: join(DIFFS, `${c.id}-ts-vs-rust-dpr${dpr}.png`),
+					diffPath: join(DIFFS, `${c.id}-ts-vs-ts-dpr1.png`),
 				});
 				failed += recordRow(rows, c, {
 					case: c.id,
-					mode: 'ts-vs-rust',
-					dpr,
+					mode: 'ts-vs-ts',
+					dpr: 1,
 					ok: cmp.ok,
 					ratio: cmp.ratio,
 					mismatched: cmp.mismatched,
 					total: cmp.total,
 					threshold: THRESHOLDS[c.format],
-					reason: cmp.reason,
 				});
+			} catch (err) {
+				if (c.informational) failed += recordHostError(rows, c, 'ts-vs-ts', 1, err);
+				else throw err;
 			}
+		}
+
+		for (const c of readyCases()) {
+			if (!c.rust) continue;
+			for (const dpr of [1, 2]) {
+				try {
+					const ts = await screenshotSide(browser, server.url, c, 'ts', dpr);
+					const rust = await screenshotSide(browser, server.url, c, 'rust', dpr);
+					writeFileSync(join(SHOTS, `${c.id}-ts-dpr${dpr}.png`), ts);
+					writeFileSync(join(SHOTS, `${c.id}-rust-dpr${dpr}.png`), rust);
+					const cmp = comparePngBuffers(ts, rust, {
+						format: c.format,
+						diffPath: join(DIFFS, `${c.id}-ts-vs-rust-dpr${dpr}.png`),
+					});
+					failed += recordRow(rows, c, {
+						case: c.id,
+						mode: 'ts-vs-rust',
+						dpr,
+						ok: cmp.ok,
+						ratio: cmp.ratio,
+						mismatched: cmp.mismatched,
+						total: cmp.total,
+						threshold: THRESHOLDS[c.format],
+						reason: cmp.reason,
+					});
+				} catch (err) {
+					if (c.informational) failed += recordHostError(rows, c, 'ts-vs-rust', dpr, err);
+					else throw err;
+				}
+			}
+
+			if (c.skipPrint) continue;
 
 			// Print-to-PDF: emit PDFs, rasterize page 1, pixelmatch.
 			const tsPdf = await printPdf(browser, server.url, c, 'ts');
@@ -239,6 +301,31 @@ export async function runVisualGate() {
 		writeSummary();
 	}
 	return { ok: failed === 0 && !runError, rows, summary: '' };
+}
+
+/** One TSV row per pptx fixture with DPR1/DPR2 mismatch percents for the artifact. */
+function buildPptxFixtureTable(rows) {
+	/** @type {Map<string, { d1?: object, d2?: object }>} */
+	const byCase = new Map();
+	for (const r of rows) {
+		if (!String(r.case).startsWith('pptx-')) continue;
+		if (r.mode !== 'ts-vs-rust') continue;
+		let slot = byCase.get(r.case);
+		if (!slot) {
+			slot = {};
+			byCase.set(r.case, slot);
+		}
+		if (r.dpr === 1) slot.d1 = r;
+		else if (r.dpr === 2) slot.d2 = r;
+	}
+	const ids = [...byCase.keys()].sort();
+	return ids.map((id) => {
+		const { d1, d2 } = byCase.get(id);
+		const pct = (r) => (r ? (r.ratio * 100).toFixed(4) : '');
+		const ok = (r) => (r ? (r.ok ? 'OK' : 'INFO') : '');
+		const note = [d1?.reason, d2?.reason].filter(Boolean).join('; ').replace(/\t/g, ' ');
+		return `${id}\t${pct(d1)}\t${pct(d2)}\t${ok(d1)}\t${ok(d2)}\t${note}`;
+	});
 }
 
 if (import.meta.main) {

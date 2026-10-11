@@ -126,9 +126,11 @@ async function prepareXlsxViewIr(c) {
 
 function ensureUpstreamBuilt() {
 	const up = upstreamDir();
-	const coreDist = join(up, 'src/core/dist/xlsx');
-	const uiDist = join(up, 'src/ui/dist/xlsx.js');
-	if (!existsSync(coreDist)) {
+	const coreXlsx = join(up, 'src/core/dist/xlsx');
+	const corePptx = join(up, 'src/core/dist/pptx');
+	const uiXlsx = join(up, 'src/ui/dist/xlsx.js');
+	const uiPptxDom = join(up, 'src/ui/dist/pptx/dom/index.mjs');
+	if (!existsSync(coreXlsx) || !existsSync(corePptx)) {
 		console.log('visual prepare: building upstream ooxml-core');
 		const r = spawnSync('bun', ['run', '--cwd', 'src/core', 'build'], {
 			cwd: up,
@@ -137,7 +139,7 @@ function ensureUpstreamBuilt() {
 		});
 		if (r.status !== 0) throw new Error(`ooxml-core build: ${r.stderr || r.stdout}`);
 	}
-	if (!existsSync(uiDist)) {
+	if (!existsSync(uiXlsx) || !existsSync(uiPptxDom)) {
 		console.log('visual prepare: building upstream ooxml-ui');
 		const r = spawnSync('bun', ['run', '--cwd', 'src/ui', 'build'], {
 			cwd: up,
@@ -182,14 +184,53 @@ function prepareXlsxViewer(c) {
 	// Fixture is served live via /repo/; no IR payload.
 }
 
+function preparePptxSlideBundle() {
+	ensureUpstreamBuilt();
+	const bundleDir = join(VISUAL, 'out/bundles');
+	mkdirSync(bundleDir, { recursive: true });
+	const entry = join(VISUAL, 'hosts/pptx-slide-entry.mjs');
+	const outFile = join(bundleDir, 'pptx-slide.js');
+	if (existsSync(outFile)) {
+		const entryStat = spawnSync('stat', ['-c', '%Y', entry], { encoding: 'utf8' });
+		const outStat = spawnSync('stat', ['-c', '%Y', outFile], { encoding: 'utf8' });
+		if (
+			entryStat.status === 0 &&
+			outStat.status === 0 &&
+			Number(outStat.stdout.trim()) >= Number(entryStat.stdout.trim())
+		) {
+			return;
+		}
+	}
+	console.log('visual prepare: bundling upstream pptx slide stage for browser host');
+	const r = spawnSync(
+		'bun',
+		['build', entry, '--outfile', outFile, '--format', 'esm', '--target', 'browser'],
+		{ cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+	);
+	if (r.status !== 0) throw new Error(`pptx-slide bundle: ${r.stderr || r.stdout}`);
+}
+
+function preparePptxViewer(c) {
+	const file = join(ROOT, c.fixture);
+	if (!existsSync(file)) throw new Error(`missing fixture ${c.fixture}`);
+	preparePptxSlideBundle();
+}
+
 export async function prepareAll() {
 	mkdirSync(OUT, { recursive: true });
 	preparePinnedFonts();
+	let pptxBundleDone = false;
 	for (const c of readyCases()) {
 		if (c.kind === 'chart-svg') prepareChart(c);
 		else if (c.kind === 'xlsx-view-ir') await prepareXlsxViewIr(c);
 		else if (c.kind === 'xlsx-viewer') prepareXlsxViewer(c);
-		else throw new Error(`prepare: unknown kind for ${c.id}`);
+		else if (c.kind === 'pptx-viewer') {
+			if (!pptxBundleDone) {
+				preparePptxSlideBundle();
+				pptxBundleDone = true;
+			}
+			preparePptxViewer(c);
+		} else throw new Error(`prepare: unknown kind for ${c.id}`);
 		console.log(`visual prepare: ${c.id}`);
 	}
 }

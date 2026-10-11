@@ -11,8 +11,10 @@ use std::collections::HashMap;
 
 /// Batched text-measurement requests (fonts/measurement follow upstream).
 ///
-/// The loader applies `measureText` for each pending request and calls
-/// [`MeasureBatch::set_results`].
+/// Requests are **taken** when the frame leaves wasm (same pattern as
+/// [`LayoutReadBatch`]). The loader applies `measureText` for each taken
+/// request and calls [`MeasureBatch::set_results`]. Resolved widths are cached
+/// by `(font_id, text_id)` for the next paint pass (#154).
 #[derive(Debug, Default)]
 pub struct MeasureBatch {
     pub font_id: Vec<u32>,
@@ -21,6 +23,11 @@ pub struct MeasureBatch {
     pub widths: Vec<f64>,
     /// Last resolved widths keyed by `(font_id, text_id)` for the next paint pass.
     pub cache: HashMap<(u32, u32), f64>,
+    /// Requests taken and awaiting a reply (0 when idle).
+    awaiting: usize,
+    /// Font/text ids for the in-flight take (cache keys on [`Self::set_results`]).
+    inflight_font: Vec<u32>,
+    inflight_text: Vec<u32>,
 }
 
 /// Length mismatch between pending requests and loader widths.
@@ -51,27 +58,58 @@ impl MeasureBatch {
         self.font_id.is_empty()
     }
 
+    pub fn awaiting(&self) -> usize {
+        self.awaiting
+    }
+
     pub fn push(&mut self, font_id: u32, size_px: f32, text_id: u32) {
         self.font_id.push(font_id);
         self.size_px.push(size_px);
         self.text_id.push(text_id);
     }
 
+    /// Drop queued (not yet taken) requests. Does not touch awaiting widths.
+    pub fn clear_pending(&mut self) {
+        self.font_id.clear();
+        self.size_px.clear();
+        self.text_id.clear();
+    }
+
+    /// Move pending requests out for the loader; record how many replies are due.
+    pub fn take_requests(&mut self) -> (Vec<u32>, Vec<f32>, Vec<u32>) {
+        let font_id = std::mem::take(&mut self.font_id);
+        let size_px = std::mem::take(&mut self.size_px);
+        let text_id = std::mem::take(&mut self.text_id);
+        self.awaiting = font_id.len();
+        self.inflight_font = font_id.clone();
+        self.inflight_text = text_id.clone();
+        (font_id, size_px, text_id)
+    }
+
     pub fn set_results(&mut self, widths: &[f64]) -> Result<(), MeasureError> {
-        if widths.len() != self.font_id.len() {
+        // Stale / overlapping-tick replies after the batch is idle: ignore.
+        if self.awaiting == 0 {
+            return Ok(());
+        }
+        if widths.len() != self.awaiting {
             return Err(MeasureError {
-                expected: self.font_id.len(),
+                expected: self.awaiting,
                 got: widths.len(),
             });
         }
-        for ((&font_id, &text_id), &width) in self.font_id.iter().zip(&self.text_id).zip(widths) {
+        for ((&font_id, &text_id), &width) in self
+            .inflight_font
+            .iter()
+            .zip(&self.inflight_text)
+            .zip(widths)
+        {
             self.cache.insert((font_id, text_id), width);
         }
         self.widths.clear();
         self.widths.extend_from_slice(widths);
-        self.font_id.clear();
-        self.size_px.clear();
-        self.text_id.clear();
+        self.awaiting = 0;
+        self.inflight_font.clear();
+        self.inflight_text.clear();
         Ok(())
     }
 
@@ -83,7 +121,7 @@ impl MeasureBatch {
 /// Post-apply layout read-back kinds (loader README / `docs/boundary.md`).
 ///
 /// Requests are keyed by command-buffer node id. The loader answers the whole
-/// batch on the **next** frame after `applyCommandBuffer` — never one call per
+/// batch on the next frame after `applyCommandBuffer` — never one call per
 /// element. Used by docx span probes, pptx autofit, and P5 `naturalWidth`.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -171,6 +209,13 @@ impl LayoutReadBatch {
         self.prop_id.push(prop_id);
     }
 
+    /// Drop queued (not yet taken) requests. Does not touch awaiting values.
+    pub fn clear_pending(&mut self) {
+        self.node_id.clear();
+        self.kind.clear();
+        self.prop_id.clear();
+    }
+
     /// Move pending requests out for the loader; record how many replies are due.
     pub fn take_requests(&mut self) -> (Vec<u32>, Vec<u8>, Vec<u32>) {
         let node_id = std::mem::take(&mut self.node_id);
@@ -205,10 +250,53 @@ mod tests {
         let mut m = MeasureBatch::new();
         m.push(1, 11.0, 2);
         m.push(1, 11.0, 3);
+        let (fonts, sizes, texts) = m.take_requests();
+        assert_eq!(fonts.len(), 2);
+        assert_eq!(sizes.len(), 2);
+        assert_eq!(texts.len(), 2);
+        assert_eq!(m.len(), 0);
+        assert_eq!(m.awaiting(), 2);
         assert!(m.set_results(&[1.0]).is_err());
         assert!(m.set_results(&[1.0, 2.0]).is_ok());
         assert_eq!(m.widths, vec![1.0, 2.0]);
-        assert_eq!(m.len(), 0);
+        assert_eq!(m.awaiting(), 0);
+        assert_eq!(m.cached_width(1, 2), Some(1.0));
+        assert_eq!(m.cached_width(1, 3), Some(2.0));
+    }
+
+    #[test]
+    fn measure_take_isolates_reply_from_next_frame_queue() {
+        // Catches: overlapping ticks appending new measure reqs before set_results
+        // must not change the awaiting count for the in-flight reply (#27 pptx).
+        let mut m = MeasureBatch::new();
+        m.push(1, 12.0, 10);
+        m.push(1, 12.0, 11);
+        m.push(1, 12.0, 12);
+        m.push(1, 12.0, 13);
+        let _taken = m.take_requests();
+        assert_eq!(m.awaiting(), 4);
+        // Next frame queues a different count while the first reply is in flight.
+        m.push(1, 14.0, 20);
+        m.push(1, 14.0, 21);
+        assert_eq!(m.len(), 2);
+        assert_eq!(m.awaiting(), 4);
+        assert!(m.set_results(&[1.0, 2.0, 3.0, 4.0]).is_ok());
+        assert_eq!(m.awaiting(), 0);
+        assert_eq!(m.len(), 2);
+    }
+
+    #[test]
+    fn measure_ignores_stale_results_when_idle() {
+        // Catches: late measure-results after awaiting==0 must not error
+        // (expected 0, got N) on overlapping DPR2 ticks (#27 pptx).
+        let mut m = MeasureBatch::new();
+        m.push(1, 12.0, 10);
+        let _ = m.take_requests();
+        assert!(m.set_results(&[3.5]).is_ok());
+        assert_eq!(m.awaiting(), 0);
+        assert!(m.set_results(&[1.0, 2.0, 3.0]).is_ok());
+        assert_eq!(m.awaiting(), 0);
+        assert_eq!(m.widths, vec![3.5]);
     }
 
     #[test]

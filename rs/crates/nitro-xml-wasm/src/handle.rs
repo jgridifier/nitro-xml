@@ -661,7 +661,7 @@ impl Handle {
         self.measures.push(font_id, size_px, text_id);
     }
 
-    /// Number of pending measure requests.
+    /// Number of pending (not yet taken) measure requests.
     #[wasm_bindgen(getter, js_name = measureCount)]
     pub fn measure_count(&self) -> usize {
         self.measures.len()
@@ -682,7 +682,20 @@ impl Handle {
         self.measures.text_id.as_ptr()
     }
 
-    /// Loader writes measured widths back (one `f64` per pending request).
+    /// Take pending measure requests for the loader (clears the queue).
+    ///
+    /// Returns a JS array `[Uint32Array fonts, Float32Array sizes, Uint32Array texts]`.
+    #[wasm_bindgen(js_name = takeMeasureReqs)]
+    pub fn take_measure_reqs(&mut self) -> Array {
+        let (fonts, sizes, texts) = self.measures.take_requests();
+        let out = Array::new();
+        out.push(&js_sys::Uint32Array::from(fonts.as_slice()).into());
+        out.push(&js_sys::Float32Array::from(sizes.as_slice()).into());
+        out.push(&js_sys::Uint32Array::from(texts.as_slice()).into());
+        out
+    }
+
+    /// Loader writes measured widths back (one `f64` per taken/awaiting request).
     #[wasm_bindgen(js_name = setMeasureResults)]
     pub fn set_measure_results(&mut self, widths: &[f64]) -> Result<(), JsValue> {
         self.measures.set_results(widths).map_err(|e| {

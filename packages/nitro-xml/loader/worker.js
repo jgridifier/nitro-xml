@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 import {
 initCore,
-getWasmMemory,
 unsupportedFormatError,
 } from "./bootstrap.js";
 import { isSupportedExtension } from "./formats.js";
@@ -59,15 +58,12 @@ break;
 case "take-frame": {
 if (!handle) throw new Error("no document");
 handle.prepareFrame();
-const measureCount = handle.measureCount;
 let measureReqs = null;
-const mem = getWasmMemory();
-if (measureCount > 0 && mem) {
-measureReqs = {
-fonts: new Uint32Array(mem.buffer, handle.measureFontPtr, measureCount).slice(),
-sizes: new Float32Array(mem.buffer, handle.measureSizePtr, measureCount).slice(),
-texts: new Uint32Array(mem.buffer, handle.measureTextPtr, measureCount).slice(),
-};
+let measureCount = 0;
+if ((handle.measureCount | 0) > 0) {
+const t = handle.takeMeasureReqs();
+measureReqs = { fonts: t[0], sizes: t[1], texts: t[2] };
+measureCount = measureReqs.fonts.length;
 }
 const exported = handle.exportStrings();
 const strings = {};

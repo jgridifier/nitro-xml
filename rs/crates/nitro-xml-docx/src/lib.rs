@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT AND Apache-2.0
+// SPDX-License-Identifier: MIT
 //! Word (.docx) styles, numbering, theme and settings (Stage 4 port of ChristopherVR/ooxml@e66aaec).
 
 mod borders;

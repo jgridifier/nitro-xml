@@ -117,6 +117,61 @@ async function pptxLogicalTexts(fixtureRel) {
 	return { rustText, tsText };
 }
 
+/** Concatenated logical fragment text from docx LayoutResult dumps. */
+async function docxLogicalTexts(fixtureRel) {
+	const bin = join(ROOT, 'rs/target/release/examples/docx_layout_dump');
+	if (!existsSync(bin)) {
+		const r = spawnSync(
+			'cargo',
+			['build', '--release', '-q', '-p', 'nitro-xml-docx', '--example', 'docx_layout_dump'],
+			{ cwd: join(ROOT, 'rs'), encoding: 'utf8' },
+		);
+		if (r.status !== 0) throw new Error(`docx_layout_dump build: ${r.stderr || r.stdout}`);
+	}
+	const rust = spawnSync(bin, [join(ROOT, fixtureRel)], {
+		encoding: 'utf8',
+		maxBuffer: 16 * 1024 * 1024,
+	});
+	if (rust.status !== 0) throw new Error(`docx_layout_dump: ${rust.stderr || rust.stdout}`);
+	const rustText = fragmentText(JSON.parse(rust.stdout));
+
+	const { dumpDocxViewIr } = await import(join(ROOT, 'parity/oracle/docx.ts'));
+	const tsIr = await dumpDocxViewIr(join(ROOT, fixtureRel));
+	return { rustText, tsText: fragmentText(tsIr) };
+}
+
+function fragmentText(ir) {
+	const lines = [];
+	const paras = [];
+	const walkPara = (p) => {
+		if (!p) return;
+		const text = (p.lines || [])
+			.map((line) => (line.fragments || []).map((f) => f.text || '').join(''))
+			.join('');
+		if (text) paras.push(text);
+	};
+	const walkBlock = (block) => {
+		if (!block) return;
+		if (block.kind === 'table') {
+			for (const row of block.rows || []) {
+				for (const cell of row.cells || []) {
+					for (const p of cell || []) walkPara(p);
+				}
+			}
+		} else walkPara(block);
+	};
+	for (const page of ir.pages || []) {
+		for (const col of page.columns || []) {
+			for (const block of col.blocks || []) walkBlock(block);
+		}
+		for (const note of page.footnotes || []) {
+			for (const p of note.paragraphs || []) walkPara(p);
+		}
+	}
+	if (paras.length) lines.push(...paras);
+	return lines.join('\n');
+}
+
 /**
  * @returns {Promise<{ ok: boolean, rows: object[], summary: string }>}
  */
@@ -146,6 +201,31 @@ export async function runCopyChecks() {
 					expected,
 				});
 			}
+		} else if (c.format === 'docx') {
+			const { rustText, tsText } = await docxLogicalTexts(c.fixture);
+			const need = [LOGICAL.AR, LOGICAL.HE, LOGICAL.HE.split(' ')[0], LOGICAL.AR.split(' ')[0]];
+			const ordered = (text) => {
+				let at = 0;
+				for (const part of need) {
+					const i = text.indexOf(part, at);
+					if (i < 0) return false;
+					at = i + part.length;
+				}
+				return true;
+			};
+			const rustOk = ordered(rustText);
+			const tsOk = ordered(tsText);
+			const ok = rustOk && tsOk;
+			if (!ok) failed++;
+			rows.push({
+				case: c.id,
+				kind: 'docx-fragment-text',
+				ok,
+				rust: rustText,
+				ts: tsText.slice(0, 200),
+				expected: need.join(' | '),
+				note: c.todo || 'logical fragment order',
+			});
 		} else if (c.format === 'pptx') {
 			const { rustText, tsText } = await pptxLogicalTexts(c.fixture);
 			const expected = [LOGICAL.AR, LOGICAL.HE, `Hello ${LOGICAL.HE.split(' ')[0]} world ${LOGICAL.AR.split(' ')[0]}`].join(

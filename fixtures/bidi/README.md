@@ -10,7 +10,7 @@ short public-domain sample phrases in logical storage order.
 | `arabic-hebrew-mixed.xlsx` | xlsx | Mixed-direction cell values (Arabic, Hebrew, LTR/RTL mix, numbers) |
 | `rtl-sheet.xlsx` | xlsx | Same RTL scripts on a sheet with `sheetView/@rightToLeft=1` |
 | `arabic-hebrew-slides.pptx` | pptx | RTL paragraphs (`a:pPr/@rtl`) plus a mixed LTR/RTL run |
-| `DOCX_DEFERRED.md` | — | docx cases stay `ready: false` until Print Layout paint (#23) |
+| `arabic-hebrew-paragraphs.docx` | docx | RTL paragraphs (`w:bidi` / `w:rtl`) plus a mixed LTR/RTL paragraph |
 
 Regenerate:
 

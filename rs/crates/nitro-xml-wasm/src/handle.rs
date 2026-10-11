@@ -7,6 +7,7 @@
 //! reference without an explicit free. Crash recovery reloads into a fresh
 //! worker (PRODUCT_SPEC.md §5(e)).
 
+use crate::docx::{is_docx_extension, DocxState};
 use crate::events::{self, EventQueue};
 use crate::pptx::{is_pptx_extension, PptxState};
 use crate::shell::{
@@ -22,6 +23,15 @@ fn process_frame(handle: &mut Handle) {
         crate::pptx::process_frame(handle);
         if let Some(pptx) = handle.pptx.as_ref() {
             let idx = pptx.active as u32;
+            if handle.shell.nav_index != idx {
+                handle.shell.nav_index = idx;
+                handle.shell.dirty_ui = true;
+            }
+        }
+    } else if handle.docx.is_some() {
+        crate::docx::process_frame(handle);
+        if let Some(docx) = handle.docx.as_ref() {
+            let idx = docx.active as u32;
             if handle.shell.nav_index != idx {
                 handle.shell.nav_index = idx;
                 handle.shell.dirty_ui = true;
@@ -139,6 +149,7 @@ pub struct Handle {
     pub(crate) events: EventQueue,
     pub(crate) xlsx: Option<XlsxState>,
     pub(crate) pptx: Option<PptxState>,
+    pub(crate) docx: Option<DocxState>,
     pub(crate) shell: ShellState,
     #[cfg(feature = "bench")]
     pub(crate) grid: crate::bench::SyntheticGrid,
@@ -163,6 +174,7 @@ impl Handle {
             events: EventQueue::new(),
             xlsx: None,
             pptx: None,
+            docx: None,
             shell: ShellState::default(),
             #[cfg(feature = "bench")]
             grid: crate::bench::SyntheticGrid::new(),
@@ -207,6 +219,7 @@ impl Handle {
             }
             self.xlsx = Some(state);
             self.pptx = None;
+            self.docx = None;
             self.shell.diagnostics.parse_ms = now_ms() - t0;
             let t1 = now_ms();
             process_frame(self);
@@ -230,6 +243,31 @@ impl Handle {
             );
             self.pptx = Some(state);
             self.xlsx = None;
+            self.docx = None;
+            self.shell.diagnostics.parse_ms = now_ms() - t0;
+            let t1 = now_ms();
+            process_frame(self);
+            self.shell.diagnostics.paint_ms = now_ms() - t1;
+            self.shell.dirty_ui = true;
+            return Ok(());
+        }
+        if is_docx_extension(name) {
+            let t0 = now_ms();
+            let state = DocxState::open(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            self.shell = ShellState::default();
+            self.shell.format = FormatKind::Docx;
+            self.shell.diagnostics.clear_runtime();
+            for w in &state.session.warnings {
+                self.shell
+                    .diagnostics
+                    .ingest_warning("docx_warning", w, None);
+                self.push_warning("docx_warning".into(), w.clone(), None);
+            }
+            self.shell.set_tabs(state.page_tabs(), state.active as u32);
+            self.docx = Some(state);
+            self.xlsx = None;
+            self.pptx = None;
             self.shell.diagnostics.parse_ms = now_ms() - t0;
             let t1 = now_ms();
             process_frame(self);
@@ -258,6 +296,9 @@ impl Handle {
         if self.pptx.is_some() {
             return "pptx".into();
         }
+        if self.docx.is_some() {
+            return "docx".into();
+        }
         String::new()
     }
 
@@ -277,6 +318,13 @@ impl Handle {
             xlsx.set_active_sheet(&self.bytes, index as usize)
                 .map_err(|e| JsValue::from(OoxmlError::with_code("bad_sheet", e)))?;
             self.xlsx = Some(xlsx);
+            process_frame(self);
+            return Ok(());
+        }
+        if let Some(mut docx) = self.docx.take() {
+            docx.set_active_page(index as usize)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("bad_page", e)))?;
+            self.docx = Some(docx);
             process_frame(self);
             return Ok(());
         }
@@ -445,6 +493,11 @@ impl Handle {
             if let Some(pptx) = self.pptx.as_mut() {
                 pptx.set_active_slide(idx as usize)
                     .map_err(|e| JsValue::from(OoxmlError::with_code("bad_slide", e)))?;
+                self.shell.nav_index = idx;
+            }
+            if let Some(docx) = self.docx.as_mut() {
+                docx.set_active_page(idx as usize)
+                    .map_err(|e| JsValue::from(OoxmlError::with_code("bad_page", e)))?;
                 self.shell.nav_index = idx;
             }
         }

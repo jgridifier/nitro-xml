@@ -4,7 +4,7 @@
  *
  * xlsx: visual (view-IR host from #45) + logical-order shell copy.
  * pptx: logical model text (shell copy is empty until pptx clipboard lands).
- * docx: registered, not ready until #23.
+ * docx: logical fragment text from LayoutResult dumps (#23).
  */
 
 /** @typedef {'xlsx'|'docx'|'pptx'} BidiFormat */
@@ -81,8 +81,11 @@ export const BIDI_CASES = [
 	{
 		id: 'docx-rtl-paragraphs',
 		format: 'docx',
-		ready: false,
-		todo: 'Register RTL/mixed docx fixture when Print Layout paint hosts (#23).',
+		ready: true,
+		fixture: 'fixtures/bidi/arabic-hebrew-paragraphs.docx',
+		visual: true,
+		width: 800,
+		height: 600,
 	},
 ];
 

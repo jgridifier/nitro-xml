@@ -48,3 +48,18 @@ pub use measure::{
 pub use result::LayoutResult;
 pub use review_display::LayoutReviewOptions;
 pub use session::{LayoutSession, TickStatus};
+
+// Reachable from the Print Layout painter (`render/print`) without widening the public dump API.
+pub(crate) use adapt_floats::paragraph_floats;
+pub(crate) use floats::float_position;
+pub(crate) use fonts::css_font_stack;
+pub(crate) use input::{LayoutBorder, LayoutChart, LayoutFloat, LayoutParagraphBorder};
+pub(crate) use layout_ligatures::ligature_css;
+pub(crate) use page_fields::{
+    field_display_text, page_number_values, page_numbers, PageFieldContext,
+};
+pub(crate) use result::{
+    LayoutBlockBox, LayoutCellGeometry, LayoutColumnBox, LayoutFragment, LayoutLine, LayoutPageBox,
+    LayoutParagraphBox, LayoutParagraphFrame, LayoutTableBox, LayoutTableRowBox,
+};
+pub(crate) use units::DEFAULT_FONT_SIZE_PT;

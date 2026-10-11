@@ -82,6 +82,10 @@ pub struct LayoutParagraphFrame {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LayoutParagraphBox {
+    /// Set by the layout engine. The enum tag on [`LayoutBlockBox`] owns the JSON `kind`
+    /// so column blocks round-trip through serde (an internally tagged enum cannot also
+    /// carry a struct field of the same name).
+    #[serde(skip)]
     pub kind: String,
     pub block_id: String,
     pub y_px: f64,
@@ -121,6 +125,8 @@ pub struct LayoutTableRowBox {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LayoutTableBox {
+    /// See [`LayoutParagraphBox::kind`].
+    #[serde(skip)]
     pub kind: String,
     pub block_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]

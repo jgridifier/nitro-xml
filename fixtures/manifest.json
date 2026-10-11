@@ -86,6 +86,29 @@
   "painter_rows_missing": [],
   "fixtures": [
     {
+      "id": "bidi-arabic-hebrew-paragraphs",
+      "format": "docx",
+      "path": "fixtures/bidi/arabic-hebrew-paragraphs.docx",
+      "sha256": "6784ba4ede8aabad7bf995cdf210bbc20c24226677736c59cf9b0018611ce3a8",
+      "bytes": 2555,
+      "tier": "S",
+      "source": "generated",
+      "licence": "MIT",
+      "features": [
+        "arabic",
+        "bidi",
+        "generated",
+        "hebrew",
+        "mixed-direction"
+      ],
+      "redistributable": true,
+      "on_demand": false,
+      "generator": {
+        "tool": "fixtures/bidi/generate.py",
+        "id": "arabic-hebrew-paragraphs"
+      }
+    },
+    {
       "id": "gen-docx-equation",
       "format": "docx",
       "path": "fixtures/generated/docx/painter_equation.docx",

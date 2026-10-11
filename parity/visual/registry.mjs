@@ -3,13 +3,13 @@
  * Visual-gate case registry (#45).
  *
  * Add a row and a prepare/host path when a format's first paint is ready.
- * docx stays `ready: false` until its painters ship. pptx cases are generated
- * from the fixture corpus (see pptx-corpus.mjs, #27).
+ * pptx cases are generated from the fixture corpus (see pptx-corpus.mjs, #27).
+ * docx Print Layout IR is hosted via `docx-layout-ir` (#23 / #158).
  */
 
 import { pptxVisualCorpus } from './pptx-corpus.mjs';
 
-/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'pptx-viewer'} VisualKind */
+/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'pptx-viewer' | 'docx-layout-ir'} VisualKind */
 
 /**
  * @typedef {object} VisualCase
@@ -63,10 +63,14 @@ const STATIC_CASES = [
 		rust: true,
 	},
 	{
-		id: 'docx',
+		id: 'docx-bidi-paragraphs',
 		format: 'docx',
-		ready: false,
-		todo: 'Register when docx Print Layout paint is hosted (after renderer port).',
+		kind: 'docx-layout-ir',
+		ready: true,
+		fixture: 'fixtures/bidi/arabic-hebrew-paragraphs.docx',
+		width: 800,
+		height: 600,
+		rust: true,
 	},
 ];
 

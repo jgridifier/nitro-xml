@@ -23,6 +23,7 @@
   <div id="stage" data-ready="0"></div>
   <script type="module">
     import { paintViewIr } from '../painters/view-ir.js';
+    import { paintDocxLayout } from '../painters/docx-layout.js';
 
     const params = new URLSearchParams(location.search);
     const kind = params.get('kind');
@@ -60,6 +61,10 @@
         const canvas = document.createElement('canvas');
         stage.appendChild(canvas);
         paintViewIr(canvas, ir, { width, height });
+      } else if (kind === 'docx-layout-ir') {
+        const ir = await loadJson(`/out/payloads/${id}-${side}.json`);
+        stage.style.overflow = 'hidden';
+        paintDocxLayout(stage, ir);
       } else {
         throw new Error(`unknown kind ${kind}`);
       }

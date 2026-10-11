@@ -21,12 +21,12 @@ fn esc(s: &str) -> String {
 
 /// Hotkey table embedded in chrome (`data-hk`). Loader matches keydown against it.
 const HOTKEYS: &str = "mf:find-open|mc:copy|m=:zoom-in|m+:zoom-in|m-:zoom-out|Escape:find-close|qEnter:find-next|qSEnter:find-prev|qEscape:find-close";
-/// Pptx also binds arrow/page keys to slide navigation (xlsx keeps arrows for the grid).
+/// Pptx and docx bind arrow/page keys to page navigation (xlsx keeps arrows for the grid).
 const PPTX_NAV: &str = "|ArrowRight:nav-next|ArrowLeft:nav-prev|PageDown:nav-next|PageUp:nav-prev";
 
 /// Full chrome fragment (toolbar, find, tabs, diagnostics) for the loader host.
 pub fn chrome_html(state: &ShellState) -> String {
-    let hk = if state.format == FormatKind::Pptx {
+    let hk = if state.format == FormatKind::Pptx || state.format == FormatKind::Docx {
         format!("{HOTKEYS}{PPTX_NAV}")
     } else {
         HOTKEYS.to_owned()

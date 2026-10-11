@@ -177,6 +177,24 @@ function prepareXlsxViewerBundle() {
 	if (r.status !== 0) throw new Error(`xlsx-editor bundle: ${r.stderr || r.stdout}`);
 }
 
+async function prepareDocxLayoutIr(c) {
+	const file = join(ROOT, c.fixture);
+	const { dumpDocxViewIr } = await import('../oracle/docx.ts');
+	const tsIr = await dumpDocxViewIr(file);
+	writeFileSync(join(OUT, `${c.id}-ts.json`), JSON.stringify(tsIr));
+
+	if (c.rust) {
+		const bin = ensureReleaseExample('docx_layout_dump', 'nitro-xml-docx');
+		const rust = spawnSync(bin, [file], {
+			encoding: 'utf8',
+			maxBuffer: 64 * 1024 * 1024,
+		});
+		if (rust.status !== 0) throw new Error(`docx layout rust: ${rust.stderr || rust.stdout}`);
+		const ir = JSON.parse(rust.stdout);
+		writeFileSync(join(OUT, `${c.id}-rust.json`), JSON.stringify(ir));
+	}
+}
+
 function prepareXlsxViewer(c) {
 	const file = join(ROOT, c.fixture);
 	if (!existsSync(file)) throw new Error(`missing fixture ${c.fixture}`);
@@ -223,6 +241,7 @@ export async function prepareAll() {
 	for (const c of readyCases()) {
 		if (c.kind === 'chart-svg') prepareChart(c);
 		else if (c.kind === 'xlsx-view-ir') await prepareXlsxViewIr(c);
+		else if (c.kind === 'docx-layout-ir') await prepareDocxLayoutIr(c);
 		else if (c.kind === 'xlsx-viewer') prepareXlsxViewer(c);
 		else if (c.kind === 'pptx-viewer') {
 			if (!pptxBundleDone) {

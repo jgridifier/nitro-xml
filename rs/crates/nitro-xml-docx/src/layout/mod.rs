@@ -42,9 +42,8 @@ pub use layout::{
     CachedLayout,
 };
 pub use measure::{
-    create_fake_measurer, measure_font_css, measure_font_payload, CachedMeasurer, MeasureCache,
-    MeasureKey, MeasureSample, PendingKind, PendingMeasure, MEASURE_ASCENT_TEXT,
-    MEASURE_LINE_HEIGHT_TEXT,
+    create_fake_measurer, measure_font_css, CachedMeasurer, MeasureCache, MeasureKey,
+    MeasureSample, PendingKind, PendingMeasure,
 };
 pub use result::LayoutResult;
 pub use review_display::LayoutReviewOptions;

@@ -7,6 +7,7 @@
  * docx Print Layout IR is hosted via `docx-layout-ir` (#23 / #158).
  */
 
+import { docxVisualCorpus } from './docx-corpus.mjs';
 import { pptxVisualCorpus } from './pptx-corpus.mjs';
 
 /** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'pptx-viewer' | 'docx-layout-ir' | 'docx-viewer'} VisualKind */
@@ -88,7 +89,11 @@ const STATIC_CASES = [
 ];
 
 /** @type {VisualCase[]} */
-export const VISUAL_CASES = [...STATIC_CASES, ...pptxVisualCorpus()];
+export const VISUAL_CASES = [
+	...STATIC_CASES,
+	...docxVisualCorpus(),
+	...pptxVisualCorpus(),
+];
 
 export function readyCases() {
 	return VISUAL_CASES.filter((c) => c.ready);

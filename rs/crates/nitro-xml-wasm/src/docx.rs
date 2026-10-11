@@ -127,15 +127,24 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         .map(|d| d.layout_ready())
         .unwrap_or(false);
 
-    let ready = if let Some(ref mut docx) = handle.docx {
-        docx.session
-            .tick_measure(&mut handle.measures, &mut handle.strings)
+    let tick = if let Some(ref mut docx) = handle.docx {
+        docx.session.tick_measure(
+            &mut handle.measures,
+            &mut handle.layout_reads,
+            &mut handle.commands,
+            &mut handle.strings,
+        )
     } else {
-        false
+        nitro_xml_docx::MeasureTick {
+            ready: false,
+            painted_metric_probes: false,
+        }
     };
 
-    if !ready {
-        handle.commands.begin();
+    if !tick.ready {
+        if !tick.painted_metric_probes {
+            handle.commands.begin();
+        }
         return;
     }
 

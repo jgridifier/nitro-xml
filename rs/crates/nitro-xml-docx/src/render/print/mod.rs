@@ -17,7 +17,7 @@ pub use dom::StringIntern;
 pub use line_numbers::{
     line_numbering_from_section, suppressed_line_number_ids, PrintLineNumbering,
 };
-pub use load::PrintSession;
+pub use load::{MeasureTick, PrintSession};
 pub use options::{PrintLayoutOptions, PrintNow};
 pub use page_borders::{page_borders_from_section, PageBorders};
 pub use pages::paint_print_layout;

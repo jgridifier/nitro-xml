@@ -101,22 +101,6 @@ pub fn measure_font_css(font: &LayoutFontSpec) -> String {
     out
 }
 
-/// Sentinel texts for line-height / ascent probes over the width-only MeasureBatch lane.
-/// Loader `measure.js` maps these to fontBoundingBox ascent(+descent) like the canvas measurer.
-pub const MEASURE_LINE_HEIGHT_TEXT: &str = "\u{0001}";
-pub const MEASURE_ASCENT_TEXT: &str = "\u{0002}";
-
-/// Font id payload: CSS font shorthand plus optional kerning (`font\0kerning`).
-pub fn measure_font_payload(font: &LayoutFontSpec) -> String {
-    let css = measure_font_css(font);
-    let kern = font.kerning.as_deref().unwrap_or("auto");
-    if kern == "auto" {
-        css
-    } else {
-        format!("{css}\0{kern}")
-    }
-}
-
 /// Stable identity of one width or font-metric probe.
 ///
 /// `text` is empty for line-height and ascent entries. `size_bits` is `f64::to_bits`
@@ -444,7 +428,7 @@ impl<'a> BatchInner<'a> {
         if self.pending_widths.iter().any(|existing| existing == &key) {
             return;
         }
-        let font_id = self.intern(&measure_font_payload(font));
+        let font_id = self.intern(&measure_font_css(font));
         let text_id = self.intern(text);
         self.measures.push(font_id, font.size_px as f32, text_id);
         self.pending_widths.push(key);
@@ -582,8 +566,5 @@ mod tests {
         assert!(css.starts_with("italic bold "), "{css}");
         assert!(css.contains("px "), "{css}");
         assert!(css.contains("Calibri"), "{css}");
-        let payload = measure_font_payload(&font);
-        assert!(payload.contains('\0'), "{payload}");
-        assert!(payload.ends_with("none"), "{payload}");
     }
 }

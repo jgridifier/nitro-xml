@@ -6,7 +6,6 @@ import { isSupportedExtension } from "./formats.js";
 import { unsupportedFormatError } from "./bootstrap.js";
 import { getDefaultFontSource } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
-import { measureOne } from "./measure.js";
 export class WorkerDocument {
 constructor(opts = {}) {
 this._canvas = opts.canvas || null;
@@ -74,12 +73,10 @@ const widths = new Float64Array(measureCount);
 const ctx = this._measureCtx();
 if (ctx) {
 for (let i = 0; i < measureCount; i++) {
-widths[i] = measureOne(
-ctx,
-(strings && strings[measureReqs.fonts[i]]) || "sans-serif",
-measureReqs.sizes[i],
-(strings && strings[measureReqs.texts[i]]) || "",
-);
+let f=(strings&&strings[measureReqs.fonts[i]])||"sans-serif";
+const text=(strings&&strings[measureReqs.texts[i]])||"";
+ctx.font=/\d+(\.\d+)?px/.test(f)?f:`${measureReqs.sizes[i]}px ${f}`;
+widths[i]=ctx.measureText(text).width;
 }
 }
 await this._request("measure-acked", () => {

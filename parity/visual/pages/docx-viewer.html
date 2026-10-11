@@ -152,14 +152,13 @@
         }
         if (el.document) await el.document.tick();
         const page = shadow?.querySelector('.dve-print-page');
-        const dom = shadow?.querySelector('.dom');
-        if (page || (dom && dom.childElementCount > 0)) {
+        if (page) {
           painted = true;
           break;
         }
       }
       if (!painted) throw new Error('nitro-docx: no print layout paint');
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 12; i++) {
         if (el.document) await el.document.tick();
         await waitFrames(1);
       }

@@ -4,11 +4,9 @@
 use std::collections::{HashMap, HashSet};
 
 use nitro_xml_opc::chart::{parse_chart_space_xml, ChartSpace};
-use nitro_xml_render::{
-    CommandBuffer, LayoutReadBatch, LayoutReadKind, MeasureBatch, LAYOUT_RESULT_LANES,
-};
+use nitro_xml_render::{CommandBuffer, MeasureBatch};
 
-use super::dom::{Dom, StringIntern};
+use super::dom::StringIntern;
 use super::line_numbers::{
     line_numbering_from_section, suppressed_line_number_ids, PrintLineNumbering,
 };
@@ -18,17 +16,13 @@ use super::pages::paint_print_layout;
 use crate::body::{read_package, DocumentModel, LoadedDocument};
 use crate::layout::{
     layout_document_model, measure_font_css, CachedMeasurer, LayoutResult, LayoutReviewOptions,
-    MeasureCache, MeasureKey, MeasureSample, PendingKind, PendingMeasure,
+    MeasureCache, MeasureSample, PendingKind, PendingMeasure,
 };
 use crate::review_formatting_display::ReviewDisplayMode;
 
-/// Result of one measure/layout tick before the document is ready to paint.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MeasureTick {
-    pub ready: bool,
-    /// When false and not ready, the host may issue an empty `begin()` frame.
-    pub painted_metric_probes: bool,
-}
+/// MeasureBatch sizePx sentinels (loader `fillMeasureWidths`; createCanvasMeasurer).
+const SIZE_LINE_HEIGHT: f32 = -1.0;
+const SIZE_ASCENT: f32 = -2.0;
 
 pub struct PrintSession {
     pub model: DocumentModel,
@@ -40,9 +34,7 @@ pub struct PrintSession {
     pub suppressed: HashSet<String>,
     pub warnings: Vec<String>,
     measure_cache: MeasureCache,
-    width_pending: Vec<PendingMeasure>,
-    metric_probe_pending: Vec<PendingMeasure>,
-    metric_span_keys: Vec<MeasureKey>,
+    measure_pending: Vec<PendingMeasure>,
     pub layout_ready: bool,
 }
 
@@ -67,42 +59,56 @@ impl PrintSession {
             chart_spaces,
             warnings,
             measure_cache: MeasureCache::new(),
-            width_pending: Vec::new(),
-            metric_probe_pending: Vec::new(),
-            metric_span_keys: Vec::new(),
+            measure_pending: Vec::new(),
             layout_ready: false,
         })
     }
 
-    /// Drive one CachedMeasurer pass: absorb loader widths + span metric probes, re-layout, queue misses.
+    /// Drive one CachedMeasurer pass: absorb loader widths/metrics, re-layout, queue misses.
+    ///
+    /// Widths use `measure_font_css` (bold/italic). Line-height/ascent use sizePx sentinels
+    /// `-1`/`-2` so the shared loader `fillMeasureWidths` reads fontBoundingBox like
+    /// upstream `createCanvasMeasurer` — no docx-only loader branch.
     pub fn tick_measure<I: StringIntern>(
         &mut self,
         measures: &mut MeasureBatch,
-        layout_reads: &mut LayoutReadBatch,
-        commands: &mut CommandBuffer,
         intern: &mut I,
-    ) -> MeasureTick {
+    ) -> bool {
         if self.layout_ready {
-            return MeasureTick {
-                ready: true,
-                painted_metric_probes: false,
-            };
+            return true;
         }
 
-        self.absorb_width_results(measures);
-        self.absorb_metric_span_results(layout_reads);
-
-        if measures.awaiting() > 0
-            || !measures.is_empty()
-            || layout_reads.awaiting() > 0
-            || !self.metric_span_keys.is_empty()
+        if !self.measure_pending.is_empty()
+            && measures.awaiting() == 0
+            && measures.widths.len() == self.measure_pending.len()
         {
-            return MeasureTick {
-                ready: false,
-                painted_metric_probes: false,
-            };
+            let mut samples = Vec::with_capacity(self.measure_pending.len());
+            for (probe, &width) in self.measure_pending.iter().zip(measures.widths.iter()) {
+                samples.push(match probe.kind {
+                    PendingKind::Width => MeasureSample {
+                        width: Some(width),
+                        ..MeasureSample::default()
+                    },
+                    PendingKind::LineHeight => MeasureSample {
+                        line_height: Some(width),
+                        ..MeasureSample::default()
+                    },
+                    PendingKind::Ascent => MeasureSample {
+                        ascent: Some(width),
+                        ..MeasureSample::default()
+                    },
+                });
+            }
+            self.measure_cache.absorb(&self.measure_pending, &samples);
+            self.measure_pending.clear();
+            measures.widths.clear();
         }
 
+        if measures.awaiting() > 0 || !measures.is_empty() {
+            return false;
+        }
+
+        // Match upstream Print Layout: no UAX #9 reorder on the paint path.
         let measurer = CachedMeasurer::new(&self.measure_cache);
         let result = layout_document_model(
             &self.model,
@@ -120,116 +126,31 @@ impl PrintSession {
             }
             self.result = result;
             self.layout_ready = true;
-            return MeasureTick {
-                ready: true,
-                painted_metric_probes: false,
-            };
+            return true;
         }
 
-        let painted = self.queue_pending(&pending, measures, layout_reads, commands, intern);
-        MeasureTick {
-            ready: false,
-            painted_metric_probes: painted,
-        }
-    }
-
-    fn absorb_width_results(&mut self, measures: &mut MeasureBatch) {
-        if self.width_pending.is_empty()
-            || measures.awaiting() > 0
-            || measures.widths.len() != self.width_pending.len()
-        {
-            return;
-        }
-        let mut samples = Vec::with_capacity(self.width_pending.len());
-        for &width in measures.widths.iter() {
-            samples.push(MeasureSample {
-                width: Some(width),
-                ..MeasureSample::default()
-            });
-        }
-        self.measure_cache.absorb(&self.width_pending, &samples);
-        self.width_pending.clear();
-        measures.widths.clear();
-    }
-
-    fn absorb_metric_span_results(&mut self, layout_reads: &LayoutReadBatch) {
-        if self.metric_probe_pending.is_empty() || self.metric_span_keys.is_empty() {
-            return;
-        }
-        let n = self.metric_span_keys.len();
-        let expected = n * LAYOUT_RESULT_LANES;
-        if layout_reads.awaiting() > 0 || layout_reads.values.len() != expected {
-            return;
-        }
-        let mut height_by_font: HashMap<MeasureKey, f64> = HashMap::new();
-        for (index, key) in self.metric_span_keys.iter().enumerate() {
-            let base = index * LAYOUT_RESULT_LANES;
-            let height = layout_reads.values[base + 3];
-            height_by_font.insert(key.metrics_key(), height);
-        }
-        let mut samples = Vec::with_capacity(self.metric_probe_pending.len());
-        for probe in &self.metric_probe_pending {
-            let height = height_by_font
-                .get(&probe.key.metrics_key())
-                .copied()
-                .unwrap_or(0.0);
-            samples.push(match probe.kind {
-                PendingKind::LineHeight => MeasureSample {
-                    line_height: Some(height),
-                    ..MeasureSample::default()
-                },
-                PendingKind::Ascent => MeasureSample {
-                    ascent: Some(height * 0.8),
-                    ..MeasureSample::default()
-                },
-                PendingKind::Width => MeasureSample::default(),
-            });
-        }
-        self.measure_cache
-            .absorb(&self.metric_probe_pending, &samples);
-        self.metric_probe_pending.clear();
-        self.metric_span_keys.clear();
+        self.queue_pending(&pending, measures, intern);
+        self.measure_pending = pending;
+        false
     }
 
     fn queue_pending<I: StringIntern>(
-        &mut self,
+        &self,
         pending: &[PendingMeasure],
         measures: &mut MeasureBatch,
-        layout_reads: &mut LayoutReadBatch,
-        commands: &mut CommandBuffer,
         intern: &mut I,
-    ) -> bool {
-        self.width_pending.clear();
-        self.metric_probe_pending.clear();
-        self.metric_span_keys.clear();
-
-        let mut metric_fonts: Vec<MeasureKey> = Vec::new();
+    ) {
         for probe in pending {
-            match probe.kind {
-                PendingKind::Width => {
-                    let font = probe.key.to_font_spec();
-                    let font_id = intern.intern(&measure_font_css(&font));
-                    let text_id = intern.intern(probe.key.text.as_str());
-                    measures.push(font_id, probe.key.size_px() as f32, text_id);
-                    self.width_pending.push(probe.clone());
-                }
-                PendingKind::LineHeight | PendingKind::Ascent => {
-                    let font_key = probe.key.metrics_key();
-                    if !metric_fonts.iter().any(|k| *k == font_key) {
-                        metric_fonts.push(font_key);
-                    }
-                    self.metric_probe_pending.push(probe.clone());
-                }
-            }
+            let font = probe.key.to_font_spec();
+            let font_id = intern.intern(&measure_font_css(&font));
+            let (size, text) = match probe.kind {
+                PendingKind::Width => (probe.key.size_px() as f32, probe.key.text.as_str()),
+                PendingKind::LineHeight => (SIZE_LINE_HEIGHT, ""),
+                PendingKind::Ascent => (SIZE_ASCENT, ""),
+            };
+            let text_id = intern.intern(text);
+            measures.push(font_id, size, text_id);
         }
-
-        if metric_fonts.is_empty() {
-            return false;
-        }
-
-        self.metric_span_keys = metric_fonts.clone();
-        paint_metric_probes(&metric_fonts, commands, layout_reads, intern);
-        true
     }
 
     pub fn paint<I: StringIntern>(
@@ -254,33 +175,6 @@ impl PrintSession {
             current_page,
         };
         paint_print_layout(buf, intern, &self.result, &options);
-    }
-}
-
-fn paint_metric_probes<I: StringIntern>(
-    keys: &[MeasureKey],
-    commands: &mut CommandBuffer,
-    layout_reads: &mut LayoutReadBatch,
-    intern: &mut I,
-) {
-    commands.begin();
-    let mut dom = Dom::new(commands, intern);
-    let container = dom.el(0, "div");
-    dom.style(container, "position", "fixed");
-    dom.style(container, "left", "-100000px");
-    dom.style(container, "visibility", "hidden");
-    dom.style(container, "white-space", "pre");
-    for key in keys {
-        let font = key.to_font_spec();
-        let span = dom.el(container, "span");
-        dom.style(span, "font", &measure_font_css(&font));
-        if let Some(kern) = &font.kerning {
-            if kern != "auto" {
-                dom.style(span, "font-kerning", kern);
-            }
-        }
-        dom.text(span, "Mg");
-        layout_reads.push(span, LayoutReadKind::SpanRect, 0);
     }
 }
 
@@ -359,20 +253,4 @@ fn b64_encode(data: &[u8]) -> String {
         }
     }
     out
-}
-
-#[cfg(test)]
-mod tests {
-    use nitro_xml_render::LAYOUT_RESULT_LANES;
-
-    #[test]
-    fn metric_span_absorb_uses_height_lane() {
-        // Catches: line-height probes reading width lane (index 2) instead of height (3).
-        let values = [0.0, 0.0, 99.0, 20.0];
-        let base = 0;
-        assert_eq!(values[base + 3], 20.0);
-        assert_ne!(values[base + 2], values[base + 3]);
-        assert_eq!(values[base + 3] * 0.8, 16.0);
-        assert_eq!(LAYOUT_RESULT_LANES, 4);
-    }
 }

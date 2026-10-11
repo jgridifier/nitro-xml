@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { applyCommandBuffer, Op } from "../apply.js";
 import { encodeEventBatch, EventKind, EVENT_VERSION } from "../events.js";
-import { flushMeasureBatch, readMeasureReqsFromMemory } from "../measure.js";
+import { fillMeasureWidths, flushMeasureBatch, readMeasureReqsFromMemory } from "../measure.js";
 import {
   flushLayoutReadBatch,
   LayoutReadKind,
@@ -195,6 +195,31 @@ describe("measure batch read-back", () => {
     assert.equal(got[0], 20); // "t2".length * 10
     assert.equal(got[1], 20);
     assert.equal(got[2], 20);
+  });
+
+  it("maps sizePx -1/-2 to fontBoundingBox lineHeight/ascent", () => {
+    // Catches: docx metric probes falling back to span-height*0.8 instead of
+    // createCanvasMeasurer fontBoundingBox (drifts Print Layout line y).
+    const ctx = {
+      font: "",
+      measureText() {
+        return {
+          width: 99,
+          fontBoundingBoxAscent: 11,
+          fontBoundingBoxDescent: 3,
+        };
+      },
+    };
+    const w = fillMeasureWidths(
+      ctx,
+      3,
+      () => "12px sans-serif",
+      (i) => [-1, -2, 12][i],
+      () => "Hi",
+    );
+    assert.equal(w[0], 14); // LH = 11+3
+    assert.equal(w[1], 11); // ascent
+    assert.equal(w[2], 99); // plain width
   });
 });
 

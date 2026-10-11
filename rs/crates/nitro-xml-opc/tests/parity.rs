@@ -29,10 +29,8 @@ fn element_to_dump_value(element: &Element) -> Value {
 #[test]
 fn xml_dump_shape_keeps_xmlns_out_of_attrs_and_merges_adjacent_text() {
     // Catches: xmlns declarations leaking into attr dumps (false OPC/XML parity diffs).
-    let doc = parse_xml_bytes(
-        br#"<r xmlns="urn:d" xmlns:p="urn:p"><p:c>a<!--x-->b</p:c></r>"#,
-    )
-    .expect("parse");
+    let doc = parse_xml_bytes(br#"<r xmlns="urn:d" xmlns:p="urn:p"><p:c>a<!--x-->b</p:c></r>"#)
+        .expect("parse");
     let tree = element_to_dump_value(&doc.root);
     let arr = tree.as_array().expect("tree array");
     assert_eq!(arr[0], json!("e"));

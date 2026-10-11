@@ -51,19 +51,20 @@ export const GRID_CSS = `
 .xg-remote-tag{position:absolute;left:-2px;bottom:100%;max-width:160px;padding:0 4px;height:16px;line-height:16px;
 	font:600 11px/16px var(--xve-font,system-ui,sans-serif);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:2px 2px 2px 0}
 .xg-remote[data-tag="inside"] .xg-remote-tag{bottom:auto;top:0;left:0;border-radius:0 0 2px 0}
-.xg-hbox{background:var(--xve-header-bg,#f3f3f3);z-index:4}
+/* Fallbacks match upstream lightTheme (src/core/xlsx/ui/theme/defaults.ts), not styles.ts literals. */
+.xg-hbox{background:var(--xve-header-bg,#f5f5f5);z-index:4}
 .xg-hdr-plane{position:absolute;left:0;top:0;will-change:transform}
 .xg-hd{position:absolute;box-sizing:border-box;display:flex;align-items:center;justify-content:center;
-	color:var(--xve-header-fg,#444);border-right:1px solid var(--xve-header-line,#d4d4d4);border-bottom:1px solid var(--xve-header-line,#d4d4d4);overflow:hidden;white-space:nowrap}
+	color:var(--xve-header-fg,#444444);border-right:1px solid var(--xve-header-line,#d4d4d4);border-bottom:1px solid var(--xve-header-line,#d4d4d4);overflow:hidden;white-space:nowrap}
 .xg-hdr-col .xg-hd{top:0;height:100%}
 .xg-hdr-row .xg-hd{left:0;width:100%}
-.xg-hd-sel{background:var(--xve-header-active-bg,#e1e1e1);color:var(--xve-selection-border,#217346);font-weight:600}
+.xg-hd-sel{background:var(--xve-header-active-bg,#d3e9dc);color:var(--xve-selection-border,#217346);font-weight:600}
 .xg-hdr-col .xg-hd-sel{box-shadow:inset 0 -2px 0 var(--xve-selection-border,#217346)}
 .xg-hdr-row .xg-hd-sel{box-shadow:inset -2px 0 0 var(--xve-selection-border,#217346)}
 .xg-hd-full{background:var(--xve-header-full-bg,#cde6d7);color:var(--xve-selection-border,#185c37);font-weight:600}
 .xg-hdr-col{cursor:s-resize}.xg-hdr-row{cursor:e-resize}
 .xg-hdr-col .xg-hd,.xg-hdr-row .xg-hd{cursor:inherit}
-.xg-corner{position:absolute;left:0;top:0;background:var(--xve-header-bg,#f3f3f3);z-index:5;box-sizing:border-box;
+.xg-corner{position:absolute;left:0;top:0;background:var(--xve-header-bg,#f5f5f5);z-index:5;box-sizing:border-box;
 	border-right:1px solid var(--xve-header-line,#d4d4d4);border-bottom:1px solid var(--xve-header-line,#d4d4d4);cursor:default}
 .xg-corner::after{content:"";position:absolute;right:3px;bottom:3px;border-left:9px solid transparent;border-bottom:9px solid #b4b4b4}
 .xg-freeze-h,.xg-freeze-v{position:absolute;background:var(--xve-freeze-line,#9b9b9b);z-index:6;pointer-events:none}

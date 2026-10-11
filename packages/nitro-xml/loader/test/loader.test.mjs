@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { applyCommandBuffer, Op } from "../apply.js";
 import { encodeEventBatch, EventKind, EVENT_VERSION } from "../events.js";
-import { flushMeasureBatch } from "../measure.js";
+import { flushMeasureBatch, readMeasureReqsFromMemory } from "../measure.js";
 import {
   flushLayoutReadBatch,
   LayoutReadKind,
@@ -134,6 +134,36 @@ describe("event batch encoder", () => {
 });
 
 describe("measure batch read-back", () => {
+  it("invokes measure*Ptr methods when reading SoA from wasm memory", () => {
+    // Catches: treating wasm-bindgen measureFontPtr() as a property (byteOffset → 0 → empty strings).
+    const buf = new ArrayBuffer(48);
+    new Uint32Array(buf, 0, 2).set([11, 12]);
+    new Float32Array(buf, 16, 2).set([13, 14]);
+    new Uint32Array(buf, 32, 2).set([21, 22]);
+    let fontCalls = 0;
+    const handle = {
+      measureCount: 2,
+      measureFontPtr() {
+        fontCalls++;
+        return 0;
+      },
+      measureSizePtr() {
+        return 16;
+      },
+      measureTextPtr() {
+        return 32;
+      },
+    };
+    const reqs = readMeasureReqsFromMemory(handle, { buffer: buf });
+    assert.equal(fontCalls, 1);
+    assert.equal(reqs.length, 2);
+    assert.equal(reqs[0].fontId, 11);
+    assert.equal(reqs[0].sizePx, 13);
+    assert.equal(reqs[0].textId, 21);
+    assert.equal(reqs[1].fontId, 12);
+    assert.equal(reqs[1].textId, 22);
+  });
+
   it("writes all pending widths in a single setMeasureResults call", () => {
     // Catches: per-string setMeasureResults (violates HoP batched read-back / no per-element calls).
     const reqs = [

@@ -14,6 +14,10 @@ use crate::render::GridPaintViewport;
 use crate::view::metrics::GridMetrics;
 
 const CORNER_ID: u32 = 2;
+const HBOX_COL_ID: u32 = 2_100;
+const HDR_COL_ID: u32 = 2_101;
+const HBOX_ROW_ID: u32 = 2_102;
+const HDR_ROW_ID: u32 = 2_103;
 const COL_HDR_BASE: u32 = 3_000;
 const ROW_HDR_BASE: u32 = 4_000;
 
@@ -41,30 +45,30 @@ fn set_attr<I: StringIntern>(
     buf.set_attr(id, k, v);
 }
 
+fn place<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    id: u32,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+) {
+    set_style(buf, intern, id, "left", &format!("{x}px"));
+    set_style(buf, intern, id, "top", &format!("{y}px"));
+    set_style(buf, intern, id, "width", &format!("{w}px"));
+    set_style(buf, intern, id, "height", &format!("{h}px"));
+}
+
 fn header_font_px(zoom: f64) -> i32 {
     (11.0 * (zoom / 100.0)).round().max(6.0) as i32
 }
 
-fn apply_header_sel<I: StringIntern>(
-    buf: &mut CommandBuffer,
-    intern: &mut I,
-    id: u32,
-    state: &str,
-    axis_col: bool,
-    class: &mut String,
-) {
-    if state == "none" {
-        return;
-    }
+fn apply_header_sel(state: &str, class: &mut String) {
     if state == "full" {
         class.push_str(" xg-hd-full");
-    } else {
+    } else if state == "part" {
         class.push_str(" xg-hd-sel");
-        if axis_col {
-            set_style(buf, intern, id, "boxShadow", "inset 0 -2px 0 #217346");
-        } else {
-            set_style(buf, intern, id, "boxShadow", "inset -2px 0 0 #217346");
-        }
     }
 }
 
@@ -87,66 +91,80 @@ pub fn paint<I: StringIntern>(
     let scroll_x = viewport.scroll_x;
     let scroll_y = viewport.scroll_y;
     let selection = sheet.view.selection.as_ref();
+    let cells_w = (viewport.width - sizes.w).max(0);
+    let cells_h = (viewport.height - sizes.h).max(0);
 
+    // pane-chrome.ts: corner + xg-hbox / xg-hdr-plane wrappers (scroll panes; freeze TODO).
     buf.create_element(CORNER_ID, div, 1);
     set_attr(buf, intern, CORNER_ID, "class", "xg-corner");
-    set_style(buf, intern, CORNER_ID, "width", &format!("{}px", sizes.w));
-    set_style(buf, intern, CORNER_ID, "height", &format!("{}px", sizes.h));
+    place(buf, intern, CORNER_ID, 0, 0, sizes.w, sizes.h);
+
+    buf.create_element(HBOX_COL_ID, div, 1);
+    set_attr(buf, intern, HBOX_COL_ID, "class", "xg-hbox xg-hbox-col");
+    place(buf, intern, HBOX_COL_ID, sizes.w, 0, cells_w, sizes.h);
+    buf.create_element(HDR_COL_ID, div, HBOX_COL_ID);
+    set_attr(buf, intern, HDR_COL_ID, "class", "xg-hdr-plane xg-hdr-col");
+    set_style(buf, intern, HDR_COL_ID, "height", &format!("{}px", sizes.h));
+    set_style(
+        buf,
+        intern,
+        HDR_COL_ID,
+        "transform",
+        &format!("translate3d({}px,0,0)", -scroll_x),
+    );
+
+    buf.create_element(HBOX_ROW_ID, div, 1);
+    set_attr(buf, intern, HBOX_ROW_ID, "class", "xg-hbox xg-hbox-row");
+    place(buf, intern, HBOX_ROW_ID, 0, sizes.h, sizes.w, cells_h);
+    buf.create_element(HDR_ROW_ID, div, HBOX_ROW_ID);
+    set_attr(buf, intern, HDR_ROW_ID, "class", "xg-hdr-plane xg-hdr-row");
+    set_style(buf, intern, HDR_ROW_ID, "width", &format!("{}px", sizes.w));
+    set_style(
+        buf,
+        intern,
+        HDR_ROW_ID,
+        "transform",
+        &format!("translate3d(0,{}px,0)", -scroll_y),
+    );
 
     for (n, col) in cols.iter().enumerate() {
         let id = COL_HDR_BASE + n as u32;
-        let left = sizes.w + metrics.col_left(*col) - scroll_x;
+        let left = metrics.col_left(*col);
         let w = metrics.col_width(*col);
-        if left + w < sizes.w || left > viewport.width {
+        let screen_left = sizes.w + left - scroll_x;
+        if screen_left + w < sizes.w || screen_left > viewport.width {
             continue;
         }
-        buf.create_element(id, div, 1);
+        buf.create_element(id, div, HDR_COL_ID);
         let mut hdr_class = String::from("xg-hd");
         if let Some(sel) = selection {
-            apply_header_sel(
-                buf,
-                intern,
-                id,
-                col_selected(sel, *col),
-                true,
-                &mut hdr_class,
-            );
+            apply_header_sel(col_selected(sel, *col), &mut hdr_class);
         }
         set_attr(buf, intern, id, "class", &hdr_class);
-        set_style(buf, intern, id, "left", &format!("{}px", left));
-        set_style(buf, intern, id, "top", "0");
-        set_style(buf, intern, id, "width", &format!("{}px", w));
-        set_style(buf, intern, id, "height", &format!("{}px", sizes.h));
-        set_style(buf, intern, id, "fontSize", &format!("{}px", font_px));
+        set_style(buf, intern, id, "left", &format!("{left}px"));
+        set_style(buf, intern, id, "width", &format!("{w}px"));
+        set_style(buf, intern, id, "fontSize", &format!("{font_px}px"));
         let label = intern.intern(&column_label(*col));
         buf.set_text(id, label);
     }
 
     for (n, row) in rows.iter().enumerate() {
         let id = ROW_HDR_BASE + n as u32;
-        let top = sizes.h + metrics.row_top(*row) - scroll_y;
+        let top = metrics.row_top(*row);
         let h = metrics.row_height(*row);
-        if top + h < sizes.h || top > viewport.height {
+        let screen_top = sizes.h + top - scroll_y;
+        if screen_top + h < sizes.h || screen_top > viewport.height {
             continue;
         }
-        buf.create_element(id, div, 1);
+        buf.create_element(id, div, HDR_ROW_ID);
         let mut hdr_class = String::from("xg-hd");
         if let Some(sel) = selection {
-            apply_header_sel(
-                buf,
-                intern,
-                id,
-                row_selected(sel, *row),
-                false,
-                &mut hdr_class,
-            );
+            apply_header_sel(row_selected(sel, *row), &mut hdr_class);
         }
         set_attr(buf, intern, id, "class", &hdr_class);
-        set_style(buf, intern, id, "left", "0");
-        set_style(buf, intern, id, "top", &format!("{}px", top));
-        set_style(buf, intern, id, "width", &format!("{}px", sizes.w));
-        set_style(buf, intern, id, "height", &format!("{}px", h));
-        set_style(buf, intern, id, "fontSize", &format!("{}px", font_px));
+        set_style(buf, intern, id, "top", &format!("{top}px"));
+        set_style(buf, intern, id, "height", &format!("{h}px"));
+        set_style(buf, intern, id, "fontSize", &format!("{font_px}px"));
         let label = intern.intern(&((*row + 1).to_string()));
         buf.set_text(id, label);
     }

@@ -10,6 +10,7 @@ use crate::render::GridPaintViewport;
 use crate::sheet_access::merge_at;
 use crate::view::metrics::GridMetrics;
 
+const OVERLAY_ID: u32 = 5_999;
 const OUTLINE_ID: u32 = 6_000;
 
 fn set_style<I: StringIntern>(
@@ -65,7 +66,10 @@ pub fn paint<I: StringIntern>(
     let left = sizes.w + x - viewport.scroll_x - 1;
     let top = sizes.h + y - viewport.scroll_y - 1;
     let div = intern.intern("div");
-    buf.create_element(OUTLINE_ID, div, 1);
+    // Upstream SelectionLayer roots under `.xg-overlay` (z-index:3).
+    buf.create_element(OVERLAY_ID, div, 1);
+    set_attr(buf, intern, OVERLAY_ID, "class", "xg-overlay");
+    buf.create_element(OUTLINE_ID, div, OVERLAY_ID);
     set_attr(buf, intern, OUTLINE_ID, "class", "xg-outline");
     set_style(buf, intern, OUTLINE_ID, "left", &format!("{}px", left));
     set_style(buf, intern, OUTLINE_ID, "top", &format!("{}px", top));

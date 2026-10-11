@@ -89,6 +89,21 @@
       el.textContent = cssText;
     }
 
+    /** Upstream lightTheme tokens (ooxml-core/xlsx/ui/theme/defaults.ts) on the host. */
+    function applyLightTheme(host) {
+      if (!host?.style) return;
+      const t = {
+        '--xve-header-bg': '#f5f5f5',
+        '--xve-header-fg': '#444444',
+        '--xve-header-active-bg': '#d3e9dc',
+        '--xve-selection': 'rgb(33 115 70 / 0.12)',
+        '--xve-selection-border': '#217346',
+        '--xve-sheet-bg': '#ffffff',
+        '--xve-grid-line': '#e1e1e1',
+      };
+      for (const [k, v] of Object.entries(t)) host.style.setProperty(k, v);
+    }
+
     function hideShellChrome(root) {
       if (!root) return;
       for (const sel of [
@@ -123,18 +138,24 @@
       defineNitroXlsx();
       const el = document.createElement('nitro-xlsx');
       el.setAttribute('readonly', '');
+      applyLightTheme(el);
       stage.appendChild(el);
       el.style.width = '100%';
       el.style.height = '100%';
       await el.loadUrl(fixture);
       const shadow = el.shadowRoot;
       hideShellChrome(shadow);
+      // Xlsx grid is DOM-only; a transparent canvas under .dom skews LCD text AA vs upstream.
+      const cv = shadow?.querySelector('canvas');
+      if (cv) cv.style.visibility = 'hidden';
       // Visual-only GRID_CSS (not shipped in loader — bundle budget).
       injectStyle(shadow, GRID_CSS, 'grid-css');
+      // Same pin as TS: @font-face aliases (Calibri/Arial/…) → Liberation files; no `*` override
+      // so css_font family names still resolve through the mirror faces.
       injectStyle(
         shadow,
         await (await fetch('/fonts/visual-fonts.css')).text() +
-          `\n:host,.xg-root,*{font-family:"Liberation Sans",Arial,sans-serif!important}`,
+          `\n:host,.xg-root,.xg-t,.xg-hd,.xg-tx{font-family:"Liberation Sans",Arial,sans-serif!important}`,
         'font-pin',
       );
       if (el.document) {
@@ -186,6 +207,7 @@
       el.setAttribute('show-toolbar', 'false');
       el.setAttribute('show-formula-bar', 'false');
       el.setAttribute('file-name', fixture.split('/').pop() || 'book.xlsx');
+      applyLightTheme(el);
       stage.appendChild(el);
       await waitFrames(1);
       const res = await fetch(fixture);
@@ -198,7 +220,7 @@
       injectStyle(
         root,
         await (await fetch('/fonts/visual-fonts.css')).text() +
-          `\n:host,.xve-grid-host,.xg-root{font-family:"Liberation Sans",Arial,sans-serif!important}`,
+          `\n:host,.xve-grid-host,.xg-root,.xg-t,.xg-hd,.xg-tx{font-family:"Liberation Sans",Arial,sans-serif!important}`,
         'font-pin',
       );
       await waitFonts();

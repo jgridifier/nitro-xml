@@ -166,8 +166,9 @@ fn paint_one_cell<I: StringIntern>(
         if !item.view.wrap {
             set_style(buf, intern, text_id, "whiteSpace", "pre");
         }
-        let pad = ((2.0 * (zoom / 100.0)).round() as i32).max(1);
-        let indent = pad + (item.view.indent_px * (zoom / 100.0)).round() as i32;
+        // Upstream cell-layer.ts: pad rounded; indent keeps fractional CSS px.
+        let pad = ((2.0 * (zoom / 100.0)).round() as i32).max(1) as f64;
+        let indent = pad + item.view.indent_px * (zoom / 100.0);
         let (pl, pr) = if item.view.h_align == "left" || item.view.h_align == "distributed" {
             (indent, pad)
         } else if item.view.h_align == "right" {
@@ -175,8 +176,8 @@ fn paint_one_cell<I: StringIntern>(
         } else {
             (pad, pad)
         };
-        set_style(buf, intern, text_id, "paddingLeft", &format!("{}px", pl));
-        set_style(buf, intern, text_id, "paddingRight", &format!("{}px", pr));
+        set_style(buf, intern, text_id, "paddingLeft", &format!("{pl}px"));
+        set_style(buf, intern, text_id, "paddingRight", &format!("{pr}px"));
         let span_id = TEXT_BASE + 50_000 + n as u32;
         buf.create_element(span_id, div, text_id);
         set_attr(buf, intern, span_id, "class", "xg-tx");
@@ -286,7 +287,9 @@ pub fn paint<I: StringIntern>(
         return;
     }
     let index = CellIndex::build(sheet);
-    let zoom = metrics.zoom / 100.0;
+    // Live grid matches upstream grid-view.ts: metrics.zoom is percent (e.g. 100).
+    // View-IR dumps still pass zoom/100 for FakeTextMeasure — do not change that path here.
+    let zoom = metrics.zoom;
     let has_formula = |row: u32, col: u32| {
         index
             .get(sheet, row, col)

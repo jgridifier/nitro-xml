@@ -4,10 +4,11 @@
 use crate::events::Event;
 use crate::transport::StringTable;
 use nitro_xml_xlsx::model::ActiveWorksheet;
+use nitro_xml_xlsx::model::{CellRange, SheetSelection};
 use nitro_xml_xlsx::{
-    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook, paint_grid_frame,
-    parse_worksheet_at, search_workbook, visible_sheets_json, GridPaintViewport, SearchOptions,
-    WorkbookSlice,
+    cell_text_tsv, format_range, hyperlink_at, hyperlinks_in_sheet, load_workbook,
+    paint_grid_frame, parse_range, parse_worksheet_at, search_workbook, visible_sheets_json,
+    GridPaintViewport, SearchOptions, WorkbookSlice,
 };
 use serde_json::Value;
 const DEFAULT_W: i32 = 800;
@@ -53,6 +54,25 @@ impl XlsxState {
 
     pub fn set_zoom_pct(&mut self, zoom_pct: f64) {
         self.zoom_pct = Some(zoom_pct);
+    }
+
+    /// Apply an A1 selection ref to the active sheet view (paints `.xg-outline`).
+    /// Returns the normalized ref string (`A1` / `A1:B2`) for shell UI parity.
+    pub fn apply_selection_ref(&mut self, range_ref: &str) -> Result<String, String> {
+        let range = parse_range(range_ref).ok_or_else(|| format!("invalid range {range_ref}"))?;
+        let sheet = self
+            .sheets
+            .get_mut(self.active)
+            .and_then(|s| s.as_mut())
+            .ok_or_else(|| "no active sheet".to_string())?;
+        sheet.view.selection = Some(SheetSelection {
+            active: range.start,
+            ranges: vec![CellRange {
+                start: range.start,
+                end: range.end,
+            }],
+        });
+        Ok(format_range(&range))
     }
 
     /// Rough scroll so `(row, col)` is near the top-left of the scrollable area.

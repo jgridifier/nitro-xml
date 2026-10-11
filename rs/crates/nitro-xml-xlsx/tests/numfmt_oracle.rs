@@ -29,6 +29,19 @@ impl Rng {
 
 #[test]
 fn random_pairs_match_upstream_format_value() {
+    // Live TS oracle needs the built upstream submodule and bun. The committed corpus
+    // differential (numfmt_corpus.rs) always runs in CI; this 100k check runs when present.
+    let mjs = upstream_mjs();
+    let bun = bun_bin();
+    if !mjs.is_file() {
+        eprintln!("skip 100k oracle: missing {} (init/build upstream submodule)", mjs.display());
+        return;
+    }
+    if Command::new(&bun).arg("--version").output().is_err() {
+        eprintln!("skip 100k oracle: bun not available ({bun})");
+        return;
+    }
+
     let rows: Vec<serde_json::Value> =
         serde_json::from_str(include_str!("fixtures/numfmt_corpus.json")).expect("corpus json");
     let mut formats: Vec<String> = rows
@@ -58,8 +71,6 @@ fn random_pairs_match_upstream_format_value() {
     fs::write(&input_path, body).expect("write input");
     fs::write(&script_path, ORACLE_JS).expect("write script");
 
-    let mjs = upstream_mjs();
-    let bun = bun_bin();
     let status = Command::new(&bun)
         .arg(&script_path)
         .arg(&mjs)

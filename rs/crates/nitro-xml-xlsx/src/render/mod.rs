@@ -51,7 +51,7 @@ pub fn paint_grid_frame<I: StringIntern>(
         },
     );
     buf.begin();
-    grid::paint_frame(buf, intern, viewport, &metrics);
+    grid::paint_frame(buf, intern, sheet, viewport, &metrics);
     gridlines::paint(buf, intern, sheet, &metrics, viewport);
     cells::paint(
         buf,

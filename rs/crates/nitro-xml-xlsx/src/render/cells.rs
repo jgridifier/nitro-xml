@@ -7,6 +7,7 @@ use nitro_xml_render::measure::MeasureBatch;
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
 use crate::render::geometry::header_sizes;
+use crate::render::grid::CELLS_ID;
 use crate::render::viewport::{paint_indices, visible_cells_for_host};
 use crate::render::GridPaintViewport;
 use crate::sheet_access::CellIndex;
@@ -15,6 +16,7 @@ use crate::view::cell_paint::{
     align_items, css_font, diagonal_svg, edge_css, fill_paint, has_borders, justify, text_align,
     text_decoration,
 };
+use crate::view::cell_view::is_blank_view;
 use crate::view::text_measure::CanvasTextMeasure;
 use crate::view::types::CellItem;
 
@@ -53,18 +55,16 @@ fn paint_one_cell<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
     div: u32,
+    span: u32,
     n: usize,
     item: &CellItem,
     zoom: f64,
-    ox: i32,
-    oy: i32,
-    scroll_x: i32,
-    scroll_y: i32,
 ) {
     let cell_id = CELL_BASE + n as u32;
-    let left = ox + item.x - scroll_x;
-    let top = oy + item.y - scroll_y;
-    buf.create_element(cell_id, div, 1);
+    // Plane-relative coords; scroll is on `.xg-plane` translate3d (upstream cell-layer.ts).
+    let left = item.x;
+    let top = item.y;
+    buf.create_element(cell_id, div, CELLS_ID);
     let mut cell_class = String::from("xg-c");
     if item.overflowing {
         cell_class.push_str(" xg-c-over");
@@ -166,8 +166,9 @@ fn paint_one_cell<I: StringIntern>(
         if !item.view.wrap {
             set_style(buf, intern, text_id, "whiteSpace", "pre");
         }
-        let pad = ((2.0 * (zoom / 100.0)).round() as i32).max(1);
-        let indent = pad + (item.view.indent_px * (zoom / 100.0)).round() as i32;
+        // Upstream cell-layer.ts: pad rounded; indent keeps fractional CSS px.
+        let pad = ((2.0 * (zoom / 100.0)).round() as i32).max(1) as f64;
+        let indent = pad + item.view.indent_px * (zoom / 100.0);
         let (pl, pr) = if item.view.h_align == "left" || item.view.h_align == "distributed" {
             (indent, pad)
         } else if item.view.h_align == "right" {
@@ -175,10 +176,11 @@ fn paint_one_cell<I: StringIntern>(
         } else {
             (pad, pad)
         };
-        set_style(buf, intern, text_id, "paddingLeft", &format!("{}px", pl));
-        set_style(buf, intern, text_id, "paddingRight", &format!("{}px", pr));
+        set_style(buf, intern, text_id, "paddingLeft", &format!("{pl}px"));
+        set_style(buf, intern, text_id, "paddingRight", &format!("{pr}px"));
         let span_id = TEXT_BASE + 50_000 + n as u32;
-        buf.create_element(span_id, div, text_id);
+        // Upstream uses <span class="xg-tx"> (inline-block via CSS).
+        buf.create_element(span_id, span, text_id);
         set_attr(buf, intern, span_id, "class", "xg-tx");
         if item.view.rotation != 0.0 {
             set_style(
@@ -189,8 +191,55 @@ fn paint_one_cell<I: StringIntern>(
                 &format!("rotate({}deg)", -item.view.rotation),
             );
         }
-        let text = intern.intern(&item.text);
-        buf.set_text(span_id, text);
+        // Upstream cell-layer.ts: rich runs get per-run font / superscript spans.
+        let paint_rich = item
+            .view
+            .rich
+            .as_ref()
+            .is_some_and(|r| !r.is_empty() && item.text == item.view.text);
+        if paint_rich {
+            let runs = item.view.rich.as_ref().unwrap();
+            for (ri, run) in runs.iter().enumerate() {
+                let run_id = TEXT_BASE + 70_000 + (n as u32) * 64 + ri as u32;
+                buf.create_element(run_id, span, span_id);
+                set_style(
+                    buf,
+                    intern,
+                    run_id,
+                    "font",
+                    &css_font(&run.font, zoom * item.font_scale),
+                );
+                set_style(buf, intern, run_id, "color", &run.font.color);
+                set_style(
+                    buf,
+                    intern,
+                    run_id,
+                    "textDecoration",
+                    &text_decoration(&run.font),
+                );
+                if let Some(va) = run.font.vert_align.as_deref() {
+                    let css_va = if va == "super" || va == "superscript" {
+                        "super"
+                    } else {
+                        "sub"
+                    };
+                    set_style(buf, intern, run_id, "verticalAlign", css_va);
+                }
+                let t = intern.intern(&run.text);
+                buf.set_text(run_id, t);
+            }
+        } else {
+            if let Some(va) = item.view.font.vert_align.as_deref() {
+                let css_va = if va == "super" || va == "superscript" {
+                    "super"
+                } else {
+                    "sub"
+                };
+                set_style(buf, intern, span_id, "verticalAlign", css_va);
+            }
+            let text = intern.intern(&item.text);
+            buf.set_text(span_id, text);
+        }
     }
 
     if has_borders(&item.view.borders) {
@@ -286,7 +335,9 @@ pub fn paint<I: StringIntern>(
         return;
     }
     let index = CellIndex::build(sheet);
-    let zoom = metrics.zoom / 100.0;
+    // Live grid matches upstream grid-view.ts: metrics.zoom is percent (e.g. 100).
+    // View-IR dumps still pass zoom/100 for FakeTextMeasure — do not change that path here.
+    let zoom = metrics.zoom;
     let has_formula = |row: u32, col: u32| {
         index
             .get(sheet, row, col)
@@ -310,20 +361,15 @@ pub fn paint<I: StringIntern>(
         build_items(&input, &mut canvas_measure)
     };
     let div = intern.intern("div");
-    let ox = sizes.w;
-    let oy = sizes.h;
-    for (n, item) in items.iter().enumerate() {
-        paint_one_cell(
-            buf,
-            intern,
-            div,
-            n,
-            item,
-            metrics.zoom,
-            ox,
-            oy,
-            viewport.scroll_x,
-            viewport.scroll_y,
-        );
+    let span = intern.intern("span");
+    // Upstream CellViewCache returns null for isBlankView — no DOM node.
+    // View-IR keeps blanks (oracle view() never null); only the painter skips.
+    let mut n = 0usize;
+    for item in &items {
+        if !item.merged && is_blank_view(&item.view) {
+            continue;
+        }
+        paint_one_cell(buf, intern, div, span, n, item, metrics.zoom);
+        n += 1;
     }
 }

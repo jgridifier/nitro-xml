@@ -68,11 +68,15 @@ break;
 handle.setLayoutResults(out);
 return n;
 }
+function ptr(handle, name) {
+const v = handle[name];
+return typeof v === "function" ? v.call(handle) : v;
+}
 export function readLayoutReqsFromMemory(handle, memory) {
 const n = handle.layoutCount | 0;
 if (n === 0) return [];
-const nodes = new Uint32Array(memory.buffer, handle.layoutNodePtr, n);
-const kinds = new Uint8Array(memory.buffer, handle.layoutKindPtr, n);
-const props = new Uint32Array(memory.buffer, handle.layoutPropPtr, n);
+const nodes = new Uint32Array(memory.buffer, ptr(handle, "layoutNodePtr"), n);
+const kinds = new Uint8Array(memory.buffer, ptr(handle, "layoutKindPtr"), n);
+const props = new Uint32Array(memory.buffer, ptr(handle, "layoutPropPtr"), n);
 return packLayoutReqs(nodes, kinds, props);
 }

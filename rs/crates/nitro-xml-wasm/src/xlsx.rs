@@ -232,6 +232,9 @@ pub fn process_frame(handle: &mut crate::handle::Handle) {
     }
     handle.events.drain();
     if let Some(ref mut xlsx) = handle.xlsx {
+        // Drop unacked measure reqs from a prior paint (e.g. openDocument) so this
+        // frame's batch matches the commands about to be taken.
+        handle.measures.clear_pending();
         let bytes = &handle.bytes;
         xlsx.paint(
             bytes,

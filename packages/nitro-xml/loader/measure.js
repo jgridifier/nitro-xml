@@ -21,13 +21,19 @@ export function flushMeasureBatch(handle, ctx) {
   return n;
 }
 
+/** wasm-bindgen exposes SoA ptrs as methods — call them for the byte offset. */
+function ptr(handle, name) {
+  const v = handle[name];
+  return typeof v === "function" ? v.call(handle) : v;
+}
+
 /** @deprecated prefer Handle.takeMeasureReqs SoA; kept for tests that poke wasm memory. */
 export function readMeasureReqsFromMemory(handle, memory) {
   const n = handle.measureCount | 0;
   if (n === 0) return [];
-  const u32 = new Uint32Array(memory.buffer, handle.measureFontPtr, n);
-  const f32 = new Float32Array(memory.buffer, handle.measureSizePtr, n);
-  const t32 = new Uint32Array(memory.buffer, handle.measureTextPtr, n);
+  const u32 = new Uint32Array(memory.buffer, ptr(handle, "measureFontPtr"), n);
+  const f32 = new Float32Array(memory.buffer, ptr(handle, "measureSizePtr"), n);
+  const t32 = new Uint32Array(memory.buffer, ptr(handle, "measureTextPtr"), n);
   const out = new Array(n);
   for (let i = 0; i < n; i++) {
     out[i] = { fontId: u32[i], sizePx: f32[i], textId: t32[i] };

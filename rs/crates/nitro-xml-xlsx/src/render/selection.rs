@@ -5,7 +5,7 @@ use nitro_xml_render::command_buffer::CommandBuffer;
 
 use crate::intern::StringIntern;
 use crate::model::ActiveWorksheet;
-use crate::render::geometry::header_sizes;
+use crate::render::grid::OVERLAY_ID;
 use crate::render::GridPaintViewport;
 use crate::sheet_access::merge_at;
 use crate::view::metrics::GridMetrics;
@@ -43,11 +43,11 @@ pub fn paint<I: StringIntern>(
     metrics: &GridMetrics,
     viewport: &GridPaintViewport,
 ) {
+    let _ = viewport;
     let selection = sheet.view.selection.as_ref();
     let Some(selection) = selection else {
         return;
     };
-    let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let active = selection.active;
     let range =
         merge_at(sheet, active.row, active.col)
@@ -62,10 +62,11 @@ pub fn paint<I: StringIntern>(
     let y = metrics.row_top(range.start.row);
     let w = metrics.col_left(end_col + 1) - x;
     let h = metrics.row_top(end_row + 1) - y;
-    let left = sizes.w + x - viewport.scroll_x - 1;
-    let top = sizes.h + y - viewport.scroll_y - 1;
+    // Plane-relative (upstream selection-layer.ts); `.xg-overlay` is under `.xg-plane`.
+    let left = x - 1;
+    let top = y - 1;
     let div = intern.intern("div");
-    buf.create_element(OUTLINE_ID, div, 1);
+    buf.create_element(OUTLINE_ID, div, OVERLAY_ID);
     set_attr(buf, intern, OUTLINE_ID, "class", "xg-outline");
     set_style(buf, intern, OUTLINE_ID, "left", &format!("{}px", left));
     set_style(buf, intern, OUTLINE_ID, "top", &format!("{}px", top));

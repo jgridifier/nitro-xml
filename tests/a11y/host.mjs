@@ -32,7 +32,12 @@ export async function startA11yServer() {
  * @param {'ts'|'rust'} side
  */
 export function hostUrl(base, c, side) {
-	const page = c.format === 'pptx' ? 'pptx-a11y.html' : 'xlsx-a11y.html';
+	const page =
+		c.format === 'pptx'
+			? 'pptx-a11y.html'
+			: c.format === 'docx'
+				? 'docx-a11y.html'
+				: 'xlsx-a11y.html';
 	const q = new URLSearchParams({
 		side,
 		id: c.id,
@@ -61,8 +66,16 @@ export function ensureVisualBundles() {
 	const prepare = join(VISUAL, 'prepare.mjs');
 	const xlsxBundle = join(VISUAL, 'out/bundles/xlsx-editor.js');
 	const pptxBundle = join(VISUAL, 'out/bundles/pptx-slide.js');
+	const docxBundle = join(VISUAL, 'out/bundles/docx-print.js');
 	const fontMirror = join(VISUAL, 'out/fonts/css2');
-	if (existsSync(xlsxBundle) && existsSync(pptxBundle) && existsSync(fontMirror)) return;
+	if (
+		existsSync(xlsxBundle) &&
+		existsSync(pptxBundle) &&
+		existsSync(docxBundle) &&
+		existsSync(fontMirror)
+	) {
+		return;
+	}
 	const r = spawnSync('bun', [prepare], {
 		cwd: VISUAL,
 		encoding: 'utf8',

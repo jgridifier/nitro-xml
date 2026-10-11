@@ -3,7 +3,7 @@
  * Accessibility gate cases (#42).
  *
  * xlsx + pptx: differential axe / AX-tree / keyboard vs upstream TS hosts.
- * docx: registered, not ready until #158 (Print Layout + nitro-docx) lands.
+ * docx: live Print Layout host (#23) vs upstream TS mount.
  */
 
 /** @typedef {'xlsx'|'docx'|'pptx'} A11yFormat */
@@ -42,8 +42,10 @@ export const A11Y_CASES = [
 	{
 		id: 'docx-print-layout',
 		format: 'docx',
-		ready: false,
-		todo: 'Register when #158 (docx Print Layout + nitro-docx) lands.',
+		ready: true,
+		fixture: 'fixtures/bidi/arabic-hebrew-paragraphs.docx',
+		width: 800,
+		height: 600,
 	},
 ];
 

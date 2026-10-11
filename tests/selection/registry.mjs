@@ -283,12 +283,13 @@ export const SELECTION_CASES = [
 	{
 		id: 'docx-text-span',
 		format: 'docx',
-		ready: false,
-		allowList: '#158',
-		todo: 'Cover once <nitro-docx> lands on main (#158 / #23).',
+		ready: true,
+		fixture: 'fixtures/bidi/arabic-hebrew-paragraphs.docx',
+		width: 800,
+		height: 600,
 		live: true,
 		actions: [{ op: 'click', ref: 'p0' }, { op: 'copy' }],
-		compare: ['selection', 'copy', 'caret', 'highlight'],
+		compare: ['copy'],
 	},
 ];
 

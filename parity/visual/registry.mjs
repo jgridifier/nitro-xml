@@ -9,7 +9,7 @@
 
 import { pptxVisualCorpus } from './pptx-corpus.mjs';
 
-/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'pptx-viewer' | 'docx-layout-ir'} VisualKind */
+/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'pptx-viewer' | 'docx-layout-ir' | 'docx-viewer'} VisualKind */
 
 /**
  * @typedef {object} VisualCase
@@ -26,6 +26,7 @@ import { pptxVisualCorpus } from './pptx-corpus.mjs';
  * @property {boolean} [rust] when true, prepare + compare a Rust/WASM side
  * @property {boolean} [informational] when true, mismatches are reported but do not fail the gate
  * @property {boolean} [skipPrint] when true, skip print-to-PDF for this case
+ * @property {number} [threshold] per-case mismatch fraction (overrides format default)
  */
 
 /** @type {VisualCase[]} */
@@ -71,6 +72,18 @@ const STATIC_CASES = [
 		width: 800,
 		height: 600,
 		rust: true,
+	},
+	{
+		id: 'docx-viewer-bidi-paragraphs',
+		format: 'docx',
+		kind: 'docx-viewer',
+		ready: true,
+		informational: true,
+		fixture: 'fixtures/bidi/arabic-hebrew-paragraphs.docx',
+		width: 800,
+		height: 600,
+		rust: true,
+		threshold: 0.001,
 	},
 ];
 

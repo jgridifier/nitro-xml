@@ -22,8 +22,14 @@ async function loadChromium() {
 	return mod.chromium;
 }
 
+function viewerPage(format) {
+	if (format === 'pptx') return 'pptx-viewer.html';
+	if (format === 'docx') return 'docx-viewer.html';
+	return 'xlsx-viewer.html';
+}
+
 function viewerUrl(base, c, side) {
-	const page = c.format === 'pptx' ? 'pptx-viewer.html' : 'xlsx-viewer.html';
+	const page = viewerPage(c.format);
 	const q = new URLSearchParams({
 		side,
 		id: c.id,
@@ -117,9 +123,56 @@ async function cellPoint(page, side, ref) {
 	);
 }
 
+function parseParagraphRef(ref) {
+	const m = /^p(\d+)$/i.exec(String(ref || '').trim());
+	if (!m) throw new Error(`bad paragraph ref ${ref}`);
+	return Number(m[1]);
+}
+
+async function docxLinePoint(page, side, ref) {
+	const idx = parseParagraphRef(ref);
+	return page.evaluate(
+		({ side, idx }) => {
+			const stage = document.getElementById('stage');
+			const root =
+				side === 'rust'
+					? stage?.querySelector('nitro-docx')?.shadowRoot
+					: stage;
+			const lines = root?.querySelectorAll('.dve-print-line') ?? [];
+			const line = lines[idx];
+			if (!line) throw new Error(`no print line p${idx}`);
+			const r = line.getBoundingClientRect();
+			return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 8) };
+		},
+		{ side, idx },
+	);
+}
+
+async function selectDocxLineText(page, side, ref) {
+	const idx = parseParagraphRef(ref);
+	await page.evaluate(
+		({ side, idx }) => {
+			const stage = document.getElementById('stage');
+			const root =
+				side === 'rust'
+					? stage?.querySelector('nitro-docx')?.shadowRoot
+					: stage;
+			const line = root?.querySelectorAll('.dve-print-line')?.[idx];
+			if (!line) return;
+			const range = document.createRange();
+			range.selectNodeContents(line);
+			const sel = side === 'rust' && root?.getSelection ? root.getSelection() : window.getSelection();
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+			stage.dataset.docxLine = String(idx);
+		},
+		{ side, idx },
+	);
+}
+
 async function tickRust(page) {
 	await page.evaluate(async () => {
-		const el = document.querySelector('nitro-xlsx, nitro-pptx');
+		const el = document.querySelector('nitro-xlsx, nitro-pptx, nitro-docx');
 		if (!el?.document) return;
 		for (let i = 0; i < 4; i++) {
 			await el.document.tick();
@@ -162,6 +215,37 @@ async function readState(page, side, format) {
 					copy: '',
 					highlight: box(outline),
 					caret: box(active) || box(outline),
+				};
+			}
+
+			if (format === 'docx') {
+				const root =
+					side === 'rust'
+						? stage?.querySelector('nitro-docx')?.shadowRoot
+						: stage;
+				const idx = Number(stage?.dataset.docxLine || 0);
+				const line = root?.querySelectorAll('.dve-print-line')?.[idx] || root?.querySelector('.dve-print-line');
+				const text = (line?.textContent || '').replace(/\s+/g, ' ').trim();
+				const domSel =
+					(side === 'rust' && root?.getSelection ? root.getSelection() : window.getSelection())?.toString() ||
+					'';
+				return {
+					selection: text,
+					copy: '',
+					highlight: box(line),
+					caret: domSel
+						? (() => {
+								const sel =
+									side === 'rust' && root?.getSelection
+										? root.getSelection()
+										: window.getSelection();
+								const r = sel?.getRangeAt(0)?.getBoundingClientRect();
+								return r && (r.width || r.height)
+									? { x: r.x, y: r.y, w: r.width, h: r.height }
+									: null;
+							})()
+						: box(line),
+					textCopy: domSel || text,
 				};
 			}
 
@@ -215,7 +299,7 @@ async function readState(page, side, format) {
 
 async function rustCopy(page) {
 	return page.evaluate(async () => {
-		const el = document.querySelector('nitro-xlsx, nitro-pptx');
+		const el = document.querySelector('nitro-xlsx, nitro-pptx, nitro-docx');
 		const r = await el.shellAction('copy', '');
 		return r?.c ?? r?.copyText ?? '';
 	});
@@ -279,6 +363,14 @@ async function applyClick(page, side, format, ref, shift) {
 		if (format === 'xlsx') {
 			const pt = await cellPoint(page, side, ref);
 			await page.mouse.click(pt.x, pt.y);
+			if (side === 'rust') await tickRust(page);
+			else await page.waitForTimeout(80);
+			return;
+		}
+		if (format === 'docx') {
+			const pt = await docxLinePoint(page, side, ref);
+			await page.mouse.click(pt.x, pt.y);
+			await selectDocxLineText(page, side, ref);
 			if (side === 'rust') await tickRust(page);
 			else await page.waitForTimeout(80);
 			return;
@@ -518,7 +610,14 @@ async function runActions(page, side, format, actions, fixtureRel) {
 			await applyTextSelect(page, side, a.elementId, a.substring || '');
 		} else if (a.op === 'copy') {
 			if (side === 'rust') {
-				if (format === 'pptx') {
+				if (format === 'docx') {
+					const fromDom = await page.evaluate(() => {
+						const root = document.querySelector('nitro-docx')?.shadowRoot;
+						const sel = root?.getSelection?.() || document.getSelection();
+						return sel?.toString() || '';
+					});
+					copy = fromDom || (await rustCopy(page));
+				} else if (format === 'pptx') {
 					// Prefer in-shadow text selection (text-select cases); else shell copy.
 					const fromDom = await page.evaluate(() => {
 						const root = document.querySelector('nitro-pptx')?.shadowRoot;
@@ -530,6 +629,15 @@ async function runActions(page, side, format, actions, fixtureRel) {
 				} else {
 					copy = await rustCopy(page);
 				}
+			} else if (format === 'docx') {
+				copy = await page.evaluate(() => {
+					const stage = document.getElementById('stage');
+					const textSel = window.getSelection()?.toString();
+					if (textSel) return textSel;
+					const idx = Number(stage.dataset.docxLine || 0);
+					const line = stage.querySelectorAll('.dve-print-line')[idx];
+					return line?.textContent || '';
+				});
 			} else if (format === 'xlsx') {
 				const st = await readState(page, side, format);
 				lastSelection = st.selection;
@@ -571,6 +679,8 @@ async function runActions(page, side, format, actions, fixtureRel) {
 	const state = await readState(page, side, format);
 	if (copy) state.copy = copy;
 	else if (format === 'pptx' && side === 'ts' && state.textCopy) state.copy = state.textCopy;
+	else if (format === 'docx' && side === 'ts' && state.textCopy && !state.copy) state.copy = state.textCopy;
+	else if (format === 'docx' && side === 'rust' && state.textCopy && !state.copy) state.copy = state.textCopy;
 	if (lastSelection) state.selection = state.selection || lastSelection;
 	return state;
 }

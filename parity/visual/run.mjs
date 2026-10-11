@@ -22,6 +22,10 @@ const SHOTS = join(OUT, 'shots');
 const DIFFS = join(OUT, 'diffs');
 const PDFS = join(OUT, 'pdfs');
 
+function caseThreshold(c) {
+	return c.threshold ?? THRESHOLDS[c.format];
+}
+
 function hostUrl(base, c, side) {
 	if (c.kind === 'xlsx-viewer') {
 		const q = new URLSearchParams({
@@ -44,6 +48,16 @@ function hostUrl(base, c, side) {
 		});
 		return `${base}/pages/pptx-viewer.html?${q}`;
 	}
+	if (c.kind === 'docx-viewer') {
+		const q = new URLSearchParams({
+			side,
+			id: c.id,
+			fixture: `/repo/${c.fixture}`,
+			width: String(c.width || 800),
+			height: String(c.height || 600),
+		});
+		return `${base}/pages/docx-viewer.html?${q}`;
+	}
 	const q = new URLSearchParams({
 		kind: c.kind,
 		side,
@@ -55,7 +69,9 @@ function hostUrl(base, c, side) {
 }
 
 function readyTimeoutMs(c) {
-	if (c.kind === 'xlsx-viewer' || c.kind === 'pptx-viewer') return 90_000;
+	if (c.kind === 'xlsx-viewer' || c.kind === 'pptx-viewer' || c.kind === 'docx-viewer') {
+		return 90_000;
+	}
 	return 30_000;
 }
 
@@ -105,7 +121,7 @@ function recordHostError(rows, c, mode, dpr, err) {
 		ratio: 1,
 		mismatched: 1,
 		total: 1,
-		threshold: THRESHOLDS[c.format],
+		threshold: caseThreshold(c),
 		reason,
 	});
 }
@@ -215,8 +231,10 @@ export async function runVisualGate() {
 				const b = await screenshotSide(browser, server.url, c, 'ts', 1);
 				writeFileSync(join(SHOTS, `${c.id}-ts-dpr1-a.png`), a);
 				writeFileSync(join(SHOTS, `${c.id}-ts-dpr1-b.png`), b);
+				const thr = caseThreshold(c);
 				const cmp = comparePngBuffers(a, b, {
 					format: c.format,
+					threshold: thr,
 					diffPath: join(DIFFS, `${c.id}-ts-vs-ts-dpr1.png`),
 				});
 				failed += recordRow(rows, c, {
@@ -227,7 +245,7 @@ export async function runVisualGate() {
 					ratio: cmp.ratio,
 					mismatched: cmp.mismatched,
 					total: cmp.total,
-					threshold: THRESHOLDS[c.format],
+					threshold: thr,
 				});
 			} catch (err) {
 				if (c.informational) failed += recordHostError(rows, c, 'ts-vs-ts', 1, err);
@@ -243,8 +261,10 @@ export async function runVisualGate() {
 					const rust = await screenshotSide(browser, server.url, c, 'rust', dpr);
 					writeFileSync(join(SHOTS, `${c.id}-ts-dpr${dpr}.png`), ts);
 					writeFileSync(join(SHOTS, `${c.id}-rust-dpr${dpr}.png`), rust);
+					const thr = caseThreshold(c);
 					const cmp = comparePngBuffers(ts, rust, {
 						format: c.format,
+						threshold: thr,
 						diffPath: join(DIFFS, `${c.id}-ts-vs-rust-dpr${dpr}.png`),
 					});
 					failed += recordRow(rows, c, {
@@ -255,7 +275,7 @@ export async function runVisualGate() {
 						ratio: cmp.ratio,
 						mismatched: cmp.mismatched,
 						total: cmp.total,
-						threshold: THRESHOLDS[c.format],
+						threshold: thr,
 						reason: cmp.reason,
 					});
 				} catch (err) {
@@ -277,8 +297,10 @@ export async function runVisualGate() {
 			const rustRaster = await rasterizePdf(browser, server.url, `/out/pdfs/${c.id}-rust.pdf`);
 			writeFileSync(join(SHOTS, `${c.id}-ts-print.png`), tsRaster);
 			writeFileSync(join(SHOTS, `${c.id}-rust-print.png`), rustRaster);
+			const thr = caseThreshold(c);
 			const cmp = comparePngBuffers(tsRaster, rustRaster, {
 				format: c.format,
+				threshold: thr,
 				diffPath: join(DIFFS, `${c.id}-ts-vs-rust-print.png`),
 			});
 			failed += recordRow(rows, c, {
@@ -289,7 +311,7 @@ export async function runVisualGate() {
 				ratio: cmp.ratio,
 				mismatched: cmp.mismatched,
 				total: cmp.total,
-				threshold: THRESHOLDS[c.format],
+				threshold: thr,
 				reason: cmp.reason,
 			});
 		}

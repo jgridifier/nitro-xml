@@ -17,7 +17,7 @@ Stage-6 shell controls. This checklist is the remaining human pass per stage.
 |--------|---------------|-------------|
 | xlsx   | yes (#42)     | Stage 3 merge |
 | pptx   | yes (#42)     | Stage 5 merge |
-| docx   | deferred (#158) | After Print Layout + `nitro-docx` land |
+| docx   | yes (#42 / #23) | Stage 4 merge |
 
 ## NVDA (Windows) — viewer smoke
 
@@ -25,6 +25,7 @@ Stage-6 shell controls. This checklist is the remaining human pass per stage.
 2. Confirm the content surface is announced:
    - **xlsx:** “Spreadsheet grid” (or equivalent) with row/column headers as you arrow.
    - **pptx:** slide region (“Slide”) and visible text in reading order.
+   - **docx:** paginated print pages; body text in visual reading order.
 3. Tab through Stage-6 chrome: Zoom out, Zoom in, Find, Copy, Diagnostics, sheet/slide tabs.
 4. Open Find (`Ctrl/Cmd+F` or Find), type a known string, Next/Previous, Escape closes.
 5. No surprise “blank” focus stops on decorative paint nodes.

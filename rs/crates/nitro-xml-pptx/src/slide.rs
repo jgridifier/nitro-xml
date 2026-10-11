@@ -18,6 +18,13 @@ use crate::inheritance::{
     is_header_footer_placeholder, merge_elements, merge_placeholder_context, sp_pr_of_placeholder,
     tx_body_of_placeholder, PlaceholderInfo, PlaceholderNode,
 };
+use crate::level_style::{LevelStylesMap, MasterTxStyles};
+use crate::placeholder_defaults::PlaceholderDefaultsCache;
+use crate::table::table_row_count;
+use crate::text::{
+    extract_element_text, placeholder_is_body_type, text_body_has_renderable_content,
+    TextExtractContext,
+};
 
 /// EMU per CSS pixel at 96 DPI (same as [`EMU_PER_PIXEL`]).
 pub const EMU_PER_PX: i64 = EMU_PER_PIXEL;
@@ -94,6 +101,45 @@ pub struct ParseCtx<'a> {
     pub slide_path: &'a str,
     pub layout_sp_tree: Option<&'a Element>,
     pub master_sp_tree: Option<&'a Element>,
+    pub presentation_level_styles: Option<&'a LevelStylesMap>,
+    pub layout_placeholder_levels: Option<&'a PlaceholderDefaultsCache>,
+    pub master_placeholder_levels: Option<&'a PlaceholderDefaultsCache>,
+    pub master_tx_styles: Option<&'a MasterTxStyles>,
+}
+
+impl<'a> ParseCtx<'a> {
+    fn extract_text(
+        &self,
+        own_tx_body: Option<&Element>,
+        inherited_tx_body: Option<&Element>,
+        effective_tx_body: &Element,
+        ph_info: Option<&PlaceholderInfo>,
+    ) -> String {
+        let effective_levels = ph_info.map(|ph| {
+            let layout_levels = self
+                .layout_placeholder_levels
+                .and_then(|c| c.get(&crate::placeholder_defaults::placeholder_defaults_key(ph)));
+            let master_levels = self
+                .master_placeholder_levels
+                .and_then(|c| c.get(&crate::placeholder_defaults::placeholder_defaults_key(ph)));
+            crate::placeholder_defaults::lookup_effective_level_styles(
+                layout_levels,
+                master_levels,
+                self.master_tx_styles,
+                ph.type_.as_deref(),
+                self.presentation_level_styles,
+            )
+        });
+        let is_body = ph_info.is_some_and(placeholder_is_body_type);
+        let text_ctx = TextExtractContext {
+            tx_body: own_tx_body,
+            inherited_tx_body,
+            is_body_placeholder: is_body,
+            effective_level_styles: effective_levels.as_ref(),
+            presentation_level_styles: self.presentation_level_styles,
+        };
+        extract_element_text(&text_ctx, effective_tx_body)
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -497,21 +543,28 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         .and_then(|i| find_placeholder_context(ctx, i));
     let sp_pr = child_local(shape, "spPr", ns::P);
     let inherited_sp_pr = inherited.as_ref().and_then(sp_pr_of_placeholder);
+    // Bare `<p:spPr/>` is `''` (falsy) in fast-xml-parser, so upstream falls back to
+    // the full inherited placeholder spPr — including master `a:noFill` / `a:ln/a:noFill`.
+    // An owned spPr that only carries xfrm/geom stays slide-local and still sees fillRef.
     let effective_sp_pr = if let Some(own) = sp_pr {
-        let mut merged = own.clone();
-        if let Some(inh) = inherited_sp_pr {
-            if let Some(inh_xfrm) = child_local(inh, "xfrm", ns::A) {
-                if let Some(own_xfrm) = child_local(own, "xfrm", ns::A) {
-                    let mx = merge_elements(Some(inh_xfrm), Some(own_xfrm), 0);
-                    if let Some(mx) = mx {
-                        replace_child(&mut merged, "xfrm", ns::A, mx);
+        if !element_has_element_children(own) {
+            inherited_sp_pr.cloned()
+        } else {
+            let mut merged = own.clone();
+            if let Some(inh) = inherited_sp_pr {
+                if let Some(inh_xfrm) = child_local(inh, "xfrm", ns::A) {
+                    if let Some(own_xfrm) = child_local(own, "xfrm", ns::A) {
+                        let mx = merge_elements(Some(inh_xfrm), Some(own_xfrm), 0);
+                        if let Some(mx) = mx {
+                            replace_child(&mut merged, "xfrm", ns::A, mx);
+                        }
+                    } else {
+                        merged.children.push(Node::Element(inh_xfrm.clone()));
                     }
-                } else {
-                    merged.children.push(Node::Element(inh_xfrm.clone()));
                 }
             }
+            Some(merged)
         }
-        Some(merged)
     } else {
         inherited_sp_pr.cloned()
     };
@@ -529,7 +582,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         && text_body_has_content(inh_tx);
     let tx_body = if inherits_hf_text {
         inh_tx
-    } else if ph_info.is_some() && !text_body_has_content(own_tx) {
+    } else if ph_info.is_some() && own_tx.is_some() && !text_body_has_content(own_tx) {
         own_tx
     } else {
         own_tx.or(inh_tx)
@@ -556,10 +609,14 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
     };
     let shape_type = geometry_name(effective_sp_pr.as_ref());
     let is_plain_rect = shape_type == "rect";
-    let has_visible = effective_sp_pr
-        .as_ref()
-        .is_some_and(shape_has_visible_style);
-    let text = tx_body.map(extract_text_body).unwrap_or_default();
+    let has_visible = shape_element_has_visible_style(
+        shape,
+        effective_sp_pr.as_ref(),
+        inherited.as_ref().map(|p| &p.element),
+    );
+    let text = tx_body
+        .map(|tb| ctx.extract_text(own_tx, inh_tx, tb, ph_info.as_ref()))
+        .unwrap_or_default();
     let has_text = !text.trim().is_empty();
     let type_ = if has_text && is_plain_rect && !has_visible {
         "text"
@@ -584,7 +641,11 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         flip_h,
         flip_v,
         inherited_transform,
-        tx_body.map(|_| text),
+        if tx_body.is_some() || own_tx.is_some() || inh_tx.is_some() {
+            Some(text)
+        } else {
+            None
+        },
         Some(shape_type),
         None,
         None,
@@ -726,12 +787,12 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
     )
 }
 
-fn parse_connector(cxn: &Element, id: String, _ctx: &ParseCtx) -> Option<DumpElement> {
+fn parse_connector(cxn: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElement> {
     let sp_pr = child_local(cxn, "spPr", ns::P)?;
     let xfrm = child_local(sp_pr, "xfrm", ns::A)?;
     let (x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v) = xfrm_to_box(Some(xfrm));
     let tx_body = child_local(cxn, "txBody", ns::P);
-    let text = tx_body.map(extract_text_body);
+    let text = tx_body.map(|tb| ctx.extract_text(tx_body, None, tb, None));
     let shape_type = geometry_name(Some(sp_pr));
     let c_nv_pr = child_path(cxn, &[("nvCxnSpPr", ns::P), ("cNvPr", ns::P)]);
     build_dump(
@@ -866,10 +927,30 @@ fn parse_graphic_frame(frame: &Element, id: String, _ctx: &ParseCtx) -> Option<D
     let graphic = graphic?;
     let table = child_local(graphic, "tbl", ns::A)?;
     let (w, h) = table_grid_pixel_extent(table).unwrap_or((w, h));
+    let rows = table_row_count(table);
     let c_nv_pr = child_path(frame, &[("nvGraphicFramePr", ns::P), ("cNvPr", ns::P)]);
     build_dump(
-        "table", id, c_nv_pr, ph_info, x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v,
-        None, None, None, None, None, false,
+        "table",
+        id,
+        c_nv_pr,
+        ph_info,
+        x,
+        y,
+        w,
+        h,
+        x_emu,
+        y_emu,
+        w_emu,
+        h_emu,
+        rot,
+        flip_h,
+        flip_v,
+        None,
+        None,
+        None,
+        Some(rows),
+        None,
+        false,
     )
 }
 
@@ -1105,7 +1186,17 @@ fn build_dump(
         text,
         shape_type,
         table_row_count,
-        children: children.filter(|c| !c.is_empty()),
+        children: match children {
+            None => None,
+            Some(c) if c.is_empty() => {
+                if type_ == "group" {
+                    Some(c)
+                } else {
+                    None
+                }
+            }
+            Some(c) => Some(c),
+        },
     })
 }
 
@@ -1174,108 +1265,76 @@ fn parse_emu_attr(v: Option<&str>) -> i64 {
     v.and_then(|s| s.parse().ok()).unwrap_or(0)
 }
 
-fn shape_has_visible_style(sp_pr: &Element) -> bool {
-    if child_local(sp_pr, "noFill", ns::A).is_some() {
-        return false;
-    }
-    if let Some(fill) = child_local(sp_pr, "solidFill", ns::A) {
-        if parse_color_choice_simple(fill).is_some() {
-            return true;
-        }
-    }
-    if let Some(ln) = child_local(sp_pr, "ln", ns::A) {
-        if child_local(ln, "noFill", ns::A).is_some() {
-            return false;
-        }
-        let w = parse_emu_attr(attr(ln, "w"));
-        if w > 0 {
-            return true;
-        }
-    }
-    false
+fn element_has_element_children(el: &Element) -> bool {
+    el.children.iter().any(|n| matches!(n, Node::Element(_)))
 }
 
-fn parse_color_choice_simple(node: &Element) -> Option<String> {
-    for child in &node.children {
-        if let Node::Element(e) = child {
-            if e.local == "srgbClr" {
-                let v = attr(e, "val")?;
-                if v.len() == 6 {
-                    return Some(format!("#{}", v.to_uppercase()));
-                }
-            }
+fn shape_element_has_visible_style(
+    shape: &Element,
+    sp_pr: Option<&Element>,
+    inherited_shape: Option<&Element>,
+) -> bool {
+    // Mirrors upstream `extractShapeStyle` + `hasVisibleStyle`: `a:noFill` /
+    // `a:ln/a:noFill` win over `p:style` fillRef/lnRef (master title placeholders).
+    let fill_visible = match sp_pr {
+        Some(sp) if child_local(sp, "noFill", ns::A).is_some() => false,
+        Some(sp)
+            if child_local(sp, "solidFill", ns::A).is_some()
+                || child_local(sp, "gradFill", ns::A).is_some()
+                || child_local(sp, "pattFill", ns::A).is_some()
+                || child_local(sp, "blipFill", ns::A).is_some() =>
+        {
+            true
         }
-    }
-    None
+        _ => style_ref_idx_positive(shape, inherited_shape, "fillRef"),
+    };
+    // Upstream gates on resolved `strokeWidth > 0` only (not mere solidFill on ln).
+    let stroke_visible = match sp_pr.and_then(|sp| child_local(sp, "ln", ns::A)) {
+        Some(ln) if child_local(ln, "noFill", ns::A).is_some() => false,
+        Some(ln) => parse_emu_attr(attr(ln, "w")) > 0,
+        None => style_ref_idx_positive(shape, inherited_shape, "lnRef"),
+    };
+    fill_visible || stroke_visible
+}
+
+fn style_ref_idx_positive(shape: &Element, inherited_shape: Option<&Element>, local: &str) -> bool {
+    let style = child_local(shape, "style", ns::P)
+        .or_else(|| inherited_shape.and_then(|el| child_local(el, "style", ns::P)));
+    let Some(style) = style else {
+        return false;
+    };
+    let Some(ref_el) = child_local(style, local, ns::A) else {
+        return false;
+    };
+    let idx = attr(ref_el, "idx")
+        .and_then(|s| s.parse::<i32>().ok())
+        .unwrap_or(0);
+    // idx 0 / 1000 mean "none" in the style matrix (same as upstream).
+    idx > 0 && idx != 1000
 }
 
 pub fn text_body_has_content(tx_body: Option<&Element>) -> bool {
-    tx_body.is_some_and(|body| scan_text(body) || body_has_bullet(body))
-}
-
-fn body_has_bullet(tx_body: &Element) -> bool {
-    children_local(tx_body, "p", ns::A)
-        .iter()
-        .any(|p| !paragraph_bullet_prefix(p).is_empty())
-}
-
-fn scan_text(node: &Element) -> bool {
-    if node.local == "t" && node.ns.as_deref() == Some(ns::A) {
-        return !node.text_content().trim().is_empty();
-    }
-    for c in &node.children {
-        match c {
-            Node::Element(e) if scan_text(e) => return true,
-            _ => {}
-        }
-    }
-    false
+    tx_body.is_some_and(|body| {
+        let ctx = TextExtractContext {
+            tx_body: Some(body),
+            inherited_tx_body: None,
+            is_body_placeholder: false,
+            effective_level_styles: None,
+            presentation_level_styles: None,
+        };
+        text_body_has_renderable_content(body, &ctx)
+    })
 }
 
 pub(crate) fn extract_text_body(tx_body: &Element) -> String {
-    let paras = children_local(tx_body, "p", ns::A);
-    if paras.is_empty() {
-        return tx_body.text_content();
-    }
-    let mut parts = Vec::new();
-    for (i, p) in paras.iter().enumerate() {
-        let bullet = paragraph_bullet_prefix(p);
-        parts.push(bullet);
-        parts.push(paragraph_text(p));
-        if i + 1 < paras.len() {
-            parts.push("\n".to_owned());
-        }
-    }
-    parts.join("")
-}
-
-fn paragraph_bullet_prefix(p: &Element) -> String {
-    let p_pr = child_local(p, "pPr", ns::A);
-    if let Some(p_pr) = p_pr {
-        if let Some(bu_char) = child_local(p_pr, "buChar", ns::A) {
-            let ch = attr(bu_char, "char").unwrap_or("•");
-            return format!("{} ", ch);
-        }
-    }
-    String::new()
-}
-
-fn paragraph_text(p: &Element) -> String {
-    let mut out = String::new();
-    for child in &p.children {
-        match child {
-            Node::Element(e) if e.local == "r" && e.ns.as_deref() == Some(ns::A) => {
-                if let Some(t) = child_local(e, "t", ns::A) {
-                    out.push_str(&t.text_content());
-                }
-            }
-            Node::Element(e) if e.local == "t" && e.ns.as_deref() == Some(ns::A) => {
-                out.push_str(&e.text_content());
-            }
-            _ => {}
-        }
-    }
-    out
+    let ctx = TextExtractContext {
+        tx_body: Some(tx_body),
+        inherited_tx_body: None,
+        is_body_placeholder: false,
+        effective_level_styles: None,
+        presentation_level_styles: None,
+    };
+    extract_element_text(&ctx, tx_body)
 }
 
 fn replace_child(parent: &mut Element, local: &str, ns_uri: &str, new_child: Element) {
@@ -1357,7 +1416,7 @@ pub fn slim_element_for_dump(el: &DumpElement) -> Value {
             .filter(|c| PORTED.contains(&c.type_.as_str()))
             .map(slim_element_for_dump)
             .collect::<Vec<_>>();
-        if !slim_kids.is_empty() {
+        if !slim_kids.is_empty() || el.type_ == "group" {
             obj.insert("children".to_owned(), json!(slim_kids));
         }
     }

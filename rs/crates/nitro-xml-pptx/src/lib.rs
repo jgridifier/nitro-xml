@@ -4,9 +4,14 @@
 //! Ports ChristopherVR/ooxml@e66aaec `src/core/pptx/core/` presentation load path (issue #24).
 //! Ported modules carry Apache-2.0 headers; see `PROVENANCE.md`.
 
+mod auto_number;
 mod inheritance;
+mod level_style;
+mod placeholder_defaults;
 mod presentation;
 mod slide;
+mod table;
+mod text;
 mod theme;
 
 pub use presentation::{Error, Presentation, Slide};

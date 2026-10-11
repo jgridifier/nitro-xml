@@ -2,15 +2,23 @@
 # SPDX-License-Identifier: MIT
 # Builds packages/nitro-xml/pkg with wasm-pack (release: opt-level 3, LTO, codegen-units 1, wasm-opt -O3,
 # SIMD on) and prints raw, gzip and brotli sizes of the .wasm and the JS glue (read by #7 and #46).
-# Usage: bash scripts/build-wasm.sh [--dev] [--json <file>]
+# Usage: bash scripts/build-wasm.sh [--dev] [--features <feat>] [--json <file>]
+# Default (no --features) is the shipped package: bench exports and serde are off.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 # shellcheck source=ci/versions.env
 . scripts/ci/versions.env
 export PATH="$HOME/.cargo/bin:$PATH"
-PROFILE=--release; JSON=""
-while [ $# -gt 0 ]; do case $1 in --dev) PROFILE=--dev;; --json) JSON=$2; shift;; esac; shift; done
+PROFILE=--release; JSON=""; FEATURES=""
+while [ $# -gt 0 ]; do
+  case $1 in
+    --dev) PROFILE=--dev;;
+    --features) FEATURES=$2; shift;;
+    --json) JSON=$2; shift;;
+  esac
+  shift
+done
 WP="$NITRO_TOOLS_DIR/wasm-pack-$WASM_PACK_VERSION/wasm-pack"
 if [ ! -x "$WP" ]; then
   mkdir -p "$(dirname "$WP")"
@@ -18,7 +26,9 @@ if [ ! -x "$WP" ]; then
     | tar -xz -C "$(dirname "$WP")" --strip-components=1
 fi
 PKG="$ROOT/packages/nitro-xml"
-"$WP" build "$ROOT/rs/crates/nitro-xml-wasm" $PROFILE --target web --no-pack --out-dir "$PKG/pkg" --out-name nitro_xml_wasm
+EXTRA=()
+if [ -n "$FEATURES" ]; then EXTRA=(-- --features "$FEATURES"); fi
+"$WP" build "$ROOT/rs/crates/nitro-xml-wasm" $PROFILE --target web --no-pack --out-dir "$PKG/pkg" --out-name nitro_xml_wasm "${EXTRA[@]}"
 rm -f "$PKG/pkg/.gitignore"
 cp "$ROOT/LICENSE" "$ROOT/LICENSE-THIRD-PARTY" "$ROOT/NOTICE" "$PKG/"
 node - "$PKG/pkg" "$JSON" <<'JS'

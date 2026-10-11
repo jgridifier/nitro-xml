@@ -68,6 +68,9 @@
       el.style.height = '100%';
       stage.appendChild(el);
       await el.loadUrl(fixture);
+      // Hide Stage-6 shell chrome so the shot is the slide surface only.
+      const chrome = el.shadowRoot?.querySelector('.chrome');
+      if (chrome) chrome.style.display = 'none';
       // Advance via keyboard (ArrowRight) — same path as the viewer; no loader API growth.
       if (el.document && slideIndex > 0) {
         for (let s = 0; s < slideIndex; s++) {

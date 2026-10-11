@@ -151,11 +151,12 @@ export class ViewerElement extends HTMLElement {
   _tick() {
     if (this._raf) return;
     this._raf = requestAnimationFrame(async () => {
-      this._raf = 0;
       try {
         if (this._d) await this._d.tick();
       } catch (e) {
         this._fail(e);
+      } finally {
+        this._raf = 0;
       }
     });
   }

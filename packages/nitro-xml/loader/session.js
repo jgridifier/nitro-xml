@@ -3,7 +3,7 @@ import { initCore, getWasmMemory, unsupportedFormatError } from "./bootstrap.js"
 import { isSupportedExtension } from "./formats.js";
 import { applyCommandBuffer } from "./apply.js";
 import { createEventCoalescer } from "./events.js";
-import { flushMeasureBatch, readMeasureReqsFromMemory } from "./measure.js";
+import { flushMeasureBatch } from "./measure.js";
 import { applyFontSourceToHandle } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
 const registry =
@@ -148,25 +148,13 @@ return this._measureCtx;
 }
 _measureHandle(ctx) {
 const h = this._handle;
-const memory = this._memory;
 return {
 get measureCount() {
 return h.measureCount;
 },
 resolve: (id) => h.resolve(id),
 setMeasureResults: (widths) => h.setMeasureResults(widths),
-takeMeasureReqs: () => {
-if (!memory) return [];
-return readMeasureReqsFromMemory(
-{
-measureCount: h.measureCount,
-measureFontPtr: h.measureFontPtr,
-measureSizePtr: h.measureSizePtr,
-measureTextPtr: h.measureTextPtr,
-},
-memory,
-);
-},
+takeMeasureReqs: () => h.takeMeasureReqs(),
 _ctx: ctx,
 };
 }

@@ -170,6 +170,7 @@ export async function runVisualGate() {
 	const writeSummary = () => {
 		const deferred = VISUAL_CASES.filter((c) => !c.ready).map((c) => `${c.id}: ${c.todo}`);
 		const hardOk = rows.filter((r) => r.ok || r.informational).length;
+		const pptxTable = buildPptxFixtureTable(rows);
 		const summaryLines = [
 			runError
 				? `visual: FAIL (runner error: ${runError})`
@@ -178,12 +179,27 @@ export async function runVisualGate() {
 				const tag = r.ok ? 'OK' : r.informational ? 'INFO' : 'FAIL';
 				return `  ${tag} ${r.case} ${r.mode} dpr=${r.dpr} mismatch=${(r.ratio * 100).toFixed(4)}% (limit ${(r.threshold * 100).toFixed(2)}%)${r.reason ? ` ${r.reason}` : ''}${r.informational && !r.ok ? ' [informational]' : ''}`;
 			}),
+			...(pptxTable.length
+				? [
+						'',
+						'pptx per-fixture pixel table (ts-vs-rust, informational):',
+						'fixture\tdpr1%\tdpr2%\tdpr1_ok\tdpr2_ok\tnote',
+						...pptxTable,
+					]
+				: []),
 			...(deferred.length ? ['deferred:', ...deferred.map((d) => `  - ${d}`)] : []),
 			`diffs: ${DIFFS}`,
 		];
 		const summary = summaryLines.join('\n');
 		writeFileSync(join(OUT, 'summary.txt'), summary + '\n');
-		writeFileSync(join(OUT, 'results.json'), JSON.stringify({ failed, rows, deferred, error: runError ? String(runError) : null }, null, 2));
+		writeFileSync(
+			join(OUT, 'results.json'),
+			JSON.stringify(
+				{ failed, rows, deferred, pptxTable, error: runError ? String(runError) : null },
+				null,
+				2,
+			),
+		);
 		console.log(summary);
 	};
 
@@ -285,6 +301,31 @@ export async function runVisualGate() {
 		writeSummary();
 	}
 	return { ok: failed === 0 && !runError, rows, summary: '' };
+}
+
+/** One TSV row per pptx fixture with DPR1/DPR2 mismatch percents for the artifact. */
+function buildPptxFixtureTable(rows) {
+	/** @type {Map<string, { d1?: object, d2?: object }>} */
+	const byCase = new Map();
+	for (const r of rows) {
+		if (!String(r.case).startsWith('pptx-')) continue;
+		if (r.mode !== 'ts-vs-rust') continue;
+		let slot = byCase.get(r.case);
+		if (!slot) {
+			slot = {};
+			byCase.set(r.case, slot);
+		}
+		if (r.dpr === 1) slot.d1 = r;
+		else if (r.dpr === 2) slot.d2 = r;
+	}
+	const ids = [...byCase.keys()].sort();
+	return ids.map((id) => {
+		const { d1, d2 } = byCase.get(id);
+		const pct = (r) => (r ? (r.ratio * 100).toFixed(4) : '');
+		const ok = (r) => (r ? (r.ok ? 'OK' : 'INFO') : '');
+		const note = [d1?.reason, d2?.reason].filter(Boolean).join('; ').replace(/\t/g, ' ');
+		return `${id}\t${pct(d1)}\t${pct(d2)}\t${ok(d1)}\t${ok(d2)}\t${note}`;
+	});
 }
 
 if (import.meta.main) {

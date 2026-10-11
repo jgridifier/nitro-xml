@@ -86,6 +86,9 @@ pub fn paint_slide_frame<I: StringIntern>(
     };
     let slide = pres.slide(viewport.slide_index)?;
     buffer.begin();
+    // Fresh per-frame queues (awaiting replies from a prior take stay intact).
+    measure.clear_pending();
+    layout_reads.clear_pending();
     let mut view_ir = ViewIrCollector::default();
     let mut ctx = context::PaintContext::new(
         buffer,

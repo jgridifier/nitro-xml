@@ -3,8 +3,15 @@ name = "nitro-xml-opc"
 description = "Nitro XML shared foundation: zip, XML, OPC and DrawingML"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "MIT AND Apache-2.0"
 repository.workspace = true
 homepage.workspace = true
 publish.workspace = true
 
+[dependencies]
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[dev-dependencies]
+sha2 = "0.10"
+serde_json = "1"
+crc32fast = "1"

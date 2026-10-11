@@ -1,0 +1,18 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<meta charset="utf-8">
+<title>nitro-xml smoke</title>
+<pre id="out">loading</pre>
+<script type="module">
+  import init, { version, Handle } from '../pkg/nitro_xml_wasm.js';
+  const out = document.getElementById('out');
+  try {
+    await init();
+    const h = new Handle(new Uint8Array([80, 75, 3, 4]));
+    const n = h.byteLength;
+    h.free();
+    out.textContent = `nitro-xml ${version()} ok (handle ${n} bytes, freed)`;
+  } catch (e) {
+    out.textContent = `FAILED: ${e}`;
+  }
+</script>

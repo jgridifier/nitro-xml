@@ -14,3 +14,13 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 nitro-xml.workspace = true
 wasm-bindgen.workspace = true
+# Debug builds only (the hook is behind cfg(debug_assertions) and stripped from release by LTO).
+console_error_panic_hook = "0.1.7"
+
+# wasm-pack runs wasm-opt after the release build (PRODUCT_SPEC.md §5: opt-level 3, LTO,
+# codegen-units 1, then wasm-opt -O3). The feature flags match .cargo/config.toml (one build, SIMD on).
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3", "--enable-simd", "--enable-bulk-memory", "--enable-sign-ext", "--enable-reference-types", "--enable-multivalue", "--enable-mutable-globals", "--enable-nontrapping-float-to-int"]
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false

@@ -59,9 +59,14 @@ PY
 ALLOW='MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;Zlib;Unicode-3.0;Unicode-DFS-2016'
 for pkg in packages/*/; do
   [ -f "$pkg/package.json" ] || continue
-  ( cd "$pkg" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null \
+  if ! node -e 'const d=require(process.argv[1]).dependencies||{};process.exit(Object.keys(d).length?0:1)' "$ROOT/$pkg/package.json"; then
+    echo "licenses: $pkg has no production dependencies"; continue
+  fi
+  tmp=$(mktemp -d); cp "$pkg/package.json" "$tmp/"
+  ( cd "$tmp" && npm install --omit=dev --ignore-scripts --no-audit --no-fund --no-package-lock >/dev/null \
     && npx --yes license-checker-rseidelsohn@4 --production --excludePrivatePackages --onlyAllow "$ALLOW" --summary ) \
     || err "npm production dependency licences in $pkg"
+  rm -rf "$tmp"
 done
 
 [ $fail -eq 0 ] && echo "licenses: ok" || exit 1

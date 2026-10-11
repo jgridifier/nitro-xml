@@ -1,0 +1,16 @@
+{
+  "id": "xlsx-add-delete-sheet",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Add a sheet then delete it",
+  "ops": [
+    {
+      "op": "addSheet",
+      "name": "Doomed"
+    },
+    {
+      "op": "deleteSheet",
+      "index": 1
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "docx-pages10-table-cell-b",
+  "format": "docx",
+  "fixture": "gen-docx-pages-10",
+  "description": "Set second table cell",
+  "ops": [
+    {
+      "op": "setTableCellText",
+      "blockIndex": 19,
+      "row": 0,
+      "col": 1,
+      "text": "BB"
+    }
+  ]
+}

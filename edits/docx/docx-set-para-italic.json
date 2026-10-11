@@ -1,0 +1,14 @@
+{
+  "id": "docx-set-para-italic",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Set paragraph with italic run",
+  "ops": [
+    {
+      "op": "setParagraphText",
+      "blockIndex": 0,
+      "text": "Italic line",
+      "italic": true
+    }
+  ]
+}

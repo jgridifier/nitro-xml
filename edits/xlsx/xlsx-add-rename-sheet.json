@@ -1,0 +1,17 @@
+{
+  "id": "xlsx-add-rename-sheet",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Add then rename new sheet",
+  "ops": [
+    {
+      "op": "addSheet",
+      "name": "Tmp"
+    },
+    {
+      "op": "renameSheet",
+      "index": 1,
+      "name": "Kept"
+    }
+  ]
+}

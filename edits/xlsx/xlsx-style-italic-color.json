@@ -1,0 +1,21 @@
+{
+  "id": "xlsx-style-italic-color",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Italic red B1",
+  "ops": [
+    {
+      "op": "applyStyle",
+      "sheet": 0,
+      "range": "B1",
+      "patch": {
+        "font": {
+          "italic": true,
+          "color": {
+            "rgb": "FFFF0000"
+          }
+        }
+      }
+    }
+  ]
+}

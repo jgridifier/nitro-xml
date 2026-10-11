@@ -1,0 +1,18 @@
+{
+	"name": "nitro-xml-edit-parity",
+	"private": true,
+	"description": "E0 edit-script harness (#50): TS-vs-TS apply+save over edits/*.json. Test-only; never shipped.",
+	"license": "MIT",
+	"type": "module",
+	"scripts": {
+		"edit": "bun ./run.mjs",
+		"test": "bun test schema.test.mjs"
+	},
+	"dependencies": {
+		"@xmldom/xmldom": "0.9.12",
+		"jszip": "3.10.2"
+	},
+	"engines": {
+		"bun": ">=1.1"
+	}
+}

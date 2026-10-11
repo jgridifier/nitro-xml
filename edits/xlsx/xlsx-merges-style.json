@@ -1,0 +1,19 @@
+{
+  "id": "xlsx-merges-style",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k-merges",
+  "description": "Style A1 on merged fixture",
+  "ops": [
+    {
+      "op": "applyStyle",
+      "sheet": 0,
+      "range": "A1",
+      "patch": {
+        "font": {
+          "bold": true,
+          "size": 14
+        }
+      }
+    }
+  ]
+}

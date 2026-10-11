@@ -1,0 +1,20 @@
+{
+  "id": "pptx-multi-slides-text",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Edit text on slides 0 and 1",
+  "ops": [
+    {
+      "op": "setShapeText",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "text": "A"
+    },
+    {
+      "op": "setShapeText",
+      "slideIndex": 1,
+      "elementIndex": 0,
+      "text": "B"
+    }
+  ]
+}

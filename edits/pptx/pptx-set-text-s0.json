@@ -1,0 +1,14 @@
+{
+  "id": "pptx-set-text-s0",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Edit slide 0 title text",
+  "ops": [
+    {
+      "op": "setShapeText",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "text": "Edited title"
+    }
+  ]
+}

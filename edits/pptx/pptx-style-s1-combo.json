@@ -1,0 +1,16 @@
+{
+  "id": "pptx-style-s1-combo",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Bold italic size on slide 1",
+  "ops": [
+    {
+      "op": "setShapeTextStyle",
+      "slideIndex": 1,
+      "elementIndex": 0,
+      "bold": true,
+      "italic": true,
+      "fontSize": 24
+    }
+  ]
+}

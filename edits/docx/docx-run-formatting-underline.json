@@ -1,0 +1,14 @@
+{
+  "id": "docx-run-formatting-underline",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Underline existing run",
+  "ops": [
+    {
+      "op": "setRunFormatting",
+      "blockIndex": 0,
+      "runIndex": 0,
+      "underline": true
+    }
+  ]
+}

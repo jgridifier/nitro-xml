@@ -1,0 +1,14 @@
+{
+  "id": "docx-run-formatting-italic",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Italic existing run",
+  "ops": [
+    {
+      "op": "setRunFormatting",
+      "blockIndex": 1,
+      "runIndex": 0,
+      "italic": true
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "xlsx-set-cell-value-string",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Set C2 via string CellValue",
+  "ops": [
+    {
+      "op": "setCellValue",
+      "sheet": 0,
+      "row": 1,
+      "col": 2,
+      "value": "edited"
+    }
+  ]
+}

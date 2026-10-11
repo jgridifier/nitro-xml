@@ -1,0 +1,20 @@
+{
+  "id": "docx-pages10-insert-row",
+  "format": "docx",
+  "fixture": "gen-docx-pages-10",
+  "description": "Insert table row then set cell",
+  "ops": [
+    {
+      "op": "insertTableRow",
+      "blockIndex": 19,
+      "at": 1
+    },
+    {
+      "op": "setTableCellText",
+      "blockIndex": 19,
+      "row": 1,
+      "col": 0,
+      "text": "R1"
+    }
+  ]
+}

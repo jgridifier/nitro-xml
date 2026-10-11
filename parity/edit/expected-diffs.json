@@ -1,0 +1,2044 @@
+{
+  "xlsx-add-delete-sheet": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-add-rename-sheet": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 11
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "part-added",
+        "part": "xl/worksheets/sheet2.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=2)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=5)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-add-sheet": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 11
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "part-added",
+        "part": "xl/worksheets/sheet2.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=2)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=5)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-batch-cells": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "sharedStrings",
+        "part": "xl/sharedStrings.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-bidi-cell": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "sharedStrings",
+        "part": "xl/sharedStrings.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-merges-edit-a1": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "sharedStrings",
+        "part": "xl/sharedStrings.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-merges-style": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "sharedStrings",
+        "part": "xl/sharedStrings.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-multi-sheet-ops": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 11
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "part-added",
+        "part": "xl/worksheets/sheet2.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=2)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=5)"
+      },
+      {
+        "category": "sharedStrings",
+        "part": "xl/sharedStrings.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-rename-sheet": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-set-cell-formula": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-set-cell-number": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "sharedStrings",
+        "part": "xl/sharedStrings.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-set-cell-text": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "sharedStrings",
+        "part": "xl/sharedStrings.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-set-cell-value-bool": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-set-cell-value-number": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "sharedStrings",
+        "part": "xl/sharedStrings.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-set-cell-value-string": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "sharedStrings",
+        "part": "xl/sharedStrings.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-style-align": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-style-bold": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-style-fill": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-style-italic-color": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-style-numfmt": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-style-underline-strike": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "xlsx-value-and-style": {
+    "lossless": false,
+    "partCounts": {
+      "input": 9,
+      "output": 10
+    },
+    "losses": [
+      {
+        "category": "part-added",
+        "part": "xl/theme/theme1.xml",
+        "detail": "part added on save"
+      },
+      {
+        "category": "content-types",
+        "part": "[Content_Types].xml",
+        "detail": "defaults/overrides differ (missing=0, added=1)"
+      },
+      {
+        "category": "rels",
+        "part": "_rels/.rels",
+        "detail": "relationship tuples differ (in=1, out=3)"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "rels",
+        "part": "xl/_rels/workbook.xml.rels",
+        "detail": "relationship tuples differ (in=3, out=4)"
+      },
+      {
+        "category": "sharedStrings",
+        "part": "xl/sharedStrings.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "styles",
+        "part": "xl/styles.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/workbook.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "xl/worksheets/sheet1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-borders-para": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-both-paras": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-pages10-delete-col": {
+    "lossless": true,
+    "partCounts": {
+      "input": 8,
+      "output": 8
+    },
+    "losses": []
+  },
+  "docx-pages10-delete-row": {
+    "lossless": true,
+    "partCounts": {
+      "input": 8,
+      "output": 8
+    },
+    "losses": []
+  },
+  "docx-pages10-insert-col": {
+    "lossless": false,
+    "partCounts": {
+      "input": 8,
+      "output": 8
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-pages10-insert-row": {
+    "lossless": false,
+    "partCounts": {
+      "input": 8,
+      "output": 8
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-pages10-multi": {
+    "lossless": false,
+    "partCounts": {
+      "input": 8,
+      "output": 8
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-pages10-para-text": {
+    "lossless": false,
+    "partCounts": {
+      "input": 8,
+      "output": 8
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-pages10-table-cell-b": {
+    "lossless": false,
+    "partCounts": {
+      "input": 8,
+      "output": 8
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-pages10-table-cell": {
+    "lossless": false,
+    "partCounts": {
+      "input": 8,
+      "output": 8
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-para-align-center": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-para-align-right": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-run-formatting-bold": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-run-formatting-italic": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-run-formatting-size": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-run-formatting-underline": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-set-para-bold": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-set-para-italic": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-set-para-size-color": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-set-para0-text": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-set-para1-text": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "docx-text-and-format": {
+    "lossless": false,
+    "partCounts": {
+      "input": 7,
+      "output": 7
+    },
+    "losses": [
+      {
+        "category": "xml-rewrite",
+        "part": "word/document.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-full-edit-s0": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-geometry-rotate": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-move-resize-s0": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-move-s0": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-move-s1": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-move-s5": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-multi-slides-text": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide1.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide2.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-notes-move": {
+    "lossless": false,
+    "partCounts": {
+      "input": 16,
+      "output": 16
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-notes-text": {
+    "lossless": false,
+    "partCounts": {
+      "input": 16,
+      "output": 16
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-resize-s0": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-resize-s1": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-set-text-s0": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-set-text-s1": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide2.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-set-text-s2": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide3.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-set-text-s5": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide6.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-style-bold": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-style-color": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-style-italic": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-style-s1-combo": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide2.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-style-size": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-text-and-move": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  },
+  "pptx-text-and-style": {
+    "lossless": false,
+    "partCounts": {
+      "input": 31,
+      "output": 31
+    },
+    "losses": [
+      {
+        "category": "docProps",
+        "part": "docProps/app.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "docProps",
+        "part": "docProps/core.xml",
+        "detail": "canonical XML differs"
+      },
+      {
+        "category": "xml-rewrite",
+        "part": "ppt/slides/slide1.xml",
+        "detail": "canonical XML differs"
+      }
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "pptx-full-edit-s0",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Text + geometry + style on slide 0",
+  "ops": [
+    {
+      "op": "setShapeText",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "text": "Full edit"
+    },
+    {
+      "op": "patchShapeGeometry",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "x": 50,
+      "y": 50,
+      "width": 320,
+      "height": 96
+    },
+    {
+      "op": "setShapeTextStyle",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "bold": true,
+      "italic": true
+    }
+  ]
+}

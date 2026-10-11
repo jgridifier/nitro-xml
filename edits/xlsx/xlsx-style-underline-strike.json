@@ -1,0 +1,19 @@
+{
+  "id": "xlsx-style-underline-strike",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Underline and strike A1",
+  "ops": [
+    {
+      "op": "applyStyle",
+      "sheet": 0,
+      "range": "A1",
+      "patch": {
+        "font": {
+          "underline": "single",
+          "strike": true
+        }
+      }
+    }
+  ]
+}

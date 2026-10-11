@@ -1,0 +1,13 @@
+{
+  "id": "docx-para-align-right",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Right-align paragraph",
+  "ops": [
+    {
+      "op": "setParagraphAlign",
+      "blockIndex": 1,
+      "align": "right"
+    }
+  ]
+}

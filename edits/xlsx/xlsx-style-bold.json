@@ -1,0 +1,18 @@
+{
+  "id": "xlsx-style-bold",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Bold A1",
+  "ops": [
+    {
+      "op": "applyStyle",
+      "sheet": 0,
+      "range": "A1",
+      "patch": {
+        "font": {
+          "bold": true
+        }
+      }
+    }
+  ]
+}

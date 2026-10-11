@@ -1,0 +1,20 @@
+{
+  "id": "docx-pages10-multi",
+  "format": "docx",
+  "fixture": "gen-docx-pages-10",
+  "description": "Text + table cell on pages_10",
+  "ops": [
+    {
+      "op": "setParagraphText",
+      "blockIndex": 0,
+      "text": "Intro"
+    },
+    {
+      "op": "setTableCellText",
+      "blockIndex": 19,
+      "row": 0,
+      "col": 0,
+      "text": "ZZ"
+    }
+  ]
+}

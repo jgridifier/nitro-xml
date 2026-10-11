@@ -1,0 +1,22 @@
+{
+  "id": "xlsx-style-fill",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Solid fill on A1:B1",
+  "ops": [
+    {
+      "op": "applyStyle",
+      "sheet": 0,
+      "range": "A1:B1",
+      "patch": {
+        "fill": {
+          "type": "pattern",
+          "pattern": "solid",
+          "fgColor": {
+            "rgb": "FFFFFF00"
+          }
+        }
+      }
+    }
+  ]
+}

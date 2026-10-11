@@ -1,0 +1,14 @@
+{
+  "id": "docx-borders-para",
+  "format": "docx",
+  "fixture": "gen-docx-page-borders",
+  "description": "Edit paragraph on page-borders fixture",
+  "ops": [
+    {
+      "op": "setParagraphText",
+      "blockIndex": 0,
+      "text": "Border page edited",
+      "bold": true
+    }
+  ]
+}

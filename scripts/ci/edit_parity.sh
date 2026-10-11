@@ -1,11 +1,58 @@
 #!/usr/bin/env bash
-# Edit round-trip gate (b): edits/*.json on the TS reference and on WASM give identical normalised diffs (job: edit-parity)
-# Stub: exits 0 so CI stays green until the implementing issue fills it in.
-# Definition of done for that issue: delete the NOT IMPLEMENTED line below and
-# ask Jared (or the Chief of Staff's gh login) to add the job to the
-# branch-protection required checks. Agents never edit .github/workflows/.
+# SPDX-License-Identifier: MIT
+# Edit round-trip gate (b): edits/*.json on the TS reference — apply+save
+# deterministic, part-level expected diffs recorded (job: edit-parity). Issue #50.
+#
+# Definition of done for #50: this script no longer prints NOT IMPLEMENTED.
+# Ask Jared (or the Chief of Staff's gh login) to add the `edit-parity` job to
+# the branch-protection required checks. Agents never edit .github/workflows/.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+ROOT=$PWD
 
-msg="NOT IMPLEMENTED — see #50"; echo "$msg"; if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then echo "$msg" >> "$GITHUB_STEP_SUMMARY"; fi
+# shellcheck source=versions.env
+. scripts/ci/versions.env
+export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
+export NITRO_TOOLS_DIR="${NITRO_TOOLS_DIR:-$HOME/.nitro-tools}"
+
+if ! command -v bun >/dev/null 2>&1; then
+  curl -fsSL https://bun.sh/install | bash
+  export PATH="$HOME/.bun/bin:$PATH"
+fi
+
+# Validators (#48): soft-skip inside the harness when tools are absent.
+bash scripts/ci/setup-validators.sh || true
+
+# Pinned upstream + ooxml-core dist (required for `ooxml-core/pptx` package imports).
+# shellcheck source=ensure-upstream-oracle.sh
+. scripts/ci/ensure-upstream-oracle.sh "$ROOT"
+
+echo "edit-parity: installing harness deps"
+( cd parity/roundtrip && bun install )
+( cd parity/edit && bun install )
+
+echo "edit-parity: schema / corpus unit tests"
+( cd parity/edit && bun test )
+
+echo "edit-parity: TS-vs-TS apply+save over edits/*.json"
+set +e
+( cd parity/edit && bun ./run.mjs --ci )
+rc=$?
+set -e
+
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f parity/edit/out/gate-summary.txt ]; then
+  {
+    echo "## Edit-parity gate (#50)"
+    echo '```'
+    cat parity/edit/out/gate-summary.txt
+    echo '```'
+  } >> "$GITHUB_STEP_SUMMARY"
+fi
+
+if [ "$rc" -ne 0 ]; then
+  echo "edit-parity: FAIL" >&2
+  exit 1
+fi
+echo "edit-parity: PASS"
+echo "Please add the \`edit-parity\` job to branch-protection required checks (Jared / Chief of Staff)."
 exit 0

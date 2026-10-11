@@ -1,0 +1,23 @@
+{
+  "id": "pptx-text-and-move",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Edit text then move",
+  "ops": [
+    {
+      "op": "setShapeText",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "text": "Moved title"
+    },
+    {
+      "op": "patchShapeGeometry",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "x": 150,
+      "y": 90,
+      "width": 250,
+      "height": 80
+    }
+  ]
+}

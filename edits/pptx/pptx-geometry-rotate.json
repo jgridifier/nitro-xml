@@ -1,0 +1,16 @@
+{
+  "id": "pptx-geometry-rotate",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Rotate slide 0 shape",
+  "ops": [
+    {
+      "op": "patchShapeGeometry",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "rotation": 15,
+      "width": 200,
+      "height": 80
+    }
+  ]
+}

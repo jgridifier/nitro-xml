@@ -1,0 +1,13 @@
+{
+  "id": "docx-para-align-center",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Center-align paragraph",
+  "ops": [
+    {
+      "op": "setParagraphAlign",
+      "blockIndex": 0,
+      "align": "center"
+    }
+  ]
+}

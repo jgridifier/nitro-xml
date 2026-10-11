@@ -1,0 +1,13 @@
+{
+  "id": "docx-pages10-para-text",
+  "format": "docx",
+  "fixture": "gen-docx-pages-10",
+  "description": "Edit page-1 paragraph on pages_10",
+  "ops": [
+    {
+      "op": "setParagraphText",
+      "blockIndex": 0,
+      "text": "Page 1 edited"
+    }
+  ]
+}

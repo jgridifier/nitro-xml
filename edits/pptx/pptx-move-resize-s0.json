@@ -1,0 +1,17 @@
+{
+  "id": "pptx-move-resize-s0",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Move and resize slide 0 shape",
+  "ops": [
+    {
+      "op": "patchShapeGeometry",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "x": 40,
+      "y": 60,
+      "width": 280,
+      "height": 90
+    }
+  ]
+}

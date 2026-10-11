@@ -1,0 +1,15 @@
+{
+  "id": "xlsx-set-cell-value-number",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Set A2 via typed CellValue number",
+  "ops": [
+    {
+      "op": "setCellValue",
+      "sheet": 0,
+      "row": 1,
+      "col": 0,
+      "value": 3.14
+    }
+  ]
+}

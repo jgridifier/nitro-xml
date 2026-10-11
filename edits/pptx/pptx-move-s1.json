@@ -1,0 +1,15 @@
+{
+  "id": "pptx-move-s1",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Move slide 1 shape",
+  "ops": [
+    {
+      "op": "patchShapeGeometry",
+      "slideIndex": 1,
+      "elementIndex": 0,
+      "x": 200,
+      "y": 100
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "docx-set-para-bold",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Set paragraph with bold run",
+  "ops": [
+    {
+      "op": "setParagraphText",
+      "blockIndex": 0,
+      "text": "Bold line",
+      "bold": true
+    }
+  ]
+}

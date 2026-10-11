@@ -200,6 +200,7 @@ name = "nitro-xml-opc"
 version = "0.0.0"
 dependencies = [
  "crc32fast",
+ "indexmap",
  "quick-xml",
  "serde_json",
  "sha2",

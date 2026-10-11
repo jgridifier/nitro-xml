@@ -1,2 +1,160 @@
 // SPDX-License-Identifier: MIT
-pub mod chart;
+//! pptx slide painters (P1–P23, issue #27). One command buffer per frame.
+
+mod activex;
+mod chart;
+mod chart3d;
+mod comments;
+mod connector;
+mod content_part;
+mod context;
+mod dispatch;
+mod dom;
+mod equation;
+mod group;
+mod ink;
+mod media;
+mod model3d;
+mod ole;
+mod picture;
+mod placeholder;
+mod print;
+mod raster_export;
+mod shape;
+mod slideshow;
+mod smartart;
+mod smartart3d;
+mod stage;
+mod svg_export;
+mod table;
+mod text;
+mod three_host;
+mod view_ir;
+mod wordart;
+mod zoom;
+
+pub use context::StringIntern;
+pub use view_ir::{dump_pptx_view_ir, dump_pptx_view_ir_string, ViewIrCollector, ViewIrNode};
+
+use nitro_xml_render::measure::MeasureBatch;
+use nitro_xml_render::{CommandBuffer, LayoutReadBatch};
+
+use crate::presentation::Presentation;
+
+pub struct SlidePaintViewport {
+    pub slide_index: usize,
+    pub scale: f64,
+    pub viewport_w: i32,
+    pub viewport_h: i32,
+}
+
+impl Default for SlidePaintViewport {
+    fn default() -> Self {
+        Self {
+            slide_index: 0,
+            scale: 1.0,
+            viewport_w: 800,
+            viewport_h: 600,
+        }
+    }
+}
+
+fn fit_scale(canvas_w: f64, canvas_h: f64, viewport_w: i32, viewport_h: i32) -> f64 {
+    if viewport_w <= 0 || viewport_h <= 0 {
+        return 1.0;
+    }
+    let sx = viewport_w as f64 / canvas_w.max(1.0);
+    let sy = viewport_h as f64 / canvas_h.max(1.0);
+    sx.min(sy).min(1.0)
+}
+
+/// Paint one slide into `buffer` and return view-IR nodes for the active slide.
+#[allow(clippy::too_many_arguments)]
+pub fn paint_slide_frame<I: StringIntern>(
+    buffer: &mut CommandBuffer,
+    intern: &mut I,
+    measure: &mut MeasureBatch,
+    layout_reads: &mut LayoutReadBatch,
+    pres: &mut Presentation,
+    viewport: &SlidePaintViewport,
+) -> Result<Vec<ViewIrNode>, crate::presentation::Error> {
+    let (canvas_w, canvas_h) = pres.canvas_size();
+    let scale = if viewport.scale > 0.0 {
+        viewport.scale
+    } else {
+        fit_scale(canvas_w, canvas_h, viewport.viewport_w, viewport.viewport_h)
+    };
+    let slide = pres.slide(viewport.slide_index)?;
+    buffer.begin();
+    let mut view_ir = ViewIrCollector::default();
+    let mut ctx = context::PaintContext::new(
+        buffer,
+        intern,
+        measure,
+        layout_reads,
+        &mut view_ir,
+        scale,
+        canvas_w,
+        canvas_h,
+    );
+    stage::paint_slide_stage(&mut ctx, slide);
+    Ok(view_ir.nodes)
+}
+
+pub fn open_and_paint_slide_frame<I: StringIntern>(
+    bytes: &[u8],
+    intern: &mut I,
+    measure: &mut MeasureBatch,
+    layout_reads: &mut LayoutReadBatch,
+    viewport: &SlidePaintViewport,
+) -> Result<(CommandBuffer, Vec<ViewIrNode>), crate::presentation::Error> {
+    let mut pres = Presentation::open(bytes)?;
+    let mut buffer = CommandBuffer::new();
+    let nodes = paint_slide_frame(
+        &mut buffer,
+        intern,
+        measure,
+        layout_reads,
+        &mut pres,
+        viewport,
+    )?;
+    Ok((buffer, nodes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::view_ir::ViewIrCollector;
+    use crate::slide::DumpElement;
+
+    // Catches: view-IR parity used model `picture` while the oracle expects `image`.
+    #[test]
+    fn view_ir_normalizes_picture_to_image() {
+        let el = DumpElement {
+            type_: "picture".to_owned(),
+            id: "pic-1".to_owned(),
+            shape_id: None,
+            name: None,
+            placeholder_type: None,
+            placeholder_sz: None,
+            x: 1.0,
+            y: 2.0,
+            width: 10.0,
+            height: 20.0,
+            x_emu: None,
+            y_emu: None,
+            width_emu: None,
+            height_emu: None,
+            rotation: None,
+            flip_horizontal: false,
+            flip_vertical: false,
+            inherited_transform: None,
+            text: None,
+            shape_type: None,
+            table_row_count: None,
+            children: None,
+        };
+        let mut c = ViewIrCollector::default();
+        c.push_painted("element", &el, None);
+        assert_eq!(c.nodes[0].type_, "image");
+    }
+}

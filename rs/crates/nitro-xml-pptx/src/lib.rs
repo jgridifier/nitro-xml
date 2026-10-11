@@ -15,5 +15,8 @@ mod text;
 mod theme;
 
 pub use presentation::{Error, Presentation, Slide};
+pub use render::{
+    dump_pptx_view_ir, dump_pptx_view_ir_string, paint_slide_frame, SlidePaintViewport,
+};
 
 pub mod render;

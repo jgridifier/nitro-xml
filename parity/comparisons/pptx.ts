@@ -10,8 +10,10 @@ import { basename, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import type { Comparison, CorpusResult, Manifest } from '../types.ts';
 import { loadManifest, repoRoot, selectCorpus } from '../corpus.ts';
-import { dumpPptxModelRust, ensureExample } from '../rust/dump.ts';
+import { dumpPptxModelRust, dumpFormatViewIrRust, ensureExample } from '../rust/dump.ts';
 import { diffIr, filterKnownDiffs } from '../diff.ts';
+import { normalizeJson } from '../normalize.ts';
+import { dumpPptxViewIr } from '../oracle/pptx.ts';
 import { upstreamDir } from '../paths.ts';
 
 const PPTX_EXT = /\.(pptx|pptm|potx|potm)$/i;
@@ -70,11 +72,13 @@ async function runPptxCorpus(): Promise<CorpusResult> {
 	const known = loadKnownDiffs(root);
 	const notes: string[] = [];
 	ensureExample('pptx_dump', 'nitro-xml-pptx');
+	ensureExample('pptx_view_ir_dump', 'nitro-xml-pptx');
 
 	let n = 0;
 	let matched = 0;
 	let allowListedFixtures = 0;
 	let unexpected = 0;
+	let badViewIr = 0;
 	for (const f of listPptxFiles(root)) {
 		if (!existsSync(f)) continue;
 		if (/\b(xl_|slides_200)/.test(f)) continue;
@@ -107,16 +111,31 @@ async function runPptxCorpus(): Promise<CorpusResult> {
 				notes.push(`unexpected diff on ${fixtureId} (${bad.length} path(s))`);
 			}
 		}
+
+		try {
+			const oracleIr = await dumpPptxViewIr(f);
+			const rustIr = dumpFormatViewIrRust('pptx', f, '#27');
+			if (normalizeJson(oracleIr) !== normalizeJson(rustIr)) {
+				badViewIr++;
+				unexpected++;
+				if (notes.length < 20) notes.push(`view-IR differs on ${fixtureId}`);
+			}
+		} catch (e) {
+			badViewIr++;
+			unexpected++;
+			if (notes.length < 20) notes.push(`view-IR error on ${fixtureId}: ${e}`);
+		}
 	}
 	notes.push(
 		`pptx presentation differential: ${matched}/${n} exact match; ${allowListedFixtures} allow-listed; ${unexpected} unexpected`,
 	);
+	notes.push(`pptx view-IR differential: ${n - badViewIr}/${n} files match upstream`);
 	return { compared: n, mismatched: unexpected, notes };
 }
 
 export const pptxComparison: Comparison = {
 	id: 'pptx',
-	label: 'pptx presentation model (issue #24)',
+	label: 'pptx presentation + view-IR (#24, #27)',
 	ready: true,
 	todo: undefined,
 	async oracle(fixturePath: string) {

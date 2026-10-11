@@ -19,6 +19,7 @@ use wasm_bindgen::prelude::*;
 mod bench;
 mod events;
 mod handle;
+mod pptx;
 mod transport;
 mod xlsx;
 

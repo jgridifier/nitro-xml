@@ -8,8 +8,17 @@
 //! worker (PRODUCT_SPEC.md §5(e)).
 
 use crate::events::{self, EventQueue};
+use crate::pptx::{is_pptx_extension, PptxState};
 use crate::transport::StringTable;
-use crate::xlsx::{is_xlsx_extension, process_frame, search_options_from_json, XlsxState};
+use crate::xlsx::{is_xlsx_extension, search_options_from_json, XlsxState};
+
+fn process_frame(handle: &mut Handle) {
+    if handle.xlsx.is_some() {
+        crate::xlsx::process_frame(handle);
+    } else if handle.pptx.is_some() {
+        crate::pptx::process_frame(handle);
+    }
+}
 use js_sys::{Array, Function, JsString};
 use nitro_xml::opc::fonts::{resolve_webfont_plan, FontSource, FONT_SUBSTITUTION_CODE};
 use nitro_xml_render::{CommandBuffer, LayoutReadBatch, LayoutReadKind, MeasureBatch};
@@ -119,6 +128,7 @@ pub struct Handle {
     pub(crate) layout_reads: LayoutReadBatch,
     pub(crate) events: EventQueue,
     pub(crate) xlsx: Option<XlsxState>,
+    pub(crate) pptx: Option<PptxState>,
     #[cfg(feature = "bench")]
     pub(crate) grid: crate::bench::SyntheticGrid,
 }
@@ -139,6 +149,7 @@ impl Handle {
             layout_reads: LayoutReadBatch::new(),
             events: EventQueue::new(),
             xlsx: None,
+            pptx: None,
             #[cfg(feature = "bench")]
             grid: crate::bench::SyntheticGrid::new(),
         }
@@ -154,6 +165,15 @@ impl Handle {
                 self.push_warning("xlsx_warning".into(), w, None);
             }
             self.xlsx = Some(state);
+            self.pptx = None;
+            process_frame(self);
+            return Ok(());
+        }
+        if is_pptx_extension(name) {
+            let state = PptxState::open(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            self.pptx = Some(state);
+            self.xlsx = None;
             process_frame(self);
             return Ok(());
         }
@@ -175,6 +195,9 @@ impl Handle {
         if self.xlsx.is_some() {
             return "xlsx".into();
         }
+        if self.pptx.is_some() {
+            return "pptx".into();
+        }
         String::new()
     }
 
@@ -190,15 +213,32 @@ impl Handle {
 
     #[wasm_bindgen(js_name = setActiveSheet)]
     pub fn set_active_sheet(&mut self, index: u32) -> Result<(), JsValue> {
-        let mut xlsx = self
-            .xlsx
+        if let Some(mut xlsx) = self.xlsx.take() {
+            xlsx.set_active_sheet(&self.bytes, index as usize)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("bad_sheet", e)))?;
+            self.xlsx = Some(xlsx);
+            process_frame(self);
+            return Ok(());
+        }
+        let mut pptx = self
+            .pptx
             .take()
             .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
-        xlsx.set_active_sheet(&self.bytes, index as usize)
-            .map_err(|e| JsValue::from(OoxmlError::with_code("bad_sheet", e)))?;
-        self.xlsx = Some(xlsx);
+        pptx.set_active_slide(index as usize)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("bad_slide", e)))?;
+        self.pptx = Some(pptx);
         process_frame(self);
         Ok(())
+    }
+
+    /// Slide list + active index for pptx (JSON).
+    #[wasm_bindgen(js_name = slides)]
+    pub fn slides(&self) -> Result<String, JsValue> {
+        let pptx = self
+            .pptx
+            .as_ref()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        Ok(pptx.slides_json().to_string())
     }
 
     #[wasm_bindgen(js_name = cellText)]

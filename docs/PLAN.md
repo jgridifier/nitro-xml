@@ -343,7 +343,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 
 **96 issues** on GitHub (#1 to #96), generated from `issues.json` (`gen_issues.py`). Plan numbers equal GitHub issue numbers; each issue has a `Depends on #X` line. Milestone 2 issues carry `blocked-m2`; post-port redesign issues (stage PP) carry `blocked-redesign`.
 
-- **Agent fit:** Codex for well-specified mechanical ports with ready test suites; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) for small, well-bounded tasks; a human **Developer** owns the scoreboard races; **Jared** owns the R0 renderer decision (#33).
+- **Agent fit:** Codex (on the `6.1 sol` model only) for well-specified mechanical ports; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) may be added after evaluation; Grok Build (Grok 4.7) is last-resort overflow once the three primaries are out of credits; a human **Developer** owns the scoreboard races; **Jared** owns the R0 record (#33) and the post-port redesign (#92 to #94).
 - **Every issue** follows AGENTS.md (claim, branch `issue-<N>-<slug>`, PR with `Closes #N`, handoff comment).
 
 | # | Title | Stage | Size | Agent | Depends on | Parallel |
@@ -385,7 +385,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 35 | R0 (b): Map upstream painters to Rust modules | R0 | S | Claude Code | 34 | after #34 |
 | 36 | R0 (c): Worker vs main-thread split per painter | R0 | M | Codex | 34, 14 | after #34 and #14 |
 | 37 | R0 (d): Loader API and loader size budget (minimal JS loader skeleton, per-frame command-buffer applier, size gate) | R0 | M | Cursor cloud | 2, 14 | after #2 and #14; in parallel with #34 to #36 |
-| 38 | Stage 0: CI check that fails if any shipped artefact imports the TS engine | 0 | S | OpenCode | 1 | yes, after #1 |
+| 38 | Stage 0: CI check that fails if any shipped artefact imports the TS engine | 0 | S | Codex | 1 | yes, after #1 |
 | 39 | Scoreboard (a): race harness and competitor pinning (licence, upkeep, fastest setup, public method) | 1 | M | Developer | 6, 4 | after #6; in parallel with #7 to #10 |
 | 40 | Scoreboard (b): parse race (starts in the foundation stage) | 2 | M | Developer | 39, 13 | after #39; begins as soon as #11 to #13 parse packages |
 | 41 | Scoreboard (c): render-to-first-paint race | 3 | M | Developer | 39, 19 | after #39 and #19; extended at #23 and #27 |
@@ -421,7 +421,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 71 | E2 (xlsx): Formula parser, AST and reference model | E2 | M | Codex | 66 | after #66 |
 | 72 | E2 (xlsx): Dependency graph and recalculation scheduler | E2 | M | Claude Code | 71 | after #71 |
 | 73 | E2 (xlsx): Function library part 1: math, trigonometry and statistics | E2 | M | Codex | 71 | after #71; in parallel with #74 and #75 |
-| 74 | E2 (xlsx): Function library part 2: logical, text, information, date and time | E2 | M | OpenCode | 71 | after #71; in parallel with #73 and #75 |
+| 74 | E2 (xlsx): Function library part 2: logical, text, information, date and time | E2 | M | Codex | 71 | after #71; in parallel with #73 and #75 |
 | 75 | E2 (xlsx): Function library part 3: lookup and reference, financial, engineering, dynamic arrays | E2 | M | Codex | 71 | after #71; in parallel with #73 and #74 |
 | 76 | E2 (xlsx): Insert and delete rows and columns with reference shifting | E2 | M | Codex | 72 | after #72 |
 | 77 | E2 (xlsx): Function-coverage sweep and recalculation in the editor | E2 | M | Cursor cloud | 72, 73, 74, 75, 76, 69 | after #72 to #76 and #69 |
@@ -442,7 +442,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 92 | Post-port redesign: DOM-vs-canvas renderer comparison | PP | L | Jared | 30 | not claimable until Jared opens the redesign milestone |
 | 93 | Post-port redesign: in-wasm text shaping and measurement | PP | M | Jared | 30 | not claimable until Jared opens the redesign milestone |
 | 94 | Post-port redesign: metric-compatible open fonts (Carlito, Caladea) and font fallback | PP | M | Jared | 30 | not claimable until Jared opens the redesign milestone |
-| 95 | Stage 0 (P0): Source real Word-authored docx test-corpus files with permissive or public-domain licences | 0 | M | OpenCode | - | yes, claimable first, no dependencies; in parallel with #32 and #96 |
+| 95 | Stage 0 (P0): Source real Word-authored docx test-corpus files with permissive or public-domain licences | 0 | M | Claude Code | - | yes, claimable first, no dependencies; in parallel with #32 and #96 |
 | 96 | Stage 0 (P0): Source real PowerPoint-authored pptx test-corpus files with permissive or public-domain licences | 0 | M | Cursor cloud | - | yes, claimable first, no dependencies; in parallel with #32 and #95 |
 
 ---

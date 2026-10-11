@@ -708,7 +708,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <h2 id="5-issue-breakdown">5. Issue breakdown</h2>
 <p><strong>96 issues</strong> on GitHub (#1 to #96), generated from <code>issues.json</code> (<code>gen_issues.py</code>). Plan numbers equal GitHub issue numbers; each issue has a <code>Depends on #X</code> line. Milestone 2 issues carry <code>blocked-m2</code>; post-port redesign issues (stage PP) carry <code>blocked-redesign</code>.</p>
 <ul>
-<li><strong>Agent fit:</strong> Codex for well-specified mechanical ports with ready test suites; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) for small, well-bounded tasks; a human <strong>Developer</strong> owns the scoreboard races; <strong>Jared</strong> owns the R0 renderer decision (#33).</li>
+<li><strong>Agent fit:</strong> Codex (on the <code>6.1 sol</code> model only) for well-specified mechanical ports; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) may be added after evaluation; Grok Build (Grok 4.7) is last-resort overflow once the three primaries are out of credits; a human <strong>Developer</strong> owns the scoreboard races; <strong>Jared</strong> owns the R0 record (#33) and the post-port redesign (#92 to #94).</li>
 <li><strong>Every issue</strong> follows AGENTS.md (claim, branch <code>issue-&lt;N&gt;-&lt;slug&gt;</code>, PR with <code>Closes #N</code>, handoff comment).</li>
 </ul>
 <div class="tw"><table>
@@ -1062,7 +1062,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <td>Stage 0: CI check that fails if any shipped artefact imports the TS engine</td>
 <td>0</td>
 <td>S</td>
-<td>OpenCode</td>
+<td>Codex</td>
 <td>1</td>
 <td>yes, after #1</td>
 </tr>
@@ -1386,7 +1386,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <td>E2 (xlsx): Function library part 2: logical, text, information, date and time</td>
 <td>E2</td>
 <td>M</td>
-<td>OpenCode</td>
+<td>Codex</td>
 <td>71</td>
 <td>after #71; in parallel with #73 and #75</td>
 </tr>
@@ -1575,7 +1575,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <td>Stage 0 (P0): Source real Word-authored docx test-corpus files with permissive or public-domain licences</td>
 <td>0</td>
 <td>M</td>
-<td>OpenCode</td>
+<td>Claude Code</td>
 <td>-</td>
 <td>yes, claimable first, no dependencies; in parallel with #32 and #96</td>
 </tr>

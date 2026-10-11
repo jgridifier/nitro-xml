@@ -1,6 +1,6 @@
 # AGENTS.md: coordination contract
 
-This file is the contract for every coding agent (Cursor, Claude Code, Codex, OpenCode, and humans) working on Nitro XML in parallel. `CLAUDE.md` and `.cursor/rules/` point here. If anything here conflicts with an issue, this file wins; if it conflicts with **[docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md)** (the source of every parity, performance, bundle, accessibility and editor gate), the spec wins.
+This file is the contract for every coding agent (Cursor, Claude Code, Codex, any agent added later, and humans) working on Nitro XML in parallel. `CLAUDE.md` and `.cursor/rules/` point here. If anything here conflicts with an issue, this file wins; if it conflicts with **[docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md)** (the source of every parity, performance, bundle, accessibility and editor gate), the spec wins.
 
 Board: https://github.com/users/jgridifier/projects/2 · Plan: https://jgridifier.github.io/nitro-xml/
 
@@ -15,10 +15,14 @@ Board: https://github.com/users/jgridifier/projects/2 · Plan: https://jgridifie
 ## 1. Pick work
 1. Take an **unassigned** issue labelled `status:ready` (board view **Ready now**) whose `Depends on #X` issues are **all closed**.
 2. Never take an issue labelled `blocked-m2` (editor milestone, waits for the viewer gate and Jared's go-ahead) or `blocked-redesign` (Jared's post-port renderer redesign), or one assigned to Jared (such as the R0 renderer port record #33). Renderer issues are not claimable until #33 is merged, and they are **straight one-to-one ports** of the upstream painters: same drawing approach, structure and output, fonts and measurement as upstream; the only allowed change is batching each frame's draw/DOM calls into one handoff across the boundary. No redesign inside a port PR.
-3. Prefer the issue's *Suggested agent*, but any agent may take any ready issue. Agent types that may claim: **Cursor, Claude Code, Codex and OpenCode** (OpenCode runs free NVIDIA-hosted models), plus human Developers. The protocol below is identical for all of them.
+3. Prefer the issue's *Suggested agent*, but any agent may take any ready issue. The protocol below is identical for every agent type. **Agent roster (Jared):**
+   - **Primary:** Cursor, Claude Code and Codex. **Codex runs only on the `6.1 sol` model.**
+   - **OpenCode** (free NVIDIA-hosted models): may be added after evaluation; until Jared adds it here, it does not claim issues.
+   - **Grok Build (Grok 4.7):** last-resort overflow, used only once Cursor, Claude Code and Codex are all out of credits.
+   - Human Developers may claim any issue.
 
 ## 2. Claim it
-- Comment exactly `claiming` on the issue (add your agent type, e.g. `claiming (opencode)`), then **assign yourself** or add the matching label `agent:<name>`: `agent:cursor`, `agent:claude-code`, `agent:codex` or `agent:opencode`. A new agent type gets a new `agent:<name>` label; nothing else changes.
+- Comment exactly `claiming` on the issue (add your agent type, e.g. `claiming (codex)`), then **assign yourself** or add the matching label `agent:<name>`: `agent:cursor`, `agent:claude-code`, `agent:codex`, and when activated `agent:opencode` or `agent:grok-build`. A new agent type gets a new `agent:<name>` label; nothing else changes.
 - Move the board item to **In progress**. If someone claimed it first (earlier comment or label), pick another issue.
 - One agent per issue. If you stop, comment `unclaiming` with your handoff notes and remove your label.
 

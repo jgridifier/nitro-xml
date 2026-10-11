@@ -58,7 +58,7 @@ Jared has not answered every open question in the plan, so these are the plan's 
 
 ## How to contribute
 
-Work is split into agent-sized issues so Cursor, Claude Code, Codex and OpenCode agents (and human Developers) can run in parallel. The contract is **[AGENTS.md](AGENTS.md)**:
+Work is split into agent-sized issues so Cursor, Claude Code and Codex agents (and human Developers; OpenCode after evaluation, Grok Build as last-resort overflow) can run in parallel. The contract is **[AGENTS.md](AGENTS.md)**:
 
 1. Pick an unassigned `status:ready` issue whose dependencies are closed (board view **Ready now**).
 2. Comment `claiming`, then assign yourself or add `agent:<name>`.

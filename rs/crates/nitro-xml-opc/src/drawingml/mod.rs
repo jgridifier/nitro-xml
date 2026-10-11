@@ -50,9 +50,9 @@ pub use theme_model::{
     THEME_COLOR_SLOTS,
 };
 pub use types::{
-    AttributeReader, DrawingColor, DrawingFill, DrawingFrame, DrawingLine, DrawingPath,
-    DrawingPathCommand, DrawingTextBody, DrawingTextParagraph, DrawingTextRun,
-    DrawingTextRunProperties, DrawingTextSpacing,
+    AttributeReader, ColorTransform, DrawingColor, DrawingColorKind, DrawingFill, DrawingFrame,
+    DrawingLine, DrawingPath, DrawingPathCommand, DrawingTextBody, DrawingTextParagraph,
+    DrawingTextRun, DrawingTextRunProperties, DrawingTextSpacing,
 };
 pub use units::{emu_to_pixels, pixels_to_emu, EMU_PER_PIXEL};
 

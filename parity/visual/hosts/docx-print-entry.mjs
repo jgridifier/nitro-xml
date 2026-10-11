@@ -7,7 +7,7 @@ import { resolveParagraphFormatting } from '../../../upstream/src/core/docx/para
 import { createCanvasMeasurer } from '../../../upstream/src/ui/src/docx/canvas-measurer.ts';
 import { renderPrintLayout } from '../../../upstream/src/ui/src/docx/print-layout.ts';
 import { decoratePages } from '../../../upstream/src/ui/src/docx/print-header-footer.ts';
-import printCss from '../../../upstream/src/ui/src/docx/styles/print.css?raw';
+import { printCss } from '../generated/docx-print-css.mjs';
 
 export { printCss };
 

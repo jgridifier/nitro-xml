@@ -189,8 +189,55 @@ fn paint_one_cell<I: StringIntern>(
                 &format!("rotate({}deg)", -item.view.rotation),
             );
         }
-        let text = intern.intern(&item.text);
-        buf.set_text(span_id, text);
+        // Upstream cell-layer.ts: rich runs get per-run font / superscript spans.
+        let paint_rich = item
+            .view
+            .rich
+            .as_ref()
+            .is_some_and(|r| !r.is_empty() && item.text == item.view.text);
+        if paint_rich {
+            let runs = item.view.rich.as_ref().unwrap();
+            for (ri, run) in runs.iter().enumerate() {
+                let run_id = TEXT_BASE + 70_000 + (n as u32) * 64 + ri as u32;
+                buf.create_element(run_id, div, span_id);
+                set_style(
+                    buf,
+                    intern,
+                    run_id,
+                    "font",
+                    &css_font(&run.font, zoom * item.font_scale),
+                );
+                set_style(buf, intern, run_id, "color", &run.font.color);
+                set_style(
+                    buf,
+                    intern,
+                    run_id,
+                    "textDecoration",
+                    &text_decoration(&run.font),
+                );
+                if let Some(va) = run.font.vert_align.as_deref() {
+                    let css_va = if va == "super" || va == "superscript" {
+                        "super"
+                    } else {
+                        "sub"
+                    };
+                    set_style(buf, intern, run_id, "verticalAlign", css_va);
+                }
+                let t = intern.intern(&run.text);
+                buf.set_text(run_id, t);
+            }
+        } else {
+            if let Some(va) = item.view.font.vert_align.as_deref() {
+                let css_va = if va == "super" || va == "superscript" {
+                    "super"
+                } else {
+                    "sub"
+                };
+                set_style(buf, intern, span_id, "verticalAlign", css_va);
+            }
+            let text = intern.intern(&item.text);
+            buf.set_text(span_id, text);
+        }
     }
 
     if has_borders(&item.view.borders) {

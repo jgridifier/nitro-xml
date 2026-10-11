@@ -1,0 +1,9 @@
+{
+  "name": "nitro-xml-workspace",
+  "private": true,
+  "description": "Workspace root. The published npm package `nitro-xml` lives in packages/nitro-xml (added by the npm skeleton issue).",
+  "license": "MIT",
+  "repository": "github:jgridifier/nitro-xml",
+  "workspaces": ["packages/*"],
+  "engines": { "node": ">=22" }
+}

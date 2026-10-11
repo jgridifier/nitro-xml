@@ -1,0 +1,19 @@
+Nitro XML
+Copyright (c) 2026 Jared (jgridifier) and Nitro XML contributors.
+Licensed under the MIT License (see LICENSE).
+
+This product includes software derived from ooxml
+(https://github.com/ChristopherVR/ooxml), Copyright ChristopherVR,
+licensed under the Apache License, Version 2.0 (see LICENSE-THIRD-PARTY).
+Files ported or derived from ooxml remain under Apache-2.0; PROVENANCE.md
+records the source path, upstream commit and changes for each of them.
+
+The upstream NOTICE (at commit e66aaec24adc0b68472eae1fc42aa4598e09c352) reads:
+
+-------------------------------------------------------------------------------
+ooxml-core contains modern OOXML modules extracted from ChristopherVR/docx-viewer and ChristopherVR/pptx-viewer, Copyright ChristopherVR, licensed under the Apache License, Version 2.0. The Apache License text is included in LICENSE. PROVENANCE.md records where each module came from.
+
+The pptx area also contains PowerPoint glyph-advance measurements (font-advance-widths*.generated.ts: numeric widths measured through COM automation; no font software is included). Third-party runtime dependencies are listed in THIRD-PARTY-LICENSES.
+
+The math area includes Apache-2.0 equation conversion modules extracted from ChristopherVR/pptx-viewer. Their source paths and modifications are recorded in PROVENANCE.md.
+-------------------------------------------------------------------------------

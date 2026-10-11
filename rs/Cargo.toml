@@ -1,0 +1,17 @@
+# Nitro XML Rust workspace. No crates yet: issue #1 adds rs/crates/* as members.
+# Crates: nitro-xml-opc, nitro-xml-xlsx, nitro-xml-docx, nitro-xml-pptx, nitro-xml-wasm, umbrella nitro-xml.
+[workspace]
+resolver = "2"
+members = []
+
+[workspace.package]
+license = "MIT"   # files ported from upstream ooxml keep `SPDX-License-Identifier: Apache-2.0` (see NOTICE, LICENSE-THIRD-PARTY, PROVENANCE.md)
+repository = "https://github.com/jgridifier/nitro-xml"
+homepage = "https://jgridifier.github.io/nitro-xml/"
+edition = "2021"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

@@ -1,0 +1,5 @@
+---
+description: Nitro XML coordination contract (applies to every task in this repo)
+alwaysApply: true
+---
+Read and follow AGENTS.md at the repo root before doing anything. It is the single coordination contract for Cursor, Claude Code and Codex. Gates and scope are defined in docs/PRODUCT_SPEC.md. Never edit files under .github/workflows/.

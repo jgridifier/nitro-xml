@@ -1,0 +1,52 @@
+# Thin skeleton: perf track. Every commit posts its numbers. Logic lives in scripts/ci/*.
+# Agents must not edit this file (see AGENTS.md); ask Jared for YAML changes.
+name: perf
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * *"   # nightly, full corpus
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  perf-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ci/perf.sh gate
+  perf-record:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # appends to the perf-data branch
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: bash scripts/ci/perf.sh record
+  perf-beats-ts:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        format: [xlsx, docx, pptx]
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ci/perf_beats_ts.sh ${{ matrix.format }}
+  bundle-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ci/bundle_budget.sh
+  scoreboard:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ci/scoreboard.sh

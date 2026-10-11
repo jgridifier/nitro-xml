@@ -1,0 +1,1648 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nitro XML: plan</title><meta name="description" content="Nitro XML: a full Rust/WebAssembly port of ChristopherVR/ooxml for viewing and editing Word, Excel and PowerPoint files in the browser."><style>
+:root{--navy:#0b1f3a;--navy2:#16325c;--navy3:#e8eef7;--ink:#000;--paper:#fff}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+header{background:var(--navy);color:#fff;padding:20px 16px}
+header h1{margin:0;font-size:1.35rem;line-height:1.3}
+header p{margin:6px 0 0;opacity:.85;font-size:.9rem}
+main{max-width:860px;margin:0 auto;padding:12px 16px 48px}
+h1{display:none}
+h2{color:var(--navy);border-bottom:3px solid var(--navy);padding-bottom:4px;margin-top:2em;font-size:1.3rem}
+h3{color:var(--navy2);font-size:1.08rem;margin-top:1.6em}
+a{color:var(--navy2)}
+code{background:var(--navy3);color:var(--ink);padding:1px 4px;border-radius:3px;font-size:.88em;word-break:break-word}
+pre{background:var(--ink);color:#fff;padding:12px;border-radius:6px;overflow-x:auto;font-size:.8rem}
+pre code{background:none;color:inherit;padding:0}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0;border:1px solid var(--navy)}
+table{border-collapse:collapse;width:100%;font-size:.85rem;min-width:560px}
+th{background:var(--navy);color:#fff;text-align:left;padding:6px 8px;position:sticky;top:0}
+td{border-top:1px solid #c9d3e3;padding:6px 8px;vertical-align:top}
+tr:nth-child(even) td{background:#f4f7fb}
+nav{background:var(--navy3);border-left:4px solid var(--navy);padding:10px 14px;margin:16px 0}
+nav ol{margin:6px 0 0;padding-left:20px}
+hr{border:0;border-top:1px solid #c9d3e3;margin:24px 0}
+strong{color:var(--ink)}
+@media (prefers-color-scheme: dark){body{background:#000;color:#fff}strong{color:#fff}code{background:#16325c;color:#fff}td{border-color:#16325c}tr:nth-child(even) td{background:#06101f}nav{background:#06101f}h2,h3,a{color:#9db6dc}h2{border-color:#9db6dc}}
+
+.links a{color:#fff;margin-right:14px}</style></head><body><header><h1 style="display:block">Nitro XML: porting ooxml to Rust + WebAssembly</h1><p>Plan for Jared · <span class="links"><a href="https://github.com/jgridifier/nitro-xml">Repo</a><a href="https://github.com/users/jgridifier/projects/2">Board</a><a href="https://github.com/jgridifier/nitro-xml/blob/main/docs/PRODUCT_SPEC.md">Product spec (gates)</a></span> · upstream ChristopherVR/ooxml @ e66aaec · status: planning, Stage 0 not started</p></header><main><h1 id="nitro-xml-porting-christophervrooxml-to-rust-and-webassembly">Nitro XML: porting ChristopherVR/ooxml to Rust and WebAssembly</h1>
+<blockquote>
+<p><strong>This plan is reconciled with <a href="https://github.com/jgridifier/nitro-xml/blob/main/docs/PRODUCT_SPEC.md">PRODUCT_SPEC.md</a> v3 (full Rust/WASM design lock), which wins wherever they disagree.</strong> Decisions: <a href="#61-decisions-current-calls-open-to-change">§6.1</a>. Board: <a href="https://github.com/users/jgridifier/projects/2">Nitro XML project</a>. Repo: <a href="https://github.com/jgridifier/nitro-xml">jgridifier/nitro-xml</a>. Licence: Nitro XML is MIT-licensed; files ported or derived from ooxml remain under Apache-2.0 (NOTICE, LICENSE-THIRD-PARTY, PROVENANCE.md).</p>
+</blockquote>
+<p><strong>Project:</strong> Nitro XML · <strong>Repo:</strong> <a href="https://github.com/jgridifier/nitro-xml"><code>jgridifier/nitro-xml</code></a> · <strong>Rust crates:</strong> <code>nitro-xml-opc</code> (shared foundation: <code>zip</code>, <code>xml</code>, <code>opc</code> and <code>drawingml</code> modules), <code>nitro-xml-xlsx</code>, <code>nitro-xml-docx</code>, <code>nitro-xml-pptx</code>, <code>nitro-xml-wasm</code> and the umbrella crate <code>nitro-xml</code> (all unclaimed on crates.io on 2026-10-11) · <strong>npm package:</strong> <code>nitro-xml</code> (unclaimed on 2026-10-11).</p>
+<p><strong>Upstream analysed:</strong> <code>https://github.com/ChristopherVR/ooxml</code> at commit <code>e66aaec24adc0b68472eae1fc42aa4598e09c352</code> (2026-10-11), from a read-only shallow clone. The repo pins this commit as the parity oracle and the source of the painters.</p>
+<p><strong>Core principle (unchanged):</strong> rendering stays fully client-side in the browser.</p>
+<p><strong>Design lock (Jared, 2026-10-11):</strong> "This is a full Rust/WASM project. If something doesn't exist we will build it." Everything that ships is Rust/WASM: package, model, layout, <strong>renderers</strong>, viewer shell, <strong>editor UI</strong> (ribbons, dialogs), <strong>text input, selection and caret</strong>, commands, history and writer. The only JS is a minimal loader (wasm bootstrap and event forwarding) with its own gated size budget. ProseMirror, the upstream Lit UI and the TS painters are not shipped. The upstream TS engine is <strong>test-only</strong>: correctness oracle, perf baseline and pixel reference. There is no runtime fallback; if wasm cannot run, the component shows an "unsupported browser" message. The goal is the fastest, most efficient, highest-quality OOXML renderer and editor available, beating the original on every format at every size.</p>
+<hr />
+<nav><strong>Contents</strong><ol><li><a href="#0-read-this-first-the-upstream-is-much-larger-than-a-renderer">0. Read this first: the upstream is much larger than a "renderer"</a></li><li><a href="#1-architecture-map">1. Architecture map</a></li><li><a href="#2-feature-coverage-per-format-from-the-readmes-and-parity-docs">2. Feature coverage per format (from the READMEs and parity docs)</a></li><li><a href="#3-port-design">3. Port design</a></li><li><a href="#4-staged-plan">4. Staged plan</a></li><li><a href="#5-issue-breakdown">5. Issue breakdown</a></li><li><a href="#6-risks-and-open-questions-for-jared">6. Risks and open questions for Jared</a></li><li><a href="#7-files">7. Files</a></li></ol></nav><h2 id="0-read-this-first-the-upstream-is-much-larger-than-a-renderer">0. Read this first: the upstream is much larger than a "renderer"</h2>
+<p>The brief describes a browser-client renderer for docx, pptx and xlsx. The upstream repository is a <strong>full Office suite monorepo</strong>. It contains:</p>
+<ul>
+<li>a headless library (<code>ooxml-core</code>) that reads, edits, validates and writes Word, Excel, PowerPoint and Visio</li>
+<li>a Lit web-component UI (<code>ooxml-ui</code>) with ribbons, editors and dialogs</li>
+<li>bindings for React, Vue, Angular, Svelte, Solid and vanilla JS</li>
+<li>a formula engine (README: 380 to 480+ functions)</li>
+<li>Yjs real-time collaboration, MCP servers, an "OpenTeams" chat app, a Tauri desktop wrapper and an integrated "OOXML Office" PWA</li>
+</ul>
+<p><code>cloc</code> counts <strong>about 1.56 million lines of TypeScript code</strong> (excluding blank lines and comments) in 12,989 files. About half of that is tests.</p>
+<p><strong>Original recommendation (superseded):</strong> port only the read and view path. <strong>Current scope (Jared):</strong> the full editor suite for docx, xlsx and pptx, built viewer first (Milestone 1) and then editor (Milestone 2), all in Rust/WASM. Still out: Visio, Teams, MCP, macro execution (VBA preserved), framework bindings beyond the web component; ASK: legacy and encrypted formats (unsupported message in v1, Rust track after E5), collaboration and export (default out). This is far larger than the original 25k to 45k line estimate: the roughly 217k production lines of <code>src/ui</code> are now rebuilt in Rust as well, and no credible estimate exists until R0 (PRODUCT_SPEC Q3).</p>
+<hr />
+<h2 id="1-architecture-map">1. Architecture map</h2>
+<h3 id="11-language-framework-tooling">1.1 Language, framework, tooling</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>What the repo uses</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Language</td>
+<td>TypeScript (strict, with <code>exactOptionalPropertyTypes</code> and <code>noUncheckedIndexedAccess</code>). The <code>pptx</code> area is compiled with relaxed flags while it migrates (<code>tsconfig.pptx.json</code>, AGENTS.md). TS <code>^7.0.2</code>.</td>
+</tr>
+<tr>
+<td>Package manager and workspace</td>
+<td>Bun workspace with one <code>bun.lock</code>. Node &gt;= 22.</td>
+</tr>
+<tr>
+<td>Build</td>
+<td><code>tsup</code> and <code>tsdown</code> (core), <code>node scripts/build.mjs</code>, Vite for viewers and demos</td>
+</tr>
+<tr>
+<td>Unit tests</td>
+<td>Vitest 5 (tests next to code; <code>isolate: false</code>), <code>fast-check</code> property tests, <code>xmllint-wasm</code> ECMA-376 schema checks for docx</td>
+</tr>
+<tr>
+<td>Browser tests</td>
+<td>Playwright: 472 <code>*.spec.ts</code> under <code>e2e/{docx,xlsx,pptx,visio,teams}</code></td>
+</tr>
+<tr>
+<td>Lint and format</td>
+<td>oxlint, oxfmt</td>
+</tr>
+<tr>
+<td>CI</td>
+<td><code>.github/workflows/ci.yml</code> (change-aware plan via <code>scripts/ci-plan.mjs</code>, sharded tests, nightly full run) plus release, pages, scorecard, security and other workflows</td>
+</tr>
+<tr>
+<td>UI tech</td>
+<td>Lit 3 web components (<code>src/ui</code>), ProseMirror (Word editing surface), Yjs, opentype.js, DOMPurify; three.js for pptx 3D</td>
+</tr>
+<tr>
+<td>Licence</td>
+<td>Apache-2.0 (root <code>LICENSE</code>, <code>NOTICE</code>, <code>src/core/THIRD-PARTY-LICENSES</code>, <code>PROVENANCE.md</code>)</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="12-package-layout">1.2 Package layout</h3>
+<pre><code>src/core     ooxml-core: ALL logic, DOM-free (areas: xml, opc, units, color, geometry, drawingml,
+             chart, diagram, text, math, docx, xlsx, pptx, visio, collab, crypto, digest, teams, automation…)
+src/ui       ooxml-ui: Lit web components; DOM only; product editors under ooxml-ui/&lt;product&gt;
+viewers/*    docx, xlsx, pptx, visio, teams: framework bindings, docs sites, viewer MCPs
+demos/*      demo apps per product (docx: demo-vanilla; pptx: react/vue/angular/svelte/vanilla…)
+e2e/*        Playwright suites and fixtures
+apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-transitional
+</code></pre>
+<p>Dependency direction (from the README): bindings -&gt; <code>ooxml-ui</code> (DOM) -&gt; <code>ooxml-core</code> (logic) -&gt; <code>ole2</code>, <code>emf-converter</code>, <code>mtx-decompressor</code>. The core never imports the UI. <strong>This is the seam Nitro XML uses.</strong></p>
+<h3 id="13-lines-of-code-cloc-204-code-lines-only">1.3 Lines of code (cloc 2.04, code lines only)</h3>
+<p>"prod" excludes <code>*.test.*</code>, <code>*.spec.*</code>, <code>*.generated.*</code>, <code>__tests__</code>, <code>__fixtures__</code> and fixture folders.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Area</th>
+<th style="text-align: right;">All code</th>
+<th style="text-align: right;">Prod</th>
+<th>Port relevance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/core/xml</code></td>
+<td style="text-align: right;">508</td>
+<td style="text-align: right;">276</td>
+<td><strong>port</strong></td>
+</tr>
+<tr>
+<td><code>src/core/opc</code></td>
+<td style="text-align: right;">3,382</td>
+<td style="text-align: right;">1,682</td>
+<td><strong>port</strong></td>
+</tr>
+<tr>
+<td><code>src/core/units</code> / <code>color</code></td>
+<td style="text-align: right;">185 / 806</td>
+<td style="text-align: right;">57 / 379</td>
+<td><strong>port</strong></td>
+</tr>
+<tr>
+<td><code>src/core/drawingml</code></td>
+<td style="text-align: right;">2,396</td>
+<td style="text-align: right;">1,840</td>
+<td><strong>port</strong></td>
+</tr>
+<tr>
+<td><code>src/core/geometry</code></td>
+<td style="text-align: right;">21,445</td>
+<td style="text-align: right;">16,917</td>
+<td><strong>port</strong> (preset shapes)</td>
+</tr>
+<tr>
+<td><code>src/core/chart</code></td>
+<td style="text-align: right;">8,687</td>
+<td style="text-align: right;">5,907</td>
+<td>optional (parsing only)</td>
+</tr>
+<tr>
+<td><code>src/core/xlsx</code></td>
+<td style="text-align: right;">65,499</td>
+<td style="text-align: right;">45,876</td>
+<td>read path only: <code>read/</code> 2,607 · <code>numfmt/</code> 1,588 · <code>layout/</code> 2,499 · <code>ui/</code> (view logic) 10,892. Not <code>formula/</code> 13,304, <code>edit/</code> 7,491, <code>write/</code> 3,908, <code>collab/</code> 1,236</td>
+</tr>
+<tr>
+<td><code>src/core/docx</code></td>
+<td style="text-align: right;">40,864</td>
+<td style="text-align: right;">21,613</td>
+<td>read path: top-level modules ~12,040 + <code>layout/</code> 2,885. Not <code>ui/</code> 5,659 (editor logic)</td>
+</tr>
+<tr>
+<td><code>src/core/pptx</code></td>
+<td style="text-align: right;">322,613</td>
+<td style="text-align: right;">146,051</td>
+<td>static-render subset of <code>core/</code> (125,415 prod). Not <code>automation</code>, <code>converter</code>, <code>cli</code>, <code>editor</code>, <code>signature-node</code></td>
+</tr>
+<tr>
+<td><code>src/core/diagram</code> (SmartArt)</td>
+<td style="text-align: right;">31,814</td>
+<td style="text-align: right;">18,167</td>
+<td><strong>rebuild in Rust</strong> (SmartArt rendering from the cached drawing; layout engine later)</td>
+</tr>
+<tr>
+<td><code>src/core/visio</code></td>
+<td style="text-align: right;">73,887</td>
+<td style="text-align: right;">40,076</td>
+<td>out of scope</td>
+</tr>
+<tr>
+<td><code>src/ui</code> (all)</td>
+<td style="text-align: right;">380,298</td>
+<td style="text-align: right;">217,398</td>
+<td><strong>rebuilt in Rust</strong> (renderers, shell, editor chrome; reference only). docx 27,747 · xlsx 19,775 · pptx 133,260 · visio 27,200</td>
+</tr>
+<tr>
+<td><code>viewers/pptx</code></td>
+<td style="text-align: right;">583,920</td>
+<td style="text-align: right;">335,252</td>
+<td>not ported (framework bindings out of scope; reference only) (React 83.8k, Vue 63.5k, Angular 72.4k, Svelte 55.7k, vanilla 51.1k)</td>
+</tr>
+<tr>
+<td><code>viewers/docx</code>, <code>viewers/xlsx</code></td>
+<td style="text-align: right;">4,089 / 5,042</td>
+<td style="text-align: right;">3,420 / 3,542</td>
+<td>reference only</td>
+</tr>
+<tr>
+<td><code>e2e</code></td>
+<td style="text-align: right;">70,259</td>
+<td style="text-align: right;">—</td>
+<td>reused as visual references</td>
+</tr>
+<tr>
+<td>Whole repo (TS)</td>
+<td style="text-align: right;">1,560,277</td>
+<td style="text-align: right;">—</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Realistic Rust port surface</strong> (read path for three formats plus shared layers): roughly 25k to 45k lines of TS logic, dominated by pptx. This is an estimate, not a count.</p>
+<h3 id="14-entry-points-read-path">1.4 Entry points (read path)</h3>
+<ul>
+<li><strong>xlsx:</strong> <code>loadXlsx(bytes)</code> in <code>src/core/xlsx/read/load.ts</code> (<code>loadWorkbook</code> in <code>xlsx/load/detect.ts</code> adds legacy <code>.xls</code>, CSV and passwords)</li>
+<li><strong>docx:</strong> <code>loadDocx(bytes)</code> in <code>src/core/docx/parse.ts</code> (<code>loadDocument</code> in <code>docx/load/detect.ts</code>)</li>
+<li><strong>pptx:</strong> <code>PptxHandler</code> (<code>src/core/pptx/core/PptxHandler.ts</code>, extending <code>PptxHandlerCore</code>)</li>
+<li><strong>docx layout:</strong> <code>layoutDocumentModel(model, measurer, options)</code> in <code>src/core/docx/layout/layout.ts</code></li>
+<li><strong>xlsx view:</strong> <code>buildItems(input): CellItem[]</code> in <code>src/core/xlsx/ui/grid/cell-items.ts</code></li>
+</ul>
+<h3 id="15-parsing-pipeline-zip-then-xml-then-model">1.5 Parsing pipeline: zip, then XML, then model</h3>
+<ol>
+<li><strong>Zip:</strong> <code>jszip</code> (most areas; e.g. <code>xlsx/read/package.ts</code>, <code>opc/package.ts</code>) and <code>fflate</code> (core dependency). Bounded by <code>MAX_INPUT_BYTES</code> (50 MB), <code>MAX_PARTS</code> (10,000), <code>MAX_UNCOMPRESSED_BYTES</code> (300 MB) and <code>MAX_PART_BYTES</code> (200 MB) in <code>xlsx/read/package.ts</code>.</li>
+<li><strong>OPC:</strong> <code>src/core/opc</code> handles <code>[Content_Types].xml</code>, relationships, part path resolution, the hyperlink safety policy, properties and signature detection. Writes use string surgery to keep untouched bytes identical.</li>
+<li><strong>XML:</strong> two parser families.<ul>
+<li>The shared <code>xml</code> area (<code>parseXml</code>) uses <code>@xmldom/xmldom</code> DOM and rejects DTD and ENTITY declarations. <code>xml/lite.ts</code> is a fast reader for large <code>&lt;sheetData&gt;</code> that falls back to the full parser.</li>
+<li>The <code>pptx</code> area still uses <code>fast-xml-parser</code> objects (about 50 files under <code>pptx/core/core/runtime</code>). The roadmap calls moving it to the shared model "One XML model".</li>
+</ul>
+</li>
+<li><strong>Model:</strong><ul>
+<li>xlsx: <code>Workbook</code> with sheets, styles, shared strings and theme. Unknown parts are kept in <code>workbook.source.parts</code>.</li>
+<li>docx: <code>DocumentModel</code> (<code>blocks</code>, <code>sections</code>), with media collected separately.</li>
+<li>pptx: <code>PptxData</code> with a 16-kind <code>PptxElement</code> union (text, shape, connector, image, picture, table, chart, SmartArt, OLE, media, group, ink, content part, zoom, 3D model, unknown) and theme, master, layout and placeholder inheritance.</li>
+</ul>
+</li>
+</ol>
+<h3 id="16-rendering-pipeline">1.6 Rendering pipeline</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Layout (DOM-free, in core)</th>
+<th>Painting (DOM, in ui)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>xlsx</td>
+<td><code>xlsx/layout</code> (grid metrics, axis metrics, viewport, visible cells) and <code>xlsx/ui</code> (cell views, colours, conditional formats, chart SVG)</td>
+<td><code>src/ui/src/xlsx/grid/cell-layer.ts</code>: a <strong>DOM</strong> painter (pooled <code>div</code> per cell, repaint only when the signature changes), SVG for diagonals, sparklines and charts. Canvas only for measuring (<code>grid/measure.ts</code>)</td>
+</tr>
+<tr>
+<td>docx</td>
+<td><code>docx/layout</code>: pagination engine (line breaking, widow and orphan control, keep rules, tables, columns, floats, notes). Uses an <strong>injected <code>TextMeasurer</code></strong> (<code>widthOf</code>, <code>lineHeightOf</code>, <code>ascentOf</code>)</td>
+<td>Editing surface is <strong>ProseMirror</strong>. Print Layout (read-only, paginated) is DOM, built from <code>LayoutResult</code> (<code>print-layout-view.ts</code>, <code>print-layout.ts</code>). Canvas measurer in <code>canvas-measurer.ts</code></td>
+</tr>
+<tr>
+<td>pptx</td>
+<td>Model and inheritance in core. Shared render logic in <code>src/ui/src/pptx/render</code> (1,619 files: charts, animation, text, SmartArt…)</td>
+<td>Slides are <strong>HTML, CSS and SVG in the DOM</strong> (pptx README: "Slides are HTML, CSS and SVG in the DOM"). Canvas is used for helpers (measurement, image effects, export rasterisation). WebGL and three.js for 3D. Five framework bindings map shared descriptors to their templates</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="17-viewer-ui-and-demo-apps">1.7 Viewer UI and demo apps</h3>
+<ul>
+<li>The viewers are Lit custom elements (<code>&lt;docx-editor&gt;</code>, <code>&lt;xlsx-editor&gt;</code>, the pptx web controls) with thin framework bindings.</li>
+<li>Demo apps: <code>demos/docx/demo-vanilla</code>, <code>demos/xlsx/demo-vanilla</code>, <code>demos/pptx/demo-{react,vue,angular,svelte,vanilla,three-parity}</code>, plus <code>apps/office-suite</code> (the integrated PWA, published at <code>christophervr.github.io/ooxml/</code>).</li>
+</ul>
+<h3 id="18-external-runtime-dependencies">1.8 External runtime dependencies</h3>
+<ul>
+<li><strong><code>ooxml-core</code>:</strong> <code>jszip</code>, <code>fflate</code>, <code>fast-xml-parser</code>, <code>@xmldom/xmldom</code>, <code>utif</code>, <code>emf-converter</code> (Apache-2.0), <code>mtx-decompressor</code> (<strong>MPL-2.0</strong>), <code>prosemirror-*</code>, <code>yjs</code>, <code>y-prosemirror</code>, <code>y-protocols</code>, <code>lib0</code>. Optional peers: <code>node-forge</code>, <code>xml-crypto</code>, <code>@napi-rs/canvas</code>.</li>
+<li><strong><code>ooxml-ui</code>:</strong> <code>lit</code>, <code>dompurify</code>, <code>opentype.js</code>, <code>prosemirror-*</code>, <code>yjs</code>, <code>zod</code>, <code>emf-converter</code>.</li>
+<li><code>@christophervr/ole2</code> (Apache-2.0) is inlined in the pptx bundle.</li>
+</ul>
+<h3 id="19-tests-and-fixtures">1.9 Tests and fixtures</h3>
+<ul>
+<li><strong>Test files:</strong> 1,765 in <code>src/core</code>, 1,195 in <code>src/ui</code>, and 472 Playwright specs.</li>
+<li><strong>Fixtures:</strong></li>
+<li><strong>docx:</strong> 158 files, 3 KB to 67 KB (median 14 KB)</li>
+<li><strong>xlsx:</strong> 11 files, 5 KB to 23 KB</li>
+<li><strong>pptx:</strong> 473 files, 4 KB to 36.8 MB. This includes 229 SmartArt gallery decks and large real-world decks of 1.8 MB to 36.8 MB in <code>e2e/pptx/fixtures</code>.</li>
+<li><strong>Gap:</strong> there are no large docx or xlsx files, so the perf track has to generate them.</li>
+</ul>
+<h3 id="110-activity-and-issues">1.10 Activity and issues</h3>
+<ul>
+<li>The GitHub repo was created on 2026-10-01 (it imports older viewer repositories with their history) and was last pushed on 2026-10-11. It has 11 stars, <strong>0 open issues</strong>, 15 closed issues and 35 PRs.</li>
+<li>Recent closed issues are mostly xlsx editing semantics (filters, structured references, SUBTOTAL) and pptx fidelity (Morph, line spacing, thin strokes).</li>
+<li><strong>It is a fast-moving target.</strong> Pin a commit.</li>
+</ul>
+<hr />
+<h2 id="2-feature-coverage-per-format-from-the-readmes-and-parity-docs">2. Feature coverage per format (from the READMEs and parity docs)</h2>
+<p><strong>xlsx</strong> (<code>viewers/xlsx/README.md</code>, <code>docs/xlsx-parity-status.md</code>, updated 2026-10-08)
+- <strong>Renders:</strong>
+  - grid with frozen panes
+  - fonts, fills, borders, alignment, number formats, merges, column and row sizes
+  - conditional formatting (rules, colour scales, data bars, icon sets) and validation lists
+  - common charts as SVG (8 families), pictures and sparklines
+- <strong>File types:</strong> <code>.xlsx</code>, <code>.xlsm</code>, <code>.xltx</code>, legacy <code>.xls</code> and CSV.
+- <strong>Gaps:</strong>
+  - pivot tables, slicers, external links and Power Query are kept but not shown
+  - shapes, SmartArt and form controls show as placeholders (SmartArt is drawn from the cached drawing)
+  - no iterative calculation
+- <strong>The project's own assessment:</strong> "Full 1:1 Microsoft Excel parity has not been achieved". There is no lossless saving and no whole-workbook pixel equivalence.</p>
+<p><strong>docx</strong> (<code>docs/word-parity-review.md</code>, <code>viewers/docx/docs/outstanding-work.md</code>)
+- <strong>Renders:</strong>
+  - paragraphs, runs and character styles, theme colours and fonts
+  - numbering and lists
+  - sections, breaks, columns, and read-only headers, footers and notes
+  - tables (grid, merges, borders, shading, styles), inline pictures, hyperlinks and bookmarks
+  - tracked changes and comments
+  - charts drawn read-only for bar, column, line, area, pie, doughnut, scatter and radar
+  - equations as read-only MathML (Print Layout shows <code>[Equation]</code>)
+- <strong>Gaps:</strong>
+  - Print Layout is read-only and editing is continuous
+  - complex typography, floats and Word font metrics are incomplete
+  - floating and unsupported drawings show as placeholders
+  - floating (<code>wp:anchor</code>) charts are not placed in Print Layout
+  - bubble, stock, surface and chartex charts show only a labelled frame
+  - no general shape or SmartArt editing</p>
+<p><strong>pptx</strong> (<code>viewers/pptx/README.md</code>, <code>docs/guide/limitations.md</code>)
+- <strong>Renders:</strong>
+  - 187 preset shapes, custom geometry
+  - gradient, pattern and picture fills, shadows, glow, reflection, soft edges, 3D bevels and cameras, WordArt warps
+  - tables, SVG charts, SmartArt, EMF and WMF, embedded fonts, ink, audio, video and GLB models
+  - transitions and animations
+- <strong>Known gaps:</strong>
+  - SmartArt re-layout without a cached drawing is approximate (228 of 229 gallery fixtures produce the same shape set as PowerPoint)
+  - metal 3D materials have a residual error
+  - some WordArt <code>can</code> presets are off at certain depths
+  - pie <code>bestFit</code> label spacing is approximated
+  - 3D model camera details are unverified
+  - saving an edited slide can still change minor markup
+- At runtime, unsupported features are reported in <code>data.warnings</code>.</p>
+<p><strong>What this means for Nitro XML:</strong> the TS renderers are mature and tuned against Office. Under the design lock they are rebuilt in Rust, so they become the <strong>pixel reference</strong>: every Rust renderer must re-earn the visual thresholds format by format (pptx effects especially).</p>
+<hr />
+<h2 id="3-port-design">3. Port design</h2>
+<h3 id="31-what-is-built-in-rustwasm-everything-that-ships">3.1 What is built in Rust/WASM (everything that ships)</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Decision</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Zip, limits</td>
+<td><strong>Rust</strong> (<code>nitro-xml-opc::zip</code>)</td>
+<td>Streaming, lazy per part, upstream limits enforced</td>
+</tr>
+<tr>
+<td>XML</td>
+<td><strong>Rust</strong> (<code>nitro-xml-opc::xml</code>)</td>
+<td>One streaming pass, no DOM tree; SIMD128 hot loops</td>
+</tr>
+<tr>
+<td>OPC, DrawingML, charts</td>
+<td><strong>Rust</strong> (<code>nitro-xml-opc</code>)</td>
+<td>Shared by all formats</td>
+</tr>
+<tr>
+<td>Models (xlsx, docx, pptx, all element kinds)</td>
+<td><strong>Rust</strong></td>
+<td>Columnar where it matters; lazy per sheet, page and slide</td>
+</tr>
+<tr>
+<td>Layout (grid metrics, pagination, slide text)</td>
+<td><strong>Rust</strong></td>
+<td>Text shaping and fonts decided at R0 (#36)</td>
+</tr>
+<tr>
+<td><strong>Renderers</strong></td>
+<td><strong>Rust</strong></td>
+<td>DOM-via-<code>web-sys</code> or canvas plus accessible DOM mirror, decided at R0 (#33); may differ per format</td>
+</tr>
+<tr>
+<td>Viewer shell (zoom, navigation, find, copy, links, diagnostics)</td>
+<td><strong>Rust</strong></td>
+<td>Stage 6</td>
+</tr>
+<tr>
+<td>Editor chrome (ribbons, dialogs, menus, shortcuts)</td>
+<td><strong>Rust</strong></td>
+<td>E0</td>
+</tr>
+<tr>
+<td>Text-editing surface (caret, selection, IME, bidi, clipboard, spellcheck, a11y, mobile keyboards)</td>
+<td><strong>Rust</strong></td>
+<td>E-text, before E1 (single-line) and E3 (rich)</td>
+</tr>
+<tr>
+<td>Commands, undo/redo, lossless writer, formula engine</td>
+<td><strong>Rust</strong></td>
+<td>E1 to E4; formula engine E2</td>
+</tr>
+<tr>
+<td>Loader</td>
+<td><strong>JS, minimal</strong></td>
+<td>wasm bootstrap, streaming compile, cached module, pre-warmed worker, event forwarding; own size gate (#37)</td>
+</tr>
+<tr>
+<td>Upstream TS engine</td>
+<td><strong>Test and bench harness only</strong></td>
+<td>Oracle, perf baseline, pixel reference; CI fails if a shipped artefact imports it (#38)</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="32-the-interface-between-js-and-wasm">3.2 The interface between JS and WASM</h3>
+<ul>
+<li><strong>The loader is the only JS.</strong> It instantiates the wasm (streaming compile, cached compiled module, pre-warmed worker), loads a small core module and per-format modules on demand, and forwards batched browser events (input, pointer, wheel, keyboard, composition, resize) into wasm. Its size has its own ceiling (#37).</li>
+<li><strong>Handles.</strong> The headless API exposes document handles that own the model in linear memory (<code>open → handle</code>, queries, commands, <code>save</code>, <code>free</code>), with a <code>FinalizationRegistry</code> safety net.</li>
+<li><strong>Bulk transfer, never per-cell calls</strong> (#14): struct-of-arrays typed-array views over wasm memory for bulk data, interned string tables, <code>Uint8Array</code> views for media.</li>
+<li><strong>No browser text measurement.</strong> Shaping and measurement happen in Rust or behind an interface decided at R0 (#36).</li>
+<li><strong>Workers:</strong> one worker per document, <code>ArrayBuffer</code> transferred. The renderer choice decides the split: DOM rendering needs main-thread wasm; canvas can use OffscreenCanvas in a worker (R0).</li>
+<li><strong>Memory:</strong> linear memory never shrinks; one worker per document; upstream limits enforced; crash recovery reloads in a fresh worker (viewer) or replays the op journal (editor).</li>
+<li><strong>Threads:</strong> none by default (no SharedArrayBuffer, no COOP/COEP needed by embedders). Only the perf harness serves COOP/COEP.</li>
+</ul>
+<h3 id="33-rust-crates-considered">3.3 Rust crates considered</h3>
+<p>All versions and licences are from the crates.io API on 2026-10-11.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Crate</th>
+<th>Version / licence</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zip</code> (zip-rs/zip2)</td>
+<td>9.0.1 / MIT</td>
+<td><strong>Use</strong>, <code>default-features=false</code>, deflate only (no C deps)</td>
+</tr>
+<tr>
+<td><code>miniz_oxide</code> / <code>flate2</code></td>
+<td>0.9.1 / MIT, Zlib or Apache-2.0; 1.1.10 / MIT or Apache-2.0</td>
+<td>Deflate backend</td>
+</tr>
+<tr>
+<td><code>quick-xml</code></td>
+<td>0.42.0 / MIT</td>
+<td><strong>Use</strong> as the streaming parser (<code>NsReader</code>)</td>
+</tr>
+<tr>
+<td><code>roxmltree</code></td>
+<td>0.21.1 / MIT or Apache-2.0</td>
+<td>Optional read-only tree for small parts</td>
+</tr>
+<tr>
+<td><code>serde</code>, <code>serde_json</code></td>
+<td>1.0.x / MIT or Apache-2.0</td>
+<td>Model serialisation, parity dumps</td>
+</tr>
+<tr>
+<td><code>wasm-bindgen</code>, <code>js-sys</code>, <code>web-sys</code></td>
+<td>0.2.129 / 0.3.106, MIT or Apache-2.0</td>
+<td>Boundary</td>
+</tr>
+<tr>
+<td><code>serde-wasm-bindgen</code></td>
+<td>0.6.5 / MIT</td>
+<td>Candidate transport (last release 2024-02)</td>
+</tr>
+<tr>
+<td><code>tsify</code></td>
+<td>0.5.8 / MIT or Apache-2.0</td>
+<td><code>.d.ts</code> generation (maintained again; <code>tsify-next</code> was a fork)</td>
+</tr>
+<tr>
+<td><code>wasm-pack</code></td>
+<td>0.15.0 / MIT or Apache-2.0</td>
+<td>Build (now under the <code>wasm-bindgen</code> org)</td>
+</tr>
+<tr>
+<td><code>wasm-bindgen-test</code>, <code>insta</code></td>
+<td>0.3.79 / 1.49.0 (Apache-2.0)</td>
+<td>Tests, snapshots</td>
+</tr>
+<tr>
+<td><code>unicode-linebreak</code>, <code>unicode-segmentation</code></td>
+<td>Apache-2.0; MIT or Apache-2.0</td>
+<td>Line breaking (only where it matches upstream behaviour)</td>
+</tr>
+<tr>
+<td><code>docx-rs</code></td>
+<td>0.4.22 / MIT</td>
+<td><strong>Not adopted.</strong> Its own model, writer-oriented; parity with the upstream <code>DocumentModel</code> would need a translation layer as big as a port</td>
+</tr>
+<tr>
+<td><code>calamine</code></td>
+<td>0.36.1 / MIT</td>
+<td><strong>Not adopted.</strong> Data-oriented reader ("simple enough" files); not the styles, conditional formats and view data the grid needs. Useful as a cross-check oracle for cell values</td>
+</tr>
+<tr>
+<td><code>umya-spreadsheet</code></td>
+<td>3.1.0 / MIT</td>
+<td>Not adopted (full read and write model; heavy for WASM). Possible reference</td>
+</tr>
+<tr>
+<td><code>ooxmlsdk</code></td>
+<td>0.13.2 / MIT or Apache-2.0</td>
+<td>Generated schema types modelled on the .NET Open XML SDK. <strong>Worth a 1-day spike</strong> for docx and pptx typed parts. Risk: very young (about 30k downloads), and large generated code may bloat the WASM binary</td>
+</tr>
+<tr>
+<td><code>rustybuzz</code>, <code>swash</code>, <code>parley</code>, <code>cosmic-text</code></td>
+<td>MIT and/or Apache-2.0</td>
+<td>Deferred (in-WASM shaping)</td>
+</tr>
+<tr>
+<td><code>tiny-skia</code> / <code>resvg</code></td>
+<td>BSD-3-Clause / MIT or Apache-2.0</td>
+<td>Not needed (painting stays DOM)</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Licence constraints:</strong>
+- <strong>Nitro XML is dual-licensed <code>MIT OR Apache-2.0</code></strong> (the Rust ecosystem convention; Jared asked for MIT). The repo ships <code>LICENSE-MIT</code> and <code>LICENSE-APACHE</code>; Cargo metadata and <code>package.json</code> say <code>license = "MIT OR Apache-2.0"</code>.
+- Upstream is Apache-2.0, so ported logic is a derivative work. Apache-2.0 §4 allows distributing derivative works under other terms, provided its conditions are met: <code>NOTICE</code> crediting upstream (ChristopherVR/ooxml) is carried forward, copyright notices are kept, and changes are stated in <code>PROVENANCE.md</code> (one entry per ported or derived module, mirroring upstream's own convention).
+- <code>mtx-decompressor</code> is MPL-2.0 (file-level copyleft). It is not in scope for v1 and the licence check does not allow MPL.
+- jszip is dual MIT or GPL-3.0 and is used under MIT. It is not ported; Rust uses <code>zip</code>.
+- <code>font-advance-widths*.generated.ts</code> holds glyph widths measured in PowerPoint through COM (NOTICE). It is data under Apache-2.0, but <strong>ask upstream</strong> before relying on it.
+- The CI licence check (#31) allows only MIT, Apache-2.0, BSD-2/3-Clause, ISC, Zlib and Unicode licences, for crates and npm production dependencies.</p>
+<h3 id="34-test-strategy">3.4 Test strategy</h3>
+<ol>
+<li><strong>Golden fixtures:</strong> <code>fixtures/manifest.json</code> with sha256, tier, features and licence (#4). Large docx and xlsx fixtures are generated with fixed seeds.</li>
+<li><strong>Parity against the TS oracle (#5):</strong><ul>
+<li>Run the pinned <code>ooxml-core</code> and dump a normalised "view IR": <code>CellItem[]</code> for xlsx viewports, <code>LayoutResult</code> for docx, <code>PptxElement</code> trees for pptx.</li>
+<li>Diff it against the Rust output, with float rounding and an allow-list that needs a reason per entry.</li>
+<li>For docx, both sides use upstream's deterministic <code>createFakeMeasurer()</code>, so fonts never cause a diff.</li>
+</ul>
+</li>
+<li><strong>Ported unit tests:</strong> the upstream Vitest suites for each ported module (xml, opc, numfmt, layout…) become Rust tests, which gives cheap, high-signal coverage.</li>
+<li><strong>Visual diffs (#45):</strong> the TS engine renders references (test-only) at DPR 1 and 2 plus print-to-PDF; the Rust renderer must stay within <code>pixelmatch</code> thresholds (xlsx ≤0.1% per viewport; docx ≤0.5% per page with the same page count; pptx ≤0.5% per slide). Same Chromium build and fonts.</li>
+<li><strong>Renderer and editing-surface gates:</strong> accessibility (axe plus an AX-tree screen-reader script, #42), selection and caret parity (#43), bidi (#44, #57), CJK IME (#56), spellcheck (#58), crash recovery (#30, #62), and the ship check that no shipped artefact imports TS (#38).</li>
+<li><strong>Fuzzing:</strong> cargo-fuzz on zip, XML, OPC and each format entry point (#30). Port the upstream <code>*.fuzz.test.ts</code> cases.</li>
+<li><strong>Performance gate:</strong> see §4.1. Every stage gate includes it.</li>
+<li><strong>Editor gates (M2):</strong> lossless round trip with validators (#48, #49), edit round trip (#50), undo/redo parity (#51), edit-path perf (#52); see PRODUCT_SPEC §5.</li>
+</ol>
+<hr />
+<h2 id="4-staged-plan">4. Staged plan</h2>
+<p><strong>Gates (PRODUCT_SPEC §5).</strong> Every stage from Stage 3 must pass: view-IR parity, visual at DPR 1 and 2 plus print-to-PDF, <strong>unsupported content at 0 for the format at its stage gate</strong>, accessibility, bidi, selection and caret, and the perf gate. <strong>Perf timing rule:</strong> every commit posts numbers; until a format has a full open-to-first-paint path in Rust the gate is regression-versus-main only; from that commit on, <strong>WASM must beat TS at every tier</strong> (S, M, L, XL), at 1x and 4x CPU, on first paint (including wasm fetch, compile and instantiate), cold parse, scroll/view-query latency and peak memory. "Beats" = lower median <strong>and</strong> the 95% bootstrap CI of the WASM/TS ratio entirely below 1.0; a tie fails; never relaxed. Foundation PRs (zip, XML, OPC) are tracked, not gated against TS. Bundle and loader ceilings are fixed at R0 and only go down.</p>
+<p>Sizes: <strong>S</strong> is part of one agent session; <strong>M</strong> is about one full session; <strong>L</strong> is several sessions and should be split at claim time.</p>
+<p><strong>Milestone 1, viewer</strong></p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Name</th>
+<th>Issues</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Scaffolding: workspace, wasm build, npm skeleton, CI scripts, fixtures, parity harness, licence and ship checks</td>
+<td>#1 to #5, #31, #32, #38</td>
+<td>Builds natively and to wasm32; CI green; corpus verified; self-diff passes; MIT licence with Apache-2.0 text, NOTICE and PROVENANCE</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Perf-eval track, TS baseline, scoreboard harness</td>
+<td>#6 to #10, #39</td>
+<td>Harness, history, gate machinery and scoreboard page live; BASELINE.md frozen</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Shared OPC (streaming zip and XML), boundary, visual harness, parse race</td>
+<td>#11 to #14, #40, #45</td>
+<td>Part-graph parity; zip-bomb and DTD tests; transport decided with numbers</td>
+</tr>
+<tr>
+<td><strong>R0</strong></td>
+<td><strong>Renderer design with Jared</strong></td>
+<td>#33 (Jared), #34 to #37, #46</td>
+<td>Spike comparison published under the fixed decision rule; font strategy decided; loader API and size budgets fixed; decision record signed off by Jared. <strong>No renderer issue is claimable before #33 merges</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>xlsx viewer in Rust</td>
+<td>#15 to #19, #41 to #44</td>
+<td>All viewer gates green for xlsx; unsupported content 0; xlsx beats-TS gate armed (#19)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>docx viewer in Rust</td>
+<td>#20 to #23</td>
+<td>Same page counts; all viewer gates; docx gate armed (#23)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>pptx viewer in Rust, all element kinds, no per-slide fallback</td>
+<td>#24 to #28</td>
+<td>All viewer gates; pptx gate armed (#27)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Viewer shell in Rust (+ Jared's viewer edits)</td>
+<td>#29</td>
+<td>Shell passes accessibility, selection and keyboard scripts on all target browsers</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Hardening, crash recovery, M1 report (<strong>M1 gate</strong>)</td>
+<td>#30</td>
+<td>Fuzzing clean; crash recovery tested; memory ceiling enforced; M1 report</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Milestone 2, editor</strong> (labelled <code>blocked-m2</code> until the M1 gate passes and Jared confirms the budget)</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Name</th>
+<th>Issues</th>
+<th>Acceptance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E0</td>
+<td>Editor harnesses, validators, TS editor baseline, Rust editor chrome</td>
+<td>#47 to #54</td>
+<td>Harnesses run TS-vs-TS; validators in CI; TS losses recorded; chrome passes accessibility</td>
+</tr>
+<tr>
+<td>E-text</td>
+<td>Rust text-editing surface: single-line (before E1), IME, bidi, spellcheck, a11y, mobile, rich text (before E3), crash recovery</td>
+<td>#55 to #62</td>
+<td>IME, bidi, selection and caret, clipboard, spellcheck and accessibility gates pass on desktop and mobile smoke tests</td>
+</tr>
+<tr>
+<td>E1</td>
+<td>xlsx value and format edits, sheet ops, undo/redo, lossless save, open-edit-save race</td>
+<td>#63 to #70</td>
+<td>Gates (a) to (e); reopen passes viewer gates</td>
+</tr>
+<tr>
+<td>E2</td>
+<td>Rust xlsx formula engine</td>
+<td>#71 to #77</td>
+<td>Function coverage equals TS; gates (a) to (e)</td>
+</tr>
+<tr>
+<td>E3</td>
+<td>docx editing</td>
+<td>#78 to #83</td>
+<td>Gates (a) to (e)</td>
+</tr>
+<tr>
+<td>E4</td>
+<td>pptx editing</td>
+<td>#84 to #88</td>
+<td>Gates (a) to (e)</td>
+</tr>
+<tr>
+<td>E5</td>
+<td>Write-path hardening and final report</td>
+<td>#89 to #91</td>
+<td>Save fuzzing clean; 1,000-op memory gate; final report</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Parallelism:</strong>
+- Stage 1 needs only the fixture corpus (#4), so the TS baseline is ready before the first Rust parser lands. The parse race (#40) starts in the foundation stage.
+- R0 spikes (#34, #35, #36) run in parallel once the xlsx sheet reader (#16) and boundary (#14) exist; model work in Stages 3 to 5 (#15 to #17, #20, #21, #24 to #26) can proceed before R0 closes, renderer work cannot.
+- The integration issues (#19, #23, #27) are the serial points and arm each format's hard perf gate.</p>
+<h3 id="41-performance-eval-track-stage-1-jareds-requirement">4.1 Performance-eval track (Stage 1, Jared's requirement)</h3>
+<ul>
+<li><strong>Harness:</strong></li>
+<li>A local static server sets COOP and COEP headers, which <code>performance.measureUserAgentSpecificMemory</code> needs.</li>
+<li>Minimal host pages mount the upstream TS renderers (test-only reference and baseline) and the Nitro XML components. A <code>?engine=ts|wasm</code> switch selects which one is measured.</li>
+<li>A Playwright (Chromium) runner opens a CDP session per page. Runs are fully offline.</li>
+<li><strong>Corpus:</strong> size tiers S (&lt;100 KB), M (&lt;1 MB), L (&lt;10 MB) and XL (&gt;=10 MB) per format, with at least 3 files per tier. Large docx and xlsx are generated (xlsx up to 1M cells; docx up to 500 pages). pptx uses upstream's 1.8 MB to 36.8 MB decks, once their redistribution licence is confirmed.</li>
+<li><strong>Metrics:</strong></li>
+<li>parse time (<code>bytes-ready</code> to <code>parse-end</code>)</li>
+<li>time to first paint, including wasm fetch, streaming compile and instantiate (double rAF)</li>
+<li>scroll/view-query latency and time to interactive</li>
+<li>full render time</li>
+<li>peak JS heap: CDP <code>Runtime.getHeapUsage</code> sampled every 10 ms, plus <code>measureUserAgentSpecificMemory</code> and post-GC retained heap</li>
+<li>WASM linear memory (<code>memory.buffer.byteLength</code>)</li>
+<li>JS bundle and <code>.wasm</code> size (raw, gzip, brotli)</li>
+<li>main-thread long tasks: count and total blocking time</li>
+<li><strong>Method:</strong></li>
+<li>cold runs use a fresh context with no HTTP, V8 or WASM code cache; warm runs reuse one context after a discarded warm-up</li>
+<li>enough iterations for a meaningful 95% bootstrap CI of the WASM/TS ratio (start at 10 cold and 20 warm, raise as needed)</li>
+<li>report the median, p95 and the CI</li>
+<li>CPU throttle at 1x and 4x (a mobile proxy)</li>
+<li><strong>History:</strong></li>
+<li><code>perf/history.jsonl</code> lives on a <code>perf-data</code> branch, with one line per (commit, engine, fixture, mode, env) and <code>{median, p95, min, max}</code> per metric</li>
+<li>main-branch runs append; PR runs only compare</li>
+<li><strong>Gate:</strong></li>
+<li><strong>Regression vs main</strong> (always): timings +10% <strong>and</strong> +5 ms; memory +10% <strong>and</strong> +2 MB; brotli size +3% <strong>and</strong> +10 KB; TBT +15% <strong>and</strong> +20 ms; baseline = median of the last 5 main runs. <code>perf-regression-accepted</code> with a written reason can override this part only.</li>
+<li><strong>WASM beats TS</strong> (per format, armed by #19, #23, #27; never relaxed): every tier, 1x and 4x, first paint, cold parse, scroll/view-query and peak memory; lower median and 95% CI of the ratio below 1.0; a tie fails. Editing (keystroke-to-paint, IME commit-to-paint, undo, save) gets the same rule in M2.</li>
+<li><strong>No performance-based fallback of any kind.</strong> A loss is a red gate fixed by design (streaming compile, cached module, pre-warmed worker, small core plus lazy per-format modules).</li>
+<li><strong>Bundle and startup:</strong> per-format initial-payload ceiling (brotli, including fonts and shaping data) and loader ceiling, fixed at R0, ratchet down only; time to interactive gated.</li>
+<li><strong>Dashboard and public scoreboard:</strong> a static page (inline SVG, no chart library) on Pages, navy, black and white, published from every main commit: TS and WASM on the same axes, plus the parse, render-to-first-paint and open-edit-save races against pinned competitors (#39 to #41, #70): SheetJS, ExcelJS, calamine, umya-spreadsheet, docx-preview, mammoth.js, docx-rs, PPTXjs, the LibreOffice WASM build, other Rust/WASM viewers found during vetting, and always upstream ooxml TS. Entries that do less are shown as "not comparable"; losses are published as prominently as wins.</li>
+</ul>
+<hr />
+<h2 id="5-issue-breakdown">5. Issue breakdown</h2>
+<p><strong>91 issues</strong> on GitHub (#1 to #91), generated from <code>issues.json</code> (<code>gen_issues.py</code>). Plan numbers equal GitHub issue numbers; each issue has a <code>Depends on #X</code> line. Milestone 2 issues carry <code>blocked-m2</code>.</p>
+<ul>
+<li><strong>Agent fit:</strong> Codex for well-specified mechanical ports with ready test suites; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) for small, well-bounded tasks; a human <strong>Developer</strong> owns the scoreboard races; <strong>Jared</strong> owns the R0 renderer decision (#33).</li>
+<li><strong>Every issue</strong> follows AGENTS.md (claim, branch <code>issue-&lt;N&gt;-&lt;slug&gt;</code>, PR with <code>Closes #N</code>, handoff comment).</li>
+</ul>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Title</th>
+<th>Stage</th>
+<th>Size</th>
+<th>Agent</th>
+<th>Depends on</th>
+<th>Parallel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Stage 0: Bootstrap Cargo workspace and pin upstream</td>
+<td>0</td>
+<td>S</td>
+<td>Codex</td>
+<td>-</td>
+<td>no (first issue)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Stage 0: wasm-pack build, release profile and npm package skeleton</td>
+<td>0</td>
+<td>S</td>
+<td>Codex</td>
+<td>1</td>
+<td>yes, with #3 and #4 after #1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Stage 0: CI for Rust and WASM (edit scripts/ci/rust.sh and wasm.sh; ask for any YAML change)</td>
+<td>0</td>
+<td>S</td>
+<td>Cursor cloud</td>
+<td>1</td>
+<td>yes, with #2 and #4 after #1</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Stage 0: Fixture corpus manifest and generated size tiers</td>
+<td>0</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>1</td>
+<td>yes, with #2 and #3 after #1</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Stage 0: Parity harness (TS oracle vs Rust, view IR diff)</td>
+<td>0</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>1, 4</td>
+<td>after #1 and #4; in parallel with Stage 1</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Stage 1 (perf): Local perf harness, server and Playwright/CDP runner</td>
+<td>1</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>4</td>
+<td>yes; needs only #4, so it can run alongside #2, #3 and #5</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Stage 1 (perf): Metric instrumentation (latency, memory, long tasks, sizes)</td>
+<td>1</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>6</td>
+<td>after #6</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Stage 1 (perf): JSON-lines history keyed by commit and CI regression gate (edit scripts/ci/perf.sh; ask for any YAML change)</td>
+<td>1</td>
+<td>M</td>
+<td>Codex</td>
+<td>7</td>
+<td>after #7</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Stage 1 (perf): Public scoreboard dashboard on GitHub Pages, navy/black/white (edit scripts/ci/pages.sh; ask for any YAML change)</td>
+<td>1</td>
+<td>S</td>
+<td>Cursor cloud</td>
+<td>8</td>
+<td>after #8; in parallel with #10</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Stage 1 (perf): Capture TypeScript baseline and publish baseline report</td>
+<td>1</td>
+<td>S</td>
+<td>Cursor cloud</td>
+<td>7, 8</td>
+<td>after #7 and #8</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Stage 2: nitro-xml-opc::zip: bounded zip reader</td>
+<td>2</td>
+<td>S</td>
+<td>Codex</td>
+<td>1</td>
+<td>yes, with #12 and #14</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Stage 2: nitro-xml-opc::xml: strict streaming XML layer with namespaces</td>
+<td>2</td>
+<td>M</td>
+<td>Codex</td>
+<td>1</td>
+<td>yes, with #11 and #14</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Stage 2: nitro-xml-opc: content types, relationships, part resolution, safe hrefs</td>
+<td>2</td>
+<td>M</td>
+<td>Codex</td>
+<td>11, 12</td>
+<td>after #11 and #12</td>
+</tr>
+<tr>
+<td>14</td>
+<td>Stage 2: JS/WASM boundary conventions, bulk transfer, worker and loader protocol (no browser text measurement)</td>
+<td>2</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>2</td>
+<td>yes, after #2</td>
+</tr>
+<tr>
+<td>15</td>
+<td>Stage 3 (xlsx): Workbook part, shared strings, styles and theme</td>
+<td>3</td>
+<td>M</td>
+<td>Codex</td>
+<td>13</td>
+<td>yes, with #17, #20, #24 and #25</td>
+</tr>
+<tr>
+<td>16</td>
+<td>Stage 3 (xlsx): Streaming worksheet reader (sheetData, merges, cols, rows)</td>
+<td>3</td>
+<td>M</td>
+<td>Codex</td>
+<td>15</td>
+<td>after #15</td>
+</tr>
+<tr>
+<td>17</td>
+<td>Stage 3 (xlsx): Number format engine port</td>
+<td>3</td>
+<td>M</td>
+<td>Codex</td>
+<td>1</td>
+<td>yes, independent after #1</td>
+</tr>
+<tr>
+<td>18</td>
+<td>Stage 3 (xlsx): Grid layout and Rust grid renderer (cells, merges, frozen panes, conditional formats)</td>
+<td>3</td>
+<td>L</td>
+<td>Claude Code</td>
+<td>16, 17, 14, 33</td>
+<td>after #16, #17, #14 and the R0 decision #33</td>
+</tr>
+<tr>
+<td>19</td>
+<td>Stage 3 (xlsx): End-to-end Rust xlsx viewer (open-to-first-paint), engine API for sheet tabs, find, copy and hyperlinks; arm the xlsx perf gate</td>
+<td>3</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>18, 5, 10, 37</td>
+<td>after #18, #5, #10 and #37</td>
+</tr>
+<tr>
+<td>20</td>
+<td>Stage 4 (docx): Styles, numbering, theme and settings</td>
+<td>4</td>
+<td>M</td>
+<td>Codex</td>
+<td>13</td>
+<td>yes, with Stage 3 and #24/#25 after #13</td>
+</tr>
+<tr>
+<td>21</td>
+<td>Stage 4 (docx): Body parser (paragraphs, runs, tables, pictures, sections, headers and footers, notes)</td>
+<td>4</td>
+<td>L</td>
+<td>Claude Code</td>
+<td>20</td>
+<td>after #20</td>
+</tr>
+<tr>
+<td>22</td>
+<td>Stage 4 (docx): Pagination engine port with Rust text shaping and measurement</td>
+<td>4</td>
+<td>L</td>
+<td>Claude Code</td>
+<td>21, 36, 33</td>
+<td>after #21, #36 and the R0 decision #33</td>
+</tr>
+<tr>
+<td>23</td>
+<td>Stage 4 (docx): Rust page renderer (Print Layout) end to end; arm the docx perf gate</td>
+<td>4</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>22, 5, 10, 37</td>
+<td>after #22, #5, #10 and #37</td>
+</tr>
+<tr>
+<td>24</td>
+<td>Stage 5 (pptx): Presentation, slide, layout, master and theme parsing with placeholder inheritance</td>
+<td>5</td>
+<td>L</td>
+<td>Claude Code</td>
+<td>13</td>
+<td>yes, with #25 after #13</td>
+</tr>
+<tr>
+<td>25</td>
+<td>Stage 5 (pptx): DrawingML fills, lines, colour transforms and preset geometry</td>
+<td>5</td>
+<td>L</td>
+<td>Codex</td>
+<td>13</td>
+<td>yes, with #24 after #13</td>
+</tr>
+<tr>
+<td>26</td>
+<td>Stage 5 (pptx): Text bodies, paragraphs, runs and tables model</td>
+<td>5</td>
+<td>M</td>
+<td>Codex</td>
+<td>24, 25</td>
+<td>after #24 and #25</td>
+</tr>
+<tr>
+<td>27</td>
+<td>Stage 5 (pptx): Rust slide renderer covering all element kinds (no per-slide fallback); arm the pptx perf gate</td>
+<td>5</td>
+<td>L</td>
+<td>Cursor cloud</td>
+<td>26, 28, 5, 10, 37</td>
+<td>after #26, #28, #5, #10 and #37</td>
+</tr>
+<tr>
+<td>28</td>
+<td>Stage 5: Chart model and Rust chart renderer (shared by xlsx, docx and pptx)</td>
+<td>5</td>
+<td>M</td>
+<td>Codex</td>
+<td>25, 33</td>
+<td>after #25 and the R0 decision #33</td>
+</tr>
+<tr>
+<td>29</td>
+<td>Stage 6: Viewer shell in Rust (zoom, navigation, find UI, copy, hyperlinks, diagnostics) plus Jared's viewer edits</td>
+<td>6</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>19</td>
+<td>after #19; can start while Stages 4 and 5 run</td>
+</tr>
+<tr>
+<td>30</td>
+<td>Stage 7: Hardening, fuzzing, crash recovery, security limits and M1 report (the M1 gate)</td>
+<td>7</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>23, 27, 29</td>
+<td>after #23, #27 and #29</td>
+</tr>
+<tr>
+<td>31</td>
+<td>Stage 0: CI licence check (cargo-deny and npm): allow only MIT, Apache-2.0, BSD, ISC, Zlib and Unicode</td>
+<td>0</td>
+<td>S</td>
+<td>Codex</td>
+<td>1</td>
+<td>yes, with #2, #3 and #4 after #1</td>
+</tr>
+<tr>
+<td>32</td>
+<td>Stage 0: Source real Excel-authored (and Word/PowerPoint) fixtures with permissive or public-domain licences</td>
+<td>0</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>4</td>
+<td>yes, with #2, #3 and #5 after #4</td>
+</tr>
+<tr>
+<td>33</td>
+<td>R0: Renderer decision record (DOM-via-Rust vs canvas, shaping, fonts, worker split, loader API and budgets), owned by Jared</td>
+<td>R0</td>
+<td>M</td>
+<td>Jared</td>
+<td>34, 35, 36</td>
+<td>after #34, #35, #36 and #37 report</td>
+</tr>
+<tr>
+<td>34</td>
+<td>R0 spike A: DOM-via-Rust (web-sys) xlsx grid and docx page prototype, measured</td>
+<td>R0</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>16, 14</td>
+<td>in parallel with #35 and #36</td>
+</tr>
+<tr>
+<td>35</td>
+<td>R0 spike B: canvas plus accessible DOM mirror xlsx grid and docx page prototype, measured</td>
+<td>R0</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>16, 14</td>
+<td>in parallel with #34 and #36</td>
+</tr>
+<tr>
+<td>36</td>
+<td>R0: Text shaping and font strategy decision (in-wasm shaping, metric-compatible open fonts, Local Font Access)</td>
+<td>R0</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>4</td>
+<td>in parallel with #34 and #35</td>
+</tr>
+<tr>
+<td>37</td>
+<td>R0: Minimal JS loader (wasm bootstrap, event forwarding, streaming compile, cached module, pre-warmed worker, lazy per-format modules) and loader size gate</td>
+<td>R0</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>2, 14, 33</td>
+<td>after #2, #14 and the R0 decision #33</td>
+</tr>
+<tr>
+<td>38</td>
+<td>Stage 0: CI check that fails if any shipped artefact imports the TS engine</td>
+<td>0</td>
+<td>S</td>
+<td>OpenCode</td>
+<td>1</td>
+<td>yes, after #1</td>
+</tr>
+<tr>
+<td>39</td>
+<td>Scoreboard (a): race harness and competitor pinning (licence, upkeep, fastest setup, public method)</td>
+<td>1</td>
+<td>M</td>
+<td>Developer</td>
+<td>6, 4</td>
+<td>after #6; in parallel with #7 to #10</td>
+</tr>
+<tr>
+<td>40</td>
+<td>Scoreboard (b): parse race (starts in the foundation stage)</td>
+<td>2</td>
+<td>M</td>
+<td>Developer</td>
+<td>39, 13</td>
+<td>after #39; begins as soon as #11 to #13 parse packages</td>
+</tr>
+<tr>
+<td>41</td>
+<td>Scoreboard (c): render-to-first-paint race</td>
+<td>3</td>
+<td>M</td>
+<td>Developer</td>
+<td>39, 19</td>
+<td>after #39 and #19; extended at #23 and #27</td>
+</tr>
+<tr>
+<td>42</td>
+<td>Stage 3: Accessibility gate (axe-core plus screen-reader AX-tree script)</td>
+<td>3</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>6</td>
+<td>after #6; harness can be built against the TS reference pages</td>
+</tr>
+<tr>
+<td>43</td>
+<td>Stage 3: Selection and caret parity gate</td>
+<td>3</td>
+<td>S</td>
+<td>Codex</td>
+<td>5, 6</td>
+<td>after #5 and #6</td>
+</tr>
+<tr>
+<td>44</td>
+<td>Stage 3: Bidi/RTL gate (Arabic and Hebrew fixtures, visual and logical-order copy)</td>
+<td>3</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>5, 32</td>
+<td>after #5 and #32</td>
+</tr>
+<tr>
+<td>45</td>
+<td>Stage 2: Visual gate harness (pixelmatch at DPR 1 and 2, plus print-to-PDF)</td>
+<td>2</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>5, 6</td>
+<td>after #5 and #6</td>
+</tr>
+<tr>
+<td>46</td>
+<td>R0: Bundle and startup gate (per-format KB ceilings, time-to-interactive)</td>
+<td>R0</td>
+<td>S</td>
+<td>Codex</td>
+<td>7, 33</td>
+<td>after #7 and the R0 decision #33</td>
+</tr>
+<tr>
+<td>47</td>
+<td>E0: Editor architecture ADR (commands, transactions, history, writer, journal)</td>
+<td>E0</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>30, 33</td>
+<td>first M2 issue</td>
+</tr>
+<tr>
+<td>48</td>
+<td>E0: Validators in CI (Open XML SDK tool and pinned LibreOffice) via setup-validators.sh</td>
+<td>E0</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>3, 30</td>
+<td>in parallel with #47</td>
+</tr>
+<tr>
+<td>49</td>
+<td>E0: Lossless round-trip harness (gate a), TS-vs-TS, plus the inventory of what TS loses on save</td>
+<td>E0</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>48, 5, 4</td>
+<td>after #48</td>
+</tr>
+<tr>
+<td>50</td>
+<td>E0: Edit-script harness (gate b): edits/*.json and the TS runner</td>
+<td>E0</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>49</td>
+<td>after #49</td>
+</tr>
+<tr>
+<td>51</td>
+<td>E0: Undo/redo parity harness (gate c)</td>
+<td>E0</td>
+<td>M</td>
+<td>Codex</td>
+<td>50</td>
+<td>after #50</td>
+</tr>
+<tr>
+<td>52</td>
+<td>E0: TS editor perf baseline and edit-path metrics (gate d)</td>
+<td>E0</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>8, 10, 30</td>
+<td>in parallel with #47 to #51</td>
+</tr>
+<tr>
+<td>53</td>
+<td>E0: Rust editor chrome framework part 1: command registry, ribbon and keyboard shortcuts</td>
+<td>E0</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>47, 29</td>
+<td>after #47 and #29</td>
+</tr>
+<tr>
+<td>54</td>
+<td>E0: Rust editor chrome framework part 2: dialogs, menus, context menus and focus management</td>
+<td>E0</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>53</td>
+<td>after #53</td>
+</tr>
+<tr>
+<td>55</td>
+<td>E-text: Single-line text-editing surface (caret, selection, clipboard, keyboard) for the cell editor and formula bar</td>
+<td>E-text</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>53, 43</td>
+<td>after #53; must land before E1</td>
+</tr>
+<tr>
+<td>56</td>
+<td>E-text: IME composition (CJK) gate</td>
+<td>E-text</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>55</td>
+<td>after #55</td>
+</tr>
+<tr>
+<td>57</td>
+<td>E-text: Bidirectional text editing gate (caret movement and selection in RTL and mixed text)</td>
+<td>E-text</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>55, 44</td>
+<td>after #55 and #44</td>
+</tr>
+<tr>
+<td>58</td>
+<td>E-text: Spellcheck integration gate</td>
+<td>E-text</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>55</td>
+<td>after #55</td>
+</tr>
+<tr>
+<td>59</td>
+<td>E-text: Accessibility of the editing surface (caret and selection exposed, live regions)</td>
+<td>E-text</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>55, 42</td>
+<td>after #55 and #42</td>
+</tr>
+<tr>
+<td>60</td>
+<td>E-text: Mobile virtual keyboards and selection handles (iOS and Android)</td>
+<td>E-text</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>55, 56</td>
+<td>after #55 and #56</td>
+</tr>
+<tr>
+<td>61</td>
+<td>E-text: Rich multi-paragraph text surface (runs, paragraphs, tables) for Word and slide text</td>
+<td>E-text</td>
+<td>L</td>
+<td>Claude Code</td>
+<td>55, 56, 57, 59</td>
+<td>after #55 to #59; must land before E3</td>
+</tr>
+<tr>
+<td>62</td>
+<td>E-text: Crash recovery via op journal replayed into a fresh worker (gate e)</td>
+<td>E-text</td>
+<td>M</td>
+<td>Codex</td>
+<td>47, 30</td>
+<td>after #47</td>
+</tr>
+<tr>
+<td>63</td>
+<td>E1: Command, transaction and change-set core (shared)</td>
+<td>E1</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>47</td>
+<td>after #47</td>
+</tr>
+<tr>
+<td>64</td>
+<td>E1: Undo/redo history matching the TS editor (undo/redo gate)</td>
+<td>E1</td>
+<td>M</td>
+<td>Codex</td>
+<td>63, 51</td>
+<td>after #63 and #51</td>
+</tr>
+<tr>
+<td>65</td>
+<td>E1: Lossless OPC package writer (lossless save gate)</td>
+<td>E1</td>
+<td>M</td>
+<td>Codex</td>
+<td>13, 63, 49</td>
+<td>after #13, #63 and #49</td>
+</tr>
+<tr>
+<td>66</td>
+<td>E1 (xlsx): Cell value, number-format and style edits</td>
+<td>E1</td>
+<td>M</td>
+<td>Codex</td>
+<td>63, 16</td>
+<td>after #63 and #16</td>
+</tr>
+<tr>
+<td>67</td>
+<td>E1 (xlsx): Row and column size and hide; sheet add, rename, delete and reorder</td>
+<td>E1</td>
+<td>M</td>
+<td>Codex</td>
+<td>66</td>
+<td>after #66</td>
+</tr>
+<tr>
+<td>68</td>
+<td>E1 (xlsx): Workbook writer with lossless save, fullCalcOnLoad and stale dependents</td>
+<td>E1</td>
+<td>M</td>
+<td>Codex</td>
+<td>65, 66</td>
+<td>after #65 and #66</td>
+</tr>
+<tr>
+<td>69</td>
+<td>E1 (xlsx): Rust xlsx editor UI (cell editor, formula bar, ribbon wiring, stale marking); arm edit perf gate</td>
+<td>E1</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>55, 64, 67, 68, 54</td>
+<td>after #55, #64, #67 and #68</td>
+</tr>
+<tr>
+<td>70</td>
+<td>Scoreboard (d): open-edit-save race</td>
+<td>E1</td>
+<td>M</td>
+<td>Developer</td>
+<td>39, 68</td>
+<td>after #39 and #68</td>
+</tr>
+<tr>
+<td>71</td>
+<td>E2 (xlsx): Formula parser, AST and reference model</td>
+<td>E2</td>
+<td>M</td>
+<td>Codex</td>
+<td>66</td>
+<td>after #66</td>
+</tr>
+<tr>
+<td>72</td>
+<td>E2 (xlsx): Dependency graph and recalculation scheduler</td>
+<td>E2</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>71</td>
+<td>after #71</td>
+</tr>
+<tr>
+<td>73</td>
+<td>E2 (xlsx): Function library part 1: math, trigonometry and statistics</td>
+<td>E2</td>
+<td>M</td>
+<td>Codex</td>
+<td>71</td>
+<td>after #71; in parallel with #74 and #75</td>
+</tr>
+<tr>
+<td>74</td>
+<td>E2 (xlsx): Function library part 2: logical, text, information, date and time</td>
+<td>E2</td>
+<td>M</td>
+<td>OpenCode</td>
+<td>71</td>
+<td>after #71; in parallel with #73 and #75</td>
+</tr>
+<tr>
+<td>75</td>
+<td>E2 (xlsx): Function library part 3: lookup and reference, financial, engineering, dynamic arrays</td>
+<td>E2</td>
+<td>M</td>
+<td>Codex</td>
+<td>71</td>
+<td>after #71; in parallel with #73 and #74</td>
+</tr>
+<tr>
+<td>76</td>
+<td>E2 (xlsx): Insert and delete rows and columns with reference shifting</td>
+<td>E2</td>
+<td>M</td>
+<td>Codex</td>
+<td>72</td>
+<td>after #72</td>
+</tr>
+<tr>
+<td>77</td>
+<td>E2 (xlsx): Function-coverage sweep and recalculation in the editor</td>
+<td>E2</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>72, 73, 74, 75, 76, 69</td>
+<td>after #72 to #76 and #69</td>
+</tr>
+<tr>
+<td>78</td>
+<td>E3 (docx): Text, character and paragraph formatting, styles and lists on the rich surface</td>
+<td>E3</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>61, 63, 22</td>
+<td>after #61 and #63</td>
+</tr>
+<tr>
+<td>79</td>
+<td>E3 (docx): Tables, pictures, sections, headers and footers</td>
+<td>E3</td>
+<td>M</td>
+<td>Codex</td>
+<td>78</td>
+<td>after #78</td>
+</tr>
+<tr>
+<td>80</td>
+<td>E3 (docx): Lossless document writer</td>
+<td>E3</td>
+<td>M</td>
+<td>Codex</td>
+<td>65, 78</td>
+<td>after #65 and #78</td>
+</tr>
+<tr>
+<td>81</td>
+<td>E3 (docx): Incremental re-pagination after edits</td>
+<td>E3</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>22, 78</td>
+<td>after #22 and #78</td>
+</tr>
+<tr>
+<td>82</td>
+<td>E3 (docx): Tracked changes (accept/reject) and comments (add/reply/resolve)</td>
+<td>E3</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>78</td>
+<td>after #78</td>
+</tr>
+<tr>
+<td>83</td>
+<td>E3 (docx): Rust docx editor UI (ribbon wiring, Print Layout editing, find and replace); arm edit perf gate</td>
+<td>E3</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>79, 80, 81, 82</td>
+<td>after #79 to #82</td>
+</tr>
+<tr>
+<td>84</td>
+<td>E4 (pptx): Shape edits (move, resize, rotate, add, delete, duplicate, z-order, group, fill and line)</td>
+<td>E4</td>
+<td>M</td>
+<td>Codex</td>
+<td>63, 27</td>
+<td>after #63 and #27</td>
+</tr>
+<tr>
+<td>85</td>
+<td>E4 (pptx): Text and table edits on the rich surface</td>
+<td>E4</td>
+<td>M</td>
+<td>Codex</td>
+<td>84, 61</td>
+<td>after #84 and #61</td>
+</tr>
+<tr>
+<td>86</td>
+<td>E4 (pptx): Slide add, delete, duplicate and reorder; speaker notes and thumbnails</td>
+<td>E4</td>
+<td>M</td>
+<td>Codex</td>
+<td>84</td>
+<td>after #84</td>
+</tr>
+<tr>
+<td>87</td>
+<td>E4 (pptx): Lossless presentation writer</td>
+<td>E4</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>65, 84</td>
+<td>after #65 and #84</td>
+</tr>
+<tr>
+<td>88</td>
+<td>E4 (pptx): Rust pptx editor UI; arm edit perf gate</td>
+<td>E4</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>85, 86, 87</td>
+<td>after #85, #86 and #87</td>
+</tr>
+<tr>
+<td>89</td>
+<td>E5: Save-path fuzzing (random command sequences, undo invariants, save and reopen)</td>
+<td>E5</td>
+<td>M</td>
+<td>Claude Code</td>
+<td>77, 83, 88</td>
+<td>after #77, #83 and #88</td>
+</tr>
+<tr>
+<td>90</td>
+<td>E5: Long-session memory: 1,000-op sessions within the memory gate</td>
+<td>E5</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>77, 83, 88</td>
+<td>after #77, #83 and #88; in parallel with #89</td>
+</tr>
+<tr>
+<td>91</td>
+<td>E5: Final report (viewer and editor, TS and competitors)</td>
+<td>E5</td>
+<td>S</td>
+<td>Claude Code</td>
+<td>89, 90</td>
+<td>after #89 and #90</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="6-risks-and-open-questions-for-jared">6. Risks and open questions for Jared</h2>
+<p><strong>Top risks</strong></p>
+<ol>
+<li><strong>Scope mismatch.</strong> The upstream is a 1.56M-line editor suite, not a small renderer. Unless the port is limited to the read and view path for three formats, it will not fit a limited credit budget. pptx alone is about 146k production lines in core.</li>
+<li><strong>Moving upstream.</strong> The repo was created on 2026-10-01, is pushed daily and is mid-refactor (the pptx XML model migration, DrawingML extraction). Pin a commit and re-sync on purpose, each time with parity re-runs.</li>
+<li><strong>Renderer fidelity.</strong> The TS renderers are tuned against Office captures, and the Rust renderers must re-earn the pixel thresholds; pptx effects are hardest. Mitigation: parity harness, visual diffs at DPR 1 and 2 plus print, per-format gates. The biggest new risk is the Rust text-editing surface (IME, bidi, spellcheck, accessibility, mobile keyboards), now its own stage (E-text).</li>
+<li><strong>Text shaping and fonts.</strong> In-wasm shaping needs real font files; Office fonts cannot be redistributed. R0 decides the strategy (#36: metric-compatible open fonts, Local Font Access).</li>
+<li><strong>Small-file startup is a hard gate.</strong> Instantiation and boundary costs can lose to V8 on 3 to 60 KB files; with no fallback, the answer is design (streaming compile, cached module, pre-warmed worker, small core module), never routing to TS.</li>
+<li><strong>Memory behaviour.</strong> Linear memory never shrinks. Use one worker per document and enforce the limits.</li>
+<li><strong>Bundle size.</strong> wasm plus fonts and shaping data must stay under per-format ceilings smaller than TS's payload (#46); track it from day one.</li>
+<li><strong>Fixture licensing.</strong> Several large pptx samples look like third-party downloads, and their licence is unknown.</li>
+</ol>
+<p><strong>Open questions for Jared</strong> (from PRODUCT_SPEC v3 §7; reply "defaults" to accept all)</p>
+<ol>
+<li><strong>Renderer technology</strong> (joint design, #33): default is the R0 spike of DOM-via-Rust vs canvas plus an accessible mirror, decided by the fixed rule; a hybrid or per-format choice is allowed if the data supports it.</li>
+<li><strong>Threads:</strong> default none (no SharedArrayBuffer or COOP/COEP); a threaded build only on request.</li>
+<li><strong>Budget:</strong> the scope is far beyond the original estimate; default M1 first, M2 <code>blocked-m2</code> until the M1 gate and your confirmation.</li>
+<li><strong>iOS Safari:</strong> default full target with functional, accessibility and IME smoke tests; perf gated in Chromium.</li>
+<li><strong>CI cadence:</strong> default PRs run S/M tiers at 1x plus parity, round trip, accessibility and IME; main and nightly run the full corpus at 1x and 4x, validators and the scoreboard.</li>
+<li><strong>Viewer edits</strong> (#29): which ones?</li>
+<li><strong>ASK items:</strong> legacy and encrypted formats, docx review features, speaker notes and thumbnails, print, collaboration, export.</li>
+</ol>
+<h3 id="61-decisions-current-calls-open-to-change">6.1 Decisions (current calls, open to change)</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Decision</th>
+<th>Current call</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D1</td>
+<td>Repo shape</td>
+<td>New repo <code>jgridifier/nitro-xml</code>, not a fork; upstream pinned at <code>e66aaec24adc0b68472eae1fc42aa4598e09c352</code> as oracle and algorithm source</td>
+</tr>
+<tr>
+<td>D2</td>
+<td>Licence</td>
+<td>MIT; files ported or derived from ooxml remain Apache-2.0 (NOTICE, LICENSE-THIRD-PARTY, PROVENANCE.md, SPDX headers)</td>
+</tr>
+<tr>
+<td>D3</td>
+<td>TS engine</td>
+<td>Test and bench harness only, permanently; never shipped; no runtime fallback</td>
+</tr>
+<tr>
+<td>D4</td>
+<td>Scope</td>
+<td>Full editor suite, viewer first (M1), editor second (M2)</td>
+</tr>
+<tr>
+<td>D5</td>
+<td>Format order</td>
+<td>xlsx, then docx, then pptx, in both milestones</td>
+</tr>
+<tr>
+<td>D6</td>
+<td>Perf</td>
+<td>Measured in Chromium; WASM must beat TS everywhere (§4.1)</td>
+</tr>
+<tr>
+<td>D7</td>
+<td>Perf CI cadence</td>
+<td>Small corpus on every PR; full corpus nightly and on demand; every commit posts numbers</td>
+</tr>
+<tr>
+<td>D8</td>
+<td>Legacy and encrypted files</td>
+<td>Unsupported-format message in v1; Rust track after E5 (ASK)</td>
+</tr>
+<tr>
+<td>D9</td>
+<td>Renderer</td>
+<td>Decided at R0 by Jared (#33)</td>
+</tr>
+<tr>
+<td>D10</td>
+<td>Viewer edits</td>
+<td>#29 placeholder</td>
+</tr>
+<tr>
+<td>D11</td>
+<td>Crate layout</td>
+<td><code>nitro-xml-opc</code> (zip, XML, OPC, DrawingML, charts), <code>nitro-xml-xlsx</code>, <code>nitro-xml-docx</code>, <code>nitro-xml-pptx</code>, <code>nitro-xml-wasm</code>, umbrella <code>nitro-xml</code>; npm <code>nitro-xml</code></td>
+</tr>
+<tr>
+<td>D12</td>
+<td>Threads</td>
+<td>None by default</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="7-files">7. Files</h2>
+<ul>
+<li><code>docs/PLAN.md</code> (this file)</li>
+<li><code>docs/index.html</code> (mobile-readable version, published on GitHub Pages)</li>
+<li><code>docs/PRODUCT_SPEC.md</code> (v3, the source of the gates)</li>
+<li>GitHub issues #1 to #91 in <code>jgridifier/nitro-xml</code> (generated from <code>issues.json</code>)</li>
+</ul></main></body></html>

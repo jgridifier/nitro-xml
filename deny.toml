@@ -1,0 +1,6 @@
+# cargo-deny starter config. The licence-check issue completes it (bans, sources, advisories).
+[licenses]
+allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Zlib", "Unicode-3.0", "Unicode-DFS-2016"]
+confidence-threshold = 0.9
+# Every exception needs a written reason and a link to the approving PR.
+exceptions = []

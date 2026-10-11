@@ -1,0 +1,30 @@
+# Rust
+/rs/target/
+target/
+**/*.rs.bk
+# wasm-pack / wasm-bindgen
+pkg/
+/packages/*/pkg/
+*.wasm.map
+wasm-pack.log
+# Node
+node_modules/
+.npm/
+.pnpm-store/
+npm-debug.log*
+yarn-error.log*
+.vite/
+dist/
+coverage/
+# Playwright / perf
+test-results/
+playwright-report/
+perf/out/
+_site/
+# Fixtures that must not be committed (unknown licence)
+fixtures/private/
+# OS / editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

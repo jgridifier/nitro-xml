@@ -1,0 +1,43 @@
+# Thin skeleton: assembles the Pages site with scripts/ci/pages.sh.
+# Pages is served from /docs on main today. The deploy job runs only after Jared switches
+# Settings > Pages > Source to "GitHub Actions" and sets the repo variable PAGES_DEPLOY=actions.
+# Agents must not edit this file (see AGENTS.md).
+name: pages
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: [perf]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: bash scripts/ci/pages.sh
+      - if: vars.PAGES_DEPLOY == 'actions'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    if: vars.PAGES_DEPLOY == 'actions'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

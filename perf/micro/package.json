@@ -5,7 +5,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "bench": "node boundary.bench.mjs"
+    "build": "bash ../../scripts/build-wasm.sh --features bench",
+    "bench": "npm run build && node boundary.bench.mjs"
   },
   "devDependencies": {
     "playwright-core": "1.64.0"

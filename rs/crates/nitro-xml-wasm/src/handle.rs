@@ -8,7 +8,7 @@
 //! worker (PRODUCT_SPEC.md §5(e)).
 
 use crate::events::{self, EventQueue};
-use crate::transport::{CommandBuffer, MeasureBatch, StringTable, SyntheticGrid};
+use crate::transport::{CommandBuffer, MeasureBatch, StringTable};
 use js_sys::Array;
 use wasm_bindgen::prelude::*;
 
@@ -106,10 +106,11 @@ pub struct Handle {
     bytes: Vec<u8>,
     warnings: Vec<Warning>,
     pub(crate) strings: StringTable,
-    pub(crate) grid: SyntheticGrid,
     pub(crate) commands: CommandBuffer,
     pub(crate) measures: MeasureBatch,
     pub(crate) events: EventQueue,
+    #[cfg(feature = "bench")]
+    pub(crate) grid: crate::bench::SyntheticGrid,
 }
 
 #[wasm_bindgen]
@@ -121,10 +122,11 @@ impl Handle {
             bytes: bytes.to_vec(),
             warnings: Vec::new(),
             strings: StringTable::new(),
-            grid: SyntheticGrid::new(),
             commands: CommandBuffer::new(),
             measures: MeasureBatch::new(),
             events: EventQueue::new(),
+            #[cfg(feature = "bench")]
+            grid: crate::bench::SyntheticGrid::new(),
         }
     }
 
@@ -149,7 +151,7 @@ impl Handle {
         self.warnings.len()
     }
 
-    /// Append a warning (used by parsers and by the boundary bench).
+    /// Append a warning (used by parsers).
     #[wasm_bindgen(js_name = pushWarning)]
     pub fn push_warning(&mut self, code: String, message: String, part: Option<String>) {
         self.warnings.push(Warning::new(code, message, part));
@@ -171,74 +173,10 @@ impl Handle {
         self.strings.len()
     }
 
-    /// Fill the synthetic SoA grid with `n` cell records for boundary benches.
-    #[wasm_bindgen(js_name = fillSyntheticGrid)]
-    pub fn fill_synthetic_grid(&mut self, n: u32) {
-        self.grid.fill(n, &mut self.strings);
-    }
-
-    #[wasm_bindgen(getter, js_name = gridLen)]
-    pub fn grid_len(&self) -> usize {
-        self.grid.len()
-    }
-
-    #[wasm_bindgen(js_name = gridRowPtr)]
-    pub fn grid_row_ptr(&self) -> *const u32 {
-        self.grid.row.as_ptr()
-    }
-
-    #[wasm_bindgen(js_name = gridColPtr)]
-    pub fn grid_col_ptr(&self) -> *const u32 {
-        self.grid.col.as_ptr()
-    }
-
-    #[wasm_bindgen(js_name = gridValuePtr)]
-    pub fn grid_value_ptr(&self) -> *const f64 {
-        self.grid.value.as_ptr()
-    }
-
-    #[wasm_bindgen(js_name = gridStylePtr)]
-    pub fn grid_style_ptr(&self) -> *const u32 {
-        self.grid.style.as_ptr()
-    }
-
-    #[wasm_bindgen(js_name = gridTextIdPtr)]
-    pub fn grid_text_id_ptr(&self) -> *const u32 {
-        self.grid.text_id.as_ptr()
-    }
-
-    /// Export the synthetic grid as a JS array of objects (`serde-wasm-bindgen`).
-    #[wasm_bindgen(js_name = exportRecordsSerde)]
-    pub fn export_records_serde(&self) -> Result<JsValue, JsValue> {
-        self.grid
-            .to_serde_js()
-            .map_err(|e| JsValue::from(OoxmlError::with_code("serde_export", e.to_string())))
-    }
-
-    /// Export the synthetic grid as a JSON string.
-    #[wasm_bindgen(js_name = exportRecordsJson)]
-    pub fn export_records_json(&self) -> Result<String, JsValue> {
-        self.grid
-            .to_json()
-            .map_err(|e| JsValue::from(OoxmlError::with_code("json_export", e.to_string())))
-    }
-
-    /// Per-call touch for the command-buffer contrast bench (never used on the render path).
-    #[wasm_bindgen(js_name = touchCell)]
-    pub fn touch_cell(&mut self, i: u32) -> f64 {
-        self.grid.touch(i)
-    }
-
     /// Start a new frame's command buffer (discards any unflushed ops).
     #[wasm_bindgen(js_name = beginFrame)]
     pub fn begin_frame(&mut self) {
         self.commands.begin();
-    }
-
-    /// Encode a demo frame of `n_ops` mixed draw/DOM ops for the microbench.
-    #[wasm_bindgen(js_name = encodeDemoFrame)]
-    pub fn encode_demo_frame(&mut self, n_ops: u32) {
-        self.commands.encode_demo(n_ops);
     }
 
     /// Take the current frame's command bytes (loader applies them in one pass).
@@ -326,16 +264,6 @@ mod tests {
             Some("xl/workbook.xml".into()),
         );
         assert_eq!(e2.part().as_deref(), Some("xl/workbook.xml"));
-    }
-
-    #[test]
-    fn warnings_accumulate_without_clobbering_bytes() {
-        // Catches: pushWarning must not drop or reallocate away the document bytes.
-        let mut h = Handle::new(&[1, 2, 3, 4]);
-        h.push_warning("w1".into(), "one".into(), None);
-        h.push_warning("w2".into(), "two".into(), Some("a.xml".into()));
-        assert_eq!(h.byte_length(), 4);
-        assert_eq!(h.warning_count(), 2);
     }
 
     #[test]

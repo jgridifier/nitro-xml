@@ -8,34 +8,30 @@
 //! `measureText` in #37).
 
 use crate::handle::OoxmlError;
-use serde::Serialize;
-use std::collections::HashMap;
-use wasm_bindgen::JsValue;
 
 /// Per-document interned string table. Id `0` is always the empty string.
+///
+/// Backed by a `Vec` (linear scan on intern) so the shipped wasm does not pull
+/// in `hashbrown` / `RandomState`. Document string tables stay small; bulk
+/// traffic uses the numeric ids.
 #[derive(Debug, Default)]
 pub struct StringTable {
-    to_id: HashMap<String, u32>,
     by_id: Vec<String>,
 }
 
 impl StringTable {
     pub fn new() -> Self {
-        let mut t = Self {
-            to_id: HashMap::new(),
-            by_id: Vec::new(),
-        };
+        let mut t = Self { by_id: Vec::new() };
         t.intern("");
         t
     }
 
     pub fn intern(&mut self, s: &str) -> u32 {
-        if let Some(&id) = self.to_id.get(s) {
-            return id;
+        if let Some(id) = self.by_id.iter().position(|x| x == s) {
+            return id as u32;
         }
         let id = self.by_id.len() as u32;
         self.by_id.push(s.to_owned());
-        self.to_id.insert(s.to_owned(), id);
         id
     }
 
@@ -48,91 +44,12 @@ impl StringTable {
     }
 }
 
-/// One logical cell record, used only for serde/JSON bench arms.
-#[derive(Serialize)]
-pub struct CellRecord {
-    pub row: u32,
-    pub col: u32,
-    pub value: f64,
-    pub style: u32,
-    pub text_id: u32,
-}
-
-/// Struct-of-arrays grid held in wasm linear memory for zero-copy TypedArray views.
-#[derive(Debug, Default)]
-pub struct SyntheticGrid {
-    pub row: Vec<u32>,
-    pub col: Vec<u32>,
-    pub value: Vec<f64>,
-    pub style: Vec<u32>,
-    pub text_id: Vec<u32>,
-}
-
-impl SyntheticGrid {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn len(&self) -> usize {
-        self.row.len()
-    }
-
-    pub fn fill(&mut self, n: u32, strings: &mut StringTable) {
-        let n = n as usize;
-        self.row.clear();
-        self.col.clear();
-        self.value.clear();
-        self.style.clear();
-        self.text_id.clear();
-        self.row.reserve(n);
-        self.col.reserve(n);
-        self.value.reserve(n);
-        self.style.reserve(n);
-        self.text_id.reserve(n);
-        // A handful of interned labels so the JSON/serde arms carry real string ids.
-        let labels = [
-            strings.intern(""),
-            strings.intern("n"),
-            strings.intern("s"),
-            strings.intern("b"),
-        ];
-        for i in 0..n {
-            let row = (i / 26) as u32;
-            let col = (i % 26) as u32;
-            self.row.push(row);
-            self.col.push(col);
-            self.value.push((i as f64) * 0.5 + 1.0);
-            self.style.push((i % 16) as u32);
-            self.text_id.push(labels[i % labels.len()]);
-        }
-    }
-
-    pub fn touch(&self, i: u32) -> f64 {
-        self.value.get(i as usize).copied().unwrap_or(f64::NAN)
-    }
-
-    pub fn to_records(&self) -> Vec<CellRecord> {
-        (0..self.len())
-            .map(|i| CellRecord {
-                row: self.row[i],
-                col: self.col[i],
-                value: self.value[i],
-                style: self.style[i],
-                text_id: self.text_id[i],
-            })
-            .collect()
-    }
-
-    pub fn to_serde_js(&self) -> Result<JsValue, serde_wasm_bindgen::Error> {
-        serde_wasm_bindgen::to_value(&self.to_records())
-    }
-
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(&self.to_records())
-    }
-}
-
 /// Compact per-frame command buffer opcodes (little-endian payloads).
+///
+/// This is the **seed set** for Stage 2. Upstream painters also emit SVG NS
+/// creates, text nodes, style property writes, `classList`, insert/remove,
+/// markup parsing and canvas state — listed as gaps in `docs/boundary.md`
+/// (TODO(#36)/TODO(#37)).
 ///
 /// | Op | Tag | Payload |
 /// |---|---|---|
@@ -143,6 +60,9 @@ impl SyntheticGrid {
 /// | CreateElement | 5 | id:u32 tag:u32 parent:u32 |
 /// | SetAttr | 6 | id:u32 key:u32 val:u32 |
 /// | AppendChild | 7 | parent:u32 child:u32 |
+// Seed protocol for painters / the loader (#37). Not called from the shipped
+// path yet; Stage 3+ ports will encode through these tags.
+#[allow(dead_code)]
 pub mod opcode {
     pub const FILL_RECT: u8 = 1;
     pub const STROKE_RECT: u8 = 2;
@@ -187,6 +107,7 @@ impl CommandBuffer {
         self.buf.extend_from_slice(&v.to_le_bytes());
     }
 
+    #[allow(dead_code)] // painter-facing; Stage 3+
     pub fn fill_rect(&mut self, x: i32, y: i32, w: i32, h: i32, color: u32) {
         self.put_u8(opcode::FILL_RECT);
         self.put_i32(x);
@@ -196,6 +117,7 @@ impl CommandBuffer {
         self.put_u32(color);
     }
 
+    #[allow(dead_code)] // painter-facing; Stage 3+
     pub fn stroke_rect(&mut self, x: i32, y: i32, w: i32, h: i32, color: u32, line: f32) {
         self.put_u8(opcode::STROKE_RECT);
         self.put_i32(x);
@@ -206,6 +128,7 @@ impl CommandBuffer {
         self.put_f32(line);
     }
 
+    #[allow(dead_code)] // painter-facing; Stage 3+
     pub fn draw_image(&mut self, img: u32, x: i32, y: i32, w: i32, h: i32) {
         self.put_u8(opcode::DRAW_IMAGE);
         self.put_u32(img);
@@ -215,6 +138,7 @@ impl CommandBuffer {
         self.put_i32(h);
     }
 
+    #[allow(dead_code)] // painter-facing; Stage 3+
     pub fn draw_text(&mut self, x: i32, y: i32, font: u32, size: f32, text: u32, color: u32) {
         self.put_u8(opcode::DRAW_TEXT);
         self.put_i32(x);
@@ -225,6 +149,7 @@ impl CommandBuffer {
         self.put_u32(color);
     }
 
+    #[allow(dead_code)] // painter-facing; Stage 3+
     pub fn create_element(&mut self, id: u32, tag: u32, parent: u32) {
         self.put_u8(opcode::CREATE_ELEMENT);
         self.put_u32(id);
@@ -232,6 +157,7 @@ impl CommandBuffer {
         self.put_u32(parent);
     }
 
+    #[allow(dead_code)] // painter-facing; Stage 3+
     pub fn set_attr(&mut self, id: u32, key: u32, val: u32) {
         self.put_u8(opcode::SET_ATTR);
         self.put_u32(id);
@@ -239,13 +165,15 @@ impl CommandBuffer {
         self.put_u32(val);
     }
 
+    #[allow(dead_code)] // painter-facing; Stage 3+
     pub fn append_child(&mut self, parent: u32, child: u32) {
         self.put_u8(opcode::APPEND_CHILD);
         self.put_u32(parent);
         self.put_u32(child);
     }
 
-    /// Mixed canvas/DOM ops so the bench exercises both opcode families.
+    /// Mixed canvas/DOM ops matching the seed opcode set (tests + `bench` feature).
+    #[allow(dead_code)]
     pub fn encode_demo(&mut self, n_ops: u32) {
         self.begin();
         for i in 0..n_ops {
@@ -309,7 +237,6 @@ impl MeasureBatch {
         }
         self.widths.clear();
         self.widths.extend_from_slice(widths);
-        // Clear the request side so the next layout pass starts empty.
         self.font_id.clear();
         self.size_px.clear();
         self.text_id.clear();
@@ -326,7 +253,6 @@ mod tests {
         // Catches: opcode payload sizes drifting so the loader (#37) reads past the buffer.
         let mut buf = CommandBuffer::new();
         buf.encode_demo(7);
-        // One of each opcode: fill 1+20, stroke 1+24, image 1+20, text 1+24, create 1+12, setattr 1+12, append 1+8
         let expected = (1 + 20) + (1 + 24) + (1 + 20) + (1 + 24) + (1 + 12) + (1 + 12) + (1 + 8);
         let bytes = buf.take();
         assert_eq!(bytes.len(), expected);

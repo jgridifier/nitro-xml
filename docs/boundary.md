@@ -5,16 +5,19 @@ Stage 2 transport decision for Nitro XML. Everything that ships is Rust/WASM; th
 
 Upstream painters are ported one-to-one; the **only** allowed change on the render path is batching each frame's draw/DOM calls into one handoff (PRODUCT_SPEC.md §6 R0).
 
+Speed testing beyond the transfer contrast below is deferred (Jared, 2026-10-11): development comes first. The `bench` cargo feature (synthetic grids, serde/JSON export arms) is **not** in the shipped wasm.
+
 ## Status
 
 | Item | Status |
 |---|---|
 | Handle / error / warning shapes | In `nitro-xml-wasm` (`handle.rs`) |
-| SoA views, string table, command buffer, measure batch | In `transport.rs` |
+| String table, command buffer, measure batch | In `transport.rs` (shipped) |
 | Event batch wire format | In `events.rs` |
+| Synthetic SoA / serde / JSON bench arms | Behind non-default `bench` feature (`bench.rs`); not shipped |
 | Loader (`FinalizationRegistry`, command-buffer applier, event coalesce) | TODO(#37) |
 | Worker vs main-thread split per painter | TODO(#36) |
-| Perf-history ingestion of these numbers | TODO(#8) |
+| Perf-history ingestion | TODO(#8) |
 
 ## Handle conventions
 
@@ -56,6 +59,8 @@ Per document. `intern(str) → u32`, `resolve(id) → string`. Id `0` is always 
 
 One `Uint8Array` of opcodes per frame, taken with `takeFrameCommands()` and applied by the loader in a single pass (#37). No per-element WASM→JS calls on the render path.
 
+### Seed opcodes (Stage 2)
+
 | Op | Tag | Payload |
 |---|---|---|
 | FillRect | 1 | `i32 x,y,w,h` `u32 color` |
@@ -66,15 +71,33 @@ One `Uint8Array` of opcodes per frame, taken with `takeFrameCommands()` and appl
 | SetAttr | 6 | `u32 id, key, val` |
 | AppendChild | 7 | `u32 parent, child` |
 
+### Opcode coverage gaps (vs upstream painters / PR #111)
+
+The seed set is **not** enough for a one-to-one painter port. Missing call kinds that upstream actually makes (see `docs/painters.md` on #111 / `tools/painter-calls`), to be added when the loader and painter split land (TODO(#36), TODO(#37)):
+
+- `createElementNS` / SVG element creation (charts, sparklines, SmartArt, connectors, ink, WordArt)
+- Text nodes and `textContent` / `createTextNode` updates
+- Inline style property writes (`element.style.*`, CSS custom properties)
+- `classList` add / remove / toggle
+- Tree surgery: `insertBefore`, `remove`, `replaceChildren`, `replaceWith`
+- Markup paths: `innerHTML`, `DOMParser` / `svgNode` string parse into the DOM
+- Canvas 2D state: `save` / `restore`, `setTransform` / `resetTransform`, `fillStyle` / `strokeStyle`, path ops (`beginPath`, `moveTo`, `lineTo`, `arc`, `fill`, `stroke`)
+- Canvas text: `fillText`, `measureText` (measurement stays batched; draw ops still need opcodes)
+- Attribute NS variants (`setAttributeNS`) and dataset / ARIA property writes
+- MathML element creation (docx equations)
+- WebGL / three.js handoff for opt-in 3D chart and SmartArt painters (likely a separate buffer family, not DOM opcodes)
+
 ### Batched text measurement
 
 Fonts and measurement follow upstream for now. Rust queues `{font_id, size_px, text_id}` SoA requests; the loader runs `measureText` once per batch and writes widths back with `setMeasureResults` (TODO(#37)). Never one wasm call per string.
 
-## Benchmarks
+## Bulk-transfer contrast (recorded; further speed work deferred)
 
-Harness: `perf/micro/boundary.bench.mjs` (test/bench only, never shipped). Headless Chrome, COOP/COEP for full `performance.now()` resolution, 2 warm-ups + 7 timed runs, median ms. Synthetic SoA records (not OOXML fixtures). Results also in `perf/micro/results/`.
+Harness: `perf/micro/boundary.bench.mjs` (test/bench only, never shipped). Build with `bash scripts/build-wasm.sh --features bench` (or `cd perf/micro && npm run bench`). Headless Chrome, COOP/COEP, 2 warm-ups + 7 timed runs, median ms. Synthetic SoA records.
 
-**Run recorded 2026-10-11** on this agent host, Chrome 148, commit base `2779b69` (pre-PR).
+The SoA arm is **zero-copy view creation plus a scan** over wasm memory. The serde-wasm-bindgen and JSON arms **materialise a full JS object graph**. That asymmetry is intentional for the transport decision.
+
+**Run recorded 2026-10-11** (agent host). Reviewer reproduction on pinned Chrome 154: SoA 0.89 ms vs serde 357 ms vs JSON 378 ms at 1M records (~400×).
 
 | N records | SoA view+scan | serde-wasm-bindgen | JSON string |
 |---|---:|---:|---:|
@@ -82,19 +105,18 @@ Harness: `perf/micro/boundary.bench.mjs` (test/bench only, never shipped). Headl
 | 100,000 | 0.565 ms | 25.270 ms | 28.035 ms |
 | 1,000,000 | 1.400 ms | 339.020 ms | 349.735 ms |
 
-| Workload | Median |
-|---|---:|
-| Encode + take command buffer (1M mixed ops) | 16.250 ms |
-| Per-call `touchCell` × 50k (trivial f64 getter) | 0.300 ms |
-| Linear estimate of that getter at 1M | ≈ 6 ms |
+**Reading.** SoA typed-array views are the bulk-transfer rule. serde and JSON are reserved for rare diagnostics. Further command-buffer vs per-op timing is deferred until development needs it.
 
-**Reading.** SoA views are about **240×** faster than serde-wasm-bindgen and JSON at 1M records for a view+scan. serde and JSON also allocate a full JS object graph. The trivial per-call getter is a lower bound only; real per-element canvas/DOM calls from wasm are forbidden on the render path and would dominate frame time. The command buffer is the required handoff shape regardless.
-
-Reproduce:
+Reproduce (optional; not a CI gate):
 
 ```bash
-bash scripts/build-wasm.sh
-cd perf/micro && npm ci && npm run bench
+cd perf/micro && npm ci && npm run bench   # builds wasm with --features bench
+```
+
+Shipped package (no bench feature):
+
+```bash
+bash scripts/build-wasm.sh                # must stay near the pre-#14 size
 ```
 
 ## Decision table
@@ -114,6 +136,6 @@ cd perf/micro && npm ci && npm run bench
 
 ## Follow-ups
 
-- **#37** — loader: `FinalizationRegistry`, command-buffer applier, measureText batch, event coalesce, worker host.
-- **#36** — which painters apply on the main thread vs OffscreenCanvas in the worker.
-- **#8** — ingest `perf/micro/results/boundary-*.json` into the perf history gate.
+- **#37** — loader: `FinalizationRegistry`, command-buffer applier (full opcode set), measureText batch, event coalesce, worker host.
+- **#36** — which painters apply on the main thread vs OffscreenCanvas in the worker; extend opcodes from the gap list above.
+- **#8** — ingest `perf/micro/results/boundary-*.json` into the perf history gate when speed testing resumes.

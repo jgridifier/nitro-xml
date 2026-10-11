@@ -3,6 +3,8 @@
 //! wasm-bindgen. It exposes [`nitro_xml`] to the JS loader.
 //!
 //! Boundary conventions (#14) live in [`handle`], [`transport`] and [`events`].
+//! Bench-only synthetic grids and serde/JSON export arms are behind the
+//! non-default `bench` feature and are never in the shipped package.
 //! The minimal loader that applies command buffers and forwards events is #37.
 //!
 //! Replaces the browser-facing entry points of ChristopherVR/ooxml@e66aaec `src/core/index.ts`
@@ -11,6 +13,8 @@
 pub use nitro_xml;
 use wasm_bindgen::prelude::*;
 
+#[cfg(feature = "bench")]
+mod bench;
 mod events;
 mod handle;
 mod transport;

@@ -1,0 +1,22 @@
+{
+  "name": "nitro-xml-scoreboard",
+  "private": true,
+  "description": "Public scoreboard harness (test/bench only, never shipped). See docs/scoreboard-method.md.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "race:parse": "node run.mjs"
+  },
+  "dependencies": {
+    "docx-preview": "0.4.1",
+    "exceljs": "4.4.0",
+    "jszip": "3.10.1",
+    "mammoth": "1.13.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playwright-core": "1.64.0"
+  }
+}

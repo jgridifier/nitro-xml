@@ -26,4 +26,5 @@ Nitro XML is MIT-licensed. **Files ported or derived from ooxml remain under Apa
 
 | Nitro XML file | Upstream source (path @ commit) | Changes |
 |---|---|---|
-| _(none yet: no code has been ported)_ | | |
+| `rs/crates/nitro-xml-opc/src/zip/mod.rs` | `src/core/xlsx/read/package.ts @ e66aaec` | Rust rewrite of readZipParts limits and SourceIndex case-insensitive lookup over the `zip` crate instead of JSZip; lazy per-part inflation; typed errors. |
+| `rs/crates/nitro-xml-opc/src/zip/error.rs` | `src/core/xlsx/read/package.ts @ e66aaec` | Typed `ZipError` kinds in place of upstream `Error` messages; same limit categories as readZipParts. |

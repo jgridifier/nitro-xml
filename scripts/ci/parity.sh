@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 # Viewer / foundation parity: TS oracle vs Rust (job: parity).
 # Runs fixtures/verify --skip-on-demand, then bun parity/run --ci (xml + opc +
-# xlsx worksheet (#16) + view-IR (#18) + docx styles/body (#20/#21) + pptx
-# presentation model (#24) today; later LayoutResult flips ready when dumps
-# land). Visual pixelmatch remains #45.
+# xlsx worksheet (#16) + view-IR (#18) + engine API (#19) + docx styles/body
+# (#20/#21) + pptx presentation model (#24) + chart model/S1 SVG (#28); later
+# LayoutResult flips ready when dumps land). Visual pixelmatch remains #45.
 #
 # Definition of done for #5: this script no longer prints NOT IMPLEMENTED.
 # Ask Jared (or the Chief of Staff's gh login) to add the `parity` job to the
@@ -59,11 +59,7 @@ if [ "$parity_rc" -ne 0 ] || [ "$test_rc" -ne 0 ]; then
   exit 1
 fi
 
-<<<<<<< HEAD
-msg="parity: PASS (xml + opc + xlsx worksheet/view-IR + docx styles/body + pptx + chart model/S1 SVG ready)"
-=======
-msg="parity: PASS (xml + opc + xlsx worksheet + view-IR + engine API + docx styles/body + pptx presentation ready)"
->>>>>>> e741863 (feat(xlsx): register engine API differential parity (#19))
+msg="parity: PASS (xml + opc + xlsx worksheet/view-IR/engine API + docx styles/body + pptx + chart model/S1 SVG ready)"
 echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"

@@ -73,10 +73,10 @@ const widths = new Float64Array(measureCount);
 const ctx = this._measureCtx();
 if (ctx) {
 for (let i = 0; i < measureCount; i++) {
-const font = (strings && strings[measureReqs.fonts[i]]) || "sans-serif";
-const text = (strings && strings[measureReqs.texts[i]]) || "";
-ctx.font = `${measureReqs.sizes[i]}px ${font}`;
-widths[i] = ctx.measureText(text).width;
+let f=(strings&&strings[measureReqs.fonts[i]])||"sans-serif";
+const text=(strings&&strings[measureReqs.texts[i]])||"";
+ctx.font=/\d+(\.\d+)?px/.test(f)?f:`${measureReqs.sizes[i]}px ${f}`;
+widths[i]=ctx.measureText(text).width;
 }
 }
 await this._request("measure-acked", () => {

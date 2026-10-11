@@ -154,16 +154,20 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/view/sparkline_view.rs` | `src/core/xlsx/layout/sparkline-view.ts` @ e66aaec | Unit-box sparkline layout for view-IR. |
 | `rs/crates/nitro-xml-xlsx/src/view/sparkline_data.rs` | `src/core/xlsx/layout/sparkline-data.ts` @ e66aaec | `sparklineViewAt` + range value read. |
 | `rs/crates/nitro-xml-xlsx/src/view/sheet_queries.rs` | `src/core/xlsx/layout/sheet-queries.ts` @ e66aaec | `overflowExtent` only (selection stats deferred). |
-| `rs/crates/nitro-xml-xlsx/src/view/cell_paint.rs` | `src/core/xlsx/ui/grid/cell-paint.ts` @ e66aaec | CSS helpers, `hashes`, `repeatToFill`. |
+| `rs/crates/nitro-xml-xlsx/src/view/cell_paint.rs` | `src/core/xlsx/ui/grid/cell-paint.ts` @ e66aaec | CSS helpers (`cssFont`, borders, alignment, fill paint). |
 | `rs/crates/nitro-xml-xlsx/src/view/cell_items.rs` | `src/core/xlsx/ui/grid/cell-items.ts` @ e66aaec | `buildItems` / `CellItem` geometry. |
 | `rs/crates/nitro-xml-xlsx/src/view/number_fit.rs` | `src/core/xlsx/ui/grid/number-fit.ts` @ e66aaec | `fitNumber` via `format_value` width option. |
 | `rs/crates/nitro-xml-xlsx/src/view/css_font_family.rs` | `src/core/text/css-font-family.ts` @ e66aaec | Font fallback stacks for measure/CSS. |
+| `parity/visual/xlsx-grid-css.js` | `src/ui/src/xlsx/grid/styles.ts` (`GRID_CSS`) @ e66aaec | Visual-gate stylesheet for `<nitro-xlsx>` host (#150); not shipped in the loader. |
 | `rs/crates/nitro-xml-xlsx/src/render/grid.rs` | `src/ui/src/xlsx/grid/grid-view.ts` @ e66aaec | Frame shell stub; full quadrants TODO(#19). |
-| `rs/crates/nitro-xml-xlsx/src/render/cells.rs` | `src/ui/src/xlsx/grid/cell-layer.ts` @ e66aaec | Cell layer encodes command buffer from `buildItems`. |
+| `rs/crates/nitro-xml-xlsx/src/render/cells.rs` | `src/ui/src/xlsx/grid/cell-layer.ts` @ e66aaec | Cell DOM command buffer (`paintCell` parity). |
 | `rs/crates/nitro-xml-xlsx/src/render/cond_format.rs` | `src/core/xlsx/ui/grid/icon-sets.ts`, cell-layer data bars @ e66aaec | CF paint stub; formula rules TODO. |
-| `rs/crates/nitro-xml-xlsx/src/render/gridlines.rs` | `src/ui/src/xlsx/grid/gridlines.ts` @ e66aaec | Gridline stroke stub. |
-| `rs/crates/nitro-xml-xlsx/src/render/headers.rs` | `src/ui/src/xlsx/grid/headers.ts` @ e66aaec | Header chrome stub. |
+| `rs/crates/nitro-xml-xlsx/src/render/gridlines.rs` | `src/ui/src/xlsx/grid/gridlines.ts` @ e66aaec | Per-row/column 1px gridline DOM nodes. |
+| `rs/crates/nitro-xml-xlsx/src/render/headers.rs` | `src/ui/src/xlsx/grid/headers.ts`, `pane-chrome.ts` @ e66aaec | Row/column header + corner DOM. |
+| `rs/crates/nitro-xml-xlsx/src/render/geometry.rs` | `src/core/xlsx/ui/grid/geometry.ts` @ e66aaec | `rowHeaderWidth` / `columnHeaderHeight`. |
+| `rs/crates/nitro-xml-xlsx/src/render/viewport.rs` | `src/core/xlsx/layout/viewport.ts` @ e66aaec | `visibleCells` for grid paint culling. |
 | `rs/crates/nitro-xml-xlsx/src/render/selection.rs` | `src/ui/src/xlsx/grid/selection-layer.ts` @ e66aaec | Selection overlay stub. |
+| `rs/crates/nitro-xml-xlsx/src/render/selection_ops.rs` | `src/core/xlsx/ui/grid/selection-ops.ts` @ e66aaec | Row/column header selection state (`none`/`part`/`full`). |
 | `rs/crates/nitro-xml-xlsx/src/view/types.rs` | `src/core/xlsx/layout/types.ts` @ e66aaec | `CellView` / `CellItem` view types + JSON dump shape. |
 | `rs/crates/nitro-xml-xlsx/src/view/viewport.rs` | `src/core/xlsx/layout/viewport.ts` @ e66aaec | View-IR bound helpers only (full viewport deferred #19). |
 | `rs/crates/nitro-xml-xlsx/src/comments.rs` | `src/core/xlsx/read/comments.ts` @ e66aaec | Legacy comment cell refs for `hasComment`. |

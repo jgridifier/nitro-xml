@@ -14,6 +14,7 @@ pub mod sheet_queries;
 pub mod sparkline_data;
 pub mod sparkline_view;
 pub mod style_view;
+pub mod text_measure;
 pub mod tint;
 pub mod types;
 pub mod units;

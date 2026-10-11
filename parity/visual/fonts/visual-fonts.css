@@ -1,0 +1,109 @@
+/* SPDX-License-Identifier: MIT */
+/*
+ * Visual-gate font pin (#150): map workbook / UI faces to the same Liberation Sans
+ * files for both <nitro-xlsx> and upstream <xlsx-editor>. Files are staged into
+ * out/fonts/ by prepare.mjs (not committed).
+ */
+@font-face {
+  font-family: "Liberation Sans";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Liberation Sans";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Liberation Sans";
+  font-style: italic;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Italic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Liberation Sans";
+  font-style: italic;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-BoldItalic.ttf") format("truetype");
+}
+/* Alias every face the css_font_family / upstream stacks mention onto Liberation Sans. */
+@font-face {
+  font-family: "Calibri";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Calibri";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Calibri";
+  font-style: italic;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Italic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Calibri";
+  font-style: italic;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-BoldItalic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Carlito";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Carlito";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Segoe UI";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Segoe UI";
+  font-style: normal;
+  font-weight: 600;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Segoe UI";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: Arial;
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: Arial;
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: Arial;
+  font-style: italic;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Italic.ttf") format("truetype");
+}
+@font-face {
+  font-family: Arial;
+  font-style: italic;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-BoldItalic.ttf") format("truetype");
+}

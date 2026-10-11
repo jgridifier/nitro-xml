@@ -7,6 +7,8 @@
 //! batch on the next frame (`packages/nitro-xml/loader/layout-readback.js`).
 //! Never one wasm call per string or per element.
 
+use std::collections::HashMap;
+
 /// Batched text-measurement requests (fonts/measurement follow upstream).
 ///
 /// The loader applies `measureText` for each pending request and calls
@@ -17,6 +19,8 @@ pub struct MeasureBatch {
     pub size_px: Vec<f32>,
     pub text_id: Vec<u32>,
     pub widths: Vec<f64>,
+    /// Last resolved widths keyed by `(font_id, text_id)` for the next paint pass.
+    pub cache: HashMap<(u32, u32), f64>,
 }
 
 /// Length mismatch between pending requests and loader widths.
@@ -60,12 +64,19 @@ impl MeasureBatch {
                 got: widths.len(),
             });
         }
+        for ((&font_id, &text_id), &width) in self.font_id.iter().zip(&self.text_id).zip(widths) {
+            self.cache.insert((font_id, text_id), width);
+        }
         self.widths.clear();
         self.widths.extend_from_slice(widths);
         self.font_id.clear();
         self.size_px.clear();
         self.text_id.clear();
         Ok(())
+    }
+
+    pub fn cached_width(&self, font_id: u32, text_id: u32) -> Option<f64> {
+        self.cache.get(&(font_id, text_id)).copied()
     }
 }
 

@@ -142,4 +142,12 @@ impl GridMetrics {
     pub fn is_col_hidden(&self, c: u32) -> bool {
         self.cols.size(c) == 0
     }
+
+    pub fn col_at(&self, offset: i32) -> u32 {
+        self.cols.at(offset)
+    }
+
+    pub fn row_at(&self, offset: i32) -> u32 {
+        self.rows.at(offset)
+    }
 }

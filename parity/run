@@ -1,0 +1,210 @@
+#!/usr/bin/env bun
+// SPDX-License-Identifier: MIT
+/**
+ * Parity harness CLI (#5).
+ *
+ *   bun parity/run --format xlsx --fixture <id>
+ *   bun parity/run --ci
+ *   bun parity/run --format xml --ci
+ *   bun parity/run --format opc --ci
+ *
+ * Writes oracle.json + rust.json (default: .parity-out/), exits non-zero on an
+ * unexpected diff. Format view-IR comparisons are registered but not ready until
+ * the matching parser dump lands (#15 / #20 / #24); `--ci` only runs ready ones.
+ */
+
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { loadManifest, repoRoot, resolveFixture } from './corpus.ts';
+import { diffIr, filterKnownDiffs, formatDiffs } from './diff.ts';
+import { normalize } from './normalize.ts';
+import { assertUpstreamPin, upstreamDir } from './paths.ts';
+import { getComparison, listComparisons, readyComparisons } from './registry.ts';
+import type { KnownDiffsFile } from './types.ts';
+
+function usage(): never {
+	console.error(`Usage:
+  bun parity/run --format <xml|opc|xlsx|docx|pptx> --fixture <id> [--out <dir>]
+  bun parity/run --ci [--format <id>]
+  bun parity/run --list`);
+	process.exit(2);
+}
+
+function parseArgs(argv: string[]) {
+	const out: {
+		ci: boolean;
+		list: boolean;
+		format?: string;
+		fixture?: string;
+		outDir: string;
+	} = { ci: false, list: false, outDir: join(repoRoot(), '.parity-out') };
+	for (let i = 0; i < argv.length; i++) {
+		const a = argv[i];
+		if (a === '--ci') out.ci = true;
+		else if (a === '--list') out.list = true;
+		else if (a === '--format') out.format = argv[++i];
+		else if (a === '--fixture') out.fixture = argv[++i];
+		else if (a === '--out') out.outDir = argv[++i]!;
+		else if (a === '-h' || a === '--help') usage();
+		else {
+			console.error(`unknown arg: ${a}`);
+			usage();
+		}
+	}
+	return out;
+}
+
+function loadKnownDiffs(root: string): KnownDiffsFile {
+	const path = join(root, 'parity/known-diffs.json');
+	if (!existsSync(path)) return { entries: [] };
+	const doc = JSON.parse(readFileSync(path, 'utf8')) as KnownDiffsFile;
+	for (const e of doc.entries ?? []) {
+		if (!e.reason || !String(e.reason).trim()) {
+			throw new Error(`known-diffs entry missing reason: ${JSON.stringify(e)}`);
+		}
+	}
+	return doc;
+}
+
+function summarize(line: string): void {
+	console.log(line);
+	if (process.env.GITHUB_STEP_SUMMARY) {
+		writeFileSync(process.env.GITHUB_STEP_SUMMARY, `${line}\n`, { flag: 'a' });
+	}
+}
+
+async function runOneFixture(
+	format: string,
+	fixtureId: string,
+	outDir: string,
+): Promise<number> {
+	const root = repoRoot();
+	process.env.UPSTREAM_DIR = process.env.UPSTREAM_DIR || upstreamDir(root);
+	assertUpstreamPin();
+	const comparison = getComparison(format);
+	const manifest = loadManifest(root);
+	const { row, absPath } = resolveFixture(manifest, fixtureId, root);
+	if (!existsSync(absPath)) {
+		console.error(`fixture file missing: ${row.path}`);
+		return 1;
+	}
+
+	mkdirSync(outDir, { recursive: true });
+	const oracle = await comparison.oracle(absPath);
+	const rust = await comparison.rust(absPath);
+	const oraclePath = join(outDir, 'oracle.json');
+	const rustPath = join(outDir, 'rust.json');
+	writeFileSync(oraclePath, JSON.stringify(normalize(oracle), null, 2) + '\n');
+	writeFileSync(rustPath, JSON.stringify(normalize(rust), null, 2) + '\n');
+
+	const diffs = diffIr(oracle, rust);
+	const known = loadKnownDiffs(root);
+	const { unexpected, allowed } = filterKnownDiffs(diffs, format, fixtureId, known.entries);
+
+	console.log(`wrote ${oraclePath}`);
+	console.log(`wrote ${rustPath}`);
+	if (!comparison.ready) {
+		console.log(
+			`comparison '${format}' is registered but not ready (${comparison.todo ?? 'pending'}). ` +
+				`Oracle dumped; Rust side returns not_implemented until the dump lands.`,
+		);
+	}
+	if (unexpected.length === 0) {
+		summarize(
+			`PASS ${format}/${fixtureId}: ${diffs.length} diff(s), ${allowed.length} allow-listed`,
+		);
+		return 0;
+	}
+	console.error(`DIFF ${format}/${fixtureId}: ${unexpected.length} unexpected`);
+	console.error(formatDiffs(unexpected));
+	summarize(`FAIL ${format}/${fixtureId}: ${unexpected.length} unexpected diffs`);
+	return 1;
+}
+
+async function runCi(formatFilter?: string): Promise<number> {
+	const root = repoRoot();
+	process.env.UPSTREAM_DIR = process.env.UPSTREAM_DIR || upstreamDir(root);
+	assertUpstreamPin();
+	const known = loadKnownDiffs(root);
+	const comparisons = formatFilter
+		? [getComparison(formatFilter)]
+		: readyComparisons();
+
+	let fail = 0;
+	const summary: string[] = ['## Parity harness (#5)'];
+
+	for (const c of comparisons) {
+		if (!c.ready) {
+			summary.push(`- skip ${c.id}: not ready (${c.todo})`);
+			continue;
+		}
+		if (c.runCorpus) {
+			const result = await c.runCorpus();
+			for (const n of result.notes) console.log(`GATE[${c.id}]: ${n}`);
+			if (result.mismatched > 0) {
+				fail = 1;
+				summary.push(
+					`- FAIL ${c.id}: ${result.mismatched}/${result.compared} mismatched`,
+				);
+			} else {
+				summary.push(`- PASS ${c.id}: ${result.compared} compared`);
+			}
+			continue;
+		}
+
+		// Per-fixture view-IR path (used once format comparisons flip ready).
+		const manifest = loadManifest(root);
+		const rows = c.selectFixtures(manifest);
+		let bad = 0;
+		let compared = 0;
+		for (const row of rows) {
+			const abs = join(root, row.path);
+			if (!existsSync(abs)) continue;
+			compared++;
+			const oracle = await c.oracle(abs);
+			const rust = await c.rust(abs);
+			const diffs = diffIr(oracle, rust);
+			const { unexpected } = filterKnownDiffs(diffs, c.id, row.id, known.entries);
+			if (unexpected.length) {
+				bad++;
+				console.error(`DIFF ${c.id}/${row.id}: ${unexpected.length}`);
+				console.error(formatDiffs(unexpected, 20));
+			}
+		}
+		if (bad) {
+			fail = 1;
+			summary.push(`- FAIL ${c.id}: ${bad}/${compared} fixtures`);
+		} else {
+			summary.push(`- PASS ${c.id}: ${compared} fixtures`);
+		}
+	}
+
+	// Pending registrations (visible in the summary so format PRs know to flip ready).
+	for (const c of listComparisons()) {
+		if (!c.ready) summary.push(`- registered (pending) ${c.id} → ${c.todo}`);
+	}
+
+	for (const line of summary) summarize(line);
+	if (fail !== 0) {
+		console.error('parity: FAIL');
+	}
+	return fail;
+}
+
+async function main(): Promise<number> {
+	const args = parseArgs(process.argv.slice(2));
+	if (args.list) {
+		for (const c of listComparisons()) {
+			console.log(
+				`${c.id}\t${c.ready ? 'ready' : 'pending'}\t${c.todo ?? ''}\t${c.label}`,
+			);
+		}
+		return 0;
+	}
+	if (args.ci) return runCi(args.format);
+	if (!args.format || !args.fixture) usage();
+	return runOneFixture(args.format, args.fixture, args.outDir);
+}
+
+const code = await main();
+process.exit(code);

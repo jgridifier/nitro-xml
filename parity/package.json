@@ -1,0 +1,14 @@
+{
+  "name": "nitro-xml-parity",
+  "private": true,
+  "description": "TS-oracle vs Rust view-IR / foundation differential harness (test-only; never shipped).",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "parity": "bun ./run",
+    "test": "bun test normalize.test.ts diff.test.ts"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  }
+}

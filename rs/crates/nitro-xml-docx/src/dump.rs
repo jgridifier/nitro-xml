@@ -4,6 +4,8 @@
 use serde_json::{json, Value};
 
 use crate::body::read_package;
+use crate::layout::{create_fake_measurer, layout_document_model};
+use crate::layout::LayoutReviewOptions;
 use crate::model_dump::model_to_dump_json;
 use crate::numbering::{compute_list_labels, display_list_label, resolve_paragraph_numbering};
 use crate::paragraph_scan::scan_paragraphs;
@@ -80,5 +82,16 @@ pub fn dump_docx_styles(bytes: &[u8]) -> Result<String, String> {
         obj.insert("resolvedParagraphs".into(), json!(resolved_paragraphs));
         obj.insert("listLabels".into(), json!(list_labels));
     }
+    Ok(serde_json::to_string(&out).unwrap())
+}
+
+pub fn dump_docx_layout(bytes: &[u8]) -> Result<String, String> {
+    let loaded = read_package(bytes).map_err(|e| e.to_string())?;
+    let result = layout_document_model(&loaded.model, &create_fake_measurer(), LayoutReviewOptions::default());
+    let out = serde_json::json!({
+        "format": "docx",
+        "pages": result.pages,
+        "approximations": result.approximations,
+    });
     Ok(serde_json::to_string(&out).unwrap())
 }

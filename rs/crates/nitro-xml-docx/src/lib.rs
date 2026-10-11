@@ -2,6 +2,8 @@
 //! Word (.docx) styles, numbering, theme and settings (Stage 4 port of ChristopherVR/ooxml@e66aaec).
 
 mod body;
+mod chart_paint;
+mod fields;
 mod borders;
 mod breaks;
 mod chart_host;
@@ -13,7 +15,14 @@ mod equation;
 mod field_runs;
 mod hyperlink;
 mod json_util;
+mod layout;
 mod ligatures;
+mod note_format;
+mod review_document_formatting;
+mod review_formatting_display;
+mod run_formatting;
+mod table_visuals;
+mod theme_color;
 mod model_dump;
 mod notes;
 mod numbering;
@@ -54,3 +63,4 @@ pub use styles::{
 pub use theme::{diagram_color_theme, parse_color_scheme_mapping, parse_theme};
 
 pub mod render;
+pub use layout::{create_fake_measurer, layout_document, layout_document_model, LayoutResult};

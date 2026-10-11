@@ -83,9 +83,26 @@ export function formatDiffs(diffs: DiffEntry[], limit = 40): string {
 	return lines.join('\n');
 }
 
+/** Whether a known-diff rule path covers a concrete diff path. */
+export function knownDiffPathMatches(rulePath: string, diffPath: string): boolean {
+	const rp = rulePath || '/';
+	if (rp === '/') return true;
+	// Suffix glob: star-star-slash-text matches `/slides/0/elements/1/text`.
+	const suffixGlobPrefix = '**' + '/';
+	if (rp.startsWith(suffixGlobPrefix)) {
+		const suffix = rp.slice(2); // e.g. `/text`
+		return diffPath === suffix || diffPath.endsWith(suffix);
+	}
+	return (
+		diffPath === rp ||
+		diffPath.startsWith(rp.endsWith('/') ? rp : `${rp}/`)
+	);
+}
+
 /**
  * Drop diffs covered by the known-diffs allow-list.
  * An entry with path `/` (or omitted path) covers every path for that fixture.
+ * Paths starting with the two-star slash prefix match by suffix (per-field exclusions).
  */
 export function filterKnownDiffs(
 	diffs: DiffEntry[],
@@ -99,10 +116,7 @@ export function filterKnownDiffs(
 	const allowed: DiffEntry[] = [];
 	const unexpected: DiffEntry[] = [];
 	for (const d of diffs) {
-		const ok = rules.some((r) => {
-			const rp = r.path ?? '/';
-			return rp === '/' || d.path === rp || d.path.startsWith(rp.endsWith('/') ? rp : `${rp}/`);
-		});
+		const ok = rules.some((r) => knownDiffPathMatches(r.path ?? '/', d.path));
 		if (ok) allowed.push(d);
 		else unexpected.push(d);
 	}

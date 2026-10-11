@@ -21,4 +21,22 @@ describe('diff + known-diffs', () => {
 		expect(unexpected.some((d) => d.path === '/meta')).toBe(true);
 		expect(unexpected.some((d) => d.path.startsWith('/sheets'))).toBe(false);
 	});
+
+	test('suffix **/field allow-list covers nested text without hiding sibling fields', () => {
+		// Catches: per-field known-diffs must not swallow transform/size regressions.
+		const diffs = diffIr(
+			{ slides: [{ elements: [{ text: 'A', width: 1 }] }] },
+			{ slides: [{ elements: [{ text: 'B', width: 2 }] }] },
+		);
+		const { unexpected, allowed } = filterKnownDiffs(diffs, 'pptx', 'f1', [
+			{
+				format: 'pptx',
+				fixture: 'f1',
+				path: '**/text',
+				reason: 'text body extraction lands in #26',
+			},
+		]);
+		expect(allowed.some((d) => d.path.endsWith('/text'))).toBe(true);
+		expect(unexpected.some((d) => d.path.endsWith('/width'))).toBe(true);
+	});
 });

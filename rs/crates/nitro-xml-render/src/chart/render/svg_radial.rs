@@ -105,7 +105,7 @@ pub fn pie_svg(model: &ChartViewModel, area: Rect) -> String {
                 .map(|f| format!(" filter=\"{}\"", f))
                 .unwrap_or_default();
             out.push(format!(
-                "<path d=\"{}\" fill=\"{}\" stroke=\"#FFFFFF\" stroke-width=\"1\"{} />",
+                "<path d=\"{}\" fill=\"{}\" stroke=\"#FFFFFF\" stroke-width=\"1\"{}/>",
                 slice_path(cx, cy, outer, inner, angle, angle + sweep),
                 color,
                 filter
@@ -196,7 +196,7 @@ pub fn radar_svg(model: &ChartViewModel, area: Rect) -> String {
             .map(|f| format!(" filter=\"{}\"", f))
             .unwrap_or_default();
         out.push(format!(
-            "<polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"{} />",
+            "<polygon points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2\"{}/>",
             points, s.color, filter
         ));
     }

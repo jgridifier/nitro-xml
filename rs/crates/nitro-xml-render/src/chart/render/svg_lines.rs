@@ -58,7 +58,7 @@ pub fn lines_and_areas(
                 .map(|(x, y)| format!("{},{}", n(*x), n(*y)))
                 .collect();
             out.push(format!(
-                "<polygon points=\"{}\" fill=\"{}\" fill-opacity=\"0.85\"{} />",
+                "<polygon points=\"{}\" fill=\"{}\" fill-opacity=\"0.85\"{}/>",
                 poly.join(" "),
                 color,
                 filter
@@ -72,7 +72,7 @@ pub fn lines_and_areas(
                      filter: &str| {
             if segment.len() > 1 {
                 out.push(format!(
-                    "<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2.25\" stroke-linejoin=\"round\"{} />",
+                    "<polyline points=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"2.25\" stroke-linejoin=\"round\"{}/>",
                     segment.join(" "),
                     color,
                     filter
@@ -91,7 +91,7 @@ pub fn lines_and_areas(
         for (x, y) in points {
             if !x.is_nan() {
                 out.push(format!(
-                    "<circle cx=\"{}\" cy=\"{}\" r=\"2.5\" fill=\"{}\"{} />",
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"2.5\" fill=\"{}\"{}/>",
                     n(*x),
                     n(*y),
                     color,

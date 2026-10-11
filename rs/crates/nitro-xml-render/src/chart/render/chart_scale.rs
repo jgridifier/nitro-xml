@@ -106,8 +106,9 @@ pub fn format_axis_value(value: f64, percent: bool) -> String {
         return s.replace("e+", "E+").replace("e-", "E-");
     }
     let abs = v.abs();
-    let s = if abs.fract() == 0.0 {
-        format!("{}", abs as i64)
+    let int_like = (abs - abs.round()).abs() < 1e-9;
+    let s = if int_like {
+        format!("{}", abs.round() as i64)
     } else {
         format!("{}", abs)
     };

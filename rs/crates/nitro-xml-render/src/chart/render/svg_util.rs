@@ -28,7 +28,7 @@ pub fn n(value: f64) -> String {
 }
 
 pub fn text_width(text: &str, size: f64) -> f64 {
-    text.len() as f64 * size * 0.55
+    text.chars().count() as f64 * size * 0.55
 }
 
 #[derive(Clone, Debug, Default)]
@@ -99,7 +99,7 @@ pub fn rect(x: f64, y: f64, w: f64, h: f64, fill: &str, filter: Option<&str>) ->
         .map(|f| format!(" filter=\"{}\"", esc(f)))
         .unwrap_or_default();
     format!(
-        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\"{} />",
+        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\"{}/>",
         n(x),
         n(y),
         n(w.max(0.0)),

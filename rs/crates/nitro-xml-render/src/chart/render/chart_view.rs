@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use super::chart_appearance::{chart_appearance, ChartAppearance};
 use super::chart_colors::{auto_series_color, chart_color_scheme};
 use super::chart_scale::{nice_scale, AxisScale, NiceScaleOptions};
-use super::chart_title_text::chart_title_text;
+use super::chart_title_text::ChartTitleText;
 use super::chart_value_axis::value_axis;
 use super::color_palettes::{chart_palette_series_color, find_chart_color_palette};
 use super::drawing_color_css::drawing_color_css;
@@ -53,6 +53,8 @@ pub struct ChartViewModel {
     pub bar_gap_width: Option<i32>,
     pub bar_overlap: Option<i32>,
     pub title_overlay: bool,
+    pub title_layout: Option<nitro_xml_opc::chart::ChartManualLayout>,
+    pub title_text: Option<ChartTitleText>,
     pub legend_overlay: bool,
 }
 
@@ -83,11 +85,27 @@ fn resolve_drawing_color_css(
     })
 }
 
+fn js_number_string(n: f64) -> String {
+    if n.is_finite() && (n - n.round()).abs() < 1e-9 && n.abs() < 1e15 {
+        format!("{}", n.round() as i64)
+    } else {
+        format!("{}", n)
+    }
+}
+
 fn to_text(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Null => String::new(),
         serde_json::Value::Bool(b) => if *b { "TRUE" } else { "FALSE" }.to_string(),
-        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                i.to_string()
+            } else if let Some(f) = n.as_f64() {
+                js_number_string(f)
+            } else {
+                n.to_string()
+            }
+        }
         serde_json::Value::String(s) => s.clone(),
         other => other.to_string(),
     }
@@ -231,6 +249,8 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
         bar_gap_width: chart.bar_gap_width,
         bar_overlap: chart.bar_overlap,
         title_overlay: false,
+        title_layout: None,
+        title_text: None,
         legend_overlay: false,
     };
     if type_ == ChartSummaryType::Scatter {
@@ -263,17 +283,13 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
             nice_scale(
                 xs.iter().copied().fold(f64::INFINITY, f64::min),
                 xs.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-                NiceScaleOptions {
-                    no_zero: true,
-                    max_intervals: None,
-                },
+                NiceScaleOptions::default(),
             )
         });
     }
     if !radial {
         model.value_axis = Some(value_axis(&model));
     }
-    let _ = chart_title_text(chart, theme);
     model
 }
 

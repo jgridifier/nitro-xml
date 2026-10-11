@@ -92,8 +92,10 @@ pub fn render_chart_svg(
             },
         ));
         let mut title_attrs = attrs.clone();
-        title_attrs.fill = Some("#404040".to_string());
         title_attrs.anchor = Some("middle");
+        if title_attrs.fill.is_none() {
+            title_attrs.fill = Some("#404040".to_string());
+        }
         out.push(text(w / 2.0, 8.0 + size, &label, &title_attrs));
         if !model.title_overlay {
             area.y += title_height;

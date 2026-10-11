@@ -3,7 +3,9 @@
 
 use nitro_xml_opc::chart::ChartSpace;
 
+use super::chart_title_text::chart_title_text;
 use super::chart_view::chart_summary_view;
+use super::style_resolve::ResolvedChartStyleEntry;
 use super::summary::ChartSummaryType;
 use super::summary_from_space::chart_summary_from_space;
 use super::svg::render_chart_svg;
@@ -44,7 +46,27 @@ pub fn chart_space_kind(space: &ChartSpace) -> (Option<ChartSummaryType>, bool) 
 pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOptions) -> String {
     let summary = chart_summary_from_space(space);
     let theme = chart_theme_palette(None, None, None);
-    let view = chart_summary_view(&summary, &theme);
+    let mut view = chart_summary_view(&summary, &theme);
+    let title_appearance = view
+        .appearance
+        .as_ref()
+        .and_then(|a| a.get("title"))
+        .map(|e| ResolvedChartStyleEntry {
+            font_size: e.font_size,
+            bold: e.bold,
+            italic: e.italic,
+            underline: e.underline,
+            color: e.color.clone(),
+            line_color: e.line_color.clone(),
+            line_width: e.line_width,
+            fill_color: e.fill_color.clone(),
+            labels_visible: e.labels_visible,
+        });
+    if let Some(title) = &space.title {
+        view.title_overlay = title.overlay.unwrap_or(false);
+        // Title manual layout comes from chart formatting entries (upstream chart-view), not `c:title/layout`.
+        view.title_text = chart_title_text(&summary, title, title_appearance.as_ref());
+    }
     let mut measure = options.measure.clone();
     render_chart_svg(&view, options.width, options.height, &mut measure)
 }

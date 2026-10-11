@@ -26,13 +26,27 @@ pub fn scatter(model: &ChartViewModel, area: Rect, out: &mut Vec<String>) -> Str
     let grid = chart_stroke(model, "gridlineMajor");
     let x_axis = chart_stroke(model, "categoryAxis");
     let y_axis = chart_stroke(model, "valueAxis");
-    let value_labels = true;
-    let category_labels = true;
-    let label_w = y_labels
-        .iter()
-        .map(|l| text_width(l, value_size))
-        .fold(8.0, f64::max)
-        + 6.0;
+    let value_labels = model
+        .appearance
+        .as_ref()
+        .and_then(|a| a.get("valueAxis"))
+        .and_then(|e| e.labels_visible)
+        .unwrap_or(true);
+    let category_labels = model
+        .appearance
+        .as_ref()
+        .and_then(|a| a.get("categoryAxis"))
+        .and_then(|e| e.labels_visible)
+        .unwrap_or(true);
+    let label_w = if value_labels {
+        y_labels
+            .iter()
+            .map(|l| text_width(l, value_size))
+            .fold(8.0, f64::max)
+            + 6.0
+    } else {
+        4.0
+    };
     let plot = Rect {
         x: area.x + label_w,
         y: area.y + 4.0,
@@ -123,7 +137,7 @@ pub fn scatter(model: &ChartViewModel, area: Rect, out: &mut Vec<String>) -> Str
                 .map(|f| format!(" filter=\"{}\"", f))
                 .unwrap_or_default();
             out.push(format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"{}\"{} />",
+                "<circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"{}\"{}/>",
                 n(px(x.unwrap(), xs)),
                 n(py(v.unwrap(), ys)),
                 color,

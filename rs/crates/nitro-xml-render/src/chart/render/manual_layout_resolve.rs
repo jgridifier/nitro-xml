@@ -3,6 +3,11 @@
 
 use nitro_xml_opc::chart::ChartManualLayout;
 
+pub fn has_manual_layout_fields(layout: Option<&ChartManualLayout>) -> bool {
+    layout
+        .is_some_and(|l| l.x.is_some() || l.y.is_some() || l.width.is_some() || l.height.is_some())
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct ChartLayoutRect {
     pub x: f64,

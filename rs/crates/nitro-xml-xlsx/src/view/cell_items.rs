@@ -118,7 +118,7 @@ fn make_item(
             metrics,
             row,
             col,
-            (measured + 2.0 * PADDING as f64) as i32,
+            measured + 2.0 * PADDING as f64,
             &item.view.h_align,
             256,
         );

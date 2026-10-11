@@ -15,8 +15,8 @@ pub struct GridMetrics {
     pub zoom: f64,
     pub last_row: u32,
     pub last_col: u32,
-    cols: AxisMetrics,
-    rows: AxisMetrics,
+    pub(crate) cols: AxisMetrics,
+    pub(crate) rows: AxisMetrics,
 }
 
 #[derive(Default)]

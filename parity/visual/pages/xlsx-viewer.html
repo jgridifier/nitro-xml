@@ -13,7 +13,13 @@
       background: #fff;
       font-family: "Liberation Sans", Arial, sans-serif;
     }
-    #stage nitro-xlsx,
+    /* ShellViewerElement (#149) needs flex column so .v can flex:1 when .chrome is hidden. */
+    #stage nitro-xlsx {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+    }
     #stage xlsx-editor {
       display: block;
       width: 100%;
@@ -99,6 +105,13 @@
         root.querySelectorAll(sel).forEach((node) => {
           node.style.display = 'none';
         });
+      }
+      // With .chrome removed from flow, keep the paint surface filling the host.
+      const v = root.querySelector('.v');
+      if (v) {
+        v.style.flex = '1 1 auto';
+        v.style.minHeight = '0';
+        v.style.height = '100%';
       }
     }
 

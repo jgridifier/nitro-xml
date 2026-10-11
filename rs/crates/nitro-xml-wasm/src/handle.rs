@@ -10,9 +10,7 @@
 use crate::events::{self, EventQueue};
 use crate::transport::StringTable;
 use js_sys::{Array, Function, JsString};
-use nitro_xml::opc::fonts::{
-    resolve_webfont_plan, FontSource, FONT_SUBSTITUTION_CODE,
-};
+use nitro_xml::opc::fonts::{resolve_webfont_plan, FontSource, FONT_SUBSTITUTION_CODE};
 use nitro_xml_render::{CommandBuffer, MeasureBatch};
 use wasm_bindgen::prelude::*;
 
@@ -238,8 +236,7 @@ impl Handle {
                 }
             }
         } else {
-            let (href, subs) =
-                resolve_webfont_plan(&self.font_source, &fragments, &requested);
+            let (href, subs) = resolve_webfont_plan(&self.font_source, &fragments, &requested);
             for sub in subs {
                 self.warnings.push(Warning::new(
                     FONT_SUBSTITUTION_CODE.to_owned(),

@@ -13,6 +13,4 @@ pub use google_webfonts::{
     build_google_fonts_fragment, build_google_fonts_href, GOOGLE_FONTS_CSS2_BASE,
     GOOGLE_WEBFONT_AXIS,
 };
-pub use source::{
-    resolve_webfont_plan, FontSource, FontSubstitution, FONT_SUBSTITUTION_CODE,
-};
+pub use source::{resolve_webfont_plan, FontSource, FontSubstitution, FONT_SUBSTITUTION_CODE};

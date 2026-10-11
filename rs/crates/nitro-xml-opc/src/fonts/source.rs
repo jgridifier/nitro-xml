@@ -128,7 +128,10 @@ mod tests {
             &[frag.as_str()],
             &["Calibri", "Carlito"],
         );
-        assert!(href.is_none(), "Off must not return a stylesheet href: {href:?}");
+        assert!(
+            href.is_none(),
+            "Off must not return a stylesheet href: {href:?}"
+        );
         assert_eq!(subs.len(), 2);
         assert!(subs.iter().all(|s| s.used == "local/generic"));
         assert!(subs.iter().any(|s| s.requested == "Calibri"));
@@ -141,8 +144,7 @@ mod tests {
     fn substitution_shows_up_in_diagnostics() {
         // Catches: fetch-off path dropping the requested family from diagnostics,
         // so hosts cannot see which face was substituted.
-        let (_href, subs) =
-            resolve_webfont_plan(&FontSource::off(), &[] as &[&str], &["Calibri"]);
+        let (_href, subs) = resolve_webfont_plan(&FontSource::off(), &[] as &[&str], &["Calibri"]);
         assert_eq!(subs.len(), 1);
         assert_eq!(FONT_SUBSTITUTION_CODE, "font_substitution");
         let msg = subs[0].message();

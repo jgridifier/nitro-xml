@@ -36,6 +36,39 @@ instantiate failure) the component shows:
 
 > Unsupported browser: Nitro XML needs WebAssembly with 'wasm-unsafe-eval' in Content-Security-Policy.
 
+## Font source (#121)
+
+Hosts configure where remote webfont stylesheets come from. The loader only
+forwards the option; URL building, fetch-off policy and substitution diagnostics
+live in Rust/WASM (`Handle.planWebfontStylesheet`).
+
+```js
+// Process default (subsequent opens inherit this):
+await initCore({ fontSource: "https://fonts.googleapis.com/css2" }); // upstream default if omitted
+await initCore({ fontSource: "https://fonts.internal.example/css2" }); // mirror
+await initCore({ fontSource: false }); // or "off" — no remote webfont fetch
+
+// Per document (overrides the process default):
+const session = await openDocument(bytes, {
+  name: "deck.pptx",
+  fontSource: false,
+});
+// Or a resolver: (families: string[]) => href | null
+await openDocument(bytes, {
+  fontSource: (families) =>
+    families.length ? `https://cdn.example/css2?family=${encodeURIComponent(families.join("|"))}` : null,
+});
+```
+
+| Value | Behaviour |
+|---|---|
+| omitted / default | Same as upstream: CSS2 base `https://fonts.googleapis.com/css2` |
+| string | CSS2-compatible mirror base URL |
+| `false` or `"off"` | No remote fetch; local/embedded fonts only; each skipped face is recorded as a `font_substitution` warning on the handle |
+| `(families) => href \| null` | Host builds the stylesheet href; engine still decides when to resolve and records substitutions when the resolver returns null. Main-thread `openDocument` only (functions are not posted into the worker) |
+
+`WorkerDocument` accepts the serializable forms (`string` / `false` / `"off"`). With fetch off, `planWebfontStylesheet` returns no href (so the host must not inject a `<link>` or `fetch` webfonts) and pushes diagnostics naming the requested face.
+
 ## Formats
 
 Allow-list (shared with #13): `.docx`, `.xlsx`, `.pptx`, macro-enabled

@@ -15,6 +15,7 @@ use crate::view::cell_paint::{
     align_items, css_font, diagonal_svg, edge_css, fill_paint, has_borders, justify, text_align,
     text_decoration,
 };
+use crate::view::cell_view::is_blank_view;
 use crate::view::text_measure::CanvasTextMeasure;
 use crate::view::types::CellItem;
 
@@ -315,7 +316,13 @@ pub fn paint<I: StringIntern>(
     let div = intern.intern("div");
     let ox = sizes.w;
     let oy = sizes.h;
-    for (n, item) in items.iter().enumerate() {
+    // Upstream CellViewCache returns null for isBlankView — no DOM node.
+    // View-IR keeps blanks (oracle view() never null); only the painter skips.
+    let mut n = 0usize;
+    for item in &items {
+        if !item.merged && is_blank_view(&item.view) {
+            continue;
+        }
         paint_one_cell(
             buf,
             intern,
@@ -328,5 +335,6 @@ pub fn paint<I: StringIntern>(
             viewport.scroll_x,
             viewport.scroll_y,
         );
+        n += 1;
     }
 }

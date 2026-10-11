@@ -12,7 +12,7 @@ git -C "$REPO" worktree add -q -b "$BR" "$WT" "$BASE" || exit 1
 cd "$WT" && git config user.name jgridifier && git config user.email jgridifier@users.noreply.github.com
 git submodule update --init -q 2>/dev/null
 # The gate and prompts come from the comparison branch, identical for every arm.
-mkdir -p tools/model-compare && cp -R "$MC/gates" "$MC/prompts" tools/model-compare/ && git add tools/model-compare && git commit -qm "model-compare: gate and prompts for #$N (fixed before run)" && BASE_RUN=$(git rev-parse HEAD)
+mkdir -p tools/model-compare .claude/agents && cp -R "$MC/gates" "$MC/prompts" tools/model-compare/ && cp "$REPO/.claude/agents/"*.md .claude/agents/ && git add tools/model-compare .claude && git commit -qm "model-compare: gate and prompts for #$N (fixed before run)" && BASE_RUN=$(git rev-parse HEAD)
 PROMPT="$(sed "s/<N>/$N/g" "$MC/prompts/common.md")
 
 $(cat "$MC/prompts/issue-$N.md")"

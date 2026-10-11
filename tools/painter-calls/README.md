@@ -43,7 +43,7 @@ The script prints one line per scenario and writes `results.json`.
    - **docx Print Layout:** its first paint, triggered by clicking the status bar's Print Layout button;
    - **pptx slide change:** slides 2 to 11, one scenario each.
 
-`rows.json` maps each of the 1,462 enumerated upstream files to its painter row or exclusion. It was generated from the coverage classifier in `docs/painters.md`. Regenerate it whenever that classifier changes.
+`rows.json` maps each of the 1,493 enumerated upstream files to its painter row or exclusion. It was generated from the coverage classifier in `docs/painters.md`. Regenerate it whenever that classifier changes.
 
 ## Fixtures
 

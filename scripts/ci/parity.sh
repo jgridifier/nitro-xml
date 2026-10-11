@@ -3,8 +3,8 @@
 # Viewer / foundation parity: TS oracle vs Rust (job: parity).
 # Runs fixtures/verify --skip-on-demand, then bun parity/run --ci (xml + opc +
 # xlsx worksheet (#16) + view-IR (#18) + engine API (#19) + docx styles/body
-# (#20/#21) + pptx presentation model (#24) + chart model/S1 SVG (#28); later
-# LayoutResult flips ready when dumps land). Visual pixelmatch remains #45.
+# (#20/#21) + pptx presentation model (#24) + chart model/S1 SVG (#28)), then
+# visual pixelmatch (#45).
 #
 # Definition of done for #5: this script no longer prints NOT IMPLEMENTED.
 # Ask Jared (or the Chief of Staff's gh login) to add the `parity` job to the
@@ -59,10 +59,43 @@ if [ "$parity_rc" -ne 0 ] || [ "$test_rc" -ne 0 ]; then
   exit 1
 fi
 
-msg="parity: PASS (xml + opc + xlsx worksheet/view-IR/engine API + docx styles/body + pptx + chart model/S1 SVG ready)"
+echo "parity: visual pixelmatch (#45)"
+# Wasm package for <nitro-xlsx> visual cases (loader hosts the built pkg/).
+bash scripts/build-wasm.sh
+( cd parity/visual && bun install )
+# System deps when the runner allows; fall back to browser-only install.
+( cd parity/visual && bunx playwright install --with-deps chromium ) \
+  || ( cd parity/visual && bunx playwright install chromium )
+set +e
+( cd parity/visual && bun test && bun ./run.mjs )
+visual_rc=$?
+set -e
+
+if [ "$visual_rc" -ne 0 ]; then
+  echo "parity: FAIL (visual=$visual_rc)" >&2
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f parity/visual/out/summary.txt ]; then
+    {
+      echo "## Visual gate (#45) FAILED"
+      echo '```'
+      cat parity/visual/out/summary.txt
+      echo '```'
+      echo "Diff PNGs under \`parity/visual/out/diffs/\` (upload-artifact step needed in workflow — see PR)."
+    } >> "$GITHUB_STEP_SUMMARY"
+  fi
+  exit 1
+fi
+
+msg="parity: PASS (xml + opc + xlsx worksheet/view-IR/engine API + docx styles/body + pptx + chart model/S1 SVG + visual DPR1/2/print)"
 echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"
   echo "" >> "$GITHUB_STEP_SUMMARY"
+  if [ -f parity/visual/out/summary.txt ]; then
+    echo "## Visual gate (#45)" >> "$GITHUB_STEP_SUMMARY"
+    echo '```' >> "$GITHUB_STEP_SUMMARY"
+    cat parity/visual/out/summary.txt >> "$GITHUB_STEP_SUMMARY"
+    echo '```' >> "$GITHUB_STEP_SUMMARY"
+  fi
   echo "Please add the \`parity\` job to branch-protection required checks (Jared / Chief of Staff)." >> "$GITHUB_STEP_SUMMARY"
+  echo "Optional workflow addition (agents cannot edit \`.github/workflows/\`): upload \`parity/visual/out/diffs/\` and \`parity/visual/out/summary.txt\` via \`actions/upload-artifact\` on the parity job (always, or on failure)." >> "$GITHUB_STEP_SUMMARY"
 fi

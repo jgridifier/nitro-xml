@@ -1,0 +1,75 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>nitro-xml visual host</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #fff; }
+    #stage {
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+    }
+    #stage[data-ready="1"] { outline: 0; }
+    #stage svg { display: block; }
+    @media print {
+      html, body, #stage { background: #fff; }
+      @page { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="stage" data-ready="0"></div>
+  <script type="module">
+    import { paintViewIr } from '../painters/view-ir.js';
+
+    const params = new URLSearchParams(location.search);
+    const kind = params.get('kind');
+    const side = params.get('side'); // ts | rust
+    const id = params.get('id');
+    const width = Number(params.get('width') || 480);
+    const height = Number(params.get('height') || 320);
+    const stage = document.getElementById('stage');
+    stage.style.width = `${width}px`;
+    stage.style.height = `${height}px`;
+
+    async function loadJson(path) {
+      const r = await fetch(path);
+      if (!r.ok) throw new Error(`fetch ${path}: ${r.status}`);
+      return r.json();
+    }
+
+    async function loadText(path) {
+      const r = await fetch(path);
+      if (!r.ok) throw new Error(`fetch ${path}: ${r.status}`);
+      return r.text();
+    }
+
+    try {
+      if (kind === 'chart-svg') {
+        const svg = await loadText(`/out/payloads/${id}-${side}.svg`);
+        stage.innerHTML = svg;
+        const el = stage.querySelector('svg');
+        if (el) {
+          el.setAttribute('width', String(width));
+          el.setAttribute('height', String(height));
+        }
+      } else if (kind === 'xlsx-view-ir') {
+        const ir = await loadJson(`/out/payloads/${id}-${side}.json`);
+        const canvas = document.createElement('canvas');
+        stage.appendChild(canvas);
+        paintViewIr(canvas, ir, { width, height });
+      } else {
+        throw new Error(`unknown kind ${kind}`);
+      }
+      stage.dataset.ready = '1';
+      document.title = `ready:${id}:${side}`;
+    } catch (e) {
+      stage.dataset.ready = 'err';
+      stage.textContent = String(e);
+      document.title = `error:${e}`;
+    }
+  </script>
+</body>
+</html>

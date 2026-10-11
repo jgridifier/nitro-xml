@@ -1,0 +1,21 @@
+{
+  "name": "nitro-xml-visual",
+  "private": true,
+  "description": "Visual pixelmatch gate: TS oracle vs Rust/WASM at DPR 1/2 + print-to-PDF (#45). Test-only; never shipped.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "prepare-payloads": "bun ./prepare.mjs",
+    "visual": "bun ./run.mjs",
+    "test": "bun test test/"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^4.8.69",
+    "pixelmatch": "^5.3.0",
+    "playwright": "^1.48.0",
+    "pngjs": "^7.0.0"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  }
+}

@@ -1,0 +1,51 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>pdf raster</title>
+  <style>
+    html, body { margin: 0; background: #fff; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="c" data-ready="0"></canvas>
+  <script type="module">
+    // Lightweight PDF first-page raster via pdf.js (bundled under node_modules for offline CI).
+    const params = new URLSearchParams(location.search);
+    const src = params.get('src');
+    const canvas = document.getElementById('c');
+
+    async function main() {
+      if (!src) throw new Error('missing src');
+      const pdfjs = await import('/repo/parity/visual/node_modules/pdfjs-dist/build/pdf.mjs');
+      pdfjs.GlobalWorkerOptions.workerSrc =
+        '/repo/parity/visual/node_modules/pdfjs-dist/build/pdf.worker.mjs';
+      const data = await fetch(src).then((r) => {
+        if (!r.ok) throw new Error(`pdf fetch ${r.status}`);
+        return r.arrayBuffer();
+      });
+      const doc = await pdfjs.getDocument({ data }).promise;
+      const page = await doc.getPage(1);
+      const viewport = page.getViewport({ scale: 1 });
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(viewport.width * dpr);
+      canvas.height = Math.round(viewport.height * dpr);
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
+      const ctx = canvas.getContext('2d');
+      const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null;
+      await page.render({ canvasContext: ctx, viewport, transform }).promise;
+      canvas.dataset.ready = '1';
+      document.title = 'ready:pdf';
+    }
+
+    main().catch((e) => {
+      canvas.dataset.ready = 'err';
+      document.title = `error:${e}`;
+      document.body.textContent = String(e);
+    });
+  </script>
+</body>
+</html>

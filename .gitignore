@@ -47,3 +47,7 @@ fixtures/gen/__pycache__/
 /perf/scoreboard/vendor/
 ooxml-src/
 tools/model-compare/gates/__pycache__/
+
+# Visual gate (#45) outputs
+parity/visual/out/
+parity/visual/node_modules/

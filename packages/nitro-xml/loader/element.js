@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: MIT
-/**
- * `<nitro-xml>` custom element skeleton: wasm bootstrap, format gate, frame loop.
- * Paint split: docs/adr/0002-renderer-port.md (#36); default path uses a worker.
- */
+/** `<nitro-xml>` custom element: wasm bootstrap, format gate, worker frame loop. */
 
 import {
   ACCEPT,
@@ -19,7 +16,6 @@ const TAG = "nitro-xml";
 export function defineNitroXml() {
   if (typeof customElements === "undefined") return;
   if (customElements.get(TAG)) return;
-  // Pre-warm worker at definition time (acceptance: worker pre-warmed on component definition).
   prewarmWorker();
   customElements.define(TAG, NitroXmlElement);
 }
@@ -58,12 +54,8 @@ export class NitroXmlElement extends HTMLElement {
     return this.getAttribute("accept") || ACCEPT;
   }
 
-  /**
-   * @param {File | Blob} file
-   * @param {string} [name]
-   */
   async loadFile(file, name) {
-    const n = name || /** @type {File} */ (file).name || "";
+    const n = name || file.name || "";
     if (n && !isSupportedExtension(n)) {
       this._showMessage(UNSUPPORTED_FORMAT_MESSAGE);
       return;
@@ -72,7 +64,6 @@ export class NitroXmlElement extends HTMLElement {
     await this.loadBuffer(buf, n);
   }
 
-  /** @param {string} url */
   async loadUrl(url) {
     if (!wasmSupported()) throw unsupportedBrowserError();
     const name = url.split("?")[0].split("#")[0].split("/").pop() || "";
@@ -85,10 +76,6 @@ export class NitroXmlElement extends HTMLElement {
     await this.loadBuffer(await res.arrayBuffer(), name);
   }
 
-  /**
-   * @param {ArrayBuffer} buffer
-   * @param {string} [name]
-   */
   async loadBuffer(buffer, name = "") {
     if (!wasmSupported()) {
       this._showMessage(UNSUPPORTED_BROWSER_MESSAGE);

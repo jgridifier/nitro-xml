@@ -11,24 +11,7 @@ export const Op = Object.freeze({
   AppendChild: 7,
 });
 
-/**
- * @typedef {{
- *   canvas?: CanvasRenderingContext2D | null,
- *   root?: Element | null,
- *   resolve: (id: number) => string | undefined,
- *   images?: Map<number, CanvasImageSource>,
- *   nodes?: Map<number, Element>,
- * }} ApplyTarget
- */
-
-/**
- * Apply a seed command buffer in a single pass.
- * Returns `{ops, error?}` — on truncated/unknown opcodes, stops without throwing
- * so a bad frame cannot take down the host.
- *
- * @param {Uint8Array} bytes
- * @param {ApplyTarget} target
- */
+/** Apply one frame's command bytes; on truncated/unknown ops stops without throwing. */
 export function applyCommandBuffer(bytes, target) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const nodes = target.nodes || (target.nodes = new Map());
@@ -163,30 +146,4 @@ export function cssColor(argb) {
   const g = (argb >>> 8) & 0xff;
   const b = argb & 0xff;
   return a >= 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${a})`;
-}
-
-/** Encode helpers for tests / demos (mirrors Rust CommandBuffer writers). */
-export function encodeFillRect(x, y, w, h, color) {
-  const u8 = new Uint8Array(21);
-  const v = new DataView(u8.buffer);
-  u8[0] = Op.FillRect;
-  v.setInt32(1, x, true);
-  v.setInt32(5, y, true);
-  v.setInt32(9, w, true);
-  v.setInt32(13, h, true);
-  v.setUint32(17, color, true);
-  return u8;
-}
-
-export function encodeStrokeRect(x, y, w, h, color, line) {
-  const u8 = new Uint8Array(25);
-  const v = new DataView(u8.buffer);
-  u8[0] = Op.StrokeRect;
-  v.setInt32(1, x, true);
-  v.setInt32(5, y, true);
-  v.setInt32(9, w, true);
-  v.setInt32(13, h, true);
-  v.setUint32(17, color, true);
-  v.setFloat32(21, line, true);
-  return u8;
 }

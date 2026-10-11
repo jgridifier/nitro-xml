@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
-/**
- * Nitro XML loader — the only shipped JavaScript.
- * Instantiates wasm, forwards browser events, applies each frame's command buffer,
- * and returns batched DOM read-backs (text measurement and post-apply layout)
- * once per frame.
- */
+/** Nitro XML loader — only shipped JS: wasm init, events, command apply, batched read-backs. */
 
 export {
   ACCEPT,
@@ -29,7 +24,7 @@ export {
   unsupportedFormatError,
 } from "./bootstrap.js";
 
-export { Op, applyCommandBuffer, cssColor, encodeFillRect, encodeStrokeRect } from "./apply.js";
+export { Op, applyCommandBuffer, cssColor } from "./apply.js";
 export { EventKind, EVENT_VERSION, encodeEventBatch, createEventCoalescer } from "./events.js";
 export { flushMeasureBatch, readMeasureReqsFromMemory } from "./measure.js";
 export {
@@ -37,6 +32,7 @@ export {
   LAYOUT_RESULT_LANES,
   flushLayoutReadBatch,
   readLayoutReqsFromMemory,
+  packLayoutReqs,
 } from "./layout-readback.js";
 export { openDocument, DocumentSession } from "./session.js";
 export { WorkerDocument } from "./worker-host.js";

@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: MIT
-/**
- * Document session: handle wrap, FinalizationRegistry, per-frame tick
- * (prior-frame layout read-back → measure batch → command apply → queue layout).
- */
+/** Document session: FinalizationRegistry + per-frame tick (layout → measure → apply). */
 
 import { initCore, getWasmMemory, unsupportedFormatError } from "./bootstrap.js";
 import { isSupportedExtension } from "./formats.js";
@@ -10,7 +7,7 @@ import { applyCommandBuffer } from "./apply.js";
 import { createEventCoalescer } from "./events.js";
 import { flushMeasureBatch, readMeasureReqsFromMemory } from "./measure.js";
 import { applyFontSourceToHandle } from "./font-source.js";
-import { flushLayoutReadBatch } from "./layout-readback.js";
+import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
 
 const registry =
   typeof FinalizationRegistry !== "undefined"
@@ -23,18 +20,7 @@ const registry =
       })
     : null;
 
-/**
- * Open a document from bytes. Extension is a hint (allow-list); engine content-type
- * checks land with #13.
- *
- * @param {ArrayBuffer | Uint8Array} bytes
- * @param {{
- *   name?: string,
- *   canvas?: HTMLCanvasElement,
- *   root?: Element,
- *   fontSource?: string | false | ((families: string[]) => string | null | undefined),
- * }} [opts]
- */
+/** Open a document from bytes. Extension is an allow-list hint. */
 export async function openDocument(bytes, opts = {}) {
   if (opts.name && !isSupportedExtension(opts.name)) {
     throw unsupportedFormatError();
@@ -52,10 +38,6 @@ export async function openDocument(bytes, opts = {}) {
 }
 
 export class DocumentSession {
-  /**
-   * @param {any} handle wasm Handle
-   * @param {{ memory: WebAssembly.Memory|null, canvas: HTMLCanvasElement|null, root: Element|null, name: string }} opts
-   */
   constructor(handle, opts) {
     this._handle = handle;
     this._memory = opts.memory;
@@ -66,7 +48,6 @@ export class DocumentSession {
     this._images = new Map();
     this._disposed = false;
     this._measureCtx = null;
-    /** @type {{ nodeId: number, kind: number, propId?: number }[] | null} */
     this._pendingLayoutReqs = null;
 
     const h = handle;
@@ -96,16 +77,11 @@ export class DocumentSession {
     return this._name;
   }
 
-  /** @param {import('./events.js').LoaderEvent} ev */
   pushEvent(ev) {
     this._events.push(ev);
   }
 
-  /**
-   * One frame: answer prior-frame layout read-backs, batched measure, apply,
-   * then take this frame's layout requests for the next tick.
-   * @param {{ canvas?: HTMLCanvasElement|null, root?: Element|null }} [opts]
-   */
+  /** One frame: prior layout reads → measure → apply → queue layout for next tick. */
   tick(opts = {}) {
     if (this._disposed) return { measured: 0, ops: 0, layoutReads: 0 };
     if (opts.canvas !== undefined) this._canvas = opts.canvas;
@@ -167,17 +143,8 @@ export class DocumentSession {
       this._pendingLayoutReqs = null;
       return;
     }
-    // takeLayoutReqs clears wasm pending and records awaiting for setLayoutResults.
     const taken = h.takeLayoutReqs();
-    const nodes = taken[0];
-    const kinds = taken[1];
-    const props = taken[2];
-    const n = nodes.length;
-    const reqs = new Array(n);
-    for (let i = 0; i < n; i++) {
-      reqs[i] = { nodeId: nodes[i], kind: kinds[i], propId: props[i] };
-    }
-    this._pendingLayoutReqs = reqs;
+    this._pendingLayoutReqs = packLayoutReqs(taken[0], taken[1], taken[2]);
   }
 
   _ensureMeasureCtx() {

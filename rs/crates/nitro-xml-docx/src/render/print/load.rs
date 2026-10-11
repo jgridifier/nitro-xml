@@ -15,9 +15,9 @@ use super::page_borders::{page_borders_from_section, PageBorders};
 use super::pages::paint_print_layout;
 use crate::body::{read_package, DocumentModel, LoadedDocument};
 use crate::layout::{
-    layout_document_model, measure_font_payload, CachedMeasurer, LayoutResult,
-    LayoutReviewOptions, MeasureCache, MeasureSample, PendingKind, PendingMeasure,
-    MEASURE_ASCENT_TEXT, MEASURE_LINE_HEIGHT_TEXT,
+    layout_document_model, measure_font_payload, CachedMeasurer, LayoutResult, LayoutReviewOptions,
+    MeasureCache, MeasureSample, PendingKind, PendingMeasure, MEASURE_ASCENT_TEXT,
+    MEASURE_LINE_HEIGHT_TEXT,
 };
 use crate::review_formatting_display::ReviewDisplayMode;
 
@@ -95,8 +95,7 @@ impl PrintSession {
                     },
                 });
             }
-            self.measure_cache
-                .absorb(&self.measure_pending, &samples);
+            self.measure_cache.absorb(&self.measure_pending, &samples);
             self.measure_pending.clear();
             measures.widths.clear();
         }

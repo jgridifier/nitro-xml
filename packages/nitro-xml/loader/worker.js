@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: MIT
-/**
- * Dedicated document worker: owns wasm Handle + model. DOM/canvas apply stays on
- * the main thread (docs/adr/0002-renderer-port.md). ArrayBuffer is transferred in (zero-copy).
- */
+/** Document worker: owns wasm Handle; DOM/canvas apply stays on the main thread. */
 import {
   initCore,
   getWasmMemory,
@@ -11,9 +8,7 @@ import {
 import { isSupportedExtension } from "./formats.js";
 import { applyFontSourceToHandle } from "./font-source.js";
 
-/** @type {any} */
 let handle = null;
-/** @type {any} */
 let glue = null;
 
 self.onmessage = async (ev) => {
@@ -41,8 +36,7 @@ self.onmessage = async (ev) => {
           }
         }
         handle = new glue.Handle(bytes);
-        // Serializable fontSource only in the worker (string | false | "off").
-        // Function resolvers stay on the main-thread session path.
+        // Serializable fontSource only (string | false | "off"); resolvers use DocumentSession.
         if (msg.fontSource !== undefined && typeof msg.fontSource !== "function") {
           applyFontSourceToHandle(handle, msg.fontSource);
         } else {
@@ -70,7 +64,6 @@ self.onmessage = async (ev) => {
             texts: new Uint32Array(mem.buffer, handle.measureTextPtr, measureCount).slice(),
           };
         }
-        // Resolve font/text/CSS-prop strings for main-thread measure + layout read-back.
         let strings = null;
         if (measureReqs) {
           strings = {};

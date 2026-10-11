@@ -16,7 +16,6 @@ export const SUPPORTED_EXTENSIONS = Object.freeze([
   "potm",
 ]);
 
-/** Value for `<input type="file" accept>` / the component `accept` attribute. */
 export const ACCEPT =
   ".docx,.docm,.dotx,.dotm,.xlsx,.xlsm,.xltx,.xltm,.pptx,.pptm,.potx,.potm";
 
@@ -26,7 +25,6 @@ export const UNSUPPORTED_BROWSER_MESSAGE =
 export const UNSUPPORTED_FORMAT_MESSAGE =
   "Unsupported format. Nitro XML opens Word, Excel and PowerPoint documents (.docx, .xlsx, .pptx), including macro-enabled and template files (.docm, .xlsm, .pptm, .dotx, .xltx, .potx, .dotm, .xltm, .potm). Legacy .doc/.xls/.ppt, encrypted files, CSV and other formats are not supported.";
 
-/** @param {string} nameOrExt file name or extension */
 export function extensionOf(nameOrExt) {
   if (!nameOrExt) return "";
   const s = String(nameOrExt).trim().toLowerCase();
@@ -34,7 +32,6 @@ export function extensionOf(nameOrExt) {
   return (i >= 0 ? s.slice(i + 1) : s).replace(/^\./, "");
 }
 
-/** @param {string} nameOrExt */
 export function isSupportedExtension(nameOrExt) {
   return SUPPORTED_EXTENSIONS.includes(extensionOf(nameOrExt));
 }

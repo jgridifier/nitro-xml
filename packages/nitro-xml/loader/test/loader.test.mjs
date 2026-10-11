@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import {
-  applyCommandBuffer,
-  encodeStrokeRect,
-  encodeFillRect,
-  Op,
-} from "../apply.js";
+import { applyCommandBuffer, Op } from "../apply.js";
 import { encodeEventBatch, EventKind, EVENT_VERSION } from "../events.js";
 import { flushMeasureBatch } from "../measure.js";
 import {
@@ -19,6 +14,32 @@ import {
   ACCEPT,
   SUPPORTED_EXTENSIONS,
 } from "../formats.js";
+
+/** Test-only encoders (mirrors Rust CommandBuffer writers; not shipped). */
+function encodeFillRect(x, y, w, h, color) {
+  const u8 = new Uint8Array(21);
+  const v = new DataView(u8.buffer);
+  u8[0] = Op.FillRect;
+  v.setInt32(1, x, true);
+  v.setInt32(5, y, true);
+  v.setInt32(9, w, true);
+  v.setInt32(13, h, true);
+  v.setUint32(17, color, true);
+  return u8;
+}
+
+function encodeStrokeRect(x, y, w, h, color, line) {
+  const u8 = new Uint8Array(25);
+  const v = new DataView(u8.buffer);
+  u8[0] = Op.StrokeRect;
+  v.setInt32(1, x, true);
+  v.setInt32(5, y, true);
+  v.setInt32(9, w, true);
+  v.setInt32(13, h, true);
+  v.setUint32(17, color, true);
+  v.setFloat32(21, line, true);
+  return u8;
+}
 
 describe("formats allow-list", () => {
   it("rejects legacy and non-OOXML extensions the component must not open", () => {

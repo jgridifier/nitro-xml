@@ -1,38 +1,13 @@
 // SPDX-License-Identifier: MIT
-/**
- * Batched text-measurement read-back (Head of Product / #33 / #37).
- * One `measureText` pass per frame; widths return via a single `setMeasureResults`.
- */
+/** Batched text-measurement read-back: one setMeasureResults per frame. */
 
-/**
- * @typedef {{
- *   measureCount: number,
- *   resolve: (id: number) => string | undefined | null,
- *   setMeasureResults: (widths: Float64Array) => void,
- * }} MeasureHandle
- *
- * Requests are read via optional SoA pointers when the host can view wasm memory,
- * otherwise via a `takeMeasureReqs()` helper the session provides.
- */
-
-/**
- * Run all pending measure requests and write results back in one call.
- *
- * @param {MeasureHandle & {
- *   takeMeasureReqs?: () => { fontId: number, sizePx: number, textId: number }[],
- * }} handle
- * @param {CanvasRenderingContext2D | null} ctx
- * @returns {number} number of widths written (0 if none)
- */
+/** Run pending measure requests; returns widths written (0 if none). */
 export function flushMeasureBatch(handle, ctx) {
   const n = handle.measureCount | 0;
   if (n === 0) return 0;
   const reqs =
-    typeof handle.takeMeasureReqs === "function"
-      ? handle.takeMeasureReqs()
-      : [];
+    typeof handle.takeMeasureReqs === "function" ? handle.takeMeasureReqs() : [];
   if (reqs.length !== n) {
-    // Length must match pending count or setMeasureResults rejects.
     const widths = new Float64Array(n);
     handle.setMeasureResults(widths);
     return n;
@@ -51,18 +26,7 @@ export function flushMeasureBatch(handle, ctx) {
   return n;
 }
 
-/**
- * Build a request list from wasm SoA pointers (when memory views are available).
- * Used by the session when the Handle exposes measure*Ptr + memory.
- *
- * @param {{
- *   measureCount: number,
- *   measureFontPtr: number,
- *   measureSizePtr: number,
- *   measureTextPtr: number,
- * }} handle
- * @param {WebAssembly.Memory} memory
- */
+/** Build measure request list from wasm SoA pointers. */
 export function readMeasureReqsFromMemory(handle, memory) {
   const n = handle.measureCount | 0;
   if (n === 0) return [];

@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
-/**
- * Main-thread client for a dedicated document worker.
- * Transfers the file ArrayBuffer in; applies frame command buffers locally;
- * runs measureText once per frame and posts widths back as one batch;
- * answers prior-frame layout read-backs in one batch (never per-element).
- */
+/** Main-thread worker client: transfer file in; apply commands; batch measure + layout reads. */
 
 import { takePrewarmedWorker, prewarmWorker } from "./bootstrap.js";
 import { applyCommandBuffer } from "./apply.js";
@@ -12,18 +7,9 @@ import { createEventCoalescer } from "./events.js";
 import { isSupportedExtension } from "./formats.js";
 import { unsupportedFormatError } from "./bootstrap.js";
 import { getDefaultFontSource } from "./font-source.js";
-import { flushLayoutReadBatch } from "./layout-readback.js";
+import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
 
 export class WorkerDocument {
-  /**
-   * @param {{
-   *   canvas?: HTMLCanvasElement|null,
-   *   root?: Element|null,
-   *   name?: string,
-   *   workerUrl?: string|URL,
-   *   fontSource?: string | false,
-   * }} [opts]
-   */
   constructor(opts = {}) {
     this._canvas = opts.canvas || null;
     this._root = opts.root || null;
@@ -45,23 +31,18 @@ export class WorkerDocument {
       this._worker.postMessage({ type: "events", bytes }, [bytes.buffer]);
     });
     this._measureCanvas = null;
-    /** @type {{ nodeId: number, kind: number, propId?: number }[] | null} */
     this._pendingLayoutReqs = null;
     this._strings = null;
   }
 
-  /**
-   * @param {ArrayBuffer} buffer transferred (caller must not use after)
-   * @param {string} [name]
-   */
+  /** @param {ArrayBuffer} buffer transferred (caller must not use after) */
   async open(buffer, name) {
     const n = name || this._name;
     if (n && !isSupportedExtension(n)) throw unsupportedFormatError();
     this._name = n;
     const fontSource =
       this._fontSource !== undefined ? this._fontSource : getDefaultFontSource();
-    // Functions cannot be structured-cloned into the worker; use the
-    // main-thread DocumentSession path for resolver callbacks.
+    // Functions cannot be structured-cloned; use DocumentSession for resolvers.
     const serializable =
       typeof fontSource === "function" ? undefined : fontSource;
     return this._request("opened", () => {
@@ -72,15 +53,10 @@ export class WorkerDocument {
     });
   }
 
-  /** @param {import('./events.js').LoaderEvent} ev */
   pushEvent(ev) {
     this._events.push(ev);
   }
 
-  /**
-   * Pull one frame from the worker, answer prior layout reads, measure, apply,
-   * queue this frame's layout requests for the next tick.
-   */
   async tick() {
     this._events.flushNow();
     const layoutReads = await this._flushPendingLayout();
@@ -166,15 +142,11 @@ export class WorkerDocument {
       this._pendingLayoutReqs = null;
       return;
     }
-    const reqs = new Array(layoutCount);
-    for (let i = 0; i < layoutCount; i++) {
-      reqs[i] = {
-        nodeId: layoutReqs.nodes[i],
-        kind: layoutReqs.kinds[i],
-        propId: layoutReqs.props[i],
-      };
-    }
-    this._pendingLayoutReqs = reqs;
+    this._pendingLayoutReqs = packLayoutReqs(
+      layoutReqs.nodes,
+      layoutReqs.kinds,
+      layoutReqs.props,
+    );
   }
 
   _measureCtx() {

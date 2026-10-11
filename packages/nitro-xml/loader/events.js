@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-/** Coalesce browser events and encode ≤1 binary batch per animation frame (#14/#37). */
+/** Coalesce browser events and encode ≤1 binary batch per animation frame. */
 
 export const EVENT_VERSION = 1;
 
@@ -12,19 +12,7 @@ export const EventKind = Object.freeze({
   Resize: 6,
 });
 
-/**
- * @typedef {{
- *   kind: number,
- *   time_ms: number,
- *   text_id?: number,
- *   x?: number, y?: number, dx?: number, dy?: number,
- *   type?: number, button?: number, buttons?: number,
- *   key_id?: number, code_id?: number, mods?: number,
- *   width?: number, height?: number, dpr?: number,
- * }} LoaderEvent
- */
-
-/** Encode a batch matching `rs/.../events.rs` little-endian layout. */
+/** Encode a batch matching events.rs little-endian layout. */
 export function encodeEventBatch(events) {
   let size = 4;
   for (const ev of events) size += eventByteLength(ev);
@@ -119,12 +107,8 @@ function eventByteLength(ev) {
   }
 }
 
-/**
- * Pending-event coalescer: at most one flush per animation frame.
- * Last resize wins; pointer moves coalesce to the latest sample.
- */
+/** Pending-event coalescer: ≤1 flush per frame; last resize / pointer-move wins. */
 export function createEventCoalescer(flush) {
-  /** @type {LoaderEvent[]} */
   let pending = [];
   let raf = 0;
 
@@ -140,7 +124,6 @@ export function createEventCoalescer(flush) {
   }
 
   return {
-    /** @param {LoaderEvent} ev */
     push(ev) {
       if (ev.kind === EventKind.Resize) {
         pending = pending.filter((e) => e.kind !== EventKind.Resize);
@@ -159,7 +142,6 @@ export function createEventCoalescer(flush) {
         flush(encodeEventBatch(batch));
       }
     },
-    /** Force-encode remaining events (tests / dispose). */
     flushNow() {
       if (raf && typeof cancelAnimationFrame === "function") cancelAnimationFrame(raf);
       raf = 0;

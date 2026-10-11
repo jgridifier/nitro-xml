@@ -141,52 +141,47 @@ impl Handle {
         }
     }
 
-    /// Reset to upstream Google Fonts CSS2 base (`fonts.googleapis.com`).
-    #[wasm_bindgen(js_name = setFontSourceDefault)]
-    pub fn set_font_source_default(&mut self) {
-        self.font_source = FontSource::google_fonts();
-        self.font_source_resolver = None;
-    }
-
-    /// Point remote webfont CSS2 fetches at an internal mirror (or any
-    /// CSS2-compatible base URL). Clears any resolver callback.
-    #[wasm_bindgen(js_name = setFontSourceBaseUrl)]
-    pub fn set_font_source_base_url(&mut self, base_url: String) {
-        self.font_source = FontSource::mirror(base_url);
-        self.font_source_resolver = None;
-    }
-
-    /// Disable remote webfont fetching; painters use local/embedded fonts and
-    /// record substitutions via [`Self::plan_webfont_stylesheet`].
-    #[wasm_bindgen(js_name = setFontSourceOff)]
-    pub fn set_font_source_off(&mut self) {
-        self.font_source = FontSource::off();
-        self.font_source_resolver = None;
-    }
-
-    /// Host resolver callback `(families: string[]) => href | null`.
-    /// The engine still decides when to resolve and records diagnostics; the
-    /// callback only maps candidates to a stylesheet URL.
-    #[wasm_bindgen(js_name = setFontSourceResolver)]
-    pub fn set_font_source_resolver(&mut self, resolve: Function) {
-        // Resolver implies remote fetch is allowed; keep default base for any
-        // engine-built href passed into future painter paths.
-        if !self.font_source.allows_remote_fetch() {
-            self.font_source = FontSource::google_fonts();
+    /// Apply host `fontSource` in one call (loader API: omitted / string / false / `"off"` / function).
+    ///
+    /// - `undefined` → upstream Google Fonts CSS2 base
+    /// - `false`, `"off"`, or `""` → remote fetch off
+    /// - non-empty string → CSS2-compatible base URL (mirror)
+    /// - function `(families: string[]) => href | null` → host resolver
+    #[wasm_bindgen(js_name = setFontSource)]
+    pub fn set_font_source(&mut self, value: JsValue) -> Result<(), JsValue> {
+        if value.is_undefined() {
+            self.set_font_source_default();
+            return Ok(());
         }
-        self.font_source_resolver = Some(resolve);
-    }
-
-    /// Whether remote webfont network requests are permitted for this document.
-    #[wasm_bindgen(js_name = fontSourceAllowsRemoteFetch)]
-    pub fn font_source_allows_remote_fetch(&self) -> bool {
-        self.font_source.allows_remote_fetch() || self.font_source_resolver.is_some()
-    }
-
-    /// CSS2 base URL when using default/mirror mode (`undefined` when off).
-    #[wasm_bindgen(js_name = fontSourceBaseUrl)]
-    pub fn font_source_base_url(&self) -> Option<String> {
-        self.font_source.base_url().map(str::to_owned)
+        if value.is_null() {
+            return Err(JsValue::from_str(
+                "fontSource must be a CSS2 base URL string, false/\"off\", a resolver function, or omitted",
+            ));
+        }
+        if let Some(b) = value.as_bool() {
+            if b {
+                return Err(JsValue::from_str(
+                    "fontSource must be a CSS2 base URL string, false/\"off\", a resolver function, or omitted",
+                ));
+            }
+            self.set_font_source_off();
+            return Ok(());
+        }
+        if let Some(s) = value.as_string() {
+            if s.is_empty() || s == "off" {
+                self.set_font_source_off();
+            } else {
+                self.set_font_source_base_url(s);
+            }
+            return Ok(());
+        }
+        if value.is_function() {
+            self.set_font_source_resolver(Function::from(value));
+            return Ok(());
+        }
+        Err(JsValue::from_str(
+            "fontSource must be a CSS2 base URL string, false/\"off\", a resolver function, or omitted",
+        ))
     }
 
     /// Plan a webfont stylesheet for already-matched catalogue fragments.
@@ -340,11 +335,6 @@ impl Handle {
         })
     }
 
-    #[wasm_bindgen(js_name = measureWidthPtr)]
-    pub fn measure_width_ptr(&self) -> *const f64 {
-        self.measures.widths.as_ptr()
-    }
-
     /// Queue a post-apply layout read-back (answered on the next frame after apply).
     ///
     /// `kind` is [`LayoutReadKind`] as `u8`. `prop_id` is a string-table id used
@@ -370,12 +360,6 @@ impl Handle {
     #[wasm_bindgen(getter, js_name = layoutCount)]
     pub fn layout_count(&self) -> usize {
         self.layout_reads.len()
-    }
-
-    /// Requests taken and awaiting a `setLayoutResults` reply.
-    #[wasm_bindgen(getter, js_name = layoutAwaiting)]
-    pub fn layout_awaiting(&self) -> usize {
-        self.layout_reads.awaiting()
     }
 
     #[wasm_bindgen(js_name = layoutNodePtr)]
@@ -406,7 +390,7 @@ impl Handle {
         out
     }
 
-    /// Loader writes packed layout results (`layoutAwaiting * 4` f64s) in one call.
+    /// Loader writes packed layout results (`awaiting * 4` f64s) in one call.
     #[wasm_bindgen(js_name = setLayoutResults)]
     pub fn set_layout_results(&mut self, values: &[f64]) -> Result<(), JsValue> {
         self.layout_reads.set_results(values).map_err(|e| {
@@ -415,11 +399,6 @@ impl Handle {
                 e.to_string(),
             ))
         })
-    }
-
-    #[wasm_bindgen(js_name = layoutValuePtr)]
-    pub fn layout_value_ptr(&self) -> *const f64 {
-        self.layout_reads.values.as_ptr()
     }
 
     /// Decode and enqueue a compact event batch from the loader (≤1 batch/frame).
@@ -449,6 +428,30 @@ impl Handle {
 }
 
 impl Handle {
+    fn set_font_source_default(&mut self) {
+        self.font_source = FontSource::google_fonts();
+        self.font_source_resolver = None;
+    }
+
+    fn set_font_source_base_url(&mut self, base_url: String) {
+        self.font_source = FontSource::mirror(base_url);
+        self.font_source_resolver = None;
+    }
+
+    fn set_font_source_off(&mut self) {
+        self.font_source = FontSource::off();
+        self.font_source_resolver = None;
+    }
+
+    fn set_font_source_resolver(&mut self, resolve: Function) {
+        // Resolver implies remote fetch is allowed; keep default base for any
+        // engine-built href passed into future painter paths.
+        if !self.font_source.allows_remote_fetch() {
+            self.font_source = FontSource::google_fonts();
+        }
+        self.font_source_resolver = Some(resolve);
+    }
+
     fn record_font_substitutions(&mut self, requested: &[String]) {
         for family in requested {
             let sub = nitro_xml::opc::fonts::FontSubstitution::local(family.clone());

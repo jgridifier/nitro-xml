@@ -49,10 +49,7 @@ const STATIC_CASES = [
 		width: 800,
 		height: 480,
 		rust: true,
-		// Live `<nitro-xlsx>` (command-buffer grid) vs upstream `<xlsx-editor>` (Lit chrome +
-		// DOM grid) will not meet PRODUCT_SPEC ≤0.1% until painters converge. Record ratios;
-		// do not fail CI.
-		informational: true,
+		// Hard case: live `<nitro-xlsx>` vs upstream `<xlsx-editor>` ≤0.1% at DPR1/2/print (#150).
 	},
 	{
 		id: 'chart-poi-dataValidation-chart1',

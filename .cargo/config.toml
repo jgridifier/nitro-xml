@@ -3,3 +3,8 @@
 [alias]
 # Build the WASM boundary crate for the browser target.
 build-wasm = "build -p nitro-xml-wasm --target wasm32-unknown-unknown"
+
+# One wasm build for every target browser (PRODUCT_SPEC.md §3): MVP plus bulk memory, sign-extension,
+# reference types, multi-value and mutable globals, with 128-bit SIMD on for hot loops.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128,+bulk-memory,+sign-ext,+reference-types,+multivalue,+mutable-globals"]

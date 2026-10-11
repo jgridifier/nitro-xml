@@ -224,8 +224,10 @@ dependencies = [
 name = "nitro-xml-pptx"
 version = "0.0.0"
 dependencies = [
+ "indexmap",
  "nitro-xml-opc",
- "nitro-xml-render",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

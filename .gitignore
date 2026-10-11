@@ -46,3 +46,4 @@ fixtures/gen/__pycache__/
 # scoreboard: third-party sources fetched (sha256-checked) at build time
 /perf/scoreboard/vendor/
 ooxml-src/
+tools/model-compare/gates/__pycache__/

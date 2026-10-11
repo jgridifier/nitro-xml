@@ -10,6 +10,7 @@ use nitro_xml_opc::opc::{detect_digital_signatures, relationship_types, Package,
 use nitro_xml_opc::xml::parse_xml_str;
 
 use crate::address::parse_range;
+use crate::formula_text::strip_future_prefixes;
 use crate::model::{
     Border, CellStyle, Color, DefinedName, Fill, Font, ModernPasswordHash, PageSetup, SheetState,
     SheetStub, ThemePalette, WorkbookSlice,
@@ -18,6 +19,7 @@ use crate::password_hash::read_modern_hash;
 use crate::shared_strings::parse_shared_strings;
 use crate::styles::parse_styles;
 use crate::theme::parse_theme;
+use crate::worksheet::{load_dynamic_cells, parse_worksheet, WorksheetContext};
 use crate::xml_util::{att, bool_attr_or, num_attr, rel_attr, x_children, x_first, x_text};
 
 /// The Office 2013+ default theme ("Office") palette.
@@ -108,164 +110,6 @@ const PRINT_AREA: &str = "_xlnm.Print_Area";
 
 const CONTENT_TYPE_WORKBOOK_MACRO: &str = "application/vnd.ms-excel.sheet.macroEnabled.main+xml";
 const CONTENT_TYPE_TEMPLATE_MACRO: &str = "application/vnd.ms-excel.template.macroEnabled.main+xml";
-
-/// Removes `_xlfn.` / `_xlws.` function prefixes (and turns `ANCHORARRAY(A1)` into `A1#`).
-fn strip_future_prefixes(formula: &str) -> String {
-    if !formula.contains("_xl") {
-        return formula.to_owned();
-    }
-    let plain = rewrite_formula(formula, |token, next, out| {
-        if !next.starts_with('(') {
-            return false;
-        }
-        let stripped = strip_xl_prefix(token);
-        if stripped == token {
-            return false;
-        }
-        out.push_str(stripped);
-        true
-    });
-    from_stored_syntax(&plain)
-}
-
-fn strip_xl_prefix(token: &str) -> &str {
-    let mut s = token;
-    if s.len() >= 6 && s[..6].eq_ignore_ascii_case("_xlfn.") {
-        s = &s[6..];
-    }
-    if s.len() >= 6 && s[..6].eq_ignore_ascii_case("_xlws.") {
-        s = &s[6..];
-    }
-    s
-}
-
-fn rewrite_formula(
-    formula: &str,
-    mut visit: impl FnMut(&str, &str, &mut String) -> bool,
-) -> String {
-    let chars: Vec<char> = formula.chars().collect();
-    let mut out = String::new();
-    let mut i = 0;
-    while i < chars.len() {
-        let ch = chars[i];
-        if ch == '"' || ch == '\'' {
-            let quote = ch;
-            let mut j = i + 1;
-            while j < chars.len() {
-                if chars[j] == quote {
-                    if j + 1 < chars.len() && chars[j + 1] == quote {
-                        j += 2;
-                        continue;
-                    }
-                    j += 1;
-                    break;
-                }
-                j += 1;
-            }
-            out.extend(chars[i..j].iter());
-            i = j;
-            continue;
-        }
-        if ch == '[' {
-            let mut depth = 0i32;
-            let mut j = i;
-            while j < chars.len() {
-                if chars[j] == '[' {
-                    depth += 1;
-                } else if chars[j] == ']' {
-                    depth -= 1;
-                    if depth == 0 {
-                        j += 1;
-                        break;
-                    }
-                }
-                j += 1;
-            }
-            out.extend(chars[i..j].iter());
-            i = j;
-            continue;
-        }
-        if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$' | '\\' | '.') {
-            let mut j = i;
-            while j < chars.len() {
-                let c = chars[j];
-                if c.is_ascii_alphanumeric() || matches!(c, '_' | '$' | '\\' | '.' | '?') {
-                    j += 1;
-                } else {
-                    break;
-                }
-            }
-            let token: String = chars[i..j].iter().collect();
-            let next: String = chars[j..].iter().collect();
-            if !visit(&token, &next, &mut out) {
-                out.push_str(&token);
-            }
-            i = j;
-            continue;
-        }
-        out.push(ch);
-        i += 1;
-    }
-    out
-}
-
-/// Minimal `ANCHORARRAY(x)` → `x#` and `SINGLE(x)` → `@x`.
-fn from_stored_syntax(formula: &str) -> String {
-    let upper = formula.to_ascii_uppercase();
-    if !upper.contains("ANCHORARRAY") && !upper.contains("SINGLE") {
-        return formula.to_owned();
-    }
-    replace_call(formula, "ANCHORARRAY", |inner| format!("{inner}#"))
-        .pipe(|s| replace_call(&s, "SINGLE", |inner| format!("@{inner}")))
-}
-
-trait Pipe: Sized {
-    fn pipe<R>(self, f: impl FnOnce(Self) -> R) -> R;
-}
-impl<T> Pipe for T {
-    fn pipe<R>(self, f: impl FnOnce(Self) -> R) -> R {
-        f(self)
-    }
-}
-
-fn replace_call(formula: &str, name: &str, rewrite: impl Fn(&str) -> String) -> String {
-    let chars: Vec<char> = formula.chars().collect();
-    let name_chars: Vec<char> = name.chars().collect();
-    let mut out = String::new();
-    let mut i = 0;
-    while i < chars.len() {
-        if i + name_chars.len() < chars.len()
-            && chars[i..i + name_chars.len()]
-                .iter()
-                .zip(name_chars.iter())
-                .all(|(a, b)| a.eq_ignore_ascii_case(b))
-            && chars.get(i + name_chars.len()) == Some(&'(')
-        {
-            let start_inner = i + name_chars.len() + 1;
-            let mut depth = 1i32;
-            let mut j = start_inner;
-            while j < chars.len() && depth > 0 {
-                if chars[j] == '(' {
-                    depth += 1;
-                } else if chars[j] == ')' {
-                    depth -= 1;
-                }
-                if depth > 0 {
-                    j += 1;
-                }
-            }
-            if depth == 0 {
-                let inner: String = chars[start_inner..j].iter().collect();
-                out.push_str(&rewrite(&inner));
-                i = j + 1;
-                continue;
-            }
-        }
-        out.push(chars[i]);
-        i += 1;
-    }
-    out
-}
 
 fn parse_workbook_part(xml: &str) -> Result<WorkbookPart, String> {
     let doc = parse_xml_str(xml).map_err(|e| e.to_string())?;
@@ -474,10 +318,15 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
 
+    let dynamic_cells = load_dynamic_cells(&mut pkg, &workbook_part);
+
     let mut sheets: Vec<SheetStub> = Vec::new();
+    let mut sheet_is_worksheet: Vec<bool> = Vec::new();
     for entry in &book.sheets {
         let rel = rels_map.get(&entry.rel_id);
         let target = rel.and_then(|r| pkg.target(&workbook_part, r));
+        let is_worksheet = rel.map(|r| r.type_.as_str()) == Some(relationship_types::WORKSHEET);
+        sheet_is_worksheet.push(is_worksheet);
         let mut sheet = SheetStub {
             name: entry.name.clone(),
             sheet_id: entry.sheet_id,
@@ -580,8 +429,37 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
         iterate: book.iterate,
         workbook_password_hash: book.workbook_password_hash,
         workbook_modern_hash: book.workbook_modern_hash,
+        active_worksheet: None,
     };
     lift_print_areas(&mut workbook);
+
+    let active_idx = workbook.active_sheet as usize;
+    if sheet_is_worksheet.get(active_idx) == Some(&true) {
+        let stub = &workbook.sheets[active_idx];
+        if let Some(part) = &stub.part_name {
+            let mut ws_ctx = WorksheetContext {
+                shared_strings: workbook.shared_strings.clone(),
+                xf_map: workbook.xf_map.clone(),
+                date1904: workbook.date1904,
+                palette: workbook.palette.clone(),
+                dynamic_cells,
+                warnings: Vec::new(),
+            };
+            let ws = parse_worksheet(
+                &mut ws_ctx,
+                &mut pkg,
+                part,
+                &stub.name,
+                stub.sheet_id,
+                stub.state,
+            );
+            for w in ws_ctx.warnings {
+                push_warn(&mut workbook.warnings, w);
+            }
+            workbook.active_worksheet = Some(ws);
+        }
+    }
+
     Ok(workbook)
 }
 

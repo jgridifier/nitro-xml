@@ -20,6 +20,7 @@ mod types;
 
 pub use builtins::{builtin_format_id, FormatPreset, BUILTIN_NUMBER_FORMATS, FORMAT_PRESETS};
 pub use date::{date_to_serial, serial_to_date, UtcDateTime, MAX_DATE_SERIAL};
+pub use decimal::js_int_string;
 pub use decimals::step_decimals;
 pub use format::{format_value, is_date_format, OVERFLOW_TEXT};
 pub use general::format_general;

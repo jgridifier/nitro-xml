@@ -16,6 +16,62 @@ pub fn js_num(n: f64) -> Value {
     }
 }
 
+fn format_number_token(num: &Number) -> String {
+    if let Some(i) = num.as_i64() {
+        return i.to_string();
+    }
+    if let Some(u) = num.as_u64() {
+        return u.to_string();
+    }
+    if let Some(f) = num.as_f64() {
+        if f.is_finite() && f.fract() == 0.0 {
+            return format!("{:.0}", f);
+        }
+        return serde_json::to_string(&Value::Number(num.clone()))
+            .unwrap_or_else(|_| f.to_string());
+    }
+    num.to_string()
+}
+
+/// `JSON.stringify` for gate dumps (integral doubles beyond `i64` stay decimal, not scientific).
+pub fn stringify_json(value: &Value) -> String {
+    match value {
+        Value::Null => "null".into(),
+        Value::Bool(b) => {
+            if *b {
+                "true".into()
+            } else {
+                "false".into()
+            }
+        }
+        Value::Number(n) => format_number_token(n),
+        Value::String(s) => {
+            if let Some(raw) = s.strip_prefix("__NUM__:") {
+                raw.to_string()
+            } else {
+                serde_json::to_string(s).unwrap_or_else(|_| "\"\"".into())
+            }
+        }
+        Value::Array(a) => {
+            let parts = a.iter().map(stringify_json).collect::<Vec<_>>();
+            format!("[{}]", parts.join(","))
+        }
+        Value::Object(o) => {
+            let parts = o
+                .iter()
+                .map(|(k, v)| {
+                    format!(
+                        "{}:{}",
+                        serde_json::to_string(k).unwrap_or_else(|_| "\"\"".into()),
+                        stringify_json(v)
+                    )
+                })
+                .collect::<Vec<_>>();
+            format!("{{{}}}", parts.join(","))
+        }
+    }
+}
+
 /// `AARRGGBB` or `RRGGBB`, upper case; theme slot; tint; indexed; or auto.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Color {
@@ -447,7 +503,7 @@ impl SheetState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CellAddress {
     pub row: u32,
     pub col: u32,
@@ -548,6 +604,317 @@ impl SharedString {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SheetFormat {
+    pub zero_height: Option<bool>,
+    pub base_col_width: Option<f64>,
+    pub custom_height: Option<bool>,
+    pub thick_top: Option<bool>,
+    pub thick_bottom: Option<bool>,
+}
+
+impl SheetFormat {
+    pub fn to_json(&self) -> Value {
+        let mut m = Map::new();
+        if let Some(v) = self.zero_height {
+            m.insert("zeroHeight".into(), Value::Bool(v));
+        }
+        if let Some(v) = self.base_col_width {
+            m.insert("baseColWidth".into(), js_num(v));
+        }
+        if let Some(v) = self.custom_height {
+            m.insert("customHeight".into(), Value::Bool(v));
+        }
+        if let Some(v) = self.thick_top {
+            m.insert("thickTop".into(), Value::Bool(v));
+        }
+        if let Some(v) = self.thick_bottom {
+            m.insert("thickBottom".into(), Value::Bool(v));
+        }
+        Value::Object(m)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FreezePane {
+    pub rows: u32,
+    pub cols: u32,
+}
+
+impl FreezePane {
+    pub fn to_json(&self) -> Value {
+        json!({ "rows": self.rows, "cols": self.cols })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SheetSelection {
+    pub active: CellAddress,
+    pub ranges: Vec<CellRange>,
+}
+
+impl SheetSelection {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "active": { "row": self.active.row, "col": self.active.col },
+            "ranges": self.ranges.iter().map(CellRange::to_json).collect::<Vec<_>>(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SheetView {
+    pub show_grid_lines: bool,
+    pub show_headers: bool,
+    pub show_zeros: bool,
+    pub right_to_left: bool,
+    pub zoom: f64,
+    pub freeze: Option<FreezePane>,
+    pub top_left: Option<CellAddress>,
+    pub selection: Option<SheetSelection>,
+    pub show_formulas: Option<bool>,
+}
+
+impl SheetView {
+    pub fn to_json(&self) -> Value {
+        let mut m = Map::new();
+        m.insert("showGridLines".into(), Value::Bool(self.show_grid_lines));
+        m.insert("showHeaders".into(), Value::Bool(self.show_headers));
+        m.insert("showZeros".into(), Value::Bool(self.show_zeros));
+        m.insert("rightToLeft".into(), Value::Bool(self.right_to_left));
+        m.insert("zoom".into(), js_num(self.zoom));
+        if let Some(f) = &self.freeze {
+            m.insert("freeze".into(), f.to_json());
+        }
+        if let Some(t) = &self.top_left {
+            m.insert("topLeft".into(), json!({ "row": t.row, "col": t.col }));
+        }
+        if let Some(s) = &self.selection {
+            m.insert("selection".into(), s.to_json());
+        }
+        if self.show_formulas == Some(true) {
+            m.insert("showFormulas".into(), Value::Bool(true));
+        }
+        Value::Object(m)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ColumnInfo {
+    pub min: u32,
+    pub max: u32,
+    pub width: Option<f64>,
+    pub custom_width: Option<bool>,
+    pub hidden: Option<bool>,
+    pub style_id: Option<u32>,
+    pub outline_level: Option<f64>,
+    pub collapsed: Option<bool>,
+    pub best_fit: Option<bool>,
+}
+
+impl ColumnInfo {
+    pub fn to_json(&self) -> Value {
+        let mut m = Map::new();
+        m.insert("min".into(), json!(self.min));
+        m.insert("max".into(), json!(self.max));
+        if let Some(v) = self.width {
+            m.insert("width".into(), js_num(v));
+        }
+        if self.custom_width == Some(true) {
+            m.insert("customWidth".into(), Value::Bool(true));
+        }
+        if self.hidden == Some(true) {
+            m.insert("hidden".into(), Value::Bool(true));
+        }
+        if let Some(s) = self.style_id {
+            m.insert("styleId".into(), json!(s));
+        }
+        if let Some(o) = self.outline_level {
+            m.insert("outlineLevel".into(), js_num(o));
+        }
+        if self.collapsed == Some(true) {
+            m.insert("collapsed".into(), Value::Bool(true));
+        }
+        if self.best_fit == Some(true) {
+            m.insert("bestFit".into(), Value::Bool(true));
+        }
+        Value::Object(m)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RowInfo {
+    pub height: Option<f64>,
+    pub custom_height: Option<bool>,
+    pub hidden: Option<bool>,
+    pub style_id: Option<u32>,
+    pub outline_level: Option<f64>,
+    pub collapsed: Option<bool>,
+}
+
+impl RowInfo {
+    pub fn to_json(&self) -> Value {
+        let mut m = Map::new();
+        if let Some(v) = self.height {
+            m.insert("height".into(), js_num(v));
+        }
+        if self.custom_height == Some(true) {
+            m.insert("customHeight".into(), Value::Bool(true));
+        }
+        if self.hidden == Some(true) {
+            m.insert("hidden".into(), Value::Bool(true));
+        }
+        if let Some(s) = self.style_id {
+            m.insert("styleId".into(), json!(s));
+        }
+        if let Some(o) = self.outline_level {
+            m.insert("outlineLevel".into(), js_num(o));
+        }
+        if self.collapsed == Some(true) {
+            m.insert("collapsed".into(), Value::Bool(true));
+        }
+        Value::Object(m)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DumpCellValue {
+    Null,
+    Number(f64),
+    /// Numeric `<v>` text preserved for `JSON.stringify` parity on large integers.
+    NumberRaw(String),
+    String(String),
+    Bool(bool),
+    Error(String),
+}
+
+impl DumpCellValue {
+    pub fn to_json(&self) -> Value {
+        match self {
+            Self::Null => Value::Null,
+            Self::Number(n) => js_num(*n),
+            Self::NumberRaw(s) => Value::String(format!("__NUM__:{}", s)),
+            Self::String(s) => Value::String(s.clone()),
+            Self::Bool(b) => Value::Bool(*b),
+            Self::Error(e) => json!({ "error": e }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DumpCell {
+    pub row: u32,
+    pub col: u32,
+    pub value: DumpCellValue,
+    pub type_tag: Option<String>,
+    pub formula: Option<String>,
+    pub style_id: Option<u32>,
+    pub rich_text: Option<Vec<RichTextRun>>,
+    pub array_range: Option<CellRange>,
+    pub legacy_formula: Option<bool>,
+    pub dynamic_array: Option<bool>,
+    pub spill_anchor: Option<CellAddress>,
+    pub cell_metadata: Option<u32>,
+    pub value_metadata: Option<u32>,
+}
+
+impl DumpCell {
+    pub fn to_json(&self) -> Value {
+        let mut m = Map::new();
+        m.insert("r".into(), json!(self.row));
+        m.insert("c".into(), json!(self.col));
+        m.insert("v".into(), self.value.to_json());
+        if let Some(t) = &self.type_tag {
+            m.insert("t".into(), Value::String(t.clone()));
+        }
+        if let Some(f) = &self.formula {
+            m.insert("f".into(), Value::String(f.clone()));
+        }
+        if let Some(s) = self.style_id {
+            m.insert("s".into(), json!(s));
+        }
+        if let Some(rt) = &self.rich_text {
+            m.insert(
+                "richText".into(),
+                Value::Array(rt.iter().map(RichTextRun::to_json).collect()),
+            );
+        }
+        if let Some(r) = &self.array_range {
+            m.insert("arrayRange".into(), r.to_json());
+        }
+        if self.legacy_formula == Some(true) {
+            m.insert("legacyFormula".into(), Value::Bool(true));
+        }
+        if self.dynamic_array == Some(true) {
+            m.insert("dynamicArray".into(), Value::Bool(true));
+        }
+        if let Some(a) = &self.spill_anchor {
+            m.insert("spillAnchor".into(), json!({ "row": a.row, "col": a.col }));
+        }
+        if let Some(cm) = self.cell_metadata {
+            m.insert("cellMetadata".into(), json!(cm));
+        }
+        if let Some(vm) = self.value_metadata {
+            m.insert("valueMetadata".into(), json!(vm));
+        }
+        Value::Object(m)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ActiveWorksheet {
+    pub name: String,
+    pub sheet_id: u32,
+    pub state: SheetState,
+    pub part_name: Option<String>,
+    pub default_row_height: f64,
+    pub default_col_width: Option<f64>,
+    pub format: Option<SheetFormat>,
+    pub view: SheetView,
+    pub columns: Vec<ColumnInfo>,
+    pub merges: Vec<CellRange>,
+    pub row_info: std::collections::BTreeMap<u32, RowInfo>,
+    pub cells: Vec<DumpCell>,
+}
+
+impl ActiveWorksheet {
+    pub fn to_json(&self) -> Value {
+        let mut m = Map::new();
+        m.insert("name".into(), Value::String(self.name.clone()));
+        m.insert("sheetId".into(), json!(self.sheet_id));
+        m.insert("state".into(), Value::String(self.state.as_str().into()));
+        if let Some(p) = &self.part_name {
+            m.insert("partName".into(), Value::String(p.clone()));
+        }
+        m.insert("defaultRowHeight".into(), js_num(self.default_row_height));
+        if let Some(w) = self.default_col_width {
+            m.insert("defaultColWidth".into(), js_num(w));
+        }
+        if let Some(f) = &self.format {
+            m.insert("format".into(), f.to_json());
+        }
+        m.insert("view".into(), self.view.to_json());
+        m.insert(
+            "columns".into(),
+            Value::Array(self.columns.iter().map(ColumnInfo::to_json).collect()),
+        );
+        m.insert(
+            "merges".into(),
+            Value::Array(self.merges.iter().map(CellRange::to_json).collect()),
+        );
+        let mut row_info = Map::new();
+        for (k, v) in &self.row_info {
+            row_info.insert(k.to_string(), v.to_json());
+        }
+        m.insert("rowInfo".into(), Value::Object(row_info));
+        m.insert(
+            "cells".into(),
+            Value::Array(self.cells.iter().map(DumpCell::to_json).collect()),
+        );
+        Value::Object(m)
+    }
+}
+
 /// Stage-3 workbook slice (pre-worksheet parse).
 #[derive(Debug, Clone, PartialEq)]
 pub struct WorkbookSlice {
@@ -570,6 +937,7 @@ pub struct WorkbookSlice {
     pub iterate: Option<(f64, f64)>,
     pub workbook_password_hash: Option<String>,
     pub workbook_modern_hash: Option<ModernPasswordHash>,
+    pub active_worksheet: Option<ActiveWorksheet>,
 }
 
 impl WorkbookSlice {
@@ -652,6 +1020,9 @@ impl WorkbookSlice {
         }
         if let Some(h) = &self.workbook_modern_hash {
             m.insert("workbookModernHash".into(), h.to_json());
+        }
+        if let Some(ws) = &self.active_worksheet {
+            m.insert("activeWorksheet".into(), ws.to_json());
         }
         Value::Object(m)
     }

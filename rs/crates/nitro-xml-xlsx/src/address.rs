@@ -10,6 +10,18 @@ pub const MAX_ROW: u32 = 1_048_575;
 /// Largest zero-based column index (16,384 columns, `XFD`).
 pub const MAX_COL: u32 = 16_383;
 
+/// `0` -> `A`, `25` -> `Z`, `26` -> `AA`.
+pub fn column_label(col: u32) -> String {
+    let mut label = String::new();
+    let mut n = col + 1;
+    while n > 0 {
+        let rem = (n - 1) % 26;
+        label.insert(0, (65 + rem) as u8 as char);
+        n = (n - 1) / 26;
+    }
+    label
+}
+
 /// `A` -> `0`, `AA` -> `26`; case-insensitive. Returns `None` for non-letters.
 pub fn column_index(label: &str) -> Option<u32> {
     if label.is_empty() || label.len() > 3 || !label.chars().all(|c| c.is_ascii_alphabetic()) {
@@ -80,7 +92,7 @@ pub fn parse_range(ref_: &str) -> Option<CellRange> {
     if parts.len() == 1 {
         let cell = parse_address(parts[0])?;
         return Some(CellRange {
-            start: cell.clone(),
+            start: cell,
             end: cell,
         });
     }

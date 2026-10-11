@@ -239,7 +239,7 @@ pub(crate) fn js_round(n: f64) -> f64 {
 }
 
 /// JavaScript `String(n)` for an integer-valued number (fraction numerators, elapsed counts).
-pub(crate) fn js_int_string(n: f64) -> String {
+pub fn js_int_string(n: f64) -> String {
     if !n.is_finite() {
         if n.is_nan() {
             return "NaN".into();

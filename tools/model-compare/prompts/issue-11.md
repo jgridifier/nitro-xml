@@ -1,0 +1,7 @@
+Task: implement issue #11, the bounded zip reader, in `rs/crates/nitro-xml-opc/src/zip/` (replace the placeholder `zip.rs` with a `zip/` module).
+
+Behaviour reference: upstream `src/core/xlsx/read/package.ts` (`readZipParts`, `SourceIndex`, the limits `MAX_INPUT_BYTES`, `MAX_PARTS`, `MAX_PART_BYTES`, `MAX_UNCOMPRESSED_BYTES`) and `src/core/opc/package.ts`. Directory entries are skipped; a leading `/` is stripped from names; lookup by name is case-insensitive like `SourceIndex.lowerNames`; limits are checked on declared sizes first and again while inflating (an entry that lies about its size must still be stopped).
+
+Requirements from the issue: the `zip` crate with `default-features = false` and deflate only (no bzip2/zstd/lzma or other C deps), builds for wasm32-unknown-unknown, lazy per-part decompression (open the archive without inflating every part; inflate a part when asked), typed errors, never panic on malformed input.
+
+Gate interface you must provide: an example `rs/crates/nitro-xml-opc/examples/zip_dump.rs` run as `cargo run --release -q -p nitro-xml-opc --example zip_dump -- <file>`. On success it prints one JSON object `{"parts":[{"name":"...","size":N,"sha256":"<lowercase hex>"}, ...]}` with parts sorted by name (byte order) — every part inflated through your reader. On any error it prints `{"error":"<short kind>"}` and exits with status 2. It must never panic (a panic, exit 101, fails the gate). Add `sha2` and `serde_json` only as dev-dependencies if you need them.

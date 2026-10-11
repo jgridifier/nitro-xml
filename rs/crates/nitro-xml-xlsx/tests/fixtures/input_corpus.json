@@ -1,0 +1,728 @@
+[
+  {
+    "text": "1,234",
+    "date1904": false,
+    "k": "n",
+    "b": "4093480000000000",
+    "numFmt": "#,##0",
+    "formula": null
+  },
+  {
+    "text": "1,234.5",
+    "date1904": false,
+    "k": "n",
+    "b": "40934a0000000000",
+    "numFmt": "#,##0.00",
+    "formula": null
+  },
+  {
+    "text": "1,234,567.891",
+    "date1904": false,
+    "k": "n",
+    "b": "4132d687e4189375",
+    "numFmt": "#,##0.00",
+    "formula": null
+  },
+  {
+    "text": "$1,234.5",
+    "date1904": false,
+    "k": "n",
+    "b": "40934a0000000000",
+    "numFmt": "$#,##0.00_);[Red]($#,##0.00)",
+    "formula": null
+  },
+  {
+    "text": "$1234",
+    "date1904": false,
+    "k": "n",
+    "b": "4093480000000000",
+    "numFmt": "$#,##0_);[Red]($#,##0)",
+    "formula": null
+  },
+  {
+    "text": "-$5",
+    "date1904": false,
+    "k": "n",
+    "b": "c014000000000000",
+    "numFmt": "$#,##0_);[Red]($#,##0)",
+    "formula": null
+  },
+  {
+    "text": "$-5",
+    "date1904": false,
+    "k": "n",
+    "b": "c014000000000000",
+    "numFmt": "$#,##0_);[Red]($#,##0)",
+    "formula": null
+  },
+  {
+    "text": "$ 12",
+    "date1904": false,
+    "k": "n",
+    "b": "4028000000000000",
+    "numFmt": "$#,##0_);[Red]($#,##0)",
+    "formula": null
+  },
+  {
+    "text": "£5.25",
+    "date1904": false,
+    "k": "n",
+    "b": "4015000000000000",
+    "numFmt": "£#,##0.00",
+    "formula": null
+  },
+  {
+    "text": "€5",
+    "date1904": false,
+    "k": "n",
+    "b": "4014000000000000",
+    "numFmt": "€#,##0",
+    "formula": null
+  },
+  {
+    "text": "10%",
+    "date1904": false,
+    "k": "n",
+    "b": "3fb999999999999a",
+    "numFmt": "0%",
+    "formula": null
+  },
+  {
+    "text": "12.5%",
+    "date1904": false,
+    "k": "n",
+    "b": "3fc0000000000000",
+    "numFmt": "0.00%",
+    "formula": null
+  },
+  {
+    "text": "1,234%",
+    "date1904": false,
+    "k": "n",
+    "b": "4028ae147ae147ae",
+    "numFmt": "0%",
+    "formula": null
+  },
+  {
+    "text": "12 %",
+    "date1904": false,
+    "k": "n",
+    "b": "3fbeb851eb851eb8",
+    "numFmt": "0%",
+    "formula": null
+  },
+  {
+    "text": "1.5E+3",
+    "date1904": false,
+    "k": "n",
+    "b": "4097700000000000",
+    "numFmt": "0.00E+00",
+    "formula": null
+  },
+  {
+    "text": "1e5",
+    "date1904": false,
+    "k": "n",
+    "b": "40f86a0000000000",
+    "numFmt": "0.00E+00",
+    "formula": null
+  },
+  {
+    "text": "-1.5e-3",
+    "date1904": false,
+    "k": "n",
+    "b": "bf589374bc6a7efa",
+    "numFmt": "0.00E+00",
+    "formula": null
+  },
+  {
+    "text": "(123)",
+    "date1904": false,
+    "k": "n",
+    "b": "c05ec00000000000",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "(1,234.50)",
+    "date1904": false,
+    "k": "n",
+    "b": "c0934a0000000000",
+    "numFmt": "#,##0.00",
+    "formula": null
+  },
+  {
+    "text": "  12  ",
+    "date1904": false,
+    "k": "n",
+    "b": "4028000000000000",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "+5",
+    "date1904": false,
+    "k": "n",
+    "b": "4014000000000000",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": ".5",
+    "date1904": false,
+    "k": "n",
+    "b": "3fe0000000000000",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "00123",
+    "date1904": false,
+    "k": "n",
+    "b": "405ec00000000000",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "-0",
+    "date1904": false,
+    "k": "n",
+    "b": "0000000000000000",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "0 1/2",
+    "date1904": false,
+    "k": "n",
+    "b": "3fe0000000000000",
+    "numFmt": "# ?/?",
+    "formula": null
+  },
+  {
+    "text": "1 3/4",
+    "date1904": false,
+    "k": "n",
+    "b": "3ffc000000000000",
+    "numFmt": "# ?/?",
+    "formula": null
+  },
+  {
+    "text": "2023-03-15",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f90000000000",
+    "numFmt": "yyyy-mm-dd",
+    "formula": null
+  },
+  {
+    "text": "2023/3/15",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f90000000000",
+    "numFmt": "yyyy-mm-dd",
+    "formula": null
+  },
+  {
+    "text": "3/15/2023",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f90000000000",
+    "numFmt": "m/d/yyyy",
+    "formula": null
+  },
+  {
+    "text": "3/15/23",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f90000000000",
+    "numFmt": "m/d/yyyy",
+    "formula": null
+  },
+  {
+    "text": "3-15-2023",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f90000000000",
+    "numFmt": "m/d/yyyy",
+    "formula": null
+  },
+  {
+    "text": "15-Mar-2023",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f90000000000",
+    "numFmt": "d-mmm-yy",
+    "formula": null
+  },
+  {
+    "text": "15 March 2023",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f90000000000",
+    "numFmt": "d-mmm-yy",
+    "formula": null
+  },
+  {
+    "text": "March 15, 2023",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f90000000000",
+    "numFmt": "d-mmm-yy",
+    "formula": null
+  },
+  {
+    "text": "Jan 2023",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5efe000000000",
+    "numFmt": "mmm-yy",
+    "formula": null
+  },
+  {
+    "text": "Mar-2023",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f74000000000",
+    "numFmt": "mmm-yy",
+    "formula": null
+  },
+  {
+    "text": "9999-12-31",
+    "date1904": false,
+    "k": "n",
+    "b": "4146924080000000",
+    "numFmt": "yyyy-mm-dd",
+    "formula": null
+  },
+  {
+    "text": "1900-02-29",
+    "date1904": false,
+    "k": "n",
+    "b": "404e000000000000",
+    "numFmt": "yyyy-mm-dd",
+    "formula": null
+  },
+  {
+    "text": "13:45",
+    "date1904": false,
+    "k": "n",
+    "b": "3fe2555555555555",
+    "numFmt": "h:mm",
+    "formula": null
+  },
+  {
+    "text": "1:5",
+    "date1904": false,
+    "k": "n",
+    "b": "3fa71c71c71c71c7",
+    "numFmt": "h:mm",
+    "formula": null
+  },
+  {
+    "text": "1:45 PM",
+    "date1904": false,
+    "k": "n",
+    "b": "3fe2555555555555",
+    "numFmt": "h:mm AM/PM",
+    "formula": null
+  },
+  {
+    "text": "12:30 am",
+    "date1904": false,
+    "k": "n",
+    "b": "3f95555555555555",
+    "numFmt": "h:mm AM/PM",
+    "formula": null
+  },
+  {
+    "text": "13:45:30",
+    "date1904": false,
+    "k": "n",
+    "b": "3fe2582d82d82d83",
+    "numFmt": "h:mm:ss",
+    "formula": null
+  },
+  {
+    "text": "8:30:15 PM",
+    "date1904": false,
+    "k": "n",
+    "b": "3feb56c16c16c16c",
+    "numFmt": "h:mm:ss AM/PM",
+    "formula": null
+  },
+  {
+    "text": "25:00",
+    "date1904": false,
+    "k": "n",
+    "b": "3ff0aaaaaaaaaaab",
+    "numFmt": "[h]:mm:ss",
+    "formula": null
+  },
+  {
+    "text": "45:30.5",
+    "date1904": false,
+    "k": "n",
+    "b": "3fa02e450672894b",
+    "numFmt": "mm:ss.0",
+    "formula": null
+  },
+  {
+    "text": "10:30:00.5",
+    "date1904": false,
+    "k": "n",
+    "b": "3fdc001845c8a0ce",
+    "numFmt": "mm:ss.0",
+    "formula": null
+  },
+  {
+    "text": "1:02:03.456",
+    "date1904": false,
+    "k": "n",
+    "b": "3fa6109ee36d9990",
+    "numFmt": "mm:ss.0",
+    "formula": null
+  },
+  {
+    "text": "0:30 am",
+    "date1904": false,
+    "k": "n",
+    "b": "3f95555555555555",
+    "numFmt": "h:mm AM/PM",
+    "formula": null
+  },
+  {
+    "text": "0:30 pm",
+    "date1904": false,
+    "k": "n",
+    "b": "3fe0aaaaaaaaaaab",
+    "numFmt": "h:mm AM/PM",
+    "formula": null
+  },
+  {
+    "text": "0:30:15 am",
+    "date1904": false,
+    "k": "n",
+    "b": "3f9582d82d82d82e",
+    "numFmt": "h:mm:ss AM/PM",
+    "formula": null
+  },
+  {
+    "text": "Jan-32",
+    "date1904": false,
+    "k": "n",
+    "b": "40c6d48000000000",
+    "numFmt": "mmm-yy",
+    "formula": null
+  },
+  {
+    "text": "Jan 32",
+    "date1904": false,
+    "k": "n",
+    "b": "40c6d48000000000",
+    "numFmt": "mmm-yy",
+    "formula": null
+  },
+  {
+    "text": "Jan-99",
+    "date1904": false,
+    "k": "n",
+    "b": "40e1a82000000000",
+    "numFmt": "mmm-yy",
+    "formula": null
+  },
+  {
+    "text": "( 5 )",
+    "date1904": false,
+    "k": "n",
+    "b": "c014000000000000",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "($5)",
+    "date1904": false,
+    "k": "n",
+    "b": "c014000000000000",
+    "numFmt": "$#,##0_);[Red]($#,##0)",
+    "formula": null
+  },
+  {
+    "text": " 5 ",
+    "date1904": false,
+    "k": "n",
+    "b": "4014000000000000",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "3/15/2023 13:45",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f91255555555",
+    "numFmt": "m/d/yyyy h:mm",
+    "formula": null
+  },
+  {
+    "text": "2023-03-15 08:30",
+    "date1904": false,
+    "k": "n",
+    "b": "40e5f90b55555555",
+    "numFmt": "yyyy-mm-dd h:mm",
+    "formula": null
+  },
+  {
+    "text": "1904-01-02",
+    "date1904": true,
+    "k": "n",
+    "b": "3ff0000000000000",
+    "numFmt": "yyyy-mm-dd",
+    "formula": null
+  },
+  {
+    "text": "1903-12-31",
+    "date1904": true,
+    "k": "t",
+    "s": "1903-12-31",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "12,34",
+    "date1904": false,
+    "k": "t",
+    "s": "12,34",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "1.2.3",
+    "date1904": false,
+    "k": "t",
+    "s": "1.2.3",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "5-",
+    "date1904": false,
+    "k": "t",
+    "s": "5-",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "5e",
+    "date1904": false,
+    "k": "t",
+    "s": "5e",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "1899-12-31",
+    "date1904": false,
+    "k": "t",
+    "s": "1899-12-31",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "2023-02-30",
+    "date1904": false,
+    "k": "t",
+    "s": "2023-02-30",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "hello",
+    "date1904": false,
+    "k": "t",
+    "s": "hello",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "13:75",
+    "date1904": false,
+    "k": "t",
+    "s": "13:75",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "$1e3",
+    "date1904": false,
+    "k": "t",
+    "s": "$1e3",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "(-5)",
+    "date1904": false,
+    "k": "t",
+    "s": "(-5)",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "(+5)",
+    "date1904": false,
+    "k": "t",
+    "s": "(+5)",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "(-$5)",
+    "date1904": false,
+    "k": "t",
+    "s": "(-$5)",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "-(5)",
+    "date1904": false,
+    "k": "t",
+    "s": "-(5)",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "TRUE ",
+    "date1904": false,
+    "k": "t",
+    "s": "TRUE ",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": " true",
+    "date1904": false,
+    "k": "t",
+    "s": " true",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "FALSE  ",
+    "date1904": false,
+    "k": "t",
+    "s": "FALSE  ",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": " #DIV/0!",
+    "date1904": false,
+    "k": "t",
+    "s": " #DIV/0!",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "#N/A ",
+    "date1904": false,
+    "k": "t",
+    "s": "#N/A ",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "13:30 pm",
+    "date1904": false,
+    "k": "t",
+    "s": "13:30 pm",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "Jan. 5",
+    "date1904": false,
+    "k": "t",
+    "s": "Jan. 5",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "=SUM(A1:A3)",
+    "date1904": false,
+    "k": "z",
+    "numFmt": null,
+    "formula": "SUM(A1:A3)"
+  },
+  {
+    "text": "'00123",
+    "date1904": false,
+    "k": "t",
+    "s": "00123",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "'=1+1",
+    "date1904": false,
+    "k": "t",
+    "s": "=1+1",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "TRUE",
+    "date1904": false,
+    "k": "b",
+    "v": true,
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "false",
+    "date1904": false,
+    "k": "b",
+    "v": false,
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "#N/A",
+    "date1904": false,
+    "k": "e",
+    "s": "#N/A",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "#div/0!",
+    "date1904": false,
+    "k": "e",
+    "s": "#DIV/0!",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "",
+    "date1904": false,
+    "k": "z",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "   ",
+    "date1904": false,
+    "k": "t",
+    "s": "   ",
+    "numFmt": null,
+    "formula": null
+  },
+  {
+    "text": "=",
+    "date1904": false,
+    "k": "t",
+    "s": "=",
+    "numFmt": null,
+    "formula": null
+  }
+]

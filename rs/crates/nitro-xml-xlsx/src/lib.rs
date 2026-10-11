@@ -2,11 +2,12 @@
 //! Excel (.xlsx / .xlsm / .xltx / .xltm) workbook model, built on [`nitro_xml_opc`].
 //!
 //! Stage 3 (#15): workbook part, shared strings, styles and theme. Worksheet cell parse is a
-//! later issue. Number formats live in [`numfmt`] (#17). Grid painters (#18) encode through
-//! [`nitro_xml_render`].
+//! later issue. Number formats and typed input live in [`numfmt`] (#17, #130); formatted cell
+//! text in [`display_text`] (#130). Grid painters (#18) encode through [`nitro_xml_render`].
 
 pub mod address;
 pub mod builtin_formats;
+pub mod display_text;
 pub mod model;
 pub mod numfmt;
 pub mod password_hash;
@@ -17,5 +18,6 @@ pub mod theme;
 pub mod workbook;
 pub mod xml_util;
 
+pub use display_text::{display_text, Cell};
 pub use model::WorkbookSlice;
 pub use workbook::load_workbook;

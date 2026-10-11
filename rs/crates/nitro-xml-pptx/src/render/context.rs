@@ -13,9 +13,7 @@ pub trait StringIntern {
 pub struct PaintContext<'a, I> {
     pub buffer: &'a mut CommandBuffer,
     pub intern: &'a mut I,
-    #[allow(dead_code)]
     pub measure: &'a mut MeasureBatch,
-    #[allow(dead_code)]
     pub layout_reads: &'a mut LayoutReadBatch,
     pub view_ir: &'a mut ViewIrCollector,
     pub scale: f64,

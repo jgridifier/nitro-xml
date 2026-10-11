@@ -239,6 +239,7 @@ version = "0.0.0"
 dependencies = [
  "nitro-xml-opc",
  "nitro-xml-render",
+ "serde_json",
 ]
 
 [[package]]

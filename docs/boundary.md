@@ -75,7 +75,13 @@ One `Uint8Array` of opcodes per frame, taken with `takeFrameCommands()` and appl
 | SetStyle | 9 | `u32 id, prop_id, val_id` |
 | SetInnerMarkup | 10 | `u32 parent, markup` — parse SVG/HTML fragment into `parent` in one pass (#28 charts) |
 
-Opcodes **8–9** (xlsx grid #18) cover DOM `textContent` and `style` property writes for the cell layer. Opcode **10** (`SetInnerMarkup`) is for trusted, Rust-generated markup only (chart S1 SVG); remaining gaps below still apply to SVG NS creates, etc. Keep this table aligned with `rs/crates/nitro-xml-render/src/command_buffer/ops.rs` and `packages/nitro-xml/loader/apply.js`.
+Opcodes **8–9** (xlsx grid #18) cover DOM `textContent` and `style` property writes for the cell layer. Opcode **10** (`SetInnerMarkup`) is **trusted, Rust-generated markup only** (chart S1 SVG writer in `nitro-xml-render`); remaining gaps below still apply to SVG NS creates, etc. Keep this table aligned with `rs/crates/nitro-xml-render/src/command_buffer/ops.rs` and `packages/nitro-xml/loader/apply.js` — that Rust module is the single source of truth for tag numbers.
+
+#### SetInnerMarkup trust boundary
+
+- **Only** encode markup produced by our Rust SVG (or other) writers. Never pass document strings, cell text, or relationship targets through as markup without going through the writer.
+- Every document-derived text node and attribute value must be escaped in Rust (`esc` in `chart/render/svg_util.rs`, matching upstream `chart-svg-util.ts`) before it is concatenated into the markup string.
+- The loader applier assigns `innerHTML` from the string table; it does **not** re-sanitize. Upstream chart SVG is likewise built with `esc` and inserted without DOMPurify (DOMPurify is used for MathML/print paths, not the chart painter). We match that posture: escape at write time, trust the opcode payload.
 
 ### Opcode coverage gaps (vs upstream painters / PR #111)
 

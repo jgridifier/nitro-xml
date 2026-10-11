@@ -196,7 +196,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-render/src/chart/render/chart_appearance.rs` | `src/core/chart/render/chart-appearance.ts` @ e66aaec | Style resolution. |
 | `rs/crates/nitro-xml-render/src/chart/render/built_in_text_style.rs` | `src/core/chart/built-in-text-style.ts` @ e66aaec | Built-in style 102 defaults. |
 | `rs/crates/nitro-xml-render/src/chart/render/style_resolve.rs` | `src/core/chart/style-definition.ts` @ e66aaec | Resolved style entries. |
-| `rs/crates/nitro-xml-render/src/chart/render/chart_title_text.rs` | `src/core/chart/render/chart-title-text.ts` @ e66aaec | Rich title IR from `c:title` rich text (partial #28). |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_title_text.rs` | `src/core/chart/render/chart-title-text.ts` @ e66aaec | Rich title IR from formatting `textBody` when present; S1 returns `None` without formatting (#28). |
 | `rs/crates/nitro-xml-render/src/chart/render/drawing_color_css.rs` | `src/core/drawingml/drawing-color-css.ts` @ e66aaec | CSS colour string. |
 | `rs/crates/nitro-xml-render/src/chart/render/drawing_shadow.rs` | `src/core/drawingml/drawing-shadow.ts` @ e66aaec | Outer shadow SVG. |
 | `rs/crates/nitro-xml-render/src/chart/render/gradient_definition.rs` | `src/core/chart/gradient-definition.ts` @ e66aaec | Gradient defs. |
@@ -207,5 +207,6 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-render/src/chart/render/sigma_factors.rs` | `src/core/color/native-gradient-curve.ts` @ e66aaec | Office sigma factors table. |
 | `rs/crates/nitro-xml-render/src/chart/render/css_font_family.rs` | `src/core/text/css-font-family.ts` @ e66aaec | Font stacks. |
 | `rs/crates/nitro-xml-render/src/chart/render/manual_layout_resolve.rs` | `src/core/chart/manual-layout.ts` @ e66aaec | Manual layout rects. |
-| `rs/crates/nitro-xml-render/src/chart/render/svg_title_text.rs` | `src/core/chart/render/chart-svg-title-text.ts` @ e66aaec | Rich / wrapped title SVG (partial #28). |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_title_text.rs` | `src/core/chart/render/chart-svg-title-text.ts` @ e66aaec | Rich / wrapped title SVG (`wrapStyledRuns`, #28). |
+| `rs/crates/nitro-xml-render/src/chart/render/wrap_styled_runs.rs` | `src/core/text/wrap-styled-runs.ts` @ e66aaec | Format-neutral styled-run wrap (grapheme-aware `breakWords`). |
 | `rs/crates/nitro-xml-render/src/chart/oracle_svg.rs` | — | MIT host-only bridge to `chart_ref.ts` for parity until Rust S1 lands. |

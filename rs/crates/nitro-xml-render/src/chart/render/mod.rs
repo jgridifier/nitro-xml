@@ -36,6 +36,7 @@ mod svg_text_metrics;
 mod svg_title_text;
 mod svg_util;
 mod theme_palette;
+mod wrap_styled_runs;
 
 pub use render_space::{
     chart_space_kind, render_chart_space_svg, ChartThemeFonts, RenderChartSpaceOptions,

@@ -28,7 +28,8 @@ pub fn n(value: f64) -> String {
 }
 
 pub fn text_width(text: &str, size: f64) -> f64 {
-    text.chars().count() as f64 * size * 0.55
+    // Match upstream JS `text.length` (UTF-16 code units), not Unicode scalars.
+    text.encode_utf16().count() as f64 * size * 0.55
 }
 
 #[derive(Clone, Debug, Default)]
@@ -113,6 +114,17 @@ pub fn fit(content: &str, max_width: f64, size: f64) -> String {
     if text_width(content, size) <= max_width {
         return content.to_string();
     }
+    // Upstream `content.slice(0, chars)` counts UTF-16 code units.
     let chars = ((max_width / (size * 0.55)).floor() as isize - 1).max(1) as usize;
-    format!("{}…", content.chars().take(chars).collect::<String>())
+    let mut end = 0;
+    let mut units = 0usize;
+    for (i, ch) in content.char_indices() {
+        let u = ch.len_utf16();
+        if units + u > chars {
+            break;
+        }
+        units += u;
+        end = i + ch.len_utf8();
+    }
+    format!("{}…", &content[..end])
 }

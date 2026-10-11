@@ -41,6 +41,9 @@ pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOpti
 }
 
 /// Encodes chart SVG into `buffer` as one `SetInnerMarkup` handoff; interns markup into `strings`.
+///
+/// Markup is produced only by the Rust S1 SVG writer (document text/attrs escaped via `esc`).
+/// Do not pass raw document strings as `SetInnerMarkup` — see `docs/boundary.md`.
 pub fn paint_chart_space(
     space: &ChartSpace,
     options: &RenderChartSpaceOptions,

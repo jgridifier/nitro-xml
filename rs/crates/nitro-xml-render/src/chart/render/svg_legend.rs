@@ -83,9 +83,10 @@ fn automatic_legend(
     let size = attrs.size.unwrap_or(10.0);
     let row_h = (size * 1.4).max(16.0);
     if pos == "t" || pos == "b" {
+        // Upstream: Math.min(chartTextWidth(label) + 20, area.w / 2)
         let widths: Vec<f64> = entries
             .iter()
-            .map(|(label, _)| chart_text_width(label, &attrs, measure).min(area.w / 2.0) + 20.0)
+            .map(|(label, _)| (chart_text_width(label, &attrs, measure) + 20.0).min(area.w / 2.0))
             .collect();
         let total = widths.iter().sum::<f64>();
         let mut x = area.x + (area.w - total).max(0.0) / 2.0;

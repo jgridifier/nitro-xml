@@ -12,10 +12,23 @@ use super::manual_layout_resolve::{
 use super::svg_appearance::{chart_area_rect, chart_text_attributes};
 use super::svg_text_metrics::{chart_font_metrics, chart_text_width, ChartSvgMeasureOptions};
 use super::svg_util::{n, text, TextAttrs};
+use super::wrap_styled_runs::{wrap_styled_runs, StyledRun, WrapStyledRunsOptions};
 
 pub struct RichTitle {
     pub markup: String,
     pub height: f64,
+}
+
+impl StyledRun for ChartTitleRun {
+    fn text(&self) -> &str {
+        &self.text
+    }
+    fn with_text(&self, text: &str) -> Self {
+        Self {
+            text: text.to_string(),
+            appearance: self.appearance.clone(),
+        }
+    }
 }
 
 fn spacing(value: Option<&DrawingTextSpacing>, natural_height: f64, fallback: f64) -> f64 {
@@ -26,95 +39,13 @@ fn spacing(value: Option<&DrawingTextSpacing>, natural_height: f64, fallback: f6
     }
 }
 
+/// Upstream: `chartTextAttributes({ ...model, appearance: { title: run.appearance } }, 'title', base.size)`.
 fn attrs_for_run(model: &ChartViewModel, run: &ChartTitleRun, base_size: f64) -> TextAttrs {
-    let mut merged = chart_text_attributes(model, "title", base_size);
-    if let Some(size) = run.appearance.font_size {
-        merged.size = Some(chart_points_to_pixels(size));
-    }
-    if let Some(bold) = run.appearance.bold {
-        merged.weight = Some(if bold { "bold" } else { "normal" });
-    }
-    if let Some(italic) = run.appearance.italic {
-        merged.italic = Some(italic);
-    }
-    if let Some(underline) = run.appearance.underline {
-        merged.underline = Some(underline);
-    }
-    if let Some(color) = &run.appearance.color {
-        merged.fill = Some(color.clone());
-    }
-    merged
-}
-
-fn wrap_runs(
-    runs: &[ChartTitleRun],
-    capacity: f64,
-    model: &ChartViewModel,
-    base_size: f64,
-    measure: &mut ChartSvgMeasureOptions,
-) -> Vec<Vec<ChartTitleRun>> {
-    // Word wrap matches upstream `wrapStyledRuns` when a line exceeds capacity; hard breaks
-    // from `\n` are handled before this runs.
-    let line_width = runs
-        .iter()
-        .map(|run| chart_text_width(&run.text, &attrs_for_run(model, run, base_size), measure))
-        .sum::<f64>();
-    if line_width <= capacity {
-        return vec![runs.to_vec()];
-    }
-
-    let mut lines: Vec<Vec<ChartTitleRun>> = Vec::new();
-    let mut current: Vec<ChartTitleRun> = Vec::new();
-    let mut current_width = 0.0;
-
-    let flush =
-        |current: &mut Vec<ChartTitleRun>, lines: &mut Vec<Vec<ChartTitleRun>>, width: &mut f64| {
-            if !current.is_empty() {
-                lines.push(current.clone());
-                current.clear();
-                *width = 0.0;
-            }
-        };
-
-    for run in runs {
-        let words: Vec<&str> = run.text.split_whitespace().collect();
-        for (wi, word) in words.iter().enumerate() {
-            let prefix = if wi > 0 || !current.is_empty() {
-                " "
-            } else {
-                ""
-            };
-            let token = format!("{}{}", prefix, word);
-            let w = chart_text_width(&token, &attrs_for_run(model, run, base_size), measure);
-            if !current.is_empty() && current_width + w > capacity {
-                flush(&mut current, &mut lines, &mut current_width);
-                let token = word.to_string();
-                let w = chart_text_width(&token, &attrs_for_run(model, run, base_size), measure);
-                current.push(ChartTitleRun {
-                    text: token,
-                    appearance: run.appearance.clone(),
-                });
-                current_width = w;
-            } else {
-                current.push(ChartTitleRun {
-                    text: token,
-                    appearance: run.appearance.clone(),
-                });
-                current_width += w;
-            }
-        }
-    }
-    flush(&mut current, &mut lines, &mut current_width);
-    if lines.is_empty() {
-        lines.push(vec![ChartTitleRun {
-            text: String::new(),
-            appearance: runs
-                .first()
-                .map(|r| r.appearance.clone())
-                .unwrap_or_default(),
-        }]);
-    }
-    lines
+    let mut override_model = model.clone();
+    let mut appearance = std::collections::HashMap::new();
+    appearance.insert("title".to_string(), run.appearance.clone());
+    override_model.appearance = Some(appearance);
+    chart_text_attributes(&override_model, "title", base_size)
 }
 
 pub fn chart_rich_title_svg(
@@ -156,6 +87,7 @@ pub fn chart_rich_title_svg(
     };
 
     let base_size = base.size.unwrap_or(14.0);
+    // Hard lines: split on '\n' only (upstream), keep empty segments as new lines, no trim.
     let mut hard_lines: Vec<ChartTitleParagraph> = Vec::new();
     for paragraph in paragraphs {
         let mut line = ChartTitleParagraph {
@@ -167,8 +99,8 @@ pub fn chart_rich_title_svg(
         };
         hard_lines.push(line.clone());
         for run in &paragraph.runs {
-            for (index, piece) in run.text.lines().enumerate() {
-                let piece = piece.trim();
+            let pieces: Vec<&str> = run.text.split('\n').collect();
+            for (index, piece) in pieces.iter().enumerate() {
                 if index > 0 {
                     line = ChartTitleParagraph {
                         align: paragraph.align.clone(),
@@ -181,7 +113,7 @@ pub fn chart_rich_title_svg(
                 }
                 if !piece.is_empty() {
                     hard_lines.last_mut().unwrap().runs.push(ChartTitleRun {
-                        text: piece.to_string(),
+                        text: (*piece).to_string(),
                         appearance: run.appearance.clone(),
                     });
                 }
@@ -191,7 +123,16 @@ pub fn chart_rich_title_svg(
 
     let mut lines: Vec<ChartTitleParagraph> = Vec::new();
     for line in hard_lines {
-        let wrapped = wrap_runs(&line.runs, capacity, model, base_size, measure);
+        let mut measure_fn = |content: &str, run: &ChartTitleRun| {
+            let attrs = attrs_for_run(model, run, base_size);
+            chart_text_width(content, &attrs, measure)
+        };
+        let wrapped = wrap_styled_runs(
+            &line.runs,
+            capacity,
+            &mut measure_fn,
+            WrapStyledRunsOptions { break_words: true },
+        );
         let wrap_len = wrapped.len();
         for (index, runs) in wrapped.into_iter().enumerate() {
             lines.push(ChartTitleParagraph {
@@ -238,15 +179,20 @@ pub fn chart_rich_title_svg(
                 .iter()
                 .map(|(run, attrs)| chart_text_width(&run.text, attrs, measure))
                 .sum();
-            let size = runs
-                .iter()
-                .map(|(_, attrs)| attrs.size.unwrap_or(14.0))
-                .fold(0.0, f64::max)
-                .max(base_size);
-            let font_metrics = runs
-                .iter()
-                .map(|(_, attrs)| chart_font_metrics(attrs, measure))
-                .collect();
+            let size = if runs.is_empty() {
+                base_size
+            } else {
+                runs.iter()
+                    .map(|(_, attrs)| attrs.size.unwrap_or(14.0))
+                    .fold(0.0_f64, f64::max)
+            };
+            let font_metrics = if runs.is_empty() {
+                vec![chart_font_metrics(&base, measure)]
+            } else {
+                runs.iter()
+                    .map(|(_, attrs)| chart_font_metrics(attrs, measure))
+                    .collect()
+            };
             LineMetrics {
                 runs,
                 width,

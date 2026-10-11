@@ -1,0 +1,16 @@
+[package]
+name = "nitro-xml-wasm"
+description = "Nitro XML WebAssembly boundary (the only wasm-bindgen crate)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+nitro-xml.workspace = true
+wasm-bindgen.workspace = true

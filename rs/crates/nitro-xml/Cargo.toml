@@ -1,0 +1,15 @@
+[package]
+name = "nitro-xml"
+description = "Nitro XML: native Rust API re-exporting the .xlsx, .docx and .pptx crates"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+nitro-xml-opc.workspace = true
+nitro-xml-xlsx.workspace = true
+nitro-xml-docx.workspace = true
+nitro-xml-pptx.workspace = true

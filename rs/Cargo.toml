@@ -1,14 +1,33 @@
-# Nitro XML Rust workspace. No crates yet: issue #1 adds rs/crates/* as members.
+# Nitro XML Rust workspace.
 # Crates: nitro-xml-opc, nitro-xml-xlsx, nitro-xml-docx, nitro-xml-pptx, nitro-xml-wasm, umbrella nitro-xml.
 [workspace]
 resolver = "2"
-members = []
+members = [
+    "crates/nitro-xml-opc",
+    "crates/nitro-xml-xlsx",
+    "crates/nitro-xml-docx",
+    "crates/nitro-xml-pptx",
+    "crates/nitro-xml-wasm",
+    "crates/nitro-xml",
+]
 
 [workspace.package]
 license = "MIT"   # default for crates with only original files; a crate containing ported upstream files sets `license = "MIT AND Apache-2.0"` itself (see AGENTS.md §6, PROVENANCE.md)
 repository = "https://github.com/jgridifier/nitro-xml"
 homepage = "https://jgridifier.github.io/nitro-xml/"
 edition = "2021"
+version = "0.0.0"
+publish = false
+
+# `upstream/` (ChristopherVR/ooxml submodule) is test and bench only and lives
+# outside rs/, so no crate package can include it.
+[workspace.dependencies]
+nitro-xml-opc = { path = "crates/nitro-xml-opc" }
+nitro-xml-xlsx = { path = "crates/nitro-xml-xlsx" }
+nitro-xml-docx = { path = "crates/nitro-xml-docx" }
+nitro-xml-pptx = { path = "crates/nitro-xml-pptx" }
+nitro-xml = { path = "crates/nitro-xml" }
+wasm-bindgen = "0.2"
 
 [profile.release]
 opt-level = 3

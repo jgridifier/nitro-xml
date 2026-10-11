@@ -1,0 +1,5 @@
+# upstream/: ChristopherVR/ooxml pinned at e66aaec24adc0b68472eae1fc42aa4598e09c352.
+# Test and bench harness only (parity oracle, perf baseline); never shipped or packaged.
+[submodule "upstream"]
+	path = upstream
+	url = https://github.com/ChristopherVR/ooxml

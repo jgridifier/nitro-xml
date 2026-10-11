@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT
+# Pinned toolchain for the rs/ workspace. rustup installs it on first use
+# (including on a stock GitHub ubuntu-latest runner).
+[toolchain]
+channel = "1.99.0"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"

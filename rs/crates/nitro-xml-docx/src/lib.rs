@@ -26,9 +26,11 @@ mod sections;
 mod settings;
 mod simple_types;
 mod styles;
+mod tab_stops;
 mod table;
 mod theme;
 mod warnings;
+mod watermark;
 mod xml_util;
 
 pub use body::{

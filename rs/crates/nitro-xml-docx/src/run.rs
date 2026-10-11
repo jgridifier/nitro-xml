@@ -10,7 +10,7 @@ use crate::breaks::{classify_break, BreakKind};
 use crate::drawing::{parse_drawing, DrawingContext};
 use crate::field_runs::parse_field_flags;
 use crate::revisions::run_format_revision;
-use crate::run_properties::parse_run_properties;
+use crate::run_properties::parse_direct_run_properties;
 use crate::xml_util::{first_w, get_w, named_mc_choice, named_w, text_content, ElementExt};
 
 pub fn parse_run(node: &Element, revision: Option<Value>, ctx: Option<&DrawingContext>) -> Value {
@@ -140,7 +140,7 @@ pub fn parse_run(node: &Element, revision: Option<Value>, ctx: Option<&DrawingCo
 }
 
 fn merge_run_props(run: &mut Value, props: Option<&Element>) {
-    let formatting = parse_run_properties(props);
+    let formatting = parse_direct_run_properties(props);
     if let Some(obj) = run.as_object_mut() {
         if let Some(fmt) = formatting.as_object() {
             for (k, v) in fmt {

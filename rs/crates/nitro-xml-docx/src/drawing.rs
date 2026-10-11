@@ -15,7 +15,8 @@ use nitro_xml_opc::opc::{
 use nitro_xml_opc::xml::Element;
 
 use crate::chart_host::{parse_chart_graphic, CHART_GRAPHIC_URI};
-use crate::xml_util::{descendant_ns, first_ns, get_r, ElementExt};
+use crate::watermark::parse_watermark_shape;
+use crate::xml_util::{descendant_ns, first_ns, get_r, text_content, ElementExt};
 
 const WP_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
 const A_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -23,6 +24,8 @@ const VML_NS: &str = "urn:schemas-microsoft-com:vml";
 const DGM_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
 const PICTURE_GRAPHIC_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/picture";
 const SVG_NS: &str = "http://schemas.microsoft.com/office/drawing/2016/SVG/main";
+const WPS_NS: &str = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape";
+const W_NS: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 #[derive(Clone)]
 pub struct DrawingContext {
@@ -79,6 +82,43 @@ fn svg_blip_rel_id(blip: &Element) -> Option<String> {
     get_r(Some(svg_blip), "embed")
 }
 
+fn text_box_paragraphs(graphic_data: Option<&Element>) -> Option<Vec<String>> {
+    let graphic_data = graphic_data?;
+    let box_el = descendant_ns(Some(graphic_data), WPS_NS, "txbx")?;
+    let content = descendant_ns(Some(box_el), W_NS, "txbxContent")?;
+    let mut paragraphs = Vec::new();
+    collect_text_box_paragraphs(content, &mut paragraphs);
+    if paragraphs.is_empty() {
+        None
+    } else {
+        Some(paragraphs)
+    }
+}
+
+fn paragraph_text_deep(paragraph: &Element) -> String {
+    let mut out = String::new();
+    fn visit(el: &Element, buf: &mut String) {
+        if el.ns.as_deref() == Some(W_NS) && el.local == "t" {
+            buf.push_str(&text_content(el));
+        }
+        for c in el.element_children() {
+            visit(c, buf);
+        }
+    }
+    visit(paragraph, &mut out);
+    out
+}
+
+fn collect_text_box_paragraphs(node: &Element, out: &mut Vec<String>) {
+    for child in node.element_children() {
+        if child.ns.as_deref() == Some(W_NS) && child.local == "p" {
+            out.push(paragraph_text_deep(child));
+        } else {
+            collect_text_box_paragraphs(child, out);
+        }
+    }
+}
+
 fn unsupported_kind_label(uri: &str) -> &'static str {
     if uri.contains("wordprocessingShape") {
         "Shape"
@@ -91,6 +131,83 @@ fn unsupported_kind_label(uri: &str) -> &'static str {
     } else {
         "Drawing object"
     }
+}
+
+fn parse_placement(anchor: &Element) -> Value {
+    let wraps = [
+        ("wrapSquare", "square"),
+        ("wrapTight", "tight"),
+        ("wrapThrough", "through"),
+        ("wrapTopAndBottom", "topAndBottom"),
+        ("wrapNone", "none"),
+    ];
+    let wrap = wraps
+        .iter()
+        .find_map(|(local, name)| first_ns(Some(anchor), WP_NS, local).map(|_| *name))
+        .unwrap_or("none");
+    let mut obj = serde_json::Map::new();
+    obj.insert("wrap".into(), json!(wrap));
+    if anchor
+        .attrs
+        .iter()
+        .any(|a| a.local == "behindDoc" && a.value == "1")
+    {
+        obj.insert("behindText".into(), json!(true));
+    }
+    let position_h = first_ns(Some(anchor), WP_NS, "positionH");
+    if let Some(ph) = position_h {
+        if let Some(rf) = ph
+            .attrs
+            .iter()
+            .find(|a| a.local == "relativeFrom")
+            .map(|a| a.value.as_str())
+        {
+            if matches!(
+                rf,
+                "margin" | "page" | "column" | "character" | "leftMargin" | "rightMargin"
+            ) {
+                obj.insert("relativeFrom".into(), json!(rf));
+            }
+        }
+        let align = first_ns(Some(ph), WP_NS, "align").map(|e| text_content(e).trim().to_string());
+        if matches!(
+            align.as_deref(),
+            Some("left") | Some("center") | Some("right") | Some("inside") | Some("outside")
+        ) {
+            obj.insert("align".into(), json!(align.unwrap()));
+        }
+        if let Some(off) = first_ns(Some(ph), WP_NS, "posOffset") {
+            let t = text_content(off);
+            let t = t.trim();
+            if t.chars().all(|c| c.is_ascii_digit() || c == '-') && !t.is_empty() {
+                obj.insert("offsetXPx".into(), json!(emu_to_px_attr(Some(t))));
+            }
+        }
+    }
+    let position_v = first_ns(Some(anchor), WP_NS, "positionV");
+    if let Some(pv) = position_v {
+        if let Some(rf) = pv
+            .attrs
+            .iter()
+            .find(|a| a.local == "relativeFrom")
+            .map(|a| a.value.as_str())
+        {
+            if matches!(
+                rf,
+                "margin" | "page" | "line" | "topMargin" | "bottomMargin"
+            ) {
+                obj.insert("relativeFromV".into(), json!(rf));
+            }
+        }
+        if let Some(off) = first_ns(Some(pv), WP_NS, "posOffset") {
+            let t = text_content(off);
+            let t = t.trim();
+            if t.chars().all(|c| c.is_ascii_digit() || c == '-') && !t.is_empty() {
+                obj.insert("offsetYPx".into(), json!(emu_to_px_attr(Some(t))));
+            }
+        }
+    }
+    Value::Object(obj)
 }
 
 fn parse_modern_drawing(node: &Element, context: &DrawingContext) -> Value {
@@ -161,6 +278,9 @@ fn parse_modern_drawing(node: &Element, context: &DrawingContext) -> Value {
             }
             if anchored {
                 obj.insert("anchored".into(), json!(true));
+                if let Some(anchor_el) = anchor_only {
+                    obj.insert("placement".into(), parse_placement(anchor_el));
+                }
             }
             if let Some(svg_part) = svg.and_then(|s| s.get("partName").cloned()) {
                 obj.insert("svgPartName".into(), svg_part);
@@ -189,7 +309,16 @@ fn parse_modern_drawing(node: &Element, context: &DrawingContext) -> Value {
     } else {
         None
     };
-    let unsupported = unsupported_kind_label(&uri);
+    let text_box = if uri.contains("wordprocessingShape") {
+        text_box_paragraphs(graphic_data)
+    } else {
+        None
+    };
+    let unsupported = if text_box.is_some() {
+        "Text box"
+    } else {
+        unsupported_kind_label(&uri)
+    };
     let mut base = json!({
         "relId": rel_id.unwrap_or_default(),
         "partName": "",
@@ -199,6 +328,9 @@ fn parse_modern_drawing(node: &Element, context: &DrawingContext) -> Value {
         "unsupported": unsupported,
     });
     if let Some(obj) = base.as_object_mut() {
+        if let Some(tb) = text_box {
+            obj.insert("textBoxText".into(), json!(tb));
+        }
         if let Some(a) = alt_text {
             obj.insert("altText".into(), json!(a));
         }
@@ -209,6 +341,11 @@ fn parse_modern_drawing(node: &Element, context: &DrawingContext) -> Value {
             obj.insert("anchored".into(), json!(true));
         }
         if let Some(d) = diagram {
+            if anchored {
+                if let Some(anchor_el) = anchor_only {
+                    obj.insert("placement".into(), parse_placement(anchor_el));
+                }
+            }
             obj.insert("diagram".into(), d);
         }
         if let Some(c) = chart {
@@ -321,12 +458,17 @@ fn parse_diagram_graphic(
     }
     obj.insert("relationshipIds".into(), Value::Object(relationship_ids));
     obj.insert("parts".into(), Value::Object(parts));
+    let rendering = if host_relationships.is_empty() {
+        "placeholder"
+    } else {
+        "cached-drawing"
+    };
     obj.insert(
         "hostRelationships".into(),
         Value::Object(host_relationships),
     );
     obj.insert("nodes".into(), json!([]));
-    obj.insert("rendering".into(), json!("placeholder"));
+    obj.insert("rendering".into(), json!(rendering));
     obj.insert(
         "notice".into(),
         json!("SmartArt is shown from the layout cached in the file when available; Word layout is not recomputed."),
@@ -338,6 +480,9 @@ fn parse_diagram_graphic(
 fn parse_vml_picture(node: &Element, context: &DrawingContext) -> Value {
     let imagedata = descendant_ns(Some(node), VML_NS, "imagedata");
     let shape = descendant_ns(Some(node), VML_NS, "shape");
+    if let Some(wm) = parse_watermark_shape(shape) {
+        return wm;
+    }
     let style = shape
         .and_then(|s| {
             s.attrs
@@ -372,16 +517,19 @@ fn parse_vml_picture(node: &Element, context: &DrawingContext) -> Value {
 }
 
 fn regex_pt(style: &str, prop: &str) -> Option<f64> {
-    let _pattern = format!(r"{0}:\s*([\d.]+)pt", prop);
-    let re = prop;
     let lower = style.to_lowercase();
-    let key = format!("{}:", re);
+    let key = format!("{}:", prop);
     let pos = lower.find(&key)?;
     let rest = &style[pos + key.len()..];
+    let rest = rest.trim_start();
     let num: String = rest
         .chars()
         .take_while(|c| c.is_ascii_digit() || *c == '.')
         .collect();
+    let after_num = rest[num.len()..].trim_start();
+    if !after_num.starts_with("pt") {
+        return None;
+    }
     num.parse().ok()
 }
 

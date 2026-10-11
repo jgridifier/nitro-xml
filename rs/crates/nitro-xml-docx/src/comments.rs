@@ -28,9 +28,10 @@ pub fn parse_comments(comments_xml: &str, extended_xml: Option<&str>) -> Vec<Val
                 .to_string();
             let mut obj = serde_json::Map::new();
             obj.insert("id".into(), json!(id));
+            let author = get_w(Some(element), "author").filter(|s| !s.is_empty());
             obj.insert(
                 "author".into(),
-                json!(get_w(Some(element), "author").unwrap_or_else(|| "Unknown".to_string())),
+                json!(author.unwrap_or_else(|| "Unknown".to_string())),
             );
             obj.insert("text".into(), json!(text));
             insert_str(&mut obj, "initials", get_w(Some(element), "initials"));
@@ -59,9 +60,8 @@ pub fn parse_comments(comments_xml: &str, extended_xml: Option<&str>) -> Vec<Val
             if let Some(comment) = comment {
                 if let Some(obj) = comment.as_object_mut() {
                     let done = attr_ns_any(entry, W15_NS, "done");
-                    if done.as_deref() == Some("1") || done.as_deref() == Some("true") {
-                        obj.insert("resolved".into(), json!(true));
-                    }
+                    let resolved = done.as_deref() == Some("1") || done.as_deref() == Some("true");
+                    obj.insert("resolved".into(), json!(resolved));
                     let parent_para = attr_ns_any(entry, W15_NS, "paraIdParent");
                     if let Some(pp) = parent_para {
                         if let Some(parent_id) = para_id_to_comment_id.get(&pp) {

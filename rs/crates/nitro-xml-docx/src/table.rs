@@ -149,7 +149,14 @@ fn parse_cell(
             obj.insert("verticalAlign".into(), json!(v_align.unwrap()));
         }
         let shd = first_w(props, "shd");
-        if let Some(fill) = parse_shading_fill(shd) {
+        let fill = parse_shading_fill(shd).or_else(|| {
+            if get_w(shd, "fill").as_deref() == Some("auto") && get_w(shd, "themeFill").is_none() {
+                Some("auto".to_string())
+            } else {
+                None
+            }
+        });
+        if let Some(fill) = fill {
             obj.insert("shadingFill".into(), json!(fill));
         }
         if let Some(b) = parse_table_borders(first_w(props, "tcBorders")) {

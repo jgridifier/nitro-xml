@@ -21,7 +21,7 @@ pub fn resolve_hyperlink(element: &Element, rels: &IndexMap<String, Relationship
     if let Some(anchor) = get_w(Some(element), "anchor") {
         obj.insert("anchor".into(), json!(anchor));
     }
-    if let Some(tooltip) = get_w(Some(element), "tooltip") {
+    if let Some(tooltip) = get_w(Some(element), "tooltip").filter(|s| !s.is_empty()) {
         obj.insert("tooltip".into(), json!(tooltip));
     }
     Value::Object(obj)

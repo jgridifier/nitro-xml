@@ -53,6 +53,16 @@ pub fn has_special_break(element: &Element) -> bool {
 }
 
 pub fn is_modeled_break(element: &Element) -> bool {
-    matches!(classify_break(element), BreakKind::Page | BreakKind::Column)
-        && !has_special_break(element)
+    if !matches!(classify_break(element), BreakKind::Page | BreakKind::Column) {
+        return false;
+    }
+    for attr in &element.attrs {
+        if attr.ns.as_deref() == Some("http://www.w3.org/2000/xmlns/") {
+            continue;
+        }
+        if attr.ns.as_deref() != Some(ns::W) || attr.local != "type" {
+            return false;
+        }
+    }
+    true
 }

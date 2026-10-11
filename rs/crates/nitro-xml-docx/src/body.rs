@@ -32,11 +32,10 @@ use crate::styles::{
 use crate::table::parse_table;
 use crate::theme::{parse_color_scheme_mapping, parse_theme};
 use crate::warnings::{
-    for_each_paragraph, image_and_bookmark_warnings, paragraph_bookmark_names, warnings_for,
+    diagram_warnings, for_each_paragraph, image_and_bookmark_warnings, paragraph_bookmark_names,
+    warnings_for,
 };
-use crate::xml_util::{
-    by_name_w, children_w, first_w, get_w, named_w, serialize_element, ElementExt,
-};
+use crate::xml_util::{by_name_w, children_w, first_w, get_w, named_w, ElementExt};
 
 const PX_PER_TWIP: f64 = 96.0 / 1440.0;
 
@@ -168,10 +167,18 @@ pub fn read_package(bytes: &[u8]) -> Result<LoadedDocument<'_>, OpcError> {
     let mut numbering_catalog = None;
     if pkg.text("word/numbering.xml")?.is_some() {
         let num_xml = pkg.text("word/numbering.xml")?.unwrap();
-        numbering_catalog = Some(parse_numbering_catalog(num_xml));
+        let catalog = parse_numbering_catalog(num_xml);
+        numbering_catalog = Some(catalog.clone());
         warnings.push(
             "Numbering is resolved for decimal, Roman numeral, letter, ordinal, cardinal/ordinal text and bullet formats, including multilevel lvlText and legal numbering. Picture bullets, style-linked numbering and other custom formats fall back to Decimal Number and are not rendered as Word would.".to_string(),
         );
+        if let Some(extra) = catalog.get("warnings").and_then(|v| v.as_array()) {
+            for w in extra {
+                if let Some(s) = w.as_str() {
+                    warnings.push(s.to_string());
+                }
+            }
+        }
     } else if !by_name_w(&document.root, "numPr").is_empty() {
         warnings.push(
             "Paragraphs reference list numbering, but the package has no word/numbering.xml part; numbering is preserved as paragraph XML but not rendered.".to_string(),
@@ -207,7 +214,8 @@ pub fn read_package(bytes: &[u8]) -> Result<LoadedDocument<'_>, OpcError> {
 
     let (track_changes, track_formatting, track_moves) =
         if let Some(settings_xml) = pkg.text("word/settings.xml")? {
-            parse_track_review(settings_xml)
+            let (tc, tf, tm) = parse_track_review(settings_xml);
+            (Some(tc), Some(tf), Some(tm))
         } else {
             (None, None, None)
         };
@@ -248,6 +256,7 @@ pub fn read_package(bytes: &[u8]) -> Result<LoadedDocument<'_>, OpcError> {
     }
 
     warnings.extend(image_and_bookmark_warnings(&blocks));
+    warnings.extend(diagram_warnings(&picture_blocks));
 
     let mut image_part_names = BTreeSet::new();
     for_each_paragraph(&picture_blocks, &mut |paragraph| {
@@ -408,13 +417,7 @@ impl<'a> ParseState<'a> {
             "runs": runs,
         });
         if let Some(obj) = paragraph.as_object_mut() {
-            if props.is_some() {
-                obj.insert(
-                    "sourceParagraphPropertiesXml".into(),
-                    json!(serialize_element(props.unwrap())),
-                );
-            }
-            let direct = crate::styles::parse_formatting(props);
+            let direct = crate::styles::parse_direct_paragraph_formatting(props);
             if let Some(d) = direct.as_object() {
                 for (k, v) in d {
                     obj.insert(k.clone(), v.clone());

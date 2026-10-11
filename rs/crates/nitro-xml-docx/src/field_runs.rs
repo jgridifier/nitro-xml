@@ -77,7 +77,7 @@ impl FieldTracker {
                 }
             }
         }
-        if let Some(instr) = result_instr {
+        if let Some(instr) = result_instr.filter(|s| !s.is_empty()) {
             if let Some(obj) = run.as_object_mut() {
                 obj.insert("field".into(), json!({ "instr": instr }));
                 if let Some(locked) = result_locked {

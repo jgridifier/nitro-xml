@@ -13,6 +13,7 @@ use crate::run_properties::parse_run_properties;
 use crate::simple_types::{
     on_off_element, parse_integer, parse_on_off, parse_signed_twips, parse_twips,
 };
+use crate::tab_stops::parse_tab_stops;
 use crate::xml_util::{first_w, get_w, named_w, ElementExt};
 
 pub const PAGINATION_KEYS: [&str; 5] = [
@@ -108,9 +109,27 @@ pub fn parse_formatting(p_pr: Option<&Element>) -> Value {
     omit_undefined_object(result)
 }
 
+/// Direct paragraph properties (`parseDirectParagraphProperties` upstream).
+pub fn parse_direct_paragraph_formatting(p_pr: Option<&Element>) -> Value {
+    let mut result = parse_formatting(p_pr);
+    if let Some(obj) = result.as_object_mut() {
+        let tab_stops = parse_tab_stops(first_w(p_pr, "tabs"));
+        if !tab_stops.is_empty() {
+            obj.insert("tabStops".into(), json!(tab_stops));
+        }
+        if let Some(num) = parse_style_numbering(p_pr) {
+            obj.insert("numbering".into(), num);
+        }
+    }
+    result
+}
+
 fn parse_style_numbering(p_pr: Option<&Element>) -> Option<Value> {
     let num_pr = first_w(p_pr, "numPr")?;
     let num_id = parse_integer(get_w(first_w(Some(num_pr), "numId"), "val").as_deref())?;
+    if num_id < 0 {
+        return None;
+    }
     let level = parse_integer(get_w(first_w(Some(num_pr), "ilvl"), "val").as_deref()).unwrap_or(0);
     Some(json!({ "numId": num_id, "level": level }))
 }

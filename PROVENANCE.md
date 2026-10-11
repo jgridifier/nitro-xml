@@ -127,4 +127,6 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/equation.rs` | `src/core/docx/equation.ts` @ e66aaec | OMML equation runs. |
 | `rs/crates/nitro-xml-docx/src/field_runs.rs` | `src/core/docx/field-runs.ts`, `field-flags.ts` @ e66aaec | Complex field result metadata and flags. |
 | `rs/crates/nitro-xml-docx/src/comments.rs` | `src/core/docx/comments.ts` @ e66aaec | comments.xml / commentsExtended.xml. |
-| `rs/crates/nitro-xml-docx/src/warnings.rs` | `src/core/docx/parse-warnings.ts`, `parse.ts` @ e66aaec | Document and model warning assembly. |
+| `rs/crates/nitro-xml-docx/src/warnings.rs` | `src/core/docx/parse-warnings.ts`, `parse.ts`, `diagram-document.ts` @ e66aaec | Document and model warning assembly; diagram warning text. |
+| `rs/crates/nitro-xml-docx/src/tab_stops.rs` | `src/core/docx/tab-stops.ts` @ e66aaec | `w:pPr/w:tabs` parse for direct paragraph properties. |
+| `rs/crates/nitro-xml-docx/src/watermark.rs` | `src/core/docx/watermark.ts` (`parseWatermarkShape`) @ e66aaec | VML text watermark shapes in `w:pict`. |

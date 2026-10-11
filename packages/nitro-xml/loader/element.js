@@ -130,8 +130,8 @@ export class ViewerElement extends HTMLElement {
       const id = KeyId[e.key];
       if (!id) return;
       const arrow = e.key.indexOf("Arrow") === 0 || e.key === "PageUp" || e.key === "PageDown";
-      // Shell chrome already binds pptx/docx arrows/page keys to nav-next/prev.
-      if (arrow && (this.localName === "nitro-pptx" || this.localName === "nitro-docx")) return;
+      // Shell chrome binds pptx/docx page keys.
+      if (arrow && /nitro-(pptx|docx)/.test(this.localName)) return;
       const selectAll = (e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A");
       if (arrow || selectAll) {
         e.preventDefault();

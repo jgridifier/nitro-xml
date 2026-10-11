@@ -13,3 +13,4 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | `src/level_style.rs` | `PlaceholderStyles.ts`, `MasterElements.ts`, `PlaceholderDefaults.ts` | `lstStyle` / master `txStyles` bullet level styles. |
 | `src/placeholder_defaults.rs` | `PlaceholderLookup.ts`, `PlaceholderDefaults.ts` | Effective placeholder level-style cascade for bullets. |
 | `src/table.rs` | `PptxGraphicFrameParser.ts` | Table row count on graphic-frame dump elements. |
+

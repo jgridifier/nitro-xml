@@ -31,6 +31,15 @@ pub fn style_key(style: &CellStyle) -> String {
     sort_keys(&style.to_json()).to_string()
 }
 
+/// The style at `style_id`, falling back to the default when the id is out of range.
+pub fn style_at(styles: &[CellStyle], style_id: Option<u32>) -> &CellStyle {
+    let idx = style_id.unwrap_or(0) as usize;
+    styles
+        .get(idx)
+        .or_else(|| styles.first())
+        .expect("Workbook has no default cell style")
+}
+
 fn sort_keys(value: &Value) -> Value {
     match value {
         Value::Array(items) => Value::Array(items.iter().map(sort_keys).collect()),

@@ -25,8 +25,9 @@
 
 ## Non-goals
 
-- Running macros (never). VBA and other unknown parts are preserved byte for byte.
-- Visio, Teams and MCP from upstream.
+- Any format other than **.docx, .xlsx and .pptx**: legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV, macro-enabled and template variants, Visio and every other upstream format show an "unsupported format" message.
+- Running macros (never). Unknown parts are preserved byte for byte on save.
+- Teams and MCP from upstream.
 - A TypeScript runtime fallback. If WASM cannot run (old browser, CSP blocks wasm, init failure), the component shows an "unsupported browser" message.
 - Framework bindings beyond the web component and the headless API (for now).
 - Real-time collaboration and PDF/image export (open questions, default out).
@@ -50,7 +51,7 @@ Jared has not answered every open question in the plan, so these are the plan's 
 | D5 | Format order | xlsx, then docx, then pptx |
 | D6 | Perf browser | Measured in Chromium; WebKit and Firefox get functional smoke tests |
 | D7 | Perf CI cadence | A small perf corpus on every PR; the full corpus nightly and on demand. Every commit posts its numbers |
-| D8 | Legacy and encrypted files | `.doc/.xls/.ppt`, password-protected files and CSV show an "unsupported format" message in v1; a Rust track after E5 (open question) |
+| D8 | Formats | **Only .docx, .xlsx and .pptx (Jared).** Legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV and every other format show an "unsupported format" message |
 | D9 | Renderer approach | **Decided by Jared:** renderers are straight one-to-one Rust ports of the upstream painters (same drawing approach, structure and output; fonts and text measurement follow upstream). The only deviation: each frame's draw/DOM calls cross the WASM boundary as one batched handoff. R0 ([#33](https://github.com/jgridifier/nitro-xml/issues/33)) records the painter inventory, module mapping, worker split and loader budget. DOM-vs-canvas, in-wasm shaping and open fonts move to the **Post-port redesign (Jared)** milestone (#92 to #94, not claimable) |
 | D10 | Viewer edits | [#29](https://github.com/jgridifier/nitro-xml/issues/29) is a placeholder awaiting Jared's list |
 | D11 | Crate layout | `nitro-xml-opc` holds the shared zip, XML, OPC and DrawingML modules; format crates on top; `nitro-xml-wasm` is the only wasm-bindgen crate |

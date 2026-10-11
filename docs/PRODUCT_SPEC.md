@@ -33,7 +33,7 @@
   - Visio, Teams and MCP
   - framework bindings beyond the web component and vanilla
 - **ASK:**
-  - legacy .doc/.xls/.ppt, encrypted files and CSV (default: an "unsupported format" message in v1, and a Rust track after E5)
+  - **OUT (Jared, 2026-10-11: only .docx, .xlsx and .pptx for now):** legacy .doc/.xls/.ppt, encrypted files, CSV and every other upstream format or extra. These show an "unsupported format" message.
   - real-time collaboration (default OUT)
   - PDF/image export (default OUT)
 
@@ -223,7 +223,7 @@ Already done or decided upstream of this spec:
 ## Appendix: the plan's open questions (changes since v2)
 - Q3 "Keep the TS version alongside?" → TS stays, **for tests only**, permanently. It is never shipped.
 - Q4 "Viewer edits?" → The viewer is now built in Rust (Stages R0 and 6).
-- Q8 "Legacy and encrypted files" → No TS route remains. They are ASK (default: unsupported message, with a Rust track after E5).
+- Q8 "Legacy and encrypted files" → OUT (Jared): only .docx, .xlsx and .pptx; others show an unsupported-format message.
 - The others are unchanged from v2: MIT plus Apache-2.0 for ported files; new repo; full editor suite; browsers in §3; Excel → Word → PowerPoint; CI cadence in Q5.
 
 ## Risks and gaps

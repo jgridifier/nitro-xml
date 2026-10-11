@@ -24,7 +24,7 @@ The brief describes a browser-client renderer for docx, pptx and xlsx. The upstr
 
 `cloc` counts **about 1.56 million lines of TypeScript code** (excluding blank lines and comments) in 12,989 files. About half of that is tests.
 
-**Original recommendation (superseded):** port only the read and view path. **Current scope (Jared):** the full editor suite for docx, xlsx and pptx, built viewer first (Milestone 1) and then editor (Milestone 2), all in Rust/WASM. Still out: Visio, Teams, MCP, macro execution (VBA preserved), framework bindings beyond the web component; ASK: legacy and encrypted formats (unsupported message in v1, Rust track after E5), collaboration and export (default out). This is far larger than the original 25k to 45k line estimate: the roughly 217k production lines of `src/ui` are now rebuilt in Rust as well, and no credible estimate exists until R0 (PRODUCT_SPEC Q3).
+**Original recommendation (superseded):** port only the read and view path. **Current scope (Jared):** the full editor suite for docx, xlsx and pptx, built viewer first (Milestone 1) and then editor (Milestone 2), all in Rust/WASM. **Formats (Jared): only .docx, .xlsx and .pptx.** Legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV, macro-enabled and template variants, Visio and every other upstream format are out and show an "unsupported format" message. Also out: Teams, MCP, macro execution, framework bindings beyond the web component; collaboration and export (default out). This is far larger than the original 25k to 45k line estimate: the roughly 217k production lines of `src/ui` are now rebuilt in Rust as well, and no credible estimate exists until R0 (PRODUCT_SPEC Q3).
 
 ---
 
@@ -147,7 +147,7 @@ Dependency direction (from the README): bindings -> `ooxml-ui` (DOM) -> `ooxml-c
   - fonts, fills, borders, alignment, number formats, merges, column and row sizes
   - conditional formatting (rules, colour scales, data bars, icon sets) and validation lists
   - common charts as SVG (8 families), pictures and sparklines
-- **File types:** `.xlsx`, `.xlsm`, `.xltx`, legacy `.xls` and CSV.
+- **File types (upstream):** `.xlsx`, `.xlsm`, `.xltx`, legacy `.xls` and CSV. **Nitro XML opens `.xlsx` only**; the rest show an "unsupported format" message.
 - **Gaps:**
   - pivot tables, slicers, external links and Power Query are kept but not shown
   - shapes, SmartArt and form controls show as placeholders (SmartArt is drawn from the cached drawing)
@@ -241,10 +241,10 @@ All versions and licences are from the crates.io API on 2026-10-11.
 | `umya-spreadsheet` | 3.1.0 / MIT | Not adopted (full read and write model; heavy for WASM). Possible reference |
 | `ooxmlsdk` | 0.13.2 / MIT or Apache-2.0 | Generated schema types modelled on the .NET Open XML SDK. **Worth a 1-day spike** for docx and pptx typed parts. Risk: very young (about 30k downloads), and large generated code may bloat the WASM binary |
 | `rustybuzz`, `swash`, `parley`, `cosmic-text` | MIT and/or Apache-2.0 | Deferred (in-WASM shaping) |
-| `tiny-skia` / `resvg` | BSD-3-Clause / MIT or Apache-2.0 | Not needed (painting stays DOM) |
+| `tiny-skia` / `resvg` | BSD-3-Clause / MIT or Apache-2.0 | Not needed now (renderers port upstream's painters as-is; the post-port redesign may revisit) |
 
 **Licence constraints:**
-- **Nitro XML is dual-licensed `MIT OR Apache-2.0`** (the Rust ecosystem convention; Jared asked for MIT). The repo ships `LICENSE-MIT` and `LICENSE-APACHE`; Cargo metadata and `package.json` say `license = "MIT OR Apache-2.0"`.
+- **Nitro XML is MIT-licensed.** Files ported or derived from ooxml remain under Apache-2.0 (see NOTICE, LICENSE-THIRD-PARTY and PROVENANCE.md). The repo ships `LICENSE` (MIT) and `LICENSE-THIRD-PARTY` (upstream Apache-2.0 text); Cargo metadata and `package.json` say `license = "MIT"`. Ported files carry the SPDX header `Apache-2.0` plus a provenance line; new files use `MIT`.
 - Upstream is Apache-2.0, so ported logic is a derivative work. Apache-2.0 §4 allows distributing derivative works under other terms, provided its conditions are met: `NOTICE` crediting upstream (ChristopherVR/ooxml) is carried forward, copyright notices are kept, and changes are stated in `PROVENANCE.md` (one entry per ported or derived module, mirroring upstream's own convention).
 - `mtx-decompressor` is MPL-2.0 (file-level copyleft). It is not in scope for v1 and the licence check does not allow MPL.
 - jszip is dual MIT or GPL-3.0 and is used under MIT. It is not ported; Rust uses `zip`.
@@ -468,7 +468,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 4. **iOS Safari:** default full target with functional, accessibility and IME smoke tests; perf gated in Chromium.
 5. **CI cadence:** default PRs run S/M tiers at 1x plus parity, round trip, accessibility and IME; main and nightly run the full corpus at 1x and 4x, validators and the scoreboard.
 6. **Viewer edits** (#29): which ones?
-7. **ASK items:** legacy and encrypted formats, docx review features, speaker notes and thumbnails, print, collaboration, export.
+7. **ASK items:** docx review features, speaker notes and thumbnails, print, collaboration, export. (Formats are settled: .docx, .xlsx and .pptx only.)
 
 ### 6.1 Decisions (current calls, open to change)
 
@@ -481,7 +481,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | D5 | Format order | xlsx, then docx, then pptx, in both milestones |
 | D6 | Perf | Measured in Chromium; WASM must beat TS everywhere (§4.1) |
 | D7 | Perf CI cadence | Small corpus on every PR; full corpus nightly and on demand; every commit posts numbers |
-| D8 | Legacy and encrypted files | Unsupported-format message in v1; Rust track after E5 (ASK) |
+| D8 | Formats | Only .docx, .xlsx and .pptx; legacy, encrypted, CSV and every other format show an "unsupported format" message (#13, #37) |
 | D9 | Renderer | Straight one-to-one ports of upstream painters, batched per frame; R0 record (#33) signed off by Jared; redesign post-port (#92 to #94) |
 | D10 | Viewer edits | #29 placeholder |
 | D11 | Crate layout | `nitro-xml-opc` (zip, XML, OPC, DrawingML, charts), `nitro-xml-xlsx`, `nitro-xml-docx`, `nitro-xml-pptx`, `nitro-xml-wasm`, umbrella `nitro-xml`; npm `nitro-xml` |

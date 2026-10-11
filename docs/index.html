@@ -44,7 +44,7 @@ strong{color:var(--ink)}
 <li>Yjs real-time collaboration, MCP servers, an "OpenTeams" chat app, a Tauri desktop wrapper and an integrated "OOXML Office" PWA</li>
 </ul>
 <p><code>cloc</code> counts <strong>about 1.56 million lines of TypeScript code</strong> (excluding blank lines and comments) in 12,989 files. About half of that is tests.</p>
-<p><strong>Original recommendation (superseded):</strong> port only the read and view path. <strong>Current scope (Jared):</strong> the full editor suite for docx, xlsx and pptx, built viewer first (Milestone 1) and then editor (Milestone 2), all in Rust/WASM. Still out: Visio, Teams, MCP, macro execution (VBA preserved), framework bindings beyond the web component; ASK: legacy and encrypted formats (unsupported message in v1, Rust track after E5), collaboration and export (default out). This is far larger than the original 25k to 45k line estimate: the roughly 217k production lines of <code>src/ui</code> are now rebuilt in Rust as well, and no credible estimate exists until R0 (PRODUCT_SPEC Q3).</p>
+<p><strong>Original recommendation (superseded):</strong> port only the read and view path. <strong>Current scope (Jared):</strong> the full editor suite for docx, xlsx and pptx, built viewer first (Milestone 1) and then editor (Milestone 2), all in Rust/WASM. <strong>Formats (Jared): only .docx, .xlsx and .pptx.</strong> Legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV, macro-enabled and template variants, Visio and every other upstream format are out and show an "unsupported format" message. Also out: Teams, MCP, macro execution, framework bindings beyond the web component; collaboration and export (default out). This is far larger than the original 25k to 45k line estimate: the roughly 217k production lines of <code>src/ui</code> are now rebuilt in Rust as well, and no credible estimate exists until R0 (PRODUCT_SPEC Q3).</p>
 <hr />
 <h2 id="1-architecture-map">1. Architecture map</h2>
 <h3 id="11-language-framework-tooling">1.1 Language, framework, tooling</h3>
@@ -300,7 +300,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
   - fonts, fills, borders, alignment, number formats, merges, column and row sizes
   - conditional formatting (rules, colour scales, data bars, icon sets) and validation lists
   - common charts as SVG (8 families), pictures and sparklines
-- <strong>File types:</strong> <code>.xlsx</code>, <code>.xlsm</code>, <code>.xltx</code>, legacy <code>.xls</code> and CSV.
+- <strong>File types (upstream):</strong> <code>.xlsx</code>, <code>.xlsm</code>, <code>.xltx</code>, legacy <code>.xls</code> and CSV. <strong>Nitro XML opens <code>.xlsx</code> only</strong>; the rest show an "unsupported format" message.
 - <strong>Gaps:</strong>
   - pivot tables, slicers, external links and Power Query are kept but not shown
   - shapes, SmartArt and form controls show as placeholders (SmartArt is drawn from the cached drawing)
@@ -515,12 +515,12 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <tr>
 <td><code>tiny-skia</code> / <code>resvg</code></td>
 <td>BSD-3-Clause / MIT or Apache-2.0</td>
-<td>Not needed (painting stays DOM)</td>
+<td>Not needed now (renderers port upstream's painters as-is; the post-port redesign may revisit)</td>
 </tr>
 </tbody>
 </table></div>
 <p><strong>Licence constraints:</strong>
-- <strong>Nitro XML is dual-licensed <code>MIT OR Apache-2.0</code></strong> (the Rust ecosystem convention; Jared asked for MIT). The repo ships <code>LICENSE-MIT</code> and <code>LICENSE-APACHE</code>; Cargo metadata and <code>package.json</code> say <code>license = "MIT OR Apache-2.0"</code>.
+- <strong>Nitro XML is MIT-licensed.</strong> Files ported or derived from ooxml remain under Apache-2.0 (see NOTICE, LICENSE-THIRD-PARTY and PROVENANCE.md). The repo ships <code>LICENSE</code> (MIT) and <code>LICENSE-THIRD-PARTY</code> (upstream Apache-2.0 text); Cargo metadata and <code>package.json</code> say <code>license = "MIT"</code>. Ported files carry the SPDX header <code>Apache-2.0</code> plus a provenance line; new files use <code>MIT</code>.
 - Upstream is Apache-2.0, so ported logic is a derivative work. Apache-2.0 §4 allows distributing derivative works under other terms, provided its conditions are met: <code>NOTICE</code> crediting upstream (ChristopherVR/ooxml) is carried forward, copyright notices are kept, and changes are stated in <code>PROVENANCE.md</code> (one entry per ported or derived module, mirroring upstream's own convention).
 - <code>mtx-decompressor</code> is MPL-2.0 (file-level copyleft). It is not in scope for v1 and the licence check does not allow MPL.
 - jszip is dual MIT or GPL-3.0 and is used under MIT. It is not ported; Rust uses <code>zip</code>.
@@ -1611,7 +1611,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <li><strong>iOS Safari:</strong> default full target with functional, accessibility and IME smoke tests; perf gated in Chromium.</li>
 <li><strong>CI cadence:</strong> default PRs run S/M tiers at 1x plus parity, round trip, accessibility and IME; main and nightly run the full corpus at 1x and 4x, validators and the scoreboard.</li>
 <li><strong>Viewer edits</strong> (#29): which ones?</li>
-<li><strong>ASK items:</strong> legacy and encrypted formats, docx review features, speaker notes and thumbnails, print, collaboration, export.</li>
+<li><strong>ASK items:</strong> docx review features, speaker notes and thumbnails, print, collaboration, export. (Formats are settled: .docx, .xlsx and .pptx only.)</li>
 </ol>
 <h3 id="61-decisions-current-calls-open-to-change">6.1 Decisions (current calls, open to change)</h3>
 <div class="tw"><table>
@@ -1660,8 +1660,8 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </tr>
 <tr>
 <td>D8</td>
-<td>Legacy and encrypted files</td>
-<td>Unsupported-format message in v1; Rust track after E5 (ASK)</td>
+<td>Formats</td>
+<td>Only .docx, .xlsx and .pptx; legacy, encrypted, CSV and every other format show an "unsupported format" message (#13, #37)</td>
 </tr>
 <tr>
 <td>D9</td>

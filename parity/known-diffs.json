@@ -1,16 +1,3 @@
 {
-	"entries": [
-		{
-			"format": "pptx",
-			"fixture": "real-pptx-poi-customGeo",
-			"path": "**/text",
-			"reason": "trailing empty-paragraph newline vs upstream — #27"
-		},
-		{
-			"format": "pptx",
-			"fixture": "real-pptx-poi-customGeo",
-			"path": "**/type",
-			"reason": "title placeholder p:style fillRef vs spPr-only visible-style gate — #27"
-		}
-	]
+	"entries": []
 }

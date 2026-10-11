@@ -44,3 +44,11 @@ bash tools/model-compare/run-issue.sh <issue> [base-sha]    # all arms, rotated 
 bash tools/model-compare/blind.sh <issue>
 ```
 OpenCode needs `set -a; . /home/box/.config/nvidia-nim.env; set +a` (run.sh does it). Codex needs `CODEX_MODEL` set to the exact `6.1 sol` id; if the catalog has no such model the arm is logged as `unavailable` and not substituted.
+
+## Status: paused (2026-10-11, 09:40 ET)
+
+Jared's standing rule: all Nitro XML coding now runs on Cursor cloud agents in Auto mode, so Claude Code, Codex, OpenCode and Grok Build are off for implementation and this comparison is paused. Results so far are in `results/runs.jsonl`:
+- **#11:** A and B both passed first try; B used 53% less plan usage. D failed. C was unavailable. The blind pick was B, merged in #112.
+- **#12:** no arm passed. A and B hit the Claude session limit at start. D was stopped after failing gate-0. C was unavailable.
+
+The #12 gate (`gates/issue-12.sh`) stays as the acceptance check for whoever implements #12.

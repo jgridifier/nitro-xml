@@ -1,9 +1,11 @@
 # Nitro XML Rust workspace.
-# Crates: nitro-xml-opc, nitro-xml-xlsx, nitro-xml-docx, nitro-xml-pptx, nitro-xml-wasm, umbrella nitro-xml.
+# Crates: nitro-xml-opc, nitro-xml-render, nitro-xml-xlsx, nitro-xml-docx, nitro-xml-pptx,
+# nitro-xml-wasm, umbrella nitro-xml.
 [workspace]
 resolver = "2"
 members = [
     "crates/nitro-xml-opc",
+    "crates/nitro-xml-render",
     "crates/nitro-xml-xlsx",
     "crates/nitro-xml-docx",
     "crates/nitro-xml-pptx",
@@ -23,6 +25,7 @@ publish = false
 # outside rs/, so no crate package can include it.
 [workspace.dependencies]
 nitro-xml-opc = { path = "crates/nitro-xml-opc" }
+nitro-xml-render = { path = "crates/nitro-xml-render" }
 nitro-xml-xlsx = { path = "crates/nitro-xml-xlsx" }
 nitro-xml-docx = { path = "crates/nitro-xml-docx" }
 nitro-xml-pptx = { path = "crates/nitro-xml-pptx" }

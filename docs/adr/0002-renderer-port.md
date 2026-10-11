@@ -348,7 +348,7 @@ The acceptance idea "no long task over 50 ms while scrolling L-tier fixtures" st
 ## Consequences
 
 - Renderer issues implement modules listed here; they do not invent parallel layouts.
-- Creating the `nitro-xml-render` crate and empty `render/` module files is deferred to the first port PR that needs them (this ADR is names, responsibilities and threading only).
+- The `nitro-xml-render` crate exists (`rs/crates/nitro-xml-render/`); command-buffer types live there. Empty `render/` modules under format crates still land with the first painter port PR for each format.
 - #28's file list should be corrected when claimed.
 - Painter ports must encode through `nitro-xml-render::command_buffer` and rely on the `#37` loader for apply + batched measure; no per-element WASM→JS calls.
 - Opcode gaps in `docs/boundary.md` remain for painter/loader work as formats land.

@@ -6,8 +6,9 @@ browser events, applies each frame's command buffer, and performs one batched
 DOM read-back (text measurement) per frame. Nothing else ships as JS
 (PRODUCT_SPEC.md; Head of Product review on #33).
 
-Wire formats live in `docs/boundary.md` and `rs/crates/nitro-xml-wasm`
-(`transport.rs`, `events.rs`, `handle.rs`).
+Wire formats live in `docs/boundary.md`, command-buffer / measure types in
+`rs/crates/nitro-xml-render/`, and the wasm handle / events / string table in
+`rs/crates/nitro-xml-wasm` (`handle.rs`, `events.rs`, `transport.rs`).
 
 ## Bootstrap
 

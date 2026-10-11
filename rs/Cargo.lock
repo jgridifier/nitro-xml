@@ -192,6 +192,7 @@ name = "nitro-xml-docx"
 version = "0.0.0"
 dependencies = [
  "nitro-xml-opc",
+ "nitro-xml-render",
 ]
 
 [[package]]
@@ -210,7 +211,12 @@ name = "nitro-xml-pptx"
 version = "0.0.0"
 dependencies = [
  "nitro-xml-opc",
+ "nitro-xml-render",
 ]
+
+[[package]]
+name = "nitro-xml-render"
+version = "0.0.0"
 
 [[package]]
 name = "nitro-xml-wasm"
@@ -219,6 +225,7 @@ dependencies = [
  "console_error_panic_hook",
  "js-sys",
  "nitro-xml",
+ "nitro-xml-render",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
@@ -230,6 +237,7 @@ name = "nitro-xml-xlsx"
 version = "0.0.0"
 dependencies = [
  "nitro-xml-opc",
+ "nitro-xml-render",
 ]
 
 [[package]]

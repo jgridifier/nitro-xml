@@ -1,0 +1,16 @@
+{
+  "name": "nitro-xml-a11y",
+  "private": true,
+  "description": "Accessibility gate: differential axe-core + AX-tree + keyboard vs upstream TS (#42). Test-only; never shipped.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "a11y": "bun ./run.mjs"
+  },
+  "dependencies": {
+    "axe-core": "^4.10.2"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  }
+}

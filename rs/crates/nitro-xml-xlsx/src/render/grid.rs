@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-// Ported from ChristopherVR/ooxml@e66aaec src/ui/src/xlsx/grid/grid-view.ts (frame/quadrant shell);
-// changes listed in PROVENANCE.md.
+// Ported from ChristopherVR/ooxml@e66aaec src/ui/src/xlsx/grid/grid-view.ts (frame/quadrant shell)
+// and grid-a11y.ts (role/aria counts + live region); changes listed in PROVENANCE.md.
 
 use nitro_xml_render::command_buffer::CommandBuffer;
 
+use crate::address::{MAX_COL, MAX_ROW};
 use crate::intern::StringIntern;
 use crate::model::ActiveWorksheet;
 use crate::render::geometry::header_sizes;
@@ -12,6 +13,8 @@ use crate::view::metrics::GridMetrics;
 
 /// Root node every painter attaches under.
 pub const ROOT_ID: u32 = 1;
+/// Polite live region for selection announcements (upstream `grid-a11y.ts`).
+pub const LIVE_ID: u32 = 3;
 /// Main (unfrozen) quadrant box — clipped at the header inset.
 pub const Q_MAIN_ID: u32 = 10;
 /// Scroll plane (`translate3d(-scroll)`) hosting lines/cells/overlay.
@@ -70,6 +73,25 @@ pub fn paint_frame<I: StringIntern>(
     let div = intern.intern("div");
     buf.create_element(ROOT_ID, div, 0);
     set_attr(buf, intern, ROOT_ID, "class", "xg-root");
+    // Upstream grid-view.ts + grid-a11y.ts (#42).
+    set_attr(buf, intern, ROOT_ID, "role", "grid");
+    set_attr(buf, intern, ROOT_ID, "part", "grid");
+    set_attr(
+        buf,
+        intern,
+        ROOT_ID,
+        "aria-rowcount",
+        &(MAX_ROW + 1).to_string(),
+    );
+    set_attr(
+        buf,
+        intern,
+        ROOT_ID,
+        "aria-colcount",
+        &(MAX_COL + 1).to_string(),
+    );
+    set_attr(buf, intern, ROOT_ID, "aria-multiselectable", "true");
+    set_attr(buf, intern, ROOT_ID, "aria-label", "Spreadsheet grid");
     for (prop, val) in [
         ("position", "relative"),
         ("width", "100%"),
@@ -86,6 +108,12 @@ pub fn paint_frame<I: StringIntern>(
     ] {
         set_style(buf, intern, ROOT_ID, prop, val);
     }
+
+    // Polite status region; selection text is filled by the editor surface (E-text).
+    buf.create_element(LIVE_ID, div, ROOT_ID);
+    set_attr(buf, intern, LIVE_ID, "class", "xg-live");
+    set_attr(buf, intern, LIVE_ID, "role", "status");
+    set_attr(buf, intern, LIVE_ID, "aria-live", "polite");
 
     let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let cells_w = (viewport.width - sizes.w).max(0);

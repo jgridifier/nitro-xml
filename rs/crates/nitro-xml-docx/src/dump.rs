@@ -5,7 +5,9 @@ use serde_json::{json, Value};
 
 use crate::body::read_package;
 use crate::layout::LayoutReviewOptions;
-use crate::layout::{create_fake_measurer, layout_document_model};
+use crate::layout::{
+    create_fake_measurer, layout_document_model, layout_document_model_cached, MeasureCache,
+};
 use crate::model_dump::model_to_dump_json;
 use crate::numbering::{compute_list_labels, display_list_label, resolve_paragraph_numbering};
 use crate::paragraph_scan::scan_paragraphs;
@@ -100,5 +102,33 @@ pub fn dump_docx_layout(bytes: &[u8]) -> Result<String, String> {
         "pages": result.pages,
         "approximations": approximations,
     });
+    Ok(serde_json::to_string(&out).unwrap())
+}
+
+/// One measured layout pass. `cache_json` is a map of measure keys to
+/// `{width, lineHeight?, ascent?}`. Pending probes are emitted when the cache
+/// cannot yet answer every call.
+pub fn dump_docx_pagecount(bytes: &[u8], cache_json: Option<&str>) -> Result<String, String> {
+    let loaded = read_package(bytes).map_err(|e| e.to_string())?;
+    let mut cache = MeasureCache::new();
+    if let Some(text) = cache_json {
+        if !text.trim().is_empty() {
+            cache.load_json(text)?;
+        }
+    }
+    let measured =
+        layout_document_model_cached(&loaded.model, &cache, LayoutReviewOptions::default());
+    let out = if measured.pending.is_empty() {
+        json!({
+            "done": true,
+            "format": "docx",
+            "pageCount": measured.result.pages.len(),
+        })
+    } else {
+        json!({
+            "done": false,
+            "pending": measured.pending.iter().map(|probe| probe.to_json()).collect::<Vec<_>>(),
+        })
+    };
     Ok(serde_json::to_string(&out).unwrap())
 }

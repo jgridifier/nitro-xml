@@ -5,17 +5,29 @@ use std::collections::HashSet;
 
 use crate::body::DocumentModel;
 use crate::layout::adapter::adapt_document_model;
+use crate::layout::bidi::apply_uax9_result;
 use crate::layout::floats::{position_floats, FLOAT_WRAP_NOTE};
 use crate::layout::input::LayoutDocumentInput;
-use crate::layout::measure::FakeMeasurer;
+use crate::layout::measure::{
+    create_fake_measurer, CachedMeasurer, MeasureCache, MeasureSample, PendingMeasure, TextMeasurer,
+};
 use crate::layout::page_flow::layout_sections;
 use crate::layout::result::LayoutResult;
 use crate::layout::review_display::LayoutReviewOptions;
 use crate::layout::wrap::{same_exclusions, wrap_exclusions};
 use crate::review_document_formatting::review_document_formatting;
 
-pub fn layout_document(input: &LayoutDocumentInput, measurer: &FakeMeasurer) -> LayoutResult {
-    let mut result = layout_sections(input, measurer, None);
+pub fn layout_document(input: &LayoutDocumentInput, measurer: &dyn TextMeasurer) -> LayoutResult {
+    let result = layout_sections(input, measurer, None);
+    finalize_floats(input, measurer, result)
+}
+
+/// Float exclusion passes shared by eager layout and [`super::session::LayoutSession`].
+pub(crate) fn finalize_floats(
+    input: &LayoutDocumentInput,
+    measurer: &dyn TextMeasurer,
+    mut result: LayoutResult,
+) -> LayoutResult {
     if !position_floats(input, &mut result.pages) {
         return result;
     }
@@ -44,7 +56,7 @@ pub fn layout_document(input: &LayoutDocumentInput, measurer: &FakeMeasurer) -> 
 
 pub fn layout_document_model(
     model: &DocumentModel,
-    measurer: &FakeMeasurer,
+    measurer: &dyn TextMeasurer,
     options: LayoutReviewOptions,
 ) -> LayoutResult {
     let mode = match options
@@ -87,4 +99,45 @@ pub fn layout_document_model(
         pages: result.pages,
         approximations: merged.into_iter().collect(),
     }
+}
+
+pub struct CachedLayout {
+    pub result: LayoutResult,
+    pub pending: Vec<PendingMeasure>,
+}
+
+/// One layout pass against `cache`. When every probe hits, UAX #9 is applied
+/// to fragment x positions (page breaks stay the same).
+pub fn layout_document_model_cached(
+    model: &DocumentModel,
+    cache: &MeasureCache,
+    options: LayoutReviewOptions,
+) -> CachedLayout {
+    let measurer = CachedMeasurer::new(cache);
+    let mut result = layout_document_model(model, &measurer, options);
+    let pending = measurer.take_pending();
+    if pending.is_empty() {
+        apply_uax9_result(&mut result);
+    }
+    CachedLayout { result, pending }
+}
+
+/// Re-layout until `resolve` has filled every miss recorded by [`CachedMeasurer`].
+pub fn layout_until_measured(
+    model: &DocumentModel,
+    cache: &mut MeasureCache,
+    options: LayoutReviewOptions,
+    resolve: &mut dyn FnMut(&[PendingMeasure]) -> Vec<MeasureSample>,
+) -> LayoutResult {
+    let mut last = None;
+    for _ in 0..48 {
+        let measured = layout_document_model_cached(model, cache, options.clone());
+        if measured.pending.is_empty() {
+            return measured.result;
+        }
+        let samples = resolve(&measured.pending);
+        cache.absorb(&measured.pending, &samples);
+        last = Some(measured.result);
+    }
+    last.unwrap_or_else(|| layout_document_model(model, &create_fake_measurer(), options))
 }

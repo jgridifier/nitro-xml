@@ -2,7 +2,7 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/docx/layout/flow-table.ts; changes listed in PROVENANCE.md.
 
 use super::input::LayoutTable;
-use super::measure::FakeMeasurer;
+use super::measure::TextMeasurer;
 use super::page_cursor::PageCursor;
 use super::result::{LayoutBlockBox, LayoutTableBox, LayoutTableRowBox};
 use super::table_layout::{layout_row, split_row_at_height, RowLayout};
@@ -10,7 +10,7 @@ use super::table_layout::{layout_row, split_row_at_height, RowLayout};
 pub fn place_table(
     cursor: &mut PageCursor,
     table: &LayoutTable,
-    measurer: &FakeMeasurer,
+    measurer: &dyn TextMeasurer,
     note: &mut dyn FnMut(&str),
 ) {
     let first_body_row = table

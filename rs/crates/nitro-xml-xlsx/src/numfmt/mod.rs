@@ -2,7 +2,7 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/numfmt/index.ts; changes listed in PROVENANCE.md.
 //! Excel number formats: `format_value` and the pieces it is built from.
 //!
-//! `src/core/xlsx/display-text.ts` is not ported here. It needs the workbook model (`styleAt`).
+//! `display-text.ts` and input parsing are follow-ups (#130); they need the workbook model.
 
 mod builtins;
 mod compile;

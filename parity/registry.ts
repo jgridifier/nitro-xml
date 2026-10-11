@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 /**
  * Comparison registry. Format parsers register (or flip `ready`) here when their
- * Rust view-IR dump lands — see comparisons/formats.ts.
+ * Rust dump lands — see comparisons/{xml,opc,xlsx,docx,formats}.ts.
  */
 
 import type { Comparison, ParityFormat } from './types.ts';
 import { xmlComparison } from './comparisons/xml.ts';
 import { opcComparison } from './comparisons/opc.ts';
 import { xlsxComparison } from './comparisons/xlsx.ts';
-import { docxComparison, pptxComparison } from './comparisons/formats.ts';
+import { docxComparison } from './comparisons/docx.ts';
+import { pptxComparison } from './comparisons/formats.ts';
 
 const ALL: Comparison[] = [
 	xmlComparison,

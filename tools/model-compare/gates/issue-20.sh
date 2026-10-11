@@ -4,7 +4,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/../../.."
 export PATH=$HOME/.cargo/bin:$HOME/.bun/bin:$PATH
-UPSTREAM_DIR=${UPSTREAM_DIR:-/workspace/ooxml-src}; export UPSTREAM_DIR
+UPSTREAM_DIR=${UPSTREAM_DIR:-$(cd "$(dirname "$0")/../../.." && pwd)/upstream}; export UPSTREAM_DIR
 fail=0; note(){ echo "GATE: $*"; }
 [ "$(git -C "$UPSTREAM_DIR" rev-parse HEAD)" = e66aaec24adc0b68472eae1fc42aa4598e09c352 ] || { note "upstream not at pin"; exit 1; }
 ( cd rs && cargo fmt --all --check ) || { note "FAIL fmt"; fail=1; }

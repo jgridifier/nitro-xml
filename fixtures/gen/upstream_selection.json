@@ -1,0 +1,1023 @@
+{
+ "upstream": "https://github.com/ChristopherVR/ooxml",
+ "commit": "e66aaec24adc0b68472eae1fc42aa4598e09c352",
+ "licence": "Apache-2.0",
+ "selection": [
+  {
+   "upstream_path": "e2e/pptx/fixtures/bar-picture-fill-hill.pptx",
+   "other_paths": [],
+   "sha256": "1e19dbff128685e34dce6e2502233e9a2825257c14a90d3f8954c4940ee20a60",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/box-cube-transition.pptx",
+   "other_paths": [],
+   "sha256": "25ceccfae63d15e45fe00637429da59cd9bd65edd7cb45d0bc4fb9e2df01609b",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/chart-top-axis.pptx",
+   "other_paths": [],
+   "sha256": "4143514daf0302ae96856950b386f38232f52cfb865be5dc8d0b57b5f49258f5",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/cjk-line-breaking.pptx",
+   "other_paths": [],
+   "sha256": "e3dab827b8363a972f9de57c707fb6ae9e5a3f3b639b99a808033239ec20c976",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/field-substitution.pptx",
+   "other_paths": [],
+   "sha256": "d34691128d6a06ca969ea6b6b999eef5b8fa0d533860e0a7bf575e65ed181d5d",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/format-painter.pptx",
+   "other_paths": [],
+   "sha256": "bd16f101c6d574a0c39748ae04db3288246d7d4f04e0d5d14ce202b72784fbc4",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/inspector-reset-actions.pptx",
+   "other_paths": [],
+   "sha256": "e21bb6ce7505c6e84afe961df8131448be8098608dc1a6ca397a0d14d889c950",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/media-bookmark-trigger-editable.pptx",
+   "other_paths": [],
+   "sha256": "b2b71a866c2e7e423eb622a7ac819858ce2194b13b51c647175e43fde17f101d",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/parity-wave4.pptx",
+   "other_paths": [],
+   "sha256": "af1bd691bad151fbbaaa85b1ba54e690c51e1b184bec75789735f5eb30e7baba",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/ribbon-galleries.pptx",
+   "other_paths": [],
+   "sha256": "b2aa81e78d15d13a04e2ecbfaa4aeb8509309c3db975328369fc6e38d6550160",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/smartart-build-reveal.pptx",
+   "other_paths": [],
+   "sha256": "f374280d2eb72ec89ba685ae2877815c9c21ea2dfe43e056e93f870ad9b66d7c",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/template-mce.pptx",
+   "other_paths": [],
+   "sha256": "0c7e49afbe042a9a5994f7b3f2204e55f69684475a082c0dcb6800313d0c923f",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "e2e/pptx/fixtures/transitions-animations.pptx",
+   "other_paths": [],
+   "sha256": "b6c7dfcf4428db4198fe2869eac5ea5d4177b249fd712a15d204eb96654f46ad",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/chart.docx",
+   "other_paths": [],
+   "sha256": "f7dc2db85d046cc8f2c153ecbbbe9336bddb0f3dfca9a3053832716c2e568d4a",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/smartart.docx",
+   "other_paths": [],
+   "sha256": "2286e4c70c12376bcca0229c182b28f39e5d56e2805a3f751349dd78f3cde76c",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/field-comments/adjacent-result.docx",
+   "other_paths": [],
+   "sha256": "6bf50c3ab07a4edc5003b1bf82238fbc1a2311cb937e1d089408219dc872ba46",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/field-comments/adjacent-source.docx",
+   "other_paths": [],
+   "sha256": "0f300490ff199052726da83e190bb95e61c1f42e83057f0064384fa700a4fb6d",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/field-range-copy/partial.docx",
+   "other_paths": [],
+   "sha256": "29be1efc9c3d7a60676e7da36f44479b7acf0053d915c69e6aff3c06916182ed",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/field-range-copy/result.docx",
+   "other_paths": [],
+   "sha256": "1692c4faac3ff7371d66e55c7babd8bcf560da4195bc3a47c3386c1760842cd5",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/field-result-cut/partial.docx",
+   "other_paths": [],
+   "sha256": "b925c014f155ed7d68f3d0450896ebda0621c4d44a4611cb38f77686cff12220",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/field-result-cut/result.docx",
+   "other_paths": [],
+   "sha256": "c5fb4971e4834d88562723abd83355f5fae6a5d1efc5ea41effbb3946e8ee4f7",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/field-result-replace/empty.docx",
+   "other_paths": [],
+   "sha256": "bdfae0732058037127559b27c2458f875c834ceba1f408ca9ac02f28311a2827",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/field-result-replace/end.docx",
+   "other_paths": [],
+   "sha256": "ee04bf55d0cafe5cd330d4ce8762fec17e08073e0bfcad4887b41be0113a05c3",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/formatting-actions/baseline.docx",
+   "other_paths": [],
+   "sha256": "9815f4cd7f0cdc1ed4cef918bc6dc9f09691b4893c3e654aa39349e9bc3f1ad4",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/formatting-actions/bold-italic.docx",
+   "other_paths": [],
+   "sha256": "855d0845e0a3ebebc6049d4307031697d7a5d94f9a881b9a6791fa81a94a515f",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/opaque-run-properties/outline-shadow.docx",
+   "other_paths": [],
+   "sha256": "e8c1eeb1c1fcca216f292f8e0920c1a5fa1cf62a7964573c5bfae351f77d832e",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/page-break-style/page-break-style.docx",
+   "other_paths": [],
+   "sha256": "0bb200a0707290f6e766c53013be93ec5ef7367574615e020b5bbc5c2ff8acc6",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/paragraph-boundary-tracking/join.docx",
+   "other_paths": [],
+   "sha256": "d3f43e83fa1c5d3d0028c1435d1cf5939d640ec5210c9063e174323267527027",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/paragraph-boundary-tracking/split.docx",
+   "other_paths": [],
+   "sha256": "6b3e72a4117c23bf7eeab8ed26bfbe900e5b0476509aecf2ed59ac8c1c8a070a",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-advanced-object-formatting/break-accepted.docx",
+   "other_paths": [],
+   "sha256": "a448854a0a41624b5e3867737d109dd1263144c547ab414a0974b7b3ad7442de",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-advanced-object-formatting/break-before.docx",
+   "other_paths": [],
+   "sha256": "af08a8c3fa8a71912fbf2ec8149b19e4974a38bee781f987659ccaec709cd98f",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-formatting/bold-before.docx",
+   "other_paths": [],
+   "sha256": "5cc31b4c9d7fd54415887955f96bc9e81bcacf98d4771363b61975f00f36db34",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-formatting/bold-rejected.docx",
+   "other_paths": [],
+   "sha256": "550ae83cbef3e9117f337af5f4c5d73508749a1a2f5cc4effb5bd3183cf0f578",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-inline/break-delete-accepted.docx",
+   "other_paths": [],
+   "sha256": "1b612449941ba719a654c5fd2ea40028adce95ab667d8b828df7b40327142e48",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-inline/break-delete-before.docx",
+   "other_paths": [],
+   "sha256": "ea1f61c3afec4036f94d40134eade97cb99803a06183161821b457e72d1fe62a",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-line-break-formatting/line-break-accepted.docx",
+   "other_paths": [],
+   "sha256": "78718f9529763ba380c9a1bb0bf8d1cb45e100aec84e29e67a45a37ad4e5daa3",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-line-break-formatting/line-break-before.docx",
+   "other_paths": [],
+   "sha256": "d3a6896f9b3beed5eed07714ca338f0dd8f099e084281ccdefb29650908cba0a",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-moves/core-created.docx",
+   "other_paths": [],
+   "sha256": "40b102dde450a7f73c19e34b6b871f06e864cb550de34566485d9d672587762c",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-moves/word-accepted-first.docx",
+   "other_paths": [],
+   "sha256": "b55bb79d882f913e9e47266d741748239b160d9c7882c1101bcc0460f39aa1ce",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-object-formatting/break-accepted.docx",
+   "other_paths": [],
+   "sha256": "3c4c6a9cf4afb9a5cfd8e2d46357ebdba358dacd3421fbccf16a0934b6c4a08f",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-object-formatting/break-before.docx",
+   "other_paths": [],
+   "sha256": "909716f366982e533ecb578683e554f6a23b125c355f366f8a3116db1e697dba",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-paragraph-formatting/alignment-before.docx",
+   "other_paths": [],
+   "sha256": "3bba00c30a63f9bcbc97853769f640abf662a9dedae179cd1d82f4f81f1c70a5",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-paragraph-formatting/alignment-rejected.docx",
+   "other_paths": [],
+   "sha256": "6273dd165e65411505a106b1cba06ecc962a630b8e7b69aef4e21b5c49f39520",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-preferences/edited.docx",
+   "other_paths": [],
+   "sha256": "6f5fb53227d105ca14100457eed2a93629425cf4af2d2257abeac188d78e3e7b",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-preferences/preferences.docx",
+   "other_paths": [],
+   "sha256": "988079b295a0a5f45cc75495c08bd636784916b870cb45171f169f4bfa657b52",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-stories/all-stories-accepted.docx",
+   "other_paths": [],
+   "sha256": "080e7a9ed4839068042baebb8fd02e547bc3d69cccb88364141a38a96fba8905",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/__fixtures__/review-stories/all-stories-before.docx",
+   "other_paths": [],
+   "sha256": "3d223dd77c432b27e0e1504f1eb01a92b542b9f0e0ca13ef05c1fd727e7c3201",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/layout/fixtures/continuous-page-fields/default.docx",
+   "other_paths": [],
+   "sha256": "b964914b1e51ab64b98a5c607c08c96c0a7cc7de93cbfa8ecc6f24b5fb4ee6b1",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/layout/fixtures/continuous-page-fields/even-odd.docx",
+   "other_paths": [],
+   "sha256": "eec2ebea615cc9c01b7e0ede8cdc81b350a19a16ab8306be1650bd5f04ffdc5e",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/layout/fixtures/continuous-sections/balanced-columns.docx",
+   "other_paths": [],
+   "sha256": "76e15769e470046323d9b219f9aa1153ad7504083d64797576423bbda25d2911",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/layout/fixtures/continuous-sections/balanced-keep.docx",
+   "other_paths": [],
+   "sha256": "32cff54a47702a51b63f7ed48488536068db372e6157cfc8fc8c376d27e1bd23",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/layout/fixtures/continuous-tables/table-even.docx",
+   "other_paths": [],
+   "sha256": "fd702db2416ca17109967281532d3bd827b06285dafb155e6add74c6d57b0cf9",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/layout/fixtures/continuous-tables/table-header-overflow.docx",
+   "other_paths": [],
+   "sha256": "fcbf74492e0855a3889317450935fff03cbaf65c306c63726a80cdc66cd17126",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/docx/load/__fixtures__/word-encrypted.docx",
+   "other_paths": [],
+   "sha256": "fb3af3f7b5f75ed44cf0f4d51e75d22876e367ddf2821ae01bfee3da4d1a2a74",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/animation-ppt-formula-ground-truth.pptx",
+   "other_paths": [],
+   "sha256": "e5e3a918a510e47482fdd10904d3c148c16d73c2a0e75290f3917a879952acbf",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/effect-sound-builtin.pptx",
+   "other_paths": [],
+   "sha256": "38fb1b1e8f76c89d1cd843a6abb3d2247f7a630def002f91e5c51db51725e23a",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/embedded-assets-sample.pptx",
+   "other_paths": [],
+   "sha256": "d64f9e91a8150941bf8db4ea9c40262d3c266a6512c4a9a5b0ee933618a18f71",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/master-text-styles.pptx",
+   "other_paths": [],
+   "sha256": "4647c93fad6865d0ce7f876a1de553946f6dc2ed309fe67bd0cf4edbcf7c6dbc",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/modify-verifier-saltless-md5.pptx",
+   "other_paths": [],
+   "sha256": "a734ca765129fa86a589094b8eeaf2a543c4baa6c43c6f1f6207e72d5821b56d",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/modify-verifier-saltless-ripemd160.pptx",
+   "other_paths": [],
+   "sha256": "1b3ce5863e044862ffeff7a77c2cdaf5d058268cf761e1d9b5c53c0a56d3340d",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/modify-verifier-saltless-sha1.pptx",
+   "other_paths": [],
+   "sha256": "88e14cba7830bbe32441d2478b7c299e0526cb0b662c6dc1ba3f6dbb683b4b1b",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/modify-verifier-saltless-sha256.pptx",
+   "other_paths": [],
+   "sha256": "49a48af6d18d56c57b1a1f7a27d6e8687acbff83e84adb71c1bcb9824138235e",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/modify-verifier-saltless-sha384.pptx",
+   "other_paths": [],
+   "sha256": "2b363b2c9b0438ac11b73cdbdc07a228b50a2990095a4e37eb6653e2ee26a600",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/modify-verifier-saltless-whirlpool.pptx",
+   "other_paths": [],
+   "sha256": "8bbf3d67bd63eca5eea5f2fd6fb5077261e6b67ffc5a2cb8cfaa8733811fc483",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/picture-fixture.pptx",
+   "other_paths": [],
+   "sha256": "55531661e8685aefd8fee5cdeba6dea504960ab4cc84601f01dc37d24169e539",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/picture-formats.pptx",
+   "other_paths": [],
+   "sha256": "3a09e4b3e9253234206b40c4b3e419704b7e99333b6600317164574722aa5c6d",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/table-paragraph-layout.pptx",
+   "other_paths": [],
+   "sha256": "e0dce36d208848363a458f57c38d34584053460ae7cced809c0fc7b806259117",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/animations-transitions-multislide.pptx",
+   "other_paths": [],
+   "sha256": "dbc4432fdc195956410a70498351ab16fd158719cefcd42612edfb130a3202fe",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/master-layout-inheritance-fills.pptx",
+   "other_paths": [],
+   "sha256": "1abd9b12cb192be6dd5c7af8f8936ddfbaa3c15fd8916e589ff78c7c90190e83",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/ole-embedded-media.pptx",
+   "other_paths": [],
+   "sha256": "f7015eebee2e6b54da21a0c4b96872d5c8f09a05f70c27b998597524b8ec542a",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/preset-geometry-wordart.pptx",
+   "other_paths": [],
+   "sha256": "57de458fae919268473a0081bdae64cca9b81e59dc4c6dafcf7cde849d1d0927",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/smartart-chart-table-mix.pptx",
+   "other_paths": [],
+   "sha256": "0d9a8eaf2de417beeea5570eda416945e314bf67e075c96e7df3a1a73c7e4f2a",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/smartart-orgchart-assistants.pptx",
+   "other_paths": [],
+   "sha256": "091abf411e47ac07d54db3587864845451b63939c34fba79fe0729ce89dc5fdb",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/smartart-orgchart-fan-variants.pptx",
+   "other_paths": [],
+   "sha256": "25297a56a75878f2bc2bb3cb0dff2614ff435841b1100b179dd238ce03be90ac",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/smartart-orgchart-hierbranch.pptx",
+   "other_paths": [],
+   "sha256": "db668adb7e739e8f5efdfe284c1161aed9c13d3ed4a80fa0642ee068d9a18d53",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/smartart-orgchart-many.pptx",
+   "other_paths": [],
+   "sha256": "3858c1c9d869df9d7fadaa0f5ecbb332d4666adc544af2736824860e4c262231",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/smartart-orgchart-nested-hang.pptx",
+   "other_paths": [],
+   "sha256": "a10c83ff4127ab3e8ad33b7b915232cbbace6458678ebbb6b466d6fb42a2b895",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/accessibility-images.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/accessibility-images.pptx"
+   ],
+   "sha256": "7cc22f8e5927fb40057353780977846f56a876aa8efbf8cc629fc5207d8fece2",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/animation-behavior-playback.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/animation-behavior-playback.pptx"
+   ],
+   "sha256": "4a678fd44484d5f99649fa08da653edd1b6dbf84e02538a20229970584c5e124",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/background-alpha.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/background-alpha.pptx"
+   ],
+   "sha256": "ea86d831d24d89bc22d030518c59edef46e74a6796825f7a14cc817785c4b823",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/bar3d-picture-fill.pptx",
+   "other_paths": [],
+   "sha256": "f8f44b2075ebe246397711ed1b67e5b3a79ffeabec9f82de44eba769da6b6739",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/calibri-metric-webfont.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/calibri-metric-webfont.pptx"
+   ],
+   "sha256": "169be9b132efc5b30489b02afb62dbcf7a6b72845b644e14611764b094079295",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/chart-gallery.pptx",
+   "other_paths": [],
+   "sha256": "098b900e8f10bd36411a4b0232f91835e26948791b2ee6ccb445c4e555eebc81",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/chart-style-palette.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/chart-style-palette.pptx"
+   ],
+   "sha256": "80e6e30ea5976d22edded79735eeaa2e4141e50d9acd7e4e3d47daef5a4ac474",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/chart-user-shape-group.pptx",
+   "other_paths": [],
+   "sha256": "a0806b09c73d9cd2364a2f84e20ded193c1cc7a88dbf3b33ffbe944b45ee67a8",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/comment-mentions.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/comment-mentions.pptx"
+   ],
+   "sha256": "d173badb4435f7127c167076f2ba17dea587bb38971bd6b5c0d3122f6762252e",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/degenerate-shape.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/degenerate-shape.pptx"
+   ],
+   "sha256": "9f78c22429d9fd08343201d073287b1d2c7c42a85ea3880a8025d54250e4d547",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/effect-sound-gallery.pptx",
+   "other_paths": [],
+   "sha256": "a4b1b68c66c76e93967580c25e810bee4271b5241af1a3229d3475160826ac86",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/format-painter.pptx",
+   "other_paths": [],
+   "sha256": "3e787d01c5f731ef290885a0b5398e0cdb99ab063312a07568eaba39f61b8a2f",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/header-footer-shows.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/header-footer-shows.pptx"
+   ],
+   "sha256": "0c4571a8c30e5ee9a79854c4c451c13549384e95b783b628c9b571a1e6a0798b",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/image-fill-rot-with-shape.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/image-fill-rot-with-shape.pptx"
+   ],
+   "sha256": "c55ed898215fc328222cb0b660ef2195ce3d19374f870bfefb80a6c6ab0b2e9d",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/line-fill-fidelity.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/line-fill-fidelity.pptx"
+   ],
+   "sha256": "b332135c13c630966460d1c88d2966c88b6e779457d668168e82246ff7f7d2b1",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/media-bookmark-trigger-editable.pptx",
+   "other_paths": [],
+   "sha256": "38aa694fb4a57365408291c1769c7ecfad13a60e53a5a31eaa7d5ce88805671a",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/media-trigger-tgtel.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/media-trigger-tgtel.pptx"
+   ],
+   "sha256": "a344b2f3f55d24499f9529f678375de140dc21f68bee9275803596e40e19b4a1",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/modify-password.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/modify-password.pptx"
+   ],
+   "sha256": "6fbe45df1cb3438188518030ceceb2ac0226c7b2f1fc7dcba4ddd7b296f57059",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/nogroup-lock.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/nogroup-lock.pptx"
+   ],
+   "sha256": "d38cba8bfc42393509699487ab4ef047923b1a3edd56f3b2a7ab3d1629affec6",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/pattern-outline.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/pattern-outline.pptx"
+   ],
+   "sha256": "f3a23e347a282f11dde98ba4c0490a85b0d68573198711281ae0cf4e3fdc32be",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/preset-text-insets.pptx",
+   "other_paths": [],
+   "sha256": "be4aaa835c68a3a0d16fa9b5aee79d71e0097db7d8080b8c4dcec20a600b99cf",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/ribbon-galleries.pptx",
+   "other_paths": [],
+   "sha256": "f4fd46dfe4ec465c1165245674e8e00cb738db7e9706b64476d4770c4007367c",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/shape-3d-camera-override.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/shape-3d-camera-override.pptx"
+   ],
+   "sha256": "332cb27502fef696bf260adffb9ed603aa0097f2448e614be0c0e81083334204",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/stacked-line-legend.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/stacked-line-legend.pptx"
+   ],
+   "sha256": "c8a1d6b58292e1acc99b3d9e63b3079317118aa994cb15790698e6737d5c63ec",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/template-editing.pptx",
+   "other_paths": [],
+   "sha256": "959ab2f5bac74b434b0581d48d3a215b7211dab0cb64a29f43cbf2077f7d730d",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/text-body.pptx",
+   "other_paths": [],
+   "sha256": "7bb23ba0b604dee2b1ced64c81bb544c166d52ada8ee6aac29ea111a3d63bd90",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/text-warp-fidelity.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/text-warp-fidelity.pptx"
+   ],
+   "sha256": "482c93bc488266577fe8ac6573d75cfc1b913c51881e4c670671c740264d1aa4",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/underline-words-ruby-tab.pptx",
+   "other_paths": [],
+   "sha256": "165297e1d546a5d1f783dbaeeabac17cc3338ec10012f07e0fa6c08afef8c0b2",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/three-d-parity/three-d-charts.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/three-d-parity/three-d-charts.pptx"
+   ],
+   "sha256": "2789ff8d6772d2310f46dfefd747e476a1b7011c3cd8067521e4ea8d1febab0a",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/three-d-parity/three-d-smartart.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/three-d-parity/three-d-smartart.pptx"
+   ],
+   "sha256": "61fc791e15c0ab97807eb08aad9ff74679f75b0ce013158dd6479801eb3ca8b4",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/smartart-gallery/accent-process--hier5.pptx",
+   "other_paths": [],
+   "sha256": "21343018c5111cc92a19c07418340a4d92c55477283afd4a748ee1f823a74a0f",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/smartart-gallery/chevron-list--hier5.pptx",
+   "other_paths": [],
+   "sha256": "a61f509fcab9ea06f01cb608fef578f69f809a7a0167449deebf9660d9f2f0e0",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/smartart-gallery/horizontal-organization-chart--hier5.pptx",
+   "other_paths": [],
+   "sha256": "a8fa453c5023fa4f9c47d8f38fe55b5e5ddf0fc37d809141bd752b9f07584364",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/smartart-gallery/pyramid-list--hier5.pptx",
+   "other_paths": [],
+   "sha256": "717fb7735aa79a02b5f7685dbf7b90936f99a149ceb166c092b2cfcf664f6eec",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/smartart-gallery/text-cycle--hier5.pptx",
+   "other_paths": [],
+   "sha256": "64fe025bb96d7cc036fcfd55142fb696b42394bc7167cf0dd9d66a34cd941e36",
+   "redistributable": true,
+   "provenance": "upstream-office-authored"
+  },
+  {
+   "upstream_path": "src/core/xlsx/__fixtures__/excel-1904.xlsx",
+   "other_paths": [],
+   "sha256": "1a304a300451ed39caa6552a0020951577ec5aca7aa29f2f73c4aa09b51af43f",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/xlsx/__fixtures__/excel-features.xlsx",
+   "other_paths": [],
+   "sha256": "2ad922a2a0255d6a594c26498c06dc8aec1a492d0b90d5313b5fac2e9aa1cda6",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/xlsx/__fixtures__/excel-smartart.xlsx",
+   "other_paths": [],
+   "sha256": "9ed0ab63f8de9a591205b32ddc883b13667ac0f4e995088f766c74a5687175e2",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/xlsx/__fixtures__/excel-sparklines.xlsx",
+   "other_paths": [],
+   "sha256": "8b581ee14978e3bd959f14769207dc7c02ef84e37d8b9e2ef369e332ec1e1cce",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/xlsx/__fixtures__/openpyxl-1904.xlsx",
+   "other_paths": [],
+   "sha256": "fd8fbde7846da0b97a2c8c160efbdc449ccb6b465328e5b43d928ef5d511262c",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/xlsx/__fixtures__/openpyxl-features.xlsx",
+   "other_paths": [],
+   "sha256": "2f38830758e803854b78c5cc7ce17fdb2e08a5bbf4e294fbb8b49e46f88fc7c3",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/xlsx/__fixtures__/openpyxl-styles.xlsx",
+   "other_paths": [],
+   "sha256": "3fdae3824ddee5b5d041e1473fb3a38fc1a370dda8f16b529cf470149be1a793",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/xlsx/__fixtures__/encrypted/excel-encrypted.xlsx",
+   "other_paths": [],
+   "sha256": "e899e84e62090d6aead85d0ef8fcc9c524c529c9147cc8f490cbdb0bb1adf16c",
+   "redistributable": true,
+   "provenance": "upstream-synthetic"
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/36_Slides_Extra_Large_22_5_MB_578ce6bbf3.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/36_Slides_Extra_Large_22_5_MB_578ce6bbf3.pptx"
+   ],
+   "sha256": "ddda91cd9fe88c5e34e0dbd154b088f4c0b6903300ca56eff0aa96979c0b564e",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/Image_JPG_PNG_Audio_M4_A_Video_MP_4_12_Slides_36_8_MB_ff1095731b.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/Image_JPG_PNG_Audio_M4_A_Video_MP_4_12_Slides_36_8_MB_ff1095731b.pptx"
+   ],
+   "sha256": "7509afb7dc9abfc35c8402d3efdd023a5d4379f3caf1afe7976040737b0df649",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/Japanese_10_Slides_1_8_MB_bbd4090b55.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/Japanese_10_Slides_1_8_MB_bbd4090b55.pptx"
+   ],
+   "sha256": "2f9f084c00fb0822e767cb81aa66989dfcf9b5966b735464dc0599a866ea9065",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/Mathematical_Equations_11_Slides_46_KB_3c22e70f4d.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/Mathematical_Equations_11_Slides_46_KB_3c22e70f4d.pptx"
+   ],
+   "sha256": "2f8ae8ea1528ceb6e22961d9931b831e8cced84cee63bfe5c89af4aa660b38b9",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/Non_Latin_Arabic_RTL_text_11_Slides_7_3_MB_7f135c4f96.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/Non_Latin_Arabic_RTL_text_11_Slides_7_3_MB_7f135c4f96.pptx"
+   ],
+   "sha256": "966a97fbf95e01bb1ce2d84511d9385d733d67fbe8242f34fa7f270c5bc80a6a",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/Password_Protected_123_8_Slides_2_3_MB_927e34cd0c.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/Password_Protected_123_8_Slides_2_3_MB_927e34cd0c.pptx"
+   ],
+   "sha256": "70db22b76ad72fa33e5945eb4ec6c2a3ead0d5699ee50a5eb9d8652c2bd1495f",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/Simplified_Chinese_10_Slides_1_8_MB_792c2c1166.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/Simplified_Chinese_10_Slides_1_8_MB_792c2c1166.pptx"
+   ],
+   "sha256": "2210a70d2fa16cc39b6564fa3cb0982934cbcb571c8f4e8c3d562eb334215d21",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/Slide_Animations_Speaker_comments_8_Slides_2_7_MB_c8f64d1a03.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/Slide_Animations_Speaker_comments_8_Slides_2_7_MB_c8f64d1a03.pptx"
+   ],
+   "sha256": "851d8d8a7708295dbd76c7c49971ce22aab3e89987d4d645ac39425c96143577",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/absolute-path-rels.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/absolute-path-rels.pptx"
+   ],
+   "sha256": "601690eebf0c58cf72ff133f23c3e5d488b3ffeb05d0595e4accdd3cba505b16",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/anatidae-animation.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/anatidae-animation.pptx"
+   ],
+   "sha256": "f29fb112bdf7b737c74eecabd2d6a15749a51bf6a2cb6d1d3371d61477fd5420",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Genuine PowerPoint deck by a third-party author (docProps creator \"Thomas Skuse\"; upstream manifest: \"third-party author\")."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/issue-132-gradient-fill.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/issue-132-gradient-fill.pptx"
+   ],
+   "sha256": "ce7e3f38bb4f8fccf0eb3cf3c14fa771bfee5bd1c32c87862cc92062ed5e0985",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/issue-132-hr-deck.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/issue-132-hr-deck.pptx"
+   ],
+   "sha256": "37d83e543e5718d2c0ed52127a4e3c6278f8f8d0969d97c1f102265ccc4167ed",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Upstream fixture-corpus-manifest.ts classifies it provenance \"third-party\" (real-world download / other authoring tool)."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/solution-explorer.pptx",
+   "other_paths": [
+    "e2e/pptx/fixtures/solution-explorer.pptx"
+   ],
+   "sha256": "8ab20b2f5386c6e7f41e0a17f141aff87f6268f94eb647459bfe52d080e262bd",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Real-world deck with docProps stripped (332 parts); authorship not evidenced as upstream."
+  },
+  {
+   "upstream_path": "src/core/pptx/__tests__/fixtures/themed-layout-placeholders.pptx",
+   "other_paths": [],
+   "sha256": "2b8131b2823efc1d8c69d5c60644e1a374fc70c55a6ff620b1b2fce100e521a3",
+   "redistributable": false,
+   "provenance": "third-party",
+   "note": "Third-party classroom deck (docProps creator \"ESLL Program Honolulu District\", company \"Lanakila Elementary School\")."
+  }
+ ]
+}

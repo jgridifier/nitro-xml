@@ -57,7 +57,7 @@ Rust encodes seed opcodes (`transport.rs`); the loader takes
 `Handle.takeFrameCommands()` and runs `applyCommandBuffer` in a **single pass**
 (canvas draw + DOM build). No per-element WASM→JS calls on the render path.
 
-Opcode gaps vs upstream painters are listed in `docs/boundary.md` (TODO #36).
+Opcode gaps vs upstream painters are listed in `docs/boundary.md`. Painter placement (worker vs main) is in `docs/adr/0002-renderer-port.md` (#36).
 
 ## Batched read-back (measurement)
 
@@ -83,7 +83,7 @@ One dedicated worker per document. Messages:
 | `measure-results` (Float64Array) | `measure-acked` |
 | `dispose` | `disposed` |
 
-DOM/canvas apply runs on the main thread; parse/model stay in the worker (#36).
+DOM/canvas apply and measure batches run on the main thread; parse/model/layout stay in the worker; pptx text layout stays on the main thread (`docs/adr/0002-renderer-port.md`, #36).
 
 ## Headless session (same thread)
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 /**
  * `<nitro-xml>` custom element skeleton: wasm bootstrap, format gate, frame loop.
- * Paint split (main vs worker) is finalized in #36; default path uses a worker.
+ * Paint split: docs/adr/0002-renderer-port.md (#36); default path uses a worker.
  */
 
 import {

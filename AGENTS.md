@@ -4,6 +4,14 @@ This file is the contract for every coding agent (Cursor, Claude Code, Codex, Op
 
 Board: https://github.com/users/jgridifier/projects/2 · Plan: https://jgridifier.github.io/nitro-xml/
 
+## 0. Testing rule (top-level, from Jared; see the testing policy in [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md))
+- **No coverage targets.** Nobody measures or chases line or branch coverage.
+- **The differential suites against upstream are the main check:** same output (parity), same pixels, lossless save, edit and undo parity, run on the shared fixture corpus through Rust and the TS oracle.
+- **A new bug becomes a new corpus file first.** Write a unit test only when no corpus file can isolate the bug.
+- **Every unit test's first line states the bug it catches** (for example `// Catches: Excel's fictitious 1900-02-29 shifting serials after Feb 1900`). Tests that restate the code are rejected in review.
+- **Do not port upstream's unit tests wholesale.** Use their inputs as corpus rows or fixtures run differentially when they are useful.
+- Test-corpus sourcing issues (real xlsx/docx/pptx with permissive licences: #32, #95, #96) are **P0** and claimable first, with no dependencies.
+
 ## 1. Pick work
 1. Take an **unassigned** issue labelled `status:ready` (board view **Ready now**) whose `Depends on #X` issues are **all closed**.
 2. Never take an issue labelled `blocked-m2` (editor milestone, waits for the viewer gate and Jared's go-ahead) or `blocked-redesign` (Jared's post-port renderer redesign), or one assigned to Jared (such as the R0 renderer port record #33). Renderer issues are not claimable until #33 is merged, and they are **straight one-to-one ports** of the upstream painters: same drawing approach, structure and output, fonts and measurement as upstream; the only allowed change is batching each frame's draw/DOM calls into one handoff across the boundary. No redesign inside a port PR.
@@ -20,7 +28,7 @@ Board: https://github.com/users/jgridifier/projects/2 · Plan: https://jgridifie
 - Use the PR template. Move the board item to **In review** when the PR is open.
 
 ## 4. Before you push
-- Run the tests and the gates locally: `bash scripts/ci/rust.sh`, `bash scripts/ci/wasm.sh`, `bash scripts/ci/parity.sh`, `bash scripts/ci/perf.sh gate`, plus any gate script your issue names (`perf_beats_ts.sh <format>`, `bundle_budget.sh`, `ship_check.sh`, `selection_parity.sh`, `a11y.sh`, `bidi.sh`, `crash_recovery.sh`, `roundtrip.sh`, `edit_parity.sh`, `undo_parity.sh`, `ime.sh`, `spellcheck.sh`, `scoreboard.sh`).
+- Run the gates locally (differential suites first; see rule 0): `bash scripts/ci/rust.sh`, `bash scripts/ci/wasm.sh`, `bash scripts/ci/parity.sh`, `bash scripts/ci/perf.sh gate`, plus any gate script your issue names (`perf_beats_ts.sh <format>`, `bundle_budget.sh`, `ship_check.sh`, `selection_parity.sh`, `a11y.sh`, `bidi.sh`, `crash_recovery.sh`, `roundtrip.sh`, `edit_parity.sh`, `undo_parity.sh`, `ime.sh`, `spellcheck.sh`, `scoreboard.sh`).
 - The gates themselves (parity, visual at DPR 1 and 2 plus print-to-PDF, unsupported content at 0 per format at its stage gate, WASM-beats-TS perf, bundle and loader budgets, accessibility, IME, bidi, selection and caret, crash recovery, editor round-trip and undo parity) are defined in **[docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) §5**.
 - Paste the gate summary into the PR. Every commit posts its perf numbers; losses are reported as prominently as wins.
 - A perf regression can only merge with the label `perf-regression-accepted` and a written reason; that label never overrides the **WASM-beats-TS** gate of a format once it is armed (from the commit where that format has a full open-to-first-paint path in Rust; never relaxed). Foundation PRs (zip, XML streamer, OPC) are tracked but not gated against TS.

@@ -8,6 +8,7 @@ Closes #
 - [ ] Nothing under `.github/workflows/` was edited
 - [ ] New files have SPDX headers (`MIT`, or `Apache-2.0` plus provenance line and a PROVENANCE.md row for ported files)
 - [ ] No fixture of unknown licence added
+- [ ] Testing rule (AGENTS.md §0): bugs fixed here are covered by a new corpus file; any new unit test starts with a line naming the bug it catches; no coverage-only or code-restating tests; no wholesale port of upstream tests
 
 ## Gates (paste summaries)
 - [ ] `scripts/ci/rust.sh` / `wasm.sh`

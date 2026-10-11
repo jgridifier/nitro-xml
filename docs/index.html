@@ -535,7 +535,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <li>For docx, both sides use upstream's deterministic <code>createFakeMeasurer()</code>, so fonts never cause a diff.</li>
 </ul>
 </li>
-<li><strong>Ported unit tests:</strong> the upstream Vitest suites for each ported module (xml, opc, numfmt, layout…) become Rust tests, which gives cheap, high-signal coverage.</li>
+<li><strong>Testing policy (Jared):</strong> no coverage targets; the differential suites (items 2, 4, 5 and 8) are the main check. A new bug becomes a new corpus file first, and a unit test only when no file can isolate it; each unit test's first line names the bug it catches; tests that restate the code are rejected. Upstream Vitest suites are <strong>not</strong> ported wholesale; their inputs are mined into corpus tables (numfmt codes, XML edge cases, safe-href cases) and run differentially.</li>
 <li><strong>Visual diffs (#45):</strong> the TS engine renders references (test-only) at DPR 1 and 2 plus print-to-PDF; the Rust renderer must stay within <code>pixelmatch</code> thresholds (xlsx ≤0.1% per viewport; docx ≤0.5% per page with the same page count; pptx ≤0.5% per slide). Same Chromium build and fonts.</li>
 <li><strong>Renderer and editing-surface gates:</strong> accessibility (axe plus an AX-tree screen-reader script, #42), selection and caret parity (#43), bidi (#44, #57), CJK IME (#56), spellcheck (#58), crash recovery (#30, #62), and the ship check that no shipped artefact imports TS (#38).</li>
 <li><strong>Fuzzing:</strong> cargo-fuzz on zip, XML, OPC and each format entry point (#30). Port the upstream <code>*.fuzz.test.ts</code> cases.</li>
@@ -559,8 +559,8 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <tbody>
 <tr>
 <td>0</td>
-<td>Scaffolding: workspace, wasm build, npm skeleton, CI scripts, fixtures, parity harness, licence and ship checks</td>
-<td>#1 to #5, #31, #32, #38</td>
+<td>Scaffolding: <strong>P0 real-file corpus sourcing (#32, #95, #96; claimable first, no dependencies)</strong>, workspace, wasm build, npm skeleton, CI scripts, fixtures, parity harness, licence and ship checks</td>
+<td>#1 to #5, #31, #32, #38, #95, #96</td>
 <td>Builds natively and to wasm32; CI green; corpus verified; self-diff passes; MIT licence with Apache-2.0 text, NOTICE and PROVENANCE</td>
 </tr>
 <tr>
@@ -706,7 +706,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </ul>
 <hr />
 <h2 id="5-issue-breakdown">5. Issue breakdown</h2>
-<p><strong>94 issues</strong> on GitHub (#1 to #94), generated from <code>issues.json</code> (<code>gen_issues.py</code>). Plan numbers equal GitHub issue numbers; each issue has a <code>Depends on #X</code> line. Milestone 2 issues carry <code>blocked-m2</code>; post-port redesign issues (stage PP) carry <code>blocked-redesign</code>.</p>
+<p><strong>96 issues</strong> on GitHub (#1 to #96), generated from <code>issues.json</code> (<code>gen_issues.py</code>). Plan numbers equal GitHub issue numbers; each issue has a <code>Depends on #X</code> line. Milestone 2 issues carry <code>blocked-m2</code>; post-port redesign issues (stage PP) carry <code>blocked-redesign</code>.</p>
 <ul>
 <li><strong>Agent fit:</strong> Codex for well-specified mechanical ports with ready test suites; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) for small, well-bounded tasks; a human <strong>Developer</strong> owns the scoreboard races; <strong>Jared</strong> owns the R0 renderer decision (#33).</li>
 <li><strong>Every issue</strong> follows AGENTS.md (claim, branch <code>issue-&lt;N&gt;-&lt;slug&gt;</code>, PR with <code>Closes #N</code>, handoff comment).</li>
@@ -1005,12 +1005,12 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </tr>
 <tr>
 <td>32</td>
-<td>Stage 0: Source real Excel-authored (and Word/PowerPoint) fixtures with permissive or public-domain licences</td>
+<td>Stage 0 (P0): Source real Excel-authored xlsx test-corpus files with permissive or public-domain licences</td>
 <td>0</td>
 <td>M</td>
 <td>Cursor cloud</td>
-<td>4</td>
-<td>yes, with #2, #3 and #5 after #4</td>
+<td>-</td>
+<td>yes, claimable first, no dependencies; in parallel with #95 and #96</td>
 </tr>
 <tr>
 <td>33</td>
@@ -1570,6 +1570,24 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <td>30</td>
 <td>not claimable until Jared opens the redesign milestone</td>
 </tr>
+<tr>
+<td>95</td>
+<td>Stage 0 (P0): Source real Word-authored docx test-corpus files with permissive or public-domain licences</td>
+<td>0</td>
+<td>M</td>
+<td>OpenCode</td>
+<td>-</td>
+<td>yes, claimable first, no dependencies; in parallel with #32 and #96</td>
+</tr>
+<tr>
+<td>96</td>
+<td>Stage 0 (P0): Source real PowerPoint-authored pptx test-corpus files with permissive or public-domain licences</td>
+<td>0</td>
+<td>M</td>
+<td>Cursor cloud</td>
+<td>-</td>
+<td>yes, claimable first, no dependencies; in parallel with #32 and #95</td>
+</tr>
 </tbody>
 </table></div>
 <hr />
@@ -1672,5 +1690,5 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <li><code>docs/PLAN.md</code> (this file)</li>
 <li><code>docs/index.html</code> (mobile-readable version, published on GitHub Pages)</li>
 <li><code>docs/PRODUCT_SPEC.md</code> (v3, the source of the gates)</li>
-<li>GitHub issues #1 to #94 in <code>jgridifier/nitro-xml</code> (generated from <code>issues.json</code>)</li>
+<li>GitHub issues #1 to #96 in <code>jgridifier/nitro-xml</code> (generated from <code>issues.json</code>)</li>
 </ul></main></body></html>

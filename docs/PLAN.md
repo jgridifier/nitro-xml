@@ -258,7 +258,7 @@ All versions and licences are from the crates.io API on 2026-10-11.
     - Run the pinned `ooxml-core` and dump a normalised "view IR": `CellItem[]` for xlsx viewports, `LayoutResult` for docx, `PptxElement` trees for pptx.
     - Diff it against the Rust output, with float rounding and an allow-list that needs a reason per entry.
     - For docx, both sides use upstream's deterministic `createFakeMeasurer()`, so fonts never cause a diff.
-3. **Ported unit tests:** the upstream Vitest suites for each ported module (xml, opc, numfmt, layout…) become Rust tests, which gives cheap, high-signal coverage.
+3. **Testing policy (Jared):** no coverage targets; the differential suites (items 2, 4, 5 and 8) are the main check. A new bug becomes a new corpus file first, and a unit test only when no file can isolate it; each unit test's first line names the bug it catches; tests that restate the code are rejected. Upstream Vitest suites are **not** ported wholesale; their inputs are mined into corpus tables (numfmt codes, XML edge cases, safe-href cases) and run differentially.
 4. **Visual diffs (#45):** the TS engine renders references (test-only) at DPR 1 and 2 plus print-to-PDF; the Rust renderer must stay within `pixelmatch` thresholds (xlsx ≤0.1% per viewport; docx ≤0.5% per page with the same page count; pptx ≤0.5% per slide). Same Chromium build and fonts.
 5. **Renderer and editing-surface gates:** accessibility (axe plus an AX-tree screen-reader script, #42), selection and caret parity (#43), bidi (#44, #57), CJK IME (#56), spellcheck (#58), crash recovery (#30, #62), and the ship check that no shipped artefact imports TS (#38).
 6. **Fuzzing:** cargo-fuzz on zip, XML, OPC and each format entry point (#30). Port the upstream `*.fuzz.test.ts` cases.
@@ -277,7 +277,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 
 | Stage | Name | Issues | Acceptance |
 |---|---|---|---|
-| 0 | Scaffolding: workspace, wasm build, npm skeleton, CI scripts, fixtures, parity harness, licence and ship checks | #1 to #5, #31, #32, #38 | Builds natively and to wasm32; CI green; corpus verified; self-diff passes; MIT licence with Apache-2.0 text, NOTICE and PROVENANCE |
+| 0 | Scaffolding: **P0 real-file corpus sourcing (#32, #95, #96; claimable first, no dependencies)**, workspace, wasm build, npm skeleton, CI scripts, fixtures, parity harness, licence and ship checks | #1 to #5, #31, #32, #38, #95, #96 | Builds natively and to wasm32; CI green; corpus verified; self-diff passes; MIT licence with Apache-2.0 text, NOTICE and PROVENANCE |
 | 1 | Perf-eval track, TS baseline, scoreboard harness | #6 to #10, #39 | Harness, history, gate machinery and scoreboard page live; BASELINE.md frozen |
 | 2 | Shared OPC (streaming zip and XML), boundary, visual harness, parse race | #11 to #14, #40, #45 | Part-graph parity; zip-bomb and DTD tests; transport decided with numbers |
 | **R0** | **Renderer port record (Jared)** | #33 (Jared), #34 to #37, #46 | Painter inventory per format (canvas vs DOM, what it draws, Rust module); module mapping; worker vs main-thread split; loader API and size budget; signed off by Jared. **No renderer issue is claimable before #33 merges** |
@@ -341,7 +341,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 
 ## 5. Issue breakdown
 
-**94 issues** on GitHub (#1 to #94), generated from `issues.json` (`gen_issues.py`). Plan numbers equal GitHub issue numbers; each issue has a `Depends on #X` line. Milestone 2 issues carry `blocked-m2`; post-port redesign issues (stage PP) carry `blocked-redesign`.
+**96 issues** on GitHub (#1 to #96), generated from `issues.json` (`gen_issues.py`). Plan numbers equal GitHub issue numbers; each issue has a `Depends on #X` line. Milestone 2 issues carry `blocked-m2`; post-port redesign issues (stage PP) carry `blocked-redesign`.
 
 - **Agent fit:** Codex for well-specified mechanical ports with ready test suites; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) for small, well-bounded tasks; a human **Developer** owns the scoreboard races; **Jared** owns the R0 renderer decision (#33).
 - **Every issue** follows AGENTS.md (claim, branch `issue-<N>-<slug>`, PR with `Closes #N`, handoff comment).
@@ -379,7 +379,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 29 | Stage 6: Viewer shell in Rust (zoom, navigation, find UI, copy, hyperlinks, diagnostics) plus Jared's viewer edits | 6 | M | Cursor cloud | 19 | after #19; can start while Stages 4 and 5 run |
 | 30 | Stage 7: Hardening, fuzzing, crash recovery, security limits and M1 report (the M1 gate) | 7 | M | Claude Code | 23, 27, 29 | after #23, #27 and #29 |
 | 31 | Stage 0: CI licence check (cargo-deny and npm): allow only MIT, Apache-2.0, BSD, ISC, Zlib and Unicode | 0 | S | Codex | 1 | yes, with #2, #3 and #4 after #1 |
-| 32 | Stage 0: Source real Excel-authored (and Word/PowerPoint) fixtures with permissive or public-domain licences | 0 | M | Cursor cloud | 4 | yes, with #2, #3 and #5 after #4 |
+| 32 | Stage 0 (P0): Source real Excel-authored xlsx test-corpus files with permissive or public-domain licences | 0 | M | Cursor cloud | - | yes, claimable first, no dependencies; in parallel with #95 and #96 |
 | 33 | R0: Renderer port record (painter inventory, Rust module mapping, worker split, loader budget), signed off by Jared | R0 | S | Jared | 34, 35, 36, 37 | after #34, #35, #36 and #37 |
 | 34 | R0 (a): Upstream painter inventory per format (canvas vs DOM, what it draws, Rust module) | R0 | M | Claude Code | 1 | yes, after #1; in parallel with #36 and #37 |
 | 35 | R0 (b): Map upstream painters to Rust modules | R0 | S | Claude Code | 34 | after #34 |
@@ -442,6 +442,8 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 92 | Post-port redesign: DOM-vs-canvas renderer comparison | PP | L | Jared | 30 | not claimable until Jared opens the redesign milestone |
 | 93 | Post-port redesign: in-wasm text shaping and measurement | PP | M | Jared | 30 | not claimable until Jared opens the redesign milestone |
 | 94 | Post-port redesign: metric-compatible open fonts (Carlito, Caladea) and font fallback | PP | M | Jared | 30 | not claimable until Jared opens the redesign milestone |
+| 95 | Stage 0 (P0): Source real Word-authored docx test-corpus files with permissive or public-domain licences | 0 | M | OpenCode | - | yes, claimable first, no dependencies; in parallel with #32 and #96 |
+| 96 | Stage 0 (P0): Source real PowerPoint-authored pptx test-corpus files with permissive or public-domain licences | 0 | M | Cursor cloud | - | yes, claimable first, no dependencies; in parallel with #32 and #95 |
 
 ---
 
@@ -490,4 +492,4 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 - `docs/PLAN.md` (this file)
 - `docs/index.html` (mobile-readable version, published on GitHub Pages)
 - `docs/PRODUCT_SPEC.md` (v3, the source of the gates)
-- GitHub issues #1 to #94 in `jgridifier/nitro-xml` (generated from `issues.json`)
+- GitHub issues #1 to #96 in `jgridifier/nitro-xml` (generated from `issues.json`)

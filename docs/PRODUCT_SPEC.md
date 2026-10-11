@@ -181,6 +181,8 @@ Already done or decided upstream of this spec:
 - If WASM crashes while viewing, the document reloads once in a fresh worker; if that fails, the user sees an error.
 - **Every crash is a P0 bug.** Crash-recovery tests run in CI.
 
+**Testing policy (Jared, 2026-10-11).** Few tests, each checking something non-obvious. No coverage targets. The differential suites (same fixtures through Rust and the TS oracle: parity, pixels, lossless round trip, edit and undo parity) are the main check. A new bug becomes a new fixture first, and a unit test only when no fixture can isolate it. A unit test exists only for a non-obvious invariant the suites could miss (e.g. Excel's fictitious 1900-02-29, shared-string index edges, odd zip layouts, IME composition order), and its first line says which bug it catches. Tests that restate the code are rejected in review. Upstream unit tests are not ported wholesale.
+
 ## 6. Definition of done
 - **Stage 0.**
   - Builds natively and to wasm32; CI green; corpus verified.

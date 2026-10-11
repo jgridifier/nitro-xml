@@ -33,7 +33,7 @@
 
 ## Milestones
 
-- **Milestone 1, viewer:** Stage 0 (scaffolding), Stage 1 (perf harness, TS baseline, scoreboard), Stage 2 (shared OPC, streaming zip and XML, boundary), **R0 (renderer port record, signed off by Jared:** an inventory of upstream painters per format (canvas vs DOM, what each draws, its Rust module), the Rust module mapping, the worker vs main-thread split and the loader size budget; no renderer issue is claimable before R0 closes), then the Excel (3), Word (4) and PowerPoint (5) viewers, the Rust viewer shell (6) and hardening (7, the M1 gate).
+- **Milestone 1, viewer:** Stage 0 (scaffolding; the **P0** real-file corpus sourcing issues #32, #95 and #96 are claimable first), Stage 1 (perf harness, TS baseline, scoreboard), Stage 2 (shared OPC, streaming zip and XML, boundary), **R0 (renderer port record, signed off by Jared:** an inventory of upstream painters per format (canvas vs DOM, what each draws, its Rust module), the Rust module mapping, the worker vs main-thread split and the loader size budget; no renderer issue is claimable before R0 closes), then the Excel (3), Word (4) and PowerPoint (5) viewers, the Rust viewer shell (6) and hardening (7, the M1 gate).
 - **Milestone 2, editor (later phase):** E0 (editor harnesses, TS editor baseline, Rust editor chrome), **E-text** (the Rust text-editing surface: single-line before E1, rich text before E3; IME, bidi, spellcheck, accessibility and crash recovery each with their own gate), E1 (xlsx edits and lossless save), E2 (Rust formula engine), E3 (docx), E4 (pptx), E5 (write-path hardening). Editor issues are labelled `blocked-m2` until the M1 gate passes and Jared confirms the budget.
 - **Post-port redesign (Jared), backlog:** DOM-vs-canvas comparison, in-wasm text shaping, metric-compatible open fonts (#92 to #94). Labelled `blocked-redesign`; not claimable until Jared opens it.
 
@@ -63,7 +63,7 @@ Work is split into agent-sized issues so Cursor, Claude Code, Codex and OpenCode
 1. Pick an unassigned `status:ready` issue whose dependencies are closed (board view **Ready now**).
 2. Comment `claiming`, then assign yourself or add `agent:<name>`.
 3. One branch per issue, `issue-<N>-<slug>`; a small PR with `Closes #N`.
-4. Run the tests and the perf gate locally (`scripts/ci/*.sh`).
+4. Run the differential suites and the perf gate locally (`scripts/ci/*.sh`). Testing rule: no coverage targets; a new bug becomes a corpus file first, a unit test only when no file can isolate it (AGENTS.md §0).
 5. Don't touch files outside the issue's scope, and never edit `.github/workflows/`.
 6. Post a handoff comment when you finish: what changed, what's left, gotchas.
 

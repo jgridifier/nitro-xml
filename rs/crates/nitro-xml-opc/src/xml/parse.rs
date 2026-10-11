@@ -22,6 +22,27 @@ pub fn parse_xml_bytes(bytes: &[u8]) -> Result<Document, XmlError> {
 
 /// Parse an XML string (already Unicode). A leading BOM is dropped.
 pub fn parse_xml_str(xml: &str) -> Result<Document, XmlError> {
+    parse_xml_str_with_options(xml, ParseOptions::default())
+}
+
+/// Options for [`parse_xml_str_with_options`].
+#[derive(Clone, Copy, Debug)]
+pub struct ParseOptions {
+    /// When true (default), attributes are sorted for stable dumps; chart fragment `buildXml`
+    /// parity needs document order (`false`).
+    pub sort_attributes: bool,
+}
+
+impl Default for ParseOptions {
+    fn default() -> Self {
+        Self {
+            sort_attributes: true,
+        }
+    }
+}
+
+/// Parse with explicit options (chart parts use `sort_attributes: false` for `sourceXml` parity).
+pub fn parse_xml_str_with_options(xml: &str, options: ParseOptions) -> Result<Document, XmlError> {
     let xml = xml.strip_prefix('\u{feff}').unwrap_or(xml);
     // Parity with parseXml: any DOCTYPE / ENTITY substring is rejected before parsing.
     if contains_dtd_or_entity(xml) {
@@ -31,7 +52,7 @@ pub fn parse_xml_str(xml: &str) -> Result<Document, XmlError> {
         ));
     }
     let xml = normalize_line_endings(xml);
-    parse_normalized(&xml)
+    parse_normalized(&xml, options.sort_attributes)
 }
 
 fn decode_utf8(bytes: &[u8]) -> Cow<'_, str> {
@@ -69,7 +90,7 @@ fn starts_with_ignore_ascii_case(hay: &[u8], needle: &[u8]) -> bool {
             .all(|(a, b)| a.eq_ignore_ascii_case(b))
 }
 
-fn parse_normalized(xml: &str) -> Result<Document, XmlError> {
+fn parse_normalized(xml: &str, sort_attributes: bool) -> Result<Document, XmlError> {
     let mut reader = NsReader::from_str(xml);
     let config = reader.config_mut();
     config.trim_text(false);
@@ -93,7 +114,7 @@ fn parse_normalized(xml: &str) -> Result<Document, XmlError> {
                 }
                 let ns = resolve_element_ns(resolve)?;
                 let local = local_name_str(e.local_name().as_ref())?;
-                let attrs = collect_attrs(&reader, &e)?;
+                let attrs = collect_attrs(&reader, &e, sort_attributes)?;
                 let el = Element::new(ns, local, attrs);
                 flush_text(&mut stack, &mut root, &mut pending_text)?;
                 stack.push(el);
@@ -104,7 +125,7 @@ fn parse_normalized(xml: &str) -> Result<Document, XmlError> {
                 }
                 let ns = resolve_element_ns(resolve)?;
                 let local = local_name_str(e.local_name().as_ref())?;
-                let attrs = collect_attrs(&reader, &e)?;
+                let attrs = collect_attrs(&reader, &e, sort_attributes)?;
                 let el = Element::new(ns, local, attrs);
                 let at_document = stack.is_empty();
                 push_child(&mut stack, &mut root, &mut pending_text, Node::Element(el))?;
@@ -238,6 +259,7 @@ fn local_name_str(local: &[u8]) -> Result<String, XmlError> {
 fn collect_attrs<R: std::io::BufRead>(
     reader: &NsReader<R>,
     start: &quick_xml::events::BytesStart<'_>,
+    sort_attributes: bool,
 ) -> Result<Vec<Attr>, XmlError> {
     let mut attrs = Vec::new();
     let mut seen: Vec<(Option<String>, String)> = Vec::new();
@@ -297,11 +319,13 @@ fn collect_attrs<R: std::io::BufRead>(
         seen.push(key_pair);
         attrs.push(Attr { ns, local, value });
     }
-    attrs.sort_by(|a, b| {
-        let ak = (a.ns.as_deref().unwrap_or(""), a.local.as_str());
-        let bk = (b.ns.as_deref().unwrap_or(""), b.local.as_str());
-        ak.cmp(&bk)
-    });
+    if sort_attributes {
+        attrs.sort_by(|a, b| {
+            let ak = (a.ns.as_deref().unwrap_or(""), a.local.as_str());
+            let bk = (b.ns.as_deref().unwrap_or(""), b.local.as_str());
+            ak.cmp(&bk)
+        });
+    }
     Ok(attrs)
 }
 

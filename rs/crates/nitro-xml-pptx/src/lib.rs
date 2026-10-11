@@ -10,3 +10,5 @@ mod slide;
 mod theme;
 
 pub use presentation::{Error, Presentation, Slide};
+
+pub mod render;

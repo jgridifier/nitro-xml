@@ -16,6 +16,7 @@
 //! | AppendChild | 7 | parent:u32 child:u32 |
 //! | SetText | 8 | id:u32 text_id:u32 |
 //! | SetStyle | 9 | id:u32 prop_id:u32 val_id:u32 |
+//! | SetInnerMarkup | 10 | parent:u32 markup:u32 |
 //!
 //! Seed protocol for painters / the loader (#37). Not called from the shipped
 //! path yet; Stage 3+ ports will encode through these tags.
@@ -30,4 +31,5 @@ pub mod opcode {
     pub const APPEND_CHILD: u8 = 7;
     pub const SET_TEXT: u8 = 8;
     pub const SET_STYLE: u8 = 9;
+    pub const SET_INNER_MARKUP: u8 = 10;
 }

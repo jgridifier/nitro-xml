@@ -156,3 +156,57 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/view/viewport.rs` | `src/core/xlsx/layout/viewport.ts` @ e66aaec | View-IR bound helpers only (full viewport deferred #19). |
 | `rs/crates/nitro-xml-xlsx/src/comments.rs` | `src/core/xlsx/read/comments.ts` @ e66aaec | Legacy comment cell refs for `hasComment`. |
 | `rs/crates/nitro-xml-xlsx/src/hyperlinks.rs` | `src/core/xlsx/read/worksheet.ts` @ e66aaec | Internal + external hyperlink targets for `title`. |
+| `rs/crates/nitro-xml-opc/src/drawingml/text.rs` | `src/core/drawingml/drawing-text.ts` @ e66aaec | Text body reader for chart `txPr` / rich text; `DrawingTextRunProperties` for `defaultProperties`. |
+| `rs/crates/nitro-xml-opc/src/chart/mod.rs` | `src/core/chart/index.ts` @ e66aaec | Chart module root; read path only (no writers). |
+| `rs/crates/nitro-xml-opc/src/chart/model.rs` | `src/core/chart/model*.ts`, `model-series.ts` @ e66aaec | Chart IR types (serde) aligned with upstream JSON dumps. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_space.rs` | `src/core/chart/parse-space.ts` @ e66aaec | `c:chartSpace` parser; chart XML uses `ParseOptions::sort_attributes = false`. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_util.rs` | `src/core/chart/parse-util.ts` @ e66aaec | Shared parse helpers, `extLst` / `spPr` / text body wiring. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_plot.rs` | `src/core/chart/parse-plot.ts` @ e66aaec | Plot area and chart groups read path. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_series.rs` | `src/core/chart/parse-series.ts` @ e66aaec | Series read path. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_chrome.rs` | `src/core/chart/parse-chrome.ts` @ e66aaec | Legend, axes, surface chrome read path. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_text.rs` | `src/core/chart/parse-text.ts` @ e66aaec | Title, data labels, number formats read path. |
+| `rs/crates/nitro-xml-opc/src/chart/xml_serialize.rs` | `src/core/xml/xml.ts`, `src/core/chart/xml-fragment.ts` @ e66aaec | `buildXml`-compatible fragment serialization and `stripDeclarations`. |
+| `rs/crates/nitro-xml-opc/src/chart/data_cache.rs` | `src/core/chart/data-cache.ts` @ e66aaec | Cached chart values from `strCache` / `numCache`. |
+| `rs/crates/nitro-xml-opc/src/chart/manual_layout.rs` | `src/core/chart/manual-layout.ts` @ e66aaec | Manual layout values reader. |
+| `rs/crates/nitro-xml-opc/src/chart/dom.rs` | `src/core/chart/parse-util.ts` (DOM helpers) @ e66aaec | Chart-namespace child lookup over `Element`. |
+| `rs/crates/nitro-xml-render/src/chart/mod.rs` | `src/core/chart/render/render-space.ts` @ e66aaec | S1 entry (`render_chart_space_svg`, `paint_chart_space`); in-crate painter default (#28). |
+| `rs/crates/nitro-xml-render/src/chart/render/mod.rs` | `src/core/chart/render/` @ e66aaec | S1 painter module root (`chart-rust-s1` feature). |
+| `rs/crates/nitro-xml-render/src/chart/render/render_space.rs` | `src/core/chart/render/render-space.ts` @ e66aaec | S1 entry. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg.rs` | `src/core/chart/render/chart-svg.ts` @ e66aaec | S1 SVG document. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_util.rs` | `src/core/chart/render/chart-svg-util.ts` @ e66aaec | SVG helpers. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_cartesian.rs` | `src/core/chart/render/chart-svg-cartesian.ts` @ e66aaec | Cartesian painter. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_bars.rs` | `src/core/chart/render/chart-svg-bars.ts` @ e66aaec | Bar series. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_radial.rs` | `src/core/chart/render/chart-svg-radial.ts` @ e66aaec | Pie/doughnut/radar. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_legend.rs` | `src/core/chart/render/chart-svg-legend.ts` @ e66aaec | Legend layout. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_appearance.rs` | `src/core/chart/render/chart-svg-appearance.ts` @ e66aaec | Chart area fills and gradients. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_text_metrics.rs` | `src/core/chart/render/chart-svg-text-metrics.ts` @ e66aaec | Text width / fit. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_lines.rs` | `src/core/chart/render/chart-svg-cartesian.ts` @ e66aaec | Line/area series. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_scatter.rs` | `src/core/chart/render/chart-svg-cartesian.ts` @ e66aaec | Scatter plot. |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_view.rs` | `src/core/chart/render/chart-view.ts` @ e66aaec | View model. |
+| `rs/crates/nitro-xml-render/src/chart/render/summary.rs` | `src/core/chart/render/summary.ts` @ e66aaec | Summary types. |
+| `rs/crates/nitro-xml-render/src/chart/render/summary_from_space.rs` | `src/core/chart/render/summary-from-space.ts` @ e66aaec | Summary from `ChartSpace`. |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_scale.rs` | `src/core/chart/render/chart-scale.ts` @ e66aaec | Axis nice scale. |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_value_axis.rs` | `src/core/chart/render/chart-value-axis.ts` @ e66aaec | Value axis. |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_colors.rs` | `src/core/chart/render/chart-colors.ts` @ e66aaec | Theme scheme colours. |
+| `rs/crates/nitro-xml-render/src/chart/render/color_palettes.rs` | `src/core/chart/color-palettes.ts` @ e66aaec | Office chart palettes. |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_palettes.json` | `src/core/chart/color-palettes.ts` @ e66aaec | Embedded palette data. |
+| `rs/crates/nitro-xml-render/src/chart/render/theme_palette.rs` | `src/core/chart/render/theme-palette.ts` @ e66aaec | Theme slots. |
+| `rs/crates/nitro-xml-render/src/chart/render/bar_cluster_geometry.rs` | `src/core/chart/bar-cluster-geometry.ts` @ e66aaec | Bar cluster sizing. |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_spacing.rs` | `src/core/chart/render/chart-spacing.ts` @ e66aaec | Bar gap/overlap. |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_appearance.rs` | `src/core/chart/render/chart-appearance.ts` @ e66aaec | Style resolution. |
+| `rs/crates/nitro-xml-render/src/chart/render/built_in_text_style.rs` | `src/core/chart/built-in-text-style.ts` @ e66aaec | Built-in style 102 defaults. |
+| `rs/crates/nitro-xml-render/src/chart/render/style_resolve.rs` | `src/core/chart/style-definition.ts` @ e66aaec | Resolved style entries. |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_title_text.rs` | `src/core/chart/render/chart-title-text.ts` @ e66aaec | Rich title IR from formatting `textBody` when present; S1 returns `None` without formatting (#28). |
+| `rs/crates/nitro-xml-render/src/chart/render/drawing_color_css.rs` | `src/core/drawingml/drawing-color-css.ts` @ e66aaec | CSS colour string. |
+| `rs/crates/nitro-xml-render/src/chart/render/drawing_shadow.rs` | `src/core/drawingml/drawing-shadow.ts` @ e66aaec | Outer shadow SVG. |
+| `rs/crates/nitro-xml-render/src/chart/render/gradient_definition.rs` | `src/core/chart/gradient-definition.ts` @ e66aaec | Gradient defs. |
+| `rs/crates/nitro-xml-render/src/chart/render/gradient_markup.rs` | `src/core/chart/gradient-markup.ts` @ e66aaec | Gradient SVG markup. |
+| `rs/crates/nitro-xml-render/src/chart/render/gradient_stop_edit.rs` | `src/core/chart/gradient-stop-edit.ts` @ e66aaec | Stop ordering. |
+| `rs/crates/nitro-xml-render/src/chart/render/gradient_coincident_stops.rs` | `src/core/chart/gradient-coincident-stops.ts` @ e66aaec | Coincident stops. |
+| `rs/crates/nitro-xml-render/src/chart/render/sigma_gradient_stops.rs` | `src/core/color/sigma-gradient-stops.ts` @ e66aaec | Sigma profile stops. |
+| `rs/crates/nitro-xml-render/src/chart/render/sigma_factors.rs` | `src/core/color/native-gradient-curve.ts` @ e66aaec | Office sigma factors table. |
+| `rs/crates/nitro-xml-render/src/chart/render/css_font_family.rs` | `src/core/text/css-font-family.ts` @ e66aaec | Font stacks. |
+| `rs/crates/nitro-xml-render/src/chart/render/manual_layout_resolve.rs` | `src/core/chart/manual-layout.ts` @ e66aaec | Manual layout rects. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_title_text.rs` | `src/core/chart/render/chart-svg-title-text.ts` @ e66aaec | Rich / wrapped title SVG (`wrapStyledRuns`, #28). |
+| `rs/crates/nitro-xml-render/src/chart/render/wrap_styled_runs.rs` | `src/core/text/wrap-styled-runs.ts` @ e66aaec | Format-neutral styled-run wrap (grapheme-aware `breakWords`). |
+| `rs/crates/nitro-xml-render/src/chart/oracle_svg.rs` | — | MIT host-only bridge to `chart_ref.ts` for parity until Rust S1 lands. |

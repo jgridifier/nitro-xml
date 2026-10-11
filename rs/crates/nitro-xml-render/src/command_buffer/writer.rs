@@ -119,6 +119,13 @@ impl CommandBuffer {
         self.put_u32(val_id);
     }
 
+    /// Attach SVG (or other) markup under a parent node id (string-table markup id).
+    pub fn set_inner_markup(&mut self, parent: u32, markup: u32) {
+        self.put_u8(opcode::SET_INNER_MARKUP);
+        self.put_u32(parent);
+        self.put_u32(markup);
+    }
+
     /// Mixed canvas/DOM ops matching the seed opcode set (tests + `bench` feature).
     #[allow(dead_code)]
     pub fn encode_demo(&mut self, n_ops: u32) {

@@ -7,6 +7,7 @@
 import type { Comparison, ParityFormat } from './types.ts';
 import { xmlComparison } from './comparisons/xml.ts';
 import { opcComparison } from './comparisons/opc.ts';
+import { chartComparison } from './comparisons/chart.ts';
 import { xlsxComparison } from './comparisons/xlsx.ts';
 import { docxComparison } from './comparisons/docx.ts';
 import { pptxComparison } from './comparisons/formats.ts';
@@ -15,6 +16,7 @@ const ALL: Comparison[] = [
 	xmlComparison,
 	opcComparison,
 	xlsxComparison,
+	chartComparison,
 	docxComparison,
 	pptxComparison,
 ];

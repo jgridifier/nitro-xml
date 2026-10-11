@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: Apache-2.0
+// Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/render-space.ts
+
+use nitro_xml_opc::chart::ChartSpace;
+
+use super::chart_title_text::chart_title_text;
+use super::chart_view::chart_summary_view;
+use super::style_resolve::ResolvedChartStyleEntry;
+use super::summary::ChartSummaryType;
+use super::summary_from_space::chart_summary_from_space;
+use super::svg::render_chart_svg;
+use super::svg_text_metrics::ChartSvgMeasureOptions;
+use super::theme_palette::chart_theme_palette;
+
+pub const DRAWN_CHART_TYPES: &[ChartSummaryType] = &[
+    ChartSummaryType::Bar,
+    ChartSummaryType::Column,
+    ChartSummaryType::Line,
+    ChartSummaryType::Area,
+    ChartSummaryType::Pie,
+    ChartSummaryType::Doughnut,
+    ChartSummaryType::Scatter,
+    ChartSummaryType::Radar,
+];
+
+pub struct ChartThemeFonts {
+    pub major: Option<String>,
+    pub minor: Option<String>,
+}
+
+pub struct RenderChartSpaceOptions {
+    pub width: u32,
+    pub height: u32,
+    pub measure: ChartSvgMeasureOptions,
+}
+
+pub fn chart_space_kind(space: &ChartSpace) -> (Option<ChartSummaryType>, bool) {
+    if space.plot_area.groups.is_empty() {
+        return (None, false);
+    }
+    let summary = chart_summary_from_space(space);
+    let drawn = DRAWN_CHART_TYPES.contains(&summary.chart_type);
+    (Some(summary.chart_type), drawn)
+}
+
+pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOptions) -> String {
+    let summary = chart_summary_from_space(space);
+    let theme = chart_theme_palette(None, None, None);
+    let mut view = chart_summary_view(&summary, &theme);
+    let title_appearance = view
+        .appearance
+        .as_ref()
+        .and_then(|a| a.get("title"))
+        .map(|e| ResolvedChartStyleEntry {
+            font_size: e.font_size,
+            bold: e.bold,
+            italic: e.italic,
+            underline: e.underline,
+            color: e.color.clone(),
+            line_color: e.line_color.clone(),
+            line_width: e.line_width,
+            fill_color: e.fill_color.clone(),
+            labels_visible: e.labels_visible,
+        });
+    if let Some(title) = &space.title {
+        view.title_overlay = title.overlay.unwrap_or(false);
+        // Title manual layout comes from chart formatting entries (upstream chart-view), not `c:title/layout`.
+        view.title_text = chart_title_text(&summary, title, title_appearance.as_ref());
+    }
+    let mut measure = options.measure.clone();
+    render_chart_svg(&view, options.width, options.height, &mut measure)
+}

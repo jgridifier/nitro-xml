@@ -12,7 +12,7 @@ pub struct DrawingColor {
     pub kind: DrawingColorKind,
     /// Hex for `srgb`, the scheme/preset/system name, or serialized channels for `scrgb`/`hsl`.
     pub value: String,
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    #[serde(default)]
     pub transforms: Vec<ColorTransform>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fallback: Option<String>,
@@ -101,7 +101,26 @@ pub struct DrawingLine {
     pub cap: Option<String>,
 }
 
+/// Run formatting without `text` (paragraph `defRPr` / `defaultProperties`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DrawingTextRunProperties {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_pt: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bold: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub italic: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub underline: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<DrawingColor>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub typeface: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DrawingTextRun {
     pub text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -119,15 +138,17 @@ pub struct DrawingTextRun {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DrawingTextSpacing {
     pub unit: String,
     pub value: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DrawingTextParagraph {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_properties: Option<DrawingTextRun>,
+    pub default_properties: Option<DrawingTextRunProperties>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub align: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -140,6 +161,7 @@ pub struct DrawingTextParagraph {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DrawingTextBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor: Option<String>,
@@ -150,6 +172,7 @@ pub struct DrawingTextBody {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FrameInsets {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub left: Option<i64>,

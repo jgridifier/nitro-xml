@@ -29,6 +29,28 @@ pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_owned()
 }
 
+/// Diagnostic part graph for an OOXML package (`Package::open` + content types / rels).
+///
+/// Returns JSON: format, parts, defaults, overrides, rels, targets, signatures, properties.
+/// On failure returns [`OoxmlError`] with `code` `unsupported_format` (and message = detected)
+/// or a zip/xml kind.
+#[wasm_bindgen(js_name = inspectPackage)]
+pub fn inspect_package(bytes: &[u8]) -> Result<String, OoxmlError> {
+    use nitro_xml::opc::opc::{OpcError, Package};
+    match Package::open(bytes) {
+        Ok(mut pkg) => pkg.inspect_json().map_err(|e| match e {
+            OpcError::UnsupportedFormat { detected } => {
+                OoxmlError::with_code("unsupported_format", detected)
+            }
+            other => OoxmlError::with_code(other.kind(), other.to_string()),
+        }),
+        Err(OpcError::UnsupportedFormat { detected }) => {
+            Err(OoxmlError::with_code("unsupported_format", detected))
+        }
+        Err(other) => Err(OoxmlError::with_code(other.kind(), other.to_string())),
+    }
+}
+
 /// Routes Rust panics to `console.error` in debug builds only; release builds keep the hook out.
 #[cfg(debug_assertions)]
 #[wasm_bindgen(start)]

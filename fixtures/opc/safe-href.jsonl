@@ -1,0 +1,61 @@
+{"id": "open-0", "href": "https://example.com"}
+{"id": "open-1", "href": "http://example.com"}
+{"id": "open-2", "href": "HTTPS://EXAMPLE.COM"}
+{"id": "open-3", "href": "mailto:user@example.com"}
+{"id": "open-4", "href": "  https://example.com  "}
+{"id": "open-5", "href": "https://example.com/javascript/docs"}
+{"id": "open-6", "href": "https://example.com/a b"}
+{"id": "store-0", "href": "ftp://files.example.com"}
+{"id": "store-1", "href": "file:///C:/Reports/q1.xlsx"}
+{"id": "store-2", "href": "FILE://server/share/a.xlsx"}
+{"id": "store-3", "href": "#Sheet2!A1"}
+{"id": "store-4", "href": "#'My Sheet'!B3"}
+{"id": "store-5", "href": "Sheet2!A1"}
+{"id": "store-6", "href": "/page/about"}
+{"id": "store-7", "href": "../reports/q1.xlsx"}
+{"id": "store-8", "href": "q1.xlsx"}
+{"id": "store-9", "href": "\\\\server\\share\\q1.xlsx"}
+{"id": "store-10", "href": "C:\\Reports\\q1.xlsx"}
+{"id": "store-11", "href": "//example.com/x"}
+{"id": "script-0", "href": "javascript:alert(1)"}
+{"id": "script-1", "href": "JAVASCRIPT:alert(1)"}
+{"id": "script-2", "href": "JaVaScRiPt:alert(1)"}
+{"id": "script-3", "href": "  javascript:alert(1)"}
+{"id": "script-4", "href": "\u0001javascript:alert(1)"}
+{"id": "script-5", "href": "data:text/html,<h1>XSS</h1>"}
+{"id": "script-6", "href": "DATA:text/html;base64,PHNjcmlwdD4="}
+{"id": "script-7", "href": "vbscript:MsgBox('XSS')"}
+{"id": "script-8", "href": "mhtml:file://C:/test.mht"}
+{"id": "script-9", "href": "x-javascript:alert(1)"}
+{"id": "script-10", "href": "livescript:alert(1)"}
+{"id": "script-11", "href": "ms-its:c:/x.chm::/a.htm"}
+{"id": "script-12", "href": "blob:https://example.com/uuid"}
+{"id": "script-13", "href": "java​script:alert(1)"}
+{"id": "script-14", "href": "java‌script:alert(1)"}
+{"id": "script-15", "href": "java‍script:alert(1)"}
+{"id": "script-16", "href": "﻿javascript:alert(1)"}
+{"id": "script-17", "href": "java\u0000script:alert(1)"}
+{"id": "script-18", "href": "java\tscript:alert(1)"}
+{"id": "script-19", "href": "java\nscript:alert(1)"}
+{"id": "script-20", "href": "java\rscript:alert(1)"}
+{"id": "script-21", "href": "java script:alert(1)"}
+{"id": "script-22", "href": "java­script:alert(1)"}
+{"id": "script-23", "href": "java⁠script:alert(1)"}
+{"id": "script-24", "href": "‮javascript:alert(1)"}
+{"id": "script-25", "href": "da\tta:text/html,x"}
+{"id": "obfuscated-0", "href": "ht\ttp://example.com"}
+{"id": "obfuscated-1", "href": "ht​tps://example.com"}
+{"id": "control-0", "href": "https://example.com/\u0000"}
+{"id": "control-1", "href": "https://a\nb"}
+{"id": "control-2", "href": "#Sheet1\u0007!A1"}
+{"id": "unsupported-0", "href": "tel:+123"}
+{"id": "unsupported-1", "href": "ms-word:ofe|u|https://x"}
+{"id": "unsupported-2", "href": "chrome://settings"}
+{"id": "unsupported-3", "href": "about:blank"}
+{"id": "empty-0", "href": ""}
+{"id": "empty-1", "href": "   "}
+{"id": "empty-2", "href": "​"}
+{"id": "null-0", "href": null}
+{"id": "fuzz-0", "href": "ja\tvascript:x"}
+{"id": "fuzz-1", "href": "da​ta:x"}
+{"id": "fuzz-2", "href": "v bscript:x"}

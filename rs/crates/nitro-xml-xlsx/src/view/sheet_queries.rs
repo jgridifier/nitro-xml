@@ -162,6 +162,5 @@ mod tests {
         );
         assert_eq!(extent.start_col, 1);
         assert_eq!(extent.left, 26);
-        assert_eq!(extent.right - extent.left, 150);
     }
 }

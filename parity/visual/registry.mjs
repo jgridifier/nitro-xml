@@ -78,11 +78,11 @@ const STATIC_CASES = [
 		format: 'docx',
 		kind: 'docx-viewer',
 		ready: true,
-		informational: true,
 		fixture: 'fixtures/bidi/arabic-hebrew-paragraphs.docx',
 		width: 800,
 		height: 600,
 		rust: true,
+		// Hard case: live `<nitro-docx>` vs upstream Print Layout ≤0.1% at DPR1/DPR2/print (#23).
 		threshold: 0.001,
 	},
 ];

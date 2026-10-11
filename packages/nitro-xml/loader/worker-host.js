@@ -6,6 +6,7 @@ import { isSupportedExtension } from "./formats.js";
 import { unsupportedFormatError } from "./bootstrap.js";
 import { getDefaultFontSource } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
+import { measureOne } from "./measure.js";
 export class WorkerDocument {
 constructor(opts = {}) {
 this._canvas = opts.canvas || null;
@@ -73,16 +74,12 @@ const widths = new Float64Array(measureCount);
 const ctx = this._measureCtx();
 if (ctx) {
 for (let i = 0; i < measureCount; i++) {
-let f=(strings&&strings[measureReqs.fonts[i]])||"sans-serif";
-let k="auto";
-const p=f.indexOf("\0");
-if(p>=0){k=f.slice(p+1)||"auto";f=f.slice(0,p)}
-const text=(strings&&strings[measureReqs.texts[i]])||"";
-const sz=measureReqs.sizes[i];
-ctx.font=/\d+(\.\d+)?px/.test(f)?f:`${sz}px ${f}`;
-if(ctx.fontKerning!==undefined)ctx.fontKerning=k;
-const m=ctx.measureText(text==="\u0001"||text==="\u0002"?"Mg":text);
-widths[i]=text==="\u0001"?((m.fontBoundingBoxAscent!==undefined&&m.fontBoundingBoxDescent!==undefined)?m.fontBoundingBoxAscent+m.fontBoundingBoxDescent:sz*1.22):text==="\u0002"?(m.fontBoundingBoxAscent??sz*0.95):m.width;
+widths[i] = measureOne(
+ctx,
+(strings && strings[measureReqs.fonts[i]]) || "sans-serif",
+measureReqs.sizes[i],
+(strings && strings[measureReqs.texts[i]]) || "",
+);
 }
 }
 await this._request("measure-acked", () => {

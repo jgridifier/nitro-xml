@@ -15,9 +15,9 @@ use super::page_borders::{page_borders_from_section, PageBorders};
 use super::pages::paint_print_layout;
 use crate::body::{read_package, DocumentModel, LoadedDocument};
 use crate::layout::{
-    layout_document_model_cached, measure_font_payload, LayoutResult, LayoutReviewOptions,
-    MeasureCache, MeasureSample, PendingKind, PendingMeasure, MEASURE_ASCENT_TEXT,
-    MEASURE_LINE_HEIGHT_TEXT,
+    layout_document_model, measure_font_payload, CachedMeasurer, LayoutResult,
+    LayoutReviewOptions, MeasureCache, MeasureSample, PendingKind, PendingMeasure,
+    MEASURE_ASCENT_TEXT, MEASURE_LINE_HEIGHT_TEXT,
 };
 use crate::review_formatting_display::ReviewDisplayMode;
 
@@ -106,26 +106,31 @@ impl PrintSession {
             return false;
         }
 
-        let measured = layout_document_model_cached(
+        // Match upstream Print Layout: pagination does not UAX #9-reorder fragments.
+        // (`layout_document_model_cached` applies UAX #9 for page-count / bidi IR; the
+        // live painter must stay bit-aligned with TS `layoutDocumentModel` + paint.)
+        let measurer = CachedMeasurer::new(&self.measure_cache);
+        let result = layout_document_model(
             &self.model,
-            &self.measure_cache,
+            &measurer,
             LayoutReviewOptions {
                 review_display_mode: None,
             },
         );
-        if measured.pending.is_empty() {
-            for note in &measured.result.approximations {
+        let pending = measurer.take_pending();
+        if pending.is_empty() {
+            for note in &result.approximations {
                 if !self.warnings.iter().any(|w| w == note) {
                     self.warnings.push(note.clone());
                 }
             }
-            self.result = measured.result;
+            self.result = result;
             self.layout_ready = true;
             return true;
         }
 
-        self.queue_pending(&measured.pending, measures, intern);
-        self.measure_pending = measured.pending;
+        self.queue_pending(&pending, measures, intern);
+        self.measure_pending = pending;
         false
     }
 

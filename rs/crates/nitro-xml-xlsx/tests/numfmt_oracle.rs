@@ -34,7 +34,10 @@ fn random_pairs_match_upstream_format_value() {
     let mjs = upstream_mjs();
     let bun = bun_bin();
     if !mjs.is_file() {
-        eprintln!("skip 100k oracle: missing {} (init/build upstream submodule)", mjs.display());
+        eprintln!(
+            "skip 100k oracle: missing {} (init/build upstream submodule)",
+            mjs.display()
+        );
         return;
     }
     if Command::new(&bun).arg("--version").output().is_err() {

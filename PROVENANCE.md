@@ -114,3 +114,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/slide.rs` | `PptxHandlerRuntimeSpTreeParsing.ts`, `ShapeParsing.ts`, `PictureParsing.ts`, `GroupParsing.ts` (+ graphic-frame table) @ e66aaec | Element tree for ported kinds; transforms/geometry via DrawingML (#25); document-order spTree walk. |
 | `rs/crates/nitro-xml-pptx/src/inheritance.rs` | `merge-xml-objects.ts`, `PptxHandlerRuntimePlaceholderLookup.ts`, `placeholder-style-family.ts` @ e66aaec | Placeholder match + layout-over-master merge (empty override must not clobber). |
 | `rs/crates/nitro-xml-pptx/src/theme.rs` | `PptxHandlerRuntimeThemeLoading.ts` @ e66aaec | Theme dump via `drawingml::parse_theme` / `theme_slot_hex` (#25). |
+| `rs/crates/nitro-xml-pptx/src/text.rs` | `PptxHandlerRuntimeShapeParagraphContentParsing.ts`, `PptxHandlerRuntimeBulletParsing.ts`, `ruby-element-parsing.ts` @ e66aaec | Shape text flattening for issue-24 dump parity (#26). |
+| `rs/crates/nitro-xml-pptx/src/auto_number.rs` | `auto-number-format.ts`, `auto-number-scripts.ts` @ e66aaec | Auto-number bullet markers (#26). |
+| `rs/crates/nitro-xml-pptx/src/level_style.rs` | `PptxHandlerRuntimePlaceholderStyles.ts`, `PptxHandlerRuntimeMasterElements.ts` @ e66aaec | Master/layout list-style bullets (#26). |
+| `rs/crates/nitro-xml-pptx/src/placeholder_defaults.rs` | `PptxHandlerRuntimePlaceholderLookup.ts`, `PptxHandlerRuntimePlaceholderDefaults.ts` @ e66aaec | Placeholder level-style lookup (#26). |
+| `rs/crates/nitro-xml-pptx/src/table.rs` | `PptxGraphicFrameParser.ts` @ e66aaec | Table graphic frame row count (#26). |

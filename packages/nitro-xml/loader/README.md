@@ -142,9 +142,33 @@ One dedicated worker per document. Messages:
 | `take-frame` | `frame` (commands + measure SoA + layout SoA) |
 | `measure-results` (Float64Array) | `measure-acked` |
 | `layout-results` (Float64Array, `awaiting * 4`) | `layout-acked` |
+| `shell-ui` | `shell-ui` (`ui` object) |
+| `shell-action` (`op`, `arg`) | `shell-action` (`result` JSON string) |
 | `dispose` | `disposed` |
 
 DOM/canvas apply, measure batches and layout read-backs run on the main thread; parse/model/layout stay in the worker; pptx text layout stays on the main thread (`docs/adr/0002-renderer-port.md`, #36).
+
+## Viewer shell (#29)
+
+Shell **logic** (zoom, sheet/page/slide tabs, find over engine `search()`, copy
+TSV, safe-href hyperlinks, diagnostics including #121 `font_substitution`) lives
+in Rust (`rs/crates/nitro-xml-wasm/src/shell/`). The loader only mounts a thin
+chrome binder (`shell-chrome.js`) and forwards `shellAction` / `shellUi`.
+
+Xlsx is wired today via `<nitro-xlsx>` (toolbar, find bar, sheet tabs,
+diagnostics panel). Docx/pptx reuse the same `ShellState` / chrome when their
+painters land (#23, #27).
+
+```js
+const result = await viewer.shellAction("find-query", "revenue");
+// result.ui — chrome snapshot; result.copyText after "copy";
+// result.pendingHyperlink after "hyperlink-at" (respects safe-href `open`)
+viewer.addEventListener("nitro-hyperlink", (e) => { /* internal jumps */ });
+viewer.addEventListener("nitro-copy", (e) => { /* e.detail.text */ });
+```
+
+Keyboard (when the element is focused): `Ctrl/Cmd+F` find, `Ctrl/Cmd+C` copy,
+`Ctrl/Cmd+=` / `-` zoom, `Escape` closes find.
 
 ## Headless session (same thread)
 

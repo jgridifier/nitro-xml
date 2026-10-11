@@ -12,11 +12,13 @@ import {
 	dumpXlsxSheetOracle,
 	dumpXlsxViewIr,
 	dumpXlsxEngineOracle,
+	dumpXlsxShellOracle,
 } from '../oracle/xlsx.ts';
 import {
 	dumpXlsxWorkbookRust,
 	dumpFormatViewIrRust,
 	dumpXlsxEngineRust,
+	dumpXlsxShellRust,
 	ensureExample,
 } from '../rust/dump.ts';
 import { normalizeJson } from '../normalize.ts';
@@ -64,11 +66,13 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 	ensureExample('xlsx_dump', 'nitro-xml-xlsx');
 	ensureExample('xlsx_view_ir_dump', 'nitro-xml-xlsx');
 	ensureExample('xlsx_engine_dump', 'nitro-xml-xlsx');
+	ensureExample('xlsx_shell_dump', 'nitro-xml-xlsx');
 
 	let n = 0;
 	let badWorksheet = 0;
 	let badViewIr = 0;
 	let badEngine = 0;
+	let badShell = 0;
 	let badAny = 0;
 	for (const f of listXlsxFiles(root)) {
 		if (!existsSync(f)) continue;
@@ -81,6 +85,7 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 			badWorksheet++;
 			badViewIr++;
 			badEngine++;
+			badShell++;
 			fileBad = true;
 			if (notes.length < 20) notes.push(`panic/timeout/crash rc=${got.status} on ${f}`);
 			continue;
@@ -134,17 +139,42 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 			if (notes.length < 20) notes.push(`engine API error on ${f}: ${e}`);
 		}
 
+		try {
+			const oracleShell = dumpXlsxShellOracle(f);
+			const rustShell = dumpXlsxShellRust(f);
+			if (!oracleShell.ok || !rustShell.ok) {
+				if (!oracleShell.ok && !rustShell.ok) {
+					// both reject
+				} else {
+					badShell++;
+					fileBad = true;
+					if (notes.length < 20) {
+						notes.push(`shell accept/reject mismatch on ${f}`);
+					}
+				}
+			} else if (normalizeJson(oracleShell.json) !== normalizeJson(rustShell.json)) {
+				badShell++;
+				fileBad = true;
+				if (notes.length < 20) notes.push(`shell differs on ${f}`);
+			}
+		} catch (e) {
+			badShell++;
+			fileBad = true;
+			if (notes.length < 20) notes.push(`shell error on ${f}: ${e}`);
+		}
+
 		if (fileBad) badAny++;
 	}
 	notes.push(`worksheet differential: ${n - badWorksheet}/${n} files match upstream`);
 	notes.push(`view-IR differential: ${n - badViewIr}/${n} files match upstream`);
 	notes.push(`engine API differential: ${n - badEngine}/${n} files match upstream`);
+	notes.push(`shell differential: ${n - badShell}/${n} files match upstream`);
 	return { compared: n, mismatched: badAny, notes };
 }
 
 export const xlsxComparison: Comparison = {
 	id: 'xlsx',
-	label: 'xlsx worksheet + view-IR + engine API (#16, #18, #19)',
+	label: 'xlsx worksheet + view-IR + engine API + shell (#16, #18, #19, #29)',
 	ready: true,
 	todo: undefined,
 	async oracle(fixturePath: string) {

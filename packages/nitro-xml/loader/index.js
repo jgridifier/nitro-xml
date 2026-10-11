@@ -40,6 +40,11 @@ export { defineNitroXml, NitroXmlElement } from "./element.js";
 export { defineNitroXlsx, NitroXlsxElement } from "./xlsx-element.js";
 export { defineNitroPptx, NitroPptxElement } from "./pptx-element.js";
 export {
+  mountShellChrome,
+  bindShellUi,
+  followHyperlink,
+} from "./shell-chrome.js";
+export {
   applyFontSourceToHandle,
   setDefaultFontSource,
   getDefaultFontSource,

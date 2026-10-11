@@ -88,6 +88,26 @@ export class DocumentSession {
     this._events.push(ev);
   }
 
+  /** Stage-6 shell UI snapshot (#29). */
+  shellUi() {
+    if (this._disposed) return null;
+    try {
+      return JSON.parse(this._handle.shellUi());
+    } catch {
+      return null;
+    }
+  }
+
+  /** Stage-6 shell action (#29). Returns `{ copyText?, pendingHyperlink?, ui }`. */
+  shellAction(op, arg = "") {
+    if (this._disposed) return null;
+    try {
+      return JSON.parse(this._handle.shellAction(op, arg || ""));
+    } catch (e) {
+      throw e;
+    }
+  }
+
   /** One frame: prior layout reads → measure → apply → queue layout for next tick. */
   tick(opts = {}) {
     if (this._disposed) return { measured: 0, ops: 0, layoutReads: 0 };

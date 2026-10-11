@@ -9,6 +9,9 @@
 
 use crate::events::{self, EventQueue};
 use crate::pptx::{is_pptx_extension, PptxState};
+use crate::shell::{
+    apply_action, FindMatch, FormatKind, PendingHyperlink, ShellAction, ShellState, ShellUi,
+};
 use crate::transport::StringTable;
 use crate::xlsx::{is_xlsx_extension, search_options_from_json, XlsxState};
 
@@ -129,6 +132,7 @@ pub struct Handle {
     pub(crate) events: EventQueue,
     pub(crate) xlsx: Option<XlsxState>,
     pub(crate) pptx: Option<PptxState>,
+    pub(crate) shell: ShellState,
     #[cfg(feature = "bench")]
     pub(crate) grid: crate::bench::SyntheticGrid,
 }
@@ -150,6 +154,7 @@ impl Handle {
             events: EventQueue::new(),
             xlsx: None,
             pptx: None,
+            shell: ShellState::default(),
             #[cfg(feature = "bench")]
             grid: crate::bench::SyntheticGrid::new(),
         }
@@ -159,22 +164,63 @@ impl Handle {
     #[wasm_bindgen(js_name = openDocument)]
     pub fn open_document(&mut self, name: &str) -> Result<(), JsValue> {
         if is_xlsx_extension(name) {
-            let (state, warnings) = XlsxState::open(&self.bytes)
+            let t0 = now_ms();
+            let (mut state, warnings) = XlsxState::open(&self.bytes)
                 .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
-            for w in warnings {
-                self.push_warning("xlsx_warning".into(), w, None);
+            self.shell = ShellState::default();
+            self.shell.format = FormatKind::Xlsx;
+            self.shell.diagnostics.clear_runtime();
+            for w in &warnings {
+                self.shell
+                    .diagnostics
+                    .ingest_warning("xlsx_warning", w, None);
+                self.push_warning("xlsx_warning".into(), w.clone(), None);
             }
+            self.shell.set_tabs(
+                state
+                    .sheets_json()
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|s| {
+                                let index = s.get("index")?.as_u64()? as u32;
+                                let name = s.get("name")?.as_str()?.to_owned();
+                                Some((index, name))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                state.active as u32,
+            );
+            state.set_zoom_pct(self.shell.zoom_pct);
             self.xlsx = Some(state);
             self.pptx = None;
+            self.shell.diagnostics.parse_ms = now_ms() - t0;
+            let t1 = now_ms();
             process_frame(self);
+            self.shell.diagnostics.paint_ms = now_ms() - t1;
+            self.shell.dirty_ui = true;
             return Ok(());
         }
         if is_pptx_extension(name) {
+            let t0 = now_ms();
             let state = PptxState::open(&self.bytes)
                 .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            self.shell = ShellState::default();
+            self.shell.format = FormatKind::Pptx;
+            self.shell.diagnostics.clear_runtime();
+            let n = state.pres.slide_count();
+            self.shell.set_tabs(
+                (0..n).map(|i| (i as u32, format!("Slide {}", i + 1))).collect(),
+                state.active as u32,
+            );
             self.pptx = Some(state);
             self.xlsx = None;
+            self.shell.diagnostics.parse_ms = now_ms() - t0;
+            let t1 = now_ms();
             process_frame(self);
+            self.shell.diagnostics.paint_ms = now_ms() - t1;
+            self.shell.dirty_ui = true;
             return Ok(());
         }
         Err(JsValue::from(OoxmlError::with_code(
@@ -294,6 +340,103 @@ impl Handle {
         Ok(nitro_xml_xlsx::stringify_json(&v))
     }
 
+    /// Stage-6 shell UI snapshot (JSON) for the thin chrome binder (#29).
+    #[wasm_bindgen(js_name = shellUi)]
+    pub fn shell_ui(&self) -> String {
+        ShellUi::to_string(&self.shell)
+    }
+
+    /// Apply a shell action (`zoom-in`, `find-query`, `sheet`, `copy`, …).
+    /// Returns JSON: `{ copyText?, pendingHyperlink?, ui }`.
+    #[wasm_bindgen(js_name = shellAction)]
+    pub fn shell_action(&mut self, op: &str, arg: &str) -> Result<String, JsValue> {
+        let action = ShellAction::parse(op, arg).ok_or_else(|| {
+            JsValue::from(OoxmlError::with_code(
+                "bad_shell_action",
+                format!("unknown shell action {op}"),
+            ))
+        })?;
+        let mut result = apply_action(&mut self.shell, &action);
+        match &action {
+            ShellAction::FindQuery(_) | ShellAction::FindOpts { .. } => {
+                self.run_find()?;
+                result.reopen_paint = false;
+            }
+            ShellAction::Copy => {
+                let text = self.copy_selection_tsv()?;
+                self.shell.last_copy = text.clone();
+                result.copy_text = Some(text);
+            }
+            ShellAction::HyperlinkAt { sheet, row, col } => {
+                self.activate_hyperlink(*sheet, *row, *col)?;
+            }
+            ShellAction::Sheet(_) | ShellAction::ZoomIn | ShellAction::ZoomOut | ShellAction::ZoomSet(_) => {}
+            _ => {}
+        }
+        if let Some(idx) = result.navigate_sheet {
+            if let Some(xlsx) = self.xlsx.as_mut() {
+                xlsx.set_active_sheet(&self.bytes, idx as usize)
+                    .map_err(|e| JsValue::from(OoxmlError::with_code("bad_sheet", e)))?;
+                self.shell.nav_index = idx;
+            }
+        }
+        if let Some((row, col)) = result.scroll_to {
+            if let Some(xlsx) = self.xlsx.as_mut() {
+                xlsx.scroll_to_cell(row, col);
+            }
+            result.reopen_paint = true;
+        }
+        if let Some(xlsx) = self.xlsx.as_mut() {
+            xlsx.set_zoom_pct(self.shell.zoom_pct);
+        }
+        if result.reopen_paint
+            || matches!(
+                action,
+                ShellAction::ZoomIn
+                    | ShellAction::ZoomOut
+                    | ShellAction::ZoomSet(_)
+                    | ShellAction::Sheet(_)
+                    | ShellAction::FindNext
+                    | ShellAction::FindPrev
+            )
+        {
+            let t1 = now_ms();
+            process_frame(self);
+            self.shell.diagnostics.paint_ms = now_ms() - t1;
+        }
+        let pending = self.shell.take_pending_hyperlink().map(|h| {
+            let mut m = serde_json::Map::new();
+            m.insert("open".into(), serde_json::json!(h.open));
+            if let Some(t) = h.target {
+                m.insert("target".into(), serde_json::Value::String(t));
+            }
+            if let Some(l) = h.location {
+                m.insert("location".into(), serde_json::Value::String(l));
+            }
+            if let Some(tip) = h.tooltip {
+                m.insert("tooltip".into(), serde_json::Value::String(tip));
+            }
+            serde_json::Value::Object(m)
+        });
+        let out = serde_json::json!({
+            "copyText": result.copy_text,
+            "pendingHyperlink": pending,
+            "ui": ShellUi::to_json(&self.shell),
+        });
+        Ok(out.to_string())
+    }
+
+    /// Diagnostics panel JSON (timings, warnings, #121 font substitutions).
+    #[wasm_bindgen(js_name = diagnostics)]
+    pub fn diagnostics_json(&self) -> String {
+        let mut v = self.shell.diagnostics.to_json();
+        if let Some(obj) = v.as_object_mut() {
+            obj.insert("open".into(), serde_json::json!(self.shell.diagnostics_open));
+            obj.insert("format".into(), serde_json::json!(self.shell.format.as_str()));
+        }
+        v.to_string()
+    }
+
     /// Copy interned strings for the loader (`resolve` on the main thread / worker).
     #[wasm_bindgen(js_name = exportStrings)]
     pub fn export_strings(&self) -> Array {
@@ -399,9 +542,16 @@ impl Handle {
         } else {
             let (href, subs) = resolve_webfont_plan(&self.font_source, &fragments, &requested);
             for sub in subs {
+                let message = sub.message();
+                self.shell.diagnostics.ingest_warning(
+                    FONT_SUBSTITUTION_CODE,
+                    &message,
+                    None,
+                );
+                self.shell.dirty_ui = true;
                 self.warnings.push(Warning::new(
                     FONT_SUBSTITUTION_CODE.to_owned(),
-                    sub.message(),
+                    message,
                     None,
                 ));
             }
@@ -619,12 +769,120 @@ impl Handle {
     fn record_font_substitutions(&mut self, requested: &[String]) {
         for family in requested {
             let sub = nitro_xml::opc::fonts::FontSubstitution::local(family.clone());
+            let message = sub.message();
+            self.shell.diagnostics.ingest_warning(
+                FONT_SUBSTITUTION_CODE,
+                &message,
+                None,
+            );
+            self.shell.dirty_ui = true;
             self.warnings.push(Warning::new(
                 FONT_SUBSTITUTION_CODE.to_owned(),
-                sub.message(),
+                message,
                 None,
             ));
         }
+    }
+
+    fn run_find(&mut self) -> Result<(), JsValue> {
+        let query = self.shell.find.query.clone();
+        let opts = nitro_xml_xlsx::SearchOptions {
+            case_sensitive: self.shell.find.case_sensitive,
+            match_entire: self.shell.find.match_entire,
+        };
+        let xlsx = self
+            .xlsx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        let v = xlsx
+            .search(&self.bytes, &query, opts)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("search_failed", e)))?;
+        let mut matches = Vec::new();
+        if let Some(arr) = v.as_array() {
+            for item in arr {
+                let sheet = item.get("sheet").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+                let row = item.get("row").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+                let col = item.get("col").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+                let text = item
+                    .get("text")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_owned();
+                matches.push(FindMatch {
+                    sheet,
+                    row,
+                    col,
+                    text,
+                });
+            }
+        }
+        self.shell.find.matches = matches;
+        self.shell.find.index = if self.shell.find.matches.is_empty() {
+            None
+        } else {
+            Some(0)
+        };
+        self.shell.dirty_ui = true;
+        Ok(())
+    }
+
+    fn copy_selection_tsv(&mut self) -> Result<String, JsValue> {
+        let range = self.shell.selection_ref.clone();
+        let sheet = self.shell.nav_index;
+        let xlsx = self
+            .xlsx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        xlsx.cell_text(&self.bytes, sheet as usize, &range)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("bad_range", e)))
+    }
+
+    fn activate_hyperlink(&mut self, sheet: u32, row: u32, col: u32) -> Result<(), JsValue> {
+        let xlsx = self
+            .xlsx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        match xlsx.hyperlink_at(&self.bytes, sheet as usize, row, col) {
+            Ok(Some(v)) => {
+                let target = v.get("target").and_then(|x| x.as_str()).map(str::to_owned);
+                let location = v
+                    .get("location")
+                    .and_then(|x| x.as_str())
+                    .map(str::to_owned);
+                let open = v.get("open").and_then(|x| x.as_bool()).unwrap_or(false);
+                let tooltip = v
+                    .get("tooltip")
+                    .and_then(|x| x.as_str())
+                    .map(str::to_owned);
+                self.shell.pending_hyperlink = Some(PendingHyperlink {
+                    target,
+                    location,
+                    open,
+                    tooltip,
+                });
+                Ok(())
+            }
+            Ok(None) => {
+                self.shell.pending_hyperlink = None;
+                Ok(())
+            }
+            Err(e) => Err(JsValue::from(OoxmlError::with_code("bad_sheet", e))),
+        }
+    }
+}
+
+fn now_ms() -> f64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Date::now()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs_f64() * 1000.0)
+            .unwrap_or(0.0)
     }
 }
 

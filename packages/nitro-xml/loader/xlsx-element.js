@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-/** `<nitro-xlsx>` viewer element (readonly xlsx grid). */
+/** `<nitro-xlsx>` viewer with Stage-6 shell chrome (#19 + #29). */
 
 import {
   isSupportedExtension,
@@ -9,6 +9,7 @@ import {
 import { prewarmWorker, wasmSupported, unsupportedBrowserError } from "./bootstrap.js";
 import { WorkerDocument } from "./worker-host.js";
 import { EventKind } from "./events.js";
+import { mountShellChrome, bindShellUi, followHyperlink } from "./shell-chrome.js";
 
 const TAG = "nitro-xlsx";
 const XLSX_EXT = /\.(xlsx|xlsm|xltx|xltm)$/i;
@@ -30,9 +31,7 @@ export class NitroXlsxElement extends HTMLElement {
     this._doc = null;
     this._ro = null;
     this._raf = 0;
-    this._msg = null;
-    this._canvas = null;
-    this._root = null;
+    this._chrome = null;
     this._readonly = true;
   }
 
@@ -41,18 +40,17 @@ export class NitroXlsxElement extends HTMLElement {
   }
 
   attributeChangedCallback(name, _old, value) {
-    if (name === "readonly") {
-      this._readonly = value !== "false";
-    }
+    if (name === "readonly") this._readonly = value !== "false";
   }
 
   connectedCallback() {
     if (!wasmSupported()) {
+      this._ensureChrome();
       this._showMessage(UNSUPPORTED_BROWSER_MESSAGE);
       return;
     }
     this._readonly = this.getAttribute("readonly") !== "false";
-    this._ensureSurface();
+    this._ensureChrome();
     this._bind();
     const src = this.getAttribute("src");
     if (src) this.loadUrl(src).catch((e) => this._fail(e));
@@ -66,7 +64,6 @@ export class NitroXlsxElement extends HTMLElement {
     return this._readonly;
   }
 
-  /** @returns {import("./worker-host.js").WorkerDocument | null} */
   get document() {
     return this._doc;
   }
@@ -77,8 +74,7 @@ export class NitroXlsxElement extends HTMLElement {
       this._showMessage(UNSUPPORTED_FORMAT_MESSAGE);
       return;
     }
-    const buf = await file.arrayBuffer();
-    await this.loadBuffer(buf, n);
+    await this.loadBuffer(await file.arrayBuffer(), n);
   }
 
   async loadUrl(url) {
@@ -105,55 +101,75 @@ export class NitroXlsxElement extends HTMLElement {
       });
     }
     this._clearMessage();
-    this._ensureSurface();
+    this._ensureChrome();
     if (this._doc) this._doc.dispose();
     this._doc = new WorkerDocument({
-      canvas: this._canvas,
-      root: this._root,
+      canvas: this._chrome.canvas,
+      root: this._chrome.root,
       name,
     });
     await this._doc.open(buffer, name);
+    await this._refreshShell();
     this._schedule();
   }
 
-  _ensureSurface() {
-    if (this._canvas) return;
+  /** Host/test hook: run a shell action through the worker. */
+  async shellAction(op, arg = "") {
+    if (!this._doc) return null;
+    const result = await this._doc.shellAction(op, arg);
+    this._applyShellResult(result);
+    this._schedule();
+    return result;
+  }
+
+  _ensureChrome() {
+    if (this._chrome) return;
     const shadow = this.shadowRoot || this.attachShadow({ mode: "open" });
-    shadow.innerHTML =
-      `<style>:host{display:block;position:relative;min-height:12rem;background:#fff}` +
-      `canvas, .dom{position:absolute;inset:0;width:100%;height:100%}` +
-      `.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}</style>` +
-      `<canvas part="canvas"></canvas><div class="dom" part="dom"></div>` +
-      `<div class="msg" hidden part="message"></div>`;
-    this._canvas = shadow.querySelector("canvas");
-    this._root = shadow.querySelector(".dom");
-    this._msg = shadow.querySelector(".msg");
+    this._chrome = mountShellChrome(shadow);
   }
 
   _bind() {
-    const onPtr = (type) => (e) => {
-      if (!this._doc) return;
-      const r = this._canvas.getBoundingClientRect();
+    const c = this._chrome;
+    if (!c) return;
+    c.bar?.addEventListener("click", (e) => this._onChromeClick(e));
+    c.tabs?.addEventListener("click", (e) => this._onChromeClick(e));
+    c.find?.addEventListener("click", (e) => this._onChromeClick(e));
+    c.findInput?.addEventListener("input", () => {
+      this.shellAction("find-query", c.findInput.value || "").catch(() => {});
+    });
+    c.findInput?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        this.shellAction(e.shiftKey ? "find-prev" : "find-next").catch(() => {});
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        this.shellAction("find-close").catch(() => {});
+      }
+    });
+    this.addEventListener("keydown", (e) => this._onKey(e));
+    const onPtr = (type) => (ev) => {
+      if (!this._doc || !c.canvas) return;
+      const r = c.canvas.getBoundingClientRect();
       this._doc.pushEvent({
         kind: EventKind.Pointer,
         time_ms: performance.now(),
-        x: e.clientX - r.left,
-        y: e.clientY - r.top,
+        x: ev.clientX - r.left,
+        y: ev.clientY - r.top,
         type,
-        button: e.button,
-        buttons: e.buttons,
+        button: ev.button,
+        buttons: ev.buttons,
       });
       this._schedule();
     };
-    this.addEventListener("pointerdown", onPtr(0));
-    this.addEventListener("pointermove", onPtr(1));
-    this.addEventListener("pointerup", onPtr(2));
-    this.addEventListener(
+    c.viewport?.addEventListener("pointerdown", onPtr(0));
+    c.viewport?.addEventListener("pointermove", onPtr(1));
+    c.viewport?.addEventListener("pointerup", onPtr(2));
+    c.viewport?.addEventListener(
       "wheel",
       (e) => {
         if (!this._doc) return;
         e.preventDefault();
-        const r = this._canvas.getBoundingClientRect();
+        const r = c.canvas.getBoundingClientRect();
         this._doc.pushEvent({
           kind: EventKind.Wheel,
           time_ms: performance.now(),
@@ -168,12 +184,12 @@ export class NitroXlsxElement extends HTMLElement {
     );
     if (typeof ResizeObserver !== "undefined") {
       this._ro = new ResizeObserver(() => {
-        if (!this._doc || !this._canvas) return;
+        if (!this._doc || !c.canvas) return;
         const dpr = window.devicePixelRatio || 1;
-        const w = this.clientWidth;
-        const h = this.clientHeight;
-        this._canvas.width = Math.max(1, (w * dpr) | 0);
-        this._canvas.height = Math.max(1, (h * dpr) | 0);
+        const w = c.viewport.clientWidth;
+        const h = c.viewport.clientHeight;
+        c.canvas.width = Math.max(1, (w * dpr) | 0);
+        c.canvas.height = Math.max(1, (h * dpr) | 0);
         this._doc.pushEvent({
           kind: EventKind.Resize,
           time_ms: performance.now(),
@@ -183,8 +199,70 @@ export class NitroXlsxElement extends HTMLElement {
         });
         this._schedule();
       });
-      this._ro.observe(this);
+      this._ro.observe(c.viewport);
     }
+  }
+
+  _onChromeClick(e) {
+    const btn = e.target?.closest?.("[data-act]");
+    if (!btn) return;
+    const op = btn.getAttribute("data-act");
+    const arg = btn.getAttribute("data-arg") || "";
+    this.shellAction(op, arg).catch(() => {});
+  }
+
+  _onKey(e) {
+    if (!this._doc) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && (e.key === "f" || e.key === "F")) {
+      e.preventDefault();
+      this.shellAction("find-open").then(() => this._chrome?.findInput?.focus());
+    } else if (mod && (e.key === "c" || e.key === "C") && !e.shiftKey) {
+      // Let copy through shell when selection managed; still allow native if input focused.
+      if (e.target === this._chrome?.findInput) return;
+      e.preventDefault();
+      this.shellAction("copy").catch(() => {});
+    } else if (mod && (e.key === "=" || e.key === "+")) {
+      e.preventDefault();
+      this.shellAction("zoom-in").catch(() => {});
+    } else if (mod && e.key === "-") {
+      e.preventDefault();
+      this.shellAction("zoom-out").catch(() => {});
+    } else if (e.key === "Escape") {
+      this.shellAction("find-close").catch(() => {});
+    }
+  }
+
+  async _refreshShell() {
+    if (!this._doc) return;
+    const ui = await this._doc.shellUi();
+    bindShellUi(this._chrome, ui);
+  }
+
+  _applyShellResult(result) {
+    if (!result) return;
+    if (result.ui) bindShellUi(this._chrome, result.ui);
+    if (result.copyText != null && result.copyText !== undefined) {
+      const text = result.copyText || "";
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {});
+      }
+      this.dispatchEvent(
+        new CustomEvent("nitro-copy", { detail: { text }, bubbles: true }),
+      );
+    }
+    if (result.pendingHyperlink) {
+      const followed = followHyperlink(result.pendingHyperlink);
+      this.dispatchEvent(
+        new CustomEvent("nitro-hyperlink", {
+          detail: { ...result.pendingHyperlink, followed },
+          bubbles: true,
+        }),
+      );
+    }
+    this.dispatchEvent(
+      new CustomEvent("nitro-shell", { detail: result.ui || null, bubbles: true }),
+    );
   }
 
   _schedule() {
@@ -201,22 +279,20 @@ export class NitroXlsxElement extends HTMLElement {
   }
 
   _showMessage(text) {
-    this._ensureSurface();
-    if (this._msg) {
-      this._msg.hidden = false;
-      this._msg.textContent = text;
+    this._ensureChrome();
+    if (this._chrome.msg) {
+      this._chrome.msg.hidden = false;
+      this._chrome.msg.textContent = text;
     }
-    if (this._canvas) this._canvas.style.display = "none";
-    if (this._root) this._root.style.display = "none";
+    if (this._chrome.viewport) this._chrome.viewport.style.display = "none";
   }
 
   _clearMessage() {
-    if (this._msg) {
-      this._msg.hidden = true;
-      this._msg.textContent = "";
+    if (this._chrome?.msg) {
+      this._chrome.msg.hidden = true;
+      this._chrome.msg.textContent = "";
     }
-    if (this._canvas) this._canvas.style.display = "";
-    if (this._root) this._root.style.display = "";
+    if (this._chrome?.viewport) this._chrome.viewport.style.display = "";
   }
 
   _fail(e) {

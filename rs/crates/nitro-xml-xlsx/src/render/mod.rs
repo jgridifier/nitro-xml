@@ -23,6 +23,8 @@ pub struct GridPaintViewport {
     pub height: i32,
     pub frozen_rows: u32,
     pub frozen_cols: u32,
+    /// Zoom percent \[10, 400\]; `None` uses the sheet's stored zoom (#29 shell).
+    pub zoom_pct: Option<f64>,
 }
 
 /// Build one frame's command buffer for the cell grid (X1–X6).
@@ -36,7 +38,13 @@ pub fn paint_grid_frame<I: StringIntern>(
     all_sheets: &[Option<ActiveWorksheet>],
     viewport: &GridPaintViewport,
 ) {
-    let metrics = create_grid_metrics(sheet, GridMetricsOptions::default());
+    let metrics = create_grid_metrics(
+        sheet,
+        GridMetricsOptions {
+            zoom: viewport.zoom_pct,
+            ..GridMetricsOptions::default()
+        },
+    );
     buf.begin();
     grid::paint_frame(buf, intern, viewport, &metrics);
     gridlines::paint(buf, sheet, &metrics, viewport);

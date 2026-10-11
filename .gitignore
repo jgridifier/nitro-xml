@@ -51,3 +51,6 @@ tools/model-compare/gates/__pycache__/
 # Visual gate (#45) outputs
 parity/visual/out/
 parity/visual/node_modules/
+tests/a11y/out/
+tests/a11y/node_modules/
+tests/bidi/out/

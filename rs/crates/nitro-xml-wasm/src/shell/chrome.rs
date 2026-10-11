@@ -36,6 +36,13 @@ pub fn chrome_html(state: &ShellState) -> String {
     let find_autofocus = if state.find.open { " autofocus" } else { "" };
     let find_status = esc(&state.find.status());
     let find_query = esc(&state.find.query);
+    let tabs_label = match state.format {
+        FormatKind::Pptx => "Slides",
+        FormatKind::Docx => "Pages",
+        FormatKind::Xlsx => "Sheets",
+        // Other formats keep a generic label until their shell inventory lands.
+        _ => "Tabs",
+    };
     let mut tabs = String::new();
     for (index, name) in &state.tabs {
         let cur = if *index == state.nav_index {
@@ -89,21 +96,21 @@ pub fn chrome_html(state: &ShellState) -> String {
 .d{{align-items:flex-start;white-space:pre-wrap;max-height:8rem;overflow:auto;background:#f7f7f7}}
 </style>
 <div class="b" part="toolbar">
-<button type="button" data-a="zoom-out" title="Zoom out">−</button>
-<span class="z" part="zoom">{zoom}%</span>
-<button type="button" data-a="zoom-in" title="Zoom in">+</button>
+<button type="button" data-a="zoom-out" title="Zoom out" aria-label="Zoom out"><span aria-hidden="true">−</span></button>
+<span class="z" part="zoom" aria-live="polite">{zoom}%</span>
+<button type="button" data-a="zoom-in" title="Zoom in" aria-label="Zoom in"><span aria-hidden="true">+</span></button>
 <button type="button" data-a="find-open">Find</button>
 <button type="button" data-a="copy">Copy</button>
-<button type="button" data-a="diagnostics-toggle">Diag</button>
+<button type="button" data-a="diagnostics-toggle">Diagnostics</button>
 </div>
 <div class="f" part="find"{find_hidden}>
 <input class="q" type="search" placeholder="Find" aria-label="Find" value="{find_query}"{find_autofocus}/>
-<button type="button" data-a="find-prev">↑</button>
-<button type="button" data-a="find-next">↓</button>
-<span class="fs" part="find-status">{find_status}</span>
-<button type="button" data-a="find-close">✕</button>
+<button type="button" data-a="find-prev" aria-label="Find previous"><span aria-hidden="true">↑</span></button>
+<button type="button" data-a="find-next" aria-label="Find next"><span aria-hidden="true">↓</span></button>
+<span class="fs" part="find-status" aria-live="polite">{find_status}</span>
+<button type="button" data-a="find-close" aria-label="Close find"><span aria-hidden="true">✕</span></button>
 </div>
-<div class="t" part="tabs" role="tablist">{tabs}</div>
+<div class="t" part="tabs" role="tablist" aria-label="{tabs_label}">{tabs}</div>
 <pre class="d" part="diagnostics"{diag_hidden}>{diag}</pre></div>"##,
         hk = hk,
         zoom = zoom,
@@ -111,6 +118,7 @@ pub fn chrome_html(state: &ShellState) -> String {
         find_query = find_query,
         find_autofocus = find_autofocus,
         find_status = find_status,
+        tabs_label = tabs_label,
         tabs = tabs,
         diag_hidden = diag_hidden,
         diag = diag_body.trim_end(),

@@ -1,0 +1,191 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>nitro-xml pptx a11y host</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #fff; }
+    #stage {
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+    }
+    #stage nitro-pptx {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+    }
+    #ts-wrap {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage" data-ready="0"></div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const side = params.get('side');
+    const id = params.get('id');
+    const fixture = params.get('fixture');
+    const slideIndex = Math.max(0, Number(params.get('slide') || 0) | 0);
+    const width = Number(params.get('width') || 960);
+    const height = Number(params.get('height') || 540);
+    const stage = document.getElementById('stage');
+    stage.style.width = `${width}px`;
+    stage.style.height = `${height}px`;
+
+    function waitFrames(n = 2) {
+      return new Promise((resolve) => {
+        let left = n;
+        const step = () => {
+          left -= 1;
+          if (left <= 0) resolve();
+          else requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+    }
+
+    function fitScale(canvasW, canvasH, viewW, viewH) {
+      if (viewW <= 0 || viewH <= 0) return 1;
+      return Math.min(viewW / Math.max(1, canvasW), viewH / Math.max(1, canvasH), 1);
+    }
+
+    async function mountRust() {
+      const { defineNitroPptx } = await import('/repo/packages/nitro-xml/loader/index.js');
+      defineNitroPptx();
+      const el = document.createElement('nitro-pptx');
+      el.setAttribute('readonly', '');
+      el.style.width = '100%';
+      el.style.height = '100%';
+      stage.appendChild(el);
+      await el.loadUrl(fixture);
+      // Keep Stage-6 chrome visible for keyboard / AX shell checks (#42).
+      if (el.document && slideIndex > 0) {
+        for (let s = 0; s < slideIndex; s++) {
+          el.document.pushEvent({
+            kind: 4,
+            time_ms: performance.now(),
+            key: 'ArrowRight',
+            code: 'ArrowRight',
+            type: 0,
+            mods: 0,
+          });
+          await el.document.tick();
+          await waitFrames(1);
+        }
+      }
+      if (el.document) {
+        const dpr = window.devicePixelRatio || 1;
+        const w = el.clientWidth || width;
+        const h = el.clientHeight || height;
+        const canvas = el.shadowRoot?.querySelector('canvas');
+        if (canvas) {
+          canvas.width = Math.max(1, (w * dpr) | 0);
+          canvas.height = Math.max(1, (h * dpr) | 0);
+        }
+        el.document.pushEvent({
+          kind: 6,
+          time_ms: performance.now(),
+          width: w,
+          height: h,
+          dpr,
+        });
+      }
+      let painted = false;
+      for (let i = 0; i < 90; i++) {
+        await waitFrames(2);
+        const msg = el.shadowRoot?.querySelector('.msg');
+        if (msg && !msg.hidden && msg.textContent) {
+          throw new Error(`nitro-pptx: ${msg.textContent}`);
+        }
+        if (el.document) await el.document.tick();
+        const slide = el.shadowRoot?.querySelector('[aria-roledescription="slide"]');
+        if (slide) {
+          painted = true;
+          break;
+        }
+        const dom = el.shadowRoot?.querySelector('.dom');
+        if (dom && dom.childElementCount > 0) {
+          painted = true;
+          break;
+        }
+      }
+      if (!painted) throw new Error('nitro-pptx: no slide paint');
+      await waitFrames(3);
+      window.__a11yHost = el;
+    }
+
+    async function mountTs() {
+      const {
+        loadPresentation,
+        renderSlideStage,
+        createDefaultRegistry,
+        createTranslator,
+      } = await import('/out/bundles/pptx-slide.js');
+      const res = await fetch(fixture);
+      if (!res.ok) throw new Error(`fixture fetch ${res.status}`);
+      const buffer = await res.arrayBuffer();
+      const loaded = await loadPresentation(buffer);
+      try {
+        if (!loaded.slides?.length) throw new Error('upstream: empty slides');
+        const idx = Math.min(slideIndex, loaded.slides.length - 1);
+        const scale = fitScale(
+          loaded.canvasSize.width,
+          loaded.canvasSize.height,
+          width,
+          height,
+        );
+        const slideEl = renderSlideStage({
+          document,
+          slide: loaded.slides[idx],
+          canvasSize: loaded.canvasSize,
+          mediaDataUrls: loaded.mediaDataUrls,
+          colorScheme: loaded.colorScheme,
+          fontScheme: loaded.fontScheme,
+          tableStyleMap: loaded.tableStyleMap,
+          registry: createDefaultRegistry(),
+          t: createTranslator('en'),
+          scale,
+          slides: loaded.slides,
+          currentSlideIndex: idx,
+          reading: true,
+        });
+        const wrap = document.createElement('div');
+        wrap.id = 'ts-wrap';
+        wrap.appendChild(slideEl);
+        stage.appendChild(wrap);
+        await waitFrames(3);
+        if (document.fonts?.ready) {
+          try { await document.fonts.ready; } catch { /* ignore */ }
+        }
+        if (!stage.querySelector('[aria-roledescription="slide"]')) {
+          throw new Error('upstream: missing aria-roledescription=slide');
+        }
+        await waitFrames(3);
+        window.__a11yHost = wrap;
+      } finally {
+        loaded.handler?.dispose?.();
+      }
+    }
+
+    try {
+      if (!fixture) throw new Error('missing fixture query param');
+      if (side === 'rust') await mountRust();
+      else if (side === 'ts') await mountTs();
+      else throw new Error(`unknown side ${side}`);
+      stage.dataset.ready = '1';
+      document.title = `ready:${id}:${side}`;
+    } catch (e) {
+      stage.dataset.ready = 'err';
+      stage.textContent = String(e && e.stack ? e.stack : e);
+      document.title = `error:${e}`;
+    }
+  </script>
+</body>
+</html>

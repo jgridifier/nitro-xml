@@ -142,6 +142,8 @@ pub fn paint<I: StringIntern>(
             apply_header_sel(col_selected(sel, *col), &mut hdr_class);
         }
         set_attr(buf, intern, id, "class", &hdr_class);
+        set_attr(buf, intern, id, "role", "columnheader");
+        set_attr(buf, intern, id, "data-index", &col.to_string());
         set_style(buf, intern, id, "left", &format!("{left}px"));
         set_style(buf, intern, id, "width", &format!("{w}px"));
         set_style(buf, intern, id, "fontSize", &format!("{font_px}px"));
@@ -165,6 +167,8 @@ pub fn paint<I: StringIntern>(
             apply_header_sel(row_selected(sel, *row), &mut hdr_class);
         }
         set_attr(buf, intern, id, "class", &hdr_class);
+        set_attr(buf, intern, id, "role", "rowheader");
+        set_attr(buf, intern, id, "data-index", &row.to_string());
         set_style(buf, intern, id, "top", &format!("{top}px"));
         set_style(buf, intern, id, "height", &format!("{h}px"));
         set_style(buf, intern, id, "fontSize", &format!("{font_px}px"));

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 /**
  * Dedicated document worker: owns wasm Handle + model. DOM/canvas apply stays on
- * the main thread (#36 painter split). ArrayBuffer is transferred in (zero-copy).
+ * the main thread (docs/adr/0002-renderer-port.md). ArrayBuffer is transferred in (zero-copy).
  */
 import {
   initCore,

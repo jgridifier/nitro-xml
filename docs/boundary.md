@@ -15,8 +15,8 @@ Speed testing beyond the transfer contrast below is deferred (Jared, 2026-10-11)
 | String table, command buffer, measure batch | In `transport.rs` (shipped) |
 | Event batch wire format | In `events.rs` |
 | Synthetic SoA / serde / JSON bench arms | Behind non-default `bench` feature (`bench.rs`); not shipped |
-| Loader (`FinalizationRegistry`, command-buffer applier, event coalesce, measure batch) | `packages/nitro-xml/loader/` (#37); opcode gaps remain for #36 |
-| Worker vs main-thread split per painter | TODO(#36) |
+| Loader (`FinalizationRegistry`, command-buffer applier, event coalesce, measure batch) | `packages/nitro-xml/loader/` (#37); opcode gaps remain for painter ports |
+| Worker vs main-thread split per painter | Done — threading section of `docs/adr/0002-renderer-port.md` (#36) |
 | Perf-history ingestion | TODO(#8) |
 
 ## Handle conventions
@@ -32,7 +32,7 @@ Speed testing beyond the transfer contrast below is deferred (Jared, 2026-10-11)
 - **One dedicated worker per document.** The file `ArrayBuffer` is transferred into the worker (zero copy), then copied once into wasm.
 - **No SharedArrayBuffer by default** (no COOP/COEP for embedders). A threaded build is opt-in only (PRODUCT_SPEC.md Q2).
 - **Crash recovery.** Viewer: reload once in a fresh worker. Editor: replay the op journal into a fresh worker (PRODUCT_SPEC.md §5(e)).
-- Painter placement (DOM apply on main thread vs OffscreenCanvas in the worker) is fixed at R0 (#36).
+- Painter placement is fixed at R0 (#36): see the threading section of `docs/adr/0002-renderer-port.md`. Parse/model/layout in the worker; DOM paint and measurement on the main thread; pptx text layout on the main thread; no OffscreenCanvas on the M1 view path; no SharedArrayBuffer. Matches `packages/nitro-xml/loader/` (`WorkerDocument` / `DocumentSession`).
 
 ## Event-forwarding protocol
 
@@ -73,7 +73,7 @@ One `Uint8Array` of opcodes per frame, taken with `takeFrameCommands()` and appl
 
 ### Opcode coverage gaps (vs upstream painters / PR #111)
 
-The seed set is **not** enough for a one-to-one painter port. Missing call kinds that upstream actually makes (see `docs/painters.md` on #111 / `tools/painter-calls`), to be added when the loader and painter split land (TODO(#36), TODO(#37)):
+The seed set is **not** enough for a one-to-one painter port. Missing call kinds that upstream actually makes (see `docs/painters.md` / `tools/painter-calls`), to be added as painter ports extend the loader applier (placement in `docs/adr/0002-renderer-port.md` #36):
 
 - `createElementNS` / SVG element creation (charts, sparklines, SmartArt, connectors, ink, WordArt)
 - Text nodes and `textContent` / `createTextNode` updates
@@ -136,6 +136,6 @@ bash scripts/build-wasm.sh                # must stay near the pre-#14 size
 
 ## Follow-ups
 
-- **#37** — loader skeleton landed (`packages/nitro-xml/loader/`); extend opcodes from the gap list with #36.
-- **#36** — which painters apply on the main thread vs OffscreenCanvas in the worker; extend opcodes from the gap list above.
+- **#37** — loader skeleton landed (`packages/nitro-xml/loader/`); extend opcodes from the gap list as painters port.
+- **#36** — done (threading section of `docs/adr/0002-renderer-port.md`). Opcode gap list above remains for painter/loader work.
 - **#8** — ingest `perf/micro/results/boundary-*.json` into the perf history gate when speed testing resumes.

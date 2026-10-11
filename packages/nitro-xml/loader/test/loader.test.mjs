@@ -10,6 +10,11 @@ import {
 import { encodeEventBatch, EventKind, EVENT_VERSION } from "../events.js";
 import { flushMeasureBatch } from "../measure.js";
 import {
+  flushLayoutReadBatch,
+  LayoutReadKind,
+  LAYOUT_RESULT_LANES,
+} from "../layout-readback.js";
+import {
   isSupportedExtension,
   ACCEPT,
   SUPPORTED_EXTENSIONS,
@@ -139,5 +144,54 @@ describe("measure batch read-back", () => {
     assert.equal(got[0], 20); // "t2".length * 10
     assert.equal(got[1], 20);
     assert.equal(got[2], 20);
+  });
+});
+
+describe("post-apply layout read-back", () => {
+  it("answers every pending node-id query in a single setLayoutResults call", () => {
+    // Catches: per-element layout read-back (violates HoP next-frame batch / no per-element calls).
+    const reqs = [
+      { nodeId: 1, kind: LayoutReadKind.ScrollHeight },
+      { nodeId: 2, kind: LayoutReadKind.NaturalWidth },
+      { nodeId: 3, kind: LayoutReadKind.ComputedStyle, propId: 9 },
+    ];
+    let calls = 0;
+    let got;
+    const handle = {
+      layoutCount: 3,
+      resolve: (id) => (id === 9 ? "font-size" : ""),
+      takeLayoutReqs: () => reqs,
+      setLayoutResults(values) {
+        calls++;
+        got = values;
+      },
+    };
+    const nodes = new Map([
+      [1, { scrollHeight: 120 }],
+      [2, { naturalWidth: 64, naturalHeight: 48 }],
+      [
+        3,
+        {
+          /* element placeholder; getComputedStyle stubbed below */
+        },
+      ],
+    ]);
+    const prev = globalThis.getComputedStyle;
+    globalThis.getComputedStyle = () => ({
+      getPropertyValue: (prop) => (prop === "font-size" ? "14px" : ""),
+    });
+    try {
+      const n = flushLayoutReadBatch(handle, nodes);
+      assert.equal(n, 3);
+      assert.equal(calls, 1);
+      assert.equal(got.length, 3 * LAYOUT_RESULT_LANES);
+      assert.equal(got[0], 120);
+      assert.equal(got[LAYOUT_RESULT_LANES], 64);
+      assert.equal(got[LAYOUT_RESULT_LANES + 1], 48);
+      assert.equal(got[2 * LAYOUT_RESULT_LANES], 14);
+    } finally {
+      if (prev) globalThis.getComputedStyle = prev;
+      else delete globalThis.getComputedStyle;
+    }
   });
 });

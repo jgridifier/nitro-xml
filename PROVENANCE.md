@@ -22,6 +22,15 @@ Nitro XML is MIT-licensed. **Files ported or derived from ooxml remain under Apa
 - Add one row below per ported file in the same PR. The licence check fails if an `Apache-2.0` file has no row.
 - Test fixtures copied from upstream are listed in `fixtures/manifest.json` with their own licence; fixtures of unknown licence are never committed.
 
+## Related third-party packages (not yet ported)
+
+These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0002-renderer-port.md` (licence decisions) and `LICENSE-THIRD-PARTY`.
+
+| Package | Licence | Role in upstream | Nitro XML decision |
+|---|---|---|---|
+| [`emf-converter`](https://github.com/ChristopherVR/emf-converter) | Apache-2.0 | EMF/WMF → data URL for P5/P15 (`metafile-convert.ts`) | Port into `nitro-xml-render::metafile` (inventory **S3**). Ported files will be Apache-2.0 with PROVENANCE rows in the PR that adds them. |
+| [`mtx-decompressor`](https://github.com/ChristopherVR/mtx-decompressor) | MPL-2.0 | EOT / MicroType Express decompress (`eot-parser.ts`) | **Clean-room MIT rewrite** when embedded fonts land. Do not vendor or port MPL sources — not on the `deny.toml` / `scripts/ci/licenses.sh` allow-list. |
+
 ## Ported files
 
 | Nitro XML file | Upstream source (path @ commit) | Changes |

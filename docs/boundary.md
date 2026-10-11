@@ -13,16 +13,16 @@ Speed testing beyond the transfer contrast below is deferred (Jared, 2026-10-11)
 |---|---|
 | Handle / error / warning shapes | In `nitro-xml-wasm` (`handle.rs`) |
 | String table | In `nitro-xml-wasm` (`transport.rs`, shipped) |
-| Command buffer + measure batch | In `nitro-xml-render` (`command_buffer/`, `measure/`); wasm handle holds instances |
+| Command buffer + measure batch + layout read-back | In `nitro-xml-render` (`command_buffer/`, `measure/`); wasm handle holds instances |
 | Event batch wire format | In `events.rs` |
 | Synthetic SoA / serde / JSON bench arms | Behind non-default `bench` feature (`bench.rs`); not shipped |
-| Loader (`FinalizationRegistry`, command-buffer applier, event coalesce, measure batch) | `packages/nitro-xml/loader/` (#37); opcode gaps remain for painter ports |
+| Loader (`FinalizationRegistry`, command-buffer applier, event coalesce, measure + layout read-back) | `packages/nitro-xml/loader/` (#37); opcode gaps remain for painter ports |
 | Worker vs main-thread split per painter | Done — threading section of `docs/adr/0002-renderer-port.md` (#36) |
 | Perf-history ingestion | TODO(#8) |
 
 ## Handle conventions
 
-- **Ownership.** `open → Handle` copies document bytes once into wasm linear memory. The handle owns the model, string table, pending events, the current frame buffer and measure batch.
+- **Ownership.** `open → Handle` copies document bytes once into wasm linear memory. The handle owns the model, string table, pending events, the current frame buffer, measure batch and layout read-back batch.
 - **`free()`.** wasm-bindgen generates `Handle.free()`. Embedders must call it. Linear memory does not shrink; dropping the handle releases the Rust allocations.
 - **`FinalizationRegistry`.** The loader (#37) registers every handle so a GC'd JS reference still calls `free()`. That is a safety net, not the primary API.
 - **Errors.** `OoxmlError { code, message, part? }` — stable `code` strings are the machine API; `part` is set only for part-local failures.
@@ -92,6 +92,19 @@ The seed set is **not** enough for a one-to-one painter port. Missing call kinds
 
 Fonts and measurement follow upstream for now. Rust queues `{font_id, size_px, text_id}` SoA requests; the loader runs `measureText` once per batch and writes widths back with `setMeasureResults` (`packages/nitro-xml/loader/measure.js`, #37). Never one wasm call per string.
 
+### Post-apply layout read-back
+
+Node-layout queries run **after** a frame is applied. Types live in `nitro-xml-render::measure` (`LayoutReadBatch`). Rust queues requests keyed by command-buffer **node id**; the loader takes them with the frame (`takeLayoutReqs` / worker `frame.layoutReqs`) and answers the whole batch on the **next** frame with one `setLayoutResults` (`packages/nitro-xml/loader/layout-readback.js`). No per-element WASM→JS calls; iterative autofit uses this batch channel.
+
+| Kind | Tag | Request fields | Result (`f64` × 4 per request) | Upstream |
+|---|---:|---|---|---|
+| SpanRect | 1 | `node_id` | `x, y, w, h` from `getBoundingClientRect` | docx `canvas-measurer.ts` |
+| ScrollHeight | 2 | `node_id` | `scrollHeight, 0, 0, 0` | pptx `text-autofit-shrink-measure.ts`, `shape-autofit-resize.ts` |
+| ComputedStyle | 3 | `node_id`, `prop_id` (string table; e.g. `font-size`, `line-height`) | `parseFloat(getComputedStyle(el).getPropertyValue(prop))` or `NaN`, then zeros | same autofit path |
+| NaturalWidth | 4 | `node_id` (`<img>`) | `naturalWidth, naturalHeight, 0, 0` | P5 `image-native-size.ts` |
+
+Session / worker tick order: answer prior-frame layout → measure batch → `applyCommandBuffer` → take this frame's layout requests.
+
 ## Bulk-transfer contrast (recorded; further speed work deferred)
 
 Harness: `perf/micro/boundary.bench.mjs` (test/bench only, never shipped). Build with `bash scripts/build-wasm.sh --features bench` (or `cd perf/micro && npm run bench`). Headless Chrome, COOP/COEP, 2 warm-ups + 7 timed runs, median ms. Synthetic SoA records.
@@ -129,6 +142,7 @@ bash scripts/build-wasm.sh                # must stay near the pre-#14 size
 | Images / media / `vbaProject.bin` | `Uint8Array` view or transfer | Opaque bytes; macros never run |
 | Frame canvas draw + DOM build | Per-frame command buffer | One handoff; PRODUCT_SPEC R0 port rule |
 | Text measurement | Batched SoA reqs + widths reply | Upstream measurement path without per-string calls |
+| Post-apply layout (span rect, scrollHeight, computed style, naturalWidth) | Batched node-id SoA + 4-lane reply next frame | Autofit / span probe / tile math without per-element calls |
 | Input / pointer / wheel / keyboard / composition / resize | One binary event batch per frame | Loader coalesce; ≤1 message/frame |
 | Open document | `ArrayBuffer` transfer into worker, one copy into wasm | Zero-copy into worker |
 | `OoxmlError` / `Warning` | Typed `wasm_bindgen` objects | Stable `code`; optional `part` |

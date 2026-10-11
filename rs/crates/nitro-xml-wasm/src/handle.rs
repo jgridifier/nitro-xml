@@ -11,7 +11,7 @@ use crate::events::{self, EventQueue};
 use crate::transport::StringTable;
 use js_sys::{Array, Function, JsString};
 use nitro_xml::opc::fonts::{resolve_webfont_plan, FontSource, FONT_SUBSTITUTION_CODE};
-use nitro_xml_render::{CommandBuffer, MeasureBatch};
+use nitro_xml_render::{CommandBuffer, LayoutReadBatch, LayoutReadKind, MeasureBatch};
 use wasm_bindgen::prelude::*;
 
 /// Typed engine error surfaced to JS. Stable `code` strings are the machine API;
@@ -115,6 +115,7 @@ pub struct Handle {
     pub(crate) strings: StringTable,
     pub(crate) commands: CommandBuffer,
     pub(crate) measures: MeasureBatch,
+    pub(crate) layout_reads: LayoutReadBatch,
     pub(crate) events: EventQueue,
     #[cfg(feature = "bench")]
     pub(crate) grid: crate::bench::SyntheticGrid,
@@ -133,6 +134,7 @@ impl Handle {
             strings: StringTable::new(),
             commands: CommandBuffer::new(),
             measures: MeasureBatch::new(),
+            layout_reads: LayoutReadBatch::new(),
             events: EventQueue::new(),
             #[cfg(feature = "bench")]
             grid: crate::bench::SyntheticGrid::new(),
@@ -341,6 +343,83 @@ impl Handle {
     #[wasm_bindgen(js_name = measureWidthPtr)]
     pub fn measure_width_ptr(&self) -> *const f64 {
         self.measures.widths.as_ptr()
+    }
+
+    /// Queue a post-apply layout read-back (answered on the next frame after apply).
+    ///
+    /// `kind` is [`LayoutReadKind`] as `u8`. `prop_id` is a string-table id used
+    /// only for [`LayoutReadKind::ComputedStyle`]; pass `0` for other kinds.
+    #[wasm_bindgen(js_name = pushLayoutReadReq)]
+    pub fn push_layout_read_req(
+        &mut self,
+        node_id: u32,
+        kind: u8,
+        prop_id: u32,
+    ) -> Result<(), JsValue> {
+        let kind = LayoutReadKind::from_u8(kind).ok_or_else(|| {
+            JsValue::from(OoxmlError::with_code(
+                "layout_read_kind",
+                format!("unknown layout read kind {kind}"),
+            ))
+        })?;
+        self.layout_reads.push(node_id, kind, prop_id);
+        Ok(())
+    }
+
+    /// Pending layout requests not yet taken for a frame.
+    #[wasm_bindgen(getter, js_name = layoutCount)]
+    pub fn layout_count(&self) -> usize {
+        self.layout_reads.len()
+    }
+
+    /// Requests taken and awaiting a `setLayoutResults` reply.
+    #[wasm_bindgen(getter, js_name = layoutAwaiting)]
+    pub fn layout_awaiting(&self) -> usize {
+        self.layout_reads.awaiting()
+    }
+
+    #[wasm_bindgen(js_name = layoutNodePtr)]
+    pub fn layout_node_ptr(&self) -> *const u32 {
+        self.layout_reads.node_id.as_ptr()
+    }
+
+    #[wasm_bindgen(js_name = layoutKindPtr)]
+    pub fn layout_kind_ptr(&self) -> *const u8 {
+        self.layout_reads.kind.as_ptr()
+    }
+
+    #[wasm_bindgen(js_name = layoutPropPtr)]
+    pub fn layout_prop_ptr(&self) -> *const u32 {
+        self.layout_reads.prop_id.as_ptr()
+    }
+
+    /// Take pending layout requests for post-apply read-back (clears the queue).
+    ///
+    /// Returns a JS array `[Uint32Array nodes, Uint8Array kinds, Uint32Array props]`.
+    #[wasm_bindgen(js_name = takeLayoutReqs)]
+    pub fn take_layout_reqs(&mut self) -> Array {
+        let (nodes, kinds, props) = self.layout_reads.take_requests();
+        let out = Array::new();
+        out.push(&js_sys::Uint32Array::from(nodes.as_slice()).into());
+        out.push(&js_sys::Uint8Array::from(kinds.as_slice()).into());
+        out.push(&js_sys::Uint32Array::from(props.as_slice()).into());
+        out
+    }
+
+    /// Loader writes packed layout results (`layoutAwaiting * 4` f64s) in one call.
+    #[wasm_bindgen(js_name = setLayoutResults)]
+    pub fn set_layout_results(&mut self, values: &[f64]) -> Result<(), JsValue> {
+        self.layout_reads.set_results(values).map_err(|e| {
+            JsValue::from(OoxmlError::with_code(
+                "layout_read_len_mismatch",
+                e.to_string(),
+            ))
+        })
+    }
+
+    #[wasm_bindgen(js_name = layoutValuePtr)]
+    pub fn layout_value_ptr(&self) -> *const f64 {
+        self.layout_reads.values.as_ptr()
     }
 
     /// Decode and enqueue a compact event batch from the loader (≤1 batch/frame).

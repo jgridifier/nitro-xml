@@ -70,7 +70,7 @@ self.onmessage = async (ev) => {
             texts: new Uint32Array(mem.buffer, handle.measureTextPtr, measureCount).slice(),
           };
         }
-        // Resolve font/text strings for the main-thread measure pass (one batch).
+        // Resolve font/text/CSS-prop strings for main-thread measure + layout read-back.
         let strings = null;
         if (measureReqs) {
           strings = {};
@@ -79,6 +79,18 @@ self.onmessage = async (ev) => {
             const t = measureReqs.texts[i];
             if (!(f in strings)) strings[f] = handle.resolve(f) || "";
             if (!(t in strings)) strings[t] = handle.resolve(t) || "";
+          }
+        }
+        let layoutReqs = null;
+        let layoutCount = 0;
+        if ((handle.layoutCount | 0) > 0) {
+          const taken = handle.takeLayoutReqs();
+          layoutReqs = { nodes: taken[0], kinds: taken[1], props: taken[2] };
+          layoutCount = layoutReqs.nodes.length;
+          if (!strings) strings = {};
+          for (let i = 0; i < layoutCount; i++) {
+            const p = layoutReqs.props[i];
+            if (p && !(p in strings)) strings[p] = handle.resolve(p) || "";
           }
         }
         const commands = handle.takeFrameCommands();
@@ -90,8 +102,23 @@ self.onmessage = async (ev) => {
             measureReqs.texts.buffer,
           );
         }
+        if (layoutReqs) {
+          transfer.push(
+            layoutReqs.nodes.buffer,
+            layoutReqs.kinds.buffer,
+            layoutReqs.props.buffer,
+          );
+        }
         self.postMessage(
-          { type: "frame", commands, measureReqs, measureCount, strings },
+          {
+            type: "frame",
+            commands,
+            measureReqs,
+            measureCount,
+            layoutReqs,
+            layoutCount,
+            strings,
+          },
           transfer,
         );
         break;
@@ -100,6 +127,12 @@ self.onmessage = async (ev) => {
         if (!handle) throw new Error("no document");
         handle.setMeasureResults(msg.widths);
         self.postMessage({ type: "measure-acked", count: msg.widths.length });
+        break;
+      }
+      case "layout-results": {
+        if (!handle) throw new Error("no document");
+        handle.setLayoutResults(msg.values);
+        self.postMessage({ type: "layout-acked", count: msg.values.length });
         break;
       }
       case "dispose": {

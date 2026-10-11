@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # ADR 0002: Renderer port — module mapping and worker/main split (R0 (b)+(c), #35 / #36)
 
-**Status:** Accepted for module layout and threading (R0 record #33 still needs Head of Product sign-off after #35–#37 land).  
+**Status:** Accepted for module layout and threading. R0 signed off by Head of Product (main @ de85dac); this ADR also records the post-sign-off follow-ups (layout read-back, emf/mtx licences, font source #121).  
 **Date:** 2026-10-11  
 **Depends on:** painter inventory (#34, merged); boundary protocol (#14, merged); loader API (#37, merged).  
 **Decisions recorded from:** PRODUCT_SPEC.md §6; Head of Product review of R0 on #33 (2026-10-11); final inventory in `docs/painters.md`.
@@ -18,7 +18,7 @@ Inventory already records (from #34 / HoP review):
 - `image-native-size.ts` in **P5** (`a:tile` sx/sy).
 - Stylesheets: `print.css` → D1–D7; `document.css` + Draft helpers → D8 (E3); `smartart.css` → D11; `styles/index.ts` is `X:chrome`.
 - Draft **D8–D11** under **E3**, not M1. M1 Word is Print Layout D1–D7 plus D4.
-- **P24** deferred (Jared's call). Google Fonts fetch (P3/P4) ported unchanged until Jared decides.
+- **P24** deferred (Jared's call). **Font source** for P3/P4 remote webfont fetch is **#121** (implemented in #126): host-configurable upstream default, internal mirror URL, remote fetch off with `font_substitution` diagnostics, or a resolver callback. See loader README `fontSource` and `nitro-xml-opc::fonts`.
 - Deferred: X7, X10, P10, P12, P13, P25–P27; P17 M1 is poster only.
 
 This mapping also assigns (HoP #35):
@@ -38,7 +38,7 @@ Speed testing is paused (Jared). Placement below is design reasoning from upstre
 
 | Crate | Path | Role |
 |---|---|---|
-| `nitro-xml-render` | `rs/crates/nitro-xml-render/` | **Shared render crate.** Command-buffer types and writer; shared drawing primitives (fills, lines, text runs, images); shared painters **S1** (chart SVG) and **S2** (SmartArt cached drawing). |
+| `nitro-xml-render` | `rs/crates/nitro-xml-render/` | **Shared render crate.** Command-buffer types and writer; measure / layout read-back batches; shared drawing primitives; shared painters **S1** (chart SVG), **S2** (SmartArt), **S3** (EMF/WMF metafile). |
 | `nitro-xml-xlsx` | `rs/crates/nitro-xml-xlsx/src/render/` | Excel grid painters (X*). |
 | `nitro-xml-docx` | `rs/crates/nitro-xml-docx/src/render/` | Word Print Layout painters (D1–D7) and E3 Draft modules (D8–D11). |
 | `nitro-xml-pptx` | `rs/crates/nitro-xml-pptx/src/render/` | PowerPoint slide painters (P*). |
@@ -59,7 +59,8 @@ Paths are under `rs/crates/nitro-xml-render/src/`.
 | Primitives | `primitives/` (`fill.rs`, `line.rs`, `text_run.rs`, `image.rs`) | Fills, lines, text runs and images reused by format painters; emit buffer ops, never call JS per element. |
 | S1 Chart SVG | `chart/` | Port of `src/core/chart/render/` (`renderChartSvg`, `renderChartSpaceSvg`). Used by X9, D4 and P27. |
 | S2 SmartArt | `smartart/` | Port of shared `<office-ui-smartart>` cached-drawing painter. Used by X12 and D11. Includes `smartart.css` styling contract for docx hosts. |
-| Measure bridge | `measure/` | Types for the browser measurement path (canvas `measureText`, DOM span probes) behind the buffer; runs on the **main thread** (see threading decision below). |
+| Measure bridge | `measure/` | Types for the browser measurement path (canvas `measureText`) and post-apply layout read-back (span rect, scrollHeight, computed style, naturalWidth) behind the buffer; runs on the **main thread** (see threading decision below). |
+| Metafile (EMF/WMF) | `metafile/` | Port of upstream's `emf-converter` use via `metafile-convert.ts` (M1 for P5 pictures and P15 OLE previews). Inventory row **S3**. Licence: Apache-2.0 (see licence decisions below). |
 
 ## xlsx modules (`nitro-xml-xlsx::render`)
 
@@ -116,9 +117,9 @@ Paths under `rs/crates/nitro-xml-pptx/src/render/`.
 |---|---|---|---|
 | P1 | `stage.rs` | yes (#27) | Slide stage, background, registry, hyperlinks. JS lib: DOMPurify → Rust allowlist sanitizer. |
 | P2 | `shape.rs` | yes (#27) | Geometry, fill, line, effects; text body via P3. |
-| P3 | `text.rs` | yes (#27) | Text body, bullets, autofit, East Asian. **Google Fonts CSS2 fetch ported unchanged** until Jared decides. |
-| P4 | `wordart.rs` | yes (#27) | WordArt warps. Includes `dom/elements/text-warp.ts` and `render/text-warp.ts`. JS lib: opentype.js → Rust font outline parse (same glyph path). |
-| P5 | `picture.rs` | yes (#27) | Pictures, crop, effects, `image-native-size.ts`. EMF/WMF via `emf-converter` (follow-up). |
+| P3 | `text.rs` | yes (#27) | Text body, bullets, autofit, East Asian. Remote webfont fetch configurable per **#121** (default = upstream). Embedded EOT via clean-room MTX (see licence decisions). |
+| P4 | `wordart.rs` | yes (#27) | WordArt warps. Includes `dom/elements/text-warp.ts` and `render/text-warp.ts`. JS lib: opentype.js → Rust font outline parse (same glyph path). Font bytes may come from #121's configured source. |
+| P5 | `picture.rs` | yes (#27) | Pictures, crop, effects, `image-native-size.ts`. EMF/WMF via **S3** `nitro-xml-render::metafile`. |
 | P6 | `group.rs` | yes (#27) | Group transforms and children. |
 | P7 | `connector.rs` | yes (#27) | Connectors. |
 | P8 | `table.rs` | yes (#27) | Tables. |
@@ -128,7 +129,7 @@ Paths under `rs/crates/nitro-xml-pptx/src/render/`.
 | P12 | `smartart3d.rs` | **deferred** | Opt-in WebGL SmartArt 3D. |
 | P13 | `three_host.rs` | **deferred** | Shared three.js host. |
 | P14 | `media.rs` | yes (#27) | Audio/video posters and playback. **`media-file-type.ts` excluded** (`X:editor`). |
-| P15 | `ole.rs` | yes (#27) | OLE previews. |
+| P15 | `ole.rs` | yes (#27) | OLE previews (EMF/WMF preview images via **S3** `nitro-xml-render::metafile`). |
 | P16 | `activex.rs` | yes (#27) | ActiveX placeholders. |
 | P17 | `model3d.rs` | yes (#27), poster only | Poster image; on-demand WebGL deferred with P13. |
 | P18 | `ink.rs` | yes (#27) | Ink strokes. |
@@ -182,7 +183,7 @@ Paths under `rs/crates/nitro-xml-pptx/src/render/`.
 | P9 | `nitro-xml-pptx::render::chart` |
 | Adapters | `nitro-xml-xlsx::render::chart`, `nitro-xml-docx::render::chart` |
 
-Chart **model/parse** may live under format crates or `nitro-xml-opc` model modules; only the **painters** are in `nitro-xml-render` / pptx `render::chart`. Update #28's "Files and modules" from `nitro-xml-opc/src/drawingml/chart/` to the paths above when that issue is claimed.
+Chart **model/parse** may live under format crates or `nitro-xml-opc` model modules; only the **painters** are in `nitro-xml-render` / pptx `render::chart`. Issue #28's file list is corrected to these paths (not `nitro-xml-opc/src/drawingml/chart/`).
 
 **Split if over one session:** S1 (+ xlsx/docx adapters) first; P9 (20k lines) as its own issue.
 
@@ -223,16 +224,31 @@ Worker path (`WorkerDocument.tick` / `worker-host.js`):
 main                                      worker (wasm)
 ────                                      ─────────────
 coalesce input ── events ────────────────► pushEventBatch
-take-frame ─────────────────────────────► encode MeasureBatch + CommandBuffer
-◄── frame { commands, measureReqs, strings }
+── layout-results (prior frame) ────────► setLayoutResults
+take-frame ─────────────────────────────► encode MeasureBatch + LayoutReadBatch + CommandBuffer
+◄── frame { commands, measureReqs, layoutReqs, strings }
 run measureText for whole batch
 ── measure-results (Float64Array) ──────► setMeasureResults
 applyCommandBuffer(commands) on main
+(hold layoutReqs; answer on next tick)
 ```
 
-Headless same-thread path (`DocumentSession.tick`): measure batch → apply commands → flush events; paint/measure still on the calling (main) thread; parse/model/layout stay in the handle.
+Headless same-thread path (`DocumentSession.tick`): prior-frame layout read-back → measure batch → apply commands → take this frame's layout requests → flush events; paint/measure/layout-read still on the calling (main) thread; parse/model/layout stay in the handle.
 
 No SharedArrayBuffer: ordinary `postMessage` transfers of typed arrays only.
+
+### Post-apply layout read-back (batched, design)
+
+Specified next to measureText in the loader README and `docs/boundary.md`. Kinds:
+
+| Kind | Tag | Use |
+|---|---:|---|
+| SpanRect | 1 | docx `canvas-measurer.ts` span / `getBoundingClientRect` |
+| ScrollHeight | 2 | pptx autofit (`text-autofit-shrink-measure.ts`, `shape-autofit-resize.ts`) |
+| ComputedStyle | 3 | autofit `font-size` / `line-height` via `getComputedStyle` |
+| NaturalWidth | 4 | P5 `image-native-size.ts` (`naturalWidth` / `naturalHeight`) |
+
+Requests are keyed by node id; results are four `f64` lanes per request, one batch per frame. Loader: `packages/nitro-xml/loader/layout-readback.js`. Types: `LayoutReadBatch` in `nitro-xml-render::measure`.
 
 ### Text measurement (batched, design)
 
@@ -240,7 +256,7 @@ No SharedArrayBuffer: ordinary `postMessage` transfers of typed arrays only.
 |---|---|---|
 | xlsx | Offscreen canvas `measureText` + width cache (X1/X2; charts may pass a host measurer into S1) | Main; worker queues `{font_id, size_px, text_id}` once per layout/scroll pass |
 | docx Print Layout (D1–D7) | Canvas measurer + hidden DOM `<span>` for ligatures/small caps; re-measure on `document.fonts` `loadingdone` | Main; batch once per relayout (pages are not rebuilt on scroll) |
-| pptx | CSS line breaking on main; canvas `measureText` for tracking, tabs, East Asian breaks; embedded / Google / custom font loads | Main; font-face installation and measure batches stay with the loader |
+| pptx | CSS line breaking on main; canvas `measureText` for tracking, tabs, East Asian breaks; embedded / configurable remote (#121) / custom font loads | Main; font-face installation and measure batches stay with the loader |
 
 Long-task and measureText cost numbers are deferred while speed testing is paused. Design intent: keep heavy parse/model/layout off the main thread so apply + one measure batch can stay short; pptx text (P3) is the exception that must stay on main to match upstream CSS breaking.
 
@@ -340,16 +356,25 @@ The acceptance idea "no long task over 50 ms while scrolling L-tier fixtures" st
 
 - **Editor chrome** uses the same command buffer as document painters.
 - **Both chart painters** (S1 and P9) are kept (1:1 rule).
-- **Google Fonts fetching (P3/P4):** port unchanged until Jared decides.
+- **Font source (P3/P4):** **#121** landed in #126 — `fontSource` on `initCore` / `openDocument` / `WorkerDocument` (default / mirror / off / resolver); policy and `planWebfontStylesheet` in Rust.
 - **P17:** poster image only in M1; WebGL "view in 3D" deferred with P13.
-- **JS libraries M1 painters depend on:** DOMPurify (P1), opentype.js (P4), emf-converter (pictures/OLE); html2canvas only if export returns; three.js only with deferred WebGL rows.
-- **Loader budget:** #37 (API already landed).
+- **JS libraries M1 painters depend on:** DOMPurify (P1), opentype.js (P4), emf-converter → `nitro-xml-render::metafile` (S3); html2canvas only if export returns; three.js only with deferred WebGL rows. EOT embedded fonts: see MTX decision below.
+- **Loader budget:** #37 (API already landed); post-apply layout read-back kinds landed with the #33 follow-up.
+
+## Licence decisions (emf-converter / mtx-decompressor)
+
+Recorded for Head of Product's R0 sign-off follow-ups (comment on #33). Full rows: `PROVENANCE.md` and `LICENSE-THIRD-PARTY`.
+
+| Upstream package | Licence | Nitro XML choice | Why |
+|---|---|---|---|
+| [`emf-converter`](https://github.com/ChristopherVR/emf-converter) (used via `src/core/pptx/core/utils/metafile-convert.ts`) | **Apache-2.0** | Port into `nitro-xml-render::metafile` (inventory **S3**); ported files keep `SPDX-License-Identifier: Apache-2.0` + PROVENANCE rows; crate becomes `MIT AND Apache-2.0` when those files land. | Same licence family as other ooxml-derived ports; on the M1 path for EMF/WMF pictures (P5) and OLE previews (P15). |
+| [`mtx-decompressor`](https://github.com/ChristopherVR/mtx-decompressor) (MPL-2.0; used for EOT via `src/core/pptx/core/utils/eot-parser.ts`) | **MPL-2.0** (file-level copyleft) | **Clean-room rewrite** under MIT in a future pptx font module (e.g. `nitro-xml-pptx::fonts::mtx` or `nitro-xml-render::mtx`). Do **not** vendor or port the MPL sources. | `deny.toml` / `scripts/ci/licenses.sh` allow only MIT, Apache-2.0, BSD, ISC, Zlib, Unicode — not MPL-2.0. A file-level MPL module would need an exception and would ship copyleft into the MIT package; clean-room keeps the allow-list green. Spec: MicroType Express / EOT container behaviour, validated differentially against upstream's EOT fixtures when #27 ports embedded fonts. |
 
 ## Consequences
 
 - Renderer issues implement modules listed here; they do not invent parallel layouts.
-- The `nitro-xml-render` crate exists (`rs/crates/nitro-xml-render/`); command-buffer types live there. Empty `render/` modules under format crates still land with the first painter port PR for each format.
-- #28's file list should be corrected when claimed.
-- Painter ports must encode through `nitro-xml-render::command_buffer` and rely on the `#37` loader for apply + batched measure; no per-element WASM→JS calls.
+- The `nitro-xml-render` crate exists (`rs/crates/nitro-xml-render/`); command-buffer, measure/layout-read-back types, **S3 `metafile/`** stub, and S1/S2 module stubs live there. Empty `render/` modules under format crates still land with the first painter port PR for each format.
+- Painter ports must encode through `nitro-xml-render::command_buffer` and rely on the `#37` loader for apply + batched measure + post-apply layout read-back; no per-element WASM→JS calls.
 - Opcode gaps in `docs/boundary.md` remain for painter/loader work as formats land.
 - OffscreenCanvas is not part of the M1 port plan.
+- #23 and #27 stay blocked until this follow-up PR merges (Head of Product); #121 is already on main (#126).

@@ -3,8 +3,8 @@
 //! wasm-bindgen. It exposes [`nitro_xml`] to the JS loader.
 //!
 //! Boundary conventions (#14) live in [`handle`], [`transport`] and [`events`].
-//! Per-frame command-buffer types and the measure batch live in
-//! [`nitro_xml_render`] (shared with format painters). Bench-only synthetic
+//! Per-frame command-buffer types, the measure batch and post-apply layout
+//! read-back live in [`nitro_xml_render`] (shared with format painters). Bench-only synthetic
 //! grids and serde/JSON export arms are behind the non-default `bench` feature
 //! and are never in the shipped package. The minimal loader that applies
 //! command buffers and forwards events is #37.

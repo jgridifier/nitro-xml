@@ -1,20 +1,39 @@
 // SPDX-License-Identifier: MIT
 /**
- * Build informational docx viewer visual cases from fixtures/real/docx (#23).
+ * Build docx viewer visual cases from fixtures/real/docx (#23).
  *
- * Same walk as `parity/comparisons/docx-layout.ts`. Each case compares
- * `<nitro-docx>` vs upstream Print Layout at DPR 1/2. Mismatches are reported,
- * not hard-failed, until the orchestrator flips `informational` after measuring.
- *
- * Caps: `VISUAL_DOCX_MAX` (default unlimited).
+ * Same walk as `parity/comparisons/docx-layout.ts`. Hard rows are those measured
+ * ≤0.1% at DPR1, DPR2 and print on branch tip; the rest stay informational.
  */
 
 import { existsSync, readdirSync } from 'node:fs';
-import { join, dirname, relative } from 'node:path';
+import { join, dirname, relative, extname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const DOCX_EXT = /\.(docx|docm|dotx|dotm)$/i;
+
+/** Fixture paths (repo-relative) that pass ≤0.1% at DPR1 + DPR2 + print. */
+const HARD_FIXTURES = new Set([
+	'fixtures/real/docx/poi-58067.docx',
+	'fixtures/real/docx/poi-60316.docx',
+	'fixtures/real/docx/poi-60316.dotx',
+	'fixtures/real/docx/poi-60329.docx',
+	'fixtures/real/docx/poi-61470.docx',
+	'fixtures/real/docx/poi-SimpleMacro.docm',
+	'fixtures/real/docx/poi-testComment.docx',
+	'fixtures/real/docx/python-docx-comments-rich-para.docx',
+	'fixtures/real/docx/python-docx-doc-access-sections.docx',
+	'fixtures/real/docx/python-docx-having-images.docx',
+	'fixtures/real/docx/python-docx-hdr-header-footer.docx',
+	'fixtures/real/docx/python-docx-sct-first-page-hdrftr.docx',
+	'fixtures/real/docx/python-docx-sct-inner-content.docx',
+	'fixtures/real/docx/python-docx-sct-section-props.docx',
+	'fixtures/real/docx/python-docx-shp-inline-shape-access.docx',
+	'fixtures/real/docx/python-docx-tbl-cell-access.docx',
+	'fixtures/real/docx/python-docx-tbl-cell-props.docx',
+	'fixtures/real/docx/python-docx-tbl-on-off-props.docx',
+]);
 
 function listDocxFiles() {
 	const out = [];
@@ -41,12 +60,13 @@ export function docxVisualCorpus() {
 
 	return limited.map((abs) => {
 		const fixture = relative(ROOT, abs).replace(/\\/g, '/');
-		const slug = fixture
-			.replace(/^fixtures\//, '')
-			.replace(/\.(docx|docm|dotx|dotm)$/i, '')
+		const ext = extname(fixture).replace(/^\./, '').toLowerCase();
+		const base = basename(fixture, extname(fixture));
+		const slug = `real-docx-${base}-${ext}`
 			.replace(/[^a-zA-Z0-9]+/g, '-')
 			.replace(/^-+|-+$/g, '')
 			.toLowerCase();
+		const hard = HARD_FIXTURES.has(fixture);
 		return {
 			id: `docx-viewer-${slug || 'fixture'}`,
 			format: 'docx',
@@ -57,7 +77,7 @@ export function docxVisualCorpus() {
 			height: 600,
 			rust: true,
 			threshold: 0.001,
-			informational: true,
+			informational: !hard,
 		};
 	});
 }

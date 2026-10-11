@@ -1,0 +1,583 @@
+[
+  {
+    "id": "real-docx-poi-45690",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-45690.docm",
+    "sha256": "fb55e9c737e015195fe33f076fabdaca91e44fbdb602e46b6a8d04572ed479f6",
+    "bytes": 49596,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/45690.docm",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 12.0000",
+    "redistributable": true,
+    "features": [
+      "fields",
+      "inline-pictures",
+      "lists",
+      "pictures",
+      "tables",
+      "vba"
+    ]
+  },
+  {
+    "id": "real-docx-poi-58067",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-58067.docx",
+    "sha256": "719b5076b736e6208be4b10fd268e9e3b7e0029c819d485d53ca14700fc98fc5",
+    "bytes": 28709,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/58067.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Macintosh Word 14.0000",
+    "redistributable": true,
+    "features": [
+      "tracked-changes"
+    ]
+  },
+  {
+    "id": "real-docx-poi-60158",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-60158.docm",
+    "sha256": "51377b41d9843b9418ef27be036fdbe74fa13c1dfa2b2a501191b1a24ca586b0",
+    "bytes": 15617,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/60158.docm",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 12.0000",
+    "redistributable": true,
+    "features": [
+      "vba"
+    ]
+  },
+  {
+    "id": "real-docx-poi-60316",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-60316.docx",
+    "sha256": "0bfd17f6ccbf1d410278fcd9141c6007b521ebb0cba53276eddb52bdd16c4769",
+    "bytes": 48142,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/60316.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 16.0000",
+    "redistributable": true,
+    "features": [
+      "alternate-content",
+      "content-controls",
+      "floating-pictures",
+      "headers-footers",
+      "lists"
+    ]
+  },
+  {
+    "id": "real-docx-poi-60316",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-60316.dotx",
+    "sha256": "e21a1c1e7c1f30176bf03e5228282750afd6a6708f6706eb9906c6254c08fbae",
+    "bytes": 59583,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/60316.dotx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 15.0000",
+    "redistributable": true,
+    "features": [
+      "alternate-content",
+      "content-controls",
+      "floating-pictures",
+      "headers-footers",
+      "lists"
+    ]
+  },
+  {
+    "id": "real-docx-poi-60329",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-60329.docx",
+    "sha256": "e5b4e66038f92ef589e12ea870b24cc7a3e0005cd7a53817abff1307404f7aa3",
+    "bytes": 31124,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/60329.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 14.0000",
+    "redistributable": true,
+    "features": [
+      "headers-footers",
+      "lists",
+      "merged-cells",
+      "nested-tables",
+      "pictures",
+      "tables"
+    ]
+  },
+  {
+    "id": "real-docx-poi-61470",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-61470.docx",
+    "sha256": "abda850b3685027eef32a4c583b2b5f7f20f243026d8c453cdb3315348ed6ff0",
+    "bytes": 12523,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/61470.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 16.0000",
+    "redistributable": true,
+    "features": [
+      "cjk"
+    ]
+  },
+  {
+    "id": "real-docx-poi-61745",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-61745.docx",
+    "sha256": "ec54badce04b9fc3c4c327e31fbbd06c1bb556056df9cf04760db75c8913f8a2",
+    "bytes": 37030,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/61745.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 15.0000",
+    "redistributable": true,
+    "features": [
+      "charts",
+      "embeddings",
+      "inline-pictures"
+    ]
+  },
+  {
+    "id": "real-docx-poi-Bug54849",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-Bug54849.docx",
+    "sha256": "f54182713ea5ce5d77b9593d3d9d24e645460043cec0b40ef59c932385f084d3",
+    "bytes": 27566,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/Bug54849.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 14.0000",
+    "redistributable": true,
+    "features": [
+      "content-controls",
+      "endnotes",
+      "footnotes",
+      "headers-footers",
+      "tables"
+    ]
+  },
+  {
+    "id": "real-docx-poi-SimpleMacro",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-SimpleMacro.docm",
+    "sha256": "fd591958fcf5322f72c0a740e9606309c949254bda4c3d9bd966481ddf220563",
+    "bytes": 15517,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/SimpleMacro.docm",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 12.0000",
+    "redistributable": true,
+    "features": [
+      "vba"
+    ]
+  },
+  {
+    "id": "real-docx-poi-WordWithAttachments",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-WordWithAttachments.docx",
+    "sha256": "90352263823e6d3d39a4ec88212134b74bcb0f86b603bc3b51d712a3ec3df9f2",
+    "bytes": 144959,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/WordWithAttachments.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 12.0000",
+    "redistributable": true,
+    "features": [
+      "comments",
+      "embeddings",
+      "headers-footers",
+      "pictures",
+      "rtl",
+      "tables"
+    ]
+  },
+  {
+    "id": "real-docx-poi-bug65649",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-bug65649.docx",
+    "sha256": "f98d2bfcca5d091cda26539b00318bb2b2b1e6d8aa644e370175e99ca9c1b4ad",
+    "bytes": 474844,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/bug65649.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 15.0000",
+    "redistributable": true,
+    "features": [
+      "alternate-content",
+      "cjk",
+      "floating-pictures",
+      "footnotes",
+      "lists",
+      "merged-cells",
+      "multi-section",
+      "tables"
+    ]
+  },
+  {
+    "id": "real-docx-poi-chartex",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-chartex.docx",
+    "sha256": "5d7f0ca9aa26d0244eedbc8ff862f08910689ec3848a036c622b17d56a290b57",
+    "bytes": 133304,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/chartex.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 16.0000",
+    "redistributable": true,
+    "features": [
+      "alternate-content",
+      "charts",
+      "embeddings",
+      "inline-pictures",
+      "lists",
+      "pictures"
+    ]
+  },
+  {
+    "id": "real-docx-poi-delins",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-delins.docx",
+    "sha256": "7ecad102602586be7f1371f117fc567ea47f3ed0ca703b353e003002f1ff8d3f",
+    "bytes": 17720,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/delins.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 12.0000",
+    "redistributable": true,
+    "features": [
+      "fields",
+      "lists",
+      "tracked-changes"
+    ]
+  },
+  {
+    "id": "real-docx-poi-drawing",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-drawing.docx",
+    "sha256": "5e83462dd7ac3cf0a333fe09cf0837602dbd41775cdcec813a6e288b5d55dff8",
+    "bytes": 95247,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/drawing.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 12.0000",
+    "redistributable": true,
+    "features": [
+      "embeddings",
+      "floating-pictures",
+      "inline-pictures",
+      "merged-cells",
+      "nested-tables",
+      "pictures",
+      "tables"
+    ]
+  },
+  {
+    "id": "real-docx-poi-endnotes",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-endnotes.docx",
+    "sha256": "6e2e1b2dabb0ae6b9b26ddd613dca446ba0710ecc8b4008722abc4ed592934e3",
+    "bytes": 13553,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/endnotes.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 12.0000",
+    "redistributable": true,
+    "features": [
+      "endnotes"
+    ]
+  },
+  {
+    "id": "real-docx-poi-form_footnotes",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-form_footnotes.docx",
+    "sha256": "a890294bfbdc63f6d03eab61efc1e98cb51d59f0920541150dd7082f9bdf31f1",
+    "bytes": 27824,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/form_footnotes.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 12.0000",
+    "redistributable": true,
+    "features": [
+      "fields",
+      "footnotes",
+      "inline-pictures",
+      "lists",
+      "merged-cells",
+      "pictures",
+      "tables"
+    ]
+  },
+  {
+    "id": "real-docx-poi-testComment",
+    "format": "docx",
+    "path": "fixtures/real/docx/poi-testComment.docx",
+    "sha256": "06b63b13f0b78a7179151af52c2282557c1ed204899feee9fcef4ca575344f97",
+    "bytes": 65298,
+    "source_url": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/test-data/document/testComment.docx",
+    "licence": "Apache-2.0",
+    "licence_evidence": "https://github.com/apache/poi/blob/24fa97f6240891c47cd85019d04551209d4d0463/legal/LICENSE",
+    "author": "Apache POI contributors (The Apache Software Foundation)",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 16.0000",
+    "redistributable": true,
+    "features": [
+      "comments",
+      "pictures"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-blk-paras-and-tables",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-blk-paras-and-tables.docx",
+    "sha256": "93f40c8a23dbcbc75b073e0f7050a5f064e6aff58c1bc6c6003359122e9faf79",
+    "bytes": 15649,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/blk-paras-and-tables.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 16.0000",
+    "redistributable": true,
+    "features": [
+      "headers-footers",
+      "nested-tables",
+      "tables"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-comments-rich-para",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-comments-rich-para.docx",
+    "sha256": "8ee6b9bd84c59169bc7e5838003806edefb2c51920f40035b7879d4a3414deed",
+    "bytes": 20023,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/comments-rich-para.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 16.0000",
+    "redistributable": true,
+    "features": [
+      "comments",
+      "pictures"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-doc-access-sections",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-doc-access-sections.docx",
+    "sha256": "871f058319e155fa5d76625a4e019d63f804e9b17da24f7047b38c6b1ee353d1",
+    "bytes": 25591,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/doc-access-sections.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Macintosh Word 14.0000",
+    "redistributable": true,
+    "features": [
+      "multi-section"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-having-images",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-having-images.docx",
+    "sha256": "72f40baa1b89e4849e817121dbbf148ed78e51be9bf04d8e6f4bc1494aa517b7",
+    "bytes": 132875,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/tests/test_files/having-images.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Macintosh Word 14.0000",
+    "redistributable": true,
+    "features": [
+      "headers-footers",
+      "inline-pictures",
+      "pictures"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-hdr-header-footer",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-hdr-header-footer.docx",
+    "sha256": "5a4cb270680d1365688073e4816be98c2ab1a7ba2921d86cb3efadca97a72d27",
+    "bytes": 18079,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/hdr-header-footer.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 16.0000",
+    "redistributable": true,
+    "features": [
+      "headers-footers",
+      "multi-section"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-sct-first-page-hdrftr",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-sct-first-page-hdrftr.docx",
+    "sha256": "9e7e7b1bd132fe889d43d57fbe1e99c126544326fa21364695f2eec7cd336578",
+    "bytes": 14849,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/sct-first-page-hdrftr.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 16.0000",
+    "redistributable": true,
+    "features": [
+      "headers-footers",
+      "multi-section"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-sct-inner-content",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-sct-inner-content.docx",
+    "sha256": "d92e9ca7b09fab7b475c57dfba08f6acba2742aff2691cc7284649c640059c73",
+    "bytes": 12051,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/sct-inner-content.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Office Word 16.0000",
+    "redistributable": true,
+    "features": [
+      "multi-section",
+      "tables"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-sct-section-props",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-sct-section-props.docx",
+    "sha256": "0d741b9f881f3a1583711f0d85227768b01fa13760ebf972c43e1496b18ab3d5",
+    "bytes": 28168,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/sct-section-props.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Macintosh Word 14.0000",
+    "redistributable": true,
+    "features": [
+      "multi-section"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-shp-inline-shape-access",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-shp-inline-shape-access.docx",
+    "sha256": "8fcf0f0433be0968d9305c564ce69601931695ffe163d264fb69b7782feff517",
+    "bytes": 122610,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/shp-inline-shape-access.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Macintosh Word 14.0000",
+    "redistributable": true,
+    "features": [
+      "charts",
+      "embeddings",
+      "inline-pictures",
+      "pictures",
+      "smartart"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-tbl-cell-access",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-tbl-cell-access.docx",
+    "sha256": "dc01708a24c5e940c94b99b7ee496606e5f17152bc41cec211c9f8c72334cb22",
+    "bytes": 36051,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/tbl-cell-access.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Macintosh Word 14.0000",
+    "redistributable": true,
+    "features": [
+      "merged-cells",
+      "tables"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-tbl-cell-props",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-tbl-cell-props.docx",
+    "sha256": "612ab03dfde001588d0081706238c08d2938b55807de5342677cfcc0bcd53e6d",
+    "bytes": 13773,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/tbl-cell-props.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Macintosh Word 14.0000",
+    "redistributable": true,
+    "features": [
+      "merged-cells",
+      "tables"
+    ]
+  },
+  {
+    "id": "real-docx-python-docx-tbl-on-off-props",
+    "format": "docx",
+    "path": "fixtures/real/docx/python-docx-tbl-on-off-props.docx",
+    "sha256": "2513f8adbe54b1dcc769a2da8da61746758ea96b588d0ba22b606185b43dc51a",
+    "bytes": 16017,
+    "source_url": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/features/steps/test_files/tbl-on-off-props.docx",
+    "licence": "MIT",
+    "licence_evidence": "https://github.com/python-openxml/python-docx/blob/e45454602b53e8e572b179ccf1c91093ec9f4ed7/LICENSE",
+    "author": "python-openxml/python-docx contributors",
+    "retrieved": "2026-10-11",
+    "authoring_app": "Microsoft Macintosh Word 14.0000",
+    "redistributable": true,
+    "features": [
+      "rtl",
+      "tables"
+    ]
+  }
+]

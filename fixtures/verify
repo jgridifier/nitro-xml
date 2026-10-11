@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Validate fixtures/manifest.json against its schema and check every sha256.
+
+Usage: fixtures/verify [--generate-missing] [--skip-on-demand]
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+MANIFEST = Path(__file__).resolve().parent / "manifest.json"
+SCHEMA = Path(__file__).resolve().parent / "manifest.schema.json"
+GEN = Path(__file__).resolve().parent / "gen"
+
+
+def sha256_file(path: Path) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def validate_schema(doc: dict, schema: dict) -> list[str]:
+    """Minimal draft-2020-12 subset validator for this manifest (stdlib only)."""
+    errors: list[str] = []
+
+    def check(instance, sch, path: str) -> None:
+        t = sch.get("type")
+        if t == "object":
+            if not isinstance(instance, dict):
+                errors.append(f"{path}: expected object")
+                return
+            for req in sch.get("required", []):
+                if req not in instance:
+                    errors.append(f"{path}: missing required '{req}'")
+            props = sch.get("properties", {})
+            for k, v in instance.items():
+                if k in props:
+                    check(v, props[k], f"{path}.{k}")
+            for name, defn in sch.get("$defs", {}).items():
+                pass  # resolved via $ref below
+            # allOf / if-then
+            for clause in sch.get("allOf", []):
+                check(instance, clause, path)
+            if "if" in sch:
+                if_schema = sch["if"]
+                # shallow match on properties.const
+                ok = True
+                for pk, pv in if_schema.get("properties", {}).items():
+                    if "const" in pv and instance.get(pk) != pv["const"]:
+                        ok = False
+                if ok and "then" in sch:
+                    check(instance, sch["then"], path)
+        elif t == "array":
+            if not isinstance(instance, list):
+                errors.append(f"{path}: expected array")
+                return
+            if "minItems" in sch and len(instance) < sch["minItems"]:
+                errors.append(f"{path}: minItems {sch['minItems']}")
+            if "maxItems" in sch and len(instance) > sch["maxItems"]:
+                errors.append(f"{path}: maxItems {sch['maxItems']}")
+            item_sch = sch.get("items")
+            if item_sch:
+                if "$ref" in item_sch:
+                    ref = item_sch["$ref"]
+                    assert ref.startswith("#/$defs/")
+                    item_sch = schema["$defs"][ref.split("/")[-1]]
+                for i, item in enumerate(instance):
+                    check(item, item_sch, f"{path}[{i}]")
+        elif t == "string":
+            if not isinstance(instance, str):
+                errors.append(f"{path}: expected string")
+                return
+            if "minLength" in sch and len(instance) < sch["minLength"]:
+                errors.append(f"{path}: minLength")
+            if "pattern" in sch:
+                import re
+
+                if not re.fullmatch(sch["pattern"], instance):
+                    errors.append(f"{path}: pattern {sch['pattern']}")
+            if "const" in sch and instance != sch["const"]:
+                errors.append(f"{path}: const")
+            if "not" in sch and "const" in sch["not"] and instance == sch["not"]["const"]:
+                errors.append(f"{path}: not const {sch['not']['const']}")
+        elif t == "integer":
+            if not isinstance(instance, int) or isinstance(instance, bool):
+                errors.append(f"{path}: expected integer")
+                return
+            if "minimum" in sch and instance < sch["minimum"]:
+                errors.append(f"{path}: minimum")
+        elif t == "boolean":
+            if not isinstance(instance, bool):
+                errors.append(f"{path}: expected boolean")
+        if "enum" in sch and instance not in sch["enum"]:
+            errors.append(f"{path}: enum {sch['enum']}")
+
+    check(doc, schema, "$")
+    return errors
+
+
+def ensure_generated(fid: str) -> None:
+    subprocess.check_call([sys.executable, str(GEN / "generate.py"), "--id", fid, "--force"], cwd=ROOT)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--generate-missing", action="store_true", default=True)
+    ap.add_argument("--skip-on-demand", action="store_true")
+    ap.add_argument("--no-generate", action="store_true", help="Do not run generators")
+    args = ap.parse_args()
+    generate = args.generate_missing and not args.no_generate
+
+    if not MANIFEST.is_file():
+        print("missing fixtures/manifest.json", file=sys.stderr)
+        return 1
+    doc = json.loads(MANIFEST.read_text())
+    schema = json.loads(SCHEMA.read_text())
+    errors = validate_schema(doc, schema)
+    if errors:
+        print("schema errors:", file=sys.stderr)
+        for e in errors:
+            print(" ", e, file=sys.stderr)
+        return 1
+
+    tier_counts: dict[str, Counter] = defaultdict(Counter)
+    parity_counts: Counter = Counter()
+    sha_errors = 0
+    checked = 0
+
+    for fix in doc["fixtures"]:
+        if not fix["redistributable"]:
+            if fix.get("path"):
+                print(f"non-redistributable fixture must not have a path: {fix['id']}", file=sys.stderr)
+                sha_errors += 1
+            continue
+        on_demand = bool(fix.get("on_demand"))
+        if on_demand and args.skip_on_demand:
+            continue
+        path = ROOT / fix["path"]
+        if not path.is_file():
+            if generate and fix.get("generator"):
+                print(f"generating {fix['id']} ...")
+                ensure_generated(fix["generator"]["id"])
+            else:
+                print(f"missing file: {fix['path']}", file=sys.stderr)
+                sha_errors += 1
+                continue
+        digest = sha256_file(path)
+        size = path.stat().st_size
+        if digest != fix["sha256"]:
+            print(f"sha256 mismatch {fix['id']}: got {digest} want {fix['sha256']}", file=sys.stderr)
+            sha_errors += 1
+            continue
+        if size != fix["bytes"]:
+            print(f"bytes mismatch {fix['id']}: got {size} want {fix['bytes']}", file=sys.stderr)
+            sha_errors += 1
+            continue
+        # Tier must match size rules
+        if size < 100_000:
+            want = "S"
+        elif size < 1_000_000:
+            want = "M"
+        elif size < 10_000_000:
+            want = "L"
+        else:
+            want = "XL"
+        if fix["tier"] != want:
+            print(f"tier mismatch {fix['id']}: marked {fix['tier']} but size => {want}", file=sys.stderr)
+            sha_errors += 1
+            continue
+        tier_counts[fix["format"]][fix["tier"]] += 1
+        if "parity-corpus" in fix.get("features", []) or "real-office" in fix.get("features", []):
+            if fix["tier"] == "S" or size < 100_000:
+                parity_counts[fix["format"]] += 1
+        # Count any redistributable small feature fixture toward parity target
+        if size < 100_000 and "perf-tier" not in fix.get("features", []):
+            # already counted real; also count upstream+generated feature files
+            if "real-office" not in fix.get("features", []):
+                parity_counts[fix["format"]] += 0  # real already; keep separate below
+        checked += 1
+
+    # Parity: at least 30 small feature fixtures per format (real corpus alone is 30)
+    for fmt in ("xlsx", "docx", "pptx"):
+        n_real = sum(
+            1
+            for f in doc["fixtures"]
+            if f["redistributable"]
+            and f["format"] == fmt
+            and "real-office" in f.get("features", [])
+        )
+        if n_real < 30:
+            print(f"parity corpus too small for {fmt}: {n_real} < 30", file=sys.stderr)
+            sha_errors += 1
+
+    # Perf: >=3 files per tier per format.
+    # With --skip-on-demand, L/XL file bytes are not regenerated; still require the
+    # manifest to *list* >=3 redistributable entries per L/XL tier per format.
+    listed: dict[str, Counter] = defaultdict(Counter)
+    for fix in doc["fixtures"]:
+        if fix["redistributable"]:
+            listed[fix["format"]][fix["tier"]] += 1
+    for fmt in ("xlsx", "docx", "pptx"):
+        for tier in ("S", "M", "L", "XL"):
+            n_checked = tier_counts[fmt][tier]
+            n_listed = listed[fmt][tier]
+            if args.skip_on_demand and tier in ("L", "XL"):
+                if n_listed < 3:
+                    print(f"tier {fmt}/{tier} lists {n_listed} files (need >=3)", file=sys.stderr)
+                    sha_errors += 1
+                continue
+            if n_checked < 3:
+                print(f"tier {fmt}/{tier} has {n_checked} files (need >=3)", file=sys.stderr)
+                sha_errors += 1
+
+    # Painter coverage
+    covered = set(doc.get("painter_rows_covered", []))
+    required = set(doc.get("painter_rows_required", []))
+    missing = sorted(required - covered)
+    if missing:
+        print(f"painter rows not covered: {missing}", file=sys.stderr)
+        sha_errors += 1
+    if len(required) != 36:
+        print(f"painter_rows_required must be 36, got {len(required)}", file=sys.stderr)
+        sha_errors += 1
+
+    print(
+        f"fixtures/verify: checked={checked} schema=ok "
+        f"painter={len(covered)}/36 tiers={ {f: dict(tier_counts[f]) for f in ('xlsx','docx','pptx')} }"
+    )
+    return 1 if sha_errors else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

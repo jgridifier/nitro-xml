@@ -69,4 +69,10 @@ for pkg in packages/*/; do
   rm -rf "$tmp"
 done
 
+# 5. Fixture corpus: schema + sha256 for every committed redistributable file
+# (L/XL on-demand packages skipped here; full `fixtures/verify` regenerates them).
+# Wired here so the existing licenses CI job gates fixture provenance without a
+# workflow edit (see #4 / PR #114).
+python3 fixtures/verify --skip-on-demand || err "fixtures/verify --skip-on-demand failed"
+
 [ $fail -eq 0 ] && echo "licenses: ok" || exit 1

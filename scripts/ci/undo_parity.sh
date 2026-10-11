@@ -20,22 +20,15 @@ if ! command -v bun >/dev/null 2>&1; then
   export PATH="$HOME/.bun/bin:$PATH"
 fi
 
-# Pinned upstream submodule (TS oracle).
-git submodule update --init --depth 1 upstream
-export UPSTREAM_DIR="$ROOT/upstream"
-if [ "$(git -C "$UPSTREAM_DIR" rev-parse HEAD)" != e66aaec24adc0b68472eae1fc42aa4598e09c352 ]; then
-  echo "undo-parity: upstream not at pin e66aaec" >&2
-  exit 1
-fi
-if [ ! -d "$UPSTREAM_DIR/src/core/node_modules" ] && [ ! -d "$UPSTREAM_DIR/node_modules" ]; then
-  ( cd "$UPSTREAM_DIR" && bun install )
-fi
-
 # Depends on #50 edits corpus + edit apply helper.
 if [ ! -d edits/xlsx ] || [ ! -f parity/edit/apply.mjs ]; then
   echo "undo-parity: edits/*.json / parity/edit missing (needs #50)" >&2
   exit 1
 fi
+
+# Pinned upstream + ooxml-core dist (required for `ooxml-core/pptx` package imports).
+# shellcheck source=ensure-upstream-oracle.sh
+. scripts/ci/ensure-upstream-oracle.sh "$ROOT"
 
 echo "undo-parity: installing harness deps"
 ( cd parity/roundtrip && bun install )

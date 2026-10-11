@@ -15,6 +15,32 @@ use crate::simple_types::{
 };
 use crate::xml_util::{first_w, get_w};
 
+/// Direct `w:rPr` on a run (`parseDirectRunProperties` upstream).
+pub fn parse_direct_run_properties(props: Option<&Element>) -> Value {
+    let mut result = parse_run_properties(props);
+    if let Some(props) = props {
+        if let Some(obj) = result.as_object_mut() {
+            let language = first_w(Some(props), "lang");
+            for (attr, key) in [
+                ("val", "language"),
+                ("eastAsia", "eastAsiaLanguage"),
+                ("bidi", "bidiLanguage"),
+            ] {
+                if let Some(v) = get_w(language, attr) {
+                    obj.insert(key.into(), json!(v));
+                }
+            }
+            if let Some(rtl) = on_off_element(first_w(Some(props), "rtl")) {
+                obj.insert("rtl".into(), json!(rtl));
+            }
+            if let Some(style) = get_w(first_w(Some(props), "rStyle"), "val") {
+                obj.insert("style".into(), json!(style));
+            }
+        }
+    }
+    result
+}
+
 pub fn parse_run_properties(props: Option<&Element>) -> Value {
     let Some(props) = props else {
         return Value::Object(Map::new());

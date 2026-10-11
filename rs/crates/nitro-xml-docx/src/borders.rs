@@ -34,6 +34,30 @@ pub fn border_side(element: Option<&Element>) -> Option<Value> {
     Some(Value::Object(obj))
 }
 
+pub fn parse_table_borders(borders_element: Option<&Element>) -> Option<Value> {
+    let borders_element = borders_element?;
+    let mut result = serde_json::Map::new();
+    for side in ["top", "bottom", "left", "right", "insideH", "insideV"] {
+        let element = first_w(Some(borders_element), side).or_else(|| {
+            if side == "left" {
+                first_w(Some(borders_element), "start")
+            } else if side == "right" {
+                first_w(Some(borders_element), "end")
+            } else {
+                None
+            }
+        });
+        if let Some(value) = border_side(element) {
+            result.insert(side.into(), value);
+        }
+    }
+    if result.is_empty() {
+        None
+    } else {
+        Some(Value::Object(result))
+    }
+}
+
 pub fn parse_paragraph_borders(p_bdr: Option<&Element>) -> Option<Value> {
     let p_bdr = p_bdr?;
     let mut result = serde_json::Map::new();

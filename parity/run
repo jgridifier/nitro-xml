@@ -9,8 +9,8 @@
  *   bun parity/run --format opc --ci
  *
  * Writes oracle.json + rust.json (default: .parity-out/), exits non-zero on an
- * unexpected diff. Ready today: xml, opc, xlsx worksheet (#16), docx styles (#20).
- * pptx view IR flips ready when #24 lands; `--ci` only runs ready ones.
+ * unexpected diff. Ready today: xml, opc, xlsx worksheet (#16), docx styles/body
+ * (#20/#21). pptx view IR flips ready when #24 lands; `--ci` only runs ready ones.
  */
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';

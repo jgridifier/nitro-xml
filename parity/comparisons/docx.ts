@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 /**
- * docx Stage-4 styles/numbering/theme/settings comparison folded from
- * tools/model-compare/gates/issue-20.sh (#20).
+ * docx Stage-4 styles + body model comparison (#20 + #21).
  *
- * IR: paragraph/character style catalogs, numbering catalog, list labels,
- * theme (+ clrSchemeMapping), settings, and resolveParagraphFormatting per
- * body paragraph. Full LayoutResult view IR remains for a later painter gate.
+ * IR: style catalogs, numbering, theme, settings, resolved paragraphs, list
+ * labels, plus readPackage body fields (blocks, sections, notes, warnings,
+ * mediaPartNames). Chart deep fields are stripped until #28.
  */
 
 import { existsSync, readdirSync } from 'node:fs';
@@ -89,13 +88,13 @@ async function runDocxCorpus(): Promise<CorpusResult> {
 			if (notes.length < 20) notes.push(`output differs on ${f}`);
 		}
 	}
-	notes.push(`styles differential: ${n - bad}/${n} files match upstream`);
+	notes.push(`docx differential: ${n - bad}/${n} files match upstream`);
 	return { compared: n, mismatched: bad, notes };
 }
 
 export const docxComparison: Comparison = {
 	id: 'docx',
-	label: 'docx styles/numbering/theme/settings (issue #20)',
+	label: 'docx styles + body model (issues #20, #21)',
 	ready: true,
 	todo: undefined,
 	async oracle(fixturePath: string) {

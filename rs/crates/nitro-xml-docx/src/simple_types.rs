@@ -23,6 +23,15 @@ pub fn on_off_element(element: Option<&Element>) -> Option<bool> {
     }
 }
 
+pub fn on_off_attribute(element: &Element, local: &str) -> Option<bool> {
+    let value = element.attr_w(local);
+    if value.is_none() {
+        None
+    } else {
+        parse_on_off(value.as_deref())
+    }
+}
+
 const SAFE_INTEGER: &str = r"^-?\d+$";
 
 pub fn parse_integer(value: Option<&str>) -> Option<i64> {

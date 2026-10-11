@@ -134,23 +134,10 @@ self.onmessage = async (ev) => {
         self.postMessage({ type: "layout-acked", count: msg.values.length });
         break;
       }
-      case "shell-ui": {
+      case "shell-action":
         if (!handle) throw new Error("no document");
-        let ui = null;
-        try {
-          ui = JSON.parse(handle.shellUi());
-        } catch {
-          ui = null;
-        }
-        self.postMessage({ type: "shell-ui", ui });
+        self.postMessage({ type: "shell-action", result: handle.shellAction(msg.op || "ui", msg.arg || "") });
         break;
-      }
-      case "shell-action": {
-        if (!handle) throw new Error("no document");
-        const result = handle.shellAction(msg.op || "", msg.arg || "");
-        self.postMessage({ type: "shell-action", result });
-        break;
-      }
       case "dispose": {
         if (handle) {
           try {

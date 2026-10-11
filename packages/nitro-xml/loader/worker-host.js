@@ -57,26 +57,11 @@ export class WorkerDocument {
     this._events.push(ev);
   }
 
-  /** Stage-6 shell UI snapshot (#29). */
-  async shellUi() {
-    const msg = await this._request("shell-ui", () => {
-      this._worker.postMessage({ type: "shell-ui" });
-    });
-    return msg.ui || null;
-  }
-
-  /** Stage-6 shell action RPC (#29). */
   async shellAction(op, arg = "") {
     const msg = await this._request("shell-action", () => {
       this._worker.postMessage({ type: "shell-action", op, arg: arg || "" });
     });
-    let result = null;
-    try {
-      result = typeof msg.result === "string" ? JSON.parse(msg.result) : msg.result;
-    } catch {
-      result = { ui: null };
-    }
-    return result;
+    try { return JSON.parse(msg.result); } catch { return { ui: null }; }
   }
 
   async tick() {

@@ -70,8 +70,4 @@ impl ShellUi {
             "lastCopy": state.last_copy,
         })
     }
-
-    pub fn to_string(state: &ShellState) -> String {
-        serde_json::to_string(&Self::to_json(state)).unwrap_or_else(|_| "{}".into())
-    }
 }

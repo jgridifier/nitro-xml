@@ -340,16 +340,14 @@ impl Handle {
         Ok(nitro_xml_xlsx::stringify_json(&v))
     }
 
-    /// Stage-6 shell UI snapshot (JSON) for the thin chrome binder (#29).
-    #[wasm_bindgen(js_name = shellUi)]
-    pub fn shell_ui(&self) -> String {
-        ShellUi::to_string(&self.shell)
-    }
-
-    /// Apply a shell action (`zoom-in`, `find-query`, `sheet`, `copy`, …).
-    /// Returns JSON: `{ copyText?, pendingHyperlink?, ui }`.
+    /// Apply a shell action (`zoom-in`, `find-query`, `sheet`, `copy`, `ui`, …).
+    /// Returns JSON: `{ copyText?, pendingHyperlink?, ui }`. Op `ui` is a snapshot-only no-op.
     #[wasm_bindgen(js_name = shellAction)]
     pub fn shell_action(&mut self, op: &str, arg: &str) -> Result<String, JsValue> {
+        if op == "ui" || op.is_empty() {
+            let out = serde_json::json!({ "ui": ShellUi::to_json(&self.shell) });
+            return Ok(out.to_string());
+        }
         let action = ShellAction::parse(op, arg).ok_or_else(|| {
             JsValue::from(OoxmlError::with_code(
                 "bad_shell_action",
@@ -370,7 +368,10 @@ impl Handle {
             ShellAction::HyperlinkAt { sheet, row, col } => {
                 self.activate_hyperlink(*sheet, *row, *col)?;
             }
-            ShellAction::Sheet(_) | ShellAction::ZoomIn | ShellAction::ZoomOut | ShellAction::ZoomSet(_) => {}
+            ShellAction::Sheet(_)
+            | ShellAction::ZoomIn
+            | ShellAction::ZoomOut
+            | ShellAction::ZoomSet(_) => {}
             _ => {}
         }
         if let Some(idx) = result.navigate_sheet {
@@ -424,17 +425,6 @@ impl Handle {
             "ui": ShellUi::to_json(&self.shell),
         });
         Ok(out.to_string())
-    }
-
-    /// Diagnostics panel JSON (timings, warnings, #121 font substitutions).
-    #[wasm_bindgen(js_name = diagnostics)]
-    pub fn diagnostics_json(&self) -> String {
-        let mut v = self.shell.diagnostics.to_json();
-        if let Some(obj) = v.as_object_mut() {
-            obj.insert("open".into(), serde_json::json!(self.shell.diagnostics_open));
-            obj.insert("format".into(), serde_json::json!(self.shell.format.as_str()));
-        }
-        v.to_string()
     }
 
     /// Copy interned strings for the loader (`resolve` on the main thread / worker).
@@ -543,11 +533,9 @@ impl Handle {
             let (href, subs) = resolve_webfont_plan(&self.font_source, &fragments, &requested);
             for sub in subs {
                 let message = sub.message();
-                self.shell.diagnostics.ingest_warning(
-                    FONT_SUBSTITUTION_CODE,
-                    &message,
-                    None,
-                );
+                self.shell
+                    .diagnostics
+                    .ingest_warning(FONT_SUBSTITUTION_CODE, &message, None);
                 self.shell.dirty_ui = true;
                 self.warnings.push(Warning::new(
                     FONT_SUBSTITUTION_CODE.to_owned(),
@@ -770,11 +758,9 @@ impl Handle {
         for family in requested {
             let sub = nitro_xml::opc::fonts::FontSubstitution::local(family.clone());
             let message = sub.message();
-            self.shell.diagnostics.ingest_warning(
-                FONT_SUBSTITUTION_CODE,
-                &message,
-                None,
-            );
+            self.shell
+                .diagnostics
+                .ingest_warning(FONT_SUBSTITUTION_CODE, &message, None);
             self.shell.dirty_ui = true;
             self.warnings.push(Warning::new(
                 FONT_SUBSTITUTION_CODE.to_owned(),
@@ -850,10 +836,7 @@ impl Handle {
                     .and_then(|x| x.as_str())
                     .map(str::to_owned);
                 let open = v.get("open").and_then(|x| x.as_bool()).unwrap_or(false);
-                let tooltip = v
-                    .get("tooltip")
-                    .and_then(|x| x.as_str())
-                    .map(str::to_owned);
+                let tooltip = v.get("tooltip").and_then(|x| x.as_str()).map(str::to_owned);
                 self.shell.pending_hyperlink = Some(PendingHyperlink {
                     target,
                     location,

@@ -73,5 +73,8 @@ fn main() {
             "unsupported": [],
         },
     });
-    println!("{}", serde_json::to_string(&out).unwrap_or_else(|_| "{}".into()));
+    println!(
+        "{}",
+        serde_json::to_string(&out).unwrap_or_else(|_| "{}".into())
+    );
 }

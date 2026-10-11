@@ -29,7 +29,7 @@ start=$(date +%s); status=ok; session=""
 run_agent() { # $1 = prompt text, $2 = round
   case $ARM in
     A-opus|B-opus-haiku)
-      extra=(); [ "$ARM" = A-opus ] && extra=(--disallowedTools Task)
+      extra=(); [ "$ARM" = A-opus ] && extra=(--disallowedTools=Task)
       [ -n "$session" ] && extra+=(--resume "$session")
       claude -p --model opus --dangerously-skip-permissions --output-format json "${extra[@]}" "$1" </dev/null > "$LOG/agent-$2.json" 2> "$LOG/agent-$2.err"
       session=$(python3 -c "import json;print(json.load(open('$LOG/agent-$2.json')).get('session_id',''))" 2>/dev/null);;

@@ -1,0 +1,1600 @@
+{
+ "upstream": "/workspace/ooxml-measure",
+ "fixtures": {
+  "xlsx": {
+   "file": "fixtures/real/xlsx/poi-StructuredRefs-lots-with-lookups.xlsx",
+   "bytes": 325446
+  },
+  "docx": {
+   "file": "fixtures/real/docx/poi-drawing.docx",
+   "bytes": 95247
+  },
+  "pptx": {
+   "file": "fixtures/real/pptx/poi-60810.pptx",
+   "bytes": 874522,
+   "slides": 28
+  }
+ },
+ "scenarios": [
+  {
+   "format": "xlsx",
+   "name": "first paint",
+   "settled": true,
+   "frames": [
+    292,
+    427
+   ],
+   "rows": {
+    "harness": {
+     "total": 2,
+     "activeFrames": 1,
+     "windowFrames": 136,
+     "median": 2,
+     "max": 2,
+     "categories": {
+      "create": 1,
+      "tree": 1
+     }
+    },
+    "other": {
+     "total": 5443,
+     "activeFrames": 3,
+     "windowFrames": 136,
+     "median": 11,
+     "max": 5430,
+     "categories": {
+      "create": 1021,
+      "text": 294,
+      "attr": 2655,
+      "tree": 1465,
+      "style": 8
+     }
+    },
+    "excluded:chrome": {
+     "total": 4764,
+     "activeFrames": 1,
+     "windowFrames": 136,
+     "median": 4764,
+     "max": 4764,
+     "categories": {
+      "create": 684,
+      "attr": 3744,
+      "tree": 336
+     }
+    },
+    "X1": {
+     "total": 210,
+     "activeFrames": 4,
+     "windowFrames": 136,
+     "median": 36.5,
+     "max": 133,
+     "categories": {
+      "create": 36,
+      "text": 2,
+      "tree": 27,
+      "attr": 81,
+      "canvas": 64
+     }
+    },
+    "excluded:editor": {
+     "total": 700,
+     "activeFrames": 4,
+     "windowFrames": 136,
+     "median": 174,
+     "max": 351,
+     "categories": {
+      "create": 39,
+      "attr": 609,
+      "tree": 37,
+      "text": 11,
+      "style": 4
+     }
+    },
+    "X2": {
+     "total": 4132,
+     "activeFrames": 2,
+     "windowFrames": 136,
+     "median": 2066,
+     "max": 4124,
+     "categories": {
+      "create": 861,
+      "attr": 1970,
+      "tree": 1080,
+      "text": 221
+     }
+    },
+    "X4": {
+     "total": 578,
+     "activeFrames": 4,
+     "windowFrames": 136,
+     "median": 113,
+     "max": 294,
+     "categories": {
+      "create": 61,
+      "attr": 348,
+      "tree": 57,
+      "style": 112
+     }
+    },
+    "X6": {
+     "total": 101,
+     "activeFrames": 4,
+     "windowFrames": 136,
+     "median": 7.5,
+     "max": 81,
+     "categories": {
+      "create": 25,
+      "attr": 71,
+      "tree": 5
+     }
+    },
+    "X5": {
+     "total": 710,
+     "activeFrames": 4,
+     "windowFrames": 136,
+     "median": 116,
+     "max": 471,
+     "categories": {
+      "create": 61,
+      "attr": 372,
+      "tree": 57,
+      "style": 110,
+      "text": 110
+     }
+    },
+    "excluded:shell": {
+     "total": 18,
+     "activeFrames": 4,
+     "windowFrames": 136,
+     "median": 1,
+     "max": 15,
+     "categories": {
+      "attr": 12,
+      "create": 2,
+      "tree": 2,
+      "text": 2
+     }
+    },
+    "X7": {
+     "total": 12,
+     "activeFrames": 1,
+     "windowFrames": 136,
+     "median": 12,
+     "max": 12,
+     "categories": {
+      "create": 4,
+      "attr": 4,
+      "tree": 4
+     }
+    },
+    "X13": {
+     "total": 106,
+     "activeFrames": 2,
+     "windowFrames": 136,
+     "median": 53,
+     "max": 71,
+     "categories": {
+      "create": 17,
+      "text": 9,
+      "tree": 11,
+      "attr": 67,
+      "style": 2
+     }
+    }
+   },
+   "otherFiles": [
+    [
+     "src/ui/src/xlsx/ribbon/controls.ts",
+     2246
+    ],
+    [
+     "src/ui/src/base.ts",
+     810
+    ],
+    [
+     "src/ui/src/xlsx/ribbon/ribbon.ts",
+     764
+    ],
+    [
+     "src/ui/src/xlsx/ribbon/visibility.ts",
+     425
+    ],
+    [
+     "src/ui/src/xlsx/dialogs/fields.ts",
+     321
+    ],
+    [
+     "src/ui/src/xlsx/ribbon/caption.ts",
+     240
+    ],
+    [
+     "src/ui/src/ribbon/gallery.ts",
+     151
+    ],
+    [
+     "src/ui/src/ribbon/ribbon-tabs.ts",
+     118
+    ],
+    [
+     "src/ui/src/xlsx/ribbon/controls-input.ts",
+     64
+    ],
+    [
+     "src/ui/src/xlsx/chart-series-pane.ts",
+     61
+    ],
+    [
+     "src/ui/src/xlsx/backstage/index.ts",
+     38
+    ],
+    [
+     "src/ui/src/icons.ts",
+     29
+    ],
+    [
+     "src/ui/src/xlsx/chart-series-gradient.ts",
+     28
+    ],
+    [
+     "src/ui/src/chrome/backstage.ts",
+     27
+    ],
+    [
+     "src/ui/src/xlsx/chart-area-pane.ts",
+     22
+    ],
+    [
+     "src/ui/src/form/gradient-stop-track.ts",
+     14
+    ],
+    [
+     "src/ui/src/xlsx/editor-shell.ts",
+     11
+    ],
+    [
+     "src/ui/src/ribbon/overflow.ts",
+     11
+    ],
+    [
+     "src/ui/src/xlsx/chart-series-transparency.ts",
+     8
+    ],
+    [
+     "src/ui/src/form/number-range.ts",
+     8
+    ],
+    [
+     "src/ui/src/xlsx/formula-bar/formula-input.ts",
+     7
+    ],
+    [
+     "src/ui/src/xlsx/shortcut-help.ts",
+     6
+    ],
+    [
+     "src/ui/src/xlsx/title-bar.ts",
+     6
+    ],
+    [
+     "src/ui/src/xlsx/status-bar.ts",
+     6
+    ],
+    [
+     "src/ui/src/xlsx/ribbon/shared-gallery.ts",
+     4
+    ]
+   ]
+  },
+  {
+   "format": "xlsx",
+   "name": "steady scroll",
+   "settled": true,
+   "frames": [
+    434,
+    489
+   ],
+   "rows": {
+    "X1": {
+     "total": 374,
+     "activeFrames": 56,
+     "windowFrames": 56,
+     "median": 4,
+     "max": 10,
+     "categories": {
+      "attr": 224,
+      "canvas": 150
+     }
+    },
+    "X4": {
+     "total": 3248,
+     "activeFrames": 56,
+     "windowFrames": 56,
+     "median": 58,
+     "max": 58,
+     "categories": {
+      "attr": 3248
+     }
+    },
+    "X2": {
+     "total": 21945,
+     "activeFrames": 55,
+     "windowFrames": 56,
+     "median": 399,
+     "max": 399,
+     "categories": {
+      "attr": 11715,
+      "tree": 5115,
+      "create": 3795,
+      "text": 1320
+     }
+    },
+    "X6": {
+     "total": 336,
+     "activeFrames": 56,
+     "windowFrames": 56,
+     "median": 6,
+     "max": 6,
+     "categories": {
+      "attr": 336
+     }
+    },
+    "X5": {
+     "total": 1382,
+     "activeFrames": 56,
+     "windowFrames": 56,
+     "median": 25,
+     "max": 25,
+     "categories": {
+      "attr": 1052,
+      "style": 165,
+      "text": 165
+     }
+    },
+    "excluded:editor": {
+     "total": 56,
+     "activeFrames": 56,
+     "windowFrames": 56,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "attr": 56
+     }
+    },
+    "excluded:shell": {
+     "total": 55,
+     "activeFrames": 55,
+     "windowFrames": 56,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "attr": 55
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "docx",
+   "name": "first paint (Draft)",
+   "settled": true,
+   "frames": [
+    111,
+    204
+   ],
+   "rows": {
+    "harness": {
+     "total": 2,
+     "activeFrames": 1,
+     "windowFrames": 94,
+     "median": 2,
+     "max": 2,
+     "categories": {
+      "create": 1,
+      "tree": 1
+     }
+    },
+    "other": {
+     "total": 5834,
+     "activeFrames": 2,
+     "windowFrames": 94,
+     "median": 2917,
+     "max": 5833,
+     "categories": {
+      "create": 1430,
+      "attr": 2159,
+      "text": 973,
+      "tree": 1223,
+      "style": 49
+     }
+    },
+    "excluded:chrome": {
+     "total": 3241,
+     "activeFrames": 2,
+     "windowFrames": 94,
+     "median": 1620.5,
+     "max": 3185,
+     "categories": {
+      "create": 562,
+      "attr": 2096,
+      "style": 69,
+      "tree": 456,
+      "text": 58
+     }
+    },
+    "D1": {
+     "total": 3,
+     "activeFrames": 1,
+     "windowFrames": 94,
+     "median": 3,
+     "max": 3,
+     "categories": {
+      "create": 1,
+      "attr": 2
+     }
+    },
+    "D8": {
+     "total": 7503,
+     "activeFrames": 4,
+     "windowFrames": 94,
+     "median": 197,
+     "max": 7023,
+     "categories": {
+      "tree": 1643,
+      "style": 1046,
+      "create": 1675,
+      "attr": 3053,
+      "text": 86
+     }
+    },
+    "D9": {
+     "total": 234,
+     "activeFrames": 1,
+     "windowFrames": 94,
+     "median": 234,
+     "max": 234,
+     "categories": {
+      "create": 35,
+      "attr": 173,
+      "tree": 22,
+      "style": 4
+     }
+    }
+   },
+   "otherFiles": [
+    [
+     "src/ui/src/docx/ribbon-parts.ts",
+     1516
+    ],
+    [
+     "src/ui/src/docx/dialog-fields.ts",
+     1448
+    ],
+    [
+     "src/ui/src/base.ts",
+     1122
+    ],
+    [
+     "src/ui/src/docx/localization.ts",
+     697
+    ],
+    [
+     "src/ui/src/docx/ribbon-visibility.ts",
+     217
+    ],
+    [
+     "src/ui/src/docx/multilingual-ribbon.ts",
+     182
+    ],
+    [
+     "src/ui/src/docx/dialog-shell.ts",
+     100
+    ],
+    [
+     "src/ui/src/docx/zoom-dialog.ts",
+     54
+    ],
+    [
+     "src/ui/src/ribbon/ribbon-tabs.ts",
+     50
+    ],
+    [
+     "src/ui/src/docx/search-panel.ts",
+     45
+    ],
+    [
+     "src/ui/src/docx/backstage.ts",
+     38
+    ],
+    [
+     "src/ui/src/docx/picture-dialog.ts",
+     33
+    ],
+    [
+     "src/ui/src/docx/page-navigator.ts",
+     33
+    ],
+    [
+     "src/ui/src/docx/link-dialog.ts",
+     32
+    ],
+    [
+     "src/ui/src/chrome/backstage.ts",
+     27
+    ],
+    [
+     "src/ui/src/docx/ribbon.ts",
+     26
+    ],
+    [
+     "src/ui/src/docx/ribbon-combo.ts",
+     24
+    ],
+    [
+     "src/ui/src/docx/font-dialog-tabs.ts",
+     20
+    ],
+    [
+     "src/ui/src/docx/editor-shell.ts",
+     18
+    ],
+    [
+     "src/ui/src/docx/heading-navigator.ts",
+     18
+    ],
+    [
+     "src/ui/src/docx/review-ribbon.ts",
+     16
+    ],
+    [
+     "src/ui/src/docx/font-dialog.ts",
+     14
+    ],
+    [
+     "src/ui/src/docx/multilevel-list-dialog.ts",
+     9
+    ],
+    [
+     "src/ui/src/docx/ribbon-tabs.ts",
+     8
+    ],
+    [
+     "src/ui/src/docx/editor-chrome.ts",
+     7
+    ]
+   ]
+  },
+  {
+   "format": "docx",
+   "name": "steady scroll (Draft)",
+   "settled": true,
+   "frames": [
+    210,
+    265
+   ],
+   "rows": {},
+   "otherFiles": []
+  },
+  {
+   "format": "docx",
+   "name": "first paint (Print Layout)",
+   "settled": true,
+   "frames": [
+    265,
+    344
+   ],
+   "rows": {
+    "D1": {
+     "total": 169449,
+     "activeFrames": 2,
+     "windowFrames": 80,
+     "median": 84724.5,
+     "max": 169448,
+     "categories": {
+      "attr": 1164,
+      "create": 14881,
+      "canvas": 124734,
+      "text": 13795,
+      "tree": 14875
+     }
+    },
+    "other": {
+     "total": 169,
+     "activeFrames": 1,
+     "windowFrames": 80,
+     "median": 169,
+     "max": 169,
+     "categories": {
+      "attr": 159,
+      "text": 6,
+      "tree": 4
+     }
+    },
+    "D2": {
+     "total": 142,
+     "activeFrames": 1,
+     "windowFrames": 80,
+     "median": 142,
+     "max": 142,
+     "categories": {
+      "create": 41,
+      "attr": 41,
+      "tree": 60
+     }
+    },
+    "D3": {
+     "total": 28,
+     "activeFrames": 1,
+     "windowFrames": 80,
+     "median": 28,
+     "max": 28,
+     "categories": {
+      "create": 12,
+      "attr": 16
+     }
+    }
+   },
+   "otherFiles": [
+    [
+     "src/ui/src/docx/style-gallery.ts",
+     56
+    ],
+    [
+     "src/ui/src/base.ts",
+     39
+    ],
+    [
+     "src/ui/src/docx/page-navigator.ts",
+     14
+    ],
+    [
+     "src/ui/src/docx/ribbon-controls.ts",
+     12
+    ],
+    [
+     "src/ui/src/docx/paragraph-toggle-sync.ts",
+     12
+    ],
+    [
+     "src/ui/src/docx/page-controller.ts",
+     10
+    ],
+    [
+     "src/ui/src/docx/styles-group.ts",
+     4
+    ],
+    [
+     "src/ui/src/docx/character-style-picker.ts",
+     4
+    ],
+    [
+     "src/ui/src/ribbon/ribbon-tabs.ts",
+     4
+    ],
+    [
+     "src/ui/src/docx/editor-controls.ts",
+     4
+    ],
+    [
+     "src/ui/src/docx/header-footer-ribbon.ts",
+     4
+    ],
+    [
+     "src/ui/src/docx/editor-core.ts",
+     2
+    ],
+    [
+     "src/ui/src/docx/search-panel.ts",
+     2
+    ],
+    [
+     "src/ui/src/docx/spelling.ts",
+     2
+    ]
+   ]
+  },
+  {
+   "format": "docx",
+   "name": "steady scroll (Print Layout)",
+   "settled": true,
+   "frames": [
+    350,
+    405
+   ],
+   "rows": {
+    "other": {
+     "total": 4400,
+     "activeFrames": 55,
+     "windowFrames": 56,
+     "median": 80,
+     "max": 80,
+     "categories": {
+      "attr": 4125,
+      "text": 165,
+      "tree": 110
+     }
+    }
+   },
+   "otherFiles": [
+    [
+     "src/ui/src/docx/style-gallery.ts",
+     1680
+    ],
+    [
+     "src/ui/src/base.ts",
+     960
+    ],
+    [
+     "src/ui/src/docx/page-navigator.ts",
+     420
+    ],
+    [
+     "src/ui/src/docx/ribbon-controls.ts",
+     360
+    ],
+    [
+     "src/ui/src/docx/paragraph-toggle-sync.ts",
+     360
+    ],
+    [
+     "src/ui/src/docx/page-controller.ts",
+     240
+    ],
+    [
+     "src/ui/src/docx/styles-group.ts",
+     120
+    ],
+    [
+     "src/ui/src/docx/character-style-picker.ts",
+     120
+    ],
+    [
+     "src/ui/src/ribbon/ribbon-tabs.ts",
+     120
+    ],
+    [
+     "src/ui/src/docx/editor-controls.ts",
+     120
+    ],
+    [
+     "src/ui/src/docx/header-footer-ribbon.ts",
+     120
+    ],
+    [
+     "src/ui/src/docx/editor-core.ts",
+     60
+    ],
+    [
+     "src/ui/src/docx/search-panel.ts",
+     60
+    ],
+    [
+     "src/ui/src/docx/spelling.ts",
+     60
+    ]
+   ]
+  },
+  {
+   "format": "pptx",
+   "name": "first paint (slide 1)",
+   "settled": true,
+   "frames": [
+    307,
+    371
+   ],
+   "rows": {
+    "P1": {
+     "total": 17,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 17,
+     "max": 17,
+     "categories": {
+      "style": 12,
+      "create": 1,
+      "attr": 1,
+      "tree": 3
+     }
+    },
+    "P5": {
+     "total": 17,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 17,
+     "max": 17,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 12,
+      "tree": 1
+     }
+    },
+    "P2": {
+     "total": 20,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 20,
+     "max": 20,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 14,
+      "tree": 2
+     }
+    },
+    "P3": {
+     "total": 2139,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 2139,
+     "max": 2139,
+     "categories": {
+      "create": 231,
+      "canvas": 824,
+      "attr": 20,
+      "style": 830,
+      "tree": 228,
+      "text": 6
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "pptx",
+   "name": "slide change to 2",
+   "settled": true,
+   "frames": [
+    371,
+    435
+   ],
+   "rows": {
+    "P1": {
+     "total": 16,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 16,
+     "max": 16,
+     "categories": {
+      "create": 1,
+      "attr": 1,
+      "style": 11,
+      "tree": 3
+     }
+    },
+    "P5": {
+     "total": 17,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 17,
+     "max": 17,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 12,
+      "tree": 1
+     }
+    },
+    "P2": {
+     "total": 20,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 20,
+     "max": 20,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 14,
+      "tree": 2
+     }
+    },
+    "P3": {
+     "total": 5871,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 5871,
+     "max": 5871,
+     "categories": {
+      "canvas": 2204,
+      "create": 695,
+      "attr": 21,
+      "style": 2250,
+      "tree": 693,
+      "text": 8
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "pptx",
+   "name": "slide change to 3",
+   "settled": true,
+   "frames": [
+    435,
+    499
+   ],
+   "rows": {
+    "P1": {
+     "total": 18,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 18,
+     "max": 18,
+     "categories": {
+      "create": 1,
+      "attr": 1,
+      "style": 11,
+      "tree": 5
+     }
+    },
+    "P2": {
+     "total": 77,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 77,
+     "max": 77,
+     "categories": {
+      "create": 9,
+      "attr": 23,
+      "style": 39,
+      "tree": 6
+     }
+    },
+    "P3": {
+     "total": 2879,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 2879,
+     "max": 2879,
+     "categories": {
+      "canvas": 1152,
+      "create": 309,
+      "attr": 23,
+      "style": 1078,
+      "tree": 307,
+      "text": 10
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "pptx",
+   "name": "slide change to 4",
+   "settled": true,
+   "frames": [
+    499,
+    563
+   ],
+   "rows": {
+    "P1": {
+     "total": 18,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 18,
+     "max": 18,
+     "categories": {
+      "create": 1,
+      "attr": 1,
+      "style": 11,
+      "tree": 5
+     }
+    },
+    "P2": {
+     "total": 77,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 77,
+     "max": 77,
+     "categories": {
+      "create": 9,
+      "attr": 23,
+      "style": 39,
+      "tree": 6
+     }
+    },
+    "P3": {
+     "total": 2721,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 2721,
+     "max": 2721,
+     "categories": {
+      "create": 311,
+      "attr": 23,
+      "style": 1084,
+      "tree": 309,
+      "canvas": 984,
+      "text": 10
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "pptx",
+   "name": "slide change to 5",
+   "settled": true,
+   "frames": [
+    564,
+    628
+   ],
+   "rows": {
+    "P1": {
+     "total": 16,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 16,
+     "max": 16,
+     "categories": {
+      "create": 1,
+      "attr": 1,
+      "style": 11,
+      "tree": 3
+     }
+    },
+    "P5": {
+     "total": 17,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 17,
+     "max": 17,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 12,
+      "tree": 1
+     }
+    },
+    "P2": {
+     "total": 20,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 20,
+     "max": 20,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 14,
+      "tree": 2
+     }
+    },
+    "P3": {
+     "total": 5997,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 5997,
+     "max": 5997,
+     "categories": {
+      "canvas": 2219,
+      "create": 715,
+      "attr": 23,
+      "style": 2319,
+      "tree": 713,
+      "text": 8
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "pptx",
+   "name": "slide change to 6",
+   "settled": true,
+   "frames": [
+    628,
+    692
+   ],
+   "rows": {
+    "P1": {
+     "total": 19,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 19,
+     "max": 19,
+     "categories": {
+      "create": 1,
+      "attr": 1,
+      "style": 11,
+      "tree": 6
+     }
+    },
+    "P5": {
+     "total": 17,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 17,
+     "max": 17,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 12,
+      "tree": 1
+     }
+    },
+    "P2": {
+     "total": 54,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 54,
+     "max": 54,
+     "categories": {
+      "create": 5,
+      "attr": 5,
+      "style": 39,
+      "tree": 5
+     }
+    },
+    "P3": {
+     "total": 5477,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 5477,
+     "max": 5477,
+     "categories": {
+      "canvas": 2026,
+      "create": 632,
+      "attr": 30,
+      "style": 2152,
+      "tree": 627,
+      "text": 10
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "pptx",
+   "name": "slide change to 7",
+   "settled": true,
+   "frames": [
+    692,
+    753
+   ],
+   "rows": {
+    "P1": {
+     "total": 16,
+     "activeFrames": 1,
+     "windowFrames": 62,
+     "median": 16,
+     "max": 16,
+     "categories": {
+      "create": 1,
+      "attr": 1,
+      "style": 11,
+      "tree": 3
+     }
+    },
+    "P5": {
+     "total": 17,
+     "activeFrames": 1,
+     "windowFrames": 62,
+     "median": 17,
+     "max": 17,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 12,
+      "tree": 1
+     }
+    },
+    "P2": {
+     "total": 20,
+     "activeFrames": 1,
+     "windowFrames": 62,
+     "median": 20,
+     "max": 20,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 14,
+      "tree": 2
+     }
+    },
+    "P3": {
+     "total": 3571,
+     "activeFrames": 1,
+     "windowFrames": 62,
+     "median": 3571,
+     "max": 3571,
+     "categories": {
+      "canvas": 1344,
+      "create": 399,
+      "attr": 27,
+      "style": 1393,
+      "tree": 397,
+      "text": 11
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 62,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "pptx",
+   "name": "slide change to 8",
+   "settled": true,
+   "frames": [
+    753,
+    817
+   ],
+   "rows": {
+    "P1": {
+     "total": 24,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 24,
+     "max": 24,
+     "categories": {
+      "create": 1,
+      "attr": 1,
+      "style": 11,
+      "tree": 11
+     }
+    },
+    "P5": {
+     "total": 17,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 17,
+     "max": 17,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 12,
+      "tree": 1
+     }
+    },
+    "P2": {
+     "total": 90,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 90,
+     "max": 90,
+     "categories": {
+      "create": 9,
+      "attr": 9,
+      "style": 63,
+      "tree": 9
+     }
+    },
+    "P3": {
+     "total": 5805,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 5805,
+     "max": 5805,
+     "categories": {
+      "canvas": 2150,
+      "create": 661,
+      "attr": 23,
+      "style": 2318,
+      "tree": 652,
+      "text": 1
+     }
+    },
+    "P11": {
+     "total": 306,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 306,
+     "max": 306,
+     "categories": {
+      "create": 54,
+      "attr": 160,
+      "style": 11,
+      "tree": 53,
+      "text": 28
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "pptx",
+   "name": "slide change to 9",
+   "settled": true,
+   "frames": [
+    817,
+    881
+   ],
+   "rows": {
+    "P1": {
+     "total": 16,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 16,
+     "max": 16,
+     "categories": {
+      "create": 1,
+      "attr": 1,
+      "style": 11,
+      "tree": 3
+     }
+    },
+    "P5": {
+     "total": 17,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 17,
+     "max": 17,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 12,
+      "tree": 1
+     }
+    },
+    "P2": {
+     "total": 20,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 20,
+     "max": 20,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 14,
+      "tree": 2
+     }
+    },
+    "P3": {
+     "total": 5806,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 5806,
+     "max": 5806,
+     "categories": {
+      "canvas": 2048,
+      "create": 699,
+      "attr": 34,
+      "style": 2314,
+      "tree": 697,
+      "text": 14
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "pptx",
+   "name": "slide change to 10",
+   "settled": true,
+   "frames": [
+    881,
+    945
+   ],
+   "rows": {
+    "P1": {
+     "total": 16,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 16,
+     "max": 16,
+     "categories": {
+      "create": 1,
+      "attr": 1,
+      "style": 11,
+      "tree": 3
+     }
+    },
+    "P5": {
+     "total": 17,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 17,
+     "max": 17,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 12,
+      "tree": 1
+     }
+    },
+    "P2": {
+     "total": 20,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 20,
+     "max": 20,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 14,
+      "tree": 2
+     }
+    },
+    "P3": {
+     "total": 5226,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 5226,
+     "max": 5226,
+     "categories": {
+      "canvas": 2051,
+      "create": 589,
+      "attr": 26,
+      "style": 1962,
+      "tree": 587,
+      "text": 11
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 65,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  },
+  {
+   "format": "pptx",
+   "name": "slide change to 11",
+   "settled": true,
+   "frames": [
+    945,
+    1006
+   ],
+   "rows": {
+    "P1": {
+     "total": 19,
+     "activeFrames": 1,
+     "windowFrames": 62,
+     "median": 19,
+     "max": 19,
+     "categories": {
+      "create": 1,
+      "attr": 1,
+      "style": 11,
+      "tree": 6
+     }
+    },
+    "P5": {
+     "total": 68,
+     "activeFrames": 1,
+     "windowFrames": 62,
+     "median": 68,
+     "max": 68,
+     "categories": {
+      "create": 8,
+      "attr": 8,
+      "style": 48,
+      "tree": 4
+     }
+    },
+    "P2": {
+     "total": 19,
+     "activeFrames": 1,
+     "windowFrames": 62,
+     "median": 19,
+     "max": 19,
+     "categories": {
+      "create": 2,
+      "attr": 2,
+      "style": 14,
+      "tree": 1
+     }
+    },
+    "P3": {
+     "total": 211,
+     "activeFrames": 1,
+     "windowFrames": 62,
+     "median": 211,
+     "max": 211,
+     "categories": {
+      "canvas": 73,
+      "create": 20,
+      "attr": 2,
+      "style": 97,
+      "tree": 19
+     }
+    },
+    "harness": {
+     "total": 1,
+     "activeFrames": 1,
+     "windowFrames": 62,
+     "median": 1,
+     "max": 1,
+     "categories": {
+      "tree": 1
+     }
+    }
+   },
+   "otherFiles": []
+  }
+ ]
+}

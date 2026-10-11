@@ -79,6 +79,10 @@ pub fn paint_frame<I: StringIntern>(
         ("contain", "strict"),
         ("userSelect", "none"),
         ("WebkitUserSelect", "none"),
+        // Upstream shell.css :host `font: 13px/1.35` — unitless LH inherits into .xg-hd.
+        ("fontSize", "13px"),
+        ("lineHeight", "1.35"),
+        ("fontFamily", r#""Segoe UI", Arial, sans-serif"#),
     ] {
         set_style(buf, intern, ROOT_ID, prop, val);
     }

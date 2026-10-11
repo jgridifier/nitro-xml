@@ -5,7 +5,9 @@
 export const GRID_CSS = `
 .xg-root [hidden]{display:none!important}
 .xg-root{position:relative;overflow:hidden;width:100%;height:100%;min-height:0;outline:none;
-	background:var(--xve-sheet-bg,#fff);color:#000;font-family:"Segoe UI",system-ui,sans-serif;
+	background:var(--xve-sheet-bg,#fff);color:#000;
+	/* Unitless 1.35 matches upstream shell.css :host font — headers at 11px → 14.85px LH. */
+	font:13px/1.35 "Segoe UI",Arial,sans-serif;
 	-webkit-user-select:none;user-select:none;contain:strict}
 .xg-scroller{position:absolute;inset:0;overflow:auto;overscroll-behavior:contain;touch-action:pan-x pan-y}
 .xg-space{position:relative}

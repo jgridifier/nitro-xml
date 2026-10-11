@@ -145,6 +145,8 @@ pub fn paint<I: StringIntern>(
         set_style(buf, intern, id, "left", &format!("{left}px"));
         set_style(buf, intern, id, "width", &format!("{w}px"));
         set_style(buf, intern, id, "fontSize", &format!("{font_px}px"));
+        // Keep unitless 1.35 when font-size is set (matches upstream inherited shell LH).
+        set_style(buf, intern, id, "lineHeight", "1.35");
         let label = intern.intern(&column_label(*col));
         buf.set_text(id, label);
     }
@@ -166,6 +168,7 @@ pub fn paint<I: StringIntern>(
         set_style(buf, intern, id, "top", &format!("{top}px"));
         set_style(buf, intern, id, "height", &format!("{h}px"));
         set_style(buf, intern, id, "fontSize", &format!("{font_px}px"));
+        set_style(buf, intern, id, "lineHeight", "1.35");
         let label = intern.intern(&((*row + 1).to_string()));
         buf.set_text(id, label);
     }

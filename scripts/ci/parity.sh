@@ -55,7 +55,8 @@ echo "parity: running harness (ready comparisons)"
 set +e
 bun parity/run --ci
 parity_rc=$?
-( cd parity && bun test )
+# Root-level parity unit tests only (roundtrip/ has its own package; see roundtrip.sh).
+( cd parity && bun test diff.test.ts normalize.test.ts )
 test_rc=$?
 set -e
 

@@ -1,0 +1,4928 @@
+{
+  "generatedAt": "2026-10-11T20:46:04.726Z",
+  "upstreamPin": "e66aaec24adc0b68472eae1fc42aa4598e09c352",
+  "gate": "E0-a-ts-vs-ts",
+  "note": "TS no-op save losses. Rust writer (#65) must meet or beat this bar. Ratchet down only.",
+  "counts": {
+    "total": 243,
+    "lossless": 88,
+    "lossy": 155,
+    "byteIdentical": 79,
+    "byFormat": {
+      "xlsx": {
+        "lossless": 0,
+        "lossy": 46,
+        "n": 46
+      },
+      "docx": {
+        "lossless": 79,
+        "lossy": 1,
+        "n": 80
+      },
+      "pptx": {
+        "lossless": 9,
+        "lossy": 108,
+        "n": 117
+      }
+    },
+    "vba": {
+      "n": 10,
+      "preserved": 10
+    }
+  },
+  "topLossCategories": [
+    {
+      "category": "docProps",
+      "count": 192
+    },
+    {
+      "category": "xml-rewrite",
+      "count": 155
+    },
+    {
+      "category": "rels",
+      "count": 83
+    },
+    {
+      "category": "extLst",
+      "count": 73
+    },
+    {
+      "category": "content-types",
+      "count": 36
+    },
+    {
+      "category": "sharedStrings",
+      "count": 28
+    },
+    {
+      "category": "styles",
+      "count": 24
+    },
+    {
+      "category": "calcChain",
+      "count": 20
+    },
+    {
+      "category": "alternate-content",
+      "count": 15
+    },
+    {
+      "category": "part-added",
+      "count": 10
+    },
+    {
+      "category": "binary",
+      "count": 3
+    },
+    {
+      "category": "save-error",
+      "count": 2
+    }
+  ],
+  "hardRequirements": [
+    "gen-docx-equation",
+    "gen-docx-line-numbers",
+    "gen-docx-page-borders",
+    "gen-docx-pages-10",
+    "gen-docx-pages-10-b",
+    "gen-docx-pages-10-c",
+    "gen-docx-pages-100",
+    "gen-docx-pages-100-b",
+    "gen-docx-pages-100-c",
+    "real-docx-poi-45690",
+    "real-docx-poi-58067",
+    "real-docx-poi-60158",
+    "real-docx-poi-60316",
+    "real-docx-poi-60316",
+    "real-docx-poi-60329",
+    "real-docx-poi-61470",
+    "real-docx-poi-61745",
+    "real-docx-poi-Bug54849",
+    "real-docx-poi-SimpleMacro",
+    "real-docx-poi-WordWithAttachments",
+    "real-docx-poi-bug65649",
+    "real-docx-poi-chartex",
+    "real-docx-poi-delins",
+    "real-docx-poi-drawing",
+    "real-docx-poi-endnotes",
+    "real-docx-poi-form_footnotes",
+    "real-docx-poi-testComment",
+    "real-docx-python-docx-blk-paras-and-tables",
+    "real-docx-python-docx-comments-rich-para",
+    "real-docx-python-docx-doc-access-sections",
+    "real-docx-python-docx-having-images",
+    "real-docx-python-docx-hdr-header-footer",
+    "real-docx-python-docx-sct-first-page-hdrftr",
+    "real-docx-python-docx-sct-inner-content",
+    "real-docx-python-docx-sct-section-props",
+    "real-docx-python-docx-shp-inline-shape-access",
+    "real-docx-python-docx-tbl-cell-access",
+    "real-docx-python-docx-tbl-cell-props",
+    "real-docx-python-docx-tbl-on-off-props",
+    "upstream-080e7a9ed483",
+    "upstream-0bb200a07072",
+    "upstream-0f300490ff19",
+    "upstream-1692c4faac3f",
+    "upstream-1b612449941b",
+    "upstream-2286e4c70c12",
+    "upstream-29be1efc9c3d",
+    "upstream-32cff54a4770",
+    "upstream-3bba00c30a63",
+    "upstream-3c4c6a9cf4af",
+    "upstream-3d223dd77c43",
+    "upstream-40b102dde450",
+    "upstream-550ae83cbef3",
+    "upstream-5cc31b4c9d7f",
+    "upstream-6273dd165e65",
+    "upstream-6b3e72a4117c",
+    "upstream-6bf50c3ab07a",
+    "upstream-6f5fb53227d1",
+    "upstream-76e15769e470",
+    "upstream-78718f952976",
+    "upstream-855d0845e0a3",
+    "upstream-909716f36698",
+    "upstream-9815f4cd7f0c",
+    "upstream-988079b295a0",
+    "upstream-a448854a0a41",
+    "upstream-af08a8c3fa8a",
+    "upstream-b55bb79d882f",
+    "upstream-b925c014f155",
+    "upstream-b964914b1e51",
+    "upstream-bdfae0732058",
+    "upstream-c5fb4971e483",
+    "upstream-d3a6896f9b3b",
+    "upstream-d3f43e83fa1c",
+    "upstream-e8c1eeb1c1fc",
+    "upstream-ea1f61c3afec",
+    "upstream-ee04bf55d0ca",
+    "upstream-eec2ebea615c",
+    "upstream-f7dc2db85d04",
+    "upstream-fcbf74492e08",
+    "upstream-fd702db2416c",
+    "upstream-169be9b132ef",
+    "upstream-482c93bc4882",
+    "upstream-7cc22f8e5927",
+    "upstream-9f78c22429d9",
+    "upstream-b332135c13c6",
+    "upstream-c55ed898215f",
+    "upstream-d38cba8bfc42",
+    "upstream-ea86d831d24d",
+    "upstream-f3a23e347a28"
+  ],
+  "allowList": [
+    {
+      "id": "upstream-fb3af3f7b5f7",
+      "path": "fixtures/upstream/docx/fb3af3f7b5f7_word-encrypted.docx",
+      "format": "docx",
+      "kind": "docx",
+      "byteIdentical": false,
+      "saveError": "Can't find end of central directory : is this a zip file ? If it is, see https://stuk.github.io/jszip/documentation/howto/read_zip.html",
+      "losses": [
+        {
+          "category": "save-error",
+          "detail": "Can't find end of central directory : is this a zip file ? If it is, see https://stuk.github.io/jszip/documentation/howto/read_zip.html"
+        }
+      ]
+    },
+    {
+      "id": "bidi-arabic-hebrew-slides",
+      "path": "fixtures/bidi/arabic-hebrew-slides.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-activex",
+      "path": "fixtures/generated/pptx/painter_activex.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=0, added=1)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-equation",
+      "path": "fixtures/generated/pptx/painter_equation.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-model3d",
+      "path": "fixtures/generated/pptx/painter_model3d.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=0, added=1)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-notes-print",
+      "path": "fixtures/generated/pptx/painter_notes_print.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-placeholder",
+      "path": "fixtures/generated/pptx/painter_placeholder.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-slides-10",
+      "path": "fixtures/generated/pptx/slides_10.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-slides-10-b",
+      "path": "fixtures/generated/pptx/slides_10_b.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-slides-10-c",
+      "path": "fixtures/generated/pptx/slides_10_c.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-slides-50",
+      "path": "fixtures/generated/pptx/slides_50.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-slides-50-b",
+      "path": "fixtures/generated/pptx/slides_50_b.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-slides-50-c",
+      "path": "fixtures/generated/pptx/slides_50_c.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-pptx-zoom",
+      "path": "fixtures/generated/pptx/painter_zoom.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-45541_Footer",
+      "path": "fixtures/real/pptx/poi-45541_Footer.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-45541_Header",
+      "path": "fixtures/real/pptx/poi-45541_Header.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-45545_Comment",
+      "path": "fixtures/real/pptx/poi-45545_Comment.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "xml-rewrite",
+          "part": "ppt/slides/slide2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "ppt/slides/slide1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "ppt/comments/comment2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "ppt/comments/comment1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-51187",
+      "path": "fixtures/real/pptx/poi-51187.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-60810",
+      "path": "fixtures/real/pptx/poi-60810.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-EmbeddedAudio",
+      "path": "fixtures/real/pptx/poi-EmbeddedAudio.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-PPTWithAttachments",
+      "path": "fixtures/real/pptx/poi-PPTWithAttachments.pptm",
+      "format": "pptx",
+      "kind": "pptm",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-SimpleMacro",
+      "path": "fixtures/real/pptx/poi-SimpleMacro.pptm",
+      "format": "pptx",
+      "kind": "pptm",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "xml-rewrite",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-bug59273",
+      "path": "fixtures/real/pptx/poi-bug59273.potx",
+      "format": "pptx",
+      "kind": "potx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-bug62513",
+      "path": "fixtures/real/pptx/poi-bug62513.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-bug64693",
+      "path": "fixtures/real/pptx/poi-bug64693.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "styles",
+          "part": "ppt/tableStyles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-bug68703",
+      "path": "fixtures/real/pptx/poi-bug68703.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-customGeo",
+      "path": "fixtures/real/pptx/poi-customGeo.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-keyframes",
+      "path": "fixtures/real/pptx/poi-keyframes.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-poi-with_japanese",
+      "path": "fixtures/real/pptx/poi-with_japanese.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "xml-rewrite",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-act-props",
+      "path": "fixtures/real/pptx/python-pptx-act-props.pptm",
+      "format": "pptx",
+      "kind": "pptm",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-cht-axis-props",
+      "path": "fixtures/real/pptx/python-pptx-cht-axis-props.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-cht-category-access",
+      "path": "fixtures/real/pptx/python-pptx-cht-category-access.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-cht-chart-props",
+      "path": "fixtures/real/pptx/python-pptx-cht-chart-props.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-cht-chart-type",
+      "path": "fixtures/real/pptx/python-pptx-cht-chart-type.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-cht-charts",
+      "path": "fixtures/real/pptx/python-pptx-cht-charts.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-cht-datalabels",
+      "path": "fixtures/real/pptx/python-pptx-cht-datalabels.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-cht-series",
+      "path": "fixtures/real/pptx/python-pptx-cht-series.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-ph-populated-placeholders",
+      "path": "fixtures/real/pptx/python-pptx-ph-populated-placeholders.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-shp-access-chart",
+      "path": "fixtures/real/pptx/python-pptx-shp-access-chart.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-shp-common-props",
+      "path": "fixtures/real/pptx/python-pptx-shp-common-props.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-shp-movie-props",
+      "path": "fixtures/real/pptx/python-pptx-shp-movie-props.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-shp-shapes",
+      "path": "fixtures/real/pptx/python-pptx-shp-shapes.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-test_slides",
+      "path": "fixtures/real/pptx/python-pptx-test_slides.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "xml-rewrite",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-pptx-python-pptx-txt-font-typeface",
+      "path": "fixtures/real/pptx/python-pptx-txt-font-typeface.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-091abf411e47",
+      "path": "fixtures/upstream/pptx/091abf411e47_smartart-orgchart-assistants.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-098b900e8f10",
+      "path": "fixtures/upstream/pptx/098b900e8f10_chart-gallery.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-0c4571a8c30e",
+      "path": "fixtures/upstream/pptx/0c4571a8c30e_header-footer-shows.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-0c7e49afbe04",
+      "path": "fixtures/upstream/pptx/0c7e49afbe04_template-mce.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-0d9a8eaf2de4",
+      "path": "fixtures/upstream/pptx/0d9a8eaf2de4_smartart-chart-table-mix.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-165297e1d546",
+      "path": "fixtures/upstream/pptx/165297e1d546_underline-words-ruby-tab.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-1abd9b12cb19",
+      "path": "fixtures/upstream/pptx/1abd9b12cb19_master-layout-inheritance-fills.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-1b3ce5863e04",
+      "path": "fixtures/upstream/pptx/1b3ce5863e04_modify-verifier-saltless-ripemd160.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-1e19dbff1286",
+      "path": "fixtures/upstream/pptx/1e19dbff1286_bar-picture-fill-hill.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-21343018c511",
+      "path": "fixtures/upstream/pptx/21343018c511_accent-process--hier5.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-25297a56a758",
+      "path": "fixtures/upstream/pptx/25297a56a758_smartart-orgchart-fan-variants.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-25ceccfae63d",
+      "path": "fixtures/upstream/pptx/25ceccfae63d_box-cube-transition.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-2789ff8d6772",
+      "path": "fixtures/upstream/pptx/2789ff8d6772_three-d-charts.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-2b363b2c9b04",
+      "path": "fixtures/upstream/pptx/2b363b2c9b04_modify-verifier-saltless-sha384.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-332cb27502fe",
+      "path": "fixtures/upstream/pptx/332cb27502fe_shape-3d-camera-override.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-3858c1c9d869",
+      "path": "fixtures/upstream/pptx/3858c1c9d869_smartart-orgchart-many.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-38aa694fb4a5",
+      "path": "fixtures/upstream/pptx/38aa694fb4a5_media-bookmark-trigger-editable.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-38fb1b1e8f76",
+      "path": "fixtures/upstream/pptx/38fb1b1e8f76_effect-sound-builtin.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-3a09e4b3e925",
+      "path": "fixtures/upstream/pptx/3a09e4b3e925_picture-formats.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-3e787d01c5f7",
+      "path": "fixtures/upstream/pptx/3e787d01c5f7_format-painter.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-4143514daf03",
+      "path": "fixtures/upstream/pptx/4143514daf03_chart-top-axis.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-4647c93fad68",
+      "path": "fixtures/upstream/pptx/4647c93fad68_master-text-styles.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-49a48af6d18d",
+      "path": "fixtures/upstream/pptx/49a48af6d18d_modify-verifier-saltless-sha256.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-4a678fd44484",
+      "path": "fixtures/upstream/pptx/4a678fd44484_animation-behavior-playback.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-51edb06a949d",
+      "path": "fixtures/upstream/pptx/51edb06a949d_text-layout.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-55531661e868",
+      "path": "fixtures/upstream/pptx/55531661e868_picture-fixture.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-57de458fae91",
+      "path": "fixtures/upstream/pptx/57de458fae91_preset-geometry-wordart.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-61fc791e15c0",
+      "path": "fixtures/upstream/pptx/61fc791e15c0_three-d-smartart.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-64fe025bb96d",
+      "path": "fixtures/upstream/pptx/64fe025bb96d_text-cycle--hier5.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-6fbe45df1cb3",
+      "path": "fixtures/upstream/pptx/6fbe45df1cb3_modify-password.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-717fb7735aa7",
+      "path": "fixtures/upstream/pptx/717fb7735aa7_pyramid-list--hier5.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-73913b502a2e",
+      "path": "fixtures/upstream/pptx/73913b502a2e_ink-contentpart.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-7bb23ba0b604",
+      "path": "fixtures/upstream/pptx/7bb23ba0b604_text-body.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-80e6e30ea597",
+      "path": "fixtures/upstream/pptx/80e6e30ea597_chart-style-palette.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-88e14cba7830",
+      "path": "fixtures/upstream/pptx/88e14cba7830_modify-verifier-saltless-sha1.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-8bbf3d67bd63",
+      "path": "fixtures/upstream/pptx/8bbf3d67bd63_modify-verifier-saltless-whirlpool.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-913ecd7c7c8a",
+      "path": "fixtures/upstream/pptx/913ecd7c7c8a_ink-annotation.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-959ab2f5bac7",
+      "path": "fixtures/upstream/pptx/959ab2f5bac7_template-editing.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-a0806b09c73d",
+      "path": "fixtures/upstream/pptx/a0806b09c73d_chart-user-shape-group.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "ppt/slides/slide1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-a10c83ff4127",
+      "path": "fixtures/upstream/pptx/a10c83ff4127_smartart-orgchart-nested-hang.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-a344b2f3f55d",
+      "path": "fixtures/upstream/pptx/a344b2f3f55d_media-trigger-tgtel.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-a4b1b68c66c7",
+      "path": "fixtures/upstream/pptx/a4b1b68c66c7_effect-sound-gallery.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-a61f509fcab9",
+      "path": "fixtures/upstream/pptx/a61f509fcab9_chevron-list--hier5.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-a734ca765129",
+      "path": "fixtures/upstream/pptx/a734ca765129_modify-verifier-saltless-md5.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-a8fa453c5023",
+      "path": "fixtures/upstream/pptx/a8fa453c5023_horizontal-organization-chart--hier5.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-af1bd691bad1",
+      "path": "fixtures/upstream/pptx/af1bd691bad1_parity-wave4.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-b2aa81e78d15",
+      "path": "fixtures/upstream/pptx/b2aa81e78d15_ribbon-galleries.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-b2b71a866c2e",
+      "path": "fixtures/upstream/pptx/b2b71a866c2e_media-bookmark-trigger-editable.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-b6c7dfcf4428",
+      "path": "fixtures/upstream/pptx/b6c7dfcf4428_transitions-animations.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-bd16f101c6d5",
+      "path": "fixtures/upstream/pptx/bd16f101c6d5_format-painter.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-be4aaa835c68",
+      "path": "fixtures/upstream/pptx/be4aaa835c68_preset-text-insets.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-c8a1d6b58292",
+      "path": "fixtures/upstream/pptx/c8a1d6b58292_stacked-line-legend.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-d173badb4435",
+      "path": "fixtures/upstream/pptx/d173badb4435_comment-mentions.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-d34691128d6a",
+      "path": "fixtures/upstream/pptx/d34691128d6a_field-substitution.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-d64f9e91a815",
+      "path": "fixtures/upstream/pptx/d64f9e91a815_embedded-assets-sample.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-db668adb7e73",
+      "path": "fixtures/upstream/pptx/db668adb7e73_smartart-orgchart-hierbranch.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-dbc4432fdc19",
+      "path": "fixtures/upstream/pptx/dbc4432fdc19_animations-transitions-multislide.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-e0dce36d2088",
+      "path": "fixtures/upstream/pptx/e0dce36d2088_table-paragraph-layout.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-e21bb6ce7505",
+      "path": "fixtures/upstream/pptx/e21bb6ce7505_inspector-reset-actions.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-e3dab827b836",
+      "path": "fixtures/upstream/pptx/e3dab827b836_cjk-line-breaking.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-e5e3a918a510",
+      "path": "fixtures/upstream/pptx/e5e3a918a510_animation-ppt-formula-ground-truth.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-f374280d2eb7",
+      "path": "fixtures/upstream/pptx/f374280d2eb7_smartart-build-reveal.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-f4fd46dfe4ec",
+      "path": "fixtures/upstream/pptx/f4fd46dfe4ec_ribbon-galleries.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-f7015eebee2e",
+      "path": "fixtures/upstream/pptx/f7015eebee2e_ole-embedded-media.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "extLst",
+          "part": "ppt/slideMasters/slideMaster1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-f8f44b2075eb",
+      "path": "fixtures/upstream/pptx/f8f44b2075eb_bar3d-picture-fill.pptx",
+      "format": "pptx",
+      "kind": "pptx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "bidi-arabic-hebrew-mixed",
+      "path": "fixtures/bidi/arabic-hebrew-mixed.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "part-added",
+          "part": "xl/theme/theme1.xml",
+          "detail": "part added on save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=0, added=1)"
+        },
+        {
+          "category": "rels",
+          "part": "_rels/.rels",
+          "detail": "relationship tuples differ (in=1, out=3)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=4)"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "bidi-rtl-sheet",
+      "path": "fixtures/bidi/rtl-sheet.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "part-added",
+          "part": "xl/theme/theme1.xml",
+          "detail": "part added on save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=0, added=1)"
+        },
+        {
+          "category": "rels",
+          "part": "_rels/.rels",
+          "detail": "relationship tuples differ (in=1, out=3)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=4)"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-xlsx-cells-100k",
+      "path": "fixtures/generated/xlsx/cells_100k.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "part-added",
+          "part": "xl/theme/theme1.xml",
+          "detail": "part added on save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=0, added=1)"
+        },
+        {
+          "category": "rels",
+          "part": "_rels/.rels",
+          "detail": "relationship tuples differ (in=1, out=3)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=4)"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-xlsx-cells-100k-b",
+      "path": "fixtures/generated/xlsx/cells_100k_b.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "binary",
+          "part": "xl/media/pad.bin",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "part-added",
+          "part": "xl/theme/theme1.xml",
+          "detail": "part added on save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=2, added=1)"
+        },
+        {
+          "category": "rels",
+          "part": "_rels/.rels",
+          "detail": "relationship tuples differ (in=1, out=3)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=4)"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-xlsx-cells-100k-c",
+      "path": "fixtures/generated/xlsx/cells_100k_c.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "binary",
+          "part": "xl/media/pad.bin",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "part-added",
+          "part": "xl/theme/theme1.xml",
+          "detail": "part added on save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=2, added=1)"
+        },
+        {
+          "category": "rels",
+          "part": "_rels/.rels",
+          "detail": "relationship tuples differ (in=1, out=3)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=4)"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-xlsx-cells-1k",
+      "path": "fixtures/generated/xlsx/cells_1k.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "part-added",
+          "part": "xl/theme/theme1.xml",
+          "detail": "part added on save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=0, added=1)"
+        },
+        {
+          "category": "rels",
+          "part": "_rels/.rels",
+          "detail": "relationship tuples differ (in=1, out=3)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=4)"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-xlsx-cells-1k-merges",
+      "path": "fixtures/generated/xlsx/cells_1k_merges.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "part-added",
+          "part": "xl/theme/theme1.xml",
+          "detail": "part added on save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=0, added=1)"
+        },
+        {
+          "category": "rels",
+          "part": "_rels/.rels",
+          "detail": "relationship tuples differ (in=1, out=3)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=4)"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "gen-xlsx-cells-1k-pad-s",
+      "path": "fixtures/generated/xlsx/cells_1k_pad_s.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "binary",
+          "part": "xl/media/pad.bin",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "part-added",
+          "part": "xl/theme/theme1.xml",
+          "detail": "part added on save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=2, added=1)"
+        },
+        {
+          "category": "rels",
+          "part": "_rels/.rels",
+          "detail": "relationship tuples differ (in=1, out=3)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/core.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=4)"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-45540_classic_Footer",
+      "path": "fixtures/real/xlsx/poi-45540_classic_Footer.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=11, out=10)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet6.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet5.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet7.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-45540_classic_Header",
+      "path": "fixtures/real/xlsx/poi-45540_classic_Header.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=11, out=10)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet6.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet5.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet7.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-45544",
+      "path": "fixtures/real/xlsx/poi-45544.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=11, out=10)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet2.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet7.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet5.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet6.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-46535",
+      "path": "fixtures/real/xlsx/poi-46535.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=12, out=11)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet5.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-47813",
+      "path": "fixtures/real/xlsx/poi-47813.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "_rels/.rels",
+          "detail": "relationship tuples differ (in=4, out=4)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=7, out=6)"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-49156",
+      "path": "fixtures/real/xlsx/poi-49156.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=5, out=4)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-50096",
+      "path": "fixtures/real/xlsx/poi-50096.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=6, out=5)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-56644",
+      "path": "fixtures/real/xlsx/poi-56644.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=6, out=5)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-57181",
+      "path": "fixtures/real/xlsx/poi-57181.xlsm",
+      "format": "xlsx",
+      "kind": "xlsm",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=14, out=13)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet2.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet3.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=4)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet4.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet7.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet6.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet5.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-57893-many-merges",
+      "path": "fixtures/real/xlsx/poi-57893-many-merges.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-61652",
+      "path": "fixtures/real/xlsx/poi-61652.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=5, out=4)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-62629_target",
+      "path": "fixtures/real/xlsx/poi-62629_target.xlsm",
+      "format": "xlsx",
+      "kind": "xlsm",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=8, out=8)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet2.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=4)"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet5.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-ConditionalFormattingSamples",
+      "path": "fixtures/real/xlsx/poi-ConditionalFormattingSamples.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=25, out=24)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet4.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet5.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet9.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet8.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet6.xml.rels",
+          "detail": "relationship tuples differ (in=2, out=2)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet10.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet11.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet12.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet18.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet18.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet17.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet9.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet8.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet7.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet6.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet5.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet10.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet11.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet12.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet16.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet15.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet14.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet13.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-DataTableCities",
+      "path": "fixtures/real/xlsx/poi-DataTableCities.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=8, out=7)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-DateFormatTests",
+      "path": "fixtures/real/xlsx/poi-DateFormatTests.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=6, out=5)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-ExcelPivotTableSample",
+      "path": "fixtures/real/xlsx/poi-ExcelPivotTableSample.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=9, out=9)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-ExcelWithAttachments",
+      "path": "fixtures/real/xlsx/poi-ExcelWithAttachments.xlsm",
+      "format": "xlsx",
+      "kind": "xlsm",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=7, out=7)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "relationship tuples differ (in=11, out=11)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-FormulaEvalTestData_Copy",
+      "path": "fixtures/real/xlsx/poi-FormulaEvalTestData_Copy.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=8, out=7)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=4)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-NewStyleConditionalFormattings",
+      "path": "fixtures/real/xlsx/poi-NewStyleConditionalFormattings.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=5, out=4)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-StructuredRefs-lots-with-lookups",
+      "path": "fixtures/real/xlsx/poi-StructuredRefs-lots-with-lookups.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=11, out=10)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet5.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-WithChartSheet",
+      "path": "fixtures/real/xlsx/poi-WithChartSheet.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=13, out=13)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet6.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet5.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-WithEmbeded",
+      "path": "fixtures/real/xlsx/poi-WithEmbeded.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=6, out=6)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=4)"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-bug64512_embed",
+      "path": "fixtures/real/xlsx/poi-bug64512_embed.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "xml-rewrite",
+          "part": "xl/drawings/drawing1.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "relationship tuples differ (in=6, out=5)"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-dataValidationTableRange",
+      "path": "fixtures/real/xlsx/poi-dataValidationTableRange.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=7, out=6)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=4)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-no_drawing_patriarch",
+      "path": "fixtures/real/xlsx/poi-no_drawing_patriarch.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "rels",
+          "part": "xl/drawings/_rels/drawing1.xml.rels",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/drawings/drawing1.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=6, added=0)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=4)"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-poi-test",
+      "path": "fixtures/real/xlsx/poi-test.xltx",
+      "format": "xlsx",
+      "kind": "xltx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=1)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=6, out=6)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-python-pptx-shp-embedded-xlsx",
+      "path": "fixtures/real/xlsx/python-pptx-shp-embedded-xlsx.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-usgov-census-NST-EST2024-POP",
+      "path": "fixtures/real/xlsx/usgov-census-NST-EST2024-POP.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=4)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-usgov-eia-MER-T01.01",
+      "path": "fixtures/real/xlsx/usgov-eia-MER-T01.01.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=5, out=5)"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "relationship tuples differ (in=1, out=1)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet2.xml.rels",
+          "detail": "relationship tuples differ (in=1, out=1)"
+        }
+      ]
+    },
+    {
+      "id": "real-xlsx-usgov-fhwa-2022-vm1",
+      "path": "fixtures/real/xlsx/usgov-fhwa-2022-vm1.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "alternate-content",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=11, out=10)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet4.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-1a304a300451",
+      "path": "fixtures/upstream/xlsx/1a304a300451_excel-1904.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=3)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-2ad922a2a025",
+      "path": "fixtures/upstream/xlsx/2ad922a2a025_excel-features.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "calcChain",
+          "part": "xl/calcChain.xml",
+          "detail": "part missing after save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=1, added=0)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=8, out=7)"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "sharedStrings",
+          "part": "xl/sharedStrings.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "relationship tuples differ (in=5, out=5)"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet2.xml.rels",
+          "detail": "relationship tuples differ (in=2, out=2)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/persons/person.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-2f38830758e8",
+      "path": "fixtures/upstream/xlsx/2f38830758e8_openpyxl-features.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "part-added",
+          "part": "xl/sharedStrings.xml",
+          "detail": "part added on save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=0, added=1)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet1.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=4)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/worksheets/_rels/sheet2.xml.rels",
+          "detail": "relationship tuples differ (in=2, out=2)"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=5)"
+        }
+      ]
+    },
+    {
+      "id": "upstream-3fdae3824dde",
+      "path": "fixtures/upstream/xlsx/3fdae3824dde_openpyxl-styles.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "part-added",
+          "part": "xl/sharedStrings.xml",
+          "detail": "part added on save"
+        },
+        {
+          "category": "content-types",
+          "part": "[Content_Types].xml",
+          "detail": "defaults/overrides differ (missing=0, added=1)"
+        },
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet2.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet3.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=5, out=6)"
+        }
+      ]
+    },
+    {
+      "id": "upstream-8b581ee14978",
+      "path": "fixtures/upstream/xlsx/8b581ee14978_excel-sparklines.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-9ed0ab63f8de",
+      "path": "fixtures/upstream/xlsx/9ed0ab63f8de_excel-smartart.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=4, out=4)"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "extLst",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        }
+      ]
+    },
+    {
+      "id": "upstream-e899e84e6209",
+      "path": "fixtures/upstream/xlsx/e899e84e6209_excel-encrypted.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": "Not a valid XLSX package: Can't find end of central directory : is this a zip file ? If it is, see https://stuk.github.io/jszip/documentation/howto/read_zip.html",
+      "losses": [
+        {
+          "category": "save-error",
+          "detail": "Not a valid XLSX package: Can't find end of central directory : is this a zip file ? If it is, see https://stuk.github.io/jszip/documentation/howto/read_zip.html"
+        }
+      ]
+    },
+    {
+      "id": "upstream-fd8fbde7846d",
+      "path": "fixtures/upstream/xlsx/fd8fbde7846d_openpyxl-1904.xlsx",
+      "format": "xlsx",
+      "kind": "xlsx",
+      "byteIdentical": false,
+      "saveError": null,
+      "losses": [
+        {
+          "category": "docProps",
+          "part": "docProps/app.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/worksheets/sheet1.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "styles",
+          "part": "xl/styles.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "xml-rewrite",
+          "part": "xl/workbook.xml",
+          "detail": "canonical XML differs"
+        },
+        {
+          "category": "rels",
+          "part": "xl/_rels/workbook.xml.rels",
+          "detail": "relationship tuples differ (in=3, out=3)"
+        }
+      ]
+    }
+  ]
+}

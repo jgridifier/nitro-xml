@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-/** Format allow-list shared with #13 (extension is a hint; engine checks content types). */
-
 export const SUPPORTED_EXTENSIONS = Object.freeze([
   "docx",
   "docm",

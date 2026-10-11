@@ -3,6 +3,7 @@
 
 use serde_json::{json, Value};
 
+use super::chrome::chrome_html;
 use super::state::ShellState;
 
 pub struct ShellUi;
@@ -68,6 +69,8 @@ impl ShellUi {
             "copyAvailable": !state.selection_ref.is_empty(),
             "pendingHyperlink": pending,
             "lastCopy": state.last_copy,
+            // Trusted Rust-built chrome; loader assigns innerHTML only (#29 budget).
+            "chromeHtml": chrome_html(state),
         })
     }
 }

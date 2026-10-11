@@ -6,6 +6,7 @@
 //! loader layer from [`ShellUi`] snapshots — logic stays in Rust/WASM.
 
 mod actions;
+mod chrome;
 mod diagnostics;
 mod state;
 mod ui;

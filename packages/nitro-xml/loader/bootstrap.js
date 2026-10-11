@@ -1,167 +1,143 @@
 // SPDX-License-Identifier: MIT
-/** WASM bootstrap: streaming compile/instantiate, module cache, format-module hooks. */
-
 import {
-  UNSUPPORTED_BROWSER_MESSAGE,
-  isSupportedExtension,
-  UNSUPPORTED_FORMAT_MESSAGE,
+UNSUPPORTED_BROWSER_MESSAGE,
+isSupportedExtension,
+UNSUPPORTED_FORMAT_MESSAGE,
 } from "./formats.js";
 import { setDefaultFontSource } from "./font-source.js";
-
 const CACHE_NAME = "nitro-xml-wasm-v1";
-
 let cachedModule = null;
 let initPromise = null;
 let wasmMemory = null;
 let prewarmedWorker = null;
-
 export function defaultGlueUrl() {
-  return new URL("../pkg/nitro_xml_wasm.js", import.meta.url);
+return new URL("../pkg/nitro_xml_wasm.js", import.meta.url);
 }
-
 export function defaultWasmUrl() {
-  return new URL("../pkg/nitro_xml_wasm_bg.wasm", import.meta.url);
+return new URL("../pkg/nitro_xml_wasm_bg.wasm", import.meta.url);
 }
-
 export function wasmSupported() {
-  return typeof WebAssembly === "object" && typeof WebAssembly.instantiate === "function";
+return typeof WebAssembly === "object" && typeof WebAssembly.instantiate === "function";
 }
-
-/** Compile with compileStreaming when given a Response; cache in memory when allowed. */
 export async function compileWasmModule(source) {
-  if (source instanceof WebAssembly.Module) {
-    cachedModule = source;
-    return source;
-  }
-  if (cachedModule) return cachedModule;
-
-  let mod;
-  if (typeof Response !== "undefined" && source instanceof Response) {
-    if (typeof WebAssembly.compileStreaming === "function") {
-      mod = await WebAssembly.compileStreaming(source.clone());
-    } else {
-      mod = await WebAssembly.compile(await source.arrayBuffer());
-    }
-    await putModuleInCache(source.url || CACHE_NAME, mod).catch(() => {});
-  } else if (typeof source === "string" || source instanceof URL) {
-    const url = String(source);
-    const fromCache = await getModuleFromCache(url).catch(() => null);
-    if (fromCache) {
-      cachedModule = fromCache;
-      return fromCache;
-    }
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`wasm fetch failed: ${res.status}`);
-    if (typeof WebAssembly.compileStreaming === "function") {
-      mod = await WebAssembly.compileStreaming(res.clone());
-    } else {
-      mod = await WebAssembly.compile(await res.arrayBuffer());
-    }
-    await putModuleInCache(url, mod).catch(() => {});
-  } else {
-    mod = await WebAssembly.compile(source);
-  }
-  cachedModule = mod;
-  return mod;
+if (source instanceof WebAssembly.Module) {
+cachedModule = source;
+return source;
 }
-
+if (cachedModule) return cachedModule;
+let mod;
+if (typeof Response !== "undefined" && source instanceof Response) {
+if (typeof WebAssembly.compileStreaming === "function") {
+mod = await WebAssembly.compileStreaming(source.clone());
+} else {
+mod = await WebAssembly.compile(await source.arrayBuffer());
+}
+await putModuleInCache(source.url || CACHE_NAME, mod).catch(() => {});
+} else if (typeof source === "string" || source instanceof URL) {
+const url = String(source);
+const fromCache = await getModuleFromCache(url).catch(() => null);
+if (fromCache) {
+cachedModule = fromCache;
+return fromCache;
+}
+const res = await fetch(url);
+if (!res.ok) throw new Error(`wasm fetch failed: ${res.status}`);
+if (typeof WebAssembly.compileStreaming === "function") {
+mod = await WebAssembly.compileStreaming(res.clone());
+} else {
+mod = await WebAssembly.compile(await res.arrayBuffer());
+}
+await putModuleInCache(url, mod).catch(() => {});
+} else {
+mod = await WebAssembly.compile(source);
+}
+cachedModule = mod;
+return mod;
+}
 async function getModuleFromCache(url) {
-  if (typeof caches === "undefined") return null;
-  const cache = await caches.open(CACHE_NAME);
-  const hit = await cache.match(url);
-  if (!hit) return null;
-  return WebAssembly.compile(await hit.arrayBuffer());
+if (typeof caches === "undefined") return null;
+const cache = await caches.open(CACHE_NAME);
+const hit = await cache.match(url);
+if (!hit) return null;
+return WebAssembly.compile(await hit.arrayBuffer());
 }
-
 async function putModuleInCache(url, mod) {
-  if (typeof caches === "undefined" || !url) return;
-  void mod;
+if (typeof caches === "undefined" || !url) return;
+void mod;
 }
-
-/** Instantiate core glue+wasm. `fontSource` sets the process default for later opens. */
 export async function initCore(opts = {}) {
-  if (!wasmSupported()) {
-    throw unsupportedBrowserError();
-  }
-  if (opts.fontSource !== undefined) {
-    setDefaultFontSource(opts.fontSource);
-  }
-  if (initPromise) return initPromise;
-  initPromise = (async () => {
-    try {
-      const glueUrl = opts.glueUrl || defaultGlueUrl();
-      const wasmUrl = opts.wasmUrl || defaultWasmUrl();
-      const glue = await import(/* @vite-ignore */ String(glueUrl));
-      let input;
-      try {
-        const res = await fetch(String(wasmUrl));
-        if (!res.ok) throw new Error(`wasm fetch failed: ${res.status}`);
-        input = res;
-        await compileWasmModule(res.clone()).catch(() => {});
-      } catch {
-        input = String(wasmUrl);
-      }
-      const exports = await glue.default(input);
-      wasmMemory = exports.memory || null;
-      return { glue, exports, memory: wasmMemory };
-    } catch (e) {
-      initPromise = null;
-      throw unsupportedBrowserError(e);
-    }
-  })();
-  return initPromise;
+if (!wasmSupported()) {
+throw unsupportedBrowserError();
 }
-
+if (opts.fontSource !== undefined) {
+setDefaultFontSource(opts.fontSource);
+}
+if (initPromise) return initPromise;
+initPromise = (async () => {
+try {
+const glueUrl = opts.glueUrl || defaultGlueUrl();
+const wasmUrl = opts.wasmUrl || defaultWasmUrl();
+const glue = await import( String(glueUrl));
+let input;
+try {
+const res = await fetch(String(wasmUrl));
+if (!res.ok) throw new Error(`wasm fetch failed: ${res.status}`);
+input = res;
+await compileWasmModule(res.clone()).catch(() => {});
+} catch {
+input = String(wasmUrl);
+}
+const exports = await glue.default(input);
+wasmMemory = exports.memory || null;
+return { glue, exports, memory: wasmMemory };
+} catch (e) {
+initPromise = null;
+throw unsupportedBrowserError(e);
+}
+})();
+return initPromise;
+}
 export function getWasmMemory() {
-  return wasmMemory;
+return wasmMemory;
 }
-
-/** Per-format module hook (core covers all formats today). */
 export async function loadFormatModule(formatExt) {
-  if (!isSupportedExtension(formatExt)) {
-    const err = new Error(UNSUPPORTED_FORMAT_MESSAGE);
-    err.code = "unsupported_format";
-    throw err;
-  }
-  await initCore();
-  return "core";
+if (!isSupportedExtension(formatExt)) {
+const err = new Error(UNSUPPORTED_FORMAT_MESSAGE);
+err.code = "unsupported_format";
+throw err;
 }
-
-/** Editor module loads only when editing starts (M2). */
+await initCore();
+return "core";
+}
 export async function loadEditorModule() {
-  await initCore();
-  // TODO(#M2): fetch editor wasm chunk.
-  return "editor-stub";
+await initCore();
+return "editor-stub";
 }
-
 export function prewarmWorker(workerUrl) {
-  if (typeof Worker === "undefined") return null;
-  if (prewarmedWorker) return prewarmedWorker;
-  try {
-    const url = workerUrl || new URL("./worker.js", import.meta.url);
-    prewarmedWorker = new Worker(url, { type: "module", name: "nitro-xml-prewarm" });
-    prewarmedWorker.postMessage({ type: "prewarm" });
-    return prewarmedWorker;
-  } catch {
-    return null;
-  }
+if (typeof Worker === "undefined") return null;
+if (prewarmedWorker) return prewarmedWorker;
+try {
+const url = workerUrl || new URL("./worker.js", import.meta.url);
+prewarmedWorker = new Worker(url, { type: "module", name: "nitro-xml-prewarm" });
+prewarmedWorker.postMessage({ type: "prewarm" });
+return prewarmedWorker;
+} catch {
+return null;
 }
-
+}
 export function takePrewarmedWorker() {
-  const w = prewarmedWorker;
-  prewarmedWorker = null;
-  return w;
+const w = prewarmedWorker;
+prewarmedWorker = null;
+return w;
 }
-
 export function unsupportedBrowserError(cause) {
-  const err = new Error(UNSUPPORTED_BROWSER_MESSAGE);
-  err.code = "unsupported_browser";
-  if (cause) err.cause = cause;
-  return err;
+const err = new Error(UNSUPPORTED_BROWSER_MESSAGE);
+err.code = "unsupported_browser";
+if (cause) err.cause = cause;
+return err;
 }
-
 export function unsupportedFormatError() {
-  const err = new Error(UNSUPPORTED_FORMAT_MESSAGE);
-  err.code = "unsupported_format";
-  return err;
+const err = new Error(UNSUPPORTED_FORMAT_MESSAGE);
+err.code = "unsupported_format";
+return err;
 }

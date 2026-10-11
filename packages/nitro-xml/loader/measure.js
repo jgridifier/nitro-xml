@@ -1,7 +1,4 @@
 // SPDX-License-Identifier: MIT
-/** Batched text-measurement read-back: one setMeasureResults per frame. */
-
-/** Run pending measure requests; returns widths written (0 if none). */
 export function flushMeasureBatch(handle, ctx) {
   const n = handle.measureCount | 0;
   if (n === 0) return 0;
@@ -26,7 +23,6 @@ export function flushMeasureBatch(handle, ctx) {
   return n;
 }
 
-/** Build measure request list from wasm SoA pointers. */
 export function readMeasureReqsFromMemory(handle, memory) {
   const n = handle.measureCount | 0;
   if (n === 0) return [];

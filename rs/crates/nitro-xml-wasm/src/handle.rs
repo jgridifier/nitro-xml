@@ -341,11 +341,19 @@ impl Handle {
     }
 
     /// Apply a shell action (`zoom-in`, `find-query`, `sheet`, `copy`, `ui`, …).
-    /// Returns JSON: `{ copyText?, pendingHyperlink?, ui }`. Op `ui` is a snapshot-only no-op.
+    /// Returns JSON: `{ h?, c?, p?, copyText?, pendingHyperlink?, ui }`.
+    /// Short keys (`h` chromeHtml, `c` copyText, `p` pendingHyperlink) keep the
+    /// loader apply path tiny; long keys remain for harnesses. Op `ui` is snapshot-only.
     #[wasm_bindgen(js_name = shellAction)]
     pub fn shell_action(&mut self, op: &str, arg: &str) -> Result<String, JsValue> {
         if op == "ui" || op.is_empty() {
-            let out = serde_json::json!({ "ui": ShellUi::to_json(&self.shell) });
+            let ui = ShellUi::to_json(&self.shell);
+            let h = ui
+                .get("chromeHtml")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let out = serde_json::json!({ "h": h, "ui": ui });
             return Ok(out.to_string());
         }
         let action = ShellAction::parse(op, arg).ok_or_else(|| {
@@ -419,12 +427,26 @@ impl Handle {
             }
             serde_json::Value::Object(m)
         });
-        let out = serde_json::json!({
-            "copyText": result.copy_text,
-            "pendingHyperlink": pending,
-            "ui": ShellUi::to_json(&self.shell),
-        });
-        Ok(out.to_string())
+        let ui = ShellUi::to_json(&self.shell);
+        let h = ui
+            .get("chromeHtml")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let mut out = serde_json::Map::new();
+        out.insert("h".into(), serde_json::Value::String(h));
+        out.insert("c".into(), serde_json::json!(result.copy_text));
+        out.insert("copyText".into(), serde_json::json!(result.copy_text));
+        out.insert(
+            "p".into(),
+            pending.clone().unwrap_or(serde_json::Value::Null),
+        );
+        out.insert(
+            "pendingHyperlink".into(),
+            pending.unwrap_or(serde_json::Value::Null),
+        );
+        out.insert("ui".into(), ui);
+        Ok(serde_json::Value::Object(out).to_string())
     }
 
     /// Copy interned strings for the loader (`resolve` on the main thread / worker).

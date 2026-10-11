@@ -6,6 +6,7 @@ use nitro_xml_render::command_buffer::CommandBuffer;
 use crate::intern::StringIntern;
 use crate::model::ActiveWorksheet;
 use crate::render::geometry::header_sizes;
+use crate::render::grid::LINES_ID;
 use crate::render::viewport::{paint_indices, visible_cells_for_host};
 use crate::render::GridPaintViewport;
 use crate::view::metrics::GridMetrics;
@@ -58,17 +59,14 @@ pub fn paint<I: StringIntern>(
     let right = metrics.col_left(cols[cols.len() - 1] + 1);
     let top = metrics.row_top(first);
     let bottom = metrics.row_top(last + 1);
-    let ox = sizes.w;
-    let oy = sizes.h;
-    let scroll_x = viewport.scroll_x;
-    let scroll_y = viewport.scroll_y;
     let div = intern.intern("div");
     let mut i = 0u32;
 
+    // Plane-relative coords (upstream gridlines.ts); scroll is on `.xg-plane`.
     let mut line = |x: i32, y: i32, w: i32, h: i32| {
         let id = LINE_BASE + i;
         i += 1;
-        buf.create_element(id, div, 1);
+        buf.create_element(id, div, LINES_ID);
         let gl_class = if w == 1 {
             "xg-gl xg-gl-v"
         } else {
@@ -82,11 +80,9 @@ pub fn paint<I: StringIntern>(
     };
 
     for col in cols {
-        let x = ox + metrics.col_left(col + 1) - 1 - scroll_x;
-        line(x, oy + top - scroll_y, 1, bottom - top);
+        line(metrics.col_left(col + 1) - 1, top, 1, bottom - top);
     }
     for row in rows {
-        let y = oy + metrics.row_top(row + 1) - 1 - scroll_y;
-        line(ox + left - scroll_x, y, right - left, 1);
+        line(left, metrics.row_top(row + 1) - 1, right - left, 1);
     }
 }

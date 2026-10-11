@@ -8,6 +8,7 @@ use crate::address::column_label;
 use crate::intern::StringIntern;
 use crate::model::ActiveWorksheet;
 use crate::render::geometry::header_sizes;
+use crate::render::grid::ROOT_ID;
 use crate::render::selection_ops::{col_selected, row_selected};
 use crate::render::viewport::{paint_indices, visible_cells_for_host};
 use crate::render::GridPaintViewport;
@@ -95,11 +96,11 @@ pub fn paint<I: StringIntern>(
     let cells_h = (viewport.height - sizes.h).max(0);
 
     // pane-chrome.ts: corner + xg-hbox / xg-hdr-plane wrappers (scroll panes; freeze TODO).
-    buf.create_element(CORNER_ID, div, 1);
+    buf.create_element(CORNER_ID, div, ROOT_ID);
     set_attr(buf, intern, CORNER_ID, "class", "xg-corner");
     place(buf, intern, CORNER_ID, 0, 0, sizes.w, sizes.h);
 
-    buf.create_element(HBOX_COL_ID, div, 1);
+    buf.create_element(HBOX_COL_ID, div, ROOT_ID);
     set_attr(buf, intern, HBOX_COL_ID, "class", "xg-hbox xg-hbox-col");
     place(buf, intern, HBOX_COL_ID, sizes.w, 0, cells_w, sizes.h);
     buf.create_element(HDR_COL_ID, div, HBOX_COL_ID);
@@ -113,7 +114,7 @@ pub fn paint<I: StringIntern>(
         &format!("translate3d({}px,0,0)", -scroll_x),
     );
 
-    buf.create_element(HBOX_ROW_ID, div, 1);
+    buf.create_element(HBOX_ROW_ID, div, ROOT_ID);
     set_attr(buf, intern, HBOX_ROW_ID, "class", "xg-hbox xg-hbox-row");
     place(buf, intern, HBOX_ROW_ID, 0, sizes.h, sizes.w, cells_h);
     buf.create_element(HDR_ROW_ID, div, HBOX_ROW_ID);

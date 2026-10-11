@@ -7,6 +7,7 @@ use nitro_xml_render::measure::MeasureBatch;
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
 use crate::render::geometry::header_sizes;
+use crate::render::grid::CELLS_ID;
 use crate::render::viewport::{paint_indices, visible_cells_for_host};
 use crate::render::GridPaintViewport;
 use crate::sheet_access::CellIndex;
@@ -57,15 +58,12 @@ fn paint_one_cell<I: StringIntern>(
     n: usize,
     item: &CellItem,
     zoom: f64,
-    ox: i32,
-    oy: i32,
-    scroll_x: i32,
-    scroll_y: i32,
 ) {
     let cell_id = CELL_BASE + n as u32;
-    let left = ox + item.x - scroll_x;
-    let top = oy + item.y - scroll_y;
-    buf.create_element(cell_id, div, 1);
+    // Plane-relative coords; scroll is on `.xg-plane` translate3d (upstream cell-layer.ts).
+    let left = item.x;
+    let top = item.y;
+    buf.create_element(cell_id, div, CELLS_ID);
     let mut cell_class = String::from("xg-c");
     if item.overflowing {
         cell_class.push_str(" xg-c-over");
@@ -314,8 +312,6 @@ pub fn paint<I: StringIntern>(
         build_items(&input, &mut canvas_measure)
     };
     let div = intern.intern("div");
-    let ox = sizes.w;
-    let oy = sizes.h;
     // Upstream CellViewCache returns null for isBlankView — no DOM node.
     // View-IR keeps blanks (oracle view() never null); only the painter skips.
     let mut n = 0usize;
@@ -323,18 +319,7 @@ pub fn paint<I: StringIntern>(
         if !item.merged && is_blank_view(&item.view) {
             continue;
         }
-        paint_one_cell(
-            buf,
-            intern,
-            div,
-            n,
-            item,
-            metrics.zoom,
-            ox,
-            oy,
-            viewport.scroll_x,
-            viewport.scroll_y,
-        );
+        paint_one_cell(buf, intern, div, n, item, metrics.zoom);
         n += 1;
     }
 }

@@ -50,18 +50,21 @@ fn dump_package(path: Option<std::ffi::OsString>) {
 }
 
 fn dump_href(href: Option<std::ffi::OsString>) {
-    // Missing arg = null/undefined in the TS policy.
-    let policy = match href {
+    // `href @path` reads raw bytes (allows NULs); bare missing/`__NULL__` is null.
+    let policy = match href.as_ref().map(|h| h.to_string_lossy()) {
         None => hyperlink_policy(None),
-        Some(h) => {
-            let s = h.to_string_lossy();
-            // Sentinel used by the gate for an explicit empty / null row.
-            if s == "__NULL__" {
-                hyperlink_policy(None)
-            } else {
-                hyperlink_policy(Some(s.as_ref()))
+        Some(s) if s == "__NULL__" => hyperlink_policy(None),
+        Some(s) if s.starts_with('@') => {
+            let path = s.trim_start_matches('@');
+            match std::fs::read(path) {
+                Ok(bytes) => {
+                    let text = String::from_utf8_lossy(&bytes);
+                    hyperlink_policy(Some(text.as_ref()))
+                }
+                Err(_) => fail_json(json!({"error": "io"})),
             }
         }
+        Some(s) => hyperlink_policy(Some(s.as_ref())),
     };
     let mut out = json!({
         "store": policy.store,

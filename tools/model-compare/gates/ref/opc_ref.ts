@@ -20,7 +20,10 @@ const mode = process.argv[2];
 
 if (mode === 'href') {
 	const raw = process.argv[3];
-	const href = raw === undefined || raw === '__NULL__' ? null : raw;
+	let href: string | null;
+	if (raw === undefined || raw === '__NULL__') href = null;
+	else if (raw.startsWith('@')) href = readFileSync(raw.slice(1), 'utf8');
+	else href = raw;
 	const policy = hyperlinkPolicy(href);
 	const out: Record<string, unknown> = { store: policy.store, open: policy.open };
 	if (policy.reason !== undefined) out.reason = policy.reason;

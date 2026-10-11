@@ -50,19 +50,24 @@ done
 note "negatives: $((neg_n-neg_bad))/$neg_n rejected as unsupported_format"
 [ $neg_bad -eq 0 ] || fail=1
 
-# --- safe-href corpus vs upstream hyperlinkPolicy ---
+# --- safe-href corpus vs upstream hyperlinkPolicy (href via @file so NULs survive) ---
 href_bad=0; href_n=0
+HREF_TMP=$(mktemp -d)
 while IFS= read -r line; do
   [ -n "$line" ] || continue
   href_n=$((href_n+1))
   id=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["id"])' "$line")
-  arg=$(python3 -c 'import json,sys; h=json.loads(sys.argv[1])["href"]; print("__NULL__" if h is None else h)' "$line")
+  arg=$(python3 -c 'import json,sys; from pathlib import Path; o=json.loads(sys.argv[1]); h=o["href"]; p=Path(sys.argv[2])
+if h is None: print("__NULL__")
+else:
+  p.write_bytes(h.encode("utf-8")); print("@"+str(p))' "$line" "$HREF_TMP/h")
   ref=$(bun tools/model-compare/gates/ref/opc_ref.ts href "$arg" 2>/dev/null); rc_ref=$?
   got=$("$BIN" href "$arg" 2>/dev/null); rc=$?
   if [ $rc_ref -ne 0 ] || [ $rc -ne 0 ] || [ "$(echo "$ref" | canon)" != "$(echo "$got" | canon 2>/dev/null)" ]; then
     note "FAIL href mismatch on $id"; href_bad=$((href_bad+1))
   fi
 done < fixtures/opc/safe-href.jsonl
+rm -rf "$HREF_TMP"
 note "safe-href differential: $((href_n-href_bad))/$href_n match upstream"
 [ $href_bad -eq 0 ] || fail=1
 

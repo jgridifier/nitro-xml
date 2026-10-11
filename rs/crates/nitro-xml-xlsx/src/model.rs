@@ -650,6 +650,10 @@ impl FreezePane {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SheetSelection {
     pub active: CellAddress,
+    /// Cell that Shift+extend and drag grow from. File load sets this to `active`.
+    /// Omitted from [`Self::to_json`] so sheet-view dumps stay aligned with upstream
+    /// (`selection?: { active, ranges }`).
+    pub anchor: CellAddress,
     pub ranges: Vec<CellRange>,
 }
 

@@ -20,6 +20,7 @@ mod picture;
 mod placeholder;
 mod print;
 mod raster_export;
+mod selection;
 mod shape;
 mod slideshow;
 mod smartart;
@@ -34,6 +35,7 @@ mod wordart;
 mod zoom;
 
 pub use context::StringIntern;
+pub use selection::{contains_id, copy_text, hit_top_level, top_level_ids};
 pub use view_ir::{dump_pptx_view_ir, dump_pptx_view_ir_string, ViewIrCollector, ViewIrNode};
 
 use nitro_xml_render::measure::MeasureBatch;
@@ -46,6 +48,8 @@ pub struct SlidePaintViewport {
     pub scale: f64,
     pub viewport_w: i32,
     pub viewport_h: i32,
+    /// Top-level element ids to outline (`.pptx-sel`).
+    pub selected_ids: Vec<String>,
 }
 
 impl Default for SlidePaintViewport {
@@ -55,11 +59,13 @@ impl Default for SlidePaintViewport {
             scale: 1.0,
             viewport_w: 800,
             viewport_h: 600,
+            selected_ids: Vec::new(),
         }
     }
 }
 
-fn fit_scale(canvas_w: f64, canvas_h: f64, viewport_w: i32, viewport_h: i32) -> f64 {
+/// Scale that fits the slide into the viewport (same rule as paint when `scale` is 0).
+pub fn fit_slide_scale(canvas_w: f64, canvas_h: f64, viewport_w: i32, viewport_h: i32) -> f64 {
     if viewport_w <= 0 || viewport_h <= 0 {
         return 1.0;
     }
@@ -82,7 +88,7 @@ pub fn paint_slide_frame<I: StringIntern>(
     let scale = if viewport.scale > 0.0 {
         viewport.scale
     } else {
-        fit_scale(canvas_w, canvas_h, viewport.viewport_w, viewport.viewport_h)
+        fit_slide_scale(canvas_w, canvas_h, viewport.viewport_w, viewport.viewport_h)
     };
     let slide = pres.slide(viewport.slide_index)?;
     buffer.begin();
@@ -100,7 +106,7 @@ pub fn paint_slide_frame<I: StringIntern>(
         canvas_w,
         canvas_h,
     );
-    stage::paint_slide_stage(&mut ctx, slide);
+    stage::paint_slide_stage(&mut ctx, slide, &viewport.selected_ids);
     Ok(view_ir.nodes)
 }
 

@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: MIT
 //! Xlsx viewer state and engine API (#19).
 
-use crate::events::Event;
+use crate::events::{Event, MOD_ALT, MOD_CTRL, MOD_META, MOD_SHIFT};
 use crate::transport::StringTable;
 use nitro_xml_xlsx::model::ActiveWorksheet;
+use nitro_xml_xlsx::model::{CellAddress, CellRange, SheetSelection};
+use nitro_xml_xlsx::render::{
+    all_range, arrow_origin, clamped_hit, current_region_or_all, extend_selection, header_sizes,
+    hit, moving_end, navigate_arrow, select_cell, selection_ref, Arrow, HitArea, HitInput,
+};
+use nitro_xml_xlsx::view::metrics::{create_grid_metrics, GridMetrics, GridMetricsOptions};
 use nitro_xml_xlsx::{
-    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook, paint_grid_frame,
+    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook, paint_grid_frame, parse_range,
     parse_worksheet_at, search_workbook, visible_sheets_json, GridPaintViewport, SearchOptions,
     WorkbookSlice,
 };
@@ -23,6 +29,8 @@ pub struct XlsxState {
     pub viewport_h: i32,
     /// Shell-driven zoom percent; `None` uses sheet view zoom.
     pub zoom_pct: Option<f64>,
+    /// Last cell visited while a primary-button cell drag is active.
+    drag: Option<(u32, u32)>,
 }
 
 impl XlsxState {
@@ -46,6 +54,7 @@ impl XlsxState {
                 viewport_w: DEFAULT_W,
                 viewport_h: DEFAULT_H,
                 zoom_pct: None,
+                drag: None,
             },
             warnings,
         ))
@@ -53,6 +62,37 @@ impl XlsxState {
 
     pub fn set_zoom_pct(&mut self, zoom_pct: f64) {
         self.zoom_pct = Some(zoom_pct);
+    }
+
+    /// Apply an A1 selection ref to the active sheet view (paints `.xg-outline`).
+    /// Returns the normalized ref string (`A1` / `A1:B2`) for shell UI parity.
+    pub fn apply_selection_ref(&mut self, range_ref: &str) -> Result<String, String> {
+        let range = parse_range(range_ref).ok_or_else(|| format!("invalid range {range_ref}"))?;
+        let sheet = self
+            .sheets
+            .get_mut(self.active)
+            .and_then(|s| s.as_mut())
+            .ok_or_else(|| "no active sheet".to_string())?;
+        let selection = SheetSelection {
+            active: range.start,
+            anchor: range.start,
+            ranges: vec![CellRange {
+                start: range.start,
+                end: range.end,
+            }],
+        };
+        let normalized = selection_ref(&selection);
+        sheet.view.selection = Some(selection);
+        Ok(normalized)
+    }
+
+    /// Painted selection as an A1 ref (`1:1048576` for the whole sheet).
+    pub fn selection_ref_now(&self) -> Option<String> {
+        self.sheets
+            .get(self.active)
+            .and_then(|s| s.as_ref())
+            .and_then(|s| s.view.selection.as_ref())
+            .map(selection_ref)
     }
 
     /// Rough scroll so `(row, col)` is near the top-left of the scrollable area.
@@ -131,23 +171,190 @@ impl XlsxState {
         );
     }
 
-    pub fn process_events(&mut self, events: &[Event]) {
+    /// Apply a frame of input. Returns the new selection ref when the painted selection changed.
+    pub fn process_events(&mut self, events: &[Event], strings: &StringTable) -> Option<String> {
+        let mut changed = None;
         for ev in events {
-            match ev {
-                Event::Resize { width, height, .. } => {
-                    self.viewport_w = (*width).max(1.0) as i32;
-                    self.viewport_h = (*height).max(1.0) as i32;
-                }
-                Event::Wheel { dx, dy, .. } => {
-                    self.scroll_x = (self.scroll_x + *dx as i32).max(0);
-                    self.scroll_y = (self.scroll_y + *dy as i32).max(0);
-                }
-                Event::Pointer { type_, .. } if *type_ == 1 => {
-                    // pointer move — reserved for selection (#45)
-                }
-                _ => {}
+            if let Some(r) = self.apply_event(ev, strings) {
+                changed = Some(r);
             }
         }
+        changed
+    }
+
+    fn apply_event(&mut self, ev: &Event, strings: &StringTable) -> Option<String> {
+        match ev {
+            Event::Resize { width, height, .. } => {
+                self.viewport_w = (*width).max(1.0) as i32;
+                self.viewport_h = (*height).max(1.0) as i32;
+                None
+            }
+            Event::Wheel { dx, dy, .. } => {
+                self.scroll_x = (self.scroll_x + *dx as i32).max(0);
+                self.scroll_y = (self.scroll_y + *dy as i32).max(0);
+                None
+            }
+            Event::Pointer {
+                type_,
+                button,
+                x,
+                y,
+                mods,
+                ..
+            } => self.on_pointer(*type_, *button, *x, *y, *mods),
+            Event::Keyboard {
+                type_,
+                key_id,
+                mods,
+                ..
+            } if *type_ == 0 => {
+                let key = strings.resolve(*key_id).unwrap_or("");
+                self.on_key(key, *mods)
+            }
+            _ => None,
+        }
+    }
+
+    fn on_pointer(&mut self, type_: u8, button: u8, x: f32, y: f32, mods: u8) -> Option<String> {
+        let px = x.round() as i32;
+        let py = y.round() as i32;
+        match type_ {
+            0 if button == 0 => {
+                let hit = {
+                    let zoom = self.zoom_pct;
+                    let scroll_x = self.scroll_x;
+                    let scroll_y = self.scroll_y;
+                    let width = self.viewport_w;
+                    let height = self.viewport_h;
+                    let sheet = self.active_sheet()?;
+                    let metrics = grid_metrics(sheet, zoom);
+                    let input = grid_hit_input(&metrics, sheet, scroll_x, scroll_y, width, height);
+                    hit(&input, px, py)
+                };
+                if hit.area != HitArea::Cell || hit.row < 0 || hit.col < 0 {
+                    self.drag = None;
+                    return None;
+                }
+                let at = CellAddress {
+                    row: hit.row as u32,
+                    col: hit.col as u32,
+                };
+                self.drag = Some((at.row, at.col));
+                self.commit_selection(at, mods & MOD_SHIFT != 0)
+            }
+            1 => {
+                let (last_row, last_col) = self.drag?;
+                let (row, col) = {
+                    let zoom = self.zoom_pct;
+                    let scroll_x = self.scroll_x;
+                    let scroll_y = self.scroll_y;
+                    let width = self.viewport_w;
+                    let height = self.viewport_h;
+                    let sheet = self.active_sheet()?;
+                    let metrics = grid_metrics(sheet, zoom);
+                    let input = grid_hit_input(&metrics, sheet, scroll_x, scroll_y, width, height);
+                    clamped_hit(&input, px, py)
+                };
+                if row == last_row && col == last_col {
+                    return None;
+                }
+                self.drag = Some((row, col));
+                self.commit_selection(CellAddress { row, col }, true)
+            }
+            2 | 3 => {
+                self.drag = None;
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn on_key(&mut self, key: &str, mods: u8) -> Option<String> {
+        if mods & MOD_ALT != 0 {
+            return None;
+        }
+        let ctrl = mods & (MOD_CTRL | MOD_META) != 0;
+        let shift = mods & MOD_SHIFT != 0;
+        if ctrl && !shift && (key == "a" || key == "A") {
+            return self.select_region_or_all();
+        }
+        let arrow = Arrow::from_key(key)?;
+        let active = self.active;
+        let zoom = self.zoom_pct;
+        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let metrics = grid_metrics(sheet, zoom);
+        let current = sheet
+            .view
+            .selection
+            .clone()
+            .unwrap_or_else(|| select_cell(sheet, CellAddress { row: 0, col: 0 }));
+        let from = if shift {
+            moving_end(&current)
+        } else {
+            arrow_origin(sheet, &current, arrow)
+        };
+        let to = navigate_arrow(&metrics, from, arrow);
+        let next = if shift {
+            extend_selection(&current, sheet, to)
+        } else {
+            select_cell(sheet, to)
+        };
+        let text = selection_ref(&next);
+        sheet.view.selection = Some(next);
+        Some(text)
+    }
+
+    fn select_region_or_all(&mut self) -> Option<String> {
+        let active = self.active;
+        let (current, region) = {
+            let sheet = self.sheets.get(active)?.as_ref()?;
+            let current = sheet
+                .view
+                .selection
+                .clone()
+                .unwrap_or_else(|| select_cell(sheet, CellAddress { row: 0, col: 0 }));
+            let region = current_region_or_all(&self.workbook, sheet, &current);
+            (current, region)
+        };
+        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let next = match region {
+            Some(range) => SheetSelection {
+                active: current.active,
+                anchor: current.active,
+                ranges: vec![range],
+            },
+            None => SheetSelection {
+                active: current.active,
+                anchor: CellAddress { row: 0, col: 0 },
+                ranges: vec![all_range()],
+            },
+        };
+        let text = selection_ref(&next);
+        sheet.view.selection = Some(next);
+        Some(text)
+    }
+
+    /// `extend` grows from the anchor (shift-click / drag); otherwise `select_cell`.
+    fn commit_selection(&mut self, at: CellAddress, extend: bool) -> Option<String> {
+        let active = self.active;
+        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let next = if extend {
+            let current = sheet
+                .view
+                .selection
+                .clone()
+                .unwrap_or_else(|| select_cell(sheet, at));
+            extend_selection(&current, sheet, at)
+        } else {
+            select_cell(sheet, at)
+        };
+        let text = selection_ref(&next);
+        sheet.view.selection = Some(next);
+        Some(text)
+    }
+
+    fn active_sheet(&self) -> Option<&ActiveWorksheet> {
+        self.sheets.get(self.active)?.as_ref()
     }
 
     pub fn sheets_json(&self) -> Value {
@@ -204,6 +411,44 @@ impl XlsxState {
     }
 }
 
+fn grid_metrics(sheet: &ActiveWorksheet, zoom: Option<f64>) -> GridMetrics {
+    create_grid_metrics(
+        sheet,
+        GridMetricsOptions {
+            zoom,
+            ..GridMetricsOptions::default()
+        },
+    )
+}
+
+fn grid_hit_input<'a>(
+    metrics: &'a GridMetrics,
+    sheet: &ActiveWorksheet,
+    scroll_x: i32,
+    scroll_y: i32,
+    width: i32,
+    height: i32,
+) -> HitInput<'a> {
+    let header = header_sizes(sheet, metrics, metrics.last_row);
+    let (frozen_rows, frozen_cols) = sheet
+        .view
+        .freeze
+        .as_ref()
+        .map(|f| (f.rows, f.cols))
+        .unwrap_or((0, 0));
+    HitInput {
+        metrics,
+        header_w: header.w,
+        header_h: header.h,
+        width,
+        height,
+        scroll_x,
+        scroll_y,
+        frozen_rows,
+        frozen_cols,
+    }
+}
+
 pub fn is_xlsx_extension(name: &str) -> bool {
     let ext = name.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
     matches!(ext.as_str(), "xlsx" | "xlsm" | "xltx" | "xltm")
@@ -227,8 +472,16 @@ pub fn search_options_from_json(raw: &str) -> SearchOptions {
 
 pub fn process_frame(handle: &mut crate::handle::Handle) {
     let events: Vec<Event> = handle.events.pending_snapshot();
-    if let Some(ref mut xlsx) = handle.xlsx {
-        xlsx.process_events(&events);
+    let selection = if let Some(ref mut xlsx) = handle.xlsx {
+        xlsx.process_events(&events, &handle.strings)
+    } else {
+        None
+    };
+    if let Some(r) = selection {
+        if handle.shell.selection_ref != r {
+            handle.shell.selection_ref = r;
+            handle.shell.dirty_ui = true;
+        }
     }
     handle.events.drain();
     if let Some(ref mut xlsx) = handle.xlsx {

@@ -13,6 +13,7 @@ pub fn paint_unknown_element<I: StringIntern>(
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
     set_attr(ctx, id, "data-pptx-element", "true");
+    set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", &el.type_);
     set_style(ctx, id, "border", "1px dashed #c00");
     set_style(ctx, id, "font", "11px sans-serif");
@@ -51,6 +52,7 @@ pub fn paint_typed_stub<I: StringIntern>(
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
     set_attr(ctx, id, "data-pptx-element", "true");
+    set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", kind);
     set_style(ctx, id, "display", "flex");
     set_style(ctx, id, "align-items", "center");

@@ -6,11 +6,16 @@ use super::context::{PaintContext, StringIntern};
 use super::dispatch::paint_element;
 use super::dom::stage_root_styles;
 use super::placeholder;
+use super::selection;
 use crate::presentation::Slide;
 
 const STAGE_ROOT_ID: u32 = 1;
 
-pub fn paint_slide_stage<I: StringIntern>(ctx: &mut PaintContext<'_, I>, slide: &Slide) {
+pub fn paint_slide_stage<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    slide: &Slide,
+    selected: &[String],
+) {
     stage_root_styles(
         ctx.buffer,
         ctx.intern,
@@ -27,4 +32,5 @@ pub fn paint_slide_stage<I: StringIntern>(ctx: &mut PaintContext<'_, I>, slide: 
     for (i, kind) in slide.other_kinds.iter().enumerate() {
         placeholder::paint_other_kind(ctx, kind, i, STAGE_ROOT_ID, ctx.canvas_w, ctx.canvas_h);
     }
+    selection::paint(ctx, slide, selected);
 }

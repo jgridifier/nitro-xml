@@ -21,15 +21,45 @@
 //! | Kind | Tag | Payload |
 //! |---|---|---|
 //! | Input | 1 | `u32 text_id` (interned composition/input string) |
-//! | Pointer | 2 | `f32 x, y` `u8 type` `u8 button` `u16 buttons` |
+//! | Pointer | 2 | `f32 x, y` `u8 type` `u8 button` `u16 buttons` — header `flags` is mods |
 //! | Wheel | 3 | `f32 x, y, dx, dy` |
-//! | Keyboard | 4 | `u32 key_id` `u32 code_id` `u8 type` `u8 mods` `u16 _` |
+//! | Keyboard | 4 | `u32 key_id` `u32 code_id` `u8 type` `u8 mods` `u16 _` — header `flags` OR'd into mods |
+//!
+//! Header `flags` (pointer and keyboard): bit0 Shift, bit1 Ctrl, bit2 Alt, bit3 Meta.
+//! Older batches leave `flags` at 0; keyboard mods still come from the payload byte.
 //! | Composition | 5 | `u8 type` `u8 _` `u16 _` `u32 text_id` |
 //! | Resize | 6 | `f32 width, height, dpr` |
 
 use crate::handle::OoxmlError;
 
 pub const VERSION: u16 = 1;
+
+/// Modifier bits packed in the event header `flags` byte.
+pub const MOD_SHIFT: u8 = 1;
+pub const MOD_CTRL: u8 = 2;
+pub const MOD_ALT: u8 = 4;
+pub const MOD_META: u8 = 8;
+
+/// Fixed key vocabulary interned by [`crate::handle::Handle`] at ids 1.. (id 0 is `""`).
+/// The loader `KeyId` map must stay in this order.
+pub const INPUT_KEYS: &[&str] = &[
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "a",
+    "A",
+    "PageUp",
+    "PageDown",
+];
+
+/// Intern [`INPUT_KEYS`] so their ids are `1..INPUT_KEYS.len()`.
+pub fn seed_input_keys(table: &mut crate::transport::StringTable) {
+    for (i, key) in INPUT_KEYS.iter().enumerate() {
+        let id = table.intern(key);
+        debug_assert_eq!(id, (i + 1) as u32);
+    }
+}
 
 pub mod kind {
     pub const INPUT: u8 = 1;
@@ -53,6 +83,8 @@ pub enum Event {
         type_: u8,
         button: u8,
         buttons: u16,
+        /// Header flags: bit0 Shift, bit1 Ctrl, bit2 Alt, bit3 Meta.
+        mods: u8,
     },
     Wheel {
         time_ms: f64,
@@ -188,7 +220,7 @@ pub fn decode_batch(bytes: &[u8]) -> Result<Vec<Event>, OoxmlError> {
     let mut out = Vec::with_capacity(count);
     for _ in 0..count {
         let k = c.u8()?;
-        let _flags = c.u8()?;
+        let flags = c.u8()?;
         let _pad = c.u16()?;
         let time_ms = c.f64()?;
         let ev = match k {
@@ -209,6 +241,7 @@ pub fn decode_batch(bytes: &[u8]) -> Result<Vec<Event>, OoxmlError> {
                     type_,
                     button,
                     buttons,
+                    mods: flags,
                 }
             }
             kind::WHEEL => Event::Wheel {
@@ -229,7 +262,7 @@ pub fn decode_batch(bytes: &[u8]) -> Result<Vec<Event>, OoxmlError> {
                     key_id,
                     code_id,
                     type_,
-                    mods,
+                    mods: mods | flags,
                 }
             }
             kind::COMPOSITION => {
@@ -289,9 +322,10 @@ pub fn encode_batch(events: &[Event]) -> Vec<u8> {
                 type_,
                 button,
                 buttons,
+                mods,
             } => {
                 out.push(kind::POINTER);
-                out.push(0);
+                out.push(*mods);
                 out.extend_from_slice(&0u16.to_le_bytes());
                 out.extend_from_slice(&time_ms.to_le_bytes());
                 out.extend_from_slice(&x.to_le_bytes());
@@ -324,7 +358,7 @@ pub fn encode_batch(events: &[Event]) -> Vec<u8> {
                 mods,
             } => {
                 out.push(kind::KEYBOARD);
-                out.push(0);
+                out.push(*mods);
                 out.extend_from_slice(&0u16.to_le_bytes());
                 out.extend_from_slice(&time_ms.to_le_bytes());
                 out.extend_from_slice(&key_id.to_le_bytes());
@@ -397,6 +431,7 @@ mod tests {
                 type_: 1,
                 button: 0,
                 buttons: 1,
+                mods: MOD_SHIFT,
             },
             Event::Keyboard {
                 time_ms: 2.0,

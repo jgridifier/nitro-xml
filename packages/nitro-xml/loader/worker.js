@@ -7,9 +7,13 @@ import { isSupportedExtension } from "./formats.js";
 import { applyFontSourceToHandle } from "./font-source.js";
 let handle = null;
 let glue = null;
-self.onmessage = async (ev) => {
+// Serialize handlers: defineTag prewarm + open can arrive while initCore is
+// still awaiting; overlapping async onmessage races leave handle unset (#42).
+let chain = Promise.resolve();
+self.onmessage = (ev) => {
 const msg = ev.data || {};
-try {
+chain = chain
+.then(async () => {
 switch (msg.type) {
 case "prewarm": {
 await initCore();
@@ -142,11 +146,12 @@ break;
 default:
 self.postMessage({ type: "error", message: `unknown message ${msg.type}` });
 }
-} catch (e) {
+})
+.catch((e) => {
 self.postMessage({
 type: "error",
 code: e && e.code,
 message: (e && e.message) || String(e),
 });
-}
+});
 };

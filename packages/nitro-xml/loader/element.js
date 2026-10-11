@@ -1,223 +1,281 @@
 // SPDX-License-Identifier: MIT
-/** `<nitro-xml>` custom element: wasm bootstrap, format gate, worker frame loop. */
-
+/** Shared viewer host + `<nitro-xml>` (#19/#29). Docx/pptx extend this. */
 import {
+  UNSUPPORTED_BROWSER_MESSAGE as UB,
+  UNSUPPORTED_FORMAT_MESSAGE as UF,
+  isSupportedExtension as ok,
   ACCEPT,
-  UNSUPPORTED_BROWSER_MESSAGE,
-  UNSUPPORTED_FORMAT_MESSAGE,
-  isSupportedExtension,
 } from "./formats.js";
-import { prewarmWorker, wasmSupported, unsupportedBrowserError } from "./bootstrap.js";
-import { WorkerDocument } from "./worker-host.js";
-import { EventKind } from "./events.js";
+import { prewarmWorker as pw, wasmSupported as ws, unsupportedBrowserError as ube } from "./bootstrap.js";
+import { WorkerDocument as WD } from "./worker-host.js";
+import { EventKind as EK } from "./events.js";
 
-const TAG = "nitro-xml";
-
-export function defineNitroXml() {
-  if (typeof customElements === "undefined") return;
-  if (customElements.get(TAG)) return;
-  prewarmWorker();
-  customElements.define(TAG, NitroXmlElement);
+export function defineTag(t, C) {
+  if (typeof customElements === "undefined" || customElements.get(t)) return;
+  pw();
+  customElements.define(t, C);
 }
 
-export class NitroXmlElement extends HTMLElement {
+export class ViewerElement extends HTMLElement {
   constructor() {
     super();
-    this._doc = null;
-    this._ro = null;
-    this._raf = 0;
-    this._msg = null;
-    this._canvas = null;
-    this._root = null;
+    this._d = this._ro = this._raf = this._m = this._c = this._r = this._v = null;
   }
-
-  static get observedAttributes() {
-    return ["src", "accept"];
-  }
-
   connectedCallback() {
-    if (!wasmSupported()) {
-      this._showMessage(UNSUPPORTED_BROWSER_MESSAGE);
-      return;
-    }
-    this._ensureSurface();
+    if (!ws()) return this._show(UB);
+    this._surf();
     this._bind();
-    const src = this.getAttribute("src");
-    if (src) this.loadUrl(src).catch((e) => this._fail(e));
+    const s = this.getAttribute("src");
+    if (s) this.loadUrl(s).catch((e) => this._fail(e));
   }
-
   disconnectedCallback() {
-    this._teardown();
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._ro && this._ro.disconnect();
+    this._d && this._d.dispose();
+    this._d = null;
   }
-
-  get accept() {
-    return this.getAttribute("accept") || ACCEPT;
+  get document() {
+    return this._d;
   }
-
-  async loadFile(file, name) {
-    const n = name || file.name || "";
-    if (n && !isSupportedExtension(n)) {
-      this._showMessage(UNSUPPORTED_FORMAT_MESSAGE);
-      return;
+  async loadFile(f, n) {
+    n = n || f.name || "";
+    if (!this._ok(n)) return this._show(UF);
+    await this.loadBuffer(await f.arrayBuffer(), n);
+  }
+  async loadUrl(u) {
+    if (!ws()) throw ube();
+    const n = u.split("?")[0].split("#")[0].split("/").pop() || "";
+    if (!this._ok(n)) return this._show(UF);
+    const r = await fetch(u);
+    if (!r.ok) throw new Error("fetch failed: " + r.status);
+    await this.loadBuffer(await r.arrayBuffer(), n);
+  }
+  async loadBuffer(b, n = "") {
+    if (!ws()) {
+      this._show(UB);
+      throw ube();
     }
-    const buf = await file.arrayBuffer();
-    await this.loadBuffer(buf, n);
-  }
-
-  async loadUrl(url) {
-    if (!wasmSupported()) throw unsupportedBrowserError();
-    const name = url.split("?")[0].split("#")[0].split("/").pop() || "";
-    if (name && !isSupportedExtension(name)) {
-      this._showMessage(UNSUPPORTED_FORMAT_MESSAGE);
-      return;
+    if (n && !this._ok(n) && !ok(n)) {
+      this._show(UF);
+      throw Object.assign(new Error(UF), { code: "unsupported_format" });
     }
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
-    await this.loadBuffer(await res.arrayBuffer(), name);
+    this._clr();
+    this._surf();
+    this._d && this._d.dispose();
+    this._d = new WD({ canvas: this._c, root: this._r, name: n });
+    await this._d.open(b, n);
+    await this._ao();
+    this._tick();
   }
-
-  async loadBuffer(buffer, name = "") {
-    if (!wasmSupported()) {
-      this._showMessage(UNSUPPORTED_BROWSER_MESSAGE);
-      throw unsupportedBrowserError();
-    }
-    if (name && !isSupportedExtension(name)) {
-      this._showMessage(UNSUPPORTED_FORMAT_MESSAGE);
-      throw Object.assign(new Error(UNSUPPORTED_FORMAT_MESSAGE), {
-        code: "unsupported_format",
-      });
-    }
-    this._clearMessage();
-    this._ensureSurface();
-    if (this._doc) this._doc.dispose();
-    this._doc = new WorkerDocument({
-      canvas: this._canvas,
-      root: this._root,
-      name,
-    });
-    await this._doc.open(buffer, name);
-    this._schedule();
+  _ok(n) {
+    return !n || ok(n);
   }
-
-  _ensureSurface() {
-    if (this._canvas) return;
-    const shadow = this.shadowRoot || this.attachShadow({ mode: "open" });
-    shadow.innerHTML =
-      `<style>:host{display:block;position:relative;min-height:4rem}` +
-      `canvas, .dom{position:absolute;inset:0;width:100%;height:100%}` +
-      `.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}</style>` +
-      `<canvas part="canvas"></canvas><div class="dom" part="dom"></div>` +
-      `<div class="msg" hidden part="message"></div>`;
-    this._canvas = shadow.querySelector("canvas");
-    this._root = shadow.querySelector(".dom");
-    this._msg = shadow.querySelector(".msg");
+  async _ao() {}
+  _css() {
+    return ":host{display:block;position:relative;min-height:4rem}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";
   }
-
+  _body() {
+    return '<div class="v"><canvas part="canvas"></canvas><div class="dom" part="dom"></div></div><div class="msg" hidden part="message"></div>';
+  }
+  _surf() {
+    if (this._c) return;
+    const s = this.shadowRoot || this.attachShadow({ mode: "open" });
+    s.innerHTML = "<style>" + this._css() + "[hidden]{display:none!important}</style>" + this._body();
+    this._c = s.querySelector("canvas");
+    this._r = s.querySelector(".dom");
+    this._m = s.querySelector(".msg");
+    this._v = s.querySelector(".v") || this;
+    this._s = s;
+  }
+  _bx() {}
   _bind() {
-    const onPtr = (type) => (e) => {
-      if (!this._doc) return;
-      const r = this._canvas.getBoundingClientRect();
-      this._doc.pushEvent({
-        kind: EventKind.Pointer,
+    this._surf();
+    this._bx();
+    const p = (t) => (e) => {
+      if (!this._d) return;
+      const r = this._c.getBoundingClientRect();
+      this._d.pushEvent({
+        kind: EK.Pointer,
         time_ms: performance.now(),
         x: e.clientX - r.left,
         y: e.clientY - r.top,
-        type,
+        type: t,
         button: e.button,
         buttons: e.buttons,
       });
-      this._schedule();
+      this._tick();
     };
-    this.addEventListener("pointerdown", onPtr(0));
-    this.addEventListener("pointermove", onPtr(1));
-    this.addEventListener("pointerup", onPtr(2));
-    this.addEventListener(
+    const t = this._v;
+    t.addEventListener("pointerdown", p(0));
+    t.addEventListener("pointermove", p(1));
+    t.addEventListener("pointerup", p(2));
+    t.addEventListener(
       "wheel",
       (e) => {
-        if (!this._doc) return;
-        const r = this._canvas.getBoundingClientRect();
-        this._doc.pushEvent({
-          kind: EventKind.Wheel,
+        if (!this._d) return;
+        this._wp && e.preventDefault();
+        const r = this._c.getBoundingClientRect();
+        this._d.pushEvent({
+          kind: EK.Wheel,
           time_ms: performance.now(),
           x: e.clientX - r.left,
           y: e.clientY - r.top,
           dx: e.deltaX,
           dy: e.deltaY,
         });
-        this._schedule();
+        this._tick();
       },
-      { passive: true },
+      { passive: !this._wp },
     );
     if (typeof ResizeObserver !== "undefined") {
       this._ro = new ResizeObserver(() => {
-        if (!this._doc || !this._canvas) return;
-        const dpr = window.devicePixelRatio || 1;
-        const w = this.clientWidth;
-        const h = this.clientHeight;
-        this._canvas.width = Math.max(1, (w * dpr) | 0);
-        this._canvas.height = Math.max(1, (h * dpr) | 0);
-        this._doc.pushEvent({
-          kind: EventKind.Resize,
+        if (!this._d) return;
+        const d = window.devicePixelRatio || 1;
+        const el = this._v === this ? this : this._v;
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        this._c.width = Math.max(1, (w * d) | 0);
+        this._c.height = Math.max(1, (h * d) | 0);
+        this._d.pushEvent({
+          kind: EK.Resize,
           time_ms: performance.now(),
           width: w,
           height: h,
-          dpr,
+          dpr: d,
         });
-        this._schedule();
+        this._tick();
       });
-      this._ro.observe(this);
+      this._ro.observe(this._v);
     }
   }
-
-  _schedule() {
+  _tick() {
     if (this._raf) return;
     this._raf = requestAnimationFrame(async () => {
       this._raf = 0;
-      if (!this._doc) return;
       try {
-        await this._doc.tick();
+        if (this._d) await this._d.tick();
       } catch (e) {
         this._fail(e);
       }
     });
   }
-
-  _showMessage(text) {
-    this._ensureSurface();
-    if (this._msg) {
-      this._msg.hidden = false;
-      this._msg.textContent = text;
+  _show(t) {
+    this._surf();
+    this._m.hidden = !1;
+    this._m.textContent = t;
+    if (this._v !== this) this._v.style.display = "none";
+    else {
+      this._c.style.display = "none";
+      this._r.style.display = "none";
     }
-    if (this._canvas) this._canvas.style.display = "none";
-    if (this._root) this._root.style.display = "none";
   }
-
-  _clearMessage() {
-    if (this._msg) {
-      this._msg.hidden = true;
-      this._msg.textContent = "";
+  _clr() {
+    if (!this._m) return;
+    this._m.hidden = !0;
+    this._m.textContent = "";
+    if (this._v !== this) this._v.style.display = "";
+    else {
+      this._c.style.display = "";
+      this._r.style.display = "";
     }
-    if (this._canvas) this._canvas.style.display = "";
-    if (this._root) this._root.style.display = "";
   }
-
   _fail(e) {
-    if (e && e.code === "unsupported_browser") {
-      this._showMessage(UNSUPPORTED_BROWSER_MESSAGE);
-      return;
-    }
-    if (e && e.code === "unsupported_format") {
-      this._showMessage(UNSUPPORTED_FORMAT_MESSAGE);
-      return;
-    }
-    this._showMessage((e && e.message) || String(e));
+    this._show(
+      e && e.code == "unsupported_browser"
+        ? UB
+        : e && e.code == "unsupported_format"
+          ? UF
+          : (e && e.message) || String(e),
+    );
   }
+}
 
-  _teardown() {
-    if (this._raf) cancelAnimationFrame(this._raf);
-    this._raf = 0;
-    if (this._ro) this._ro.disconnect();
-    if (this._doc) this._doc.dispose();
-    this._doc = null;
+/** Shared Stage-6 shell chrome binder for xlsx/pptx (#29). Apply `h` + forward only. */
+export class ShellViewerElement extends ViewerElement {
+  constructor() {
+    super();
+    this._ch = null;
+    this._readonly = !0;
+    this._wp = 1;
+  }
+  static get observedAttributes() {
+    return ["src", "readonly"];
+  }
+  attributeChangedCallback(n, _, v) {
+    if (n == "readonly") this._readonly = v != "false";
+  }
+  connectedCallback() {
+    this._readonly = this.getAttribute("readonly") != "false";
+    super.connectedCallback();
+  }
+  get readonly() {
+    return this._readonly;
+  }
+  async _ao() {
+    await this.shellAction("ui");
+  }
+  _css() {
+    return ":host{display:flex;flex-direction:column;min-height:12rem;background:#fff}.v{position:relative;flex:1;min-height:0}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";
+  }
+  _body() {
+    return '<div class="chrome"></div><div class="v"><canvas part="canvas"></canvas><div class="dom" part="dom"></div></div><div class="msg" hidden part="message"></div>';
+  }
+  _surf() {
+    super._surf();
+    this._ch = this._s.querySelector(".chrome");
+  }
+  _bx() {
+    const g = (o, a) => this.shellAction(o, a || "");
+    const ch = this._ch;
+    ch.onclick = (e) => {
+      const b = e.target.closest && e.target.closest("[data-a]");
+      b && g(b.dataset.a, b.dataset.g);
+    };
+    ch.oninput = (e) => {
+      e.target.classList.contains("q") && g("find-query", e.target.value);
+    };
+    this.onkeydown = (e) => {
+      if (!this._d) return;
+      const q = e.target.classList.contains("q");
+      const m = e.ctrlKey || e.metaKey;
+      let k = (m ? "m" : "") + e.key;
+      if (q && e.key == "Enter") k = e.shiftKey ? "qSEnter" : "qEnter";
+      else if (q && e.key == "Escape") k = "qEscape";
+      for (const p of ((ch.firstElementChild && ch.firstElementChild.dataset.hk) || "").split("|")) {
+        const i = p.indexOf(":");
+        if (p.slice(0, i) === k) {
+          e.preventDefault();
+          return g(p.slice(i + 1));
+        }
+      }
+    };
+  }
+  /** Apply Rust chrome + side effects. Short keys: `h` html, `c` copy, `p` hyperlink. */
+  async shellAction(op, arg = "") {
+    if (!this._d) return null;
+    const r = await this._d.shellAction(op, arg);
+    if (this._ch && r.h != null) this._ch.innerHTML = r.h;
+    if (r.c != null) {
+      navigator.clipboard && navigator.clipboard.writeText && navigator.clipboard.writeText(r.c);
+      this.dispatchEvent(new CustomEvent("nitro-copy", { detail: r.c, bubbles: !0 }));
+    }
+    if (r.p) {
+      r.p.open && r.p.target && window.open(r.p.target, "_blank", "noopener,noreferrer");
+      this.dispatchEvent(new CustomEvent("nitro-hyperlink", { detail: r.p, bubbles: !0 }));
+    }
+    this._tick();
+    return r;
+  }
+}
+
+export function defineNitroXml() {
+  defineTag("nitro-xml", NitroXmlElement);
+}
+export class NitroXmlElement extends ViewerElement {
+  static get observedAttributes() {
+    return ["src", "accept"];
+  }
+  get accept() {
+    return this.getAttribute("accept") || ACCEPT;
   }
 }

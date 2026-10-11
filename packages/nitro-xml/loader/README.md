@@ -142,9 +142,28 @@ One dedicated worker per document. Messages:
 | `take-frame` | `frame` (commands + measure SoA + layout SoA) |
 | `measure-results` (Float64Array) | `measure-acked` |
 | `layout-results` (Float64Array, `awaiting * 4`) | `layout-acked` |
+| `sa` (`op`, `arg`; `ui` = snapshot) | `sa` (`result` JSON) |
 | `dispose` | `disposed` |
 
 DOM/canvas apply, measure batches and layout read-backs run on the main thread; parse/model/layout stay in the worker; pptx text layout stays on the main thread (`docs/adr/0002-renderer-port.md`, #36).
+
+## Viewer shell (#29)
+
+Shell **logic** (zoom, tabs, find, copy, safe-href, diagnostics incl. #121
+`font_substitution`), **chrome HTML**, and hotkeys live in Rust (`shell/chrome.rs`).
+`ShellViewerElement` (shared by `<nitro-xlsx>` / `<nitro-pptx>`) only assigns
+`result.h` (chromeHtml), forwards click/input/keydown from `data-a` / `data-hk`,
+and opens clipboard/hyperlinks. Pptx slide arrows come from Rust `data-hk`
+(`nav-next` / `nav-prev`). Docx reuses the same base when #23 lands.
+
+```js
+const result = await viewer.shellAction("find-query", "revenue");
+// result.h (chromeHtml) · result.c / copyText · result.p / pendingHyperlink · result.ui
+viewer.addEventListener("nitro-hyperlink", (e) => {});
+viewer.addEventListener("nitro-copy", (e) => {});
+```
+
+Keys (from Rust `data-hk`): `Ctrl/Cmd+F` find, `Ctrl/Cmd+C` copy, `Ctrl/Cmd+=`/`-` zoom, `Esc` closes find.
 
 ## Headless session (same thread)
 

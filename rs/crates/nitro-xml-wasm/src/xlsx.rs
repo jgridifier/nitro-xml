@@ -21,6 +21,8 @@ pub struct XlsxState {
     pub scroll_y: i32,
     pub viewport_w: i32,
     pub viewport_h: i32,
+    /// Shell-driven zoom percent; `None` uses sheet view zoom.
+    pub zoom_pct: Option<f64>,
 }
 
 impl XlsxState {
@@ -43,9 +45,24 @@ impl XlsxState {
                 scroll_y: 0,
                 viewport_w: DEFAULT_W,
                 viewport_h: DEFAULT_H,
+                zoom_pct: None,
             },
             warnings,
         ))
+    }
+
+    pub fn set_zoom_pct(&mut self, zoom_pct: f64) {
+        self.zoom_pct = Some(zoom_pct);
+    }
+
+    /// Rough scroll so `(row, col)` is near the top-left of the scrollable area.
+    pub fn scroll_to_cell(&mut self, row: u32, col: u32) {
+        // Approximate default metrics (scaled by zoom later in paint).
+        let zoom = self.zoom_pct.unwrap_or(100.0) / 100.0;
+        let col_w = (64.0 * zoom).round().max(1.0) as i32;
+        let row_h = (20.0 * zoom).round().max(1.0) as i32;
+        self.scroll_x = (col as i32).saturating_mul(col_w).max(0);
+        self.scroll_y = (row as i32).saturating_mul(row_h).max(0);
     }
 
     fn ensure_sheet_parsed(&mut self, bytes: &[u8], index: usize) -> Result<(), String> {
@@ -82,6 +99,7 @@ impl XlsxState {
             height: self.viewport_h,
             frozen_rows,
             frozen_cols,
+            zoom_pct: self.zoom_pct,
         }
     }
 
@@ -118,7 +136,8 @@ impl XlsxState {
                     self.viewport_w = (*width).max(1.0) as i32;
                     self.viewport_h = (*height).max(1.0) as i32;
                 }
-                Event::Wheel { dy, .. } => {
+                Event::Wheel { dx, dy, .. } => {
+                    self.scroll_x = (self.scroll_x + *dx as i32).max(0);
                     self.scroll_y = (self.scroll_y + *dy as i32).max(0);
                 }
                 Event::Pointer { type_, .. } if *type_ == 1 => {

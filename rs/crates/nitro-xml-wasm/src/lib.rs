@@ -20,6 +20,7 @@ mod bench;
 mod events;
 mod handle;
 mod pptx;
+mod shell;
 mod transport;
 mod xlsx;
 

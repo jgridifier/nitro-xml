@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MIT
-/** Nitro XML loader — only shipped JS: wasm init, events, command apply, batched read-backs. */
-
 export {
   ACCEPT,
   SUPPORTED_EXTENSIONS,
@@ -36,7 +34,13 @@ export {
 } from "./layout-readback.js";
 export { openDocument, DocumentSession } from "./session.js";
 export { WorkerDocument } from "./worker-host.js";
-export { defineNitroXml, NitroXmlElement } from "./element.js";
+export {
+  defineNitroXml,
+  NitroXmlElement,
+  defineTag,
+  ViewerElement,
+  ShellViewerElement,
+} from "./element.js";
 export { defineNitroXlsx, NitroXlsxElement } from "./xlsx-element.js";
 export { defineNitroPptx, NitroPptxElement } from "./pptx-element.js";
 export {

@@ -20,6 +20,13 @@ fn process_frame(handle: &mut Handle) {
         crate::xlsx::process_frame(handle);
     } else if handle.pptx.is_some() {
         crate::pptx::process_frame(handle);
+        if let Some(pptx) = handle.pptx.as_ref() {
+            let idx = pptx.active as u32;
+            if handle.shell.nav_index != idx {
+                handle.shell.nav_index = idx;
+                handle.shell.dirty_ui = true;
+            }
+        }
     }
 }
 use js_sys::{Array, Function, JsString};
@@ -211,7 +218,9 @@ impl Handle {
             self.shell.diagnostics.clear_runtime();
             let n = state.pres.slide_count();
             self.shell.set_tabs(
-                (0..n).map(|i| (i as u32, format!("Slide {}", i + 1))).collect(),
+                (0..n)
+                    .map(|i| (i as u32, format!("Slide {}", i + 1)))
+                    .collect(),
                 state.active as u32,
             );
             self.pptx = Some(state);
@@ -365,18 +374,33 @@ impl Handle {
         let mut result = apply_action(&mut self.shell, &action);
         match &action {
             ShellAction::FindQuery(_) | ShellAction::FindOpts { .. } => {
-                self.run_find()?;
+                if self.xlsx.is_some() {
+                    self.run_find()?;
+                } else {
+                    // pptx/docx find adapters land with #23/#27 search APIs.
+                    self.shell.find.matches.clear();
+                    self.shell.find.index = None;
+                    self.shell.dirty_ui = true;
+                }
                 result.reopen_paint = false;
             }
             ShellAction::Copy => {
-                let text = self.copy_selection_tsv()?;
-                self.shell.last_copy = text.clone();
-                result.copy_text = Some(text);
+                if self.xlsx.is_some() {
+                    let text = self.copy_selection_tsv()?;
+                    self.shell.last_copy = text.clone();
+                    result.copy_text = Some(text);
+                } else {
+                    result.copy_text = Some(String::new());
+                }
             }
             ShellAction::HyperlinkAt { sheet, row, col } => {
-                self.activate_hyperlink(*sheet, *row, *col)?;
+                if self.xlsx.is_some() {
+                    self.activate_hyperlink(*sheet, *row, *col)?;
+                }
             }
             ShellAction::Sheet(_)
+            | ShellAction::NavNext
+            | ShellAction::NavPrev
             | ShellAction::ZoomIn
             | ShellAction::ZoomOut
             | ShellAction::ZoomSet(_) => {}
@@ -386,6 +410,11 @@ impl Handle {
             if let Some(xlsx) = self.xlsx.as_mut() {
                 xlsx.set_active_sheet(&self.bytes, idx as usize)
                     .map_err(|e| JsValue::from(OoxmlError::with_code("bad_sheet", e)))?;
+                self.shell.nav_index = idx;
+            }
+            if let Some(pptx) = self.pptx.as_mut() {
+                pptx.set_active_slide(idx as usize)
+                    .map_err(|e| JsValue::from(OoxmlError::with_code("bad_slide", e)))?;
                 self.shell.nav_index = idx;
             }
         }
@@ -405,6 +434,8 @@ impl Handle {
                     | ShellAction::ZoomOut
                     | ShellAction::ZoomSet(_)
                     | ShellAction::Sheet(_)
+                    | ShellAction::NavNext
+                    | ShellAction::NavPrev
                     | ShellAction::FindNext
                     | ShellAction::FindPrev
             )

@@ -12,8 +12,6 @@ pub enum FormatKind {
     /// Placeholder until #23 lands.
     #[allow(dead_code)]
     Docx,
-    /// Placeholder until #27 lands.
-    #[allow(dead_code)]
     Pptx,
 }
 

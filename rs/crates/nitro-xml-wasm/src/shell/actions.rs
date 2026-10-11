@@ -27,6 +27,9 @@ pub enum ShellAction {
         match_entire: bool,
     },
     Sheet(u32),
+    /// Next/prev tab (sheet or slide).
+    NavNext,
+    NavPrev,
     Copy,
     DiagnosticsToggle,
     SelectRef(String),
@@ -70,6 +73,8 @@ impl ShellAction {
                 })
             }
             "sheet" => arg.parse().ok().map(Self::Sheet),
+            "nav-next" => Some(Self::NavNext),
+            "nav-prev" => Some(Self::NavPrev),
             "copy" => Some(Self::Copy),
             "diagnostics-toggle" => Some(Self::DiagnosticsToggle),
             "select" => Some(Self::SelectRef(if arg.is_empty() {
@@ -156,6 +161,36 @@ pub fn apply_action(state: &mut ShellState, action: &ShellAction) -> ShellAction
             out.reopen_paint = true;
             state.dirty_ui = true;
         }
+        ShellAction::NavNext => {
+            if let Some(i) = state
+                .tabs
+                .iter()
+                .position(|(idx, _)| *idx == state.nav_index)
+            {
+                if i + 1 < state.tabs.len() {
+                    let next = state.tabs[i + 1].0;
+                    state.nav_index = next;
+                    out.navigate_sheet = Some(next);
+                    out.reopen_paint = true;
+                    state.dirty_ui = true;
+                }
+            }
+        }
+        ShellAction::NavPrev => {
+            if let Some(i) = state
+                .tabs
+                .iter()
+                .position(|(idx, _)| *idx == state.nav_index)
+            {
+                if i > 0 {
+                    let prev = state.tabs[i - 1].0;
+                    state.nav_index = prev;
+                    out.navigate_sheet = Some(prev);
+                    out.reopen_paint = true;
+                    state.dirty_ui = true;
+                }
+            }
+        }
         ShellAction::Copy => {
             // Text filled by handle.
             state.dirty_ui = true;
@@ -177,6 +212,21 @@ pub fn apply_action(state: &mut ShellState, action: &ShellAction) -> ShellAction
 mod tests {
     use super::*;
     use crate::shell::state::FindMatch;
+
+    #[test]
+    fn nav_next_prev_walks_tabs() {
+        // Catches: pptx/xlsx chrome arrow keys must move nav_index within tabs only.
+        let mut state = ShellState::default();
+        state.set_tabs(vec![(0, "A".into()), (1, "B".into()), (2, "C".into())], 0);
+        let r = apply_action(&mut state, &ShellAction::NavNext);
+        assert_eq!(state.nav_index, 1);
+        assert_eq!(r.navigate_sheet, Some(1));
+        let r = apply_action(&mut state, &ShellAction::NavPrev);
+        assert_eq!(state.nav_index, 0);
+        assert_eq!(r.navigate_sheet, Some(0));
+        apply_action(&mut state, &ShellAction::NavPrev);
+        assert_eq!(state.nav_index, 0);
+    }
 
     #[test]
     fn find_next_wraps_around() {

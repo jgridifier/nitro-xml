@@ -3,7 +3,7 @@
 //! loader only assigns `innerHTML` and forwards events — no snapshot formatting
 //! in JS (keeps the 16 KB brotli budget for docx/pptx viewers).
 
-use super::state::ShellState;
+use super::state::{FormatKind, ShellState};
 
 fn esc(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -21,9 +21,16 @@ fn esc(s: &str) -> String {
 
 /// Hotkey table embedded in chrome (`data-hk`). Loader matches keydown against it.
 const HOTKEYS: &str = "mf:find-open|mc:copy|m=:zoom-in|m+:zoom-in|m-:zoom-out|Escape:find-close|qEnter:find-next|qSEnter:find-prev|qEscape:find-close";
+/// Pptx also binds arrow/page keys to slide navigation (xlsx keeps arrows for the grid).
+const PPTX_NAV: &str = "|ArrowRight:nav-next|ArrowLeft:nav-prev|PageDown:nav-next|PageUp:nav-prev";
 
 /// Full chrome fragment (toolbar, find, tabs, diagnostics) for the loader host.
 pub fn chrome_html(state: &ShellState) -> String {
+    let hk = if state.format == FormatKind::Pptx {
+        format!("{HOTKEYS}{PPTX_NAV}")
+    } else {
+        HOTKEYS.to_owned()
+    };
     let zoom = state.zoom_pct.round().clamp(10.0, 400.0) as i32;
     let find_hidden = if state.find.open { "" } else { " hidden" };
     let find_autofocus = if state.find.open { " autofocus" } else { "" };
@@ -98,7 +105,7 @@ pub fn chrome_html(state: &ShellState) -> String {
 </div>
 <div class="t" part="tabs" role="tablist">{tabs}</div>
 <pre class="d" part="diagnostics"{diag_hidden}>{diag}</pre></div>"##,
-        hk = HOTKEYS,
+        hk = hk,
         zoom = zoom,
         find_hidden = find_hidden,
         find_query = find_query,

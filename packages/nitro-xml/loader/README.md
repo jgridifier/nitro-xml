@@ -151,9 +151,10 @@ DOM/canvas apply, measure batches and layout read-backs run on the main thread; 
 
 Shell **logic** (zoom, tabs, find, copy, safe-href, diagnostics incl. #121
 `font_substitution`), **chrome HTML**, and hotkeys live in Rust (`shell/chrome.rs`).
-`<nitro-xlsx>` only assigns `result.h` (chromeHtml), forwards click/input/keydown
-from `data-a` / `data-hk`, and opens clipboard/hyperlinks. Docx/pptx reuse
-`ViewerElement` + `ShellState` when #23/#27 land.
+`ShellViewerElement` (shared by `<nitro-xlsx>` / `<nitro-pptx>`) only assigns
+`result.h` (chromeHtml), forwards click/input/keydown from `data-a` / `data-hk`,
+and opens clipboard/hyperlinks. Pptx slide arrows come from Rust `data-hk`
+(`nav-next` / `nav-prev`). Docx reuses the same base when #23 lands.
 
 ```js
 const result = await viewer.shellAction("find-query", "revenue");

@@ -23,6 +23,16 @@ const DIFFS = join(OUT, 'diffs');
 const PDFS = join(OUT, 'pdfs');
 
 function hostUrl(base, c, side) {
+	if (c.kind === 'xlsx-viewer') {
+		const q = new URLSearchParams({
+			side,
+			id: c.id,
+			fixture: `/repo/${c.fixture}`,
+			width: String(c.width || 800),
+			height: String(c.height || 480),
+		});
+		return `${base}/pages/xlsx-viewer.html?${q}`;
+	}
 	const q = new URLSearchParams({
 		kind: c.kind,
 		side,
@@ -31,6 +41,13 @@ function hostUrl(base, c, side) {
 		height: String(c.height || 320),
 	});
 	return `${base}/pages/host.html?${q}`;
+}
+
+function recordRow(rows, c, row) {
+	const informational = Boolean(c.informational);
+	const hardFail = !row.ok && !informational;
+	rows.push({ ...row, informational, hardFail });
+	return hardFail ? 1 : 0;
 }
 
 async function waitReady(page) {
@@ -125,7 +142,7 @@ export async function runVisualGate() {
 				format: c.format,
 				diffPath: join(DIFFS, `${c.id}-ts-vs-ts-dpr1.png`),
 			});
-			const row = {
+			failed += recordRow(rows, c, {
 				case: c.id,
 				mode: 'ts-vs-ts',
 				dpr: 1,
@@ -134,9 +151,7 @@ export async function runVisualGate() {
 				mismatched: cmp.mismatched,
 				total: cmp.total,
 				threshold: THRESHOLDS[c.format],
-			};
-			rows.push(row);
-			if (!cmp.ok) failed++;
+			});
 		}
 
 		for (const c of readyCases()) {
@@ -150,7 +165,7 @@ export async function runVisualGate() {
 					format: c.format,
 					diffPath: join(DIFFS, `${c.id}-ts-vs-rust-dpr${dpr}.png`),
 				});
-				const row = {
+				failed += recordRow(rows, c, {
 					case: c.id,
 					mode: 'ts-vs-rust',
 					dpr,
@@ -160,9 +175,7 @@ export async function runVisualGate() {
 					total: cmp.total,
 					threshold: THRESHOLDS[c.format],
 					reason: cmp.reason,
-				};
-				rows.push(row);
-				if (!cmp.ok) failed++;
+				});
 			}
 
 			// Print-to-PDF: emit PDFs, rasterize page 1, pixelmatch.
@@ -180,7 +193,7 @@ export async function runVisualGate() {
 				format: c.format,
 				diffPath: join(DIFFS, `${c.id}-ts-vs-rust-print.png`),
 			});
-			const row = {
+			failed += recordRow(rows, c, {
 				case: c.id,
 				mode: 'ts-vs-rust-print-pdf',
 				dpr: 1,
@@ -190,9 +203,7 @@ export async function runVisualGate() {
 				total: cmp.total,
 				threshold: THRESHOLDS[c.format],
 				reason: cmp.reason,
-			};
-			rows.push(row);
-			if (!cmp.ok) failed++;
+			});
 		}
 	} finally {
 		await browser.close();
@@ -200,12 +211,13 @@ export async function runVisualGate() {
 	}
 
 	const deferred = VISUAL_CASES.filter((c) => !c.ready).map((c) => `${c.id}: ${c.todo}`);
+	const hardOk = rows.filter((r) => r.ok || r.informational).length;
 	const summaryLines = [
-		`visual: ${failed === 0 ? 'PASS' : 'FAIL'} (${rows.filter((r) => r.ok).length}/${rows.length} comparisons)`,
-		...rows.map(
-			(r) =>
-				`  ${r.ok ? 'OK' : 'FAIL'} ${r.case} ${r.mode} dpr=${r.dpr} mismatch=${(r.ratio * 100).toFixed(4)}% (limit ${(r.threshold * 100).toFixed(2)}%)${r.reason ? ` ${r.reason}` : ''}`,
-		),
+		`visual: ${failed === 0 ? 'PASS' : 'FAIL'} (${hardOk}/${rows.length} comparisons; ${rows.filter((r) => r.informational && !r.ok).length} informational)`,
+		...rows.map((r) => {
+			const tag = r.ok ? 'OK' : r.informational ? 'INFO' : 'FAIL';
+			return `  ${tag} ${r.case} ${r.mode} dpr=${r.dpr} mismatch=${(r.ratio * 100).toFixed(4)}% (limit ${(r.threshold * 100).toFixed(2)}%)${r.reason ? ` ${r.reason}` : ''}${r.informational && !r.ok ? ' [informational]' : ''}`;
+		}),
 		...(deferred.length ? ['deferred:', ...deferred.map((d) => `  - ${d}`)] : []),
 		`diffs: ${DIFFS}`,
 	];

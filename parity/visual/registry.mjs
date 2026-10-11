@@ -6,7 +6,7 @@
  * docx / pptx stay `ready: false` until their painters ship.
  */
 
-/** @typedef {'xlsx-view-ir' | 'chart-svg'} VisualKind */
+/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer'} VisualKind */
 
 /**
  * @typedef {object} VisualCase
@@ -20,6 +20,7 @@
  * @property {number} [width]
  * @property {number} [height]
  * @property {boolean} [rust] when true, prepare + compare a Rust/WASM side
+ * @property {boolean} [informational] when true, mismatches are reported but do not fail the gate
  */
 
 /** @type {VisualCase[]} */
@@ -33,6 +34,20 @@ export const VISUAL_CASES = [
 		width: 800,
 		height: 480,
 		rust: true,
+	},
+	{
+		id: 'xlsx-viewer-poi-45544',
+		format: 'xlsx',
+		kind: 'xlsx-viewer',
+		ready: true,
+		fixture: 'fixtures/real/xlsx/poi-45544.xlsx',
+		width: 800,
+		height: 480,
+		rust: true,
+		// Live `<nitro-xlsx>` (command-buffer grid) vs upstream `<xlsx-editor>` (Lit chrome +
+		// DOM grid) will not meet PRODUCT_SPEC ≤0.1% until painters converge. Record ratios;
+		// do not fail CI.
+		informational: true,
 	},
 	{
 		id: 'chart-poi-dataValidation-chart1',

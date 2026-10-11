@@ -82,11 +82,70 @@ async function prepareXlsxViewIr(c) {
 	}
 }
 
+function ensureUpstreamBuilt() {
+	const up = upstreamDir();
+	const coreDist = join(up, 'src/core/dist/xlsx');
+	const uiDist = join(up, 'src/ui/dist/xlsx.js');
+	if (!existsSync(coreDist)) {
+		console.log('visual prepare: building upstream ooxml-core');
+		const r = spawnSync('bun', ['run', '--cwd', 'src/core', 'build'], {
+			cwd: up,
+			encoding: 'utf8',
+			maxBuffer: 16 * 1024 * 1024,
+		});
+		if (r.status !== 0) throw new Error(`ooxml-core build: ${r.stderr || r.stdout}`);
+	}
+	if (!existsSync(uiDist)) {
+		console.log('visual prepare: building upstream ooxml-ui');
+		const r = spawnSync('bun', ['run', '--cwd', 'src/ui', 'build'], {
+			cwd: up,
+			encoding: 'utf8',
+			maxBuffer: 16 * 1024 * 1024,
+		});
+		if (r.status !== 0) throw new Error(`ooxml-ui build: ${r.stderr || r.stdout}`);
+	}
+}
+
+function prepareXlsxViewerBundle() {
+	ensureUpstreamBuilt();
+	const bundleDir = join(VISUAL, 'out/bundles');
+	mkdirSync(bundleDir, { recursive: true });
+	const entry = join(VISUAL, 'hosts/xlsx-editor-entry.mjs');
+	const outFile = join(bundleDir, 'xlsx-editor.js');
+	// Re-bundle when missing or entry newer than bundle.
+	if (existsSync(outFile)) {
+		const entryStat = spawnSync('stat', ['-c', '%Y', entry], { encoding: 'utf8' });
+		const outStat = spawnSync('stat', ['-c', '%Y', outFile], { encoding: 'utf8' });
+		if (
+			entryStat.status === 0 &&
+			outStat.status === 0 &&
+			Number(outStat.stdout.trim()) >= Number(entryStat.stdout.trim())
+		) {
+			return;
+		}
+	}
+	console.log('visual prepare: bundling upstream xlsx-editor for browser host');
+	const r = spawnSync(
+		'bun',
+		['build', entry, '--outfile', outFile, '--format', 'esm', '--target', 'browser'],
+		{ cwd: ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
+	);
+	if (r.status !== 0) throw new Error(`xlsx-editor bundle: ${r.stderr || r.stdout}`);
+}
+
+function prepareXlsxViewer(c) {
+	const file = join(ROOT, c.fixture);
+	if (!existsSync(file)) throw new Error(`missing fixture ${c.fixture}`);
+	prepareXlsxViewerBundle();
+	// Fixture is served live via /repo/; no IR payload.
+}
+
 export async function prepareAll() {
 	mkdirSync(OUT, { recursive: true });
 	for (const c of readyCases()) {
 		if (c.kind === 'chart-svg') prepareChart(c);
 		else if (c.kind === 'xlsx-view-ir') await prepareXlsxViewIr(c);
+		else if (c.kind === 'xlsx-viewer') prepareXlsxViewer(c);
 		else throw new Error(`prepare: unknown kind for ${c.id}`);
 		console.log(`visual prepare: ${c.id}`);
 	}

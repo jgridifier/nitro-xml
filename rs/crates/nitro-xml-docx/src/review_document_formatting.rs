@@ -15,7 +15,10 @@ pub struct ReviewDocumentFormattingResult {
     pub diagnostics: Vec<ReviewFormattingDiagnostic>,
 }
 
-pub fn review_document_formatting(model: &DocumentModel, mode: &str) -> ReviewDocumentFormattingResult {
+pub fn review_document_formatting(
+    model: &DocumentModel,
+    mode: &str,
+) -> ReviewDocumentFormattingResult {
     let mode = ReviewDisplayMode::parse(mode);
     if mode != ReviewDisplayMode::Original {
         return ReviewDocumentFormattingResult {

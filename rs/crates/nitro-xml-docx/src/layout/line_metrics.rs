@@ -5,7 +5,7 @@ use super::input::LayoutParagraph;
 use super::measure::{font_metrics, LayoutFontSpec, TextMeasurer};
 use super::paragraph_tokens::{font_of, PlacedToken};
 use super::text_breaks::BreakToken;
-use super::units::{DEFAULT_FONT_SIZE_PT, pt_to_px, twips_to_px};
+use super::units::{pt_to_px, twips_to_px, DEFAULT_FONT_SIZE_PT};
 
 const SUPER_RAISE: f64 = 0.33;
 const SUB_DROP: f64 = 0.14;
@@ -43,10 +43,8 @@ pub fn token_extent(
             };
         }
     }
-    let font = fonts
-        .get(run_index)
-        .cloned()
-        .unwrap_or_else(|| font_of(&LayoutRun {
+    let font = fonts.get(run_index).cloned().unwrap_or_else(|| {
+        font_of(&LayoutRun {
             text: String::new(),
             hidden: None,
             source_length: None,
@@ -67,9 +65,13 @@ pub fn token_extent(
             color: None,
             underline: None,
             strike: None,
-        }));
+        })
+    });
     let (ascent, descent) = font_metrics(measurer, &font);
-    let size = pt_to_px(run.and_then(|r| r.font_size_pt).unwrap_or(DEFAULT_FONT_SIZE_PT));
+    let size = pt_to_px(
+        run.and_then(|r| r.font_size_pt)
+            .unwrap_or(DEFAULT_FONT_SIZE_PT),
+    );
     let script_shift = match run.and_then(|r| r.script.as_deref()) {
         Some("super") => SUPER_RAISE * size,
         Some("sub") => -SUB_DROP * size,
@@ -118,9 +120,7 @@ pub fn line_metrics(
     let rule = paragraph.line_spacing_rule.as_deref().unwrap_or("auto");
     let spacing_twips = paragraph.line_spacing_twips;
     let height_px = match rule {
-        "exact" => spacing_twips
-            .map(twips_to_px)
-            .unwrap_or(natural),
+        "exact" => spacing_twips.map(twips_to_px).unwrap_or(natural),
         "atLeast" => natural.max(spacing_twips.map(twips_to_px).unwrap_or(0.0)),
         _ => natural * (spacing_twips.unwrap_or(240) as f64 / 240.0),
     };

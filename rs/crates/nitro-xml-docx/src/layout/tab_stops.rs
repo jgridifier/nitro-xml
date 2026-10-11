@@ -21,7 +21,11 @@ pub fn place_tab(
         .iter()
         .filter(|stop| stop.align != "clear" && stop.align != "bar")
         .collect();
-    filtered.sort_by(|a, b| a.pos_px.partial_cmp(&b.pos_px).unwrap_or(std::cmp::Ordering::Equal));
+    filtered.sort_by(|a, b| {
+        a.pos_px
+            .partial_cmp(&b.pos_px)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let custom = filtered
         .into_iter()
         .find(|stop| stop.pos_px > position_px + epsilon);

@@ -2,11 +2,7 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/docx/field-runs.ts and field-date.ts; changes listed in PROVENANCE.md.
 
 pub fn field_name(instr: &str) -> String {
-    instr
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .to_uppercase()
+    instr.split_whitespace().next().unwrap_or("").to_uppercase()
 }
 
 pub fn is_field_locked(run: &serde_json::Value) -> bool {
@@ -45,7 +41,14 @@ pub fn date_field_result(
     format_word_date(year, month, day, hour, minute, &picture)
 }
 
-fn format_word_date(year: i32, month: u32, day: u32, hour: u32, minute: u32, picture: &str) -> String {
+fn format_word_date(
+    year: i32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    minute: u32,
+    picture: &str,
+) -> String {
     let h12 = hour % 12;
     let h12 = if h12 == 0 { 12 } else { h12 };
     let mut out = String::new();

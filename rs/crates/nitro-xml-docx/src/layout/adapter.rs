@@ -19,8 +19,8 @@ use super::adapt_notes::{endnote_paragraphs, note_labels, paragraph_footnotes};
 use super::adapt_paragraph_box::{group_paragraph_borders, paragraph_box};
 use super::adapt_table::adapt_table;
 use super::input::{
-    block_to_value, LayoutBlock, LayoutDocumentInput, LayoutParagraph, LayoutRun, LayoutSectionSerde,
-    LayoutTabStop,
+    block_to_value, LayoutBlock, LayoutDocumentInput, LayoutParagraph, LayoutRun,
+    LayoutSectionSerde, LayoutTabStop,
 };
 use super::review_display::{review_source_length, LayoutReviewOptions};
 use super::units::twips_to_px;
@@ -36,7 +36,8 @@ const TEXT_BOX_NOTE: &str =
     "Text boxes are shown on the editing surface but are not drawn in Print Layout.";
 const EQUATION_NOTE: &str =
     "Equations display on the editing surface; Print Layout shows markers rather than typeset equations.";
-const NEXT_COLUMN_NOTE: &str = "A \"next column\" section break is laid out as a continuous section break.";
+const NEXT_COLUMN_NOTE: &str =
+    "A \"next column\" section break is laid out as a continuous section break.";
 
 fn layout_tab_stops(
     paragraph: &Value,
@@ -50,10 +51,11 @@ fn layout_tab_stops(
     let mut stops: Vec<LayoutTabStop> = Vec::new();
     if let Some(arr) = stops_src {
         for stop in arr {
-            let pos_twips = stop
-                .get("posTwips")
-                .and_then(|v| v.as_i64())
-                .or_else(|| stop.get("posTwips").and_then(|v| v.as_f64()).map(|f| f as i64));
+            let pos_twips = stop.get("posTwips").and_then(|v| v.as_i64()).or_else(|| {
+                stop.get("posTwips")
+                    .and_then(|v| v.as_f64())
+                    .map(|f| f as i64)
+            });
             let align = stop.get("align").and_then(|v| v.as_str());
             if pos_twips.is_none() || align.is_none() {
                 continue;
@@ -80,7 +82,11 @@ fn layout_tab_stops(
     if stops.is_empty() {
         None
     } else {
-        stops.sort_by(|a, b| a.pos_px.partial_cmp(&b.pos_px).unwrap_or(std::cmp::Ordering::Equal));
+        stops.sort_by(|a, b| {
+            a.pos_px
+                .partial_cmp(&b.pos_px)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         Some(stops)
     }
 }
@@ -122,7 +128,19 @@ pub fn adapt_document_model(
     let mut blocks: Vec<LayoutBlock> = model
         .blocks
         .iter()
-        .map(|block| adapt_block(block, model, &catalog, theme, &labels, &note_label, review_mode, &mut report, now))
+        .map(|block| {
+            adapt_block(
+                block,
+                model,
+                &catalog,
+                theme,
+                &labels,
+                &note_label,
+                review_mode,
+                &mut report,
+                now,
+            )
+        })
         .collect();
     let mut adapt_endnote = |p: &Value, mark: Option<&str>| {
         adapt_paragraph_only(
@@ -156,10 +174,22 @@ pub fn adapt_document_model(
                 page: super::input::LayoutPageGeometry {
                     width_px: page.get("width").and_then(|v| v.as_f64()).unwrap_or(612.0),
                     height_px: page.get("height").and_then(|v| v.as_f64()).unwrap_or(792.0),
-                    margin_top_px: page.get("marginTop").and_then(|v| v.as_f64()).unwrap_or(72.0),
-                    margin_right_px: page.get("marginRight").and_then(|v| v.as_f64()).unwrap_or(72.0),
-                    margin_bottom_px: page.get("marginBottom").and_then(|v| v.as_f64()).unwrap_or(72.0),
-                    margin_left_px: page.get("marginLeft").and_then(|v| v.as_f64()).unwrap_or(72.0),
+                    margin_top_px: page
+                        .get("marginTop")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(72.0),
+                    margin_right_px: page
+                        .get("marginRight")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(72.0),
+                    margin_bottom_px: page
+                        .get("marginBottom")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(72.0),
+                    margin_left_px: page
+                        .get("marginLeft")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(72.0),
                 },
                 columns: None,
                 blocks: blocks
@@ -178,7 +208,11 @@ pub fn adapt_document_model(
         .blocks
         .iter()
         .enumerate()
-        .filter_map(|(i, b)| b.get("id").and_then(|v| v.as_str()).map(|id| (id.to_string(), i)))
+        .filter_map(|(i, b)| {
+            b.get("id")
+                .and_then(|v| v.as_str())
+                .map(|id| (id.to_string(), i))
+        })
         .collect();
     let mut start = 0usize;
     let mut result = Vec::new();
@@ -187,8 +221,15 @@ pub fn adapt_document_model(
         let end_index = if last {
             blocks.len()
         } else {
-            let ends = section.get("endsAtBlockId").and_then(|v| v.as_str()).unwrap_or("");
-            (index_by_id.get(ends).copied().unwrap_or(start.saturating_sub(1))) + 1
+            let ends = section
+                .get("endsAtBlockId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            (index_by_id
+                .get(ends)
+                .copied()
+                .unwrap_or(start.saturating_sub(1)))
+                + 1
         };
         let end = end_index.max(start);
         let slice_start = start;
@@ -199,10 +240,19 @@ pub fn adapt_document_model(
         } else {
             section_break(section.get("type").and_then(|v| v.as_str()), &mut report)
         };
-        let page_width = section.get("pageWidthTwips").and_then(|v| v.as_f64()).unwrap_or(12240.0);
-        let page_height = section.get("pageHeightTwips").and_then(|v| v.as_f64()).unwrap_or(15840.0);
+        let page_width = section
+            .get("pageWidthTwips")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(12240.0);
+        let page_height = section
+            .get("pageHeightTwips")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(15840.0);
         let columns = section.get("columns");
-        let col_count = columns.and_then(|c| c.get("count")).and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+        let col_count = columns
+            .and_then(|c| c.get("count"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1) as usize;
         let ends_at = section.get("endsAtBlockId").and_then(|v| v.as_str());
         let next_is_continuous = sections
             .get(index + 1)
@@ -223,8 +273,16 @@ pub fn adapt_document_model(
                     if let LayoutBlock::Paragraph(paragraph) = block {
                         let is_end_marker = ends_at == Some(paragraph.id.as_str());
                         let empty_marker = is_end_marker
-                            && paragraph.footnotes.as_ref().map(|f| f.is_empty()).unwrap_or(true)
-                            && paragraph.floats.as_ref().map(|f| f.is_empty()).unwrap_or(true)
+                            && paragraph
+                                .footnotes
+                                .as_ref()
+                                .map(|f| f.is_empty())
+                                .unwrap_or(true)
+                            && paragraph
+                                .floats
+                                .as_ref()
+                                .map(|f| f.is_empty())
+                                .unwrap_or(true)
                             && paragraph.runs.iter().all(|run| {
                                 run.text.is_empty()
                                     && run.object.is_none()
@@ -251,10 +309,30 @@ pub fn adapt_document_model(
             page: super::input::LayoutPageGeometry {
                 width_px: twips_to_px(page_width as i64),
                 height_px: twips_to_px(page_height as i64),
-                margin_top_px: twips_to_px(section.get("marginTopTwips").and_then(|v| v.as_i64()).unwrap_or(1440)),
-                margin_right_px: twips_to_px(section.get("marginRightTwips").and_then(|v| v.as_i64()).unwrap_or(1440)),
-                margin_bottom_px: twips_to_px(section.get("marginBottomTwips").and_then(|v| v.as_i64()).unwrap_or(1440)),
-                margin_left_px: twips_to_px(section.get("marginLeftTwips").and_then(|v| v.as_i64()).unwrap_or(1440)),
+                margin_top_px: twips_to_px(
+                    section
+                        .get("marginTopTwips")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(1440),
+                ),
+                margin_right_px: twips_to_px(
+                    section
+                        .get("marginRightTwips")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(1440),
+                ),
+                margin_bottom_px: twips_to_px(
+                    section
+                        .get("marginBottomTwips")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(1440),
+                ),
+                margin_left_px: twips_to_px(
+                    section
+                        .get("marginLeftTwips")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(1440),
+                ),
             },
             columns: if col_count > 1 {
                 Some(super::input::LayoutColumns {
@@ -265,7 +343,9 @@ pub fn adapt_document_model(
                             .and_then(|v| v.as_i64())
                             .unwrap_or(720),
                     ),
-                    separator: columns.and_then(|c| c.get("separator")).and_then(|v| v.as_bool()),
+                    separator: columns
+                        .and_then(|c| c.get("separator"))
+                        .and_then(|v| v.as_bool()),
                     widths: None,
                 })
             } else {
@@ -321,7 +401,18 @@ fn adapt_block(
         report(TABLE_ROW_NOTE.into());
         report(VERTICAL_MERGE_NOTE.into());
         let mut adapt_cell = |p: &Value| {
-            adapt_paragraph_only(p, None, model, catalog, theme, labels, note_label, review_mode, report, now)
+            adapt_paragraph_only(
+                p,
+                None,
+                model,
+                catalog,
+                theme,
+                labels,
+                note_label,
+                review_mode,
+                report,
+                now,
+            )
         };
         LayoutBlock::Table(adapt_table(block, model, &mut adapt_cell))
     }
@@ -342,15 +433,21 @@ fn adapt_paragraph_only(
     let paragraph_style = paragraph.get("style").and_then(|v| v.as_str());
     let resolved = catalog
         .as_ref()
-        .map(|c| resolve_paragraph_formatting(
-            &crate::styles::ParagraphProps {
-                id: paragraph.get("id").and_then(|v| v.as_str()).unwrap_or("").into(),
-                style: paragraph_style.map(str::to_string),
-                numbering: None,
-                direct: paragraph.clone(),
-            },
-            c,
-        ))
+        .map(|c| {
+            resolve_paragraph_formatting(
+                &crate::styles::ParagraphProps {
+                    id: paragraph
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .into(),
+                    style: paragraph_style.map(str::to_string),
+                    numbering: None,
+                    direct: paragraph.clone(),
+                },
+                c,
+            )
+        })
         .unwrap_or(paragraph.clone());
     let label = paragraph
         .get("id")
@@ -361,7 +458,19 @@ fn adapt_paragraph_only(
         .and_then(|v| v.as_array())
         .map(|runs| {
             runs.iter()
-                .map(|run| adapt_run(run, paragraph_style, mark_label, model, theme, review_mode, note_label, report, now))
+                .map(|run| {
+                    adapt_run(
+                        run,
+                        paragraph_style,
+                        mark_label,
+                        model,
+                        theme,
+                        review_mode,
+                        note_label,
+                        report,
+                        now,
+                    )
+                })
                 .collect::<Vec<LayoutRun>>()
         })
         .unwrap_or_default();
@@ -373,28 +482,57 @@ fn adapt_paragraph_only(
         runs
     };
     let mut adapt_footnote = |p: &Value, mark: Option<&str>| {
-        adapt_paragraph_only(p, mark, model, catalog, theme, labels, note_label, review_mode, report, now)
+        adapt_paragraph_only(
+            p,
+            mark,
+            model,
+            catalog,
+            theme,
+            labels,
+            note_label,
+            review_mode,
+            report,
+            now,
+        )
     };
     let footnotes = paragraph_footnotes(paragraph, model, note_label, &mut adapt_footnote);
     let box_result = paragraph_box(&resolved, theme);
     let tab_stops = layout_tab_stops(paragraph, &resolved, label);
     // Numbering level indents apply unless the paragraph/style sets its own first-line/hanging.
-    let own_first_line = resolved.get("firstLineTwips").is_some() || resolved.get("hangingTwips").is_some();
+    let own_first_line =
+        resolved.get("firstLineTwips").is_some() || resolved.get("hangingTwips").is_some();
     LayoutParagraph {
         after_table_section_break: None,
         kind: "paragraph".into(),
-        id: paragraph.get("id").and_then(|v| v.as_str()).unwrap_or("").into(),
+        id: paragraph
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .into(),
         runs: layout_runs,
-        align: resolved.get("align").and_then(|v| v.as_str()).map(str::to_string),
-        direction: resolved.get("direction").and_then(|v| v.as_str()).map(str::to_string),
+        align: resolved
+            .get("align")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        direction: resolved
+            .get("direction")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
         spacing_before_twips: resolved.get("spacingBeforeTwips").and_then(|v| v.as_i64()),
         spacing_after_twips: resolved.get("spacingAfterTwips").and_then(|v| v.as_i64()),
         line_spacing_twips: resolved.get("lineSpacingTwips").and_then(|v| v.as_i64()),
-        line_spacing_rule: resolved.get("lineSpacingRule").and_then(|v| v.as_str()).map(str::to_string),
+        line_spacing_rule: resolved
+            .get("lineSpacingRule")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
         indent_left_twips: resolved
             .get("indentLeftTwips")
             .and_then(|v| v.as_i64())
-            .or_else(|| label.and_then(|l| l.get("indentLeftTwips")).and_then(|v| v.as_i64())),
+            .or_else(|| {
+                label
+                    .and_then(|l| l.get("indentLeftTwips"))
+                    .and_then(|v| v.as_i64())
+            }),
         indent_right_twips: resolved.get("indentRightTwips").and_then(|v| v.as_i64()),
         indent_start_twips: resolved.get("indentStartTwips").and_then(|v| v.as_i64()),
         indent_end_twips: resolved.get("indentEndTwips").and_then(|v| v.as_i64()),
@@ -420,7 +558,11 @@ fn adapt_paragraph_only(
         widow_control: resolved.get("widowControl").and_then(|v| v.as_bool()),
         floats: floats_of(paragraph),
         tab_stops,
-        footnotes: if footnotes.is_empty() { None } else { Some(footnotes) },
+        footnotes: if footnotes.is_empty() {
+            None
+        } else {
+            Some(footnotes)
+        },
         borders: box_result.borders,
         shading: box_result.shading,
     }
@@ -520,7 +662,11 @@ fn adapt_run(
 ) -> LayoutRun {
     if is_run_hidden_for_review(run, review_mode) {
         return LayoutRun {
-            text: run.get("text").and_then(|v| v.as_str()).unwrap_or("").into(),
+            text: run
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .into(),
             hidden: Some(true),
             source_length: Some(review_source_length(run)),
             bold: None,
@@ -570,10 +716,14 @@ fn adapt_run(
     };
     let has_note_text = note_text.is_some();
     let text = note_text.unwrap_or_else(|| {
-        if run.get("field").is_some() && !is_field_locked(run) && (name == "DATE" || name == "TIME") {
+        if run.get("field").is_some() && !is_field_locked(run) && (name == "DATE" || name == "TIME")
+        {
             date_field_result(
                 &name,
-                run.get("field").and_then(|f| f.get("instr")).and_then(|v| v.as_str()).unwrap_or(""),
+                run.get("field")
+                    .and_then(|f| f.get("instr"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(""),
                 now.0,
                 now.1,
                 now.2,
@@ -583,7 +733,10 @@ fn adapt_run(
         } else if run.get("equation").is_some() {
             "[Equation]".into()
         } else {
-            run.get("text").and_then(|v| v.as_str()).unwrap_or("").into()
+            run.get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .into()
         }
     });
     let script = if formatting.get("verticalAlign").and_then(|v| v.as_str()) == Some("superscript")
@@ -596,17 +749,37 @@ fn adapt_run(
         None
     };
     let image = run.get("image");
-    if image.and_then(|i| i.get("unsupported")).and_then(|v| v.as_str()) == Some("Text box") {
+    if image
+        .and_then(|i| i.get("unsupported"))
+        .and_then(|v| v.as_str())
+        == Some("Text box")
+    {
         report(TEXT_BOX_NOTE.into());
     }
     let object = image
-        .filter(|image| !image.get("anchored").and_then(|v| v.as_bool()).unwrap_or(false))
+        .filter(|image| {
+            !image
+                .get("anchored")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+        })
         .map(|image| {
             let mut obj = super::input::LayoutObject {
-                part_name: image.get("partName").and_then(|v| v.as_str()).unwrap_or("").into(),
-                content_type: image.get("contentType").and_then(|v| v.as_str()).unwrap_or("").into(),
+                part_name: image
+                    .get("partName")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
+                content_type: image
+                    .get("contentType")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
                 width_px: image.get("widthPx").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                height_px: image.get("heightPx").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                height_px: image
+                    .get("heightPx")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0),
                 chart: None,
             };
             if image.get("chart").is_some() {
@@ -633,7 +806,13 @@ fn adapt_run(
                 .get("fontTheme")
                 .and_then(|ft| ft.get("ascii").or_else(|| ft.get("hAnsi")))
                 .and_then(|v| v.as_str())
-                .and_then(|role| theme.and_then(|t| t.get("fonts").and_then(|f| f.get(role)).and_then(|r| r.get("latin"))))
+                .and_then(|role| {
+                    theme.and_then(|t| {
+                        t.get("fonts")
+                            .and_then(|f| f.get(role))
+                            .and_then(|r| r.get("latin"))
+                    })
+                })
                 .and_then(|v| v.as_str())
         });
     let color = formatting
@@ -645,9 +824,18 @@ fn adapt_run(
                 .get("colorTheme")
                 .and_then(|ct| theme.and_then(|t| resolve_theme_color_reference(ct, t)))
         });
-    let display_text = if image.is_some() || formatting.get("vanish").and_then(|v| v.as_bool()).unwrap_or(false) {
+    let display_text = if image.is_some()
+        || formatting
+            .get("vanish")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+    {
         String::new()
-    } else if formatting.get("caps").and_then(|v| v.as_bool()).unwrap_or(false) {
+    } else if formatting
+        .get("caps")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         text.to_uppercase()
     } else {
         text
@@ -661,7 +849,10 @@ fn adapt_run(
         font_family: family.map(str::to_string),
         font_size_pt: formatting.get("fontSize").and_then(|v| v.as_f64()),
         text_scale_percent: formatting.get("textScalePercent").and_then(|v| v.as_f64()),
-        ligatures: formatting.get("ligatures").and_then(|v| v.as_str()).map(str::to_string),
+        ligatures: formatting
+            .get("ligatures")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
         character_spacing_px: formatting
             .get("characterSpacingTwips")
             .and_then(|v| v.as_f64())
@@ -674,7 +865,10 @@ fn adapt_run(
             .get("positionHalfPoints")
             .and_then(|v| v.as_f64())
             .map(|p| p * 2.0 / 3.0),
-        break_after: run.get("break").and_then(|v| v.as_str()).map(str::to_string),
+        break_after: run
+            .get("break")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
         object,
         synthetic: None,
         marker: None,

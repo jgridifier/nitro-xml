@@ -52,7 +52,8 @@ impl PageCursor {
         balance: Option<BalanceHint>,
     ) -> Self {
         let content_width = geometry.width_px - geometry.margin_left_px - geometry.margin_right_px;
-        let equal_column_width_px = ((content_width - columns.gap_px * (columns.count as f64 - 1.0))
+        let equal_column_width_px = ((content_width
+            - columns.gap_px * (columns.count as f64 - 1.0))
             / columns.count as f64)
             .max(1.0);
         let mut cursor = Self {
@@ -175,7 +176,10 @@ impl PageCursor {
             .all(|column| {
                 column.blocks.iter().all(|block| {
                     let y = block.get("yPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                    let h = block.get("heightPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                    let h = block
+                        .get("heightPx")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(0.0);
                     y + h <= limit
                 })
             })
@@ -243,7 +247,10 @@ impl PageCursor {
                 .flat_map(|column| {
                     column.blocks.iter().map(|block| {
                         let y = block.get("yPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                        let h = block.get("heightPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                        let h = block
+                            .get("heightPx")
+                            .and_then(|v| v.as_f64())
+                            .unwrap_or(0.0);
                         y + h
                     })
                 })
@@ -348,10 +355,7 @@ impl PageCursor {
                 .get_or_insert_with(Vec::new);
             for note in notes {
                 let height_px = note.height_px;
-                footnotes.push(LayoutFootnoteBox {
-                    y_px: top,
-                    ..note
-                });
+                footnotes.push(LayoutFootnoteBox { y_px: top, ..note });
                 top += height_px;
             }
         }

@@ -248,7 +248,9 @@ fn peek_chart_space(root: &Element) -> (Option<String>, bool, Option<String>) {
     let mut kind = None;
     if let Some(plot) = plot {
         for child in plot.element_children() {
-            if let Some((_, mapped)) = CHART_GROUP_LOCALS.iter().find(|(local, _)| child.local == *local)
+            if let Some((_, mapped)) = CHART_GROUP_LOCALS
+                .iter()
+                .find(|(local, _)| child.local == *local)
             {
                 let mut k = (*mapped).to_string();
                 if k == "bar" {

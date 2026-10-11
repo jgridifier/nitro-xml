@@ -86,7 +86,11 @@ fn border_side(side: Option<&Value>, theme: Option<&Value>) -> Option<LayoutPara
     } else {
         "solid"
     };
-    let width_px = ((side.get("sizeEighthPoints").and_then(|v| v.as_f64()).unwrap_or(4.0) / 8.0)
+    let width_px = ((side
+        .get("sizeEighthPoints")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(4.0)
+        / 8.0)
         * 96.0
         / 72.0)
         .max(if resolved_style == "double" { 3.0 } else { 1.0 });

@@ -8,6 +8,8 @@ pub fn expect_defined<T>(value: Option<T>, context: &str) -> T {
     }
 }
 
-pub fn clone_pages(pages: &[crate::layout::result::LayoutPageBox]) -> Vec<crate::layout::result::LayoutPageBox> {
+pub fn clone_pages(
+    pages: &[crate::layout::result::LayoutPageBox],
+) -> Vec<crate::layout::result::LayoutPageBox> {
     serde_json::from_value(serde_json::to_value(pages).expect("clone pages")).expect("clone pages")
 }

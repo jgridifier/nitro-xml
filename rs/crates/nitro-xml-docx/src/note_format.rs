@@ -82,7 +82,8 @@ fn walk_blocks(blocks: &[Value], kind: &str, order: &mut HashMap<String, i32>) {
             for row in rows {
                 if let Some(cells) = row.as_array() {
                     for cell in cells {
-                        if let Some(paragraphs) = cell.get("paragraphs").and_then(|v| v.as_array()) {
+                        if let Some(paragraphs) = cell.get("paragraphs").and_then(|v| v.as_array())
+                        {
                             walk_blocks(paragraphs, kind, order);
                         }
                     }

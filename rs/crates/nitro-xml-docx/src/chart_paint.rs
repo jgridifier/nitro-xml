@@ -7,7 +7,12 @@
 
 use serde_json::{json, Value};
 
-pub fn docx_chart_paint(chart: &Value, _width_px: f64, _height_px: f64, _theme: Option<&Value>) -> Value {
+pub fn docx_chart_paint(
+    chart: &Value,
+    _width_px: f64,
+    _height_px: f64,
+    _theme: Option<&Value>,
+) -> Value {
     // TODO(#28): renderChartSpaceSvg via nitro-xml-render::chart.
     let space = chart.get("chartSpace");
     if space.is_none() {
@@ -26,7 +31,11 @@ pub fn docx_chart_paint(chart: &Value, _width_px: f64, _height_px: f64, _theme: 
             "label": kind.map(|t| format!("Chart ({t})")).unwrap_or_else(|| "Chart".into())
         });
     }
-    if let Some(title) = chart.get("title").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
+    if let Some(title) = chart
+        .get("title")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+    {
         return json!({ "label": format!("Chart: {title}") });
     }
     json!({ "label": "Chart" })

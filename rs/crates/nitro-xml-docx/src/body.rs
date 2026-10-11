@@ -30,8 +30,8 @@ use crate::simple_types::on_off_element;
 use crate::styles::{
     default_style_catalogs as default_cats, parse_paragraph_style_catalog, parse_run_style_catalog,
 };
-use crate::table_styles::parse_table_style_catalog;
 use crate::table::parse_table;
+use crate::table_styles::parse_table_style_catalog;
 use crate::theme::{parse_color_scheme_mapping, parse_theme};
 use crate::warnings::{
     diagram_warnings, for_each_paragraph, image_and_bookmark_warnings, paragraph_bookmark_names,
@@ -135,28 +135,30 @@ pub fn read_package(bytes: &[u8]) -> Result<LoadedDocument<'_>, OpcError> {
     let mut warnings = warnings_for(&document);
 
     let (default_p, default_c, default_t) = default_cats();
-    let (paragraph_styles, character_styles, table_styles) =
-        if pkg.text("word/styles.xml")?.is_some() {
-            let styles_xml = pkg.text("word/styles.xml")?.unwrap();
-            warnings.push(
+    let (paragraph_styles, character_styles, table_styles) = if pkg
+        .text("word/styles.xml")?
+        .is_some()
+    {
+        let styles_xml = pkg.text("word/styles.xml")?.unwrap();
+        warnings.push(
                 "Paragraph style, character style and docDefaults inheritance resolve for rendering, including toggle-property XOR semantics and basedOn chains. Linked styles beyond a basedOn chain, numbering-derived formatting and font metric substitution are not modeled; display can still differ from Word.".to_string(),
             );
-            let table = parse_table_style_catalog(styles_xml);
-            if let Some(extra) = table.get("warnings").and_then(|v| v.as_array()) {
-                for w in extra {
-                    if let Some(s) = w.as_str() {
-                        warnings.push(s.to_string());
-                    }
+        let table = parse_table_style_catalog(styles_xml);
+        if let Some(extra) = table.get("warnings").and_then(|v| v.as_array()) {
+            for w in extra {
+                if let Some(s) = w.as_str() {
+                    warnings.push(s.to_string());
                 }
             }
-            (
-                Some(parse_paragraph_style_catalog(styles_xml)),
-                Some(parse_run_style_catalog(styles_xml)),
-                Some(table),
-            )
-        } else {
-            (Some(default_p), Some(default_c), Some(default_t))
-        };
+        }
+        (
+            Some(parse_paragraph_style_catalog(styles_xml)),
+            Some(parse_run_style_catalog(styles_xml)),
+            Some(table),
+        )
+    } else {
+        (Some(default_p), Some(default_c), Some(default_t))
+    };
 
     let mut theme = None;
     if pkg.text("word/theme/theme1.xml")?.is_some() {
@@ -325,9 +327,8 @@ pub fn read_package(bytes: &[u8]) -> Result<LoadedDocument<'_>, OpcError> {
 
     // Layout labels need title / undrawn family; full chartSpace parse is #28.
     {
-        let mut read_text = |name: &str| -> Option<String> {
-            pkg.text(name).ok().flatten().map(|s| s.to_string())
-        };
+        let mut read_text =
+            |name: &str| -> Option<String> { pkg.text(name).ok().flatten().map(|s| s.to_string()) };
         resolve_loaded_charts(
             &mut model.blocks,
             model.footnotes.as_mut(),

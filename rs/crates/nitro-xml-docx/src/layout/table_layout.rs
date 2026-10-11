@@ -75,16 +75,24 @@ pub fn layout_row(
             let starts: Option<HashMap<String, usize>> = continuation.map(|boxes| {
                 boxes
                     .iter()
-                    .map(|b| (b.block_id.clone(), b.lines.first().and_then(|l| l.first_token).unwrap_or(0)))
+                    .map(|b| {
+                        (
+                            b.block_id.clone(),
+                            b.lines.first().and_then(|l| l.first_token).unwrap_or(0),
+                        )
+                    })
                     .collect()
             });
             let width_px = cell.width_px.unwrap_or(table_width_px / count as f64);
-            let padding = cell.padding.clone().unwrap_or(super::input::LayoutCellPadding {
-                top: 0.0,
-                right: 0.0,
-                bottom: 0.0,
-                left: 0.0,
-            });
+            let padding = cell
+                .padding
+                .clone()
+                .unwrap_or(super::input::LayoutCellPadding {
+                    top: 0.0,
+                    right: 0.0,
+                    bottom: 0.0,
+                    left: 0.0,
+                });
             let paragraphs: Vec<LayoutParagraph> = if let Some(starts) = &starts {
                 cell.paragraphs
                     .iter()
@@ -218,7 +226,10 @@ pub fn split_row_at_height(row: RowLayout, cut_height_px: f64) -> RowSplit {
         .collect();
     let any_after = splits.iter().any(|s| !s.after.is_empty());
     let before = RowLayout {
-        height_px: splits.iter().map(|s| s.before_height_px).fold(0.0, f64::max),
+        height_px: splits
+            .iter()
+            .map(|s| s.before_height_px)
+            .fold(0.0, f64::max),
         cells: splits.iter().map(|s| s.before.clone()).collect(),
         geometry: row.geometry.clone(),
     };
@@ -241,5 +252,8 @@ pub fn split_row_at_height(row: RowLayout, cut_height_px: f64) -> RowSplit {
         cells: splits.iter().map(|s| s.after.clone()).collect(),
         geometry: row.geometry.clone(),
     };
-    RowSplit { before, after: Some(after) }
+    RowSplit {
+        before,
+        after: Some(after),
+    }
 }

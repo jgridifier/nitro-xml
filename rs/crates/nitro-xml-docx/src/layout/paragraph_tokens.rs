@@ -6,7 +6,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use super::input::{LayoutParagraph, LayoutRun};
 use super::measure::{LayoutFontSpec, TextMeasurer};
 use super::text_breaks::{append_break_marker, tokenize_run, utf16_len, BreakToken};
-use super::units::{DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE_PT, NO_TWIPS, pt_to_px, twips_to_px};
+use super::units::{pt_to_px, twips_to_px, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE_PT, NO_TWIPS};
 
 pub const SCRIPT_SCALE: f64 = 0.65;
 
@@ -25,9 +25,7 @@ pub fn font_of(run: &LayoutRun) -> LayoutFontSpec {
         bold: run.bold.unwrap_or(false),
         italic: run.italic.unwrap_or(false),
         kerning: run.kerning_threshold_pt.map(|threshold| {
-            if threshold > 0.0
-                && run.font_size_pt.unwrap_or(DEFAULT_FONT_SIZE_PT) >= threshold
-            {
+            if threshold > 0.0 && run.font_size_pt.unwrap_or(DEFAULT_FONT_SIZE_PT) >= threshold {
                 "normal".to_string()
             } else {
                 "none".to_string()
@@ -42,7 +40,7 @@ pub fn run_text_width(text: &str, run: &LayoutRun, measurer: &dyn TextMeasurer) 
     let grapheme_count = text.graphemes(true).count();
     (measurer.width_of(text, &font_of(run)) * run.text_scale_percent.unwrap_or(100.0) / 100.0
         + grapheme_count as f64 * run.character_spacing_px.unwrap_or(0.0))
-        .max(0.0)
+    .max(0.0)
 }
 
 pub struct ResolvedIndents {

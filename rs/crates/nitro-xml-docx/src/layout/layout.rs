@@ -34,7 +34,11 @@ pub fn layout_document(input: &LayoutDocumentInput, measurer: &FakeMeasurer) -> 
     }
     let mut approx = result.approximations;
     approx.push(FLOAT_WRAP_NOTE.to_string());
-    result.approximations = approx.into_iter().collect::<HashSet<_>>().into_iter().collect();
+    result.approximations = approx
+        .into_iter()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
     result
 }
 
@@ -43,7 +47,10 @@ pub fn layout_document_model(
     measurer: &FakeMeasurer,
     options: LayoutReviewOptions,
 ) -> LayoutResult {
-    let mode = match options.review_display_mode.unwrap_or(crate::review_formatting_display::ReviewDisplayMode::All) {
+    let mode = match options
+        .review_display_mode
+        .unwrap_or(crate::review_formatting_display::ReviewDisplayMode::All)
+    {
         crate::review_formatting_display::ReviewDisplayMode::All => "all",
         crate::review_formatting_display::ReviewDisplayMode::Simple => "simple",
         crate::review_formatting_display::ReviewDisplayMode::Final => "final",
@@ -57,8 +64,7 @@ pub fn layout_document_model(
             format!(
                 "Original formatting unavailable in paragraph {}{}: {}",
                 d.paragraph_id,
-                d
-                    .run_index
+                d.run_index
                     .map(|i| format!(", run {}", i))
                     .unwrap_or_default(),
                 d.message

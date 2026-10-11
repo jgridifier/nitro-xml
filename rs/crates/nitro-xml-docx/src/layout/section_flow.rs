@@ -92,7 +92,14 @@ impl SectionFlow {
             .first()
             .map(|row| {
                 let mut noop = |_message: &str| {};
-                layout_row(row, self.cursor.column_width_px(), measurer, &mut noop, None).height_px
+                layout_row(
+                    row,
+                    self.cursor.column_width_px(),
+                    measurer,
+                    &mut noop,
+                    None,
+                )
+                .height_px
             })
             .unwrap_or(0.0);
         self.first_row_height_cache.insert(key, cached);
@@ -188,7 +195,8 @@ impl SectionFlow {
                                     }
                                 })
                                 .collect();
-                            self.cursor.hold_footnotes(paragraph.id.clone(), footnote_boxes);
+                            self.cursor
+                                .hold_footnotes(paragraph.id.clone(), footnote_boxes);
                         }
                     }
                     let required_together_px = if paragraph.keep_next.unwrap_or(false) {

@@ -23,7 +23,10 @@ impl ReviewDisplayMode {
 }
 
 pub fn is_run_hidden_for_review(run: &Value, mode: ReviewDisplayMode) -> bool {
-    let kind = run.get("revision").and_then(|r| r.get("kind")).and_then(|v| v.as_str());
+    let kind = run
+        .get("revision")
+        .and_then(|r| r.get("kind"))
+        .and_then(|v| v.as_str());
     match mode {
         ReviewDisplayMode::Original => kind == Some("insert") || kind == Some("moveTo"),
         ReviewDisplayMode::Final | ReviewDisplayMode::Simple => {

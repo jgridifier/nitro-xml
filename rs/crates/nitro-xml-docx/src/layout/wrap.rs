@@ -45,7 +45,10 @@ pub fn wrap_exclusions(pages: &[LayoutPageBox]) -> HashMap<usize, Vec<Exclusion>
     exclusions
 }
 
-pub fn same_exclusions(a: &HashMap<usize, Vec<Exclusion>>, b: &HashMap<usize, Vec<Exclusion>>) -> bool {
+pub fn same_exclusions(
+    a: &HashMap<usize, Vec<Exclusion>>,
+    b: &HashMap<usize, Vec<Exclusion>>,
+) -> bool {
     fn key(map: &HashMap<usize, Vec<Exclusion>>) -> String {
         let mut entries: Vec<_> = map.iter().collect();
         entries.sort_by_key(|(k, _)| *k);
@@ -55,8 +58,7 @@ pub fn same_exclusions(a: &HashMap<usize, Vec<Exclusion>>, b: &HashMap<usize, Ve
                 .map(|(page, list)| {
                     (
                         page,
-                        list
-                            .iter()
+                        list.iter()
                             .map(|item| {
                                 (
                                     item.x_px.round() as i64,

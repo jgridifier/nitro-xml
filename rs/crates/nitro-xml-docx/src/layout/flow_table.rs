@@ -31,7 +31,13 @@ pub fn place_table(
 
     for (row_index, row) in table.rows.iter().enumerate() {
         let cant_split = row.cant_split.unwrap_or(false) || row_index < header_count;
-        let mut remaining_row: Option<RowLayout> = Some(layout_row(row, cursor.column_width_px(), measurer, note, None));
+        let mut remaining_row: Option<RowLayout> = Some(layout_row(
+            row,
+            cursor.column_width_px(),
+            measurer,
+            note,
+            None,
+        ));
         while let Some(row_layout) = remaining_row.take() {
             let remaining = cursor.remaining_height_px() - fragment_height;
             if row_layout.height_px <= remaining {
@@ -52,7 +58,11 @@ pub fn place_table(
                             LayoutBlockBox::Table(LayoutTableBox {
                                 kind: "table".into(),
                                 block_id: table.id.clone(),
-                                x_px: if x_offset != 0.0 { Some(x_offset) } else { None },
+                                x_px: if x_offset != 0.0 {
+                                    Some(x_offset)
+                                } else {
+                                    None
+                                },
                                 y_px: 0.0,
                                 height_px: fragment_height,
                                 rows: fragment_rows.clone(),
@@ -64,7 +74,8 @@ pub fn place_table(
                     }
                     cursor.new_column();
                     for header in table.rows.iter().take(header_count) {
-                        let layout = layout_row(header, cursor.column_width_px(), measurer, note, None);
+                        let layout =
+                            layout_row(header, cursor.column_width_px(), measurer, note, None);
                         fragment_rows.push(LayoutTableRowBox {
                             y_px: fragment_height,
                             height_px: layout.height_px,
@@ -74,7 +85,13 @@ pub fn place_table(
                         });
                         fragment_height += layout.height_px;
                     }
-                    remaining_row = Some(layout_row(row, cursor.column_width_px(), measurer, note, None));
+                    remaining_row = Some(layout_row(
+                        row,
+                        cursor.column_width_px(),
+                        measurer,
+                        note,
+                        None,
+                    ));
                     continue;
                 }
                 if row_layout.height_px > cursor.remaining_height_px() - fragment_height {
@@ -125,7 +142,11 @@ pub fn place_table(
                     LayoutBlockBox::Table(LayoutTableBox {
                         kind: "table".into(),
                         block_id: table.id.clone(),
-                        x_px: if x_offset != 0.0 { Some(x_offset) } else { None },
+                        x_px: if x_offset != 0.0 {
+                            Some(x_offset)
+                        } else {
+                            None
+                        },
                         y_px: 0.0,
                         height_px: fragment_height,
                         rows: fragment_rows.clone(),
@@ -152,7 +173,13 @@ pub fn place_table(
                     let mut patched = row.clone();
                     patched.height_px = Some(0.0);
                     patched.height_rule = Some("atLeast".into());
-                    layout_row(&patched, cursor.column_width_px(), measurer, note, Some(&after.cells))
+                    layout_row(
+                        &patched,
+                        cursor.column_width_px(),
+                        measurer,
+                        note,
+                        Some(&after.cells),
+                    )
                 } else {
                     after
                 }
@@ -164,7 +191,11 @@ pub fn place_table(
             LayoutBlockBox::Table(LayoutTableBox {
                 kind: "table".into(),
                 block_id: table.id.clone(),
-                x_px: if x_offset != 0.0 { Some(x_offset) } else { None },
+                x_px: if x_offset != 0.0 {
+                    Some(x_offset)
+                } else {
+                    None
+                },
                 y_px: 0.0,
                 height_px: fragment_height,
                 rows: fragment_rows,

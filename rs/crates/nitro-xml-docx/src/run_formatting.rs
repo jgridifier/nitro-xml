@@ -55,7 +55,8 @@ pub fn resolve_run_formatting(run: &Value, context: RunFormattingContext) -> Val
         context.paragraph_catalog.as_ref(),
         run_catalog,
     );
-    let character_chain = character_style_chain(run.get("style").and_then(|v| v.as_str()), run_catalog);
+    let character_chain =
+        character_style_chain(run.get("style").and_then(|v| v.as_str()), run_catalog);
     let levels: Vec<Value> = std::iter::once(doc_defaults.clone())
         .chain(paragraph_chain.clone())
         .chain(character_chain.clone())
@@ -67,7 +68,10 @@ pub fn resolve_run_formatting(run: &Value, context: RunFormattingContext) -> Val
         let state = if direct.is_some() {
             direct.and_then(|v| v.as_bool()).unwrap_or(false)
         } else {
-            let doc = doc_defaults.get(key).and_then(|v| v.as_bool()).unwrap_or(false);
+            let doc = doc_defaults
+                .get(key)
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let p = chain_value(&paragraph_chain, key);
             let c = chain_value(&character_chain, key);
             doc != (p != c)
@@ -113,7 +117,11 @@ fn paragraph_style_run_chain(
     let mut current = style_id.or_else(|| {
         styles
             .values()
-            .find(|s| s.get("isDefault").and_then(|v| v.as_bool()).unwrap_or(false))
+            .find(|s| {
+                s.get("isDefault")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+            })
             .and_then(|s| s.get("id").and_then(|v| v.as_str()))
     });
     while let Some(id) = current {

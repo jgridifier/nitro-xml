@@ -9,7 +9,11 @@ use super::util::clone_pages;
 pub fn can_balance_block(block: &LayoutBlock) -> bool {
     match block {
         LayoutBlock::Paragraph(paragraph) => {
-            paragraph.floats.as_ref().map(|f| f.is_empty()).unwrap_or(true)
+            paragraph
+                .floats
+                .as_ref()
+                .map(|f| f.is_empty())
+                .unwrap_or(true)
                 && !paragraph.runs.iter().any(|run| run.break_after.is_some())
         }
         LayoutBlock::Table(table) => {
@@ -17,7 +21,11 @@ pub fn can_balance_block(block: &LayoutBlock) -> bool {
                 && table.rows.iter().all(|row| {
                     row.cells.iter().all(|cell| {
                         cell.paragraphs.iter().all(|paragraph| {
-                            paragraph.footnotes.as_ref().map(|f| f.is_empty()).unwrap_or(true)
+                            paragraph
+                                .footnotes
+                                .as_ref()
+                                .map(|f| f.is_empty())
+                                .unwrap_or(true)
                                 && can_balance_block(&LayoutBlock::Paragraph(paragraph.clone()))
                         })
                     })

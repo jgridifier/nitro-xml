@@ -24,10 +24,7 @@ pub trait TextMeasurer {
     }
 }
 
-pub fn font_metrics(
-    measurer: &dyn TextMeasurer,
-    font: &LayoutFontSpec,
-) -> (f64, f64) {
+pub fn font_metrics(measurer: &dyn TextMeasurer, font: &LayoutFontSpec) -> (f64, f64) {
     let height = measurer.line_height_of(font);
     let ascent = measurer
         .ascent_of(font)
@@ -154,7 +151,8 @@ impl BatchedMeasurer<'_> {
         if font.ligatures.is_some() || font.small_caps {
             let id = self.next_request;
             self.next_request += 1;
-            self.layout_reads.push(self.span_node_id, LayoutReadKind::SpanRect, 0);
+            self.layout_reads
+                .push(self.span_node_id, LayoutReadKind::SpanRect, 0);
             self.span_requests.push(id);
             return self
                 .pending_widths

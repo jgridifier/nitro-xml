@@ -13,7 +13,7 @@ use super::paragraph_tokens::{
 use super::result::{LayoutLine, LayoutParagraphFrame};
 use super::tab_stops::place_tab;
 use super::text_breaks::BreakToken;
-use super::units::{NO_TWIPS, twips_to_px};
+use super::units::{twips_to_px, NO_TWIPS};
 use super::util::expect_defined;
 
 #[derive(Clone)]
@@ -61,16 +61,18 @@ pub fn layout_paragraph(
     let run_offsets = tokenized.run_offsets;
     let global_offset = |token: &BreakToken| -> usize {
         let run_index = token_run_index(token);
-        expect_defined(run_offsets.get(run_index).copied(), "run offset index") + token_source_start(token)
+        expect_defined(run_offsets.get(run_index).copied(), "run offset index")
+            + token_source_start(token)
     };
-    let effective_align = paragraph
-        .align
-        .as_deref()
-        .unwrap_or(if paragraph.direction.as_deref() == Some("rtl") {
-            "right"
-        } else {
-            "left"
-        });
+    let effective_align =
+        paragraph
+            .align
+            .as_deref()
+            .unwrap_or(if paragraph.direction.as_deref() == Some("rtl") {
+                "right"
+            } else {
+                "left"
+            });
 
     let mut lines: Vec<LayoutLine> = Vec::new();
     let mut page_break_after_line = HashSet::new();
@@ -94,13 +96,16 @@ pub fn layout_paragraph(
     };
     let token_width = |token: &BreakToken, _index: usize| -> f64 {
         match token {
-            BreakToken::Word { text, run_index, .. } | BreakToken::Space { text, run_index, .. } => {
-                run_text_width(
-                    text,
-                    expect_defined(paragraph.runs.get(*run_index), "token run"),
-                    measurer,
-                )
+            BreakToken::Word {
+                text, run_index, ..
             }
+            | BreakToken::Space {
+                text, run_index, ..
+            } => run_text_width(
+                text,
+                expect_defined(paragraph.runs.get(*run_index), "token run"),
+                measurer,
+            ),
             BreakToken::Object { run_index, .. } => paragraph
                 .runs
                 .get(*run_index)
@@ -195,24 +200,20 @@ pub fn layout_paragraph(
             .runs
             .get(token_run_index(token))
             .and_then(|r| r.marker.as_ref());
-        let marker_factor = if marker.is_some() && matches!(token, BreakToken::Word { .. }) && token_index == 0 {
-            match marker.unwrap().alignment.as_str() {
-                "right" => 1.0,
-                "center" => 0.5,
-                _ => 0.0,
-            }
-        } else {
-            0.0
-        };
+        let marker_factor =
+            if marker.is_some() && matches!(token, BreakToken::Word { .. }) && token_index == 0 {
+                match marker.unwrap().alignment.as_str() {
+                    "right" => 1.0,
+                    "center" => 0.5,
+                    _ => 0.0,
+                }
+            } else {
+                0.0
+            };
         let advance = width * (1.0 - marker_factor);
         let leader = if matches!(token, BreakToken::Tab { .. }) {
-            let (following_px, before_decimal_px) = segment_after(
-                token_index,
-                &tokens,
-                &widths,
-                paragraph,
-                measurer,
-            );
+            let (following_px, before_decimal_px) =
+                segment_after(token_index, &tokens, &widths, paragraph, measurer);
             let tab = place_tab(
                 box_state.line_start(lines.len()) + line_width_px,
                 paragraph.tab_stops.as_deref().unwrap_or(&[]),
@@ -231,7 +232,13 @@ pub fn layout_paragraph(
         };
         let line_index = lines.len();
         let limit = box_state.available_width(line_index);
-        let would_fit = line_width_px + if matches!(token, BreakToken::Tab { .. }) { width } else { advance } <= limit
+        let would_fit = line_width_px
+            + if matches!(token, BreakToken::Tab { .. }) {
+                width
+            } else {
+                advance
+            }
+            <= limit
             || placed.iter().all(|p| {
                 paragraph
                     .runs
@@ -482,14 +489,14 @@ fn flush_paragraph_line(
     }
     let line_index = lines.len();
     let mut rendered: Vec<PlacedToken> = placed.clone();
-    while rendered.last().is_some_and(|p| matches!(p.token, BreakToken::Space { .. })) {
+    while rendered
+        .last()
+        .is_some_and(|p| matches!(p.token, BreakToken::Space { .. }))
+    {
         rendered.pop();
     }
     let mut fragments = build_fragments(&rendered, paragraph);
-    let start = placed
-        .first()
-        .map(|p| global_offset(&p.token))
-        .unwrap_or(0);
+    let start = placed.first().map(|p| global_offset(&p.token)).unwrap_or(0);
     let end = if let Some(last) = placed.last() {
         let base = global_offset(&last.token);
         match &last.token {
@@ -575,7 +582,10 @@ fn segment_after(
             break;
         }
         if before_decimal_px.is_none() {
-            if let BreakToken::Word { text, run_index, .. } = token {
+            if let BreakToken::Word {
+                text, run_index, ..
+            } = token
+            {
                 if let Some(pos) = text.find('.').or_else(|| text.find(',')) {
                     let prefix = &text[..pos];
                     before_decimal_px = Some(

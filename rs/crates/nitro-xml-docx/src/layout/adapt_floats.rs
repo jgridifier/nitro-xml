@@ -11,10 +11,17 @@ pub fn paragraph_floats(paragraph: &Value) -> Vec<LayoutFloat> {
         for run in runs {
             let image = run.get("image");
             let Some(image) = image else { continue };
-            if !image.get("anchored").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if !image
+                .get("anchored")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 continue;
             }
-            let part_name = image.get("partName").and_then(|v| v.as_str()).filter(|p| !p.is_empty());
+            let part_name = image
+                .get("partName")
+                .and_then(|v| v.as_str())
+                .filter(|p| !p.is_empty());
             let Some(part_name) = part_name else { continue };
             floats.push(LayoutFloat {
                 part_name: part_name.to_string(),
@@ -24,7 +31,10 @@ pub fn paragraph_floats(paragraph: &Value) -> Vec<LayoutFloat> {
                     .unwrap_or("")
                     .to_string(),
                 width_px: image.get("widthPx").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                height_px: image.get("heightPx").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                height_px: image
+                    .get("heightPx")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0),
                 relative_from_h: image
                     .get("placement")
                     .and_then(|p| p.get("relativeFrom"))

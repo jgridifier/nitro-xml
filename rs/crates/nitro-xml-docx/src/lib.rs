@@ -19,36 +19,33 @@
 )]
 
 mod body;
-mod chart_paint;
-mod fields;
 mod borders;
 mod breaks;
 mod chart_host;
+mod chart_paint;
 mod comments;
 mod default_styles;
 mod drawing;
 pub mod dump;
 mod equation;
 mod field_runs;
+mod fields;
 mod hyperlink;
 mod json_util;
 mod layout;
 mod ligatures;
-mod note_format;
-mod review_document_formatting;
-mod review_formatting_display;
-mod run_formatting;
-mod resolve_table;
-mod table_styles;
-mod table_visuals;
-mod theme_color;
 mod model_dump;
+mod note_format;
 mod notes;
 mod numbering;
 mod paragraph_alignment;
 mod paragraph_scan;
+mod resolve_table;
+mod review_document_formatting;
+mod review_formatting_display;
 mod revisions;
 mod run;
+mod run_formatting;
 mod run_properties;
 mod sections;
 mod settings;
@@ -56,7 +53,10 @@ mod simple_types;
 mod styles;
 mod tab_stops;
 mod table;
+mod table_styles;
+mod table_visuals;
 mod theme;
+mod theme_color;
 mod warnings;
 mod watermark;
 mod xml_util;
@@ -67,7 +67,6 @@ pub use body::{
 
 /// Built-in `word/styles.xml` when the package has no styles part (upstream `DEFAULT_STYLES_XML`).
 pub use default_styles::default_styles_xml;
-pub use table_styles::parse_table_style_catalog;
 pub use numbering::{
     compute_list_labels, display_list_label, format_list_number, parse_numbering_catalog,
     resolve_numbering_level, resolve_paragraph_numbering,
@@ -80,6 +79,7 @@ pub use styles::{
     parse_run_style_catalog, resolve_paragraph_formatting, resolve_style_numbering, ParagraphProps,
     PAGINATION_KEYS,
 };
+pub use table_styles::parse_table_style_catalog;
 pub use theme::{diagram_color_theme, parse_color_scheme_mapping, parse_theme};
 
 pub mod render;

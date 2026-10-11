@@ -51,10 +51,11 @@ pub fn paragraph_footnotes(
             }
             let id = reference.and_then(|r| r.get("id")).and_then(|v| v.as_str());
             let Some(id) = id else { continue };
-            let note = model
-                .footnotes
-                .as_ref()
-                .and_then(|notes| notes.iter().find(|n| n.get("id").and_then(|v| v.as_str()) == Some(id)));
+            let note = model.footnotes.as_ref().and_then(|notes| {
+                notes
+                    .iter()
+                    .find(|n| n.get("id").and_then(|v| v.as_str()) == Some(id))
+            });
             if let Some(note) = note {
                 notes.push(LayoutNote {
                     id: id.to_string(),
@@ -100,7 +101,11 @@ pub fn endnote_paragraphs(
             model
                 .endnotes
                 .as_ref()
-                .and_then(|notes| notes.iter().find(|n| n.get("id").and_then(|v| v.as_str()) == Some(id)))
+                .and_then(|notes| {
+                    notes
+                        .iter()
+                        .find(|n| n.get("id").and_then(|v| v.as_str()) == Some(id))
+                })
                 .map(|note| adapt_note(note, &label("endnote", id), adapt))
         })
         .flatten()

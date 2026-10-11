@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/docx/layout/page-fields.ts; changes listed in PROVENANCE.md.
 
+use super::result::LayoutPageBox;
 use crate::body::DocumentModel;
 use crate::fields::{date_field_result, field_name, is_field_locked};
 use crate::note_format::format_note_number;
-use super::result::LayoutPageBox;
 
 pub fn page_numbers(model: &DocumentModel, pages: &[LayoutPageBox]) -> Vec<String> {
     page_number_values(model, pages)
@@ -50,9 +50,17 @@ pub fn page_number_values(model: &DocumentModel, pages: &[LayoutPageBox]) -> Vec
 
 pub fn field_display_text(run: &serde_json::Value, values: &PageFieldContext) -> String {
     if run.get("field").is_none() || is_field_locked(run) {
-        return run.get("text").and_then(|v| v.as_str()).unwrap_or("").into();
+        return run
+            .get("text")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .into();
     }
-    let instr = run.get("field").and_then(|f| f.get("instr")).and_then(|v| v.as_str()).unwrap_or("");
+    let instr = run
+        .get("field")
+        .and_then(|f| f.get("instr"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     let name = field_name(instr);
     if name == "PAGE" {
         return values.page.clone();
@@ -64,9 +72,20 @@ pub fn field_display_text(run: &serde_json::Value, values: &PageFieldContext) ->
         return values.section_pages.clone();
     }
     if name == "DATE" || name == "TIME" {
-        return date_field_result(&name, instr, values.year, values.month, values.day, values.hour, values.minute);
+        return date_field_result(
+            &name,
+            instr,
+            values.year,
+            values.month,
+            values.day,
+            values.hour,
+            values.minute,
+        );
     }
-    run.get("text").and_then(|v| v.as_str()).unwrap_or("").into()
+    run.get("text")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .into()
 }
 
 pub struct PageFieldContext {

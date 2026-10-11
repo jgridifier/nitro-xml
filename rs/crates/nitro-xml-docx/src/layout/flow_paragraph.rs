@@ -49,11 +49,23 @@ pub fn place_paragraph(
     }
     while line_cursor < layout.lines.len() {
         if cursor.column_width_px() != width {
-            layout = layout_paragraph(paragraph, cursor.column_width_px(), measurer, note, None, next_token);
+            layout = layout_paragraph(
+                paragraph,
+                cursor.column_width_px(),
+                measurer,
+                note,
+                None,
+                next_token,
+            );
             line_cursor = 0;
             width = cursor.column_width_px();
         }
-        let budget = cursor.remaining_height_px() - if first_segment { spacing_before_px } else { 0.0 };
+        let budget = cursor.remaining_height_px()
+            - if first_segment {
+                spacing_before_px
+            } else {
+                0.0
+            };
         let mut cumulative = 0.0;
         let mut end = line_cursor;
         let mut forced: Option<&str> = None;
@@ -81,11 +93,8 @@ pub fn place_paragraph(
         }
         let mut placed_count = end - line_cursor;
         if forced.is_none() && end < layout.lines.len() {
-            placed_count = adjust_for_widow_orphan(
-                layout.lines.len() - line_cursor,
-                placed_count,
-                widow,
-            );
+            placed_count =
+                adjust_for_widow_orphan(layout.lines.len() - line_cursor, placed_count, widow);
         }
         if placed_count == 0 {
             if !cursor.at_column_top() {
@@ -95,13 +104,18 @@ pub fn place_paragraph(
             note("A paragraph line was taller than an empty page/column and was placed without splitting.");
             placed_count = (end - line_cursor).max(1);
         }
-        let first = expect_defined(layout.lines.get(line_cursor), "first line of paragraph segment");
-        let origin = first.y_px - if first_segment {
-            first.gap_before_px.unwrap_or(0.0) + layout.inset_top_px
-        } else {
-            0.0
-        };
-        let segment_lines: Vec<super::result::LayoutLine> = layout.lines[line_cursor..line_cursor + placed_count]
+        let first = expect_defined(
+            layout.lines.get(line_cursor),
+            "first line of paragraph segment",
+        );
+        let origin = first.y_px
+            - if first_segment {
+                first.gap_before_px.unwrap_or(0.0) + layout.inset_top_px
+            } else {
+                0.0
+            };
+        let segment_lines: Vec<super::result::LayoutLine> = layout.lines
+            [line_cursor..line_cursor + placed_count]
             .iter()
             .map(|line| {
                 let mut l = line.clone();
@@ -113,10 +127,21 @@ pub fn place_paragraph(
         let last_line = segment_lines.last();
         let is_last_segment = is_final;
         let segment_height = last_line.map(|l| l.y_px + l.height_px).unwrap_or(0.0)
-            + if is_last_segment { layout.inset_bottom_px } else { 0.0 };
-        let advance = (if first_segment { spacing_before_px } else { 0.0 })
-            + segment_height
-            + if is_final { layout.spacing_after_px } else { 0.0 };
+            + if is_last_segment {
+                layout.inset_bottom_px
+            } else {
+                0.0
+            };
+        let advance = (if first_segment {
+            spacing_before_px
+        } else {
+            0.0
+        }) + segment_height
+            + if is_final {
+                layout.spacing_after_px
+            } else {
+                0.0
+            };
         cursor.place(
             LayoutBlockBox::Paragraph(LayoutParagraphBox {
                 kind: "paragraph".into(),

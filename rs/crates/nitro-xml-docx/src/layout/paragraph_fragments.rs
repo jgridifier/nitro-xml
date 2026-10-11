@@ -6,7 +6,10 @@ use super::paragraph_tokens::PlacedToken;
 use super::result::LayoutFragment;
 use super::text_breaks::BreakToken;
 
-pub fn build_fragments(tokens_on_line: &[PlacedToken], paragraph: &LayoutParagraph) -> Vec<LayoutFragment> {
+pub fn build_fragments(
+    tokens_on_line: &[PlacedToken],
+    paragraph: &LayoutParagraph,
+) -> Vec<LayoutFragment> {
     let mut fragments = Vec::new();
     let mut x = 0.0;
     for placed in tokens_on_line {

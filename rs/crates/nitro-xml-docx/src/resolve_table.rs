@@ -38,7 +38,9 @@ fn style_chain(style_id: Option<&str>, catalog: Option<&Value>) -> Vec<Value> {
 }
 
 fn look_bool(look: Option<&Value>, key: &str) -> bool {
-    look.and_then(|l| l.get(key)).and_then(|v| v.as_bool()).unwrap_or(false)
+    look.and_then(|l| l.get(key))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
 }
 
 fn applicable_regions(

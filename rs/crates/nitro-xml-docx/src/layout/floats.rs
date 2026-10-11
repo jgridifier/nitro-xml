@@ -86,8 +86,18 @@ pub fn float_position(
     let h = horizontal_area(float, page, column);
     let v = vertical_area(float, page, paragraph.0, paragraph.1);
     (
-        place(h, float.width_px, float.align_h.as_deref(), float.offset_x_px),
-        place(v, float.height_px, float.align_v.as_deref(), float.offset_y_px),
+        place(
+            h,
+            float.width_px,
+            float.align_h.as_deref(),
+            float.offset_x_px,
+        ),
+        place(
+            v,
+            float.height_px,
+            float.align_v.as_deref(),
+            float.offset_y_px,
+        ),
     )
 }
 
@@ -95,7 +105,9 @@ pub fn position_floats(input: &LayoutDocumentInput, pages: &mut [LayoutPageBox])
     let mut floats_by_id = std::collections::HashMap::new();
     for section in &input.sections {
         for block in &section.blocks {
-            if let Ok(paragraph) = serde_json::from_value::<super::input::LayoutParagraph>(block.clone()) {
+            if let Ok(paragraph) =
+                serde_json::from_value::<super::input::LayoutParagraph>(block.clone())
+            {
                 if let Some(floats) = paragraph.floats {
                     floats_by_id.insert(paragraph.id, floats);
                 }
@@ -125,7 +137,10 @@ pub fn position_floats(input: &LayoutDocumentInput, pages: &mut [LayoutPageBox])
                 }
                 placed.insert(block_id);
                 let y_px = block.get("yPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let height_px = block.get("heightPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let height_px = block
+                    .get("heightPx")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
                 let top = page.margin_top_px + y_px;
                 for float in floats.unwrap() {
                     let (x_px, y) = float_position(float, page, column, (top, height_px));

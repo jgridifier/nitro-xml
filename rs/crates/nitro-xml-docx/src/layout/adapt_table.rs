@@ -41,7 +41,11 @@ pub fn border(side: Option<&Value>, theme: Option<&Value>) -> Option<LayoutBorde
         .get("themeColor")
         .and_then(|tc| theme.and_then(|t| resolve_theme_color_reference(tc, t)));
     let hex = css_hex(side.get("color").and_then(|v| v.as_str()));
-    let width_px = ((side.get("sizeEighthPoints").and_then(|v| v.as_f64()).unwrap_or(4.0) / 8.0)
+    let width_px = ((side
+        .get("sizeEighthPoints")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(4.0)
+        / 8.0)
         * 96.0
         / 72.0)
         .max(if resolved_style == "double" { 3.0 } else { 1.0 });
@@ -57,21 +61,28 @@ pub fn adapt_table(
     model: &DocumentModel,
     adapt_paragraph: &mut dyn FnMut(&Value) -> LayoutParagraph,
 ) -> LayoutTable {
-    let grid = table
-        .get("grid")
+    let grid = table.get("grid").and_then(|v| v.as_array()).map(|cols| {
+        cols.iter()
+            .filter_map(|c| c.as_f64().map(twips_f64_to_px))
+            .collect::<Vec<_>>()
+    });
+    let column_count = grid.as_ref().map(|g| g.len()).unwrap_or_else(|| {
+        table
+            .get("rows")
+            .and_then(|v| v.as_array())
+            .map(|rows| {
+                rows.iter()
+                    .map(|r| r.as_array().map(|a| a.len()).unwrap_or(0))
+                    .max()
+                    .unwrap_or(1)
+            })
+            .unwrap_or(1)
+    });
+    let rows = table
+        .get("rows")
         .and_then(|v| v.as_array())
-        .map(|cols| cols.iter().filter_map(|c| c.as_f64().map(twips_f64_to_px)).collect::<Vec<_>>());
-    let column_count = grid
-        .as_ref()
-        .map(|g| g.len())
-        .unwrap_or_else(|| {
-            table
-                .get("rows")
-                .and_then(|v| v.as_array())
-                .map(|rows| rows.iter().map(|r| r.as_array().map(|a| a.len()).unwrap_or(0)).max().unwrap_or(1))
-                .unwrap_or(1)
-        });
-    let rows = table.get("rows").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        .cloned()
+        .unwrap_or_default();
     let grid_indexes: Vec<Vec<usize>> = rows
         .iter()
         .map(|row| {
@@ -110,7 +121,11 @@ pub fn adapt_table(
     };
     LayoutTable {
         kind: "table".into(),
-        id: table.get("id").and_then(|v| v.as_str()).unwrap_or("").into(),
+        id: table
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .into(),
         width_px: grid.as_ref().map(|g| g.iter().sum()),
         indent_px: table
             .get("indentTwips")
@@ -129,7 +144,9 @@ pub fn adapt_table(
                     .and_then(|v| v.as_array())
                     .and_then(|a| a.get(row_index));
                 LayoutTableRow {
-                    cant_split: row_props.and_then(|p| p.get("cantSplit")).and_then(|v| v.as_bool()),
+                    cant_split: row_props
+                        .and_then(|p| p.get("cantSplit"))
+                        .and_then(|v| v.as_bool()),
                     height_px: row_props
                         .and_then(|p| p.get("heightTwips"))
                         .and_then(|v| v.as_f64())
@@ -138,7 +155,9 @@ pub fn adapt_table(
                         .and_then(|p| p.get("heightRule"))
                         .and_then(|v| v.as_str())
                         .map(str::to_string),
-                    is_header: row_props.and_then(|p| p.get("header")).and_then(|v| v.as_bool()),
+                    is_header: row_props
+                        .and_then(|p| p.get("header"))
+                        .and_then(|v| v.as_bool()),
                     cells: row
                         .as_array()
                         .unwrap_or(&vec![])
@@ -146,7 +165,8 @@ pub fn adapt_table(
                         .enumerate()
                         .map(|(cell_index, cell)| {
                             let start = grid_indexes[row_index][cell_index];
-                            let span = cell.get("gridSpan").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+                            let span =
+                                cell.get("gridSpan").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
                             let placement = CellPlacement {
                                 row: row_index,
                                 last_row: row_index,
@@ -169,7 +189,9 @@ pub fn adapt_table(
                             };
                             if let Some(b) = visuals.get("borders") {
                                 for side in ["top", "right", "bottom", "left"] {
-                                    if let Some(resolved) = border(b.get(side), model.theme.as_ref()) {
+                                    if let Some(resolved) =
+                                        border(b.get(side), model.theme.as_ref())
+                                    {
                                         match side {
                                             "top" => borders.top = Some(resolved),
                                             "right" => borders.right = Some(resolved),
@@ -180,7 +202,9 @@ pub fn adapt_table(
                                     }
                                 }
                             }
-                            if cell.get("verticalMerge").and_then(|v| v.as_str()) == Some("continue") {
+                            if cell.get("verticalMerge").and_then(|v| v.as_str())
+                                == Some("continue")
+                            {
                                 borders.top = None;
                             }
                             if cell_at(row_index + 1, start)
@@ -212,7 +236,9 @@ pub fn adapt_table(
                                     .map(|ps| ps.iter().map(|p| adapt_paragraph(p)).collect())
                                     .unwrap_or_default(),
                                 width_px: width.or_else(|| {
-                                    cell.get("widthTwips").and_then(|v| v.as_f64()).map(twips_f64_to_px)
+                                    cell.get("widthTwips")
+                                        .and_then(|v| v.as_f64())
+                                        .map(twips_f64_to_px)
                                 }),
                                 x_px,
                                 padding: Some(padding),
@@ -225,7 +251,9 @@ pub fn adapt_table(
                                 } else {
                                     None
                                 },
-                                shading: css_hex(visuals.get("shadingFill").and_then(|v| v.as_str())),
+                                shading: css_hex(
+                                    visuals.get("shadingFill").and_then(|v| v.as_str()),
+                                ),
                                 vertical_align: cell
                                     .get("verticalAlign")
                                     .and_then(|v| v.as_str())

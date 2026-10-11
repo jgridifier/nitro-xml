@@ -23,6 +23,16 @@ perf/out/
 _site/
 # Fixtures that must not be committed (unknown licence)
 fixtures/private/
+# On-demand L/XL generated packages (sha256 recorded in fixtures/manifest.json; rebuilt by fixtures/verify)
+fixtures/generated/**/cells_1m*.xlsx
+fixtures/generated/**/pages_500*.docx
+fixtures/generated/**/slides_200*.pptx
+fixtures/generated/**/xl_*.xlsx
+fixtures/generated/**/xl_*.docx
+fixtures/generated/**/xl_*.pptx
+fixtures/generated/**/*.tmp.pptx
+# Python bytecode from fixture generators
+fixtures/gen/__pycache__/
 # OS / editors
 .DS_Store
 .idea/

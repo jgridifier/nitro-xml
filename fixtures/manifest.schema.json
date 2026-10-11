@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jgridifier/nitro-xml/fixtures/manifest.schema.json",
+  "title": "Nitro XML fixture corpus manifest",
+  "type": "object",
+  "required": ["version", "tiers", "painter_rows_required", "fixtures"],
+  "additionalProperties": true,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "tiers": {
+      "type": "object",
+      "required": ["S", "M", "L", "XL"],
+      "properties": {
+        "S": { "type": "string" },
+        "M": { "type": "string" },
+        "L": { "type": "string" },
+        "XL": { "type": "string" }
+      }
+    },
+    "painter_rows_required": {
+      "type": "array",
+      "minItems": 36,
+      "maxItems": 36,
+      "items": { "type": "string", "pattern": "^(X|D|P|S)[0-9]+$" }
+    },
+    "painter_rows_covered": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "painter_rows_missing": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "fixtures": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/fixture" }
+    }
+  },
+  "$defs": {
+    "fixture": {
+      "type": "object",
+      "required": [
+        "id",
+        "format",
+        "path",
+        "sha256",
+        "bytes",
+        "tier",
+        "source",
+        "licence",
+        "features",
+        "redistributable"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "format": { "enum": ["xlsx", "docx", "pptx"] },
+        "path": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "tier": { "enum": ["S", "M", "L", "XL"] },
+        "source": { "type": "string", "minLength": 1 },
+        "licence": { "type": "string", "minLength": 1 },
+        "features": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "redistributable": { "type": "boolean" },
+        "on_demand": { "type": "boolean" },
+        "generator": {
+          "type": "object",
+          "properties": {
+            "tool": { "type": "string" },
+            "id": { "type": "string" },
+            "seed": { "type": "integer" }
+          }
+        },
+        "upstream_path": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "redistributable": { "const": true } } },
+          "then": {
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "licence": {
+                "type": "string",
+                "not": { "const": "unknown" }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "redistributable": { "const": false } } },
+          "then": {
+            "properties": {
+              "path": { "const": "" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

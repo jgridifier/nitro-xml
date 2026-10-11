@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/pptx/core/core/runtime/PptxHandlerRuntimeLoadSession.ts,
 // PptxHandlerRuntimeLoadPipeline.ts and PptxHandlerRuntimeSlideMasters.ts; chart/SmartArt part
-// resolution for #27; changes in PROVENANCE.md.
+// resolution and VML OLE preview rels for #27; changes in PROVENANCE.md.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -16,9 +16,10 @@ use crate::level_style::{
 };
 use crate::placeholder_defaults::PlaceholderDefaultsCache;
 use crate::slide::{
-    concat_parsed, emu_to_px_helper, extract_text_body, first_paintable_background,
-    issue24_dump_parts, parse_sp_tree, shift_parse_seq, text_body_has_content,
-    unwrap_alternate_content_deep, DumpElement, ParseCtx, ParsedSpTree, SpTreeOptions, EMU_PER_PX,
+    assign_vml_ole_preview, concat_parsed, emu_to_px_helper, extract_text_body,
+    first_paintable_background, issue24_dump_parts, parse_sp_tree, shift_parse_seq,
+    text_body_has_content, unwrap_alternate_content_deep, DumpElement, ParseCtx, ParsedSpTree,
+    SpTreeOptions, EMU_PER_PX,
 };
 use crate::theme::{default_scheme_color_map, is_presentation_theme_path, parse_theme_part, Theme};
 use nitro_xml_opc::drawingml::{parse_theme_color_map, ThemeColorMap, ThemeFormatScheme};
@@ -549,8 +550,7 @@ impl<'a> Presentation<'a> {
         let slide_options = SpTreeOptions::default();
         let mut slide_parsed =
             parse_sp_tree(&slide_sp_tree, Some(&raw), &id_prefix, &ctx, &slide_options);
-        self.attach_graphic_payloads(&path, &mut slide_parsed.elements);
-        self.attach_image_payloads(&path, &mut slide_parsed.elements);
+        self.attach_paint_payloads(&path, &mut slide_parsed.elements);
         shift_parse_seq(&mut slide_parsed, 2_000_000);
         let parsed = if show_master_shapes == Some(false) {
             slide_parsed
@@ -733,11 +733,64 @@ impl<'a> Presentation<'a> {
         (Some(path), xml)
     }
 
+    fn attach_paint_payloads(&mut self, owner: &str, elements: &mut [DumpElement]) {
+        self.attach_graphic_payloads(owner, elements);
+        self.attach_ole_previews(owner, elements);
+        self.attach_image_payloads(owner, elements);
+    }
+
+    /// `vmlDrawing` / `legacyDrawing` parts on `owner`, for OLE `@spid` previews.
+    fn load_vml_drawings(&mut self, owner: &str) -> Vec<(String, Element)> {
+        let rels: Vec<Relationship> = match self.package.rels(owner) {
+            Ok(rels) => rels.values().cloned().collect(),
+            Err(_) => return Vec::new(),
+        };
+        let mut paths = Vec::new();
+        for rel in rels {
+            let ty = rel.type_.as_str();
+            if ty == rel_types::VML_DRAWING
+                || ty.ends_with("/vmlDrawing")
+                || ty.ends_with("/legacyDrawing")
+            {
+                if let Some(path) = self.package.target(owner, &rel) {
+                    paths.push(path);
+                }
+            }
+        }
+        let mut drawings = Vec::new();
+        for path in paths {
+            let xml = match self.package.text(&path) {
+                Ok(Some(xml)) => xml.to_owned(),
+                _ => continue,
+            };
+            if let Ok(doc) = parse_xml_str(&xml) {
+                drawings.push((path, doc.root));
+            }
+        }
+        drawings
+    }
+
+    fn attach_ole_previews(&mut self, owner: &str, elements: &mut [DumpElement]) {
+        let drawings = self.load_vml_drawings(owner);
+        if drawings.is_empty() {
+            return;
+        }
+        for (path, root) in &drawings {
+            for el in elements.iter_mut() {
+                assign_vml_ole_preview(el, path, root);
+            }
+        }
+    }
+
     fn attach_image_payloads(&mut self, owner: &str, elements: &mut [DumpElement]) {
         for el in elements.iter_mut() {
             if el.image_src.is_none() {
                 if let Some(rel_id) = el.image_rel_id.clone() {
-                    el.image_src = self.image_data_url_for_rel(owner, &rel_id);
+                    let rel_owner = el
+                        .image_rel_owner
+                        .clone()
+                        .unwrap_or_else(|| owner.to_owned());
+                    el.image_src = self.image_data_url_for_rel(&rel_owner, &rel_id);
                 }
             }
             if let Some(children) = el.children.clone() {
@@ -844,8 +897,7 @@ impl<'a> Presentation<'a> {
             };
             parse_sp_tree(&sp_tree, Some(&master_raw), "", &ctx, &options)
         };
-        self.attach_graphic_payloads(master_path, &mut parsed.elements);
-        self.attach_image_payloads(master_path, &mut parsed.elements);
+        self.attach_paint_payloads(master_path, &mut parsed.elements);
         Ok(parsed)
     }
 
@@ -914,8 +966,7 @@ impl<'a> Presentation<'a> {
             parse_sp_tree(&sp_tree, Some(&layout_raw), "", &ctx, &options)
         };
         shift_parse_seq(&mut layout_parsed, 1_000_000);
-        self.attach_graphic_payloads(layout_path, &mut layout_parsed.elements);
-        self.attach_image_payloads(layout_path, &mut layout_parsed.elements);
+        self.attach_paint_payloads(layout_path, &mut layout_parsed.elements);
         concat_parsed(&mut parsed, layout_parsed);
         Ok(parsed)
     }
@@ -1307,6 +1358,110 @@ mod tests {
             .collect();
         assert!(paints.iter().any(|p| is_dk2_blue(p)), "{paints:?}");
         assert!(paints.iter().all(|p| !is_lt1_yellow(p)), "{paints:?}");
+    }
+
+    #[test]
+    fn ole_vml_preview_uses_drawing_rels_not_slide() {
+        // Catches: OLE preview rId resolved on the slide, so the VML png never becomes a data URL.
+        let png = b"\x89PNG\r\n\x1a\nOLE";
+        let pres = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldSz cx="9144000" cy="5143500"/>
+  <p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst>
+</p:presentation>"#;
+        let pres_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>"#;
+        let root_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>"#;
+        let slide = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="5" name="Object 5"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <p:xfrm><a:off x="4038600" y="3733800"/><a:ext cx="1066800" cy="1295400"/></p:xfrm>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/presentationml/2006/ole">
+        <p:oleObj spid="_x0000_s584709" r:id="rId4"><p:embed/></p:oleObj>
+      </a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>"#;
+        // Slide rId1 is the drawing; the preview rId1 lives on the VML part.
+        let slide_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing" Target="../drawings/vmlDrawing1.vml"/>
+  <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="../embeddings/oleObject1.bin"/>
+</Relationships>"#;
+        let vml = br#"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+  <v:shape id="_x0000_s584709"><v:imagedata o:relid="rId1"/></v:shape>
+</xml>"#;
+        let vml_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/>
+</Relationships>"#;
+        let types = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+</Types>"#;
+        let bytes = zip_stored(&[
+            ("[Content_Types].xml", types),
+            ("_rels/.rels", root_rels),
+            ("ppt/presentation.xml", pres),
+            ("ppt/_rels/presentation.xml.rels", pres_rels),
+            ("ppt/slides/slide1.xml", slide),
+            ("ppt/slides/_rels/slide1.xml.rels", slide_rels),
+            ("ppt/drawings/vmlDrawing1.vml", vml),
+            ("ppt/drawings/_rels/vmlDrawing1.vml.rels", vml_rels),
+            ("ppt/embeddings/oleObject1.bin", b"OLE"),
+            ("ppt/media/image1.png", png),
+        ]);
+        let mut opened = Presentation::open(&bytes).unwrap();
+        let expected = image_data_url(png, "image1.png").unwrap();
+        let src = {
+            let slide = opened.slide(0).unwrap();
+            let ole = slide.elements.iter().find(|el| el.type_ == "ole").unwrap();
+            assert_eq!(ole.image_rel_id.as_deref(), Some("rId1"));
+            assert_eq!(
+                ole.image_rel_owner.as_deref(),
+                Some("ppt/drawings/vmlDrawing1.vml")
+            );
+            assert!(ole.width > 0.0);
+            ole.image_src.clone().unwrap()
+        };
+        assert_eq!(src, expected);
+        let mut intern = Rec(Vec::new());
+        let mut buffer = CommandBuffer::new();
+        let mut measure = MeasureBatch::default();
+        let mut reads = LayoutReadBatch::default();
+        paint_slide_frame(
+            &mut buffer,
+            &mut intern,
+            &mut measure,
+            &mut reads,
+            &mut opened,
+            &SlidePaintViewport {
+                slide_index: 0,
+                scale: 1.0,
+                viewport_w: 960,
+                viewport_h: 540,
+                selected_ids: Vec::new(),
+            },
+        )
+        .unwrap();
+        let joined = intern.0.join("\n");
+        assert!(joined.contains(&src));
+        assert!(joined.contains("img"));
+        assert!(!joined.contains("[OLE]"));
     }
 
     fn is_dk2_blue(paint: &str) -> bool {

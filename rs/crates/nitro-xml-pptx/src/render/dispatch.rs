@@ -5,6 +5,7 @@ use super::chart;
 use super::connector;
 use super::context::{PaintContext, StringIntern};
 use super::group;
+use super::ole;
 use super::picture;
 use super::placeholder;
 use super::shape;
@@ -28,7 +29,7 @@ pub fn paint_element<I: StringIntern>(
         "chart" => chart::paint(ctx, el, parent),
         "smartArt" => smartart::paint(ctx, el, parent),
         "video" | "audio" => placeholder::paint_typed_stub(ctx, &el.type_, el, parent, "[media]"),
-        "ole" => placeholder::paint_typed_stub(ctx, "ole", el, parent, "[OLE]"),
+        "ole" => ole::paint(ctx, el, parent),
         "model3d" => placeholder::paint_typed_stub(ctx, "model3d", el, parent, "[3D Model]"),
         "ink" => placeholder::paint_typed_stub(ctx, "ink", el, parent, "[Ink]"),
         _ => placeholder::paint_unknown_element(ctx, el, parent),

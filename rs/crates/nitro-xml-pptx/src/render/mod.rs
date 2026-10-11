@@ -177,6 +177,9 @@ mod tests {
             smartart_drawing_path: None,
             smartart_drawing_xml: None,
             image_rel_id: None,
+            image_rel_owner: None,
+            ole_spid: None,
+            is_media: false,
             image_src: None,
             seq: 0,
         };

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/pptx/core/core/runtime/PptxHandlerRuntimeSpTreeParsing.ts,
 // PptxHandlerRuntimeShapeParsing.ts, PptxHandlerRuntimePictureParsing.ts, PptxHandlerRuntimeGroupParsing.ts,
-// PptxGraphicFrameParser.ts and PptxHandlerRuntimeBackgroundParsing.ts; changes in PROVENANCE.md.
+// PptxGraphicFrameParser.ts, PptxHandlerRuntimeBackgroundParsing.ts and
+// src/core/pptx/core/utils/vml-ole-preview.ts; changes in PROVENANCE.md.
 
 use std::collections::BTreeMap;
 
@@ -116,9 +117,19 @@ pub struct DumpElement {
     /// Diagram drawing part XML (`dsp:drawing`). Not part of the issue-24 dump.
     #[serde(skip)]
     pub smartart_drawing_xml: Option<String>,
-    /// `r:embed` on a picture or shape blip fill. Resolved to [`Self::image_src`].
+    /// `r:embed` on a picture or shape blip fill, or an OLE preview relationship.
+    /// Resolved to [`Self::image_src`].
     #[serde(skip)]
     pub image_rel_id: Option<String>,
+    /// Part that owns [`Self::image_rel_id`] when it is not the slide (a VML drawing).
+    #[serde(skip)]
+    pub image_rel_owner: Option<String>,
+    /// `p:oleObj/@spid`, matched to a `v:shape/@id` in the slide's VML drawing.
+    #[serde(skip)]
+    pub ole_spid: Option<String>,
+    /// Video/audio picture: the poster still paints, but the issue-24 dump reports `media`.
+    #[serde(skip)]
+    pub is_media: bool,
     /// `data:` URL for the resolved blip (img `src` / CSS background). Not in the issue-24 dump.
     #[serde(skip)]
     pub image_src: Option<String>,
@@ -427,17 +438,16 @@ fn parse_sp_tree_child(
                 .map(SpTreeParseOutcome::Element)
             }
         }
-        "pic" => {
-            if picture_is_media(node) {
-                return Some(SpTreeParseOutcome::Other("media".to_owned()));
-            }
-            parse_picture(
-                node,
-                sp_tree_child_id(id_prefix, "pic", entry.index_in_type, options),
-                ctx,
-            )
-            .map(SpTreeParseOutcome::Element)
-        }
+        "pic" => parse_picture(
+            node,
+            sp_tree_child_id(id_prefix, "pic", entry.index_in_type, options),
+            ctx,
+        )
+        .map(|mut el| {
+            // Poster `a:blip` still paints; the issue-24 dump keeps kind `media`.
+            el.is_media = picture_is_media(node);
+            SpTreeParseOutcome::Element(el)
+        }),
         "graphicFrame" => parse_graphic_frame(
             node,
             sp_tree_child_id(id_prefix, "frame", entry.index_in_type, options),
@@ -1027,10 +1037,47 @@ fn scale_element_subtree(el: &mut DumpElement, scale_x: f64, scale_y: f64) {
 fn parse_graphic_frame(frame: &Element, id: String, _ctx: &ParseCtx) -> Option<DumpElement> {
     let nv_pr = child_path(frame, &[("nvGraphicFramePr", ns::P), ("nvPr", ns::P)]);
     let ph_info = extract_placeholder_info(nv_pr);
-    let xfrm = child_path(frame, &[("xfrm", ns::P)])?;
-    let (x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v) = xfrm_to_box(Some(xfrm));
+    let xfrm = child_local(frame, "xfrm", ns::P).or_else(|| child_local(frame, "xfrm", ns::A));
     let graphic = child_path(frame, &[("graphic", ns::A), ("graphicData", ns::A)])?;
     let c_nv_pr = child_path(frame, &[("nvGraphicFramePr", ns::P), ("cNvPr", ns::P)]);
+    if graphic_is_ole(graphic) {
+        let (x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v) = xfrm_to_box(xfrm);
+        let ole = find_local_deep(graphic, "oleObj");
+        let spid = ole.and_then(|o| attr(o, "spid")).map(str::to_owned);
+        // Modern `p:pic/a:blip` or an inline `v:imagedata` (slide-relative).
+        // A separate vmlDrawing part is attached later by spid.
+        let image_rel_id = deep_blip_embed(graphic).or_else(|| first_imagedata_rel(graphic));
+        return build_dump(
+            "ole",
+            id,
+            c_nv_pr,
+            ph_info,
+            x,
+            y,
+            w,
+            h,
+            x_emu,
+            y_emu,
+            w_emu,
+            h_emu,
+            rot,
+            flip_h,
+            flip_v,
+            None,
+            None,
+            None,
+            None,
+            None,
+            false,
+            PaintExtras {
+                image_rel_id,
+                ole_spid: spid,
+                ..PaintExtras::default()
+            },
+        );
+    }
+    let xfrm = xfrm?;
+    let (x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v) = xfrm_to_box(Some(xfrm));
     if let Some(table) = child_local(graphic, "tbl", ns::A) {
         let (w, h) = table_grid_pixel_extent(table).unwrap_or((w, h));
         let rows = table_row_count(table);
@@ -1101,6 +1148,120 @@ fn graphic_is_smartart(g: &Element) -> bool {
             .iter()
             .any(|n| matches!(n, Node::Element(e) if e.local == "relIds"))
         || uri.contains("/drawingml/2006/diagram")
+}
+
+fn graphic_is_ole(g: &Element) -> bool {
+    let uri = attr(g, "uri").map(str::to_lowercase).unwrap_or_default();
+    uri.contains("/presentationml/2006/ole")
+        || uri.contains("/drawingml/2006/ole")
+        || find_local_deep(g, "oleObj").is_some()
+}
+
+fn find_local_deep<'a>(el: &'a Element, local: &str) -> Option<&'a Element> {
+    if el.local == local {
+        return Some(el);
+    }
+    for child in &el.children {
+        if let Node::Element(c) = child {
+            if let Some(found) = find_local_deep(c, local) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+/// `a:blip/@r:embed` anywhere under `el` (OLE `p:pic` preview).
+fn deep_blip_embed(el: &Element) -> Option<String> {
+    if el.local == "blip" && (el.ns.as_deref() == Some(ns::A) || el.ns.is_none()) {
+        let embed = el
+            .attrs
+            .iter()
+            .find(|a| a.local == "embed" && (a.ns.is_none() || a.ns.as_deref() == Some(ns::R)))
+            .map(|a| a.value.clone())
+            .filter(|id| !id.is_empty());
+        if embed.is_some() {
+            return embed;
+        }
+    }
+    for child in &el.children {
+        if let Node::Element(c) = child {
+            if let Some(id) = deep_blip_embed(c) {
+                return Some(id);
+            }
+        }
+    }
+    None
+}
+
+/// First `v:imagedata` relationship: `@r:id`, else legacy `@o:relid`.
+fn first_imagedata_rel(el: &Element) -> Option<String> {
+    if el.local == "imagedata" && (el.ns.as_deref() == Some(ns::V) || el.ns.is_none()) {
+        if let Some(id) = imagedata_rel_attr(el) {
+            return Some(id);
+        }
+    }
+    for child in &el.children {
+        if let Node::Element(c) = child {
+            if let Some(id) = first_imagedata_rel(c) {
+                return Some(id);
+            }
+        }
+    }
+    None
+}
+
+fn imagedata_rel_attr(el: &Element) -> Option<String> {
+    let modern = el
+        .attrs
+        .iter()
+        .find(|a| a.local == "id" && a.ns.as_deref() == Some(ns::R))
+        .map(|a| a.value.clone())
+        .filter(|id| !id.is_empty());
+    if modern.is_some() {
+        return modern;
+    }
+    el.attrs
+        .iter()
+        .find(|a| a.local.eq_ignore_ascii_case("relid"))
+        .map(|a| a.value.clone())
+        .filter(|id| !id.is_empty())
+}
+
+/// Relationship id of `v:shape/@id == spid` → `v:imagedata`.
+pub(crate) fn vml_shape_image_rel(root: &Element, spid: &str) -> Option<String> {
+    fn walk(el: &Element, spid: &str) -> Option<String> {
+        let is_shape = el.local == "shape" && (el.ns.as_deref() == Some(ns::V) || el.ns.is_none());
+        if is_shape && attr(el, "id") == Some(spid) {
+            return first_imagedata_rel(el);
+        }
+        for child in &el.children {
+            if let Node::Element(c) = child {
+                if let Some(rel) = walk(c, spid) {
+                    return Some(rel);
+                }
+            }
+        }
+        None
+    }
+    walk(root, spid)
+}
+
+/// Fill an OLE element's preview rel from a loaded `vmlDrawing` part.
+pub(crate) fn assign_vml_ole_preview(el: &mut DumpElement, vml_path: &str, vml_root: &Element) {
+    if el.type_ == "ole" && el.image_rel_id.is_none() {
+        if let Some(spid) = el.ole_spid.clone() {
+            if let Some(rel) = vml_shape_image_rel(vml_root, &spid) {
+                el.image_rel_id = Some(rel);
+                el.image_rel_owner = Some(vml_path.to_owned());
+            }
+        }
+    }
+    if let Some(children) = &mut el.children {
+        for child in children {
+            assign_vml_ole_preview(child, vml_path, vml_root);
+        }
+    }
 }
 
 fn chart_rel_id(g: &Element) -> Option<String> {
@@ -1279,7 +1440,11 @@ fn parse_group(
                 node,
                 format!("{}pic-{}", child_id_prefix, entry.index_in_type),
                 ctx,
-            ),
+            )
+            .map(|mut el| {
+                el.is_media = picture_is_media(node);
+                el
+            }),
             "cxnSp" => parse_connector(
                 node,
                 format!("{}conn-{}", child_id_prefix, entry.index_in_type),
@@ -1413,6 +1578,9 @@ fn build_dump(
         smartart_drawing_path: None,
         smartart_drawing_xml: None,
         image_rel_id: extras.image_rel_id,
+        image_rel_owner: extras.image_rel_owner,
+        ole_spid: extras.ole_spid,
+        is_media: false,
         image_src: None,
         seq: 0,
     })
@@ -1663,6 +1831,7 @@ pub fn issue24_dump_parts(
     let mut kinds = Vec::new();
     for (_, slot) in slots {
         match slot {
+            Slot::El(el) if el.is_media => kinds.push("media".to_owned()),
             Slot::El(el) if PORTED.contains(&el.type_.as_str()) => {
                 dumped.push(slim_element_for_dump(el));
             }
@@ -1688,6 +1857,8 @@ struct PaintExtras {
     smartart_qs_r_id: Option<String>,
     smartart_cs_r_id: Option<String>,
     image_rel_id: Option<String>,
+    image_rel_owner: Option<String>,
+    ole_spid: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -2610,5 +2781,95 @@ mod tests {
         )
         .unwrap();
         assert_eq!(el.fill_color.as_deref(), Some("#000000"));
+    }
+
+    #[test]
+    fn media_pic_keeps_poster_embed() {
+        // Catches: video/audio pic skipped so movie poster never paints.
+        let xml = r#"<p:spTree xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main">
+          <p:pic>
+            <p:nvPicPr>
+              <p:cNvPr id="2" name="just-two-mice.mp4"/>
+              <p:cNvPicPr/>
+              <p:nvPr>
+                <a:videoFile r:link="rId2"/>
+                <p:extLst>
+                  <p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}">
+                    <p14:media r:embed="rId1"/>
+                  </p:ext>
+                </p:extLst>
+              </p:nvPr>
+            </p:nvPicPr>
+            <p:blipFill><a:blip r:embed="rId4"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+            <p:spPr>
+              <a:xfrm><a:off x="2590800" y="571500"/><a:ext cx="3962400" cy="5715000"/></a:xfrm>
+              <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+            </p:spPr>
+          </p:pic>
+        </p:spTree>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let parsed = parse_sp_tree(
+            &doc.root,
+            Some(xml),
+            "",
+            &ctx(&colors),
+            &SpTreeOptions::default(),
+        );
+        let pic = parsed
+            .elements
+            .iter()
+            .find(|el| el.type_ == "picture")
+            .expect("poster picture");
+        assert_eq!(pic.image_rel_id.as_deref(), Some("rId4"));
+        assert!(pic.width > 0.0 && pic.height > 0.0);
+        let (_, kinds) = issue24_dump_parts(&parsed.elements, &parsed.other_kind_seq);
+        assert_eq!(kinds, vec!["media".to_owned()]);
+        assert!(parsed.other_kinds.is_empty());
+    }
+
+    #[test]
+    fn ole_frame_takes_vml_preview_rel() {
+        // Catches: OLE graphicFrame stays Other(ole) so VML preview image never paints.
+        let xml = r#"<p:spTree xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:graphicFrame>
+            <p:nvGraphicFramePr><p:cNvPr id="584709" name="Object 5"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+            <p:xfrm><a:off x="4038600" y="3733800"/><a:ext cx="1066800" cy="1295400"/></p:xfrm>
+            <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/presentationml/2006/ole">
+              <p:oleObj spid="_x0000_s584709" name="Photo Editor Photo" r:id="rId4"><p:embed/></p:oleObj>
+            </a:graphicData></a:graphic>
+          </p:graphicFrame>
+        </p:spTree>"#;
+        let vml = r#"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+          <v:shape id="_x0000_s584709"><v:imagedata o:relid="rId1" o:title=""/></v:shape>
+        </xml>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let mut parsed = parse_sp_tree(
+            &doc.root,
+            Some(xml),
+            "",
+            &ctx(&colors),
+            &SpTreeOptions::default(),
+        );
+        assert!(parsed.other_kinds.iter().all(|k| k != "ole"));
+        let vml_doc = parse_xml_str(vml).unwrap();
+        for el in &mut parsed.elements {
+            assign_vml_ole_preview(el, "ppt/drawings/vmlDrawing1.vml", &vml_doc.root);
+        }
+        let ole = parsed
+            .elements
+            .iter()
+            .find(|el| el.type_ == "ole")
+            .expect("ole element");
+        assert_eq!(ole.ole_spid.as_deref(), Some("_x0000_s584709"));
+        assert_eq!(ole.image_rel_id.as_deref(), Some("rId1"));
+        assert_eq!(
+            ole.image_rel_owner.as_deref(),
+            Some("ppt/drawings/vmlDrawing1.vml")
+        );
+        assert!(ole.width > 0.0 && ole.height > 0.0);
+        let (_, kinds) = issue24_dump_parts(&parsed.elements, &parsed.other_kind_seq);
+        assert_eq!(kinds, vec!["ole".to_owned()]);
     }
 }

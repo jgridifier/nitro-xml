@@ -1,0 +1,7 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Open XML SDK version is injected by setup-validators.sh from versions.env. -->
+<Project>
+  <PropertyGroup>
+    <OpenXmlSdkVersion Condition="'$(OpenXmlSdkVersion)' == ''">3.3.0</OpenXmlSdkVersion>
+  </PropertyGroup>
+</Project>

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-11T20:46:04.726Z",
+  "generatedAt": "2026-10-11T21:45:53.638Z",
   "upstreamPin": "e66aaec24adc0b68472eae1fc42aa4598e09c352",
   "gate": "E0-a-ts-vs-ts",
   "note": "TS no-op save losses. Rust writer (#65) must meet or beat this bar. Ratchet down only.",
@@ -78,6 +78,10 @@
     {
       "category": "save-error",
       "count": 2
+    },
+    {
+      "category": "validator",
+      "count": 1
     }
   ],
   "hardRequirements": [
@@ -702,6 +706,10 @@
           "category": "docProps",
           "part": "docProps/core.xml",
           "detail": "canonical XML differs"
+        },
+        {
+          "category": "validator",
+          "detail": "Open XML SDK new errors: 1"
         }
       ]
     },

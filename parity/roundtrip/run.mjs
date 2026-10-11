@@ -90,6 +90,8 @@ async function runOne(row) {
 	}
 
 	if (saveError) {
+		// No output bytes to validate; still SDK-check the input so the row is not "skipped".
+		const vIn = validateOpenXml(abs);
 		return {
 			id: row.id,
 			path: row.path,
@@ -101,8 +103,10 @@ async function runOne(row) {
 			saveError,
 			losses: [{ category: 'save-error', detail: saveError }],
 			partCounts: { input: 0, output: 0 },
-			validator: { skipped: true },
-			libreoffice: { skipped: true },
+			validator: vIn.skipped
+				? { skipped: true, reason: vIn.reason, ok: false }
+				: { skipped: false, ok: true, inputErrors: (vIn.errors || []).length, outputErrors: 0, extras: 0, saveError: true },
+			libreoffice: { skipped: false, ok: true, saveError: true, count: null },
 		};
 	}
 
@@ -110,9 +114,9 @@ async function runOne(row) {
 		input.length === output.length && input.every((b, i) => b === output[i]);
 	const cmp = await comparePackages(input, output);
 
-	// Validator subset (soft-skip without #48 tools)
+	// Validator error-set subset + LibreOffice reopen (#48 / PRODUCT_SPEC §5).
 	const vIn = validateOpenXml(abs);
-	let validator = { skipped: vIn.skipped, reason: vIn.reason };
+	let validator = { skipped: vIn.skipped, reason: vIn.reason, ok: vIn.skipped };
 	if (!vIn.skipped) {
 		const tmp = join(OUT, `_tmp_${row.id}.${kind}`);
 		writeFileSync(tmp, output);
@@ -127,7 +131,21 @@ async function runOne(row) {
 		};
 	}
 
-	const lo = libreOfficeReopen(output, kind);
+	const lo = libreOfficeReopen(input, output, kind);
+
+	const losses = [...cmp.losses];
+	if (!validator.skipped && validator.ok === false) {
+		losses.push({
+			category: 'validator',
+			detail: `Open XML SDK new errors: ${validator.extras}`,
+		});
+	}
+	if (!lo.skipped && lo.ok === false) {
+		losses.push({
+			category: 'libreoffice',
+			detail: lo.detail || `count ${lo.count} != ${lo.expectCount}`,
+		});
+	}
 
 	return {
 		id: row.id,
@@ -136,9 +154,9 @@ async function runOne(row) {
 		kind,
 		tier: row.tier,
 		features: row.features || [],
-		lossless: cmp.lossless,
+		lossless: cmp.lossless && validator.ok !== false && lo.ok !== false,
 		byteIdentical,
-		losses: cmp.losses,
+		losses,
 		partCounts: cmp.partCounts,
 		validator,
 		libreoffice: lo,
@@ -243,11 +261,20 @@ async function main() {
 	writeFileSync(join(OUT, 'summary.json'), JSON.stringify({ inventory, results }, null, 2));
 	writeFileSync(LOSSES_PATH, JSON.stringify(inventory, null, 2) + '\n');
 
+	const requireValidators =
+		args.ci || process.env.NITRO_REQUIRE_VALIDATORS === '1' || process.env.NITRO_REQUIRE_VALIDATORS === 'true';
+
+	const validatorSkipped = results.filter((r) => r.validator?.skipped);
+	const validatorFailed = results.filter((r) => r.validator && !r.validator.skipped && r.validator.ok === false);
+	const loSkipped = results.filter((r) => r.libreoffice?.skipped);
+	const loFailed = results.filter((r) => r.libreoffice && !r.libreoffice.skipped && r.libreoffice.ok === false);
+
 	const summaryLines = [
 		`roundtrip: ${inventory.counts.lossy === 0 ? 'ALL LOSSLESS' : 'PASS (inventory recorded)'}`,
 		`per-format: xlsx lossless ${byFormat.xlsx.lossless}/${byFormat.xlsx.n} · docx ${byFormat.docx.lossless}/${byFormat.docx.n} · pptx ${byFormat.pptx.lossless}/${byFormat.pptx.n}`,
 		`byte-identical: ${inventory.counts.byteIdentical}/${inventory.counts.total}`,
 		`vbaProject preserved: ${inventory.counts.vba.preserved}/${inventory.counts.vba.n}`,
+		`validators (#48): openxml fail ${validatorFailed.length}/${results.length} · skipped ${validatorSkipped.length}; libreoffice fail ${loFailed.length}/${results.length} · skipped ${loSkipped.length}`,
 		`top loss categories: ${categories
 			.slice(0, 8)
 			.map((c) => `${c.category}=${c.count}`)
@@ -261,12 +288,10 @@ async function main() {
 	if (process.env.GITHUB_STEP_SUMMARY) {
 		appendFileSync(
 			process.env.GITHUB_STEP_SUMMARY,
-			`## Round-trip gate (#49)\n\n\`\`\`\n${summary}\n\`\`\`\n`,
+			`## Round-trip gate (#49 / #48)\n\n\`\`\`\n${summary}\n\`\`\`\n`,
 		);
 	}
 
-	// Gate passes when the harness completes and writes the inventory.
-	// Fail only on harness crashes for every fixture, or --ci with zero fixtures.
 	if (args.ci && results.length === 0) {
 		console.error('roundtrip: no fixtures selected');
 		process.exit(1);
@@ -277,6 +302,26 @@ async function main() {
 	if (results.length && allHarnessErrors) {
 		console.error('roundtrip: every fixture hit a harness error');
 		process.exit(1);
+	}
+
+	// Every saved file must be run through the validators (#48). Tools missing = fail.
+	// SDK subset / LO count mismatches are recorded as inventory losses (TS bar for #65);
+	// they do not fail the E0 inventory gate unless NITRO_VALIDATORS_STRICT=1.
+	if (requireValidators) {
+		if (validatorSkipped.length || loSkipped.length) {
+			console.error(
+				`roundtrip: validators required but skipped (openxml=${validatorSkipped.length}, lo=${loSkipped.length}). Run scripts/ci/setup-validators.sh.`,
+			);
+			process.exit(1);
+		}
+		const strict =
+			process.env.NITRO_VALIDATORS_STRICT === '1' || process.env.NITRO_VALIDATORS_STRICT === 'true';
+		if (strict && (validatorFailed.length || loFailed.length)) {
+			console.error(
+				`roundtrip: STRICT validator failures openxml=${validatorFailed.length} libreoffice=${loFailed.length}`,
+			);
+			process.exit(1);
+		}
 	}
 	process.exit(0);
 }

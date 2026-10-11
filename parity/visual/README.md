@@ -8,7 +8,7 @@ Pixelmatch harness: upstream TS oracle vs Rust at **DPR 1 and 2**, plus **print-
 | Registration | Source | Notes |
 |---|---|---|
 | `xlsx-view-ir` | CellItem view-IR (#18) painted by a shared canvas painter | TS dump vs Rust dump |
-| `xlsx-viewer` | Live `<nitro-xlsx>` vs upstream `<xlsx-editor>` | Same fixture; **informational** until ≤0.1%. Grid painters + `GRID_CSS` (visual-only) + identical Liberation Sans via `#121` local CSS2 mirror (`/out/fonts/css2`) + `@font-face` pin on both sides. Shell chrome hidden for grid-only shots. |
+| `xlsx-viewer` | Live `<nitro-xlsx>` vs upstream `<xlsx-editor>` | Same fixture; **informational** until ≤0.1% (~3.0% dpr1 / ~1.1% dpr2 / ~0.5% print after #150 painter + font pin). Grid painters + `GRID_CSS` (visual-only) + identical Liberation Sans via `#121` local CSS2 mirror (`/out/fonts/css2`) + `@font-face` on both sides. Shell chrome hidden for grid-only shots; host uses flex so `.v` fills after `.chrome` hide (#149). |
 | `chart-svg` | Chart S1 SVG (#28) hosted in a fixed viewport | TS `chart_ref` vs Rust `chart_render_svg` |
 | `docx` / `pptx` | — | `ready: false` — add a registry row when hosted |
 

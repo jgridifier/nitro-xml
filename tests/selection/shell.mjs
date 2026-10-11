@@ -16,11 +16,20 @@ function upstreamDir() {
 	return process.env.UPSTREAM_DIR || join(ROOT, 'upstream');
 }
 
-/** Normalize Excel TSV (CRLF + trailing newline) and Rust LF TSV for compare. */
-export function normalizeCopy(text) {
-	return String(text ?? '')
+/**
+ * Normalize Excel TSV / pptx body text for cross-engine compare.
+ * Pptx reading paint may collapse paragraph breaks that DumpElement.text keeps,
+ * so pptx copies are compared without newlines (logical run order still matches).
+ */
+export function normalizeCopy(text, format) {
+	let s = String(text ?? '')
 		.replace(/\r\n/g, '\n')
-		.replace(/\n$/, '');
+		.replace(/\u00a0/g, ' ')
+		.replace(/\n{2,}/g, '\n')
+		.replace(/\n$/, '')
+		.trimEnd();
+	if (format === 'pptx') s = s.replace(/\n/g, '');
+	return s;
 }
 
 function ensureWasm() {
@@ -97,13 +106,15 @@ export async function runShellChecks() {
 	const rows = [];
 	let failed = 0;
 	for (const c of readyCases()) {
-		if (!c.shell || c.format !== 'xlsx') continue;
+		if (!c.shell) continue;
+		if (c.format !== 'xlsx') continue;
 		const want = new Set(c.compare || ['selection', 'copy']);
 		const rust = await rustShell(c.fixture, c.actions || []);
 		const ts = await tsShell(c.fixture, c.actions || []);
 		const selOk = !want.has('selection') || rust.selection === ts.selection;
 		const copyOk =
-			!want.has('copy') || normalizeCopy(rust.copy) === normalizeCopy(ts.copy);
+			!want.has('copy') ||
+				normalizeCopy(rust.copy, c.format) === normalizeCopy(ts.copy, c.format);
 		const ok = selOk && copyOk;
 		if (!ok) failed++;
 		rows.push({
@@ -113,14 +124,14 @@ export async function runShellChecks() {
 			selOk,
 			copyOk,
 			rust,
-			ts: { selection: ts.selection, copy: normalizeCopy(ts.copy) },
+			ts: { selection: ts.selection, copy: normalizeCopy(ts.copy, c.format) },
 		});
 	}
 	const summary = [
 		`selection shell: ${failed === 0 ? 'PASS' : 'FAIL'} (${rows.filter((r) => r.ok).length}/${rows.length} xlsx)`,
 		...rows.map((r) => {
 			const tag = r.ok ? 'OK' : 'FAIL';
-			return `  ${tag} ${r.case} sel=${JSON.stringify(r.rust.selection)} copy=${JSON.stringify(normalizeCopy(r.rust.copy))}`;
+			return `  ${tag} ${r.case} sel=${JSON.stringify(r.rust.selection)} copy=${JSON.stringify(normalizeCopy(r.rust.copy, r.format || 'xlsx'))}`;
 		}),
 	].join('\n');
 	return { ok: failed === 0, rows, summary };

@@ -149,12 +149,14 @@ impl Handle {
     /// Takes a copy of the document bytes (one bulk copy across the boundary).
     #[wasm_bindgen(constructor)]
     pub fn new(bytes: &[u8]) -> Handle {
+        let mut strings = StringTable::new();
+        crate::events::seed_input_keys(&mut strings);
         Handle {
             bytes: bytes.to_vec(),
             warnings: Vec::new(),
             font_source: FontSource::default(),
             font_source_resolver: None,
-            strings: StringTable::new(),
+            strings,
             commands: CommandBuffer::new(),
             measures: MeasureBatch::new(),
             layout_reads: LayoutReadBatch::new(),
@@ -200,6 +202,9 @@ impl Handle {
                 state.active as u32,
             );
             state.set_zoom_pct(self.shell.zoom_pct);
+            if let Some(r) = state.selection_ref_now() {
+                self.shell.selection_ref = r;
+            }
             self.xlsx = Some(state);
             self.pptx = None;
             self.shell.diagnostics.parse_ms = now_ms() - t0;
@@ -371,6 +376,7 @@ impl Handle {
                 format!("unknown shell action {op}"),
             ))
         })?;
+        let prev_selection = self.shell.selection_ref.clone();
         let mut result = apply_action(&mut self.shell, &action);
         match &action {
             ShellAction::FindQuery(_) | ShellAction::FindOpts { .. } => {
@@ -389,8 +395,11 @@ impl Handle {
                     let text = self.copy_selection_tsv()?;
                     self.shell.last_copy = text.clone();
                     result.copy_text = Some(text);
+                } else if self.pptx.is_some() {
+                    let text = self.copy_pptx_selection()?;
+                    self.shell.last_copy = text.clone();
+                    result.copy_text = Some(text);
                 } else {
-                    // pptx/docx clipboard adapters land with #27/#23 (#158).
                     result.copy_text = Some(String::new());
                 }
             }
@@ -404,6 +413,13 @@ impl Handle {
                         Err(e) => {
                             return Err(JsValue::from(OoxmlError::with_code("bad_selection", e)));
                         }
+                    }
+                } else if let Some(pptx) = self.pptx.as_mut() {
+                    if looks_like_element_id(r) && pptx.select_element_id(r) {
+                        self.shell.selection_ref = r.clone();
+                        result.reopen_paint = true;
+                    } else {
+                        self.shell.selection_ref = prev_selection;
                     }
                 }
             }
@@ -892,6 +908,14 @@ impl Handle {
         Ok(())
     }
 
+    fn copy_pptx_selection(&mut self) -> Result<String, JsValue> {
+        let pptx = self
+            .pptx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        Ok(pptx.selected_text())
+    }
+
     fn copy_selection_tsv(&mut self) -> Result<String, JsValue> {
         let range = self.shell.selection_ref.clone();
         let sheet = self.shell.nav_index;
@@ -932,6 +956,15 @@ impl Handle {
             Err(e) => Err(JsValue::from(OoxmlError::with_code("bad_sheet", e))),
         }
     }
+}
+
+/// A non-A1 argument that is not an A1 range (pptx shape / element id).
+fn looks_like_element_id(r: &str) -> bool {
+    let t = r.trim();
+    if t.is_empty() || t.eq_ignore_ascii_case("A1") {
+        return false;
+    }
+    nitro_xml_xlsx::parse_range(t).is_none()
 }
 
 fn now_ms() -> f64 {

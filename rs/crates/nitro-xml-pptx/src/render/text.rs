@@ -11,6 +11,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
     set_attr(ctx, id, "data-pptx-element", "true");
+    set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "text");
     let text = el.text.as_deref().unwrap_or("");
     let block = paint_text_body(ctx, id, text, el.text_color.as_deref(), el.font_size_px);
@@ -31,6 +32,7 @@ pub fn paint_text_body<I: StringIntern>(
     font_size_px: Option<f64>,
 ) -> u32 {
     let block = create_child(ctx, parent, "div");
+    set_attr(ctx, block, "class", "pptxv-text");
     set_style(ctx, block, "white-space", "pre-wrap");
     set_style(ctx, block, "word-wrap", "break-word");
     let size = font_size_px.unwrap_or(18.0).max(1.0);

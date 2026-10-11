@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 /**
  * Format comparisons still waiting on their Rust dump.
- * xlsx workbook slice is ready — see comparisons/xlsx.ts (#15 / #131).
+ * xlsx worksheet slice is ready — see comparisons/xlsx.ts (#16).
  * docx styles/numbering/theme/settings is ready — see comparisons/docx.ts (#20).
  * Flip `ready` here when pptx (and later xlsx CellItem / docx LayoutResult) land.
  */

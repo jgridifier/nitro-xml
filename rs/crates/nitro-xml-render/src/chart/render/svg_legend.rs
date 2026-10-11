@@ -16,7 +16,7 @@ pub struct LegendResult {
 pub fn chart_legend_svg(
     model: &ChartViewModel,
     area: Rect,
-    frame_w: f64,
+    _frame_w: f64,
     _frame_h: f64,
     measure: &mut ChartSvgMeasureOptions,
 ) -> LegendResult {
@@ -50,9 +50,13 @@ fn legend_entries(model: &ChartViewModel) -> Vec<(String, String)> {
             .enumerate()
             .map(|(i, label)| {
                 let color = first
-                    .and_then(|s| s.point_colors.as_ref().and_then(|c| c.get(i)))
-                    .unwrap_or_else(|| first.map(|s| s.color.as_str()).unwrap_or("#4472C4"));
-                (label.clone(), color.to_string())
+                    .and_then(|s| s.point_colors.as_ref().and_then(|c| c.get(i).cloned()))
+                    .unwrap_or_else(|| {
+                        first
+                            .map(|s| s.color.clone())
+                            .unwrap_or_else(|| "#4472C4".to_string())
+                    });
+                (label.clone(), color)
             })
             .collect();
     }

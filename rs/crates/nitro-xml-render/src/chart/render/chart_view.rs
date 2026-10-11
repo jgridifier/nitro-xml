@@ -70,6 +70,19 @@ fn supported_type(t: ChartSummaryType) -> bool {
     )
 }
 
+fn resolve_drawing_color_css(
+    color: Option<&nitro_xml_opc::drawingml::DrawingColor>,
+    scheme: &HashMap<String, String>,
+) -> Option<String> {
+    let resolve_opts = ResolveOptions {
+        transform_order: TransformOrder::Document,
+        hsl_rounding: HslRounding::Nearest,
+    };
+    color.and_then(|c| {
+        drawing_color_css(resolve_drawing_color(c, Some(scheme), Some(resolve_opts)).as_ref())
+    })
+}
+
 fn to_text(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Null => String::new(),
@@ -85,15 +98,6 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
     let radial = matches!(type_, ChartSummaryType::Pie | ChartSummaryType::Doughnut);
     let palette = chart.color_palette.and_then(find_chart_color_palette);
     let scheme = chart_color_scheme(theme);
-    let resolve_opts = ResolveOptions {
-        transform_order: TransformOrder::Document,
-        hsl_rounding: HslRounding::Nearest,
-    };
-    let drawing_color = |color: Option<&nitro_xml_opc::drawingml::DrawingColor>| -> Option<String> {
-        color.and_then(|c| {
-            drawing_color_css(resolve_drawing_color(c, Some(&scheme), Some(resolve_opts)).as_ref())
-        })
-    };
     let gradient = |fill: Option<&DrawingFill>| -> Option<ChartGradientFill> {
         fill.and_then(|f| {
             if matches!(f, DrawingFill::Gradient { .. }) {
@@ -110,7 +114,6 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
             "standard".to_string()
         }
     });
-    let mut categories: Vec<String> = Vec::new();
     let mut raw_categories: Vec<Vec<serde_json::Value>> = Vec::new();
     let mut series: Vec<ChartSeriesView> = Vec::new();
     for (i, s) in chart.series.iter().enumerate() {
@@ -122,7 +125,7 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
         let color = if matches!(s.fill.as_ref(), Some(DrawingFill::None)) {
             "none".to_string()
         } else {
-            drawing_color(s.drawing_color.as_ref())
+            resolve_drawing_color_css(s.drawing_color.as_ref(), &scheme)
                 .or(palette_color)
                 .unwrap_or_else(|| auto_series_color(theme, i))
         };
@@ -160,7 +163,7 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
         .cloned()
         .unwrap_or_default();
     let len = longest.max(first_cats.len());
-    categories = (0..len)
+    let categories = (0..len)
         .map(|i| {
             if let Some(c) = first_cats.get(i) {
                 to_text(c)
@@ -181,7 +184,7 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
                             .point_colors
                             .as_ref()
                             .and_then(|m| m.get(&i.to_string()))
-                            .and_then(|c| drawing_color(Some(c)));
+                            .and_then(|c| resolve_drawing_color_css(Some(c), &scheme));
                         explicit.unwrap_or_else(|| {
                             if let Some(p) = palette {
                                 chart_palette_series_color(p, i, s.values.len(), &scheme)
@@ -201,7 +204,7 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
                         .iter()
                         .enumerate()
                         .map(|(i, _)| {
-                            drawing_color(points.get(&i.to_string()).as_ref().map(|x| x))
+                            resolve_drawing_color_css(points.get(&i.to_string()), &scheme)
                                 .unwrap_or_else(|| s.color.clone())
                         })
                         .collect(),

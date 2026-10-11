@@ -41,7 +41,7 @@ pub fn nice_scale(data_min: f64, data_max: f64, options: NiceScaleOptions) -> Ax
         if lo == 0.0 {
             hi = 1.0;
         } else if options.no_zero {
-            let pad = lo.abs() * 0.1.max(1.0);
+            let pad = lo.abs() * 0.1_f64.max(1.0);
             lo -= pad;
             hi += pad;
         } else if lo > 0.0 {

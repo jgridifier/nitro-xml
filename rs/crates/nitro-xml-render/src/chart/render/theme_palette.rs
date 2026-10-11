@@ -20,7 +20,7 @@ pub fn theme_color(theme: &ChartThemePalette, index: usize) -> Option<String> {
         .colors
         .get(index)
         .map(|s| s.as_str())
-        .or_else(|| DEFAULT_THEME_COLORS.get(index).map(|s| *s));
+        .or_else(|| DEFAULT_THEME_COLORS.get(index).copied());
     hex.and_then(|h| {
         if hex_to_rgb_channels(h).is_some() {
             Some(h.trim_start_matches('#').to_uppercase())

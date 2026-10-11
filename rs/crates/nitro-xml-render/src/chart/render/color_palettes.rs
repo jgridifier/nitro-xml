@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 #[derive(Debug, Deserialize)]
-struct PaletteJson {
+pub(crate) struct PaletteJson {
     id: i32,
     #[serde(rename = "meth")]
     meth: String,
@@ -75,6 +75,7 @@ fn chart_palette_series_color_choice(palette: &PaletteJson, i: usize, n: usize) 
                 value: value.to_string(),
             })
             .collect(),
+        fallback: None,
     }
 }
 

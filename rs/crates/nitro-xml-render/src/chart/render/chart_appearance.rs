@@ -22,7 +22,7 @@ pub fn chart_points_to_pixels(points: f64) -> f64 {
 pub type ChartAppearance = HashMap<String, ResolvedChartStyleEntry>;
 
 pub fn chart_appearance(
-    chart: &ChartSummary,
+    _chart: &ChartSummary,
     theme: &ChartThemePalette,
 ) -> Option<ChartAppearance> {
     let id = effective_built_in_chart_style();
@@ -31,16 +31,16 @@ pub fn chart_appearance(
         return None;
     }
     let scheme = chart_color_scheme(theme);
-    let resolve_opts = ResolveOptions {
-        transform_order: TransformOrder::Document,
-        hsl_rounding: HslRounding::HalfDown,
-    };
     let resolve = |color: &nitro_xml_opc::drawingml::DrawingColor| {
+        let resolve_opts = ResolveOptions {
+            transform_order: TransformOrder::Document,
+            hsl_rounding: HslRounding::HalfDown,
+        };
         drawing_color_css(resolve_drawing_color(color, Some(&scheme), Some(resolve_opts)).as_ref())
     };
     let mut out = HashMap::new();
     for (part, entry) in defaults {
-        let resolved = resolve_chart_style_entry(&entry, &resolve);
+        let mut resolved = resolve_chart_style_entry(&entry, &resolve);
         if part == "categoryAxis" || part == "valueAxis" {
             resolved.labels_visible = Some(true);
         }

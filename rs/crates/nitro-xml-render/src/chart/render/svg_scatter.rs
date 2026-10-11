@@ -108,7 +108,7 @@ pub fn scatter(model: &ChartViewModel, area: Rect, out: &mut Vec<String>) -> Str
                 .and_then(|xv| xv.get(i))
                 .copied()
                 .flatten();
-            let v = v.copied().flatten();
+            let v = *v;
             if v.is_none() || x.is_none() {
                 continue;
             }

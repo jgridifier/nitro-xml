@@ -5,7 +5,7 @@ use nitro_xml_opc::drawingml::EMU_PER_PIXEL;
 use nitro_xml_opc::drawingml::{
     parse_drawing_color_in, resolve_drawing_color, HslRounding, ResolveOptions, TransformOrder,
 };
-use nitro_xml_opc::xml::{ns, parse_xml_str, Element};
+use nitro_xml_opc::xml::{ns, parse_xml_str, Element, Node};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -21,7 +21,10 @@ fn first_child<'a>(element: &'a Element, local: &str) -> Option<&'a Element> {
     element
         .children
         .iter()
-        .filter_map(|n| n.as_element())
+        .filter_map(|n| match n {
+            Node::Element(e) => Some(e),
+            _ => None,
+        })
         .find(|e| e.local == local && e.ns.as_deref() == Some(ns::A))
 }
 

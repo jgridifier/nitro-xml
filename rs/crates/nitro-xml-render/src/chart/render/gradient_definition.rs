@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/gradient-definition.ts (S1 subset)
 
-use nitro_xml_opc::drawingml::{DrawingColor, DrawingFill, ResolvedDrawingColor};
+use nitro_xml_opc::drawingml::{DrawingColor, DrawingFill};
 use std::collections::HashMap;
 
 use super::gradient_coincident_stops::{spread_coincident_stops, GradientStop};
@@ -138,6 +138,7 @@ pub fn build_chart_gradient_def(
             1.0
         };
         let r = [0.0, 1.0]
+            .into_iter()
             .flat_map(|x| {
                 [0.0, 1.0].map(|y| ((x - cx).powi(2) + ((y - cy) * aspect).powi(2)).sqrt())
             })

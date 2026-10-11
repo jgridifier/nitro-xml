@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/render-space.ts (S1); changes listed in PROVENANCE.md.
 
-#[cfg(feature = "chart-rust-s1")]
+#[allow(dead_code)]
 mod render;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[allow(dead_code)]
 mod oracle_svg;
 
 use nitro_xml_opc::chart::ChartSpace;
@@ -13,7 +14,6 @@ use crate::command_buffer::StringTable;
 use crate::measure::MeasureBatch;
 use crate::CommandBuffer;
 
-#[cfg(feature = "chart-rust-s1")]
 pub use render::{chart_space_kind, ChartSvgMeasureOptions, ChartThemeFonts, DRAWN_CHART_TYPES};
 
 pub struct ChartSvgOptions {
@@ -29,35 +29,15 @@ pub struct RenderChartSpaceOptions {
 
 /// Standalone SVG for a parsed chart part (S1).
 pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOptions) -> String {
-    #[cfg(feature = "chart-rust-s1")]
-    {
-        let mut measure =
-            render::ChartSvgMeasureOptions::from_widths(options.svg.measure_widths.clone());
-        return render::render_chart_space_svg(
-            space,
-            &render::RenderChartSpaceOptions {
-                width: options.width,
-                height: options.height,
-                measure,
-            },
-        );
-    }
-    #[cfg(not(feature = "chart-rust-s1"))]
-    {
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Some(svg) = oracle_svg::render_chart_space_svg_oracle(space, options) {
-            return svg;
-        }
-        let w = options.width.max(1);
-        let h = options.height.max(1);
-        format!(
-            "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" role=\"img\"><text x=\"{tx}\" y=\"{ty}\" text-anchor=\"middle\">chart (S1)</text></svg>",
-            w = w,
-            h = h,
-            tx = w / 2,
-            ty = h / 2,
-        )
-    }
+    let measure = render::ChartSvgMeasureOptions::from_widths(options.svg.measure_widths.clone());
+    render::render_chart_space_svg(
+        space,
+        &render::RenderChartSpaceOptions {
+            width: options.width,
+            height: options.height,
+            measure,
+        },
+    )
 }
 
 /// Encodes chart SVG into `buffer` as one `SetInnerMarkup` handoff; interns markup into `strings`.

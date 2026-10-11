@@ -72,7 +72,7 @@ pub fn fit_chart_text(
     let mut low = 0usize;
     let mut high = chars.len();
     while low < high {
-        let mid = (low + high + 1) / 2;
+        let mid = (low + high).div_ceil(2);
         let trial: String = chars.iter().take(mid).collect();
         if chart_text_width(&format!("{}…", trial), attrs, options) <= max_width {
             low = mid;

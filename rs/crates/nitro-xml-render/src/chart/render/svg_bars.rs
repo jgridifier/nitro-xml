@@ -6,7 +6,7 @@ use super::chart_spacing::chart_bar_spacing;
 use super::chart_view::ChartViewModel;
 use super::summary::ChartSummary;
 use super::svg_cartesian::Frame;
-use super::svg_util::{n, rect};
+use super::svg_util::rect;
 
 pub fn bars(
     model: &ChartViewModel,
@@ -53,12 +53,12 @@ pub fn bars(
                 -geometry.cluster_width / 2.0 + si as f64 * geometry.step
             };
             let center = frame.band(i);
-            let width = if model.horizontal {
+            let _width = if model.horizontal {
                 (b - a).abs()
             } else {
                 bar_size
             };
-            let height = if model.horizontal {
+            let _height = if model.horizontal {
                 bar_size
             } else {
                 (b - a).abs()

@@ -118,8 +118,9 @@ pub fn render_chart_svg(
     }
     let legend = chart_legend_svg(&model, area, w, h, measure);
     area = legend.plot;
+    let legend_markup = legend.markup;
     if !legend.foreground {
-        out.push(legend.markup);
+        out.push(legend_markup.clone());
     }
     if area.w > 4.0 && area.h > 4.0 {
         let body = match model.type_ {
@@ -130,7 +131,7 @@ pub fn render_chart_svg(
         out.push(body);
     }
     if legend.foreground {
-        out.push(legend.markup);
+        out.push(legend_markup);
     }
     if !foreground_title.is_empty() {
         out.push(foreground_title);

@@ -15,7 +15,7 @@ fn slice_path(cx: f64, cy: f64, r: f64, inner: f64, a0: f64, a1: f64) -> String 
     let sweep = a1 - a0;
     if sweep >= std::f64::consts::PI * 2.0 - 1e-9 {
         let mid = a0 + std::f64::consts::PI;
-        return slice_path(cx, cy, r, inner, a0, mid) + slice_path(cx, cy, r, inner, mid, a1);
+        return slice_path(cx, cy, r, inner, a0, mid) + &slice_path(cx, cy, r, inner, mid, a1);
     }
     let large = if sweep > std::f64::consts::PI { 1 } else { 0 };
     let (x0, y0) = polar(cx, cy, r, a0);
@@ -88,7 +88,7 @@ pub fn pie_svg(model: &ChartViewModel, area: Rect) -> String {
         }
         let mut angle = 0.0;
         for (i, v) in s.values.iter().enumerate() {
-            let v = v.copied().flatten();
+            let v = *v;
             if v.is_none() || v.unwrap() <= 0.0 {
                 continue;
             }
@@ -135,7 +135,7 @@ pub fn radar_svg(model: &ChartViewModel, area: Rect) -> String {
     let radius = (area.w.min(area.h) / 2.0 - (category_size * 1.8).max(18.0)).max(1.0);
     let angle = |i: usize| (i as f64 / count as f64) * std::f64::consts::PI * 2.0;
     let r = |v: f64| ((v - scale.min) / (scale.max - scale.min).max(1e-9)) * radius;
-    for (k, t) in scale.ticks.iter().enumerate() {
+    for t in scale.ticks.iter() {
         let ring = (0..count)
             .map(|i| {
                 let (x, y) = polar(cx, cy, r(*t), angle(i));
@@ -149,7 +149,7 @@ pub fn radar_svg(model: &ChartViewModel, area: Rect) -> String {
             grid.0,
             n(grid.1)
         ));
-        if k % 1 == 0 {
+        if t.fract() == 0.0 {
             out.push(text(
                 cx + 3.0,
                 cy - r(*t) + value_size * 0.3,
@@ -185,12 +185,7 @@ pub fn radar_svg(model: &ChartViewModel, area: Rect) -> String {
             .take(count)
             .enumerate()
             .map(|(i, v)| {
-                let (x, y) = polar(
-                    cx,
-                    cy,
-                    r(v.copied().flatten().unwrap_or(scale.min)),
-                    angle(i),
-                );
+                let (x, y) = polar(cx, cy, r((*v).unwrap_or(scale.min)), angle(i));
                 format!("{},{}", n(x), n(y))
             })
             .collect::<Vec<_>>()

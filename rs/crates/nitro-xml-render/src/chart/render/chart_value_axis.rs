@@ -43,11 +43,9 @@ pub fn value_axis(model: &ChartViewModel) -> ValueAxisView {
         }
     } else {
         for s in &model.series {
-            for v in &s.values {
-                if let Some(v) = v {
-                    min = min.min(*v);
-                    max = max.max(*v);
-                }
+            for v in s.values.iter().flatten() {
+                min = min.min(*v);
+                max = max.max(*v);
             }
         }
     }

@@ -6,10 +6,11 @@ use nitro_xml_opc::drawingml::DrawingFill;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ChartSummaryType {
     Bar,
+    #[default]
     Column,
     Line,
     Pie,

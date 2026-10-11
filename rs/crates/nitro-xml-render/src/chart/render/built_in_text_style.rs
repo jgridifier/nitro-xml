@@ -29,6 +29,7 @@ pub fn built_in_chart_text_style(id: i32) -> std::collections::HashMap<String, C
             kind: DrawingColorKind::Scheme,
             value: if legacy >= 41 { "lt1" } else { "tx1" }.to_string(),
             transforms: vec![],
+            fallback: None,
         }),
     };
     std::collections::HashMap::from([

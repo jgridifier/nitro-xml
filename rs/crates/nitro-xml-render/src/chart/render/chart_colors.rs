@@ -22,7 +22,7 @@ pub fn chart_color_scheme(theme: &ChartThemePalette) -> HashMap<String, String> 
 }
 
 pub fn auto_series_color(theme: &ChartThemePalette, index: usize) -> String {
-    let i = index.max(0);
+    let i = index;
     let scheme = chart_color_scheme(theme);
     let palette = find_chart_color_palette(10).expect("palette 10");
     chart_palette_series_color(palette, i, i + 1, &scheme)
@@ -37,18 +37,13 @@ pub fn modulate_luminance(hex: &str, lum_mod: f64, lum_off: f64) -> String {
     if lum_mod == 1.0 && lum_off == 0.0 {
         return format!(
             "#{}{}{}",
-            to_hex(r.round() as i32),
-            to_hex(g.round() as i32),
-            to_hex(b.round() as i32)
+            to_hex(r.round()),
+            to_hex(g.round()),
+            to_hex(b.round())
         );
     }
     let hsl = rgb_to_hsl(r, g, b);
     let l = (hsl.l * lum_mod + lum_off).clamp(0.0, 1.0);
     let out = hsl_to_rgb(hsl.h, hsl.s, l, |c| c.round(), true);
-    format!(
-        "#{}{}{}",
-        to_hex(out.0 as i32),
-        to_hex(out.1 as i32),
-        to_hex(out.2 as i32)
-    )
+    format!("#{}{}{}", to_hex(out.0), to_hex(out.1), to_hex(out.2))
 }

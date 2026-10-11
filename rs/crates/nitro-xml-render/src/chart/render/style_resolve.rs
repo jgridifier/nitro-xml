@@ -33,6 +33,7 @@ pub fn resolve_chart_style_entry(
         line_color: None,
         line_width: None,
         fill_color: None,
+        labels_visible: None,
     }
 }
 

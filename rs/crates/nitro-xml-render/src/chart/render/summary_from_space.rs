@@ -55,7 +55,7 @@ fn chart_summary_series(
     let cats = chart_source_values(categories);
     let vals: Vec<Option<f64>> = chart_source_values(values)
         .iter()
-        .map(|v| value_to_f64(v))
+        .map(value_to_f64)
         .collect();
     let mut out = ChartSummarySeries {
         categories: cats,
@@ -150,10 +150,10 @@ pub fn chart_summary_from_space(chart_space: &ChartSpace) -> ChartSummary {
     let mut chart_type = group
         .map(|g| group_type(g.kind))
         .unwrap_or(ChartSummaryType::Column);
-    if chart_type == ChartSummaryType::Bar {
-        if group.and_then(|g| g.bar_direction.as_deref()) != Some("bar") {
-            chart_type = ChartSummaryType::Column;
-        }
+    if chart_type == ChartSummaryType::Bar
+        && group.and_then(|g| g.bar_direction.as_deref()) != Some("bar")
+    {
+        chart_type = ChartSummaryType::Column;
     }
     let series = group
         .map(|g| {
@@ -179,14 +179,14 @@ pub fn chart_summary_from_space(chart_space: &ChartSpace) -> ChartSummary {
             let gap = g.gap_width.unwrap_or(150.0);
             if gap.fract() == 0.0 {
                 let iv = gap as i32;
-                if 0 <= iv && iv <= 500 {
+                if (0..=500).contains(&iv) {
                     summary.bar_gap_width = Some(iv);
                 }
             }
             let overlap = g.overlap.unwrap_or(0.0);
             if overlap.fract() == 0.0 {
                 let iv = overlap as i32;
-                if -100 <= iv && iv <= 100 {
+                if (-100..=100).contains(&iv) {
                     summary.bar_overlap = Some(iv);
                 }
             }
@@ -196,8 +196,8 @@ pub fn chart_summary_from_space(chart_space: &ChartSpace) -> ChartSummary {
         if let Some(title) = &chart_space.title {
             if let Some(text) = &title.text {
                 summary.title = Some(text.clone());
-            } else if series.len() == 1 {
-                if let Some(name) = &series[0].name {
+            } else if summary.series.len() == 1 {
+                if let Some(name) = &summary.series[0].name {
                     summary.title = Some(name.clone());
                 }
             }

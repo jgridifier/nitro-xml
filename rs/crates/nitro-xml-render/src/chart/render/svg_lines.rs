@@ -15,21 +15,22 @@ pub fn lines_and_areas(
     let stacked = model.grouping == "stacked" || model.grouping == "percentStacked";
     let area = model.type_ == ChartSummaryType::Area;
     let mut acc = vec![0.0; model.categories.len()];
-    let mut layers: Vec<(Vec<(f64, f64)>, Vec<(f64, f64)>, String, String)> = Vec::new();
+    type LineLayer = (Vec<(f64, f64)>, Vec<(f64, f64)>, String, String);
+    let mut layers: Vec<LineLayer> = Vec::new();
     for (si, s) in model.series.iter().enumerate() {
         let row = values.get(si);
         let mut points: Vec<(f64, f64)> = Vec::new();
         let mut lower: Vec<(f64, f64)> = Vec::new();
-        for i in 0..model.categories.len() {
+        for (i, slot) in acc.iter_mut().enumerate().take(model.categories.len()) {
             let v = row.and_then(|r| r.get(i)).copied().flatten();
             if v.is_none() && !area {
                 points.push((f64::NAN, f64::NAN));
                 continue;
             }
-            let below = if stacked { acc[i] } else { 0.0 };
+            let below = if stacked { *slot } else { 0.0 };
             let top = below + v.unwrap_or(0.0);
             if stacked {
-                acc[i] = top;
+                *slot = top;
             }
             points.push((frame.band(i), frame.value(top)));
             lower.push((frame.band(i), frame.value(below)));

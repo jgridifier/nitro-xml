@@ -101,6 +101,23 @@ export function dumpDocxStylesRust(
 	return { ok: r.status === 0, json, status: r.status };
 }
 
+/** Issue #22 page-count dump (`docx_pagecount_dump` example). */
+export function dumpDocxPagecountRust(
+	fixturePath: string,
+	cachePath?: string,
+): { ok: boolean; json: unknown; status: number | null; stderr: string } {
+	const bin = ensureExample('docx_pagecount_dump', 'nitro-xml-docx');
+	const args = cachePath ? [fixturePath, cachePath] : [fixturePath];
+	const r = runBin(bin, args, { timeoutMs: 180_000 });
+	let json: unknown = null;
+	try {
+		json = JSON.parse(r.stdout.trim() || 'null');
+	} catch {
+		json = { error: 'parse', raw: r.stdout.slice(0, 200), stderr: r.stderr.slice(0, 400) };
+	}
+	return { ok: r.status === 0, json, status: r.status, stderr: r.stderr };
+}
+
 /** Issue #22 LayoutResult dump (`docx_layout_dump` example). */
 export function dumpDocxLayoutRust(
 	fixturePath: string,

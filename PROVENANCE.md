@@ -232,7 +232,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/resolve_table.rs` | `src/core/docx/resolve-table.ts` @ e66aaec | `resolve_table_style_formatting` for conditional table styles. |
 | `rs/crates/nitro-xml-docx/src/table_visuals.rs` | `src/core/docx/table-visuals.ts` @ e66aaec | `resolve_cell_visuals` layered with table styles + direct borders. |
 | `rs/crates/nitro-xml-docx/src/layout/units.rs` | `src/core/docx/layout/units.ts` @ e66aaec | Twips/pt/px helpers for layout. |
-| `rs/crates/nitro-xml-docx/src/layout/measure.rs` | `src/core/docx/layout/measure.ts` @ e66aaec | `TextMeasurer`, `create_fake_measurer`, `BatchedMeasurer` stub. |
+| `rs/crates/nitro-xml-docx/src/layout/measure.rs` | `src/core/docx/layout/measure.ts` @ e66aaec | `TextMeasurer`, `create_fake_measurer`, `MeasureCache` / `CachedMeasurer`, `BatchedMeasurer` (#14 batch + span probes). |
 | `rs/crates/nitro-xml-docx/src/layout/fonts.rs` | `src/core/docx/layout/fonts.ts` @ e66aaec | `css_font_stack` (wired in follow-up). |
 | `rs/crates/nitro-xml-docx/src/layout/layout_ligatures.rs` | `src/core/docx/layout/ligatures.ts` @ e66aaec | Layout `ligature_css` helper. |
 | `rs/crates/nitro-xml-docx/src/layout/text_breaks.rs` | `src/core/docx/layout/text-breaks.ts` @ e66aaec | UAX#14-lite line break tokens; `unicode-segmentation` for graphemes. |
@@ -249,11 +249,11 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/layout/table_layout.rs` | `src/core/docx/layout/table-layout.ts` @ e66aaec | Table row/cell stack and split. |
 | `rs/crates/nitro-xml-docx/src/layout/page_cursor.rs` | `src/core/docx/layout/page-cursor.ts` @ e66aaec | Lazy page/column cursor. |
 | `rs/crates/nitro-xml-docx/src/layout/flow_paragraph.rs` | `src/core/docx/layout/flow-paragraph.ts` @ e66aaec | Paginate paragraphs. |
-| `rs/crates/nitro-xml-docx/src/layout/flow_table.rs` | `src/core/docx/layout/flow-table.ts` @ e66aaec | Paginate tables. |
+| `rs/crates/nitro-xml-docx/src/layout/flow_table.rs` | `src/core/docx/layout/flow-table.ts` @ e66aaec | Paginate tables (`&dyn TextMeasurer`). |
 | `rs/crates/nitro-xml-docx/src/layout/floats.rs` | `src/core/docx/layout/floats.ts` @ e66aaec | Float positioning pass. |
 | `rs/crates/nitro-xml-docx/src/layout/balance_columns.rs` | `src/core/docx/layout/balance-columns.ts` @ e66aaec | Column balance helpers (partial wire-up). |
-| `rs/crates/nitro-xml-docx/src/layout/section_flow.rs` | `src/core/docx/layout/section-flow.ts` @ e66aaec | Section block flow. |
-| `rs/crates/nitro-xml-docx/src/layout/page_flow.rs` | `src/core/docx/layout/page-flow.ts` @ e66aaec | Multi-section layout orchestration. |
+| `rs/crates/nitro-xml-docx/src/layout/section_flow.rs` | `src/core/docx/layout/section-flow.ts` @ e66aaec | Section block flow; `step` resumes after each block for lazy pagination. |
+| `rs/crates/nitro-xml-docx/src/layout/page_flow.rs` | `src/core/docx/layout/page-flow.ts` @ e66aaec | Multi-section layout orchestration (`&dyn TextMeasurer`). |
 | `rs/crates/nitro-xml-docx/src/layout/adapt_drop_cap.rs` | `src/core/docx/layout/adapt-drop-cap.ts` @ e66aaec | Drop-cap folding. |
 | `rs/crates/nitro-xml-docx/src/layout/adapt_floats.rs` | `src/core/docx/layout/adapt-floats.ts` @ e66aaec | Float metadata on paragraphs. |
 | `rs/crates/nitro-xml-docx/src/layout/adapt_notes.rs` | `src/core/docx/layout/adapt-notes.ts` @ e66aaec | Footnote/endnote layout paragraphs. |
@@ -261,5 +261,5 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/layout/adapt_table.rs` | `src/core/docx/layout/adapt-table.ts` @ e66aaec | Table block adapter. |
 | `rs/crates/nitro-xml-docx/src/layout/review_display.rs` | `src/core/docx/layout/review-display.ts` @ e66aaec | Layout review options. |
 | `rs/crates/nitro-xml-docx/src/layout/adapter.rs` | `src/core/docx/layout/adapter.ts` @ e66aaec | `DocumentModel` → layout input. |
-| `rs/crates/nitro-xml-docx/src/layout/layout.rs` | `src/core/docx/layout/layout.ts` @ e66aaec | `layout_document` / `layout_document_model`. |
+| `rs/crates/nitro-xml-docx/src/layout/layout.rs` | `src/core/docx/layout/layout.ts` @ e66aaec | `layout_document` / `layout_document_model` take `&dyn TextMeasurer`; measured-cache loop. |
 | `rs/crates/nitro-xml-docx/src/layout/page_fields.rs` | `src/core/docx/layout/page-fields.ts` @ e66aaec | PAGE/NUMPAGES field helpers (unused until wired). |

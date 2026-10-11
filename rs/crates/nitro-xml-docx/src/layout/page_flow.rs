@@ -4,14 +4,14 @@
 use std::collections::{HashMap, HashSet};
 
 use super::input::LayoutDocumentInput;
-use super::measure::FakeMeasurer;
+use super::measure::TextMeasurer;
 use super::result::{LayoutPageBox, LayoutResult};
 use super::section_flow::SectionFlow;
 use super::wrap::Exclusion;
 
 pub fn layout_sections(
     input: &LayoutDocumentInput,
-    measurer: &FakeMeasurer,
+    measurer: &dyn TextMeasurer,
     exclusions: Option<HashMap<usize, Vec<Exclusion>>>,
 ) -> LayoutResult {
     let mut approximations = HashSet::new();

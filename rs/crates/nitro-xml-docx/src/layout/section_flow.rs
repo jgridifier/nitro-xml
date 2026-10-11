@@ -7,7 +7,7 @@ use super::flow_paragraph::place_paragraph;
 use super::flow_table::place_table;
 use super::input::{parse_block, LayoutBlock, LayoutSectionSerde};
 use super::keep_rules::{suppresses_spacing, ParagraphSpacingCtx};
-use super::measure::FakeMeasurer;
+use super::measure::TextMeasurer;
 use super::page_cursor::{BalanceHint, PageCursor};
 use super::paragraph_layout::{layout_paragraph, ParagraphLayoutResult};
 use super::result::{LayoutFootnoteBox, LayoutPageBox};
@@ -21,13 +21,14 @@ pub struct SectionFlow {
     blocks: Vec<LayoutBlock>,
     paragraph_cache: HashMap<String, ParagraphLayoutResult>,
     first_row_height_cache: HashMap<String, f64>,
+    block_index: usize,
 }
 
 impl SectionFlow {
     pub fn new(
         section: LayoutSectionSerde,
         pages: Vec<LayoutPageBox>,
-        _measurer: &FakeMeasurer,
+        _measurer: &dyn TextMeasurer,
         section_index: usize,
         _exclusions: Option<HashMap<usize, Vec<Exclusion>>>,
         continue_at: Option<f64>,
@@ -53,10 +54,19 @@ impl SectionFlow {
             blocks,
             paragraph_cache: HashMap::new(),
             first_row_height_cache: HashMap::new(),
+            block_index: 0,
         }
     }
 
-    fn paragraph_layout(&mut self, index: usize, measurer: &FakeMeasurer) -> ParagraphLayoutResult {
+    pub fn is_finished(&self) -> bool {
+        self.block_index >= self.blocks.len()
+    }
+
+    fn paragraph_layout(
+        &mut self,
+        index: usize,
+        measurer: &dyn TextMeasurer,
+    ) -> ParagraphLayoutResult {
         let key = format!("{}:{}", index, self.cursor.column_width_px());
         if let Some(cached) = self.paragraph_cache.get(&key) {
             return cached.clone();
@@ -78,7 +88,7 @@ impl SectionFlow {
         cached
     }
 
-    fn first_row_height(&mut self, index: usize, measurer: &FakeMeasurer) -> f64 {
+    fn first_row_height(&mut self, index: usize, measurer: &dyn TextMeasurer) -> f64 {
         let key = format!("{}:{}", index, self.cursor.column_width_px());
         if let Some(cached) = self.first_row_height_cache.get(&key) {
             return *cached;
@@ -106,7 +116,7 @@ impl SectionFlow {
         cached
     }
 
-    fn spacing_before_for(&mut self, index: usize, measurer: &FakeMeasurer) -> f64 {
+    fn spacing_before_for(&mut self, index: usize, measurer: &dyn TextMeasurer) -> f64 {
         if !matches!(self.blocks.get(index), Some(LayoutBlock::Paragraph(_))) {
             return 0.0;
         }
@@ -133,7 +143,12 @@ impl SectionFlow {
         layout.spacing_before_px
     }
 
-    fn required_keep_height(&mut self, index: usize, depth: usize, measurer: &FakeMeasurer) -> f64 {
+    fn required_keep_height(
+        &mut self,
+        index: usize,
+        depth: usize,
+        measurer: &dyn TextMeasurer,
+    ) -> f64 {
         if index >= self.blocks.len() || depth > 64 {
             return 0.0;
         }
@@ -159,65 +174,74 @@ impl SectionFlow {
         }
     }
 
-    pub fn run(&mut self, measurer: &FakeMeasurer, note: &mut dyn FnMut(&str)) {
-        let mut index = 0usize;
-        while index < self.blocks.len() {
-            match self.blocks[index].clone() {
-                LayoutBlock::Table(table) => {
-                    place_table(&mut self.cursor, &table, measurer, note);
-                    index += 1;
-                }
-                LayoutBlock::Paragraph(paragraph) => {
-                    if paragraph.after_table_section_break.unwrap_or(false) {
-                        self.cursor.end_balance();
-                    }
-                    let spacing_before_px = self.spacing_before_for(index, measurer);
-                    let layout = self.paragraph_layout(index, measurer);
-                    if let Some(notes) = &paragraph.footnotes {
-                        if !notes.is_empty() {
-                            let footnote_boxes: Vec<LayoutFootnoteBox> = notes
-                                .iter()
-                                .map(|note| {
-                                    let mut noop = |_message: &str| {};
-                                    let stacked = stack_paragraphs(
-                                        &note.paragraphs,
-                                        self.cursor.column_width_px(),
-                                        measurer,
-                                        &mut noop,
-                                        0.0,
-                                        None,
-                                    );
-                                    LayoutFootnoteBox {
-                                        id: note.id.clone(),
-                                        y_px: 0.0,
-                                        height_px: stacked.0,
-                                        paragraphs: stacked.1,
-                                    }
-                                })
-                                .collect();
-                            self.cursor
-                                .hold_footnotes(paragraph.id.clone(), footnote_boxes);
-                        }
-                    }
-                    let required_together_px = if paragraph.keep_next.unwrap_or(false) {
-                        self.required_keep_height(index, 0, measurer)
-                    } else if paragraph.keep_lines.unwrap_or(false) {
-                        spacing_before_px + layout.content_height_px + layout.spacing_after_px
-                    } else {
-                        0.0
-                    };
-                    place_paragraph(
-                        &mut self.cursor,
-                        &paragraph,
-                        layout,
-                        spacing_before_px,
-                        required_together_px,
-                        measurer,
-                        note,
-                    );
-                    index += 1;
-                }
+    /// Lay out the next block. Returns whether a new page was started.
+    pub fn step(&mut self, measurer: &dyn TextMeasurer, note: &mut dyn FnMut(&str)) -> bool {
+        if self.is_finished() {
+            return false;
+        }
+        let index = self.block_index;
+        let pages_before = self.cursor.pages.len();
+        match self.blocks[index].clone() {
+            LayoutBlock::Table(table) => {
+                place_table(&mut self.cursor, &table, measurer, note);
             }
+            LayoutBlock::Paragraph(paragraph) => {
+                if paragraph.after_table_section_break.unwrap_or(false) {
+                    self.cursor.end_balance();
+                }
+                let spacing_before_px = self.spacing_before_for(index, measurer);
+                let layout = self.paragraph_layout(index, measurer);
+                if let Some(notes) = &paragraph.footnotes {
+                    if !notes.is_empty() {
+                        let footnote_boxes: Vec<LayoutFootnoteBox> = notes
+                            .iter()
+                            .map(|note| {
+                                let mut noop = |_message: &str| {};
+                                let stacked = stack_paragraphs(
+                                    &note.paragraphs,
+                                    self.cursor.column_width_px(),
+                                    measurer,
+                                    &mut noop,
+                                    0.0,
+                                    None,
+                                );
+                                LayoutFootnoteBox {
+                                    id: note.id.clone(),
+                                    y_px: 0.0,
+                                    height_px: stacked.0,
+                                    paragraphs: stacked.1,
+                                }
+                            })
+                            .collect();
+                        self.cursor
+                            .hold_footnotes(paragraph.id.clone(), footnote_boxes);
+                    }
+                }
+                let required_together_px = if paragraph.keep_next.unwrap_or(false) {
+                    self.required_keep_height(index, 0, measurer)
+                } else if paragraph.keep_lines.unwrap_or(false) {
+                    spacing_before_px + layout.content_height_px + layout.spacing_after_px
+                } else {
+                    0.0
+                };
+                place_paragraph(
+                    &mut self.cursor,
+                    &paragraph,
+                    layout,
+                    spacing_before_px,
+                    required_together_px,
+                    measurer,
+                    note,
+                );
+            }
+        }
+        self.block_index += 1;
+        self.cursor.pages.len() > pages_before
+    }
+
+    pub fn run(&mut self, measurer: &dyn TextMeasurer, note: &mut dyn FnMut(&str)) {
+        while !self.is_finished() {
+            self.step(measurer, note);
         }
     }
 }

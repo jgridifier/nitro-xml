@@ -3,7 +3,7 @@
 # Viewer / foundation parity: TS oracle vs Rust (job: parity).
 # Runs fixtures/verify --skip-on-demand, then bun parity/run --ci (xml + opc +
 # xlsx worksheet (#16) + view-IR (#18) + engine API (#19) + shell (#29) +
-# docx styles/body (#20/#21) + layout (#22) + pptx presentation model (#24) +
+# docx styles/body (#20/#21) + layout + page-count (#22) + pptx presentation model (#24) +
 # chart model/S1 SVG (#28)), then visual pixelmatch (#45).
 #
 # Definition of done for #5: this script no longer prints NOT IMPLEMENTED.
@@ -42,7 +42,12 @@ echo "parity: building Rust dump examples"
 ( cd rs && cargo build --release -q -p nitro-xml-opc --example xml_dump --example opc_dump --example chart_dump )
 ( cd rs && cargo build --release -q -p nitro-xml-render --example chart_render_svg )
 ( cd rs && cargo build --release -q -p nitro-xml-xlsx --example xlsx_dump --example xlsx_view_ir_dump --example xlsx_engine_dump --example xlsx_shell_dump )
-( cd rs && cargo build --release -q -p nitro-xml-docx --example docx_styles_dump --example docx_layout_dump )
+( cd rs && cargo build --release -q -p nitro-xml-docx --example docx_styles_dump --example docx_layout_dump --example docx_pagecount_dump )
+
+echo "parity: chromium for docx page-count (#22)"
+( cd parity/visual && bun install )
+( cd parity/visual && bunx playwright install --with-deps chromium ) \
+  || ( cd parity/visual && bunx playwright install chromium )
 ( cd rs && cargo build --release -q -p nitro-xml-pptx --example pptx_dump )
 python3 tools/model-compare/gates/make_opc_fixtures.py >/dev/null
 
@@ -85,7 +90,7 @@ if [ "$visual_rc" -ne 0 ]; then
   exit 1
 fi
 
-msg="parity: PASS (xml + opc + xlsx worksheet/view-IR/engine/shell + docx styles/body/layout + pptx + chart model/S1 SVG + visual DPR1/2/print)"
+msg="parity: PASS (xml + opc + xlsx worksheet/view-IR/engine/shell + docx styles/body/layout/page-count + pptx + chart model/S1 SVG + visual DPR1/2/print)"
 echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"

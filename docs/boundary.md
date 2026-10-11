@@ -15,7 +15,7 @@ Speed testing beyond the transfer contrast below is deferred (Jared, 2026-10-11)
 | String table, command buffer, measure batch | In `transport.rs` (shipped) |
 | Event batch wire format | In `events.rs` |
 | Synthetic SoA / serde / JSON bench arms | Behind non-default `bench` feature (`bench.rs`); not shipped |
-| Loader (`FinalizationRegistry`, command-buffer applier, event coalesce) | TODO(#37) |
+| Loader (`FinalizationRegistry`, command-buffer applier, event coalesce, measure batch) | `packages/nitro-xml/loader/` (#37); opcode gaps remain for #36 |
 | Worker vs main-thread split per painter | TODO(#36) |
 | Perf-history ingestion | TODO(#8) |
 
@@ -89,7 +89,7 @@ The seed set is **not** enough for a one-to-one painter port. Missing call kinds
 
 ### Batched text measurement
 
-Fonts and measurement follow upstream for now. Rust queues `{font_id, size_px, text_id}` SoA requests; the loader runs `measureText` once per batch and writes widths back with `setMeasureResults` (TODO(#37)). Never one wasm call per string.
+Fonts and measurement follow upstream for now. Rust queues `{font_id, size_px, text_id}` SoA requests; the loader runs `measureText` once per batch and writes widths back with `setMeasureResults` (`packages/nitro-xml/loader/measure.js`, #37). Never one wasm call per string.
 
 ## Bulk-transfer contrast (recorded; further speed work deferred)
 
@@ -136,6 +136,6 @@ bash scripts/build-wasm.sh                # must stay near the pre-#14 size
 
 ## Follow-ups
 
-- **#37** — loader: `FinalizationRegistry`, command-buffer applier (full opcode set), measureText batch, event coalesce, worker host.
+- **#37** — loader skeleton landed (`packages/nitro-xml/loader/`); extend opcodes from the gap list with #36.
 - **#36** — which painters apply on the main thread vs OffscreenCanvas in the worker; extend opcodes from the gap list above.
 - **#8** — ingest `perf/micro/results/boundary-*.json` into the perf history gate when speed testing resumes.

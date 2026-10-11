@@ -18,6 +18,10 @@
       "types": "./pkg/nitro_xml_wasm.d.ts",
       "import": "./pkg/nitro_xml_wasm.js"
     },
+    "./loader": {
+      "import": "./loader/index.js"
+    },
+    "./loader/*": "./loader/*",
     "./nitro_xml_wasm_bg.wasm": "./pkg/nitro_xml_wasm_bg.wasm"
   },
   "files": [
@@ -25,12 +29,18 @@
     "pkg/nitro_xml_wasm.d.ts",
     "pkg/nitro_xml_wasm_bg.wasm",
     "pkg/nitro_xml_wasm_bg.wasm.d.ts",
+    "loader/**/*.js",
+    "loader/README.md",
     "LICENSE",
     "LICENSE-THIRD-PARTY",
     "NOTICE"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "./loader/element.js",
+    "./loader/index.js"
+  ],
   "scripts": {
-    "build": "bash ../../scripts/build-wasm.sh"
+    "build": "bash ../../scripts/build-wasm.sh",
+    "test:loader": "node --test loader/test/*.mjs"
   }
 }

@@ -75,10 +75,11 @@ self.onmessage = async (ev) => {
             texts: new Uint32Array(mem.buffer, handle.measureTextPtr, measureCount).slice(),
           };
         }
+        // exportStrings() returns a JS Array (wasm-bindgen js_sys::Array), not a Map.
         const exported = handle.exportStrings();
         const strings = {};
         for (let i = 0; i < exported.length; i++) {
-          strings[i] = exported.get(i);
+          strings[i] = exported[i];
         }
         let layoutReqs = null;
         let layoutCount = 0;

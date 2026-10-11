@@ -1,0 +1,145 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>nitro-xml xlsx viewer host</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #fff; }
+    #stage {
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+    }
+    #stage nitro-xlsx,
+    #stage xlsx-editor {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    /* Strip remaining chrome so the shot is mostly the grid surface. */
+    #stage xlsx-editor {
+      --xve-title-bar-display: none;
+    }
+    @media print {
+      html, body, #stage { background: #fff; }
+      @page { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="stage" data-ready="0"></div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const side = params.get('side'); // ts = upstream xlsx-editor, rust = nitro-xlsx
+    const id = params.get('id');
+    const fixture = params.get('fixture'); // /repo/... path
+    const width = Number(params.get('width') || 800);
+    const height = Number(params.get('height') || 480);
+    const stage = document.getElementById('stage');
+    stage.style.width = `${width}px`;
+    stage.style.height = `${height}px`;
+
+    function waitFrames(n = 2) {
+      return new Promise((resolve) => {
+        let left = n;
+        const step = () => {
+          left -= 1;
+          if (left <= 0) resolve();
+          else requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+    }
+
+    async function mountRust() {
+      const { defineNitroXlsx } = await import('/repo/packages/nitro-xml/loader/index.js');
+      defineNitroXlsx();
+      const el = document.createElement('nitro-xlsx');
+      el.setAttribute('readonly', '');
+      stage.appendChild(el);
+      // Size before open so ResizeObserver / first frame get a real viewport.
+      el.style.width = '100%';
+      el.style.height = '100%';
+      await el.loadUrl(fixture);
+      // Force a resize so the canvas backing store matches the stage (RO may miss first layout).
+      if (el.document) {
+        const dpr = window.devicePixelRatio || 1;
+        const w = el.clientWidth || width;
+        const h = el.clientHeight || height;
+        const canvas = el.shadowRoot?.querySelector('canvas');
+        if (canvas) {
+          canvas.width = Math.max(1, (w * dpr) | 0);
+          canvas.height = Math.max(1, (h * dpr) | 0);
+        }
+        el.document.pushEvent({
+          kind: 6, // EventKind.Resize
+          time_ms: performance.now(),
+          width: w,
+          height: h,
+          dpr,
+        });
+      }
+      // First paint is async via worker ticks + rAF.
+      let painted = false;
+      for (let i = 0; i < 60; i++) {
+        await waitFrames(2);
+        const msg = el.shadowRoot?.querySelector('.msg');
+        if (msg && !msg.hidden && msg.textContent) {
+          throw new Error(`nitro-xlsx: ${msg.textContent}`);
+        }
+        if (el.document) {
+          await el.document.tick();
+        }
+        const canvas = el.shadowRoot?.querySelector('canvas');
+        if (canvas && canvas.width > 1 && canvas.height > 1) {
+          painted = true;
+          break;
+        }
+      }
+      if (!painted) throw new Error('nitro-xlsx: no canvas paint');
+      await waitFrames(3);
+    }
+
+    async function mountTs() {
+      const { defineXlsxEditor } = await import('/out/bundles/xlsx-editor.js');
+      defineXlsxEditor();
+      const el = document.createElement('xlsx-editor');
+      el.setAttribute('read-only', '');
+      el.setAttribute('show-toolbar', 'false');
+      el.setAttribute('show-formula-bar', 'false');
+      el.setAttribute('file-name', fixture.split('/').pop() || 'book.xlsx');
+      stage.appendChild(el);
+      // connectedCallback builds the shell synchronously.
+      await waitFrames(1);
+      const res = await fetch(fixture);
+      if (!res.ok) throw new Error(`fixture fetch ${res.status}`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      await el.load(bytes, el.fileName);
+      // Wait until the grid host has painted cell nodes.
+      for (let i = 0; i < 60; i++) {
+        await waitFrames(1);
+        const grid = el.shadowRoot?.querySelector('.xve-grid-host')
+          || el.querySelector?.('.xve-grid-host');
+        if (grid && grid.childElementCount > 0) break;
+        // Some builds attach grid outside shadow; also accept any cell nodes.
+        if (el.querySelector?.('[data-cell], .xve-cell, .cell')) break;
+      }
+      await waitFrames(3);
+    }
+
+    try {
+      if (!fixture) throw new Error('missing fixture query param');
+      if (side === 'rust') await mountRust();
+      else if (side === 'ts') await mountTs();
+      else throw new Error(`unknown side ${side}`);
+      stage.dataset.ready = '1';
+      document.title = `ready:${id}:${side}`;
+    } catch (e) {
+      stage.dataset.ready = 'err';
+      stage.textContent = String(e && e.stack ? e.stack : e);
+      document.title = `error:${e}`;
+    }
+  </script>
+</body>
+</html>

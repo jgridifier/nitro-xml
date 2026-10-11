@@ -12,7 +12,7 @@ members = [
 ]
 
 [workspace.package]
-license = "MIT"   # crate-level SPDX. A crate that gains files ported from upstream ooxml switches to `license = "MIT AND Apache-2.0"`; those files keep `SPDX-License-Identifier: Apache-2.0` (see NOTICE, LICENSE-THIRD-PARTY, PROVENANCE.md)
+license = "MIT"   # default for crates with only original files; a crate containing ported upstream files sets `license = "MIT AND Apache-2.0"` itself (see AGENTS.md §6, PROVENANCE.md)
 repository = "https://github.com/jgridifier/nitro-xml"
 homepage = "https://jgridifier.github.io/nitro-xml/"
 edition = "2021"

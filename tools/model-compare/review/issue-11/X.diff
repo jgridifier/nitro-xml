@@ -1,0 +1,725 @@
+diff --git a/.claude/agents/implementer.md b/.claude/agents/implementer.md
+new file mode 100644
+index 0000000..e11803d
+--- /dev/null
++++ b/.claude/agents/implementer.md
+@@ -0,0 +1,14 @@
++---
++name: implementer
++description: Implements one well-specified coding task in this repo (Rust crate code, scripts) exactly as briefed by the orchestrator, runs the named checks, and reports back. Use it for all code writing in the orchestrator+implementer arm.
++model: haiku
++tools: Read, Edit, Write, Bash, Grep, Glob
++---
++You implement exactly the task the orchestrator gives you in this repository and nothing else.
++
++Rules (from AGENTS.md, which you must read first):
++- Stay inside the files the task names. Never edit `.github/workflows/`.
++- New original files start with `// SPDX-License-Identifier: MIT`; files ported from upstream ooxml start with `// SPDX-License-Identifier: Apache-2.0` plus the provenance line, and get a PROVENANCE.md row.
++- Testing rule: few tests. Write a unit test only for a non-obvious invariant the differential gate cannot catch, and its first line must be `// Catches: <the bug>`. No tests that restate the code. Do not port upstream tests.
++- Run the checks the orchestrator names (at least `cd rs && cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`) and fix what fails before reporting.
++- Report: files changed, commands run with their result, anything you were unsure about. Do not commit unless told to.
+diff --git a/PROVENANCE.md b/PROVENANCE.md
+index 799739f..4e063b3 100644
+--- a/PROVENANCE.md
++++ b/PROVENANCE.md
+@@ -26,4 +26,5 @@ Nitro XML is MIT-licensed. **Files ported or derived from ooxml remain under Apa
+ 
+ | Nitro XML file | Upstream source (path @ commit) | Changes |
+ |---|---|---|
+-| _(none yet: no code has been ported)_ | | |
++| `rs/crates/nitro-xml-opc/src/zip/mod.rs` | `src/core/xlsx/read/package.ts` (`readZipParts`, `SourceIndex.actual`/`lowerNames`, size limits) @ e66aaec | Rewritten in Rust over the `zip` crate instead of JSZip; parts are indexed at open and inflated lazily per part instead of all at once; stored parts are borrowed without a copy; typed `ZipError` instead of `Error` messages; the JSZip behaviours upstream relies on (directory test, duplicate names, size-mismatch rejection, no CRC check) are reproduced explicitly. |
++| `rs/crates/nitro-xml-opc/src/zip/inflate.rs` | `src/core/xlsx/read/package.ts` (`inflateEntry`) @ e66aaec | Synchronous raw-deflate loop over flate2 (zlib-rs) instead of a JSZip stream; stops once output passes the declared size; initial buffer bounded by the maximum deflate ratio. |
+diff --git a/rs/crates/nitro-xml-opc/Cargo.toml b/rs/crates/nitro-xml-opc/Cargo.toml
+index 2639d8a..494f0bc 100644
+--- a/rs/crates/nitro-xml-opc/Cargo.toml
++++ b/rs/crates/nitro-xml-opc/Cargo.toml
+@@ -3,8 +3,18 @@ name = "nitro-xml-opc"
+ description = "Nitro XML shared foundation: zip, XML, OPC and DrawingML"
+ version.workspace = true
+ edition.workspace = true
+-license.workspace = true
++license = "MIT AND Apache-2.0"
+ repository.workspace = true
+ homepage.workspace = true
+ publish.workspace = true
+ 
++[dependencies]
++# Deflate only: no bzip2, zstd, lzma or other C-backed codecs (#11). zlib-rs is pure Rust and
++# builds for wasm32-unknown-unknown; flate2 is used directly to inflate parts with a byte budget.
++flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
++zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
++
++[dev-dependencies]
++proptest = "1.12.0"
++serde_json = "1.0.152"
++sha2 = "0.11.0"
+diff --git a/rs/crates/nitro-xml-opc/examples/zip_dump.rs b/rs/crates/nitro-xml-opc/examples/zip_dump.rs
+new file mode 100644
+index 0000000..f32d6b8
+--- /dev/null
++++ b/rs/crates/nitro-xml-opc/examples/zip_dump.rs
+@@ -0,0 +1,47 @@
++// SPDX-License-Identifier: MIT
++//! Dumps every part of a package through the bounded zip reader as JSON, for the #11
++//! differential gate against upstream `readZipParts`.
++//!
++//! Usage: `zip_dump <file>`. Prints `{"parts":[{"name","size","sha256"}, ...]}` sorted by name, or
++//! `{"error":"<kind>"}` and exits with status 2.
++
++use nitro_xml_opc::zip::ZipReader;
++use serde_json::json;
++use sha2::{Digest, Sha256};
++use std::fmt::Write as _;
++use std::process::ExitCode;
++
++fn fail(kind: &str) -> ExitCode {
++    println!("{}", json!({ "error": kind }));
++    ExitCode::from(2)
++}
++
++fn main() -> ExitCode {
++    let Some(path) = std::env::args_os().nth(1) else {
++        return fail("usage");
++    };
++    let Ok(bytes) = std::fs::read(path) else {
++        return fail("io");
++    };
++    let reader = match ZipReader::open(bytes) {
++        Ok(reader) => reader,
++        Err(e) => return fail(e.kind()),
++    };
++    let mut parts = match reader.read_all() {
++        Ok(parts) => parts,
++        Err(e) => return fail(e.kind()),
++    };
++    parts.sort_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
++    let parts: Vec<_> = parts
++        .iter()
++        .map(|(name, data)| {
++            let mut hex = String::with_capacity(64);
++            for byte in Sha256::digest(data) {
++                let _ = write!(hex, "{byte:02x}");
++            }
++            json!({ "name": name, "size": data.len(), "sha256": hex })
++        })
++        .collect();
++    println!("{}", json!({ "parts": parts }));
++    ExitCode::SUCCESS
++}
+diff --git a/rs/crates/nitro-xml-opc/src/lib.rs b/rs/crates/nitro-xml-opc/src/lib.rs
+index cfb44d6..b5a81fa 100644
+--- a/rs/crates/nitro-xml-opc/src/lib.rs
++++ b/rs/crates/nitro-xml-opc/src/lib.rs
+@@ -6,7 +6,8 @@
+ //! - `src/core/xml/` → [`xml`]
+ //! - `src/core/opc/` → [`opc`]
+ //! - `src/core/drawingml/` → [`drawingml`]
+-//! - zip: upstream uses JSZip (third-party, not ported); [`zip`] replaces it.
++//! - zip: upstream uses JSZip (third-party, not ported); [`zip`] replaces it, porting the limits
++//!   and guards of `src/core/xlsx/read/package.ts` (`readZipParts`).
+ 
+ pub mod drawingml;
+ pub mod opc;
+diff --git a/rs/crates/nitro-xml-opc/src/zip.rs b/rs/crates/nitro-xml-opc/src/zip.rs
+deleted file mode 100644
+index ee3b20f..0000000
+--- a/rs/crates/nitro-xml-opc/src/zip.rs
++++ /dev/null
+@@ -1,6 +0,0 @@
+-// SPDX-License-Identifier: MIT
+-//! Bounded zip reader. Upstream (ChristopherVR/ooxml@e66aaec) has no zip code of its own: it reads
+-//! packages through JSZip (`JSZip.loadAsync` in `src/core/xlsx/read/package.ts`,
+-//! `src/core/docx/parse.ts`), whose behaviour is the parity reference.
+-//!
+-//! TODO(#11): implement the bounded zip reader.
+diff --git a/rs/crates/nitro-xml-opc/src/zip/error.rs b/rs/crates/nitro-xml-opc/src/zip/error.rs
+new file mode 100644
+index 0000000..5ae38f0
+--- /dev/null
++++ b/rs/crates/nitro-xml-opc/src/zip/error.rs
+@@ -0,0 +1,78 @@
++// SPDX-License-Identifier: MIT
++//! Typed errors of the bounded zip reader.
++
++use std::fmt;
++
++/// Why a package could not be opened or a part could not be read.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub enum ZipError {
++    /// The compressed input is larger than [`ZipLimits::max_input_bytes`](super::ZipLimits).
++    InputTooLarge,
++    /// The bytes are not a readable zip archive (no end of central directory, truncated records,
++    /// entries pointing outside the input, ...). The string is the underlying cause.
++    Malformed(String),
++    /// An entry is encrypted; encrypted packages are not supported.
++    Encrypted { name: String },
++    /// An entry uses a compression method other than stored (0) or deflate (8).
++    UnsupportedCompression { name: String, method: u16 },
++    /// The archive has more non-directory entries than [`ZipLimits::max_parts`](super::ZipLimits).
++    TooManyParts,
++    /// An entry declares an uncompressed size above [`ZipLimits::max_part_bytes`](super::ZipLimits).
++    PartTooLarge { name: String },
++    /// The declared or inflated total exceeds [`ZipLimits::max_total_bytes`](super::ZipLimits).
++    TotalTooLarge,
++    /// An entry inflated past the uncompressed size its headers declare (a lying zip bomb).
++    InflatesPastDeclared { name: String },
++    /// An entry inflated to fewer bytes than its headers declare.
++    SizeMismatch { name: String },
++    /// An entry's deflate stream is corrupt.
++    CorruptDeflate { name: String },
++}
++
++impl ZipError {
++    /// A short stable identifier of the error kind (no part names or causes).
++    pub fn kind(&self) -> &'static str {
++        match self {
++            Self::InputTooLarge => "input-too-large",
++            Self::Malformed(_) => "malformed",
++            Self::Encrypted { .. } => "encrypted",
++            Self::UnsupportedCompression { .. } => "unsupported-compression",
++            Self::TooManyParts => "too-many-parts",
++            Self::PartTooLarge { .. } => "part-too-large",
++            Self::TotalTooLarge => "total-too-large",
++            Self::InflatesPastDeclared { .. } => "inflates-past-declared",
++            Self::SizeMismatch { .. } => "size-mismatch",
++            Self::CorruptDeflate { .. } => "corrupt-deflate",
++        }
++    }
++}
++
++impl fmt::Display for ZipError {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        match self {
++            Self::InputTooLarge => f.write_str("package exceeds the compressed input limit"),
++            Self::Malformed(cause) => write!(f, "not a valid zip package: {cause}"),
++            Self::Encrypted { name } => write!(f, "part {name} is encrypted"),
++            Self::UnsupportedCompression { name, method } => {
++                write!(
++                    f,
++                    "part {name} uses unsupported compression method {method}"
++                )
++            }
++            Self::TooManyParts => f.write_str("package exceeds the part limit"),
++            Self::PartTooLarge { name } => {
++                write!(f, "part {name} exceeds the uncompressed part size limit")
++            }
++            Self::TotalTooLarge => f.write_str("package exceeds the uncompressed content limit"),
++            Self::InflatesPastDeclared { name } => {
++                write!(f, "part {name} inflates past its declared size")
++            }
++            Self::SizeMismatch { name } => {
++                write!(f, "part {name} inflates to less than its declared size")
++            }
++            Self::CorruptDeflate { name } => write!(f, "part {name} has a corrupt deflate stream"),
++        }
++    }
++}
++
++impl std::error::Error for ZipError {}
+diff --git a/rs/crates/nitro-xml-opc/src/zip/inflate.rs b/rs/crates/nitro-xml-opc/src/zip/inflate.rs
+new file mode 100644
+index 0000000..0ea9477
+--- /dev/null
++++ b/rs/crates/nitro-xml-opc/src/zip/inflate.rs
+@@ -0,0 +1,53 @@
++// SPDX-License-Identifier: Apache-2.0
++// Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/read/package.ts; changes listed in PROVENANCE.md.
++//! Bounded raw-deflate inflation of one entry.
++
++use flate2::{Decompress, FlushDecompress, Status};
++
++/// Why [`inflate_bounded`] stopped.
++#[derive(Debug, PartialEq, Eq)]
++pub(super) enum InflateError {
++    /// More than `cap` bytes came out.
++    PastCap,
++    /// The deflate stream is corrupt.
++    Corrupt,
++}
++
++/// Deflate never expands better than about 1032:1, so a buffer larger than this is never needed
++/// for `compressed` input bytes; it keeps a lying header from forcing a huge allocation up front.
++fn max_inflated(compressed: usize) -> usize {
++    compressed.saturating_mul(1032).saturating_add(1024)
++}
++
++/// Inflates a raw deflate stream, failing as soon as more than `cap` bytes are produced, before
++/// the rest of the stream is inflated. A stream that ends early (truncated input) yields the bytes
++/// produced so far; the caller compares them with the declared size, like JSZip.
++pub(super) fn inflate_bounded(input: &[u8], cap: usize) -> Result<Vec<u8>, InflateError> {
++    // One byte of headroom over the cap is how an overshoot is detected.
++    let limit = cap.saturating_add(1);
++    let mut out: Vec<u8> = Vec::with_capacity(limit.min(max_inflated(input.len())).min(1 << 16));
++    let mut inflater = Decompress::new(false);
++    loop {
++        if out.len() == out.capacity() {
++            let grow = out.capacity().max(4096).min(limit - out.len());
++            out.reserve_exact(grow);
++        }
++        let consumed = usize::try_from(inflater.total_in()).unwrap_or(input.len());
++        let rest = input.get(consumed..).unwrap_or(&[]);
++        let (before_in, before_out) = (inflater.total_in(), inflater.total_out());
++        let status = inflater
++            .decompress_vec(rest, &mut out, FlushDecompress::Finish)
++            .map_err(|_| InflateError::Corrupt)?;
++        if out.len() > cap {
++            return Err(InflateError::PastCap);
++        }
++        if status == Status::StreamEnd {
++            return Ok(out);
++        }
++        let progressed = inflater.total_in() != before_in || inflater.total_out() != before_out;
++        if !progressed && out.len() < out.capacity() {
++            // No output space was missing, so the input ran out before the final block.
++            return Ok(out);
++        }
++    }
++}
+diff --git a/rs/crates/nitro-xml-opc/src/zip/mod.rs b/rs/crates/nitro-xml-opc/src/zip/mod.rs
+new file mode 100644
+index 0000000..d97a65a
+--- /dev/null
++++ b/rs/crates/nitro-xml-opc/src/zip/mod.rs
+@@ -0,0 +1,335 @@
++// SPDX-License-Identifier: Apache-2.0
++// Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/read/package.ts; changes listed in PROVENANCE.md.
++//! Bounded zip reader.
++//!
++//! Upstream reads packages through JSZip in `readZipParts` (`src/core/xlsx/read/package.ts`),
++//! whose behaviour is the parity reference: the size and part-count limits, directory entries
++//! skipped, a leading `/` stripped from names, case-insensitive lookup like
++//! `SourceIndex.lowerNames`, and inflation that stops as soon as an entry produces more bytes than
++//! its headers declare.
++//!
++//! Unlike upstream, [`ZipReader::open`] only reads the central directory and local headers; each
++//! part is inflated when it is asked for ([`ZipReader::read`]). Stored parts are borrowed from the
++//! input without a copy.
++
++mod error;
++mod inflate;
++
++use std::borrow::Cow;
++use std::collections::HashMap;
++use std::io::Cursor;
++
++pub use error::ZipError;
++use inflate::{inflate_bounded, InflateError};
++
++/// Largest accepted package (compressed).
++pub const MAX_INPUT_BYTES: u64 = 50 * 1024 * 1024;
++/// Largest number of zip entries.
++pub const MAX_PARTS: usize = 10_000;
++/// Largest total uncompressed size, guarding against zip bombs.
++pub const MAX_UNCOMPRESSED_BYTES: u64 = 300 * 1024 * 1024;
++/// Largest uncompressed size of a single part.
++pub const MAX_PART_BYTES: u64 = 200 * 1024 * 1024;
++
++/// Size limits applied while unzipping; [`Default`] uses the exported constants.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct ZipLimits {
++    /// Largest accepted package (compressed).
++    pub max_input_bytes: u64,
++    /// Largest number of (non-directory) zip entries.
++    pub max_parts: usize,
++    /// Largest inflated size of one part.
++    pub max_part_bytes: u64,
++    /// Largest total inflated size of all parts.
++    pub max_total_bytes: u64,
++}
++
++impl Default for ZipLimits {
++    fn default() -> Self {
++        Self {
++            max_input_bytes: MAX_INPUT_BYTES,
++            max_parts: MAX_PARTS,
++            max_part_bytes: MAX_PART_BYTES,
++            max_total_bytes: MAX_UNCOMPRESSED_BYTES,
++        }
++    }
++}
++
++/// A part name and its inflated bytes, as returned by [`ZipReader::read_all`].
++pub type Part<'a> = (&'a str, Cow<'a, [u8]>);
++
++const METHOD_STORED: u16 = 0;
++const METHOD_DEFLATED: u16 = 8;
++
++/// One part of the package: where its bytes are and what its headers declare.
++#[derive(Debug, Clone)]
++struct Entry {
++    /// Part name with any leading `/` stripped.
++    name: String,
++    /// Declared uncompressed size (central directory, zip64-aware).
++    declared: u64,
++    method: u16,
++    /// Byte range of the compressed data within the input.
++    start: usize,
++    end: usize,
++}
++
++/// An opened zip package. Holds the input bytes and an index of its parts; nothing is inflated
++/// until a part is read.
++#[derive(Debug)]
++pub struct ZipReader<B> {
++    data: B,
++    /// Parts in archive order (first occurrence of each name).
++    parts: Vec<Entry>,
++    by_name: HashMap<String, usize>,
++    /// Lower-cased name to index; the last part with a given lower-cased name wins, like
++    /// `SourceIndex.lowerNames`.
++    lower_names: HashMap<String, usize>,
++    limits: ZipLimits,
++}
++
++impl<B: AsRef<[u8]>> ZipReader<B> {
++    /// Opens a package with the default [`ZipLimits`].
++    pub fn open(data: B) -> Result<Self, ZipError> {
++        Self::open_with_limits(data, ZipLimits::default())
++    }
++
++    /// Opens a package, reading its central directory and checking the declared sizes against
++    /// `limits`. No part is inflated.
++    pub fn open_with_limits(data: B, limits: ZipLimits) -> Result<Self, ZipError> {
++        let bytes = data.as_ref();
++        if bytes.len() as u64 > limits.max_input_bytes {
++            return Err(ZipError::InputTooLarge);
++        }
++        let entries = scan_entries(bytes)?;
++        if entries.len() > limits.max_parts {
++            return Err(ZipError::TooManyParts);
++        }
++        let mut declared: u64 = 0;
++        for entry in &entries {
++            if entry.entry.declared > limits.max_part_bytes {
++                return Err(ZipError::PartTooLarge {
++                    name: entry.raw_name.clone(),
++                });
++            }
++            declared = declared.saturating_add(entry.entry.declared);
++        }
++        if declared > limits.max_total_bytes {
++            return Err(ZipError::TotalTooLarge);
++        }
++
++        // Upstream stores parts in a Map keyed by the stripped name, so a later entry replaces an
++        // earlier one with the same stripped name but keeps its position.
++        let mut parts: Vec<Entry> = Vec::with_capacity(entries.len());
++        let mut by_name: HashMap<String, usize> = HashMap::with_capacity(entries.len());
++        for scanned in entries {
++            let entry = scanned.entry;
++            match by_name.get(&entry.name) {
++                Some(&i) => parts[i] = entry,
++                None => {
++                    by_name.insert(entry.name.clone(), parts.len());
++                    parts.push(entry);
++                }
++            }
++        }
++        let mut lower_names = HashMap::with_capacity(parts.len());
++        for (i, part) in parts.iter().enumerate() {
++            lower_names.insert(part.name.to_lowercase(), i);
++        }
++        Ok(Self {
++            data,
++            parts,
++            by_name,
++            lower_names,
++            limits,
++        })
++    }
++
++    /// Number of parts (directory entries excluded).
++    pub fn len(&self) -> usize {
++        self.parts.len()
++    }
++
++    /// Whether the package has no parts.
++    pub fn is_empty(&self) -> bool {
++        self.parts.is_empty()
++    }
++
++    /// Part names in archive order, without a leading `/`.
++    pub fn names(&self) -> impl Iterator<Item = &str> {
++        self.parts.iter().map(|p| p.name.as_str())
++    }
++
++    /// The stored name of a part; OPC part names compare case-insensitively.
++    pub fn actual(&self, name: &str) -> Option<&str> {
++        self.index_of(name).map(|i| self.parts[i].name.as_str())
++    }
++
++    /// Whether a part exists (case-insensitive).
++    pub fn contains(&self, name: &str) -> bool {
++        self.index_of(name).is_some()
++    }
++
++    /// The uncompressed size a part declares, if the part exists.
++    pub fn declared_size(&self, name: &str) -> Option<u64> {
++        self.index_of(name).map(|i| self.parts[i].declared)
++    }
++
++    /// Inflates one part, or returns `Ok(None)` when no part has that name (case-insensitive).
++    /// Stored parts are borrowed from the input. Inflation stops as soon as the part produces
++    /// more bytes than it declares, so a lying entry cannot exhaust memory.
++    pub fn read(&self, name: &str) -> Result<Option<Cow<'_, [u8]>>, ZipError> {
++        match self.index_of(name) {
++            Some(i) => self.read_index(i).map(Some),
++            None => Ok(None),
++        }
++    }
++
++    /// Inflates every part in archive order, also enforcing the total-size limit on the bytes
++    /// actually produced.
++    pub fn read_all(&self) -> Result<Vec<Part<'_>>, ZipError> {
++        let mut out = Vec::with_capacity(self.parts.len());
++        let mut total: u64 = 0;
++        for (i, part) in self.parts.iter().enumerate() {
++            let bytes = self.read_index(i)?;
++            total = total.saturating_add(bytes.len() as u64);
++            if total > self.limits.max_total_bytes {
++                return Err(ZipError::TotalTooLarge);
++            }
++            out.push((part.name.as_str(), bytes));
++        }
++        Ok(out)
++    }
++
++    fn index_of(&self, name: &str) -> Option<usize> {
++        self.by_name
++            .get(name)
++            .or_else(|| self.lower_names.get(&name.to_lowercase()))
++            .copied()
++    }
++
++    fn read_index(&self, i: usize) -> Result<Cow<'_, [u8]>, ZipError> {
++        let part = &self.parts[i];
++        let raw = &self.data.as_ref()[part.start..part.end];
++        // The declared size already passed the per-part limit and the declared total passed the
++        // package limit, so capping each part at its declared size bounds both.
++        let cap = part.declared.min(self.limits.max_part_bytes);
++        let bytes = match part.method {
++            METHOD_STORED => Cow::Borrowed(raw),
++            _ => {
++                let cap = usize::try_from(cap).unwrap_or(usize::MAX);
++                Cow::Owned(inflate_bounded(raw, cap).map_err(|e| match e {
++                    InflateError::PastCap => ZipError::InflatesPastDeclared {
++                        name: part.name.clone(),
++                    },
++                    InflateError::Corrupt => ZipError::CorruptDeflate {
++                        name: part.name.clone(),
++                    },
++                })?)
++            }
++        };
++        let produced = bytes.len() as u64;
++        if produced > part.declared {
++            return Err(ZipError::InflatesPastDeclared {
++                name: part.name.clone(),
++            });
++        }
++        if produced < part.declared {
++            return Err(ZipError::SizeMismatch {
++                name: part.name.clone(),
++            });
++        }
++        Ok(bytes)
++    }
++}
++
++/// A non-directory entry as found in the central directory.
++struct Scanned {
++    /// Name as stored (before the leading `/` is stripped), for error messages.
++    raw_name: String,
++    entry: Entry,
++}
++
++/// Reads the central directory and every local header (to find where data starts), skipping
++/// directories. Entries repeating an earlier raw name replace it, like JSZip's `files` object.
++fn scan_entries(bytes: &[u8]) -> Result<Vec<Scanned>, ZipError> {
++    let malformed = |e: zip::result::ZipError| ZipError::Malformed(e.to_string());
++    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(malformed)?;
++    let mut entries: Vec<Scanned> = Vec::with_capacity(archive.len());
++    let mut by_raw: HashMap<String, usize> = HashMap::with_capacity(archive.len());
++    for index in 0..archive.len() {
++        let file = archive.by_index_raw(index).map_err(malformed)?;
++        let raw_name = String::from_utf8_lossy(file.name_raw()).into_owned();
++        if file.encrypted() {
++            return Err(ZipError::Encrypted { name: raw_name });
++        }
++        let method = compression_method(bytes, file.central_header_start())
++            .ok_or_else(|| ZipError::Malformed("central directory record truncated".into()))?;
++        if method != METHOD_STORED && method != METHOD_DEFLATED {
++            return Err(ZipError::UnsupportedCompression {
++                name: raw_name,
++                method,
++            });
++        }
++        let start = file
++            .data_start()
++            .ok_or_else(|| ZipError::Malformed(format!("no local header for {raw_name}")))?;
++        let end = start
++            .checked_add(file.compressed_size())
++            .filter(|&end| end <= bytes.len() as u64)
++            .ok_or_else(|| ZipError::Malformed(format!("data of {raw_name} runs past the end")))?;
++        if is_dir(
++            bytes,
++            file.central_header_start(),
++            &raw_name,
++            file.external_attributes(),
++        ) {
++            continue;
++        }
++        let entry = Entry {
++            name: raw_name.strip_prefix('/').unwrap_or(&raw_name).to_owned(),
++            declared: file.size(),
++            method,
++            // Both bounds are within `bytes`, so they fit in usize.
++            start: start as usize,
++            end: end as usize,
++        };
++        let scanned = Scanned { raw_name, entry };
++        match by_raw.get(&scanned.raw_name) {
++            Some(&i) => entries[i] = scanned,
++            None => {
++                by_raw.insert(scanned.raw_name.clone(), entries.len());
++                entries.push(scanned);
++            }
++        }
++    }
++    Ok(entries)
++}
++
++fn read_u16(bytes: &[u8], at: u64) -> Option<u16> {
++    let at = usize::try_from(at).ok()?;
++    let b = bytes.get(at..at.checked_add(2)?)?;
++    Some(u16::from_le_bytes([b[0], b[1]]))
++}
++
++/// The raw compression method of a central directory record (offset 10). The `zip` crate maps
++/// methods it was built without to an opaque value, so the field is read directly.
++fn compression_method(bytes: &[u8], central_header_start: u64) -> Option<u16> {
++    read_u16(bytes, central_header_start.checked_add(10)?)
++}
++
++/// JSZip's directory test: the DOS directory attribute, a trailing `/`, or (for entries made on
++/// Unix) the `0x4000` bit of the Unix mode.
++fn is_dir(bytes: &[u8], central_header_start: u64, name: &str, external: u32) -> bool {
++    if external & 0x10 != 0 || name.ends_with('/') {
++        return true;
++    }
++    let made_by_unix = central_header_start
++        .checked_add(4)
++        .and_then(|at| read_u16(bytes, at))
++        .is_some_and(|v| v >> 8 == 3);
++    made_by_unix && (external >> 16) & 0x4000 != 0
++}
++
++#[cfg(test)]
++mod tests;
+diff --git a/rs/crates/nitro-xml-opc/src/zip/tests.rs b/rs/crates/nitro-xml-opc/src/zip/tests.rs
+new file mode 100644
+index 0000000..992db9c
+--- /dev/null
++++ b/rs/crates/nitro-xml-opc/src/zip/tests.rs
+@@ -0,0 +1,101 @@
++// SPDX-License-Identifier: MIT
++use super::*;
++use flate2::write::DeflateEncoder;
++use flate2::Compression;
++use proptest::prelude::*;
++use std::io::Write;
++
++/// A single-entry zip whose headers declare `declared` uncompressed bytes for `payload`.
++fn one_entry(name: &str, method: u16, payload: &[u8], declared: u32) -> Vec<u8> {
++    let name = name.as_bytes();
++    let mut out = Vec::new();
++    out.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
++    for v in [20u16, 0, method, 0, 0] {
++        out.extend_from_slice(&v.to_le_bytes());
++    }
++    for v in [0u32, payload.len() as u32, declared] {
++        out.extend_from_slice(&v.to_le_bytes());
++    }
++    out.extend_from_slice(&(name.len() as u16).to_le_bytes());
++    out.extend_from_slice(&0u16.to_le_bytes());
++    out.extend_from_slice(name);
++    out.extend_from_slice(payload);
++    let cd_start = out.len() as u32;
++    out.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
++    for v in [20u16, 20, 0, method, 0, 0] {
++        out.extend_from_slice(&v.to_le_bytes());
++    }
++    for v in [0u32, payload.len() as u32, declared] {
++        out.extend_from_slice(&v.to_le_bytes());
++    }
++    for v in [name.len() as u16, 0, 0, 0, 0] {
++        out.extend_from_slice(&v.to_le_bytes());
++    }
++    out.extend_from_slice(&0u32.to_le_bytes()); // external attributes
++    out.extend_from_slice(&0u32.to_le_bytes()); // local header offset
++    out.extend_from_slice(name);
++    let cd_len = out.len() as u32 - cd_start;
++    out.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
++    for v in [0u16, 0, 1, 1] {
++        out.extend_from_slice(&v.to_le_bytes());
++    }
++    out.extend_from_slice(&cd_len.to_le_bytes());
++    out.extend_from_slice(&cd_start.to_le_bytes());
++    out.extend_from_slice(&0u16.to_le_bytes());
++    out
++}
++
++fn deflate(data: &[u8]) -> Vec<u8> {
++    let mut enc = DeflateEncoder::new(Vec::new(), Compression::best());
++    enc.write_all(data).unwrap();
++    enc.finish().unwrap()
++}
++
++#[test]
++fn lying_size_bomb_is_stopped_while_inflating() {
++    // Catches: trusting the declared uncompressed size, so a 1 KiB header over 64 MiB of zeros inflates fully.
++    let payload = deflate(&vec![0u8; 64 << 20]);
++    let zip = one_entry("xl/bomb.xml", 8, &payload, 1024);
++    let reader = ZipReader::open(zip).unwrap();
++    let err = reader.read("xl/bomb.xml").unwrap_err();
++    assert_eq!(err.kind(), "inflates-past-declared");
++}
++
++#[test]
++fn declared_sizes_are_checked_before_inflating() {
++    // Catches: limits enforced only during inflation, letting an honest oversized part be inflated first.
++    let payload = deflate(&vec![0u8; 4096]);
++    let limits = ZipLimits {
++        max_part_bytes: 1000,
++        ..ZipLimits::default()
++    };
++    let err =
++        ZipReader::open_with_limits(one_entry("a.xml", 8, &payload, 4096), limits).unwrap_err();
++    assert_eq!(err.kind(), "part-too-large");
++}
++
++#[test]
++fn lookup_is_case_insensitive_without_leading_slash() {
++    // Catches: OPC part names compared case-sensitively or with the stored leading `/` kept.
++    let zip = one_entry("/XL/Workbook.xml", 0, b"<workbook/>", 11);
++    let reader = ZipReader::open(zip).unwrap();
++    assert_eq!(reader.actual("xl/workbook.xml"), Some("XL/Workbook.xml"));
++    assert_eq!(
++        reader.read("xl/WORKBOOK.xml").unwrap().as_deref(),
++        Some(&b"<workbook/>"[..])
++    );
++}
++
++proptest! {
++    #[test]
++    fn malformed_input_never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..512), flips in proptest::collection::vec((any::<usize>(), any::<u8>()), 0..8)) {
++        // Catches: panics (slice bounds, overflow) on arbitrary or bit-flipped archives.
++        let _ = ZipReader::open(bytes).map(|r| r.read_all().map(|p| p.len()));
++        let mut zip = one_entry("a.xml", 8, &deflate(b"<a>hello hello hello</a>"), 24);
++        for (at, value) in flips {
++            let len = zip.len();
++            zip[at % len] = value;
++        }
++        let _ = ZipReader::open(zip).map(|r| r.read_all().map(|p| p.len()));
++    }
++}

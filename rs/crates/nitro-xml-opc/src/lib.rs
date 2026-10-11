@@ -9,6 +9,7 @@
 //! - zip: upstream uses JSZip (third-party, not ported); [`zip`] replaces it.
 
 pub mod drawingml;
+pub mod fonts;
 pub mod opc;
 pub mod xml;
 pub mod zip;

@@ -41,7 +41,7 @@ python3 fixtures/verify --skip-on-demand
 echo "parity: building Rust dump examples"
 ( cd rs && cargo build --release -q -p nitro-xml-opc --example xml_dump --example opc_dump --example chart_dump )
 ( cd rs && cargo build --release -q -p nitro-xml-render --example chart_render_svg )
-( cd rs && cargo build --release -q -p nitro-xml-xlsx --example xlsx_dump --example xlsx_view_ir_dump )
+( cd rs && cargo build --release -q -p nitro-xml-xlsx --example xlsx_dump --example xlsx_view_ir_dump --example xlsx_engine_dump )
 ( cd rs && cargo build --release -q -p nitro-xml-docx --example docx_styles_dump )
 ( cd rs && cargo build --release -q -p nitro-xml-pptx --example pptx_dump )
 python3 tools/model-compare/gates/make_opc_fixtures.py >/dev/null
@@ -59,7 +59,11 @@ if [ "$parity_rc" -ne 0 ] || [ "$test_rc" -ne 0 ]; then
   exit 1
 fi
 
+<<<<<<< HEAD
 msg="parity: PASS (xml + opc + xlsx worksheet/view-IR + docx styles/body + pptx + chart model/S1 SVG ready)"
+=======
+msg="parity: PASS (xml + opc + xlsx worksheet + view-IR + engine API + docx styles/body + pptx presentation ready)"
+>>>>>>> e741863 (feat(xlsx): register engine API differential parity (#19))
 echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"

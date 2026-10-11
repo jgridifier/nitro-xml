@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * xlsx Stage-16 worksheet comparison + Stage-18 view-IR (CellItem/CellView).
- * Folded from tools/model-compare/gates/issue-16.sh; oracle is xlsx_sheet_ref.ts
- * and dumpXlsxViewIr for view-IR.
+ * xlsx comparisons: Stage-16 worksheet, Stage-18 view-IR, Stage-19 engine API.
  */
 
 import { existsSync, readdirSync } from 'node:fs';
@@ -10,8 +8,17 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import type { Comparison, CorpusResult, Manifest } from '../types.ts';
 import { repoRoot, selectCorpus } from '../corpus.ts';
-import { dumpXlsxSheetOracle, dumpXlsxViewIr } from '../oracle/xlsx.ts';
-import { dumpXlsxWorkbookRust, dumpFormatViewIrRust, ensureExample } from '../rust/dump.ts';
+import {
+	dumpXlsxSheetOracle,
+	dumpXlsxViewIr,
+	dumpXlsxEngineOracle,
+} from '../oracle/xlsx.ts';
+import {
+	dumpXlsxWorkbookRust,
+	dumpFormatViewIrRust,
+	dumpXlsxEngineRust,
+	ensureExample,
+} from '../rust/dump.ts';
 import { normalizeJson } from '../normalize.ts';
 import { upstreamDir } from '../paths.ts';
 
@@ -56,10 +63,12 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 	const notes: string[] = [];
 	ensureExample('xlsx_dump', 'nitro-xml-xlsx');
 	ensureExample('xlsx_view_ir_dump', 'nitro-xml-xlsx');
+	ensureExample('xlsx_engine_dump', 'nitro-xml-xlsx');
 
 	let n = 0;
 	let badWorksheet = 0;
 	let badViewIr = 0;
+	let badEngine = 0;
 	let badAny = 0;
 	for (const f of listXlsxFiles(root)) {
 		if (!existsSync(f)) continue;
@@ -71,6 +80,7 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 		if (got.status === 101 || got.status === 124 || (got.status !== null && got.status > 128)) {
 			badWorksheet++;
 			badViewIr++;
+			badEngine++;
 			fileBad = true;
 			if (notes.length < 20) notes.push(`panic/timeout/crash rc=${got.status} on ${f}`);
 			continue;
@@ -86,32 +96,55 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 			if (notes.length < 20) notes.push(`worksheet output differs on ${f}`);
 		}
 
-		let oracleIr: unknown;
-		let rustIr: unknown;
 		try {
-			oracleIr = await dumpXlsxViewIr(f);
-			rustIr = dumpFormatViewIrRust('xlsx', f, '#18');
+			const oracleIr = await dumpXlsxViewIr(f);
+			const rustIr = dumpFormatViewIrRust('xlsx', f, '#18');
+			if (normalizeJson(oracleIr) !== normalizeJson(rustIr)) {
+				badViewIr++;
+				fileBad = true;
+				if (notes.length < 20) notes.push(`view-IR differs on ${f}`);
+			}
 		} catch (e) {
 			badViewIr++;
 			fileBad = true;
 			if (notes.length < 20) notes.push(`view-IR error on ${f}: ${e}`);
-			continue;
 		}
-		if (normalizeJson(oracleIr) !== normalizeJson(rustIr)) {
-			badViewIr++;
+
+		try {
+			const oracleEng = dumpXlsxEngineOracle(f);
+			const rustEng = dumpXlsxEngineRust(f);
+			if (!oracleEng.ok || !rustEng.ok) {
+				if (!oracleEng.ok && !rustEng.ok) {
+					// both reject — accept/reject parity (minimal/encrypted fixtures)
+				} else {
+					badEngine++;
+					fileBad = true;
+					if (notes.length < 20) {
+						notes.push(`engine API accept/reject mismatch on ${f}`);
+					}
+				}
+			} else if (normalizeJson(oracleEng.json) !== normalizeJson(rustEng.json)) {
+				badEngine++;
+				fileBad = true;
+				if (notes.length < 20) notes.push(`engine API differs on ${f}`);
+			}
+		} catch (e) {
+			badEngine++;
 			fileBad = true;
-			if (notes.length < 20) notes.push(`view-IR differs on ${f}`);
+			if (notes.length < 20) notes.push(`engine API error on ${f}: ${e}`);
 		}
+
 		if (fileBad) badAny++;
 	}
 	notes.push(`worksheet differential: ${n - badWorksheet}/${n} files match upstream`);
 	notes.push(`view-IR differential: ${n - badViewIr}/${n} files match upstream`);
+	notes.push(`engine API differential: ${n - badEngine}/${n} files match upstream`);
 	return { compared: n, mismatched: badAny, notes };
 }
 
 export const xlsxComparison: Comparison = {
 	id: 'xlsx',
-	label: 'xlsx worksheet + view-IR (#16, #18)',
+	label: 'xlsx worksheet + view-IR + engine API (#16, #18, #19)',
 	ready: true,
 	todo: undefined,
 	async oracle(fixturePath: string) {

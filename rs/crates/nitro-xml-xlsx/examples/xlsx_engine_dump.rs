@@ -6,27 +6,31 @@ use nitro_xml_xlsx::{
     visible_sheets_json, SearchOptions,
 };
 use serde_json::json;
-use std::env;
-use std::fs;
 use std::process;
 
+fn fail_json(value: serde_json::Value) -> ! {
+    println!("{value}");
+    process::exit(2);
+}
+
 fn main() {
-    let path = env::args().nth(1).unwrap_or_else(|| {
-        eprintln!("usage: xlsx_engine_dump <file.xlsx>");
-        process::exit(2);
-    });
-    let bytes = fs::read(&path).unwrap_or_else(|e| {
-        eprintln!("read {}: {}", path, e);
-        process::exit(1);
-    });
-    let workbook = load_workbook(&bytes).unwrap_or_else(|e| {
-        eprintln!("load: {}", e);
-        process::exit(1);
-    });
-    let sheets = parse_all_worksheets(&bytes, &workbook).unwrap_or_else(|e| {
-        eprintln!("sheets: {}", e);
-        process::exit(1);
-    });
+    let mut args = std::env::args_os();
+    let _ = args.next();
+    let Some(path) = args.next() else {
+        fail_json(json!({"error": "usage"}));
+    };
+    let bytes = match std::fs::read(&path) {
+        Ok(b) => b,
+        Err(_) => fail_json(json!({"error": "io"})),
+    };
+    let workbook = match load_workbook(&bytes) {
+        Ok(wb) => wb,
+        Err(e) => fail_json(json!({"error": e})),
+    };
+    let sheets = match parse_all_worksheets(&bytes, &workbook) {
+        Ok(s) => s,
+        Err(e) => fail_json(json!({"error": e})),
+    };
     let active = workbook.active_sheet as usize;
     let cell_text = if let Some(Some(sheet)) = sheets.get(active) {
         cell_text_tsv(&workbook, sheet, active, &sheets, "A1:E20").unwrap_or_default()
@@ -38,7 +42,23 @@ fn main() {
     } else {
         json!([])
     };
-    let search = search_workbook(&workbook, &sheets, "a", SearchOptions::default());
+    let mut search = search_workbook(&workbook, &sheets, "a", SearchOptions::default());
+    // Cap + stable order for differential dumps (corpus can have thousands of "a" hits).
+    if let Some(arr) = search.as_array_mut() {
+        arr.sort_by(|a, b| {
+            (
+                a.get("sheet").and_then(|v| v.as_u64()),
+                a.get("row").and_then(|v| v.as_u64()),
+                a.get("col").and_then(|v| v.as_u64()),
+            )
+                .cmp(&(
+                    b.get("sheet").and_then(|v| v.as_u64()),
+                    b.get("row").and_then(|v| v.as_u64()),
+                    b.get("col").and_then(|v| v.as_u64()),
+                ))
+        });
+        arr.truncate(50);
+    }
     let out = json!({
         "format": "xlsx",
         "sheets": visible_sheets_json(&workbook),

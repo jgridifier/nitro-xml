@@ -27,6 +27,27 @@ export async function dumpXlsxWorkbookOracle(fixturePath: string): Promise<unkno
 	}
 }
 
+/** Stage-19 engine API dump (sheets / cellText / hyperlinks / search). */
+export function dumpXlsxEngineOracle(fixturePath: string): {
+	ok: boolean;
+	json: unknown;
+} {
+	const root = repoRoot();
+	const script = join(root, 'tools/model-compare/gates/ref/xlsx_engine_ref.ts');
+	const r = spawnSync('bun', [script, fixturePath], {
+		encoding: 'utf8',
+		env: { ...process.env, UPSTREAM_DIR: upstreamDir(root) },
+		maxBuffer: 32 * 1024 * 1024,
+	});
+	let json: unknown = null;
+	try {
+		json = JSON.parse((r.stdout || '').trim() || 'null');
+	} catch {
+		json = { error: 'oracle_parse', status: r.status };
+	}
+	return { ok: r.status === 0, json };
+}
+
 /** Stage-16 dump (workbook slice + activeWorksheet; xlsx_sheet_ref.ts). */
 export async function dumpXlsxSheetOracle(fixturePath: string): Promise<unknown> {
 	const root = repoRoot();

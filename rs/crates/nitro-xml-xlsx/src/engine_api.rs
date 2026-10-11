@@ -103,8 +103,9 @@ pub fn hyperlinks_in_sheet(
         if let Some(tip) = &link.tooltip {
             m.insert("tooltip".into(), Value::String(tip.clone()));
         }
-        let href = link.target.as_deref().or(link.location.as_deref());
-        m.insert("open".into(), json!(hyperlink_policy(href).open));
+        let open = link.location.as_ref().is_some_and(|l| !l.is_empty())
+            || hyperlink_policy(link.target.as_deref()).open;
+        m.insert("open".into(), json!(open));
         out.push(Value::Object(m));
     }
     let _ = workbook;
@@ -142,8 +143,9 @@ pub fn hyperlink_at(
         if let Some(tip) = &link.tooltip {
             m.insert("tooltip".into(), Value::String(tip.clone()));
         }
-        let href = link.target.as_deref().or(link.location.as_deref());
-        m.insert("open".into(), json!(hyperlink_policy(href).open));
+        let open = link.location.as_ref().is_some_and(|l| !l.is_empty())
+            || hyperlink_policy(link.target.as_deref()).open;
+        m.insert("open".into(), json!(open));
         let _ = workbook;
         return Some(Value::Object(m));
     }

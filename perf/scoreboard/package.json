@@ -7,7 +7,9 @@
   "scripts": {
     "build": "node build.mjs",
     "race:parse": "node run.mjs",
-    "race:first-paint": "node races/render/run.mjs"
+    "race:first-paint": "node races/render/run.mjs",
+    "selftest": "node races/parse/selftest.mjs",
+    "gate": "node races/parse/gate.mjs"
   },
   "dependencies": {
     "@betteroffice/docx": "0.4.3",

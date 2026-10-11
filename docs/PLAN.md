@@ -24,7 +24,7 @@ The brief describes a browser-client renderer for docx, pptx and xlsx. The upstr
 
 `cloc` counts **about 1.56 million lines of TypeScript code** (excluding blank lines and comments) in 12,989 files. About half of that is tests.
 
-**Original recommendation (superseded):** port only the read and view path. **Current scope (Jared):** the full editor suite for docx, xlsx and pptx, built viewer first (Milestone 1) and then editor (Milestone 2), all in Rust/WASM. **Formats (Jared): only .docx, .xlsx and .pptx.** Legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV, macro-enabled and template variants, Visio and every other upstream format are out and show an "unsupported format" message. Also out: Teams, MCP, macro execution, framework bindings beyond the web component; collaboration and export (default out). This is far larger than the original 25k to 45k line estimate: the roughly 217k production lines of `src/ui` are now rebuilt in Rust as well, and no credible estimate exists until R0 (PRODUCT_SPEC Q3).
+**Original recommendation (superseded):** port only the read and view path. **Current scope (Jared):** the full editor suite for docx, xlsx and pptx, built viewer first (Milestone 1) and then editor (Milestone 2), all in Rust/WASM. **Formats:** **.docx, .xlsx and .pptx plus their macro-enabled and template variants** (.docm/.xlsm/.pptm, .dotx/.xltx/.potx, .dotm/.xltm/.potm; macros never execute, `vbaProject.bin` round-trips byte for byte). Legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV, Visio and every other upstream format are out and show an "unsupported format" message. Also out: Teams, MCP, macro execution, framework bindings beyond the web component; collaboration and export (default out). This is far larger than the original 25k to 45k line estimate: the roughly 217k production lines of `src/ui` are now rebuilt in Rust as well, and no credible estimate exists until R0 (PRODUCT_SPEC Q3).
 
 ---
 
@@ -147,7 +147,7 @@ Dependency direction (from the README): bindings -> `ooxml-ui` (DOM) -> `ooxml-c
   - fonts, fills, borders, alignment, number formats, merges, column and row sizes
   - conditional formatting (rules, colour scales, data bars, icon sets) and validation lists
   - common charts as SVG (8 families), pictures and sparklines
-- **File types (upstream):** `.xlsx`, `.xlsm`, `.xltx`, legacy `.xls` and CSV. **Nitro XML opens `.xlsx` only**; the rest show an "unsupported format" message.
+- **File types (upstream):** `.xlsx`, `.xlsm`, `.xltx`, legacy `.xls` and CSV. **Nitro XML opens `.xlsx`, `.xlsm`, `.xltx` and `.xltm`**; legacy `.xls` and CSV show an "unsupported format" message.
 - **Gaps:**
   - pivot tables, slicers, external links and Power Query are kept but not shown
   - shapes, SmartArt and form controls show as placeholders (SmartArt is drawn from the cached drawing)
@@ -244,11 +244,11 @@ All versions and licences are from the crates.io API on 2026-10-11.
 | `tiny-skia` / `resvg` | BSD-3-Clause / MIT or Apache-2.0 | Not needed now (renderers port upstream's painters as-is; the post-port redesign may revisit) |
 
 **Licence constraints:**
-- **Nitro XML is MIT-licensed.** Files ported or derived from ooxml remain under Apache-2.0 (see NOTICE, LICENSE-THIRD-PARTY and PROVENANCE.md). The repo ships `LICENSE` (MIT) and `LICENSE-THIRD-PARTY` (upstream Apache-2.0 text); Cargo metadata and `package.json` say `license = "MIT"`. Ported files carry the SPDX header `Apache-2.0` plus a provenance line; new files use `MIT`.
+- **Nitro XML is MIT-licensed.** Files ported or derived from ooxml remain under Apache-2.0 (see NOTICE, LICENSE-THIRD-PARTY and PROVENANCE.md). The repo ships `LICENSE` (MIT) and `LICENSE-THIRD-PARTY` (upstream Apache-2.0 text); `package.json` says `"license": "MIT"`; crates with only original files say `license = "MIT"` and crates containing ported upstream files say `license = "MIT AND Apache-2.0"`. Ported files carry the SPDX header `Apache-2.0` plus a provenance line; new files use `MIT`.
 - Upstream is Apache-2.0, so ported logic is a derivative work. Apache-2.0 §4 allows distributing derivative works under other terms, provided its conditions are met: `NOTICE` crediting upstream (ChristopherVR/ooxml) is carried forward, copyright notices are kept, and changes are stated in `PROVENANCE.md` (one entry per ported or derived module, mirroring upstream's own convention).
 - `mtx-decompressor` is MPL-2.0 (file-level copyleft). It is not in scope for v1 and the licence check does not allow MPL.
 - jszip is dual MIT or GPL-3.0 and is used under MIT. It is not ported; Rust uses `zip`.
-- `font-advance-widths*.generated.ts` holds glyph widths measured in PowerPoint through COM (NOTICE). It is data under Apache-2.0, but **ask upstream** before relying on it.
+- `font-advance-widths*.generated.ts` holds glyph widths measured in PowerPoint through COM (NOTICE). It is data under Apache-2.0; #98 records its provenance and asks upstream (non-blocking for renderer work).
 - The CI licence check (#31) allows only MIT, Apache-2.0, BSD-2/3-Clause, ISC, Zlib and Unicode licences, for crates and npm production dependencies.
 
 ### 3.4 Test strategy
@@ -280,7 +280,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 0 | Scaffolding: **P0 real-file corpus sourcing (#32, #95, #96; claimable first, no dependencies)**, workspace, wasm build, npm skeleton, CI scripts, fixtures, parity harness, licence and ship checks | #1 to #5, #31, #32, #38, #95, #96 | Builds natively and to wasm32; CI green; corpus verified; self-diff passes; MIT licence with Apache-2.0 text, NOTICE and PROVENANCE |
 | 1 | Perf-eval track, TS baseline, scoreboard harness | #6 to #10, #39 | Harness, history, gate machinery and scoreboard page live; BASELINE.md frozen |
 | 2 | Shared OPC (streaming zip and XML), boundary, visual harness, parse race | #11 to #14, #40, #45 | Part-graph parity; zip-bomb and DTD tests; transport decided with numbers |
-| **R0** | **Renderer port record (Jared)** | #33 (Jared), #34 to #37, #46 | Painter inventory per format (canvas vs DOM, what it draws, Rust module); module mapping; worker vs main-thread split; loader API and size budget; signed off by Jared. **No renderer issue is claimable before #33 merges** |
+| **R0** | **Renderer port record** | #33 (Head Of Product signs off; Jared can reclaim), #34 to #37, #46 | Painter inventory per format (canvas vs DOM, what it draws, Rust module); module mapping; worker vs main-thread split; loader API and size budget; signed off by Head Of Product. **No renderer issue is claimable before #33 merges** |
 | 3 | xlsx viewer in Rust | #15 to #19, #41 to #44 | All viewer gates green for xlsx; unsupported content 0; xlsx beats-TS gate armed (#19) |
 | 4 | docx viewer in Rust | #20 to #23 | Same page counts; all viewer gates; docx gate armed (#23) |
 | 5 | pptx viewer in Rust, all element kinds, no per-slide fallback | #24 to #28 | All viewer gates; pptx gate armed (#27) |
@@ -341,9 +341,9 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 
 ## 5. Issue breakdown
 
-**96 issues** on GitHub (#1 to #96), generated from `issues.json` (`gen_issues.py`). Plan numbers equal GitHub issue numbers; each issue has a `Depends on #X` line. Milestone 2 issues carry `blocked-m2`; post-port redesign issues (stage PP) carry `blocked-redesign`.
+**97 planned issues** on GitHub (#1 to #96 and #98; #97 is the Stage 0 kickoff tracker), generated from `issues.json` (`gen_issues.py`). Plan numbers equal GitHub issue numbers; each issue has a `Depends on #X` line. Milestone 2 issues carry `blocked-m2`; post-port redesign issues (stage PP) carry `blocked-redesign`.
 
-- **Agent fit:** Codex (on the `6.1 sol` model only) for well-specified mechanical ports; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) may be added after evaluation; Grok Build (Grok 4.7) is last-resort overflow once the three primaries are out of credits; a human **Developer** owns the scoreboard races; **Jared** owns the R0 record (#33) and the post-port redesign (#92 to #94).
+- **Agent fit:** Codex (on the `6.1 sol` model only) for well-specified mechanical ports; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) may be added after evaluation; Grok Build (Grok 4.7) is last-resort overflow once the three primaries are out of credits; a human **Developer** owns the scoreboard races; **Head Of Product** signs off the R0 record (#33); **Jared** owns the post-port redesign (#92 to #94).
 - **Every issue** follows AGENTS.md (claim, branch `issue-<N>-<slug>`, PR with `Closes #N`, handoff comment).
 
 | # | Title | Stage | Size | Agent | Depends on | Parallel |
@@ -380,7 +380,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 30 | Stage 7: Hardening, fuzzing, crash recovery, security limits and M1 report (the M1 gate) | 7 | M | Claude Code | 23, 27, 29 | after #23, #27 and #29 |
 | 31 | Stage 0: CI licence check (cargo-deny and npm): allow only MIT, Apache-2.0, BSD, ISC, Zlib and Unicode | 0 | S | Codex | 1 | yes, with #2, #3 and #4 after #1 |
 | 32 | Stage 0 (P0): Source real Excel-authored xlsx test-corpus files with permissive or public-domain licences | 0 | M | Cursor cloud | - | yes, claimable first, no dependencies; in parallel with #95 and #96 |
-| 33 | R0: Renderer port record (painter inventory, Rust module mapping, worker split, loader budget), signed off by Jared | R0 | S | Jared | 34, 35, 36, 37 | after #34, #35, #36 and #37 |
+| 33 | R0: Renderer port record (painter inventory, Rust module mapping, worker split, loader budget), signed off by Head Of Product | R0 | S | Head Of Product | 34, 35, 36, 37 | after #34, #35, #36 and #37 |
 | 34 | R0 (a): Upstream painter inventory per format (canvas vs DOM, what it draws, Rust module) | R0 | M | Claude Code | 1 | yes, after #1; in parallel with #36 and #37 |
 | 35 | R0 (b): Map upstream painters to Rust modules | R0 | S | Claude Code | 34 | after #34 |
 | 36 | R0 (c): Worker vs main-thread split per painter | R0 | M | Codex | 34, 14 | after #34 and #14 |
@@ -444,6 +444,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 94 | Post-port redesign: metric-compatible open fonts (Carlito, Caladea) and font fallback | PP | M | Jared | 30 | not claimable until Jared opens the redesign milestone |
 | 95 | Stage 0 (P0): Source real Word-authored docx test-corpus files with permissive or public-domain licences | 0 | M | Claude Code | - | yes, claimable first, no dependencies; in parallel with #32 and #96 |
 | 96 | Stage 0 (P0): Source real PowerPoint-authored pptx test-corpus files with permissive or public-domain licences | 0 | M | Cursor cloud | - | yes, claimable first, no dependencies; in parallel with #32 and #95 |
+| 98 | Stage 0 (P2): Record provenance of upstream font-advance-widths*.generated.ts glyph-width tables and ask upstream | 0 | S | Claude Code | - | yes, any time; non-blocking |
 
 ---
 
@@ -468,7 +469,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 4. **iOS Safari:** default full target with functional, accessibility and IME smoke tests; perf gated in Chromium.
 5. **CI cadence:** default PRs run S/M tiers at 1x plus parity, round trip, accessibility and IME; main and nightly run the full corpus at 1x and 4x, validators and the scoreboard.
 6. **Viewer edits** (#29): which ones?
-7. **ASK items:** docx review features, speaker notes and thumbnails, print, collaboration, export. (Formats are settled: .docx, .xlsx and .pptx only.)
+7. **ASK items:** docx review features, speaker notes and thumbnails, print, collaboration, export. (Formats are settled: .docx, .xlsx, .pptx and their macro-enabled and template variants.)
 
 ### 6.1 Decisions (current calls, open to change)
 
@@ -481,8 +482,8 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | D5 | Format order | xlsx, then docx, then pptx, in both milestones |
 | D6 | Perf | Measured in Chromium; WASM must beat TS everywhere (§4.1) |
 | D7 | Perf CI cadence | Small corpus on every PR; full corpus nightly and on demand; every commit posts numbers |
-| D8 | Formats | Only .docx, .xlsx and .pptx; legacy, encrypted, CSV and every other format show an "unsupported format" message (#13, #37) |
-| D9 | Renderer | Straight one-to-one ports of upstream painters, batched per frame; R0 record (#33) signed off by Jared; redesign post-port (#92 to #94) |
+| D8 | Formats | .docx, .xlsx, .pptx plus macro-enabled and template variants (macros never run; `vbaProject.bin` byte for byte, #65); legacy, encrypted, CSV and every other format show an "unsupported format" message (#13, #37) |
+| D9 | Renderer | Straight one-to-one ports of upstream painters, batched per frame; R0 record (#33) signed off by Head Of Product (Jared can reclaim); redesign post-port (#92 to #94) |
 | D10 | Viewer edits | #29 placeholder |
 | D11 | Crate layout | `nitro-xml-opc` (zip, XML, OPC, DrawingML, charts), `nitro-xml-xlsx`, `nitro-xml-docx`, `nitro-xml-pptx`, `nitro-xml-wasm`, umbrella `nitro-xml`; npm `nitro-xml` |
 | D12 | Threads | None by default |

@@ -25,8 +25,8 @@
 
 ## Non-goals
 
-- Any format other than **.docx, .xlsx and .pptx**: legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV, macro-enabled and template variants, Visio and every other upstream format show an "unsupported format" message.
-- Running macros (never). Unknown parts are preserved byte for byte on save.
+- Any format other than **.docx, .xlsx and .pptx plus their macro-enabled and template variants** (.docm/.xlsm/.pptm, .dotx/.xltx/.potx, .dotm/.xltm/.potm; macros never execute, `vbaProject.bin` round-trips byte for byte): legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV, Visio and every other upstream format show an "unsupported format" message.
+- Running macros (never). `vbaProject.bin` and other unknown parts are preserved byte for byte on save.
 - Teams and MCP from upstream.
 - A TypeScript runtime fallback. If WASM cannot run (old browser, CSP blocks wasm, init failure), the component shows an "unsupported browser" message.
 - Framework bindings beyond the web component and the headless API (for now).
@@ -34,7 +34,7 @@
 
 ## Milestones
 
-- **Milestone 1, viewer:** Stage 0 (scaffolding; the **P0** real-file corpus sourcing issues #32, #95 and #96 are claimable first), Stage 1 (perf harness, TS baseline, scoreboard), Stage 2 (shared OPC, streaming zip and XML, boundary), **R0 (renderer port record, signed off by Jared:** an inventory of upstream painters per format (canvas vs DOM, what each draws, its Rust module), the Rust module mapping, the worker vs main-thread split and the loader size budget; no renderer issue is claimable before R0 closes), then the Excel (3), Word (4) and PowerPoint (5) viewers, the Rust viewer shell (6) and hardening (7, the M1 gate).
+- **Milestone 1, viewer:** Stage 0 (scaffolding; the **P0** real-file corpus sourcing issues #32, #95 and #96 are claimable first), Stage 1 (perf harness, TS baseline, scoreboard), Stage 2 (shared OPC, streaming zip and XML, boundary), **R0 (renderer port record, signed off by Head Of Product:** an inventory of upstream painters per format (canvas vs DOM, what each draws, its Rust module), the Rust module mapping, the worker vs main-thread split and the loader size budget; no renderer issue is claimable before R0 closes), then the Excel (3), Word (4) and PowerPoint (5) viewers, the Rust viewer shell (6) and hardening (7, the M1 gate).
 - **Milestone 2, editor (later phase):** E0 (editor harnesses, TS editor baseline, Rust editor chrome), **E-text** (the Rust text-editing surface: single-line before E1, rich text before E3; IME, bidi, spellcheck, accessibility and crash recovery each with their own gate), E1 (xlsx edits and lossless save), E2 (Rust formula engine), E3 (docx), E4 (pptx), E5 (write-path hardening). Editor issues are labelled `blocked-m2` until the M1 gate passes and Jared confirms the budget.
 - **Post-port redesign (Jared), backlog:** DOM-vs-canvas comparison, in-wasm text shaping, metric-compatible open fonts (#92 to #94). Labelled `blocked-redesign`; not claimable until Jared opens it.
 
@@ -51,8 +51,8 @@ Jared has not answered every open question in the plan, so these are the plan's 
 | D5 | Format order | xlsx, then docx, then pptx |
 | D6 | Perf browser | Measured in Chromium; WebKit and Firefox get functional smoke tests |
 | D7 | Perf CI cadence | A small perf corpus on every PR; the full corpus nightly and on demand. Every commit posts its numbers |
-| D8 | Formats | **Only .docx, .xlsx and .pptx (Jared).** Legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV and every other format show an "unsupported format" message |
-| D9 | Renderer approach | **Decided by Jared:** renderers are straight one-to-one Rust ports of the upstream painters (same drawing approach, structure and output; fonts and text measurement follow upstream). The only deviation: each frame's draw/DOM calls cross the WASM boundary as one batched handoff. R0 ([#33](https://github.com/jgridifier/nitro-xml/issues/33)) records the painter inventory, module mapping, worker split and loader budget. DOM-vs-canvas, in-wasm shaping and open fonts move to the **Post-port redesign (Jared)** milestone (#92 to #94, not claimable) |
+| D8 | Formats | **.docx, .xlsx and .pptx plus their macro-enabled and template variants** (.docm/.xlsm/.pptm, .dotx/.xltx/.potx, .dotm/.xltm/.potm; macros never execute, `vbaProject.bin` round-trips byte for byte). Legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV and every other format show an "unsupported format" message |
+| D9 | Renderer approach | **Decided by Jared:** renderers are straight one-to-one Rust ports of the upstream painters (same drawing approach, structure and output; fonts and text measurement follow upstream). The only deviation: each frame's draw/DOM calls cross the WASM boundary as one batched handoff. R0 ([#33](https://github.com/jgridifier/nitro-xml/issues/33), signed off by Head Of Product; Jared can reclaim it) records the painter inventory, module mapping, worker split and loader budget. DOM-vs-canvas, in-wasm shaping and open fonts move to the **Post-port redesign (Jared)** milestone (#92 to #94, not claimable) |
 | D10 | Viewer edits | [#29](https://github.com/jgridifier/nitro-xml/issues/29) is a placeholder awaiting Jared's list |
 | D11 | Crate layout | `nitro-xml-opc` holds the shared zip, XML, OPC and DrawingML modules; format crates on top; `nitro-xml-wasm` is the only wasm-bindgen crate |
 | D12 | Threads | None by default: single-threaded wasm plus one worker per document, no COOP/COEP needed by embedders |

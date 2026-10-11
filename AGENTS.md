@@ -14,7 +14,7 @@ Board: https://github.com/users/jgridifier/projects/2 · Plan: https://jgridifie
 
 ## 1. Pick work
 1. Take an **unassigned** issue labelled `status:ready` (board view **Ready now**) whose `Depends on #X` issues are **all closed**.
-2. Never take an issue labelled `blocked-m2` (editor milestone, waits for the viewer gate and Jared's go-ahead) or `blocked-redesign` (Jared's post-port renderer redesign), or one assigned to Jared (such as the R0 renderer port record #33). Renderer issues are not claimable until #33 is merged, and they are **straight one-to-one ports** of the upstream painters: same drawing approach, structure and output, fonts and measurement as upstream; the only allowed change is batching each frame's draw/DOM calls into one handoff across the boundary. No redesign inside a port PR.
+2. Never take an issue labelled `blocked-m2` (editor milestone, waits for the viewer gate and Jared's go-ahead) or `blocked-redesign` (Jared's post-port renderer redesign), or one assigned to Jared, or the R0 renderer port record #33 (signed off by Head Of Product; Jared can reclaim it). Renderer issues are not claimable until #33 is merged, and they are **straight one-to-one ports** of the upstream painters: same drawing approach, structure and output, fonts and measurement as upstream; the only allowed change is batching each frame's draw/DOM calls into one handoff across the boundary. No redesign inside a port PR.
 3. Prefer the issue's *Suggested agent*, but any agent may take any ready issue. The protocol below is identical for every agent type. **Agent roster (Jared):**
    - **Primary:** Cursor, Claude Code and Codex. **Codex runs only on the `6.1 sol` model.**
    - **OpenCode** (free NVIDIA-hosted models): may be added after evaluation; until Jared adds it here, it does not claim issues.
@@ -47,6 +47,7 @@ Board: https://github.com/users/jgridifier/projects/2 · Plan: https://jgridifie
 ## 6. Licence headers
 - Nitro XML is MIT-licensed. New original files start with `// SPDX-License-Identifier: MIT` (or the comment syntax of the file type).
 - Any file **ported or derived from upstream ooxml** keeps `SPDX-License-Identifier: Apache-2.0` plus a provenance line, e.g. `// Ported from ChristopherVR/ooxml@e66aaec src/core/opc/relationships.ts; changes listed in PROVENANCE.md.`, and gets a row in `PROVENANCE.md` in the same PR.
+- **Crate `license` field:** a crate containing any file ported or derived from upstream declares `license = "MIT AND Apache-2.0"`; crates with only original files use `license = "MIT"` (the workspace default). Switch the crate's field in the same PR that adds its first ported file.
 - Dependencies: permissive only (MIT, Apache-2.0, BSD, ISC, Zlib, Unicode). The `licenses` job enforces it.
 
 ## 7. Finish with a handoff comment

@@ -30,7 +30,7 @@ export interface Comparison {
 	label: string;
 	/**
 	 * When false, `--ci` skips this comparison. Format parsers flip this to true
-	 * when their Rust view-IR dump is available (#15 / #20 / #24 / #25).
+	 * when their Rust dump is available (#15 workbook / #20 docx styles / #24 pptx).
 	 */
 	ready: boolean;
 	/** Issue that lands the Rust side, when not ready. */

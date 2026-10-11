@@ -59,6 +59,20 @@ export function dumpXlsxWorkbookRust(
 	return { ok: r.status === 0, json, status: r.status };
 }
 
+export function dumpDocxStylesRust(
+	fixturePath: string,
+): { ok: boolean; json: unknown; status: number | null } {
+	const bin = ensureExample('docx_styles_dump', 'nitro-xml-docx');
+	const r = runBin(bin, [fixturePath], { timeoutMs: 60_000 });
+	let json: unknown = null;
+	try {
+		json = JSON.parse(r.stdout.trim() || 'null');
+	} catch {
+		json = { error: 'parse', raw: r.stdout.slice(0, 200) };
+	}
+	return { ok: r.status === 0, json, status: r.status };
+}
+
 export function dumpXmlListRust(listPath: string): unknown[] {
 	const bin = ensureExample('xml_dump');
 	const r = runBin(bin, [listPath], { timeoutMs: 300_000 });

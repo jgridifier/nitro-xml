@@ -1,12 +1,33 @@
 // SPDX-License-Identifier: MIT
 /**
- * TS oracle: docx view IR = LayoutResult from layoutDocumentModel + createFakeMeasurer.
- * Both engines must use the deterministic fake measurer so fonts never cause a diff.
+ * TS oracle for docx.
+ * - Styles/numbering/theme/settings slice (#20 / ready).
+ * - View IR (LayoutResult + fake measurer): kept for when Print Layout lands.
  */
 
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
+import { repoRoot } from '../corpus.ts';
 import { upstreamDir } from '../paths.ts';
 
+/** Stage-4 styles dump (same shape as tools/model-compare/gates/ref/docx_styles_ref.ts). */
+export async function dumpDocxStylesOracle(fixturePath: string): Promise<unknown> {
+	const root = repoRoot();
+	const script = join(root, 'tools/model-compare/gates/ref/docx_styles_ref.ts');
+	const r = spawnSync('bun', [script, fixturePath], {
+		encoding: 'utf8',
+		env: { ...process.env, UPSTREAM_DIR: upstreamDir(root) },
+		maxBuffer: 32 * 1024 * 1024,
+	});
+	try {
+		return JSON.parse((r.stdout || '').trim() || 'null');
+	} catch {
+		return { error: 'oracle_parse', status: r.status };
+	}
+}
+
+/** LayoutResult view IR — not yet the CI docx comparison. */
 export async function dumpDocxViewIr(fixturePath: string): Promise<unknown> {
 	const up = upstreamDir();
 	const { loadDocx } = await import(`${up}/src/core/docx/parse.ts`);

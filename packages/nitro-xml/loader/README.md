@@ -2,8 +2,9 @@
 # Loader API (#37)
 
 The **only shipped JavaScript** in Nitro XML. It instantiates the wasm, forwards
-browser events, applies each frame's command buffer, and performs one batched
-DOM read-back (text measurement) per frame. Nothing else ships as JS
+browser events, applies each frame's command buffer, and performs batched DOM
+read-backs (pre-apply text measurement and post-apply layout queries) with at
+most one reply batch of each kind per frame. Nothing else ships as JS
 (PRODUCT_SPEC.md; Head of Product review on #33).
 
 Wire formats live in `docs/boundary.md`, command-buffer / measure types in
@@ -104,6 +105,26 @@ Each frame, before applying draw commands:
 Never one wasm call per string. Worker path: worker sends the request SoA +
 resolved strings; main thread measures; one `measure-results` message returns.
 
+## Post-apply layout read-back
+
+After `applyCommandBuffer`, Rust may have queued **node-id-keyed** layout
+queries for the DOM the loader just built. The loader snapshots them with
+`Handle.takeLayoutReqs` (or the worker includes them on the `frame` message)
+and answers the **entire** batch on the **next** frame with one
+`Handle.setLayoutResults` call — never one WASM→JS call per element. Iterative
+autofit therefore needs no per-element round-trips.
+
+| Kind | Tag | Upstream consumer | Result lanes (`f64` × 4 per request) |
+|---|---:|---|---|
+| `SpanRect` | 1 | docx `canvas-measurer.ts` (hidden `<span>` / `getBoundingClientRect` for ligatures and small caps) | `x, y, width, height` |
+| `ScrollHeight` | 2 | pptx `text-autofit-shrink-measure.ts`, `shape-autofit-resize.ts` (`scrollHeight` / off-screen clone height) | `scrollHeight, 0, 0, 0` |
+| `ComputedStyle` | 3 | same autofit path (`getComputedStyle` → `font-size`, `line-height`; property name is a string-table id) | `parseFloat(value)` or `NaN`, then `0, 0, 0` |
+| `NaturalWidth` | 4 | P5 `image-native-size.ts` (`HTMLImageElement.naturalWidth` / `naturalHeight` for `a:tile` sx/sy) | `naturalWidth, naturalHeight, 0, 0` |
+
+Wire format and handle APIs: `docs/boundary.md`. Types: `loader/layout-readback.js`
+(`LayoutReadKind`, `flushLayoutReadBatch`). Session tick order: answer prior-frame
+layout → measure → apply → take this frame's layout requests.
+
 ## Worker messaging
 
 One dedicated worker per document. Messages:
@@ -113,11 +134,12 @@ One dedicated worker per document. Messages:
 | `prewarm` | `ready` |
 | `open` (+ transferred `ArrayBuffer`) | `opened` |
 | `events` (+ batch bytes) | `events-acked` |
-| `take-frame` | `frame` (commands + measure SoA) |
+| `take-frame` | `frame` (commands + measure SoA + layout SoA) |
 | `measure-results` (Float64Array) | `measure-acked` |
+| `layout-results` (Float64Array, `awaiting * 4`) | `layout-acked` |
 | `dispose` | `disposed` |
 
-DOM/canvas apply and measure batches run on the main thread; parse/model/layout stay in the worker; pptx text layout stays on the main thread (`docs/adr/0002-renderer-port.md`, #36).
+DOM/canvas apply, measure batches and layout read-backs run on the main thread; parse/model/layout stay in the worker; pptx text layout stays on the main thread (`docs/adr/0002-renderer-port.md`, #36).
 
 ## Headless session (same thread)
 
@@ -126,9 +148,13 @@ import { openDocument } from "nitro-xml/loader";
 
 const session = await openDocument(bytes, { name: "sheet.xlsx", canvas, root });
 session.pushEvent({ kind: 6, time_ms: 0, width: 800, height: 600, dpr: 1 });
-session.tick();   // measure batch → apply commands → flush events
+session.tick();   // prior layout → measure → apply → take layout → flush events
 session.dispose();
 ```
+
+Font loading (pptx embedded / remote webfont fallback) uses the **Font source
+(#121)** option above (merged in #126): upstream default, mirror URL, off, or
+resolver; substitutions are recorded as `font_substitution` diagnostics.
 
 `FinalizationRegistry` on the session calls `handle.free()` if the embedder
 drops the last reference without `dispose()` (wasm-bindgen also registers the

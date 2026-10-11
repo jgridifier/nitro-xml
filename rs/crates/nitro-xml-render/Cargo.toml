@@ -1,6 +1,6 @@
 [package]
 name = "nitro-xml-render"
-description = "Nitro XML shared render crate: command buffer, primitives, chart (S1) and SmartArt (S2)"
+description = "Nitro XML shared render crate: command buffer, measure/layout read-back, primitives, chart (S1), SmartArt (S2), metafile (S3)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 //! Bulk transfer and interned strings for the JS/WASM boundary (#14).
 //!
-//! Per-frame command buffer and measure batches live in [`nitro_xml_render`]
-//! (shared with format painters). Decision (see `docs/boundary.md`):
-//! struct-of-arrays typed-array views over wasm memory for bulk numeric data;
-//! never per-cell JS↔WASM calls on the render path.
+//! Per-frame command buffer, measure batches and post-apply layout read-back
+//! live in [`nitro_xml_render`] (shared with format painters). Decision (see
+//! `docs/boundary.md`): struct-of-arrays typed-array views over wasm memory for
+//! bulk numeric data; never per-cell JS↔WASM calls on the render path.
 
 /// Per-document interned string table. Id `0` is always the empty string.
 ///

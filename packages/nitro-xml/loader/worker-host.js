@@ -2,7 +2,8 @@
 /**
  * Main-thread client for a dedicated document worker.
  * Transfers the file ArrayBuffer in; applies frame command buffers locally;
- * runs measureText once per frame and posts widths back as one batch.
+ * runs measureText once per frame and posts widths back as one batch;
+ * answers prior-frame layout read-backs in one batch (never per-element).
  */
 
 import { takePrewarmedWorker, prewarmWorker } from "./bootstrap.js";
@@ -11,6 +12,7 @@ import { createEventCoalescer } from "./events.js";
 import { isSupportedExtension } from "./formats.js";
 import { unsupportedFormatError } from "./bootstrap.js";
 import { getDefaultFontSource } from "./font-source.js";
+import { flushLayoutReadBatch } from "./layout-readback.js";
 
 export class WorkerDocument {
   /**
@@ -43,6 +45,9 @@ export class WorkerDocument {
       this._worker.postMessage({ type: "events", bytes }, [bytes.buffer]);
     });
     this._measureCanvas = null;
+    /** @type {{ nodeId: number, kind: number, propId?: number }[] | null} */
+    this._pendingLayoutReqs = null;
+    this._strings = null;
   }
 
   /**
@@ -73,14 +78,24 @@ export class WorkerDocument {
   }
 
   /**
-   * Pull one frame from the worker, measure in one batch, apply commands, reply widths.
+   * Pull one frame from the worker, answer prior layout reads, measure, apply,
+   * queue this frame's layout requests for the next tick.
    */
   async tick() {
     this._events.flushNow();
+    const layoutReads = await this._flushPendingLayout();
     const frame = await this._request("frame", () => {
       this._worker.postMessage({ type: "take-frame" });
     });
-    const { commands, measureReqs, measureCount, strings } = frame;
+    const {
+      commands,
+      measureReqs,
+      measureCount,
+      layoutReqs,
+      layoutCount,
+      strings,
+    } = frame;
+    this._strings = strings || this._strings;
     if (measureCount > 0 && measureReqs) {
       const widths = new Float64Array(measureCount);
       const ctx = this._measureCtx();
@@ -106,7 +121,8 @@ export class WorkerDocument {
       images: this._images,
       nodes: this._nodes,
     });
-    return { ...result, measured: measureCount || 0 };
+    this._queueLayout(layoutReqs, layoutCount || 0);
+    return { ...result, measured: measureCount || 0, layoutReads };
   }
 
   dispose() {
@@ -117,6 +133,48 @@ export class WorkerDocument {
       /* ignore */
     }
     this._worker.terminate();
+  }
+
+  async _flushPendingLayout() {
+    const reqs = this._pendingLayoutReqs;
+    this._pendingLayoutReqs = null;
+    if (!reqs || reqs.length === 0) return 0;
+    const strings = this._strings;
+    const valuesHolder = { values: null };
+    const n = flushLayoutReadBatch(
+      {
+        layoutCount: reqs.length,
+        resolve: (id) => (strings && strings[id]) || "",
+        takeLayoutReqs: () => reqs,
+        setLayoutResults: (values) => {
+          valuesHolder.values = values;
+        },
+      },
+      this._nodes,
+    );
+    if (valuesHolder.values) {
+      const values = valuesHolder.values;
+      await this._request("layout-acked", () => {
+        this._worker.postMessage({ type: "layout-results", values }, [values.buffer]);
+      });
+    }
+    return n;
+  }
+
+  _queueLayout(layoutReqs, layoutCount) {
+    if (!layoutCount || !layoutReqs) {
+      this._pendingLayoutReqs = null;
+      return;
+    }
+    const reqs = new Array(layoutCount);
+    for (let i = 0; i < layoutCount; i++) {
+      reqs[i] = {
+        nodeId: layoutReqs.nodes[i],
+        kind: layoutReqs.kinds[i],
+        propId: layoutReqs.props[i],
+      };
+    }
+    this._pendingLayoutReqs = reqs;
   }
 
   _measureCtx() {

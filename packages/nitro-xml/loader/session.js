@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 /**
  * Document session: handle wrap, FinalizationRegistry, per-frame tick
- * (measure batch → command apply → event flush).
+ * (prior-frame layout read-back → measure batch → command apply → queue layout).
  */
 
 import { initCore, getWasmMemory, unsupportedFormatError } from "./bootstrap.js";
@@ -10,6 +10,7 @@ import { applyCommandBuffer } from "./apply.js";
 import { createEventCoalescer } from "./events.js";
 import { flushMeasureBatch, readMeasureReqsFromMemory } from "./measure.js";
 import { applyFontSourceToHandle } from "./font-source.js";
+import { flushLayoutReadBatch } from "./layout-readback.js";
 
 const registry =
   typeof FinalizationRegistry !== "undefined"
@@ -65,6 +66,8 @@ export class DocumentSession {
     this._images = new Map();
     this._disposed = false;
     this._measureCtx = null;
+    /** @type {{ nodeId: number, kind: number, propId?: number }[] | null} */
+    this._pendingLayoutReqs = null;
 
     const h = handle;
     this._events = createEventCoalescer((batch) => {
@@ -99,13 +102,16 @@ export class DocumentSession {
   }
 
   /**
-   * One frame: batched measure read-back, command-buffer apply, event flush.
+   * One frame: answer prior-frame layout read-backs, batched measure, apply,
+   * then take this frame's layout requests for the next tick.
    * @param {{ canvas?: HTMLCanvasElement|null, root?: Element|null }} [opts]
    */
   tick(opts = {}) {
-    if (this._disposed) return { measured: 0, ops: 0 };
+    if (this._disposed) return { measured: 0, ops: 0, layoutReads: 0 };
     if (opts.canvas !== undefined) this._canvas = opts.canvas;
     if (opts.root !== undefined) this._root = opts.root;
+
+    const layoutReads = this._flushPendingLayout();
 
     const ctx = this._ensureMeasureCtx();
     const handle = this._measureHandle(ctx);
@@ -123,8 +129,9 @@ export class DocumentSession {
       nodes: this._nodes,
     });
 
+    this._takeLayoutAfterApply();
     this._events.flushNow();
-    return { measured, ops, error };
+    return { measured, ops, layoutReads, error };
   }
 
   dispose() {
@@ -137,6 +144,40 @@ export class DocumentSession {
     } catch {
       /* ignore */
     }
+  }
+
+  _flushPendingLayout() {
+    const reqs = this._pendingLayoutReqs;
+    this._pendingLayoutReqs = null;
+    if (!reqs || reqs.length === 0) return 0;
+    return flushLayoutReadBatch(
+      {
+        layoutCount: reqs.length,
+        resolve: (id) => this._handle.resolve(id),
+        takeLayoutReqs: () => reqs,
+        setLayoutResults: (values) => this._handle.setLayoutResults(values),
+      },
+      this._nodes,
+    );
+  }
+
+  _takeLayoutAfterApply() {
+    const h = this._handle;
+    if ((h.layoutCount | 0) === 0) {
+      this._pendingLayoutReqs = null;
+      return;
+    }
+    // takeLayoutReqs clears wasm pending and records awaiting for setLayoutResults.
+    const taken = h.takeLayoutReqs();
+    const nodes = taken[0];
+    const kinds = taken[1];
+    const props = taken[2];
+    const n = nodes.length;
+    const reqs = new Array(n);
+    for (let i = 0; i < n; i++) {
+      reqs[i] = { nodeId: nodes[i], kind: kinds[i], propId: props[i] };
+    }
+    this._pendingLayoutReqs = reqs;
   }
 
   _ensureMeasureCtx() {

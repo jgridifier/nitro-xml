@@ -214,3 +214,22 @@ Copyright ChristopherVR and ooxml contributors.
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+-------------------------------------------------------------------------------
+
+Related packages (not vendored in this tree yet)
+===============================================
+
+emf-converter (https://github.com/ChristopherVR/emf-converter)
+  Licence: Apache-2.0
+  Used by upstream via src/core/pptx/core/utils/metafile-convert.ts for EMF/WMF
+  pictures and OLE previews. Nitro XML maps this to nitro-xml-render::metafile
+  (inventory row S3). When ported, files keep Apache-2.0 headers and PROVENANCE
+  rows; see docs/adr/0002-renderer-port.md.
+
+mtx-decompressor (https://github.com/ChristopherVR/mtx-decompressor)
+  Licence: MPL-2.0 (file-level copyleft)
+  Used by upstream for EOT embedded fonts (eot-parser.ts). Nitro XML will NOT
+  vendor or port these sources. A clean-room MIT rewrite will decompress MTX/EOT
+  when pptx embedded fonts are implemented. MPL-2.0 is outside the dependency
+  allow-list enforced by deny.toml and scripts/ci/licenses.sh.

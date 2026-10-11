@@ -87,6 +87,27 @@ pub fn adapt_table(
                 .collect()
         })
         .collect();
+    let cell_at = |row_index: usize, grid_index: usize| -> Option<&Value> {
+        let position = grid_indexes
+            .get(row_index)
+            .and_then(|row| row.iter().position(|&start| start == grid_index))?;
+        rows.get(row_index)
+            .and_then(|r| r.as_array())
+            .and_then(|row| row.get(position))
+    };
+    let table_cell_margins = table.get("cellMargins");
+    let margin_twips = |side: &str| -> f64 {
+        match side {
+            "top" | "bottom" => 0.0,
+            _ => 108.0,
+        }
+    };
+    let merged_margin_twips = |side: &str| -> f64 {
+        table_cell_margins
+            .and_then(|m| m.get(side))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(margin_twips(side))
+    };
     LayoutTable {
         kind: "table".into(),
         id: table.get("id").and_then(|v| v.as_str()).unwrap_or("").into(),
@@ -159,18 +180,28 @@ pub fn adapt_table(
                                     }
                                 }
                             }
-                            let margins = cell.get("margins");
+                            if cell.get("verticalMerge").and_then(|v| v.as_str()) == Some("continue") {
+                                borders.top = None;
+                            }
+                            if cell_at(row_index + 1, start)
+                                .and_then(|c| c.get("verticalMerge"))
+                                .and_then(|v| v.as_str())
+                                == Some("continue")
+                            {
+                                borders.bottom = None;
+                            }
+                            let cell_margins = cell.get("margins");
+                            let side_twips = |side: &str| -> f64 {
+                                cell_margins
+                                    .and_then(|m| m.get(side))
+                                    .and_then(|v| v.as_f64())
+                                    .unwrap_or_else(|| merged_margin_twips(side))
+                            };
                             let padding = LayoutCellPadding {
-                                top: twips_f64_to_px(margins.and_then(|m| m.get("top")).and_then(|v| v.as_f64()).unwrap_or(0.0)),
-                                right: twips_f64_to_px(
-                                    margins.and_then(|m| m.get("right")).and_then(|v| v.as_f64()).unwrap_or(108.0),
-                                ),
-                                bottom: twips_f64_to_px(
-                                    margins.and_then(|m| m.get("bottom")).and_then(|v| v.as_f64()).unwrap_or(0.0),
-                                ),
-                                left: twips_f64_to_px(
-                                    margins.and_then(|m| m.get("left")).and_then(|v| v.as_f64()).unwrap_or(108.0),
-                                ),
+                                top: twips_f64_to_px(side_twips("top")),
+                                right: twips_f64_to_px(side_twips("right")),
+                                bottom: twips_f64_to_px(side_twips("bottom")),
+                                left: twips_f64_to_px(side_twips("left")),
                             };
                             let width = grid.as_ref().map(|g| g[start..start + span].iter().sum());
                             let x_px = grid.as_ref().map(|g| g[..start].iter().sum());

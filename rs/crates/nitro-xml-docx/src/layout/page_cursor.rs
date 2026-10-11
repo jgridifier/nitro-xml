@@ -81,7 +81,7 @@ impl PageCursor {
             for column in &mut band {
                 column.section_index = Some(section_index);
                 column.start_y_px = Some(continue_at);
-                column.separator = cursor.columns.separator;
+                column.separator = Some(cursor.columns.separator.unwrap_or(false));
             }
             let base = cursor.page().columns.len();
             cursor.page_mut().columns.extend(band);
@@ -234,7 +234,7 @@ impl PageCursor {
         let count = self.columns.count;
         let column_top = self.column_top_px;
         let section_index = self.section_index;
-        let separator = self.columns.separator;
+        let separator = Some(self.columns.separator.unwrap_or(false));
         let y_px = self.y_px;
         let bottom = {
             let page = self.page();

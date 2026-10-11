@@ -14,7 +14,7 @@ pub fn paragraph_floats(paragraph: &Value) -> Vec<LayoutFloat> {
             if !image.get("anchored").and_then(|v| v.as_bool()).unwrap_or(false) {
                 continue;
             }
-            let part_name = image.get("partName").and_then(|v| v.as_str());
+            let part_name = image.get("partName").and_then(|v| v.as_str()).filter(|p| !p.is_empty());
             let Some(part_name) = part_name else { continue };
             floats.push(LayoutFloat {
                 part_name: part_name.to_string(),

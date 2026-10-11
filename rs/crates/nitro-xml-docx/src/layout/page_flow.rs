@@ -19,7 +19,11 @@ pub fn layout_sections(
     let mut previous_flow: Option<SectionFlow> = None;
     for (index, section) in input.sections.iter().enumerate() {
         let continue_at = if section.section_break.as_deref() == Some("continuous") {
-            previous_flow.as_mut().map(|f| f.cursor.finish_band())
+            previous_flow.as_mut().map(|f| {
+                let at = f.cursor.finish_band();
+                pages = f.cursor.pages.clone();
+                at
+            })
         } else {
             None
         };

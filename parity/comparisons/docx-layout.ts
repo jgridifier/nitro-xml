@@ -25,10 +25,6 @@ function listDocxFiles(root: string): string[] {
 		}
 	};
 	walk(join(root, 'fixtures/real/docx'));
-	for (const name of ['minimal.docx', 'minimal.docm', 'minimal.dotx', 'minimal.dotm']) {
-		const p = join(root, 'fixtures/opc/allowed', name);
-		if (existsSync(p)) out.push(p);
-	}
 	return out.filter((p) => DOCX_EXT.test(p)).sort();
 }
 
@@ -78,7 +74,7 @@ export const docxLayoutComparison: Comparison = {
 	id: 'docx-layout',
 	label: 'docx Print Layout IR (#22)',
 	ready: false,
-	todo: 'Flip ready when corpus is green (13/34 match after #22 table styles + tab stops).',
+	todo: 'Flip ready when corpus is green (20/30 real/docx match; OPC minimal excluded).',
 	async oracle(fixturePath: string) {
 		return dumpDocxViewIr(fixturePath);
 	},

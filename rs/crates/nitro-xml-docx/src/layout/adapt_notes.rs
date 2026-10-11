@@ -22,9 +22,9 @@ pub fn note_labels(model: &DocumentModel) -> impl Fn(&str, &str) -> String + '_ 
                 format_note_number(
                     n,
                     if kind == "footnote" {
-                        model.footnote_num_fmt.as_deref()
+                        Some(model.footnote_num_fmt.as_deref().unwrap_or("decimal"))
                     } else {
-                        model.endnote_num_fmt.as_deref()
+                        Some(model.endnote_num_fmt.as_deref().unwrap_or("lowerRoman"))
                     },
                 )
             })

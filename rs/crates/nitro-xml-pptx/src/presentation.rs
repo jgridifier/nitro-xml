@@ -10,7 +10,9 @@ use serde_json::json;
 
 use crate::inheritance::{attr, child_local, child_path, children_local};
 use crate::slide::{
-    emu_to_px_helper, parse_sp_tree, slim_element_for_dump, DumpElement, ParseCtx, EMU_PER_PX,
+    emu_to_px_helper, extract_text_body, parse_sp_tree, slim_element_for_dump,
+    text_body_has_content, unwrap_alternate_content_deep, DumpElement, ParseCtx, SpTreeOptions,
+    EMU_PER_PX,
 };
 use crate::theme::{is_presentation_theme_path, parse_theme_part, Theme};
 
@@ -26,6 +28,34 @@ fn part_root<'a>(doc_root: &'a Element, local: &str) -> Option<&'a Element> {
     } else {
         child_local(doc_root, local, ns::P)
     }
+}
+
+fn notes_slide_has_printable_content(notes: &Element) -> bool {
+    let c_sld = child_local(notes, "cSld", ns::P);
+    let sp_tree = c_sld.and_then(|c| child_local(c, "spTree", ns::P));
+    let Some(sp_tree) = sp_tree else {
+        return false;
+    };
+    for sp in children_local(sp_tree, "sp", ns::P) {
+        let ph = child_path(sp, &[("nvSpPr", ns::P), ("nvPr", ns::P), ("ph", ns::P)]);
+        let ph_type = ph.and_then(|p| attr(p, "type"));
+        if ph_type == Some("sldNum")
+            || ph_type == Some("sldImg")
+            || ph_type == Some("hdr")
+            || ph_type == Some("ftr")
+            || ph_type == Some("dt")
+        {
+            continue;
+        }
+        let tx = child_local(sp, "txBody", ns::P);
+        if text_body_has_content(tx) {
+            let text = tx.map(extract_text_body).unwrap_or_default();
+            if !text.trim().is_empty() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn missing_part(name: impl Into<String>) -> Error {
@@ -435,13 +465,29 @@ impl<'a> Presentation<'a> {
         });
         let sp_tree = child_path(sld, &[("cSld", ns::P), ("spTree", ns::P)])
             .ok_or_else(|| missing_part("p:spTree"))?;
+        let mut slide_sp_tree = sp_tree.clone();
+        unwrap_alternate_content_deep(&mut slide_sp_tree);
         let ctx = ParseCtx {
             slide_path: &path,
             layout_sp_tree,
             master_sp_tree,
         };
         let id_prefix = format!("{}-", path);
-        let (elements, other_kinds) = parse_sp_tree(sp_tree, Some(&raw), &id_prefix, &ctx);
+        let slide_options = SpTreeOptions::default();
+        let (slide_elements, slide_other) =
+            parse_sp_tree(&slide_sp_tree, Some(&raw), &id_prefix, &ctx, &slide_options);
+        let (elements, other_kinds) = if show_master_shapes == Some(false) {
+            (slide_elements, slide_other)
+        } else if let Some(ref lp) = layout_path {
+            let (layout_elements, layout_other) = self.decorative_elements_for_layout(lp)?;
+            let mut elements = layout_elements;
+            elements.extend(slide_elements);
+            let mut other_kinds = layout_other;
+            other_kinds.extend(slide_other);
+            (elements, other_kinds)
+        } else {
+            (slide_elements, slide_other)
+        };
         let has_notes = self.slide_has_notes(&path)?;
         let slide = Slide {
             path,
@@ -456,6 +502,115 @@ impl<'a> Presentation<'a> {
         Ok(())
     }
 
+    fn part_token(path: &str) -> String {
+        path.split('/')
+            .next_back()
+            .and_then(|s| s.strip_suffix(".xml"))
+            .unwrap_or(path)
+            .to_owned()
+    }
+
+    fn layout_show_master_shapes(layout_root: &Element) -> bool {
+        attr(layout_root, "showMasterSp")
+            .map(parse_bool_attr_val)
+            .unwrap_or(true)
+    }
+
+    fn sp_tree_from_part_root(part_local: &str, doc: &Document) -> Option<Element> {
+        let part = part_root(&doc.root, part_local)?;
+        let c_sld = child_local(part, "cSld", ns::P)?;
+        let sp_tree = child_local(c_sld, "spTree", ns::P)?;
+        let mut cloned = sp_tree.clone();
+        unwrap_alternate_content_deep(&mut cloned);
+        Some(cloned)
+    }
+
+    fn decorative_elements_for_master(
+        &mut self,
+        master_path: &str,
+    ) -> Result<(Vec<DumpElement>, Vec<String>), Error> {
+        let doc = self
+            .master_xml
+            .get(master_path)
+            .ok_or_else(|| missing_part(master_path))?;
+        let master_raw = self
+            .package
+            .text(master_path)?
+            .ok_or_else(|| missing_part(master_path))?
+            .to_owned();
+        let sp_tree = Self::sp_tree_from_part_root("sldMaster", doc)
+            .ok_or_else(|| missing_part("p:spTree"))?;
+        let ctx = ParseCtx {
+            slide_path: master_path,
+            layout_sp_tree: None,
+            master_sp_tree: Some(&sp_tree),
+        };
+        let token = Self::part_token(master_path);
+        let options = SpTreeOptions {
+            skip_placeholders: true,
+            template_scope: Some("master".to_owned()),
+            template_token: Some(token),
+        };
+        Ok(parse_sp_tree(
+            &sp_tree,
+            Some(&master_raw),
+            "",
+            &ctx,
+            &options,
+        ))
+    }
+
+    fn decorative_elements_for_layout(
+        &mut self,
+        layout_path: &str,
+    ) -> Result<(Vec<DumpElement>, Vec<String>), Error> {
+        let doc = self
+            .layout_xml
+            .get(layout_path)
+            .cloned()
+            .ok_or_else(|| missing_part(layout_path))?;
+        let layout_raw = self
+            .package
+            .text(layout_path)?
+            .ok_or_else(|| missing_part(layout_path))?
+            .to_owned();
+        let sld_layout =
+            part_root(&doc.root, "sldLayout").ok_or_else(|| missing_part("p:sldLayout"))?;
+        let show_master = Self::layout_show_master_shapes(sld_layout);
+        let master_path = self.layout_to_master.get(layout_path).cloned();
+        let master_sp_tree = master_path.as_ref().and_then(|mp| {
+            self.master_xml
+                .get(mp)
+                .and_then(|d| Self::sp_tree_from_part_root("sldMaster", d))
+        });
+        let mut elements = Vec::new();
+        let mut other_kinds = Vec::new();
+        if show_master {
+            if let Some(mp) = master_path {
+                let (m_el, m_ok) = self.decorative_elements_for_master(&mp)?;
+                elements.extend(m_el);
+                other_kinds.extend(m_ok);
+            }
+        }
+        let sp_tree = Self::sp_tree_from_part_root("sldLayout", &doc)
+            .ok_or_else(|| missing_part("p:spTree"))?;
+        let ctx = ParseCtx {
+            slide_path: layout_path,
+            layout_sp_tree: Some(&sp_tree),
+            master_sp_tree: master_sp_tree.as_ref(),
+        };
+        let token = Self::part_token(layout_path);
+        let options = SpTreeOptions {
+            skip_placeholders: true,
+            template_scope: Some("layout".to_owned()),
+            template_token: Some(token),
+        };
+        let (lay_el, lay_ok) = parse_sp_tree(&sp_tree, Some(&layout_raw), "", &ctx, &options);
+        elements.extend(lay_el);
+        other_kinds.extend(lay_ok);
+        Ok((elements, other_kinds))
+    }
+
     fn slide_has_notes(&mut self, slide_path: &str) -> Result<bool, Error> {
         let note_rels: Vec<Relationship> = {
             let rels = self.package.rels(slide_path)?;
@@ -467,13 +622,8 @@ impl<'a> Presentation<'a> {
                     let xml = self.package.text(&notes_path)?;
                     if let Some(xml) = xml {
                         let doc = parse_xml_str(xml)?;
-                        if let Some(notes) = child_local(&doc.root, "notes", ns::P) {
-                            let sp_tree = child_path(notes, &[("cSld", ns::P), ("spTree", ns::P)]);
-                            if sp_tree.is_some() {
-                                return Ok(true);
-                            }
-                            let tx = notes.text_content();
-                            if !tx.trim().is_empty() {
+                        if let Some(notes) = part_root(&doc.root, "notes") {
+                            if notes_slide_has_printable_content(notes) {
                                 return Ok(true);
                             }
                         }

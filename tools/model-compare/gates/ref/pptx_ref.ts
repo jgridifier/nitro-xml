@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 const up = process.env.UPSTREAM_DIR!;
 const { PptxHandler } = await import(`${up}/src/core/pptx/core/PptxHandler.ts`);
 
-/** Kinds this issue ports; dump filters to these for the ≥60 fixture parity bar. */
+/** Kinds this issue ports; dump filters to these for the issue-24 parity gate. */
 const PORTED = new Set([
 	'shape',
 	'text',
@@ -57,9 +57,6 @@ function slimEl(el: AnyEl): Record<string, unknown> {
 	if (inh) out.inheritedTransform = inh;
 	if (typeof el.text === 'string') out.text = el.text;
 	if (el.shapeType !== undefined) out.shapeType = el.shapeType;
-	if (el.type === 'table' && el.table && Array.isArray(el.table.rows)) {
-		out.tableRowCount = el.table.rows.length;
-	}
 	if (Array.isArray(el.children)) {
 		out.children = el.children.filter((c) => PORTED.has(String(c.type))).map(slimEl);
 	}

@@ -5,13 +5,13 @@
  * / pptx_dump (ported element kinds only).
  */
 
-import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import type { Comparison, CorpusResult, Manifest } from '../types.ts';
-import { repoRoot, selectCorpus } from '../corpus.ts';
+import { loadManifest, repoRoot, selectCorpus } from '../corpus.ts';
 import { dumpPptxModelRust, ensureExample } from '../rust/dump.ts';
-import { normalizeJson } from '../normalize.ts';
+import { diffIr, filterKnownDiffs } from '../diff.ts';
 import { upstreamDir } from '../paths.ts';
 
 const PPTX_EXT = /\.(pptx|pptm|potx|potm)$/i;
@@ -50,43 +50,68 @@ function dumpOracleSubprocess(file: string): { ok: boolean; json: unknown } {
 	return { ok: r.status === 0, json };
 }
 
+function fixtureIdForPath(manifest: Manifest, absPath: string, root: string): string {
+	const rel = absPath.startsWith(root) ? absPath.slice(root.length + 1) : absPath;
+	const row = manifest.fixtures.find((f) => f.path === rel);
+	return row?.id ?? basename(absPath);
+}
+
+function loadKnownDiffs(root: string) {
+	const path = join(root, 'parity/known-diffs.json');
+	if (!existsSync(path)) return { entries: [] };
+	return JSON.parse(readFileSync(path, 'utf8')) as {
+		entries: import('../types.ts').KnownDiffEntry[];
+	};
+}
+
 async function runPptxCorpus(): Promise<CorpusResult> {
 	const root = repoRoot();
+	const manifest = loadManifest(root);
+	const known = loadKnownDiffs(root);
 	const notes: string[] = [];
 	ensureExample('pptx_dump', 'nitro-xml-pptx');
 
 	let n = 0;
-	let bad = 0;
-	let good = 0;
+	let matched = 0;
+	let allowListedFixtures = 0;
+	let unexpected = 0;
 	for (const f of listPptxFiles(root)) {
 		if (!existsSync(f)) continue;
 		if (/\b(xl_|slides_200)/.test(f)) continue;
 		n++;
+		const fixtureId = fixtureIdForPath(manifest, f, root);
 		const ref = dumpOracleSubprocess(f);
 		const got = dumpPptxModelRust(f);
 		if (got.status === 101 || got.status === 124 || (got.status !== null && got.status > 128)) {
-			bad++;
+			unexpected++;
 			if (notes.length < 20) notes.push(`panic/timeout/crash rc=${got.status} on ${f}`);
 			continue;
 		}
 		if (!ref.ok || !got.ok) {
 			if (!ref.ok && !got.ok) continue;
-			bad++;
+			unexpected++;
 			if (notes.length < 20) notes.push(`accept/reject mismatch on ${f}`);
 			continue;
 		}
-		if (normalizeJson(ref.json) !== normalizeJson(got.json)) {
-			bad++;
-			if (notes.length < 20) notes.push(`output differs on ${f}`);
+		const diffs = diffIr(ref.json, got.json);
+		if (diffs.length === 0) {
+			matched++;
+			continue;
+		}
+		const { unexpected: bad } = filterKnownDiffs(diffs, 'pptx', fixtureId, known.entries);
+		if (bad.length === 0) {
+			allowListedFixtures++;
 		} else {
-			good++;
+			unexpected++;
+			if (notes.length < 20) {
+				notes.push(`unexpected diff on ${fixtureId} (${bad.length} path(s))`);
+			}
 		}
 	}
 	notes.push(
-		`pptx presentation differential: ${good}/${n} files match upstream (ported kinds; need >=60)`,
+		`pptx presentation differential: ${matched}/${n} exact match; ${allowListedFixtures} allow-listed; ${unexpected} unexpected`,
 	);
-	// Issue #24 acceptance is ≥60 matches on the ported-kinds dump, not 100%.
-	return { compared: n, mismatched: good >= 60 ? 0 : Math.max(1, 60 - good), notes };
+	return { compared: n, mismatched: unexpected, notes };
 }
 
 export const pptxComparison: Comparison = {

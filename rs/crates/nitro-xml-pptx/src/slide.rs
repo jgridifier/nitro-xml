@@ -96,6 +96,58 @@ pub struct ParseCtx<'a> {
     pub master_sp_tree: Option<&'a Element>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct SpTreeOptions {
+    pub skip_placeholders: bool,
+    pub template_scope: Option<String>,
+    pub template_token: Option<String>,
+}
+
+fn sp_tree_child_id(prefix: &str, kind: &str, index: usize, options: &SpTreeOptions) -> String {
+    if let (Some(scope), Some(token)) = (&options.template_scope, &options.template_token) {
+        format!("{}-{}-{}-{}-{}", scope, scope, kind, token, index)
+    } else {
+        format!("{}{}-{}", prefix, kind, index)
+    }
+}
+
+/// Unwrap `mc:AlternateContent` Choice (else Fallback) in place so spTree children are visible.
+pub fn unwrap_alternate_content_deep(root: &mut Element) {
+    let mut i = 0;
+    while i < root.children.len() {
+        let hoist = match &root.children[i] {
+            Node::Element(el)
+                if el.ns.as_deref() == Some(ns::MC) && el.local == "AlternateContent" =>
+            {
+                let branch = children_local(el, "Choice", ns::MC)
+                    .into_iter()
+                    .next()
+                    .or_else(|| children_local(el, "Fallback", ns::MC).into_iter().next());
+                branch.map(|b| b.children.clone())
+            }
+            _ => None,
+        };
+        if let Some(new_children) = hoist {
+            root.children.remove(i);
+            for child in new_children {
+                if let Node::Element(mut el) = child {
+                    unwrap_alternate_content_deep(&mut el);
+                    root.children.insert(i, Node::Element(el));
+                    i += 1;
+                } else {
+                    root.children.insert(i, child);
+                    i += 1;
+                }
+            }
+            continue;
+        }
+        if let Node::Element(el) = &mut root.children[i] {
+            unwrap_alternate_content_deep(el);
+        }
+        i += 1;
+    }
+}
+
 #[allow(clippy::large_enum_variant)]
 enum SpTreeParseOutcome {
     Element(DumpElement),
@@ -107,12 +159,13 @@ pub fn parse_sp_tree(
     raw_xml: Option<&str>,
     id_prefix: &str,
     ctx: &ParseCtx,
+    options: &SpTreeOptions,
 ) -> (Vec<DumpElement>, Vec<String>) {
     let order = extract_sp_tree_child_order(raw_xml, sp_tree, "p:spTree");
     let mut out = Vec::new();
     let mut other = Vec::new();
     for entry in order {
-        match parse_sp_tree_child(&entry, sp_tree, raw_xml, id_prefix, ctx) {
+        match parse_sp_tree_child(&entry, sp_tree, raw_xml, id_prefix, ctx, options) {
             Some(SpTreeParseOutcome::Element(el)) => out.push(el),
             Some(SpTreeParseOutcome::Other(kind)) => other.push(kind),
             None => {}
@@ -206,6 +259,7 @@ fn parse_sp_tree_child(
     raw_xml: Option<&str>,
     id_prefix: &str,
     ctx: &ParseCtx,
+    options: &SpTreeOptions,
 ) -> Option<SpTreeParseOutcome> {
     if entry.tag == "p16:model3D" {
         return Some(SpTreeParseOutcome::Other("unknown".to_owned()));
@@ -215,12 +269,18 @@ fn parse_sp_tree_child(
     let node = nodes.get(entry.index_in_type)?;
     match local {
         "sp" => {
+            if options.skip_placeholders {
+                let ph = child_path(node, &[("nvSpPr", ns::P), ("nvPr", ns::P), ("ph", ns::P)]);
+                if ph.is_some() {
+                    return None;
+                }
+            }
             let sp_pr = child_local(node, "spPr", ns::P);
             let image_fill = sp_pr.is_some_and(|sp| child_local(sp, "blipFill", ns::A).is_some());
             if image_fill {
                 parse_shape_with_image_fill(
                     node,
-                    format!("{}shape-img-{}", id_prefix, entry.index_in_type),
+                    sp_tree_child_id(id_prefix, "shape-img", entry.index_in_type, options),
                     ctx,
                     false,
                 )
@@ -228,22 +288,27 @@ fn parse_sp_tree_child(
             } else {
                 parse_shape(
                     node,
-                    format!("{}shape-{}", id_prefix, entry.index_in_type),
+                    sp_tree_child_id(id_prefix, "shape", entry.index_in_type, options),
                     ctx,
                     false,
                 )
                 .map(SpTreeParseOutcome::Element)
             }
         }
-        "pic" => parse_picture(
-            node,
-            format!("{}pic-{}", id_prefix, entry.index_in_type),
-            ctx,
-        )
-        .map(SpTreeParseOutcome::Element),
+        "pic" => {
+            if picture_is_media(node) {
+                return Some(SpTreeParseOutcome::Other("media".to_owned()));
+            }
+            parse_picture(
+                node,
+                sp_tree_child_id(id_prefix, "pic", entry.index_in_type, options),
+                ctx,
+            )
+            .map(SpTreeParseOutcome::Element)
+        }
         "graphicFrame" => parse_graphic_frame(
             node,
-            format!("{}frame-{}", id_prefix, entry.index_in_type),
+            sp_tree_child_id(id_prefix, "frame", entry.index_in_type, options),
             ctx,
         )
         .map(SpTreeParseOutcome::Element)
@@ -252,40 +317,164 @@ fn parse_sp_tree_child(
         )))),
         "grpSp" => parse_group(
             node,
-            format!("{}group-{}", id_prefix, entry.index_in_type),
+            sp_tree_child_id(id_prefix, "group", entry.index_in_type, options),
             raw_xml,
             id_prefix,
             ctx,
+            options,
         )
         .map(SpTreeParseOutcome::Element),
         "cxnSp" => parse_connector(
             node,
-            format!("{}conn-{}", id_prefix, entry.index_in_type),
+            sp_tree_child_id(id_prefix, "conn", entry.index_in_type, options),
             ctx,
         )
         .map(SpTreeParseOutcome::Element),
-        "contentPart" => Some(SpTreeParseOutcome::Other("unknown".to_owned())),
+        "contentPart" => Some(SpTreeParseOutcome::Other("contentPart".to_owned())),
         _ => None,
     }
+}
+
+fn picture_is_media(pic: &Element) -> bool {
+    let nv_pr = child_path(pic, &[("nvPicPr", ns::P), ("nvPr", ns::P)]);
+    drawing_nvpr_has_media(nv_pr)
+}
+
+fn drawing_nvpr_has_media(nv_pr: Option<&Element>) -> bool {
+    let Some(nv_pr) = nv_pr else {
+        return false;
+    };
+    for child in &nv_pr.children {
+        let Node::Element(el) = child else {
+            continue;
+        };
+        let ns_uri = el.ns.as_deref();
+        let local = el.local.as_str();
+        if ns_uri == Some(ns::P) && (local == "video" || local == "audio") {
+            return true;
+        }
+        if ns_uri == Some(ns::A)
+            && matches!(
+                local,
+                "videoFile" | "audioFile" | "wavAudioFile" | "quickTimeFile" | "audioCd"
+            )
+        {
+            return true;
+        }
+    }
+    if nv_pr_has_p14_media(nv_pr) {
+        return true;
+    }
+    false
+}
+
+fn nv_pr_has_p14_media(nv_pr: &Element) -> bool {
+    let ext_lst = child_local(nv_pr, "extLst", ns::P);
+    let Some(ext_lst) = ext_lst else {
+        return false;
+    };
+    for ext in children_local(ext_lst, "ext", ns::P) {
+        let uri = attr(ext, "uri").map(str::to_lowercase);
+        if uri.as_deref() == Some("{daa4b4d4-6d71-4841-9c94-3de7fcfb9230}") {
+            for child in &ext.children {
+                if let Node::Element(el) = child {
+                    if el.local == "media" {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 fn graphic_frame_other_kind(frame: &Element) -> String {
     let graphic = child_path(frame, &[("graphic", ns::A), ("graphicData", ns::A)]);
     if let Some(g) = graphic {
-        match attr(g, "uri") {
-            Some("http://schemas.openxmlformats.org/drawingml/2006/chart") => {
-                return "chart".to_owned()
-            }
-            Some("http://schemas.openxmlformats.org/drawingml/2006/diagram") => {
-                return "smartArt".to_owned()
-            }
-            _ => {}
-        }
-        if child_local(g, "tbl", ns::A).is_some() {
+        let uri = attr(g, "uri").map(str::to_lowercase).unwrap_or_default();
+        if child_local(g, "tbl", ns::A).is_some() || uri.contains("/drawingml/2006/table") {
             return "table".to_owned();
+        }
+        if child_local(g, "chart", ns::C).is_some()
+            || uri.contains("/drawingml/2006/chart")
+            || uri.contains("/2014/chartex")
+            || graphic_data_has_chartex(g)
+        {
+            return "chart".to_owned();
+        }
+        if child_local(g, "relIds", ns::DGM).is_some() || uri.contains("/drawingml/2006/diagram") {
+            return "smartArt".to_owned();
+        }
+        if uri.contains("/presentationml/2006/ole") || uri.contains("/drawingml/2006/ole") {
+            return "ole".to_owned();
+        }
+        if graphic_data_has_media_payload(g) || uri.contains("/drawingml/2006/media") {
+            return "media".to_owned();
+        }
+        if graphic_data_has_ink(g)
+            || uri.contains("/2010/ink")
+            || uri.contains("drawing/2010/ink")
+            || graphic_data_has_ink_choice(g)
+        {
+            return "ink".to_owned();
         }
     }
     "unknown".to_owned()
+}
+
+fn graphic_data_has_chartex(g: &Element) -> bool {
+    for child in &g.children {
+        if let Node::Element(el) = child {
+            if el.local == "chart" {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn graphic_data_has_media_payload(g: &Element) -> bool {
+    for child in &g.children {
+        if let Node::Element(el) = child {
+            if matches!(
+                el.local.as_str(),
+                "videoFile" | "audioFile" | "wavAudioFile" | "quickTimeFile" | "audioCd"
+            ) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn graphic_data_has_ink(g: &Element) -> bool {
+    for child in &g.children {
+        if let Node::Element(el) = child {
+            if el.local == "ink" {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn graphic_data_has_ink_choice(g: &Element) -> bool {
+    for child in &g.children {
+        let Node::Element(el) = child else {
+            continue;
+        };
+        if el.ns.as_deref() == Some(ns::MC) && el.local == "AlternateContent" {
+            for choice in children_local(el, "Choice", ns::MC) {
+                let requires = attr(choice, "Requires")
+                    .map(str::to_lowercase)
+                    .unwrap_or_default();
+                if requires.contains("aink") || graphic_data_has_ink(choice) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 fn find_placeholder_context(ctx: &ParseCtx, info: &PlaceholderInfo) -> Option<PlaceholderNode> {
@@ -341,7 +530,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
     let tx_body = if inherits_hf_text {
         inh_tx
     } else if ph_info.is_some() && !text_body_has_content(own_tx) {
-        inh_tx.or(own_tx)
+        own_tx
     } else {
         own_tx.or(inh_tx)
     };
@@ -516,7 +705,7 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
         "picture",
         id,
         c_nv_pr,
-        ph_info,
+        None,
         x,
         y,
         w,
@@ -669,58 +858,33 @@ fn scale_element_subtree(el: &mut DumpElement, scale_x: f64, scale_y: f64) {
 }
 
 fn parse_graphic_frame(frame: &Element, id: String, _ctx: &ParseCtx) -> Option<DumpElement> {
+    let nv_pr = child_path(frame, &[("nvGraphicFramePr", ns::P), ("nvPr", ns::P)]);
+    let ph_info = extract_placeholder_info(nv_pr);
     let xfrm = child_path(frame, &[("xfrm", ns::P)])?;
-    let (x, y, mut w, mut h, x_emu, y_emu, mut w_emu, mut h_emu, rot, flip_h, flip_v) =
-        xfrm_to_box(Some(xfrm));
+    let (x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v) = xfrm_to_box(Some(xfrm));
     let graphic = child_path(frame, &[("graphic", ns::A), ("graphicData", ns::A)]);
-    let table = graphic.and_then(|g| child_local(g, "tbl", ns::A));
-    let table = table?;
-    if let Some((tw, th)) = table_grid_extent(table) {
-        w_emu = tw;
-        h_emu = th;
-        w = emu_to_px_rounded(tw);
-        h = emu_to_px_rounded(th);
-    }
-    let row_count = children_local(table, "tr", ns::A).len();
-    let prst = "rect";
+    let graphic = graphic?;
+    let table = child_local(graphic, "tbl", ns::A)?;
+    let (w, h) = table_grid_pixel_extent(table).unwrap_or((w, h));
     let c_nv_pr = child_path(frame, &[("nvGraphicFramePr", ns::P), ("cNvPr", ns::P)]);
     build_dump(
-        "table",
-        id,
-        c_nv_pr,
-        None,
-        x,
-        y,
-        w,
-        h,
-        x_emu,
-        y_emu,
-        w_emu,
-        h_emu,
-        rot,
-        flip_h,
-        flip_v,
-        None,
-        None,
-        Some(prst.to_string()),
-        Some(row_count),
-        None,
-        false,
+        "table", id, c_nv_pr, ph_info, x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v,
+        None, None, None, None, None, false,
     )
 }
 
-fn table_grid_extent(table: &Element) -> Option<(i64, i64)> {
+fn table_grid_pixel_extent(table: &Element) -> Option<(f64, f64)> {
     let grid = child_local(table, "tblGrid", ns::A)?;
-    let w: i64 = children_local(grid, "gridCol", ns::A)
+    let w_emu: i64 = children_local(grid, "gridCol", ns::A)
         .iter()
         .map(|c| parse_emu_attr(attr(c, "w")))
         .sum();
-    let h: i64 = children_local(table, "tr", ns::A)
+    let h_emu: i64 = children_local(table, "tr", ns::A)
         .iter()
         .map(|r| parse_emu_attr(attr(r, "h")))
         .sum();
-    if w > 0 && h > 0 {
-        Some((w, h))
+    if w_emu > 0 && h_emu > 0 {
+        Some((emu_to_px_rounded(w_emu), emu_to_px_rounded(h_emu)))
     } else {
         None
     }
@@ -789,6 +953,7 @@ fn parse_group(
     raw_xml: Option<&str>,
     id_prefix: &str,
     ctx: &ParseCtx,
+    options: &SpTreeOptions,
 ) -> Option<DumpElement> {
     let grp_sp_pr = child_local(group, "grpSpPr", ns::P);
     let xfrm = grp_sp_pr.and_then(|p| child_local(p, "xfrm", ns::A));
@@ -809,6 +974,7 @@ fn parse_group(
                 raw_xml,
                 id_prefix,
                 ctx,
+                options,
             ),
             "sp" => {
                 let sp_pr = child_local(node, "spPr", ns::P);
@@ -880,7 +1046,7 @@ fn parse_group(
         flip_v,
         None,
         None,
-        Some("rect".to_owned()),
+        None,
         None,
         Some(children),
         false,
@@ -1066,7 +1232,7 @@ fn scan_text(node: &Element) -> bool {
     false
 }
 
-fn extract_text_body(tx_body: &Element) -> String {
+pub(crate) fn extract_text_body(tx_body: &Element) -> String {
     let paras = children_local(tx_body, "p", ns::A);
     if paras.is_empty() {
         return tx_body.text_content();
@@ -1184,9 +1350,6 @@ pub fn slim_element_for_dump(el: &DumpElement) -> Value {
     }
     if let Some(st) = &el.shape_type {
         obj.insert("shapeType".to_owned(), json!(st));
-    }
-    if let Some(rc) = el.table_row_count {
-        obj.insert("tableRowCount".to_owned(), json!(rc));
     }
     if let Some(kids) = &el.children {
         let slim_kids = kids

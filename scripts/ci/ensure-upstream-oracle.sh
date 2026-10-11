@@ -7,8 +7,11 @@
 # Always install the workspace, then build ooxml-core when dist/pptx is missing.
 set -euo pipefail
 
-ROOT="${1:-$(cd "$(dirname "$0")/../.." && pwd)}"
-UPSTREAM_DIR="${UPSTREAM_DIR:-$ROOT/upstream}"
+# Prefer explicit ROOT arg; when sourced, BASH_SOURCE locates this file (not $0).
+_SCRIPT="${BASH_SOURCE[0]:-$0}"
+ROOT="${1:-$(cd "$(dirname "$_SCRIPT")/../.." && pwd)}"
+# Always pin to this checkout's upstream — do not inherit a stale UPSTREAM_DIR.
+UPSTREAM_DIR="$ROOT/upstream"
 PIN=e66aaec24adc0b68472eae1fc42aa4598e09c352
 
 git -C "$ROOT" submodule update --init --depth 1 upstream
@@ -18,7 +21,7 @@ if [ "$(git -C "$UPSTREAM_DIR" rev-parse HEAD)" != "$PIN" ]; then
   exit 1
 fi
 
-echo "ensure-upstream-oracle: bun install at upstream workspace root"
+echo "ensure-upstream-oracle: bun install at upstream workspace root ($UPSTREAM_DIR)"
 ( cd "$UPSTREAM_DIR" && bun install )
 
 if [ ! -d "$UPSTREAM_DIR/src/core/dist/pptx" ]; then
@@ -32,4 +35,11 @@ if [ ! -e "$UPSTREAM_DIR/src/core/node_modules/ooxml-core" ]; then
   ln -sfn . "$UPSTREAM_DIR/src/core/node_modules/ooxml-core"
 fi
 
+# Verify the package name resolves before gates run.
+if ! ( cd "$UPSTREAM_DIR/src/core" && bun -e 'await import("ooxml-core/pptx")' >/dev/null 2>&1 ); then
+  echo "ensure-upstream-oracle: ooxml-core/pptx still unresolved after install+build" >&2
+  exit 1
+fi
+
 export UPSTREAM_DIR
+echo "ensure-upstream-oracle: ready (ooxml-core/pptx resolves)"

@@ -11,6 +11,8 @@ publish.workspace = true
 [dependencies]
 nitro-xml-opc.workspace = true
 nitro-xml-render.workspace = true
-
-[dev-dependencies]
 serde_json = "1"
+
+[[example]]
+name = "xlsx_dump"
+path = "examples/xlsx_dump.rs"

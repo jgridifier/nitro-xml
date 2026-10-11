@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: MIT
+/** Batched text-measurement read-back: one setMeasureResults per frame. */
+function font(f, sz) {
+  return /\d+(\.\d+)?px/.test(f) ? f : `${sz}px ${f}`;
+}
 export function flushMeasureBatch(handle, ctx) {
   const n = handle.measureCount | 0;
   if (n === 0) return 0;
@@ -13,16 +17,15 @@ export function flushMeasureBatch(handle, ctx) {
   if (ctx) {
     for (let i = 0; i < n; i++) {
       const r = reqs[i];
-      const font = handle.resolve(r.fontId) || "sans-serif";
+      const f = handle.resolve(r.fontId) || "sans-serif";
       const text = handle.resolve(r.textId) || "";
-      ctx.font = `${r.sizePx}px ${font}`;
+      ctx.font = font(f, r.sizePx);
       widths[i] = ctx.measureText(text).width;
     }
   }
   handle.setMeasureResults(widths);
   return n;
 }
-
 export function readMeasureReqsFromMemory(handle, memory) {
   const n = handle.measureCount | 0;
   if (n === 0) return [];

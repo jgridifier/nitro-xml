@@ -6,8 +6,8 @@ use serde_json::{json, Value};
 use crate::model::{stringify_json, ActiveWorksheet, WorkbookSlice};
 use crate::sheet_access::{used_range, CellIndex};
 use crate::view::cell_items::{build_items, BuildInput};
-use crate::view::fake_measure::fake_xlsx_measure;
 use crate::view::metrics::{create_grid_metrics, GridMetricsOptions};
+use crate::view::text_measure::FakeTextMeasure;
 use crate::view::types::CellItem;
 
 pub fn dump_xlsx_view_ir(
@@ -66,7 +66,7 @@ fn sheet_view_ir(
     let cols: Vec<u32> = (0..=last_col).collect();
     let index = CellIndex::build(sheet);
     let zoom = metrics.zoom / 100.0;
-    let measure = |text: &str, _font: &str| fake_xlsx_measure(text);
+    let mut measure = FakeTextMeasure;
     let has_formula = |row: u32, col: u32| {
         index
             .get(sheet, row, col)
@@ -83,10 +83,12 @@ fn sheet_view_ir(
         zoom,
         rows: &rows,
         cols: &cols,
-        measure: &measure,
         has_formula: &has_formula,
     };
-    let items: Vec<Value> = build_items(&input).iter().map(CellItem::to_json).collect();
+    let items: Vec<Value> = build_items(&input, &mut measure)
+        .iter()
+        .map(CellItem::to_json)
+        .collect();
     json!({
         "name": sheet.name,
         "sheetIndex": sheet_index,

@@ -7,6 +7,7 @@ use crate::view::cell_paint::{css_font, hashes, repeat_to_fill};
 use crate::view::cell_view::{cell_view, CellViewOptions};
 use crate::view::metrics::GridMetrics;
 use crate::view::sheet_queries::overflow_extent;
+use crate::view::text_measure::TextMeasure;
 use crate::view::types::{CellItem, CellView};
 
 const PADDING: i32 = 2;
@@ -29,27 +30,32 @@ pub struct BuildInput<'a> {
     pub zoom: f64,
     pub rows: &'a [u32],
     pub cols: &'a [u32],
-    pub measure: &'a dyn Fn(&str, &str) -> f64,
     pub has_formula: &'a dyn Fn(u32, u32) -> bool,
 }
 
-fn text_width_of(input: &BuildInput, view: &CellView, text: &str) -> f64 {
+fn text_width_of(
+    input: &BuildInput,
+    measure: &mut dyn TextMeasure,
+    view: &CellView,
+    text: &str,
+) -> f64 {
     if let Some(rich) = &view.rich {
         return rich
             .iter()
-            .map(|run| (input.measure)(&run.text, &css_font(&run.font, input.zoom)))
+            .map(|run| measure.measure(&run.text, &css_font(&run.font, input.zoom)))
             .sum();
     }
     let font = css_font(&view.font, input.zoom);
     let mut widest = 0.0f64;
     for line in text.split('\n') {
-        widest = widest.max((input.measure)(line, &font));
+        widest = widest.max(measure.measure(line, &font));
     }
     widest
 }
 
 fn make_item(
     input: &BuildInput,
+    measure: &mut dyn TextMeasure,
     row: u32,
     col: u32,
     view: CellView,
@@ -95,7 +101,7 @@ fn make_item(
         return item;
     }
     let inner = (w - 2 * PADDING) as f64 - item.view.indent_px * (input.zoom / 100.0);
-    let measured = text_width_of(input, &item.view, &item.view.text);
+    let measured = text_width_of(input, measure, &item.view, &item.view.text);
     if item.view.h_align == "fill" {
         item.text = repeat_to_fill(&item.view.text, measured, inner);
         return item;
@@ -108,7 +114,7 @@ fn make_item(
     }
     if item.view.is_number && measured > inner && item.view.rich.is_none() {
         let font = css_font(&item.view.font, input.zoom);
-        item.text = hashes(inner, (input.measure)("#", &font));
+        item.text = hashes(inner, measure.measure("#", &font));
         return item;
     }
     if item.view.overflow && merge.is_none() && measured > inner {
@@ -145,7 +151,7 @@ fn merges_in(sheet: &ActiveWorksheet, rows: &[u32], cols: &[u32]) -> Vec<CellRan
         .collect()
 }
 
-pub fn build_items(input: &BuildInput) -> Vec<CellItem> {
+pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<CellItem> {
     let rows = input.rows;
     let cols = input.cols;
     if rows.is_empty() || cols.is_empty() {
@@ -169,6 +175,7 @@ pub fn build_items(input: &BuildInput) -> Vec<CellItem> {
         );
         out.push(make_item(
             input,
+            measure,
             merge.start.row,
             merge.start.col,
             view,
@@ -190,7 +197,7 @@ pub fn build_items(input: &BuildInput) -> Vec<CellItem> {
                 col,
                 cell_opts(input),
             );
-            out.push(make_item(input, row, col, view, None));
+            out.push(make_item(input, measure, row, col, view, None));
         }
         if let Some(stored) = input.index.row_cols(row) {
             for &col in stored.keys() {
@@ -224,7 +231,7 @@ pub fn build_items(input: &BuildInput) -> Vec<CellItem> {
                 if !view.overflow {
                     continue;
                 }
-                let item = make_item(input, row, col, view, None);
+                let item = make_item(input, measure, row, col, view, None);
                 let left = item.x + item.text_left;
                 let right = left + item.text_width;
                 let view_left = input.metrics.col_left(first_col);

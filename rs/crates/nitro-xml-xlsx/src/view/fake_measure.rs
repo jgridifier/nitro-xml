@@ -12,8 +12,7 @@ pub fn fake_xlsx_measure(text: &str) -> f64 {
 }
 
 fn font_size_px(font: &str) -> f64 {
-    font
-        .split_whitespace()
+    font.split_whitespace()
         .find_map(|tok| tok.strip_suffix("px"))
         .and_then(|n| n.parse().ok())
         .unwrap_or(14.67)

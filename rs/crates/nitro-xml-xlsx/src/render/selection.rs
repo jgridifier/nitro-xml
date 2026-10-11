@@ -37,12 +37,13 @@ pub fn paint<I: StringIntern>(
     };
     let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let active = selection.active;
-    let range = merge_at(sheet, active.row, active.col)
-        .cloned()
-        .unwrap_or(crate::model::CellRange {
-            start: active,
-            end: active,
-        });
+    let range =
+        merge_at(sheet, active.row, active.col)
+            .cloned()
+            .unwrap_or(crate::model::CellRange {
+                start: active,
+                end: active,
+            });
     let end_row = range.end.row;
     let end_col = range.end.col;
     let x = metrics.col_left(range.start.col);

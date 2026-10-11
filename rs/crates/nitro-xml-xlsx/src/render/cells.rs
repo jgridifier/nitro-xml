@@ -2,6 +2,7 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/ui/src/xlsx/grid/cell-layer.ts; changes listed in PROVENANCE.md.
 
 use nitro_xml_render::command_buffer::CommandBuffer;
+use nitro_xml_render::measure::MeasureBatch;
 
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
@@ -14,7 +15,7 @@ use crate::view::cell_paint::{
     align_items, css_font, diagonal_svg, edge_css, fill_paint, has_borders, justify, text_align,
     text_decoration,
 };
-use crate::view::fake_measure::estimate_width;
+use crate::view::text_measure::CanvasTextMeasure;
 use crate::view::types::CellItem;
 
 const CELL_BASE: u32 = 100;
@@ -277,6 +278,7 @@ fn paint_one_cell<I: StringIntern>(
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    measures: &mut MeasureBatch,
     workbook: &WorkbookSlice,
     sheet: &ActiveWorksheet,
     sheet_index: usize,
@@ -298,21 +300,22 @@ pub fn paint<I: StringIntern>(
             .and_then(|c| c.formula.as_ref())
             .is_some()
     };
-    let measure = |text: &str, font: &str| estimate_width(text, font);
-    let input = BuildInput {
-        workbook,
-        sheet,
-        sheet_index,
-        all_sheets,
-        index: &index,
-        metrics,
-        zoom,
-        rows: &rows,
-        cols: &cols,
-        measure: &measure,
-        has_formula: &has_formula,
+    let items = {
+        let mut canvas_measure = CanvasTextMeasure::new(intern, measures);
+        let input = BuildInput {
+            workbook,
+            sheet,
+            sheet_index,
+            all_sheets,
+            index: &index,
+            metrics,
+            zoom,
+            rows: &rows,
+            cols: &cols,
+            has_formula: &has_formula,
+        };
+        build_items(&input, &mut canvas_measure)
     };
-    let items = build_items(&input);
     let div = intern.intern("div");
     let ox = sizes.w;
     let oy = sizes.h;

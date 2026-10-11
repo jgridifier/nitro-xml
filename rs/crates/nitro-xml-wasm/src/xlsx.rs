@@ -108,6 +108,7 @@ impl XlsxState {
         bytes: &[u8],
         strings: &mut StringTable,
         commands: &mut nitro_xml_render::CommandBuffer,
+        measures: &mut nitro_xml_render::MeasureBatch,
     ) {
         if self.ensure_sheet_parsed(bytes, self.active).is_err() {
             return;
@@ -121,6 +122,7 @@ impl XlsxState {
         paint_grid_frame(
             commands,
             &mut intern,
+            measures,
             workbook,
             sheet,
             active,
@@ -231,6 +233,11 @@ pub fn process_frame(handle: &mut crate::handle::Handle) {
     handle.events.drain();
     if let Some(ref mut xlsx) = handle.xlsx {
         let bytes = &handle.bytes;
-        xlsx.paint(bytes, &mut handle.strings, &mut handle.commands);
+        xlsx.paint(
+            bytes,
+            &mut handle.strings,
+            &mut handle.commands,
+            &mut handle.measures,
+        );
     }
 }

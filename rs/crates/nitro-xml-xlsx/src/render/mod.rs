@@ -14,6 +14,7 @@ mod viewport;
 pub mod chart;
 
 use nitro_xml_render::command_buffer::CommandBuffer;
+use nitro_xml_render::measure::MeasureBatch;
 
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
@@ -35,6 +36,7 @@ pub struct GridPaintViewport {
 pub fn paint_grid_frame<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    measures: &mut MeasureBatch,
     workbook: &WorkbookSlice,
     sheet: &ActiveWorksheet,
     sheet_index: usize,
@@ -54,6 +56,7 @@ pub fn paint_grid_frame<I: StringIntern>(
     cells::paint(
         buf,
         intern,
+        measures,
         workbook,
         sheet,
         sheet_index,
@@ -76,9 +79,11 @@ pub fn paint_grid_frame_vec<I: StringIntern>(
     viewport: &GridPaintViewport,
 ) -> Vec<u8> {
     let mut buf = CommandBuffer::new();
+    let mut measures = MeasureBatch::new();
     paint_grid_frame(
         &mut buf,
         intern,
+        &mut measures,
         workbook,
         sheet,
         sheet_index,

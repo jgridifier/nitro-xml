@@ -31,3 +31,5 @@ fixtures/private/
 /packages/nitro-xml/LICENSE
 /packages/nitro-xml/LICENSE-THIRD-PARTY
 /packages/nitro-xml/NOTICE
+# scoreboard: third-party sources fetched (sha256-checked) at build time
+/perf/scoreboard/vendor/

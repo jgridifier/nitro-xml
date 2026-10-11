@@ -48,6 +48,26 @@ async function waitReady(page, timeoutMs = 60_000) {
 	}
 }
 
+/** Open a viewer page; retry once on flaky worker "no document" after #156 shell. */
+async function openViewer(ctx, server, c, side) {
+	const url = viewerUrl(server.url, c, side);
+	let lastErr;
+	for (let attempt = 0; attempt < 2; attempt++) {
+		const page = await ctx.newPage();
+		try {
+			await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+			await waitReady(page);
+			return page;
+		} catch (e) {
+			lastErr = e;
+			await page.close().catch(() => {});
+			if (attempt === 0 && String(e).includes('no document')) continue;
+			throw e;
+		}
+	}
+	throw lastErr;
+}
+
 function rectsWithin(a, b, tol) {
 	if (!a || !b) return a == null && b == null;
 	return (
@@ -604,20 +624,12 @@ export async function runLiveChecks() {
 				deviceScaleFactor: 1,
 			});
 			try {
-				const tsPage = await ctx.newPage();
-				const rustPage = await ctx.newPage();
-				await tsPage.goto(viewerUrl(server.url, c, 'ts'), {
-					waitUntil: 'domcontentloaded',
-					timeout: 60_000,
-				});
-				await waitReady(tsPage);
-				await rustPage.goto(viewerUrl(server.url, c, 'rust'), {
-					waitUntil: 'domcontentloaded',
-					timeout: 60_000,
-				});
-				await waitReady(rustPage);
-
+				// One side at a time avoids shared-worker prewarm races under #156.
+				const tsPage = await openViewer(ctx, server, c, 'ts');
 				const ts = await runActions(tsPage, 'ts', c.format, c.actions || [], c.fixture);
+				await tsPage.close();
+
+				const rustPage = await openViewer(ctx, server, c, 'rust');
 				const rust = await runActions(
 					rustPage,
 					'rust',

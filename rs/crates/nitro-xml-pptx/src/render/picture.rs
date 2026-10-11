@@ -17,8 +17,17 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     set_attr(ctx, img, "alt", el.name.as_deref().unwrap_or(""));
     set_style(ctx, img, "width", "100%");
     set_style(ctx, img, "height", "100%");
-    set_style(ctx, img, "object-fit", "contain");
-    set_style(ctx, id, "background", "#e8e8e8");
+    if let Some(src) = el.image_src.as_deref() {
+        set_attr(ctx, img, "src", src);
+        set_style(ctx, img, "object-fit", "fill");
+        let url = format!("url({src})");
+        set_style(ctx, id, "background-image", &url);
+        set_style(ctx, id, "background-size", "100% 100%");
+        set_style(ctx, id, "background-repeat", "no-repeat");
+    } else {
+        set_style(ctx, img, "object-fit", "contain");
+        set_style(ctx, id, "background", "#e8e8e8");
+    }
     // P5 a:tile sx/sy uses intrinsic pixels via NaturalWidth read-back (#127).
     ctx.layout_reads.push(img, LayoutReadKind::NaturalWidth, 0);
     // EMF/WMF → TODO metafile S3 (`nitro_xml_render::metafile`).

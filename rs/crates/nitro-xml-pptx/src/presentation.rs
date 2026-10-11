@@ -21,6 +21,7 @@ use crate::slide::{
     unwrap_alternate_content_deep, DumpElement, ParseCtx, ParsedSpTree, SpTreeOptions, EMU_PER_PX,
 };
 use crate::theme::{default_scheme_color_map, is_presentation_theme_path, parse_theme_part, Theme};
+use nitro_xml_opc::drawingml::ThemeFormatScheme;
 
 pub type Error = OpcError;
 
@@ -81,6 +82,8 @@ pub struct Slide {
     pub other_kind_seq: Vec<(u32, String)>,
     pub background_color: Option<String>,
     pub background_gradient: Option<String>,
+    /// Resolved `data:` URL for a blip slide/layout/master background.
+    pub background_image: Option<String>,
 }
 
 pub struct SlideMasterLayout {
@@ -528,6 +531,7 @@ impl<'a> Presentation<'a> {
             .as_ref()
             .and_then(|mp| self.master_tx_styles.get(mp));
         let theme_colors = self.theme_colors_owned();
+        let format_scheme = self.format_scheme_owned();
         let ctx = ParseCtx {
             slide_path: &path,
             layout_sp_tree,
@@ -537,12 +541,14 @@ impl<'a> Presentation<'a> {
             master_placeholder_levels: master_ph,
             master_tx_styles: master_tx,
             theme_colors: Some(&theme_colors),
+            format_scheme: format_scheme.as_ref(),
         };
         let id_prefix = format!("{}-", path);
         let slide_options = SpTreeOptions::default();
         let mut slide_parsed =
             parse_sp_tree(&slide_sp_tree, Some(&raw), &id_prefix, &ctx, &slide_options);
         self.attach_graphic_payloads(&path, &mut slide_parsed.elements);
+        self.attach_image_payloads(&path, &mut slide_parsed.elements);
         shift_parse_seq(&mut slide_parsed, 2_000_000);
         let parsed = if show_master_shapes == Some(false) {
             slide_parsed
@@ -554,8 +560,8 @@ impl<'a> Presentation<'a> {
             slide_parsed
         };
         let has_notes = self.slide_has_notes(&path)?;
-        let (background_color, background_gradient) =
-            self.slide_background(sld, layout_path.as_deref(), master_path.as_deref());
+        let (background_color, background_gradient, background_image) =
+            self.slide_background(sld, &path, layout_path.as_deref(), master_path.as_deref());
         let slide = Slide {
             path,
             layout_path,
@@ -567,6 +573,7 @@ impl<'a> Presentation<'a> {
             other_kind_seq: parsed.other_kind_seq,
             background_color,
             background_gradient,
+            background_image,
         };
         self.slides[index] = Some(slide);
         Ok(())
@@ -579,24 +586,50 @@ impl<'a> Presentation<'a> {
             .unwrap_or_else(default_scheme_color_map)
     }
 
+    fn format_scheme_owned(&self) -> Option<ThemeFormatScheme> {
+        self.theme.as_ref().and_then(|t| t.format_scheme.clone())
+    }
+
     fn slide_background(
-        &self,
+        &mut self,
         sld: &Element,
+        slide_path: &str,
         layout_path: Option<&str>,
         master_path: Option<&str>,
-    ) -> (Option<String>, Option<String>) {
+    ) -> (Option<String>, Option<String>, Option<String>) {
+        let theme = self.theme_colors_owned();
+        let format_scheme = self.format_scheme_owned();
         let slide_csld = child_local(sld, "cSld", ns::P).cloned();
         let layout_csld = layout_path.and_then(|p| self.part_c_sld(p, "sldLayout"));
         let master_csld = master_path.and_then(|p| self.part_c_sld(p, "sldMaster"));
-        let theme = self.theme_colors_owned();
-        first_paintable_background(
-            &[
-                slide_csld.as_ref(),
-                layout_csld.as_ref(),
-                master_csld.as_ref(),
-            ],
-            &theme,
-        )
+        let chain = [
+            (slide_path, slide_csld.as_ref()),
+            (layout_path.unwrap_or(""), layout_csld.as_ref()),
+            (master_path.unwrap_or(""), master_csld.as_ref()),
+        ];
+        let mut chosen = None;
+        for (owner, part) in chain {
+            let Some(part) = part else {
+                continue;
+            };
+            if owner.is_empty() {
+                continue;
+            }
+            if let Some(paint) =
+                first_paintable_background(&[Some(part)], &theme, format_scheme.as_ref())
+            {
+                chosen = Some((owner.to_owned(), paint));
+                break;
+            }
+        }
+        let Some((owner, paint)) = chosen else {
+            return (None, None, None);
+        };
+        let image = paint
+            .image_rel_id
+            .as_deref()
+            .and_then(|rel_id| self.image_data_url_for_rel(&owner, rel_id));
+        (paint.color, paint.gradient, image)
     }
 
     fn part_c_sld(&self, path: &str, local: &str) -> Option<Element> {
@@ -640,6 +673,27 @@ impl<'a> Presentation<'a> {
         };
         let xml = self.package.text(&path).ok().flatten().map(str::to_owned);
         (Some(path), xml)
+    }
+
+    fn attach_image_payloads(&mut self, owner: &str, elements: &mut [DumpElement]) {
+        for el in elements.iter_mut() {
+            if el.image_src.is_none() {
+                if let Some(rel_id) = el.image_rel_id.clone() {
+                    el.image_src = self.image_data_url_for_rel(owner, &rel_id);
+                }
+            }
+            if let Some(children) = el.children.clone() {
+                let mut children = children;
+                self.attach_image_payloads(owner, &mut children);
+                el.children = Some(children);
+            }
+        }
+    }
+
+    fn image_data_url_for_rel(&mut self, owner: &str, rel_id: &str) -> Option<String> {
+        let path = self.resolve_rel_target(owner, rel_id).ok().flatten()?;
+        let bytes = self.package.read(&path).ok().flatten()?;
+        image_data_url(&bytes, &path)
     }
 
     fn attach_graphic_payloads(&mut self, owner: &str, elements: &mut [DumpElement]) {
@@ -704,6 +758,7 @@ impl<'a> Presentation<'a> {
                 .ok_or_else(|| missing_part("p:spTree"))?
         };
         let theme_colors = self.theme_colors_owned();
+        let format_scheme = self.format_scheme_owned();
         let mut parsed = {
             let master_ph = self.master_placeholder_levels.get(master_path);
             let master_tx = self.master_tx_styles.get(master_path);
@@ -716,6 +771,7 @@ impl<'a> Presentation<'a> {
                 master_placeholder_levels: master_ph,
                 master_tx_styles: master_tx,
                 theme_colors: Some(&theme_colors),
+                format_scheme: format_scheme.as_ref(),
             };
             let token = Self::part_token(master_path);
             let options = SpTreeOptions {
@@ -726,6 +782,7 @@ impl<'a> Presentation<'a> {
             parse_sp_tree(&sp_tree, Some(&master_raw), "", &ctx, &options)
         };
         self.attach_graphic_payloads(master_path, &mut parsed.elements);
+        self.attach_image_payloads(master_path, &mut parsed.elements);
         Ok(parsed)
     }
 
@@ -770,6 +827,7 @@ impl<'a> Presentation<'a> {
             .as_ref()
             .and_then(|mp| self.master_tx_styles.get(mp));
         let theme_colors = self.theme_colors_owned();
+        let format_scheme = self.format_scheme_owned();
         let mut layout_parsed = {
             let ctx = ParseCtx {
                 slide_path: layout_path,
@@ -780,6 +838,7 @@ impl<'a> Presentation<'a> {
                 master_placeholder_levels: master_ph,
                 master_tx_styles: master_tx,
                 theme_colors: Some(&theme_colors),
+                format_scheme: format_scheme.as_ref(),
             };
             let token = Self::part_token(layout_path);
             let options = SpTreeOptions {
@@ -791,6 +850,7 @@ impl<'a> Presentation<'a> {
         };
         shift_parse_seq(&mut layout_parsed, 1_000_000);
         self.attach_graphic_payloads(layout_path, &mut layout_parsed.elements);
+        self.attach_image_payloads(layout_path, &mut layout_parsed.elements);
         concat_parsed(&mut parsed, layout_parsed);
         Ok(parsed)
     }
@@ -971,4 +1031,180 @@ fn resolve_slide_layout_order(
     }
     let _ = master_path;
     ordered
+}
+
+/// Package image bytes as a browser `data:` URL. EMF/WMF stay unresolved (metafile S3).
+pub(crate) fn image_data_url(bytes: &[u8], part_name: &str) -> Option<String> {
+    let mime = image_mime(part_name)?;
+    Some(format!("data:{mime};base64,{}", base64_encode(bytes)))
+}
+
+fn image_mime(part_name: &str) -> Option<&'static str> {
+    let ext = part_name.rsplit('.').next()?.to_ascii_lowercase();
+    match ext.as_str() {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        "bmp" => Some("image/bmp"),
+        "svg" => Some("image/svg+xml"),
+        "tif" | "tiff" => Some("image/tiff"),
+        _ => None,
+    }
+}
+
+fn base64_encode(data: &[u8]) -> String {
+    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    let (chunks, rest) = data.as_chunks::<3>();
+    for chunk in chunks {
+        let n = ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8) | chunk[2] as u32;
+        out.push(TABLE[((n >> 18) & 63) as usize] as char);
+        out.push(TABLE[((n >> 12) & 63) as usize] as char);
+        out.push(TABLE[((n >> 6) & 63) as usize] as char);
+        out.push(TABLE[(n & 63) as usize] as char);
+    }
+    if rest.len() == 1 {
+        let n = (rest[0] as u32) << 16;
+        out.push(TABLE[((n >> 18) & 63) as usize] as char);
+        out.push(TABLE[((n >> 12) & 63) as usize] as char);
+        out.push('=');
+        out.push('=');
+    } else if rest.len() == 2 {
+        let n = ((rest[0] as u32) << 16) | ((rest[1] as u32) << 8);
+        out.push(TABLE[((n >> 18) & 63) as usize] as char);
+        out.push(TABLE[((n >> 12) & 63) as usize] as char);
+        out.push(TABLE[((n >> 6) & 63) as usize] as char);
+        out.push('=');
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::render::{paint_slide_frame, SlidePaintViewport, StringIntern};
+    use nitro_xml_render::measure::MeasureBatch;
+    use nitro_xml_render::{CommandBuffer, LayoutReadBatch};
+
+    struct Rec(Vec<String>);
+
+    impl StringIntern for Rec {
+        fn intern(&mut self, s: &str) -> u32 {
+            if let Some(i) = self.0.iter().position(|existing| existing == s) {
+                return i as u32;
+            }
+            self.0.push(s.to_owned());
+            (self.0.len() - 1) as u32
+        }
+    }
+
+    fn zip_stored(parts: &[(&str, &[u8])]) -> Vec<u8> {
+        use std::io::{Cursor, Write};
+        let mut cursor = Cursor::new(Vec::new());
+        let mut zip = zip::ZipWriter::new(&mut cursor);
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        for (name, bytes) in parts {
+            zip.start_file(*name, opts).unwrap();
+            zip.write_all(bytes).unwrap();
+        }
+        zip.finish().unwrap();
+        cursor.into_inner()
+    }
+
+    // Catches: blip r:embed left as a grey frame / empty stage instead of a data URL.
+    #[test]
+    fn blip_background_and_picture_become_data_urls() {
+        let png = b"\x89PNG\r\n\x1a\n";
+        let pres = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldSz cx="9144000" cy="5143500"/>
+  <p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst>
+</p:presentation>"#;
+        let pres_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>"#;
+        let root_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>"#;
+        let slide = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld>
+    <p:bg><p:bgPr><a:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></a:blipFill></p:bgPr></p:bg>
+    <p:spTree>
+      <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+      <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+      <p:pic>
+        <p:nvPicPr><p:cNvPr id="2" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+        <p:blipFill><a:blip r:embed="rId3"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+        <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+      </p:pic>
+    </p:spTree>
+  </p:cSld>
+</p:sld>"#;
+        let slide_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/bg.png"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/pic.png"/>
+</Relationships>"#;
+        let types = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+</Types>"#;
+        let bytes = zip_stored(&[
+            ("[Content_Types].xml", types),
+            ("_rels/.rels", root_rels),
+            ("ppt/presentation.xml", pres),
+            ("ppt/_rels/presentation.xml.rels", pres_rels),
+            ("ppt/slides/slide1.xml", slide),
+            ("ppt/slides/_rels/slide1.xml.rels", slide_rels),
+            ("ppt/media/bg.png", png),
+            ("ppt/media/pic.png", b"PIC"),
+        ]);
+        let mut opened = Presentation::open(&bytes).unwrap();
+        let (bg, src) = {
+            let slide = opened.slide(0).unwrap();
+            let bg = slide.background_image.clone().unwrap();
+            assert!(bg.starts_with("data:image/png;base64,"));
+            assert_eq!(bg, image_data_url(png, "bg.png").unwrap());
+            let pic = slide
+                .elements
+                .iter()
+                .find(|el| el.type_ == "picture")
+                .unwrap();
+            let src = pic.image_src.clone().unwrap();
+            assert_eq!(src, image_data_url(b"PIC", "pic.png").unwrap());
+            (bg, src)
+        };
+        let mut intern = Rec(Vec::new());
+        let mut buffer = CommandBuffer::new();
+        let mut measure = MeasureBatch::default();
+        let mut reads = LayoutReadBatch::default();
+        paint_slide_frame(
+            &mut buffer,
+            &mut intern,
+            &mut measure,
+            &mut reads,
+            &mut opened,
+            &SlidePaintViewport {
+                slide_index: 0,
+                scale: 1.0,
+                viewport_w: 800,
+                viewport_h: 600,
+            },
+        )
+        .unwrap();
+        let joined = intern.0.join("\n");
+        assert!(joined.contains("background-image"));
+        assert!(joined.contains(&format!("url({bg})")));
+        assert!(joined.contains("src"));
+        assert!(joined.contains(&src));
+    }
 }

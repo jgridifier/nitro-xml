@@ -24,7 +24,11 @@ pub fn fill_element_of(properties: Option<&Element>) -> Option<&Element> {
 }
 
 pub fn parse_drawing_fill(properties: Option<&Element>) -> Option<DrawingFill> {
-    let fill = fill_element_of(properties)?;
+    parse_fill_element(fill_element_of(properties)?)
+}
+
+/// Parse one fill element (`a:solidFill`, `a:gradFill`, `a:blipFill`, …).
+pub fn parse_fill_element(fill: &Element) -> Option<DrawingFill> {
     match fill.local.as_str() {
         "noFill" => Some(DrawingFill::None),
         "solidFill" => {

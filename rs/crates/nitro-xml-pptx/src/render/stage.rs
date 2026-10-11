@@ -26,6 +26,7 @@ pub fn paint_slide_stage<I: StringIntern>(
         ctx.scale,
         slide.background_color.as_deref(),
         slide.background_gradient.as_deref(),
+        slide.background_image.as_deref(),
     );
     // Reading-surface a11y (upstream slide-stage.ts when reading/interactive).
     set_attr(ctx, STAGE_ROOT_ID, "role", "region");

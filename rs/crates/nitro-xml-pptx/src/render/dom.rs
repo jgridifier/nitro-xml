@@ -68,6 +68,7 @@ pub fn stage_root_styles<I: StringIntern>(
     scale: f64,
     background_color: Option<&str>,
     background_gradient: Option<&str>,
+    background_image: Option<&str>,
 ) {
     let div = intern.intern("div");
     buf.create_element(root_id, div, 0);
@@ -82,9 +83,13 @@ pub fn stage_root_styles<I: StringIntern>(
     set("transform", &format!("scale({})", format_scale(scale)));
     set("transform-origin", "top left");
     set("overflow", "hidden");
-    // slide-background.ts: solid under the stage, gradient as background-image.
+    // slide-background.ts: solid under the stage; image beats gradient as background-image.
     set("background-color", background_color.unwrap_or("#ffffff"));
-    if let Some(gradient) = background_gradient {
+    if let Some(image) = background_image {
+        set("background-image", &format!("url({image})"));
+        set("background-size", "100% 100%");
+        set("background-repeat", "no-repeat");
+    } else if let Some(gradient) = background_gradient {
         set("background-image", gradient);
     }
 }

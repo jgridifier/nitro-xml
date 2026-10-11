@@ -176,6 +176,8 @@ mod tests {
             smartart_cs_r_id: None,
             smartart_drawing_path: None,
             smartart_drawing_xml: None,
+            image_rel_id: None,
+            image_src: None,
             seq: 0,
         };
         let mut c = ViewIrCollector::default();

@@ -74,9 +74,15 @@ const ctx = this._measureCtx();
 if (ctx) {
 for (let i = 0; i < measureCount; i++) {
 let f=(strings&&strings[measureReqs.fonts[i]])||"sans-serif";
+let k="auto";
+const p=f.indexOf("\0");
+if(p>=0){k=f.slice(p+1)||"auto";f=f.slice(0,p)}
 const text=(strings&&strings[measureReqs.texts[i]])||"";
-ctx.font=/\d+(\.\d+)?px/.test(f)?f:`${measureReqs.sizes[i]}px ${f}`;
-widths[i]=ctx.measureText(text).width;
+const sz=measureReqs.sizes[i];
+ctx.font=/\d+(\.\d+)?px/.test(f)?f:`${sz}px ${f}`;
+if(ctx.fontKerning!==undefined)ctx.fontKerning=k;
+const m=ctx.measureText(text==="\u0001"||text==="\u0002"?"Mg":text);
+widths[i]=text==="\u0001"?((m.fontBoundingBoxAscent!==undefined&&m.fontBoundingBoxDescent!==undefined)?m.fontBoundingBoxAscent+m.fontBoundingBoxDescent:sz*1.22):text==="\u0002"?(m.fontBoundingBoxAscent??sz*0.95):m.width;
 }
 }
 await this._request("measure-acked", () => {

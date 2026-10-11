@@ -1,7 +1,24 @@
 // SPDX-License-Identifier: MIT
 /** Batched measureText read-back. `takeMeasureReqs` returns SoA `[fonts,sizes,texts]` or object rows. */
+/** Line-height / ascent sentinels (docx CachedMeasurer; matches createCanvasMeasurer). */
+const LH = "\u0001";
+const ASC = "\u0002";
 function font(f, sz) {
   return /\d+(\.\d+)?px/.test(f) ? f : `${sz}px ${f}`;
+}
+function splitFont(f) {
+  const p = f.indexOf("\0");
+  return p < 0 ? [f, "auto"] : [f.slice(0, p), f.slice(p + 1) || "auto"];
+}
+function sample(ctx, text, sz) {
+  const m = ctx.measureText(text === LH || text === ASC ? "Mg" : text);
+  if (text === LH) {
+    const a = m.fontBoundingBoxAscent;
+    const d = m.fontBoundingBoxDescent;
+    return a !== undefined && d !== undefined ? a + d : sz * 1.22;
+  }
+  if (text === ASC) return m.fontBoundingBoxAscent ?? sz * 0.95;
+  return m.width;
 }
 export function flushMeasureBatch(handle, ctx) {
   const n = handle.measureCount | 0;
@@ -11,10 +28,13 @@ export function flushMeasureBatch(handle, ctx) {
   if (ctx && t) {
     const soa = t.length === 3 && t[0] && t[0].length === n;
     for (let i = 0; i < n; i++) {
-      const f = handle.resolve(soa ? t[0][i] : t[i].fontId) || "sans-serif";
+      const raw = handle.resolve(soa ? t[0][i] : t[i].fontId) || "sans-serif";
+      const [f, k] = splitFont(raw);
+      const sz = soa ? t[1][i] : t[i].sizePx;
       const text = handle.resolve(soa ? t[2][i] : t[i].textId) || "";
-      ctx.font = font(f, soa ? t[1][i] : t[i].sizePx);
-      widths[i] = ctx.measureText(text).width;
+      ctx.font = font(f, sz);
+      if (ctx.fontKerning !== undefined) ctx.fontKerning = k;
+      widths[i] = sample(ctx, text, sz);
     }
   }
   handle.setMeasureResults(widths);

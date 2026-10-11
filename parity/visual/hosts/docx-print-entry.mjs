@@ -17,16 +17,6 @@ export { printCss };
  * @param {{ injectCss?: boolean }} [opts]
  */
 export async function mountDocxPrintLayout(root, bytes, opts = {}) {
-	if (opts.injectCss !== false) {
-		let style = root.querySelector('style[data-visual="docx-print-css"]');
-		if (!style) {
-			style = document.createElement('style');
-			style.dataset.visual = 'docx-print-css';
-			root.appendChild(style);
-		}
-		style.textContent = printCss;
-	}
-
 	if (document.fonts?.ready) await document.fonts.ready;
 
 	const loaded = await loadDocx(bytes);
@@ -76,6 +66,14 @@ export async function mountDocxPrintLayout(root, bytes, opts = {}) {
 		'all',
 	);
 
-	root.replaceChildren(handle.element);
+	// Inject print.css after replaceChildren — a pre-mount style node would be wiped.
+	root.replaceChildren();
+	if (opts.injectCss !== false) {
+		const style = document.createElement('style');
+		style.dataset.visual = 'docx-print-css';
+		style.textContent = printCss;
+		root.appendChild(style);
+	}
+	root.appendChild(handle.element);
 	return { element: handle.element, pageCount: handle.pageCount };
 }

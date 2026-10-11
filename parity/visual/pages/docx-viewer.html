@@ -172,6 +172,10 @@
       const res = await fetch(fixture);
       if (!res.ok) throw new Error(`fixture fetch ${res.status}`);
       const bytes = new Uint8Array(await res.arrayBuffer());
+      await waitFonts();
+      const { pageCount } = await mountDocxPrintLayout(stage, bytes);
+      if (!pageCount) throw new Error('docx-print: empty layout');
+      // After mount: mountDocxPrintLayout replaceChildren would wipe a pre-mount pin.
       injectStyle(
         stage,
         await (await fetch('/fonts/visual-fonts.css')).text() +
@@ -179,8 +183,6 @@
         'font-pin',
       );
       await waitFonts();
-      const { pageCount } = await mountDocxPrintLayout(stage, bytes);
-      if (!pageCount) throw new Error('docx-print: empty layout');
       await waitFrames(4);
     }
 

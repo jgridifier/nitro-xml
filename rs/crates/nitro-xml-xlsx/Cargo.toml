@@ -3,7 +3,7 @@ name = "nitro-xml-xlsx"
 description = "Nitro XML .xlsx model (port of ChristopherVR/ooxml)"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "MIT AND Apache-2.0"
 repository.workspace = true
 homepage.workspace = true
 publish.workspace = true
@@ -11,3 +11,6 @@ publish.workspace = true
 [dependencies]
 nitro-xml-opc.workspace = true
 nitro-xml-render.workspace = true
+
+[dev-dependencies]
+serde_json = "1"

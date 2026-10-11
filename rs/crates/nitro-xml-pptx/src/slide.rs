@@ -22,7 +22,9 @@ use crate::inheritance::{
     is_header_footer_placeholder, merge_elements, merge_placeholder_context, sp_pr_of_placeholder,
     tx_body_of_placeholder, PlaceholderInfo, PlaceholderNode,
 };
-use crate::level_style::{LevelStylesMap, MasterTxStyles};
+use crate::level_style::{
+    level_style_for, LevelStylesMap, MasterTxStyles, PlaceholderTextLevelStyle,
+};
 use crate::placeholder_defaults::PlaceholderDefaultsCache;
 use crate::table::table_row_count;
 use crate::text::{
@@ -178,21 +180,7 @@ impl<'a> ParseCtx<'a> {
         effective_tx_body: &Element,
         ph_info: Option<&PlaceholderInfo>,
     ) -> String {
-        let effective_levels = ph_info.map(|ph| {
-            let layout_levels = self
-                .layout_placeholder_levels
-                .and_then(|c| c.get(&crate::placeholder_defaults::placeholder_defaults_key(ph)));
-            let master_levels = self
-                .master_placeholder_levels
-                .and_then(|c| c.get(&crate::placeholder_defaults::placeholder_defaults_key(ph)));
-            crate::placeholder_defaults::lookup_effective_level_styles(
-                layout_levels,
-                master_levels,
-                self.master_tx_styles,
-                ph.type_.as_deref(),
-                self.presentation_level_styles,
-            )
-        });
+        let effective_levels = ph_info.map(|ph| self.effective_level_styles(ph));
         let is_body = ph_info.is_some_and(placeholder_is_body_type);
         let text_ctx = TextExtractContext {
             tx_body: own_tx_body,
@@ -202,6 +190,19 @@ impl<'a> ParseCtx<'a> {
             presentation_level_styles: self.presentation_level_styles,
         };
         extract_element_text(&text_ctx, effective_tx_body)
+    }
+
+    fn effective_level_styles(&self, ph: &PlaceholderInfo) -> LevelStylesMap {
+        let key = crate::placeholder_defaults::placeholder_defaults_key(ph);
+        let layout_levels = self.layout_placeholder_levels.and_then(|c| c.get(&key));
+        let master_levels = self.master_placeholder_levels.and_then(|c| c.get(&key));
+        crate::placeholder_defaults::lookup_effective_level_styles(
+            layout_levels,
+            master_levels,
+            self.master_tx_styles,
+            ph.type_.as_deref(),
+            self.presentation_level_styles,
+        )
     }
 }
 
@@ -725,6 +726,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         effective_sp_pr.as_ref(),
         inherited.as_ref().map(|p| &p.element),
         tx_body,
+        ph_info.as_ref(),
         ctx,
     );
     build_dump(
@@ -932,7 +934,7 @@ fn parse_connector(cxn: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElem
         None,
         None,
         false,
-        shape_paint_extras(cxn, Some(sp_pr), None, tx_body, ctx),
+        shape_paint_extras(cxn, Some(sp_pr), None, tx_body, None, ctx),
     )
 }
 
@@ -2052,6 +2054,7 @@ fn shape_paint_extras(
     effective_sp_pr: Option<&Element>,
     inherited_shape: Option<&Element>,
     tx_body: Option<&Element>,
+    ph_info: Option<&PlaceholderInfo>,
     ctx: &ParseCtx,
 ) -> PaintExtras {
     let fallback = crate::theme::default_scheme_color_map();
@@ -2110,7 +2113,11 @@ fn shape_paint_extras(
         );
     }
     if let Some(tx) = tx_body {
-        let (color, size) = first_run_text_paint(tx, theme);
+        let fallback = ph_info.and_then(|ph| {
+            let styles = ctx.effective_level_styles(ph);
+            level_style_for(&styles, 0).cloned()
+        });
+        let (color, size) = first_run_text_paint(tx, theme, fallback.as_ref());
         extras.text_color = color;
         extras.font_size_px = size;
     }
@@ -2311,7 +2318,11 @@ fn gradient_flat_color(
         .and_then(|stop| css_color_in(&stop.color, theme, blend_white))
 }
 
-fn first_run_text_paint(tx: &Element, theme: SchemeTheme<'_>) -> (Option<String>, Option<f64>) {
+fn first_run_text_paint(
+    tx: &Element,
+    theme: SchemeTheme<'_>,
+    level_fallback: Option<&PlaceholderTextLevelStyle>,
+) -> (Option<String>, Option<f64>) {
     let mut color = None;
     let mut size = None;
     for para in children_local(tx, "p", ns::A) {
@@ -2343,7 +2354,28 @@ fn first_run_text_paint(tx: &Element, theme: SchemeTheme<'_>) -> (Option<String>
         }
         break;
     }
+    if let Some(style) = level_fallback {
+        if color.is_none() {
+            color = level_style_text_color(style, theme);
+        }
+        if size.is_none() {
+            size = style.font_size_px;
+        }
+    }
     (color, size)
+}
+
+fn level_style_text_color(
+    style: &PlaceholderTextLevelStyle,
+    theme: SchemeTheme<'_>,
+) -> Option<String> {
+    if let Some(hex) = &style.text_color_hex {
+        return Some(hex.clone());
+    }
+    style
+        .text_color
+        .as_ref()
+        .and_then(|color| css_color(color, theme, false))
 }
 
 fn apply_rpr(
@@ -2564,6 +2596,60 @@ mod tests {
         assert_eq!(el.fill_color.as_deref(), Some("#4472C4"));
         assert_eq!(el.text_color.as_deref(), Some("#112233"));
         assert!((el.font_size_px.unwrap() - 14.0 * 96.0 / 72.0).abs() < 0.01);
+    }
+
+    // Catches: master titleStyle defRPr white ignored so title paints black on brown gradient.
+    #[test]
+    fn master_title_style_def_rpr_paints_white() {
+        let master = parse_xml_str(
+            r#"<p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:txStyles>
+                <p:titleStyle>
+                  <a:lvl1pPr>
+                    <a:buNone/>
+                    <a:defRPr sz="4400"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:defRPr>
+                  </a:lvl1pPr>
+                </p:titleStyle>
+              </p:txStyles>
+            </p:sldMaster>"#,
+        )
+        .unwrap();
+        let styles = crate::level_style::parse_master_tx_styles(&master.root);
+        let layout_lst = parse_xml_str(
+            r#"<a:lstStyle xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:lvl1pPr algn="ctr"><a:defRPr sz="6000"/></a:lvl1pPr>
+            </a:lstStyle>"#,
+        )
+        .unwrap();
+        let mut layout_levels = PlaceholderDefaultsCache::new();
+        layout_levels.insert(
+            "title".to_owned(),
+            crate::level_style::parse_lst_style_levels(&layout_lst.root),
+        );
+        let shape = parse_xml_str(
+            r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="ctrTitle"/></p:nvPr></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:lstStyle/>
+                <a:p><a:r><a:rPr lang="en-US"/><a:t>Title</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>"#,
+        )
+        .unwrap();
+        let colors = theme();
+        let ctx = ParseCtx {
+            master_tx_styles: Some(&styles),
+            layout_placeholder_levels: Some(&layout_levels),
+            ..ctx(&colors)
+        };
+        let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
+        assert_eq!(el.text_color.as_deref(), Some("#FFFFFF"));
+        assert!((el.font_size_px.unwrap() - 60.0 * 96.0 / 72.0).abs() < 0.01);
     }
 
     // Catches: c:chart graphic frames dumped as otherKinds instead of chart elements.

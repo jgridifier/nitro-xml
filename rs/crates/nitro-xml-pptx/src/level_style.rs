@@ -4,6 +4,7 @@
 
 use std::collections::BTreeMap;
 
+use nitro_xml_opc::drawingml::{parse_drawing_color_in, resolve_drawing_color, DrawingColor};
 use nitro_xml_opc::xml::{ns, Element};
 
 use crate::inheritance::{attr, child_local, children_local};
@@ -16,6 +17,12 @@ pub struct PlaceholderTextLevelStyle {
     pub bullet_auto_num_type: Option<String>,
     pub bullet_auto_num_start_at: u32,
     pub bullet_none: bool,
+    /// Resolved `#RRGGBB` when `a:defRPr/a:solidFill` does not need a theme.
+    pub text_color_hex: Option<String>,
+    /// Scheme (or other) colour kept for resolve against the slide colour map.
+    pub text_color: Option<DrawingColor>,
+    /// `a:defRPr/@sz` in CSS px (hundredths of a point, same scale as `sz_to_px`).
+    pub font_size_px: Option<f64>,
 }
 
 pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle {
@@ -39,12 +46,51 @@ pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle 
 }
 
 pub fn parse_level_style_from_ppr(p_pr: &Element) -> Option<PlaceholderTextLevelStyle> {
-    let style = parse_level_bullet_from_ppr(p_pr);
-    if style.bullet_none || style.bullet_char.is_some() || style.bullet_auto_num_type.is_some() {
+    let mut style = parse_level_bullet_from_ppr(p_pr);
+    apply_def_rpr(&mut style, p_pr);
+    if level_style_has_payload(&style) {
         Some(style)
     } else {
         None
     }
+}
+
+fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
+    style.bullet_none
+        || style.bullet_char.is_some()
+        || style.bullet_auto_num_type.is_some()
+        || style.text_color_hex.is_some()
+        || style.text_color.is_some()
+        || style.font_size_px.is_some()
+}
+
+/// `a:defRPr` solid fill and `sz` on `a:lvlNpPr` / `a:defPPr`.
+fn apply_def_rpr(style: &mut PlaceholderTextLevelStyle, p_pr: &Element) {
+    let Some(def) = child_local(p_pr, "defRPr", ns::A) else {
+        return;
+    };
+    style.font_size_px = sz_attr_to_px(def);
+    let Some(fill) = child_local(def, "solidFill", ns::A) else {
+        return;
+    };
+    let Some(color) = parse_drawing_color_in(Some(fill)) else {
+        return;
+    };
+    if let Some(resolved) = resolve_drawing_color(&color, None, None) {
+        if resolved.alpha >= 0.999 {
+            style.text_color_hex = Some(resolved.hex);
+            return;
+        }
+    }
+    style.text_color = Some(color);
+}
+
+fn sz_attr_to_px(rpr: &Element) -> Option<f64> {
+    let sz = attr(rpr, "sz")?.parse::<f64>().ok()?;
+    if sz <= 0.0 {
+        return None;
+    }
+    Some(sz / 100.0 * 96.0 / 72.0)
 }
 
 pub fn parse_lst_style_levels(lst_style: &Element) -> LevelStylesMap {
@@ -86,9 +132,56 @@ pub fn parse_tx_style_category(style_root: &Element) -> LevelStylesMap {
 pub fn merge_level_styles(base: &LevelStylesMap, override_: &LevelStylesMap) -> LevelStylesMap {
     let mut merged = base.clone();
     for (k, v) in override_ {
-        merged.insert(*k, v.clone());
+        let next = merged
+            .get(k)
+            .map(|prev| merge_level_style(prev, v))
+            .unwrap_or_else(|| v.clone());
+        merged.insert(*k, next);
     }
     merged
+}
+
+/// Field merge so a layout level that only sets `sz` keeps the master's colour.
+fn merge_level_style(
+    base: &PlaceholderTextLevelStyle,
+    over: &PlaceholderTextLevelStyle,
+) -> PlaceholderTextLevelStyle {
+    let over_has_bullet =
+        over.bullet_none || over.bullet_char.is_some() || over.bullet_auto_num_type.is_some();
+    let over_has_color = over.text_color_hex.is_some() || over.text_color.is_some();
+    PlaceholderTextLevelStyle {
+        bullet_char: if over_has_bullet {
+            over.bullet_char.clone()
+        } else {
+            base.bullet_char.clone()
+        },
+        bullet_auto_num_type: if over_has_bullet {
+            over.bullet_auto_num_type.clone()
+        } else {
+            base.bullet_auto_num_type.clone()
+        },
+        bullet_auto_num_start_at: if over_has_bullet {
+            over.bullet_auto_num_start_at
+        } else {
+            base.bullet_auto_num_start_at
+        },
+        bullet_none: if over_has_bullet {
+            over.bullet_none
+        } else {
+            base.bullet_none
+        },
+        text_color_hex: if over_has_color {
+            over.text_color_hex.clone()
+        } else {
+            base.text_color_hex.clone()
+        },
+        text_color: if over_has_color {
+            over.text_color.clone()
+        } else {
+            base.text_color.clone()
+        },
+        font_size_px: over.font_size_px.or(base.font_size_px),
+    }
 }
 
 pub fn level_style_for(map: &LevelStylesMap, level: i8) -> Option<&PlaceholderTextLevelStyle> {

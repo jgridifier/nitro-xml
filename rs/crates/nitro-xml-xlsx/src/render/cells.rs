@@ -55,6 +55,7 @@ fn paint_one_cell<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
     div: u32,
+    span: u32,
     n: usize,
     item: &CellItem,
     zoom: f64,
@@ -178,7 +179,8 @@ fn paint_one_cell<I: StringIntern>(
         set_style(buf, intern, text_id, "paddingLeft", &format!("{pl}px"));
         set_style(buf, intern, text_id, "paddingRight", &format!("{pr}px"));
         let span_id = TEXT_BASE + 50_000 + n as u32;
-        buf.create_element(span_id, div, text_id);
+        // Upstream uses <span class="xg-tx"> (inline-block via CSS).
+        buf.create_element(span_id, span, text_id);
         set_attr(buf, intern, span_id, "class", "xg-tx");
         if item.view.rotation != 0.0 {
             set_style(
@@ -199,7 +201,7 @@ fn paint_one_cell<I: StringIntern>(
             let runs = item.view.rich.as_ref().unwrap();
             for (ri, run) in runs.iter().enumerate() {
                 let run_id = TEXT_BASE + 70_000 + (n as u32) * 64 + ri as u32;
-                buf.create_element(run_id, div, span_id);
+                buf.create_element(run_id, span, span_id);
                 set_style(
                     buf,
                     intern,
@@ -359,6 +361,7 @@ pub fn paint<I: StringIntern>(
         build_items(&input, &mut canvas_measure)
     };
     let div = intern.intern("div");
+    let span = intern.intern("span");
     // Upstream CellViewCache returns null for isBlankView — no DOM node.
     // View-IR keeps blanks (oracle view() never null); only the painter skips.
     let mut n = 0usize;
@@ -366,7 +369,7 @@ pub fn paint<I: StringIntern>(
         if !item.merged && is_blank_view(&item.view) {
             continue;
         }
-        paint_one_cell(buf, intern, div, n, item, metrics.zoom);
+        paint_one_cell(buf, intern, div, span, n, item, metrics.zoom);
         n += 1;
     }
 }

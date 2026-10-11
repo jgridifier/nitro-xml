@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/pptx/core/core/runtime/PptxHandlerRuntimeLoadSession.ts,
-// PptxHandlerRuntimeLoadPipeline.ts and PptxHandlerRuntimeSlideMasters.ts; changes in PROVENANCE.md.
+// PptxHandlerRuntimeLoadPipeline.ts and PptxHandlerRuntimeSlideMasters.ts; chart/SmartArt part
+// resolution for #27; changes in PROVENANCE.md.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use nitro_xml_opc::opc::{rel_types, resolve_part_path, OpcError, Package, Relationship};
 use nitro_xml_opc::xml::{ns, parse_xml_str, Document, Element};
@@ -15,11 +16,11 @@ use crate::level_style::{
 };
 use crate::placeholder_defaults::PlaceholderDefaultsCache;
 use crate::slide::{
-    emu_to_px_helper, extract_text_body, parse_sp_tree, slim_element_for_dump,
-    text_body_has_content, unwrap_alternate_content_deep, DumpElement, ParseCtx, SpTreeOptions,
-    EMU_PER_PX,
+    concat_parsed, emu_to_px_helper, extract_text_body, first_paintable_background,
+    issue24_dump_parts, parse_sp_tree, shift_parse_seq, text_body_has_content,
+    unwrap_alternate_content_deep, DumpElement, ParseCtx, ParsedSpTree, SpTreeOptions, EMU_PER_PX,
 };
-use crate::theme::{is_presentation_theme_path, parse_theme_part, Theme};
+use crate::theme::{default_scheme_color_map, is_presentation_theme_path, parse_theme_part, Theme};
 
 pub type Error = OpcError;
 
@@ -74,7 +75,12 @@ pub struct Slide {
     pub show_master_shapes: Option<bool>,
     pub has_notes: bool,
     pub elements: Vec<DumpElement>,
+    /// Kinds not parsed as elements (paint bands). Chart and SmartArt are elements.
     pub other_kinds: Vec<String>,
+    /// Document-order `(seq, kind)` for the issue-24 `otherKinds` dump.
+    pub other_kind_seq: Vec<(u32, String)>,
+    pub background_color: Option<String>,
+    pub background_gradient: Option<String>,
 }
 
 pub struct SlideMasterLayout {
@@ -222,14 +228,11 @@ impl<'a> Presentation<'a> {
             if let Some(sms) = slide.show_master_shapes {
                 o.insert("showMasterShapes".to_owned(), json!(sms));
             }
-            if !slide.other_kinds.is_empty() {
-                o.insert("otherKinds".to_owned(), json!(slide.other_kinds));
+            let (elements, other_kinds) =
+                issue24_dump_parts(&slide.elements, &slide.other_kind_seq);
+            if !other_kinds.is_empty() {
+                o.insert("otherKinds".to_owned(), json!(other_kinds));
             }
-            let elements = slide
-                .elements
-                .iter()
-                .map(slim_element_for_dump)
-                .collect::<Vec<_>>();
             o.insert("elements".to_owned(), json!(elements));
             slides_json.push(slide_obj);
         }
@@ -524,6 +527,7 @@ impl<'a> Presentation<'a> {
         let master_tx = master_path
             .as_ref()
             .and_then(|mp| self.master_tx_styles.get(mp));
+        let theme_colors = self.theme_colors_owned();
         let ctx = ParseCtx {
             slide_path: &path,
             layout_sp_tree,
@@ -532,35 +536,134 @@ impl<'a> Presentation<'a> {
             layout_placeholder_levels: layout_ph,
             master_placeholder_levels: master_ph,
             master_tx_styles: master_tx,
+            theme_colors: Some(&theme_colors),
         };
         let id_prefix = format!("{}-", path);
         let slide_options = SpTreeOptions::default();
-        let (slide_elements, slide_other) =
+        let mut slide_parsed =
             parse_sp_tree(&slide_sp_tree, Some(&raw), &id_prefix, &ctx, &slide_options);
-        let (elements, other_kinds) = if show_master_shapes == Some(false) {
-            (slide_elements, slide_other)
+        self.attach_graphic_payloads(&path, &mut slide_parsed.elements);
+        shift_parse_seq(&mut slide_parsed, 2_000_000);
+        let parsed = if show_master_shapes == Some(false) {
+            slide_parsed
         } else if let Some(ref lp) = layout_path {
-            let (layout_elements, layout_other) = self.decorative_elements_for_layout(lp)?;
-            let mut elements = layout_elements;
-            elements.extend(slide_elements);
-            let mut other_kinds = layout_other;
-            other_kinds.extend(slide_other);
-            (elements, other_kinds)
+            let mut layout_parsed = self.decorative_elements_for_layout(lp)?;
+            concat_parsed(&mut layout_parsed, slide_parsed);
+            layout_parsed
         } else {
-            (slide_elements, slide_other)
+            slide_parsed
         };
         let has_notes = self.slide_has_notes(&path)?;
+        let (background_color, background_gradient) =
+            self.slide_background(sld, layout_path.as_deref(), master_path.as_deref());
         let slide = Slide {
             path,
             layout_path,
             master_path,
             show_master_shapes,
             has_notes,
-            elements,
-            other_kinds,
+            elements: parsed.elements,
+            other_kinds: parsed.other_kinds,
+            other_kind_seq: parsed.other_kind_seq,
+            background_color,
+            background_gradient,
         };
         self.slides[index] = Some(slide);
         Ok(())
+    }
+
+    fn theme_colors_owned(&self) -> BTreeMap<String, String> {
+        self.theme
+            .as_ref()
+            .and_then(|t| t.color_scheme.clone())
+            .unwrap_or_else(default_scheme_color_map)
+    }
+
+    fn slide_background(
+        &self,
+        sld: &Element,
+        layout_path: Option<&str>,
+        master_path: Option<&str>,
+    ) -> (Option<String>, Option<String>) {
+        let slide_csld = child_local(sld, "cSld", ns::P).cloned();
+        let layout_csld = layout_path.and_then(|p| self.part_c_sld(p, "sldLayout"));
+        let master_csld = master_path.and_then(|p| self.part_c_sld(p, "sldMaster"));
+        let theme = self.theme_colors_owned();
+        first_paintable_background(
+            &[
+                slide_csld.as_ref(),
+                layout_csld.as_ref(),
+                master_csld.as_ref(),
+            ],
+            &theme,
+        )
+    }
+
+    fn part_c_sld(&self, path: &str, local: &str) -> Option<Element> {
+        let doc = self
+            .layout_xml
+            .get(path)
+            .or_else(|| self.master_xml.get(path))?;
+        let part = part_root(&doc.root, local)?;
+        child_local(part, "cSld", ns::P).cloned()
+    }
+
+    /// Chart part XML for `r_id` on a slide, layout, or master part.
+    pub fn chart_part_xml(&mut self, owner_part: &str, r_id: &str) -> Option<String> {
+        self.part_xml_by_rel(owner_part, r_id)
+    }
+
+    fn part_xml_by_rel(&mut self, owner: &str, r_id: &str) -> Option<String> {
+        let path = self.resolve_rel_target(owner, r_id).ok().flatten()?;
+        self.package.text(&path).ok().flatten().map(str::to_owned)
+    }
+
+    fn smartart_drawing(&mut self, owner: &str, dm_r_id: &str) -> (Option<String>, Option<String>) {
+        let Some(data_path) = self.resolve_rel_target(owner, dm_r_id).ok().flatten() else {
+            return (None, None);
+        };
+        let drawing_rel = {
+            let Ok(rels) = self.package.rels(&data_path) else {
+                return (None, None);
+            };
+            rels.values()
+                .find(|r| {
+                    r.type_ == rel_types::DIAGRAM_DRAWING || r.type_.contains("diagramDrawing")
+                })
+                .cloned()
+        };
+        let Some(rel) = drawing_rel else {
+            return (None, None);
+        };
+        let Some(path) = self.package.target(&data_path, &rel) else {
+            return (None, None);
+        };
+        let xml = self.package.text(&path).ok().flatten().map(str::to_owned);
+        (Some(path), xml)
+    }
+
+    fn attach_graphic_payloads(&mut self, owner: &str, elements: &mut [DumpElement]) {
+        for el in elements.iter_mut() {
+            if el.chart_xml.is_none() {
+                if let Some(rid) = el.chart_r_id.clone() {
+                    el.chart_xml = self.chart_part_xml(owner, &rid);
+                }
+            }
+            if el.smartart_drawing_xml.is_none() {
+                if let Some(dm) = el.smartart_dm_r_id.clone() {
+                    let (path, xml) = self.smartart_drawing(owner, &dm);
+                    if el.smartart_drawing_path.is_none() {
+                        el.smartart_drawing_path = path;
+                    }
+                    el.smartart_drawing_xml = xml;
+                }
+            }
+            if let Some(children) = el.children.clone() {
+                let mut children = children;
+                self.attach_graphic_payloads(owner, &mut children);
+                el.children = Some(children);
+            }
+        }
     }
 
     fn part_token(path: &str) -> String {
@@ -586,51 +689,47 @@ impl<'a> Presentation<'a> {
         Some(cloned)
     }
 
-    fn decorative_elements_for_master(
-        &mut self,
-        master_path: &str,
-    ) -> Result<(Vec<DumpElement>, Vec<String>), Error> {
-        let doc = self
-            .master_xml
-            .get(master_path)
-            .ok_or_else(|| missing_part(master_path))?;
+    fn decorative_elements_for_master(&mut self, master_path: &str) -> Result<ParsedSpTree, Error> {
         let master_raw = self
             .package
             .text(master_path)?
             .ok_or_else(|| missing_part(master_path))?
             .to_owned();
-        let sp_tree = Self::sp_tree_from_part_root("sldMaster", doc)
-            .ok_or_else(|| missing_part("p:spTree"))?;
-        let master_ph = self.master_placeholder_levels.get(master_path);
-        let master_tx = self.master_tx_styles.get(master_path);
-        let ctx = ParseCtx {
-            slide_path: master_path,
-            layout_sp_tree: None,
-            master_sp_tree: Some(&sp_tree),
-            presentation_level_styles: Some(&self.presentation_level_styles),
-            layout_placeholder_levels: None,
-            master_placeholder_levels: master_ph,
-            master_tx_styles: master_tx,
+        let sp_tree = {
+            let doc = self
+                .master_xml
+                .get(master_path)
+                .ok_or_else(|| missing_part(master_path))?;
+            Self::sp_tree_from_part_root("sldMaster", doc)
+                .ok_or_else(|| missing_part("p:spTree"))?
         };
-        let token = Self::part_token(master_path);
-        let options = SpTreeOptions {
-            skip_placeholders: true,
-            template_scope: Some("master".to_owned()),
-            template_token: Some(token),
+        let theme_colors = self.theme_colors_owned();
+        let mut parsed = {
+            let master_ph = self.master_placeholder_levels.get(master_path);
+            let master_tx = self.master_tx_styles.get(master_path);
+            let ctx = ParseCtx {
+                slide_path: master_path,
+                layout_sp_tree: None,
+                master_sp_tree: Some(&sp_tree),
+                presentation_level_styles: Some(&self.presentation_level_styles),
+                layout_placeholder_levels: None,
+                master_placeholder_levels: master_ph,
+                master_tx_styles: master_tx,
+                theme_colors: Some(&theme_colors),
+            };
+            let token = Self::part_token(master_path);
+            let options = SpTreeOptions {
+                skip_placeholders: true,
+                template_scope: Some("master".to_owned()),
+                template_token: Some(token),
+            };
+            parse_sp_tree(&sp_tree, Some(&master_raw), "", &ctx, &options)
         };
-        Ok(parse_sp_tree(
-            &sp_tree,
-            Some(&master_raw),
-            "",
-            &ctx,
-            &options,
-        ))
+        self.attach_graphic_payloads(master_path, &mut parsed.elements);
+        Ok(parsed)
     }
 
-    fn decorative_elements_for_layout(
-        &mut self,
-        layout_path: &str,
-    ) -> Result<(Vec<DumpElement>, Vec<String>), Error> {
+    fn decorative_elements_for_layout(&mut self, layout_path: &str) -> Result<ParsedSpTree, Error> {
         let doc = self
             .layout_xml
             .get(layout_path)
@@ -650,13 +749,15 @@ impl<'a> Presentation<'a> {
                 .get(mp)
                 .and_then(|d| Self::sp_tree_from_part_root("sldMaster", d))
         });
-        let mut elements = Vec::new();
-        let mut other_kinds = Vec::new();
+        let mut parsed = ParsedSpTree {
+            elements: Vec::new(),
+            other_kinds: Vec::new(),
+            other_kind_seq: Vec::new(),
+        };
         if show_master {
             if let Some(ref mp) = master_path {
-                let (m_el, m_ok) = self.decorative_elements_for_master(mp)?;
-                elements.extend(m_el);
-                other_kinds.extend(m_ok);
+                let master_parsed = self.decorative_elements_for_master(mp)?;
+                concat_parsed(&mut parsed, master_parsed);
             }
         }
         let sp_tree = Self::sp_tree_from_part_root("sldLayout", &doc)
@@ -668,25 +769,30 @@ impl<'a> Presentation<'a> {
         let master_tx = master_path
             .as_ref()
             .and_then(|mp| self.master_tx_styles.get(mp));
-        let ctx = ParseCtx {
-            slide_path: layout_path,
-            layout_sp_tree: Some(&sp_tree),
-            master_sp_tree: master_sp_tree.as_ref(),
-            presentation_level_styles: Some(&self.presentation_level_styles),
-            layout_placeholder_levels: layout_ph,
-            master_placeholder_levels: master_ph,
-            master_tx_styles: master_tx,
+        let theme_colors = self.theme_colors_owned();
+        let mut layout_parsed = {
+            let ctx = ParseCtx {
+                slide_path: layout_path,
+                layout_sp_tree: Some(&sp_tree),
+                master_sp_tree: master_sp_tree.as_ref(),
+                presentation_level_styles: Some(&self.presentation_level_styles),
+                layout_placeholder_levels: layout_ph,
+                master_placeholder_levels: master_ph,
+                master_tx_styles: master_tx,
+                theme_colors: Some(&theme_colors),
+            };
+            let token = Self::part_token(layout_path);
+            let options = SpTreeOptions {
+                skip_placeholders: true,
+                template_scope: Some("layout".to_owned()),
+                template_token: Some(token),
+            };
+            parse_sp_tree(&sp_tree, Some(&layout_raw), "", &ctx, &options)
         };
-        let token = Self::part_token(layout_path);
-        let options = SpTreeOptions {
-            skip_placeholders: true,
-            template_scope: Some("layout".to_owned()),
-            template_token: Some(token),
-        };
-        let (lay_el, lay_ok) = parse_sp_tree(&sp_tree, Some(&layout_raw), "", &ctx, &options);
-        elements.extend(lay_el);
-        other_kinds.extend(lay_ok);
-        Ok((elements, other_kinds))
+        shift_parse_seq(&mut layout_parsed, 1_000_000);
+        self.attach_graphic_payloads(layout_path, &mut layout_parsed.elements);
+        concat_parsed(&mut parsed, layout_parsed);
+        Ok(parsed)
     }
 
     fn slide_has_notes(&mut self, slide_path: &str) -> Result<bool, Error> {

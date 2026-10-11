@@ -5,7 +5,7 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | File | Upstream source @ e66aaec | Changes |
 |------|---------------------------|---------|
 | `src/presentation.rs` | `PptxHandlerRuntimeLoadSession.ts`, `LoadPipeline.ts`, `SlideMasters.ts` | Presentation open over `Package`, lazy slides, master/layout/theme chain, issue-24 dump. |
-| `src/slide.rs` | `SpTreeParsing.ts`, `ShapeParsing.ts`, `PictureParsing.ts`, `GroupParsing.ts` | Ported element kinds; DrawingML transform/geometry; document-order walk (no raw-XML UTF-8 scan). |
+| `src/slide.rs` | `SpTreeParsing.ts`, `ShapeParsing.ts`, `PictureParsing.ts`, `GroupParsing.ts`, `PptxHandlerRuntimeBackgroundParsing.ts` | Ported element kinds; background chain; shape fill/stroke; chart/SmartArt frames. |
 | `src/inheritance.rs` | `merge-xml-objects.ts`, `PlaceholderLookup.ts`, `placeholder-style-family.ts` | Placeholder match + layout-over-master merge. |
 | `src/theme.rs` | `ThemeLoading.ts` | Colour/font scheme via `nitro_xml_opc::drawingml` (#25). |
 | `src/text.rs` | `PptxHandlerRuntimeShapeParagraphContentParsing.ts`, `BulletParsing.ts`, `ruby-element-parsing.ts` | Flat `element.text` parity: bullets, fields, math, breaks, ruby. |
@@ -13,9 +13,10 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | `src/level_style.rs` | `PlaceholderStyles.ts`, `MasterElements.ts`, `PlaceholderDefaults.ts` | `lstStyle` / master `txStyles` bullet level styles. |
 | `src/placeholder_defaults.rs` | `PlaceholderLookup.ts`, `PlaceholderDefaults.ts` | Effective placeholder level-style cascade for bullets. |
 | `src/table.rs` | `PptxGraphicFrameParser.ts` | Table row count on graphic-frame dump elements. |
-| `src/render/stage.rs` | `dom/slide-stage.ts` | P1 stage + z-order dispatch into command buffer (#27). |
-| `src/render/shape.rs` | `dom/elements/text-shape.ts` | P2 shape/text box DOM scaffold (#27). |
-| `src/render/text.rs` | `dom/elements/text-block.ts` | P3 text body paragraphs (#27, simplified). |
+| `src/render/stage.rs` | `dom/slide-stage.ts`, `render/slide-background.ts` | P1 stage; solid/linear background (#27). |
+| `src/render/shape.rs` | `dom/elements/text-shape.ts` | P2 fill and stroke (#27). |
+| `src/render/text.rs` | `dom/elements/text-block.ts` | P3 text body; run colour and size (#27). |
+| `src/render/smartart.rs` | `dom/elements/smartart-svg.ts` | P11 S2 cached-drawing paint at the element box (#27). |
 | `src/render/picture.rs` | `dom/elements/image.ts` | P5 picture frame (#27, placeholder img). |
 | `src/render/group.rs` | `dom/elements/group.ts` | P6 group transform + child recursion (#27). |
 | `src/render/connector.rs` | `dom/elements/connector.ts` | P7 connector SVG stub (#27). |

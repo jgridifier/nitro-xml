@@ -5,7 +5,7 @@ use std::collections::HashSet;
 
 use serde_json::Value;
 
-use super::input::{LayoutBlock, LayoutParagraph};
+use super::input::LayoutBlock;
 
 pub fn fold_drop_caps(source: &[Value], blocks: &mut [LayoutBlock]) -> HashSet<usize> {
     let mut folded = HashSet::new();

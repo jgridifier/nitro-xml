@@ -8,7 +8,7 @@ use serde_json::Value;
 use crate::body::DocumentModel;
 use crate::chart_paint::docx_chart_paint;
 use crate::fields::{date_field_result, field_name, is_field_locked};
-use crate::numbering::{compute_list_labels, display_list_label, resolve_paragraph_numbering};
+use crate::numbering::{compute_list_labels, display_list_label};
 use crate::run_formatting::{resolve_run_formatting, RunFormattingContext};
 use crate::styles::resolve_paragraph_formatting;
 use crate::theme_color::resolve_theme_color_reference;
@@ -37,6 +37,53 @@ const TEXT_BOX_NOTE: &str =
 const EQUATION_NOTE: &str =
     "Equations display on the editing surface; Print Layout shows markers rather than typeset equations.";
 const NEXT_COLUMN_NOTE: &str = "A \"next column\" section break is laid out as a continuous section break.";
+
+fn layout_tab_stops(
+    paragraph: &Value,
+    resolved: &Value,
+    label: Option<&Value>,
+) -> Option<Vec<LayoutTabStop>> {
+    let stops_src = resolved
+        .get("tabStops")
+        .and_then(|v| v.as_array())
+        .or_else(|| paragraph.get("tabStops").and_then(|v| v.as_array()));
+    let mut stops: Vec<LayoutTabStop> = Vec::new();
+    if let Some(arr) = stops_src {
+        for stop in arr {
+            let pos_twips = stop
+                .get("posTwips")
+                .and_then(|v| v.as_i64())
+                .or_else(|| stop.get("posTwips").and_then(|v| v.as_f64()).map(|f| f as i64));
+            let align = stop.get("align").and_then(|v| v.as_str());
+            if pos_twips.is_none() || align.is_none() {
+                continue;
+            }
+            stops.push(LayoutTabStop {
+                pos_px: twips_to_px(pos_twips.unwrap()),
+                align: align.unwrap().into(),
+                leader: stop
+                    .get("leader")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+            });
+        }
+    }
+    if let Some(label) = label {
+        if let Some(twips) = label.get("tabStopTwips").and_then(|v| v.as_i64()) {
+            stops.push(LayoutTabStop {
+                pos_px: twips_to_px(twips),
+                align: "left".into(),
+                leader: None,
+            });
+        }
+    }
+    if stops.is_empty() {
+        None
+    } else {
+        stops.sort_by(|a, b| a.pos_px.partial_cmp(&b.pos_px).unwrap_or(std::cmp::Ordering::Equal));
+        Some(stops)
+    }
+}
 
 pub fn adapt_document_model(
     model: &DocumentModel,
@@ -284,7 +331,7 @@ fn adapt_paragraph_only(
                 .map(|run| adapt_run(run, paragraph_style, mark_label, model, theme, review_mode, note_label, report, now))
                 .collect::<Vec<LayoutRun>>()
         })
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default();
     let layout_runs = if let Some(label) = label {
         let mut v = vec![label_run(paragraph, label, &runs)];
         v.extend(runs);
@@ -297,6 +344,7 @@ fn adapt_paragraph_only(
     };
     let footnotes = paragraph_footnotes(paragraph, model, note_label, &mut adapt_footnote);
     let box_result = paragraph_box(&resolved, theme);
+    let tab_stops = layout_tab_stops(paragraph, &resolved, label);
     LayoutParagraph {
         after_table_section_break: None,
         kind: "paragraph".into(),
@@ -321,14 +369,14 @@ fn adapt_paragraph_only(
         keep_lines: resolved.get("keepLines").and_then(|v| v.as_bool()),
         widow_control: resolved.get("widowControl").and_then(|v| v.as_bool()),
         floats: floats_of(paragraph),
-        tab_stops: None,
+        tab_stops,
         footnotes: if footnotes.is_empty() { None } else { Some(footnotes) },
         borders: box_result.borders,
         shading: box_result.shading,
     }
 }
 
-fn label_run(paragraph: &Value, label: &Value, runs: &[LayoutRun]) -> LayoutRun {
+fn label_run(_paragraph: &Value, label: &Value, runs: &[LayoutRun]) -> LayoutRun {
     let first = runs.first().cloned().unwrap_or(LayoutRun {
         text: String::new(),
         hidden: None,

@@ -5,7 +5,6 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use super::input::{LayoutParagraph, LayoutRun};
 use super::measure::{LayoutFontSpec, TextMeasurer};
-use super::result::LayoutFragment;
 use super::text_breaks::{append_break_marker, tokenize_run, BreakToken};
 use super::units::{DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE_PT, NO_TWIPS, pt_to_px, twips_to_px};
 
@@ -76,8 +75,8 @@ pub fn resolve_indents(paragraph: &LayoutParagraph) -> ResolvedIndents {
         .unwrap_or(NO_TWIPS);
     let left_twips = if rtl { end_twips } else { start_twips };
     let right_twips = if rtl { start_twips } else { end_twips };
-    let first_line_extra_px = if paragraph.hanging_twips.is_some() {
-        -twips_to_px(paragraph.hanging_twips.unwrap())
+    let first_line_extra_px = if let Some(hanging) = paragraph.hanging_twips {
+        -twips_to_px(hanging)
     } else {
         twips_to_px(paragraph.first_line_twips.unwrap_or(NO_TWIPS))
     };

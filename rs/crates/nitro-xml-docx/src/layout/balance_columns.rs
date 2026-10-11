@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/docx/layout/balance-columns.ts; changes listed in PROVENANCE.md.
 
-use super::input::{LayoutBlock, LayoutParagraph};
+use super::input::LayoutBlock;
 use super::result::LayoutPageBox;
 use super::section_flow::SectionFlow;
 use super::util::clone_pages;

@@ -7,7 +7,6 @@ use super::input::{LayoutParagraph, LayoutTableRow};
 use super::measure::TextMeasurer;
 use super::paragraph_layout::layout_paragraph;
 use super::result::{LayoutCellGeometry, LayoutParagraphBox};
-use super::util::expect_defined;
 
 pub struct RowLayout {
     pub height_px: f64,

@@ -427,9 +427,10 @@ pub fn resolve_style_numbering(style_id: Option<&str>, catalog: &Value) -> Optio
     None
 }
 
-pub fn default_style_catalogs() -> (Value, Value) {
+pub fn default_style_catalogs() -> (Value, Value, Value) {
     let xml = crate::default_styles::default_styles_xml();
     let paragraph = parse_paragraph_style_catalog(&xml);
     let character = parse_run_style_catalog(&xml);
-    (paragraph, character)
+    let table = crate::table_styles::parse_table_style_catalog(&xml);
+    (paragraph, character, table)
 }

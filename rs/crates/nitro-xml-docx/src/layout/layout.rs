@@ -7,7 +7,7 @@ use crate::body::DocumentModel;
 use crate::layout::adapter::adapt_document_model;
 use crate::layout::floats::{position_floats, FLOAT_WRAP_NOTE};
 use crate::layout::input::LayoutDocumentInput;
-use crate::layout::measure::{create_fake_measurer, FakeMeasurer, TextMeasurer};
+use crate::layout::measure::FakeMeasurer;
 use crate::layout::page_flow::layout_sections;
 use crate::layout::result::LayoutResult;
 use crate::layout::review_display::LayoutReviewOptions;
@@ -20,7 +20,7 @@ pub fn layout_document(input: &LayoutDocumentInput, measurer: &FakeMeasurer) -> 
         return result;
     }
     let mut exclusions = wrap_exclusions(&result.pages);
-    for pass in 0..3 {
+    for _pass in 0..3 {
         if exclusions.is_empty() {
             break;
         }

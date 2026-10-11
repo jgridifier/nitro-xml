@@ -12,7 +12,6 @@ use super::page_cursor::{BalanceHint, PageCursor};
 use super::paragraph_layout::{layout_paragraph, ParagraphLayoutResult};
 use super::result::{LayoutFootnoteBox, LayoutPageBox};
 use super::table_layout::{layout_row, stack_paragraphs};
-use super::util::expect_defined;
 use super::wrap::Exclusion;
 
 pub struct SectionFlow {
@@ -30,7 +29,7 @@ impl SectionFlow {
         pages: Vec<LayoutPageBox>,
         _measurer: &FakeMeasurer,
         section_index: usize,
-        exclusions: Option<HashMap<usize, Vec<Exclusion>>>,
+        _exclusions: Option<HashMap<usize, Vec<Exclusion>>>,
         continue_at: Option<f64>,
         balance: Option<BalanceHint>,
     ) -> Self {

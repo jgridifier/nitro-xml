@@ -64,6 +64,9 @@ export function normalize(value: unknown): unknown {
 			if (key === 'warnings' && Array.isArray(child)) {
 				child = [...child].map(normalize).sort();
 			}
+			if (key === 'approximations' && Array.isArray(child)) {
+				child = [...child].map(normalize).sort();
+			}
 			out[key] = normalize(child);
 		}
 		return out;

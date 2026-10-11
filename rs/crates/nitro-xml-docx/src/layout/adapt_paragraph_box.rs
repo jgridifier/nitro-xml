@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 use super::adapt_table::css_hex;
-use super::input::{LayoutBlock, LayoutParagraph, LayoutParagraphBorder, LayoutParagraphBorders};
+use super::input::{LayoutBlock, LayoutParagraphBorder, LayoutParagraphBorders};
 
 fn points_to_px(points: f64) -> f64 {
     points * 96.0 / 72.0

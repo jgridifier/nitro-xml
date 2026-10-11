@@ -37,6 +37,7 @@ fn clone_model(model: &DocumentModel) -> DocumentModel {
         warnings: model.warnings.clone(),
         paragraph_styles: model.paragraph_styles.clone(),
         character_styles: model.character_styles.clone(),
+        table_styles: model.table_styles.clone(),
         numbering_catalog: model.numbering_catalog.clone(),
         theme: model.theme.clone(),
         sections: model.sections.clone(),

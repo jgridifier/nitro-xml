@@ -3,6 +3,8 @@
 
 use nitro_xml_render::{LayoutReadBatch, LayoutReadKind, MeasureBatch};
 
+use super::fonts::css_font_stack;
+
 #[derive(Clone, Debug)]
 pub struct LayoutFontSpec {
     pub family: String,
@@ -17,7 +19,7 @@ pub struct LayoutFontSpec {
 pub trait TextMeasurer {
     fn width_of(&self, text: &str, font: &LayoutFontSpec) -> f64;
     fn line_height_of(&self, font: &LayoutFontSpec) -> f64;
-    fn ascent_of(&self, font: &LayoutFontSpec) -> Option<f64> {
+    fn ascent_of(&self, _font: &LayoutFontSpec) -> Option<f64> {
         None
     }
 }
@@ -73,6 +75,11 @@ pub fn create_fake_measurer() -> FakeMeasurer {
     FakeMeasurer::new(0.6, 1.15)
 }
 
+/// CSS `font` family list for batched `measureText` (matches upstream canvas measurer).
+pub fn measure_font_family(font: &LayoutFontSpec) -> String {
+    css_font_stack(Some(&font.family))
+}
+
 /// Queues measure requests into a [`MeasureBatch`]; ligature/small-caps widths use [`LayoutReadBatch`] span probes.
 pub struct BatchedMeasurer<'a> {
     pub measures: &'a mut MeasureBatch,
@@ -81,6 +88,7 @@ pub struct BatchedMeasurer<'a> {
     span_node_id: u32,
     pending_widths: std::collections::HashMap<u32, f64>,
     next_request: u32,
+    span_requests: Vec<u32>,
 }
 
 impl<'a> BatchedMeasurer<'a> {
@@ -96,18 +104,35 @@ impl<'a> BatchedMeasurer<'a> {
             span_node_id,
             pending_widths: std::collections::HashMap::new(),
             next_request: 0,
+            span_requests: Vec::new(),
         }
     }
 
     pub fn set_span_width(&mut self, request_id: u32, width: f64) {
         self.pending_widths.insert(request_id, width);
     }
+
+    /// Apply [`LayoutReadBatch`] span widths (lane 2 = width) after the loader answers the batch.
+    pub fn apply_span_results(&mut self, values: &[f64]) {
+        for (index, request_id) in self.span_requests.iter().enumerate() {
+            let base = index * nitro_xml_render::LAYOUT_RESULT_LANES;
+            if base + 2 < values.len() {
+                self.pending_widths.insert(*request_id, values[base + 2]);
+            }
+        }
+        self.span_requests.clear();
+    }
 }
 
 impl TextMeasurer for BatchedMeasurer<'_> {
     fn width_of(&self, text: &str, font: &LayoutFontSpec) -> f64 {
         if font.ligatures.is_some() || font.small_caps {
-            return self.fallback.width_of(text, font);
+            let id = self.span_requests.last();
+            if let Some(id) = id {
+                if let Some(w) = self.pending_widths.get(id) {
+                    return *w;
+                }
+            }
         }
         self.fallback.width_of(text, font)
     }
@@ -125,13 +150,17 @@ impl BatchedMeasurer<'_> {
         font_id: u32,
         text_id: u32,
     ) -> f64 {
+        let _family = measure_font_family(font);
         if font.ligatures.is_some() || font.small_caps {
             let id = self.next_request;
             self.next_request += 1;
             self.layout_reads.push(self.span_node_id, LayoutReadKind::SpanRect, 0);
-            return self.pending_widths.get(&id).copied().unwrap_or_else(|| {
-                self.fallback.width_of(text, font)
-            });
+            self.span_requests.push(id);
+            return self
+                .pending_widths
+                .get(&id)
+                .copied()
+                .unwrap_or_else(|| self.fallback.width_of(text, font));
         }
         self.measures.push(font_id, font.size_px as f32, text_id);
         self.fallback.width_of(text, font)

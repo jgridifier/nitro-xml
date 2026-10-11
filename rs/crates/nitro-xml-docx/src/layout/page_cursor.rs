@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/docx/layout/page-cursor.ts; changes listed in PROVENANCE.md.
+//
+// Upstream keeps `activeColumns` as the same object references as `page.columns`
+// (or a suffix of them for continuous sections). Rust cannot alias those mutably,
+// so we store a `column_base` index into `pages[last].columns` and always mutate
+// through the page.
 
 use super::input::{LayoutColumns, LayoutPageGeometry};
 use super::result::{
-    LayoutBlockBox, LayoutColumnBox, LayoutFootnoteBox, LayoutPageBox, LayoutParagraphBox,
-    LayoutTableBox, push_block_box,
+    push_block_box, LayoutBlockBox, LayoutColumnBox, LayoutFootnoteBox, LayoutPageBox,
 };
 use super::util::expect_defined;
 
@@ -24,7 +28,8 @@ struct PendingFootnotes {
 pub struct PageCursor {
     pub pages: Vec<LayoutPageBox>,
     equal_column_width_px: f64,
-    active_columns: Vec<LayoutColumnBox>,
+    /// Index of `activeColumns[0]` within `pages[last].columns` (shared-ref semantics).
+    column_base: usize,
     column_top_px: f64,
     geometry: LayoutPageGeometry,
     columns: LayoutColumns,
@@ -53,7 +58,7 @@ impl PageCursor {
         let mut cursor = Self {
             pages,
             equal_column_width_px,
-            active_columns: Vec::new(),
+            column_base: 0,
             column_top_px: 0.0,
             geometry,
             columns,
@@ -71,14 +76,17 @@ impl PageCursor {
             let continue_at = continue_at.unwrap();
             cursor.column_top_px = continue_at;
             cursor.y_px = continue_at;
-            cursor.active_columns = cursor.column_boxes(cursor.geometry.margin_left_px - cursor.page().margin_left_px);
-            for column in &mut cursor.active_columns {
+            let offset = cursor.geometry.margin_left_px - cursor.page().margin_left_px;
+            let mut band = cursor.column_boxes(offset);
+            for column in &mut band {
                 column.section_index = Some(section_index);
                 column.start_y_px = Some(continue_at);
                 column.separator = cursor.columns.separator;
             }
-            let columns = cursor.active_columns.clone();
-            cursor.page_mut().columns.extend(columns);
+            let base = cursor.page().columns.len();
+            cursor.page_mut().columns.extend(band);
+            cursor.column_base = base;
+            cursor.column_index = 0;
         }
         cursor
     }
@@ -88,7 +96,10 @@ impl PageCursor {
         let mut x_px = offset_px;
         for i in 0..self.columns.count {
             let explicit = self.columns.widths.as_ref().and_then(|w| w.get(i));
-            let width_px = explicit.map(|e| e.width_px).unwrap_or(self.equal_column_width_px).max(1.0);
+            let width_px = explicit
+                .map(|e| e.width_px)
+                .unwrap_or(self.equal_column_width_px)
+                .max(1.0);
             column_boxes.push(LayoutColumnBox {
                 x_px,
                 width_px,
@@ -105,7 +116,7 @@ impl PageCursor {
 
     fn push_page(&mut self) {
         let column_boxes = self.column_boxes(0.0);
-        self.active_columns = column_boxes.clone();
+        self.column_base = 0;
         self.pages.push(LayoutPageBox {
             index: self.pages.len(),
             section_index: self.section_index,
@@ -117,7 +128,7 @@ impl PageCursor {
             margin_right_px: self.geometry.margin_right_px,
             margin_bottom_px: self.geometry.margin_bottom_px,
             margin_left_px: self.geometry.margin_left_px,
-            columns: column_boxes.clone(),
+            columns: column_boxes,
             column_separator: if self.columns.separator.unwrap_or(false) {
                 Some(true)
             } else {
@@ -141,8 +152,15 @@ impl PageCursor {
         self.pages.last_mut().expect("page")
     }
 
+    fn absolute_column_index(&self) -> usize {
+        self.column_base + self.column_index
+    }
+
     pub fn column(&self) -> &LayoutColumnBox {
-        expect_defined(self.active_columns.get(self.column_index), "current page column")
+        expect_defined(
+            self.page().columns.get(self.absolute_column_index()),
+            "current page column",
+        )
     }
 
     pub fn column_width_px(&self) -> f64 {
@@ -150,13 +168,17 @@ impl PageCursor {
     }
 
     pub fn column_content_fits(&self) -> bool {
-        self.active_columns.iter().all(|column| {
-            column.blocks.iter().all(|block| {
-                let y = block.get("yPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let h = block.get("heightPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                y + h <= self.column_top_px + self.column_height_px()
+        let limit = self.column_top_px + self.column_height_px();
+        let page = self.page();
+        page.columns[self.column_base..self.column_base + self.columns.count]
+            .iter()
+            .all(|column| {
+                column.blocks.iter().all(|block| {
+                    let y = block.get("yPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                    let h = block.get("heightPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                    y + h <= limit
+                })
             })
-        })
     }
 
     pub fn end_balance(&mut self) {
@@ -201,28 +223,40 @@ impl PageCursor {
     }
 
     pub fn remaining_height_px(&self) -> f64 {
-        self.column_height_px() - (self.y_px - self.column_top_px) - self.reserved_px - self.pending_height_px()
+        self.column_height_px()
+            - (self.y_px - self.column_top_px)
+            - self.reserved_px
+            - self.pending_height_px()
     }
 
     pub fn finish_band(&mut self) -> f64 {
-        let bottom = self
-            .active_columns
-            .iter()
-            .flat_map(|column| {
-                column.blocks.iter().map(|block| {
-                    let y = block.get("yPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                    let h = block.get("heightPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                    y + h
+        let base = self.column_base;
+        let count = self.columns.count;
+        let column_top = self.column_top_px;
+        let section_index = self.section_index;
+        let separator = self.columns.separator;
+        let y_px = self.y_px;
+        let bottom = {
+            let page = self.page();
+            page.columns[base..base + count]
+                .iter()
+                .flat_map(|column| {
+                    column.blocks.iter().map(|block| {
+                        let y = block.get("yPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                        let h = block.get("heightPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                        y + h
+                    })
                 })
-            })
-            .fold(self.y_px, f64::max);
-        for column in &mut self.active_columns {
-            column.section_index = Some(self.section_index);
+                .fold(y_px, f64::max)
+        };
+        let page = self.page_mut();
+        for column in &mut page.columns[base..base + count] {
+            column.section_index = Some(section_index);
             if column.start_y_px.is_none() {
-                column.start_y_px = Some(self.column_top_px);
+                column.start_y_px = Some(column_top);
             }
             column.end_y_px = Some(bottom);
-            column.separator = self.columns.separator;
+            column.separator = separator;
         }
         bottom
     }
@@ -233,7 +267,13 @@ impl PageCursor {
         }
         let pending = self.pending.as_ref().unwrap();
         pending.height_px
-            + if self.page().footnotes.as_ref().map(|f| !f.is_empty()).unwrap_or(false) {
+            + if self
+                .page()
+                .footnotes
+                .as_ref()
+                .map(|f| !f.is_empty())
+                .unwrap_or(false)
+            {
                 0.0
             } else {
                 FOOTNOTE_SEPARATOR_PX
@@ -270,6 +310,7 @@ impl PageCursor {
         let section_index = self.section_index;
         let y_px = self.y_px;
         let page_index = self.pages.len() - 1;
+        let col = self.absolute_column_index();
         if self.pages[page_index].section_index != section_index {
             let base_section = self.pages[page_index].section_index;
             let indices = self.pages[page_index]
@@ -288,7 +329,7 @@ impl PageCursor {
             LayoutBlockBox::Paragraph(p) => p.block_id.clone(),
             LayoutBlockBox::Table(t) => t.block_id.clone(),
         };
-        push_block_box(&mut self.active_columns[self.column_index], block_box);
+        push_block_box(&mut self.pages[page_index].columns[col], block_box);
         self.y_px += advance_px;
         let release_footnotes = self
             .pending
@@ -302,7 +343,9 @@ impl PageCursor {
                 .map(|f| f.iter().map(|n| n.height_px).sum())
                 .unwrap_or(0.0);
             let notes = self.pending.take().unwrap().notes;
-            let footnotes = self.pages[page_index].footnotes.get_or_insert_with(Vec::new);
+            let footnotes = self.pages[page_index]
+                .footnotes
+                .get_or_insert_with(Vec::new);
             for note in notes {
                 let height_px = note.height_px;
                 footnotes.push(LayoutFootnoteBox {

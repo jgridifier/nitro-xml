@@ -11,7 +11,7 @@ use super::input::{
     LayoutBorder, LayoutCellBorders, LayoutCellPadding, LayoutParagraph, LayoutTable,
     LayoutTableCell, LayoutTableRow,
 };
-use super::units::{twips_f64_to_px, twips_to_px};
+use super::units::twips_f64_to_px;
 
 pub fn css_hex(value: Option<&str>) -> Option<String> {
     let hex = value?.replace('#', "");
@@ -134,7 +134,12 @@ pub fn adapt_table(
                                 row_count: rows.len(),
                                 column_count,
                             };
-                            let visuals = resolve_cell_visuals(table, cell, &placement, None);
+                            let visuals = resolve_cell_visuals(
+                                table,
+                                cell,
+                                &placement,
+                                model.table_styles.as_ref(),
+                            );
                             let mut borders = LayoutCellBorders {
                                 top: None,
                                 right: None,

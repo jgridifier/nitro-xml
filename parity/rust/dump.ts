@@ -101,6 +101,21 @@ export function dumpDocxStylesRust(
 	return { ok: r.status === 0, json, status: r.status };
 }
 
+/** Issue #22 LayoutResult dump (`docx_layout_dump` example). */
+export function dumpDocxLayoutRust(
+	fixturePath: string,
+): { ok: boolean; json: unknown; status: number | null } {
+	const bin = ensureExample('docx_layout_dump', 'nitro-xml-docx');
+	const r = runBin(bin, [fixturePath], { timeoutMs: 120_000 });
+	let json: unknown = null;
+	try {
+		json = JSON.parse(r.stdout.trim() || 'null');
+	} catch {
+		json = { error: 'parse', raw: r.stdout.slice(0, 200) };
+	}
+	return { ok: r.status === 0, json, status: r.status };
+}
+
 /** Issue #24 presentation-model dump (`pptx_dump` example). */
 export function dumpPptxModelRust(
 	fixturePath: string,

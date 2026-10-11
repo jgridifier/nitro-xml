@@ -10,6 +10,7 @@ import { opcComparison } from './comparisons/opc.ts';
 import { chartComparison } from './comparisons/chart.ts';
 import { xlsxComparison } from './comparisons/xlsx.ts';
 import { docxComparison } from './comparisons/docx.ts';
+import { docxLayoutComparison } from './comparisons/docx-layout.ts';
 import { pptxComparison } from './comparisons/formats.ts';
 
 const ALL: Comparison[] = [
@@ -18,6 +19,7 @@ const ALL: Comparison[] = [
 	xlsxComparison,
 	chartComparison,
 	docxComparison,
+	docxLayoutComparison,
 	pptxComparison,
 ];
 

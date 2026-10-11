@@ -3,7 +3,6 @@
 
 pub fn field_name(instr: &str) -> String {
     instr
-        .trim()
         .split_whitespace()
         .next()
         .unwrap_or("")
@@ -38,13 +37,11 @@ pub fn date_field_result(
     hour: u32,
     minute: u32,
 ) -> String {
-    let picture = date_picture(instr).unwrap_or_else(|| {
-        if name == "DATE" {
-            "M/d/yyyy".into()
-        } else {
-            "h:mm am/pm".into()
-        }
-    });
+    let picture = match date_picture(instr) {
+        Some(p) => p,
+        None if name == "DATE" => String::from("M/d/yyyy"),
+        None => String::from("h:mm am/pm"),
+    };
     format_word_date(year, month, day, hour, minute, &picture)
 }
 
@@ -93,6 +90,7 @@ fn format_word_date(year: i32, month: u32, day: u32, hour: u32, minute: u32, pic
             i += 1;
         } else if rest.starts_with('\'') {
             let end = rest[1..].find('\'').map(|p| p + 2).unwrap_or(1);
+            // clippy: literal quote in format picture
             out.push_str(&rest[1..end - 1]);
             i += end;
         } else {

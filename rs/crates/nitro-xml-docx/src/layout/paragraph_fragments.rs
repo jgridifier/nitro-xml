@@ -15,7 +15,7 @@ pub fn build_fragments(tokens_on_line: &[PlacedToken], paragraph: &LayoutParagra
             BreakToken::Word { text, .. } | BreakToken::Space { text, .. } => text.clone(),
             _ => String::new(),
         };
-        let mut fragment = LayoutFragment {
+        let fragment = LayoutFragment {
             text,
             x_px: x + placed.x_offset_px.unwrap_or(0.0),
             width_px: placed.width_px,

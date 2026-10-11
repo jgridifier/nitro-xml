@@ -92,7 +92,7 @@ pub fn layout_paragraph(
         line_box,
         guess_height,
     };
-    let token_width = |token: &BreakToken, index: usize| -> f64 {
+    let token_width = |token: &BreakToken, _index: usize| -> f64 {
         match token {
             BreakToken::Word { text, run_index, .. } | BreakToken::Space { text, run_index, .. } => {
                 run_text_width(
@@ -558,7 +558,7 @@ fn segment_after(
     paragraph: &LayoutParagraph,
     measurer: &dyn TextMeasurer,
 ) -> (f64, f64) {
-    let ends = ["tab", "lineBreak", "pageBreak", "columnBreak"];
+    let _ends = ["tab", "lineBreak", "pageBreak", "columnBreak"];
     let mut following_px = 0.0;
     let mut before_decimal_px: Option<f64> = None;
     for next in (index + 1)..tokens.len() {
@@ -574,7 +574,7 @@ fn segment_after(
         }
         if before_decimal_px.is_none() {
             if let BreakToken::Word { text, run_index, .. } = token {
-                if let Some(pos) = text.find(|c: char| c == '.' || c == ',') {
+                if let Some(pos) = text.find('.').or_else(|| text.find(',')) {
                     let prefix = &text[..pos];
                     before_decimal_px = Some(
                         following_px

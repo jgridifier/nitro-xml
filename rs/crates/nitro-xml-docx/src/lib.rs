@@ -1,6 +1,23 @@
 // SPDX-License-Identifier: MIT
 //! Word (.docx) styles, numbering, theme and settings (Stage 4 port of ChristopherVR/ooxml@e66aaec).
 
+#![allow(dead_code)] // Upstream-shaped layout API; not every helper is wired in the Rust viewer yet (#22).
+#![allow(
+    clippy::too_many_arguments,
+    clippy::module_inception,
+    clippy::large_enum_variant,
+    clippy::manual_strip,
+    clippy::manual_is_multiple_of,
+    clippy::match_like_matches_macro,
+    clippy::unnecessary_wraps,
+    clippy::redundant_closure,
+    clippy::single_char_pattern,
+    clippy::if_same_then_else,
+    clippy::unnecessary_lazy_evaluations,
+    clippy::manual_unwrap_or,
+    clippy::unnecessary_unwrap
+)]
+
 mod body;
 mod chart_paint;
 mod fields;
@@ -21,6 +38,8 @@ mod note_format;
 mod review_document_formatting;
 mod review_formatting_display;
 mod run_formatting;
+mod resolve_table;
+mod table_styles;
 mod table_visuals;
 mod theme_color;
 mod model_dump;
@@ -48,6 +67,7 @@ pub use body::{
 
 /// Built-in `word/styles.xml` when the package has no styles part (upstream `DEFAULT_STYLES_XML`).
 pub use default_styles::default_styles_xml;
+pub use table_styles::parse_table_style_catalog;
 pub use numbering::{
     compute_list_labels, display_list_label, format_list_number, parse_numbering_catalog,
     resolve_numbering_level, resolve_paragraph_numbering,

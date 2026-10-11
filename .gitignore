@@ -7,6 +7,8 @@ pkg/
 /packages/*/pkg/
 *.wasm.map
 wasm-pack.log
+# Parity harness (#5) local dumps
+.parity-out/
 # Node
 node_modules/
 .npm/

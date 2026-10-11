@@ -34,3 +34,8 @@ export { flushMeasureBatch, readMeasureReqsFromMemory } from "./measure.js";
 export { openDocument, DocumentSession } from "./session.js";
 export { WorkerDocument } from "./worker-host.js";
 export { defineNitroXml, NitroXmlElement } from "./element.js";
+export {
+  applyFontSourceToHandle,
+  setDefaultFontSource,
+  getDefaultFontSource,
+} from "./font-source.js";

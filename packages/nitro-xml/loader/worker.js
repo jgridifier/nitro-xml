@@ -9,6 +9,7 @@ import {
   unsupportedFormatError,
 } from "./bootstrap.js";
 import { isSupportedExtension } from "./formats.js";
+import { applyFontSourceToHandle } from "./font-source.js";
 
 /** @type {any} */
 let handle = null;
@@ -40,6 +41,13 @@ self.onmessage = async (ev) => {
           }
         }
         handle = new glue.Handle(bytes);
+        // Serializable fontSource only in the worker (string | false | "off").
+        // Function resolvers stay on the main-thread session path.
+        if (msg.fontSource !== undefined && typeof msg.fontSource !== "function") {
+          applyFontSourceToHandle(handle, msg.fontSource);
+        } else {
+          applyFontSourceToHandle(handle, undefined);
+        }
         self.postMessage({ type: "opened", byteLength: handle.byteLength });
         break;
       }

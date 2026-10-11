@@ -9,7 +9,10 @@
 
 use crate::events::{self, EventQueue};
 use crate::transport::StringTable;
-use js_sys::Array;
+use js_sys::{Array, Function, JsString};
+use nitro_xml::opc::fonts::{
+    resolve_webfont_plan, FontSource, FONT_SUBSTITUTION_CODE,
+};
 use nitro_xml_render::{CommandBuffer, MeasureBatch};
 use wasm_bindgen::prelude::*;
 
@@ -106,6 +109,11 @@ impl Warning {
 pub struct Handle {
     bytes: Vec<u8>,
     warnings: Vec<Warning>,
+    font_source: FontSource,
+    /// Optional host resolver: `(families: string[]) => string | null`.
+    /// When set, overrides the built CSS2 href (mirror / default still apply
+    /// only if the resolver returns undefined).
+    font_source_resolver: Option<Function>,
     pub(crate) strings: StringTable,
     pub(crate) commands: CommandBuffer,
     pub(crate) measures: MeasureBatch,
@@ -122,12 +130,124 @@ impl Handle {
         Handle {
             bytes: bytes.to_vec(),
             warnings: Vec::new(),
+            font_source: FontSource::default(),
+            font_source_resolver: None,
             strings: StringTable::new(),
             commands: CommandBuffer::new(),
             measures: MeasureBatch::new(),
             events: EventQueue::new(),
             #[cfg(feature = "bench")]
             grid: crate::bench::SyntheticGrid::new(),
+        }
+    }
+
+    /// Reset to upstream Google Fonts CSS2 base (`fonts.googleapis.com`).
+    #[wasm_bindgen(js_name = setFontSourceDefault)]
+    pub fn set_font_source_default(&mut self) {
+        self.font_source = FontSource::google_fonts();
+        self.font_source_resolver = None;
+    }
+
+    /// Point remote webfont CSS2 fetches at an internal mirror (or any
+    /// CSS2-compatible base URL). Clears any resolver callback.
+    #[wasm_bindgen(js_name = setFontSourceBaseUrl)]
+    pub fn set_font_source_base_url(&mut self, base_url: String) {
+        self.font_source = FontSource::mirror(base_url);
+        self.font_source_resolver = None;
+    }
+
+    /// Disable remote webfont fetching; painters use local/embedded fonts and
+    /// record substitutions via [`Self::plan_webfont_stylesheet`].
+    #[wasm_bindgen(js_name = setFontSourceOff)]
+    pub fn set_font_source_off(&mut self) {
+        self.font_source = FontSource::off();
+        self.font_source_resolver = None;
+    }
+
+    /// Host resolver callback `(families: string[]) => href | null`.
+    /// The engine still decides when to resolve and records diagnostics; the
+    /// callback only maps candidates to a stylesheet URL.
+    #[wasm_bindgen(js_name = setFontSourceResolver)]
+    pub fn set_font_source_resolver(&mut self, resolve: Function) {
+        // Resolver implies remote fetch is allowed; keep default base for any
+        // engine-built href passed into future painter paths.
+        if !self.font_source.allows_remote_fetch() {
+            self.font_source = FontSource::google_fonts();
+        }
+        self.font_source_resolver = Some(resolve);
+    }
+
+    /// Whether remote webfont network requests are permitted for this document.
+    #[wasm_bindgen(js_name = fontSourceAllowsRemoteFetch)]
+    pub fn font_source_allows_remote_fetch(&self) -> bool {
+        self.font_source.allows_remote_fetch() || self.font_source_resolver.is_some()
+    }
+
+    /// CSS2 base URL when using default/mirror mode (`undefined` when off).
+    #[wasm_bindgen(js_name = fontSourceBaseUrl)]
+    pub fn font_source_base_url(&self) -> Option<String> {
+        self.font_source.base_url().map(str::to_owned)
+    }
+
+    /// Plan a webfont stylesheet for already-matched catalogue fragments.
+    ///
+    /// Returns the href the host may inject as `<link rel=stylesheet>`, or
+    /// `undefined` when nothing should be fetched. With fetch off, pushes
+    /// `font_substitution` warnings for each requested family and returns
+    /// `undefined` (no network request).
+    ///
+    /// `catalogue_fragments` / `requested_families` are JS string arrays.
+    #[wasm_bindgen(js_name = planWebfontStylesheet)]
+    pub fn plan_webfont_stylesheet(
+        &mut self,
+        catalogue_fragments: Array,
+        requested_families: Array,
+    ) -> Option<String> {
+        let fragments = array_to_strings(&catalogue_fragments);
+        let requested = array_to_strings(&requested_families);
+
+        if let Some(resolve) = self.font_source_resolver.clone() {
+            // Host resolver owns the final URL; still refuse to call it when
+            // the configured source is Off (resolver cleared by setFontSourceOff).
+            if !self.font_source.allows_remote_fetch() {
+                self.record_font_substitutions(&requested);
+                return None;
+            }
+            let families_js = Array::new();
+            for f in &requested {
+                families_js.push(&JsValue::from_str(f));
+            }
+            match resolve.call1(&JsValue::NULL, &families_js) {
+                Ok(v) if v.is_null() || v.is_undefined() => {
+                    self.record_font_substitutions(&requested);
+                    None
+                }
+                Ok(v) => v.as_string().or_else(|| {
+                    // JsString / other stringy values
+                    let s: String = JsString::from(v).into();
+                    if s.is_empty() || s == "undefined" || s == "null" {
+                        self.record_font_substitutions(&requested);
+                        None
+                    } else {
+                        Some(s)
+                    }
+                }),
+                Err(_) => {
+                    self.record_font_substitutions(&requested);
+                    None
+                }
+            }
+        } else {
+            let (href, subs) =
+                resolve_webfont_plan(&self.font_source, &fragments, &requested);
+            for sub in subs {
+                self.warnings.push(Warning::new(
+                    FONT_SUBSTITUTION_CODE.to_owned(),
+                    sub.message(),
+                    None,
+                ));
+            }
+            href
         }
     }
 
@@ -250,6 +370,32 @@ impl Handle {
     pub fn drain_events(&mut self) -> u32 {
         self.events.drain() as u32
     }
+}
+
+impl Handle {
+    fn record_font_substitutions(&mut self, requested: &[String]) {
+        for family in requested {
+            let sub = nitro_xml::opc::fonts::FontSubstitution::local(family.clone());
+            self.warnings.push(Warning::new(
+                FONT_SUBSTITUTION_CODE.to_owned(),
+                sub.message(),
+                None,
+            ));
+        }
+    }
+}
+
+fn array_to_strings(arr: &Array) -> Vec<String> {
+    let mut out = Vec::with_capacity(arr.length() as usize);
+    for i in 0..arr.length() {
+        let v = arr.get(i);
+        if let Some(s) = v.as_string() {
+            out.push(s);
+        } else if !v.is_null() && !v.is_undefined() {
+            out.push(JsString::from(v).into());
+        }
+    }
+    out
 }
 
 #[cfg(test)]

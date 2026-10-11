@@ -10,15 +10,23 @@ import { applyCommandBuffer } from "./apply.js";
 import { createEventCoalescer } from "./events.js";
 import { isSupportedExtension } from "./formats.js";
 import { unsupportedFormatError } from "./bootstrap.js";
+import { getDefaultFontSource } from "./font-source.js";
 
 export class WorkerDocument {
   /**
-   * @param {{ canvas?: HTMLCanvasElement|null, root?: Element|null, name?: string, workerUrl?: string|URL }} [opts]
+   * @param {{
+   *   canvas?: HTMLCanvasElement|null,
+   *   root?: Element|null,
+   *   name?: string,
+   *   workerUrl?: string|URL,
+   *   fontSource?: string | false,
+   * }} [opts]
    */
   constructor(opts = {}) {
     this._canvas = opts.canvas || null;
     this._root = opts.root || null;
     this._name = opts.name || "";
+    this._fontSource = opts.fontSource;
     this._nodes = new Map();
     this._images = new Map();
     this._pending = new Map();
@@ -45,8 +53,17 @@ export class WorkerDocument {
     const n = name || this._name;
     if (n && !isSupportedExtension(n)) throw unsupportedFormatError();
     this._name = n;
+    const fontSource =
+      this._fontSource !== undefined ? this._fontSource : getDefaultFontSource();
+    // Functions cannot be structured-cloned into the worker; use the
+    // main-thread DocumentSession path for resolver callbacks.
+    const serializable =
+      typeof fontSource === "function" ? undefined : fontSource;
     return this._request("opened", () => {
-      this._worker.postMessage({ type: "open", bytes: buffer, name: n }, [buffer]);
+      this._worker.postMessage(
+        { type: "open", bytes: buffer, name: n, fontSource: serializable },
+        [buffer],
+      );
     });
   }
 

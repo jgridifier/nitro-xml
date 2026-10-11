@@ -9,6 +9,7 @@ import { isSupportedExtension } from "./formats.js";
 import { applyCommandBuffer } from "./apply.js";
 import { createEventCoalescer } from "./events.js";
 import { flushMeasureBatch, readMeasureReqsFromMemory } from "./measure.js";
+import { applyFontSourceToHandle } from "./font-source.js";
 
 const registry =
   typeof FinalizationRegistry !== "undefined"
@@ -26,7 +27,12 @@ const registry =
  * checks land with #13.
  *
  * @param {ArrayBuffer | Uint8Array} bytes
- * @param {{ name?: string, canvas?: HTMLCanvasElement, root?: Element }} [opts]
+ * @param {{
+ *   name?: string,
+ *   canvas?: HTMLCanvasElement,
+ *   root?: Element,
+ *   fontSource?: string | false | ((families: string[]) => string | null | undefined),
+ * }} [opts]
  */
 export async function openDocument(bytes, opts = {}) {
   if (opts.name && !isSupportedExtension(opts.name)) {
@@ -35,6 +41,7 @@ export async function openDocument(bytes, opts = {}) {
   const { glue, memory } = await initCore();
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const handle = new glue.Handle(u8);
+  applyFontSourceToHandle(handle, opts.fontSource);
   return new DocumentSession(handle, {
     memory: memory || getWasmMemory(),
     canvas: opts.canvas || null,

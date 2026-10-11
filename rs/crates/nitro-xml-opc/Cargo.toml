@@ -1,0 +1,10 @@
+[package]
+name = "nitro-xml-opc"
+description = "Nitro XML shared foundation: zip, XML, OPC and DrawingML"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+

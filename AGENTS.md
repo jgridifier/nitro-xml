@@ -64,4 +64,8 @@ When the PR is open (and again if anything changes before merge), post on the is
 ## 8. Useful facts
 - Upstream reference: ChristopherVR/ooxml pinned at `e66aaec24adc0b68472eae1fc42aa4598e09c352`.
 - Rust crates: `nitro-xml-opc` (zip, XML, OPC, DrawingML), `nitro-xml-xlsx`, `nitro-xml-docx`, `nitro-xml-pptx`, `nitro-xml-wasm`, umbrella `nitro-xml`. npm package: `nitro-xml`.
+- Build and test (toolchain pinned by `rust-toolchain.toml`; run `git submodule update --init` once for `upstream/`):
+  - `cd rs && cargo build --workspace`
+  - `cd rs && cargo build -p nitro-xml-wasm --target wasm32-unknown-unknown` (alias: `cargo build-wasm`)
+  - `cd rs && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace` (wired into `scripts/ci/rust.sh` by #3)
 - Paths in issues are upstream paths unless prefixed with `rs/`, `perf/`, `packages/`, `fixtures/` or `scripts/`.

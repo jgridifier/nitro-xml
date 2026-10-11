@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Applies to every cargo invocation under this repo, including rs/.
+[alias]
+# Build the WASM boundary crate for the browser target.
+build-wasm = "build -p nitro-xml-wasm --target wasm32-unknown-unknown"

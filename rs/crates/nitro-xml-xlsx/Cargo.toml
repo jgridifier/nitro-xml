@@ -1,0 +1,12 @@
+[package]
+name = "nitro-xml-xlsx"
+description = "Nitro XML .xlsx model (port of ChristopherVR/ooxml)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+
+[dependencies]
+nitro-xml-opc.workspace = true

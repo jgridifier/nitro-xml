@@ -13,6 +13,7 @@
 - **Full Rust/WASM.** Package (zip), XML streaming, OPC, the document models, layout, rendering, the editing surface (text input, selection, caret, ribbons), commands, undo/redo and the lossless writer are all Rust compiled to WebAssembly.
 - **Nothing in TypeScript ships.** The only JavaScript is a tiny loader (WASM bootstrap and browser event forwarding) with its own size budget and gate.
 - **The upstream TS engine stays in the test and bench harness only**, pinned at commit `e66aaec`, as the correctness reference (parity oracle) and the speed baseline.
+- **Upstream pin:** the `upstream/` git submodule is ChristopherVR/ooxml at `e66aaec24adc0b68472eae1fc42aa4598e09c352` (test and bench only; never shipped).
 - One npm package (`nitro-xml`) and Rust crates `nitro-xml-opc`, `nitro-xml-xlsx`, `nitro-xml-docx`, `nitro-xml-pptx`, `nitro-xml-wasm` and the umbrella `nitro-xml`.
 
 ## Goals

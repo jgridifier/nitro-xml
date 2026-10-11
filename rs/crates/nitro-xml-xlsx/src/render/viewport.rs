@@ -69,6 +69,7 @@ pub fn visible_cells_for_host(
         height: (viewport.height - header_h).max(0) + 30,
         frozen_rows: viewport.frozen_rows,
         frozen_cols: viewport.frozen_cols,
+        zoom_pct: viewport.zoom_pct,
     };
     visible_cells(metrics, &vp)
 }

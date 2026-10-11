@@ -85,6 +85,24 @@ fn normalize_range(range: CellRange) -> CellRange {
     }
 }
 
+/// Formats a zero-based address as `A1`.
+pub fn format_address(addr: &CellAddress) -> String {
+    format!("{}{}", column_label(addr.col), addr.row + 1)
+}
+
+/// Formats a range as `A1` or `A1:B2` (whole-row / whole-column refs stay expanded).
+pub fn format_range(range: &CellRange) -> String {
+    if range.start == range.end {
+        format_address(&range.start)
+    } else {
+        format!(
+            "{}:{}",
+            format_address(&range.start),
+            format_address(&range.end)
+        )
+    }
+}
+
 /// Parses `A1:B2`, a single cell `A1`, whole columns `A:C` or whole rows `1:3`.
 pub fn parse_range(ref_: &str) -> Option<CellRange> {
     let trimmed = ref_.trim();

@@ -36,6 +36,7 @@ pub mod workbook;
 pub mod worksheet;
 pub mod xml_util;
 
+pub use address::{format_address, format_range, parse_address, parse_range};
 pub use display_text::{display_text, Cell};
 pub use engine_api::{
     cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, search_workbook, visible_sheets_json,

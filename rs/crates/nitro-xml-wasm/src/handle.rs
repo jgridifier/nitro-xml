@@ -390,7 +390,21 @@ impl Handle {
                     self.shell.last_copy = text.clone();
                     result.copy_text = Some(text);
                 } else {
+                    // pptx/docx clipboard adapters land with #27/#23 (#158).
                     result.copy_text = Some(String::new());
+                }
+            }
+            ShellAction::SelectRef(r) => {
+                if let Some(xlsx) = self.xlsx.as_mut() {
+                    match xlsx.apply_selection_ref(r) {
+                        Ok(normalized) => {
+                            self.shell.selection_ref = normalized;
+                            result.reopen_paint = true;
+                        }
+                        Err(e) => {
+                            return Err(JsValue::from(OoxmlError::with_code("bad_selection", e)));
+                        }
+                    }
                 }
             }
             ShellAction::HyperlinkAt { sheet, row, col } => {

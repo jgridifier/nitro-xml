@@ -41,10 +41,17 @@ echo "parity: building Rust dump examples"
 ( cd rs && cargo build --release -q -p nitro-xml-opc --example xml_dump --example opc_dump )
 
 echo "parity: running harness (ready comparisons)"
+set +e
 bun parity/run --ci
-
-echo "parity: unit checks (normalize / known-diffs)"
+parity_rc=$?
 ( cd parity && bun test )
+test_rc=$?
+set -e
+
+if [ "$parity_rc" -ne 0 ] || [ "$test_rc" -ne 0 ]; then
+  echo "parity: FAIL (harness=$parity_rc tests=$test_rc)" >&2
+  exit 1
+fi
 
 msg="parity: PASS (xml + opc ready; format view-IR pending #15/#20/#24)"
 echo "$msg"

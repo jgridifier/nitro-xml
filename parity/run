@@ -185,6 +185,9 @@ async function runCi(formatFilter?: string): Promise<number> {
 	}
 
 	for (const line of summary) summarize(line);
+	if (fail !== 0) {
+		console.error('parity: FAIL');
+	}
 	return fail;
 }
 

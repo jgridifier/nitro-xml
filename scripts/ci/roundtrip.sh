@@ -37,6 +37,9 @@ fi
 echo "roundtrip: installing harness deps"
 ( cd parity/roundtrip && bun install )
 
+echo "roundtrip: C14N / rels unit tests"
+( cd parity/roundtrip && bun test )
+
 echo "roundtrip: TS-vs-TS no-op save over fixtures/manifest.json"
 set +e
 ( cd parity/roundtrip && bun ./run.mjs --ci )

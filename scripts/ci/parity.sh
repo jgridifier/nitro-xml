@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 # Viewer / foundation parity: TS oracle vs Rust (job: parity).
 # Runs fixtures/verify --skip-on-demand, then bun parity/run --ci (xml + opc +
-# xlsx worksheet slice (#16) + docx styles/numbering/theme/settings today; pptx
-# view-IR and later LayoutResult flip ready when their dumps land). Visual
-# pixelmatch remains #45.
+# xlsx worksheet slice (#16) + docx styles/numbering/theme/settings + pptx
+# presentation model today; later LayoutResult / CellItem flip ready when their
+# dumps land). Visual pixelmatch remains #45.
 #
 # Definition of done for #5: this script no longer prints NOT IMPLEMENTED.
 # Ask Jared (or the Chief of Staff's gh login) to add the `parity` job to the
@@ -42,6 +42,7 @@ echo "parity: building Rust dump examples"
 ( cd rs && cargo build --release -q -p nitro-xml-opc --example xml_dump --example opc_dump )
 ( cd rs && cargo build --release -q -p nitro-xml-xlsx --example xlsx_dump )
 ( cd rs && cargo build --release -q -p nitro-xml-docx --example docx_styles_dump )
+( cd rs && cargo build --release -q -p nitro-xml-pptx --example pptx_dump )
 python3 tools/model-compare/gates/make_opc_fixtures.py >/dev/null
 
 echo "parity: running harness (ready comparisons)"
@@ -57,7 +58,7 @@ if [ "$parity_rc" -ne 0 ] || [ "$test_rc" -ne 0 ]; then
   exit 1
 fi
 
-msg="parity: PASS (xml + opc + xlsx worksheet + docx styles ready; pptx view-IR pending #24)"
+msg="parity: PASS (xml + opc + xlsx worksheet + docx styles + pptx presentation ready)"
 echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"

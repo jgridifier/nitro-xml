@@ -73,8 +73,7 @@ async function runDocxLayoutCorpus(): Promise<CorpusResult> {
 export const docxLayoutComparison: Comparison = {
 	id: 'docx-layout',
 	label: 'docx Print Layout IR (#22)',
-	ready: false,
-	todo: 'Flip ready when corpus is green (20/30 real/docx match; OPC minimal excluded).',
+	ready: true,
 	async oracle(fixturePath: string) {
 		return dumpDocxViewIr(fixturePath);
 	},

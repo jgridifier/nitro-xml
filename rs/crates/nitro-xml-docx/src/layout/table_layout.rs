@@ -41,13 +41,15 @@ pub fn stack_paragraphs(
                 l
             })
             .collect();
+        // Upstream `stackParagraphs` omits `frame`: cell/footnote stacks draw cell shading
+        // (and note chrome) instead of per-paragraph border/shading frames.
         boxes.push(LayoutParagraphBox {
             kind: "paragraph".into(),
             block_id: paragraph.id.clone(),
             y_px: top,
             height_px: layout.content_height_px,
             lines,
-            frame: layout.frame,
+            frame: None,
         });
         y += layout.content_height_px + layout.spacing_after_px;
     }

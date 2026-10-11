@@ -5,7 +5,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use super::input::{LayoutParagraph, LayoutRun};
 use super::measure::{LayoutFontSpec, TextMeasurer};
-use super::text_breaks::{append_break_marker, tokenize_run, BreakToken};
+use super::text_breaks::{append_break_marker, tokenize_run, utf16_len, BreakToken};
 use super::units::{DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE_PT, NO_TWIPS, pt_to_px, twips_to_px};
 
 pub const SCRIPT_SCALE: f64 = 0.65;
@@ -100,7 +100,7 @@ pub fn tokenize_paragraph(paragraph: &LayoutParagraph) -> TokenizeParagraphResul
         run_offsets.push(cursor);
         if run.hidden.unwrap_or(false) {
             if !run.synthetic.unwrap_or(false) {
-                cursor += run.source_length.unwrap_or(run.text.len());
+                cursor += run.source_length.unwrap_or_else(|| utf16_len(&run.text));
             }
             continue;
         }
@@ -110,20 +110,24 @@ pub fn tokenize_paragraph(paragraph: &LayoutParagraph) -> TokenizeParagraphResul
                 source_start: 0,
             });
         } else if let Some(marker) = &run.marker {
+            // marker.length is a character count from the adapter (JS string index).
+            let marker_end = run
+                .text
+                .char_indices()
+                .nth(marker.length)
+                .map(|(i, _)| i)
+                .unwrap_or(run.text.len());
             tokens.push(BreakToken::Word {
-                text: run.text[..marker.length.min(run.text.len())].to_string(),
+                text: run.text[..marker_end].to_string(),
                 run_index,
                 source_start: 0,
             });
-            tokens.extend(tokenize_run(
-                &run.text[marker.length.min(run.text.len())..],
-                run_index,
-            ));
+            tokens.extend(tokenize_run(&run.text[marker_end..], run_index));
         } else {
             tokens.extend(tokenize_run(&run.text, run_index));
         }
         if let Some(break_after) = &run.break_after {
-            append_break_marker(&mut tokens, run_index, run.text.len(), break_after);
+            append_break_marker(&mut tokens, run_index, utf16_len(&run.text), break_after);
         }
         if run.synthetic.unwrap_or(false) {
             for token in &mut tokens {
@@ -132,7 +136,7 @@ pub fn tokenize_paragraph(paragraph: &LayoutParagraph) -> TokenizeParagraphResul
                 }
             }
         } else {
-            cursor += run.source_length.unwrap_or(run.text.len());
+            cursor += run.source_length.unwrap_or_else(|| utf16_len(&run.text));
         }
     }
     TokenizeParagraphResult {

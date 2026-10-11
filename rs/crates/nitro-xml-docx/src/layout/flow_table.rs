@@ -52,7 +52,7 @@ pub fn place_table(
                             LayoutBlockBox::Table(LayoutTableBox {
                                 kind: "table".into(),
                                 block_id: table.id.clone(),
-                                x_px: if x_offset > 0.0 { Some(x_offset) } else { None },
+                                x_px: if x_offset != 0.0 { Some(x_offset) } else { None },
                                 y_px: 0.0,
                                 height_px: fragment_height,
                                 rows: fragment_rows.clone(),
@@ -125,7 +125,7 @@ pub fn place_table(
                     LayoutBlockBox::Table(LayoutTableBox {
                         kind: "table".into(),
                         block_id: table.id.clone(),
-                        x_px: if x_offset > 0.0 { Some(x_offset) } else { None },
+                        x_px: if x_offset != 0.0 { Some(x_offset) } else { None },
                         y_px: 0.0,
                         height_px: fragment_height,
                         rows: fragment_rows.clone(),
@@ -164,7 +164,7 @@ pub fn place_table(
             LayoutBlockBox::Table(LayoutTableBox {
                 kind: "table".into(),
                 block_id: table.id.clone(),
-                x_px: if x_offset > 0.0 { Some(x_offset) } else { None },
+                x_px: if x_offset != 0.0 { Some(x_offset) } else { None },
                 y_px: 0.0,
                 height_px: fragment_height,
                 rows: fragment_rows,

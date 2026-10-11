@@ -130,7 +130,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/run.rs` | `src/core/docx/block-parser.ts` (`parseRun`) @ e66aaec | Run parse for body/HF/notes. |
 | `rs/crates/nitro-xml-docx/src/table.rs` | `src/core/docx/parse-table.ts`, `write-table.ts` (`canEditTableStructure`) @ e66aaec | Table/cell parse and structureEditable. |
 | `rs/crates/nitro-xml-docx/src/drawing.rs` | `src/core/docx/drawing.ts`, `diagram.ts` (host) @ e66aaec | Inline/anchor pictures, diagram/chart hosts; #28 deep chartSpace deferred. |
-| `rs/crates/nitro-xml-docx/src/chart_host.rs` | `src/core/docx/chart.ts` (`parseChartGraphic`) @ e66aaec | Chart relationship host fields only. |
+| `rs/crates/nitro-xml-docx/src/chart_host.rs` | `src/core/docx/chart.ts` (`parseChartGraphic` + light title/kind peek for layout labels) @ e66aaec | Full `chartSpace` parse remains #28. |
 | `rs/crates/nitro-xml-docx/src/sections.rs` | `src/core/docx/sections.ts` @ e66aaec | Raw section geometry and header/footer refs. |
 | `rs/crates/nitro-xml-docx/src/notes.rs` | `src/core/docx/notes.ts` @ e66aaec | Footnote/endnote part parse. |
 | `rs/crates/nitro-xml-docx/src/revisions.rs` | `src/core/docx/parse-revisions.ts` @ e66aaec | Revision wrappers and `collectParagraphRuns`. |

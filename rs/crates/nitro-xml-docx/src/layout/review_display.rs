@@ -21,7 +21,10 @@ pub fn review_source_length(run: &Value) -> usize {
     {
         1
     } else {
-        run.get("text").and_then(|v| v.as_str()).map(|s| s.len()).unwrap_or(0)
+        run.get("text")
+            .and_then(|v| v.as_str())
+            .map(super::text_breaks::utf16_len)
+            .unwrap_or(0)
     }
 }
 

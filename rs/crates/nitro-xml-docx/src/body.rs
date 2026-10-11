@@ -11,6 +11,7 @@ use nitro_xml_opc::opc::parse_content_types;
 use nitro_xml_opc::opc::{AllowedFormat, OpcError, Package, Relationship};
 use nitro_xml_opc::xml::{parse_xml_str, Element};
 
+use crate::chart_host::resolve_loaded_charts;
 use crate::comments::parse_comments;
 use crate::drawing::DrawingContext;
 use crate::equation::parse_equation;
@@ -298,7 +299,7 @@ pub fn read_package(bytes: &[u8]) -> Result<LoadedDocument<'_>, OpcError> {
         None
     };
 
-    let model = DocumentModel {
+    let mut model = DocumentModel {
         format,
         blocks,
         page,
@@ -321,6 +322,20 @@ pub fn read_package(bytes: &[u8]) -> Result<LoadedDocument<'_>, OpcError> {
         track_moves,
         media_part_names: image_part_names.into_iter().collect(),
     };
+
+    // Layout labels need title / undrawn family; full chartSpace parse is #28.
+    {
+        let mut read_text = |name: &str| -> Option<String> {
+            pkg.text(name).ok().flatten().map(|s| s.to_string())
+        };
+        resolve_loaded_charts(
+            &mut model.blocks,
+            model.footnotes.as_mut(),
+            model.endnotes.as_mut(),
+            model.sections.as_mut(),
+            &mut read_text,
+        );
+    }
 
     let media_set: BTreeSet<String> = model.media_part_names.iter().cloned().collect();
     Ok(LoadedDocument {

@@ -52,10 +52,17 @@ export function normalize(value: unknown): unknown {
 			if (VOLATILE_KEY.test(key)) continue;
 			if (DOCX_XML_SNAPSHOT.test(key)) continue;
 			let child = value[key];
-			// #28: deep chart part parsing is not in the #21 Rust gate yet.
+			// #28: deep chart part parsing / SVG paint is not in the docx layout gate yet.
 			if (key === 'chart' && isPlainObject(child)) {
-				const { chartSpace, formatting, colorPalette, workbookPartName, title, ...rest } =
-					child as Record<string, unknown>;
+				const {
+					chartSpace,
+					formatting,
+					colorPalette,
+					workbookPartName,
+					title,
+					svg,
+					...rest
+				} = child as Record<string, unknown>;
 				child = rest;
 			}
 			if (key === 'diagram' && isPlainObject(child)) {

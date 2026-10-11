@@ -100,10 +100,16 @@ pub fn tokenize_run(text: &str, run_index: usize) -> Vec<BreakToken> {
                 flush_word(&mut tokens, &mut word, word_start);
             }
         }
-        offset += ch.len();
+        // Upstream uses JS string `.length` (UTF-16 code units), not UTF-8 bytes.
+        offset += ch.encode_utf16().count();
     }
     flush_word(&mut tokens, &mut word, word_start);
     tokens
+}
+
+/// JS `String.length` / UTF-16 code-unit count (parity with upstream source ranges).
+pub fn utf16_len(text: &str) -> usize {
+    text.encode_utf16().count()
 }
 
 pub fn append_break_marker(

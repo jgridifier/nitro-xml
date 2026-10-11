@@ -102,17 +102,14 @@ pub fn adapt_document_model(
     };
     let now = (2026, 9, 7, 14, 5);
     let theme = model.theme.as_ref();
-    let paragraph_props: Vec<crate::styles::ParagraphProps> = model
-        .blocks
-        .iter()
-        .filter(|b| b.get("type").and_then(|v| v.as_str()) == Some("paragraph"))
-        .map(|b| {
-            crate::styles::ParagraphProps {
-                id: b.get("id").and_then(|v| v.as_str()).unwrap_or("").into(),
-                style: b.get("style").and_then(|v| v.as_str()).map(str::to_string),
-                numbering: None,
-                direct: b.clone(),
-            }
+    // Upstream `computeListLabels` walks `flattenParagraphs(model.blocks)` (tables included).
+    let paragraph_props: Vec<crate::styles::ParagraphProps> = flatten_paragraphs(&model.blocks)
+        .into_iter()
+        .map(|b| crate::styles::ParagraphProps {
+            id: b.get("id").and_then(|v| v.as_str()).unwrap_or("").into(),
+            style: b.get("style").and_then(|v| v.as_str()).map(str::to_string),
+            numbering: paragraph_numbering_from_json(b),
+            direct: b.clone(),
         })
         .collect();
     let labels = compute_list_labels(
@@ -194,7 +191,8 @@ pub fn adapt_document_model(
             (index_by_id.get(ends).copied().unwrap_or(start.saturating_sub(1))) + 1
         };
         let end = end_index.max(start);
-        let slice = blocks[start..end].to_vec();
+        let slice_start = start;
+        let slice = &blocks[start..end];
         start = end;
         let section_start = if index == 0 {
             None
@@ -205,6 +203,50 @@ pub fn adapt_document_model(
         let page_height = section.get("pageHeightTwips").and_then(|v| v.as_f64()).unwrap_or(15840.0);
         let columns = section.get("columns");
         let col_count = columns.and_then(|c| c.get("count")).and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+        let ends_at = section.get("endsAtBlockId").and_then(|v| v.as_str());
+        let next_is_continuous = sections
+            .get(index + 1)
+            .and_then(|s| s.get("type"))
+            .and_then(|v| v.as_str())
+            == Some("continuous");
+        let section_blocks: Vec<Value> = slice
+            .iter()
+            .enumerate()
+            .filter_map(|(offset, block)| {
+                let absolute = slice_start + offset;
+                if folded.contains(&absolute) {
+                    return None;
+                }
+                // Empty text break markers share the preceding line. The mandatory
+                // paragraph after a table has its own line, after balancing the table.
+                if next_is_continuous {
+                    if let LayoutBlock::Paragraph(paragraph) = block {
+                        let is_end_marker = ends_at == Some(paragraph.id.as_str());
+                        let empty_marker = is_end_marker
+                            && paragraph.footnotes.as_ref().map(|f| f.is_empty()).unwrap_or(true)
+                            && paragraph.floats.as_ref().map(|f| f.is_empty()).unwrap_or(true)
+                            && paragraph.runs.iter().all(|run| {
+                                run.text.is_empty()
+                                    && run.object.is_none()
+                                    && run.break_after.is_none()
+                            });
+                        if empty_marker {
+                            let prev_is_table = offset
+                                .checked_sub(1)
+                                .and_then(|i| slice.get(i))
+                                .is_some_and(|b| matches!(b, LayoutBlock::Table(_)));
+                            if prev_is_table {
+                                let mut marked = paragraph.clone();
+                                marked.after_table_section_break = Some(true);
+                                return Some(block_to_value(&LayoutBlock::Paragraph(marked)));
+                            }
+                            return None;
+                        }
+                    }
+                }
+                Some(block_to_value(block))
+            })
+            .collect();
         result.push(LayoutSectionSerde {
             page: super::input::LayoutPageGeometry {
                 width_px: twips_to_px(page_width as i64),
@@ -234,16 +276,7 @@ pub fn adapt_document_model(
                 .get("verticalAlign")
                 .and_then(|v| v.as_str())
                 .map(str::to_string),
-            blocks: slice
-                .iter()
-                .enumerate()
-                .filter_map(|(offset, block)| {
-                    if folded.contains(&(start - slice.len() + offset)) {
-                        return None;
-                    }
-                    Some(block_to_value(block))
-                })
-                .collect(),
+            blocks: section_blocks,
         });
     }
     LayoutDocumentInput { sections: result }
@@ -345,6 +378,8 @@ fn adapt_paragraph_only(
     let footnotes = paragraph_footnotes(paragraph, model, note_label, &mut adapt_footnote);
     let box_result = paragraph_box(&resolved, theme);
     let tab_stops = layout_tab_stops(paragraph, &resolved, label);
+    // Numbering level indents apply unless the paragraph/style sets its own first-line/hanging.
+    let own_first_line = resolved.get("firstLineTwips").is_some() || resolved.get("hangingTwips").is_some();
     LayoutParagraph {
         after_table_section_break: None,
         kind: "paragraph".into(),
@@ -356,12 +391,27 @@ fn adapt_paragraph_only(
         spacing_after_twips: resolved.get("spacingAfterTwips").and_then(|v| v.as_i64()),
         line_spacing_twips: resolved.get("lineSpacingTwips").and_then(|v| v.as_i64()),
         line_spacing_rule: resolved.get("lineSpacingRule").and_then(|v| v.as_str()).map(str::to_string),
-        indent_left_twips: resolved.get("indentLeftTwips").and_then(|v| v.as_i64()),
+        indent_left_twips: resolved
+            .get("indentLeftTwips")
+            .and_then(|v| v.as_i64())
+            .or_else(|| label.and_then(|l| l.get("indentLeftTwips")).and_then(|v| v.as_i64())),
         indent_right_twips: resolved.get("indentRightTwips").and_then(|v| v.as_i64()),
         indent_start_twips: resolved.get("indentStartTwips").and_then(|v| v.as_i64()),
         indent_end_twips: resolved.get("indentEndTwips").and_then(|v| v.as_i64()),
-        first_line_twips: resolved.get("firstLineTwips").and_then(|v| v.as_i64()),
-        hanging_twips: resolved.get("hangingTwips").and_then(|v| v.as_i64()),
+        first_line_twips: if own_first_line {
+            resolved.get("firstLineTwips").and_then(|v| v.as_i64())
+        } else {
+            label
+                .and_then(|l| l.get("firstLineTwips"))
+                .and_then(|v| v.as_i64())
+        },
+        hanging_twips: if own_first_line {
+            resolved.get("hangingTwips").and_then(|v| v.as_i64())
+        } else {
+            label
+                .and_then(|l| l.get("hangingTwips"))
+                .and_then(|v| v.as_i64())
+        },
         contextual_spacing: resolved.get("contextualSpacing").and_then(|v| v.as_bool()),
         style_id: paragraph_style.map(str::to_string),
         page_break_before: resolved.get("pageBreakBefore").and_then(|v| v.as_bool()),
@@ -406,22 +456,42 @@ fn label_run(_paragraph: &Value, label: &Value, runs: &[LayoutRun]) -> LayoutRun
         _ => "",
     };
     let displayed = display_list_label(text_label);
+    let marker_fmt = label.get("markerFormat");
     LayoutRun {
         text: format!("{}{}", displayed, suffix),
         synthetic: Some(true),
         marker: Some(super::input::ListMarker {
-            length: displayed.len(),
+            // Upstream uses JS `String.length` (UTF-16 code units).
+            length: super::text_breaks::utf16_len(&displayed),
             alignment: label
                 .get("alignment")
                 .and_then(|v| v.as_str())
                 .unwrap_or("left")
                 .into(),
         }),
-        bold: first.bold,
-        italic: first.italic,
-        font_family: first.font_family.clone(),
-        font_size_pt: first.font_size_pt,
-        color: first.color.clone(),
+        bold: marker_fmt
+            .and_then(|m| m.get("bold"))
+            .and_then(|v| v.as_bool())
+            .or(first.bold),
+        italic: marker_fmt
+            .and_then(|m| m.get("italic"))
+            .and_then(|v| v.as_bool())
+            .or(first.italic),
+        font_family: marker_fmt
+            .and_then(|m| m.get("fontFamily"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .or_else(|| first.font_family.clone()),
+        font_size_pt: marker_fmt
+            .and_then(|m| m.get("fontSizeHalfPoints"))
+            .and_then(|v| v.as_f64())
+            .map(|hp| hp / 2.0)
+            .or(first.font_size_pt),
+        color: marker_fmt
+            .and_then(|m| m.get("color"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .or_else(|| first.color.clone()),
         hidden: None,
         source_length: None,
         text_scale_percent: None,
@@ -616,4 +686,47 @@ fn adapt_run(
             .and_then(|v| v.as_bool())
             .or_else(|| formatting.get("doubleStrike").and_then(|v| v.as_bool())),
     }
+}
+
+fn paragraph_numbering_from_json(paragraph: &Value) -> Option<(i64, i64)> {
+    let n = paragraph.get("numbering")?;
+    let num_id = n
+        .get("numId")
+        .and_then(|v| v.as_i64())
+        .or_else(|| n.get("numId").and_then(|v| v.as_u64()).map(|u| u as i64))?;
+    let level = n
+        .get("level")
+        .and_then(|v| v.as_i64())
+        .or_else(|| n.get("level").and_then(|v| v.as_u64()).map(|u| u as i64))
+        .unwrap_or(0);
+    Some((num_id, level))
+}
+
+/// Document order: body paragraphs, then each table cell's paragraphs (upstream `flattenParagraphs`).
+fn flatten_paragraphs(blocks: &[Value]) -> Vec<&Value> {
+    let mut out = Vec::new();
+    for block in blocks {
+        match block.get("type").and_then(|v| v.as_str()) {
+            Some("paragraph") => out.push(block),
+            Some("table") => {
+                if let Some(rows) = block.get("rows").and_then(|v| v.as_array()) {
+                    for row in rows {
+                        if let Some(cells) = row.as_array() {
+                            for cell in cells {
+                                if let Some(paragraphs) =
+                                    cell.get("paragraphs").and_then(|v| v.as_array())
+                                {
+                                    for p in paragraphs {
+                                        out.push(p);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
 }

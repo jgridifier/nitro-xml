@@ -26,11 +26,15 @@ pub fn suppresses_spacing(
     previous: Option<&ParagraphSpacingCtx>,
     current: &ParagraphSpacingCtx,
 ) -> bool {
+    // Upstream: no previous, or previous has no styleId → never suppress (None ≠ None).
     let previous = match previous {
         Some(p) => p,
         None => return false,
     };
-    if previous.style_id.as_deref() != current.style_id.as_deref() {
+    let Some(prev_style) = previous.style_id.as_deref() else {
+        return false;
+    };
+    if Some(prev_style) != current.style_id.as_deref() {
         return false;
     }
     previous.contextual_spacing || current.contextual_spacing
@@ -43,4 +47,33 @@ pub struct ParagraphSpacingCtx {
 
 pub fn widow_control_enabled(value: Option<bool>) -> bool {
     value != Some(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catches_none_style_id_does_not_suppress_contextual_spacing() {
+        // Catches: treating missing styleId as equal (None == None) collapsed
+        // spacingBefore between unstyled contextualSpacing paragraphs (poi-bug65649).
+        let prev = ParagraphSpacingCtx {
+            style_id: None,
+            contextual_spacing: true,
+        };
+        let cur = ParagraphSpacingCtx {
+            style_id: None,
+            contextual_spacing: true,
+        };
+        assert!(!suppresses_spacing(Some(&prev), &cur));
+        let prev2 = ParagraphSpacingCtx {
+            style_id: Some("Normal".into()),
+            contextual_spacing: true,
+        };
+        let cur2 = ParagraphSpacingCtx {
+            style_id: Some("Normal".into()),
+            contextual_spacing: true,
+        };
+        assert!(suppresses_spacing(Some(&prev2), &cur2));
+    }
 }

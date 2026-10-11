@@ -493,7 +493,9 @@ fn flush_paragraph_line(
     let end = if let Some(last) = placed.last() {
         let base = global_offset(&last.token);
         match &last.token {
-            BreakToken::Word { text, .. } | BreakToken::Space { text, .. } => base + text.len(),
+            BreakToken::Word { text, .. } | BreakToken::Space { text, .. } => {
+                base + super::text_breaks::utf16_len(text)
+            }
             _ => base + 1,
         }
     } else {
@@ -513,7 +515,7 @@ fn flush_paragraph_line(
                     } else {
                         match &placed_token.token {
                             BreakToken::Word { text, .. } | BreakToken::Space { text, .. } => {
-                                text.len()
+                                super::text_breaks::utf16_len(text)
                             }
                             _ => 1,
                         }

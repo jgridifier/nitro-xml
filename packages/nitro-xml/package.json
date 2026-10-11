@@ -1,0 +1,36 @@
+{
+  "name": "nitro-xml",
+  "version": "0.0.0",
+  "description": "Open, view, edit and save .xlsx, .docx and .pptx in the browser, in Rust/WebAssembly.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jgridifier/nitro-xml.git",
+    "directory": "packages/nitro-xml"
+  },
+  "homepage": "https://jgridifier.github.io/nitro-xml/",
+  "type": "module",
+  "main": "./pkg/nitro_xml_wasm.js",
+  "module": "./pkg/nitro_xml_wasm.js",
+  "types": "./pkg/nitro_xml_wasm.d.ts",
+  "exports": {
+    ".": {
+      "types": "./pkg/nitro_xml_wasm.d.ts",
+      "import": "./pkg/nitro_xml_wasm.js"
+    },
+    "./nitro_xml_wasm_bg.wasm": "./pkg/nitro_xml_wasm_bg.wasm"
+  },
+  "files": [
+    "pkg/nitro_xml_wasm.js",
+    "pkg/nitro_xml_wasm.d.ts",
+    "pkg/nitro_xml_wasm_bg.wasm",
+    "pkg/nitro_xml_wasm_bg.wasm.d.ts",
+    "LICENSE",
+    "LICENSE-THIRD-PARTY",
+    "NOTICE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "bash ../../scripts/build-wasm.sh"
+  }
+}

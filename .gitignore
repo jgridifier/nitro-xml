@@ -28,3 +28,6 @@ fixtures/private/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+/packages/nitro-xml/LICENSE
+/packages/nitro-xml/LICENSE-THIRD-PARTY
+/packages/nitro-xml/NOTICE

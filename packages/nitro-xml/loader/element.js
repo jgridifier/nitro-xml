@@ -62,8 +62,10 @@ export class ViewerElement extends HTMLElement {
     this._clr();
     this._surf();
     this._d && this._d.dispose();
-    this._d = new WD({ canvas: this._c, root: this._r, name: n });
-    await this._d.open(b, n);
+    // Assign only after open so ResizeObserver/events cannot race handle=null (#27).
+    const d = new WD({ canvas: this._c, root: this._r, name: n });
+    await d.open(b, n);
+    this._d = d;
     await this._ao();
     this._tick();
   }

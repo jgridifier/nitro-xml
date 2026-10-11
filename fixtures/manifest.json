@@ -1733,6 +1733,29 @@
       "upstream_path": "src/core/docx/layout/fixtures/continuous-tables/table-even.docx"
     },
     {
+      "id": "bidi-arabic-hebrew-slides",
+      "format": "pptx",
+      "path": "fixtures/bidi/arabic-hebrew-slides.pptx",
+      "sha256": "5d41470b769e8220d4f70cf3a5129f7baf454ceae1bca75166e8647aa13c5ac1",
+      "bytes": 5326,
+      "tier": "S",
+      "source": "generated",
+      "licence": "MIT",
+      "features": [
+        "arabic",
+        "bidi",
+        "generated",
+        "hebrew",
+        "mixed-direction"
+      ],
+      "redistributable": true,
+      "on_demand": false,
+      "generator": {
+        "tool": "fixtures/bidi/generate.py",
+        "id": "arabic-hebrew-slides"
+      }
+    },
+    {
       "id": "gen-pptx-activex",
       "format": "pptx",
       "path": "fixtures/generated/pptx/painter_activex.pptx",
@@ -4719,6 +4742,52 @@
       "redistributable": false,
       "on_demand": false,
       "upstream_path": "src/core/pptx/__tests__/fixtures/e2e/anatidae-animation.pptx"
+    },
+    {
+      "id": "bidi-arabic-hebrew-mixed",
+      "format": "xlsx",
+      "path": "fixtures/bidi/arabic-hebrew-mixed.xlsx",
+      "sha256": "9e2a761548c0d3ef13536cc912e5f901566e1302a30055d093ba58f326f91bb4",
+      "bytes": 3169,
+      "tier": "S",
+      "source": "generated",
+      "licence": "MIT",
+      "features": [
+        "arabic",
+        "bidi",
+        "generated",
+        "hebrew",
+        "mixed-direction"
+      ],
+      "redistributable": true,
+      "on_demand": false,
+      "generator": {
+        "tool": "fixtures/bidi/generate.py",
+        "id": "arabic-hebrew-mixed"
+      }
+    },
+    {
+      "id": "bidi-rtl-sheet",
+      "format": "xlsx",
+      "path": "fixtures/bidi/rtl-sheet.xlsx",
+      "sha256": "3c3339fabbda1cd03dfa5bb8e2d9dc80402b945dd969e598a0412551666449e7",
+      "bytes": 3128,
+      "tier": "S",
+      "source": "generated",
+      "licence": "MIT",
+      "features": [
+        "arabic",
+        "bidi",
+        "generated",
+        "hebrew",
+        "rtl"
+      ],
+      "redistributable": true,
+      "on_demand": false,
+      "generator": {
+        "tool": "fixtures/bidi/generate.py",
+        "id": "rtl-sheet"
+      }
     },
     {
       "id": "gen-xlsx-cells-100k",

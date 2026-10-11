@@ -6,5 +6,6 @@ use nitro_xml_render::command_buffer::CommandBuffer;
 use crate::render::GridPaintViewport;
 
 pub fn paint(_buf: &mut CommandBuffer, _viewport: &GridPaintViewport) {
-    // TODO(#18 X6): selection overlay when editor session exists.
+    // TODO(#150): selection overlay when viewport exposes active selection.
+    // TODO(#29): sheet chrome selection sync with tabs/status shell.
 }

@@ -3,10 +3,12 @@
 
 mod cells;
 mod cond_format;
+mod geometry;
 mod grid;
 mod gridlines;
 mod headers;
 mod selection;
+mod viewport;
 
 pub mod chart;
 
@@ -47,8 +49,7 @@ pub fn paint_grid_frame<I: StringIntern>(
     );
     buf.begin();
     grid::paint_frame(buf, intern, viewport, &metrics);
-    gridlines::paint(buf, sheet, &metrics, viewport);
-    headers::paint(buf, sheet, &metrics, viewport);
+    gridlines::paint(buf, intern, sheet, &metrics, viewport);
     cells::paint(
         buf,
         intern,
@@ -59,6 +60,7 @@ pub fn paint_grid_frame<I: StringIntern>(
         &metrics,
         viewport,
     );
+    headers::paint(buf, intern, sheet, &metrics, viewport);
     cond_format::paint(buf);
     selection::paint(buf, viewport);
 }

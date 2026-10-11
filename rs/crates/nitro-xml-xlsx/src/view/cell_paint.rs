@@ -3,7 +3,7 @@
 // changes listed in PROVENANCE.md.
 
 use crate::view::css_font_family::css_font_family;
-use crate::view::types::{BordersView, FontView};
+use crate::view::types::{BordersView, EdgeView, FillView, FontView};
 
 pub fn css_font(font: &FontView, zoom: f64) -> String {
     let size = ((font.size_px * (zoom / 100.0) * 100.0).round() / 100.0).max(1.0);
@@ -31,4 +31,133 @@ pub fn repeat_to_fill(text: &str, text_width: f64, cell_width: f64) -> String {
 pub fn hashes(cell_inner_width: f64, hash_width: f64) -> String {
     let n = ((cell_inner_width / hash_width.max(1.0)).floor() as usize).max(1);
     "#".repeat(n.min(200))
+}
+
+pub fn text_decoration(font: &FontView) -> String {
+    let mut parts = Vec::new();
+    if font.underline.is_some() {
+        parts.push("underline");
+    }
+    if font.strike {
+        parts.push("line-through");
+    }
+    if parts.is_empty() {
+        "none".to_string()
+    } else {
+        parts.join(" ")
+    }
+}
+
+pub struct FillPaint {
+    pub background: Option<String>,
+    pub image: Option<String>,
+}
+
+pub fn fill_paint(fill: Option<&FillView>) -> Option<FillPaint> {
+    match fill {
+        None => None,
+        Some(FillView::Background { background }) => Some(FillPaint {
+            background: Some(background.clone()),
+            image: None,
+        }),
+        Some(FillView::Gradient { gradient }) => Some(FillPaint {
+            background: None,
+            image: Some(gradient.clone()),
+        }),
+        Some(FillView::Pattern { pattern, fg, bg }) => {
+            if pattern == "none" {
+                None
+            } else if pattern == "solid" {
+                Some(FillPaint {
+                    background: Some(fg.clone()),
+                    image: None,
+                })
+            } else {
+                Some(FillPaint {
+                    background: Some(bg.clone()),
+                    image: None,
+                })
+            }
+        }
+    }
+}
+
+pub fn edge_css(edge: Option<&EdgeView>) -> String {
+    match edge {
+        None => String::new(),
+        Some(e) => {
+            let width = if e.style == "double" {
+                (e.width_px.max(3.0)).round() as i32
+            } else {
+                e.width_px.round() as i32
+            };
+            format!("{}px {} {}", width, e.style, e.color)
+        }
+    }
+}
+
+pub fn justify(h_align: &str) -> &'static str {
+    if h_align == "right" {
+        "flex-end"
+    } else if h_align == "center" || h_align == "centerContinuous" || h_align == "distributed" {
+        "center"
+    } else {
+        "flex-start"
+    }
+}
+
+pub fn align_items(v_align: &str) -> &'static str {
+    if v_align == "top" {
+        "flex-start"
+    } else if v_align == "center" || v_align == "distributed" || v_align == "justify" {
+        "center"
+    } else {
+        "flex-end"
+    }
+}
+
+pub fn text_align(h_align: &str) -> &'static str {
+    if h_align == "right" {
+        "right"
+    } else if h_align == "center" || h_align == "centerContinuous" {
+        "center"
+    } else if h_align == "justify" || h_align == "distributed" {
+        "justify"
+    } else {
+        "left"
+    }
+}
+
+pub fn diagonal_svg(b: &BordersView, w: i32, h: i32) -> Option<String> {
+    if b.diagonal_up.is_none() && b.diagonal_down.is_none() {
+        return None;
+    }
+    let line = |edge: &EdgeView, x1: i32, y1: i32, x2: i32, y2: i32| -> String {
+        let dash = if edge.style == "dashed" {
+            " stroke-dasharray=\"4 2\""
+        } else if edge.style == "dotted" {
+            " stroke-dasharray=\"1 2\""
+        } else {
+            ""
+        };
+        format!(
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}",
+            x1, y1, x2, y2, edge.color, edge.width_px, dash
+        )
+    };
+    let mut body = String::new();
+    if let Some(ref e) = b.diagonal_down {
+        body.push_str(&line(e, 0, 0, w, h));
+    }
+    if let Some(ref e) = b.diagonal_up {
+        body.push_str(&line(e, 0, h, w, 0));
+    }
+    Some(format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\">{}</svg>",
+        w,
+        h,
+        w,
+        h,
+        body
+    ))
 }

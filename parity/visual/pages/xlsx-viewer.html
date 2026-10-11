@@ -17,9 +17,17 @@
       width: 100%;
       height: 100%;
     }
-    /* Strip remaining chrome so the shot is mostly the grid surface. */
+    /* Strip remaining chrome so the shot is mostly the grid surface.
+       Sheet tabs and status bar are #29 — hidden here for grid-only screenshots. */
     #stage xlsx-editor {
       --xve-title-bar-display: none;
+    }
+    #stage xlsx-editor::part(sheet-tabs),
+    #stage xlsx-editor::part(status-bar),
+    #stage xlsx-editor .xve-tabs-row,
+    #stage xlsx-editor .xve-status,
+    #stage xlsx-editor .xve-title-bar {
+      display: none !important;
     }
     @media print {
       html, body, #stage { background: #fff; }
@@ -116,6 +124,19 @@
       if (!res.ok) throw new Error(`fixture fetch ${res.status}`);
       const bytes = new Uint8Array(await res.arrayBuffer());
       await el.load(bytes, el.fileName);
+      // #29: hide sheet tabs / status / title chrome — grid-only visual (#150).
+      const root = el.shadowRoot || el;
+      for (const sel of [
+        '[part="sheet-tabs"]',
+        '[part="status-bar"]',
+        '.xve-tabs-row',
+        '.xve-status',
+        '.xve-title-bar',
+      ]) {
+        root.querySelectorAll(sel).forEach((node) => {
+          node.style.display = 'none';
+        });
+      }
       // Wait until the grid host has painted cell nodes.
       for (let i = 0; i < 60; i++) {
         await waitFrames(1);

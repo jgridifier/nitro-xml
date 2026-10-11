@@ -15,7 +15,19 @@ pub fn paint_frame<I: StringIntern>(
     metrics: &GridMetrics,
 ) {
     let _ = (viewport, metrics);
-    // TODO(#19): quadrant transforms, scroll extent, freeze lines (X1).
     let div = intern.intern("div");
     buf.create_element(1, div, 0);
+    for (prop, val) in [
+        ("position", "relative"),
+        ("width", "100%"),
+        ("height", "100%"),
+        ("overflow", "hidden"),
+        ("background", "#fff"),
+        ("color", "#000"),
+        ("fontFamily", "\"Segoe UI\", system-ui, sans-serif"),
+    ] {
+        let p = intern.intern(prop);
+        let v = intern.intern(val);
+        buf.set_style(1, p, v);
+    }
 }

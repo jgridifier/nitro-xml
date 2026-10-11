@@ -60,6 +60,11 @@ if [ "$parity_rc" -ne 0 ] || [ "$test_rc" -ne 0 ]; then
 fi
 
 echo "parity: visual pixelmatch (#45)"
+# Always materialise artifact paths for the workflow upload-artifact step (#148),
+# even if the visual runner crashes before writing its own summary/diffs.
+mkdir -p parity/visual/out/diffs
+printf '%s\n' 'visual: not run yet' > parity/visual/out/summary.txt
+
 # Wasm package for <nitro-xlsx> visual cases (loader hosts the built pkg/).
 bash scripts/build-wasm.sh
 ( cd parity/visual && bun install )
@@ -71,15 +76,20 @@ set +e
 visual_rc=$?
 set -e
 
+# Guarantee summary.txt exists for artifact upload after any failure mode.
+if [ ! -f parity/visual/out/summary.txt ] || ! grep -q '^visual:' parity/visual/out/summary.txt 2>/dev/null; then
+  printf '%s\n' "visual: FAIL (runner exited ${visual_rc}; no summary written)" > parity/visual/out/summary.txt
+fi
+
 if [ "$visual_rc" -ne 0 ]; then
   echo "parity: FAIL (visual=$visual_rc)" >&2
-  if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f parity/visual/out/summary.txt ]; then
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     {
       echo "## Visual gate (#45) FAILED"
       echo '```'
       cat parity/visual/out/summary.txt
       echo '```'
-      echo "Diff PNGs under \`parity/visual/out/diffs/\` (upload-artifact step needed in workflow — see PR)."
+      echo "Diff PNGs under \`parity/visual/out/diffs/\` (CI artifact \`visual-parity-diffs\`)."
     } >> "$GITHUB_STEP_SUMMARY"
   fi
   exit 1
@@ -90,12 +100,8 @@ echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"
   echo "" >> "$GITHUB_STEP_SUMMARY"
-  if [ -f parity/visual/out/summary.txt ]; then
-    echo "## Visual gate (#45)" >> "$GITHUB_STEP_SUMMARY"
-    echo '```' >> "$GITHUB_STEP_SUMMARY"
-    cat parity/visual/out/summary.txt >> "$GITHUB_STEP_SUMMARY"
-    echo '```' >> "$GITHUB_STEP_SUMMARY"
-  fi
-  echo "Please add the \`parity\` job to branch-protection required checks (Jared / Chief of Staff)." >> "$GITHUB_STEP_SUMMARY"
-  echo "Optional workflow addition (agents cannot edit \`.github/workflows/\`): upload \`parity/visual/out/diffs/\` and \`parity/visual/out/summary.txt\` via \`actions/upload-artifact\` on the parity job (always, or on failure)." >> "$GITHUB_STEP_SUMMARY"
+  echo "## Visual gate (#45)" >> "$GITHUB_STEP_SUMMARY"
+  echo '```' >> "$GITHUB_STEP_SUMMARY"
+  cat parity/visual/out/summary.txt >> "$GITHUB_STEP_SUMMARY"
+  echo '```' >> "$GITHUB_STEP_SUMMARY"
 fi

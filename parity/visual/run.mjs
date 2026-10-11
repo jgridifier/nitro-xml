@@ -124,15 +124,40 @@ export async function runVisualGate() {
 	mkdirSync(SHOTS, { recursive: true });
 	mkdirSync(DIFFS, { recursive: true });
 	mkdirSync(PDFS, { recursive: true });
+	mkdirSync(OUT, { recursive: true });
 
-	await prepareAll();
-	const server = await startVisualServer();
-	const browser = await chromium.launch({ headless: true });
 	/** @type {object[]} */
 	const rows = [];
 	let failed = 0;
+	let runError = null;
+	let browser = null;
+	let server = null;
+
+	const writeSummary = () => {
+		const deferred = VISUAL_CASES.filter((c) => !c.ready).map((c) => `${c.id}: ${c.todo}`);
+		const hardOk = rows.filter((r) => r.ok || r.informational).length;
+		const summaryLines = [
+			runError
+				? `visual: FAIL (runner error: ${runError})`
+				: `visual: ${failed === 0 ? 'PASS' : 'FAIL'} (${hardOk}/${rows.length} comparisons; ${rows.filter((r) => r.informational && !r.ok).length} informational)`,
+			...rows.map((r) => {
+				const tag = r.ok ? 'OK' : r.informational ? 'INFO' : 'FAIL';
+				return `  ${tag} ${r.case} ${r.mode} dpr=${r.dpr} mismatch=${(r.ratio * 100).toFixed(4)}% (limit ${(r.threshold * 100).toFixed(2)}%)${r.reason ? ` ${r.reason}` : ''}${r.informational && !r.ok ? ' [informational]' : ''}`;
+			}),
+			...(deferred.length ? ['deferred:', ...deferred.map((d) => `  - ${d}`)] : []),
+			`diffs: ${DIFFS}`,
+		];
+		const summary = summaryLines.join('\n');
+		writeFileSync(join(OUT, 'summary.txt'), summary + '\n');
+		writeFileSync(join(OUT, 'results.json'), JSON.stringify({ failed, rows, deferred, error: runError ? String(runError) : null }, null, 2));
+		console.log(summary);
+	};
 
 	try {
+		await prepareAll();
+		server = await startVisualServer();
+		browser = await chromium.launch({ headless: true });
+
 		// Harness self-check: TS-vs-TS at DPR 1 for every ready case (acceptance: green before Rust).
 		for (const c of readyCases()) {
 			const a = await screenshotSide(browser, server.url, c, 'ts', 1);
@@ -206,27 +231,14 @@ export async function runVisualGate() {
 				reason: cmp.reason,
 			});
 		}
+	} catch (e) {
+		runError = e;
 	} finally {
-		await browser.close();
-		await server.close();
+		if (browser) await browser.close();
+		if (server) await server.close();
+		writeSummary();
 	}
-
-	const deferred = VISUAL_CASES.filter((c) => !c.ready).map((c) => `${c.id}: ${c.todo}`);
-	const hardOk = rows.filter((r) => r.ok || r.informational).length;
-	const summaryLines = [
-		`visual: ${failed === 0 ? 'PASS' : 'FAIL'} (${hardOk}/${rows.length} comparisons; ${rows.filter((r) => r.informational && !r.ok).length} informational)`,
-		...rows.map((r) => {
-			const tag = r.ok ? 'OK' : r.informational ? 'INFO' : 'FAIL';
-			return `  ${tag} ${r.case} ${r.mode} dpr=${r.dpr} mismatch=${(r.ratio * 100).toFixed(4)}% (limit ${(r.threshold * 100).toFixed(2)}%)${r.reason ? ` ${r.reason}` : ''}${r.informational && !r.ok ? ' [informational]' : ''}`;
-		}),
-		...(deferred.length ? ['deferred:', ...deferred.map((d) => `  - ${d}`)] : []),
-		`diffs: ${DIFFS}`,
-	];
-	const summary = summaryLines.join('\n');
-	writeFileSync(join(OUT, 'summary.txt'), summary + '\n');
-	writeFileSync(join(OUT, 'results.json'), JSON.stringify({ failed, rows, deferred }, null, 2));
-	console.log(summary);
-	return { ok: failed === 0, rows, summary };
+	return { ok: failed === 0 && !runError, rows, summary: '' };
 }
 
 if (import.meta.main) {

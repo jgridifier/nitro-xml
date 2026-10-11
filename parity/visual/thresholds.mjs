@@ -4,7 +4,8 @@
 export const THRESHOLDS = Object.freeze({
 	xlsx: 0.001, // ≤0.1% per viewport
 	docx: 0.005, // ≤0.5% per page
-	pptx: 0.005, // ≤0.5% per slide
+	/** pptx hard cases target the xlsx-style 0.1% slide bound (#27 harden / #150 method). */
+	pptx: 0.001, // ≤0.1% per slide
 	/** Chart S1 is hosted as a fixed viewport (xlsx-hosted charts use the xlsx bound). */
 	chart: 0.001,
 });

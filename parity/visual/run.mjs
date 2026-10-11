@@ -182,7 +182,7 @@ export async function runVisualGate() {
 			...(pptxTable.length
 				? [
 						'',
-						'pptx per-fixture pixel table (ts-vs-rust, informational):',
+						'pptx per-fixture pixel table (ts-vs-rust; hard ≤0.1% / else informational):',
 						'fixture\tdpr1%\tdpr2%\tdpr1_ok\tdpr2_ok\tnote',
 						...pptxTable,
 					]

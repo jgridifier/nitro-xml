@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "description": "Deliberately bad package for scripts/ci/ship_check.sh: every route must be caught.",
-  "main": "pkg/glue.js",
-  "files": ["pkg/glue.js", "pkg/bad.wasm"],
+  "main": "lib/glue.js",
+  "files": ["lib/glue.js", "lib/bad.wasm"],
   "dependencies": { "ooxml-core": "1.8.2", "lit": "3.0.0", "prosemirror-model": "1.0.0" }
 }

@@ -128,38 +128,96 @@ fn collect_paragraph_content(
     }
 }
 
-#[allow(clippy::single_match)]
+/// Upstream inserts synthetic breaks between runs when fast-xml-parser groups
+/// `a:r*` before `a:br*` (`insertCollapsedBreaks`). Match that dump string.
 fn walk_paragraph_children(p: &Element, parts: &mut Vec<String>) {
-    for child in &p.children {
-        match child {
-            Node::Element(el) => {
-                if el.ns.as_deref() == Some(ns::A) {
-                    match el.local.as_str() {
-                        "r" => process_run(el, parts),
-                        "fld" => process_field(el, parts),
-                        "t" => parts.push(el.text_content()),
-                        "br" => parts.push("\n".to_owned()),
-                        _ => {}
+    let content: Vec<&Element> = p
+        .children
+        .iter()
+        .filter_map(|c| match c {
+            Node::Element(el) if is_paragraph_content_tag(el) => Some(el),
+            _ => None,
+        })
+        .collect();
+    let run_count = content
+        .iter()
+        .filter(|el| el.local == "r" && el.ns.as_deref() == Some(ns::A))
+        .count();
+    let break_count = content
+        .iter()
+        .filter(|el| el.local == "br" && el.ns.as_deref() == Some(ns::A))
+        .count();
+    let grouped = content_is_grouped_by_tag(&content);
+    let insert_collapsed = grouped && run_count > 1 && break_count > 0;
+    let mut run_index = 0usize;
+
+    for el in content {
+        if el.ns.as_deref() == Some(ns::A) {
+            match el.local.as_str() {
+                "r" => {
+                    process_run(el, parts);
+                    if insert_collapsed && run_index < run_count.saturating_sub(1).min(break_count)
+                    {
+                        parts.push("\n".to_owned());
                     }
-                } else if el.ns.as_deref() == Some(ns::M)
-                    && matches!(el.local.as_str(), "oMath" | "oMathPara")
-                {
-                    parts.push("[Equation]".to_owned());
-                } else if el.ns.as_deref() == Some(ns::MC) && el.local == "AlternateContent" {
-                    process_alternate_content(el, parts);
-                } else if el.local == "m"
-                    && el
-                        .ns
-                        .as_deref()
-                        .map(|u| u.contains("drawing"))
-                        .unwrap_or(false)
-                {
-                    parts.push("[Equation]".to_owned());
+                    run_index += 1;
                 }
+                "fld" => process_field(el, parts),
+                "t" => parts.push(el.text_content()),
+                "br" => parts.push("\n".to_owned()),
+                _ => {}
             }
-            _ => {}
+        } else if el.ns.as_deref() == Some(ns::M)
+            && matches!(el.local.as_str(), "oMath" | "oMathPara")
+        {
+            parts.push("[Equation]".to_owned());
+        } else if el.ns.as_deref() == Some(ns::MC) && el.local == "AlternateContent" {
+            process_alternate_content(el, parts);
+        } else if el.local == "m"
+            && el
+                .ns
+                .as_deref()
+                .map(|u| u.contains("drawing"))
+                .unwrap_or(false)
+        {
+            parts.push("[Equation]".to_owned());
         }
     }
+}
+
+fn is_paragraph_content_tag(el: &Element) -> bool {
+    if el.ns.as_deref() == Some(ns::A) {
+        return matches!(el.local.as_str(), "r" | "fld" | "t" | "br");
+    }
+    if el.ns.as_deref() == Some(ns::M) {
+        return matches!(el.local.as_str(), "oMath" | "oMathPara");
+    }
+    if el.ns.as_deref() == Some(ns::MC) && el.local == "AlternateContent" {
+        return true;
+    }
+    el.local == "m"
+        && el
+            .ns
+            .as_deref()
+            .map(|u| u.contains("drawing"))
+            .unwrap_or(false)
+}
+
+fn content_is_grouped_by_tag(content: &[&Element]) -> bool {
+    // True when tag runs are contiguous by local name (parser-grouped shape).
+    let mut last: Option<&str> = None;
+    let mut seen: Vec<&str> = Vec::new();
+    for el in content {
+        let tag = el.local.as_str();
+        if last != Some(tag) {
+            if seen.contains(&tag) {
+                return false;
+            }
+            seen.push(tag);
+            last = Some(tag);
+        }
+    }
+    true
 }
 
 fn process_alternate_content(ac: &Element, parts: &mut Vec<String>) {

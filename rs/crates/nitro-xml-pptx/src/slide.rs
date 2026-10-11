@@ -543,21 +543,28 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         .and_then(|i| find_placeholder_context(ctx, i));
     let sp_pr = child_local(shape, "spPr", ns::P);
     let inherited_sp_pr = inherited.as_ref().and_then(sp_pr_of_placeholder);
+    // Bare `<p:spPr/>` is `''` (falsy) in fast-xml-parser, so upstream falls back to
+    // the full inherited placeholder spPr — including master `a:noFill` / `a:ln/a:noFill`.
+    // An owned spPr that only carries xfrm/geom stays slide-local and still sees fillRef.
     let effective_sp_pr = if let Some(own) = sp_pr {
-        let mut merged = own.clone();
-        if let Some(inh) = inherited_sp_pr {
-            if let Some(inh_xfrm) = child_local(inh, "xfrm", ns::A) {
-                if let Some(own_xfrm) = child_local(own, "xfrm", ns::A) {
-                    let mx = merge_elements(Some(inh_xfrm), Some(own_xfrm), 0);
-                    if let Some(mx) = mx {
-                        replace_child(&mut merged, "xfrm", ns::A, mx);
+        if !element_has_element_children(own) {
+            inherited_sp_pr.cloned()
+        } else {
+            let mut merged = own.clone();
+            if let Some(inh) = inherited_sp_pr {
+                if let Some(inh_xfrm) = child_local(inh, "xfrm", ns::A) {
+                    if let Some(own_xfrm) = child_local(own, "xfrm", ns::A) {
+                        let mx = merge_elements(Some(inh_xfrm), Some(own_xfrm), 0);
+                        if let Some(mx) = mx {
+                            replace_child(&mut merged, "xfrm", ns::A, mx);
+                        }
+                    } else {
+                        merged.children.push(Node::Element(inh_xfrm.clone()));
                     }
-                } else {
-                    merged.children.push(Node::Element(inh_xfrm.clone()));
                 }
             }
+            Some(merged)
         }
-        Some(merged)
     } else {
         inherited_sp_pr.cloned()
     };
@@ -1258,58 +1265,52 @@ fn parse_emu_attr(v: Option<&str>) -> i64 {
     v.and_then(|s| s.parse().ok()).unwrap_or(0)
 }
 
+fn element_has_element_children(el: &Element) -> bool {
+    el.children.iter().any(|n| matches!(n, Node::Element(_)))
+}
+
 fn shape_element_has_visible_style(
     shape: &Element,
     sp_pr: Option<&Element>,
     inherited_shape: Option<&Element>,
 ) -> bool {
-    if sp_pr.is_some_and(shape_has_visible_style) {
-        return true;
-    }
-    let style = child_local(shape, "style", ns::P)
-        .or_else(|| inherited_shape.and_then(|el| child_local(el, "style", ns::P)));
-    if let Some(style) = style {
-        if let Some(fill_ref) = child_local(style, "fillRef", ns::A) {
-            let idx = attr(fill_ref, "idx")
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0);
-            if idx > 0 {
-                return true;
-            }
+    // Mirrors upstream `extractShapeStyle` + `hasVisibleStyle`: `a:noFill` /
+    // `a:ln/a:noFill` win over `p:style` fillRef/lnRef (master title placeholders).
+    let fill_visible = match sp_pr {
+        Some(sp) if child_local(sp, "noFill", ns::A).is_some() => false,
+        Some(sp)
+            if child_local(sp, "solidFill", ns::A).is_some()
+                || child_local(sp, "gradFill", ns::A).is_some()
+                || child_local(sp, "pattFill", ns::A).is_some()
+                || child_local(sp, "blipFill", ns::A).is_some() =>
+        {
+            true
         }
-        if let Some(ln_ref) = child_local(style, "lnRef", ns::A) {
-            let idx = attr(ln_ref, "idx")
-                .and_then(|s| s.parse::<i32>().ok())
-                .unwrap_or(0);
-            if idx > 0 {
-                return true;
-            }
-        }
-    }
-    false
+        _ => style_ref_idx_positive(shape, inherited_shape, "fillRef"),
+    };
+    // Upstream gates on resolved `strokeWidth > 0` only (not mere solidFill on ln).
+    let stroke_visible = match sp_pr.and_then(|sp| child_local(sp, "ln", ns::A)) {
+        Some(ln) if child_local(ln, "noFill", ns::A).is_some() => false,
+        Some(ln) => parse_emu_attr(attr(ln, "w")) > 0,
+        None => style_ref_idx_positive(shape, inherited_shape, "lnRef"),
+    };
+    fill_visible || stroke_visible
 }
 
-fn shape_has_visible_style(sp_pr: &Element) -> bool {
-    if child_local(sp_pr, "noFill", ns::A).is_some() {
+fn style_ref_idx_positive(shape: &Element, inherited_shape: Option<&Element>, local: &str) -> bool {
+    let style = child_local(shape, "style", ns::P)
+        .or_else(|| inherited_shape.and_then(|el| child_local(el, "style", ns::P)));
+    let Some(style) = style else {
         return false;
-    }
-    if child_local(sp_pr, "solidFill", ns::A).is_some()
-        || child_local(sp_pr, "gradFill", ns::A).is_some()
-        || child_local(sp_pr, "pattFill", ns::A).is_some()
-        || child_local(sp_pr, "blipFill", ns::A).is_some()
-    {
-        return true;
-    }
-    if let Some(ln) = child_local(sp_pr, "ln", ns::A) {
-        if child_local(ln, "noFill", ns::A).is_some() {
-            return false;
-        }
-        let w = parse_emu_attr(attr(ln, "w"));
-        if w > 0 {
-            return true;
-        }
-    }
-    false
+    };
+    let Some(ref_el) = child_local(style, local, ns::A) else {
+        return false;
+    };
+    let idx = attr(ref_el, "idx")
+        .and_then(|s| s.parse::<i32>().ok())
+        .unwrap_or(0);
+    // idx 0 / 1000 mean "none" in the style matrix (same as upstream).
+    idx > 0 && idx != 1000
 }
 
 pub fn text_body_has_content(tx_body: Option<&Element>) -> bool {

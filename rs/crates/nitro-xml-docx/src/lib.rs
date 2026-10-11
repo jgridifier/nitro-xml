@@ -1,26 +1,51 @@
 // SPDX-License-Identifier: MIT
 //! Word (.docx) styles, numbering, theme and settings (Stage 4 port of ChristopherVR/ooxml@e66aaec).
 
+#![allow(dead_code)] // Upstream-shaped layout API; not every helper is wired in the Rust viewer yet (#22).
+#![allow(
+    clippy::too_many_arguments,
+    clippy::module_inception,
+    clippy::large_enum_variant,
+    clippy::manual_strip,
+    clippy::manual_is_multiple_of,
+    clippy::match_like_matches_macro,
+    clippy::unnecessary_wraps,
+    clippy::redundant_closure,
+    clippy::single_char_pattern,
+    clippy::if_same_then_else,
+    clippy::unnecessary_lazy_evaluations,
+    clippy::manual_unwrap_or,
+    clippy::unnecessary_unwrap
+)]
+
 mod body;
 mod borders;
 mod breaks;
 mod chart_host;
+mod chart_paint;
 mod comments;
 mod default_styles;
 mod drawing;
 pub mod dump;
 mod equation;
 mod field_runs;
+mod fields;
 mod hyperlink;
 mod json_util;
+mod layout;
 mod ligatures;
 mod model_dump;
+mod note_format;
 mod notes;
 mod numbering;
 mod paragraph_alignment;
 mod paragraph_scan;
+mod resolve_table;
+mod review_document_formatting;
+mod review_formatting_display;
 mod revisions;
 mod run;
+mod run_formatting;
 mod run_properties;
 mod sections;
 mod settings;
@@ -28,7 +53,10 @@ mod simple_types;
 mod styles;
 mod tab_stops;
 mod table;
+mod table_styles;
+mod table_visuals;
 mod theme;
+mod theme_color;
 mod warnings;
 mod watermark;
 mod xml_util;
@@ -51,6 +79,8 @@ pub use styles::{
     parse_run_style_catalog, resolve_paragraph_formatting, resolve_style_numbering, ParagraphProps,
     PAGINATION_KEYS,
 };
+pub use table_styles::parse_table_style_catalog;
 pub use theme::{diagram_color_theme, parse_color_scheme_mapping, parse_theme};
 
 pub mod render;
+pub use layout::{create_fake_measurer, layout_document, layout_document_model, LayoutResult};

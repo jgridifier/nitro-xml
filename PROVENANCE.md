@@ -130,7 +130,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/run.rs` | `src/core/docx/block-parser.ts` (`parseRun`) @ e66aaec | Run parse for body/HF/notes. |
 | `rs/crates/nitro-xml-docx/src/table.rs` | `src/core/docx/parse-table.ts`, `write-table.ts` (`canEditTableStructure`) @ e66aaec | Table/cell parse and structureEditable. |
 | `rs/crates/nitro-xml-docx/src/drawing.rs` | `src/core/docx/drawing.ts`, `diagram.ts` (host) @ e66aaec | Inline/anchor pictures, diagram/chart hosts; #28 deep chartSpace deferred. |
-| `rs/crates/nitro-xml-docx/src/chart_host.rs` | `src/core/docx/chart.ts` (`parseChartGraphic`) @ e66aaec | Chart relationship host fields only. |
+| `rs/crates/nitro-xml-docx/src/chart_host.rs` | `src/core/docx/chart.ts` (`parseChartGraphic` + light title/kind peek for layout labels) @ e66aaec | Full `chartSpace` parse remains #28. |
 | `rs/crates/nitro-xml-docx/src/sections.rs` | `src/core/docx/sections.ts` @ e66aaec | Raw section geometry and header/footer refs. |
 | `rs/crates/nitro-xml-docx/src/notes.rs` | `src/core/docx/notes.ts` @ e66aaec | Footnote/endnote part parse. |
 | `rs/crates/nitro-xml-docx/src/revisions.rs` | `src/core/docx/parse-revisions.ts` @ e66aaec | Revision wrappers and `collectParagraphRuns`. |
@@ -222,3 +222,44 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-render/src/chart/render/svg_title_text.rs` | `src/core/chart/render/chart-svg-title-text.ts` @ e66aaec | Rich / wrapped title SVG (`wrapStyledRuns`, #28). |
 | `rs/crates/nitro-xml-render/src/chart/render/wrap_styled_runs.rs` | `src/core/text/wrap-styled-runs.ts` @ e66aaec | Format-neutral styled-run wrap (grapheme-aware `breakWords`). |
 | `rs/crates/nitro-xml-render/src/chart/oracle_svg.rs` | — | MIT host-only bridge to `chart_ref.ts` for parity until Rust S1 lands. |
+| `rs/crates/nitro-xml-docx/src/run_formatting.rs` | `src/core/docx/run-formatting.ts` @ e66aaec | `resolve_run_formatting` for layout adapter. |
+| `rs/crates/nitro-xml-docx/src/theme_color.rs` | `src/core/docx/theme-color.ts` @ e66aaec | `resolve_theme_color_reference` for themed run colours in layout. |
+| `rs/crates/nitro-xml-docx/src/review_document_formatting.rs` | `src/core/docx/review-document-formatting.ts` @ e66aaec | Review projection before layout (#22). |
+| `rs/crates/nitro-xml-docx/src/review_formatting_display.rs` | `src/core/docx/review-formatting-display.ts` @ e66aaec | `is_run_hidden_for_review` for adapter. |
+| `rs/crates/nitro-xml-docx/src/fields.rs` | `src/core/docx/field-runs.ts` (field name helpers) @ e66aaec | `field_name`, `is_field_locked`, `date_field_result` for layout runs. |
+| `rs/crates/nitro-xml-docx/src/note_format.rs` | `src/core/docx/note-format.ts` @ e66aaec | Footnote/endnote label numbering for layout notes. |
+| `rs/crates/nitro-xml-docx/src/table_styles.rs` | `src/core/docx/table-styles.ts` @ e66aaec | `parse_table_style_catalog` from `styles.xml` table styles. |
+| `rs/crates/nitro-xml-docx/src/resolve_table.rs` | `src/core/docx/resolve-table.ts` @ e66aaec | `resolve_table_style_formatting` for conditional table styles. |
+| `rs/crates/nitro-xml-docx/src/table_visuals.rs` | `src/core/docx/table-visuals.ts` @ e66aaec | `resolve_cell_visuals` layered with table styles + direct borders. |
+| `rs/crates/nitro-xml-docx/src/layout/units.rs` | `src/core/docx/layout/units.ts` @ e66aaec | Twips/pt/px helpers for layout. |
+| `rs/crates/nitro-xml-docx/src/layout/measure.rs` | `src/core/docx/layout/measure.ts` @ e66aaec | `TextMeasurer`, `create_fake_measurer`, `BatchedMeasurer` stub. |
+| `rs/crates/nitro-xml-docx/src/layout/fonts.rs` | `src/core/docx/layout/fonts.ts` @ e66aaec | `css_font_stack` (wired in follow-up). |
+| `rs/crates/nitro-xml-docx/src/layout/layout_ligatures.rs` | `src/core/docx/layout/ligatures.ts` @ e66aaec | Layout `ligature_css` helper. |
+| `rs/crates/nitro-xml-docx/src/layout/text_breaks.rs` | `src/core/docx/layout/text-breaks.ts` @ e66aaec | UAX#14-lite line break tokens; `unicode-segmentation` for graphemes. |
+| `rs/crates/nitro-xml-docx/src/layout/input.rs` | `src/core/docx/layout/input.ts` @ e66aaec | Layout input serde types. |
+| `rs/crates/nitro-xml-docx/src/layout/result.rs` | `src/core/docx/layout/result.ts` @ e66aaec | `LayoutResult` and page/box types. |
+| `rs/crates/nitro-xml-docx/src/layout/keep_rules.rs` | `src/core/docx/layout/keep-rules.ts` @ e66aaec | Widow/orphan and contextual spacing rules. |
+| `rs/crates/nitro-xml-docx/src/layout/tab_stops.rs` | `src/core/docx/layout/tab-stops.ts` @ e66aaec | Tab placement during line layout. |
+| `rs/crates/nitro-xml-docx/src/layout/util.rs` | `src/core/docx/expect-defined.ts` @ e66aaec | `expect_defined` helper used by layout. |
+| `rs/crates/nitro-xml-docx/src/layout/wrap.rs` | `src/core/docx/layout/wrap.ts` @ e66aaec | Float wrap exclusions and line boxes. |
+| `rs/crates/nitro-xml-docx/src/layout/line_metrics.rs` | `src/core/docx/layout/line-metrics.ts` @ e66aaec | Line height/baseline metrics. |
+| `rs/crates/nitro-xml-docx/src/layout/paragraph_tokens.rs` | `src/core/docx/layout/paragraph-tokens.ts` @ e66aaec | Run tokenization and indents. |
+| `rs/crates/nitro-xml-docx/src/layout/paragraph_fragments.rs` | `src/core/docx/layout/paragraph-fragments.ts` @ e66aaec | Fragment build/align. |
+| `rs/crates/nitro-xml-docx/src/layout/paragraph_layout.rs` | `src/core/docx/layout/paragraph-layout.ts` @ e66aaec | Single-paragraph line breaking. |
+| `rs/crates/nitro-xml-docx/src/layout/table_layout.rs` | `src/core/docx/layout/table-layout.ts` @ e66aaec | Table row/cell stack and split. |
+| `rs/crates/nitro-xml-docx/src/layout/page_cursor.rs` | `src/core/docx/layout/page-cursor.ts` @ e66aaec | Lazy page/column cursor. |
+| `rs/crates/nitro-xml-docx/src/layout/flow_paragraph.rs` | `src/core/docx/layout/flow-paragraph.ts` @ e66aaec | Paginate paragraphs. |
+| `rs/crates/nitro-xml-docx/src/layout/flow_table.rs` | `src/core/docx/layout/flow-table.ts` @ e66aaec | Paginate tables. |
+| `rs/crates/nitro-xml-docx/src/layout/floats.rs` | `src/core/docx/layout/floats.ts` @ e66aaec | Float positioning pass. |
+| `rs/crates/nitro-xml-docx/src/layout/balance_columns.rs` | `src/core/docx/layout/balance-columns.ts` @ e66aaec | Column balance helpers (partial wire-up). |
+| `rs/crates/nitro-xml-docx/src/layout/section_flow.rs` | `src/core/docx/layout/section-flow.ts` @ e66aaec | Section block flow. |
+| `rs/crates/nitro-xml-docx/src/layout/page_flow.rs` | `src/core/docx/layout/page-flow.ts` @ e66aaec | Multi-section layout orchestration. |
+| `rs/crates/nitro-xml-docx/src/layout/adapt_drop_cap.rs` | `src/core/docx/layout/adapt-drop-cap.ts` @ e66aaec | Drop-cap folding. |
+| `rs/crates/nitro-xml-docx/src/layout/adapt_floats.rs` | `src/core/docx/layout/adapt-floats.ts` @ e66aaec | Float metadata on paragraphs. |
+| `rs/crates/nitro-xml-docx/src/layout/adapt_notes.rs` | `src/core/docx/layout/adapt-notes.ts` @ e66aaec | Footnote/endnote layout paragraphs. |
+| `rs/crates/nitro-xml-docx/src/layout/adapt_paragraph_box.rs` | `src/core/docx/layout/adapt-paragraph-box.ts` @ e66aaec | Paragraph border/shading for layout. |
+| `rs/crates/nitro-xml-docx/src/layout/adapt_table.rs` | `src/core/docx/layout/adapt-table.ts` @ e66aaec | Table block adapter. |
+| `rs/crates/nitro-xml-docx/src/layout/review_display.rs` | `src/core/docx/layout/review-display.ts` @ e66aaec | Layout review options. |
+| `rs/crates/nitro-xml-docx/src/layout/adapter.rs` | `src/core/docx/layout/adapter.ts` @ e66aaec | `DocumentModel` → layout input. |
+| `rs/crates/nitro-xml-docx/src/layout/layout.rs` | `src/core/docx/layout/layout.ts` @ e66aaec | `layout_document` / `layout_document_model`. |
+| `rs/crates/nitro-xml-docx/src/layout/page_fields.rs` | `src/core/docx/layout/page-fields.ts` @ e66aaec | PAGE/NUMPAGES field helpers (unused until wired). |

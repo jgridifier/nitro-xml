@@ -33,7 +33,7 @@
   - Visio, Teams and MCP
   - framework bindings beyond the web component and vanilla
 - **ASK:**
-  - **IN alongside .docx/.xlsx/.pptx (2026-10-11):** macro-enabled, template and macro-enabled template variants .xlsm/.docm/.pptm, .xltx/.dotx/.potx and .xltm/.dotm/.potm (same package format; macros never run; vbaProject.bin preserved byte for byte). R0 (#33) is signed off by Head of Product.
+  - **IN alongside .docx/.xlsx/.pptx (2026-10-11):** macro-enabled, template and macro-enabled template variants .xlsm/.docm/.pptm, .xltx/.dotx/.potx and .xltm/.dotm/.potm (same package format; macros never run; vbaProject.bin preserved byte for byte). R0 (#33) is signed off by Head of Product (pending).
   - **OUT (Jared, 2026-10-11: Word, Excel and PowerPoint only for now):** legacy .doc/.xls/.ppt, encrypted files, CSV and every other upstream format or extra. These show an "unsupported format" message.
   - real-time collaboration (default OUT)
   - PDF/image export (default OUT)
@@ -200,10 +200,7 @@ Already done or decided upstream of this spec:
   - **Painter inventory (R0 deliverable):** for each upstream painter, record format, canvas vs DOM output, what it draws, and its Rust module, so batching priorities are explicit.
   - **Redesign milestone:** DOM-vs-canvas, in-wasm shaping and open metric-compatible fonts sit in a separate post-port milestone owned by Jared; not claimable until he opens it.
   - **Fonts and text measurement follow upstream for now** (same fonts and measurement path the TS painters use), so line breaks and page counts match the TS reference. Moving shaping into wasm and choosing metric-compatible open fonts (Carlito, Caladea; Office fonts cannot be redistributed) is part of Jared's later renderer redesign.
-  - The spike comparison is published.
-  - The renderer decision record is signed off by Jared.
-  - The loader API and size budgets are fixed.
-  - Renderer issues are created.
+  - Done when: the painter inventory (#34) covers every in-scope file including stylesheets; the Rust module mapping (#35), the worker/main-thread split (#36, including a batched per-frame DOM read-back channel for measurement) and the loader API plus JS size budget (#37) are merged; each inventory row is marked M1 or deferred; JS library dependencies of upstream painters are listed with their Rust replacement; Head of Product signs #33. Renderer issues then become claimable.
 - **Stages 3, 4 and 5.** All viewer gates are green for the format, including accessibility and bidi. The unsupported-content rate is 0. The hard perf gate is armed and green, and the scoreboard races are published.
 - **Stage 6.** Shell interactions pass the accessibility, selection and keyboard scripts on all target browsers.
 - **Stage 7.** Fuzzing clean (1 CPU-hour per target), crash recovery tested, memory ceiling enforced, M1 report published.

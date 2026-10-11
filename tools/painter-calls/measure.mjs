@@ -83,8 +83,8 @@ const base = server.resolvedUrls.local[0];
 
 const rows = JSON.parse(readFileSync(join(here, 'rows.json'), 'utf8')).files;
 const init = readFileSync(join(here, 'instrument.js'), 'utf8')
-	.replace('__ROWS__', JSON.stringify(rows))
-	.replace('__DEFER__', JSON.stringify(DEFER));
+	.replace('= __ROWS__;', `= ${JSON.stringify(rows)};`)
+	.replace('new Set(__DEFER__)', `new Set(${JSON.stringify(DEFER)})`);
 
 const browser = await chromium.launch({ headless: true, executablePath: CHROME });
 const results = { upstream: UP, fixtures: {}, scenarios: [] };

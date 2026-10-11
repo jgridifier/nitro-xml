@@ -32,6 +32,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/ci/parity.sh
+      - name: Upload visual parity diffs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-parity-diffs
+          path: |
+            parity/visual/out/diffs/
+            parity/visual/out/summary.txt
+          if-no-files-found: ignore
   roundtrip:
     runs-on: ubuntu-latest
     steps:

@@ -240,6 +240,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/layout/result.rs` | `src/core/docx/layout/result.ts` @ e66aaec | `LayoutResult` and page/box types. |
 | `rs/crates/nitro-xml-docx/src/layout/keep_rules.rs` | `src/core/docx/layout/keep-rules.ts` @ e66aaec | Widow/orphan and contextual spacing rules. |
 | `rs/crates/nitro-xml-docx/src/layout/tab_stops.rs` | `src/core/docx/layout/tab-stops.ts` @ e66aaec | Tab placement during line layout. |
+| `rs/crates/nitro-xml-docx/src/layout/util.rs` | `src/core/docx/expect-defined.ts` @ e66aaec | `expect_defined` helper used by layout. |
 | `rs/crates/nitro-xml-docx/src/layout/wrap.rs` | `src/core/docx/layout/wrap.ts` @ e66aaec | Float wrap exclusions and line boxes. |
 | `rs/crates/nitro-xml-docx/src/layout/line_metrics.rs` | `src/core/docx/layout/line-metrics.ts` @ e66aaec | Line height/baseline metrics. |
 | `rs/crates/nitro-xml-docx/src/layout/paragraph_tokens.rs` | `src/core/docx/layout/paragraph-tokens.ts` @ e66aaec | Run tokenization and indents. |

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-//! Prints the Stage-3 xlsx workbook slice as JSON for the #15 differential gate.
+//! Prints the Stage-16 xlsx worksheet slice as JSON for the #16 differential gate.
 
 use std::process;
 

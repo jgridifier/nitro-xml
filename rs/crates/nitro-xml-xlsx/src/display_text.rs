@@ -71,6 +71,7 @@ mod tests {
             iterate: None,
             workbook_password_hash: None,
             workbook_modern_hash: None,
+            active_worksheet: None,
         }
     }
 

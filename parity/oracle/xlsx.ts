@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 /**
  * TS oracle for xlsx.
- * - Workbook slice (#15 / ready): sheets, names, styles, theme, shared strings.
- * - View IR (CellItem/CellView): kept for when the grid path lands (#16/#18).
+ * - Worksheet slice (#16 / ready): Stage-15 workbook fields + activeWorksheet.
+ * - View IR (CellItem/CellView): kept for when the grid painter path lands (#18).
  */
 
 import { readFileSync } from 'node:fs';
@@ -15,6 +15,22 @@ import { upstreamDir } from '../paths.ts';
 export async function dumpXlsxWorkbookOracle(fixturePath: string): Promise<unknown> {
 	const root = repoRoot();
 	const script = join(root, 'tools/model-compare/gates/ref/xlsx_ref.ts');
+	const r = spawnSync('bun', [script, fixturePath], {
+		encoding: 'utf8',
+		env: { ...process.env, UPSTREAM_DIR: upstreamDir(root) },
+		maxBuffer: 32 * 1024 * 1024,
+	});
+	try {
+		return JSON.parse((r.stdout || '').trim() || 'null');
+	} catch {
+		return { error: 'oracle_parse', status: r.status };
+	}
+}
+
+/** Stage-16 dump (workbook slice + activeWorksheet; xlsx_sheet_ref.ts). */
+export async function dumpXlsxSheetOracle(fixturePath: string): Promise<unknown> {
+	const root = repoRoot();
+	const script = join(root, 'tools/model-compare/gates/ref/xlsx_sheet_ref.ts');
 	const r = spawnSync('bun', [script, fixturePath], {
 		encoding: 'utf8',
 		env: { ...process.env, UPSTREAM_DIR: upstreamDir(root) },

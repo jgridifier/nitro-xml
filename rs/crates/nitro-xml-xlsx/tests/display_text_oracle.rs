@@ -200,6 +200,7 @@ fn case(date1904: bool, num_fmt: &str, cell: Option<Cell>, mut payload: serde_js
         iterate: None,
         workbook_password_hash: None,
         workbook_modern_hash: None,
+        active_worksheet: None,
     };
     if let Some(obj) = payload.as_object_mut() {
         obj.insert("date1904".into(), serde_json::json!(date1904));

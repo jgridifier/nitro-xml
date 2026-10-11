@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 /**
- * xlsx Stage-3 workbook-slice comparison folded from
- * tools/model-compare/gates/issue-15.sh (#131).
+ * xlsx Stage-16 worksheet comparison (active sheet cells + Stage-15 workbook slice).
+ * Folded from tools/model-compare/gates/issue-16.sh; oracle is xlsx_sheet_ref.ts.
  *
  * IR: sheets list, defined names (incl. Print_Area lift), date1904, theme,
- * styles / namedStyles / xfMap / dxfs / palette, shared strings, warnings.
- * Full CellItem/CellView view IR remains TODO once the grid path lands (#16/#18).
+ * styles / namedStyles / xfMap / dxfs / palette, shared strings, warnings,
+ * plus activeWorksheet (merges, cols, rows, cells). CellItem/CellView remains
+ * TODO for the grid painter path (#18).
  */
 
 import { existsSync, readdirSync } from 'node:fs';
@@ -13,7 +14,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import type { Comparison, CorpusResult, Manifest } from '../types.ts';
 import { repoRoot, selectCorpus } from '../corpus.ts';
-import { dumpXlsxWorkbookOracle } from '../oracle/xlsx.ts';
+import { dumpXlsxSheetOracle } from '../oracle/xlsx.ts';
 import { dumpXlsxWorkbookRust, ensureExample } from '../rust/dump.ts';
 import { normalizeJson } from '../normalize.ts';
 import { upstreamDir } from '../paths.ts';
@@ -30,7 +31,7 @@ function listXlsxFiles(root: string): string[] {
 			else if (XLSX_EXT.test(name.name)) out.push(p);
 		}
 	};
-	// Same corpus as issue-15 (missing on-demand L/XL files are skipped below).
+	// Same corpus as issue-16 (missing on-demand L/XL files are skipped below).
 	walk(join(root, 'fixtures/real/xlsx'));
 	walk(join(root, 'fixtures/opc/allowed'));
 	walk(join(root, 'fixtures/upstream/xlsx'));
@@ -40,7 +41,7 @@ function listXlsxFiles(root: string): string[] {
 
 function dumpOracleSubprocess(file: string): { ok: boolean; json: unknown } {
 	const root = repoRoot();
-	const script = join(root, 'tools/model-compare/gates/ref/xlsx_ref.ts');
+	const script = join(root, 'tools/model-compare/gates/ref/xlsx_sheet_ref.ts');
 	const r = spawnSync('bun', [script, file], {
 		encoding: 'utf8',
 		env: { ...process.env, UPSTREAM_DIR: upstreamDir(root) },
@@ -85,17 +86,17 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 			if (notes.length < 20) notes.push(`output differs on ${f}`);
 		}
 	}
-	notes.push(`workbook differential: ${n - bad}/${n} files match upstream`);
+	notes.push(`worksheet differential: ${n - bad}/${n} files match upstream`);
 	return { compared: n, mismatched: bad, notes };
 }
 
 export const xlsxComparison: Comparison = {
 	id: 'xlsx',
-	label: 'xlsx workbook slice (issue #15)',
+	label: 'xlsx worksheet slice (issue #16)',
 	ready: true,
 	todo: undefined,
 	async oracle(fixturePath: string) {
-		return dumpXlsxWorkbookOracle(fixturePath);
+		return dumpXlsxSheetOracle(fixturePath);
 	},
 	async rust(fixturePath: string) {
 		const { json } = dumpXlsxWorkbookRust(fixturePath);

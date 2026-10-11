@@ -1,6 +1,32 @@
-# cargo-deny starter config. The licence-check issue completes it (bans, sources, advisories).
+# SPDX-License-Identifier: MIT
+# cargo-deny configuration for the rs/ workspace (run by scripts/ci/licenses.sh, job: licenses).
+[graph]
+all-features = true
+
 [licenses]
+# Exactly the permissive allow-list from AGENTS.md §6. A dual-licensed crate passes when any option is allowed.
 allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Zlib", "Unicode-3.0", "Unicode-DFS-2016"]
 confidence-threshold = 0.9
-# Every exception needs a written reason and a link to the approving PR.
+unused-allowed-license = "allow"
+# Every exception needs a written reason and a link to the approving PR, e.g.
+# { name = "some-crate", allow = ["MPL-2.0"], reason = "...", approved = "https://github.com/jgridifier/nitro-xml/pull/N" }
 exceptions = []
+
+[licenses.private]
+# Our own unpublished crates are checked by scripts/ci/licenses.sh (MIT, or MIT AND Apache-2.0 when they hold ported files).
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+[advisories]
+# RustSec advisories: vulnerabilities fail; unmaintained/unsound are reported for review.
+unmaintained = "workspace"
+yanked = "deny"

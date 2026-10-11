@@ -155,6 +155,22 @@ mod tests {
             shape_type: None,
             table_row_count: None,
             children: None,
+            fill_color: None,
+            fill_gradient: None,
+            fill_mode: None,
+            stroke_color: None,
+            stroke_width_px: None,
+            text_color: None,
+            font_size_px: None,
+            chart_r_id: None,
+            chart_xml: None,
+            smartart_dm_r_id: None,
+            smartart_lo_r_id: None,
+            smartart_qs_r_id: None,
+            smartart_cs_r_id: None,
+            smartart_drawing_path: None,
+            smartart_drawing_xml: None,
+            seq: 0,
         };
         let mut c = ViewIrCollector::default();
         c.push_painted("element", &el, None);

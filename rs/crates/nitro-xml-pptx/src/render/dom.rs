@@ -58,6 +58,7 @@ pub fn set_inner_markup_stub<I: StringIntern>(
     ctx.buffer.set_inner_markup(parent, mid);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn stage_root_styles<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
@@ -65,6 +66,8 @@ pub fn stage_root_styles<I: StringIntern>(
     w: f64,
     h: f64,
     scale: f64,
+    background_color: Option<&str>,
+    background_gradient: Option<&str>,
 ) {
     let div = intern.intern("div");
     buf.create_element(root_id, div, 0);
@@ -79,7 +82,11 @@ pub fn stage_root_styles<I: StringIntern>(
     set("transform", &format!("scale({})", format_scale(scale)));
     set("transform-origin", "top left");
     set("overflow", "hidden");
-    set("background", "#ffffff");
+    // slide-background.ts: solid under the stage, gradient as background-image.
+    set("background-color", background_color.unwrap_or("#ffffff"));
+    if let Some(gradient) = background_gradient {
+        set("background-image", gradient);
+    }
 }
 
 fn format_scale(scale: f64) -> String {

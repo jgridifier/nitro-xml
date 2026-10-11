@@ -111,7 +111,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/settings.rs` | `src/core/docx/document-parts.ts`, `page-setup-model.ts`, `settings.ts` @ e66aaec | `parse_settings`, page setup read/validate, `parse_track_review` (#21). |
 | `rs/crates/nitro-xml-docx/src/ligatures.rs` | `src/core/docx/ligatures.ts` @ e66aaec | Word 2010 `w14:ligatures` on `w:rPr`. |
 | `rs/crates/nitro-xml-pptx/src/presentation.rs` | `src/core/pptx/core/core/runtime/PptxHandlerRuntimeLoadSession.ts`, `PptxHandlerRuntimeLoadPipeline.ts`, `PptxHandlerRuntimeSlideMasters.ts` @ e66aaec | Presentation open, slide list, sldSz/notesSz, master/layout chain, lazy slide parse, issue-24 JSON dump. |
-| `rs/crates/nitro-xml-pptx/src/slide.rs` | `PptxHandlerRuntimeSpTreeParsing.ts`, `ShapeParsing.ts`, `PictureParsing.ts`, `GroupParsing.ts` (+ graphic-frame table) @ e66aaec | Element tree for ported kinds; transforms/geometry via DrawingML (#25); document-order spTree walk. |
+| `rs/crates/nitro-xml-pptx/src/slide.rs` | `PptxHandlerRuntimeSpTreeParsing.ts`, `ShapeParsing.ts`, `PictureParsing.ts`, `GroupParsing.ts`, `PptxGraphicFrameParser.ts`, `PptxHandlerRuntimeBackgroundParsing.ts` @ e66aaec | Element tree; slide→layout→master solid/linear background; shape fill/stroke and first-run text colour via DrawingML; chart and SmartArt graphic frames as elements (#27). |
 | `rs/crates/nitro-xml-pptx/src/inheritance.rs` | `merge-xml-objects.ts`, `PptxHandlerRuntimePlaceholderLookup.ts`, `placeholder-style-family.ts` @ e66aaec | Placeholder match + layout-over-master merge (empty override must not clobber). |
 | `rs/crates/nitro-xml-pptx/src/theme.rs` | `PptxHandlerRuntimeThemeLoading.ts` @ e66aaec | Theme dump via `drawingml::parse_theme` / `theme_slot_hex` (#25). |
 | `rs/crates/nitro-xml-pptx/src/text.rs` | `PptxHandlerRuntimeShapeParagraphContentParsing.ts`, `PptxHandlerRuntimeBulletParsing.ts`, `ruby-element-parsing.ts` @ e66aaec | Shape text flattening for issue-24 dump parity (#26). |
@@ -119,9 +119,11 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/level_style.rs` | `PptxHandlerRuntimePlaceholderStyles.ts`, `PptxHandlerRuntimeMasterElements.ts` @ e66aaec | Master/layout list-style bullets (#26). |
 | `rs/crates/nitro-xml-pptx/src/placeholder_defaults.rs` | `PptxHandlerRuntimePlaceholderLookup.ts`, `PptxHandlerRuntimePlaceholderDefaults.ts` @ e66aaec | Placeholder level-style lookup (#26). |
 | `rs/crates/nitro-xml-pptx/src/table.rs` | `PptxGraphicFrameParser.ts` @ e66aaec | Table graphic frame row count (#26). |
-| `rs/crates/nitro-xml-pptx/src/render/stage.rs` | `src/ui/src/pptx/dom/slide-stage.ts` @ e66aaec | P1 stage + z-order (#27). |
-| `rs/crates/nitro-xml-pptx/src/render/shape.rs` | `dom/elements/text-shape.ts` @ e66aaec | P2 shape scaffold (#27). |
-| `rs/crates/nitro-xml-pptx/src/render/text.rs` | `dom/elements/text-block.ts` @ e66aaec | P3 text body scaffold (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/stage.rs` | `src/ui/src/pptx/dom/slide-stage.ts`, `src/ui/src/pptx/render/slide-background.ts` @ e66aaec | P1 stage + z-order; resolved solid/linear slide background (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/shape.rs` | `dom/elements/text-shape.ts` @ e66aaec | P2 shape fill (`background-color` / `background-image`) and stroke border (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/text.rs` | `dom/elements/text-block.ts` @ e66aaec | P3 text body; run colour and `a:sz` font size, Calibri fallback (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/smartart.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | P11 calls S2 cached-drawing SVG at the element box (#27). |
+| `rs/crates/nitro-xml-render/src/smartart/mod.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | S2 bootstrap: `dsp:sp` rects + text, else a labelled SmartArt frame. Full layout/3D deferred. |
 | `rs/crates/nitro-xml-pptx/src/render/picture.rs` | `dom/elements/image.ts` @ e66aaec | P5 picture frame (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/group.rs` | `dom/elements/group.ts` @ e66aaec | P6 group (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/connector.rs` | `dom/elements/connector.ts` @ e66aaec | P7 connector SVG stub (#27). |

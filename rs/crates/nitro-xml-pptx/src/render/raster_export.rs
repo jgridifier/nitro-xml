@@ -1,2 +1,2 @@
 // SPDX-License-Identifier: MIT
-//! P26 raster export — deferred (not on view path).
+//! P26 raster export — M1 posture: export-only, deferred. Not on the view path.

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/pptx/core/core/runtime/PptxHandlerRuntimeSpTreeParsing.ts,
-// PptxHandlerRuntimeShapeParsing.ts, PptxHandlerRuntimePictureParsing.ts, PptxHandlerRuntimeGroupParsing.ts and
-// PptxGraphicFrameParser.ts; changes in PROVENANCE.md.
+// PptxHandlerRuntimeShapeParsing.ts, PptxHandlerRuntimePictureParsing.ts, PptxHandlerRuntimeGroupParsing.ts,
+// PptxGraphicFrameParser.ts and PptxHandlerRuntimeBackgroundParsing.ts; changes in PROVENANCE.md.
 
 use std::collections::BTreeMap;
 
 use nitro_xml_opc::drawingml::{
-    emu_to_pixels, parse_drawing_geometry, parse_transform, EMU_PER_PIXEL,
+    emu_to_pixels, hex_to_rgb_channels, parse_drawing_color_in, parse_drawing_fill,
+    parse_drawing_geometry, parse_drawing_line, parse_transform, resolve_drawing_color,
+    DrawingColor, DrawingColorTheme, DrawingFill, EMU_PER_PIXEL,
 };
 use nitro_xml_opc::xml::{ns, Element, Node};
 use serde::Serialize;
@@ -80,6 +82,42 @@ pub struct DumpElement {
     pub table_row_count: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<DumpElement>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fill_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fill_gradient: Option<String>,
+    /// `none`, `solid`, or `gradient`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fill_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stroke_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stroke_width_px: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_size_px: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chart_r_id: Option<String>,
+    /// Chart part XML. Not part of the issue-24 dump.
+    #[serde(skip)]
+    pub chart_xml: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub smartart_dm_r_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub smartart_lo_r_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub smartart_qs_r_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub smartart_cs_r_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub smartart_drawing_path: Option<String>,
+    /// Diagram drawing part XML (`dsp:drawing`). Not part of the issue-24 dump.
+    #[serde(skip)]
+    pub smartart_drawing_xml: Option<String>,
+    /// Document order of this element among emitted spTree children (dump merge).
+    #[serde(skip)]
+    pub seq: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -105,6 +143,8 @@ pub struct ParseCtx<'a> {
     pub layout_placeholder_levels: Option<&'a PlaceholderDefaultsCache>,
     pub master_placeholder_levels: Option<&'a PlaceholderDefaultsCache>,
     pub master_tx_styles: Option<&'a MasterTxStyles>,
+    /// Presentation theme scheme (`dk1`, `accent1`, …) plus Office defaults.
+    pub theme_colors: Option<&'a BTreeMap<String, String>>,
 }
 
 impl<'a> ParseCtx<'a> {
@@ -200,24 +240,58 @@ enum SpTreeParseOutcome {
     Other(String),
 }
 
+pub struct ParsedSpTree {
+    pub elements: Vec<DumpElement>,
+    pub other_kinds: Vec<String>,
+    /// `(seq, kind)` for kinds that stayed out of `elements`, in document order.
+    pub other_kind_seq: Vec<(u32, String)>,
+}
+
 pub fn parse_sp_tree(
     sp_tree: &Element,
     raw_xml: Option<&str>,
     id_prefix: &str,
     ctx: &ParseCtx,
     options: &SpTreeOptions,
-) -> (Vec<DumpElement>, Vec<String>) {
+) -> ParsedSpTree {
     let order = extract_sp_tree_child_order(raw_xml, sp_tree, "p:spTree");
-    let mut out = Vec::new();
-    let mut other = Vec::new();
+    let mut parsed = ParsedSpTree {
+        elements: Vec::new(),
+        other_kinds: Vec::new(),
+        other_kind_seq: Vec::new(),
+    };
+    let mut seq = 1u32;
     for entry in order {
         match parse_sp_tree_child(&entry, sp_tree, raw_xml, id_prefix, ctx, options) {
-            Some(SpTreeParseOutcome::Element(el)) => out.push(el),
-            Some(SpTreeParseOutcome::Other(kind)) => other.push(kind),
+            Some(SpTreeParseOutcome::Element(mut el)) => {
+                el.seq = seq;
+                parsed.elements.push(el);
+                seq += 1;
+            }
+            Some(SpTreeParseOutcome::Other(kind)) => {
+                parsed.other_kind_seq.push((seq, kind.clone()));
+                parsed.other_kinds.push(kind);
+                seq += 1;
+            }
             None => {}
         }
     }
-    (out, other)
+    parsed
+}
+
+pub fn shift_parse_seq(tree: &mut ParsedSpTree, base: u32) {
+    for el in &mut tree.elements {
+        el.seq = el.seq.saturating_add(base);
+    }
+    for (seq, _) in &mut tree.other_kind_seq {
+        *seq = seq.saturating_add(base);
+    }
+}
+
+pub fn concat_parsed(base: &mut ParsedSpTree, extra: ParsedSpTree) {
+    base.elements.extend(extra.elements);
+    base.other_kinds.extend(extra.other_kinds);
+    base.other_kind_seq.extend(extra.other_kind_seq);
 }
 
 struct SpTreeEntry {
@@ -624,6 +698,13 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         "shape"
     };
     let c_nv_pr = child_path(shape, &[("nvSpPr", ns::P), ("cNvPr", ns::P)]);
+    let extras = shape_paint_extras(
+        shape,
+        effective_sp_pr.as_ref(),
+        inherited.as_ref().map(|p| &p.element),
+        tx_body,
+        ctx,
+    );
     build_dump(
         type_,
         id,
@@ -650,6 +731,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         None,
         None,
         in_group,
+        extras,
     )
 }
 
@@ -732,6 +814,7 @@ fn parse_shape_with_image_fill(
         None,
         None,
         in_group,
+        PaintExtras::default(),
     )
 }
 
@@ -784,6 +867,7 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
         None,
         None,
         false,
+        PaintExtras::default(),
     )
 }
 
@@ -817,6 +901,7 @@ fn parse_connector(cxn: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElem
         None,
         None,
         false,
+        PaintExtras::default(),
     )
 }
 
@@ -923,35 +1008,127 @@ fn parse_graphic_frame(frame: &Element, id: String, _ctx: &ParseCtx) -> Option<D
     let ph_info = extract_placeholder_info(nv_pr);
     let xfrm = child_path(frame, &[("xfrm", ns::P)])?;
     let (x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v) = xfrm_to_box(Some(xfrm));
-    let graphic = child_path(frame, &[("graphic", ns::A), ("graphicData", ns::A)]);
-    let graphic = graphic?;
-    let table = child_local(graphic, "tbl", ns::A)?;
-    let (w, h) = table_grid_pixel_extent(table).unwrap_or((w, h));
-    let rows = table_row_count(table);
+    let graphic = child_path(frame, &[("graphic", ns::A), ("graphicData", ns::A)])?;
     let c_nv_pr = child_path(frame, &[("nvGraphicFramePr", ns::P), ("cNvPr", ns::P)]);
-    build_dump(
-        "table",
-        id,
-        c_nv_pr,
-        ph_info,
-        x,
-        y,
-        w,
-        h,
-        x_emu,
-        y_emu,
-        w_emu,
-        h_emu,
-        rot,
-        flip_h,
-        flip_v,
-        None,
-        None,
-        None,
-        Some(rows),
-        None,
-        false,
-    )
+    if let Some(table) = child_local(graphic, "tbl", ns::A) {
+        let (w, h) = table_grid_pixel_extent(table).unwrap_or((w, h));
+        let rows = table_row_count(table);
+        return build_dump(
+            "table",
+            id,
+            c_nv_pr,
+            ph_info,
+            x,
+            y,
+            w,
+            h,
+            x_emu,
+            y_emu,
+            w_emu,
+            h_emu,
+            rot,
+            flip_h,
+            flip_v,
+            None,
+            None,
+            None,
+            Some(rows),
+            None,
+            false,
+            PaintExtras::default(),
+        );
+    }
+    if graphic_is_chart(graphic) {
+        let extras = PaintExtras {
+            chart_r_id: chart_rel_id(graphic),
+            ..PaintExtras::default()
+        };
+        return build_dump(
+            "chart", id, c_nv_pr, ph_info, x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h,
+            flip_v, None, None, None, None, None, false, extras,
+        );
+    }
+    if graphic_is_smartart(graphic) {
+        let rels = smartart_rel_ids(graphic);
+        let extras = PaintExtras {
+            smartart_dm_r_id: rels.dm,
+            smartart_lo_r_id: rels.lo,
+            smartart_qs_r_id: rels.qs,
+            smartart_cs_r_id: rels.cs,
+            ..PaintExtras::default()
+        };
+        return build_dump(
+            "smartArt", id, c_nv_pr, ph_info, x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h,
+            flip_v, None, None, None, None, None, false, extras,
+        );
+    }
+    None
+}
+
+fn graphic_is_chart(g: &Element) -> bool {
+    let uri = attr(g, "uri").map(str::to_lowercase).unwrap_or_default();
+    child_local(g, "chart", ns::C).is_some()
+        || uri.contains("/drawingml/2006/chart")
+        || uri.contains("/2014/chartex")
+        || graphic_data_has_chartex(g)
+}
+
+fn graphic_is_smartart(g: &Element) -> bool {
+    let uri = attr(g, "uri").map(str::to_lowercase).unwrap_or_default();
+    child_local(g, "relIds", ns::DGM).is_some()
+        || g.children
+            .iter()
+            .any(|n| matches!(n, Node::Element(e) if e.local == "relIds"))
+        || uri.contains("/drawingml/2006/diagram")
+}
+
+fn chart_rel_id(g: &Element) -> Option<String> {
+    for child in &g.children {
+        let Node::Element(el) = child else {
+            continue;
+        };
+        if el.local == "chart" {
+            return rel_attr_value(el, "id");
+        }
+    }
+    None
+}
+
+struct SmartArtRelIds {
+    dm: Option<String>,
+    lo: Option<String>,
+    qs: Option<String>,
+    cs: Option<String>,
+}
+
+fn smartart_rel_ids(g: &Element) -> SmartArtRelIds {
+    let rel = child_local(g, "relIds", ns::DGM).or_else(|| {
+        g.children.iter().find_map(|n| match n {
+            Node::Element(e) if e.local == "relIds" => Some(e),
+            _ => None,
+        })
+    });
+    let Some(rel) = rel else {
+        return SmartArtRelIds {
+            dm: None,
+            lo: None,
+            qs: None,
+            cs: None,
+        };
+    };
+    SmartArtRelIds {
+        dm: rel_attr_value(rel, "dm"),
+        lo: rel_attr_value(rel, "lo"),
+        qs: rel_attr_value(rel, "qs"),
+        cs: rel_attr_value(rel, "cs"),
+    }
+}
+
+fn rel_attr_value(el: &Element, local: &str) -> Option<String> {
+    el.attrs
+        .iter()
+        .find(|a| a.local == local && a.ns.as_deref() == Some(ns::R))
+        .map(|a| a.value.clone())
 }
 
 fn table_grid_pixel_extent(table: &Element) -> Option<(f64, f64)> {
@@ -1131,6 +1308,7 @@ fn parse_group(
         None,
         Some(children),
         false,
+        PaintExtras::default(),
     )
 }
 
@@ -1157,6 +1335,7 @@ fn build_dump(
     table_row_count: Option<usize>,
     children: Option<Vec<DumpElement>>,
     _in_group: bool,
+    extras: PaintExtras,
 ) -> Option<DumpElement> {
     let shape_id = c_nv_pr.and_then(|n| attr(n, "id")).map(str::to_owned);
     let name = c_nv_pr
@@ -1197,6 +1376,22 @@ fn build_dump(
             }
             Some(c) => Some(c),
         },
+        fill_color: extras.fill_color,
+        fill_gradient: extras.fill_gradient,
+        fill_mode: extras.fill_mode,
+        stroke_color: extras.stroke_color,
+        stroke_width_px: extras.stroke_width_px,
+        text_color: extras.text_color,
+        font_size_px: extras.font_size_px,
+        chart_r_id: extras.chart_r_id,
+        chart_xml: None,
+        smartart_dm_r_id: extras.smartart_dm_r_id,
+        smartart_lo_r_id: extras.smartart_lo_r_id,
+        smartart_qs_r_id: extras.smartart_qs_r_id,
+        smartart_cs_r_id: extras.smartart_cs_r_id,
+        smartart_drawing_path: None,
+        smartart_drawing_xml: None,
+        seq: 0,
     })
 }
 
@@ -1421,4 +1616,454 @@ pub fn slim_element_for_dump(el: &DumpElement) -> Value {
         }
     }
     out
+}
+
+/// Issue-24 dump split: ported kinds stay elements; chart/smartArt and other
+/// kinds stay `otherKinds`, in document order (`seq`).
+pub fn issue24_dump_parts(
+    elements: &[DumpElement],
+    other_kind_seq: &[(u32, String)],
+) -> (Vec<Value>, Vec<String>) {
+    enum Slot<'a> {
+        El(&'a DumpElement),
+        Other(&'a str),
+    }
+    let mut slots: Vec<(u32, Slot<'_>)> = Vec::new();
+    for el in elements {
+        slots.push((el.seq, Slot::El(el)));
+    }
+    for (seq, kind) in other_kind_seq {
+        slots.push((*seq, Slot::Other(kind.as_str())));
+    }
+    slots.sort_by_key(|(seq, _)| *seq);
+    let mut dumped = Vec::new();
+    let mut kinds = Vec::new();
+    for (_, slot) in slots {
+        match slot {
+            Slot::El(el) if PORTED.contains(&el.type_.as_str()) => {
+                dumped.push(slim_element_for_dump(el));
+            }
+            Slot::El(el) => kinds.push(el.type_.clone()),
+            Slot::Other(kind) => kinds.push(kind.to_owned()),
+        }
+    }
+    (dumped, kinds)
+}
+
+#[derive(Default)]
+struct PaintExtras {
+    fill_color: Option<String>,
+    fill_gradient: Option<String>,
+    fill_mode: Option<String>,
+    stroke_color: Option<String>,
+    stroke_width_px: Option<f64>,
+    text_color: Option<String>,
+    font_size_px: Option<f64>,
+    chart_r_id: Option<String>,
+    smartart_dm_r_id: Option<String>,
+    smartart_lo_r_id: Option<String>,
+    smartart_qs_r_id: Option<String>,
+    smartart_cs_r_id: Option<String>,
+}
+
+struct SchemeTheme<'a>(&'a BTreeMap<String, String>);
+
+impl DrawingColorTheme for SchemeTheme<'_> {
+    fn scheme(&self, name: &str) -> Option<String> {
+        let slot = match name {
+            "bg1" => "lt1",
+            "tx1" => "dk1",
+            "bg2" => "lt2",
+            "tx2" => "dk2",
+            other => other,
+        };
+        self.0
+            .get(slot)
+            .cloned()
+            .or_else(|| self.0.get(name).cloned())
+    }
+}
+
+/// First paintable `p:cSld/p:bg` in `chain` (slide, then layout, then master).
+pub fn first_paintable_background(
+    chain: &[Option<&Element>],
+    theme: &BTreeMap<String, String>,
+) -> (Option<String>, Option<String>) {
+    for part in chain.iter().flatten() {
+        if let Some(paint) = background_of_c_sld(part, theme) {
+            return paint;
+        }
+    }
+    (None, None)
+}
+
+fn background_of_c_sld(
+    c_sld: &Element,
+    theme: &BTreeMap<String, String>,
+) -> Option<(Option<String>, Option<String>)> {
+    let bg = child_local(c_sld, "bg", ns::P)?;
+    if let Some(bg_pr) = child_local(bg, "bgPr", ns::P) {
+        match parse_drawing_fill(Some(bg_pr)) {
+            Some(DrawingFill::Solid { color }) => {
+                let css = css_color(&color, theme, true)?;
+                return Some((Some(css), None));
+            }
+            Some(ref fill @ DrawingFill::Gradient { .. }) => {
+                if let Some(gradient) = linear_gradient_css(fill, theme) {
+                    let DrawingFill::Gradient { stops, .. } = fill else {
+                        return None;
+                    };
+                    let flat = stops.first().and_then(|s| css_color(&s.color, theme, true));
+                    return Some((flat, Some(gradient)));
+                }
+            }
+            _ => {}
+        }
+    }
+    // Pragmatic theme background: `p:bgRef` schemeClr when bgPr has no solid/linear fill.
+    let bg_ref = child_local(bg, "bgRef", ns::P)?;
+    let color = parse_drawing_color_in(Some(bg_ref))?;
+    let css = css_color(&color, theme, true)?;
+    Some((Some(css), None))
+}
+
+fn shape_paint_extras(
+    shape: &Element,
+    effective_sp_pr: Option<&Element>,
+    inherited_shape: Option<&Element>,
+    tx_body: Option<&Element>,
+    ctx: &ParseCtx,
+) -> PaintExtras {
+    let fallback = crate::theme::default_scheme_color_map();
+    let theme = ctx.theme_colors.unwrap_or(&fallback);
+    let mut extras = PaintExtras::default();
+    match effective_sp_pr.and_then(|sp| parse_drawing_fill(Some(sp))) {
+        Some(DrawingFill::None) => extras.fill_mode = Some("none".to_owned()),
+        Some(DrawingFill::Solid { color }) => {
+            extras.fill_mode = Some("solid".to_owned());
+            extras.fill_color = css_color(&color, theme, false);
+        }
+        Some(ref fill @ DrawingFill::Gradient { .. }) => {
+            extras.fill_mode = Some("gradient".to_owned());
+            extras.fill_gradient = linear_gradient_css(fill, theme);
+        }
+        Some(_) | None => {}
+    }
+    if extras.fill_mode.is_none() {
+        if let Some(css) = style_ref_color(shape, inherited_shape, "fillRef", theme) {
+            extras.fill_mode = Some("solid".to_owned());
+            extras.fill_color = Some(css);
+        }
+    }
+    let mut ln_blocks_ref = false;
+    if let Some(ln) = effective_sp_pr.and_then(|sp| child_local(sp, "ln", ns::A)) {
+        if child_local(ln, "noFill", ns::A).is_some() {
+            ln_blocks_ref = true;
+        }
+        if let Some(line) = parse_drawing_line(Some(ln)) {
+            if let Some(width) = line.width_emu {
+                if width > 0 {
+                    extras.stroke_width_px = Some(emu_to_pixels(width));
+                }
+            }
+            if let Some(DrawingFill::Solid { color }) = line.fill {
+                extras.stroke_color = css_color(&color, theme, false);
+            }
+        }
+    }
+    if extras.stroke_color.is_none() && !ln_blocks_ref {
+        if let Some(css) = style_ref_color(shape, inherited_shape, "lnRef", theme) {
+            extras.stroke_color = Some(css);
+            if extras.stroke_width_px.is_none() {
+                extras.stroke_width_px = Some(1.0);
+            }
+        }
+    }
+    if let Some(tx) = tx_body {
+        let (color, size) = first_run_text_paint(tx, theme);
+        extras.text_color = color;
+        extras.font_size_px = size;
+    }
+    extras
+}
+
+fn style_ref_color(
+    shape: &Element,
+    inherited_shape: Option<&Element>,
+    local: &str,
+    theme: &BTreeMap<String, String>,
+) -> Option<String> {
+    let style = child_local(shape, "style", ns::P)
+        .or_else(|| inherited_shape.and_then(|el| child_local(el, "style", ns::P)))?;
+    let ref_el = child_local(style, local, ns::A)?;
+    let idx = attr(ref_el, "idx")
+        .and_then(|s| s.parse::<i32>().ok())
+        .unwrap_or(0);
+    if idx <= 0 || idx == 1000 {
+        return None;
+    }
+    let color = parse_drawing_color_in(Some(ref_el))?;
+    css_color(&color, theme, false)
+}
+
+fn first_run_text_paint(
+    tx: &Element,
+    theme: &BTreeMap<String, String>,
+) -> (Option<String>, Option<f64>) {
+    let mut color = None;
+    let mut size = None;
+    for para in children_local(tx, "p", ns::A) {
+        let def = child_path(para, &[("pPr", ns::A), ("defRPr", ns::A)]);
+        let runs: Vec<&Element> = para
+            .children
+            .iter()
+            .filter_map(|n| match n {
+                Node::Element(el) if el.local == "r" || el.local == "fld" => Some(el),
+                _ => None,
+            })
+            .collect();
+        if runs.is_empty() {
+            apply_rpr(def, &mut color, &mut size, theme);
+            if color.is_some() && size.is_some() {
+                break;
+            }
+            continue;
+        }
+        let run = runs[0];
+        let rpr = child_local(run, "rPr", ns::A);
+        if color.is_none() {
+            color = rpr
+                .and_then(|r| solid_css(r, theme))
+                .or_else(|| def.and_then(|r| solid_css(r, theme)));
+        }
+        if size.is_none() {
+            size = rpr.and_then(sz_to_px).or_else(|| def.and_then(sz_to_px));
+        }
+        break;
+    }
+    (color, size)
+}
+
+fn apply_rpr(
+    rpr: Option<&Element>,
+    color: &mut Option<String>,
+    size: &mut Option<f64>,
+    theme: &BTreeMap<String, String>,
+) {
+    let Some(rpr) = rpr else {
+        return;
+    };
+    if color.is_none() {
+        *color = solid_css(rpr, theme);
+    }
+    if size.is_none() {
+        *size = sz_to_px(rpr);
+    }
+}
+
+fn solid_css(rpr: &Element, theme: &BTreeMap<String, String>) -> Option<String> {
+    let fill = child_local(rpr, "solidFill", ns::A)?;
+    let color = parse_drawing_color_in(Some(fill))?;
+    css_color(&color, theme, false)
+}
+
+fn sz_to_px(rpr: &Element) -> Option<f64> {
+    let sz = attr(rpr, "sz")?.parse::<f64>().ok()?;
+    if sz <= 0.0 {
+        return None;
+    }
+    Some(sz / 100.0 * 96.0 / 72.0)
+}
+
+fn css_color(
+    color: &DrawingColor,
+    theme: &BTreeMap<String, String>,
+    blend_white: bool,
+) -> Option<String> {
+    let resolved = resolve_drawing_color(color, Some(&SchemeTheme(theme)), None)?;
+    if resolved.alpha >= 0.999 {
+        return Some(resolved.hex);
+    }
+    let (r, g, b) = hex_to_rgb_channels(&resolved.hex)?;
+    if blend_white {
+        let mix = |c: f64| (c * resolved.alpha + 255.0 * (1.0 - resolved.alpha)).round() as u8;
+        return Some(format!("#{:02X}{:02X}{:02X}", mix(r), mix(g), mix(b)));
+    }
+    let alpha = if (resolved.alpha * 100.0).round() / 100.0 == resolved.alpha {
+        format!("{}", resolved.alpha)
+    } else {
+        format!("{:.2}", resolved.alpha)
+    };
+    Some(format!(
+        "rgba({}, {}, {}, {alpha})",
+        r.round() as u8,
+        g.round() as u8,
+        b.round() as u8
+    ))
+}
+
+fn linear_gradient_css(fill: &DrawingFill, theme: &BTreeMap<String, String>) -> Option<String> {
+    let DrawingFill::Gradient {
+        stops, angle, path, ..
+    } = fill
+    else {
+        return None;
+    };
+    if path.is_some() && angle.is_none() {
+        return None;
+    }
+    if stops.is_empty() {
+        return None;
+    }
+    let ooxml_deg = angle.unwrap_or(90.0);
+    let css_deg = norm_deg(ooxml_deg + 90.0);
+    let mut parts = Vec::new();
+    for stop in stops {
+        let color = css_color(&stop.color, theme, false)?;
+        parts.push(format!("{color} {}%", format_pct(stop.position)));
+    }
+    Some(format!(
+        "linear-gradient({css_deg:.2}deg, {})",
+        parts.join(", ")
+    ))
+}
+
+fn format_pct(position: f64) -> String {
+    if (position - position.round()).abs() < 0.05 {
+        format!("{}", position.round() as i64)
+    } else {
+        let s = format!("{position:.2}");
+        s.trim_end_matches('0').trim_end_matches('.').to_owned()
+    }
+}
+
+fn norm_deg(deg: f64) -> f64 {
+    if !deg.is_finite() {
+        return 0.0;
+    }
+    ((deg % 360.0) + 360.0) % 360.0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nitro_xml_opc::xml::parse_xml_str;
+
+    fn theme() -> BTreeMap<String, String> {
+        crate::theme::default_scheme_color_map()
+    }
+
+    fn ctx<'a>(theme: &'a BTreeMap<String, String>) -> ParseCtx<'a> {
+        ParseCtx {
+            slide_path: "ppt/slides/slide1.xml",
+            layout_sp_tree: None,
+            master_sp_tree: None,
+            presentation_level_styles: None,
+            layout_placeholder_levels: None,
+            master_placeholder_levels: None,
+            master_tx_styles: None,
+            theme_colors: Some(theme),
+        }
+    }
+
+    // Catches: OOXML ang=0 (left-to-right) passed straight into CSS as 0deg.
+    #[test]
+    fn linear_fill_angle_zero_is_css_90() {
+        let xml = r#"<p:cSld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:bg><p:bgPr><a:gradFill>
+            <a:gsLst>
+              <a:gs pos="0"><a:srgbClr val="FF0000"/></a:gs>
+              <a:gs pos="100000"><a:srgbClr val="0000FF"/></a:gs>
+            </a:gsLst>
+            <a:lin ang="0" scaled="0"/>
+          </a:gradFill></p:bgPr></p:bg>
+        </p:cSld>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let (color, gradient) = first_paintable_background(&[Some(&doc.root)], &theme());
+        assert_eq!(color.as_deref(), Some("#FF0000"));
+        assert_eq!(
+            gradient.as_deref(),
+            Some("linear-gradient(90.00deg, #FF0000 0%, #0000FF 100%)")
+        );
+    }
+
+    // Catches: an empty slide background hiding a layout solid fill.
+    #[test]
+    fn background_falls_through_to_layout_solid() {
+        let slide = parse_xml_str(
+            r#"<p:cSld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"/>"#,
+        )
+        .unwrap();
+        let layout = parse_xml_str(
+            r#"<p:cSld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:bg><p:bgPr><a:solidFill><a:srgbClr val="00FF00"/></a:solidFill></p:bgPr></p:bg>
+            </p:cSld>"#,
+        )
+        .unwrap();
+        let (color, gradient) =
+            first_paintable_background(&[Some(&slide.root), Some(&layout.root)], &theme());
+        assert_eq!(color.as_deref(), Some("#00FF00"));
+        assert!(gradient.is_none());
+    }
+
+    // Catches: master a:noFill losing to p:style fillRef accent.
+    #[test]
+    fn no_fill_suppresses_fill_ref() {
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="1" name="S"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+            <a:noFill/>
+          </p:spPr>
+          <p:style><a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef></p:style>
+        </p:sp>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el = parse_shape(&doc.root, "s".into(), &ctx(&colors), false).unwrap();
+        assert_eq!(el.fill_mode.as_deref(), Some("none"));
+        assert!(el.fill_color.is_none());
+    }
+
+    // Catches: fillRef schemeClr left unpainted when spPr has no direct fill.
+    #[test]
+    fn fill_ref_scheme_is_solid() {
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="2" name="R"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+          <p:style><a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef></p:style>
+          <p:txBody>
+            <a:bodyPr/>
+            <a:p><a:r><a:rPr sz="1400"><a:solidFill><a:srgbClr val="112233"/></a:solidFill></a:rPr><a:t>Hi</a:t></a:r></a:p>
+          </p:txBody>
+        </p:sp>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el = parse_shape(&doc.root, "s".into(), &ctx(&colors), false).unwrap();
+        assert_eq!(el.fill_mode.as_deref(), Some("solid"));
+        assert_eq!(el.fill_color.as_deref(), Some("#4472C4"));
+        assert_eq!(el.text_color.as_deref(), Some("#112233"));
+        assert!((el.font_size_px.unwrap() - 14.0 * 96.0 / 72.0).abs() < 0.01);
+    }
+
+    // Catches: c:chart graphic frames dumped as otherKinds instead of chart elements.
+    #[test]
+    fn chart_frame_is_element_with_rid() {
+        let xml = r#"<p:graphicFrame xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:nvGraphicFramePr><p:cNvPr id="3" name="Chart"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+          <p:xfrm><a:off x="0" y="0"/><a:ext cx="1828800" cy="1828800"/></p:xfrm>
+          <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+            <c:chart r:id="rId5"/>
+          </a:graphicData></a:graphic>
+        </p:graphicFrame>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el = parse_graphic_frame(&doc.root, "c".into(), &ctx(&colors)).unwrap();
+        assert_eq!(el.type_, "chart");
+        assert_eq!(el.chart_r_id.as_deref(), Some("rId5"));
+        assert!(el.x > 0.0 || el.width > 0.0);
+    }
 }

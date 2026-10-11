@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Viewer / foundation parity: TS oracle vs Rust (job: parity).
-# Runs fixtures/verify --skip-on-demand, then bun parity/run --ci (xml + opc today;
-# xlsx/docx/pptx view-IR comparisons are registered and flip ready when their
+# Runs fixtures/verify --skip-on-demand, then bun parity/run --ci (xml + opc +
+# xlsx workbook slice today; docx/pptx view-IR comparisons flip ready when their
 # parser dumps land). Visual pixelmatch remains #45.
 #
 # Definition of done for #5: this script no longer prints NOT IMPLEMENTED.
@@ -39,6 +39,7 @@ python3 fixtures/verify --skip-on-demand
 
 echo "parity: building Rust dump examples"
 ( cd rs && cargo build --release -q -p nitro-xml-opc --example xml_dump --example opc_dump )
+( cd rs && cargo build --release -q -p nitro-xml-xlsx --example xlsx_dump )
 
 echo "parity: running harness (ready comparisons)"
 set +e
@@ -53,7 +54,7 @@ if [ "$parity_rc" -ne 0 ] || [ "$test_rc" -ne 0 ]; then
   exit 1
 fi
 
-msg="parity: PASS (xml + opc ready; format view-IR pending #15/#20/#24)"
+msg="parity: PASS (xml + opc + xlsx workbook ready; docx/pptx view-IR pending #20/#24)"
 echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"

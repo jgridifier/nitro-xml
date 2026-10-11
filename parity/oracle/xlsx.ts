@@ -1,13 +1,33 @@
 // SPDX-License-Identifier: MIT
 /**
- * TS oracle: xlsx view IR = CellItem[] (plus sheet metadata) for the used viewport.
- * Dump shape matches what the DOM grid painters consume.
+ * TS oracle for xlsx.
+ * - Workbook slice (#15 / ready): sheets, names, styles, theme, shared strings.
+ * - View IR (CellItem/CellView): kept for when the grid path lands (#16/#18).
  */
 
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
+import { repoRoot } from '../corpus.ts';
 import { upstreamDir } from '../paths.ts';
 
-/** Deterministic text measure (both engines must use the same rule). */
+/** Stage-3 workbook dump (same shape as tools/model-compare/gates/ref/xlsx_ref.ts). */
+export async function dumpXlsxWorkbookOracle(fixturePath: string): Promise<unknown> {
+	const root = repoRoot();
+	const script = join(root, 'tools/model-compare/gates/ref/xlsx_ref.ts');
+	const r = spawnSync('bun', [script, fixturePath], {
+		encoding: 'utf8',
+		env: { ...process.env, UPSTREAM_DIR: upstreamDir(root) },
+		maxBuffer: 32 * 1024 * 1024,
+	});
+	try {
+		return JSON.parse((r.stdout || '').trim() || 'null');
+	} catch {
+		return { error: 'oracle_parse', status: r.status };
+	}
+}
+
+/** Deterministic text measure for future CellItem dumps. */
 export function fakeXlsxMeasure(text: string): number {
 	let w = 0;
 	for (const ch of text) {
@@ -17,6 +37,7 @@ export function fakeXlsxMeasure(text: string): number {
 	return w;
 }
 
+/** CellItem / CellView viewport dump — not yet the CI xlsx comparison. */
 export async function dumpXlsxViewIr(fixturePath: string): Promise<unknown> {
 	const up = upstreamDir();
 	const { loadXlsx } = await import(`${up}/src/core/xlsx/read/load.ts`);

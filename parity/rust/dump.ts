@@ -26,19 +26,37 @@ function runBin(
 	};
 }
 
-export function ensureExample(name: string): string {
+export function ensureExample(name: string, crate = 'nitro-xml-opc'): string {
 	const root = repoRoot();
 	const bin = rustExample(name, root);
 	if (existsSync(bin)) return bin;
 	const build = spawnSync(
 		'cargo',
-		['build', '--release', '-q', '-p', 'nitro-xml-opc', '--example', name],
-		{ cwd: join(root, 'rs'), encoding: 'utf8', env: { ...process.env, PATH: `${process.env.HOME}/.cargo/bin:${process.env.PATH}` } },
+		['build', '--release', '-q', '-p', crate, '--example', name],
+		{
+			cwd: join(root, 'rs'),
+			encoding: 'utf8',
+			env: { ...process.env, PATH: `${process.env.HOME}/.cargo/bin:${process.env.PATH}` },
+		},
 	);
 	if (build.status !== 0) {
-		throw new Error(`failed to build example ${name}: ${build.stderr}`);
+		throw new Error(`failed to build example ${name} (-p ${crate}): ${build.stderr}`);
 	}
 	return rustExample(name, root);
+}
+
+export function dumpXlsxWorkbookRust(
+	fixturePath: string,
+): { ok: boolean; json: unknown; status: number | null } {
+	const bin = ensureExample('xlsx_dump', 'nitro-xml-xlsx');
+	const r = runBin(bin, [fixturePath], { timeoutMs: 60_000 });
+	let json: unknown = null;
+	try {
+		json = JSON.parse(r.stdout.trim() || 'null');
+	} catch {
+		json = { error: 'parse', raw: r.stdout.slice(0, 200) };
+	}
+	return { ok: r.status === 0, json, status: r.status };
 }
 
 export function dumpXmlListRust(listPath: string): unknown[] {

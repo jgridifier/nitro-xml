@@ -7,7 +7,8 @@
 import type { Comparison, ParityFormat } from './types.ts';
 import { xmlComparison } from './comparisons/xml.ts';
 import { opcComparison } from './comparisons/opc.ts';
-import { xlsxComparison, docxComparison, pptxComparison } from './comparisons/formats.ts';
+import { xlsxComparison } from './comparisons/xlsx.ts';
+import { docxComparison, pptxComparison } from './comparisons/formats.ts';
 
 const ALL: Comparison[] = [
 	xmlComparison,

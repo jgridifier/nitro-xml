@@ -33,7 +33,7 @@
   - Visio, Teams and MCP
   - framework bindings beyond the web component and vanilla
 - **ASK:**
-  - **IN alongside .docx/.xlsx/.pptx (2026-10-11):** macro-enabled and template variants .xlsm/.docm/.pptm and .xltx/.dotx/.potx (same package format; macros never run; vbaProject.bin preserved byte for byte). R0 (#33) is signed off by Head of Product.
+  - **IN alongside .docx/.xlsx/.pptx (2026-10-11):** macro-enabled, template and macro-enabled template variants .xlsm/.docm/.pptm, .xltx/.dotx/.potx and .xltm/.dotm/.potm (same package format; macros never run; vbaProject.bin preserved byte for byte). R0 (#33) is signed off by Head of Product.
   - **OUT (Jared, 2026-10-11: Word, Excel and PowerPoint only for now):** legacy .doc/.xls/.ppt, encrypted files, CSV and every other upstream format or extra. These show an "unsupported format" message.
   - real-time collaboration (default OUT)
   - PDF/image export (default OUT)

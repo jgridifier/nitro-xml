@@ -111,6 +111,7 @@ pub fn read_sheet_view(sheet_views: Option<&Element>) -> SheetView {
             .unwrap_or(CellAddress { row: 0, col: 0 });
         view.selection = Some(crate::model::SheetSelection {
             active,
+            anchor: active,
             ranges: if ranges.is_empty() {
                 vec![CellRange {
                     start: active,

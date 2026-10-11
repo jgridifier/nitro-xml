@@ -8,6 +8,25 @@ Keyboard: 4,
 Composition: 5,
 Resize: 6,
 });
+// Ids match Handle seed order (empty string is 0). See events.rs INPUT_KEYS.
+export const KeyId = Object.freeze({
+ArrowLeft: 1,
+ArrowRight: 2,
+ArrowUp: 3,
+ArrowDown: 4,
+a: 5,
+A: 6,
+PageUp: 7,
+PageDown: 8,
+});
+function eventFlags(ev) {
+let f = (ev.mods | 0) & 255;
+if (ev.shiftKey) f |= 1;
+if (ev.ctrlKey) f |= 2;
+if (ev.altKey) f |= 4;
+if (ev.metaKey) f |= 8;
+return f & 255;
+}
 export function encodeEventBatch(events) {
 let size = 4;
 for (const ev of events) size += eventByteLength(ev);
@@ -18,8 +37,9 @@ view.setUint16(0, EVENT_VERSION, true);
 view.setUint16(2, events.length, true);
 let o = 4;
 for (const ev of events) {
+const flags = ev.kind === EventKind.Pointer || ev.kind === EventKind.Keyboard ? eventFlags(ev) : 0;
 u8[o++] = ev.kind;
-u8[o++] = 0;
+u8[o++] = flags;
 view.setUint16(o, 0, true);
 o += 2;
 view.setFloat64(o, ev.time_ms, true);
@@ -55,7 +75,7 @@ o += 4;
 view.setUint32(o, ev.code_id >>> 0, true);
 o += 4;
 u8[o++] = ev.type & 0xff;
-u8[o++] = ev.mods & 0xff;
+u8[o++] = flags & 0xff;
 view.setUint16(o, 0, true);
 o += 2;
 break;

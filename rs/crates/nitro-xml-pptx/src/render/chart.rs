@@ -61,6 +61,7 @@ pub fn paint_element_stub<I: StringIntern>(
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
     set_attr(ctx, id, "data-pptx-element", "true");
+    set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "chart");
     let w = el.width.max(1.0).round() as u32;
     let h = el.height.max(1.0).round() as u32;

@@ -43,6 +43,9 @@ echo "selection: installing visual host deps (Playwright from #45)"
 ( cd parity/visual && bunx playwright install --with-deps chromium ) \
   || ( cd parity/visual && bunx playwright install chromium )
 
+echo "selection: preparing upstream viewer bundles (xlsx-editor + pptx-slide)"
+( cd parity/visual && bun prepare.mjs )
+
 echo "selection: running shell + live checks"
 set +e
 ( cd tests/selection && bun ./run.mjs )

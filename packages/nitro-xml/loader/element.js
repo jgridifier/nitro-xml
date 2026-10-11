@@ -8,7 +8,7 @@ import {
 } from "./formats.js";
 import { prewarmWorker as pw, wasmSupported as ws, unsupportedBrowserError as ube } from "./bootstrap.js";
 import { WorkerDocument as WD } from "./worker-host.js";
-import { EventKind as EK } from "./events.js";
+import { EventKind as EK, KeyId } from "./events.js";
 
 export function defineTag(t, C) {
   if (typeof customElements === "undefined" || customElements.get(t)) return;
@@ -72,7 +72,7 @@ export class ViewerElement extends HTMLElement {
   }
   async _ao() {}
   _css() {
-    return ":host{display:block;position:relative;min-height:4rem}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";
+    return ":host{display:block;position:relative;min-height:4rem}.v{outline:none}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";
   }
   _body() {
     return '<div class="v"><canvas part="canvas"></canvas><div class="dom" part="dom"></div></div><div class="msg" hidden part="message"></div>';
@@ -86,11 +86,18 @@ export class ViewerElement extends HTMLElement {
     this._m = s.querySelector(".msg");
     this._v = s.querySelector(".v") || this;
     this._s = s;
+    if (this._v && this._v !== this) this._v.tabIndex = 0;
   }
   _bx() {}
   _bind() {
     this._surf();
     this._bx();
+    const keys = (e) => ({
+      shiftKey: !!e.shiftKey,
+      ctrlKey: !!e.ctrlKey,
+      altKey: !!e.altKey,
+      metaKey: !!e.metaKey,
+    });
     const p = (t) => (e) => {
       if (!this._d) return;
       const r = this._c.getBoundingClientRect();
@@ -102,13 +109,46 @@ export class ViewerElement extends HTMLElement {
         type: t,
         button: e.button,
         buttons: e.buttons,
+        ...keys(e),
       });
+      if (t === 0 && this._v && this._v !== this) {
+        this._v.focus();
+        try {
+          this._v.setPointerCapture(e.pointerId);
+        } catch {
+          /* capture is optional */
+        }
+      }
       this._tick();
     };
     const t = this._v;
     t.addEventListener("pointerdown", p(0));
     t.addEventListener("pointermove", p(1));
     t.addEventListener("pointerup", p(2));
+    const keyEv = (type) => (e) => {
+      if (!this._d) return;
+      const id = KeyId[e.key];
+      if (!id) return;
+      const arrow = e.key.indexOf("Arrow") === 0 || e.key === "PageUp" || e.key === "PageDown";
+      // Shell chrome already binds pptx arrows/page keys to nav-next/prev.
+      if (arrow && this.localName === "nitro-pptx") return;
+      const selectAll = (e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A");
+      if (arrow || selectAll) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      this._d.pushEvent({
+        kind: EK.Keyboard,
+        time_ms: performance.now(),
+        key_id: id,
+        code_id: 0,
+        type,
+        ...keys(e),
+      });
+      this._tick();
+    };
+    t.addEventListener("keydown", keyEv(0));
+    t.addEventListener("keyup", keyEv(1));
     t.addEventListener(
       "wheel",
       (e) => {
@@ -216,7 +256,7 @@ export class ShellViewerElement extends ViewerElement {
     await this.shellAction("ui");
   }
   _css() {
-    return ":host{display:flex;flex-direction:column;min-height:12rem;background:#fff}.v{position:relative;flex:1;min-height:0}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";
+    return ":host{display:flex;flex-direction:column;min-height:12rem;background:#fff}.v{position:relative;flex:1;min-height:0;outline:none}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";
   }
   _body() {
     return '<div class="chrome"></div><div class="v"><canvas part="canvas"></canvas><div class="dom" part="dom"></div></div><div class="msg" hidden part="message"></div>';

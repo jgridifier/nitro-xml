@@ -119,7 +119,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/level_style.rs` | `PptxHandlerRuntimePlaceholderStyles.ts`, `PptxHandlerRuntimeMasterElements.ts` @ e66aaec | Master/layout list-style bullets (#26). |
 | `rs/crates/nitro-xml-pptx/src/placeholder_defaults.rs` | `PptxHandlerRuntimePlaceholderLookup.ts`, `PptxHandlerRuntimePlaceholderDefaults.ts` @ e66aaec | Placeholder level-style lookup (#26). |
 | `rs/crates/nitro-xml-pptx/src/table.rs` | `PptxGraphicFrameParser.ts` @ e66aaec | Table graphic frame row count (#26). |
-| `rs/crates/nitro-xml-pptx/src/render/stage.rs` | `src/ui/src/pptx/dom/slide-stage.ts` @ e66aaec | P1 stage + z-order (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/stage.rs` | `src/ui/src/pptx/dom/slide-stage.ts` @ e66aaec | P1 stage + z-order (#27). Selection outline call (#43) is original. |
 | `rs/crates/nitro-xml-pptx/src/render/shape.rs` | `dom/elements/text-shape.ts` @ e66aaec | P2 shape scaffold (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/text.rs` | `dom/elements/text-block.ts` @ e66aaec | P3 text body scaffold (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/picture.rs` | `dom/elements/image.ts` @ e66aaec | P5 picture frame (#27). |
@@ -164,10 +164,11 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/render/cond_format.rs` | `src/core/xlsx/ui/grid/icon-sets.ts`, cell-layer data bars @ e66aaec | CF paint stub; formula rules TODO. |
 | `rs/crates/nitro-xml-xlsx/src/render/gridlines.rs` | `src/ui/src/xlsx/grid/gridlines.ts` @ e66aaec | Per-row/column 1px gridline DOM nodes. |
 | `rs/crates/nitro-xml-xlsx/src/render/headers.rs` | `src/ui/src/xlsx/grid/headers.ts`, `pane-chrome.ts` @ e66aaec | Row/column header + corner DOM. |
-| `rs/crates/nitro-xml-xlsx/src/render/geometry.rs` | `src/core/xlsx/ui/grid/geometry.ts` @ e66aaec | `rowHeaderWidth` / `columnHeaderHeight`. |
+| `rs/crates/nitro-xml-xlsx/src/render/geometry.rs` | `src/core/xlsx/ui/grid/geometry.ts` @ e66aaec | Header sizes plus `colAtX` / `rowAtY` / `hit` / `clampedHit`. |
 | `rs/crates/nitro-xml-xlsx/src/render/viewport.rs` | `src/core/xlsx/layout/viewport.ts` @ e66aaec | `visibleCells` for grid paint culling. |
 | `rs/crates/nitro-xml-xlsx/src/render/selection.rs` | `src/ui/src/xlsx/grid/selection-layer.ts` @ e66aaec | Selection overlay: range outline + active cell (shades/handle deferred). |
-| `rs/crates/nitro-xml-xlsx/src/render/selection_ops.rs` | `src/core/xlsx/ui/grid/selection-ops.ts` @ e66aaec | Row/column header selection state (`none`/`part`/`full`). |
+| `rs/crates/nitro-xml-xlsx/src/render/selection_ops.rs` | `src/core/xlsx/ui/grid/selection-ops.ts`, `src/core/xlsx/ui/selection.ts` (`rangeRef`), `src/ui/src/xlsx/grid/grid-commands.ts` (`currentRegionOrAll`), `src/core/xlsx/edit/filter.ts` (`currentRegion`) @ e66aaec | Merge expansion, select/extend, A1 selection refs, current region. Header state kept. |
+| `rs/crates/nitro-xml-xlsx/src/render/navigate.rs` | `src/core/xlsx/layout/navigate.ts`, `src/ui/src/xlsx/grid/grid-selection.ts` @ e66aaec | Arrow navigation (hidden size 0 skipped) and merge far-edge departure. |
 | `rs/crates/nitro-xml-xlsx/src/view/types.rs` | `src/core/xlsx/layout/types.ts` @ e66aaec | `CellView` / `CellItem` view types + JSON dump shape. |
 | `rs/crates/nitro-xml-xlsx/src/view/viewport.rs` | `src/core/xlsx/layout/viewport.ts` @ e66aaec | View-IR bound helpers only (full viewport deferred #19). |
 | `rs/crates/nitro-xml-xlsx/src/comments.rs` | `src/core/xlsx/read/comments.ts` @ e66aaec | Legacy comment cell refs for `hasComment`. |

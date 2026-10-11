@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 //! Pptx viewer state and engine API (#27).
 
-use crate::events::Event;
+use crate::events::{Event, MOD_CTRL, MOD_META, MOD_SHIFT};
 use crate::transport::StringTable;
-use nitro_xml_pptx::render::StringIntern;
+use nitro_xml_pptx::render::{
+    contains_id, copy_text, fit_slide_scale, hit_top_level, top_level_ids, StringIntern,
+};
 use nitro_xml_pptx::{paint_slide_frame, Presentation, SlidePaintViewport};
 use serde_json::{json, Value};
 
@@ -22,6 +24,8 @@ pub struct PptxState {
     pub viewport_w: i32,
     pub viewport_h: i32,
     pub scale: f64,
+    /// Top-level element ids selected on the active slide, in click / select-all order.
+    pub selected_ids: Vec<String>,
 }
 
 impl PptxState {
@@ -34,6 +38,7 @@ impl PptxState {
             viewport_w: DEFAULT_W,
             viewport_h: DEFAULT_H,
             scale: 0.0,
+            selected_ids: Vec::new(),
         })
     }
 
@@ -41,8 +46,72 @@ impl PptxState {
         if index >= self.pres.slide_count() {
             return Err(format!("slide index {} out of range", index));
         }
+        if self.active != index {
+            self.selected_ids.clear();
+        }
         self.active = index;
         Ok(())
+    }
+
+    /// Select one top-level element id on the active slide.
+    pub fn select_element_id(&mut self, id: &str) -> bool {
+        let active = self.active;
+        let ok = self
+            .pres
+            .slide(active)
+            .map(|slide| contains_id(slide, id))
+            .unwrap_or(false);
+        if ok {
+            self.selected_ids = vec![id.to_owned()];
+        }
+        ok
+    }
+
+    /// Joined text of the selected shapes, paint order, `\n` between elements.
+    pub fn selected_text(&mut self) -> String {
+        let ids = self.selected_ids.clone();
+        let active = self.active;
+        self.pres
+            .slide(active)
+            .map(|slide| copy_text(slide, &ids))
+            .unwrap_or_default()
+    }
+
+    fn select_all(&mut self) {
+        let active = self.active;
+        self.selected_ids = self
+            .pres
+            .slide(active)
+            .map(top_level_ids)
+            .unwrap_or_default();
+    }
+
+    fn label(&self) -> String {
+        if self.selected_ids.is_empty() {
+            "A1".into()
+        } else {
+            self.selected_ids.join(",")
+        }
+    }
+
+    fn effective_scale(&self) -> f64 {
+        if self.scale > 0.0 {
+            return self.scale;
+        }
+        let (w, h) = self.pres.canvas_size();
+        fit_slide_scale(w, h, self.viewport_w, self.viewport_h)
+    }
+
+    fn hit_id(&mut self, x: f32, y: f32) -> Option<String> {
+        let scale = self.effective_scale();
+        if scale <= f64::EPSILON {
+            return None;
+        }
+        let sx = f64::from(x) / scale;
+        let sy = f64::from(y) / scale;
+        let active = self.active;
+        let slide = self.pres.slide(active).ok()?;
+        hit_top_level(slide, sx, sy)
     }
 
     pub fn viewport(&self) -> SlidePaintViewport {
@@ -51,6 +120,7 @@ impl PptxState {
             scale: self.scale,
             viewport_w: self.viewport_w,
             viewport_h: self.viewport_h,
+            selected_ids: self.selected_ids.clone(),
         }
     }
 
@@ -72,29 +142,74 @@ impl PptxState {
         );
     }
 
-    pub fn process_events(&mut self, events: &[Event], strings: &StringTable) {
+    /// Returns the selection label when the painted selection changed (`A1` when cleared).
+    pub fn process_events(&mut self, events: &[Event], strings: &StringTable) -> Option<String> {
+        let mut changed = false;
         for ev in events {
-            match ev {
-                Event::Resize { width, height, .. } => {
-                    self.viewport_w = (*width).max(1.0) as i32;
-                    self.viewport_h = (*height).max(1.0) as i32;
-                }
-                Event::Keyboard { type_, key_id, .. } => {
-                    if *type_ != 0 {
-                        continue;
-                    }
-                    let key = strings.resolve(*key_id).unwrap_or("");
-                    if key == "ArrowRight" || key == "PageDown" {
-                        let next = self.active + 1;
-                        if next < self.pres.slide_count() {
-                            self.active = next;
-                        }
-                    } else if (key == "ArrowLeft" || key == "PageUp") && self.active > 0 {
-                        self.active -= 1;
-                    }
-                }
-                _ => {}
+            if self.apply_event(ev, strings) {
+                changed = true;
             }
+        }
+        if changed {
+            Some(self.label())
+        } else {
+            None
+        }
+    }
+
+    fn apply_event(&mut self, ev: &Event, strings: &StringTable) -> bool {
+        match ev {
+            Event::Resize { width, height, .. } => {
+                self.viewport_w = (*width).max(1.0) as i32;
+                self.viewport_h = (*height).max(1.0) as i32;
+                false
+            }
+            Event::Pointer {
+                type_,
+                button,
+                x,
+                y,
+                ..
+            } if *type_ == 0 && *button == 0 => {
+                match self.hit_id(*x, *y) {
+                    Some(id) => self.selected_ids = vec![id],
+                    None => self.selected_ids.clear(),
+                }
+                true
+            }
+            Event::Keyboard {
+                type_,
+                key_id,
+                mods,
+                ..
+            } => {
+                if *type_ != 0 {
+                    return false;
+                }
+                let key = strings.resolve(*key_id).unwrap_or("");
+                let ctrl = mods & (MOD_CTRL | MOD_META) != 0;
+                let shift = mods & MOD_SHIFT != 0;
+                if ctrl && !shift && (key == "a" || key == "A") {
+                    self.select_all();
+                    return true;
+                }
+                let before = self.active;
+                if key == "ArrowRight" || key == "PageDown" {
+                    let next = self.active + 1;
+                    if next < self.pres.slide_count() {
+                        self.active = next;
+                    }
+                } else if (key == "ArrowLeft" || key == "PageUp") && self.active > 0 {
+                    self.active -= 1;
+                }
+                if self.active != before {
+                    self.selected_ids.clear();
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
         }
     }
 
@@ -130,8 +245,16 @@ pub fn is_pptx_extension(name: &str) -> bool {
 
 pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
     let events: Vec<Event> = handle.events.pending_snapshot();
-    if let Some(ref mut pptx) = handle.pptx {
-        pptx.process_events(&events, &handle.strings);
+    let selection = if let Some(ref mut pptx) = handle.pptx {
+        pptx.process_events(&events, &handle.strings)
+    } else {
+        None
+    };
+    if let Some(r) = selection {
+        if handle.shell.selection_ref != r {
+            handle.shell.selection_ref = r;
+            handle.shell.dirty_ui = true;
+        }
     }
     handle.events.drain();
     if let Some(ref mut pptx) = handle.pptx {

@@ -10,6 +10,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
     set_attr(ctx, id, "data-pptx-element", "true");
+    set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "group");
     set_style(ctx, id, "overflow", "visible");
     let start = ctx.view_ir.nodes.len();

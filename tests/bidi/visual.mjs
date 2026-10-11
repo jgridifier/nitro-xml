@@ -41,6 +41,19 @@ function ensureExample(name, crate) {
 async function prepareViewIr(c) {
 	mkdirSync(PAYLOADS, { recursive: true });
 	const file = join(ROOT, c.fixture);
+	if (c.format === 'docx') {
+		const { dumpDocxViewIr } = await import('../../parity/oracle/docx.ts');
+		const tsIr = await dumpDocxViewIr(file);
+		writeFileSync(join(PAYLOADS, `${c.id}-ts.json`), JSON.stringify(tsIr));
+		const bin = ensureExample('docx_layout_dump', 'nitro-xml-docx');
+		const rust = spawnSync(bin, [file], {
+			encoding: 'utf8',
+			maxBuffer: 64 * 1024 * 1024,
+		});
+		if (rust.status !== 0) throw new Error(`docx layout rust: ${rust.stderr || rust.stdout}`);
+		writeFileSync(join(PAYLOADS, `${c.id}-rust.json`), JSON.stringify(JSON.parse(rust.stdout)));
+		return;
+	}
 	const { dumpXlsxViewIr } = await import('../../parity/oracle/xlsx.ts');
 	const tsIr = await dumpXlsxViewIr(file);
 	writeFileSync(join(PAYLOADS, `${c.id}-ts.json`), JSON.stringify(tsIr));
@@ -55,7 +68,7 @@ async function prepareViewIr(c) {
 
 function hostUrl(base, c, side) {
 	const q = new URLSearchParams({
-		kind: 'xlsx-view-ir',
+		kind: c.format === 'docx' ? 'docx-layout-ir' : 'xlsx-view-ir',
 		side,
 		id: c.id,
 		width: String(c.width || 800),
@@ -93,7 +106,9 @@ async function screenshotSide(browser, base, c, side, dpr) {
  * @returns {Promise<{ ok: boolean, rows: object[], summary: string }>}
  */
 export async function runVisualChecks() {
-	const cases = readyCases().filter((c) => c.visual && c.format === 'xlsx');
+	const cases = readyCases().filter(
+		(c) => c.visual && (c.format === 'xlsx' || c.format === 'docx'),
+	);
 	mkdirSync(SHOTS, { recursive: true });
 	mkdirSync(DIFFS, { recursive: true });
 	if (existsSync(join(OUT, 'summary.txt'))) rmSync(join(OUT, 'summary.txt'));

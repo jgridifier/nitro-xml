@@ -1,0 +1,163 @@
+// SPDX-License-Identifier: MIT
+//! Open a package and the inputs Print Layout needs for one viewer session.
+
+use std::collections::{HashMap, HashSet};
+
+use nitro_xml_opc::chart::{parse_chart_space_xml, ChartSpace};
+use nitro_xml_render::CommandBuffer;
+
+use super::dom::StringIntern;
+use super::line_numbers::{
+    line_numbering_from_section, suppressed_line_number_ids, PrintLineNumbering,
+};
+use super::options::{PrintLayoutOptions, PrintNow};
+use super::page_borders::{page_borders_from_section, PageBorders};
+use super::pages::paint_print_layout;
+use crate::body::{read_package, DocumentModel, LoadedDocument};
+use crate::layout::{
+    create_fake_measurer, layout_document_model, LayoutResult, LayoutReviewOptions,
+};
+use crate::review_formatting_display::ReviewDisplayMode;
+
+pub struct PrintSession {
+    pub model: DocumentModel,
+    pub result: LayoutResult,
+    pub picture_urls: HashMap<String, String>,
+    pub chart_spaces: HashMap<String, ChartSpace>,
+    pub line_numbers: Vec<Option<PrintLineNumbering>>,
+    pub page_borders: Vec<Option<PageBorders>>,
+    pub suppressed: HashSet<String>,
+    pub warnings: Vec<String>,
+}
+
+impl PrintSession {
+    pub fn open(bytes: &'static [u8]) -> Result<Self, String> {
+        let mut loaded = read_package(bytes).map_err(|e| e.to_string())?;
+        let picture_urls = collect_pictures(&mut loaded);
+        let chart_spaces = collect_charts(&mut loaded);
+        let mut warnings = loaded.model.warnings.clone();
+        let model = loaded.model;
+        let result = layout_document_model(
+            &model,
+            &create_fake_measurer(),
+            LayoutReviewOptions {
+                review_display_mode: None,
+            },
+        );
+        for note in &result.approximations {
+            warnings.push(note.clone());
+        }
+        let sections = model.sections.as_deref().unwrap_or(&[]);
+        Ok(Self {
+            line_numbers: sections.iter().map(line_numbering_from_section).collect(),
+            page_borders: sections.iter().map(page_borders_from_section).collect(),
+            suppressed: suppressed_line_number_ids(&model.blocks),
+            model,
+            result,
+            picture_urls,
+            chart_spaces,
+            warnings,
+        })
+    }
+
+    pub fn paint<I: StringIntern>(
+        &self,
+        buf: &mut CommandBuffer,
+        intern: &mut I,
+        zoom: f64,
+        current_page: Option<usize>,
+        now: PrintNow,
+    ) {
+        let options = PrintLayoutOptions {
+            line_numbers: &self.line_numbers,
+            page_borders: &self.page_borders,
+            suppressed_line_number_paragraphs: &self.suppressed,
+            picture_urls: &self.picture_urls,
+            chart_spaces: &self.chart_spaces,
+            model: Some(&self.model),
+            review_mode: ReviewDisplayMode::All,
+            now,
+            page_color: None,
+            zoom,
+            current_page,
+        };
+        paint_print_layout(buf, intern, &self.result, &options);
+    }
+}
+
+fn collect_pictures(loaded: &mut LoadedDocument<'_>) -> HashMap<String, String> {
+    let names = loaded.model.media_part_names.clone();
+    let mut out = HashMap::new();
+    for name in names {
+        let Ok(Some(bytes)) = loaded.package.read(&name) else {
+            continue;
+        };
+        let mime = mime_of(&name);
+        if !mime.starts_with("image/") {
+            continue;
+        }
+        out.insert(name, format!("data:{mime};base64,{}", b64_encode(&bytes)));
+    }
+    out
+}
+
+fn collect_charts(loaded: &mut LoadedDocument<'_>) -> HashMap<String, ChartSpace> {
+    let names: Vec<String> = loaded.package.part_names().map(str::to_string).collect();
+    let mut out = HashMap::new();
+    for name in names {
+        if !(name.contains("/charts/") && name.ends_with(".xml")) {
+            continue;
+        }
+        let xml = match loaded.package.text(&name) {
+            Ok(Some(xml)) => xml.to_string(),
+            _ => continue,
+        };
+        out.insert(name, parse_chart_space_xml(&xml).chart_space);
+    }
+    out
+}
+
+fn mime_of(name: &str) -> &'static str {
+    let ext = name.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "bmp" => "image/bmp",
+        "tif" | "tiff" => "image/tiff",
+        _ => "application/octet-stream",
+    }
+}
+
+fn b64_encode(data: &[u8]) -> String {
+    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    let mut i = 0;
+    while i + 3 <= data.len() {
+        let n = ((data[i] as u32) << 16) | ((data[i + 1] as u32) << 8) | data[i + 2] as u32;
+        out.push(T[((n >> 18) & 63) as usize] as char);
+        out.push(T[((n >> 12) & 63) as usize] as char);
+        out.push(T[((n >> 6) & 63) as usize] as char);
+        out.push(T[(n & 63) as usize] as char);
+        i += 3;
+    }
+    if i < data.len() {
+        let rem = data.len() - i;
+        let mut n = (data[i] as u32) << 16;
+        if rem == 2 {
+            n |= (data[i + 1] as u32) << 8;
+        }
+        out.push(T[((n >> 18) & 63) as usize] as char);
+        out.push(T[((n >> 12) & 63) as usize] as char);
+        if rem == 2 {
+            out.push(T[((n >> 6) & 63) as usize] as char);
+            out.push('=');
+        } else {
+            out.push('=');
+            out.push('=');
+        }
+    }
+    out
+}

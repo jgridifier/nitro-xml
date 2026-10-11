@@ -312,7 +312,11 @@ def build() -> dict:
 
     # Stage-3 bidi / RTL fixtures (#44)
     bidi_dir = ROOT / "fixtures" / "bidi"
-    for path in sorted(bidi_dir.glob("*.xlsx")) + sorted(bidi_dir.glob("*.pptx")):
+    for path in (
+        sorted(bidi_dir.glob("*.xlsx"))
+        + sorted(bidi_dir.glob("*.docx"))
+        + sorted(bidi_dir.glob("*.pptx"))
+    ):
         digest = sha256_file(path)
         rel = str(path.relative_to(ROOT))
         fmt = path.suffix.lstrip(".")

@@ -43,6 +43,7 @@ export {
 } from "./element.js";
 export { defineNitroXlsx, NitroXlsxElement } from "./xlsx-element.js";
 export { defineNitroPptx, NitroPptxElement } from "./pptx-element.js";
+export { defineNitroDocx, NitroDocxElement } from "./docx-element.js";
 export {
   applyFontSourceToHandle,
   setDefaultFontSource,

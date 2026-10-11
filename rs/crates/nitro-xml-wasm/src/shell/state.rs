@@ -9,8 +9,6 @@ pub enum FormatKind {
     #[default]
     None,
     Xlsx,
-    /// Placeholder until #23 lands.
-    #[allow(dead_code)]
     Docx,
     Pptx,
 }

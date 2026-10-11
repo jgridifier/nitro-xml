@@ -108,6 +108,81 @@ def _xml_escape(s: str) -> str:
     )
 
 
+def _docx(path: Path) -> None:
+    """RTL Arabic and Hebrew paragraphs plus a mixed-direction paragraph."""
+    def para(body: str) -> str:
+        return f"<w:p>{body}</w:p>"
+
+    def rtl_run(text: str, lang: str) -> str:
+        return (
+            "<w:r><w:rPr><w:rtl/>"
+            f'<w:lang w:bidi="{lang}"/></w:rPr>'
+            f'<w:t>{_xml_escape(text)}</w:t></w:r>'
+        )
+
+    def ltr_run(text: str) -> str:
+        return (
+            '<w:r><w:rPr><w:lang w:val="en-US"/></w:rPr>'
+            f'<w:t xml:space="preserve">{_xml_escape(text)}</w:t></w:r>'
+        )
+
+    rtl_ppr = '<w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr>'
+    document = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        "<w:body>"
+        + para(rtl_ppr + rtl_run(AR, "ar-SA"))
+        + para(rtl_ppr + rtl_run(HE, "he-IL"))
+        + para(ltr_run("Hello ") + rtl_run(HE.split()[0], "he-IL") + ltr_run(" world ") + rtl_run(AR.split()[0], "ar-SA"))
+        + '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>'
+        + '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720"/>'
+        + "</w:sectPr></w:body></w:document>"
+    ).encode("utf-8")
+    styles = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:docDefaults><w:rPrDefault><w:rPr>'
+        '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>'
+        '<w:sz w:val="22"/><w:szCs w:val="22"/>'
+        "</w:rPr></w:rPrDefault></w:docDefaults>"
+        '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>'
+        "</w:styles>"
+    ).encode("utf-8")
+    write_ooxml(
+        path,
+        {
+            "[Content_Types].xml": content_types(
+                [
+                    (
+                        "/word/document.xml",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+                    ),
+                    (
+                        "/word/styles.xml",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml",
+                    ),
+                    ("/docProps/core.xml", "application/vnd.openxmlformats-package.core-properties+xml"),
+                    ("/docProps/app.xml", "application/vnd.openxmlformats-officedocument.extended-properties+xml"),
+                ]
+            ),
+            "_rels/.rels": rels_root(
+                "word/document.xml",
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+            ),
+            "word/document.xml": document,
+            "word/_rels/document.xml.rels": (
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+                "</Relationships>"
+            ).encode("utf-8"),
+            "word/styles.xml": styles,
+            "docProps/core.xml": core_props("bidi arabic hebrew paragraphs"),
+            "docProps/app.xml": app_props("nitro-xml bidi fixture generator"),
+        },
+    )
+
+
 def _pptx(path: Path) -> None:
     """One slide with RTL Arabic/Hebrew paragraphs and a mixed LTR/RTL run."""
     from tiers import gen_pptx_slides
@@ -149,6 +224,7 @@ def main() -> int:
     mixed = out / "arabic-hebrew-mixed.xlsx"
     rtl = out / "rtl-sheet.xlsx"
     pptx = out / "arabic-hebrew-slides.pptx"
+    docx = out / "arabic-hebrew-paragraphs.docx"
     _xlsx(
         mixed,
         title="bidi mixed arabic hebrew",
@@ -162,7 +238,8 @@ def main() -> int:
         rtl_sheet=True,
     )
     _pptx(pptx)
-    for p in (mixed, rtl, pptx):
+    _docx(docx)
+    for p in (mixed, rtl, pptx, docx):
         print(f"{p.relative_to(ROOT)} sha256={sha256_file(p)} bytes={p.stat().st_size}")
     return 0
 

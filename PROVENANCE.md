@@ -249,7 +249,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/layout/layout_ligatures.rs` | `src/core/docx/layout/ligatures.ts` @ e66aaec | Layout `ligature_css` helper. |
 | `rs/crates/nitro-xml-docx/src/layout/text_breaks.rs` | `src/core/docx/layout/text-breaks.ts` @ e66aaec | UAX#14-lite line break tokens; `unicode-segmentation` for graphemes. |
 | `rs/crates/nitro-xml-docx/src/layout/input.rs` | `src/core/docx/layout/input.ts` @ e66aaec | Layout input serde types. |
-| `rs/crates/nitro-xml-docx/src/layout/result.rs` | `src/core/docx/layout/result.ts` @ e66aaec | `LayoutResult` and page/box types. |
+| `rs/crates/nitro-xml-docx/src/layout/result.rs` | `src/core/docx/layout/result.ts` @ e66aaec | `LayoutResult` and page/box types. Paragraph/table `kind` is `serde(skip)` so the `LayoutBlockBox` tag owns JSON `kind` and column blocks round-trip. |
 | `rs/crates/nitro-xml-docx/src/layout/keep_rules.rs` | `src/core/docx/layout/keep-rules.ts` @ e66aaec | Widow/orphan and contextual spacing rules. |
 | `rs/crates/nitro-xml-docx/src/layout/tab_stops.rs` | `src/core/docx/layout/tab-stops.ts` @ e66aaec | Tab placement during line layout. |
 | `rs/crates/nitro-xml-docx/src/layout/util.rs` | `src/core/docx/expect-defined.ts` @ e66aaec | `expect_defined` helper used by layout. |
@@ -274,4 +274,12 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/layout/review_display.rs` | `src/core/docx/layout/review-display.ts` @ e66aaec | Layout review options. |
 | `rs/crates/nitro-xml-docx/src/layout/adapter.rs` | `src/core/docx/layout/adapter.ts` @ e66aaec | `DocumentModel` → layout input. |
 | `rs/crates/nitro-xml-docx/src/layout/layout.rs` | `src/core/docx/layout/layout.ts` @ e66aaec | `layout_document` / `layout_document_model` take `&dyn TextMeasurer`; measured-cache loop. |
-| `rs/crates/nitro-xml-docx/src/layout/page_fields.rs` | `src/core/docx/layout/page-fields.ts` @ e66aaec | PAGE/NUMPAGES field helpers (unused until wired). |
+| `rs/crates/nitro-xml-docx/src/layout/page_fields.rs` | `src/core/docx/layout/page-fields.ts` @ e66aaec | PAGE/NUMPAGES field helpers, used by Print Layout headers and footers. |
+| `rs/crates/nitro-xml-docx/src/render/print/pages.rs` | `src/ui/src/docx/print-layout.ts` @ e66aaec | Print Layout pages, columns, paragraphs and footnotes as one command buffer per frame. |
+| `rs/crates/nitro-xml-docx/src/render/print/styles.rs` | `src/ui/src/docx/styles/print.css` @ e66aaec | `.dve-print-*` stylesheet injected once per frame. |
+| `rs/crates/nitro-xml-docx/src/render/print/table.rs` | `src/ui/src/docx/print-table.ts` @ e66aaec | Table, row and cell DOM. |
+| `rs/crates/nitro-xml-docx/src/render/print/picture.rs` | `src/ui/src/docx/print-picture.ts` @ e66aaec | Inline and floating pictures; chart SVG when a chart part is present. |
+| `rs/crates/nitro-xml-docx/src/render/print/header_footer.rs` | `src/ui/src/docx/print-header-footer.ts` @ e66aaec | Header, footer, watermark and floating header pictures. |
+| `rs/crates/nitro-xml-docx/src/render/print/page_borders.rs` | `src/ui/src/docx/print-page-borders.ts` and `src/core/docx/ui/table-render.ts` (`cssBorderSide`) @ e66aaec | Page border box. |
+| `rs/crates/nitro-xml-docx/src/render/print/line_numbers.rs` | `src/ui/src/docx/print-line-numbers.ts` @ e66aaec | Line-number labels. |
+| `rs/crates/nitro-xml-docx/src/render/print/options.rs` | `src/ui/src/docx/print-layout.ts` (`PrintLayoutOptions`) @ e66aaec | Painter inputs besides `LayoutResult`. |

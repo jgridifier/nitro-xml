@@ -23,6 +23,7 @@ const TYPES = {
 	'.pdf': 'application/pdf',
 	'.wasm': 'application/wasm',
 	'.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+	'.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 	'.xlsm': 'application/vnd.ms-excel.sheet.macroEnabled.12',
 	'.ttf': 'font/ttf',
 	'.woff': 'font/woff',

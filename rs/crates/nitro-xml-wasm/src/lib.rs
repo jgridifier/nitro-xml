@@ -17,6 +17,7 @@ use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "bench")]
 mod bench;
+mod docx;
 mod events;
 mod handle;
 mod pptx;

@@ -250,6 +250,7 @@ dependencies = [
  "console_error_panic_hook",
  "js-sys",
  "nitro-xml",
+ "nitro-xml-docx",
  "nitro-xml-pptx",
  "nitro-xml-render",
  "nitro-xml-xlsx",

@@ -24,6 +24,18 @@ fn set_style<I: StringIntern>(
     buf.set_style(id, p, v);
 }
 
+fn set_attr<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    id: u32,
+    key: &str,
+    val: &str,
+) {
+    let k = intern.intern(key);
+    let v = intern.intern(val);
+    buf.set_attr(id, k, v);
+}
+
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
@@ -57,13 +69,16 @@ pub fn paint<I: StringIntern>(
         let id = LINE_BASE + i;
         i += 1;
         buf.create_element(id, div, 1);
-        set_style(buf, intern, id, "position", "absolute");
+        let gl_class = if w == 1 {
+            "xg-gl xg-gl-v"
+        } else {
+            "xg-gl xg-gl-h"
+        };
+        set_attr(buf, intern, id, "class", gl_class);
         set_style(buf, intern, id, "left", &format!("{}px", x));
         set_style(buf, intern, id, "top", &format!("{}px", y));
         set_style(buf, intern, id, "width", &format!("{}px", w));
         set_style(buf, intern, id, "height", &format!("{}px", h));
-        set_style(buf, intern, id, "background", "#e1e1e1");
-        set_style(buf, intern, id, "pointerEvents", "none");
     };
 
     for col in cols {

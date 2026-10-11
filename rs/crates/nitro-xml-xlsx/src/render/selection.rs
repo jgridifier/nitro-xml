@@ -24,6 +24,18 @@ fn set_style<I: StringIntern>(
     buf.set_style(id, p, v);
 }
 
+fn set_attr<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    id: u32,
+    key: &str,
+    val: &str,
+) {
+    let k = intern.intern(key);
+    let v = intern.intern(val);
+    buf.set_attr(id, k, v);
+}
+
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
@@ -54,13 +66,9 @@ pub fn paint<I: StringIntern>(
     let top = sizes.h + y - viewport.scroll_y - 1;
     let div = intern.intern("div");
     buf.create_element(OUTLINE_ID, div, 1);
-    set_style(buf, intern, OUTLINE_ID, "position", "absolute");
+    set_attr(buf, intern, OUTLINE_ID, "class", "xg-outline");
     set_style(buf, intern, OUTLINE_ID, "left", &format!("{}px", left));
     set_style(buf, intern, OUTLINE_ID, "top", &format!("{}px", top));
     set_style(buf, intern, OUTLINE_ID, "width", &format!("{}px", w + 1));
     set_style(buf, intern, OUTLINE_ID, "height", &format!("{}px", h + 1));
-    set_style(buf, intern, OUTLINE_ID, "boxSizing", "border-box");
-    set_style(buf, intern, OUTLINE_ID, "border", "2px solid #217346");
-    set_style(buf, intern, OUTLINE_ID, "pointerEvents", "none");
-    set_style(buf, intern, OUTLINE_ID, "zIndex", "3");
 }

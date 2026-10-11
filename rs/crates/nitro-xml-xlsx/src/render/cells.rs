@@ -36,6 +36,18 @@ fn set_style<I: StringIntern>(
     buf.set_style(id, p, v);
 }
 
+fn set_attr<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    id: u32,
+    key: &str,
+    val: &str,
+) {
+    let k = intern.intern(key);
+    let v = intern.intern(val);
+    buf.set_attr(id, k, v);
+}
+
 #[allow(clippy::too_many_arguments)]
 fn paint_one_cell<I: StringIntern>(
     buf: &mut CommandBuffer,
@@ -53,13 +65,21 @@ fn paint_one_cell<I: StringIntern>(
     let left = ox + item.x - scroll_x;
     let top = oy + item.y - scroll_y;
     buf.create_element(cell_id, div, 1);
-    set_style(buf, intern, cell_id, "position", "absolute");
+    let mut cell_class = String::from("xg-c");
+    if item.overflowing {
+        cell_class.push_str(" xg-c-over");
+    }
+    if item.view.has_hyperlink {
+        cell_class.push_str(" xg-link");
+    }
+    if item.merged {
+        cell_class.push_str(" xg-merged");
+    }
+    set_attr(buf, intern, cell_id, "class", &cell_class);
     set_style(buf, intern, cell_id, "left", &format!("{}px", left));
     set_style(buf, intern, cell_id, "top", &format!("{}px", top));
     set_style(buf, intern, cell_id, "width", &format!("{}px", item.w));
     set_style(buf, intern, cell_id, "height", &format!("{}px", item.h));
-    set_style(buf, intern, cell_id, "boxSizing", "border-box");
-    set_style(buf, intern, cell_id, "overflow", "visible");
 
     let fill = fill_paint(item.view.fill.as_ref());
     if let Some(ref fp) = fill {
@@ -70,19 +90,29 @@ fn paint_one_cell<I: StringIntern>(
             set_style(buf, intern, cell_id, "backgroundImage", img);
         }
     } else if item.merged {
-        set_style(buf, intern, cell_id, "backgroundColor", "#fff");
-    }
-
-    if item.view.has_hyperlink {
-        set_style(buf, intern, cell_id, "cursor", "pointer");
+        set_style(
+            buf,
+            intern,
+            cell_id,
+            "backgroundColor",
+            "var(--xve-sheet-bg, #fff)",
+        );
     }
 
     if !item.text.is_empty() {
         let text_id = TEXT_BASE + n as u32;
         buf.create_element(text_id, div, cell_id);
-        set_style(buf, intern, text_id, "position", "absolute");
-        set_style(buf, intern, text_id, "top", "0");
-        set_style(buf, intern, text_id, "bottom", "0");
+        let mut text_class = String::from("xg-t");
+        if item.view.wrap {
+            text_class.push_str(" xg-wrap");
+        }
+        if item.view.vertical_text {
+            text_class.push_str(" xg-vert");
+        }
+        if item.overflowing {
+            text_class.push_str(" xg-over");
+        }
+        set_attr(buf, intern, text_id, "class", &text_class);
         set_style(
             buf,
             intern,
@@ -97,10 +127,6 @@ fn paint_one_cell<I: StringIntern>(
             "width",
             &format!("{}px", item.text_width),
         );
-        set_style(buf, intern, text_id, "display", "flex");
-        set_style(buf, intern, text_id, "boxSizing", "border-box");
-        set_style(buf, intern, text_id, "overflow", "hidden");
-        set_style(buf, intern, text_id, "lineHeight", "1.15");
         set_style(
             buf,
             intern,
@@ -137,13 +163,9 @@ fn paint_one_cell<I: StringIntern>(
             "textAlign",
             text_align(&item.view.h_align),
         );
-        set_style(
-            buf,
-            intern,
-            text_id,
-            "whiteSpace",
-            if item.view.wrap { "pre-wrap" } else { "pre" },
-        );
+        if !item.view.wrap {
+            set_style(buf, intern, text_id, "whiteSpace", "pre");
+        }
         let pad = ((2.0 * (zoom / 100.0)).round() as i32).max(1);
         let indent = pad + (item.view.indent_px * (zoom / 100.0)).round() as i32;
         let (pl, pr) = if item.view.h_align == "left" || item.view.h_align == "distributed" {
@@ -155,20 +177,9 @@ fn paint_one_cell<I: StringIntern>(
         };
         set_style(buf, intern, text_id, "paddingLeft", &format!("{}px", pl));
         set_style(buf, intern, text_id, "paddingRight", &format!("{}px", pr));
-        if item.overflowing {
-            set_style(buf, intern, text_id, "background", "#fff");
-        }
-        if item.view.wrap {
-            set_style(buf, intern, text_id, "overflowWrap", "anywhere");
-        }
-        if item.view.vertical_text {
-            set_style(buf, intern, text_id, "writingMode", "vertical-rl");
-            set_style(buf, intern, text_id, "textOrientation", "upright");
-        }
         let span_id = TEXT_BASE + 50_000 + n as u32;
         buf.create_element(span_id, div, text_id);
-        set_style(buf, intern, span_id, "display", "inline-block");
-        set_style(buf, intern, span_id, "whiteSpace", "inherit");
+        set_attr(buf, intern, span_id, "class", "xg-tx");
         if item.view.rotation != 0.0 {
             set_style(
                 buf,
@@ -185,9 +196,7 @@ fn paint_one_cell<I: StringIntern>(
     if has_borders(&item.view.borders) {
         let border_id = BORDER_BASE + n as u32;
         buf.create_element(border_id, div, cell_id);
-        set_style(buf, intern, border_id, "position", "absolute");
-        set_style(buf, intern, border_id, "left", "-1px");
-        set_style(buf, intern, border_id, "top", "-1px");
+        set_attr(buf, intern, border_id, "class", "xg-b");
         set_style(
             buf,
             intern,
@@ -202,8 +211,6 @@ fn paint_one_cell<I: StringIntern>(
             "height",
             &format!("{}px", item.h + 1),
         );
-        set_style(buf, intern, border_id, "boxSizing", "border-box");
-        set_style(buf, intern, border_id, "pointerEvents", "none");
         let b = &item.view.borders;
         if b.top.is_some() {
             set_style(
@@ -250,27 +257,13 @@ fn paint_one_cell<I: StringIntern>(
     if item.view.has_comment {
         let cm_id = COMMENT_BASE + n as u32;
         buf.create_element(cm_id, div, cell_id);
-        set_style(buf, intern, cm_id, "position", "absolute");
-        set_style(buf, intern, cm_id, "right", "0");
-        set_style(buf, intern, cm_id, "top", "0");
-        set_style(buf, intern, cm_id, "width", "0");
-        set_style(buf, intern, cm_id, "height", "0");
-        set_style(buf, intern, cm_id, "borderLeft", "6px solid transparent");
-        set_style(buf, intern, cm_id, "borderTop", "6px solid #d13438");
-        set_style(buf, intern, cm_id, "zIndex", "2");
+        set_attr(buf, intern, cm_id, "class", "xg-cm");
     }
 
     if item.error_mark {
         let er_id = ERROR_BASE + n as u32;
         buf.create_element(er_id, div, cell_id);
-        set_style(buf, intern, er_id, "position", "absolute");
-        set_style(buf, intern, er_id, "left", "0");
-        set_style(buf, intern, er_id, "top", "0");
-        set_style(buf, intern, er_id, "width", "0");
-        set_style(buf, intern, er_id, "height", "0");
-        set_style(buf, intern, er_id, "borderRight", "6px solid transparent");
-        set_style(buf, intern, er_id, "borderTop", "6px solid #107c41");
-        set_style(buf, intern, er_id, "zIndex", "2");
+        set_attr(buf, intern, er_id, "class", "xg-er");
     }
 }
 

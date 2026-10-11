@@ -236,6 +236,18 @@ def build() -> dict:
         feats = ["upstream", f"provenance:{s.get('provenance', 'upstream-synthetic')}"] + painter_tags_for_upstream(
             s["upstream_path"], fmt
         )
+        # Prefer the commit that introduced the file when selection records it
+        # (e.g. outside-contributor fixtures reviewed for redistribution).
+        if s.get("added_by_commit"):
+            source = (
+                f"https://github.com/ChristopherVR/ooxml/commit/{s['added_by_commit']} "
+                f"({s['upstream_path']}; pin e66aaec)"
+            )
+        else:
+            source = (
+                "https://github.com/ChristopherVR/ooxml/blob/"
+                f"e66aaec24adc0b68472eae1fc42aa4598e09c352/{s['upstream_path']}"
+            )
         rows.append(
             entry(
                 id="upstream-" + s["sha256"][:12],
@@ -243,7 +255,7 @@ def build() -> dict:
                 path=local,
                 sha256=digest,
                 bytes_=abs_path.stat().st_size,
-                source=f"https://github.com/ChristopherVR/ooxml/blob/e66aaec24adc0b68472eae1fc42aa4598e09c352/{s['upstream_path']}",
+                source=source,
                 licence="Apache-2.0",
                 features=feats,
                 redistributable=True,

@@ -536,8 +536,10 @@
    "other_paths": [],
    "sha256": "e0dce36d208848363a458f57c38d34584053460ae7cced809c0fc7b806259117",
    "redistributable": true,
-   "provenance": "upstream-synthetic",
-   "local_path": "fixtures/upstream/pptx/e0dce36d2088_table-paragraph-layout.pptx"
+   "provenance": "upstream-contributor",
+   "local_path": "fixtures/upstream/pptx/e0dce36d2088_table-paragraph-layout.pptx",
+   "added_by_commit": "bcc61f3b3e98564e50d018a4a37576f3b237fb57",
+   "note": "Added in ChristopherVR/ooxml@bcc61f3b (Haseom Shin / PptxGenJS; lastModifiedBy \"Haseom Shin\"). Covered by upstream Apache-2.0; source records that commit."
   },
   {
    "upstream_path": "src/core/pptx/__tests__/fixtures/corpus/animations-transitions-multislide.pptx",

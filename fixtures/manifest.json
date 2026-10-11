@@ -4266,7 +4266,7 @@
       "sha256": "e0dce36d208848363a458f57c38d34584053460ae7cced809c0fc7b806259117",
       "bytes": 17065,
       "tier": "S",
-      "source": "https://github.com/ChristopherVR/ooxml/blob/e66aaec24adc0b68472eae1fc42aa4598e09c352/src/core/pptx/__tests__/fixtures/table-paragraph-layout.pptx",
+      "source": "https://github.com/ChristopherVR/ooxml/commit/bcc61f3b3e98564e50d018a4a37576f3b237fb57 (src/core/pptx/__tests__/fixtures/table-paragraph-layout.pptx; pin e66aaec)",
       "licence": "Apache-2.0",
       "features": [
         "painter:P25",
@@ -4274,7 +4274,7 @@
         "painter:P27",
         "painter:P6",
         "painter:P8",
-        "provenance:upstream-synthetic",
+        "provenance:upstream-contributor",
         "upstream"
       ],
       "redistributable": true,

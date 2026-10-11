@@ -68,8 +68,13 @@ function contentKeys(nodes, side, c) {
 			(c.format === 'xlsx' && (n.role === 'grid' || n.role === 'status'));
 		if (!interesting) continue;
 		if (axAllowed(AX_ALLOW, n, side)) continue;
-		// Pptx TS oracle is a bare reading stage — skip nitro shell tabs on rust.
-		if (c.format === 'pptx' && PPTX_SHELL_ONLY_ROLES.has(n.role)) continue;
+		// Pptx/docx TS oracles are bare reading stages — skip nitro shell tabs on rust.
+		if (
+			(c.format === 'pptx' || c.format === 'docx') &&
+			PPTX_SHELL_ONLY_ROLES.has(n.role)
+		) {
+			continue;
+		}
 		// Header names are column letters / row numbers — keep role+name.
 		// For grids/status/regions, name matters (Spreadsheet grid / Slide).
 		if (n.role === 'rowheader' || n.role === 'columnheader') {

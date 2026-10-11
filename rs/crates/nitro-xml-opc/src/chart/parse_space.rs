@@ -117,6 +117,9 @@ fn uri_prefix_map(source: &str) -> HashMap<String, String> {
         (ns::C16.to_string(), "c16".to_string()),
         (ns::C16R2.to_string(), "c16r2".to_string()),
     ]);
+    for (uri, prefix) in super::xml_serialize::all_uri_prefixes_from_xml(source) {
+        map.insert(uri, prefix);
+    }
     if let Some(decls) = namespace_declarations_from_source(source) {
         for decl in decls {
             map.insert(decl.uri, decl.prefix);
@@ -196,7 +199,7 @@ fn parse_chart_space_element_with_source(
                 "The part root is {{{}}}{}, not c:chartSpace (chartex parts are not modelled).",
                 root.ns.as_deref().unwrap_or(""),
                 root.local
-            ),
+            ), // message shape matches upstream parse-space.ts
         });
         return ChartSpaceParseResult {
             chart_space: ChartSpace {

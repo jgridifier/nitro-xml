@@ -6,7 +6,7 @@ use nitro_xml_render::chart::{
     paint_chart_space as s1_paint_chart_space, ChartSvgOptions, RenderChartSpaceOptions,
 };
 use nitro_xml_render::measure::MeasureBatch;
-use nitro_xml_render::CommandBuffer;
+use nitro_xml_render::{CommandBuffer, StringTable};
 
 pub fn paint_docx_chart(
     space: &ChartSpace,
@@ -15,7 +15,7 @@ pub fn paint_docx_chart(
     buffer: &mut CommandBuffer,
     measure: &mut MeasureBatch,
     parent_id: u32,
-    markup_id: u32,
+    strings: &mut StringTable,
 ) {
     s1_paint_chart_space(
         space,
@@ -29,6 +29,6 @@ pub fn paint_docx_chart(
         buffer,
         measure,
         parent_id,
-        markup_id,
+        strings,
     );
 }

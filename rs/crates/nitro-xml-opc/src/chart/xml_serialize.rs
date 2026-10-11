@@ -165,6 +165,15 @@ fn chart_root_bindings() -> HashMap<&'static str, &'static str> {
     HashMap::from(CHART_ROOT_BINDINGS)
 }
 
+/// Every `xmlns:prefix="uri"` in a chart part (for extension element serialization).
+pub fn all_uri_prefixes_from_xml(source: &str) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    for (_, _, prefix, uri) in scan_xmlns_declarations(source) {
+        map.insert(uri, prefix);
+    }
+    map
+}
+
 fn scan_xmlns_declarations(xml: &str) -> Vec<(usize, usize, String, String)> {
     let mut out = Vec::new();
     let mut pos = 0usize;

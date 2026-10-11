@@ -6,7 +6,9 @@
 //! `docs/boundary.md` and filled as painters land.
 
 mod ops;
+mod string_table;
 mod writer;
 
 pub use ops::opcode;
+pub use string_table::StringTable;
 pub use writer::CommandBuffer;

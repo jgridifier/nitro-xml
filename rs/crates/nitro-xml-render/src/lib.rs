@@ -18,7 +18,7 @@ pub mod metafile;
 pub mod primitives;
 pub mod smartart;
 
-pub use command_buffer::{opcode, CommandBuffer};
+pub use command_buffer::{opcode, CommandBuffer, StringTable};
 pub use measure::{
     LayoutReadBatch, LayoutReadError, LayoutReadKind, MeasureBatch, MeasureError,
     LAYOUT_RESULT_LANES,

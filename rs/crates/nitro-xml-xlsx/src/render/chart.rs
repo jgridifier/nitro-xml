@@ -4,7 +4,7 @@
 use nitro_xml_opc::chart::{parse_chart_space_xml, ChartSpace};
 use nitro_xml_render::chart::{paint_chart_space, ChartSvgOptions, RenderChartSpaceOptions};
 use nitro_xml_render::measure::MeasureBatch;
-use nitro_xml_render::CommandBuffer;
+use nitro_xml_render::{CommandBuffer, StringTable};
 
 pub fn paint_chart_from_xml(
     xml: &str,
@@ -13,7 +13,7 @@ pub fn paint_chart_from_xml(
     buffer: &mut CommandBuffer,
     measure: &mut MeasureBatch,
     parent_id: u32,
-    markup_id: u32,
+    strings: &mut StringTable,
 ) -> ChartSpace {
     let parsed = parse_chart_space_xml(xml);
     let options = RenderChartSpaceOptions {
@@ -29,7 +29,7 @@ pub fn paint_chart_from_xml(
         buffer,
         measure,
         parent_id,
-        markup_id,
+        strings,
     );
     parsed.chart_space
 }

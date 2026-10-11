@@ -6,7 +6,7 @@ use nitro_xml_render::chart::{
     paint_chart_space as s1_paint, ChartSvgOptions, RenderChartSpaceOptions,
 };
 use nitro_xml_render::measure::MeasureBatch;
-use nitro_xml_render::CommandBuffer;
+use nitro_xml_render::{CommandBuffer, StringTable};
 
 pub fn paint_pptx_chart_xml(
     xml: &str,
@@ -15,7 +15,7 @@ pub fn paint_pptx_chart_xml(
     buffer: &mut CommandBuffer,
     measure: &mut MeasureBatch,
     parent_id: u32,
-    markup_id: u32,
+    strings: &mut StringTable,
 ) -> ChartSpace {
     let parsed = parse_chart_space_xml(xml);
     if parsed
@@ -25,7 +25,9 @@ pub fn paint_pptx_chart_xml(
     {
         // cx:/chartex and other unsupported roots: labelled frame parity (full P9 port is out of scope).
         buffer.begin();
-        buffer.set_inner_markup(parent_id, markup_id);
+        let stub = "<svg xmlns=\"http://www.w3.org/2000/svg\" role=\"img\"><text>chartex (TODO #28)</text></svg>";
+        let id = strings.intern(stub);
+        buffer.set_inner_markup(parent_id, id);
         return parsed.chart_space;
     }
     s1_paint(
@@ -40,7 +42,7 @@ pub fn paint_pptx_chart_xml(
         buffer,
         measure,
         parent_id,
-        markup_id,
+        strings,
     );
     parsed.chart_space
 }

@@ -8,6 +8,7 @@
 //! - `src/core/drawingml/` → [`drawingml`]
 //! - zip: upstream uses JSZip (third-party, not ported); [`zip`] replaces it.
 
+pub mod chart;
 pub mod drawingml;
 pub mod fonts;
 pub mod opc;

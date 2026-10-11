@@ -16,6 +16,10 @@ pub mod ns {
     pub const C: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
     /// Office 2010 chart extensions.
     pub const C14: &str = "http://schemas.microsoft.com/office/drawing/2007/8/2/chart";
+    /// Office 2014 chart extensions (`c16:`).
+    pub const C16: &str = "http://schemas.microsoft.com/office/drawing/2014/chart";
+    /// Office 2015 chart extensions (`c16r2:`).
+    pub const C16R2: &str = "http://schemas.microsoft.com/office/drawing/2015/06/chart";
     /// DrawingML diagram (SmartArt) main.
     pub const DGM: &str = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
     /// Office 2007+ diagram drawing (`dsp`).

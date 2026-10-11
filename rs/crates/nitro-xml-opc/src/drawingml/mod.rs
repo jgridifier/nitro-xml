@@ -14,6 +14,7 @@ mod ooxml_arc;
 mod ordered_color_transforms;
 mod preset;
 mod serialize;
+mod text;
 mod theme;
 mod theme_color;
 mod theme_model;
@@ -38,6 +39,7 @@ pub use preset::{
     evaluate_preset_shape, list_preset_names, lookup_preset_shape, PresetShapeEvaluationResult,
     PresetSubpathResult,
 };
+pub use text::parse_drawing_text_body;
 pub use theme::{is_theme_color_slot, parse_theme, parse_theme_color_map, parse_theme_xml};
 pub use theme_color::{
     resolve_scheme_color, theme_color_slot_for, theme_drawing_color_theme, theme_slot_hex,
@@ -49,7 +51,8 @@ pub use theme_model::{
 };
 pub use types::{
     AttributeReader, DrawingColor, DrawingFill, DrawingFrame, DrawingLine, DrawingPath,
-    DrawingPathCommand, DrawingTextBody, DrawingTextParagraph, DrawingTextRun, DrawingTextSpacing,
+    DrawingPathCommand, DrawingTextBody, DrawingTextParagraph, DrawingTextRun,
+    DrawingTextRunProperties, DrawingTextSpacing,
 };
 pub use units::{emu_to_pixels, pixels_to_emu, EMU_PER_PIXEL};
 

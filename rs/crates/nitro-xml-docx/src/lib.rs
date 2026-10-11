@@ -52,3 +52,5 @@ pub use styles::{
     PAGINATION_KEYS,
 };
 pub use theme::{diagram_color_theme, parse_color_scheme_mapping, parse_theme};
+
+pub mod render;

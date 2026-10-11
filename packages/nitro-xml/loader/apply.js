@@ -11,6 +11,7 @@ export const Op = Object.freeze({
   AppendChild: 7,
   SetText: 8,
   SetStyle: 9,
+  SetInnerMarkup: 10,
 });
 
 /** Apply one frame's command bytes; on truncated/unknown ops stops without throwing. */
@@ -158,6 +159,22 @@ export function applyCommandBuffer(bytes, target) {
           const prop = target.resolve(propId);
           const val = target.resolve(valId);
           if (prop != null) el.style[prop] = val ?? "";
+        }
+        ops++;
+        break;
+      }
+      case Op.SetInnerMarkup: {
+        // Trusted Rust-generated markup only (docs/boundary.md). Never pass document strings here.
+        if (!need(8)) return { ops, error: "truncated SetInnerMarkup" };
+        const parentId = view.getUint32(i, true);
+        const markupId = view.getUint32(i + 4, true);
+        i += 8;
+        const parent = parentId === 0 ? root : nodes.get(parentId);
+        const markup = target.resolve(markupId);
+        if (parent && markup && typeof document !== "undefined") {
+          const tpl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          tpl.innerHTML = markup;
+          while (tpl.firstChild) parent.appendChild(tpl.firstChild);
         }
         ops++;
         break;

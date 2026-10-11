@@ -156,3 +156,17 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/view/viewport.rs` | `src/core/xlsx/layout/viewport.ts` @ e66aaec | View-IR bound helpers only (full viewport deferred #19). |
 | `rs/crates/nitro-xml-xlsx/src/comments.rs` | `src/core/xlsx/read/comments.ts` @ e66aaec | Legacy comment cell refs for `hasComment`. |
 | `rs/crates/nitro-xml-xlsx/src/hyperlinks.rs` | `src/core/xlsx/read/worksheet.ts` @ e66aaec | Internal + external hyperlink targets for `title`. |
+| `rs/crates/nitro-xml-opc/src/drawingml/text.rs` | `src/core/drawingml/drawing-text.ts` @ e66aaec | Text body reader for chart `txPr` / rich text; `DrawingTextRunProperties` for `defaultProperties`. |
+| `rs/crates/nitro-xml-opc/src/chart/mod.rs` | `src/core/chart/index.ts` @ e66aaec | Chart module root; read path only (no writers). |
+| `rs/crates/nitro-xml-opc/src/chart/model.rs` | `src/core/chart/model*.ts`, `model-series.ts` @ e66aaec | Chart IR types (serde) aligned with upstream JSON dumps. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_space.rs` | `src/core/chart/parse-space.ts` @ e66aaec | `c:chartSpace` parser; chart XML uses `ParseOptions::sort_attributes = false`. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_util.rs` | `src/core/chart/parse-util.ts` @ e66aaec | Shared parse helpers, `extLst` / `spPr` / text body wiring. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_plot.rs` | `src/core/chart/parse-plot.ts` @ e66aaec | Plot area and chart groups read path. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_series.rs` | `src/core/chart/parse-series.ts` @ e66aaec | Series read path. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_chrome.rs` | `src/core/chart/parse-chrome.ts` @ e66aaec | Legend, axes, surface chrome read path. |
+| `rs/crates/nitro-xml-opc/src/chart/parse_text.rs` | `src/core/chart/parse-text.ts` @ e66aaec | Title, data labels, number formats read path. |
+| `rs/crates/nitro-xml-opc/src/chart/xml_serialize.rs` | `src/core/xml/xml.ts`, `src/core/chart/xml-fragment.ts` @ e66aaec | `buildXml`-compatible fragment serialization and `stripDeclarations`. |
+| `rs/crates/nitro-xml-opc/src/chart/data_cache.rs` | `src/core/chart/data-cache.ts` @ e66aaec | Cached chart values from `strCache` / `numCache`. |
+| `rs/crates/nitro-xml-opc/src/chart/manual_layout.rs` | `src/core/chart/manual-layout.ts` @ e66aaec | Manual layout values reader. |
+| `rs/crates/nitro-xml-opc/src/chart/dom.rs` | `src/core/chart/parse-util.ts` (DOM helpers) @ e66aaec | Chart-namespace child lookup over `Element`. |
+| `rs/crates/nitro-xml-render/src/chart/mod.rs` | `src/core/chart/render/render-space.ts` @ e66aaec | S1 scaffold only (`render_chart_space_svg` / `paint_chart_space`); full painter port TODO(#28). |

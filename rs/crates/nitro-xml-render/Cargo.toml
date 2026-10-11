@@ -3,9 +3,10 @@ name = "nitro-xml-render"
 description = "Nitro XML shared render crate: command buffer, measure/layout read-back, primitives, chart (S1), SmartArt (S2), metafile (S3)"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "MIT AND Apache-2.0"
 repository.workspace = true
 homepage.workspace = true
 publish.workspace = true
 
 [dependencies]
+nitro-xml-opc = { workspace = true }

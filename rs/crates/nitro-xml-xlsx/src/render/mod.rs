@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-//! Xlsx grid painters (X1–X6). One command buffer per frame (#18).
+//! Xlsx painters: grid (X1–X6, #18) and chart adapter (#28).
 
 mod cells;
 mod cond_format;
@@ -7,6 +7,8 @@ mod grid;
 mod gridlines;
 mod headers;
 mod selection;
+
+pub mod chart;
 
 use nitro_xml_render::command_buffer::CommandBuffer;
 

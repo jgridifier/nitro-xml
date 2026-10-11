@@ -73,19 +73,20 @@ One `Uint8Array` of opcodes per frame, taken with `takeFrameCommands()` and appl
 | AppendChild | 7 | `u32 parent, child` |
 | SetText | 8 | `u32 id, text_id` |
 | SetStyle | 9 | `u32 id, prop_id, val_id` |
+| SetInnerMarkup | 10 | `u32 parent, markup` — parse SVG/HTML fragment into `parent` in one pass (#28 charts) |
 
-Opcodes **8–9** (xlsx grid #18) cover DOM `textContent` and `style` property writes for the cell layer; remaining gaps below still apply to charts, SVG NS, etc.
+Opcodes **8–9** (xlsx grid #18) cover DOM `textContent` and `style` property writes for the cell layer. Opcode **10** (`SetInnerMarkup`) is for trusted, Rust-generated markup only (chart S1 SVG); remaining gaps below still apply to SVG NS creates, etc. Keep this table aligned with `rs/crates/nitro-xml-render/src/command_buffer/ops.rs` and `packages/nitro-xml/loader/apply.js`.
 
 ### Opcode coverage gaps (vs upstream painters / PR #111)
 
-The seed set plus **SetText** / **SetStyle** is still **not** enough for a full one-to-one painter port. Missing call kinds that upstream actually makes (see `docs/painters.md` / `tools/painter-calls`), to be added as painter ports extend the loader applier (placement in `docs/adr/0002-renderer-port.md` #36):
+The seed set plus **SetText** / **SetStyle** / **SetInnerMarkup** is still **not** enough for a full one-to-one painter port. Missing call kinds that upstream actually makes (see `docs/painters.md` / `tools/painter-calls`), to be added as painter ports extend the loader applier (placement in `docs/adr/0002-renderer-port.md` #36):
 
 - `createElementNS` / SVG element creation (charts, sparklines, SmartArt, connectors, ink, WordArt)
-- Text nodes and `textContent` / `createTextNode` updates
-- Inline style property writes (`element.style.*`, CSS custom properties)
+- Text nodes and `textContent` / `createTextNode` updates (partially covered by SetText for grid cells)
+- Inline style property writes (`element.style.*`, CSS custom properties) (partially covered by SetStyle)
 - `classList` add / remove / toggle
 - Tree surgery: `insertBefore`, `remove`, `replaceChildren`, `replaceWith`
-- Markup paths: `innerHTML`, `DOMParser` / `svgNode` string parse into the DOM
+- Markup paths beyond trusted SetInnerMarkup: `DOMParser` / `svgNode` string parse into the DOM
 - Canvas 2D state: `save` / `restore`, `setTransform` / `resetTransform`, `fillStyle` / `strokeStyle`, path ops (`beginPath`, `moveTo`, `lineTo`, `arc`, `fill`, `stroke`)
 - Canvas text: `fillText`, `measureText` (measurement stays batched; draw ops still need opcodes)
 - Attribute NS variants (`setAttributeNS`) and dataset / ARIA property writes

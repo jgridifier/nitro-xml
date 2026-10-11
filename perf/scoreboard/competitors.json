@@ -1,0 +1,235 @@
+{
+  "$comment": "SPDX-License-Identifier: MIT. Scoreboard entrants, pinned. Vetted 2026-10-11 (licence from the package itself; upkeep from npm / crates.io / GitHub APIs). Corrections by PR: see docs/scoreboard-method.md.",
+  "vettedOn": "2026-10-11",
+  "entrants": [
+    {
+      "id": "nitro-xml",
+      "name": "Nitro XML (Rust/WASM)",
+      "formats": ["xlsx", "docx", "pptx"],
+      "language": "Rust (WASM)",
+      "version": null,
+      "licence": "MIT",
+      "races": ["parse", "first-paint", "open-edit-save"],
+      "status": "not entered",
+      "reason": "not entered yet (needs #11-#13): no parser exists yet; it joins the parse race as soon as the zip, XML and OPC crates and the per-format models land."
+    },
+    {
+      "id": "upstream-ts",
+      "name": "upstream ooxml TS (ChristopherVR/ooxml, ooxml-core)",
+      "formats": ["xlsx", "docx", "pptx"],
+      "language": "TypeScript",
+      "version": "git e66aaec24adc0b68472eae1fc42aa4598e09c352 (ooxml-core 1.8.2), built from the upstream/ submodule",
+      "source": "https://github.com/ChristopherVR/ooxml/tree/e66aaec24adc0b68472eae1fc42aa4598e09c352",
+      "licence": "Apache-2.0",
+      "upkeep": { "latestCommit": "2026-10-11 (pinned commit; repo pushed 2026-10-11)", "latestRelease": "openteams-server@0.1.3, 2026-10-11", "notes": "very active, the reference and baseline for every race" },
+      "races": ["parse", "first-paint", "open-edit-save"],
+      "fastestConfig": {
+        "xlsx": "loadWorkbook(bytes) from ooxml-core/xlsx/load, the call the upstream Excel UI makes (src/ui/src/xlsx/editor-files.ts)",
+        "docx": "loadDocument(bytes) from ooxml-core/docx/load, the call the upstream Word UI makes (src/ui/src/docx/component.ts)",
+        "pptx": "new PptxHandler().load(arrayBuffer) from ooxml-core/pptx, as the upstream PowerPoint viewer does (viewers/pptx/packages/angular/src/viewer/load-content.service.ts)",
+        "doc": "https://github.com/ChristopherVR/ooxml/blob/e66aaec24adc0b68472eae1fc42aa4598e09c352/src/core/README.md"
+      },
+      "adapters": { "xlsx": "upstream-xlsx", "docx": "upstream-docx", "pptx": "upstream-pptx" },
+      "reference": true,
+      "status": "entered"
+    },
+    {
+      "id": "sheetjs",
+      "name": "SheetJS Community Edition",
+      "formats": ["xlsx"],
+      "language": "JavaScript",
+      "version": "0.20.3",
+      "source": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz (official SheetJS CDN; the npm `xlsx` package is frozen at 0.18.5 from 2022-03-24 and SheetJS documents installing from its CDN instead: https://docs.sheetjs.com/docs/getting-started/installation/nodejs)",
+      "licence": "Apache-2.0",
+      "upkeep": { "latestRelease": "v0.20.3 (git tag created 2024-07-18 on git.sheetjs.com)", "latestCommit": "2026-02-09 (git.sheetjs.com/sheetjs/sheetjs)", "notes": "maintained on git.sheetjs.com; releases are infrequent" },
+      "races": ["parse"],
+      "fastestConfig": {
+        "setting": "XLSX.read(bytes, { type: 'array', dense: true, cellText: false, cellFormula: false, cellHTML: false, cellStyles: false })",
+        "why": "dense mode is the documented faster/lower-memory sheet layout; cellText/cellFormula/cellHTML skip formatted text, formulae and rich-text HTML, none of which the parse race's equivalence output (value + type) needs",
+        "doc": "https://docs.sheetjs.com/docs/api/parse-options"
+      },
+      "adapters": { "xlsx": "sheetjs" },
+      "status": "entered"
+    },
+    {
+      "id": "exceljs",
+      "name": "ExcelJS",
+      "formats": ["xlsx"],
+      "language": "JavaScript",
+      "version": "4.4.0",
+      "source": "npm exceljs@4.4.0 (browser field: dist/exceljs.min.js)",
+      "licence": "MIT",
+      "upkeep": { "latestRelease": "4.4.0, 2023-10-19", "latestCommit": "2024-01-12 (repo last pushed 2025-01-21)", "notes": "no release for three years; issues still open" },
+      "races": ["parse"],
+      "fastestConfig": {
+        "setting": "new ExcelJS.Workbook().xlsx.load(bytes)",
+        "why": "the documented browser reader; the faster streaming WorkbookReader needs Node streams and files and is not available in a browser",
+        "doc": "https://github.com/exceljs/exceljs#reading-xlsx"
+      },
+      "adapters": { "xlsx": "exceljs" },
+      "status": "entered"
+    },
+    {
+      "id": "calamine",
+      "name": "calamine (Rust, via wasm-bindgen)",
+      "formats": ["xlsx"],
+      "language": "Rust (WASM)",
+      "version": "0.36.1 (crates.io)",
+      "source": "https://crates.io/crates/calamine/0.36.1",
+      "licence": "MIT",
+      "upkeep": { "latestRelease": "0.36.1, 2026-07-27", "latestCommit": "2026-09-02", "notes": "active" },
+      "races": ["parse"],
+      "fastestConfig": {
+        "setting": "Xlsx::new(Cursor::new(bytes)) then Reader::worksheets() (all sheet ranges into memory); default features (no chrono). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+        "why": "calamine is lazy per sheet; worksheets() is the documented call that reads every sheet's values, which the equivalence check needs",
+        "doc": "https://docs.rs/calamine/0.36.1/calamine/trait.Reader.html#tymethod.worksheets"
+      },
+      "adapters": { "xlsx": "rust-calamine" },
+      "shim": "perf/scoreboard/adapters/rust/calamine-shim",
+      "status": "entered"
+    },
+    {
+      "id": "umya-spreadsheet",
+      "name": "umya-spreadsheet (Rust, via wasm-bindgen)",
+      "formats": ["xlsx"],
+      "language": "Rust (WASM)",
+      "version": "3.1.0 (crates.io)",
+      "source": "https://crates.io/crates/umya-spreadsheet/3.1.0",
+      "licence": "MIT",
+      "upkeep": { "latestRelease": "3.1.0 on crates.io, 2026-08-17 (GitHub releases stop at 1.1.1)", "latestCommit": "2026-10-09", "notes": "active" },
+      "races": ["parse", "open-edit-save"],
+      "fastestConfig": {
+        "setting": "reader::xlsx::read_reader(Cursor::new(bytes), true). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3; getrandom 0.4 'wasm_js' feature enabled (its documented wasm32 backend, pulled in via rand)",
+        "why": "the full reader; lazy_read leaves sheets undeserialised, so it would not yield the cell values the equivalence check needs",
+        "doc": "https://docs.rs/umya-spreadsheet/3.1.0/umya_spreadsheet/reader/xlsx/fn.read_reader.html"
+      },
+      "adapters": { "xlsx": "rust-umya" },
+      "shim": "perf/scoreboard/adapters/rust/umya-shim",
+      "status": "entered"
+    },
+    {
+      "id": "docx-preview",
+      "name": "docx-preview (docxjs)",
+      "formats": ["docx"],
+      "language": "TypeScript",
+      "version": "0.4.1",
+      "source": "npm docx-preview@0.4.1",
+      "licence": "Apache-2.0",
+      "upkeep": { "latestRelease": "0.4.1 on npm, 2026-09-21", "latestCommit": "2026-09-21", "notes": "active" },
+      "races": ["parse", "first-paint"],
+      "fastestConfig": {
+        "setting": "parseAsync(bytes, {}) (the parse half of renderAsync; parsing does not consult the render options)",
+        "doc": "https://github.com/VolodymyrBaydalka/docxjs#api"
+      },
+      "adapters": { "docx": "docx-preview" },
+      "status": "entered"
+    },
+    {
+      "id": "mammoth",
+      "name": "mammoth.js",
+      "formats": ["docx"],
+      "language": "JavaScript",
+      "version": "1.13.0",
+      "source": "npm mammoth@1.13.0 (browser build via the package's browser field)",
+      "licence": "BSD-2-Clause",
+      "upkeep": { "latestRelease": "1.13.0 on npm, 2026-09-26", "latestCommit": "2026-09-26", "notes": "active, single maintainer" },
+      "races": ["parse"],
+      "fastestConfig": {
+        "setting": "mammoth.extractRawText({ arrayBuffer })",
+        "why": "its cheapest public API that yields all body text; there is no public parse-only API, so the timed span also produces the text string (cheap compared with convertToHtml)",
+        "doc": "https://github.com/mwilliamson/mammoth.js#mammothextractrawtextinput"
+      },
+      "adapters": { "docx": "mammoth" },
+      "status": "entered"
+    },
+    {
+      "id": "docx-rs",
+      "name": "docx-rs (Rust, via wasm-bindgen)",
+      "formats": ["docx"],
+      "language": "Rust (WASM)",
+      "version": "0.4.22 (crates.io)",
+      "source": "https://crates.io/crates/docx-rs/0.4.22",
+      "licence": "MIT",
+      "upkeep": { "latestRelease": "0.4.22 on crates.io, 2026-07-21", "latestCommit": "2026-10-05", "notes": "active; primarily a writer, reading is a secondary feature" },
+      "races": ["parse"],
+      "fastestConfig": {
+        "setting": "read_docx(bytes). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+        "doc": "https://docs.rs/docx-rs/0.4.22/docx_rs/fn.read_docx.html"
+      },
+      "adapters": { "docx": "rust-docx-rs" },
+      "shim": "perf/scoreboard/adapters/rust/docx-rs-shim",
+      "status": "entered"
+    },
+    {
+      "id": "pptxjs",
+      "name": "PPTXjs",
+      "formats": ["pptx"],
+      "language": "JavaScript (jQuery plugin)",
+      "version": "v1.21.1 = git 1a9260b2062f89ba822aeb54da792236780af8e7 (not published on npm; files fetched from GitHub and sha256-verified by build.mjs)",
+      "source": "https://github.com/meshesha/PPTXjs/tree/1a9260b2062f89ba822aeb54da792236780af8e7",
+      "licence": "MIT",
+      "upkeep": { "latestRelease": "v1.21.1, 2022-03-26", "latestCommit": "2022-03-26", "notes": "unmaintained since 2022; bundles jQuery 1.11.3, JSZip 2, d3 3 and nv.d3" },
+      "races": ["parse*", "first-paint"],
+      "fastestConfig": {
+        "setting": "$(host).pptxToHtml({ pptxFileUrl: <blob: URL of the in-memory bytes>, mediaProcess: false, slideMode: false })",
+        "why": "its only public API; it parses and generates and inserts the slides' HTML in one synchronous pass, so its parse-race time includes HTML generation and DOM insertion (more work than a parse: flagged on the page). mediaProcess:false is a documented option that skips audio/video extraction and does not change text",
+        "doc": "https://github.com/meshesha/PPTXjs#usage"
+      },
+      "adapters": { "pptx": "pptxjs" },
+      "scripts": ["/dist/bundles/pptxjs-vendor.js"],
+      "timingScope": "parse + HTML generation + DOM insertion (no parse-only API)",
+      "status": "entered"
+    },
+    {
+      "id": "libreoffice-wasm",
+      "name": "LibreOffice WASM (ZetaOffice / LOWA)",
+      "formats": ["xlsx", "docx", "pptx"],
+      "language": "C++ (Emscripten WASM)",
+      "version": null,
+      "source": "https://cdn.zetaoffice.net/zetaoffice_latest/ via zetajs (https://github.com/allotropia/zetajs, MIT); binaries built from LibreOffice core distro/allotropia/zeta-24-2",
+      "licence": "MPL-2.0 (LibreOffice core); zetajs wrapper MIT",
+      "upkeep": { "latestCommit": "zetajs 2026-04-01; CDN soffice.* last-modified 2025-05-13", "notes": "self-hosting requires building LOWA from LibreOffice core (static/README.wasm.md)" },
+      "races": ["first-paint"],
+      "status": "not entered",
+      "reason": "not entered: the documented binaries are only published under the unversioned path zetaoffice_latest (cannot be pinned, which the fairness rules require), they are about 53 MB (soffice.wasm 36.3 MB + soffice.data 15.9 MB + soffice.js 0.9 MB) and need a cross-origin-isolated threaded page, and LibreOffice has no parse-only boundary: loadComponentFromURL imports and lays out the document into the Writer/Calc/Impress model, so a parse-race number would not measure the same work. Building a pinned LOWA from source was not feasible in this run. Revisit for the render-to-first-paint race with a self-built, pinned LOWA."
+    }
+  ],
+  "evaluated": [
+    {
+      "name": "@silurus/ooxml (yukiyokotani/office-open-xml-viewer)",
+      "version": "0.88.0 (npm, 2026-09-21)",
+      "licence": "MIT",
+      "language": "Rust parsers compiled to WASM + TypeScript Canvas renderers",
+      "upkeep": "very active (last commit 2026-10-11); README states the whole codebase is written by AI coding agents",
+      "assessment": "docx/xlsx/pptx viewer (17 MB unpacked). Public API is viewer classes (DocxViewer, ...) that parse and paint; candidate for the render-to-first-paint race, not entered in the parse race because no documented parse-only API with a cell/text model was found.",
+      "status": "evaluated, not entered"
+    },
+    {
+      "name": "shrimp-doc-viewer (cjo4m06/shrimp-doc-viewer)",
+      "version": "0.5.0 (npm, 2026-08-14)",
+      "licence": "MIT OR Apache-2.0 (licence files in the npm package; the GitHub repo has no detected licence)",
+      "language": "Rust/WASM core, JS API",
+      "upkeep": "single commit burst (last commit 2026-08-14), 1 star",
+      "assessment": "viewer-only (renderDocxInto, XlsxViewer, ...); no parse-only API. Candidate for first-paint only; low upkeep.",
+      "status": "evaluated, not entered"
+    },
+    {
+      "name": "OpenOOXML/BetterOffice (openooxml/betteroffice)",
+      "version": "@betteroffice/docx 0.4.3 (npm, 2026-10-03)",
+      "licence": "Apache-2.0",
+      "language": "Rust compiled to WASM",
+      "upkeep": "very active (created 2026-07-11, last commit 2026-10-09)",
+      "assessment": "@betteroffice/docx exposes a real parse API (parseDocx) and a layout engine (31 MB unpacked, four wasm assets). Strong candidate for the docx parse race and first paint; not entered in this run (evaluation only was requested). xlsx/pptx packages not evaluated yet.",
+      "status": "evaluated, not entered"
+    },
+    {
+      "name": "pptx-preview",
+      "version": "1.0.7 (npm, 2025-10-17)",
+      "licence": "ISC",
+      "language": "JavaScript",
+      "upkeep": "last publish 2025-10-17; npm lists no source repository",
+      "assessment": "renderer only (init(el).preview(arrayBuffer)), minified dist without a public repo; no parse-only API. Candidate for first paint only.",
+      "status": "evaluated, not entered"
+    }
+  ]
+}

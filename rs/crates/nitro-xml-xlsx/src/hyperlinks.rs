@@ -29,14 +29,16 @@ pub fn read_hyperlinks(
         let Some(range) = range else {
             continue;
         };
-        let target = rel_attr(Some(link), "id").and_then(|id| rels.get(id)).map(|rel| {
-            if rel.mode == RelMode::External {
-                rel.target.clone()
-            } else {
-                pkg.target(worksheet_part, rel)
-                    .unwrap_or_else(|| rel.target.clone())
-            }
-        });
+        let target = rel_attr(Some(link), "id")
+            .and_then(|id| rels.get(id))
+            .map(|rel| {
+                if rel.mode == RelMode::External {
+                    rel.target.clone()
+                } else {
+                    pkg.target(worksheet_part, rel)
+                        .unwrap_or_else(|| rel.target.clone())
+                }
+            });
         out.push(HyperlinkInfo {
             range,
             tooltip: att(Some(link), "tooltip").map(str::to_owned),

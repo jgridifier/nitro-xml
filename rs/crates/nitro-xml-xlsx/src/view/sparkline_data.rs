@@ -4,9 +4,9 @@
 use std::collections::HashMap;
 
 use crate::address::parse_range;
+use crate::model::SparklineGroup;
 use crate::model::{ActiveWorksheet, CellRange, DumpCellValue, WorkbookSlice};
 use crate::sheet_access::{get_cell, CellIndex};
-use crate::model::SparklineGroup;
 use crate::sparklines::sheet_sparkline_groups;
 use crate::view::sparkline_view::{sparkline_scale, sparkline_view, SparklineData, SparklineView};
 

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/layout/sparkline-view.ts; changes listed in PROVENANCE.md.
 
-use crate::model::{js_num, Color, ThemePalette};
 use crate::model::SparklineGroup;
+use crate::model::{js_num, Color, ThemePalette};
 use crate::view::colors::resolve_color;
 use serde_json::{json, Map, Value};
 

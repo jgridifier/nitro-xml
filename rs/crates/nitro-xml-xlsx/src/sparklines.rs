@@ -89,7 +89,9 @@ fn read_sparkline_group(node: &nitro_xml_opc::xml::Element) -> SparklineGroup {
 }
 
 /// Every sparkline group under a parsed `extLst` element, in document order.
-pub fn read_sparkline_groups_from_ext(ext_lst: &nitro_xml_opc::xml::Element) -> Vec<SparklineGroup> {
+pub fn read_sparkline_groups_from_ext(
+    ext_lst: &nitro_xml_opc::xml::Element,
+) -> Vec<SparklineGroup> {
     descendants(ext_lst, "sparklineGroup", NS_X14)
         .into_iter()
         .map(read_sparkline_group)
@@ -137,6 +139,22 @@ pub fn sheet_sparkline_groups(sheet: &ActiveWorksheet) -> &[SparklineGroup] {
 }
 
 /// Extract `<extLst>...</extLst>` fragments from worksheet XML (preserved extension list).
+pub fn extract_ext_lst(xml: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut search = xml;
+    while let Some(start) = search.find("<extLst") {
+        let rest = &search[start..];
+        if let Some(end_rel) = rest.find("</extLst>") {
+            let end = end_rel + "</extLst>".len();
+            out.push(rest[..end].to_string());
+            search = &rest[end..];
+        } else {
+            break;
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,20 +174,4 @@ mod tests {
         assert!(!sheet.ext_lst.is_empty(), "extLst fragments");
         assert_eq!(sheet.sparkline_groups.len(), 4);
     }
-}
-
-pub fn extract_ext_lst(xml: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut search = xml;
-    while let Some(start) = search.find("<extLst") {
-        let rest = &search[start..];
-        if let Some(end_rel) = rest.find("</extLst>") {
-            let end = end_rel + "</extLst>".len();
-            out.push(rest[..end].to_string());
-            search = &rest[end..];
-        } else {
-            break;
-        }
-    }
-    out
 }

@@ -25,6 +25,8 @@ pub fn paint_frame<I: StringIntern>(
         ("background", "#fff"),
         ("color", "#000"),
         ("fontFamily", "\"Segoe UI\", system-ui, sans-serif"),
+        ("userSelect", "none"),
+        ("WebkitFontSmoothing", "antialiased"),
     ] {
         let p = intern.intern(prop);
         let v = intern.intern(val);

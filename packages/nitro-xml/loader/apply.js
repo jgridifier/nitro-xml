@@ -17,6 +17,7 @@ const nodes = target.nodes || (target.nodes = new Map());
 const images = target.images || (target.images = new Map());
 const ctx = target.canvas || null;
 const root = target.root || null;
+if (root) { root.replaceChildren(); nodes.clear(); }
 let i = 0;
 let ops = 0;
 const need = (n) => i + n <= bytes.byteLength;

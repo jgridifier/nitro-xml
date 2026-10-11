@@ -8,6 +8,7 @@ mod grid;
 mod gridlines;
 mod headers;
 mod selection;
+mod selection_ops;
 mod viewport;
 
 pub mod chart;
@@ -60,9 +61,9 @@ pub fn paint_grid_frame<I: StringIntern>(
         &metrics,
         viewport,
     );
+    selection::paint(buf, intern, sheet, &metrics, viewport);
     headers::paint(buf, intern, sheet, &metrics, viewport);
     cond_format::paint(buf);
-    selection::paint(buf, viewport);
 }
 
 /// Convenience: allocate a fresh buffer (tests / dumps).

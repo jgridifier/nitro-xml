@@ -8,7 +8,7 @@ Pixelmatch harness: upstream TS oracle vs Rust at **DPR 1 and 2**, plus **print-
 | Registration | Source | Notes |
 |---|---|---|
 | `xlsx-view-ir` | CellItem view-IR (#18) painted by a shared canvas painter | TS dump vs Rust dump |
-| `xlsx-viewer` | Live `<nitro-xlsx>` vs upstream `<xlsx-editor>` | Same fixture URL; **informational** until painters converge (will exceed ≤0.1%) |
+| `xlsx-viewer` | Live `<nitro-xlsx>` vs upstream `<xlsx-editor>` | Same fixture URL; **informational** (~3% dpr1 on `poi-45544`: WASM `estimateWidth` vs TS `measureText`, multi-frame measure batch not wired yet, minor border/CF gaps). Sheet tabs/status are #29. |
 | `chart-svg` | Chart S1 SVG (#28) hosted in a fixed viewport | TS `chart_ref` vs Rust `chart_render_svg` |
 | `docx` / `pptx` | — | `ready: false` — add a registry row when hosted |
 

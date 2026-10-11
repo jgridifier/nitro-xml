@@ -8,6 +8,7 @@ use crate::address::column_label;
 use crate::intern::StringIntern;
 use crate::model::ActiveWorksheet;
 use crate::render::geometry::header_sizes;
+use crate::render::selection_ops::{col_selected, row_selected};
 use crate::render::viewport::{paint_indices, visible_cells_for_host};
 use crate::render::GridPaintViewport;
 use crate::view::metrics::GridMetrics;
@@ -32,6 +33,31 @@ fn header_font_px(zoom: f64) -> i32 {
     (11.0 * (zoom / 100.0)).round().max(6.0) as i32
 }
 
+fn apply_header_sel<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    id: u32,
+    state: &str,
+    axis_col: bool,
+) {
+    if state == "none" {
+        return;
+    }
+    if state == "full" {
+        set_style(buf, intern, id, "background", "#cde6d7");
+        set_style(buf, intern, id, "color", "#185c37");
+    } else {
+        set_style(buf, intern, id, "background", "#e1e1e1");
+        set_style(buf, intern, id, "color", "#217346");
+    }
+    set_style(buf, intern, id, "fontWeight", "600");
+    if axis_col {
+        set_style(buf, intern, id, "boxShadow", "inset 0 -2px 0 #217346");
+    } else {
+        set_style(buf, intern, id, "boxShadow", "inset -2px 0 0 #217346");
+    }
+}
+
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
@@ -50,6 +76,7 @@ pub fn paint<I: StringIntern>(
     let font_px = header_font_px(metrics.zoom);
     let scroll_x = viewport.scroll_x;
     let scroll_y = viewport.scroll_y;
+    let selection = sheet.view.selection.as_ref();
 
     buf.create_element(CORNER_ID, div, 1);
     set_style(buf, intern, CORNER_ID, "position", "absolute");
@@ -88,6 +115,9 @@ pub fn paint<I: StringIntern>(
         set_style(buf, intern, id, "borderBottom", "1px solid #d4d4d4");
         set_style(buf, intern, id, "fontSize", &format!("{}px", font_px));
         set_style(buf, intern, id, "zIndex", "4");
+        if let Some(sel) = selection {
+            apply_header_sel(buf, intern, id, col_selected(sel, *col), true);
+        }
         let label = intern.intern(&column_label(*col));
         buf.set_text(id, label);
     }
@@ -117,6 +147,9 @@ pub fn paint<I: StringIntern>(
         set_style(buf, intern, id, "borderBottom", "1px solid #d4d4d4");
         set_style(buf, intern, id, "fontSize", &format!("{}px", font_px));
         set_style(buf, intern, id, "zIndex", "4");
+        if let Some(sel) = selection {
+            apply_header_sel(buf, intern, id, row_selected(sel, *row), false);
+        }
         let label = intern.intern(&((*row + 1).to_string()));
         buf.set_text(id, label);
     }

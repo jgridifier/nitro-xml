@@ -31,6 +31,9 @@ pub fn paint<I: StringIntern>(
     metrics: &GridMetrics,
     viewport: &GridPaintViewport,
 ) {
+    if !sheet.view.show_grid_lines {
+        return;
+    }
     let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let vis = visible_cells_for_host(metrics, viewport, sizes.w, sizes.h);
     let (rows, cols) = paint_indices(&vis);

@@ -99,13 +99,18 @@
         if (el.document) {
           await el.document.tick();
         }
-        const canvas = el.shadowRoot?.querySelector('canvas');
-        if (canvas && canvas.width > 1 && canvas.height > 1) {
+        const dom = el.shadowRoot?.querySelector('.dom');
+        if (dom && dom.childElementCount > 0) {
           painted = true;
           break;
         }
       }
-      if (!painted) throw new Error('nitro-xlsx: no canvas paint');
+      if (!painted) throw new Error('nitro-xlsx: no grid paint');
+      // Converge canvas text measure batches (CellItem layout uses main-thread measureText).
+      for (let i = 0; i < 4; i++) {
+        if (el.document) await el.document.tick();
+        await waitFrames(1);
+      }
       await waitFrames(3);
     }
 

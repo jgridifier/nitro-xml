@@ -14,7 +14,7 @@ use crate::view::cell_paint::{
     align_items, css_font, diagonal_svg, edge_css, fill_paint, has_borders, justify, text_align,
     text_decoration,
 };
-use crate::view::fake_measure::fake_xlsx_measure;
+use crate::view::fake_measure::estimate_width;
 use crate::view::types::CellItem;
 
 const CELL_BASE: u32 = 100;
@@ -292,16 +292,13 @@ pub fn paint<I: StringIntern>(
     }
     let index = CellIndex::build(sheet);
     let zoom = metrics.zoom / 100.0;
-    let measure = |text: &str, font: &str| {
-        let _ = font;
-        fake_xlsx_measure(text)
-    };
     let has_formula = |row: u32, col: u32| {
         index
             .get(sheet, row, col)
             .and_then(|c| c.formula.as_ref())
             .is_some()
     };
+    let measure = |text: &str, font: &str| estimate_width(text, font);
     let input = BuildInput {
         workbook,
         sheet,

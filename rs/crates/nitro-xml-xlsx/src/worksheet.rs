@@ -10,13 +10,16 @@ use nitro_xml_opc::xml::Element;
 
 use crate::address::parse_range;
 use crate::cells::CellStore;
+use crate::comments::load_comment_addresses;
+use crate::hyperlinks::read_hyperlinks;
 use crate::metadata::parse_dynamic_array_metadata;
 use crate::model::{ActiveWorksheet, SharedString};
 use crate::sheet_data::{
     read_sheet_data_element, read_sheet_data_xml, store_to_dump_cells, CellContext,
 };
 use crate::sheet_data_source::split_sheet_data;
-use crate::sheet_props::{read_columns, read_sheet_format, read_sheet_view};
+use crate::sheet_props::{read_columns, read_data_validations, read_sheet_format, read_sheet_view};
+use crate::sparklines::{extract_ext_lst, read_sparkline_groups_from_ext};
 use crate::xml_util::{att, elements, x_children};
 
 pub struct WorksheetContext {
@@ -56,7 +59,11 @@ pub fn parse_worksheet(
     }
     let xml = xml.unwrap();
     let split = split_sheet_data(xml);
-    let shell = split.as_ref().map(|s| s.shell_xml.as_str()).unwrap_or(xml);
+    let shell_owned = split
+        .as_ref()
+        .map(|s| s.shell_xml.clone())
+        .unwrap_or_else(|| xml.to_string());
+    let shell = shell_owned.as_str();
     let doc = match parse_xml_str(shell) {
         Ok(d) => d,
         Err(_) => {
@@ -107,6 +114,14 @@ pub fn parse_worksheet(
     }
 
     let cells = store_to_dump_cells(&store);
+    let ext_lst = extract_ext_lst(&shell_owned);
+    let sparkline_groups = by_name
+        .get("extLst")
+        .map(|e| read_sparkline_groups_from_ext(e))
+        .unwrap_or_default();
+    let data_validations = read_data_validations(by_name.get("dataValidations").copied());
+    let comment_addresses = load_comment_addresses(pkg, part_name);
+    let hyperlinks = read_hyperlinks(pkg, part_name, by_name.get("hyperlinks").copied());
     ActiveWorksheet {
         name: name.to_owned(),
         sheet_id,
@@ -120,6 +135,11 @@ pub fn parse_worksheet(
         merges,
         row_info: row_info.into_iter().collect(),
         cells,
+        data_validations,
+        comment_addresses,
+        hyperlinks,
+        ext_lst,
+        sparkline_groups,
     }
 }
 
@@ -144,6 +164,11 @@ fn empty_worksheet(
         merges: Vec::new(),
         row_info: row_info.into_iter().collect(),
         cells: store_to_dump_cells(&store),
+        data_validations: Vec::new(),
+        comment_addresses: Vec::new(),
+        hyperlinks: Vec::new(),
+        ext_lst: Vec::new(),
+        sparkline_groups: Vec::new(),
     }
 }
 

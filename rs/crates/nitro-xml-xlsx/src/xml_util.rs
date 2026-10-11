@@ -33,21 +33,6 @@ pub fn elements(parent: &Element) -> impl Iterator<Item = &Element> {
     })
 }
 
-fn children_ns<'a>(parent: &'a Element, local: &str, ns_uri: &str) -> Vec<&'a Element> {
-    parent
-        .children
-        .iter()
-        .filter_map(|n| match n {
-            Node::Element(e) if e.local == local && e.ns.as_deref() == Some(ns_uri) => Some(e),
-            _ => None,
-        })
-        .collect()
-}
-
-fn first_ns<'a>(parent: &'a Element, local: &str, ns_uri: &str) -> Option<&'a Element> {
-    children_ns(parent, local, ns_uri).into_iter().next()
-}
-
 /// An un-namespaced attribute.
 pub fn att<'a>(element: Option<&'a Element>, name: &str) -> Option<&'a str> {
     element.and_then(|el| {
@@ -103,6 +88,49 @@ pub fn x_text(element: Option<&Element>) -> String {
 }
 
 /// Decodes `_xHHHH_` escapes (`_x000D_` carriage return, `_x005F_` a literal underscore).
+/// All descendant elements named `local` in `ns_uri` (document order).
+pub fn descendants<'a>(root: &'a Element, local: &str, ns_uri: &str) -> Vec<&'a Element> {
+    let mut out = Vec::new();
+    fn walk<'b>(node: &'b Element, local: &str, ns_uri: &str, out: &mut Vec<&'b Element>) {
+        for child in elements(node) {
+            if child.local == local && child.ns.as_deref() == Some(ns_uri) {
+                out.push(child);
+            }
+            walk(child, local, ns_uri, out);
+        }
+    }
+    walk(root, local, ns_uri, &mut out);
+    out
+}
+
+/// Direct children named `local` in `ns_uri`.
+pub fn children_ns<'a>(parent: &'a Element, local: &str, ns_uri: &str) -> Vec<&'a Element> {
+    parent
+        .children
+        .iter()
+        .filter_map(|n| match n {
+            Node::Element(e) if e.local == local && e.ns.as_deref() == Some(ns_uri) => Some(e),
+            _ => None,
+        })
+        .collect()
+}
+
+/// First child named `local` in `ns_uri`.
+pub fn first_ns<'a>(parent: &'a Element, local: &str, ns_uri: &str) -> Option<&'a Element> {
+    children_ns(parent, local, ns_uri).into_iter().next()
+}
+
+/// Trimmed text content of an element, if non-empty.
+pub fn element_text(element: Option<&Element>) -> Option<String> {
+    let raw = element.map(Element::text_content).unwrap_or_default();
+    let t = raw.trim();
+    if t.is_empty() {
+        None
+    } else {
+        Some(t.to_owned())
+    }
+}
+
 pub fn decode_escapes(text: &str) -> String {
     if !text.contains("_x") {
         return text.to_owned();

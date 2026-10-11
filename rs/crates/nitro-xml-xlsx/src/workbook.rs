@@ -463,6 +463,93 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
     Ok(workbook)
 }
 
+fn stub_worksheet(stub: &SheetStub) -> crate::model::ActiveWorksheet {
+    crate::model::ActiveWorksheet {
+        name: stub.name.clone(),
+        sheet_id: stub.sheet_id,
+        state: stub.state,
+        part_name: stub.part_name.clone(),
+        default_row_height: 15.0,
+        default_col_width: None,
+        format: None,
+        view: crate::sheet_props::default_sheet_view(),
+        columns: Vec::new(),
+        merges: Vec::new(),
+        row_info: std::collections::BTreeMap::new(),
+        cells: Vec::new(),
+        data_validations: Vec::new(),
+        comment_addresses: Vec::new(),
+        hyperlinks: Vec::new(),
+        ext_lst: Vec::new(),
+        sparkline_groups: Vec::new(),
+    }
+}
+
+/// Parse every worksheet part (for view-IR dumps). Chart sheets and other non-worksheet parts use
+/// upstream `createWorksheet` defaults (empty grid, 15pt rows, no default column width).
+pub fn parse_all_worksheets(
+    bytes: &[u8],
+    workbook: &WorkbookSlice,
+) -> Result<Vec<Option<crate::model::ActiveWorksheet>>, String> {
+    let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
+    let workbook_part = pkg
+        .target_of_type("", relationship_types::OFFICE_DOCUMENT)
+        .map_err(|e| e.to_string())?
+        .filter(|p| pkg.has(p))
+        .or_else(|| {
+            if pkg.has("xl/workbook.xml") {
+                Some("xl/workbook.xml".into())
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| "XLSX package has no workbook part (xl/workbook.xml)".to_owned())?;
+    let workbook_xml = pkg
+        .text(&workbook_part)
+        .map_err(|e| e.to_string())?
+        .unwrap_or("")
+        .to_owned();
+    let book = parse_workbook_part(&workbook_xml)?;
+    let rels_map: HashMap<String, Relationship> = pkg
+        .rels(&workbook_part)
+        .map_err(|e| e.to_string())?
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    let dynamic_cells = load_dynamic_cells(&mut pkg, &workbook_part);
+    let mut out = Vec::with_capacity(workbook.sheets.len());
+    for (entry, stub) in book.sheets.iter().zip(workbook.sheets.iter()) {
+        let rel = rels_map.get(&entry.rel_id);
+        let is_worksheet = rel.map(|r| r.type_.as_str()) == Some(relationship_types::WORKSHEET);
+        if is_worksheet {
+            let Some(part) = stub.part_name.as_ref() else {
+                out.push(Some(stub_worksheet(stub)));
+                continue;
+            };
+            let mut ws_ctx = WorksheetContext {
+                shared_strings: workbook.shared_strings.clone(),
+                xf_map: workbook.xf_map.clone(),
+                date1904: workbook.date1904,
+                palette: workbook.palette.clone(),
+                dynamic_cells: dynamic_cells.clone(),
+                warnings: Vec::new(),
+            };
+            let ws = parse_worksheet(
+                &mut ws_ctx,
+                &mut pkg,
+                part,
+                &stub.name,
+                stub.sheet_id,
+                stub.state,
+            );
+            out.push(Some(ws));
+        } else {
+            out.push(Some(stub_worksheet(stub)));
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

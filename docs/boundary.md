@@ -71,10 +71,14 @@ One `Uint8Array` of opcodes per frame, taken with `takeFrameCommands()` and appl
 | CreateElement | 5 | `u32 id, tag, parent` |
 | SetAttr | 6 | `u32 id, key, val` |
 | AppendChild | 7 | `u32 parent, child` |
+| SetText | 8 | `u32 id, text_id` |
+| SetStyle | 9 | `u32 id, prop_id, val_id` |
+
+Opcodes **8–9** (xlsx grid #18) cover DOM `textContent` and `style` property writes for the cell layer; remaining gaps below still apply to charts, SVG NS, etc.
 
 ### Opcode coverage gaps (vs upstream painters / PR #111)
 
-The seed set is **not** enough for a one-to-one painter port. Missing call kinds that upstream actually makes (see `docs/painters.md` / `tools/painter-calls`), to be added as painter ports extend the loader applier (placement in `docs/adr/0002-renderer-port.md` #36):
+The seed set plus **SetText** / **SetStyle** is still **not** enough for a full one-to-one painter port. Missing call kinds that upstream actually makes (see `docs/painters.md` / `tools/painter-calls`), to be added as painter ports extend the loader applier (placement in `docs/adr/0002-renderer-port.md` #36):
 
 - `createElementNS` / SVG element creation (charts, sparklines, SmartArt, connectors, ink, WordArt)
 - Text nodes and `textContent` / `createTextNode` updates

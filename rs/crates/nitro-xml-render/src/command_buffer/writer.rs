@@ -104,6 +104,21 @@ impl CommandBuffer {
         self.put_u32(child);
     }
 
+    #[allow(dead_code)]
+    pub fn set_text(&mut self, id: u32, text_id: u32) {
+        self.put_u8(opcode::SET_TEXT);
+        self.put_u32(id);
+        self.put_u32(text_id);
+    }
+
+    #[allow(dead_code)]
+    pub fn set_style(&mut self, id: u32, prop_id: u32, val_id: u32) {
+        self.put_u8(opcode::SET_STYLE);
+        self.put_u32(id);
+        self.put_u32(prop_id);
+        self.put_u32(val_id);
+    }
+
     /// Mixed canvas/DOM ops matching the seed opcode set (tests + `bench` feature).
     #[allow(dead_code)]
     pub fn encode_demo(&mut self, n_ops: u32) {

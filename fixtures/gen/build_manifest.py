@@ -310,6 +310,29 @@ def build() -> dict:
             )
         )
 
+    # Stage-3 bidi / RTL fixtures (#44)
+    bidi_dir = ROOT / "fixtures" / "bidi"
+    for path in sorted(bidi_dir.glob("*.xlsx")) + sorted(bidi_dir.glob("*.pptx")):
+        digest = sha256_file(path)
+        rel = str(path.relative_to(ROOT))
+        fmt = path.suffix.lstrip(".")
+        features = ["bidi", "arabic", "hebrew", "generated", "rtl" if "rtl" in path.name else "mixed-direction"]
+        rows.append(
+            entry(
+                id=f"bidi-{path.stem}",
+                format=fmt,
+                path=rel,
+                sha256=digest,
+                bytes_=path.stat().st_size,
+                source="generated",
+                licence="MIT",
+                features=features,
+                redistributable=True,
+                on_demand=False,
+                generator={"tool": "fixtures/bidi/generate.py", "id": path.stem},
+            )
+        )
+
     # Sort for stability
     rows.sort(key=lambda r: (r["format"], r["id"]))
 

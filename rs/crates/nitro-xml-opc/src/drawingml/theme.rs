@@ -3,10 +3,12 @@
 
 use super::color::parse_drawing_color_in;
 use super::dom::{elements, first};
+use super::fill::{parse_drawing_line, parse_fill_element};
 use super::theme_model::{
     DrawingTheme, ThemeColorMap, ThemeColorScheme, ThemeColorSlot, ThemeFontCollection,
-    ThemeFontScheme, THEME_COLOR_SLOTS,
+    ThemeFontScheme, ThemeFormatScheme, THEME_COLOR_SLOTS,
 };
+use super::types::DrawingFill;
 use crate::xml::{ns, parse_xml_str, Document, Element};
 
 const MAP_KEYS: &[&str] = &[
@@ -68,12 +70,51 @@ pub fn parse_theme_font_scheme(scheme: Option<&Element>) -> ThemeFontScheme {
     }
 }
 
+fn parse_fill_style_list(list: Option<&Element>) -> Vec<DrawingFill> {
+    let Some(list) = list else {
+        return Vec::new();
+    };
+    elements(list)
+        .into_iter()
+        .filter(|element| {
+            matches!(
+                element.local.as_str(),
+                "noFill" | "solidFill" | "gradFill" | "pattFill" | "blipFill" | "grpFill"
+            )
+        })
+        .filter_map(parse_fill_element)
+        .collect()
+}
+
+fn parse_line_style_list(list: Option<&Element>) -> Vec<super::types::DrawingLine> {
+    let Some(list) = list else {
+        return Vec::new();
+    };
+    elements(list)
+        .into_iter()
+        .filter(|element| element.local == "ln")
+        .filter_map(|ln| parse_drawing_line(Some(ln)))
+        .collect()
+}
+
+/// `a:fmtScheme` fill / line / background-fill lists (effect styles stay deferred).
+pub fn parse_theme_format_scheme(fmt: Option<&Element>) -> Option<ThemeFormatScheme> {
+    let fmt = fmt?;
+    Some(ThemeFormatScheme {
+        name: non_empty(super::dom::attr(fmt, "name")),
+        fill_styles: parse_fill_style_list(first(fmt, "fillStyleLst", ns::A)),
+        line_styles: parse_line_style_list(first(fmt, "lnStyleLst", ns::A)),
+        background_fill_styles: parse_fill_style_list(first(fmt, "bgFillStyleLst", ns::A)),
+    })
+}
+
 pub fn parse_theme(source: &Element) -> DrawingTheme {
     let holder = first(source, "themeElements", ns::A).unwrap_or(source);
     DrawingTheme {
         name: non_empty(super::dom::attr(source, "name")),
         color_scheme: parse_theme_color_scheme(first(holder, "clrScheme", ns::A)),
         font_scheme: parse_theme_font_scheme(first(holder, "fontScheme", ns::A)),
+        format_scheme: parse_theme_format_scheme(first(holder, "fmtScheme", ns::A)),
     }
 }
 
@@ -101,4 +142,44 @@ pub fn parse_theme_color_map(element: Option<&Element>) -> ThemeColorMap {
         }
     }
     map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Catches: a:fmtScheme fillStyleLst/bgFillStyleLst/lnStyleLst dropped, so fillRef idx cannot resolve.
+    #[test]
+    fn format_scheme_keeps_fill_line_and_background_lists() {
+        let xml = r#"<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office">
+          <a:themeElements>
+            <a:clrScheme name="Office"/>
+            <a:fontScheme name="Office"><a:majorFont/><a:minorFont/></a:fontScheme>
+            <a:fmtScheme name="Office">
+              <a:fillStyleLst>
+                <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>
+                <a:gradFill><a:gsLst><a:gs pos="0"><a:srgbClr val="FF0000"/></a:gs></a:gsLst><a:lin ang="0"/></a:gradFill>
+              </a:fillStyleLst>
+              <a:lnStyleLst>
+                <a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+                <a:ln w="25400"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+              </a:lnStyleLst>
+              <a:bgFillStyleLst>
+                <a:solidFill><a:srgbClr val="ABCDEF"/></a:solidFill>
+              </a:bgFillStyleLst>
+            </a:fmtScheme>
+          </a:themeElements>
+        </a:theme>"#;
+        let theme = parse_theme_xml(xml, "t");
+        let fmt = theme.format_scheme.expect("fmtScheme");
+        assert_eq!(fmt.fill_styles.len(), 2);
+        assert!(matches!(fmt.fill_styles[1], DrawingFill::Gradient { .. }));
+        assert_eq!(fmt.line_styles.len(), 2);
+        assert_eq!(fmt.line_styles[1].width_emu, Some(25400));
+        assert_eq!(fmt.background_fill_styles.len(), 1);
+        match &fmt.background_fill_styles[0] {
+            DrawingFill::Solid { color } => assert_eq!(color.value, "ABCDEF"),
+            other => panic!("expected solid bg fill, got {other:?}"),
+        }
+    }
 }

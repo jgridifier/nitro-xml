@@ -15,16 +15,22 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     if let Some(name) = &el.name {
         set_attr(ctx, id, "data-pptx-name", name);
     }
-    match el.fill_mode.as_deref() {
-        Some("none") => {}
-        Some("gradient") => {
-            if let Some(gradient) = &el.fill_gradient {
-                set_style(ctx, id, "background-image", gradient);
+    if let Some(src) = el.image_src.as_deref() {
+        set_style(ctx, id, "background-image", &format!("url({src})"));
+        set_style(ctx, id, "background-size", "100% 100%");
+        set_style(ctx, id, "background-repeat", "no-repeat");
+    } else {
+        match el.fill_mode.as_deref() {
+            Some("none") => {}
+            Some("gradient") => {
+                if let Some(gradient) = &el.fill_gradient {
+                    set_style(ctx, id, "background-image", gradient);
+                }
             }
-        }
-        _ => {
-            if let Some(color) = &el.fill_color {
-                set_style(ctx, id, "background-color", color);
+            _ => {
+                if let Some(color) = &el.fill_color {
+                    set_style(ctx, id, "background-color", color);
+                }
             }
         }
     }

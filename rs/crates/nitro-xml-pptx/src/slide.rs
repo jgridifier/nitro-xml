@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use nitro_xml_opc::drawingml::{
     emu_to_pixels, hex_to_rgb_channels, parse_drawing_color_in, parse_drawing_fill,
     parse_drawing_geometry, parse_drawing_line, parse_transform, resolve_drawing_color,
-    DrawingColor, DrawingColorTheme, DrawingFill, EMU_PER_PIXEL,
+    DrawingColor, DrawingColorTheme, DrawingFill, DrawingLine, ThemeFormatScheme, EMU_PER_PIXEL,
 };
 use nitro_xml_opc::xml::{ns, Element, Node};
 use serde::Serialize;
@@ -115,6 +115,12 @@ pub struct DumpElement {
     /// Diagram drawing part XML (`dsp:drawing`). Not part of the issue-24 dump.
     #[serde(skip)]
     pub smartart_drawing_xml: Option<String>,
+    /// `r:embed` on a picture or shape blip fill. Resolved to [`Self::image_src`].
+    #[serde(skip)]
+    pub image_rel_id: Option<String>,
+    /// `data:` URL for the resolved blip (img `src` / CSS background). Not in the issue-24 dump.
+    #[serde(skip)]
+    pub image_src: Option<String>,
     /// Document order of this element among emitted spTree children (dump merge).
     #[serde(skip)]
     pub seq: u32,
@@ -145,6 +151,8 @@ pub struct ParseCtx<'a> {
     pub master_tx_styles: Option<&'a MasterTxStyles>,
     /// Presentation theme scheme (`dk1`, `accent1`, …) plus Office defaults.
     pub theme_colors: Option<&'a BTreeMap<String, String>>,
+    /// Theme `a:fmtScheme` used by `a:fillRef` / `a:lnRef` (idx 1–3 and 1001–1003).
+    pub format_scheme: Option<&'a ThemeFormatScheme>,
 }
 
 impl<'a> ParseCtx<'a> {
@@ -814,7 +822,13 @@ fn parse_shape_with_image_fill(
         None,
         None,
         in_group,
-        PaintExtras::default(),
+        PaintExtras {
+            image_rel_id: effective_sp_pr
+                .as_ref()
+                .and_then(blip_embed_id)
+                .or_else(|| sp_pr.and_then(blip_embed_id)),
+            ..PaintExtras::default()
+        },
     )
 }
 
@@ -867,7 +881,10 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
         None,
         None,
         false,
-        PaintExtras::default(),
+        PaintExtras {
+            image_rel_id: blip_embed_id(pic),
+            ..PaintExtras::default()
+        },
     )
 }
 
@@ -901,7 +918,7 @@ fn parse_connector(cxn: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElem
         None,
         None,
         false,
-        PaintExtras::default(),
+        shape_paint_extras(cxn, Some(sp_pr), None, tx_body, ctx),
     )
 }
 
@@ -1391,6 +1408,8 @@ fn build_dump(
         smartart_cs_r_id: extras.smartart_cs_r_id,
         smartart_drawing_path: None,
         smartart_drawing_xml: None,
+        image_rel_id: extras.image_rel_id,
+        image_src: None,
         seq: 0,
     })
 }
@@ -1664,6 +1683,7 @@ struct PaintExtras {
     smartart_lo_r_id: Option<String>,
     smartart_qs_r_id: Option<String>,
     smartart_cs_r_id: Option<String>,
+    image_rel_id: Option<String>,
 }
 
 struct SchemeTheme<'a>(&'a BTreeMap<String, String>);
@@ -1684,29 +1704,61 @@ impl DrawingColorTheme for SchemeTheme<'_> {
     }
 }
 
+/// Scheme map plus a resolved `phClr` override from a style reference colour child.
+struct PhTheme<'a> {
+    base: SchemeTheme<'a>,
+    ph: Option<String>,
+}
+
+impl DrawingColorTheme for PhTheme<'_> {
+    fn scheme(&self, name: &str) -> Option<String> {
+        if name.eq_ignore_ascii_case("phClr") {
+            if let Some(ph) = &self.ph {
+                return Some(ph.clone());
+            }
+        }
+        self.base.scheme(name)
+    }
+}
+
+/// Resolved slide/layout/master background (`p:bg`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackgroundPaint {
+    pub color: Option<String>,
+    pub gradient: Option<String>,
+    /// `r:embed` on `a:blipFill/a:blip`, resolved by the package owner of this part.
+    pub image_rel_id: Option<String>,
+}
+
 /// First paintable `p:cSld/p:bg` in `chain` (slide, then layout, then master).
 pub fn first_paintable_background(
     chain: &[Option<&Element>],
     theme: &BTreeMap<String, String>,
-) -> (Option<String>, Option<String>) {
+    format_scheme: Option<&ThemeFormatScheme>,
+) -> Option<BackgroundPaint> {
     for part in chain.iter().flatten() {
-        if let Some(paint) = background_of_c_sld(part, theme) {
-            return paint;
+        if let Some(paint) = background_of_c_sld(part, theme, format_scheme) {
+            return Some(paint);
         }
     }
-    (None, None)
+    None
 }
 
 fn background_of_c_sld(
     c_sld: &Element,
     theme: &BTreeMap<String, String>,
-) -> Option<(Option<String>, Option<String>)> {
+    format_scheme: Option<&ThemeFormatScheme>,
+) -> Option<BackgroundPaint> {
     let bg = child_local(c_sld, "bg", ns::P)?;
     if let Some(bg_pr) = child_local(bg, "bgPr", ns::P) {
         match parse_drawing_fill(Some(bg_pr)) {
             Some(DrawingFill::Solid { color }) => {
                 let css = css_color(&color, theme, true)?;
-                return Some((Some(css), None));
+                return Some(BackgroundPaint {
+                    color: Some(css),
+                    gradient: None,
+                    image_rel_id: None,
+                });
             }
             Some(ref fill @ DrawingFill::Gradient { .. }) => {
                 if let Some(gradient) = linear_gradient_css(fill, theme) {
@@ -1714,17 +1766,87 @@ fn background_of_c_sld(
                         return None;
                     };
                     let flat = stops.first().and_then(|s| css_color(&s.color, theme, true));
-                    return Some((flat, Some(gradient)));
+                    return Some(BackgroundPaint {
+                        color: flat,
+                        gradient: Some(gradient),
+                        image_rel_id: None,
+                    });
+                }
+            }
+            Some(DrawingFill::Picture { rel_id }) if rel_id.is_some() => {
+                return Some(BackgroundPaint {
+                    color: None,
+                    gradient: None,
+                    image_rel_id: rel_id,
+                });
+            }
+            _ => {}
+        }
+    }
+    let bg_ref = child_local(bg, "bgRef", ns::P)?;
+    background_from_bg_ref(bg_ref, theme, format_scheme)
+}
+
+fn background_from_bg_ref(
+    bg_ref: &Element,
+    theme: &BTreeMap<String, String>,
+    format_scheme: Option<&ThemeFormatScheme>,
+) -> Option<BackgroundPaint> {
+    let idx = attr(bg_ref, "idx")
+        .and_then(|s| s.parse::<i32>().ok())
+        .unwrap_or(0);
+    if idx == 0 || idx == 1000 {
+        return None;
+    }
+    let override_color = parse_drawing_color_in(Some(bg_ref));
+    if let Some(fill) = matrix_fill(format_scheme, idx) {
+        match fill {
+            DrawingFill::None => return None,
+            DrawingFill::Picture { rel_id } if rel_id.is_some() => {
+                return Some(BackgroundPaint {
+                    color: None,
+                    gradient: None,
+                    image_rel_id: rel_id.clone(),
+                });
+            }
+            DrawingFill::Gradient { .. } => {
+                let ph = ph_theme(theme, override_color.as_ref());
+                if let Some(gradient) = linear_gradient_css_in(fill, &ph) {
+                    let flat = override_color
+                        .as_ref()
+                        .and_then(|c| css_color(c, theme, true))
+                        .or_else(|| gradient_flat_color(fill, &ph, true));
+                    return Some(BackgroundPaint {
+                        color: flat,
+                        gradient: Some(gradient),
+                        image_rel_id: None,
+                    });
+                }
+            }
+            DrawingFill::Solid { color } => {
+                let ph = ph_theme(theme, override_color.as_ref());
+                // Colour child wins as the flat bgRef colour; otherwise the matrix solid.
+                let css = override_color
+                    .as_ref()
+                    .and_then(|c| css_color(c, theme, true))
+                    .or_else(|| css_color_in(color, &ph, true));
+                if let Some(css) = css {
+                    return Some(BackgroundPaint {
+                        color: Some(css),
+                        gradient: None,
+                        image_rel_id: None,
+                    });
                 }
             }
             _ => {}
         }
     }
-    // Pragmatic theme background: `p:bgRef` schemeClr when bgPr has no solid/linear fill.
-    let bg_ref = child_local(bg, "bgRef", ns::P)?;
-    let color = parse_drawing_color_in(Some(bg_ref))?;
-    let css = css_color(&color, theme, true)?;
-    Some((Some(css), None))
+    let color = override_color.and_then(|c| css_color(&c, theme, true))?;
+    Some(BackgroundPaint {
+        color: Some(color),
+        gradient: None,
+        image_rel_id: None,
+    })
 }
 
 fn shape_paint_extras(
@@ -1747,13 +1869,19 @@ fn shape_paint_extras(
             extras.fill_mode = Some("gradient".to_owned());
             extras.fill_gradient = linear_gradient_css(fill, theme);
         }
+        Some(DrawingFill::Picture { rel_id }) => {
+            extras.image_rel_id = rel_id;
+        }
         Some(_) | None => {}
     }
     if extras.fill_mode.is_none() {
-        if let Some(css) = style_ref_color(shape, inherited_shape, "fillRef", theme) {
-            extras.fill_mode = Some("solid".to_owned());
-            extras.fill_color = Some(css);
-        }
+        apply_fill_ref(
+            shape,
+            inherited_shape,
+            theme,
+            ctx.format_scheme,
+            &mut extras,
+        );
     }
     let mut ln_blocks_ref = false;
     if let Some(ln) = effective_sp_pr.and_then(|sp| child_local(sp, "ln", ns::A)) {
@@ -1772,12 +1900,13 @@ fn shape_paint_extras(
         }
     }
     if extras.stroke_color.is_none() && !ln_blocks_ref {
-        if let Some(css) = style_ref_color(shape, inherited_shape, "lnRef", theme) {
-            extras.stroke_color = Some(css);
-            if extras.stroke_width_px.is_none() {
-                extras.stroke_width_px = Some(1.0);
-            }
-        }
+        apply_ln_ref(
+            shape,
+            inherited_shape,
+            theme,
+            ctx.format_scheme,
+            &mut extras,
+        );
     }
     if let Some(tx) = tx_body {
         let (color, size) = first_run_text_paint(tx, theme);
@@ -1787,23 +1916,201 @@ fn shape_paint_extras(
     extras
 }
 
-fn style_ref_color(
-    shape: &Element,
-    inherited_shape: Option<&Element>,
+struct ResolvedFill {
+    mode: String,
+    color: Option<String>,
+    gradient: Option<String>,
+}
+
+fn blip_embed_id(parent: &Element) -> Option<String> {
+    let fill = child_local(parent, "blipFill", ns::A)
+        .or_else(|| child_local(parent, "blipFill", ns::P))?;
+    let blip = child_local(fill, "blip", ns::A)?;
+    blip.attrs
+        .iter()
+        .find(|a| a.local == "embed" && (a.ns.is_none() || a.ns.as_deref() == Some(ns::R)))
+        .map(|a| a.value.clone())
+        .filter(|id| !id.is_empty())
+}
+
+fn style_ref_node<'a>(
+    shape: &'a Element,
+    inherited_shape: Option<&'a Element>,
     local: &str,
-    theme: &BTreeMap<String, String>,
-) -> Option<String> {
+) -> Option<&'a Element> {
     let style = child_local(shape, "style", ns::P)
         .or_else(|| inherited_shape.and_then(|el| child_local(el, "style", ns::P)))?;
-    let ref_el = child_local(style, local, ns::A)?;
-    let idx = attr(ref_el, "idx")
+    child_local(style, local, ns::A)
+}
+
+fn style_ref_idx(ref_el: &Element) -> i32 {
+    attr(ref_el, "idx")
         .and_then(|s| s.parse::<i32>().ok())
-        .unwrap_or(0);
-    if idx <= 0 || idx == 1000 {
-        return None;
+        .unwrap_or(0)
+}
+
+/// idx 1–999 → `fillStyleLst`; idx 1001–1003 → `bgFillStyleLst`.
+fn matrix_fill(scheme: Option<&ThemeFormatScheme>, idx: i32) -> Option<&DrawingFill> {
+    let scheme = scheme?;
+    if (1001..=1003).contains(&idx) {
+        scheme.background_fill_styles.get((idx - 1001) as usize)
+    } else if (1..=999).contains(&idx) {
+        scheme.fill_styles.get((idx - 1) as usize)
+    } else {
+        None
     }
-    let color = parse_drawing_color_in(Some(ref_el))?;
-    css_color(&color, theme, false)
+}
+
+fn matrix_line(scheme: Option<&ThemeFormatScheme>, idx: i32) -> Option<&DrawingLine> {
+    let scheme = scheme?;
+    if (1..=999).contains(&idx) {
+        scheme.line_styles.get((idx - 1) as usize)
+    } else {
+        None
+    }
+}
+
+fn ph_hex(color: &DrawingColor, theme: &BTreeMap<String, String>) -> Option<String> {
+    resolve_drawing_color(color, Some(&SchemeTheme(theme)), None).map(|r| r.hex)
+}
+
+fn ph_theme<'a>(
+    theme: &'a BTreeMap<String, String>,
+    override_color: Option<&DrawingColor>,
+) -> PhTheme<'a> {
+    PhTheme {
+        base: SchemeTheme(theme),
+        ph: override_color.and_then(|c| ph_hex(c, theme)),
+    }
+}
+
+fn apply_fill_ref(
+    shape: &Element,
+    inherited_shape: Option<&Element>,
+    theme: &BTreeMap<String, String>,
+    format_scheme: Option<&ThemeFormatScheme>,
+    extras: &mut PaintExtras,
+) {
+    let Some(ref_el) = style_ref_node(shape, inherited_shape, "fillRef") else {
+        return;
+    };
+    let idx = style_ref_idx(ref_el);
+    if idx <= 0 || idx == 1000 {
+        return;
+    }
+    let override_color = parse_drawing_color_in(Some(ref_el));
+    if let Some(fill) = matrix_fill(format_scheme, idx) {
+        if matches!(fill, DrawingFill::None) {
+            extras.fill_mode = Some("none".to_owned());
+            return;
+        }
+        if let Some(resolved) = resolve_matrix_fill(fill, override_color.as_ref(), theme, false) {
+            extras.fill_mode = Some(resolved.mode);
+            extras.fill_color = resolved.color;
+            extras.fill_gradient = resolved.gradient;
+            return;
+        }
+    }
+    if let Some(css) = override_color.and_then(|c| css_color(&c, theme, false)) {
+        extras.fill_mode = Some("solid".to_owned());
+        extras.fill_color = Some(css);
+    }
+}
+
+fn apply_ln_ref(
+    shape: &Element,
+    inherited_shape: Option<&Element>,
+    theme: &BTreeMap<String, String>,
+    format_scheme: Option<&ThemeFormatScheme>,
+    extras: &mut PaintExtras,
+) {
+    let Some(ref_el) = style_ref_node(shape, inherited_shape, "lnRef") else {
+        return;
+    };
+    let idx = style_ref_idx(ref_el);
+    if idx <= 0 || idx == 1000 {
+        return;
+    }
+    let override_color = parse_drawing_color_in(Some(ref_el));
+    if let Some(line) = matrix_line(format_scheme, idx) {
+        if matches!(line.fill, Some(DrawingFill::None)) {
+            return;
+        }
+        let ph = ph_theme(theme, override_color.as_ref());
+        let color = match &line.fill {
+            Some(DrawingFill::Solid { color }) => css_color_in(color, &ph, false),
+            _ => None,
+        }
+        .or_else(|| {
+            override_color
+                .as_ref()
+                .and_then(|c| css_color(c, theme, false))
+        });
+        if let Some(color) = color {
+            extras.stroke_color = Some(color);
+            if extras.stroke_width_px.is_none() {
+                extras.stroke_width_px = line
+                    .width_emu
+                    .filter(|w| *w > 0)
+                    .map(emu_to_pixels)
+                    .or(Some(1.0));
+            }
+            return;
+        }
+    }
+    if let Some(css) = override_color.and_then(|c| css_color(&c, theme, false)) {
+        extras.stroke_color = Some(css);
+        if extras.stroke_width_px.is_none() {
+            extras.stroke_width_px = Some(1.0);
+        }
+    }
+}
+
+fn resolve_matrix_fill(
+    fill: &DrawingFill,
+    override_color: Option<&DrawingColor>,
+    theme: &BTreeMap<String, String>,
+    blend_white: bool,
+) -> Option<ResolvedFill> {
+    let ph = ph_theme(theme, override_color);
+    match fill {
+        DrawingFill::None => Some(ResolvedFill {
+            mode: "none".to_owned(),
+            color: None,
+            gradient: None,
+        }),
+        DrawingFill::Solid { color } => {
+            let css = css_color_in(color, &ph, blend_white)
+                .or_else(|| override_color.and_then(|c| css_color(c, theme, blend_white)));
+            css.map(|color| ResolvedFill {
+                mode: "solid".to_owned(),
+                color: Some(color),
+                gradient: None,
+            })
+        }
+        DrawingFill::Gradient { .. } => {
+            let gradient = linear_gradient_css_in(fill, &ph)?;
+            Some(ResolvedFill {
+                mode: "gradient".to_owned(),
+                color: gradient_flat_color(fill, &ph, blend_white),
+                gradient: Some(gradient),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn gradient_flat_color(
+    fill: &DrawingFill,
+    theme: &dyn DrawingColorTheme,
+    blend_white: bool,
+) -> Option<String> {
+    let DrawingFill::Gradient { stops, .. } = fill else {
+        return None;
+    };
+    stops
+        .first()
+        .and_then(|stop| css_color_in(&stop.color, theme, blend_white))
 }
 
 fn first_run_text_paint(
@@ -1880,7 +2187,15 @@ fn css_color(
     theme: &BTreeMap<String, String>,
     blend_white: bool,
 ) -> Option<String> {
-    let resolved = resolve_drawing_color(color, Some(&SchemeTheme(theme)), None)?;
+    css_color_in(color, &SchemeTheme(theme), blend_white)
+}
+
+fn css_color_in(
+    color: &DrawingColor,
+    theme: &dyn DrawingColorTheme,
+    blend_white: bool,
+) -> Option<String> {
+    let resolved = resolve_drawing_color(color, Some(theme), None)?;
     if resolved.alpha >= 0.999 {
         return Some(resolved.hex);
     }
@@ -1903,6 +2218,10 @@ fn css_color(
 }
 
 fn linear_gradient_css(fill: &DrawingFill, theme: &BTreeMap<String, String>) -> Option<String> {
+    linear_gradient_css_in(fill, &SchemeTheme(theme))
+}
+
+fn linear_gradient_css_in(fill: &DrawingFill, theme: &dyn DrawingColorTheme) -> Option<String> {
     let DrawingFill::Gradient {
         stops, angle, path, ..
     } = fill
@@ -1919,7 +2238,7 @@ fn linear_gradient_css(fill: &DrawingFill, theme: &BTreeMap<String, String>) -> 
     let css_deg = norm_deg(ooxml_deg + 90.0);
     let mut parts = Vec::new();
     for stop in stops {
-        let color = css_color(&stop.color, theme, false)?;
+        let color = css_color_in(&stop.color, theme, false)?;
         parts.push(format!("{color} {}%", format_pct(stop.position)));
     }
     Some(format!(
@@ -1963,6 +2282,7 @@ mod tests {
             master_placeholder_levels: None,
             master_tx_styles: None,
             theme_colors: Some(theme),
+            format_scheme: None,
         }
     }
 
@@ -1979,10 +2299,10 @@ mod tests {
           </a:gradFill></p:bgPr></p:bg>
         </p:cSld>"#;
         let doc = parse_xml_str(xml).unwrap();
-        let (color, gradient) = first_paintable_background(&[Some(&doc.root)], &theme());
-        assert_eq!(color.as_deref(), Some("#FF0000"));
+        let paint = first_paintable_background(&[Some(&doc.root)], &theme(), None).unwrap();
+        assert_eq!(paint.color.as_deref(), Some("#FF0000"));
         assert_eq!(
-            gradient.as_deref(),
+            paint.gradient.as_deref(),
             Some("linear-gradient(90.00deg, #FF0000 0%, #0000FF 100%)")
         );
     }
@@ -2000,10 +2320,11 @@ mod tests {
             </p:cSld>"#,
         )
         .unwrap();
-        let (color, gradient) =
-            first_paintable_background(&[Some(&slide.root), Some(&layout.root)], &theme());
-        assert_eq!(color.as_deref(), Some("#00FF00"));
-        assert!(gradient.is_none());
+        let paint =
+            first_paintable_background(&[Some(&slide.root), Some(&layout.root)], &theme(), None)
+                .unwrap();
+        assert_eq!(paint.color.as_deref(), Some("#00FF00"));
+        assert!(paint.gradient.is_none());
     }
 
     // Catches: master a:noFill losing to p:style fillRef accent.
@@ -2065,5 +2386,161 @@ mod tests {
         assert_eq!(el.type_, "chart");
         assert_eq!(el.chart_r_id.as_deref(), Some("rId5"));
         assert!(el.x > 0.0 || el.width > 0.0);
+    }
+
+    fn office_matrix() -> nitro_xml_opc::drawingml::ThemeFormatScheme {
+        let xml = r#"<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <a:themeElements>
+            <a:clrScheme name="Office"/>
+            <a:fontScheme name="Office"><a:majorFont/><a:minorFont/></a:fontScheme>
+            <a:fmtScheme name="Office">
+              <a:fillStyleLst>
+                <a:solidFill><a:srgbClr val="112233"/></a:solidFill>
+                <a:gradFill>
+                  <a:gsLst>
+                    <a:gs pos="0"><a:schemeClr val="phClr"/></a:gs>
+                    <a:gs pos="100000"><a:srgbClr val="00FF00"/></a:gs>
+                  </a:gsLst>
+                  <a:lin ang="0"/>
+                </a:gradFill>
+              </a:fillStyleLst>
+              <a:lnStyleLst>
+                <a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+                <a:ln w="25400"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+              </a:lnStyleLst>
+              <a:bgFillStyleLst>
+                <a:solidFill><a:srgbClr val="ABCDEF"/></a:solidFill>
+                <a:gradFill>
+                  <a:gsLst>
+                    <a:gs pos="0"><a:schemeClr val="phClr"/></a:gs>
+                    <a:gs pos="100000"><a:srgbClr val="0000FF"/></a:gs>
+                  </a:gsLst>
+                  <a:lin ang="0"/>
+                </a:gradFill>
+              </a:bgFillStyleLst>
+            </a:fmtScheme>
+          </a:themeElements>
+        </a:theme>"#;
+        nitro_xml_opc::drawingml::parse_theme_xml(xml, "t")
+            .format_scheme
+            .expect("fmtScheme")
+    }
+
+    fn ctx_with_matrix<'a>(
+        theme: &'a BTreeMap<String, String>,
+        scheme: &'a nitro_xml_opc::drawingml::ThemeFormatScheme,
+    ) -> ParseCtx<'a> {
+        ParseCtx {
+            format_scheme: Some(scheme),
+            ..ctx(theme)
+        }
+    }
+
+    // Catches: fillRef idx reading only the ref schemeClr, ignoring fmtScheme fills and bgFillStyleLst.
+    #[test]
+    fn fill_ref_uses_format_scheme_matrix() {
+        let colors = theme();
+        let scheme = office_matrix();
+        let solid = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="1" name="S"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+          <p:style><a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef></p:style>
+        </p:sp>"#;
+        let el = parse_shape(
+            &parse_xml_str(solid).unwrap().root,
+            "s".into(),
+            &ctx_with_matrix(&colors, &scheme),
+            false,
+        )
+        .unwrap();
+        assert_eq!(el.fill_color.as_deref(), Some("#112233"));
+
+        let grad = solid.replace("idx=\"1\"", "idx=\"2\"");
+        let el = parse_shape(
+            &parse_xml_str(&grad).unwrap().root,
+            "g".into(),
+            &ctx_with_matrix(&colors, &scheme),
+            false,
+        )
+        .unwrap();
+        assert_eq!(el.fill_mode.as_deref(), Some("gradient"));
+        assert_eq!(
+            el.fill_gradient.as_deref(),
+            Some("linear-gradient(90.00deg, #4472C4 0%, #00FF00 100%)")
+        );
+
+        let bg = solid.replace("idx=\"1\"", "idx=\"1001\"");
+        let el = parse_shape(
+            &parse_xml_str(&bg).unwrap().root,
+            "b".into(),
+            &ctx_with_matrix(&colors, &scheme),
+            false,
+        )
+        .unwrap();
+        assert_eq!(el.fill_color.as_deref(), Some("#ABCDEF"));
+    }
+
+    // Catches: lnRef idx=2 painted at 1px instead of the theme line width.
+    #[test]
+    fn ln_ref_uses_theme_line_width() {
+        let colors = theme();
+        let scheme = office_matrix();
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="1" name="L"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+          <p:style><a:lnRef idx="2"><a:schemeClr val="accent1"/></a:lnRef></p:style>
+        </p:sp>"#;
+        let el = parse_shape(
+            &parse_xml_str(xml).unwrap().root,
+            "l".into(),
+            &ctx_with_matrix(&colors, &scheme),
+            false,
+        )
+        .unwrap();
+        assert_eq!(el.stroke_color.as_deref(), Some("#4472C4"));
+        assert!((el.stroke_width_px.unwrap() - 25400.0 / 9525.0).abs() < 0.01);
+    }
+
+    // Catches: p:bg blipFill ignored so picture slide backgrounds never resolve an rId.
+    #[test]
+    fn background_blip_keeps_embed_id() {
+        let xml = r#"<p:cSld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:bg><p:bgPr><a:blipFill><a:blip r:embed="rId9"/><a:stretch><a:fillRect/></a:stretch></a:blipFill></p:bgPr></p:bg>
+        </p:cSld>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let paint = first_paintable_background(&[Some(&doc.root)], &theme(), None).unwrap();
+        assert_eq!(paint.image_rel_id.as_deref(), Some("rId9"));
+        assert!(paint.color.is_none());
+    }
+
+    // Catches: p:pic a:blip r:embed dropped so the painter has no image relationship.
+    #[test]
+    fn picture_records_embed_id() {
+        let xml = r#"<p:pic xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:nvPicPr><p:cNvPr id="4" name="Pic"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+          <p:blipFill><a:blip r:embed="rId3"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+          <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+        </p:pic>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el = parse_picture(&doc.root, "p".into(), &ctx(&colors)).unwrap();
+        assert_eq!(el.image_rel_id.as_deref(), Some("rId3"));
+        assert!(el.image_src.is_none());
+    }
+
+    // Catches: bgRef idx 1002 flattened to the ref colour instead of the background gradient.
+    #[test]
+    fn bg_ref_idx_uses_background_fill_list() {
+        let scheme = office_matrix();
+        let xml = r#"<p:cSld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:bg><p:bgRef idx="1002"><a:schemeClr val="accent1"/></p:bgRef></p:bg>
+        </p:cSld>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let paint =
+            first_paintable_background(&[Some(&doc.root)], &theme(), Some(&scheme)).unwrap();
+        assert_eq!(
+            paint.gradient.as_deref(),
+            Some("linear-gradient(90.00deg, #4472C4 0%, #0000FF 100%)")
+        );
     }
 }

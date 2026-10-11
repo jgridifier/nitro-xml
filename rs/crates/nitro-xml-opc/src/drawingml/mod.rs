@@ -25,7 +25,7 @@ pub use color::{
     parse_drawing_color, parse_drawing_color_in, parse_drawing_color_list, resolve_drawing_color,
     DrawingColorTheme, HslRounding, ResolveOptions, ResolvedDrawingColor, TransformOrder,
 };
-pub use fill::{fill_element_of, parse_drawing_fill, parse_drawing_line};
+pub use fill::{fill_element_of, parse_drawing_fill, parse_drawing_line, parse_fill_element};
 pub use geometry_parse::{
     parse_drawing_geometry, parse_frame, parse_transform, ParsedGeometry, ParsedTransform,
 };
@@ -46,8 +46,8 @@ pub use theme_color::{
 };
 pub use theme_model::{
     DrawingTheme, ThemeColorMap, ThemeColorMapKey, ThemeColorScheme, ThemeColorSlot,
-    ThemeFontCollection, ThemeFontScheme, ThemeLogicalColor, DEFAULT_THEME_COLOR_MAP,
-    THEME_COLOR_SLOTS,
+    ThemeFontCollection, ThemeFontScheme, ThemeFormatScheme, ThemeLogicalColor,
+    DEFAULT_THEME_COLOR_MAP, THEME_COLOR_SLOTS,
 };
 pub use types::{
     AttributeReader, ColorTransform, DrawingColor, DrawingColorKind, DrawingFill, DrawingFrame,

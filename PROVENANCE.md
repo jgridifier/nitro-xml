@@ -92,8 +92,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-opc/src/drawingml/ordered_color_transforms.rs` | `src/core/drawingml/ordered-color-transforms.ts` @ e66aaec | Document-order colour transforms; same fractional-channel semantics as upstream. |
 | `rs/crates/nitro-xml-opc/src/drawingml/fill.rs` | `src/core/drawingml/drawing-fill.ts` @ e66aaec | Fill/line readers; deterministic `sourceXml` via `serialize.rs` instead of DOM `XMLSerializer`. |
 | `rs/crates/nitro-xml-opc/src/drawingml/geometry_parse.rs` | `src/core/drawingml/drawing-geometry.ts` @ e66aaec | Frame, transform and geometry readers over `Element`. |
-| `rs/crates/nitro-xml-opc/src/drawingml/theme_model.rs` | `src/core/drawingml/theme-model.ts` @ e66aaec | Theme colour/font scheme types and default colour map. |
-| `rs/crates/nitro-xml-opc/src/drawingml/theme.rs` | `src/core/drawingml/theme.ts` @ e66aaec | Theme part and colour-map parsing over the owned XML tree. |
+| `rs/crates/nitro-xml-opc/src/drawingml/theme_model.rs` | `src/core/drawingml/theme-model.ts` @ e66aaec | Theme colour/font scheme types and default colour map. `ThemeFormatScheme` is the `a:fmtScheme` fill/line/background matrix (effect styles deferred). |
+| `rs/crates/nitro-xml-opc/src/drawingml/theme.rs` | `src/core/drawingml/theme.ts` @ e66aaec | Theme part and colour-map parsing over the owned XML tree. Also parses `a:fmtScheme` fillStyleLst / lnStyleLst / bgFillStyleLst. |
 | `rs/crates/nitro-xml-opc/src/drawingml/theme_color.rs` | `src/core/drawingml/theme-color.ts` @ e66aaec | Scheme colour resolution bridge to `resolve_drawing_color`. |
 | `rs/crates/nitro-xml-opc/src/drawingml/guide_eval.rs` | `src/core/geometry/guide-formula-eval.ts` @ e66aaec | OOXML guide formula parser and evaluator. |
 | `rs/crates/nitro-xml-opc/src/drawingml/guide_api.rs` | `src/core/geometry/guide-formula-api.ts` @ e66aaec | Built-in variables and ordered guide evaluation. |
@@ -110,21 +110,21 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/borders.rs` | `src/core/docx/table-borders.ts` @ e66aaec | Paragraph/table border and shading parse subset (#21 adds `parse_table_borders`). |
 | `rs/crates/nitro-xml-docx/src/settings.rs` | `src/core/docx/document-parts.ts`, `page-setup-model.ts`, `settings.ts` @ e66aaec | `parse_settings`, page setup read/validate, `parse_track_review` (#21). |
 | `rs/crates/nitro-xml-docx/src/ligatures.rs` | `src/core/docx/ligatures.ts` @ e66aaec | Word 2010 `w14:ligatures` on `w:rPr`. |
-| `rs/crates/nitro-xml-pptx/src/presentation.rs` | `src/core/pptx/core/core/runtime/PptxHandlerRuntimeLoadSession.ts`, `PptxHandlerRuntimeLoadPipeline.ts`, `PptxHandlerRuntimeSlideMasters.ts` @ e66aaec | Presentation open, slide list, sldSz/notesSz, master/layout chain, lazy slide parse, issue-24 JSON dump. |
-| `rs/crates/nitro-xml-pptx/src/slide.rs` | `PptxHandlerRuntimeSpTreeParsing.ts`, `ShapeParsing.ts`, `PictureParsing.ts`, `GroupParsing.ts`, `PptxGraphicFrameParser.ts`, `PptxHandlerRuntimeBackgroundParsing.ts` @ e66aaec | Element tree; slide→layout→master solid/linear background; shape fill/stroke and first-run text colour via DrawingML; chart and SmartArt graphic frames as elements (#27). |
+| `rs/crates/nitro-xml-pptx/src/presentation.rs` | `src/core/pptx/core/core/runtime/PptxHandlerRuntimeLoadSession.ts`, `PptxHandlerRuntimeLoadPipeline.ts`, `PptxHandlerRuntimeSlideMasters.ts` @ e66aaec | Presentation open, slide list, sldSz/notesSz, master/layout chain, lazy slide parse, issue-24 JSON dump. Blip relationships become `data:` URLs at load (#27). |
+| `rs/crates/nitro-xml-pptx/src/slide.rs` | `PptxHandlerRuntimeSpTreeParsing.ts`, `ShapeParsing.ts`, `PictureParsing.ts`, `GroupParsing.ts`, `PptxGraphicFrameParser.ts`, `PptxHandlerRuntimeBackgroundParsing.ts`, `PptxHandlerRuntimeThemeRefResolution.ts` @ e66aaec | Element tree; slide→layout→master solid/linear/blip background; `fillRef`/`lnRef`/`bgRef` resolved against the theme style matrix (`phClr`); picture `r:embed`; chart and SmartArt graphic frames as elements (#27). |
 | `rs/crates/nitro-xml-pptx/src/inheritance.rs` | `merge-xml-objects.ts`, `PptxHandlerRuntimePlaceholderLookup.ts`, `placeholder-style-family.ts` @ e66aaec | Placeholder match + layout-over-master merge (empty override must not clobber). |
-| `rs/crates/nitro-xml-pptx/src/theme.rs` | `PptxHandlerRuntimeThemeLoading.ts` @ e66aaec | Theme dump via `drawingml::parse_theme` / `theme_slot_hex` (#25). |
+| `rs/crates/nitro-xml-pptx/src/theme.rs` | `PptxHandlerRuntimeThemeLoading.ts` @ e66aaec | Theme dump via `drawingml::parse_theme` / `theme_slot_hex` (#25). Format scheme kept for paint, skipped in the issue-24 dump. |
 | `rs/crates/nitro-xml-pptx/src/text.rs` | `PptxHandlerRuntimeShapeParagraphContentParsing.ts`, `PptxHandlerRuntimeBulletParsing.ts`, `ruby-element-parsing.ts` @ e66aaec | Shape text flattening for issue-24 dump parity (#26). |
 | `rs/crates/nitro-xml-pptx/src/auto_number.rs` | `auto-number-format.ts`, `auto-number-scripts.ts` @ e66aaec | Auto-number bullet markers (#26). |
 | `rs/crates/nitro-xml-pptx/src/level_style.rs` | `PptxHandlerRuntimePlaceholderStyles.ts`, `PptxHandlerRuntimeMasterElements.ts` @ e66aaec | Master/layout list-style bullets (#26). |
 | `rs/crates/nitro-xml-pptx/src/placeholder_defaults.rs` | `PptxHandlerRuntimePlaceholderLookup.ts`, `PptxHandlerRuntimePlaceholderDefaults.ts` @ e66aaec | Placeholder level-style lookup (#26). |
 | `rs/crates/nitro-xml-pptx/src/table.rs` | `PptxGraphicFrameParser.ts` @ e66aaec | Table graphic frame row count (#26). |
-| `rs/crates/nitro-xml-pptx/src/render/stage.rs` | `src/ui/src/pptx/dom/slide-stage.ts`, `src/ui/src/pptx/render/slide-background.ts` @ e66aaec | P1 stage + z-order; resolved solid/linear slide background (#27); reading-surface `role`/`aria-roledescription`/`aria-label` (#42). Selection outline call (#43) is original. |
+| `rs/crates/nitro-xml-pptx/src/render/stage.rs` | `src/ui/src/pptx/dom/slide-stage.ts`, `src/ui/src/pptx/render/slide-background.ts` @ e66aaec | P1 stage + z-order; resolved solid/linear/blip slide background (`background-image:url(...)`) (#27); reading-surface `role`/`aria-roledescription`/`aria-label` (#42). Selection outline call (#43) is original. |
 | `rs/crates/nitro-xml-pptx/src/render/shape.rs` | `dom/elements/text-shape.ts` @ e66aaec | P2 shape fill (`background-color` / `background-image`) and stroke border (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/text.rs` | `dom/elements/text-block.ts` @ e66aaec | P3 text body; run colour and `a:sz` font size, Calibri fallback (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/smartart.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | P11 calls S2 cached-drawing SVG at the element box (#27). |
 | `rs/crates/nitro-xml-render/src/smartart/mod.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | S2 bootstrap: `dsp:sp` rects + text, else a labelled SmartArt frame. Full layout/3D deferred. |
-| `rs/crates/nitro-xml-pptx/src/render/picture.rs` | `dom/elements/image.ts` @ e66aaec | P5 picture frame (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/picture.rs` | `dom/elements/image.ts` @ e66aaec | P5 picture frame; img `src` and CSS background from the resolved blip data URL (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/group.rs` | `dom/elements/group.ts` @ e66aaec | P6 group (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/connector.rs` | `dom/elements/connector.ts` @ e66aaec | P7 connector SVG stub (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/table.rs` | `dom/elements/table.ts` @ e66aaec | P8 table stub (#27). |
@@ -165,13 +165,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/render/cells.rs` | `src/ui/src/xlsx/grid/cell-layer.ts` @ e66aaec | Cell DOM command buffer (`paintCell` parity). |
 | `rs/crates/nitro-xml-xlsx/src/render/cond_format.rs` | `src/core/xlsx/ui/grid/icon-sets.ts`, cell-layer data bars @ e66aaec | CF paint stub; formula rules TODO. |
 | `rs/crates/nitro-xml-xlsx/src/render/gridlines.rs` | `src/ui/src/xlsx/grid/gridlines.ts` @ e66aaec | Per-row/column 1px gridline DOM nodes. |
-<<<<<<< HEAD
-| `rs/crates/nitro-xml-xlsx/src/render/headers.rs` | `src/ui/src/xlsx/grid/headers.ts`, `pane-chrome.ts` @ e66aaec | Row/column header + corner DOM. |
-| `rs/crates/nitro-xml-xlsx/src/render/geometry.rs` | `src/core/xlsx/ui/grid/geometry.ts` @ e66aaec | Header sizes plus `colAtX` / `rowAtY` / `hit` / `clampedHit`. |
-=======
 | `rs/crates/nitro-xml-xlsx/src/render/headers.rs` | `src/ui/src/xlsx/grid/headers.ts`, `pane-chrome.ts` @ e66aaec | Row/column header + corner DOM; `role=rowheader|columnheader` (#42). |
-| `rs/crates/nitro-xml-xlsx/src/render/geometry.rs` | `src/core/xlsx/ui/grid/geometry.ts` @ e66aaec | `rowHeaderWidth` / `columnHeaderHeight`. |
->>>>>>> 39d1b4a (Part of #42: accessibility gate (axe + AX-tree + keyboard))
+| `rs/crates/nitro-xml-xlsx/src/render/geometry.rs` | `src/core/xlsx/ui/grid/geometry.ts` @ e66aaec | Header sizes plus `colAtX` / `rowAtY` / `hit` / `clampedHit`. |
 | `rs/crates/nitro-xml-xlsx/src/render/viewport.rs` | `src/core/xlsx/layout/viewport.ts` @ e66aaec | `visibleCells` for grid paint culling. |
 | `rs/crates/nitro-xml-xlsx/src/render/selection.rs` | `src/ui/src/xlsx/grid/selection-layer.ts` @ e66aaec | Selection overlay: range outline + active cell (shades/handle deferred). |
 | `rs/crates/nitro-xml-xlsx/src/render/selection_ops.rs` | `src/core/xlsx/ui/grid/selection-ops.ts`, `src/core/xlsx/ui/selection.ts` (`rangeRef`), `src/ui/src/xlsx/grid/grid-commands.ts` (`currentRegionOrAll`), `src/core/xlsx/edit/filter.ts` (`currentRegion`) @ e66aaec | Merge expansion, select/extend, A1 selection refs, current region. Header state kept. |

@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use nitro_xml_opc::drawingml::{
-    parse_theme, theme_slot_hex, DrawingTheme, ThemeColorSlot, THEME_COLOR_SLOTS,
+    parse_theme, theme_slot_hex, DrawingTheme, ThemeColorSlot, ThemeFormatScheme, THEME_COLOR_SLOTS,
 };
 use nitro_xml_opc::xml::{ns, Element};
 use serde::Serialize;
@@ -39,6 +39,9 @@ pub struct Theme {
     pub color_scheme: Option<BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font_scheme: Option<ThemeFontScheme>,
+    /// Style matrix for `a:fillRef` / `a:lnRef` / `a:bgRef`. Not part of the issue-24 dump.
+    #[serde(skip)]
+    pub format_scheme: Option<ThemeFormatScheme>,
 }
 
 /// Office defaults used when a theme slot is absent (matches upstream pptx loader).
@@ -107,6 +110,7 @@ fn theme_from_drawing(drawing: DrawingTheme) -> Theme {
     Theme {
         color_scheme: Some(color_map),
         font_scheme,
+        format_scheme: drawing.format_scheme,
     }
 }
 

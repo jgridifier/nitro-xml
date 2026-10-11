@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::types::DrawingColor;
+use super::types::{DrawingColor, DrawingFill, DrawingLine};
 
 pub const THEME_COLOR_SLOTS: &[ThemeColorSlot] = &[
     ThemeColorSlot::Dk1,
@@ -111,10 +111,27 @@ pub struct ThemeFontScheme {
     pub minor: ThemeFontCollection,
 }
 
+/// `a:fmtScheme` style matrix. `fillRef`/`lnRef` idx 1–3 index the fill and
+/// line lists; idx 1001–1003 index [`Self::background_fill_styles`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ThemeFormatScheme {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fill_styles: Vec<DrawingFill>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub line_styles: Vec<DrawingLine>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub background_fill_styles: Vec<DrawingFill>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DrawingTheme {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     pub color_scheme: ThemeColorScheme,
     pub font_scheme: ThemeFontScheme,
+    /// Paint-time style matrix. Omitted from dumps (`inspect_json` themes).
+    #[serde(skip)]
+    pub format_scheme: Option<ThemeFormatScheme>,
 }

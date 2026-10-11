@@ -4,15 +4,19 @@
 <head>
   <meta charset="utf-8" />
   <title>nitro-xml pptx viewer host</title>
+  <link rel="stylesheet" href="/fonts/visual-fonts.css" />
   <style>
     html, body { margin: 0; padding: 0; background: #fff; }
     #stage {
       position: relative;
       overflow: hidden;
       background: #fff;
+      font-family: "Liberation Sans", Arial, sans-serif;
     }
+    /* ShellViewerElement needs flex column so .v can flex:1 when .chrome is hidden. */
     #stage nitro-pptx {
-      display: block;
+      display: flex;
+      flex-direction: column;
       width: 100%;
       height: 100%;
     }
@@ -21,6 +25,7 @@
       inset: 0;
       overflow: hidden;
       background: #fff;
+      font-family: "Liberation Sans", Arial, sans-serif;
     }
     @media print {
       html, body, #stage { background: #fff; }
@@ -54,13 +59,43 @@
       });
     }
 
+    async function waitFonts() {
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      try {
+        await Promise.all([
+          document.fonts.load('18px "Liberation Sans"'),
+          document.fonts.load('bold 18px "Liberation Sans"'),
+          document.fonts.load('18px Calibri'),
+          document.fonts.load('18px Carlito'),
+          document.fonts.load('18px Arial'),
+          document.fonts.load('18px "Segoe UI"'),
+        ]);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    function injectStyle(root, cssText, id) {
+      if (!root) return;
+      let el = root.querySelector(`style[data-visual="${id}"]`);
+      if (!el) {
+        el = document.createElement('style');
+        el.dataset.visual = id;
+        root.appendChild(el);
+      }
+      el.textContent = cssText;
+    }
+
     function fitScale(canvasW, canvasH, viewW, viewH) {
       if (viewW <= 0 || viewH <= 0) return 1;
       return Math.min(viewW / Math.max(1, canvasW), viewH / Math.max(1, canvasH), 1);
     }
 
     async function mountRust() {
-      const { defineNitroPptx } = await import('/repo/packages/nitro-xml/loader/index.js');
+      const { defineNitroPptx, initCore } = await import('/repo/packages/nitro-xml/loader/index.js');
+      // #121: CSS2 mirror → Liberation Sans under /out/fonts/ (same as xlsx visual host).
+      const fontMirror = new URL('/out/fonts/css2', location.origin).href;
+      await initCore({ fontSource: fontMirror });
       defineNitroPptx();
       const el = document.createElement('nitro-pptx');
       el.setAttribute('readonly', '');
@@ -68,9 +103,23 @@
       el.style.height = '100%';
       stage.appendChild(el);
       await el.loadUrl(fixture);
+      const shadow = el.shadowRoot;
       // Hide Stage-6 shell chrome so the shot is the slide surface only.
-      const chrome = el.shadowRoot?.querySelector('.chrome');
+      const chrome = shadow?.querySelector('.chrome');
       if (chrome) chrome.style.display = 'none';
+      const v = shadow?.querySelector('.v');
+      if (v) {
+        v.style.flex = '1 1 auto';
+        v.style.minHeight = '0';
+        v.style.height = '100%';
+      }
+      injectStyle(
+        shadow,
+        await (await fetch('/fonts/visual-fonts.css')).text() +
+          `\n:host,.dom,[data-pptx-element]{font-family:"Liberation Sans",Arial,sans-serif}`,
+        'font-pin',
+      );
+      await waitFonts();
       // Advance via keyboard (ArrowRight) — same path as the viewer; no loader API growth.
       if (el.document && slideIndex > 0) {
         for (let s = 0; s < slideIndex; s++) {
@@ -90,7 +139,7 @@
         const dpr = window.devicePixelRatio || 1;
         const w = el.clientWidth || width;
         const h = el.clientHeight || height;
-        const canvas = el.shadowRoot?.querySelector('canvas');
+        const canvas = shadow?.querySelector('canvas');
         if (canvas) {
           canvas.width = Math.max(1, (w * dpr) | 0);
           canvas.height = Math.max(1, (h * dpr) | 0);
@@ -106,24 +155,26 @@
       let painted = false;
       for (let i = 0; i < 90; i++) {
         await waitFrames(2);
-        const msg = el.shadowRoot?.querySelector('.msg');
+        const msg = shadow?.querySelector('.msg');
         if (msg && !msg.hidden && msg.textContent) {
           throw new Error(`nitro-pptx: ${msg.textContent}`);
         }
         if (el.document) {
           await el.document.tick();
         }
-        const dom = el.shadowRoot?.querySelector('.dom');
+        const dom = shadow?.querySelector('.dom');
         if (dom && dom.childElementCount > 0) {
           painted = true;
           break;
         }
       }
       if (!painted) throw new Error('nitro-pptx: no slide DOM paint');
+      await waitFonts();
       await waitFrames(3);
     }
 
     async function mountTs() {
+      await waitFonts();
       const {
         loadPresentation,
         renderSlideStage,
@@ -162,11 +213,14 @@
         wrap.id = 'ts-wrap';
         wrap.appendChild(slideEl);
         stage.appendChild(wrap);
+        injectStyle(
+          document.head,
+          await (await fetch('/fonts/visual-fonts.css')).text() +
+            `\n#ts-wrap,#ts-wrap *{font-family:"Liberation Sans",Arial,sans-serif}`,
+          'font-pin-ts',
+        );
         await waitFrames(3);
-        // Fonts / images may settle after first layout.
-        if (document.fonts?.ready) {
-          try { await document.fonts.ready; } catch { /* ignore */ }
-        }
+        await waitFonts();
         await waitFrames(3);
       } finally {
         // Keep blob URLs alive for the screenshot; dispose handler only.

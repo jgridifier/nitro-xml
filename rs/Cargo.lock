@@ -231,6 +231,7 @@ dependencies = [
  "nitro-xml-render",
  "serde",
  "serde_json",
+ "zip",
 ]
 
 [[package]]

@@ -65,6 +65,8 @@ export interface KnownDiffEntry {
 	/**
 	 * JSON-pointer-like path of an allowed difference (`/` = whole document).
 	 * Omit or use `/` to allow any diff for that fixture (still needs a reason).
+	 * A path starting with the two-star slash prefix matches by suffix
+	 * (e.g. star-star-slash-text → "/slides/0/elements/1/text").
 	 */
 	path?: string;
 	/** Required reason; CI rejects entries without one. */

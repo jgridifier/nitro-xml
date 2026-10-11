@@ -1,3 +1,232 @@
 {
-  "entries": []
+	"entries": [
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-python-pptx-test_slides",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-python-pptx-test_slides",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-with_japanese",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-customGeo",
+			"path": "**/children",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-customGeo",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-customGeo",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-PPTWithAttachments",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-PPTWithAttachments",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-python-pptx-txt-font-typeface",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-60810",
+			"path": "**/children",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-60810",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-60810",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-python-pptx-shp-shapes",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-45545_Comment",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-45541_Footer",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-bug64693",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-bug64693",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-bug68703",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-45541_Header",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-python-pptx-act-props",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-python-pptx-ph-populated-placeholders",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-bug62513",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "real-pptx-poi-bug62513",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "gen-pptx-equation",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-51edb06a949d",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-a344b2f3f55d",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-165297e1d546",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-165297e1d546",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-38aa694fb4a5",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-4647c93fad68",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-0c4571a8c30e",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-0c4571a8c30e",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-6fbe45df1cb3",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-38fb1b1e8f76",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-1abd9b12cb19",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-1abd9b12cb19",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-b2b71a866c2e",
+			"path": "**/type",
+			"reason": "text body / field / bullet extraction lands in #26"
+		},
+		{
+			"format": "pptx",
+			"fixture": "upstream-d34691128d6a",
+			"path": "**/text",
+			"reason": "text body / field / bullet extraction lands in #26"
+		}
+	]
 }

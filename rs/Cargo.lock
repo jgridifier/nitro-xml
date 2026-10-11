@@ -191,8 +191,11 @@ dependencies = [
 name = "nitro-xml-docx"
 version = "0.0.0"
 dependencies = [
+ "indexmap",
  "nitro-xml-opc",
  "nitro-xml-render",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

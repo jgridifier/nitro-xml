@@ -106,6 +106,12 @@ async function runOne(script) {
 	}
 
 	const det = await comparePackages(out1, out2);
+	// Double-save can drift only in docProps timestamps (dcterms:modified).
+	const deterministic =
+		det.lossless ||
+		det.losses.every(
+			(l) => l.category === 'docProps' || (l.part && String(l.part).startsWith('docProps/')),
+		);
 	const vsInput = await comparePackages(input, out1);
 
 	const vIn = validateOpenXml(abs);
@@ -130,9 +136,7 @@ async function runOne(script) {
 		libreoffice = lo;
 	}
 
-	const ok =
-		det.lossless &&
-		(validator.skipped || validator.ok !== false);
+	const ok = deterministic && (validator.skipped || validator.ok !== false);
 
 	return {
 		id: script.id,
@@ -140,8 +144,8 @@ async function runOne(script) {
 		fixture: script.fixture,
 		description: script.description,
 		ok,
-		deterministic: det.lossless,
-		determinismLosses: det.lossless ? [] : det.losses,
+		deterministic,
+		determinismLosses: deterministic ? [] : det.losses,
 		expectedDiff: diffFingerprint(vsInput),
 		outputBytes: out1.length,
 		inputBytes: input.length,

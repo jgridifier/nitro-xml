@@ -3,10 +3,13 @@
  * Visual-gate case registry (#45).
  *
  * Add a row and a prepare/host path when a format's first paint is ready.
- * docx / pptx stay `ready: false` until their painters ship.
+ * docx stays `ready: false` until its painters ship. pptx cases are generated
+ * from the fixture corpus (see pptx-corpus.mjs, #27).
  */
 
-/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer'} VisualKind */
+import { pptxVisualCorpus } from './pptx-corpus.mjs';
+
+/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'pptx-viewer'} VisualKind */
 
 /**
  * @typedef {object} VisualCase
@@ -19,12 +22,14 @@
  * @property {string} [part] OOXML part path inside the package (charts)
  * @property {number} [width]
  * @property {number} [height]
+ * @property {number} [slide] pptx slide index (default 0)
  * @property {boolean} [rust] when true, prepare + compare a Rust/WASM side
  * @property {boolean} [informational] when true, mismatches are reported but do not fail the gate
+ * @property {boolean} [skipPrint] when true, skip print-to-PDF for this case
  */
 
 /** @type {VisualCase[]} */
-export const VISUAL_CASES = [
+const STATIC_CASES = [
 	{
 		id: 'xlsx-poi-45544',
 		format: 'xlsx',
@@ -66,13 +71,10 @@ export const VISUAL_CASES = [
 		ready: false,
 		todo: 'Register when docx Print Layout paint is hosted (after renderer port).',
 	},
-	{
-		id: 'pptx',
-		format: 'pptx',
-		ready: false,
-		todo: 'Register when pptx slide paint is hosted (after renderer port).',
-	},
 ];
+
+/** @type {VisualCase[]} */
+export const VISUAL_CASES = [...STATIC_CASES, ...pptxVisualCorpus()];
 
 export function readyCases() {
 	return VISUAL_CASES.filter((c) => c.ready);

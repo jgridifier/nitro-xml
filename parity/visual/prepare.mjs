@@ -3,7 +3,7 @@
  * Build per-case payloads for the visual host (TS oracle + Rust where ready).
  */
 
-import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,48 @@ import { readyCases } from './registry.mjs';
 const VISUAL = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(VISUAL, '../..');
 const OUT = join(VISUAL, 'out/payloads');
+
+/** Liberation Sans faces used as the pinned visual-gate font family (#150). */
+const PINNED_FONTS = [
+	'LiberationSans-Regular.ttf',
+	'LiberationSans-Bold.ttf',
+	'LiberationSans-Italic.ttf',
+	'LiberationSans-BoldItalic.ttf',
+];
+
+function preparePinnedFonts() {
+	const destDir = join(VISUAL, 'out/fonts');
+	mkdirSync(destDir, { recursive: true });
+	const srcDir = '/usr/share/fonts/truetype/liberation';
+	for (const name of PINNED_FONTS) {
+		const src = join(srcDir, name);
+		const dest = join(destDir, name);
+		if (!existsSync(src)) {
+			throw new Error(`visual fonts: missing ${src} (install fonts-liberation)`);
+		}
+		if (!existsSync(dest)) copyFileSync(src, dest);
+	}
+	// CSS2-compatible mirror for #121 fontSource. Served at /out/fonts/css2
+	// (query string ignored); every requested family maps to Liberation Sans files.
+	const faces = ['Calibri', 'Carlito', 'Segoe UI', 'Arial', 'Liberation Sans', 'Helvetica'];
+	const css2 = [
+		'/* SPDX-License-Identifier: MIT — visual-gate local font mirror (#150) */',
+		...PINNED_FONTS.flatMap((file) => {
+			const italic = /Italic/.test(file);
+			const bold = /Bold/.test(file);
+			const weight = bold ? '700' : '400';
+			const style = italic ? 'italic' : 'normal';
+			return faces.map(
+				(fam) =>
+					`@font-face{font-family:"${fam}";font-style:${style};font-weight:${weight};src:url("/out/fonts/${file}") format("truetype")}`,
+			);
+		}),
+		'',
+	].join('\n');
+	// Bare path matches Google CSS2 base shape: `{base}?family=...&display=swap`.
+	writeFileSync(join(VISUAL, 'out/fonts/css2'), css2);
+	writeFileSync(join(VISUAL, 'out/fonts/css2.css'), css2);
+}
 
 function upstreamDir() {
 	return process.env.UPSTREAM_DIR || join(ROOT, 'upstream');
@@ -142,6 +184,7 @@ function prepareXlsxViewer(c) {
 
 export async function prepareAll() {
 	mkdirSync(OUT, { recursive: true });
+	preparePinnedFonts();
 	for (const c of readyCases()) {
 		if (c.kind === 'chart-svg') prepareChart(c);
 		else if (c.kind === 'xlsx-view-ir') await prepareXlsxViewIr(c);

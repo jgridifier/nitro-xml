@@ -24,6 +24,9 @@ const TYPES = {
 	'.wasm': 'application/wasm',
 	'.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 	'.xlsm': 'application/vnd.ms-excel.sheet.macroEnabled.12',
+	'.ttf': 'font/ttf',
+	'.woff': 'font/woff',
+	'.woff2': 'font/woff2',
 };
 
 function resolveSafe(base, reqPath) {
@@ -57,7 +60,11 @@ export function startVisualServer(opts = {}) {
 			res.end('not found');
 			return;
 		}
-		const type = TYPES[extname(filePath)] || 'application/octet-stream';
+		// #121 CSS2 mirror is written as out/fonts/css2 (no extension).
+		const ext = extname(filePath);
+		const type =
+			TYPES[ext] ||
+			(/[/\\]fonts[/\\]css2$/.test(filePath) ? 'text/css; charset=utf-8' : 'application/octet-stream');
 		res.writeHead(200, {
 			'Content-Type': type,
 			'Cache-Control': 'no-store',

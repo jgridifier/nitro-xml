@@ -173,7 +173,8 @@ export function dumpFormatViewIrRust(
 			fixture: fixturePath,
 		};
 	}
-	const r = runBin(use, [format, fixturePath], { timeoutMs: 120_000 });
+	const args = use.endsWith(`${format}_view_ir_dump`) ? [fixturePath] : [format, fixturePath];
+	const r = runBin(use, args, { timeoutMs: 120_000 });
 	try {
 		return JSON.parse(r.stdout.trim() || 'null');
 	} catch {

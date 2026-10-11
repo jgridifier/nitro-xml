@@ -861,6 +861,59 @@ impl DumpCell {
     }
 }
 
+/// List / custom validation rule ranges (view-IR only; not in Stage-16 worksheet JSON).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DataValidation {
+    pub ranges: Vec<CellRange>,
+    pub validation_type: String,
+    pub show_drop_down: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HyperlinkInfo {
+    pub range: CellRange,
+    pub tooltip: Option<String>,
+    pub target: Option<String>,
+    pub location: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Sparkline {
+    pub formula: Option<String>,
+    pub host: CellRange,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SparklineGroup {
+    pub type_: String,
+    pub line_weight: f64,
+    pub date_axis: bool,
+    pub date_formula: Option<String>,
+    pub markers: bool,
+    pub high: bool,
+    pub low: bool,
+    pub first: bool,
+    pub last: bool,
+    pub negative: bool,
+    pub display_empty_cells_as: String,
+    pub display_x_axis: bool,
+    pub display_hidden: bool,
+    pub right_to_left: bool,
+    pub min_axis_type: String,
+    pub max_axis_type: String,
+    pub manual_min: Option<f64>,
+    pub manual_max: Option<f64>,
+    pub color_series: Option<Color>,
+    pub color_negative: Option<Color>,
+    pub color_axis: Option<Color>,
+    pub color_markers: Option<Color>,
+    pub color_first: Option<Color>,
+    pub color_last: Option<Color>,
+    pub color_high: Option<Color>,
+    pub color_low: Option<Color>,
+    pub sparklines: Vec<Sparkline>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActiveWorksheet {
     pub name: String,
@@ -875,6 +928,12 @@ pub struct ActiveWorksheet {
     pub merges: Vec<CellRange>,
     pub row_info: std::collections::BTreeMap<u32, RowInfo>,
     pub cells: Vec<DumpCell>,
+    pub data_validations: Vec<DataValidation>,
+    pub comment_addresses: Vec<CellAddress>,
+    pub hyperlinks: Vec<HyperlinkInfo>,
+    /// Preserved `extLst` XML fragments (sparklines and other extensions).
+    pub ext_lst: Vec<String>,
+    pub sparkline_groups: Vec<SparklineGroup>,
 }
 
 impl ActiveWorksheet {

@@ -130,3 +130,29 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/warnings.rs` | `src/core/docx/parse-warnings.ts`, `parse.ts`, `diagram-document.ts` @ e66aaec | Document and model warning assembly; diagram warning text. |
 | `rs/crates/nitro-xml-docx/src/tab_stops.rs` | `src/core/docx/tab-stops.ts` @ e66aaec | `w:pPr/w:tabs` parse for direct paragraph properties. |
 | `rs/crates/nitro-xml-docx/src/watermark.rs` | `src/core/docx/watermark.ts` (`parseWatermarkShape`) @ e66aaec | VML text watermark shapes in `w:pict`. |
+| `rs/crates/nitro-xml-xlsx/src/sheet_access.rs` | `src/core/xlsx/cells.ts` @ e66aaec | `getCell` / `usedRange` / `mergeAt` over `ActiveWorksheet` `DumpCell` vec + `CellIndex`. |
+| `rs/crates/nitro-xml-xlsx/src/view/units.rs` | `src/core/xlsx/layout/units.ts` @ e66aaec | Column/row pixel conversions; Rust `f64`/`i32` types. |
+| `rs/crates/nitro-xml-xlsx/src/view/axis_metrics.rs` | `src/core/xlsx/layout/axis-metrics.ts` @ e66aaec | Sparse axis metrics; same prefix-sum algorithm. |
+| `rs/crates/nitro-xml-xlsx/src/view/metrics.rs` | `src/core/xlsx/layout/metrics.ts` @ e66aaec | `createGridMetrics` over `ActiveWorksheet`. |
+| `rs/crates/nitro-xml-xlsx/src/view/tint.rs` | `src/core/xlsx/layout/tint.ts` @ e66aaec | Excel HLS tint; local `parse_hex` instead of shared color crate. |
+| `rs/crates/nitro-xml-xlsx/src/view/colors.rs` | `src/core/xlsx/layout/colors.ts`, `src/core/chart/render/theme-palette.ts` @ e66aaec | `resolveColor` / `themeColor` / indexed palette. |
+| `rs/crates/nitro-xml-xlsx/src/view/style_view.rs` | `src/core/xlsx/layout/style-view.ts` @ e66aaec | Font/fill/border view resolution. |
+| `rs/crates/nitro-xml-xlsx/src/view/cell_view.rs` | `src/core/xlsx/layout/cell-view.ts` @ e66aaec | `cellView` without CF evaluator; sparkline via `sparklineViewAt`. |
+| `rs/crates/nitro-xml-xlsx/src/sparklines.rs` | `src/core/xlsx/read/sparklines.ts`, `model-sparklines.ts` @ e66aaec | `x14:sparklineGroup` read + `extLst` preserve. |
+| `rs/crates/nitro-xml-xlsx/src/view/sparkline_view.rs` | `src/core/xlsx/layout/sparkline-view.ts` @ e66aaec | Unit-box sparkline layout for view-IR. |
+| `rs/crates/nitro-xml-xlsx/src/view/sparkline_data.rs` | `src/core/xlsx/layout/sparkline-data.ts` @ e66aaec | `sparklineViewAt` + range value read. |
+| `rs/crates/nitro-xml-xlsx/src/view/sheet_queries.rs` | `src/core/xlsx/layout/sheet-queries.ts` @ e66aaec | `overflowExtent` only (selection stats deferred). |
+| `rs/crates/nitro-xml-xlsx/src/view/cell_paint.rs` | `src/core/xlsx/ui/grid/cell-paint.ts` @ e66aaec | CSS helpers, `hashes`, `repeatToFill`. |
+| `rs/crates/nitro-xml-xlsx/src/view/cell_items.rs` | `src/core/xlsx/ui/grid/cell-items.ts` @ e66aaec | `buildItems` / `CellItem` geometry. |
+| `rs/crates/nitro-xml-xlsx/src/view/number_fit.rs` | `src/core/xlsx/ui/grid/number-fit.ts` @ e66aaec | `fitNumber` via `format_value` width option. |
+| `rs/crates/nitro-xml-xlsx/src/view/css_font_family.rs` | `src/core/text/css-font-family.ts` @ e66aaec | Font fallback stacks for measure/CSS. |
+| `rs/crates/nitro-xml-xlsx/src/render/grid.rs` | `src/ui/src/xlsx/grid/grid-view.ts` @ e66aaec | Frame shell stub; full quadrants TODO(#19). |
+| `rs/crates/nitro-xml-xlsx/src/render/cells.rs` | `src/ui/src/xlsx/grid/cell-layer.ts` @ e66aaec | Cell layer encodes command buffer from `buildItems`. |
+| `rs/crates/nitro-xml-xlsx/src/render/cond_format.rs` | `src/core/xlsx/ui/grid/icon-sets.ts`, cell-layer data bars @ e66aaec | CF paint stub; formula rules TODO. |
+| `rs/crates/nitro-xml-xlsx/src/render/gridlines.rs` | `src/ui/src/xlsx/grid/gridlines.ts` @ e66aaec | Gridline stroke stub. |
+| `rs/crates/nitro-xml-xlsx/src/render/headers.rs` | `src/ui/src/xlsx/grid/headers.ts` @ e66aaec | Header chrome stub. |
+| `rs/crates/nitro-xml-xlsx/src/render/selection.rs` | `src/ui/src/xlsx/grid/selection-layer.ts` @ e66aaec | Selection overlay stub. |
+| `rs/crates/nitro-xml-xlsx/src/view/types.rs` | `src/core/xlsx/layout/types.ts` @ e66aaec | `CellView` / `CellItem` view types + JSON dump shape. |
+| `rs/crates/nitro-xml-xlsx/src/view/viewport.rs` | `src/core/xlsx/layout/viewport.ts` @ e66aaec | View-IR bound helpers only (full viewport deferred #19). |
+| `rs/crates/nitro-xml-xlsx/src/comments.rs` | `src/core/xlsx/read/comments.ts` @ e66aaec | Legacy comment cell refs for `hasComment`. |
+| `rs/crates/nitro-xml-xlsx/src/hyperlinks.rs` | `src/core/xlsx/read/worksheet.ts` @ e66aaec | Internal + external hyperlink targets for `title`. |

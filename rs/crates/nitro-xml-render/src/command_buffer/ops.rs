@@ -14,6 +14,8 @@
 //! | CreateElement | 5 | id:u32 tag:u32 parent:u32 |
 //! | SetAttr | 6 | id:u32 key:u32 val:u32 |
 //! | AppendChild | 7 | parent:u32 child:u32 |
+//! | SetText | 8 | id:u32 text_id:u32 |
+//! | SetStyle | 9 | id:u32 prop_id:u32 val_id:u32 |
 //!
 //! Seed protocol for painters / the loader (#37). Not called from the shipped
 //! path yet; Stage 3+ ports will encode through these tags.
@@ -26,4 +28,6 @@ pub mod opcode {
     pub const CREATE_ELEMENT: u8 = 5;
     pub const SET_ATTR: u8 = 6;
     pub const APPEND_CHILD: u8 = 7;
+    pub const SET_TEXT: u8 = 8;
+    pub const SET_STYLE: u8 = 9;
 }

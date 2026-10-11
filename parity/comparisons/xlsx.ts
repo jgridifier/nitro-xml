@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: MIT
 /**
- * xlsx Stage-16 worksheet comparison (active sheet cells + Stage-15 workbook slice).
- * Folded from tools/model-compare/gates/issue-16.sh; oracle is xlsx_sheet_ref.ts.
- *
- * IR: sheets list, defined names (incl. Print_Area lift), date1904, theme,
- * styles / namedStyles / xfMap / dxfs / palette, shared strings, warnings,
- * plus activeWorksheet (merges, cols, rows, cells). CellItem/CellView remains
- * TODO for the grid painter path (#18).
+ * xlsx Stage-16 worksheet comparison + Stage-18 view-IR (CellItem/CellView).
+ * Folded from tools/model-compare/gates/issue-16.sh; oracle is xlsx_sheet_ref.ts
+ * and dumpXlsxViewIr for view-IR.
  */
 
 import { existsSync, readdirSync } from 'node:fs';
@@ -14,8 +10,8 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import type { Comparison, CorpusResult, Manifest } from '../types.ts';
 import { repoRoot, selectCorpus } from '../corpus.ts';
-import { dumpXlsxSheetOracle } from '../oracle/xlsx.ts';
-import { dumpXlsxWorkbookRust, ensureExample } from '../rust/dump.ts';
+import { dumpXlsxSheetOracle, dumpXlsxViewIr } from '../oracle/xlsx.ts';
+import { dumpXlsxWorkbookRust, dumpFormatViewIrRust, ensureExample } from '../rust/dump.ts';
 import { normalizeJson } from '../normalize.ts';
 import { upstreamDir } from '../paths.ts';
 
@@ -31,7 +27,6 @@ function listXlsxFiles(root: string): string[] {
 			else if (XLSX_EXT.test(name.name)) out.push(p);
 		}
 	};
-	// Same corpus as issue-16 (missing on-demand L/XL files are skipped below).
 	walk(join(root, 'fixtures/real/xlsx'));
 	walk(join(root, 'fixtures/opc/allowed'));
 	walk(join(root, 'fixtures/upstream/xlsx'));
@@ -60,39 +55,63 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 	const root = repoRoot();
 	const notes: string[] = [];
 	ensureExample('xlsx_dump', 'nitro-xml-xlsx');
+	ensureExample('xlsx_view_ir_dump', 'nitro-xml-xlsx');
 
 	let n = 0;
-	let bad = 0;
+	let badWorksheet = 0;
+	let badViewIr = 0;
+	let badAny = 0;
 	for (const f of listXlsxFiles(root)) {
 		if (!existsSync(f)) continue;
-		// Skip on-demand XL names that may be absent (fixtures/verify --skip-on-demand).
 		if (/\b(xl_|cells_1m)/.test(f)) continue;
 		n++;
+		let fileBad = false;
 		const ref = dumpOracleSubprocess(f);
 		const got = dumpXlsxWorkbookRust(f);
 		if (got.status === 101 || got.status === 124 || (got.status !== null && got.status > 128)) {
-			bad++;
+			badWorksheet++;
+			badViewIr++;
+			fileBad = true;
 			if (notes.length < 20) notes.push(`panic/timeout/crash rc=${got.status} on ${f}`);
 			continue;
 		}
 		if (!ref.ok || !got.ok) {
 			if (!ref.ok && !got.ok) continue;
-			bad++;
-			if (notes.length < 20) notes.push(`accept/reject mismatch on ${f}`);
+			badWorksheet++;
+			fileBad = true;
+			if (notes.length < 20) notes.push(`worksheet accept/reject mismatch on ${f}`);
+		} else if (normalizeJson(ref.json) !== normalizeJson(got.json)) {
+			badWorksheet++;
+			fileBad = true;
+			if (notes.length < 20) notes.push(`worksheet output differs on ${f}`);
+		}
+
+		let oracleIr: unknown;
+		let rustIr: unknown;
+		try {
+			oracleIr = await dumpXlsxViewIr(f);
+			rustIr = dumpFormatViewIrRust('xlsx', f, '#18');
+		} catch (e) {
+			badViewIr++;
+			fileBad = true;
+			if (notes.length < 20) notes.push(`view-IR error on ${f}: ${e}`);
 			continue;
 		}
-		if (normalizeJson(ref.json) !== normalizeJson(got.json)) {
-			bad++;
-			if (notes.length < 20) notes.push(`output differs on ${f}`);
+		if (normalizeJson(oracleIr) !== normalizeJson(rustIr)) {
+			badViewIr++;
+			fileBad = true;
+			if (notes.length < 20) notes.push(`view-IR differs on ${f}`);
 		}
+		if (fileBad) badAny++;
 	}
-	notes.push(`worksheet differential: ${n - bad}/${n} files match upstream`);
-	return { compared: n, mismatched: bad, notes };
+	notes.push(`worksheet differential: ${n - badWorksheet}/${n} files match upstream`);
+	notes.push(`view-IR differential: ${n - badViewIr}/${n} files match upstream`);
+	return { compared: n, mismatched: badAny, notes };
 }
 
 export const xlsxComparison: Comparison = {
 	id: 'xlsx',
-	label: 'xlsx worksheet slice (issue #16)',
+	label: 'xlsx worksheet + view-IR (#16, #18)',
 	ready: true,
 	todo: undefined,
 	async oracle(fixturePath: string) {

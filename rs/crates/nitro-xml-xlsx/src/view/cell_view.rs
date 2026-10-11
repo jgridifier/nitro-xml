@@ -1,0 +1,302 @@
+// SPDX-License-Identifier: Apache-2.0
+// Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/layout/cell-view.ts; changes listed in PROVENANCE.md.
+
+use crate::model::{ActiveWorksheet, DumpCellValue, WorkbookSlice};
+use crate::numfmt::{format_value, FormatOptions};
+use crate::sheet_access::{
+    dump_value_to_cell_value, get_cell, is_cell_error, range_contains, CellIndex,
+};
+use crate::styles::style_at;
+use crate::view::sparkline_data::sparkline_view_at;
+use crate::view::style_view::{borders_view, fill_view, font_view, merge_font};
+use crate::view::types::{CellView, RichRun};
+use crate::view::units::INDENT_PX_PER_LEVEL;
+
+pub fn effective_style_id(sheet: &ActiveWorksheet, index: &CellIndex, row: u32, col: u32) -> u32 {
+    if let Some(cell) = get_cell(sheet, index, row, col) {
+        if let Some(s) = cell.style_id {
+            return s;
+        }
+        return 0;
+    }
+    if let Some(info) = sheet.row_info.get(&row) {
+        if let Some(s) = info.style_id {
+            return s;
+        }
+    }
+    for c in &sheet.columns {
+        if col >= c.min && col <= c.max {
+            return c.style_id.unwrap_or(0);
+        }
+    }
+    0
+}
+
+pub fn general_alignment(value: &DumpCellValue) -> &'static str {
+    match value {
+        DumpCellValue::Number(_) | DumpCellValue::NumberRaw(_) => "right",
+        DumpCellValue::Bool(_) | DumpCellValue::Error(_) => "center",
+        _ => "left",
+    }
+}
+
+pub fn rotation_degrees(text_rotation: Option<f64>) -> (f64, bool) {
+    let tr = text_rotation.unwrap_or(0.0);
+    if tr == 0.0 {
+        return (0.0, false);
+    }
+    if tr == 255.0 {
+        return (0.0, true);
+    }
+    if tr > 90.0 && tr <= 180.0 {
+        return (-(tr - 90.0), false);
+    }
+    (tr.clamp(-90.0, 90.0), false)
+}
+
+#[allow(clippy::map_clone)]
+fn indexed_palette(workbook: &WorkbookSlice) -> Vec<&str> {
+    workbook
+        .palette
+        .as_ref()
+        .map(|p| p.iter().map(|s| s.as_str()).collect())
+        .unwrap_or_else(|| {
+            crate::view::colors::INDEXED_COLORS
+                .iter()
+                .map(|s| *s)
+                .collect()
+        })
+}
+
+fn display_text(
+    value: &DumpCellValue,
+    num_fmt: &str,
+    workbook: &WorkbookSlice,
+    sheet: &ActiveWorksheet,
+) -> (String, Option<String>) {
+    if matches!(value, DumpCellValue::Null) {
+        return (String::new(), None);
+    }
+    if let DumpCellValue::Number(n) = value {
+        if *n == 0.0 && !sheet.view.show_zeros {
+            return (String::new(), None);
+        }
+    }
+    if let DumpCellValue::Bool(b) = value {
+        return (if *b { "TRUE" } else { "FALSE" }.into(), None);
+    }
+    if let DumpCellValue::Error(e) = value {
+        return (e.clone(), None);
+    }
+    let cv = dump_value_to_cell_value(value);
+    let formatted = format_value(
+        &cv,
+        if num_fmt.is_empty() {
+            "General"
+        } else {
+            num_fmt
+        },
+        &FormatOptions {
+            date1904: workbook.date1904,
+            width: None,
+            measure: None,
+        },
+    );
+    if let Some(c) = formatted.color {
+        (formatted.text, Some(c))
+    } else {
+        (formatted.text, None)
+    }
+}
+
+#[derive(Default)]
+pub struct CellViewOptions<'a> {
+    pub indent_px: Option<f64>,
+    pub sheet_index: Option<usize>,
+    pub all_sheets: Option<&'a [Option<ActiveWorksheet>]>,
+}
+
+/// Core cell view without conditional formatting (oracle parity path).
+pub fn cell_view(
+    workbook: &WorkbookSlice,
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    row: u32,
+    col: u32,
+    options: CellViewOptions<'_>,
+) -> CellView {
+    let indexed = indexed_palette(workbook);
+    let cell = get_cell(sheet, index, row, col);
+    let value = cell.map(|c| c.value.clone()).unwrap_or(DumpCellValue::Null);
+    let value_for_align = value.clone();
+    let style = style_at(
+        &workbook.styles,
+        Some(effective_style_id(sheet, index, row, col)),
+    );
+
+    let default_font = workbook.styles.first().map(|s| &s.font);
+    let mut base = style.font.clone();
+    if base.name.is_none() && base.scheme.is_none() {
+        if let Some(df) = default_font {
+            if df.name.is_some() {
+                base.name = df.name.clone();
+            }
+            if df.scheme.is_some() {
+                base.scheme = df.scheme.clone();
+            }
+        }
+    }
+    if base.size.is_none() {
+        if let Some(df) = default_font {
+            if df.size.is_some() {
+                base.size = df.size;
+            }
+        }
+    }
+    let font = merge_font(&base, None);
+    let formula_text = if sheet.view.show_formulas == Some(true) {
+        cell.and_then(|c| c.formula.as_ref())
+            .map(|f| format!("={}", f))
+    } else {
+        None
+    };
+    let shown = if let Some(ft) = &formula_text {
+        (ft.clone(), None)
+    } else {
+        let (t, c) = display_text(&value, &style.num_fmt, workbook, sheet);
+        (t, c)
+    };
+    let mut font_view_resolved = font_view(&font, &workbook.theme, &indexed);
+    if let Some(c) = shown.1 {
+        font_view_resolved.color = c;
+    }
+
+    let alignment = style.alignment.as_ref();
+    let horizontal = alignment
+        .and_then(|a| a.horizontal.as_deref())
+        .unwrap_or("general");
+    let h_align = if horizontal != "general" {
+        horizontal.to_string()
+    } else if formula_text.is_some() {
+        "left".into()
+    } else {
+        general_alignment(&value_for_align).to_string()
+    };
+    let text_rotation = alignment.and_then(|a| a.text_rotation);
+    let (rotation, vertical) = rotation_degrees(text_rotation);
+    let wrap = alignment.and_then(|a| a.wrap_text) == Some(true)
+        || h_align == "justify"
+        || h_align == "distributed";
+    let shrink = alignment.and_then(|a| a.shrink_to_fit) == Some(true) && !wrap;
+    let indentable = h_align == "left" || h_align == "right" || h_align == "distributed";
+    let indent = alignment.and_then(|a| a.indent).unwrap_or(0.0);
+    let indent_px = if indentable {
+        indent * options.indent_px.unwrap_or(INDENT_PX_PER_LEVEL)
+    } else {
+        0.0
+    };
+
+    let fill = fill_view(Some(&style.fill), &workbook.theme, false, &indexed);
+
+    let is_number = matches!(
+        value,
+        DumpCellValue::Number(_) | DumpCellValue::NumberRaw(_)
+    ) && formula_text.is_none();
+    let overflow = (formula_text.is_some()
+        || matches!(&value_for_align, DumpCellValue::String(s) if !s.is_empty()))
+        && !wrap
+        && !shrink
+        && rotation == 0.0
+        && !vertical
+        && h_align != "fill"
+        && !sheet.merges.iter().any(|m| range_contains(m, row, col));
+
+    let mut view = CellView {
+        text: shown.0,
+        title: None,
+        font: font_view_resolved,
+        fill,
+        borders: borders_view(&style.border, &workbook.theme, &indexed),
+        h_align,
+        v_align: alignment
+            .and_then(|a| a.vertical.as_deref())
+            .unwrap_or("bottom")
+            .to_string(),
+        wrap,
+        shrink,
+        indent_px,
+        rotation,
+        vertical_text: vertical,
+        is_number,
+        overflow,
+        data_bar: None,
+        icon: None,
+        has_comment: sheet
+            .comment_addresses
+            .iter()
+            .any(|a| a.row == row && a.col == col),
+        has_hyperlink: false,
+        validation_list: sheet.data_validations.iter().any(|dv| {
+            dv.validation_type == "list"
+                && dv.show_drop_down != Some(false)
+                && dv.ranges.iter().any(|r| range_contains(r, row, col))
+        }),
+        is_error: is_cell_error(&value) && formula_text.is_none(),
+        rich: None,
+        sparkline: None,
+    };
+
+    for link in &sheet.hyperlinks {
+        if range_contains(&link.range, row, col) {
+            view.has_hyperlink = true;
+            let title = link
+                .tooltip
+                .clone()
+                .or_else(|| link.target.clone())
+                .or_else(|| link.location.clone());
+            if let Some(t) = title {
+                view.title = Some(t);
+            }
+            break;
+        }
+    }
+
+    if let (Some(sheet_index), Some(all_sheets)) = (options.sheet_index, options.all_sheets) {
+        if !all_sheets.is_empty() {
+            if let Some(sp) = sparkline_view_at(workbook, all_sheets, sheet_index, row, col) {
+                view.sparkline = Some(sp);
+            }
+        }
+    }
+
+    if let Some(c) = cell {
+        if let Some(rt) = &c.rich_text {
+            if matches!(value, DumpCellValue::String(_)) {
+                view.rich = Some(
+                    rt.iter()
+                        .map(|run| RichRun {
+                            text: run.text.clone(),
+                            font: font_view(
+                                &merge_font(&font, run.font.as_ref()),
+                                &workbook.theme,
+                                &indexed,
+                            ),
+                        })
+                        .collect(),
+                );
+            }
+        }
+    }
+
+    view
+}
+
+pub fn is_blank_view(view: &CellView) -> bool {
+    view.text.is_empty()
+        && view.fill.is_none()
+        && !view.borders.has_borders()
+        && view.data_bar.is_none()
+        && view.icon.is_none()
+        && !view.has_comment
+        && view.sparkline.is_none()
+}

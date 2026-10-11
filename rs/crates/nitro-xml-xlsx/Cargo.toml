@@ -21,3 +21,7 @@ libc = "0.2"
 [[example]]
 name = "xlsx_dump"
 path = "examples/xlsx_dump.rs"
+
+[[example]]
+name = "xlsx_view_ir_dump"
+path = "examples/xlsx_view_ir_dump.rs"

@@ -26,6 +26,36 @@ pub fn default_sheet_view() -> SheetView {
     }
 }
 
+use crate::model::DataValidation;
+
+pub fn read_data_validations(node: Option<&Element>) -> Vec<DataValidation> {
+    let Some(node) = node else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for dv in x_children(node, "dataValidation") {
+        let ranges = parse_sqref(att(Some(dv), "sqref").unwrap_or(""));
+        if ranges.is_empty() {
+            continue;
+        }
+        let validation_type = att(Some(dv), "type").unwrap_or("none").to_string();
+        let hide_drop_down = bool_attr(Some(dv), "showDropDown") == Some(true);
+        let show_drop_down = if validation_type == "list" {
+            Some(!hide_drop_down)
+        } else if hide_drop_down {
+            Some(false)
+        } else {
+            None
+        };
+        out.push(DataValidation {
+            ranges,
+            validation_type,
+            show_drop_down,
+        });
+    }
+    out
+}
+
 pub fn parse_sqref(sqref: &str) -> Vec<CellRange> {
     sqref
         .split_whitespace()

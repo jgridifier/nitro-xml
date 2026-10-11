@@ -9,6 +9,8 @@ export const Op = Object.freeze({
   CreateElement: 5,
   SetAttr: 6,
   AppendChild: 7,
+  SetText: 8,
+  SetStyle: 9,
 });
 
 /** Apply one frame's command bytes; on truncated/unknown ops stops without throwing. */
@@ -129,6 +131,34 @@ export function applyCommandBuffer(bytes, target) {
         const parent = parentId === 0 ? root : nodes.get(parentId);
         const child = nodes.get(childId);
         if (parent && child) parent.appendChild(child);
+        ops++;
+        break;
+      }
+      case Op.SetText: {
+        if (!need(8)) return { ops, error: "truncated SetText" };
+        const id = view.getUint32(i, true);
+        const textId = view.getUint32(i + 4, true);
+        i += 8;
+        const el = nodes.get(id);
+        if (el) {
+          const text = target.resolve(textId) || "";
+          el.textContent = text;
+        }
+        ops++;
+        break;
+      }
+      case Op.SetStyle: {
+        if (!need(12)) return { ops, error: "truncated SetStyle" };
+        const id = view.getUint32(i, true);
+        const propId = view.getUint32(i + 4, true);
+        const valId = view.getUint32(i + 8, true);
+        i += 12;
+        const el = nodes.get(id);
+        if (el) {
+          const prop = target.resolve(propId);
+          const val = target.resolve(valId);
+          if (prop != null) el.style[prop] = val ?? "";
+        }
         ops++;
         break;
       }

@@ -13,7 +13,7 @@ details{margin:8px 0}
 </style></head><body>
 <header><h1>Nitro XML scoreboard</h1><div><a href="../">Plan</a> · <a href="https://github.com/jgridifier/nitro-xml/blob/main/docs/scoreboard-method.md">Method</a> · <a href="data/parse-latest.json">Raw data</a></div></header>
 <main>
-<p class="note">Races: <b>parse</b> (live below), <b>render to first paint</b> and <b>open, edit, save</b> (not run yet: they need Nitro XML's viewer and editor, #70/#71). Nitro XML itself is <b>not entered</b> until its parsers land (#11 to #13). Lower is faster. Ratios are versus the upstream ooxml TypeScript engine (the reference) as a geometric mean over the files both parsed with equal output.</p>
+<p class="note">Races: <b>parse</b> (live below), <b>render to first paint</b> and <b>open, edit, save</b> (not run yet: they need Nitro XML's viewer and editor, #70/#71). Nitro XML itself is <b>not entered</b> until its parsers land (#11 to #13). Lower is faster. Ratios are versus the upstream ooxml TypeScript engine (the reference) as a geometric mean over the files both parsed with equal output. Entries that do not match that output are <b>not comparable</b> and are not ranked. Losses (slower than TS) are published in the same column as wins.</p>
 <div id="meta" class="muted">Loading…</div>
 <div id="out"></div>
 <script type="module">
@@ -21,24 +21,32 @@ const d = await (await fetch('data/parse-latest.json')).json();
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const ms = (x) => (x == null ? '' : x < 10 ? x.toFixed(2) : x.toFixed(1));
 const byId = Object.fromEntries(d.entrants.map((e) => [e.id, e]));
-document.getElementById('meta').innerHTML = `Parse race run ${esc(d.generatedAt.slice(0, 16).replace('T', ' '))} UTC at commit <code>${esc(d.git.short)}</code> · ${esc(d.browser.name)} ${esc(d.browser.version)} · ${esc(d.machine.cpuModel)}, ${d.machine.logicalCores} logical cores · ${d.method.warmupRuns} warm-up + ${d.method.timedRuns} timed runs per file, fresh page per (file, entrant), seeded random order.`;
+document.getElementById('meta').innerHTML = `Parse race run ${esc(d.generatedAt.slice(0, 16).replace('T', ' '))} UTC at commit <code>${esc(d.git.short)}</code> · ${esc(d.browser.name)} ${esc(d.browser.version)} · ${esc(d.machine.cpuModel)}, ${d.machine.logicalCores} logical cores · ${d.method.warmupRuns} warm-up + ${d.method.timedRuns} timed runs per file, seed ${esc(d.method.seed ?? '—')}, fresh page per (file, entrant).`;
 let html = '';
+const lossLines = [];
 for (const [fmt, rows] of Object.entries(d.summary)) {
-  html += `<h2>${fmt} parse race (${d.files.filter((f) => f.format === fmt).length} real files)</h2><div class="tw"><table><tr><th>Entrant</th><th>Version</th><th>Median of per-file medians (ms)</th><th>Ratio vs TS (geomean)</th><th>Faster / slower than TS</th><th>Same output as TS</th><th>Errors</th><th>Notes</th></tr>`;
+  html += `<h2>${fmt} parse race (${d.files.filter((f) => f.format === fmt).length} real files)</h2><div class="tw"><table><tr><th>Entrant</th><th>Version</th><th>Median of per-file medians (ms)</th><th>Ratio vs TS (geomean)</th><th>Wins vs TS</th><th>Losses vs TS</th><th>Same output as TS</th><th>Errors</th><th>Notes</th></tr>`;
   const ordered = Object.entries(rows).sort((a, b) => (a[1].medianOfMediansMs ?? 1e9) - (b[1].medianOfMediansMs ?? 1e9));
   for (const [id, r] of ordered) {
     const e = byId[id] ?? {};
-    if (r.status !== 'entered') { html += `<tr><td>${esc(e.name ?? id)}</td><td>${esc(e.version)}</td><td colspan="5" class="muted">${esc(r.status)}</td><td class="muted" title="${esc(r.reason ?? e.reason)}">${esc(String(r.reason ?? e.reason ?? '').slice(0, 140))}${String(r.reason ?? e.reason ?? '').length > 140 ? '… (see Method)' : ''}</td></tr>`; continue; }
-    const note = e.timingScope && e.timingScope !== 'parse' ? `times include ${esc(e.timingScope)}` : '';
-    html += `<tr><td>${esc(e.name ?? id)}${id === d.method.reference ? ' (reference)' : ''}</td><td>${esc(e.version)}</td><td class="n">${ms(r.medianOfMediansMs)}</td><td class="n">${id === d.method.reference ? '1' : r.geomeanRatioVsReference?.toFixed(3) ?? ''} <span class="muted">on ${r.sharedWithReference}</span></td><td class="n">${r.winsVsReference} / ${r.lossesVsReference}</td><td class="n">${r.comparable}/${r.files}</td><td class="n">${r.errors}</td><td>${note}</td></tr>`;
+    if (r.status !== 'entered') { html += `<tr><td>${esc(e.name ?? id)}</td><td>${esc(e.version)}</td><td colspan="6" class="muted">${esc(r.status)}</td><td class="muted" title="${esc(r.reason ?? e.reason)}">${esc(String(r.reason ?? e.reason ?? '').slice(0, 140))}${String(r.reason ?? e.reason ?? '').length > 140 ? '… (see Method)' : ''}</td></tr>`; continue; }
+    const note = [
+      e.timingScope && e.timingScope !== 'parse' ? `times include ${esc(e.timingScope)}` : '',
+      r.notComparable ? `${r.notComparable} file(s) not comparable` : '',
+    ].filter(Boolean).join('; ');
+    if (id !== d.method.reference && (r.lossesVsReference ?? 0) > 0) {
+      lossLines.push(`${fmt}: ${e.name ?? id} slower on ${r.lossesVsReference}/${r.sharedWithReference} comparable files (geomean ${r.geomeanRatioVsReference?.toFixed(3) ?? 'n/a'}×)`);
+    }
+    html += `<tr><td>${esc(e.name ?? id)}${id === d.method.reference ? ' (reference)' : ''}</td><td>${esc(e.version)}</td><td class="n">${ms(r.medianOfMediansMs)}</td><td class="n">${id === d.method.reference ? '1' : r.geomeanRatioVsReference?.toFixed(3) ?? 'n/a'} <span class="muted">on ${r.sharedWithReference}</span></td><td class="n">${r.winsVsReference ?? ''}</td><td class="n">${r.lossesVsReference ?? ''}</td><td class="n">${r.comparable}/${r.files}</td><td class="n">${r.errors}</td><td>${note}</td></tr>`;
   }
   html += '</table></div>';
   const fx = d.files.filter((f) => f.format === fmt);
   const ids = ordered.filter(([, r]) => r.status === 'entered').map(([id]) => id);
-  html += `<details><summary>Per file (median ms; † = output differs from TS, see raw data)</summary><div class="tw"><table><tr><th>File</th><th>KB</th>${ids.map((i) => `<th>${esc(i)}</th>`).join('')}</tr>`;
+  html += `<details><summary>Per file (median ms; † = output differs from TS, not ranked — see raw data)</summary><div class="tw"><table><tr><th>File</th><th>KB</th>${ids.map((i) => `<th>${esc(i)}</th>`).join('')}</tr>`;
   for (const f of fx) html += `<tr><td>${esc(f.file)}</td><td class="n">${(f.bytes / 1024).toFixed(0)}</td>${ids.map((i) => { const r = f.results[i]; return `<td class="n">${!r ? '' : r.status === 'ok' ? ms(r.medianMs) + (r.comparable ? '' : '†') : esc(r.status)}</td>`; }).join('')}</tr>`;
   html += '</table></div></details>';
 }
+html = `<h2>Losses (slower than upstream TS)</h2>${lossLines.length ? `<ul>${lossLines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : '<p class="muted">No entered competitor was slower than the reference on any comparable file in this run.</p>'}` + html;
 html += `<h2>Evaluated, not entered</h2><ul>${(d.evaluated ?? []).map((e) => `<li><b>${esc(e.name)}</b> ${esc(e.version)}: ${esc(e.assessment)}</li>`).join('')}</ul>`;
 document.getElementById('out').innerHTML = html;
 </script>

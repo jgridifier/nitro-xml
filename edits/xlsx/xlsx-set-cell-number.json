@@ -1,0 +1,15 @@
+{
+  "id": "xlsx-set-cell-number",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Set A1 to number via typed input",
+  "ops": [
+    {
+      "op": "setCellInput",
+      "sheet": 0,
+      "row": 0,
+      "col": 0,
+      "text": "42"
+    }
+  ]
+}

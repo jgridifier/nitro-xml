@@ -1,0 +1,13 @@
+{
+  "id": "xlsx-rename-sheet",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Rename first sheet",
+  "ops": [
+    {
+      "op": "renameSheet",
+      "index": 0,
+      "name": "Renamed"
+    }
+  ]
+}

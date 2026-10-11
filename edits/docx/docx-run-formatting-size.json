@@ -1,0 +1,14 @@
+{
+  "id": "docx-run-formatting-size",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Resize existing run",
+  "ops": [
+    {
+      "op": "setRunFormatting",
+      "blockIndex": 0,
+      "runIndex": 0,
+      "fontSize": 16
+    }
+  ]
+}

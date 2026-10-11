@@ -1,0 +1,14 @@
+{
+  "id": "pptx-notes-text",
+  "format": "pptx",
+  "fixture": "gen-pptx-notes-print",
+  "description": "Edit text on notes-print fixture",
+  "ops": [
+    {
+      "op": "setShapeText",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "text": "Notes title"
+    }
+  ]
+}

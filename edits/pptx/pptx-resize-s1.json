@@ -1,0 +1,15 @@
+{
+  "id": "pptx-resize-s1",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Resize slide 1 shape",
+  "ops": [
+    {
+      "op": "patchShapeGeometry",
+      "slideIndex": 1,
+      "elementIndex": 0,
+      "width": 400,
+      "height": 120
+    }
+  ]
+}

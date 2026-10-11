@@ -1,0 +1,13 @@
+{
+  "id": "docx-pages10-insert-col",
+  "format": "docx",
+  "fixture": "gen-docx-pages-10",
+  "description": "Insert table column",
+  "ops": [
+    {
+      "op": "insertTableColumn",
+      "blockIndex": 19,
+      "at": 1
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "docx-text-and-format",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Replace text then bold+center",
+  "ops": [
+    {
+      "op": "setParagraphText",
+      "blockIndex": 0,
+      "text": "Formatted"
+    },
+    {
+      "op": "setRunFormatting",
+      "blockIndex": 0,
+      "runIndex": 0,
+      "bold": true,
+      "color": "#0000FF"
+    },
+    {
+      "op": "setParagraphAlign",
+      "blockIndex": 0,
+      "align": "center"
+    }
+  ]
+}

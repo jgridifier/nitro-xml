@@ -1,0 +1,14 @@
+{
+  "id": "pptx-set-text-s5",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Edit mid-deck slide 5",
+  "ops": [
+    {
+      "op": "setShapeText",
+      "slideIndex": 5,
+      "elementIndex": 0,
+      "text": "Slide six"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "xlsx-set-cell-value-bool",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Set B2 via boolean CellValue",
+  "ops": [
+    {
+      "op": "setCellValue",
+      "sheet": 0,
+      "row": 1,
+      "col": 1,
+      "value": true
+    }
+  ]
+}

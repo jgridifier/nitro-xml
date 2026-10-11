@@ -1,0 +1,16 @@
+{
+  "id": "xlsx-style-numfmt",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Number format on A1",
+  "ops": [
+    {
+      "op": "applyStyle",
+      "sheet": 0,
+      "range": "A1",
+      "patch": {
+        "numFmt": "0.00"
+      }
+    }
+  ]
+}

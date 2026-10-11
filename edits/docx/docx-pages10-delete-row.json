@@ -1,0 +1,18 @@
+{
+  "id": "docx-pages10-delete-row",
+  "format": "docx",
+  "fixture": "gen-docx-pages-10",
+  "description": "Insert then delete a table row",
+  "ops": [
+    {
+      "op": "insertTableRow",
+      "blockIndex": 19,
+      "at": 1
+    },
+    {
+      "op": "deleteTableRow",
+      "blockIndex": 19,
+      "at": 1
+    }
+  ]
+}

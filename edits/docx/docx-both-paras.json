@@ -1,0 +1,19 @@
+{
+  "id": "docx-both-paras",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Edit both line-number paragraphs",
+  "ops": [
+    {
+      "op": "setParagraphText",
+      "blockIndex": 0,
+      "text": "One"
+    },
+    {
+      "op": "setParagraphText",
+      "blockIndex": 1,
+      "text": "Two",
+      "italic": true
+    }
+  ]
+}

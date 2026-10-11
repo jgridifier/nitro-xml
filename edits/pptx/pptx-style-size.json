@@ -1,0 +1,14 @@
+{
+  "id": "pptx-style-size",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Enlarge slide 0 font",
+  "ops": [
+    {
+      "op": "setShapeTextStyle",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "fontSize": 36
+    }
+  ]
+}

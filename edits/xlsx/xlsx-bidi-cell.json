@@ -1,0 +1,15 @@
+{
+  "id": "xlsx-bidi-cell",
+  "format": "xlsx",
+  "fixture": "bidi-rtl-sheet",
+  "description": "Edit cell on RTL sheet",
+  "ops": [
+    {
+      "op": "setCellInput",
+      "sheet": 0,
+      "row": 0,
+      "col": 0,
+      "text": "rtl-edit"
+    }
+  ]
+}

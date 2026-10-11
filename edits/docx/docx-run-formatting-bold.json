@@ -1,0 +1,14 @@
+{
+  "id": "docx-run-formatting-bold",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Bold existing run",
+  "ops": [
+    {
+      "op": "setRunFormatting",
+      "blockIndex": 0,
+      "runIndex": 0,
+      "bold": true
+    }
+  ]
+}

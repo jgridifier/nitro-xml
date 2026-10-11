@@ -1,0 +1,15 @@
+{
+  "id": "docx-pages10-table-cell",
+  "format": "docx",
+  "fixture": "gen-docx-pages-10",
+  "description": "Set table cell text on pages_10",
+  "ops": [
+    {
+      "op": "setTableCellText",
+      "blockIndex": 19,
+      "row": 0,
+      "col": 0,
+      "text": "AA"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "id": "xlsx-batch-cells",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Batch write three cells",
+  "ops": [
+    {
+      "op": "batch",
+      "label": "fill-row",
+      "ops": [
+        {
+          "op": "setCellInput",
+          "sheet": 0,
+          "row": 2,
+          "col": 0,
+          "text": "1"
+        },
+        {
+          "op": "setCellInput",
+          "sheet": 0,
+          "row": 2,
+          "col": 1,
+          "text": "2"
+        },
+        {
+          "op": "setCellInput",
+          "sheet": 0,
+          "row": 2,
+          "col": 2,
+          "text": "3"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "docx-pages10-delete-col",
+  "format": "docx",
+  "fixture": "gen-docx-pages-10",
+  "description": "Insert then delete a table column",
+  "ops": [
+    {
+      "op": "insertTableColumn",
+      "blockIndex": 19,
+      "at": 1
+    },
+    {
+      "op": "deleteTableColumn",
+      "blockIndex": 19,
+      "at": 1
+    }
+  ]
+}

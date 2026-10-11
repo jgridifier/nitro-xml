@@ -1,0 +1,17 @@
+{
+  "id": "pptx-notes-move",
+  "format": "pptx",
+  "fixture": "gen-pptx-notes-print",
+  "description": "Move shape on notes-print fixture",
+  "ops": [
+    {
+      "op": "patchShapeGeometry",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "x": 100,
+      "y": 100,
+      "width": 240,
+      "height": 72
+    }
+  ]
+}

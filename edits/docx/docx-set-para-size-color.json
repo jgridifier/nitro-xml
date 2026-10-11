@@ -1,0 +1,15 @@
+{
+  "id": "docx-set-para-size-color",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Set paragraph size and color",
+  "ops": [
+    {
+      "op": "setParagraphText",
+      "blockIndex": 0,
+      "text": "Sized",
+      "fontSize": 18,
+      "color": "#FF0000"
+    }
+  ]
+}

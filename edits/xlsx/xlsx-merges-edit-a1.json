@@ -1,0 +1,15 @@
+{
+  "id": "xlsx-merges-edit-a1",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k-merges",
+  "description": "Edit A1 on merged fixture",
+  "ops": [
+    {
+      "op": "setCellInput",
+      "sheet": 0,
+      "row": 0,
+      "col": 0,
+      "text": "merged-edit"
+    }
+  ]
+}

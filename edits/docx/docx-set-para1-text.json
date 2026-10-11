@@ -1,0 +1,13 @@
+{
+  "id": "docx-set-para1-text",
+  "format": "docx",
+  "fixture": "gen-docx-line-numbers",
+  "description": "Replace second paragraph text",
+  "ops": [
+    {
+      "op": "setParagraphText",
+      "blockIndex": 1,
+      "text": "Edited line two"
+    }
+  ]
+}

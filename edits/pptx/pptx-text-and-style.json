@@ -1,0 +1,21 @@
+{
+  "id": "pptx-text-and-style",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Edit text then bold+size",
+  "ops": [
+    {
+      "op": "setShapeText",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "text": "Styled"
+    },
+    {
+      "op": "setShapeTextStyle",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "bold": true,
+      "fontSize": 28
+    }
+  ]
+}

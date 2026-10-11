@@ -1,0 +1,14 @@
+{
+  "id": "pptx-style-bold",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Bold slide 0 text",
+  "ops": [
+    {
+      "op": "setShapeTextStyle",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "bold": true
+    }
+  ]
+}

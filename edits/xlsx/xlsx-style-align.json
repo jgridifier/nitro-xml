@@ -1,0 +1,18 @@
+{
+  "id": "xlsx-style-align",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Center-align A1",
+  "ops": [
+    {
+      "op": "applyStyle",
+      "sheet": 0,
+      "range": "A1",
+      "patch": {
+        "alignment": {
+          "horizontal": "center"
+        }
+      }
+    }
+  ]
+}

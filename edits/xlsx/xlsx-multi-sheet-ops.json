@@ -1,0 +1,24 @@
+{
+  "id": "xlsx-multi-sheet-ops",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Add, rename, write cell on new sheet",
+  "ops": [
+    {
+      "op": "addSheet",
+      "name": "Data"
+    },
+    {
+      "op": "setCellInput",
+      "sheet": 1,
+      "row": 0,
+      "col": 0,
+      "text": "sheet2"
+    },
+    {
+      "op": "renameSheet",
+      "index": 1,
+      "name": "Data2"
+    }
+  ]
+}

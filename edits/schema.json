@@ -1,0 +1,693 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nitro-xml.dev/edits/schema.json",
+  "title": "Nitro XML editor op-script",
+  "description": "Format-neutral editor command scripts for gate (b)/(c). One vocabulary drives the TS oracle and the Rust editor (#63+).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "format",
+    "fixture",
+    "ops"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "format": {
+      "type": "string",
+      "enum": [
+        "xlsx",
+        "docx",
+        "pptx"
+      ]
+    },
+    "fixture": {
+      "type": "string",
+      "minLength": 1,
+      "description": "fixtures/manifest.json id"
+    },
+    "description": {
+      "type": "string"
+    },
+    "ops": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/op"
+      }
+    }
+  },
+  "$defs": {
+    "op": {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": [
+            "setCellInput",
+            "setCellValue",
+            "applyStyle",
+            "applyCellStyle",
+            "addSheet",
+            "renameSheet",
+            "deleteSheet",
+            "batch",
+            "setParagraphText",
+            "setRunFormatting",
+            "setParagraphAlign",
+            "setTableCellText",
+            "insertTableRow",
+            "deleteTableRow",
+            "insertTableColumn",
+            "deleteTableColumn",
+            "setShapeText",
+            "patchShapeGeometry",
+            "setShapeTextStyle"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setCellInput"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "sheet",
+              "row",
+              "col",
+              "text"
+            ],
+            "properties": {
+              "sheet": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "row": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "col": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setCellValue"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "sheet",
+              "row",
+              "col",
+              "value"
+            ],
+            "properties": {
+              "sheet": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "row": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "col": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "value": {}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "applyStyle"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "sheet",
+              "range",
+              "patch"
+            ],
+            "properties": {
+              "sheet": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "range": {
+                "type": "string"
+              },
+              "patch": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "applyCellStyle"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "sheet",
+              "range",
+              "name"
+            ],
+            "properties": {
+              "sheet": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "range": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "addSheet"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "renameSheet"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "index",
+              "name"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "deleteSheet"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "index"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "batch"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "label",
+              "ops"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "ops": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/op"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setParagraphText"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "blockIndex",
+              "text"
+            ],
+            "properties": {
+              "blockIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "text": {
+                "type": "string"
+              },
+              "bold": {
+                "type": "boolean"
+              },
+              "italic": {
+                "type": "boolean"
+              },
+              "fontSize": {
+                "type": "number"
+              },
+              "color": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setRunFormatting"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "blockIndex"
+            ],
+            "properties": {
+              "blockIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "runIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "bold": {
+                "type": "boolean"
+              },
+              "italic": {
+                "type": "boolean"
+              },
+              "fontSize": {
+                "type": "number"
+              },
+              "color": {
+                "type": "string"
+              },
+              "underline": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setParagraphAlign"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "blockIndex",
+              "align"
+            ],
+            "properties": {
+              "blockIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "align": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setTableCellText"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "blockIndex",
+              "row",
+              "col",
+              "text"
+            ],
+            "properties": {
+              "blockIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "row": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "col": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "insertTableRow"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "blockIndex",
+              "at"
+            ],
+            "properties": {
+              "blockIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "deleteTableRow"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "blockIndex",
+              "at"
+            ],
+            "properties": {
+              "blockIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "insertTableColumn"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "blockIndex",
+              "at"
+            ],
+            "properties": {
+              "blockIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "deleteTableColumn"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "blockIndex",
+              "at"
+            ],
+            "properties": {
+              "blockIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setShapeText"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "text"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "patchShapeGeometry"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "rotation": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setShapeTextStyle"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "bold": {
+                "type": "boolean"
+              },
+              "italic": {
+                "type": "boolean"
+              },
+              "fontSize": {
+                "type": "number"
+              },
+              "color": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

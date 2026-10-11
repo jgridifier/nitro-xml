@@ -1,0 +1,26 @@
+{
+  "id": "xlsx-value-and-style",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Set value then bold+numFmt",
+  "ops": [
+    {
+      "op": "setCellInput",
+      "sheet": 0,
+      "row": 0,
+      "col": 0,
+      "text": "100"
+    },
+    {
+      "op": "applyStyle",
+      "sheet": 0,
+      "range": "A1",
+      "patch": {
+        "font": {
+          "bold": true
+        },
+        "numFmt": "0"
+      }
+    }
+  ]
+}

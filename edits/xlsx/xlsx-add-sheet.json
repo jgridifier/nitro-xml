@@ -1,0 +1,12 @@
+{
+  "id": "xlsx-add-sheet",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Add a sheet named Extra",
+  "ops": [
+    {
+      "op": "addSheet",
+      "name": "Extra"
+    }
+  ]
+}

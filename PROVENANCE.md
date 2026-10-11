@@ -103,14 +103,28 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/styles.rs` | `src/core/docx/paragraph-styles.ts`, `character-styles.ts` @ e66aaec | Style catalogs, `resolveParagraphFormatting`, `resolveStyleNumbering`. |
 | `rs/crates/nitro-xml-docx/src/numbering.rs` | `src/core/docx/numbering-parse.ts`, `numbering-format.ts`, `numbering-text.ts` @ e66aaec | Numbering catalog, list labels, format helpers. |
 | `rs/crates/nitro-xml-docx/src/theme.rs` | `src/core/docx/theme.ts`, `diagram-theme.ts` @ e66aaec | Theme/settings colour mapping and `diagramColorTheme` over shared DrawingML theme types (#25). |
-| `rs/crates/nitro-xml-docx/src/settings.rs` | `src/core/docx/document-parts.ts`, `page-setup-model.ts` @ e66aaec | `parse_settings`, page setup read/validate. |
 | `rs/crates/nitro-xml-docx/src/default_styles.rs` | `src/core/docx/default-styles.ts` @ e66aaec | Built-in `DEFAULT_STYLES_XML` equivalent via `default_styles_xml()`. |
 | `rs/crates/nitro-xml-docx/src/run_properties.rs` | `src/core/docx/run-properties.ts` @ e66aaec | `parseRunProperties` for style catalogs. |
 | `rs/crates/nitro-xml-docx/src/simple_types.rs` | `src/core/docx/simple-types.ts` @ e66aaec | Shared WML simple-type parsers. |
 | `rs/crates/nitro-xml-docx/src/paragraph_alignment.rs` | `src/core/docx/paragraph-alignment.ts` @ e66aaec | `parseJustification` / `alignFromJustification`. |
-| `rs/crates/nitro-xml-docx/src/borders.rs` | `src/core/docx/table-borders.ts` @ e66aaec | Paragraph border and shading parse subset. |
+| `rs/crates/nitro-xml-docx/src/borders.rs` | `src/core/docx/table-borders.ts` @ e66aaec | Paragraph/table border and shading parse subset (#21 adds `parse_table_borders`). |
+| `rs/crates/nitro-xml-docx/src/settings.rs` | `src/core/docx/document-parts.ts`, `page-setup-model.ts`, `settings.ts` @ e66aaec | `parse_settings`, page setup read/validate, `parse_track_review` (#21). |
 | `rs/crates/nitro-xml-docx/src/ligatures.rs` | `src/core/docx/ligatures.ts` @ e66aaec | Word 2010 `w14:ligatures` on `w:rPr`. |
 | `rs/crates/nitro-xml-pptx/src/presentation.rs` | `src/core/pptx/core/core/runtime/PptxHandlerRuntimeLoadSession.ts`, `PptxHandlerRuntimeLoadPipeline.ts`, `PptxHandlerRuntimeSlideMasters.ts` @ e66aaec | Presentation open, slide list, sldSz/notesSz, master/layout chain, lazy slide parse, issue-24 JSON dump. |
 | `rs/crates/nitro-xml-pptx/src/slide.rs` | `PptxHandlerRuntimeSpTreeParsing.ts`, `ShapeParsing.ts`, `PictureParsing.ts`, `GroupParsing.ts` (+ graphic-frame table) @ e66aaec | Element tree for ported kinds; transforms/geometry via DrawingML (#25); document-order spTree walk. |
 | `rs/crates/nitro-xml-pptx/src/inheritance.rs` | `merge-xml-objects.ts`, `PptxHandlerRuntimePlaceholderLookup.ts`, `placeholder-style-family.ts` @ e66aaec | Placeholder match + layout-over-master merge (empty override must not clobber). |
 | `rs/crates/nitro-xml-pptx/src/theme.rs` | `PptxHandlerRuntimeThemeLoading.ts` @ e66aaec | Theme dump via `drawingml::parse_theme` / `theme_slot_hex` (#25). |
+| `rs/crates/nitro-xml-docx/src/body.rs` | `src/core/docx/parse.ts`, `block-parser.ts`, `document-parts.ts` @ e66aaec | `read_package`, block container parse, document parts orchestration; no save path. |
+| `rs/crates/nitro-xml-docx/src/run.rs` | `src/core/docx/block-parser.ts` (`parseRun`) @ e66aaec | Run parse for body/HF/notes. |
+| `rs/crates/nitro-xml-docx/src/table.rs` | `src/core/docx/parse-table.ts`, `write-table.ts` (`canEditTableStructure`) @ e66aaec | Table/cell parse and structureEditable. |
+| `rs/crates/nitro-xml-docx/src/drawing.rs` | `src/core/docx/drawing.ts`, `diagram.ts` (host) @ e66aaec | Inline/anchor pictures, diagram/chart hosts; #28 deep chartSpace deferred. |
+| `rs/crates/nitro-xml-docx/src/chart_host.rs` | `src/core/docx/chart.ts` (`parseChartGraphic`) @ e66aaec | Chart relationship host fields only. |
+| `rs/crates/nitro-xml-docx/src/sections.rs` | `src/core/docx/sections.ts` @ e66aaec | Raw section geometry and header/footer refs. |
+| `rs/crates/nitro-xml-docx/src/notes.rs` | `src/core/docx/notes.ts` @ e66aaec | Footnote/endnote part parse. |
+| `rs/crates/nitro-xml-docx/src/revisions.rs` | `src/core/docx/parse-revisions.ts` @ e66aaec | Revision wrappers and `collectParagraphRuns`. |
+| `rs/crates/nitro-xml-docx/src/breaks.rs` | `src/core/docx/breaks.ts` @ e66aaec | Page/column break classification. |
+| `rs/crates/nitro-xml-docx/src/hyperlink.rs` | `src/core/docx/hyperlink.ts` @ e66aaec | Hyperlink and simple HYPERLINK field parse. |
+| `rs/crates/nitro-xml-docx/src/equation.rs` | `src/core/docx/equation.ts` @ e66aaec | OMML equation runs. |
+| `rs/crates/nitro-xml-docx/src/field_runs.rs` | `src/core/docx/field-runs.ts`, `field-flags.ts` @ e66aaec | Complex field result metadata and flags. |
+| `rs/crates/nitro-xml-docx/src/comments.rs` | `src/core/docx/comments.ts` @ e66aaec | comments.xml / commentsExtended.xml. |
+| `rs/crates/nitro-xml-docx/src/warnings.rs` | `src/core/docx/parse-warnings.ts`, `parse.ts` @ e66aaec | Document and model warning assembly. |

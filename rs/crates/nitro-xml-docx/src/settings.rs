@@ -9,6 +9,26 @@ use nitro_xml_opc::xml::{parse_xml_str, Element};
 use crate::simple_types::on_off_element;
 use crate::xml_util::{first_w, get_w};
 
+pub fn parse_track_review(xml: &str) -> (Option<bool>, Option<bool>, Option<bool>) {
+    let document = parse_xml_str(xml).expect("settings xml");
+    let root = &document.root;
+    let track_changes = on_off_element(
+        first_w(Some(root), "trackRevisions").or_else(|| first_w(Some(root), "trackChanges")),
+    );
+    let track_formatting =
+        if on_off_element(first_w(Some(root), "doNotTrackFormatting")) == Some(true) {
+            Some(false)
+        } else {
+            Some(true)
+        };
+    let track_moves = if on_off_element(first_w(Some(root), "doNotTrackMoves")) == Some(true) {
+        Some(false)
+    } else {
+        Some(true)
+    };
+    (track_changes, track_formatting, track_moves)
+}
+
 pub fn parse_settings(xml: Option<&str>) -> Value {
     if xml.is_none() {
         return json!({

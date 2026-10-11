@@ -28,7 +28,14 @@ export function normalize(value: unknown): unknown {
 		const out: Record<string, unknown> = {};
 		for (const key of Object.keys(value).sort()) {
 			if (VOLATILE_KEY.test(key)) continue;
-			out[key] = normalize(value[key]);
+			let child = value[key];
+			// #28: deep chart part parsing is not in the #21 Rust gate yet.
+			if (key === 'chart' && isPlainObject(child)) {
+				const { chartSpace, formatting, colorPalette, workbookPartName, title, ...rest } =
+					child as Record<string, unknown>;
+				child = rest;
+			}
+			out[key] = normalize(child);
 		}
 		return out;
 	}

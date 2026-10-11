@@ -9,6 +9,11 @@ use nitro_xml_opc::xml::{ns, parse_xml_str, Document, Element};
 use serde_json::json;
 
 use crate::inheritance::{attr, child_local, child_path, children_local};
+use crate::level_style::{
+    parse_master_tx_styles, parse_tx_style_category, scan_sp_tree_placeholder_level_styles,
+    LevelStylesMap, MasterTxStyles,
+};
+use crate::placeholder_defaults::PlaceholderDefaultsCache;
 use crate::slide::{
     emu_to_px_helper, extract_text_body, parse_sp_tree, slim_element_for_dump,
     text_body_has_content, unwrap_alternate_content_deep, DumpElement, ParseCtx, SpTreeOptions,
@@ -109,6 +114,10 @@ pub struct Presentation<'a> {
     layout_xml: HashMap<String, Document>,
     master_xml: HashMap<String, Document>,
     layout_to_master: HashMap<String, String>,
+    presentation_level_styles: LevelStylesMap,
+    master_tx_styles: HashMap<String, MasterTxStyles>,
+    layout_placeholder_levels: HashMap<String, PlaceholderDefaultsCache>,
+    master_placeholder_levels: HashMap<String, PlaceholderDefaultsCache>,
 }
 
 impl<'a> Presentation<'a> {
@@ -145,8 +154,13 @@ impl<'a> Presentation<'a> {
             layout_xml: HashMap::new(),
             master_xml: HashMap::new(),
             layout_to_master: HashMap::new(),
+            presentation_level_styles: LevelStylesMap::new(),
+            master_tx_styles: HashMap::new(),
+            layout_placeholder_levels: HashMap::new(),
+            master_placeholder_levels: HashMap::new(),
         };
 
+        pres.presentation_level_styles = Self::load_presentation_default_text_style(&pres_doc.root);
         pres.theme = pres.load_theme()?;
         pres.slide_masters = pres.load_slide_masters()?;
         pres.slide_paths = pres.load_slide_paths()?;
@@ -330,6 +344,13 @@ impl<'a> Presentation<'a> {
             .map(str::to_owned))
     }
 
+    fn load_presentation_default_text_style(pres_root: &Element) -> LevelStylesMap {
+        let presentation = presentation_root(pres_root).unwrap_or(pres_root);
+        child_local(presentation, "defaultTextStyle", ns::P)
+            .map(parse_tx_style_category)
+            .unwrap_or_default()
+    }
+
     fn load_slide_masters(&mut self) -> Result<Vec<SlideMasterInfo>, Error> {
         let mut out = Vec::new();
         let master_paths: Vec<String> = self
@@ -355,6 +376,14 @@ impl<'a> Presentation<'a> {
                 .map(str::to_owned);
             let sp_tree = c_sld.and_then(|c| child_local(c, "spTree", ns::P));
             let placeholders = sp_tree.map(extract_master_placeholders).unwrap_or_default();
+            self.master_tx_styles
+                .insert(path.clone(), parse_master_tx_styles(sld_master));
+            if let Some(st) = sp_tree {
+                let mut cloned = st.clone();
+                unwrap_alternate_content_deep(&mut cloned);
+                self.master_placeholder_levels
+                    .insert(path.clone(), scan_sp_tree_placeholder_level_styles(&cloned));
+            }
 
             let rels: Vec<Relationship> = self.package.rels(&path)?.values().cloned().collect();
             let layout_paths =
@@ -389,6 +418,16 @@ impl<'a> Presentation<'a> {
         self.layout_xml.insert(layout_path.to_owned(), doc.clone());
         let sld_layout =
             part_root(&doc.root, "sldLayout").ok_or_else(|| missing_part("p:sldLayout"))?;
+        if let Some(c_sld) = child_local(sld_layout, "cSld", ns::P) {
+            if let Some(sp_tree) = child_local(c_sld, "spTree", ns::P) {
+                let mut cloned = sp_tree.clone();
+                unwrap_alternate_content_deep(&mut cloned);
+                self.layout_placeholder_levels.insert(
+                    layout_path.to_owned(),
+                    scan_sp_tree_placeholder_level_styles(&cloned),
+                );
+            }
+        }
         let c_sld = child_local(sld_layout, "cSld", ns::P);
         let name = c_sld
             .and_then(|c| attr(c, "name"))
@@ -467,10 +506,23 @@ impl<'a> Presentation<'a> {
             .ok_or_else(|| missing_part("p:spTree"))?;
         let mut slide_sp_tree = sp_tree.clone();
         unwrap_alternate_content_deep(&mut slide_sp_tree);
+        let layout_ph = layout_path
+            .as_ref()
+            .and_then(|lp| self.layout_placeholder_levels.get(lp));
+        let master_ph = master_path
+            .as_ref()
+            .and_then(|mp| self.master_placeholder_levels.get(mp));
+        let master_tx = master_path
+            .as_ref()
+            .and_then(|mp| self.master_tx_styles.get(mp));
         let ctx = ParseCtx {
             slide_path: &path,
             layout_sp_tree,
             master_sp_tree,
+            presentation_level_styles: Some(&self.presentation_level_styles),
+            layout_placeholder_levels: layout_ph,
+            master_placeholder_levels: master_ph,
+            master_tx_styles: master_tx,
         };
         let id_prefix = format!("{}-", path);
         let slide_options = SpTreeOptions::default();
@@ -540,10 +592,16 @@ impl<'a> Presentation<'a> {
             .to_owned();
         let sp_tree = Self::sp_tree_from_part_root("sldMaster", doc)
             .ok_or_else(|| missing_part("p:spTree"))?;
+        let master_ph = self.master_placeholder_levels.get(master_path);
+        let master_tx = self.master_tx_styles.get(master_path);
         let ctx = ParseCtx {
             slide_path: master_path,
             layout_sp_tree: None,
             master_sp_tree: Some(&sp_tree),
+            presentation_level_styles: Some(&self.presentation_level_styles),
+            layout_placeholder_levels: None,
+            master_placeholder_levels: master_ph,
+            master_tx_styles: master_tx,
         };
         let token = Self::part_token(master_path);
         let options = SpTreeOptions {
@@ -586,18 +644,29 @@ impl<'a> Presentation<'a> {
         let mut elements = Vec::new();
         let mut other_kinds = Vec::new();
         if show_master {
-            if let Some(mp) = master_path {
-                let (m_el, m_ok) = self.decorative_elements_for_master(&mp)?;
+            if let Some(ref mp) = master_path {
+                let (m_el, m_ok) = self.decorative_elements_for_master(mp)?;
                 elements.extend(m_el);
                 other_kinds.extend(m_ok);
             }
         }
         let sp_tree = Self::sp_tree_from_part_root("sldLayout", &doc)
             .ok_or_else(|| missing_part("p:spTree"))?;
+        let layout_ph = self.layout_placeholder_levels.get(layout_path);
+        let master_ph = master_path
+            .as_ref()
+            .and_then(|mp| self.master_placeholder_levels.get(mp));
+        let master_tx = master_path
+            .as_ref()
+            .and_then(|mp| self.master_tx_styles.get(mp));
         let ctx = ParseCtx {
             slide_path: layout_path,
             layout_sp_tree: Some(&sp_tree),
             master_sp_tree: master_sp_tree.as_ref(),
+            presentation_level_styles: Some(&self.presentation_level_styles),
+            layout_placeholder_levels: layout_ph,
+            master_placeholder_levels: master_ph,
+            master_tx_styles: master_tx,
         };
         let token = Self::part_token(layout_path);
         let options = SpTreeOptions {

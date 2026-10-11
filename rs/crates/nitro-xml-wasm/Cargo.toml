@@ -19,6 +19,7 @@ bench = ["dep:serde", "dep:serde_json", "dep:serde-wasm-bindgen"]
 
 [dependencies]
 nitro-xml.workspace = true
+nitro-xml-render.workspace = true
 wasm-bindgen.workspace = true
 js-sys = "0.3"
 serde = { version = "1", features = ["derive"], optional = true }

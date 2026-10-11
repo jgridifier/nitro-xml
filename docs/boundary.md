@@ -12,7 +12,8 @@ Speed testing beyond the transfer contrast below is deferred (Jared, 2026-10-11)
 | Item | Status |
 |---|---|
 | Handle / error / warning shapes | In `nitro-xml-wasm` (`handle.rs`) |
-| String table, command buffer, measure batch | In `transport.rs` (shipped) |
+| String table | In `nitro-xml-wasm` (`transport.rs`, shipped) |
+| Command buffer + measure batch | In `nitro-xml-render` (`command_buffer/`, `measure/`); wasm handle holds instances |
 | Event batch wire format | In `events.rs` |
 | Synthetic SoA / serde / JSON bench arms | Behind non-default `bench` feature (`bench.rs`); not shipped |
 | Loader (`FinalizationRegistry`, command-buffer applier, event coalesce, measure batch) | `packages/nitro-xml/loader/` (#37); opcode gaps remain for painter ports |

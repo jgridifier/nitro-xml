@@ -8,8 +8,9 @@
 //! worker (PRODUCT_SPEC.md §5(e)).
 
 use crate::events::{self, EventQueue};
-use crate::transport::{CommandBuffer, MeasureBatch, StringTable};
+use crate::transport::StringTable;
 use js_sys::Array;
+use nitro_xml_render::{CommandBuffer, MeasureBatch};
 use wasm_bindgen::prelude::*;
 
 /// Typed engine error surfaced to JS. Stable `code` strings are the machine API;
@@ -215,7 +216,9 @@ impl Handle {
     /// Loader writes measured widths back (one `f64` per pending request).
     #[wasm_bindgen(js_name = setMeasureResults)]
     pub fn set_measure_results(&mut self, widths: &[f64]) -> Result<(), JsValue> {
-        self.measures.set_results(widths).map_err(JsValue::from)
+        self.measures.set_results(widths).map_err(|e| {
+            JsValue::from(OoxmlError::with_code("measure_len_mismatch", e.to_string()))
+        })
     }
 
     #[wasm_bindgen(js_name = measureWidthPtr)]

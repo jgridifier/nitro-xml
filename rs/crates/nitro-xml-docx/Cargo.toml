@@ -10,3 +10,4 @@ publish.workspace = true
 
 [dependencies]
 nitro-xml-opc.workspace = true
+nitro-xml-render.workspace = true

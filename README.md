@@ -14,7 +14,7 @@
 - **Nothing in TypeScript ships.** The only JavaScript is a tiny loader (WASM bootstrap and browser event forwarding) with its own size budget and gate.
 - **The upstream TS engine stays in the test and bench harness only**, pinned at commit `e66aaec`, as the correctness reference (parity oracle) and the speed baseline.
 - **Upstream pin:** the `upstream/` git submodule is ChristopherVR/ooxml at `e66aaec24adc0b68472eae1fc42aa4598e09c352` (test and bench only; never shipped).
-- One npm package (`nitro-xml`) and Rust crates `nitro-xml-opc`, `nitro-xml-xlsx`, `nitro-xml-docx`, `nitro-xml-pptx`, `nitro-xml-wasm` and the umbrella `nitro-xml`.
+- One npm package (`nitro-xml`) and Rust crates `nitro-xml-opc`, `nitro-xml-render`, `nitro-xml-xlsx`, `nitro-xml-docx`, `nitro-xml-pptx`, `nitro-xml-wasm` and the umbrella `nitro-xml`.
 
 ## Goals
 
@@ -55,7 +55,7 @@ Jared has not answered every open question in the plan, so these are the plan's 
 | D8 | Formats | **.docx, .xlsx and .pptx plus their macro-enabled and template variants** (.docm/.xlsm/.pptm, .dotx/.xltx/.potx, .dotm/.xltm/.potm; macros never execute, `vbaProject.bin` round-trips byte for byte). Legacy .doc/.xls/.ppt, password-protected or encrypted files, CSV and every other format show an "unsupported format" message |
 | D9 | Renderer approach | **Decided by Jared:** renderers are straight one-to-one Rust ports of the upstream painters (same drawing approach, structure and output; fonts and text measurement follow upstream). The only deviation: each frame's draw/DOM calls cross the WASM boundary as one batched handoff. R0 ([#33](https://github.com/jgridifier/nitro-xml/issues/33), signed off by Head Of Product; Jared can reclaim it) records the painter inventory, module mapping, worker split and loader budget. DOM-vs-canvas, in-wasm shaping and open fonts move to the **Post-port redesign (Jared)** milestone (#92 to #94, not claimable) |
 | D10 | Viewer edits | [#29](https://github.com/jgridifier/nitro-xml/issues/29) is a placeholder awaiting Jared's list |
-| D11 | Crate layout | `nitro-xml-opc` holds the shared zip, XML, OPC and DrawingML modules; format crates on top; `nitro-xml-wasm` is the only wasm-bindgen crate |
+| D11 | Crate layout | `nitro-xml-opc` holds zip, XML, OPC and DrawingML model; `nitro-xml-render` holds the command buffer, shared primitives, S1/S2; format crates on top; `nitro-xml-wasm` is the only wasm-bindgen crate |
 | D12 | Threads | None by default: single-threaded wasm plus one worker per document, no COOP/COEP needed by embedders |
 
 ## How to contribute

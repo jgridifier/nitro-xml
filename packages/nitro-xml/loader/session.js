@@ -29,6 +29,13 @@ export async function openDocument(bytes, opts = {}) {
   const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const handle = new glue.Handle(u8);
   applyFontSourceToHandle(handle, opts.fontSource);
+  if (opts.name) {
+    try {
+      handle.openDocument(opts.name);
+    } catch {
+      /* viewer formats only */
+    }
+  }
   return new DocumentSession(handle, {
     memory: memory || getWasmMemory(),
     canvas: opts.canvas || null,
@@ -93,6 +100,7 @@ export class DocumentSession {
     const handle = this._measureHandle(ctx);
     const measured = flushMeasureBatch(handle, ctx);
 
+    this._handle.prepareFrame();
     const commands = this._handle.takeFrameCommands();
     const drawCtx = this._canvas && this._canvas.getContext
       ? this._canvas.getContext("2d")

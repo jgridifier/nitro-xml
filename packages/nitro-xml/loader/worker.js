@@ -42,18 +42,29 @@ self.onmessage = async (ev) => {
         } else {
           applyFontSourceToHandle(handle, undefined);
         }
-        self.postMessage({ type: "opened", byteLength: handle.byteLength });
+        if (msg.name) {
+          try {
+            handle.openDocument(msg.name);
+          } catch {
+            /* non-viewer formats: inspect-only until their painters land */
+          }
+        }
+        self.postMessage({
+          type: "opened",
+          byteLength: handle.byteLength,
+          format: handle.documentFormat(),
+        });
         break;
       }
       case "events": {
         if (!handle) throw new Error("no document");
         const n = handle.pushEventBatch(msg.bytes);
-        handle.drainEvents();
         self.postMessage({ type: "events-acked", count: n });
         break;
       }
       case "take-frame": {
         if (!handle) throw new Error("no document");
+        handle.prepareFrame();
         const measureCount = handle.measureCount;
         let measureReqs = null;
         const mem = getWasmMemory();
@@ -64,15 +75,10 @@ self.onmessage = async (ev) => {
             texts: new Uint32Array(mem.buffer, handle.measureTextPtr, measureCount).slice(),
           };
         }
-        let strings = null;
-        if (measureReqs) {
-          strings = {};
-          for (let i = 0; i < measureCount; i++) {
-            const f = measureReqs.fonts[i];
-            const t = measureReqs.texts[i];
-            if (!(f in strings)) strings[f] = handle.resolve(f) || "";
-            if (!(t in strings)) strings[t] = handle.resolve(t) || "";
-          }
+        const exported = handle.exportStrings();
+        const strings = {};
+        for (let i = 0; i < exported.length; i++) {
+          strings[i] = exported.get(i);
         }
         let layoutReqs = null;
         let layoutCount = 0;
@@ -80,10 +86,9 @@ self.onmessage = async (ev) => {
           const taken = handle.takeLayoutReqs();
           layoutReqs = { nodes: taken[0], kinds: taken[1], props: taken[2] };
           layoutCount = layoutReqs.nodes.length;
-          if (!strings) strings = {};
           for (let i = 0; i < layoutCount; i++) {
             const p = layoutReqs.props[i];
-            if (p && !(p in strings)) strings[p] = handle.resolve(p) || "";
+            if (p && strings[p] === undefined) strings[p] = handle.resolve(p) || "";
           }
         }
         const commands = handle.takeFrameCommands();

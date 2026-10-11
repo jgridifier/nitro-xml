@@ -249,6 +249,7 @@ dependencies = [
  "js-sys",
  "nitro-xml",
  "nitro-xml-render",
+ "nitro-xml-xlsx",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",

@@ -59,6 +59,20 @@ export function dumpXlsxWorkbookRust(
 	return { ok: r.status === 0, json, status: r.status };
 }
 
+export function dumpXlsxEngineRust(
+	fixturePath: string,
+): { ok: boolean; json: unknown; status: number | null } {
+	const bin = ensureExample('xlsx_engine_dump', 'nitro-xml-xlsx');
+	const r = runBin(bin, [fixturePath], { timeoutMs: 120_000 });
+	let json: unknown = null;
+	try {
+		json = JSON.parse(r.stdout.trim() || 'null');
+	} catch {
+		json = { error: 'parse', raw: r.stdout.slice(0, 200) };
+	}
+	return { ok: r.status === 0, json, status: r.status };
+}
+
 export function dumpDocxStylesRust(
 	fixturePath: string,
 ): { ok: boolean; json: unknown; status: number | null } {

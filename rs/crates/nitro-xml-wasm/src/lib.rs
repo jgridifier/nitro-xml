@@ -20,6 +20,7 @@ mod bench;
 mod events;
 mod handle;
 mod transport;
+mod xlsx;
 
 pub use handle::{Handle, OoxmlError, Warning};
 

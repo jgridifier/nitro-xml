@@ -9,6 +9,7 @@
 
 use crate::events::{self, EventQueue};
 use crate::transport::StringTable;
+use crate::xlsx::{is_xlsx_extension, process_frame, search_options_from_json, XlsxState};
 use js_sys::{Array, Function, JsString};
 use nitro_xml::opc::fonts::{resolve_webfont_plan, FontSource, FONT_SUBSTITUTION_CODE};
 use nitro_xml_render::{CommandBuffer, LayoutReadBatch, LayoutReadKind, MeasureBatch};
@@ -105,7 +106,7 @@ impl Warning {
 /// `FinalizationRegistry` safety net (#37).
 #[wasm_bindgen]
 pub struct Handle {
-    bytes: Vec<u8>,
+    pub(crate) bytes: Vec<u8>,
     warnings: Vec<Warning>,
     font_source: FontSource,
     /// Optional host resolver: `(families: string[]) => string | null`.
@@ -117,6 +118,7 @@ pub struct Handle {
     pub(crate) measures: MeasureBatch,
     pub(crate) layout_reads: LayoutReadBatch,
     pub(crate) events: EventQueue,
+    pub(crate) xlsx: Option<XlsxState>,
     #[cfg(feature = "bench")]
     pub(crate) grid: crate::bench::SyntheticGrid,
 }
@@ -136,9 +138,131 @@ impl Handle {
             measures: MeasureBatch::new(),
             layout_reads: LayoutReadBatch::new(),
             events: EventQueue::new(),
+            xlsx: None,
             #[cfg(feature = "bench")]
             grid: crate::bench::SyntheticGrid::new(),
         }
+    }
+
+    /// Open a supported OOXML document (extension hint). Xlsx viewer path loads workbook + first paint.
+    #[wasm_bindgen(js_name = openDocument)]
+    pub fn open_document(&mut self, name: &str) -> Result<(), JsValue> {
+        if is_xlsx_extension(name) {
+            let (state, warnings) = XlsxState::open(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            for w in warnings {
+                self.push_warning("xlsx_warning".into(), w, None);
+            }
+            self.xlsx = Some(state);
+            process_frame(self);
+            return Ok(());
+        }
+        Err(JsValue::from(OoxmlError::with_code(
+            "unsupported_format",
+            format!("viewer open not implemented for {}", name),
+        )))
+    }
+
+    /// Engine tick: apply input, repaint into the pending command buffer.
+    #[wasm_bindgen(js_name = prepareFrame)]
+    pub fn prepare_frame(&mut self) {
+        process_frame(self);
+    }
+
+    /// Document format after open (`xlsx`, …) or empty when not opened.
+    #[wasm_bindgen(js_name = documentFormat)]
+    pub fn document_format(&self) -> String {
+        if self.xlsx.is_some() {
+            return "xlsx".into();
+        }
+        String::new()
+    }
+
+    /// Visible sheet tabs (JSON array).
+    #[wasm_bindgen(js_name = sheets)]
+    pub fn sheets(&self) -> Result<String, JsValue> {
+        let xlsx = self
+            .xlsx
+            .as_ref()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        Ok(nitro_xml_xlsx::stringify_json(&xlsx.sheets_json()))
+    }
+
+    #[wasm_bindgen(js_name = setActiveSheet)]
+    pub fn set_active_sheet(&mut self, index: u32) -> Result<(), JsValue> {
+        let mut xlsx = self
+            .xlsx
+            .take()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        xlsx.set_active_sheet(&self.bytes, index as usize)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("bad_sheet", e)))?;
+        self.xlsx = Some(xlsx);
+        process_frame(self);
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = cellText)]
+    pub fn cell_text(&mut self, sheet_index: u32, range: &str) -> Result<String, JsValue> {
+        let xlsx = self
+            .xlsx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        xlsx.cell_text(&self.bytes, sheet_index as usize, range)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("bad_range", e)))
+    }
+
+    #[wasm_bindgen(js_name = hyperlinks)]
+    pub fn hyperlinks(&mut self, sheet_index: u32) -> Result<String, JsValue> {
+        let xlsx = self
+            .xlsx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        let v = xlsx
+            .hyperlinks(&self.bytes, sheet_index as usize)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("bad_sheet", e)))?;
+        Ok(nitro_xml_xlsx::stringify_json(&v))
+    }
+
+    #[wasm_bindgen(js_name = hyperlinkAt)]
+    pub fn hyperlink_at(
+        &mut self,
+        sheet_index: u32,
+        row: u32,
+        col: u32,
+    ) -> Result<JsValue, JsValue> {
+        let xlsx = self
+            .xlsx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        match xlsx.hyperlink_at(&self.bytes, sheet_index as usize, row, col) {
+            Ok(Some(v)) => Ok(JsValue::from_str(&nitro_xml_xlsx::stringify_json(&v))),
+            Ok(None) => Ok(JsValue::NULL),
+            Err(e) => Err(JsValue::from(OoxmlError::with_code("bad_sheet", e))),
+        }
+    }
+
+    #[wasm_bindgen(js_name = search)]
+    pub fn search(&mut self, query: &str, opts_json: &str) -> Result<String, JsValue> {
+        let xlsx = self
+            .xlsx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        let opts = search_options_from_json(opts_json);
+        let v = xlsx
+            .search(&self.bytes, query, opts)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("search_failed", e)))?;
+        Ok(nitro_xml_xlsx::stringify_json(&v))
+    }
+
+    /// Copy interned strings for the loader (`resolve` on the main thread / worker).
+    #[wasm_bindgen(js_name = exportStrings)]
+    pub fn export_strings(&self) -> Array {
+        let out = Array::new();
+        let n = self.strings.len();
+        for i in 0..n {
+            out.push(&JsValue::from(self.strings.resolve(i).unwrap_or("")));
+        }
+        out
     }
 
     /// Apply host `fontSource` in one call (loader API: omitted / string / false / `"off"` / function).

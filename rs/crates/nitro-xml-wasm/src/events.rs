@@ -104,6 +104,10 @@ impl EventQueue {
         self.pending.clear();
         n
     }
+
+    pub fn pending_snapshot(&self) -> Vec<Event> {
+        self.pending.clone()
+    }
 }
 
 struct Cursor<'a> {

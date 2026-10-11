@@ -154,7 +154,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/view/sparkline_view.rs` | `src/core/xlsx/layout/sparkline-view.ts` @ e66aaec | Unit-box sparkline layout for view-IR. |
 | `rs/crates/nitro-xml-xlsx/src/view/sparkline_data.rs` | `src/core/xlsx/layout/sparkline-data.ts` @ e66aaec | `sparklineViewAt` + range value read. |
 | `rs/crates/nitro-xml-xlsx/src/view/sheet_queries.rs` | `src/core/xlsx/layout/sheet-queries.ts` @ e66aaec | `overflowExtent` only (selection stats deferred). |
-| `rs/crates/nitro-xml-xlsx/src/view/cell_paint.rs` | `src/core/xlsx/ui/grid/cell-paint.ts` @ e66aaec | CSS helpers, `hashes`, `repeatToFill`. |
+| `rs/crates/nitro-xml-xlsx/src/view/cell_paint.rs` | `src/core/xlsx/ui/grid/cell-paint.ts` @ e66aaec | CSS helpers (`cssFont`, borders, alignment, fill paint). |
 | `rs/crates/nitro-xml-xlsx/src/view/cell_items.rs` | `src/core/xlsx/ui/grid/cell-items.ts` @ e66aaec | `buildItems` / `CellItem` geometry. |
 | `rs/crates/nitro-xml-xlsx/src/view/number_fit.rs` | `src/core/xlsx/ui/grid/number-fit.ts` @ e66aaec | `fitNumber` via `format_value` width option. |
 | `rs/crates/nitro-xml-xlsx/src/view/css_font_family.rs` | `src/core/text/css-font-family.ts` @ e66aaec | Font fallback stacks for measure/CSS. |

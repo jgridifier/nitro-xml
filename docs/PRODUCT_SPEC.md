@@ -42,7 +42,7 @@
 
 | Stage | Scope |
 |---|---|
-| **R0** | **Renderer design with Jared.** No renderer issue is claimable until this decision record is merged. Spike DOM-via-Rust (`web-sys`) against canvas (with an accessible DOM mirror) on the xlsx grid, and measure both against §5. Decide: text shaping (browser or in-wasm), the worker/main-thread split (DOM access means main-thread wasm; canvas can use OffscreenCanvas in a worker), the loader API and the loader size budget |
+| **R0** | **Renderer: port upstream's approach as-is (Jared, 2026-10-11).** The Rust renderers reproduce what upstream's painters do today (same rendering technology and structure, now driven from Rust/WASM), so parity with the TS reference is direct. No DOM-vs-canvas spike now. Jared redesigns and iterates on the renderers after the conversion is done. R0 records the upstream painter inventory per format, the Rust module mapping, the worker/main-thread split this implies, and the loader size budget |
 | **3** | xlsx: model plus a Rust grid renderer (sheet tabs, frozen panes, conditional formats, charts) |
 | **4** | docx: model, pagination and a Rust page renderer |
 | **5** | pptx: model, DrawingML and a Rust slide renderer covering **all** element kinds. There is no per-slide fallback, and anything unrendered is a failing parity item |
@@ -77,7 +77,7 @@ Already done or decided upstream of this spec:
 ## 4. Why Excel first
 - The shortest path to a full open-to-first-paint path in Rust.
 - The likeliest win: the streaming columnar parse plus the virtualised grid.
-- The grid is the best R0 spike target.
+- The grid is the best first target for the renderer port.
 - The xlsx edit commands are discrete, so they are the cleanest first write path.
 - docx needs pagination plus the rich E-text surface. pptx is the largest area (about 146k production lines of core).
 
@@ -192,8 +192,11 @@ Already done or decided upstream of this spec:
   - The skeleton jobs `roundtrip`, `edit-parity`, `undo-parity`, `a11y`, `ime` and `scoreboard` are reserved now.
 - **Stage 2.** Part-graph parity, zip-bomb and DTD tests, and the transport decision.
 - **R0.**
-  - **R0 decision rule (fixed before the spike runs):** the candidates are DOM-via-Rust and canvas plus an accessible DOM mirror, both with batched draw commands per frame. Fixtures: a 1M-cell xlsx and a 300-page docx. Measured: time to first paint, scroll/zoom frame rate (target a steady 60 fps), keystroke-to-paint, peak memory, and payload including font and shaping code. Hard pass conditions for both candidates: the pixel threshold against the TS reference, the axe/screen-reader gate, selection and copy, CJK IME, and in-app find (browser Ctrl+F cannot see canvas). Pick the faster candidate that passes everything. The choice can differ per format (Word may differ from Excel/PowerPoint).
-  - **Fonts are their own R0 decision.** In-wasm measurement needs the actual font files. Office fonts (Calibri, Cambria, ...) cannot be redistributed, so evaluate metric-compatible open fonts (e.g. Carlito, Caladea) plus user-installed fonts where the browser allows (Local Font Access, Chromium-only). Gate: docx page count and line breaks match the TS reference on the corpus with the chosen font strategy.
+  - **R0 (decided):** mirror upstream's rendering approach in Rust. The DOM-vs-canvas comparison (1M-cell xlsx, 300-page docx; first paint, 60 fps scroll/zoom, keystroke-to-paint, memory, payload; must pass pixel, accessibility, selection/copy, CJK IME and find gates) is deferred to Jared's post-conversion renderer redesign and is kept here as the method for that work.
+  - **Port rule:** what stays identical is the drawing approach, the structure and the output (pixel and parity gates against TS). The one allowed change: Rust batches each frame's draw and DOM-building calls into a single handoff across the WASM boundary (e.g. one command buffer per frame applied by the loader). No per-element WASM-to-JS calls in the render path.
+  - **Painter inventory (R0 deliverable):** for each upstream painter, record format, canvas vs DOM output, what it draws, and its Rust module, so batching priorities are explicit.
+  - **Redesign milestone:** DOM-vs-canvas, in-wasm shaping and open metric-compatible fonts sit in a separate post-port milestone owned by Jared; not claimable until he opens it.
+  - **Fonts and text measurement follow upstream for now** (same fonts and measurement path the TS painters use), so line breaks and page counts match the TS reference. Moving shaping into wasm and choosing metric-compatible open fonts (Carlito, Caladea; Office fonts cannot be redistributed) is part of Jared's later renderer redesign.
   - The spike comparison is published.
   - The renderer decision record is signed off by Jared.
   - The loader API and size budgets are fixed.
@@ -207,7 +210,7 @@ Already done or decided upstream of this spec:
 - **E5.** Save-path fuzzing clean, the 1,000-op memory gate passes, and the final report is published.
 
 ## 7. Questions for Jared (reply "defaults" to accept all)
-1. **Renderer technology (joint design with you).** Default: an R0 spike of DOM-via-Rust against canvas plus an accessible mirror on the xlsx grid. Measure perf, size, accessibility, IME and fidelity, then choose together. A hybrid is allowed if the data supports it.
+1. **Renderer technology: decided.** Port upstream's approach as-is; Jared iterates on renderer design after the conversion.
 2. **Threads.** Default: no SharedArrayBuffer and no COOP/COEP requirement; single-threaded wasm plus a worker. A threaded build only on your request.
 3. **Budget, said plainly.** The scope is now well beyond the plan's "roughly double". The plan sized only a 25–45k-line read-path port and kept the roughly 217k production lines of `src/ui` in TS; now the renderers, the editor UI and a text-editing surface are also built in Rust. No credible line or credit estimate exists until R0. Default: M1 first, and M2 issues are labelled `blocked-m2` until the M1 gate passes and you confirm the budget.
 4. **iOS Safari.** Default: a full target (functional, accessibility and IME smoke tests on WebKit and real-device spot checks); perf is gated in Chromium.

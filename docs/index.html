@@ -25,14 +25,14 @@ hr{border:0;border-top:1px solid #c9d3e3;margin:24px 0}
 strong{color:var(--ink)}
 @media (prefers-color-scheme: dark){body{background:#000;color:#fff}strong{color:#fff}code{background:#16325c;color:#fff}td{border-color:#16325c}tr:nth-child(even) td{background:#06101f}nav{background:#06101f}h2,h3,a{color:#9db6dc}h2{border-color:#9db6dc}}
 
-.links a{color:#fff;margin-right:14px}</style></head><body><header><h1 style="display:block">Nitro XML: porting ooxml to Rust + WebAssembly</h1><p>Plan for Jared · <span class="links"><a href="https://github.com/jgridifier/nitro-xml">Repo</a><a href="https://github.com/users/jgridifier/projects/2">Board</a><a href="https://github.com/jgridifier/nitro-xml/blob/main/docs/PRODUCT_SPEC.md">Product spec (gates)</a></span> · upstream ChristopherVR/ooxml @ e66aaec · status: planning, Stage 0 not started</p></header><main><h1 id="nitro-xml-porting-christophervrooxml-to-rust-and-webassembly">Nitro XML: porting ChristopherVR/ooxml to Rust and WebAssembly</h1>
+.tw{overflow-x:auto}.links a{color:#fff;margin-right:14px}</style></head><body><header><h1 style="display:block">Nitro XML: porting ooxml to Rust + WebAssembly</h1><p>Plan for Jared · <span class="links"><a href="https://github.com/jgridifier/nitro-xml">Repo</a><a href="https://github.com/users/jgridifier/projects/2">Board</a><a href="https://github.com/jgridifier/nitro-xml/blob/main/docs/PRODUCT_SPEC.md">Product spec (gates)</a></span> · upstream ChristopherVR/ooxml @ e66aaec · status: planning, Stage 0 not started</p></header><main><h1 id="nitro-xml-porting-christophervrooxml-to-rust-and-webassembly">Nitro XML: porting ChristopherVR/ooxml to Rust and WebAssembly</h1>
 <blockquote>
 <p><strong>This plan is reconciled with <a href="https://github.com/jgridifier/nitro-xml/blob/main/docs/PRODUCT_SPEC.md">PRODUCT_SPEC.md</a> v3 (full Rust/WASM design lock), which wins wherever they disagree.</strong> Decisions: <a href="#61-decisions-current-calls-open-to-change">§6.1</a>. Board: <a href="https://github.com/users/jgridifier/projects/2">Nitro XML project</a>. Repo: <a href="https://github.com/jgridifier/nitro-xml">jgridifier/nitro-xml</a>. Licence: Nitro XML is MIT-licensed; files ported or derived from ooxml remain under Apache-2.0 (NOTICE, LICENSE-THIRD-PARTY, PROVENANCE.md).</p>
 </blockquote>
 <p><strong>Project:</strong> Nitro XML · <strong>Repo:</strong> <a href="https://github.com/jgridifier/nitro-xml"><code>jgridifier/nitro-xml</code></a> · <strong>Rust crates:</strong> <code>nitro-xml-opc</code> (shared foundation: <code>zip</code>, <code>xml</code>, <code>opc</code> and <code>drawingml</code> modules), <code>nitro-xml-xlsx</code>, <code>nitro-xml-docx</code>, <code>nitro-xml-pptx</code>, <code>nitro-xml-wasm</code> and the umbrella crate <code>nitro-xml</code> (all unclaimed on crates.io on 2026-10-11) · <strong>npm package:</strong> <code>nitro-xml</code> (unclaimed on 2026-10-11).</p>
 <p><strong>Upstream analysed:</strong> <code>https://github.com/ChristopherVR/ooxml</code> at commit <code>e66aaec24adc0b68472eae1fc42aa4598e09c352</code> (2026-10-11), from a read-only shallow clone. The repo pins this commit as the parity oracle and the source of the painters.</p>
 <p><strong>Core principle (unchanged):</strong> rendering stays fully client-side in the browser.</p>
-<p><strong>Design lock (Jared, 2026-10-11):</strong> "This is a full Rust/WASM project. If something doesn't exist we will build it." Everything that ships is Rust/WASM: package, model, layout, <strong>renderers</strong>, viewer shell, <strong>editor UI</strong> (ribbons, dialogs), <strong>text input, selection and caret</strong>, commands, history and writer. The only JS is a minimal loader (wasm bootstrap and event forwarding) with its own gated size budget. ProseMirror, the upstream Lit UI and the TS painters are not shipped. The upstream TS engine is <strong>test-only</strong>: correctness oracle, perf baseline and pixel reference. There is no runtime fallback; if wasm cannot run, the component shows an "unsupported browser" message. The goal is the fastest, most efficient, highest-quality OOXML renderer and editor available, beating the original on every format at every size.</p>
+<p><strong>Design lock (Jared, 2026-10-11):</strong> "This is a full Rust/WASM project. If something doesn't exist we will build it." Everything that ships is Rust/WASM: package, model, layout, <strong>renderers</strong>, viewer shell, <strong>editor UI</strong> (ribbons, dialogs), <strong>text input, selection and caret</strong>, commands, history and writer. The only JS is a minimal loader (wasm bootstrap, event forwarding and the per-frame command-buffer applier) with its own gated size budget. ProseMirror, the upstream Lit UI and the TS painters are not shipped. The upstream TS engine is <strong>test-only</strong>: correctness oracle, perf baseline and pixel reference. There is no runtime fallback; if wasm cannot run, the component shows an "unsupported browser" message. The goal is the fastest, most efficient, highest-quality OOXML renderer and editor available, beating the original on every format at every size.</p>
 <hr />
 <nav><strong>Contents</strong><ol><li><a href="#0-read-this-first-the-upstream-is-much-larger-than-a-renderer">0. Read this first: the upstream is much larger than a "renderer"</a></li><li><a href="#1-architecture-map">1. Architecture map</a></li><li><a href="#2-feature-coverage-per-format-from-the-readmes-and-parity-docs">2. Feature coverage per format (from the READMEs and parity docs)</a></li><li><a href="#3-port-design">3. Port design</a></li><li><a href="#4-staged-plan">4. Staged plan</a></li><li><a href="#5-issue-breakdown">5. Issue breakdown</a></li><li><a href="#6-risks-and-open-questions-for-jared">6. Risks and open questions for Jared</a></li><li><a href="#7-files">7. Files</a></li></ol></nav><h2 id="0-read-this-first-the-upstream-is-much-larger-than-a-renderer">0. Read this first: the upstream is much larger than a "renderer"</h2>
 <p>The brief describes a browser-client renderer for docx, pptx and xlsx. The upstream repository is a <strong>full Office suite monorepo</strong>. It contains:</p>
@@ -372,12 +372,12 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <tr>
 <td>Layout (grid metrics, pagination, slide text)</td>
 <td><strong>Rust</strong></td>
-<td>Text shaping and fonts decided at R0 (#36)</td>
+<td>Fonts and text measurement follow upstream (batched); in-wasm shaping is post-port (#93)</td>
 </tr>
 <tr>
 <td><strong>Renderers</strong></td>
 <td><strong>Rust</strong></td>
-<td>DOM-via-<code>web-sys</code> or canvas plus accessible DOM mirror, decided at R0 (#33); may differ per format</td>
+<td>Straight one-to-one ports of the upstream painters (canvas stays canvas, DOM stays DOM); only change: one batched draw/DOM handoff per frame. Inventory and mapping at R0 (#33 to #35)</td>
 </tr>
 <tr>
 <td>Viewer shell (zoom, navigation, find, copy, links, diagnostics)</td>
@@ -416,8 +416,8 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <li><strong>The loader is the only JS.</strong> It instantiates the wasm (streaming compile, cached compiled module, pre-warmed worker), loads a small core module and per-format modules on demand, and forwards batched browser events (input, pointer, wheel, keyboard, composition, resize) into wasm. Its size has its own ceiling (#37).</li>
 <li><strong>Handles.</strong> The headless API exposes document handles that own the model in linear memory (<code>open → handle</code>, queries, commands, <code>save</code>, <code>free</code>), with a <code>FinalizationRegistry</code> safety net.</li>
 <li><strong>Bulk transfer, never per-cell calls</strong> (#14): struct-of-arrays typed-array views over wasm memory for bulk data, interned string tables, <code>Uint8Array</code> views for media.</li>
-<li><strong>No browser text measurement.</strong> Shaping and measurement happen in Rust or behind an interface decided at R0 (#36).</li>
-<li><strong>Workers:</strong> one worker per document, <code>ArrayBuffer</code> transferred. The renderer choice decides the split: DOM rendering needs main-thread wasm; canvas can use OffscreenCanvas in a worker (R0).</li>
+<li><strong>Per-frame command buffer.</strong> Each frame's canvas draw calls or DOM-building operations cross the boundary as one batched handoff applied by the loader; no per-element WASM-to-JS calls in the render path. Text measurement follows upstream, batched per layout pass (#14).</li>
+<li><strong>Workers:</strong> one worker per document, <code>ArrayBuffer</code> transferred. The split follows upstream's drawing technology per painter: DOM-building painters apply on the main thread, canvas painters may use OffscreenCanvas in the worker (R0, #36).</li>
 <li><strong>Memory:</strong> linear memory never shrinks; one worker per document; upstream limits enforced; crash recovery reloads in a fresh worker (viewer) or replays the op journal (editor).</li>
 <li><strong>Threads:</strong> none by default (no SharedArrayBuffer, no COOP/COEP needed by embedders). Only the perf harness serves COOP/COEP.</li>
 </ul>
@@ -577,9 +577,9 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </tr>
 <tr>
 <td><strong>R0</strong></td>
-<td><strong>Renderer design with Jared</strong></td>
+<td><strong>Renderer port record (Jared)</strong></td>
 <td>#33 (Jared), #34 to #37, #46</td>
-<td>Spike comparison published under the fixed decision rule; font strategy decided; loader API and size budgets fixed; decision record signed off by Jared. <strong>No renderer issue is claimable before #33 merges</strong></td>
+<td>Painter inventory per format (canvas vs DOM, what it draws, Rust module); module mapping; worker vs main-thread split; loader API and size budget; signed off by Jared. <strong>No renderer issue is claimable before #33 merges</strong></td>
 </tr>
 <tr>
 <td>3</td>
@@ -613,6 +613,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </tr>
 </tbody>
 </table></div>
+<p><strong>Post-port redesign (Jared), backlog, not claimable:</strong> DOM-vs-canvas comparison (#92), in-wasm text shaping (#93), metric-compatible open fonts (#94); labelled <code>blocked-redesign</code>.</p>
 <p><strong>Milestone 2, editor</strong> (labelled <code>blocked-m2</code> until the M1 gate passes and Jared confirms the budget)</p>
 <div class="tw"><table>
 <thead>
@@ -670,7 +671,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </table></div>
 <p><strong>Parallelism:</strong>
 - Stage 1 needs only the fixture corpus (#4), so the TS baseline is ready before the first Rust parser lands. The parse race (#40) starts in the foundation stage.
-- R0 spikes (#34, #35, #36) run in parallel once the xlsx sheet reader (#16) and boundary (#14) exist; model work in Stages 3 to 5 (#15 to #17, #20, #21, #24 to #26) can proceed before R0 closes, renderer work cannot.
+- R0 inventory (#34) and loader budget (#37) start early (after #1 and #2/#14); mapping (#35) and the worker split (#36) follow the inventory; model work in Stages 3 to 5 (#15 to #17, #20, #21, #24 to #26) can proceed before R0 closes, renderer work cannot.
 - The integration issues (#19, #23, #27) are the serial points and arm each format's hard perf gate.</p>
 <h3 id="41-performance-eval-track-stage-1-jareds-requirement">4.1 Performance-eval track (Stage 1, Jared's requirement)</h3>
 <ul>
@@ -700,12 +701,12 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <li><strong>Regression vs main</strong> (always): timings +10% <strong>and</strong> +5 ms; memory +10% <strong>and</strong> +2 MB; brotli size +3% <strong>and</strong> +10 KB; TBT +15% <strong>and</strong> +20 ms; baseline = median of the last 5 main runs. <code>perf-regression-accepted</code> with a written reason can override this part only.</li>
 <li><strong>WASM beats TS</strong> (per format, armed by #19, #23, #27; never relaxed): every tier, 1x and 4x, first paint, cold parse, scroll/view-query and peak memory; lower median and 95% CI of the ratio below 1.0; a tie fails. Editing (keystroke-to-paint, IME commit-to-paint, undo, save) gets the same rule in M2.</li>
 <li><strong>No performance-based fallback of any kind.</strong> A loss is a red gate fixed by design (streaming compile, cached module, pre-warmed worker, small core plus lazy per-format modules).</li>
-<li><strong>Bundle and startup:</strong> per-format initial-payload ceiling (brotli, including fonts and shaping data) and loader ceiling, fixed at R0, ratchet down only; time to interactive gated.</li>
+<li><strong>Bundle and startup:</strong> per-format initial-payload ceiling (brotli, including any fonts and data shipped) and loader ceiling, fixed at R0, ratchet down only; time to interactive gated.</li>
 <li><strong>Dashboard and public scoreboard:</strong> a static page (inline SVG, no chart library) on Pages, navy, black and white, published from every main commit: TS and WASM on the same axes, plus the parse, render-to-first-paint and open-edit-save races against pinned competitors (#39 to #41, #70): SheetJS, ExcelJS, calamine, umya-spreadsheet, docx-preview, mammoth.js, docx-rs, PPTXjs, the LibreOffice WASM build, other Rust/WASM viewers found during vetting, and always upstream ooxml TS. Entries that do less are shown as "not comparable"; losses are published as prominently as wins.</li>
 </ul>
 <hr />
 <h2 id="5-issue-breakdown">5. Issue breakdown</h2>
-<p><strong>91 issues</strong> on GitHub (#1 to #91), generated from <code>issues.json</code> (<code>gen_issues.py</code>). Plan numbers equal GitHub issue numbers; each issue has a <code>Depends on #X</code> line. Milestone 2 issues carry <code>blocked-m2</code>.</p>
+<p><strong>94 issues</strong> on GitHub (#1 to #94), generated from <code>issues.json</code> (<code>gen_issues.py</code>). Plan numbers equal GitHub issue numbers; each issue has a <code>Depends on #X</code> line. Milestone 2 issues carry <code>blocked-m2</code>; post-port redesign issues (stage PP) carry <code>blocked-redesign</code>.</p>
 <ul>
 <li><strong>Agent fit:</strong> Codex for well-specified mechanical ports with ready test suites; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) for small, well-bounded tasks; a human <strong>Developer</strong> owns the scoreboard races; <strong>Jared</strong> owns the R0 renderer decision (#33).</li>
 <li><strong>Every issue</strong> follows AGENTS.md (claim, branch <code>issue-&lt;N&gt;-&lt;slug&gt;</code>, PR with <code>Closes #N</code>, handoff comment).</li>
@@ -842,7 +843,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </tr>
 <tr>
 <td>14</td>
-<td>Stage 2: JS/WASM boundary conventions, bulk transfer, worker and loader protocol (no browser text measurement)</td>
+<td>Stage 2: JS/WASM boundary conventions, bulk transfer, worker, event and per-frame command-buffer protocol</td>
 <td>2</td>
 <td>M</td>
 <td>Claude Code</td>
@@ -878,12 +879,12 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </tr>
 <tr>
 <td>18</td>
-<td>Stage 3 (xlsx): Grid layout and Rust grid renderer (cells, merges, frozen panes, conditional formats)</td>
+<td>Stage 3 (xlsx): Grid layout and one-to-one Rust port of the grid painter (cells, merges, frozen panes, conditional formats)</td>
 <td>3</td>
 <td>L</td>
 <td>Claude Code</td>
 <td>16, 17, 14, 33</td>
-<td>after #16, #17, #14 and the R0 decision #33</td>
+<td>after #16, #17, #14 and the R0 record #33</td>
 </tr>
 <tr>
 <td>19</td>
@@ -914,16 +915,16 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </tr>
 <tr>
 <td>22</td>
-<td>Stage 4 (docx): Pagination engine port with Rust text shaping and measurement</td>
+<td>Stage 4 (docx): Pagination engine port (fonts and text measurement follow upstream, batched)</td>
 <td>4</td>
 <td>L</td>
 <td>Claude Code</td>
-<td>21, 36, 33</td>
-<td>after #21, #36 and the R0 decision #33</td>
+<td>21, 14, 33</td>
+<td>after #21, #14 and the R0 record #33</td>
 </tr>
 <tr>
 <td>23</td>
-<td>Stage 4 (docx): Rust page renderer (Print Layout) end to end; arm the docx perf gate</td>
+<td>Stage 4 (docx): Rust port of the Print Layout painter, end to end; arm the docx perf gate</td>
 <td>4</td>
 <td>M</td>
 <td>Cursor cloud</td>
@@ -959,7 +960,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </tr>
 <tr>
 <td>27</td>
-<td>Stage 5 (pptx): Rust slide renderer covering all element kinds (no per-slide fallback); arm the pptx perf gate</td>
+<td>Stage 5 (pptx): Rust port of the slide painters covering all element kinds (no per-slide fallback); arm the pptx perf gate</td>
 <td>5</td>
 <td>L</td>
 <td>Cursor cloud</td>
@@ -968,12 +969,12 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </tr>
 <tr>
 <td>28</td>
-<td>Stage 5: Chart model and Rust chart renderer (shared by xlsx, docx and pptx)</td>
+<td>Stage 5: Chart model and Rust port of the chart painters (shared by xlsx, docx and pptx)</td>
 <td>5</td>
 <td>M</td>
 <td>Codex</td>
 <td>25, 33</td>
-<td>after #25 and the R0 decision #33</td>
+<td>after #25 and the R0 record #33</td>
 </tr>
 <tr>
 <td>29</td>
@@ -1013,48 +1014,48 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 </tr>
 <tr>
 <td>33</td>
-<td>R0: Renderer decision record (DOM-via-Rust vs canvas, shaping, fonts, worker split, loader API and budgets), owned by Jared</td>
+<td>R0: Renderer port record (painter inventory, Rust module mapping, worker split, loader budget), signed off by Jared</td>
 <td>R0</td>
-<td>M</td>
+<td>S</td>
 <td>Jared</td>
-<td>34, 35, 36</td>
-<td>after #34, #35, #36 and #37 report</td>
+<td>34, 35, 36, 37</td>
+<td>after #34, #35, #36 and #37</td>
 </tr>
 <tr>
 <td>34</td>
-<td>R0 spike A: DOM-via-Rust (web-sys) xlsx grid and docx page prototype, measured</td>
+<td>R0 (a): Upstream painter inventory per format (canvas vs DOM, what it draws, Rust module)</td>
 <td>R0</td>
 <td>M</td>
 <td>Claude Code</td>
-<td>16, 14</td>
-<td>in parallel with #35 and #36</td>
+<td>1</td>
+<td>yes, after #1; in parallel with #36 and #37</td>
 </tr>
 <tr>
 <td>35</td>
-<td>R0 spike B: canvas plus accessible DOM mirror xlsx grid and docx page prototype, measured</td>
+<td>R0 (b): Map upstream painters to Rust modules</td>
 <td>R0</td>
-<td>M</td>
-<td>Cursor cloud</td>
-<td>16, 14</td>
-<td>in parallel with #34 and #36</td>
+<td>S</td>
+<td>Claude Code</td>
+<td>34</td>
+<td>after #34</td>
 </tr>
 <tr>
 <td>36</td>
-<td>R0: Text shaping and font strategy decision (in-wasm shaping, metric-compatible open fonts, Local Font Access)</td>
+<td>R0 (c): Worker vs main-thread split per painter</td>
 <td>R0</td>
 <td>M</td>
-<td>Claude Code</td>
-<td>4</td>
-<td>in parallel with #34 and #35</td>
+<td>Codex</td>
+<td>34, 14</td>
+<td>after #34 and #14</td>
 </tr>
 <tr>
 <td>37</td>
-<td>R0: Minimal JS loader (wasm bootstrap, event forwarding, streaming compile, cached module, pre-warmed worker, lazy per-format modules) and loader size gate</td>
+<td>R0 (d): Loader API and loader size budget (minimal JS loader skeleton, per-frame command-buffer applier, size gate)</td>
 <td>R0</td>
 <td>M</td>
 <td>Cursor cloud</td>
-<td>2, 14, 33</td>
-<td>after #2, #14 and the R0 decision #33</td>
+<td>2, 14</td>
+<td>after #2 and #14; in parallel with #34 to #36</td>
 </tr>
 <tr>
 <td>38</td>
@@ -1135,7 +1136,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <td>S</td>
 <td>Codex</td>
 <td>7, 33</td>
-<td>after #7 and the R0 decision #33</td>
+<td>after #7 and the R0 record #33</td>
 </tr>
 <tr>
 <td>47</td>
@@ -1542,6 +1543,33 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <td>89, 90</td>
 <td>after #89 and #90</td>
 </tr>
+<tr>
+<td>92</td>
+<td>Post-port redesign: DOM-vs-canvas renderer comparison</td>
+<td>PP</td>
+<td>L</td>
+<td>Jared</td>
+<td>30</td>
+<td>not claimable until Jared opens the redesign milestone</td>
+</tr>
+<tr>
+<td>93</td>
+<td>Post-port redesign: in-wasm text shaping and measurement</td>
+<td>PP</td>
+<td>M</td>
+<td>Jared</td>
+<td>30</td>
+<td>not claimable until Jared opens the redesign milestone</td>
+</tr>
+<tr>
+<td>94</td>
+<td>Post-port redesign: metric-compatible open fonts (Carlito, Caladea) and font fallback</td>
+<td>PP</td>
+<td>M</td>
+<td>Jared</td>
+<td>30</td>
+<td>not claimable until Jared opens the redesign milestone</td>
+</tr>
 </tbody>
 </table></div>
 <hr />
@@ -1551,15 +1579,15 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <li><strong>Scope mismatch.</strong> The upstream is a 1.56M-line editor suite, not a small renderer. Unless the port is limited to the read and view path for three formats, it will not fit a limited credit budget. pptx alone is about 146k production lines in core.</li>
 <li><strong>Moving upstream.</strong> The repo was created on 2026-10-01, is pushed daily and is mid-refactor (the pptx XML model migration, DrawingML extraction). Pin a commit and re-sync on purpose, each time with parity re-runs.</li>
 <li><strong>Renderer fidelity.</strong> The TS renderers are tuned against Office captures, and the Rust renderers must re-earn the pixel thresholds; pptx effects are hardest. Mitigation: parity harness, visual diffs at DPR 1 and 2 plus print, per-format gates. The biggest new risk is the Rust text-editing surface (IME, bidi, spellcheck, accessibility, mobile keyboards), now its own stage (E-text).</li>
-<li><strong>Text shaping and fonts.</strong> In-wasm shaping needs real font files; Office fonts cannot be redistributed. R0 decides the strategy (#36: metric-compatible open fonts, Local Font Access).</li>
+<li><strong>Text measurement across the boundary.</strong> Fonts and measurement follow upstream for now, so measurement requests must be batched per layout pass (#14) or they erase WASM gains. In-wasm shaping and open fonts (Carlito, Caladea) are Jared's post-port redesign (#93, #94).</li>
 <li><strong>Small-file startup is a hard gate.</strong> Instantiation and boundary costs can lose to V8 on 3 to 60 KB files; with no fallback, the answer is design (streaming compile, cached module, pre-warmed worker, small core module), never routing to TS.</li>
 <li><strong>Memory behaviour.</strong> Linear memory never shrinks. Use one worker per document and enforce the limits.</li>
-<li><strong>Bundle size.</strong> wasm plus fonts and shaping data must stay under per-format ceilings smaller than TS's payload (#46); track it from day one.</li>
+<li><strong>Bundle size.</strong> wasm plus any fonts and data shipped must stay under per-format ceilings smaller than TS's payload (#46); track it from day one.</li>
 <li><strong>Fixture licensing.</strong> Several large pptx samples look like third-party downloads, and their licence is unknown.</li>
 </ol>
 <p><strong>Open questions for Jared</strong> (from PRODUCT_SPEC v3 §7; reply "defaults" to accept all)</p>
 <ol>
-<li><strong>Renderer technology</strong> (joint design, #33): default is the R0 spike of DOM-via-Rust vs canvas plus an accessible mirror, decided by the fixed rule; a hybrid or per-format choice is allowed if the data supports it.</li>
+<li><strong>Renderer technology: decided.</strong> Port upstream's approach as-is (batched per frame); you redesign after the conversion (post-port milestone, #92 to #94).</li>
 <li><strong>Threads:</strong> default none (no SharedArrayBuffer or COOP/COEP); a threaded build only on request.</li>
 <li><strong>Budget:</strong> the scope is far beyond the original estimate; default M1 first, M2 <code>blocked-m2</code> until the M1 gate and your confirmation.</li>
 <li><strong>iOS Safari:</strong> default full target with functional, accessibility and IME smoke tests; perf gated in Chromium.</li>
@@ -1620,7 +1648,7 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <tr>
 <td>D9</td>
 <td>Renderer</td>
-<td>Decided at R0 by Jared (#33)</td>
+<td>Straight one-to-one ports of upstream painters, batched per frame; R0 record (#33) signed off by Jared; redesign post-port (#92 to #94)</td>
 </tr>
 <tr>
 <td>D10</td>
@@ -1644,5 +1672,5 @@ apps/office-suite, site/, desktop/ (Tauri), mcp/, scripts/, schemas/ecma-376-tra
 <li><code>docs/PLAN.md</code> (this file)</li>
 <li><code>docs/index.html</code> (mobile-readable version, published on GitHub Pages)</li>
 <li><code>docs/PRODUCT_SPEC.md</code> (v3, the source of the gates)</li>
-<li>GitHub issues #1 to #91 in <code>jgridifier/nitro-xml</code> (generated from <code>issues.json</code>)</li>
+<li>GitHub issues #1 to #94 in <code>jgridifier/nitro-xml</code> (generated from <code>issues.json</code>)</li>
 </ul></main></body></html>

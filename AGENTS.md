@@ -6,7 +6,7 @@ Board: https://github.com/users/jgridifier/projects/2 · Plan: https://jgridifie
 
 ## 1. Pick work
 1. Take an **unassigned** issue labelled `status:ready` (board view **Ready now**) whose `Depends on #X` issues are **all closed**.
-2. Never take an issue labelled `blocked-m2` (editor milestone, waits for the viewer gate and Jared's go-ahead) or one assigned to Jared (design decisions such as the R0 renderer record #33). Renderer issues are not claimable until #33 is merged.
+2. Never take an issue labelled `blocked-m2` (editor milestone, waits for the viewer gate and Jared's go-ahead) or `blocked-redesign` (Jared's post-port renderer redesign), or one assigned to Jared (such as the R0 renderer port record #33). Renderer issues are not claimable until #33 is merged, and they are **straight one-to-one ports** of the upstream painters: same drawing approach, structure and output, fonts and measurement as upstream; the only allowed change is batching each frame's draw/DOM calls into one handoff across the boundary. No redesign inside a port PR.
 3. Prefer the issue's *Suggested agent*, but any agent may take any ready issue. Agent types that may claim: **Cursor, Claude Code, Codex and OpenCode** (OpenCode runs free NVIDIA-hosted models), plus human Developers. The protocol below is identical for all of them.
 
 ## 2. Claim it

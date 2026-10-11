@@ -33,8 +33,9 @@
 
 ## Milestones
 
-- **Milestone 1, viewer:** Stage 0 (scaffolding), Stage 1 (perf harness, TS baseline, scoreboard), Stage 2 (shared OPC, streaming zip and XML, boundary), **R0 (renderer design with Jared:** a DOM-vs-canvas spike on the Excel grid, text shaping and fonts, the worker split and the loader size budget; no renderer issue is claimable before R0 closes), then the Excel (3), Word (4) and PowerPoint (5) viewers, the Rust viewer shell (6) and hardening (7, the M1 gate).
+- **Milestone 1, viewer:** Stage 0 (scaffolding), Stage 1 (perf harness, TS baseline, scoreboard), Stage 2 (shared OPC, streaming zip and XML, boundary), **R0 (renderer port record, signed off by Jared:** an inventory of upstream painters per format (canvas vs DOM, what each draws, its Rust module), the Rust module mapping, the worker vs main-thread split and the loader size budget; no renderer issue is claimable before R0 closes), then the Excel (3), Word (4) and PowerPoint (5) viewers, the Rust viewer shell (6) and hardening (7, the M1 gate).
 - **Milestone 2, editor (later phase):** E0 (editor harnesses, TS editor baseline, Rust editor chrome), **E-text** (the Rust text-editing surface: single-line before E1, rich text before E3; IME, bidi, spellcheck, accessibility and crash recovery each with their own gate), E1 (xlsx edits and lossless save), E2 (Rust formula engine), E3 (docx), E4 (pptx), E5 (write-path hardening). Editor issues are labelled `blocked-m2` until the M1 gate passes and Jared confirms the budget.
+- **Post-port redesign (Jared), backlog:** DOM-vs-canvas comparison, in-wasm text shaping, metric-compatible open fonts (#92 to #94). Labelled `blocked-redesign`; not claimable until Jared opens it.
 
 ## Decisions (defaults, open to change)
 
@@ -50,7 +51,7 @@ Jared has not answered every open question in the plan, so these are the plan's 
 | D6 | Perf browser | Measured in Chromium; WebKit and Firefox get functional smoke tests |
 | D7 | Perf CI cadence | A small perf corpus on every PR; the full corpus nightly and on demand. Every commit posts its numbers |
 | D8 | Legacy and encrypted files | `.doc/.xls/.ppt`, password-protected files and CSV show an "unsupported format" message in v1; a Rust track after E5 (open question) |
-| D9 | Renderer approach | DOM vs canvas is **Jared's design decision** ([#33](https://github.com/jgridifier/nitro-xml/issues/33), R0, informed by spikes #34 to #36); every renderer must give real selectable text, screen-reader and keyboard access, IME/OS text input, bidi and crisp high-DPI output |
+| D9 | Renderer approach | **Decided by Jared:** renderers are straight one-to-one Rust ports of the upstream painters (same drawing approach, structure and output; fonts and text measurement follow upstream). The only deviation: each frame's draw/DOM calls cross the WASM boundary as one batched handoff. R0 ([#33](https://github.com/jgridifier/nitro-xml/issues/33)) records the painter inventory, module mapping, worker split and loader budget. DOM-vs-canvas, in-wasm shaping and open fonts move to the **Post-port redesign (Jared)** milestone (#92 to #94, not claimable) |
 | D10 | Viewer edits | [#29](https://github.com/jgridifier/nitro-xml/issues/29) is a placeholder awaiting Jared's list |
 | D11 | Crate layout | `nitro-xml-opc` holds the shared zip, XML, OPC and DrawingML modules; format crates on top; `nitro-xml-wasm` is the only wasm-bindgen crate |
 | D12 | Threads | None by default: single-threaded wasm plus one worker per document, no COOP/COEP needed by embedders |

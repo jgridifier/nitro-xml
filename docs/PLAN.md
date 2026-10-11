@@ -8,7 +8,7 @@
 
 **Core principle (unchanged):** rendering stays fully client-side in the browser.
 
-**Design lock (Jared, 2026-10-11):** "This is a full Rust/WASM project. If something doesn't exist we will build it." Everything that ships is Rust/WASM: package, model, layout, **renderers**, viewer shell, **editor UI** (ribbons, dialogs), **text input, selection and caret**, commands, history and writer. The only JS is a minimal loader (wasm bootstrap and event forwarding) with its own gated size budget. ProseMirror, the upstream Lit UI and the TS painters are not shipped. The upstream TS engine is **test-only**: correctness oracle, perf baseline and pixel reference. There is no runtime fallback; if wasm cannot run, the component shows an "unsupported browser" message. The goal is the fastest, most efficient, highest-quality OOXML renderer and editor available, beating the original on every format at every size.
+**Design lock (Jared, 2026-10-11):** "This is a full Rust/WASM project. If something doesn't exist we will build it." Everything that ships is Rust/WASM: package, model, layout, **renderers**, viewer shell, **editor UI** (ribbons, dialogs), **text input, selection and caret**, commands, history and writer. The only JS is a minimal loader (wasm bootstrap, event forwarding and the per-frame command-buffer applier) with its own gated size budget. ProseMirror, the upstream Lit UI and the TS painters are not shipped. The upstream TS engine is **test-only**: correctness oracle, perf baseline and pixel reference. There is no runtime fallback; if wasm cannot run, the component shows an "unsupported browser" message. The goal is the fastest, most efficient, highest-quality OOXML renderer and editor available, beating the original on every format at every size.
 
 ---
 
@@ -200,8 +200,8 @@ Dependency direction (from the README): bindings -> `ooxml-ui` (DOM) -> `ooxml-c
 | XML | **Rust** (`nitro-xml-opc::xml`) | One streaming pass, no DOM tree; SIMD128 hot loops |
 | OPC, DrawingML, charts | **Rust** (`nitro-xml-opc`) | Shared by all formats |
 | Models (xlsx, docx, pptx, all element kinds) | **Rust** | Columnar where it matters; lazy per sheet, page and slide |
-| Layout (grid metrics, pagination, slide text) | **Rust** | Text shaping and fonts decided at R0 (#36) |
-| **Renderers** | **Rust** | DOM-via-`web-sys` or canvas plus accessible DOM mirror, decided at R0 (#33); may differ per format |
+| Layout (grid metrics, pagination, slide text) | **Rust** | Fonts and text measurement follow upstream (batched); in-wasm shaping is post-port (#93) |
+| **Renderers** | **Rust** | Straight one-to-one ports of the upstream painters (canvas stays canvas, DOM stays DOM); only change: one batched draw/DOM handoff per frame. Inventory and mapping at R0 (#33 to #35) |
 | Viewer shell (zoom, navigation, find, copy, links, diagnostics) | **Rust** | Stage 6 |
 | Editor chrome (ribbons, dialogs, menus, shortcuts) | **Rust** | E0 |
 | Text-editing surface (caret, selection, IME, bidi, clipboard, spellcheck, a11y, mobile keyboards) | **Rust** | E-text, before E1 (single-line) and E3 (rich) |
@@ -214,8 +214,8 @@ Dependency direction (from the README): bindings -> `ooxml-ui` (DOM) -> `ooxml-c
 - **The loader is the only JS.** It instantiates the wasm (streaming compile, cached compiled module, pre-warmed worker), loads a small core module and per-format modules on demand, and forwards batched browser events (input, pointer, wheel, keyboard, composition, resize) into wasm. Its size has its own ceiling (#37).
 - **Handles.** The headless API exposes document handles that own the model in linear memory (`open → handle`, queries, commands, `save`, `free`), with a `FinalizationRegistry` safety net.
 - **Bulk transfer, never per-cell calls** (#14): struct-of-arrays typed-array views over wasm memory for bulk data, interned string tables, `Uint8Array` views for media.
-- **No browser text measurement.** Shaping and measurement happen in Rust or behind an interface decided at R0 (#36).
-- **Workers:** one worker per document, `ArrayBuffer` transferred. The renderer choice decides the split: DOM rendering needs main-thread wasm; canvas can use OffscreenCanvas in a worker (R0).
+- **Per-frame command buffer.** Each frame's canvas draw calls or DOM-building operations cross the boundary as one batched handoff applied by the loader; no per-element WASM-to-JS calls in the render path. Text measurement follows upstream, batched per layout pass (#14).
+- **Workers:** one worker per document, `ArrayBuffer` transferred. The split follows upstream's drawing technology per painter: DOM-building painters apply on the main thread, canvas painters may use OffscreenCanvas in the worker (R0, #36).
 - **Memory:** linear memory never shrinks; one worker per document; upstream limits enforced; crash recovery reloads in a fresh worker (viewer) or replays the op journal (editor).
 - **Threads:** none by default (no SharedArrayBuffer, no COOP/COEP needed by embedders). Only the perf harness serves COOP/COEP.
 
@@ -280,12 +280,14 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 0 | Scaffolding: workspace, wasm build, npm skeleton, CI scripts, fixtures, parity harness, licence and ship checks | #1 to #5, #31, #32, #38 | Builds natively and to wasm32; CI green; corpus verified; self-diff passes; MIT licence with Apache-2.0 text, NOTICE and PROVENANCE |
 | 1 | Perf-eval track, TS baseline, scoreboard harness | #6 to #10, #39 | Harness, history, gate machinery and scoreboard page live; BASELINE.md frozen |
 | 2 | Shared OPC (streaming zip and XML), boundary, visual harness, parse race | #11 to #14, #40, #45 | Part-graph parity; zip-bomb and DTD tests; transport decided with numbers |
-| **R0** | **Renderer design with Jared** | #33 (Jared), #34 to #37, #46 | Spike comparison published under the fixed decision rule; font strategy decided; loader API and size budgets fixed; decision record signed off by Jared. **No renderer issue is claimable before #33 merges** |
+| **R0** | **Renderer port record (Jared)** | #33 (Jared), #34 to #37, #46 | Painter inventory per format (canvas vs DOM, what it draws, Rust module); module mapping; worker vs main-thread split; loader API and size budget; signed off by Jared. **No renderer issue is claimable before #33 merges** |
 | 3 | xlsx viewer in Rust | #15 to #19, #41 to #44 | All viewer gates green for xlsx; unsupported content 0; xlsx beats-TS gate armed (#19) |
 | 4 | docx viewer in Rust | #20 to #23 | Same page counts; all viewer gates; docx gate armed (#23) |
 | 5 | pptx viewer in Rust, all element kinds, no per-slide fallback | #24 to #28 | All viewer gates; pptx gate armed (#27) |
 | 6 | Viewer shell in Rust (+ Jared's viewer edits) | #29 | Shell passes accessibility, selection and keyboard scripts on all target browsers |
 | 7 | Hardening, crash recovery, M1 report (**M1 gate**) | #30 | Fuzzing clean; crash recovery tested; memory ceiling enforced; M1 report |
+
+**Post-port redesign (Jared), backlog, not claimable:** DOM-vs-canvas comparison (#92), in-wasm text shaping (#93), metric-compatible open fonts (#94); labelled `blocked-redesign`.
 
 **Milestone 2, editor** (labelled `blocked-m2` until the M1 gate passes and Jared confirms the budget)
 
@@ -301,7 +303,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 
 **Parallelism:**
 - Stage 1 needs only the fixture corpus (#4), so the TS baseline is ready before the first Rust parser lands. The parse race (#40) starts in the foundation stage.
-- R0 spikes (#34, #35, #36) run in parallel once the xlsx sheet reader (#16) and boundary (#14) exist; model work in Stages 3 to 5 (#15 to #17, #20, #21, #24 to #26) can proceed before R0 closes, renderer work cannot.
+- R0 inventory (#34) and loader budget (#37) start early (after #1 and #2/#14); mapping (#35) and the worker split (#36) follow the inventory; model work in Stages 3 to 5 (#15 to #17, #20, #21, #24 to #26) can proceed before R0 closes, renderer work cannot.
 - The integration issues (#19, #23, #27) are the serial points and arm each format's hard perf gate.
 
 ### 4.1 Performance-eval track (Stage 1, Jared's requirement)
@@ -332,14 +334,14 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
   - **Regression vs main** (always): timings +10% **and** +5 ms; memory +10% **and** +2 MB; brotli size +3% **and** +10 KB; TBT +15% **and** +20 ms; baseline = median of the last 5 main runs. `perf-regression-accepted` with a written reason can override this part only.
   - **WASM beats TS** (per format, armed by #19, #23, #27; never relaxed): every tier, 1x and 4x, first paint, cold parse, scroll/view-query and peak memory; lower median and 95% CI of the ratio below 1.0; a tie fails. Editing (keystroke-to-paint, IME commit-to-paint, undo, save) gets the same rule in M2.
   - **No performance-based fallback of any kind.** A loss is a red gate fixed by design (streaming compile, cached module, pre-warmed worker, small core plus lazy per-format modules).
-  - **Bundle and startup:** per-format initial-payload ceiling (brotli, including fonts and shaping data) and loader ceiling, fixed at R0, ratchet down only; time to interactive gated.
+  - **Bundle and startup:** per-format initial-payload ceiling (brotli, including any fonts and data shipped) and loader ceiling, fixed at R0, ratchet down only; time to interactive gated.
 - **Dashboard and public scoreboard:** a static page (inline SVG, no chart library) on Pages, navy, black and white, published from every main commit: TS and WASM on the same axes, plus the parse, render-to-first-paint and open-edit-save races against pinned competitors (#39 to #41, #70): SheetJS, ExcelJS, calamine, umya-spreadsheet, docx-preview, mammoth.js, docx-rs, PPTXjs, the LibreOffice WASM build, other Rust/WASM viewers found during vetting, and always upstream ooxml TS. Entries that do less are shown as "not comparable"; losses are published as prominently as wins.
 
 ---
 
 ## 5. Issue breakdown
 
-**91 issues** on GitHub (#1 to #91), generated from `issues.json` (`gen_issues.py`). Plan numbers equal GitHub issue numbers; each issue has a `Depends on #X` line. Milestone 2 issues carry `blocked-m2`.
+**94 issues** on GitHub (#1 to #94), generated from `issues.json` (`gen_issues.py`). Plan numbers equal GitHub issue numbers; each issue has a `Depends on #X` line. Milestone 2 issues carry `blocked-m2`; post-port redesign issues (stage PP) carry `blocked-redesign`.
 
 - **Agent fit:** Codex for well-specified mechanical ports with ready test suites; Claude Code for design-heavy or cross-cutting work; Cursor for CI, browser integration and dashboards; OpenCode (free NVIDIA models) for small, well-bounded tasks; a human **Developer** owns the scoreboard races; **Jared** owns the R0 renderer decision (#33).
 - **Every issue** follows AGENTS.md (claim, branch `issue-<N>-<slug>`, PR with `Closes #N`, handoff comment).
@@ -359,30 +361,30 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 11 | Stage 2: nitro-xml-opc::zip: bounded zip reader | 2 | S | Codex | 1 | yes, with #12 and #14 |
 | 12 | Stage 2: nitro-xml-opc::xml: strict streaming XML layer with namespaces | 2 | M | Codex | 1 | yes, with #11 and #14 |
 | 13 | Stage 2: nitro-xml-opc: content types, relationships, part resolution, safe hrefs | 2 | M | Codex | 11, 12 | after #11 and #12 |
-| 14 | Stage 2: JS/WASM boundary conventions, bulk transfer, worker and loader protocol (no browser text measurement) | 2 | M | Claude Code | 2 | yes, after #2 |
+| 14 | Stage 2: JS/WASM boundary conventions, bulk transfer, worker, event and per-frame command-buffer protocol | 2 | M | Claude Code | 2 | yes, after #2 |
 | 15 | Stage 3 (xlsx): Workbook part, shared strings, styles and theme | 3 | M | Codex | 13 | yes, with #17, #20, #24 and #25 |
 | 16 | Stage 3 (xlsx): Streaming worksheet reader (sheetData, merges, cols, rows) | 3 | M | Codex | 15 | after #15 |
 | 17 | Stage 3 (xlsx): Number format engine port | 3 | M | Codex | 1 | yes, independent after #1 |
-| 18 | Stage 3 (xlsx): Grid layout and Rust grid renderer (cells, merges, frozen panes, conditional formats) | 3 | L | Claude Code | 16, 17, 14, 33 | after #16, #17, #14 and the R0 decision #33 |
+| 18 | Stage 3 (xlsx): Grid layout and one-to-one Rust port of the grid painter (cells, merges, frozen panes, conditional formats) | 3 | L | Claude Code | 16, 17, 14, 33 | after #16, #17, #14 and the R0 record #33 |
 | 19 | Stage 3 (xlsx): End-to-end Rust xlsx viewer (open-to-first-paint), engine API for sheet tabs, find, copy and hyperlinks; arm the xlsx perf gate | 3 | M | Cursor cloud | 18, 5, 10, 37 | after #18, #5, #10 and #37 |
 | 20 | Stage 4 (docx): Styles, numbering, theme and settings | 4 | M | Codex | 13 | yes, with Stage 3 and #24/#25 after #13 |
 | 21 | Stage 4 (docx): Body parser (paragraphs, runs, tables, pictures, sections, headers and footers, notes) | 4 | L | Claude Code | 20 | after #20 |
-| 22 | Stage 4 (docx): Pagination engine port with Rust text shaping and measurement | 4 | L | Claude Code | 21, 36, 33 | after #21, #36 and the R0 decision #33 |
-| 23 | Stage 4 (docx): Rust page renderer (Print Layout) end to end; arm the docx perf gate | 4 | M | Cursor cloud | 22, 5, 10, 37 | after #22, #5, #10 and #37 |
+| 22 | Stage 4 (docx): Pagination engine port (fonts and text measurement follow upstream, batched) | 4 | L | Claude Code | 21, 14, 33 | after #21, #14 and the R0 record #33 |
+| 23 | Stage 4 (docx): Rust port of the Print Layout painter, end to end; arm the docx perf gate | 4 | M | Cursor cloud | 22, 5, 10, 37 | after #22, #5, #10 and #37 |
 | 24 | Stage 5 (pptx): Presentation, slide, layout, master and theme parsing with placeholder inheritance | 5 | L | Claude Code | 13 | yes, with #25 after #13 |
 | 25 | Stage 5 (pptx): DrawingML fills, lines, colour transforms and preset geometry | 5 | L | Codex | 13 | yes, with #24 after #13 |
 | 26 | Stage 5 (pptx): Text bodies, paragraphs, runs and tables model | 5 | M | Codex | 24, 25 | after #24 and #25 |
-| 27 | Stage 5 (pptx): Rust slide renderer covering all element kinds (no per-slide fallback); arm the pptx perf gate | 5 | L | Cursor cloud | 26, 28, 5, 10, 37 | after #26, #28, #5, #10 and #37 |
-| 28 | Stage 5: Chart model and Rust chart renderer (shared by xlsx, docx and pptx) | 5 | M | Codex | 25, 33 | after #25 and the R0 decision #33 |
+| 27 | Stage 5 (pptx): Rust port of the slide painters covering all element kinds (no per-slide fallback); arm the pptx perf gate | 5 | L | Cursor cloud | 26, 28, 5, 10, 37 | after #26, #28, #5, #10 and #37 |
+| 28 | Stage 5: Chart model and Rust port of the chart painters (shared by xlsx, docx and pptx) | 5 | M | Codex | 25, 33 | after #25 and the R0 record #33 |
 | 29 | Stage 6: Viewer shell in Rust (zoom, navigation, find UI, copy, hyperlinks, diagnostics) plus Jared's viewer edits | 6 | M | Cursor cloud | 19 | after #19; can start while Stages 4 and 5 run |
 | 30 | Stage 7: Hardening, fuzzing, crash recovery, security limits and M1 report (the M1 gate) | 7 | M | Claude Code | 23, 27, 29 | after #23, #27 and #29 |
 | 31 | Stage 0: CI licence check (cargo-deny and npm): allow only MIT, Apache-2.0, BSD, ISC, Zlib and Unicode | 0 | S | Codex | 1 | yes, with #2, #3 and #4 after #1 |
 | 32 | Stage 0: Source real Excel-authored (and Word/PowerPoint) fixtures with permissive or public-domain licences | 0 | M | Cursor cloud | 4 | yes, with #2, #3 and #5 after #4 |
-| 33 | R0: Renderer decision record (DOM-via-Rust vs canvas, shaping, fonts, worker split, loader API and budgets), owned by Jared | R0 | M | Jared | 34, 35, 36 | after #34, #35, #36 and #37 report |
-| 34 | R0 spike A: DOM-via-Rust (web-sys) xlsx grid and docx page prototype, measured | R0 | M | Claude Code | 16, 14 | in parallel with #35 and #36 |
-| 35 | R0 spike B: canvas plus accessible DOM mirror xlsx grid and docx page prototype, measured | R0 | M | Cursor cloud | 16, 14 | in parallel with #34 and #36 |
-| 36 | R0: Text shaping and font strategy decision (in-wasm shaping, metric-compatible open fonts, Local Font Access) | R0 | M | Claude Code | 4 | in parallel with #34 and #35 |
-| 37 | R0: Minimal JS loader (wasm bootstrap, event forwarding, streaming compile, cached module, pre-warmed worker, lazy per-format modules) and loader size gate | R0 | M | Cursor cloud | 2, 14, 33 | after #2, #14 and the R0 decision #33 |
+| 33 | R0: Renderer port record (painter inventory, Rust module mapping, worker split, loader budget), signed off by Jared | R0 | S | Jared | 34, 35, 36, 37 | after #34, #35, #36 and #37 |
+| 34 | R0 (a): Upstream painter inventory per format (canvas vs DOM, what it draws, Rust module) | R0 | M | Claude Code | 1 | yes, after #1; in parallel with #36 and #37 |
+| 35 | R0 (b): Map upstream painters to Rust modules | R0 | S | Claude Code | 34 | after #34 |
+| 36 | R0 (c): Worker vs main-thread split per painter | R0 | M | Codex | 34, 14 | after #34 and #14 |
+| 37 | R0 (d): Loader API and loader size budget (minimal JS loader skeleton, per-frame command-buffer applier, size gate) | R0 | M | Cursor cloud | 2, 14 | after #2 and #14; in parallel with #34 to #36 |
 | 38 | Stage 0: CI check that fails if any shipped artefact imports the TS engine | 0 | S | OpenCode | 1 | yes, after #1 |
 | 39 | Scoreboard (a): race harness and competitor pinning (licence, upkeep, fastest setup, public method) | 1 | M | Developer | 6, 4 | after #6; in parallel with #7 to #10 |
 | 40 | Scoreboard (b): parse race (starts in the foundation stage) | 2 | M | Developer | 39, 13 | after #39; begins as soon as #11 to #13 parse packages |
@@ -391,7 +393,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 43 | Stage 3: Selection and caret parity gate | 3 | S | Codex | 5, 6 | after #5 and #6 |
 | 44 | Stage 3: Bidi/RTL gate (Arabic and Hebrew fixtures, visual and logical-order copy) | 3 | M | Claude Code | 5, 32 | after #5 and #32 |
 | 45 | Stage 2: Visual gate harness (pixelmatch at DPR 1 and 2, plus print-to-PDF) | 2 | M | Cursor cloud | 5, 6 | after #5 and #6 |
-| 46 | R0: Bundle and startup gate (per-format KB ceilings, time-to-interactive) | R0 | S | Codex | 7, 33 | after #7 and the R0 decision #33 |
+| 46 | R0: Bundle and startup gate (per-format KB ceilings, time-to-interactive) | R0 | S | Codex | 7, 33 | after #7 and the R0 record #33 |
 | 47 | E0: Editor architecture ADR (commands, transactions, history, writer, journal) | E0 | M | Claude Code | 30, 33 | first M2 issue |
 | 48 | E0: Validators in CI (Open XML SDK tool and pinned LibreOffice) via setup-validators.sh | E0 | M | Cursor cloud | 3, 30 | in parallel with #47 |
 | 49 | E0: Lossless round-trip harness (gate a), TS-vs-TS, plus the inventory of what TS loses on save | E0 | M | Claude Code | 48, 5, 4 | after #48 |
@@ -437,6 +439,9 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | 89 | E5: Save-path fuzzing (random command sequences, undo invariants, save and reopen) | E5 | M | Claude Code | 77, 83, 88 | after #77, #83 and #88 |
 | 90 | E5: Long-session memory: 1,000-op sessions within the memory gate | E5 | M | Cursor cloud | 77, 83, 88 | after #77, #83 and #88; in parallel with #89 |
 | 91 | E5: Final report (viewer and editor, TS and competitors) | E5 | S | Claude Code | 89, 90 | after #89 and #90 |
+| 92 | Post-port redesign: DOM-vs-canvas renderer comparison | PP | L | Jared | 30 | not claimable until Jared opens the redesign milestone |
+| 93 | Post-port redesign: in-wasm text shaping and measurement | PP | M | Jared | 30 | not claimable until Jared opens the redesign milestone |
+| 94 | Post-port redesign: metric-compatible open fonts (Carlito, Caladea) and font fallback | PP | M | Jared | 30 | not claimable until Jared opens the redesign milestone |
 
 ---
 
@@ -447,15 +452,15 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 1. **Scope mismatch.** The upstream is a 1.56M-line editor suite, not a small renderer. Unless the port is limited to the read and view path for three formats, it will not fit a limited credit budget. pptx alone is about 146k production lines in core.
 2. **Moving upstream.** The repo was created on 2026-10-01, is pushed daily and is mid-refactor (the pptx XML model migration, DrawingML extraction). Pin a commit and re-sync on purpose, each time with parity re-runs.
 3. **Renderer fidelity.** The TS renderers are tuned against Office captures, and the Rust renderers must re-earn the pixel thresholds; pptx effects are hardest. Mitigation: parity harness, visual diffs at DPR 1 and 2 plus print, per-format gates. The biggest new risk is the Rust text-editing surface (IME, bidi, spellcheck, accessibility, mobile keyboards), now its own stage (E-text).
-4. **Text shaping and fonts.** In-wasm shaping needs real font files; Office fonts cannot be redistributed. R0 decides the strategy (#36: metric-compatible open fonts, Local Font Access).
+4. **Text measurement across the boundary.** Fonts and measurement follow upstream for now, so measurement requests must be batched per layout pass (#14) or they erase WASM gains. In-wasm shaping and open fonts (Carlito, Caladea) are Jared's post-port redesign (#93, #94).
 5. **Small-file startup is a hard gate.** Instantiation and boundary costs can lose to V8 on 3 to 60 KB files; with no fallback, the answer is design (streaming compile, cached module, pre-warmed worker, small core module), never routing to TS.
 6. **Memory behaviour.** Linear memory never shrinks. Use one worker per document and enforce the limits.
-7. **Bundle size.** wasm plus fonts and shaping data must stay under per-format ceilings smaller than TS's payload (#46); track it from day one.
+7. **Bundle size.** wasm plus any fonts and data shipped must stay under per-format ceilings smaller than TS's payload (#46); track it from day one.
 8. **Fixture licensing.** Several large pptx samples look like third-party downloads, and their licence is unknown.
 
 **Open questions for Jared** (from PRODUCT_SPEC v3 §7; reply "defaults" to accept all)
 
-1. **Renderer technology** (joint design, #33): default is the R0 spike of DOM-via-Rust vs canvas plus an accessible mirror, decided by the fixed rule; a hybrid or per-format choice is allowed if the data supports it.
+1. **Renderer technology: decided.** Port upstream's approach as-is (batched per frame); you redesign after the conversion (post-port milestone, #92 to #94).
 2. **Threads:** default none (no SharedArrayBuffer or COOP/COEP); a threaded build only on request.
 3. **Budget:** the scope is far beyond the original estimate; default M1 first, M2 `blocked-m2` until the M1 gate and your confirmation.
 4. **iOS Safari:** default full target with functional, accessibility and IME smoke tests; perf gated in Chromium.
@@ -475,7 +480,7 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 | D6 | Perf | Measured in Chromium; WASM must beat TS everywhere (§4.1) |
 | D7 | Perf CI cadence | Small corpus on every PR; full corpus nightly and on demand; every commit posts numbers |
 | D8 | Legacy and encrypted files | Unsupported-format message in v1; Rust track after E5 (ASK) |
-| D9 | Renderer | Decided at R0 by Jared (#33) |
+| D9 | Renderer | Straight one-to-one ports of upstream painters, batched per frame; R0 record (#33) signed off by Jared; redesign post-port (#92 to #94) |
 | D10 | Viewer edits | #29 placeholder |
 | D11 | Crate layout | `nitro-xml-opc` (zip, XML, OPC, DrawingML, charts), `nitro-xml-xlsx`, `nitro-xml-docx`, `nitro-xml-pptx`, `nitro-xml-wasm`, umbrella `nitro-xml`; npm `nitro-xml` |
 | D12 | Threads | None by default |
@@ -485,4 +490,4 @@ Sizes: **S** is part of one agent session; **M** is about one full session; **L*
 - `docs/PLAN.md` (this file)
 - `docs/index.html` (mobile-readable version, published on GitHub Pages)
 - `docs/PRODUCT_SPEC.md` (v3, the source of the gates)
-- GitHub issues #1 to #91 in `jgridifier/nitro-xml` (generated from `issues.json`)
+- GitHub issues #1 to #94 in `jgridifier/nitro-xml` (generated from `issues.json`)

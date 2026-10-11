@@ -1,0 +1,13 @@
+{
+  "name": "nitro-xml-boundary-bench",
+  "private": true,
+  "description": "JS/WASM boundary microbench (#14). Test/bench only; never shipped. See docs/boundary.md.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "bench": "node boundary.bench.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.0"
+  }
+}

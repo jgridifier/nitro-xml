@@ -1,0 +1,32 @@
+{
+  "commit": "2779b69",
+  "date": "2026-10-11",
+  "chrome": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36",
+  "warmup": 2,
+  "runs": 7,
+  "unit": "median_ms",
+  "transfer": [
+    {
+      "n": 1000,
+      "soa_view_scan": 0.015000000013969839,
+      "serde_wasm_bindgen": 0.3800000000046566,
+      "json_string": 0.30999999993946403
+    },
+    {
+      "n": 100000,
+      "soa_view_scan": 0.565000000060536,
+      "serde_wasm_bindgen": 25.270000000018626,
+      "json_string": 28.03499999991618
+    },
+    {
+      "n": 1000000,
+      "soa_view_scan": 1.400000000023283,
+      "serde_wasm_bindgen": 339.0200000000186,
+      "json_string": 349.73500000010245
+    }
+  ],
+  "command_buffer_1m_ops": 16.25,
+  "per_call_touch_50k": 0.30000000004656613,
+  "per_call_1m_estimate_ms": 6.000000000931323,
+  "events_ok": true
+}

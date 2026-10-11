@@ -4,11 +4,18 @@
 
 use nitro_xml_render::command_buffer::CommandBuffer;
 
+use crate::intern::StringIntern;
 use crate::render::GridPaintViewport;
 use crate::view::metrics::GridMetrics;
 
-pub fn paint_frame(buf: &mut CommandBuffer, viewport: &GridPaintViewport, metrics: &GridMetrics) {
+pub fn paint_frame<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    viewport: &GridPaintViewport,
+    metrics: &GridMetrics,
+) {
     let _ = (viewport, metrics);
     // TODO(#19): quadrant transforms, scroll extent, freeze lines (X1).
-    buf.create_element(1, 1, 0);
+    let div = intern.intern("div");
+    buf.create_element(1, div, 0);
 }

@@ -37,6 +37,7 @@ export {
 export { openDocument, DocumentSession } from "./session.js";
 export { WorkerDocument } from "./worker-host.js";
 export { defineNitroXml, NitroXmlElement } from "./element.js";
+export { defineNitroXlsx, NitroXlsxElement } from "./xlsx-element.js";
 export {
   applyFontSourceToHandle,
   setDefaultFontSource,

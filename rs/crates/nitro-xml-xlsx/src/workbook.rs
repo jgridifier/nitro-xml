@@ -12,8 +12,8 @@ use nitro_xml_opc::xml::parse_xml_str;
 use crate::address::parse_range;
 use crate::formula_text::strip_future_prefixes;
 use crate::model::{
-    Border, CellStyle, Color, DefinedName, Fill, Font, ModernPasswordHash, PageSetup, SheetState,
-    SheetStub, ThemePalette, WorkbookSlice,
+    ActiveWorksheet, Border, CellStyle, Color, DefinedName, Fill, Font, ModernPasswordHash,
+    PageSetup, SheetState, SheetStub, ThemePalette, WorkbookSlice,
 };
 use crate::password_hash::read_modern_hash;
 use crate::shared_strings::parse_shared_strings;
@@ -548,6 +548,52 @@ pub fn parse_all_worksheets(
         }
     }
     Ok(out)
+}
+
+/// Parse one worksheet by workbook sheet index (lazy viewer load).
+pub fn parse_worksheet_at(
+    bytes: &[u8],
+    workbook: &WorkbookSlice,
+    sheet_index: usize,
+) -> Result<ActiveWorksheet, String> {
+    let stub = workbook
+        .sheets
+        .get(sheet_index)
+        .ok_or_else(|| format!("sheet index {} out of range", sheet_index))?;
+    let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
+    let workbook_part = pkg
+        .target_of_type("", relationship_types::OFFICE_DOCUMENT)
+        .map_err(|e| e.to_string())?
+        .filter(|p| pkg.has(p))
+        .or_else(|| {
+            if pkg.has("xl/workbook.xml") {
+                Some("xl/workbook.xml".into())
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| "XLSX package has no workbook part (xl/workbook.xml)".to_owned())?;
+    let dynamic_cells = load_dynamic_cells(&mut pkg, &workbook_part);
+    let part = stub
+        .part_name
+        .as_ref()
+        .ok_or_else(|| format!("sheet \"{}\" has no worksheet part", stub.name))?;
+    let mut ws_ctx = WorksheetContext {
+        shared_strings: workbook.shared_strings.clone(),
+        xf_map: workbook.xf_map.clone(),
+        date1904: workbook.date1904,
+        palette: workbook.palette.clone(),
+        dynamic_cells,
+        warnings: Vec::new(),
+    };
+    Ok(parse_worksheet(
+        &mut ws_ctx,
+        &mut pkg,
+        part,
+        &stub.name,
+        stub.sheet_id,
+        stub.state,
+    ))
 }
 
 #[cfg(test)]

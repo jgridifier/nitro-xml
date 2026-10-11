@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Nitro XML — xlsx viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font: 14px system-ui, sans-serif;
+      }
+      header {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid #ddd;
+      }
+      nitro-xlsx {
+        display: block;
+        height: calc(100% - 3rem);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <label>
+        Open
+        <input type="file" id="pick" accept=".xlsx,.xlsm,.xltx,.xltm" />
+      </label>
+      <span id="hint">Load a workbook or set <code>?src=</code> to a fixture URL.</span>
+    </header>
+    <nitro-xlsx readonly id="viewer"></nitro-xlsx>
+    <script type="module">
+      import { defineNitroXlsx } from "../../packages/nitro-xml/loader/index.js";
+
+      defineNitroXlsx();
+      const viewer = document.getElementById("viewer");
+      const pick = document.getElementById("pick");
+      const hint = document.getElementById("hint");
+
+      pick.addEventListener("change", () => {
+        const f = pick.files && pick.files[0];
+        if (!f) return;
+        hint.textContent = f.name;
+        viewer.loadFile(f).catch((e) => {
+          hint.textContent = e.message || String(e);
+        });
+      });
+
+      const params = new URLSearchParams(location.search);
+      const src = params.get("src");
+      if (src) {
+        hint.textContent = src;
+        viewer.loadUrl(src).catch((e) => {
+          hint.textContent = e.message || String(e);
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -15,8 +15,9 @@ use super::page_borders::{page_borders_from_section, PageBorders};
 use super::pages::paint_print_layout;
 use crate::body::{read_package, DocumentModel, LoadedDocument};
 use crate::layout::{
-    layout_document_model, measure_font_css, CachedMeasurer, LayoutResult, LayoutReviewOptions,
-    MeasureCache, MeasureSample, PendingKind, PendingMeasure,
+    measure_font_css, prepare_layout_document_input, CachedMeasurer, LayoutDocumentInput,
+    LayoutResult, LayoutReviewOptions, LayoutSession, MeasureCache, MeasureSample, PendingKind,
+    PendingMeasure,
 };
 use crate::review_formatting_display::ReviewDisplayMode;
 
@@ -35,7 +36,10 @@ pub struct PrintSession {
     pub warnings: Vec<String>,
     measure_cache: MeasureCache,
     measure_pending: Vec<PendingMeasure>,
+    layout_input: Option<LayoutDocumentInput>,
+    layout_session: Option<LayoutSession>,
     pub layout_ready: bool,
+    layout_complete: bool,
 }
 
 impl PrintSession {
@@ -60,8 +64,15 @@ impl PrintSession {
             warnings,
             measure_cache: MeasureCache::new(),
             measure_pending: Vec::new(),
+            layout_input: None,
+            layout_session: None,
             layout_ready: false,
+            layout_complete: false,
         })
+    }
+
+    pub fn layout_complete(&self) -> bool {
+        self.layout_complete
     }
 
     /// Drive one CachedMeasurer pass: absorb loader widths/metrics, re-layout, queue misses.
@@ -74,7 +85,7 @@ impl PrintSession {
         measures: &mut MeasureBatch,
         intern: &mut I,
     ) -> bool {
-        if self.layout_ready {
+        if self.layout_complete {
             return true;
         }
 
@@ -102,36 +113,85 @@ impl PrintSession {
             self.measure_cache.absorb(&self.measure_pending, &samples);
             self.measure_pending.clear();
             measures.widths.clear();
+            self.layout_session = None;
         }
 
         if measures.awaiting() > 0 || !measures.is_empty() {
-            return false;
+            return self.layout_ready;
+        }
+
+        let options = LayoutReviewOptions {
+            review_display_mode: None,
+        };
+        if self.layout_input.is_none() {
+            let (input, review_notes) = prepare_layout_document_input(&self.model, options.clone());
+            for note in review_notes {
+                if !self.warnings.iter().any(|w| w == &note) {
+                    self.warnings.push(note);
+                }
+            }
+            self.layout_input = Some(input);
+        }
+
+        if self.layout_session.is_none() {
+            let mut session = LayoutSession::new(self.layout_input.clone().unwrap());
+            session.set_priority(0, 1);
+            session.set_uax9(false);
+            self.layout_session = Some(session);
         }
 
         // Match upstream Print Layout: no UAX #9 reorder on the paint path.
         let measurer = CachedMeasurer::new(&self.measure_cache);
-        let result = layout_document_model(
-            &self.model,
-            &measurer,
-            LayoutReviewOptions {
-                review_display_mode: None,
-            },
-        );
+        let status = self
+            .layout_session
+            .as_mut()
+            .expect("layout session")
+            .tick(&measurer, 1);
         let pending = measurer.take_pending();
-        if pending.is_empty() {
-            for note in &result.approximations {
-                if !self.warnings.iter().any(|w| w == note) {
-                    self.warnings.push(note.clone());
-                }
-            }
-            self.result = result;
-            self.layout_ready = true;
-            return true;
+        if !pending.is_empty() {
+            self.layout_session = None;
+            self.queue_pending(&pending, measures, intern);
+            self.measure_pending = pending;
+            return self.layout_ready;
         }
 
-        self.queue_pending(&pending, measures, intern);
-        self.measure_pending = pending;
-        false
+        let partial = self
+            .layout_session
+            .as_ref()
+            .expect("layout session")
+            .committed_layout_result();
+        self.merge_layout_result(&partial);
+        if !partial.pages.is_empty() {
+            self.layout_ready = true;
+        }
+
+        if status.complete {
+            if let Some(result) = self
+                .layout_session
+                .as_ref()
+                .and_then(|session| session.result())
+            {
+                self.result = result;
+            }
+            self.layout_complete = true;
+            self.layout_ready = true;
+        }
+
+        self.layout_ready
+    }
+
+    fn merge_layout_result(&mut self, partial: &LayoutResult) {
+        if partial.pages.len() > self.result.pages.len() {
+            self.result.pages = partial.pages.clone();
+        }
+        for note in &partial.approximations {
+            if !self.warnings.iter().any(|w| w == note) {
+                self.warnings.push(note.clone());
+            }
+            if !self.result.approximations.iter().any(|a| a == note) {
+                self.result.approximations.push(note.clone());
+            }
+        }
     }
 
     fn queue_pending<I: StringIntern>(
@@ -253,4 +313,136 @@ fn b64_encode(data: &[u8]) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod incremental_layout_tests {
+    use super::*;
+    use crate::body::DocumentModel;
+    use crate::render::print::dom::StringIntern;
+    use nitro_xml_render::MeasureBatch;
+    use serde_json::json;
+
+    struct TestIntern {
+        next: u32,
+        map: std::collections::HashMap<String, u32>,
+    }
+
+    impl TestIntern {
+        fn new() -> Self {
+            Self {
+                next: 1,
+                map: std::collections::HashMap::new(),
+            }
+        }
+    }
+
+    impl StringIntern for TestIntern {
+        fn intern(&mut self, s: &str) -> u32 {
+            if let Some(id) = self.map.get(s) {
+                return *id;
+            }
+            let id = self.next;
+            self.next += 1;
+            self.map.insert(s.to_string(), id);
+            id
+        }
+    }
+
+    fn multi_page_model() -> DocumentModel {
+        let blocks = (0..4)
+            .map(|index| {
+                json!({
+                    "type": "paragraph",
+                    "id": format!("p{index}"),
+                    "pageBreakBefore": index > 0,
+                    "widowControl": false,
+                    "runs": [{ "text": format!("Paragraph {index} on its own page") }]
+                })
+            })
+            .collect();
+        DocumentModel {
+            format: "docx".into(),
+            blocks,
+            page: json!({
+                "width": 612.0,
+                "height": 792.0,
+                "marginTop": 72.0,
+                "marginRight": 72.0,
+                "marginBottom": 72.0,
+                "marginLeft": 72.0
+            }),
+            warnings: Vec::new(),
+            paragraph_styles: None,
+            character_styles: None,
+            table_styles: None,
+            numbering_catalog: None,
+            theme: None,
+            sections: None,
+            footnotes: None,
+            endnotes: None,
+            footnote_num_fmt: None,
+            endnote_num_fmt: None,
+            even_and_odd_headers: false,
+            auto_hyphenation: false,
+            comments: None,
+            track_changes: None,
+            track_formatting: None,
+            track_moves: None,
+            media_part_names: Vec::new(),
+        }
+    }
+
+    fn test_session(model: DocumentModel) -> PrintSession {
+        PrintSession {
+            model,
+            result: LayoutResult {
+                pages: Vec::new(),
+                approximations: Vec::new(),
+            },
+            picture_urls: HashMap::new(),
+            chart_spaces: HashMap::new(),
+            line_numbers: Vec::new(),
+            page_borders: Vec::new(),
+            suppressed: HashSet::new(),
+            warnings: Vec::new(),
+            measure_cache: MeasureCache::new(),
+            measure_pending: Vec::new(),
+            layout_input: None,
+            layout_session: None,
+            layout_ready: false,
+            layout_complete: false,
+        }
+    }
+
+    fn resolve_measures(measures: &mut MeasureBatch) {
+        if measures.is_empty() {
+            return;
+        }
+        let n = measures.len();
+        let _ = measures.take_requests();
+        let widths: Vec<f64> = (0..n).map(|_| 48.0).collect();
+        measures.set_results(&widths).expect("measure results");
+    }
+
+    #[test]
+    fn first_page_paintable_before_full_document_layout() {
+        // Catches: PrintSession never paints until full multi-page measure finishes (poi-bug65649 hang).
+        let mut session = test_session(multi_page_model());
+        let mut measures = MeasureBatch::new();
+        let mut intern = TestIntern::new();
+        let mut saw_first_page = false;
+        for _ in 0..64 {
+            let ready = session.tick_measure(&mut measures, &mut intern);
+            if ready && !session.result.pages.is_empty() && !session.layout_complete {
+                saw_first_page = true;
+                break;
+            }
+            resolve_measures(&mut measures);
+        }
+        assert!(
+            saw_first_page,
+            "expected layout_ready with at least one page before layout_complete"
+        );
+    }
 }

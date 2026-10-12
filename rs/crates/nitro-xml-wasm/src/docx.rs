@@ -126,6 +126,7 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         .as_ref()
         .map(|d| d.layout_ready())
         .unwrap_or(false);
+    let prev_page_count = handle.docx.as_ref().map(|d| d.page_count()).unwrap_or(0);
 
     let ready = if let Some(ref mut docx) = handle.docx {
         docx.session
@@ -142,8 +143,11 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
     let mut new_warnings: Vec<String> = Vec::new();
     let mut tabs: Option<(Vec<(u32, String)>, u32)> = None;
     if let Some(ref mut docx) = handle.docx {
-        if !was_ready {
+        let page_count = docx.page_count();
+        if !was_ready || page_count != prev_page_count {
             tabs = Some((docx.page_tabs(), docx.active as u32));
+        }
+        if !was_ready {
             for w in &docx.session.warnings {
                 new_warnings.push(w.clone());
             }

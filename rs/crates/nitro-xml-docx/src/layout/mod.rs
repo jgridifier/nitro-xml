@@ -39,7 +39,7 @@ mod wrap;
 pub use bidi::{apply_uax9_result, reorder_line_fragments_uax9};
 pub use layout::{
     layout_document, layout_document_model, layout_document_model_cached, layout_until_measured,
-    CachedLayout,
+    prepare_layout_document_input, CachedLayout,
 };
 pub use measure::{
     create_fake_measurer, measure_font_css, CachedMeasurer, MeasureCache, MeasureKey,
@@ -53,7 +53,9 @@ pub use session::{LayoutSession, TickStatus};
 pub(crate) use adapt_floats::paragraph_floats;
 pub(crate) use floats::float_position;
 pub(crate) use fonts::css_font_stack;
-pub(crate) use input::{LayoutBorder, LayoutChart, LayoutFloat, LayoutParagraphBorder};
+pub(crate) use input::{
+    LayoutBorder, LayoutChart, LayoutDocumentInput, LayoutFloat, LayoutParagraphBorder,
+};
 pub(crate) use layout_ligatures::ligature_css;
 pub(crate) use page_fields::{
     field_display_text, page_number_values, page_numbers, PageFieldContext,

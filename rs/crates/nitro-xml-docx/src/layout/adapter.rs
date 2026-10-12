@@ -764,12 +764,20 @@ fn adapt_run(
                 .unwrap_or(false)
         })
         .map(|image| {
+            let part_name = image
+                .get("partName")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .or_else(|| {
+                    image
+                        .get("chart")
+                        .and_then(|c| c.get("partName"))
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.is_empty())
+                })
+                .unwrap_or("");
             let mut obj = super::input::LayoutObject {
-                part_name: image
-                    .get("partName")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .into(),
+                part_name: part_name.into(),
                 content_type: image
                     .get("contentType")
                     .and_then(|v| v.as_str())
@@ -923,4 +931,78 @@ fn flatten_paragraphs(blocks: &[Value]) -> Vec<&Value> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod chart_part_name_tests {
+    use super::*;
+    use crate::body::DocumentModel;
+    use crate::layout::input::{parse_block, LayoutBlock};
+    use crate::layout::review_display::LayoutReviewOptions;
+    use serde_json::json;
+
+    #[test]
+    fn chart_image_uses_chart_part_name_when_media_part_empty() {
+        // Catches: chart LayoutObject keeps empty partName so print paint misses ChartSpace lookup.
+        let model = DocumentModel {
+            format: "docx".into(),
+            blocks: vec![json!({
+                "type": "paragraph",
+                "id": "p1",
+                "runs": [{
+                    "text": "",
+                    "image": {
+                        "partName": "",
+                        "contentType": "application/octet-stream",
+                        "widthPx": 400.0,
+                        "heightPx": 300.0,
+                        "chart": {
+                            "partName": "word/charts/chart1.xml",
+                            "drawn": true
+                        }
+                    }
+                }]
+            })],
+            page: json!({
+                "width": 612.0,
+                "height": 792.0,
+                "marginTop": 72.0,
+                "marginRight": 72.0,
+                "marginBottom": 72.0,
+                "marginLeft": 72.0
+            }),
+            warnings: Vec::new(),
+            paragraph_styles: None,
+            character_styles: None,
+            table_styles: None,
+            numbering_catalog: None,
+            theme: None,
+            sections: None,
+            footnotes: None,
+            endnotes: None,
+            footnote_num_fmt: None,
+            endnote_num_fmt: None,
+            even_and_odd_headers: false,
+            auto_hyphenation: false,
+            comments: None,
+            track_changes: None,
+            track_formatting: None,
+            track_moves: None,
+            media_part_names: Vec::new(),
+        };
+        let mut notes = Vec::new();
+        let input = adapt_document_model(
+            &model,
+            &mut |n| notes.push(n),
+            &LayoutReviewOptions::default(),
+        );
+        let block = parse_block(&input.sections[0].blocks[0]);
+        let run = match block {
+            LayoutBlock::Paragraph(p) => p.runs[0].clone(),
+            LayoutBlock::Table(_) => panic!("expected paragraph"),
+        };
+        let object = run.object.as_ref().expect("chart run object");
+        assert_eq!(object.part_name, "word/charts/chart1.xml");
+        assert!(object.chart.is_some());
+    }
 }

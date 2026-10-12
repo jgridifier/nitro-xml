@@ -212,6 +212,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-render/src/chart/render/svg.rs` | `src/core/chart/render/chart-svg.ts` @ e66aaec | S1 SVG document. |
 | `rs/crates/nitro-xml-render/src/chart/render/svg_util.rs` | `src/core/chart/render/chart-svg-util.ts` @ e66aaec | SVG helpers. |
 | `rs/crates/nitro-xml-render/src/chart/render/svg_cartesian.rs` | `src/core/chart/render/chart-svg-cartesian.ts` @ e66aaec | Cartesian painter; P9 plot layout + axis scale for `bar3D` extrusion (#27). |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_auto_title.rs` | `src/ui/src/pptx/render/chart-auto-title.ts` @ e66aaec | P9 `bar3D` auto title text (`CHART_AUTO_TITLE`) (#27). |
 | `rs/crates/nitro-xml-render/src/chart/render/chart_axis_nice.rs` | `src/core/chart/axis-nice.ts` @ e66aaec | Plot-height-aware value-axis bounds for P9 `bar3D` layout (#27). |
 | `rs/crates/nitro-xml-render/src/chart/render/chart_plot_layout.rs` | `src/ui/src/pptx/render/chart-view-model-layout.ts`, `chart-title-band.ts`, `chart-legend-placement.ts` @ e66aaec | P9 plot inset bands for `bar3D` extrusion (#27). |
 | `rs/crates/nitro-xml-render/src/chart/render/svg_bars.rs` | `src/core/chart/render/chart-svg-bars.ts` @ e66aaec | Bar series; `bar3D` extrusion faces + picture pattern fills (#27). |

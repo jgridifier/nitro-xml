@@ -393,9 +393,9 @@ mod tests {
         );
     }
 
-    // Catches: multi-series auto-title placeholder must reserve P9 title band without painting "Chart Title".
+    // Catches: P9 bar3d multi-series empty c:title must paint TS CHART_AUTO_TITLE at txPr title size.
     #[test]
-    fn bar3d_title_placeholder_reserves_plot_band_without_synthetic_title() {
+    fn bar3d_multi_series_empty_title_paints_chart_auto_title() {
         let deck = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../fixtures/upstream/pptx/2789ff8d6772_three-d-charts.pptx");
         let bytes = std::fs::read(&deck).unwrap();
@@ -419,8 +419,17 @@ mod tests {
             },
         );
         assert!(
-            !svg.contains("Chart Title"),
-            "placeholder reserve must not paint synthetic title text"
+            svg.contains(">Chart Title</text>"),
+            "multi-series placeholder title must paint visible CHART_AUTO_TITLE on bar3d path: {svg}"
+        );
+        let title_tag = svg
+            .split(">Chart Title</text>")
+            .next()
+            .and_then(|prefix| prefix.rsplit("<text ").next())
+            .unwrap_or("");
+        assert!(
+            title_tag.contains("24.8") || title_tag.contains("24.9"),
+            "title should use txPr sz=1862 (~18.62pt), got: <text {title_tag}"
         );
         let (_, y, _, _) = first_bar_rect(&svg);
         assert!(

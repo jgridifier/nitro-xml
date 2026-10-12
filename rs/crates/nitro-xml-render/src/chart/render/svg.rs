@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/chart-svg.ts
 
+use super::chart_auto_title::resolve_p9_chart_title_text;
 use super::chart_plot_layout::{
     chart_title_reserve_px, compute_plot_layout, CHART_PX_PER_PT, DEFAULT_CHART_TEXT_PX,
 };
@@ -22,13 +23,22 @@ pub fn render_chart_svg(
     height: u32,
     measure: &mut ChartSvgMeasureOptions<'_>,
 ) -> String {
-    let (model, defs) = chart_gradient_paint(model, width.max(1), height.max(1));
     let p9_bar3d = model.is3_d
         && model.bar3d_extrusion
         && matches!(
             model.type_,
             ChartSummaryType::Bar | ChartSummaryType::Column
         );
+    let paint_model = if p9_bar3d {
+        let mut m = model.clone();
+        if let Some(title) = resolve_p9_chart_title_text(model) {
+            m.title = Some(title);
+        }
+        m
+    } else {
+        model.clone()
+    };
+    let (model, defs) = chart_gradient_paint(&paint_model, width.max(1), height.max(1));
     let mut picture_defs: Vec<String> = Vec::new();
     let w = width.max(1) as f64;
     let h = height.max(1) as f64;

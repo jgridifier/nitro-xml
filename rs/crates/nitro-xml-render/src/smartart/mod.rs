@@ -128,9 +128,13 @@ struct SpBox {
     w: f64,
     h: f64,
     fill: String,
+    fill_opacity: Option<f64>,
     stroke: String,
     stroke_width: f64,
     text: String,
+    font_color: String,
+    /// Authored font size in EMUs when `a:rPr/@sz` is present.
+    font_size_emu: Option<f64>,
     geom_name: String,
     kind: ShapeKind,
     is_pic: bool,
@@ -206,8 +210,9 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
                     } else {
                         String::new()
                     };
+                    let opacity = fill_opacity_attr(shape.fill_opacity);
                     body.push_str(&format!(
-                        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{rx_attr} fill=\"{}\" {stroke_attr}{transform_attr}/>",
+                        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{rx_attr} fill=\"{}\"{opacity} {stroke_attr}{transform_attr}/>",
                         num(shape.x),
                         num(shape.y),
                         num(shape.w.max(1.0)),
@@ -216,8 +221,9 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
                     ));
                 }
                 ShapeKind::Ellipse => {
+                    let opacity = fill_opacity_attr(shape.fill_opacity);
                     body.push_str(&format!(
-                        "<ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" {stroke_attr}{transform_attr}/>",
+                        "<ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\"{opacity} {stroke_attr}{transform_attr}/>",
                         num(cx),
                         num(cy),
                         num((shape.w / 2.0).max(0.5)),
@@ -230,8 +236,9 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
                         Some(t) => format!("{t} translate({} {})", num(shape.x), num(shape.y)),
                         None => format!("translate({} {})", num(shape.x), num(shape.y)),
                     };
+                    let opacity = fill_opacity_attr(shape.fill_opacity);
                     body.push_str(&format!(
-                        "<path d=\"{}\" fill=\"{}\" {stroke_attr} transform=\"{}\"/>",
+                        "<path d=\"{}\" fill=\"{}\"{opacity} {stroke_attr} transform=\"{}\"/>",
                         escape(d),
                         escape(&shape.fill),
                         escape(&path_transform),
@@ -241,9 +248,10 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
         }
 
         if !shape.text.is_empty() {
-            // Match TS projectDrawingShapes: ~20% of height, wrapped to ~82% width.
-            // `fit_font` keeps the short-connector wasm clamp safety net.
-            let font = (shape.h * 0.2)
+            // Prefer authored `sz` (hundredths of a point → EMU); else ~20% of height.
+            let font = shape
+                .font_size_emu
+                .unwrap_or(shape.h * 0.2)
                 .min(fit_font(shape.h, stroke_w.max(default_stroke)))
                 .clamp(shape.h * 0.08, shape.h * 0.35)
                 .max(1.0);
@@ -254,10 +262,11 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
             let mut y = cy - total_h / 2.0 + line_height / 2.0;
             for line in &lines {
                 body.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"#222222\">{}</text>",
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">{}</text>",
                     num(cx),
                     num(y),
                     num(font),
+                    escape(&shape.font_color),
                     escape(line),
                 ));
                 y += line_height;
@@ -400,13 +409,16 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         return None;
     }
     let no_fill = child_any(sp_pr, "noFill").is_some();
-    let fill = if no_fill {
-        "none".to_owned()
+    let (fill, fill_opacity) = if no_fill {
+        ("none".to_owned(), None)
     } else {
-        solid_hex(sp_pr, scheme).unwrap_or_else(|| "#D6DCE4".to_owned())
+        let fill = solid_hex(sp_pr, scheme).unwrap_or_else(|| "#D6DCE4".to_owned());
+        (fill, solid_fill_alpha(sp_pr))
     };
     let (stroke, stroke_width) = stroke_of(sp_pr, scheme);
     let text = text_of(sp);
+    let font_color = font_color_of(sp, scheme, &fill);
+    let font_size_emu = authored_font_size_emu(sp);
     let rotation = attr_f64(xfrm, "rot").map(|r| r / 60_000.0);
     let flip_h =
         attr_str(xfrm, "flipH").is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
@@ -429,9 +441,12 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         w,
         h,
         fill,
+        fill_opacity,
         stroke,
         stroke_width,
         text,
+        font_color,
+        font_size_emu,
         geom_name,
         kind,
         is_pic,
@@ -439,6 +454,92 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         flip_h,
         flip_v,
     })
+}
+
+fn fill_opacity_attr(opacity: Option<f64>) -> String {
+    match opacity {
+        Some(o) if o < 0.999 => format!(" fill-opacity=\"{}\"", num(o.clamp(0.0, 1.0))),
+        _ => String::new(),
+    }
+}
+
+fn solid_fill_alpha(container: &Element) -> Option<f64> {
+    let fill = child_any(container, "solidFill")?;
+    let color = child_any(fill, "srgbClr").or_else(|| child_any(fill, "schemeClr"))?;
+    let alpha = child_any(color, "alpha").and_then(|e| attr_str(e, "val"))?;
+    let v: f64 = alpha.parse().ok()?;
+    Some((v / 100_000.0).clamp(0.0, 1.0))
+}
+
+fn font_color_of(sp: &Element, scheme: Option<&BTreeMap<String, String>>, fill: &str) -> String {
+    if let Some(style) = child_any(sp, "style") {
+        if let Some(font_ref) = child_any(style, "fontRef") {
+            if let Some(hex) = solid_hex_from_color_child(font_ref, scheme) {
+                return hex;
+            }
+        }
+    }
+    // Contrast against fill (TS drawingShapeLabelColor): light fill → dark text.
+    if fill != "none" && relative_luminance(fill) > 0.55 {
+        "#222222".to_owned()
+    } else if fill != "none" {
+        "#FFFFFF".to_owned()
+    } else {
+        "#222222".to_owned()
+    }
+}
+
+fn authored_font_size_emu(sp: &Element) -> Option<f64> {
+    // `sz` is hundredths of a point; 1pt = 12700 EMU.
+    let mut stack: Vec<&Element> = vec![sp];
+    while let Some(node) = stack.pop() {
+        if node.local == "rPr" || node.local == "defRPr" {
+            if let Some(sz) = attr_f64(node, "sz") {
+                if sz > 0.0 {
+                    return Some(sz / 100.0 * 12_700.0);
+                }
+            }
+        }
+        for child in node.children.iter().rev() {
+            if let Node::Element(child) = child {
+                stack.push(child);
+            }
+        }
+    }
+    None
+}
+
+fn relative_luminance(hex: &str) -> f64 {
+    let raw = hex.trim_start_matches('#');
+    if raw.len() != 6 {
+        return 0.5;
+    }
+    let Ok(r) = u8::from_str_radix(&raw[0..2], 16) else {
+        return 0.5;
+    };
+    let Ok(g) = u8::from_str_radix(&raw[2..4], 16) else {
+        return 0.5;
+    };
+    let Ok(b) = u8::from_str_radix(&raw[4..6], 16) else {
+        return 0.5;
+    };
+    (0.2126 * f64::from(r) + 0.7152 * f64::from(g) + 0.0722 * f64::from(b)) / 255.0
+}
+
+fn solid_hex_from_color_child(
+    container: &Element,
+    scheme: Option<&BTreeMap<String, String>>,
+) -> Option<String> {
+    if let Some(srgb) = child_any(container, "srgbClr") {
+        let mut hex = hex6(attr_str(srgb, "val")?)?;
+        apply_simple_tint_shade(srgb, &mut hex);
+        return Some(hex);
+    }
+    let scheme_el = child_any(container, "schemeClr")?;
+    let name = attr_str(scheme_el, "val")?;
+    let mut hex = scheme_hex(scheme?, name)?;
+    apply_simple_tint_shade(scheme_el, &mut hex);
+    Some(hex)
 }
 
 fn resolve_kind(
@@ -819,6 +920,31 @@ mod tests {
         assert!(!svg.contains("#D6DCE4"), "{svg}");
         assert!(!svg.contains("#EEEEEE"), "{svg}");
         assert!(!svg.contains(">SmartArt<"), "{svg}");
+    }
+
+    // Catches: dark chevron labels painted #222 on accent1 (invisible) instead of fontRef lt1 white.
+    #[test]
+    fn font_ref_lt1_paints_white_label_on_dark_fill() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="2000000" cy="1000000"/></a:xfrm>
+                <a:prstGeom prst="chevron"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:schemeClr val="accent1"/></a:solidFill>
+              </dsp:spPr>
+              <dsp:style><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></dsp:style>
+              <dsp:txBody><a:p><a:r><a:rPr sz="3100"/><a:t>Node One</a:t></a:r></a:p></dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        scheme.insert("lt1".to_owned(), "#FFFFFF".to_owned());
+        let svg = smartart_svg_with_scheme(Some(xml), 400.0, 200.0, Some(&scheme));
+        assert!(svg.contains("Node One"), "{svg}");
+        assert!(svg.contains("fill=\"#FFFFFF\""), "{svg}");
+        assert!(svg.contains("#156082"), "{svg}");
     }
 
     // Catches: noFill text frames inventing a grey stroke rectangle around SmartArt labels.

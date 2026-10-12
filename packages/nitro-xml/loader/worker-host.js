@@ -6,6 +6,7 @@ import { isSupportedExtension } from "./formats.js";
 import { unsupportedFormatError } from "./bootstrap.js";
 import { getDefaultFontSource } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
+import { fillMeasureWidths } from "./measure.js";
 export class WorkerDocument {
 constructor(opts = {}) {
 this._canvas = opts.canvas || null;
@@ -69,16 +70,14 @@ strings,
 } = frame;
 this._strings = strings || this._strings;
 if (measureCount > 0 && measureReqs) {
-const widths = new Float64Array(measureCount);
 const ctx = this._measureCtx();
-if (ctx) {
-for (let i = 0; i < measureCount; i++) {
-let f=(strings&&strings[measureReqs.fonts[i]])||"sans-serif";
-const text=(strings&&strings[measureReqs.texts[i]])||"";
-ctx.font=/\d+(\.\d+)?px/.test(f)?f:`${measureReqs.sizes[i]}px ${f}`;
-widths[i]=ctx.measureText(text).width;
-}
-}
+const widths = fillMeasureWidths(
+ctx,
+measureCount,
+(i) => (strings && strings[measureReqs.fonts[i]]) || "sans-serif",
+(i) => measureReqs.sizes[i],
+(i) => (strings && strings[measureReqs.texts[i]]) || "",
+);
 await this._request("measure-acked", () => {
 this._worker.postMessage({ type: "measure-results", widths }, [widths.buffer]);
 });

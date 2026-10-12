@@ -5,7 +5,7 @@ import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { mismatchRatio, withinThreshold } from './thresholds.mjs';
+import { mismatchRatio, withinThreshold, THRESHOLDS } from './thresholds.mjs';
 
 /**
  * @param {Buffer} aPng
@@ -54,7 +54,11 @@ export function comparePngBuffers(aPng, bPng, opts) {
 	});
 	const total = width * height;
 	const ratio = mismatchRatio(mismatched, total);
-	const ok = withinThreshold(mismatched, total, opts.format);
+	const limit = opts.threshold ?? THRESHOLDS[opts.format];
+	const ok =
+		limit === undefined
+			? withinThreshold(mismatched, total, opts.format)
+			: mismatched / total <= limit;
 	if (mismatched > 0) {
 		writeDiffPng(opts.diffPath, diff);
 	}

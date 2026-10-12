@@ -81,6 +81,26 @@ pub fn measure_font_family(font: &LayoutFontSpec) -> String {
     css_font_stack(Some(&font.family))
 }
 
+/// Full CSS `font` shorthand matching upstream `createCanvasMeasurer` `fontString`.
+///
+/// Includes italic/bold so the loader's `measureText` path matches Print Layout widths
+/// (family-only strings measured as regular and drifted fragment x by ~25%).
+pub fn measure_font_css(font: &LayoutFontSpec) -> String {
+    let mut out = String::new();
+    if font.italic {
+        out.push_str("italic ");
+    }
+    if font.bold {
+        out.push_str("bold ");
+    }
+    out.push_str(&format!(
+        "{}px {}",
+        font.size_px,
+        css_font_stack(Some(&font.family))
+    ));
+    out
+}
+
 /// Stable identity of one width or font-metric probe.
 ///
 /// `text` is empty for line-height and ascent entries. `size_bits` is `f64::to_bits`
@@ -181,6 +201,18 @@ impl MeasureKey {
             small_caps,
             text,
         })
+    }
+
+    pub fn to_font_spec(&self) -> LayoutFontSpec {
+        LayoutFontSpec {
+            family: self.family.clone(),
+            size_px: self.size_px(),
+            bold: self.bold,
+            italic: self.italic,
+            kerning: self.kerning.clone(),
+            ligatures: self.ligatures.clone(),
+            small_caps: self.small_caps,
+        }
     }
 }
 
@@ -396,7 +428,7 @@ impl<'a> BatchInner<'a> {
         if self.pending_widths.iter().any(|existing| existing == &key) {
             return;
         }
-        let font_id = self.intern(&measure_font_family(font));
+        let font_id = self.intern(&measure_font_css(font));
         let text_id = self.intern(text);
         self.measures.push(font_id, font.size_px as f32, text_id);
         self.pending_widths.push(key);
@@ -510,5 +542,29 @@ impl TextMeasurer for BatchedMeasurer<'_> {
     fn ascent_of(&self, font: &LayoutFontSpec) -> Option<f64> {
         let key = MeasureKey::font_only(font);
         self.inner.borrow().cache.ascent(&key)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn measure_font_css_includes_bold_italic() {
+        // Catches: measure batch font ids omitting bold/italic so canvas widths
+        // drift from createCanvasMeasurer and Print Layout fragment x positions.
+        let font = LayoutFontSpec {
+            family: "Calibri".into(),
+            size_px: 14.666666666666666,
+            bold: true,
+            italic: true,
+            kerning: Some("none".into()),
+            ligatures: None,
+            small_caps: false,
+        };
+        let css = measure_font_css(&font);
+        assert!(css.starts_with("italic bold "), "{css}");
+        assert!(css.contains("px "), "{css}");
+        assert!(css.contains("Calibri"), "{css}");
     }
 }

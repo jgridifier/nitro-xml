@@ -32,6 +32,10 @@ impl DocxState {
         self.session.result.pages.len()
     }
 
+    pub fn layout_ready(&self) -> bool {
+        self.session.layout_ready
+    }
+
     pub fn set_active_page(&mut self, index: usize) -> Result<(), String> {
         let n = self.page_count();
         if n == 0 {
@@ -116,7 +120,53 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         docx.process_events(&events, &handle.strings);
     }
     handle.events.drain();
+
+    let was_ready = handle
+        .docx
+        .as_ref()
+        .map(|d| d.layout_ready())
+        .unwrap_or(false);
+
+    let ready = if let Some(ref mut docx) = handle.docx {
+        docx.session
+            .tick_measure(&mut handle.measures, &mut handle.strings)
+    } else {
+        false
+    };
+
+    if !ready {
+        handle.commands.begin();
+        return;
+    }
+
+    let mut new_warnings: Vec<String> = Vec::new();
+    let mut tabs: Option<(Vec<(u32, String)>, u32)> = None;
     if let Some(ref mut docx) = handle.docx {
+        if !was_ready {
+            tabs = Some((docx.page_tabs(), docx.active as u32));
+            for w in &docx.session.warnings {
+                new_warnings.push(w.clone());
+            }
+        }
         docx.paint(&mut handle.strings, &mut handle.commands);
+    }
+    if let Some((tabs, idx)) = tabs {
+        handle.shell.set_tabs(tabs, idx);
+        handle.shell.dirty_ui = true;
+    }
+    for w in new_warnings {
+        let known = handle
+            .shell
+            .diagnostics
+            .warnings
+            .iter()
+            .any(|x| x.message == w);
+        if !known {
+            handle
+                .shell
+                .diagnostics
+                .ingest_warning("docx_warning", &w, None);
+            handle.push_warning("docx_warning".into(), w, None);
+        }
     }
 }

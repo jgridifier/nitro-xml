@@ -7,9 +7,10 @@
  * docx Print Layout IR is hosted via `docx-layout-ir` (#23 / #158).
  */
 
+import { docxVisualCorpus } from './docx-corpus.mjs';
 import { pptxVisualCorpus } from './pptx-corpus.mjs';
 
-/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'pptx-viewer' | 'docx-layout-ir'} VisualKind */
+/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'pptx-viewer' | 'docx-layout-ir' | 'docx-viewer'} VisualKind */
 
 /**
  * @typedef {object} VisualCase
@@ -26,6 +27,7 @@ import { pptxVisualCorpus } from './pptx-corpus.mjs';
  * @property {boolean} [rust] when true, prepare + compare a Rust/WASM side
  * @property {boolean} [informational] when true, mismatches are reported but do not fail the gate
  * @property {boolean} [skipPrint] when true, skip print-to-PDF for this case
+ * @property {number} [threshold] per-case mismatch fraction (overrides format default)
  */
 
 /** @type {VisualCase[]} */
@@ -72,10 +74,26 @@ const STATIC_CASES = [
 		height: 600,
 		rust: true,
 	},
+	{
+		id: 'docx-viewer-bidi-paragraphs',
+		format: 'docx',
+		kind: 'docx-viewer',
+		ready: true,
+		fixture: 'fixtures/bidi/arabic-hebrew-paragraphs.docx',
+		width: 800,
+		height: 600,
+		rust: true,
+		// Hard case: live `<nitro-docx>` vs upstream Print Layout ≤0.1% at DPR1/DPR2/print (#23).
+		threshold: 0.001,
+	},
 ];
 
 /** @type {VisualCase[]} */
-export const VISUAL_CASES = [...STATIC_CASES, ...pptxVisualCorpus()];
+export const VISUAL_CASES = [
+	...STATIC_CASES,
+	...docxVisualCorpus(),
+	...pptxVisualCorpus(),
+];
 
 export function readyCases() {
 	return VISUAL_CASES.filter((c) => c.ready);

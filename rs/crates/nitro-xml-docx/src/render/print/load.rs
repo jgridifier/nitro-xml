@@ -4,7 +4,7 @@
 use std::collections::{HashMap, HashSet};
 
 use nitro_xml_opc::chart::{parse_chart_space_xml, ChartSpace};
-use nitro_xml_render::CommandBuffer;
+use nitro_xml_render::{CommandBuffer, MeasureBatch};
 
 use super::dom::StringIntern;
 use super::line_numbers::{
@@ -15,9 +15,14 @@ use super::page_borders::{page_borders_from_section, PageBorders};
 use super::pages::paint_print_layout;
 use crate::body::{read_package, DocumentModel, LoadedDocument};
 use crate::layout::{
-    create_fake_measurer, layout_document_model, LayoutResult, LayoutReviewOptions,
+    layout_document_model, measure_font_css, CachedMeasurer, LayoutResult, LayoutReviewOptions,
+    MeasureCache, MeasureSample, PendingKind, PendingMeasure,
 };
 use crate::review_formatting_display::ReviewDisplayMode;
+
+/// MeasureBatch sizePx sentinels (loader `fillMeasureWidths`; createCanvasMeasurer).
+const SIZE_LINE_HEIGHT: f32 = -1.0;
+const SIZE_ASCENT: f32 = -2.0;
 
 pub struct PrintSession {
     pub model: DocumentModel,
@@ -28,6 +33,9 @@ pub struct PrintSession {
     pub page_borders: Vec<Option<PageBorders>>,
     pub suppressed: HashSet<String>,
     pub warnings: Vec<String>,
+    measure_cache: MeasureCache,
+    measure_pending: Vec<PendingMeasure>,
+    pub layout_ready: bool,
 }
 
 impl PrintSession {
@@ -35,29 +43,114 @@ impl PrintSession {
         let mut loaded = read_package(bytes).map_err(|e| e.to_string())?;
         let picture_urls = collect_pictures(&mut loaded);
         let chart_spaces = collect_charts(&mut loaded);
-        let mut warnings = loaded.model.warnings.clone();
+        let warnings = loaded.model.warnings.clone();
         let model = loaded.model;
-        let result = layout_document_model(
-            &model,
-            &create_fake_measurer(),
-            LayoutReviewOptions {
-                review_display_mode: None,
-            },
-        );
-        for note in &result.approximations {
-            warnings.push(note.clone());
-        }
         let sections = model.sections.as_deref().unwrap_or(&[]);
         Ok(Self {
             line_numbers: sections.iter().map(line_numbering_from_section).collect(),
             page_borders: sections.iter().map(page_borders_from_section).collect(),
             suppressed: suppressed_line_number_ids(&model.blocks),
             model,
-            result,
+            result: LayoutResult {
+                pages: Vec::new(),
+                approximations: Vec::new(),
+            },
             picture_urls,
             chart_spaces,
             warnings,
+            measure_cache: MeasureCache::new(),
+            measure_pending: Vec::new(),
+            layout_ready: false,
         })
+    }
+
+    /// Drive one CachedMeasurer pass: absorb loader widths/metrics, re-layout, queue misses.
+    ///
+    /// Widths use `measure_font_css` (bold/italic). Line-height/ascent use sizePx sentinels
+    /// `-1`/`-2` so the shared loader `fillMeasureWidths` reads fontBoundingBox like
+    /// upstream `createCanvasMeasurer` — no docx-only loader branch.
+    pub fn tick_measure<I: StringIntern>(
+        &mut self,
+        measures: &mut MeasureBatch,
+        intern: &mut I,
+    ) -> bool {
+        if self.layout_ready {
+            return true;
+        }
+
+        if !self.measure_pending.is_empty()
+            && measures.awaiting() == 0
+            && measures.widths.len() == self.measure_pending.len()
+        {
+            let mut samples = Vec::with_capacity(self.measure_pending.len());
+            for (probe, &width) in self.measure_pending.iter().zip(measures.widths.iter()) {
+                samples.push(match probe.kind {
+                    PendingKind::Width => MeasureSample {
+                        width: Some(width),
+                        ..MeasureSample::default()
+                    },
+                    PendingKind::LineHeight => MeasureSample {
+                        line_height: Some(width),
+                        ..MeasureSample::default()
+                    },
+                    PendingKind::Ascent => MeasureSample {
+                        ascent: Some(width),
+                        ..MeasureSample::default()
+                    },
+                });
+            }
+            self.measure_cache.absorb(&self.measure_pending, &samples);
+            self.measure_pending.clear();
+            measures.widths.clear();
+        }
+
+        if measures.awaiting() > 0 || !measures.is_empty() {
+            return false;
+        }
+
+        // Match upstream Print Layout: no UAX #9 reorder on the paint path.
+        let measurer = CachedMeasurer::new(&self.measure_cache);
+        let result = layout_document_model(
+            &self.model,
+            &measurer,
+            LayoutReviewOptions {
+                review_display_mode: None,
+            },
+        );
+        let pending = measurer.take_pending();
+        if pending.is_empty() {
+            for note in &result.approximations {
+                if !self.warnings.iter().any(|w| w == note) {
+                    self.warnings.push(note.clone());
+                }
+            }
+            self.result = result;
+            self.layout_ready = true;
+            return true;
+        }
+
+        self.queue_pending(&pending, measures, intern);
+        self.measure_pending = pending;
+        false
+    }
+
+    fn queue_pending<I: StringIntern>(
+        &self,
+        pending: &[PendingMeasure],
+        measures: &mut MeasureBatch,
+        intern: &mut I,
+    ) {
+        for probe in pending {
+            let font = probe.key.to_font_spec();
+            let font_id = intern.intern(&measure_font_css(&font));
+            let (size, text) = match probe.kind {
+                PendingKind::Width => (probe.key.size_px() as f32, probe.key.text.as_str()),
+                PendingKind::LineHeight => (SIZE_LINE_HEIGHT, ""),
+                PendingKind::Ascent => (SIZE_ASCENT, ""),
+            };
+            let text_id = intern.intern(text);
+            measures.push(font_id, size, text_id);
+        }
     }
 
     pub fn paint<I: StringIntern>(

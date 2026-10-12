@@ -4,7 +4,7 @@
 //! Builds on the single-line surface (#55). Host chrome / model write-back
 //! land with E3 (#78) and E4 (#85).
 //!
-//! TODO(#56): IME · TODO(#57): bidi · TODO(#59): a11y · TODO(#58): spellcheck.
+//! TODO(#56): IME · TODO(#57): bidi · TODO(#59): a11y · spellcheck: #58 (`text::spell`).
 
 pub mod caret;
 pub mod insert;

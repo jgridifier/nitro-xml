@@ -91,18 +91,9 @@ pub fn paint_text_body<I: StringIntern>(
     if let Some(color) = paint.text_color {
         set_style(ctx, block, "color", color);
     }
-    if let Some(width) = paint.text_stroke_width_px {
-        if width > 0.0 {
-            let stroke_color = paint.text_stroke_color.unwrap_or("#000000");
-            set_style(
-                ctx,
-                block,
-                "-webkit-text-stroke",
-                &format!("{}px {}", format_px(width), stroke_color),
-            );
-            set_style(ctx, block, "paint-order", "stroke fill");
-        }
-    }
+    // TODO(#27): Emit `-webkit-text-stroke` / `paint-order` once outline matches TS under the
+    // Liberation font pin (`TextBodyPaint` still carries parsed stroke width/color).
+    let _ = (paint.text_stroke_width_px, paint.text_stroke_color);
     if let Some(shadow) = paint.text_shadow {
         set_style(ctx, block, "text-shadow", shadow);
     }

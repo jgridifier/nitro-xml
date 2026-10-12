@@ -139,6 +139,57 @@ impl XlsxHost {
         })
     }
 
+    /// Canonical undo-parity projection — matches `parity/undo/snapshot.mjs` `snapshotXlsx`.
+    pub fn undo_parity_snapshot(&self) -> Value {
+        let sheets: Vec<Value> = self
+            .sheets
+            .iter()
+            .enumerate()
+            .map(|(index, sh)| {
+                let mut cells: Vec<Value> = sh
+                    .cells
+                    .iter()
+                    // Match upstream Worksheet.rows: only stored value/formula/style cells.
+                    // Skip style-only placeholders with a null value and no formula.
+                    .filter(|cell| {
+                        !matches!(cell.value, DumpCellValue::Null) || cell.formula.is_some()
+                    })
+                    .map(|cell| {
+                        let mut m = Map::new();
+                        m.insert("ref".into(), json!(format!("{}:{}", cell.row, cell.col)));
+                        m.insert("v".into(), dump_value_for_edit_snap(&cell.value));
+                        // Upstream `Cell` has no `t`/`type` field — snapshot.mjs always yields null.
+                        m.insert("t".into(), Value::Null);
+                        m.insert(
+                            "f".into(),
+                            cell.formula
+                                .as_ref()
+                                .map(|f| Value::String(f.clone()))
+                                .unwrap_or(Value::Null),
+                        );
+                        m.insert(
+                            "s".into(),
+                            cell.style_id.map(|s| json!(s)).unwrap_or(Value::Null),
+                        );
+                        Value::Object(m)
+                    })
+                    .collect();
+                cells.sort_by(|a, b| {
+                    let ar = a.get("ref").and_then(|x| x.as_str()).unwrap_or("");
+                    let br = b.get("ref").and_then(|x| x.as_str()).unwrap_or("");
+                    ar.cmp(br)
+                });
+                json!({
+                    "index": index,
+                    "name": sh.name,
+                    "state": sh.state.as_str(),
+                    "cells": cells,
+                })
+            })
+            .collect();
+        json!({ "format": "xlsx", "sheets": sheets })
+    }
+
     fn state_json(&self) -> Value {
         json!({
             "styles": self.workbook.styles.iter().map(|s| s.to_json()).collect::<Vec<_>>(),

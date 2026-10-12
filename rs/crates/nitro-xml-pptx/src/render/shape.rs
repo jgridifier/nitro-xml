@@ -48,6 +48,9 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             &format!("{}px solid {color}", format_px(width)),
         );
     }
+    if let Some(shadow) = &el.box_shadow {
+        set_style(ctx, id, "box-shadow", shadow);
+    }
     if let Some(rot) = el.rotation {
         if rot.abs() > 0.01 {
             set_style(ctx, id, "transform", &format!("rotate({}deg)", rot));

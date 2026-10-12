@@ -151,6 +151,9 @@ pub struct DumpElement {
     /// Document order of this element among emitted spTree children (dump merge).
     #[serde(skip)]
     pub seq: u32,
+    /// CSS `box-shadow` from `a:effectLst/a:outerShdw`. Not in the issue-24 dump.
+    #[serde(skip)]
+    pub box_shadow: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -742,6 +745,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         tx_body,
         ph_info.as_ref(),
         ctx,
+        rot,
     );
     build_dump(
         type_,
@@ -948,7 +952,7 @@ fn parse_connector(cxn: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElem
         None,
         None,
         false,
-        shape_paint_extras(cxn, Some(sp_pr), None, tx_body, None, ctx),
+        shape_paint_extras(cxn, Some(sp_pr), None, tx_body, None, ctx, None),
     )
 }
 
@@ -1610,6 +1614,7 @@ fn build_dump(
         is_media: false,
         image_src: None,
         seq: 0,
+        box_shadow: extras.box_shadow,
     })
 }
 
@@ -1887,6 +1892,7 @@ struct PaintExtras {
     image_rel_id: Option<String>,
     image_rel_owner: Option<String>,
     ole_spid: Option<String>,
+    box_shadow: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -2082,6 +2088,7 @@ fn shape_paint_extras(
     tx_body: Option<&Element>,
     ph_info: Option<&PlaceholderInfo>,
     ctx: &ParseCtx,
+    rotation_deg: Option<f64>,
 ) -> PaintExtras {
     let fallback = crate::theme::default_scheme_color_map();
     let theme = SchemeTheme {
@@ -2147,6 +2154,9 @@ fn shape_paint_extras(
         extras.text_color = color;
         extras.font_size_px = size;
         extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
+    }
+    if let Some(sp_pr) = effective_sp_pr {
+        extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(sp_pr, &theme, rotation_deg);
     }
     extras
 }

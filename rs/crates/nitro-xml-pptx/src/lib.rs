@@ -7,6 +7,7 @@
 mod auto_number;
 mod inheritance;
 mod level_style;
+mod outer_shadow;
 mod placeholder_defaults;
 mod presentation;
 mod slide;

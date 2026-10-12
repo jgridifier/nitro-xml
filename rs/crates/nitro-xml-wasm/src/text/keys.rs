@@ -4,9 +4,8 @@
 //! Mirrors textarea / upstream `grid-keys.ts` + `formula-input.ts` editing keys.
 //! Commit / cancel / point-mode are host concerns (`TODO(#69)`).
 
-use super::caret::{
-    move_left, move_line_end, move_line_start, move_right, move_word_left, move_word_right,
-};
+use super::bidi::{arrow_left, arrow_right, collapse_selection_on_arrow, needs_bidi};
+use super::caret::{move_line_end, move_line_start, move_word_left, move_word_right};
 use super::selection::TextField;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -63,16 +62,16 @@ pub fn apply_key(field: &mut TextField, ev: &KeyEvent) -> KeyAction {
         }
     }
 
+    let rtl_para = needs_bidi(field.text());
+
     match key {
         "ArrowLeft" => {
             if mod_key {
                 move_word_left(field, shift);
             } else if !shift && !field.selection().is_collapsed() {
-                // Collapse to start (textarea behaviour when not extending).
-                let start = field.selection().start();
-                field.set_caret(start);
+                collapse_selection_on_arrow(field, "ArrowLeft", rtl_para);
             } else {
-                move_left(field, shift);
+                arrow_left(field, shift, rtl_para);
             }
             KeyAction::Handled
         }
@@ -80,10 +79,9 @@ pub fn apply_key(field: &mut TextField, ev: &KeyEvent) -> KeyAction {
             if mod_key {
                 move_word_right(field, shift);
             } else if !shift && !field.selection().is_collapsed() {
-                let end = field.selection().end();
-                field.set_caret(end);
+                collapse_selection_on_arrow(field, "ArrowRight", rtl_para);
             } else {
-                move_right(field, shift);
+                arrow_right(field, shift, rtl_para);
             }
             KeyAction::Handled
         }

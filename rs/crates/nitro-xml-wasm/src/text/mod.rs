@@ -7,6 +7,7 @@
 //! and plain/TSV clipboard helpers. Host chrome (formula bar / cell editor)
 //! lands in #69; IME composition is [`ime`].
 
+pub mod bidi;
 pub mod caret;
 pub mod clipboard;
 pub mod ime;

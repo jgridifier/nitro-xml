@@ -101,9 +101,20 @@ fn scopes_for(op: &Op) -> Vec<EditScope> {
         | Op::DeleteTableRow { .. }
         | Op::InsertTableColumn { .. }
         | Op::DeleteTableColumn { .. } => vec![EditScope::Workbook],
-        Op::SetShapeText { .. } | Op::PatchShapeGeometry { .. } | Op::SetShapeTextStyle { .. } => {
-            vec![EditScope::Workbook]
-        }
+        Op::SetShapeText { .. }
+        | Op::PatchShapeGeometry { .. }
+        | Op::SetShapeTextStyle { .. }
+        | Op::AddShape { .. }
+        | Op::DeleteShape { .. }
+        | Op::DuplicateShape { .. }
+        | Op::BringForward { .. }
+        | Op::SendBackward { .. }
+        | Op::BringToFront { .. }
+        | Op::SendToBack { .. }
+        | Op::GroupShapes { .. }
+        | Op::UngroupShapes { .. }
+        | Op::SetShapeFill { .. }
+        | Op::SetShapeLine { .. } => vec![EditScope::Workbook],
     }
 }
 
@@ -121,7 +132,19 @@ fn kind_for(op: &Op) -> ChangeKind {
         | Op::DeleteTableRow { .. }
         | Op::InsertTableColumn { .. }
         | Op::DeleteTableColumn { .. }
-        | Op::PatchShapeGeometry { .. } => ChangeKind::Structure,
+        | Op::PatchShapeGeometry { .. }
+        | Op::AddShape { .. }
+        | Op::DeleteShape { .. }
+        | Op::DuplicateShape { .. }
+        | Op::BringForward { .. }
+        | Op::SendBackward { .. }
+        | Op::BringToFront { .. }
+        | Op::SendToBack { .. }
+        | Op::GroupShapes { .. }
+        | Op::UngroupShapes { .. } => ChangeKind::Structure,
+        Op::SetShapeFill { .. } | Op::SetShapeLine { .. } | Op::SetShapeTextStyle { .. } => {
+            ChangeKind::Format
+        }
         _ => ChangeKind::Other,
     }
 }
@@ -337,7 +360,7 @@ mod tests {
                 n += 1;
             }
         }
-        assert_eq!(n, 72, "expected 72 edit scripts");
+        assert_eq!(n, 80, "expected 80 edit scripts");
     }
 
     #[test]

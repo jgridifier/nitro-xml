@@ -5,6 +5,7 @@
 //! Ported modules carry Apache-2.0 headers; see `PROVENANCE.md`.
 
 mod auto_number;
+pub mod edit;
 mod inheritance;
 mod level_style;
 mod outer_shadow;

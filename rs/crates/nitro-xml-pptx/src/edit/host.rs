@@ -1,0 +1,548 @@
+// SPDX-License-Identifier: MIT
+//! Mutable pptx edit host: slide-owned elements plus text/fill overlays (#84).
+
+use std::any::Any;
+
+use nitro_xml_opc::drawingml::{
+    patch_shape_fill, patch_shape_line, resolve_xfrm_emu, EMU_PER_PIXEL,
+};
+use nitro_xml_opc::edit::{EditHost, EditScope, HostSnapshot};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Number, Value};
+
+/// Serialize a finite f64 the way `JSON.stringify` does (whole numbers as integers).
+fn js_num(n: f64) -> Value {
+    if n.is_finite() && n.fract() == 0.0 && n >= i64::MIN as f64 && n <= i64::MAX as f64 {
+        Value::Number((n as i64).into())
+    } else if let Some(num) = Number::from_f64(n) {
+        Value::Number(num)
+    } else {
+        Value::Null
+    }
+}
+
+fn js_opt(n: Option<f64>) -> Value {
+    match n {
+        Some(v) => js_num(v),
+        None => Value::Null,
+    }
+}
+
+use crate::presentation::Presentation;
+use crate::slide::DumpElement;
+
+use super::shapes::{self, TextSegmentSnap, TextStyleSnap};
+
+/// CSS-pixel geometry fields omitted from a patch keep the current value.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GeometryPatch {
+    pub x: Option<f64>,
+    pub y: Option<f64>,
+    pub width: Option<f64>,
+    pub height: Option<f64>,
+    pub rotation: Option<f64>,
+}
+
+/// Fields merged into `textStyle`. `None` means leave the current value.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TextStylePatch<'a> {
+    pub bold: Option<bool>,
+    pub italic: Option<bool>,
+    pub font_size: Option<f64>,
+    pub color: Option<&'a str>,
+}
+
+/// A new shape appended at the front of the slide (z-order end).
+#[derive(Debug, Clone, Copy)]
+pub struct NewShape<'a> {
+    pub shape_type: &'a str,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub id: Option<&'a str>,
+}
+
+/// One slide's editable element list (layout/master decorations are not included).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditableSlide {
+    pub path: String,
+    pub elements: Vec<EditableElement>,
+}
+
+/// Slim editor element. Snapshot fields match `parity/undo/snapshot.mjs` `snapshotPptx`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditableElement {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    #[serde(default)]
+    pub rotation: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub x_emu: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y_emu: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width_emu: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height_emu: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_style: Option<TextStyleSnap>,
+    #[serde(default)]
+    pub text_segments: Vec<TextSegmentSnap>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_width: Option<f64>,
+    #[serde(default)]
+    pub children: Vec<EditableElement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shape_type: Option<String>,
+}
+
+impl EditableElement {
+    pub fn blank(id: impl Into<String>, type_: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            type_: type_.into(),
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+            rotation: 0.0,
+            x_emu: None,
+            y_emu: None,
+            width_emu: None,
+            height_emu: None,
+            text: None,
+            text_style: None,
+            text_segments: Vec::new(),
+            fill_color: None,
+            fill_mode: None,
+            stroke_color: None,
+            stroke_width: None,
+            children: Vec::new(),
+            shape_type: None,
+        }
+    }
+
+    /// Write pixel geometry and refresh stored EMUs (`resolve_xfrm_emu`).
+    pub fn set_box(&mut self, x: f64, y: f64, width: f64, height: f64, rotation: f64) {
+        self.x = x;
+        self.y = y;
+        self.width = width;
+        self.height = height;
+        self.rotation = rotation;
+        self.sync_emus();
+    }
+
+    pub fn sync_emus(&mut self) {
+        let emu = EMU_PER_PIXEL as f64;
+        self.x_emu = Some(resolve_xfrm_emu(self.x, self.x_emu, emu));
+        self.y_emu = Some(resolve_xfrm_emu(self.y, self.y_emu, emu));
+        self.width_emu = Some(resolve_xfrm_emu(self.width, self.width_emu, emu));
+        self.height_emu = Some(resolve_xfrm_emu(self.height, self.height_emu, emu));
+    }
+
+    pub fn patch_fill(&mut self, color: Option<Option<String>>, mode: Option<&str>) {
+        patch_shape_fill(&mut self.fill_color, &mut self.fill_mode, color, mode);
+    }
+
+    pub fn patch_line(&mut self, color: Option<Option<String>>, width: Option<f64>) {
+        patch_shape_line(&mut self.stroke_color, &mut self.stroke_width, color, width);
+    }
+}
+
+/// In-memory presentation the shape command runners mutate.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PptxHost {
+    pub slides: Vec<EditableSlide>,
+}
+
+impl PptxHost {
+    /// Load slide-owned elements. Layout/master decorations stay out of the editor model
+    /// so element indexes match the TS `PptxHandler` slide list.
+    pub fn open(bytes: &[u8]) -> Result<Self, String> {
+        let mut pres = Presentation::open(bytes).map_err(|e| e.to_string())?;
+        pres.ensure_all_slides().map_err(|e| e.to_string())?;
+        let count = pres.slide_count();
+        let mut slides = Vec::with_capacity(count);
+        for i in 0..count {
+            let slide = pres.slide(i).map_err(|e| e.to_string())?;
+            let path = slide.path.clone();
+            let elements = slide
+                .elements
+                .iter()
+                .filter(|el| el.id.starts_with(&path))
+                .map(editable_from_dump)
+                .collect();
+            slides.push(EditableSlide { path, elements });
+        }
+        Ok(Self { slides })
+    }
+
+    pub fn slide_mut(&mut self, index: u32) -> Result<&mut EditableSlide, String> {
+        self.slides
+            .get_mut(index as usize)
+            .ok_or_else(|| format!("slide {index} missing"))
+    }
+
+    pub fn slide(&self, index: u32) -> Result<&EditableSlide, String> {
+        self.slides
+            .get(index as usize)
+            .ok_or_else(|| format!("slide {index} missing"))
+    }
+
+    /// `snapshotPptx` projection (also the undo-parity snapshot).
+    pub fn model_snapshot(&self) -> Value {
+        self.undo_parity_snapshot()
+    }
+
+    pub fn undo_parity_snapshot(&self) -> Value {
+        json!({
+            "format": "pptx",
+            "slides": self.slides.iter().enumerate().map(|(slide_index, slide)| {
+                json!({
+                    "slideIndex": slide_index,
+                    "elements": slide.elements.iter().map(project_element).collect::<Vec<_>>(),
+                })
+            }).collect::<Vec<_>>(),
+        })
+    }
+}
+
+fn editable_from_dump(el: &DumpElement) -> EditableElement {
+    // Own geometry matches the TS editor model (inherited xfrm is already folded
+    // into x/y by the parser when the shape has no own transform — same as upstream).
+    let text_style = if el.text.is_some() || el.text_color.is_some() || el.font_size_px.is_some() {
+        Some(TextStyleSnap {
+            bold: false,
+            italic: false,
+            // TS `textStyle.fontSize` / `.color` stay unset until an edit; paint-resolved
+            // px/hex live on the dump only and are not the editor snapshot fields.
+            font_size: None,
+            color: None,
+        })
+    } else {
+        None
+    };
+    let text_segments = match &el.text {
+        Some(text) => vec![TextSegmentSnap {
+            text: text.clone(),
+            bold: false,
+            italic: false,
+            font_size: None,
+            color: None,
+        }],
+        None => Vec::new(),
+    };
+    EditableElement {
+        id: el.id.clone(),
+        type_: el.type_.clone(),
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+        rotation: el.rotation.unwrap_or(0.0),
+        x_emu: el.x_emu,
+        y_emu: el.y_emu,
+        width_emu: el.width_emu,
+        height_emu: el.height_emu,
+        text: el.text.clone(),
+        text_style,
+        text_segments,
+        // Authored editor fill/line start unset. The dump's resolved paint colours
+        // are not on TS `shapeStyle` for these fixtures; edits write them explicitly.
+        fill_color: None,
+        fill_mode: None,
+        stroke_color: None,
+        stroke_width: None,
+        children: el
+            .children
+            .as_ref()
+            .map(|kids| kids.iter().map(editable_from_dump).collect())
+            .unwrap_or_default(),
+        shape_type: el.shape_type.clone(),
+    }
+}
+
+fn project_element(el: &EditableElement) -> Value {
+    let children = if el.type_ == "group" || !el.children.is_empty() {
+        Value::Array(el.children.iter().map(project_element).collect())
+    } else {
+        Value::Null
+    };
+    json!({
+        "id": el.id,
+        "x": js_num(el.x),
+        "y": js_num(el.y),
+        "width": js_num(el.width),
+        "height": js_num(el.height),
+        "rotation": js_num(el.rotation),
+        "text": el.text,
+        "textStyle": project_style(el.text_style.as_ref()),
+        "textSegments": el.text_segments.iter().map(|seg| json!({
+            "text": seg.text,
+            "bold": seg.bold,
+            "italic": seg.italic,
+            "fontSize": js_opt(seg.font_size),
+            "color": seg.color,
+        })).collect::<Vec<_>>(),
+        "fillColor": el.fill_color,
+        "fillMode": el.fill_mode,
+        "strokeColor": el.stroke_color,
+        "strokeWidth": js_opt(el.stroke_width),
+        "children": children,
+    })
+}
+
+fn project_style(style: Option<&TextStyleSnap>) -> Value {
+    match style {
+        None => Value::Null,
+        Some(s) => json!({
+            "bold": s.bold,
+            "italic": s.italic,
+            "fontSize": js_opt(s.font_size),
+            "color": s.color,
+        }),
+    }
+}
+
+impl PptxHost {
+    pub fn resolve_index(
+        slide: &EditableSlide,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+    ) -> Result<usize, String> {
+        if let Some(id) = element_id {
+            return slide
+                .elements
+                .iter()
+                .position(|el| el.id == id)
+                .ok_or_else(|| format!("element {id} missing"));
+        }
+        let idx = element_index.unwrap_or(0) as usize;
+        if idx >= slide.elements.len() {
+            return Err(format!(
+                "element index {idx} missing on slide {}",
+                slide.path
+            ));
+        }
+        Ok(idx)
+    }
+
+    pub fn set_shape_text(
+        &mut self,
+        slide_index: u32,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+        text: &str,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let idx = Self::resolve_index(slide, element_id, element_index)?;
+        let el = &mut slide.elements[idx];
+        let segments =
+            shapes::remap_text_to_segments(text, &el.text_segments, el.text_style.as_ref());
+        el.text = Some(text.to_owned());
+        el.text_segments = segments;
+        Ok(())
+    }
+
+    pub fn patch_geometry(
+        &mut self,
+        slide_index: u32,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+        patch: GeometryPatch,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let idx = Self::resolve_index(slide, element_id, element_index)?;
+        let el = &mut slide.elements[idx];
+        el.set_box(
+            patch.x.unwrap_or(el.x),
+            patch.y.unwrap_or(el.y),
+            patch.width.unwrap_or(el.width),
+            patch.height.unwrap_or(el.height),
+            patch.rotation.unwrap_or(el.rotation),
+        );
+        Ok(())
+    }
+
+    pub fn set_text_style(
+        &mut self,
+        slide_index: u32,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+        patch: TextStylePatch<'_>,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let idx = Self::resolve_index(slide, element_id, element_index)?;
+        let el = &mut slide.elements[idx];
+        let style = el.text_style.get_or_insert_with(TextStyleSnap::default);
+        if let Some(bold) = patch.bold {
+            style.bold = bold;
+        }
+        if let Some(italic) = patch.italic {
+            style.italic = italic;
+        }
+        if let Some(font_size) = patch.font_size {
+            style.font_size = Some(font_size);
+        }
+        if let Some(color) = patch.color {
+            style.color = Some(color.to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn add_shape(&mut self, slide_index: u32, shape: NewShape<'_>) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let id = shape
+            .id
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("added-shape-{slide_index}-{}", slide.elements.len()));
+        let mut el = EditableElement::blank(id, "shape");
+        el.shape_type = Some(shape.shape_type.to_owned());
+        el.set_box(shape.x, shape.y, shape.width, shape.height, 0.0);
+        // ElementFactory default solid fill.
+        el.patch_fill(
+            Some(Some(shapes::DEFAULT_SHAPE_FILL.to_owned())),
+            Some("solid"),
+        );
+        slide.elements.push(el);
+        Ok(())
+    }
+
+    pub fn delete_shape(
+        &mut self,
+        slide_index: u32,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let idx = Self::resolve_index(slide, element_id, element_index)?;
+        slide.elements.remove(idx);
+        Ok(())
+    }
+
+    pub fn duplicate_shape(
+        &mut self,
+        slide_index: u32,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+        new_id: Option<&str>,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let idx = Self::resolve_index(slide, element_id, element_index)?;
+        let mut copy = slide.elements[idx].clone();
+        let source_id = copy.id.clone();
+        copy.id = new_id
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("dup-{source_id}"));
+        copy.x += shapes::DUPLICATE_OFFSET_PX;
+        copy.y += shapes::DUPLICATE_OFFSET_PX;
+        copy.sync_emus();
+        slide.elements.push(copy);
+        Ok(())
+    }
+
+    pub fn reorder(
+        &mut self,
+        slide_index: u32,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+        op: shapes::ZOrder,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let idx = Self::resolve_index(slide, element_id, element_index)?;
+        let id = slide.elements[idx].id.clone();
+        slide.elements = shapes::reorder(&slide.elements, &id, op);
+        Ok(())
+    }
+
+    pub fn group_shapes(
+        &mut self,
+        slide_index: u32,
+        element_ids: &[String],
+        group_id: &str,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        slide.elements = shapes::group_elements(&slide.elements, element_ids, group_id);
+        Ok(())
+    }
+
+    pub fn ungroup_shapes(
+        &mut self,
+        slide_index: u32,
+        group_id: &str,
+        child_ids: &[String],
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let found = slide.elements.iter().any(|el| el.id == group_id);
+        if !found {
+            return Err(format!("element {group_id} missing"));
+        }
+        slide.elements = shapes::ungroup_elements(&slide.elements, group_id, child_ids);
+        Ok(())
+    }
+
+    pub fn set_fill(
+        &mut self,
+        slide_index: u32,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+        color: Option<Option<String>>,
+        mode: Option<&str>,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let idx = Self::resolve_index(slide, element_id, element_index)?;
+        slide.elements[idx].patch_fill(color, mode);
+        Ok(())
+    }
+
+    pub fn set_line(
+        &mut self,
+        slide_index: u32,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+        color: Option<Option<String>>,
+        width: Option<f64>,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let idx = Self::resolve_index(slide, element_id, element_index)?;
+        slide.elements[idx].patch_line(color, width);
+        Ok(())
+    }
+}
+
+impl EditHost for PptxHost {
+    fn capture(&self, _scopes: &[EditScope]) -> HostSnapshot {
+        HostSnapshot(serde_json::to_vec(self).unwrap_or_default())
+    }
+
+    fn restore(&mut self, snap: &HostSnapshot) {
+        if snap.0.is_empty() {
+            return;
+        }
+        if let Ok(restored) = serde_json::from_slice::<PptxHost>(&snap.0) {
+            *self = restored;
+        }
+    }
+
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn as_any_ref(&self) -> &dyn Any {
+        self
+    }
+}

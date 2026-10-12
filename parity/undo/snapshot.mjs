@@ -110,35 +110,46 @@ export function snapshotDocx(model) {
  * Pptx: per-slide element geometry + text + textStyle.
  * @param {any[]} slides
  */
+function projectPptxElement(el) {
+	const style = el.shapeStyle || {};
+	const hasChildren = el.type === 'group' || Array.isArray(el.children);
+	return {
+		id: el.id,
+		x: el.x ?? 0,
+		y: el.y ?? 0,
+		width: el.width ?? 0,
+		height: el.height ?? 0,
+		rotation: el.rotation ?? 0,
+		text: el.text ?? null,
+		textStyle: el.textStyle
+			? {
+					bold: !!el.textStyle.bold,
+					italic: !!el.textStyle.italic,
+					fontSize: el.textStyle.fontSize ?? null,
+					color: el.textStyle.color ?? null,
+				}
+			: null,
+		textSegments: (el.textSegments || []).map((seg) => ({
+			text: seg.text ?? '',
+			bold: !!seg.bold,
+			italic: !!seg.italic,
+			fontSize: seg.fontSize ?? null,
+			color: seg.color ?? null,
+		})),
+		fillColor: el.fillColor ?? style.fillColor ?? null,
+		fillMode: el.fillMode ?? style.fillMode ?? null,
+		strokeColor: el.strokeColor ?? style.strokeColor ?? null,
+		strokeWidth: el.strokeWidth ?? style.strokeWidth ?? null,
+		children: hasChildren ? (el.children || []).map(projectPptxElement) : null,
+	};
+}
+
 export function snapshotPptx(slides) {
 	return {
 		format: 'pptx',
 		slides: (slides || []).map((slide, slideIndex) => ({
 			slideIndex,
-			elements: (slide.elements || []).map((el) => ({
-				id: el.id,
-				x: el.x ?? 0,
-				y: el.y ?? 0,
-				width: el.width ?? 0,
-				height: el.height ?? 0,
-				rotation: el.rotation ?? 0,
-				text: el.text ?? null,
-				textStyle: el.textStyle
-					? {
-							bold: !!el.textStyle.bold,
-							italic: !!el.textStyle.italic,
-							fontSize: el.textStyle.fontSize ?? null,
-							color: el.textStyle.color ?? null,
-						}
-					: null,
-				textSegments: (el.textSegments || []).map((seg) => ({
-					text: seg.text ?? '',
-					bold: !!seg.bold,
-					italic: !!seg.italic,
-					fontSize: seg.fontSize ?? null,
-					color: seg.color ?? null,
-				})),
-			})),
+			elements: (slide.elements || []).map(projectPptxElement),
 		})),
 	};
 }

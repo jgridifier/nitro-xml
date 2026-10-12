@@ -6,6 +6,7 @@ mod color;
 mod color_linear;
 mod color_primitives;
 mod dom;
+mod edit;
 mod fill;
 mod geometry_parse;
 mod guide_api;
@@ -25,6 +26,7 @@ pub use color::{
     parse_drawing_color, parse_drawing_color_in, parse_drawing_color_list, resolve_drawing_color,
     DrawingColorTheme, HslRounding, ResolveOptions, ResolvedDrawingColor, TransformOrder,
 };
+pub use edit::{is_xfrm_emu_unchanged, patch_shape_fill, patch_shape_line, resolve_xfrm_emu};
 pub use fill::{fill_element_of, parse_drawing_fill, parse_drawing_line, parse_fill_element};
 pub use geometry_parse::{
     parse_drawing_geometry, parse_frame, parse_transform, ParsedGeometry, ParsedTransform,

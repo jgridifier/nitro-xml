@@ -1,0 +1,14 @@
+{
+  "id": "pptx-duplicate-s0",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Duplicate slide 0 shape with a deterministic id",
+  "ops": [
+    {
+      "op": "duplicateShape",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "newId": "dup-s0"
+    }
+  ]
+}

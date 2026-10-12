@@ -31,6 +31,17 @@ pub const SCHEMA_OP_IDS: &[&str] = &[
     "setShapeText",
     "patchShapeGeometry",
     "setShapeTextStyle",
+    "addShape",
+    "deleteShape",
+    "duplicateShape",
+    "bringForward",
+    "sendBackward",
+    "bringToFront",
+    "sendToBack",
+    "groupShapes",
+    "ungroupShapes",
+    "setShapeFill",
+    "setShapeLine",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -188,6 +199,119 @@ pub enum Op {
         #[serde(flatten)]
         rest: Map<String, Value>,
     },
+    #[serde(rename = "addShape")]
+    AddShape {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(rename = "shapeType")]
+        shape_type: String,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+        #[serde(default)]
+        id: Option<String>,
+    },
+    #[serde(rename = "deleteShape")]
+    DeleteShape {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+    },
+    #[serde(rename = "duplicateShape")]
+    DuplicateShape {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        #[serde(default, rename = "newId")]
+        new_id: Option<String>,
+    },
+    #[serde(rename = "bringForward")]
+    BringForward {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+    },
+    #[serde(rename = "sendBackward")]
+    SendBackward {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+    },
+    #[serde(rename = "bringToFront")]
+    BringToFront {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+    },
+    #[serde(rename = "sendToBack")]
+    SendToBack {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+    },
+    #[serde(rename = "groupShapes")]
+    GroupShapes {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(rename = "elementIds")]
+        element_ids: Vec<String>,
+        #[serde(rename = "groupId")]
+        group_id: String,
+    },
+    #[serde(rename = "ungroupShapes")]
+    UngroupShapes {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "groupId")]
+        group_id: Option<String>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        #[serde(default, rename = "childIds")]
+        child_ids: Option<Vec<String>>,
+    },
+    #[serde(rename = "setShapeFill")]
+    SetShapeFill {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        #[serde(default)]
+        #[serde(flatten)]
+        rest: Map<String, Value>,
+    },
+    #[serde(rename = "setShapeLine")]
+    SetShapeLine {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        #[serde(default)]
+        #[serde(flatten)]
+        rest: Map<String, Value>,
+    },
 }
 
 impl Op {
@@ -217,6 +341,17 @@ impl Op {
             Self::SetShapeText { .. } => "setShapeText",
             Self::PatchShapeGeometry { .. } => "patchShapeGeometry",
             Self::SetShapeTextStyle { .. } => "setShapeTextStyle",
+            Self::AddShape { .. } => "addShape",
+            Self::DeleteShape { .. } => "deleteShape",
+            Self::DuplicateShape { .. } => "duplicateShape",
+            Self::BringForward { .. } => "bringForward",
+            Self::SendBackward { .. } => "sendBackward",
+            Self::BringToFront { .. } => "bringToFront",
+            Self::SendToBack { .. } => "sendToBack",
+            Self::GroupShapes { .. } => "groupShapes",
+            Self::UngroupShapes { .. } => "ungroupShapes",
+            Self::SetShapeFill { .. } => "setShapeFill",
+            Self::SetShapeLine { .. } => "setShapeLine",
         }
     }
 

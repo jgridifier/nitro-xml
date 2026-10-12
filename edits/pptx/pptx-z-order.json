@@ -1,0 +1,48 @@
+{
+  "id": "pptx-z-order",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Add two shapes then exercise every z-order op",
+  "ops": [
+    {
+      "op": "addShape",
+      "slideIndex": 0,
+      "shapeType": "rect",
+      "x": 10,
+      "y": 10,
+      "width": 80,
+      "height": 40,
+      "id": "added-a"
+    },
+    {
+      "op": "addShape",
+      "slideIndex": 0,
+      "shapeType": "ellipse",
+      "x": 30,
+      "y": 30,
+      "width": 80,
+      "height": 40,
+      "id": "added-b"
+    },
+    {
+      "op": "bringForward",
+      "slideIndex": 0,
+      "elementId": "added-a"
+    },
+    {
+      "op": "sendBackward",
+      "slideIndex": 0,
+      "elementId": "added-b"
+    },
+    {
+      "op": "bringToFront",
+      "slideIndex": 0,
+      "elementId": "ppt/slides/slide1.xml-shape-0"
+    },
+    {
+      "op": "sendToBack",
+      "slideIndex": 0,
+      "elementId": "added-a"
+    }
+  ]
+}

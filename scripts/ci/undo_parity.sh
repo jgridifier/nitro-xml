@@ -56,23 +56,26 @@ set +e
 rust_docx_rc=$?
 set -e
 
-# Pptx Rust editor is not landed yet — TS-vs-TS still covers it above.
-echo "undo-parity: Rust pptx — unsupported (no editor yet)"
+echo "undo-parity: Rust pptx checkpoints vs live TS dump (#84)"
+set +e
+( cd rs && cargo test -p nitro-xml-pptx catches_pptx_undo_parity_checkpoints_match_ts -- --nocapture )
+rust_pptx_rc=$?
+set -e
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f parity/undo/out/gate-summary.txt ]; then
   {
-    echo "## Undo-parity gate (#51 / #64 / #78)"
+    echo "## Undo-parity gate (#51 / #64 / #78 / #84)"
     echo '```'
     cat parity/undo/out/gate-summary.txt
     echo "Rust xlsx vs TS: exit $rust_xlsx_rc (22/22 expected when green)"
     echo "Rust docx vs TS: exit $rust_docx_rc (22/22 text+format+table scripts)"
-    echo "Rust pptx: unsupported"
+    echo "Rust pptx vs TS: exit $rust_pptx_rc (#84)"
     echo '```'
   } >> "$GITHUB_STEP_SUMMARY"
 fi
 
-if [ "$rc" -ne 0 ] || [ "$rust_xlsx_rc" -ne 0 ] || [ "$rust_docx_rc" -ne 0 ]; then
-  echo "undo-parity: FAIL (ts=$rc rust_xlsx=$rust_xlsx_rc rust_docx=$rust_docx_rc)" >&2
+if [ "$rc" -ne 0 ] || [ "$rust_xlsx_rc" -ne 0 ] || [ "$rust_docx_rc" -ne 0 ] || [ "$rust_pptx_rc" -ne 0 ]; then
+  echo "undo-parity: FAIL (ts=$rc rust_xlsx=$rust_xlsx_rc rust_docx=$rust_docx_rc rust_pptx=$rust_pptx_rc)" >&2
   exit 1
 fi
 echo "undo-parity: PASS"

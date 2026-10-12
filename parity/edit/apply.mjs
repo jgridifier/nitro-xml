@@ -198,18 +198,36 @@ function resolvePptxElement(slides, op) {
 	return el;
 }
 
+/** ElementFactory default solid fill (`createShapeElement`). */
+const DEFAULT_SHAPE_FILL = '#4472C4';
+const DUPLICATE_OFFSET_PX = 20;
+
 /**
  * @param {object[]} slides
  * @param {object[]} ops
  * @param {*} mut
  */
-function applyPptxOps(slides, ops, mut) {
-	const { updateElement, patchElementGeometry, remapTextToSegments } = mut;
+export function applyPptxOps(slides, ops, mut) {
+	const {
+		updateElement,
+		patchElementGeometry,
+		remapTextToSegments,
+		removeElement,
+		appendElementOnSlide,
+		reorderElementOnSlide,
+		bringToFront,
+		sendToBack,
+		bringForward,
+		sendBackward,
+		groupElements,
+		ungroupElements,
+		cloneElement,
+	} = mut;
 	let cur = slides;
 	for (const op of ops) {
-		const el = resolvePptxElement(cur, op);
 		switch (op.op) {
 			case 'setShapeText': {
+				const el = resolvePptxElement(cur, op);
 				cur = updateElement(cur, op.slideIndex, el.id, {
 					text: op.text,
 					textSegments: remapTextToSegments(op.text, el.textSegments, el.textStyle),
@@ -217,6 +235,7 @@ function applyPptxOps(slides, ops, mut) {
 				break;
 			}
 			case 'patchShapeGeometry': {
+				const el = resolvePptxElement(cur, op);
 				const box = {
 					x: op.x ?? el.x ?? 0,
 					y: op.y ?? el.y ?? 0,
@@ -228,6 +247,7 @@ function applyPptxOps(slides, ops, mut) {
 				break;
 			}
 			case 'setShapeTextStyle': {
+				const el = resolvePptxElement(cur, op);
 				/** @type {Record<string, unknown>} */
 				const textStyle = { ...(el.textStyle || {}) };
 				if (op.bold !== undefined) textStyle.bold = op.bold;
@@ -237,11 +257,128 @@ function applyPptxOps(slides, ops, mut) {
 				cur = updateElement(cur, op.slideIndex, el.id, { textStyle });
 				break;
 			}
+			case 'addShape': {
+				const slide = cur[op.slideIndex];
+				if (!slide) throw new Error(`slide ${op.slideIndex} missing`);
+				const id =
+					op.id ?? `added-shape-${op.slideIndex}-${(slide.elements || []).length}`;
+				const element = {
+					type: 'shape',
+					id,
+					x: op.x,
+					y: op.y,
+					width: op.width,
+					height: op.height,
+					rotation: 0,
+					shapeType: op.shapeType,
+					shapeStyle: { fillMode: 'solid', fillColor: DEFAULT_SHAPE_FILL },
+				};
+				cur = appendElementOnSlide(cur, op.slideIndex, element);
+				break;
+			}
+			case 'deleteShape': {
+				const el = resolvePptxElement(cur, op);
+				cur = removeElement(cur, op.slideIndex, el.id);
+				break;
+			}
+			case 'duplicateShape': {
+				const el = resolvePptxElement(cur, op);
+				const copy = cloneElement(el);
+				copy.id = op.newId ?? `dup-${el.id}`;
+				copy.x = (el.x ?? 0) + DUPLICATE_OFFSET_PX;
+				copy.y = (el.y ?? 0) + DUPLICATE_OFFSET_PX;
+				cur = appendElementOnSlide(cur, op.slideIndex, copy);
+				break;
+			}
+			case 'bringForward':
+			case 'sendBackward':
+			case 'bringToFront':
+			case 'sendToBack': {
+				const el = resolvePptxElement(cur, op);
+				const transform =
+					op.op === 'bringToFront'
+						? (elements) => bringToFront(elements, el.id)
+						: op.op === 'sendToBack'
+							? (elements) => sendToBack(elements, el.id)
+							: op.op === 'bringForward'
+								? (elements) => bringForward(elements, el.id)
+								: (elements) => sendBackward(elements, el.id);
+				cur = reorderElementOnSlide(cur, op.slideIndex, transform);
+				break;
+			}
+			case 'groupShapes': {
+				const slide = cur[op.slideIndex];
+				if (!slide) throw new Error(`slide ${op.slideIndex} missing`);
+				const grouped = groupElements(slide.elements || [], op.elementIds || [], op.groupId);
+				cur = cur.map((s, i) =>
+					i === op.slideIndex ? { ...s, elements: grouped.elements } : s,
+				);
+				break;
+			}
+			case 'ungroupShapes': {
+				const slide = cur[op.slideIndex];
+				if (!slide) throw new Error(`slide ${op.slideIndex} missing`);
+				const groupId = op.groupId ?? op.elementId;
+				if (!groupId) throw new Error('ungroupShapes missing groupId');
+				const found = (slide.elements || []).some((e) => e.id === groupId);
+				if (!found) throw new Error(`element ${groupId} missing`);
+				const ungrouped = ungroupElements(slide.elements || [], groupId, op.childIds || []);
+				cur = cur.map((s, i) =>
+					i === op.slideIndex ? { ...s, elements: ungrouped.elements } : s,
+				);
+				break;
+			}
+			case 'setShapeFill': {
+				const el = resolvePptxElement(cur, op);
+				const shapeStyle = { ...(el.shapeStyle || {}) };
+				if (op.fillColor !== undefined) shapeStyle.fillColor = op.fillColor;
+				if (op.fillMode !== undefined) shapeStyle.fillMode = op.fillMode;
+				cur = updateElement(cur, op.slideIndex, el.id, { shapeStyle });
+				break;
+			}
+			case 'setShapeLine': {
+				const el = resolvePptxElement(cur, op);
+				const shapeStyle = { ...(el.shapeStyle || {}) };
+				if (op.strokeColor !== undefined) shapeStyle.strokeColor = op.strokeColor;
+				if (op.strokeWidth !== undefined) shapeStyle.strokeWidth = op.strokeWidth;
+				cur = updateElement(cur, op.slideIndex, el.id, { shapeStyle });
+				break;
+			}
 			default:
 				throw new Error(`unsupported pptx op: ${op.op}`);
 		}
 	}
 	return cur;
+}
+
+/** Dynamic imports shared by apply, the model dump, and undo session. */
+export async function loadPptxMutators() {
+	const up = upstreamRoot();
+	const { updateElement, patchElementGeometry, removeElement, appendElementOnSlide, reorderElementOnSlide } =
+		await import(`${up}/src/core/pptx/editor/render/editor-mutations.ts`);
+	const { remapTextToSegments } = await import(`${up}/src/core/pptx/editor/render/remap-text.ts`);
+	const { bringToFront, sendToBack, bringForward, sendBackward } = await import(
+		`${up}/src/core/pptx/editor/render/element-operations.ts`
+	);
+	const { groupElements, ungroupElements } = await import(
+		`${up}/src/core/pptx/core/utils/group-ops.ts`
+	);
+	const { cloneElement } = await import(`${up}/src/core/pptx/core/utils/clone-utils.ts`);
+	return {
+		updateElement,
+		patchElementGeometry,
+		remapTextToSegments,
+		removeElement,
+		appendElementOnSlide,
+		reorderElementOnSlide,
+		bringToFront,
+		sendToBack,
+		bringForward,
+		sendBackward,
+		groupElements,
+		ungroupElements,
+		cloneElement,
+	};
 }
 
 /**
@@ -274,19 +411,10 @@ export async function applyAndSave(bytes, script) {
 
 	if (format === 'pptx') {
 		const { PptxHandler } = await import(`${up}/src/core/pptx/core/PptxHandler.ts`);
-		const { updateElement, patchElementGeometry } = await import(
-			`${up}/src/core/pptx/editor/render/editor-mutations.ts`
-		);
-		const { remapTextToSegments } = await import(
-			`${up}/src/core/pptx/editor/render/remap-text.ts`
-		);
+		const mut = await loadPptxMutators();
 		const handler = new PptxHandler();
 		const data = await handler.load(toArrayBuffer(bytes));
-		const slides = applyPptxOps(data.slides, script.ops, {
-			updateElement,
-			patchElementGeometry,
-			remapTextToSegments,
-		});
+		const slides = applyPptxOps(data.slides, script.ops, mut);
 		return await handler.save(slides, {
 			headerFooter: data.headerFooter,
 			tableStyles: data.tableStyleMap,

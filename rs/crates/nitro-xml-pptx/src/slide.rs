@@ -2355,11 +2355,11 @@ fn first_run_text_paint(
         break;
     }
     if let Some(style) = level_fallback {
+        // Colour from master/layout level styles; leave size to the host CSS
+        // fallback until placeholder autofit/align lands (layout sz alone
+        // over-enlarges titles and worsens visual median).
         if color.is_none() {
             color = level_style_text_color(style, theme);
-        }
-        if size.is_none() {
-            size = style.font_size_px;
         }
     }
     (color, size)
@@ -2649,7 +2649,7 @@ mod tests {
         };
         let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
         assert_eq!(el.text_color.as_deref(), Some("#FFFFFF"));
-        assert!((el.font_size_px.unwrap() - 60.0 * 96.0 / 72.0).abs() < 0.01);
+        assert!(el.font_size_px.is_none());
     }
 
     // Catches: c:chart graphic frames dumped as otherKinds instead of chart elements.

@@ -175,6 +175,10 @@ struct TextRun {
 #[derive(Clone)]
 struct TextParagraph {
     runs: Vec<TextRun>,
+    /// `a:lnSpc/a:spcPct/@val` as a multiplier (90000 → 0.9).
+    line_spacing_ratio: Option<f64>,
+    /// `a:spcAft/a:spcPct/@val` as a multiplier added to the line-height ratio.
+    space_after_ratio: Option<f64>,
 }
 
 struct SpBox {
@@ -447,22 +451,21 @@ fn paragraph_to_lines(
 
 fn layout_shape_text(shape: &SpBox, stroke: f64) -> Vec<PositionedTextLine> {
     let (_text_cx, text_cy, max_width, base_font) = text_layout_metrics(shape, stroke);
-    let mut logical_lines: Vec<Vec<(String, f64)>> = Vec::new();
+    let mut logical_lines: Vec<(Vec<(String, f64)>, f64)> = Vec::new();
     for para in &shape.paragraphs {
-        logical_lines.extend(paragraph_to_lines(para, base_font, max_width));
+        let line_height_ratio = paragraph_line_height_ratio(para);
+        for line in paragraph_to_lines(para, base_font, max_width) {
+            logical_lines.push((line, line_height_ratio));
+        }
     }
     if logical_lines.is_empty() {
         return Vec::new();
     }
-    let line_height_ratio = 1.2;
     let line_heights: Vec<f64> = logical_lines
         .iter()
-        .map(|spans| {
-            spans
-                .iter()
-                .map(|(_, sz)| sz * line_height_ratio)
-                .fold(0.0, f64::max)
-                .max(base_font * line_height_ratio)
+        .map(|(spans, ratio)| {
+            let max_sz = spans.iter().map(|(_, sz)| *sz).fold(base_font, f64::max);
+            max_sz * ratio
         })
         .collect();
     let total_h = line_heights.iter().sum::<f64>();
@@ -470,13 +473,32 @@ fn layout_shape_text(shape: &SpBox, stroke: f64) -> Vec<PositionedTextLine> {
     logical_lines
         .into_iter()
         .zip(line_heights)
-        .map(|(spans, lh)| {
+        .map(|((spans, _), lh)| {
             y += lh / 2.0;
             let line = PositionedTextLine { y, spans };
             y += lh / 2.0;
             line
         })
         .collect()
+}
+
+const DEFAULT_SMARTART_LINE_HEIGHT_RATIO: f64 = 1.2;
+
+fn paragraph_line_height_ratio(para: &TextParagraph) -> f64 {
+    let ln = para.line_spacing_ratio.unwrap_or(1.0);
+    let aft = para.space_after_ratio.unwrap_or(0.0);
+    DEFAULT_SMARTART_LINE_HEIGHT_RATIO * ln + aft
+}
+
+fn spacing_pct_from_p_pr(p_pr: &Element, local: &str) -> Option<f64> {
+    let spacing = child_any(p_pr, local)?;
+    let spc_pct = child_any(spacing, "spcPct")?;
+    let val = attr_f64(spc_pct, "val")?;
+    if val > 0.0 {
+        Some(val / 100_000.0)
+    } else {
+        None
+    }
 }
 
 fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64) {
@@ -972,6 +994,8 @@ fn text_paragraphs_of(sp: &Element) -> Vec<TextParagraph> {
                     text: joined,
                     font_size_px: None,
                 }],
+                line_spacing_ratio: None,
+                space_after_ratio: None,
             });
         }
     }
@@ -984,7 +1008,12 @@ fn collect_tx_paragraphs(tx_body: &Element, out: &mut Vec<TextParagraph>) {
         if node.local == "p" {
             let runs = paragraph_runs(node);
             if runs.iter().any(|r| !r.text.is_empty()) {
-                out.push(TextParagraph { runs });
+                let p_pr = child_any(node, "pPr");
+                out.push(TextParagraph {
+                    runs,
+                    line_spacing_ratio: p_pr.and_then(|p| spacing_pct_from_p_pr(p, "lnSpc")),
+                    space_after_ratio: p_pr.and_then(|p| spacing_pct_from_p_pr(p, "spcAft")),
+                });
             }
             continue;
         }
@@ -1386,6 +1415,53 @@ mod tests {
         assert!(
             !svg.contains(">Small Big<") && !svg.contains(">Small<Big<"),
             "paragraphs must not merge: {svg}"
+        );
+    }
+
+    // Catches: SmartArt labels ignoring a:lnSpc/a:spcAft and always using 1.2× line height.
+    #[test]
+    fn paragraph_ln_spc_and_spc_aft_adjust_label_line_spacing() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="4000000" cy="2000000"/></a:xfrm>
+                <a:solidFill><a:srgbClr val="156082"/></a:solidFill>
+              </dsp:spPr>
+              <dsp:txBody>
+                <a:p>
+                  <a:pPr>
+                    <a:lnSpc><a:spcPct val="50000"/></a:lnSpc>
+                    <a:spcAft><a:spcPct val="10000"/></a:spcAft>
+                  </a:pPr>
+                  <a:r><a:rPr sz="2400"/><a:t>Alpha</a:t></a:r>
+                </a:p>
+                <a:p><a:r><a:rPr sz="2400"/><a:t>Beta</a:t></a:r></a:p>
+              </dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let svg = smartart_svg(Some(xml), 400.0, 200.0);
+        let ys: Vec<f64> = svg
+            .split("<text ")
+            .skip(1)
+            .filter_map(|chunk| {
+                chunk
+                    .split("y=\"")
+                    .nth(1)
+                    .and_then(|rest| rest.split('"').next())
+                    .and_then(|y| y.parse().ok())
+            })
+            .collect();
+        assert_eq!(ys.len(), 2, "expected two label lines: {svg}");
+        let font_px = 24.0 * (96.0 / 72.0);
+        let tight = font_px * (1.2 * 0.5 + 0.1);
+        let default_line = font_px * 1.2;
+        let expected_gap = tight / 2.0 + default_line / 2.0;
+        let actual_gap = (ys[1] - ys[0]).abs();
+        assert!(
+            (actual_gap - expected_gap).abs() < 0.5,
+            "line gap {actual_gap} should reflect lnSpc+spcAft (~{expected_gap}): {svg}"
         );
     }
 

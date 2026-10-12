@@ -15,8 +15,10 @@ mod slide;
 mod table;
 mod table_style;
 mod text;
+mod text_body_rect;
 mod text_layout;
 mod theme;
+mod verified_text_rect_presets;
 mod visual_3d_bevel;
 mod visual_3d_materials;
 

@@ -230,7 +230,13 @@ impl PrintSession {
                     .get(job.width_start..job.width_start + job.width_count)
                     .unwrap_or(&[]);
                 if let Some(space) = self.chart_spaces.get(&job.spec.part_name) {
-                    let svg = docx_chart_svg(space, job.spec.width, job.spec.height, slice);
+                    let svg = docx_chart_svg(
+                        space,
+                        job.spec.width,
+                        job.spec.height,
+                        slice,
+                        self.model.theme.as_ref(),
+                    );
                     self.chart_svg_cache.insert(job.spec.key.clone(), svg);
                 }
             }

@@ -42,6 +42,7 @@ pub fn paint_pptx_chart_xml(
                 height,
                 svg: ChartSvgOptions {
                     measure_widths: measure.widths.clone(),
+                    ..Default::default()
                 },
             },
         )

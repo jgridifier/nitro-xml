@@ -23,6 +23,7 @@ pub const DRAWN_CHART_TYPES: &[ChartSummaryType] = &[
     ChartSummaryType::Radar,
 ];
 
+#[derive(Clone, Default)]
 pub struct ChartThemeFonts {
     pub major: Option<String>,
     pub minor: Option<String>,
@@ -32,6 +33,8 @@ pub struct RenderChartSpaceOptions<'a> {
     pub width: u32,
     pub height: u32,
     pub measure: ChartSvgMeasureOptions<'a>,
+    pub theme_colors: Option<Vec<String>>,
+    pub theme_fonts: ChartThemeFonts,
 }
 
 pub fn chart_space_kind(space: &ChartSpace) -> (Option<ChartSummaryType>, bool) {
@@ -48,7 +51,11 @@ pub fn render_chart_space_svg(
     options: &mut RenderChartSpaceOptions<'_>,
 ) -> String {
     let summary = chart_summary_from_space(space);
-    let theme = chart_theme_palette(None, None, None);
+    let theme = chart_theme_palette(
+        options.theme_colors.clone(),
+        options.theme_fonts.major.as_deref(),
+        options.theme_fonts.minor.as_deref(),
+    );
     let mut view = chart_summary_view(&summary, &theme);
     let title_appearance = view
         .appearance

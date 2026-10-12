@@ -134,6 +134,7 @@ pub fn paint_print_layout<I: StringIntern>(
                     options.picture_urls,
                     options.chart_spaces,
                     options.chart_svg_cache,
+                    options.model.and_then(|m| m.theme.as_ref()),
                 );
                 let mut class = String::from("dve-print-picture dve-print-float");
                 if options.picture_urls.get(&float.part_name).is_none() {
@@ -284,6 +285,7 @@ fn paint_line<I: StringIntern>(
                 options.picture_urls,
                 options.chart_spaces,
                 options.chart_svg_cache,
+                options.model.and_then(|m| m.theme.as_ref()),
             );
             dom.px(picture, "left", fragment.x_px);
             dom.px(picture, "top", fragment.top_px.unwrap_or(0.0));

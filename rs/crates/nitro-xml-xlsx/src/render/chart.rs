@@ -21,6 +21,7 @@ pub fn paint_chart_from_xml(
         height,
         svg: ChartSvgOptions {
             measure_widths: measure.widths.clone(),
+            ..Default::default()
         },
     };
     paint_chart_space(

@@ -5,10 +5,11 @@
 //! clipboard while editing (`formula-field.ts`). Nitro owns that surface in
 //! Rust: grapheme/word/line caret motion, shift-selection, pointer hit-test,
 //! and plain/TSV clipboard helpers. Host chrome (formula bar / cell editor)
-//! lands in #69; IME composition is #56.
+//! lands in #69; IME composition is [`ime`].
 
 pub mod caret;
 pub mod clipboard;
+pub mod ime;
 pub mod keys;
 pub mod rich;
 pub mod selection;
@@ -42,6 +43,7 @@ pub fn text_surface_eval(script_json: &str) -> Result<String, JsValue> {
     let line_h = v.get("lineHeight").and_then(|x| x.as_f64()).unwrap_or(16.0) as f32;
 
     let mut field = TextField::from_utf16_selection(&text, anchor_u16, focus_u16);
+    let mut ime_session = ime::CompositionSession::new();
     let mut clipboard = String::new();
     let mut last_payload: Option<ClipboardPayload> = None;
     let ops = v
@@ -56,6 +58,9 @@ pub fn text_surface_eval(script_json: &str) -> Result<String, JsValue> {
         let kind = op.get("op").and_then(|x| x.as_str()).unwrap_or("");
         match kind {
             "key" => {
+                if ime_session.is_composing() {
+                    continue;
+                }
                 let key = op.get("key").and_then(|x| x.as_str()).unwrap_or("");
                 let ev = KeyEvent {
                     key: key.to_string(),
@@ -76,10 +81,16 @@ pub fn text_surface_eval(script_json: &str) -> Result<String, JsValue> {
                 }
             }
             "insert" => {
+                if ime_session.is_composing() {
+                    continue;
+                }
                 let t = op.get("text").and_then(|x| x.as_str()).unwrap_or("");
                 field.insert(t);
             }
             "pointer" => {
+                if ime_session.is_composing() {
+                    continue;
+                }
                 let x = op.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
                 let extend = op.get("extend").and_then(|v| v.as_bool()).unwrap_or(false);
                 let off = offset_at_x(field.text(), x, &width_fn);
@@ -90,8 +101,16 @@ pub fn text_surface_eval(script_json: &str) -> Result<String, JsValue> {
                 }
             }
             "copy" => clipboard = copy_plain(&field),
-            "cut" => clipboard = cut_plain(&mut field),
+            "cut" => {
+                if ime_session.is_composing() {
+                    continue;
+                }
+                clipboard = cut_plain(&mut field);
+            }
             "paste" => {
+                if ime_session.is_composing() {
+                    continue;
+                }
                 let t = op
                     .get("text")
                     .and_then(|x| x.as_str())
@@ -111,12 +130,24 @@ pub fn text_surface_eval(script_json: &str) -> Result<String, JsValue> {
                 });
             }
             "setText" => {
+                ime_session.reset();
                 let t = op.get("text").and_then(|x| x.as_str()).unwrap_or("");
                 let caret = op
                     .get("caret")
                     .and_then(|x| x.as_u64())
                     .map(|n| selection::utf16_to_byte(t, n as usize));
                 field.set_text(t, caret);
+            }
+            "composeUpdate" => {
+                let upd = ime::parse_compose_update(&op);
+                ime_session.update(&mut field, &upd);
+            }
+            "composeCommit" => {
+                let t = op.get("text").and_then(|x| x.as_str()).unwrap_or("");
+                ime_session.commit(&mut field, t);
+            }
+            "composeCancel" => {
+                ime_session.cancel(&mut field);
             }
             _ => {}
         }
@@ -140,6 +171,7 @@ pub fn text_surface_eval(script_json: &str) -> Result<String, JsValue> {
         "clipboard": clipboard,
         "escapedSelected": escape_html(field.selected_text()),
         "parsedClipboardRows": parse_tsv(&clipboard),
+        "composing": ime_session.is_composing(),
         "caret": { "x": caret.x, "y": caret.y, "w": caret.w, "h": caret.h },
         "selectionRects": sels.iter().map(|r| serde_json::json!({
             "x": r.x, "y": r.y, "w": r.w, "h": r.h

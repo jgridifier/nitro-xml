@@ -103,6 +103,12 @@ impl TextField {
         self.sel.focus = at;
     }
 
+    pub(crate) fn set_selection_range(&mut self, anchor: usize, focus: usize) {
+        self.sel.anchor = snap_grapheme(&self.text, anchor.min(self.text.len()));
+        self.sel.focus = snap_grapheme(&self.text, focus.min(self.text.len()));
+        self.clamp_selection();
+    }
+
     pub fn select_all(&mut self) {
         self.sel.anchor = 0;
         self.sel.focus = self.text.len();

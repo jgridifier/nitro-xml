@@ -7,6 +7,7 @@
 //! and plain/TSV clipboard helpers. Host chrome (formula bar / cell editor)
 //! lands in #69; IME composition is [`ime`].
 
+pub mod a11y;
 pub mod bidi;
 pub mod caret;
 pub mod clipboard;
@@ -17,6 +18,8 @@ pub mod rich;
 pub mod selection;
 pub mod spell;
 
+#[allow(unused_imports)]
+pub use a11y::{announce, field_a11y, textbox_attrs, AnnounceKind, FieldA11y, FieldA11yOpts};
 pub use caret::{caret_rect, offset_at_x, selection_rects};
 pub use clipboard::{
     copy_plain, cut_plain, escape_html, parse_tsv, paste_plain, plain_html_table, to_tsv,
@@ -280,4 +283,10 @@ pub fn mobile_text_eval(script_json: &str) -> Result<String, JsValue> {
     }
 
     Ok(surface.host_snapshot(char_w, line_h, &width_fn).to_string())
+}
+
+/// Headless eval for edit-surface accessibility (#59).
+#[wasm_bindgen(js_name = a11yEval)]
+pub fn a11y_eval(script_json: &str) -> Result<String, JsValue> {
+    a11y::eval_a11y_script(script_json).map_err(|e| JsValue::from_str(&e))
 }

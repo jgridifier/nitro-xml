@@ -48,7 +48,7 @@ echo "a11y: installing axe-core"
 echo "a11y: preparing upstream viewer bundles + font mirror"
 ( cd parity/visual && bun ./prepare.mjs )
 
-echo "a11y: running differential axe + AX-tree + keyboard"
+echo "a11y: running differential axe + AX-tree + keyboard + edit surface (#59)"
 set +e
 ( cd tests/a11y && bun ./run.mjs )
 rc=$?

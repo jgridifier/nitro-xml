@@ -840,3 +840,4 @@ if (import.meta.main) {
 	console.log(summary);
 	process.exit(ok ? 0 : 1);
 }
+

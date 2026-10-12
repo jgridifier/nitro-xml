@@ -97,7 +97,8 @@ fn notes_shape_role(shape: &Element) -> NotesShapeRole {
 
 /// `selectNotesBodyShapes` + `extractTextFromTxBody`, joined the way `extractSlideNotes` does.
 fn speaker_notes_text(notes: &Element) -> Option<String> {
-    let sp_tree = child_local(notes, "cSld", ns::P).and_then(|c| child_local(c, "spTree", ns::P))?;
+    let sp_tree =
+        child_local(notes, "cSld", ns::P).and_then(|c| child_local(c, "spTree", ns::P))?;
     let shapes = children_local(sp_tree, "sp", ns::P);
     let body: Vec<&Element> = shapes
         .iter()

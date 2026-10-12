@@ -47,10 +47,14 @@ sync_corpus() {
       [[ -d "$FIXTURES_FUZZ/opc" ]] && cp -a "$FIXTURES_FUZZ/opc"/. "$dest"/ || true
       ;;
     xlsx_load)
+      # Legitimate high-compression workbooks (seeded); skip copying whole fixtures/fuzz/xlsx
+      # if seeds already include the curated ones.
       [[ -d "$FIXTURES_FUZZ/xlsx" ]] && cp -a "$FIXTURES_FUZZ/xlsx"/. "$dest"/ || true
       ;;
     docx_load)
-      [[ -d "$FIXTURES_FUZZ/docx" ]] && cp -a "$FIXTURES_FUZZ/docx"/. "$dest"/ || true
+      # Do not auto-copy fixtures/fuzz/docx here: repeated-paragraphs-* inflate to
+      # 7–21 MiB XML and blow RSS when the full docx reader parses them. Those files
+      # are exercised via zip_open / opc_open seeds and nitro-xml-opc unit tests.
       ;;
     pptx_load)
       [[ -d "$FIXTURES_FUZZ/pptx" ]] && cp -a "$FIXTURES_FUZZ/pptx"/. "$dest"/ || true

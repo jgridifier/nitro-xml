@@ -316,3 +316,12 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-wasm/src/chrome/menu.rs` | `src/ui/src/menu/menu-model.ts` (+ context-menu / menu-button behaviour) @ e66aaec | `next_enabled_index`, `type_ahead_index`, `clamp_flyout_position`, menu/context-menu HTML (#54). |
 | `rs/crates/nitro-xml-opc/src/drawingml/edit.rs` | `src/core/pptx/core/utils/xfrm-emu-resolution.ts` @ e66aaec | `is_xfrm_emu_unchanged` / `resolve_xfrm_emu` (JS `Math.round`). Fill and line patch helpers in the same file are original. |
 | `rs/crates/nitro-xml-pptx/src/edit/shapes.rs` | `src/core/pptx/editor/render/element-operations.ts`, `remap-text.ts`, `editor-mutations.ts`, `src/core/pptx/core/utils/group-ops.ts` @ e66aaec | Z-order, duplicate offset, plain-text remap, group/ungroup bbox. Command runners and the editable host are original (#84). |
+| `rs/crates/nitro-xml-xlsx/src/write/xml_out.rs` | `src/core/xlsx/write/xml-out.ts` @ e66aaec | Escapes, `el` / `t_element`, and `relative_target`. |
+| `rs/crates/nitro-xml-xlsx/src/write/style_xml.rs` | `src/core/xlsx/write/style-xml.ts` @ e66aaec | Font, fill, border, alignment, protection, and numFmt fragments. |
+| `rs/crates/nitro-xml-xlsx/src/write/shared_strings.rs` | `src/core/xlsx/write/shared-strings.ts` @ e66aaec | Shared-string table built while sheets are written (`count` / `uniqueCount`). |
+| `rs/crates/nitro-xml-xlsx/src/write/theme.rs` | `src/core/xlsx/write/theme.ts` @ e66aaec | Carry an unchanged theme; otherwise the default Office theme. Palette slot order stays spreadsheet `lt1, dk1, …`. |
+| `rs/crates/nitro-xml-xlsx/src/write/styles.rs` | `src/core/xlsx/write/styles.ts` @ e66aaec | `StyleWriter` for cell xfs. Source numFmt ids and dxf/tableStyles markup are copied. |
+| `rs/crates/nitro-xml-xlsx/src/write/sheet_data.rs` | `src/core/xlsx/write/sheet-data.ts` @ e66aaec | Row-major `sheetData`. No dynamic-array or cell-metadata attributes. |
+| `rs/crates/nitro-xml-xlsx/src/write/sheet_props.rs` | `src/core/xlsx/write/sheet-props.ts` @ e66aaec | Subset: dimension, sheetViews, sheetFormat, cols, mergeCells. |
+| `rs/crates/nitro-xml-xlsx/src/write/workbook_part.rs` | `src/core/xlsx/write/workbook-part.ts` @ e66aaec | Workbook part. `fullCalcOnLoad="1"` is optional so the negative control can omit it. |
+| `rs/crates/nitro-xml-xlsx/src/write/worksheet.rs` | `src/core/xlsx/write/worksheet.ts` @ e66aaec | Worksheet shell in `CT_Worksheet` order. Unmodelled children are copied from the source part. |

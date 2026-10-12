@@ -33,3 +33,7 @@ path = "examples/xlsx_formula_dump.rs"
 [[example]]
 name = "xlsx_calc_dump"
 path = "examples/xlsx_calc_dump.rs"
+
+[[example]]
+name = "xlsx_save"
+path = "examples/xlsx_save.rs"

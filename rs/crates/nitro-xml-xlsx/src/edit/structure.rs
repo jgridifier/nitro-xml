@@ -216,6 +216,9 @@ pub fn add_sheet(
         })
         .collect();
     host.touched = shifted.into_iter().collect();
+    host.remap_sheet_indexes(|i| Some(if (i as usize) >= index { i + 1 } else { i }));
+    host.mark_structure_dirty();
+    host.dirty_sheets.insert(index as u32);
     host.workbook.active_sheet = index as u32;
     Ok(index as u32)
 }
@@ -262,6 +265,17 @@ pub fn delete_sheet(host: &mut XlsxHost, index: u32) -> Result<(), EditError> {
         })
         .collect();
     host.touched = shifted.into_iter().collect();
+    host.remap_sheet_indexes(|i| {
+        let i = i as usize;
+        if i == idx {
+            None
+        } else if i > idx {
+            Some((i - 1) as u32)
+        } else {
+            Some(i as u32)
+        }
+    });
+    host.mark_structure_dirty();
     let active = host.workbook.active_sheet as usize;
     if active > idx {
         host.workbook.active_sheet -= 1;
@@ -289,6 +303,8 @@ pub fn rename_sheet(host: &mut XlsxHost, index: u32, name: &str) -> Result<(), E
     }
     host.sheets[idx].name = name.to_owned();
     sync_workbook_stubs(host);
+    host.mark_structure_dirty();
+    host.dirty_sheets.insert(index);
     Ok(())
 }
 
@@ -321,6 +337,8 @@ pub fn move_sheet(host: &mut XlsxHost, from: u32, to: u32) -> Result<(), EditErr
         .map(|(s, r, c)| (new_index(s), r, c))
         .collect();
     host.touched = shifted.into_iter().collect();
+    host.remap_sheet_indexes(|i| Some(new_index(i)));
+    host.mark_structure_dirty();
     host.workbook.active_sheet = new_index(host.workbook.active_sheet);
     Ok(())
 }
@@ -437,36 +455,39 @@ pub fn set_column_width(
     cols: &[u32],
     width: Option<f64>,
 ) -> Result<(), EditError> {
-    let sh = host
-        .sheet_mut(sheet)
-        .map_err(|e| EditError::Other { message: e })?;
-    if cols.is_empty() {
-        return Ok(());
-    }
-    let widths: HashMap<u32, Option<f64>> = cols
-        .iter()
-        .map(|&c| (c, width.map(|w| w.clamp(0.0, MAX_WIDTH))))
-        .collect();
-    edit_columns(sh, cols, |info| {
-        let next = widths.get(&info.min).copied().flatten();
-        match next {
-            None => {
-                info.width = None;
-                info.custom_width = None;
-                info.best_fit = None;
-            }
-            Some(w) => {
-                info.width = Some(w);
-                info.custom_width = Some(true);
-                info.best_fit = None;
-                if w == 0.0 {
-                    info.hidden = Some(true);
-                } else {
-                    info.hidden = None;
+    {
+        let sh = host
+            .sheet_mut(sheet)
+            .map_err(|e| EditError::Other { message: e })?;
+        if cols.is_empty() {
+            return Ok(());
+        }
+        let widths: HashMap<u32, Option<f64>> = cols
+            .iter()
+            .map(|&c| (c, width.map(|w| w.clamp(0.0, MAX_WIDTH))))
+            .collect();
+        edit_columns(sh, cols, |info| {
+            let next = widths.get(&info.min).copied().flatten();
+            match next {
+                None => {
+                    info.width = None;
+                    info.custom_width = None;
+                    info.best_fit = None;
+                }
+                Some(w) => {
+                    info.width = Some(w);
+                    info.custom_width = Some(true);
+                    info.best_fit = None;
+                    if w == 0.0 {
+                        info.hidden = Some(true);
+                    } else {
+                        info.hidden = None;
+                    }
                 }
             }
-        }
-    });
+        });
+    }
+    host.dirty_sheets.insert(sheet);
     Ok(())
 }
 
@@ -477,28 +498,31 @@ pub fn set_row_height(
     rows: &[u32],
     height: f64,
 ) -> Result<(), EditError> {
-    let sh = host
-        .sheet_mut(sheet)
-        .map_err(|e| EditError::Other { message: e })?;
-    if rows.is_empty() {
-        return Ok(());
-    }
-    let h = height.clamp(0.0, MAX_HEIGHT);
-    for &row in rows {
-        let mut info = sh.row_info.get(&row).cloned().unwrap_or_default();
-        info.height = Some(h);
-        info.custom_height = Some(true);
-        if h == 0.0 {
-            info.hidden = Some(true);
-        } else {
-            info.hidden = None;
+    {
+        let sh = host
+            .sheet_mut(sheet)
+            .map_err(|e| EditError::Other { message: e })?;
+        if rows.is_empty() {
+            return Ok(());
         }
-        if info == RowInfo::default() {
-            sh.row_info.remove(&row);
-        } else {
-            sh.row_info.insert(row, info);
+        let h = height.clamp(0.0, MAX_HEIGHT);
+        for &row in rows {
+            let mut info = sh.row_info.get(&row).cloned().unwrap_or_default();
+            info.height = Some(h);
+            info.custom_height = Some(true);
+            if h == 0.0 {
+                info.hidden = Some(true);
+            } else {
+                info.hidden = None;
+            }
+            if info == RowInfo::default() {
+                sh.row_info.remove(&row);
+            } else {
+                sh.row_info.insert(row, info);
+            }
         }
     }
+    host.dirty_sheets.insert(sheet);
     Ok(())
 }
 
@@ -510,49 +534,52 @@ pub fn set_hidden(
     indices: &[u32],
     hidden: bool,
 ) -> Result<(), EditError> {
-    let sh = host
-        .sheet_mut(sheet)
-        .map_err(|e| EditError::Other { message: e })?;
-    if indices.is_empty() {
-        return Ok(());
-    }
-    match axis {
-        "col" => {
-            edit_columns(sh, indices, |info| {
-                if hidden {
-                    info.hidden = Some(true);
-                } else {
-                    info.hidden = None;
-                    if info.width == Some(0.0) {
-                        info.width = None;
-                    }
-                }
-            });
+    {
+        let sh = host
+            .sheet_mut(sheet)
+            .map_err(|e| EditError::Other { message: e })?;
+        if indices.is_empty() {
+            return Ok(());
         }
-        "row" => {
-            for &row in indices {
-                let mut info = sh.row_info.get(&row).cloned().unwrap_or_default();
-                if hidden {
-                    info.hidden = Some(true);
-                } else {
-                    info.hidden = None;
-                    if info.height == Some(0.0) {
-                        info.height = None;
+        match axis {
+            "col" => {
+                edit_columns(sh, indices, |info| {
+                    if hidden {
+                        info.hidden = Some(true);
+                    } else {
+                        info.hidden = None;
+                        if info.width == Some(0.0) {
+                            info.width = None;
+                        }
                     }
-                }
-                if info == RowInfo::default() {
-                    sh.row_info.remove(&row);
-                } else {
-                    sh.row_info.insert(row, info);
+                });
+            }
+            "row" => {
+                for &row in indices {
+                    let mut info = sh.row_info.get(&row).cloned().unwrap_or_default();
+                    if hidden {
+                        info.hidden = Some(true);
+                    } else {
+                        info.hidden = None;
+                        if info.height == Some(0.0) {
+                            info.height = None;
+                        }
+                    }
+                    if info == RowInfo::default() {
+                        sh.row_info.remove(&row);
+                    } else {
+                        sh.row_info.insert(row, info);
+                    }
                 }
             }
-        }
-        other => {
-            return Err(EditError::Other {
-                message: format!("setHidden axis must be row|col, got {other}"),
-            });
+            other => {
+                return Err(EditError::Other {
+                    message: format!("setHidden axis must be row|col, got {other}"),
+                });
+            }
         }
     }
+    host.dirty_sheets.insert(sheet);
     Ok(())
 }
 

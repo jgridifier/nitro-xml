@@ -36,6 +36,7 @@ pub mod theme;
 pub mod view;
 pub mod workbook;
 pub mod worksheet;
+pub mod write;
 pub mod xml_util;
 
 pub use address::{format_address, format_range, parse_address, parse_range};
@@ -48,3 +49,4 @@ pub use model::{stringify_json, WorkbookSlice};
 pub use render::{paint_grid_frame, GridPaintViewport};
 pub use view::{dump_xlsx_view_ir, dump_xlsx_view_ir_string};
 pub use workbook::{load_workbook, parse_all_worksheets, parse_worksheet_at};
+pub use write::{save_xlsx, save_xlsx_with_options, stale_cells, XlsxSaveOptions};

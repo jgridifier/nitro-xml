@@ -148,21 +148,11 @@ mod tests {
     #[test]
     fn catches_header_text_lands_in_default_slot_blocks() {
         // Catches: header edit writing body blocks instead of section header slots (#79).
-        let mut host = DocxHost {
-            format: "docx".into(),
-            blocks: vec![serde_json::json!({
-                "type": "paragraph",
-                "id": "body",
-                "runs": [{ "text": "body" }],
-            })],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            touched: Default::default(),
-        };
+        let mut host = DocxHost::stub(vec![serde_json::json!({
+            "type": "paragraph",
+            "id": "body",
+            "runs": [{ "text": "body" }],
+        })]);
         set_header_footer_text(
             &mut host,
             0,

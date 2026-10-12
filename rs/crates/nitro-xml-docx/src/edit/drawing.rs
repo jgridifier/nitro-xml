@@ -79,21 +79,11 @@ mod tests {
     #[test]
     fn catches_set_run_image_attaches_descriptor_without_dropping_text() {
         // Catches: picture edit replacing the run instead of attaching `image` (#79).
-        let mut host = DocxHost {
-            format: "docx".into(),
-            blocks: vec![json!({
-                "type": "paragraph",
-                "id": "p0",
-                "runs": [{ "text": "cap" }],
-            })],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            touched: Default::default(),
-        };
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "cap" }],
+        })]);
         set_run_image(
             &mut host,
             0,

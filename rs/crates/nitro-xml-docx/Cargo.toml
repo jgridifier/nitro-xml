@@ -28,3 +28,7 @@ path = "examples/docx_layout_dump.rs"
 [[example]]
 name = "docx_pagecount_dump"
 path = "examples/docx_pagecount_dump.rs"
+
+[[example]]
+name = "docx_save"
+path = "examples/docx_save.rs"

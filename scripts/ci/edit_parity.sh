@@ -37,9 +37,12 @@ echo "edit-parity: schema / corpus unit tests"
 echo "edit-parity: formula-shift negative control (#76)"
 ( cd rs && cargo test -p nitro-xml-xlsx --lib catches_unshifted_formula_after_row_insert -- --nocapture )
 
-echo "edit-parity: TS-vs-TS apply+save over edits/*.json"
+echo "edit-parity: docx writer example"
+( cd rs && cargo build --release -p nitro-xml-docx --example docx_save )
+
+echo "edit-parity: TS-vs-TS apply+save over edits/*.json, plus Rust docx compare"
 set +e
-( cd parity/edit && bun ./run.mjs --ci )
+( cd parity/edit && bun ./run.mjs --ci --rust-docx --negative-control )
 rc=$?
 set -e
 

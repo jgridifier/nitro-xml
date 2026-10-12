@@ -115,21 +115,11 @@ mod tests {
     #[test]
     fn catches_toggle_bullet_adds_and_clears_numbering() {
         // Catches: list toggle leaving stale numbering after a second toggle (#78).
-        let mut host = DocxHost {
-            format: "docx".into(),
-            blocks: vec![json!({
-                "type": "paragraph",
-                "id": "p0",
-                "runs": [{ "text": "item" }],
-            })],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            touched: Default::default(),
-        };
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "item" }],
+        })]);
         toggle_bullet_list(&mut host, 0).unwrap();
         assert!(host.blocks[0].get("numbering").is_some());
         toggle_bullet_list(&mut host, 0).unwrap();

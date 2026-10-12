@@ -160,6 +160,13 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/warnings.rs` | `src/core/docx/parse-warnings.ts`, `parse.ts`, `diagram-document.ts` @ e66aaec | Document and model warning assembly; diagram warning text. |
 | `rs/crates/nitro-xml-docx/src/tab_stops.rs` | `src/core/docx/tab-stops.ts` @ e66aaec | `w:pPr/w:tabs` parse for direct paragraph properties. |
 | `rs/crates/nitro-xml-docx/src/watermark.rs` | `src/core/docx/watermark.ts` (`parseWatermarkShape`) @ e66aaec | VML text watermark shapes in `w:pict`. |
+| `rs/crates/nitro-xml-docx/src/write/mod.rs` | `src/core/docx/save.ts` @ e66aaec | PackageWriter save entry, identity shortcut, dirty `word/document.xml` replace (#80). |
+| `rs/crates/nitro-xml-docx/src/write/apply.rs` | `src/core/docx/write.ts` (`applyModel`) @ e66aaec | Block apply + page `sectPr` margins; HF/notes/comments TODO(#80). |
+| `rs/crates/nitro-xml-docx/src/write/paragraph.rs` | `src/core/docx/write-paragraph.ts` @ e66aaec | Paragraph rewrite for edit scripts. |
+| `rs/crates/nitro-xml-docx/src/write/run.rs` | `src/core/docx/write-run.ts` @ e66aaec | Run text and direct formatting write. |
+| `rs/crates/nitro-xml-docx/src/write/table.rs` | `src/core/docx/write-table.ts` @ e66aaec | Table structure + cell paragraph rewrite. |
+| `rs/crates/nitro-xml-docx/src/write/inline.rs` | `src/core/docx/write-inline.ts` (`collectInlineSlots`) @ e66aaec | Plain `w:r` slot collection subset. |
+| `rs/crates/nitro-xml-docx/src/write/xml_escape.rs` | `src/core/xlsx/write/xml-out.ts` @ e66aaec | `_xHHHH_` text escapes shared with xlsx writer. |
 | `rs/crates/nitro-xml-xlsx/src/sheet_access.rs` | `src/core/xlsx/cells.ts` @ e66aaec | `getCell` / `usedRange` / `mergeAt` over `ActiveWorksheet` `DumpCell` vec + `CellIndex`. |
 | `rs/crates/nitro-xml-xlsx/src/view/units.rs` | `src/core/xlsx/layout/units.ts` @ e66aaec | Column/row pixel conversions; Rust `f64`/`i32` types. |
 | `rs/crates/nitro-xml-xlsx/src/view/axis_metrics.rs` | `src/core/xlsx/layout/axis-metrics.ts` @ e66aaec | Sparse axis metrics; same prefix-sum algorithm. |

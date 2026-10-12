@@ -5,7 +5,7 @@ use std::any::Any;
 
 use crate::edit::change_set::{ChangeKind, ChangeSet, EditScope};
 use crate::edit::error::EditError;
-use crate::edit::history::{HistoryHooks, HistoryStep};
+use crate::edit::history::{EditHistory, HistoryEntry, HistoryHooks, HistoryStep};
 
 /// Opaque host snapshot bytes. Format crates replace this with typed codecs in #64/#66+.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -131,18 +131,22 @@ impl<H: EditHost, Hist: HistoryHooks> EditSession<H, Hist> {
                     return Ok((value, change));
                 }
                 let step = self.open.take().expect("open step");
-                // Capture after so hosts can diff; NullHost is a no-op.
-                let _after = self.host.capture(&step.scopes);
+                let after = self.host.capture(&step.scopes);
                 let mut change = ChangeSet::new(step.kind, step.label.clone());
                 change.sheet = step.sheet;
                 change.ranges = step.ranges.clone();
                 if step.structural {
                     change = change.structural();
                 }
+                // One host-wide entry per outer transaction (format codecs may split later).
+                let entries = vec![HistoryEntry {
+                    before: step.before,
+                    after,
+                }];
                 self.history.on_commit(HistoryStep {
                     label: step.label,
                     structural: step.structural,
-                    entries_len: step.entries_len,
+                    entries,
                     change: change.clone(),
                 });
                 Ok((value, change))
@@ -169,6 +173,34 @@ impl<H: EditHost, Hist: HistoryHooks> EditSession<H, Hist> {
         f: impl FnMut(&mut H) -> Result<R, EditError>,
     ) -> Result<(R, ChangeSet), EditError> {
         self.run(label, ChangeKind::Batch, vec![EditScope::Workbook], f)
+    }
+}
+
+impl<H: EditHost> EditSession<H, EditHistory> {
+    pub fn can_undo(&self) -> bool {
+        self.history.can_undo()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        self.history.can_redo()
+    }
+
+    pub fn undo_label(&self) -> Option<&str> {
+        self.history.undo_label()
+    }
+
+    pub fn redo_label(&self) -> Option<&str> {
+        self.history.redo_label()
+    }
+
+    /// Undo one step; restores host snapshots. Returns the step label when something undid.
+    pub fn undo(&mut self) -> Option<String> {
+        self.history.undo(&mut self.host).map(|s| s.label)
+    }
+
+    /// Redo one step; restores host snapshots. Returns the step label when something redid.
+    pub fn redo(&mut self) -> Option<String> {
+        self.history.redo(&mut self.host).map(|s| s.label)
     }
 }
 
@@ -231,6 +263,23 @@ mod tests {
             .unwrap();
         assert_eq!(change.label, "ok");
         assert_eq!(session.history.committed.len(), 1);
-        assert_eq!(session.history.committed[0].entries_len, 1);
+        assert_eq!(session.history.committed[0].entries_len(), 1);
+    }
+
+    #[test]
+    fn catches_session_undo_redo_round_trips_host() {
+        // Catches: EditSession undo/redo must restore host state through EditHistory (#64).
+        let mut session = EditSession::new(CounterHost::default(), EditHistory::new());
+        session
+            .run("bump", ChangeKind::Cells, vec![EditScope::Meta], |host| {
+                host.value = 9;
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(session.host.value, 9);
+        assert_eq!(session.undo().as_deref(), Some("bump"));
+        assert_eq!(session.host.value, 0);
+        assert_eq!(session.redo().as_deref(), Some("bump"));
+        assert_eq!(session.host.value, 9);
     }
 }

@@ -259,6 +259,7 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "unicode-bidi",
  "unicode-segmentation",
  "wasm-bindgen",
 ]

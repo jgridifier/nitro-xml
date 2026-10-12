@@ -65,5 +65,25 @@ if [ "$rc" -ne 0 ]; then
   echo "bidi: FAIL" >&2
   exit 1
 fi
+
+echo "bidi: running editing-surface checks (#57)"
+set +e
+( cd tests/bidi/edit && bun ./run.mjs )
+edit_rc=$?
+set -e
+
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f tests/bidi/edit/out/gate-summary.txt ]; then
+  {
+    echo "## Bidi edit gate (#57)"
+    echo '```'
+    cat tests/bidi/edit/out/gate-summary.txt
+    echo '```'
+  } >> "$GITHUB_STEP_SUMMARY"
+fi
+
+if [ "$edit_rc" -ne 0 ]; then
+  echo "bidi: edit FAIL" >&2
+  exit 1
+fi
 echo "bidi: PASS"
 exit 0

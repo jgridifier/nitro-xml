@@ -8,7 +8,8 @@ use nitro_xml_opc::edit::{EditHost, EditScope, HostSnapshot};
 use serde_json::{json, Map, Value};
 
 use crate::model::{
-    ActiveWorksheet, CellAddress, CellRange, DumpCell, DumpCellValue, WorkbookSlice,
+    ActiveWorksheet, CellAddress, CellRange, ColumnInfo, DefinedName, DumpCell, DumpCellValue,
+    RowInfo, WorkbookSlice,
 };
 use crate::styles::style_at;
 use crate::workbook::{load_workbook, parse_all_worksheets};
@@ -119,18 +120,45 @@ impl XlsxHost {
             };
             cells.push(entry);
         }
+        let sheets: Vec<Value> = self
+            .sheets
+            .iter()
+            .map(|sh| {
+                json!({
+                    "name": sh.name,
+                    "sheetId": sh.sheet_id,
+                    "state": sh.state.as_str(),
+                })
+            })
+            .collect();
         json!({
             "cells": cells,
             "stylesCount": self.workbook.styles.len(),
+            "sheets": sheets,
+            "activeSheet": self.workbook.active_sheet,
         })
     }
 
     fn state_json(&self) -> Value {
         json!({
             "styles": self.workbook.styles.iter().map(|s| s.to_json()).collect::<Vec<_>>(),
+            "activeSheet": self.workbook.active_sheet,
+            "definedNames": self.workbook.defined_names.iter().map(|n| n.to_json()).collect::<Vec<_>>(),
             "sheets": self.sheets.iter().map(|sh| {
                 json!({
+                    "name": sh.name,
+                    "sheetId": sh.sheet_id,
+                    "state": sh.state.as_str(),
+                    "partName": sh.part_name,
+                    "defaultRowHeight": sh.default_row_height,
+                    "defaultColWidth": sh.default_col_width,
                     "cells": sh.cells.iter().map(dump_cell_to_snap).collect::<Vec<_>>(),
+                    "columns": sh.columns.iter().map(|c| c.to_json()).collect::<Vec<_>>(),
+                    "rowInfo": sh.row_info.iter().map(|(r, info)| {
+                        let mut m = info.to_json().as_object().cloned().unwrap_or_default();
+                        m.insert("row".into(), json!(r));
+                        Value::Object(m)
+                    }).collect::<Vec<_>>(),
                 })
             }).collect::<Vec<_>>(),
             "touched": self.touched.iter().map(|(s, r, c)| json!([s, r, c])).collect::<Vec<_>>(),
@@ -146,23 +174,120 @@ impl XlsxHost {
             .iter()
             .map(cell_style_from_json)
             .collect::<Result<Vec<_>, _>>()?;
+        if let Some(a) = v.get("activeSheet").and_then(|x| x.as_u64()) {
+            self.workbook.active_sheet = a as u32;
+        }
+        if let Some(names) = v.get("definedNames").and_then(|x| x.as_array()) {
+            self.workbook.defined_names = names
+                .iter()
+                .map(defined_name_from_json)
+                .collect::<Result<Vec<_>, _>>()?;
+        }
         let sheets = v
             .get("sheets")
             .and_then(|x| x.as_array())
             .ok_or_else(|| "snapshot missing sheets".to_owned())?;
-        if sheets.len() != self.sheets.len() {
-            return Err("snapshot sheet count mismatch".into());
-        }
+        let mut restored = Vec::with_capacity(sheets.len());
         for (i, sheet_v) in sheets.iter().enumerate() {
-            let cells = sheet_v
+            let obj = sheet_v
+                .as_object()
+                .ok_or_else(|| format!("snapshot sheet {i} not object"))?;
+            let name = obj
+                .get("name")
+                .and_then(|x| x.as_str())
+                .ok_or_else(|| format!("snapshot sheet {i} missing name"))?
+                .to_owned();
+            let sheet_id = obj
+                .get("sheetId")
+                .and_then(|x| x.as_u64())
+                .ok_or_else(|| format!("snapshot sheet {i} missing sheetId"))?
+                as u32;
+            let state = match obj
+                .get("state")
+                .and_then(|x| x.as_str())
+                .unwrap_or("visible")
+            {
+                "hidden" => crate::model::SheetState::Hidden,
+                "veryHidden" => crate::model::SheetState::VeryHidden,
+                _ => crate::model::SheetState::Visible,
+            };
+            let cells = obj
                 .get("cells")
                 .and_then(|x| x.as_array())
                 .ok_or_else(|| format!("snapshot sheet {i} missing cells"))?;
-            self.sheets[i].cells = cells
+            let mut ws = if let Some(existing) = self.sheets.get(i) {
+                let mut clone = existing.clone();
+                clone.name = name;
+                clone.sheet_id = sheet_id;
+                clone.state = state;
+                clone
+            } else {
+                crate::model::ActiveWorksheet {
+                    name,
+                    sheet_id,
+                    state,
+                    part_name: obj
+                        .get("partName")
+                        .and_then(|x| x.as_str())
+                        .map(str::to_owned),
+                    default_row_height: obj
+                        .get("defaultRowHeight")
+                        .and_then(|x| x.as_f64())
+                        .unwrap_or(15.0),
+                    default_col_width: obj.get("defaultColWidth").and_then(|x| x.as_f64()),
+                    format: None,
+                    view: crate::sheet_props::default_sheet_view(),
+                    columns: Vec::new(),
+                    merges: Vec::new(),
+                    row_info: Default::default(),
+                    cells: Vec::new(),
+                    data_validations: Vec::new(),
+                    comment_addresses: Vec::new(),
+                    hyperlinks: Vec::new(),
+                    ext_lst: Vec::new(),
+                    sparkline_groups: Vec::new(),
+                }
+            };
+            if let Some(p) = obj.get("partName") {
+                ws.part_name = p.as_str().map(str::to_owned);
+            }
+            if let Some(h) = obj.get("defaultRowHeight").and_then(|x| x.as_f64()) {
+                ws.default_row_height = h;
+            }
+            if obj.contains_key("defaultColWidth") {
+                ws.default_col_width = obj.get("defaultColWidth").and_then(|x| x.as_f64());
+            }
+            ws.cells = cells
                 .iter()
                 .map(dump_cell_from_snap)
                 .collect::<Result<Vec<_>, _>>()?;
+            if let Some(cols) = obj.get("columns").and_then(|x| x.as_array()) {
+                ws.columns = cols
+                    .iter()
+                    .map(column_info_from_json)
+                    .collect::<Result<Vec<_>, _>>()?;
+            }
+            if let Some(rows) = obj.get("rowInfo").and_then(|x| x.as_array()) {
+                ws.row_info.clear();
+                for entry in rows {
+                    let (row, info) = row_info_from_json(entry)?;
+                    ws.row_info.insert(row, info);
+                }
+            }
+            restored.push(ws);
         }
+        self.sheets = restored;
+        self.workbook.sheets = self
+            .sheets
+            .iter()
+            .map(|sh| crate::model::SheetStub {
+                name: sh.name.clone(),
+                sheet_id: sh.sheet_id,
+                state: sh.state,
+                part_name: sh.part_name.clone(),
+                page_setup: None,
+            })
+            .collect();
         self.touched.clear();
         if let Some(touched) = v.get("touched").and_then(|x| x.as_array()) {
             for t in touched {
@@ -300,4 +425,75 @@ fn cell_range_from_json(v: &Value) -> Result<CellRange, String> {
         start: cell_address_from_json(obj.get("start").ok_or("start")?)?,
         end: cell_address_from_json(obj.get("end").ok_or("end")?)?,
     })
+}
+
+fn defined_name_from_json(v: &Value) -> Result<DefinedName, String> {
+    let obj = v
+        .as_object()
+        .ok_or_else(|| "defined name must be an object".to_owned())?;
+    Ok(DefinedName {
+        name: obj
+            .get("name")
+            .and_then(|x| x.as_str())
+            .ok_or("defined name missing name")?
+            .to_owned(),
+        formula: obj
+            .get("formula")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_owned(),
+        local_sheet: obj
+            .get("localSheet")
+            .and_then(|x| x.as_u64())
+            .map(|n| n as u32),
+        hidden: obj.get("hidden").and_then(|x| x.as_bool()),
+        comment: obj
+            .get("comment")
+            .and_then(|x| x.as_str())
+            .map(str::to_owned),
+    })
+}
+
+fn column_info_from_json(v: &Value) -> Result<ColumnInfo, String> {
+    let obj = v
+        .as_object()
+        .ok_or_else(|| "column must be an object".to_owned())?;
+    Ok(ColumnInfo {
+        min: obj.get("min").and_then(|x| x.as_u64()).ok_or("col min")? as u32,
+        max: obj.get("max").and_then(|x| x.as_u64()).ok_or("col max")? as u32,
+        width: obj.get("width").and_then(|x| x.as_f64()),
+        custom_width: obj.get("customWidth").and_then(|x| x.as_bool()),
+        hidden: obj.get("hidden").and_then(|x| x.as_bool()),
+        style_id: obj
+            .get("styleId")
+            .and_then(|x| x.as_u64())
+            .map(|n| n as u32),
+        outline_level: obj.get("outlineLevel").and_then(|x| x.as_f64()),
+        collapsed: obj.get("collapsed").and_then(|x| x.as_bool()),
+        best_fit: obj.get("bestFit").and_then(|x| x.as_bool()),
+    })
+}
+
+fn row_info_from_json(v: &Value) -> Result<(u32, RowInfo), String> {
+    let obj = v
+        .as_object()
+        .ok_or_else(|| "rowInfo must be an object".to_owned())?;
+    let row = obj
+        .get("row")
+        .and_then(|x| x.as_u64())
+        .ok_or("rowInfo missing row")? as u32;
+    Ok((
+        row,
+        RowInfo {
+            height: obj.get("height").and_then(|x| x.as_f64()),
+            custom_height: obj.get("customHeight").and_then(|x| x.as_bool()),
+            hidden: obj.get("hidden").and_then(|x| x.as_bool()),
+            style_id: obj
+                .get("styleId")
+                .and_then(|x| x.as_u64())
+                .map(|n| n as u32),
+            outline_level: obj.get("outlineLevel").and_then(|x| x.as_f64()),
+            collapsed: obj.get("collapsed").and_then(|x| x.as_bool()),
+        },
+    ))
 }

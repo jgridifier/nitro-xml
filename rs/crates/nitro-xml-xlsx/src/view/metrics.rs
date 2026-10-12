@@ -104,6 +104,10 @@ pub fn create_grid_metrics(sheet: &ActiveWorksheet, options: GridMetricsOptions)
             last_col_used = last_col_used.max(info.max);
         }
     }
+    if let Some(dim) = &sheet.dimension {
+        last_row_used = last_row_used.max(dim.end.row);
+        last_col_used = last_col_used.max(dim.end.col);
+    }
     let extra_rows = options.extra_rows.unwrap_or(50);
     let extra_cols = options.extra_cols.unwrap_or(20);
     let last_row = (last_row_used + extra_rows).min(MAX_ROW);

@@ -938,6 +938,11 @@ pub struct ActiveWorksheet {
     /// Preserved `extLst` XML fragments (sparklines and other extensions).
     pub ext_lst: Vec<String>,
     pub sparkline_groups: Vec<SparklineGroup>,
+    /// Full grid extent for metrics. `None` on the full-fidelity load path (extent comes from
+    /// stored cells). The lazy first view sets this from `<dimension>` or the streamed row
+    /// prefix plus a stub so the grid does not collapse to the loaded window. Omitted from
+    /// [`Self::to_json`] so dump parity stays on the full path.
+    pub dimension: Option<CellRange>,
 }
 
 impl ActiveWorksheet {

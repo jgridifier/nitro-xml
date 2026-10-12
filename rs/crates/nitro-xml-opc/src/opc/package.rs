@@ -128,9 +128,29 @@ impl<'a> Package<'a> {
         self.zip.actual(part_name)
     }
 
-    /// Inflate a part's bytes.
+    /// Inflate a part's bytes. A full read is recorded on [`Self::parts_read`].
     pub fn read(&mut self, part_name: &str) -> Result<Option<Vec<u8>>, OpcError> {
         Ok(self.zip.read(part_name)?)
+    }
+
+    /// Parts fully inflated via [`Self::read`] / [`Self::text`] (and streams that ran to EOF).
+    pub fn parts_read(&self) -> &[String] {
+        self.zip.parts_read()
+    }
+
+    /// Parts whose inflate started, including [`Self::stream_part`] calls that stopped early.
+    pub fn touched_parts(&self) -> &[String] {
+        self.zip.touched_parts()
+    }
+
+    /// Stream-inflate a part. `on_chunk` returns `false` to stop before EOF so the rest of the
+    /// deflate stream is not read. `Ok(Some(true))` is a full read; `Ok(Some(false))` stopped
+    /// early; `Ok(None)` means the part is absent (and is not recorded).
+    pub fn stream_part<F>(&mut self, part_name: &str, on_chunk: F) -> Result<Option<bool>, OpcError>
+    where
+        F: FnMut(&[u8]) -> bool,
+    {
+        Ok(self.zip.stream_part(part_name, on_chunk)?)
     }
 
     fn read_text_uncached(

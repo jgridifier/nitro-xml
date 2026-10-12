@@ -11,9 +11,9 @@ use nitro_xml_xlsx::render::{
 };
 use nitro_xml_xlsx::view::metrics::{create_grid_metrics, GridMetrics, GridMetricsOptions};
 use nitro_xml_xlsx::{
-    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook, paint_grid_frame, parse_range,
-    parse_worksheet_at, search_workbook, visible_sheets_json, GridPaintViewport, SearchOptions,
-    WorkbookSlice,
+    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook, open_first_view,
+    paint_grid_frame, parse_all_worksheets, parse_range, parse_worksheet_at, search_workbook,
+    visible_sheets_json, FirstView, GridPaintViewport, SearchOptions, ViewportRect, WorkbookSlice,
 };
 use serde_json::Value;
 const DEFAULT_W: i32 = 800;
@@ -31,15 +31,20 @@ pub struct XlsxState {
     pub zoom_pct: Option<f64>,
     /// Last cell visited while a primary-button cell drag is active.
     drag: Option<(u32, u32)>,
+    /// Viewport-sized workbook. `None` after a search or hyperlink lookup upgrades to the full
+    /// `load_workbook` path (those need every cell, not the painted window).
+    lazy: Option<FirstView>,
 }
 
 impl XlsxState {
     pub fn open(bytes: &[u8]) -> Result<(Self, Vec<String>), String> {
-        let workbook = load_workbook(bytes)?;
-        let warnings = workbook.warnings.clone();
+        let first = open_first_view(bytes, default_cell_rect())?;
+        let warnings = first.workbook().warnings.clone();
+        let mut workbook = first.workbook().clone();
         let mut sheets: Vec<Option<ActiveWorksheet>> = vec![None; workbook.sheets.len()];
         let active = workbook.active_sheet as usize;
-        if let Some(ws) = workbook.active_worksheet.clone() {
+        if let Some(ws) = first.sheet(active).cloned() {
+            workbook.active_worksheet = Some(ws.clone());
             if active < sheets.len() {
                 sheets[active] = Some(ws);
             }
@@ -55,6 +60,7 @@ impl XlsxState {
                 viewport_h: DEFAULT_H,
                 zoom_pct: None,
                 drag: None,
+                lazy: Some(first),
             },
             warnings,
         ))
@@ -109,11 +115,86 @@ impl XlsxState {
         if index >= self.sheets.len() {
             return Err(format!("sheet index {} out of range", index));
         }
+        if self.lazy.is_some() {
+            let rect = self.current_cell_rect();
+            return self.sync_lazy_sheet(index, rect);
+        }
         if self.sheets[index].is_none() {
             let ws = parse_worksheet_at(bytes, &self.workbook, index)?;
             self.sheets[index] = Some(ws);
         }
         Ok(())
+    }
+
+    /// Replace the lazy window with a full `load_workbook` so search and hyperlinks see every cell.
+    fn materialise_full(&mut self, bytes: &[u8]) -> Result<(), String> {
+        if self.lazy.is_none() {
+            return Ok(());
+        }
+        let workbook = load_workbook(bytes)?;
+        let parsed = parse_all_worksheets(bytes, &workbook)?;
+        self.sheets = parsed;
+        self.workbook = workbook;
+        self.lazy = None;
+        Ok(())
+    }
+
+    fn sync_lazy_sheet(&mut self, index: usize, rect: ViewportRect) -> Result<(), String> {
+        let ws = {
+            let lazy = self
+                .lazy
+                .as_mut()
+                .ok_or_else(|| "lazy view closed".to_string())?;
+            lazy.ensure_sheet(index, rect)?;
+            lazy.sheet(index).cloned()
+        };
+        if let Some(ws) = ws {
+            if index == self.active {
+                self.workbook.active_worksheet = Some(ws.clone());
+            }
+            if index < self.sheets.len() {
+                self.sheets[index] = Some(ws);
+            }
+        }
+        Ok(())
+    }
+
+    fn current_cell_rect(&self) -> ViewportRect {
+        let Some(sheet) = self.sheets.get(self.active).and_then(|s| s.as_ref()) else {
+            return default_cell_rect();
+        };
+        let metrics = grid_metrics(sheet, self.zoom_pct);
+        let header = header_sizes(sheet, &metrics, metrics.last_row);
+        let (frozen_rows, frozen_cols) = sheet
+            .view
+            .freeze
+            .as_ref()
+            .map(|f| (f.rows, f.cols))
+            .unwrap_or((0, 0));
+        let frozen_h = if frozen_rows > 0 {
+            metrics.row_top(frozen_rows)
+        } else {
+            0
+        };
+        let frozen_w = if frozen_cols > 0 {
+            metrics.col_left(frozen_cols)
+        } else {
+            0
+        };
+        let top = frozen_h + self.scroll_y.max(0);
+        let left = frozen_w + self.scroll_x.max(0);
+        let bottom = top + (self.viewport_h - header.h - frozen_h).max(0);
+        let right = left + (self.viewport_w - header.w - frozen_w).max(0);
+        let r0 = metrics.row_at(top);
+        let r1 = metrics.row_at(bottom.saturating_sub(1).max(top));
+        let c0 = metrics.col_at(left);
+        let c1 = metrics.col_at(right.saturating_sub(1).max(left));
+        ViewportRect {
+            r0: r0.min(r1),
+            c0: c0.min(c1),
+            r1: r0.max(r1),
+            c1: c0.max(c1),
+        }
     }
 
     pub fn set_active_sheet(&mut self, bytes: &[u8], index: usize) -> Result<(), String> {
@@ -150,7 +231,13 @@ impl XlsxState {
         commands: &mut nitro_xml_render::CommandBuffer,
         measures: &mut nitro_xml_render::MeasureBatch,
     ) {
-        if self.ensure_sheet_parsed(bytes, self.active).is_err() {
+        if self.lazy.is_some() {
+            let rect = self.current_cell_rect();
+            let active = self.active;
+            if self.sync_lazy_sheet(active, rect).is_err() {
+                return;
+            }
+        } else if self.ensure_sheet_parsed(bytes, self.active).is_err() {
             return;
         }
         let viewport = self.viewport();
@@ -388,9 +475,13 @@ impl XlsxState {
         row: u32,
         col: u32,
     ) -> Result<Option<Value>, String> {
-        self.ensure_sheet_parsed(bytes, sheet_index)?;
+        self.materialise_full(bytes)?;
         let workbook = &self.workbook;
-        let sheet = self.sheets[sheet_index].as_ref().expect("parsed");
+        let sheet = self
+            .sheets
+            .get(sheet_index)
+            .and_then(|s| s.as_ref())
+            .ok_or_else(|| format!("sheet index {sheet_index} out of range"))?;
         Ok(hyperlink_at(workbook, sheet, sheet_index, row, col))
     }
 
@@ -400,13 +491,7 @@ impl XlsxState {
         query: &str,
         opts: SearchOptions,
     ) -> Result<Value, String> {
-        for i in 0..self.sheets.len() {
-            if self.sheets[i].is_none()
-                && self.workbook.sheets[i].state == nitro_xml_xlsx::model::SheetState::Visible
-            {
-                let _ = self.ensure_sheet_parsed(bytes, i);
-            }
-        }
+        self.materialise_full(bytes)?;
         Ok(search_workbook(&self.workbook, &self.sheets, query, opts))
     }
 }
@@ -446,6 +531,16 @@ fn grid_hit_input<'a>(
         scroll_y,
         frozen_rows,
         frozen_cols,
+    }
+}
+
+fn default_cell_rect() -> ViewportRect {
+    // 800×600 host, default column ~64px and row ~20px, minus headers.
+    ViewportRect {
+        r0: 0,
+        c0: 0,
+        r1: 36,
+        c1: 14,
     }
 }
 

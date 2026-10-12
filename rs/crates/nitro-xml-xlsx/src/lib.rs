@@ -18,6 +18,7 @@ pub mod formula_text;
 pub mod formula_translate;
 pub mod hyperlinks;
 pub mod intern;
+pub mod lazy;
 pub mod metadata;
 pub mod model;
 pub mod number_format;
@@ -45,6 +46,7 @@ pub use engine_api::{
     cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, search_workbook, visible_sheets_json,
     SearchOptions,
 };
+pub use lazy::{open_first_view, FirstView, ViewportRect};
 pub use model::{stringify_json, WorkbookSlice};
 pub use render::{paint_grid_frame, GridPaintViewport};
 pub use view::{dump_xlsx_view_ir, dump_xlsx_view_ir_string};

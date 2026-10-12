@@ -80,24 +80,24 @@ pub fn default_cell_style() -> CellStyle {
     }
 }
 
-struct SheetEntry {
-    name: String,
-    sheet_id: u32,
-    state: SheetState,
-    rel_id: String,
+pub(crate) struct SheetEntry {
+    pub(crate) name: String,
+    pub(crate) sheet_id: u32,
+    pub(crate) state: SheetState,
+    pub(crate) rel_id: String,
 }
 
-struct WorkbookPart {
-    sheets: Vec<SheetEntry>,
-    defined_names: Vec<DefinedName>,
-    date1904: bool,
-    active_tab: u32,
-    structure_locked: bool,
-    full_calc_on_load: bool,
-    workbook_password_hash: Option<String>,
-    workbook_modern_hash: Option<ModernPasswordHash>,
-    calc_mode: Option<String>,
-    iterate: Option<(f64, f64)>,
+pub(crate) struct WorkbookPart {
+    pub(crate) sheets: Vec<SheetEntry>,
+    pub(crate) defined_names: Vec<DefinedName>,
+    pub(crate) date1904: bool,
+    pub(crate) active_tab: u32,
+    pub(crate) structure_locked: bool,
+    pub(crate) full_calc_on_load: bool,
+    pub(crate) workbook_password_hash: Option<String>,
+    pub(crate) workbook_modern_hash: Option<ModernPasswordHash>,
+    pub(crate) calc_mode: Option<String>,
+    pub(crate) iterate: Option<(f64, f64)>,
 }
 
 fn push_warn(warnings: &mut Vec<String>, message: String) {
@@ -111,7 +111,7 @@ const PRINT_AREA: &str = "_xlnm.Print_Area";
 const CONTENT_TYPE_WORKBOOK_MACRO: &str = "application/vnd.ms-excel.sheet.macroEnabled.main+xml";
 const CONTENT_TYPE_TEMPLATE_MACRO: &str = "application/vnd.ms-excel.template.macroEnabled.main+xml";
 
-fn parse_workbook_part(xml: &str) -> Result<WorkbookPart, String> {
+pub(crate) fn parse_workbook_part(xml: &str) -> Result<WorkbookPart, String> {
     let doc = parse_xml_str(xml).map_err(|e| e.to_string())?;
     let root = &doc.root;
     let mut sheets = Vec::new();
@@ -231,7 +231,7 @@ fn match_print_area_formula(formula: &str) -> Option<&str> {
     Some(range)
 }
 
-fn lift_print_areas(workbook: &mut WorkbookSlice) {
+pub(crate) fn lift_print_areas(workbook: &mut WorkbookSlice) {
     let mut kept = Vec::new();
     for name in workbook.defined_names.drain(..) {
         if name.name != PRINT_AREA || name.local_sheet.is_none() {
@@ -261,9 +261,20 @@ fn lift_print_areas(workbook: &mut WorkbookSlice) {
     workbook.defined_names = kept;
 }
 
-/// Load Stage-3 workbook slice (workbook / styles / theme / shared strings; sheet stubs only).
-pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
-    let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
+/// Workbook shell without shared-string materialisation or worksheet cell parse.
+///
+/// [`load_workbook`] fills shared strings and the active sheet on top of this. The lazy first
+/// view reuses it so those two stay proportional to the viewport, not the file.
+pub(crate) struct WorkbookShell {
+    pub workbook: WorkbookSlice,
+    pub strings_part: Option<String>,
+    pub sheet_is_worksheet: Vec<bool>,
+    pub dynamic_cells: std::collections::HashSet<u32>,
+}
+
+/// Eager package parts: content types (via open), root rels, workbook, workbook rels, styles, theme.
+/// Does not inflate `sharedStrings` or any worksheet part.
+pub(crate) fn load_workbook_shell(pkg: &mut Package) -> Result<WorkbookShell, String> {
     let workbook_part = pkg
         .target_of_type("", relationship_types::OFFICE_DOCUMENT)
         .map_err(|e| e.to_string())?
@@ -305,11 +316,6 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
     let strings_part = pkg
         .target_of_type(&workbook_part, relationship_types::SHARED_STRINGS)
         .map_err(|e| e.to_string())?;
-    let strings_xml = match &strings_part {
-        Some(p) => pkg.text(p).map_err(|e| e.to_string())?.map(str::to_owned),
-        None => None,
-    };
-    let shared_strings = parse_shared_strings(strings_xml.as_deref(), styles.palette.as_deref());
 
     let rels_map: HashMap<String, Relationship> = pkg
         .rels(&workbook_part)
@@ -318,7 +324,7 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
 
-    let dynamic_cells = load_dynamic_cells(&mut pkg, &workbook_part);
+    let dynamic_cells = load_dynamic_cells(pkg, &workbook_part);
 
     let mut sheets: Vec<SheetStub> = Vec::new();
     let mut sheet_is_worksheet: Vec<bool> = Vec::new();
@@ -421,7 +427,7 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
         xf_map: styles.xf_map,
         palette: styles.palette,
         dxfs: styles.dxfs,
-        shared_strings,
+        shared_strings: Vec::new(),
         warnings,
         full_calc_on_load: book.full_calc_on_load.then_some(true),
         structure_locked: book.structure_locked.then_some(true),
@@ -433,37 +439,53 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
     };
     lift_print_areas(&mut workbook);
 
-    let active_idx = workbook.active_sheet as usize;
-    if sheet_is_worksheet.get(active_idx) == Some(&true) {
-        let stub = &workbook.sheets[active_idx];
-        if let Some(part) = &stub.part_name {
-            let mut ws_ctx = WorksheetContext {
-                shared_strings: workbook.shared_strings.clone(),
-                xf_map: workbook.xf_map.clone(),
-                date1904: workbook.date1904,
-                palette: workbook.palette.clone(),
-                dynamic_cells,
-                warnings: Vec::new(),
-            };
-            let ws = parse_worksheet(
-                &mut ws_ctx,
-                &mut pkg,
-                part,
-                &stub.name,
-                stub.sheet_id,
-                stub.state,
-            );
-            for w in ws_ctx.warnings {
-                push_warn(&mut workbook.warnings, w);
-            }
-            workbook.active_worksheet = Some(ws);
-        }
-    }
-
-    Ok(workbook)
+    Ok(WorkbookShell {
+        workbook,
+        strings_part,
+        sheet_is_worksheet,
+        dynamic_cells,
+    })
 }
 
-fn stub_worksheet(stub: &SheetStub) -> crate::model::ActiveWorksheet {
+/// Load Stage-3 workbook slice (workbook / styles / theme / shared strings; sheet stubs only)
+/// plus the active worksheet's full cell table.
+pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
+    let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
+    let mut shell = load_workbook_shell(&mut pkg)?;
+    if let Some(part) = shell.strings_part.clone() {
+        let strings_xml = pkg
+            .text(&part)
+            .map_err(|e| e.to_string())?
+            .map(str::to_owned);
+        shell.workbook.shared_strings =
+            parse_shared_strings(strings_xml.as_deref(), shell.workbook.palette.as_deref());
+    }
+    let active_idx = shell.workbook.active_sheet as usize;
+    if shell.sheet_is_worksheet.get(active_idx) == Some(&true) {
+        let stub = &shell.workbook.sheets[active_idx];
+        if let Some(part) = stub.part_name.clone() {
+            let mut ws_ctx = WorksheetContext {
+                shared_strings: shell.workbook.shared_strings.clone(),
+                xf_map: shell.workbook.xf_map.clone(),
+                date1904: shell.workbook.date1904,
+                palette: shell.workbook.palette.clone(),
+                dynamic_cells: shell.dynamic_cells.clone(),
+                warnings: Vec::new(),
+            };
+            let name = stub.name.clone();
+            let sheet_id = stub.sheet_id;
+            let state = stub.state;
+            let ws = parse_worksheet(&mut ws_ctx, &mut pkg, &part, &name, sheet_id, state);
+            for w in ws_ctx.warnings {
+                push_warn(&mut shell.workbook.warnings, w);
+            }
+            shell.workbook.active_worksheet = Some(ws);
+        }
+    }
+    Ok(shell.workbook)
+}
+
+pub(crate) fn stub_worksheet(stub: &SheetStub) -> crate::model::ActiveWorksheet {
     crate::model::ActiveWorksheet {
         name: stub.name.clone(),
         sheet_id: stub.sheet_id,
@@ -482,6 +504,7 @@ fn stub_worksheet(stub: &SheetStub) -> crate::model::ActiveWorksheet {
         hyperlinks: Vec::new(),
         ext_lst: Vec::new(),
         sparkline_groups: Vec::new(),
+        dimension: None,
     }
 }
 

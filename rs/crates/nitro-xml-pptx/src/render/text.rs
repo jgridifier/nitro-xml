@@ -105,7 +105,9 @@ pub fn paint_text_body<I: StringIntern>(
     if let Some(shadow) = paint.text_shadow {
         set_style(ctx, block, "text-shadow", shadow);
     }
-    set_text_content(ctx, block, text);
+    set_style(ctx, block, "overflow", "visible");
+    set_style(ctx, block, "text-spacing-trim", "space-all");
+    append_paragraph_text(ctx, block, text);
     // Batched measureText for GDI-style tracking (upstream text-metric-tracking).
     if !text.is_empty() {
         let family = paint
@@ -118,6 +120,14 @@ pub fn paint_text_body<I: StringIntern>(
         ctx.measure.push(font_id, size as f32, text_id);
     }
     block
+}
+
+/// One `<p class="pptxv-para">` per body (upstream `renderTextBlock`).
+fn append_paragraph_text<I: StringIntern>(ctx: &mut PaintContext<'_, I>, block: u32, text: &str) {
+    let para = create_child(ctx, block, "p");
+    set_attr(ctx, para, "class", "pptxv-para");
+    set_style(ctx, para, "margin", "0");
+    set_text_content(ctx, para, text);
 }
 
 fn apply_text_body_layout<I: StringIntern>(
@@ -290,6 +300,23 @@ mod tests {
             "font-family stack, got {:?}",
             intern.0
         );
+    }
+
+    #[test]
+    fn text_body_wraps_plain_text_in_pptxv_para() {
+        // Catches: plain text painted as a flex-child text node instead of <p class="pptxv-para">.
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(16.0),
+            font_family: None,
+            font_bold: false,
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: None,
+            text_shadow: None,
+        });
+        assert!(intern.0.iter().any(|s| s == "pptxv-para"));
+        assert!(intern.0.iter().any(|s| s == "p"));
     }
 
     #[test]

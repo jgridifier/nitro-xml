@@ -136,6 +136,22 @@ pub fn nice_value_axis_bounds(
     }
 }
 
+pub fn axis_scale_from_nice_bounds(bounds: NiceAxisBounds) -> AxisScale {
+    let min = bounds.min;
+    let max = bounds.max;
+    let unit = bounds.major_unit;
+    let intervals = ((max - min) / unit).round().max(1.0) as usize;
+    let ticks: Vec<f64> = (0..=intervals)
+        .map(|i| clean(min + i as f64 * unit))
+        .collect();
+    AxisScale {
+        min,
+        max,
+        major_unit: unit,
+        ticks,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -155,21 +171,5 @@ mod tests {
         let scale = axis_scale_from_nice_bounds(bounds);
         assert!((scale.max - 6.0).abs() < 1e-6);
         assert!((scale.major_unit - 1.0).abs() < 1e-6);
-    }
-}
-
-pub fn axis_scale_from_nice_bounds(bounds: NiceAxisBounds) -> AxisScale {
-    let min = bounds.min;
-    let max = bounds.max;
-    let unit = bounds.major_unit;
-    let intervals = ((max - min) / unit).round().max(1.0) as usize;
-    let ticks: Vec<f64> = (0..=intervals)
-        .map(|i| clean(min + i as f64 * unit))
-        .collect();
-    AxisScale {
-        min,
-        max,
-        major_unit: unit,
-        ticks,
     }
 }

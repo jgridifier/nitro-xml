@@ -2,8 +2,10 @@
 //! Fast first view of an xlsx package.
 //!
 //! Eager parts are the content types, package rels, workbook, workbook rels, styles and theme.
-//! Shared strings and worksheet rows are inflated only as far as the viewport needs. Other
-//! worksheet parts stay unread until [`FirstView::ensure_sheet`].
+//! Shared strings resolve only indices seen in the viewport. The active worksheet stream keeps
+//! viewport cell rows, then skips the rest of `<sheetData>` so merges / CF / used-range extents
+//! still land without storing every cell. Other worksheet parts stay unread until
+//! [`FirstView::ensure_sheet`].
 //!
 //! `load_workbook` / `parse_worksheet` / `parse_all_worksheets` are unchanged and remain the
 //! full-fidelity path for the editor, formula engine and oracles.
@@ -80,12 +82,22 @@ pub fn open_first_view(bytes: &[u8], view: ViewportRect) -> Result<FirstView, St
 
 impl FirstView {
     /// Load `view` on `sheet` when that rect is not already covered (scroll).
-    pub fn ensure_viewport(&mut self, sheet: usize, view: ViewportRect) -> Result<(), String> {
+    /// Returns whether the stored window was replaced.
+    pub fn ensure_viewport(&mut self, sheet: usize, view: ViewportRect) -> Result<bool, String> {
         self.ensure_sheet(sheet, view)
     }
 
+    /// Whether `view` is already covered by the stored window on `sheet`.
+    pub fn covers_viewport(&self, sheet: usize, view: ViewportRect) -> bool {
+        self.windows
+            .get(sheet)
+            .and_then(|w| w.as_ref())
+            .is_some_and(|have| covers(have, &view))
+    }
+
     /// Parse `sheet` for `view` without reading any other worksheet part.
-    pub fn ensure_sheet(&mut self, sheet: usize, view: ViewportRect) -> Result<(), String> {
+    /// Returns `true` when cells were reloaded (caller must refresh viewer state).
+    pub fn ensure_sheet(&mut self, sheet: usize, view: ViewportRect) -> Result<bool, String> {
         if sheet >= self.workbook.sheets.len() {
             return Err(format!("sheet index {sheet} out of range"));
         }
@@ -97,13 +109,13 @@ impl FirstView {
                 .and_then(|w| w.as_ref())
                 .is_some_and(|have| covers(have, &view))
         {
-            return Ok(());
+            return Ok(false);
         }
         let bytes = self.bytes.clone();
         let mut pkg = Package::open(&bytes).map_err(|e| e.to_string())?;
         self.load_sheet(&mut pkg, sheet, view)?;
         self.merge_pkg(&pkg);
-        Ok(())
+        Ok(true)
     }
 
     pub fn sheet(&self, sheet: usize) -> Option<&ActiveWorksheet> {
@@ -281,7 +293,7 @@ mod tests {
         let full = load_workbook(cells_100k).expect("full");
         let full_sheet = full.active_worksheet.as_ref().expect("sheet");
         let mut lazy = open_first_view(cells_100k, top).expect("first view");
-        lazy.ensure_viewport(0, scrolled).expect("scroll");
+        assert!(lazy.ensure_viewport(0, scrolled).expect("scroll"));
         let lazy_sheet = lazy.sheet(0).expect("scrolled sheet");
         assert_eq!(
             cell_texts(&full, full_sheet, scrolled),
@@ -321,9 +333,11 @@ mod tests {
             "pad.bin was inflated: {:?}",
             view.touched_parts()
         );
+        // Active sheet is streamed through EOF so merges/CF after sheetData are available, but
+        // pad.bin and other sheets must stay untouched.
         assert!(
-            !view.parts_read.iter().any(|p| p.contains("sheet1")),
-            "sheet1 was inflated to EOF: {:?}",
+            view.parts_read.iter().any(|p| p.contains("sheet1")),
+            "active sheet should finish so the post-sheetData tail is captured: {:?}",
             view.parts_read
         );
 
@@ -367,6 +381,53 @@ mod tests {
             lazy.parts_read
         );
         assert!(lazy.rows_visited(0) < 40);
+        // Viewport cell store stays small even though the sheet part finished.
+        let cells = lazy.sheet(0).map(|s| s.cells.len()).unwrap_or(0);
+        assert!(
+            cells < 80,
+            "kept {cells} cells; viewport should stay sparse"
+        );
+    }
+
+    // Catches: early sheetData stop dropping mergeCells / used-range so selection parity fails.
+    #[test]
+    fn first_view_keeps_merges_and_used_extent() {
+        let bytes = include_bytes!("../../../../../fixtures/generated/xlsx/cells_1k_merges.xlsx");
+        let lazy = open_first_view(
+            bytes,
+            ViewportRect {
+                r0: 0,
+                c0: 0,
+                r1: 25,
+                c1: 10,
+            },
+        )
+        .expect("merges fixture");
+        let sheet = lazy.sheet(0).expect("active sheet");
+        assert!(
+            sheet.merges.iter().any(|m| {
+                m.start.row == 0 && m.start.col == 0 && m.end.row == 1 && m.end.col == 1
+            }),
+            "A1:B2 merge missing: {:?}",
+            sheet.merges
+        );
+        let dim = sheet.dimension.as_ref().expect("dimension");
+        assert!(
+            dim.end.row >= 49 && dim.end.col >= 19,
+            "used extent should cover A1:T50-ish, got {:?}:{:?}",
+            dim.start,
+            dim.end
+        );
+        assert!(
+            sheet.cells.len() < 600,
+            "must not keep all 1k cells, kept {}",
+            sheet.cells.len()
+        );
+        assert!(
+            sheet.cells.len() < 1000,
+            "viewport+slop store must stay under the full sheet"
+        );
+        assert!(lazy.rows_visited(0) < 50);
     }
 
     fn two_sheet_package() -> Vec<u8> {

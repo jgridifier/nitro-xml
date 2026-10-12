@@ -140,15 +140,30 @@ impl XlsxState {
     }
 
     fn sync_lazy_sheet(&mut self, index: usize, rect: ViewportRect) -> Result<(), String> {
-        let ws = {
+        let prev = self.sheets.get(index).and_then(|s| s.as_ref()).cloned();
+        let reloaded = {
             let lazy = self
                 .lazy
                 .as_mut()
                 .ok_or_else(|| "lazy view closed".to_string())?;
-            lazy.ensure_sheet(index, rect)?;
-            lazy.sheet(index).cloned()
+            // Covered window + local sheet: keep runtime selection / view state.
+            if prev.is_some() && lazy.covers_viewport(index, rect) {
+                return Ok(());
+            }
+            lazy.ensure_sheet(index, rect)?
         };
-        if let Some(ws) = ws {
+        if !reloaded && prev.is_some() {
+            return Ok(());
+        }
+        let ws = self
+            .lazy
+            .as_ref()
+            .and_then(|lazy| lazy.sheet(index).cloned());
+        if let Some(mut ws) = ws {
+            if let Some(old) = prev {
+                // FirstView clones the file's sheetView; preserve the live selection.
+                ws.view.selection = old.view.selection;
+            }
             if index == self.active {
                 self.workbook.active_worksheet = Some(ws.clone());
             }
@@ -393,6 +408,7 @@ impl XlsxState {
 
     fn select_region_or_all(&mut self) -> Option<String> {
         let active = self.active;
+        let lazy = self.lazy.is_some();
         let (current, region) = {
             let sheet = self.sheets.get(active)?.as_ref()?;
             let current = sheet
@@ -400,7 +416,24 @@ impl XlsxState {
                 .selection
                 .clone()
                 .unwrap_or_else(|| select_cell(sheet, CellAddress { row: 0, col: 0 }));
-            let region = current_region_or_all(&self.workbook, sheet, &current);
+            let mut region = current_region_or_all(&self.workbook, sheet, &current);
+            // Viewport cells alone under-grow current_region; prefer the streamed used extent.
+            if lazy {
+                if let Some(dim) = sheet.dimension.clone() {
+                    let single = dim.start.row == dim.end.row && dim.start.col == dim.end.col;
+                    let same = current.ranges.last().is_some_and(|last| {
+                        last.start.row == dim.start.row
+                            && last.start.col == dim.start.col
+                            && last.end.row == dim.end.row
+                            && last.end.col == dim.end.col
+                    });
+                    if same {
+                        region = None;
+                    } else if !single {
+                        region = Some(dim);
+                    }
+                }
+            }
             (current, region)
         };
         let sheet = self.sheets.get_mut(active)?.as_mut()?;
@@ -454,7 +487,22 @@ impl XlsxState {
         sheet_index: usize,
         range: &str,
     ) -> Result<String, String> {
-        self.ensure_sheet_parsed(bytes, sheet_index)?;
+        if self.lazy.is_some() {
+            if let Some(r) = parse_range(range) {
+                // Copy / TSV must see every cell in the selection, not only the paint window.
+                let rect = ViewportRect {
+                    r0: r.start.row,
+                    c0: r.start.col,
+                    r1: r.end.row,
+                    c1: r.end.col,
+                };
+                self.sync_lazy_sheet(sheet_index, rect)?;
+            } else {
+                self.ensure_sheet_parsed(bytes, sheet_index)?;
+            }
+        } else {
+            self.ensure_sheet_parsed(bytes, sheet_index)?;
+        }
         let workbook = &self.workbook;
         let sheets = &self.sheets;
         let sheet = sheets[sheet_index].as_ref().expect("parsed");

@@ -3,7 +3,9 @@
 //!
 //! The shell (views, columns, format, dimension) is split off the front of the part. `<sheetData>`
 //! rows are visited in order; cell records are kept for the viewport plus slop (and frozen panes).
-//! When row numbers are monotonic, inflation stops once the row past the window has been seen.
+//! When row numbers are monotonic past the window, remaining rows are skipped (no cell keep) so the
+//! post-`sheetData` tail — merges, conditional formatting, etc. — and the used-range extents are
+//! still captured without storing every cell.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -350,6 +352,8 @@ struct SheetParser {
 enum Phase {
     Prefix,
     Rows,
+    /// Past the viewport: discard row XML but keep scanning for extents + `</sheetData>`.
+    SkipRows,
     Tail,
 }
 
@@ -424,13 +428,17 @@ impl SheetParser {
             Phase::Tail => {
                 self.capture.tail.push_str(&self.text);
                 self.text.clear();
+                // Cells may still be window-only; extents + merges came from a full sheetData scan.
                 self.capture.truncated = false;
             }
-            Phase::Rows => {
+            Phase::Rows | Phase::SkipRows => {
                 if let Some(at) = find_sheet_data_close(&self.text) {
                     self.capture.tail = self.text[at..].to_owned();
+                    self.capture.truncated = false;
+                } else {
+                    // Never reached `</sheetData>` — extents may be incomplete.
+                    self.capture.truncated = true;
                 }
-                self.capture.truncated = false;
             }
             Phase::Prefix => {
                 if self.capture.prefix.is_empty() {
@@ -518,13 +526,33 @@ impl SheetParser {
                         }
                         let limit = self.view.r1.saturating_add(ROW_SLOP);
                         if self.monotonic && row0 > limit {
-                            self.stop = true;
-                            self.capture.truncated = true;
-                            return;
+                            // Keep inflating: skip row bodies so merges/CF after sheetData land,
+                            // and so used-range extents stay accurate when `<dimension>` is absent.
+                            self.phase = Phase::SkipRows;
+                            continue;
                         }
                         let xml = self.text[..end].to_owned();
                         self.text = self.text[end..].to_owned();
                         self.consume_row(row0, xml);
+                    }
+                },
+                Phase::SkipRows => match next_row(&self.text) {
+                    RowScan::NeedMore => return,
+                    RowScan::End { at } => {
+                        self.capture.tail = self.text[at..].to_owned();
+                        self.text.clear();
+                        self.phase = Phase::Tail;
+                    }
+                    RowScan::Row { open_end, end } => {
+                        let open = &self.text[..open_end];
+                        let row0 = parse_row_r(open).unwrap_or(self.row_fallback);
+                        let xml = &self.text[..end];
+                        self.capture.max_row = self.capture.max_row.max(row0);
+                        self.capture.saw_row = true;
+                        note_cols(xml, &mut self.capture.max_col);
+                        self.last_row = Some(row0);
+                        self.row_fallback = row0.saturating_add(1);
+                        self.text = self.text[end..].to_owned();
                     }
                 },
                 Phase::Tail => return,

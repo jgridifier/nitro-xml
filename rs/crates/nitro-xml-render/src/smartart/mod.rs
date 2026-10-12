@@ -32,13 +32,10 @@ impl DrawingColorTheme for SchemeMap<'_> {
             "tx2" => "dk2",
             other => other,
         };
-        self.0
-            .get(slot)
-            .or_else(|| self.0.get(name))
-            .map(|s| {
-                let raw = s.trim().trim_start_matches('#');
-                format!("#{raw}")
-            })
+        self.0.get(slot).or_else(|| self.0.get(name)).map(|s| {
+            let raw = s.trim().trim_start_matches('#');
+            format!("#{raw}")
+        })
     }
 }
 
@@ -720,9 +717,7 @@ fn solid_hex_from_color_child(
 ) -> Option<String> {
     let color = parse_drawing_color_in(Some(container))?;
     let theme = scheme.map(SchemeMap);
-    let theme_ref = theme
-        .as_ref()
-        .map(|t| t as &dyn DrawingColorTheme);
+    let theme_ref = theme.as_ref().map(|t| t as &dyn DrawingColorTheme);
     let resolved = resolve_drawing_color(&color, theme_ref, None)?;
     if resolved.hex.is_empty() {
         return None;
@@ -947,7 +942,10 @@ mod tests {
           </dsp:spTree>
         </dsp:drawing>"#;
         let svg = smartart_svg(Some(xml), 200.0, 100.0);
-        assert!(svg.contains("viewBox=\"1 2 100 50\"") || svg.contains("viewBox=\"1 2 100.0 50.0\""), "{svg}");
+        assert!(
+            svg.contains("viewBox=\"1 2 100 50\"") || svg.contains("viewBox=\"1 2 100.0 50.0\""),
+            "{svg}"
+        );
         // Default label size clamped to 8..14 px (height*0.2 = 10).
         assert!(svg.contains("font-size=\"10\""), "{svg}");
     }

@@ -13,6 +13,7 @@ pub mod dates;
 pub mod display_text;
 pub mod edit;
 pub mod engine_api;
+pub mod formula;
 pub mod formula_text;
 pub mod formula_translate;
 pub mod hyperlinks;

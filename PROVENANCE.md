@@ -86,6 +86,11 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/formula_text.rs` | `src/core/xlsx/read/formula-text.ts @ e66aaec` | `strip_future_prefixes` moved from `workbook.rs`. |
 | `rs/crates/nitro-xml-xlsx/src/formula_translate.rs` | `src/core/xlsx/formula/transform.ts`, `tokenizer.ts`, `lexemes.ts`, `ref-text.ts @ e66aaec` | `translate_formula` for shared-formula slaves (relative A1 shift). |
 | `rs/crates/nitro-xml-xlsx/src/formula_internal.rs` | `src/core/xlsx/formula/tokenizer.ts`, `lexemes.ts @ e66aaec` | Minimal tokenizer/rewriter used only by `formula_translate.rs` (not a full formula engine). |
+| `rs/crates/nitro-xml-xlsx/src/formula/mod.rs` | `src/core/xlsx/formula/ast.ts`, `tokenizer.ts`, `parser.ts`, `transform.ts` @ e66aaec | Module root and stable JSON dump (AST, refs, spans, token join) for the #71 differential. |
+| `rs/crates/nitro-xml-xlsx/src/formula/ast.rs` | `src/core/xlsx/formula/ast.ts` @ e66aaec | AST, sheet prefix, structured ref, function-name normalization. JSON key order matches `JSON.stringify`. |
+| `rs/crates/nitro-xml-xlsx/src/formula/lexer.rs` | `src/core/xlsx/formula/tokenizer.ts`, `lexemes.ts` @ e66aaec | Tokenizer. UTF-16 offsets; error codes matched longest-first; 15-digit number literals. |
+| `rs/crates/nitro-xml-xlsx/src/formula/parser.rs` | `src/core/xlsx/formula/parser.ts` @ e66aaec | Pratt parser. Whitespace intersection, parenthesized union, 64-call limit. No evaluation. |
+| `rs/crates/nitro-xml-xlsx/src/formula/refs.rs` | `src/core/xlsx/formula/structured.ts`, `ref-text.ts`, `referencedRanges` / `referenceSpans` in `transform.ts` @ e66aaec | Structured refs, `format_ref_spec`, direct ranges and character spans. Shift/rename rewriters stay on #72+. |
 | `rs/crates/nitro-xml-opc/src/drawingml/mod.rs` | `src/core/drawingml/index.ts` @ e66aaec | Module root re-exporting the DrawingML model API used by format crates. |
 | `rs/crates/nitro-xml-opc/src/drawingml/types.rs` | `src/core/drawingml/types.ts` @ e66aaec | DrawingML model types (serde for gate dumps). |
 | `rs/crates/nitro-xml-opc/src/drawingml/dom.rs` | `src/core/drawingml/dom.ts`, `src/core/xml/xml.ts` @ e66aaec | DrawingML DOM helpers over `nitro-xml-opc` `Element`. |

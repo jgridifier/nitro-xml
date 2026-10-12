@@ -2,8 +2,9 @@
 //! Command registry shared by chrome (#53), headless API and edit-script replay (#63).
 //!
 //! Shape matches upstream `Command` / `CommandRegistry` (id, label, editing, run).
-//! Format handlers register here in #66+; an empty registry yields `unsupported`.
+//! Runners receive `&mut dyn Any` (the [`EditHost`]) so format crates (#66+) can downcast.
 
+use std::any::Any;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -12,7 +13,8 @@ use serde_json::Value;
 use crate::edit::change_set::ChangeSet;
 use crate::edit::error::EditError;
 
-type CommandRunner = Arc<dyn Fn(&Value) -> Result<ChangeSet, EditError> + Send + Sync>;
+type CommandRunner =
+    Arc<dyn Fn(&mut dyn Any, &Value) -> Result<ChangeSet, EditError> + Send + Sync>;
 
 /// One registry entry (upstream `Command` without the Lit context).
 #[derive(Clone)]
@@ -38,15 +40,15 @@ impl Command {
 
     pub fn with_runner<F>(mut self, runner: F) -> Self
     where
-        F: Fn(&Value) -> Result<ChangeSet, EditError> + Send + Sync + 'static,
+        F: Fn(&mut dyn Any, &Value) -> Result<ChangeSet, EditError> + Send + Sync + 'static,
     {
         self.runner = Some(Arc::new(runner));
         self
     }
 
-    pub fn run(&self, arg: &Value) -> Result<ChangeSet, EditError> {
+    pub fn run(&self, host: &mut dyn Any, arg: &Value) -> Result<ChangeSet, EditError> {
         match &self.runner {
-            Some(runner) => runner(arg),
+            Some(runner) => runner(host, arg),
             None => Err(EditError::unsupported(&self.id)),
         }
     }
@@ -64,7 +66,7 @@ impl CommandRegistry {
         Self::default()
     }
 
-    /// Registers stub entries for every `edits/schema.json` op id (still unsupported until #66+).
+    /// Registers stub entries for every `edits/schema.json` op id (still unsupported until runners attach).
     pub fn with_schema_stubs() -> Self {
         let mut reg = Self::new();
         for id in crate::edit::script::SCHEMA_OP_IDS {
@@ -108,13 +110,13 @@ impl CommandRegistry {
     }
 
     /// Missing command or stub without runner → [`EditError::Unsupported`] (never a silent pass).
-    pub fn run(&self, id: &str, arg: &Value) -> Result<ChangeSet, EditError> {
+    pub fn run(&self, id: &str, host: &mut dyn Any, arg: &Value) -> Result<ChangeSet, EditError> {
         let Some(cmd) = self.commands.get(id) else {
             return Err(EditError::unsupported(id));
         };
         if cmd.editing && self.read_only {
             return Err(EditError::unsupported(id));
         }
-        cmd.run(arg)
+        cmd.run(host, arg)
     }
 }

@@ -63,9 +63,14 @@ export function pptxVisualCorpus() {
 	);
 	rows.sort((a, b) => String(a.path).localeCompare(String(b.path)));
 
+	const idFilter = process.env.VISUAL_PPTX_IDS;
+	const idSet = idFilter
+		? new Set(idFilter.split(',').map((s) => s.trim()).filter(Boolean))
+		: null;
+	const filtered = idSet ? rows.filter((f) => idSet.has(f.id)) : rows;
 	const maxRaw = process.env.VISUAL_PPTX_MAX;
 	const max = maxRaw != null && maxRaw !== '' ? Number(maxRaw) : Infinity;
-	const limited = Number.isFinite(max) && max >= 0 ? rows.slice(0, max) : rows;
+	const limited = Number.isFinite(max) && max >= 0 ? filtered.slice(0, max) : filtered;
 
 	return limited.map((f) => {
 		const hard = PPTX_HARD_FIXTURE_IDS.has(f.id);

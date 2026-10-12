@@ -19,6 +19,7 @@ mod ole;
 mod picture;
 mod placeholder;
 mod print;
+mod prst_geom;
 mod raster_export;
 mod selection;
 mod shape;
@@ -34,8 +35,14 @@ mod view_ir;
 mod wordart;
 mod zoom;
 
+pub use chart3d::paint as paint_chart3d;
 pub use context::StringIntern;
+pub use print::print_slide_html;
+pub use raster_export::export_slide_png;
 pub use selection::{contains_id, copy_text, hit_top_level, top_level_ids};
+pub use smartart3d::paint as paint_smartart3d;
+pub use svg_export::export_slide_svg;
+pub use three_host::is_available as webgl_host_available;
 pub use view_ir::{dump_pptx_view_ir, dump_pptx_view_ir_string, ViewIrCollector, ViewIrNode};
 
 use nitro_xml_render::measure::MeasureBatch;
@@ -91,6 +98,7 @@ pub fn paint_slide_frame<I: StringIntern>(
         fit_slide_scale(canvas_w, canvas_h, viewport.viewport_w, viewport.viewport_h)
     };
     let slide = pres.slide(viewport.slide_index)?;
+    let scheme = slide.scheme_colors.clone();
     buffer.begin();
     // Fresh per-frame queues (awaiting replies from a prior take stay intact).
     measure.clear_pending();
@@ -105,6 +113,7 @@ pub fn paint_slide_frame<I: StringIntern>(
         scale,
         canvas_w,
         canvas_h,
+        &scheme,
     );
     stage::paint_slide_stage(&mut ctx, slide, &viewport.selected_ids);
     Ok(view_ir.nodes)
@@ -160,6 +169,7 @@ mod tests {
             text: None,
             shape_type: None,
             table_row_count: None,
+            table_data: None,
             children: None,
             fill_color: None,
             fill_gradient: None,
@@ -168,8 +178,11 @@ mod tests {
             stroke_width_px: None,
             text_color: None,
             font_size_px: None,
+            text_body_layout: None,
             chart_r_id: None,
             chart_xml: None,
+            chart_part_path: None,
+            chart_image_urls: None,
             smartart_dm_r_id: None,
             smartart_lo_r_id: None,
             smartart_qs_r_id: None,
@@ -182,6 +195,7 @@ mod tests {
             is_media: false,
             image_src: None,
             seq: 0,
+            box_shadow: None,
         };
         let mut c = ViewIrCollector::default();
         c.push_painted("element", &el, None);

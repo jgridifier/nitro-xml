@@ -220,6 +220,21 @@ pub struct ChartMarker {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ChartPictureOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apply_to_front: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apply_to_sides: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apply_to_end: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub picture_format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub picture_stack_unit: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChartDataPoint {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub index: Option<i64>,
@@ -233,6 +248,8 @@ pub struct ChartDataPoint {
     pub marker: Option<ChartMarker>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sp_pr: Option<ChartShapeProperties>,
+    #[serde(skip_serializing)]
+    pub picture_options: Option<ChartPictureOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ext_lst: Option<String>,
 }
@@ -273,6 +290,8 @@ pub struct ChartSpaceSeries {
     pub bubble3_d: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shape: Option<String>,
+    #[serde(skip_serializing)]
+    pub picture_options: Option<ChartPictureOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ext_lst: Option<String>,
 }

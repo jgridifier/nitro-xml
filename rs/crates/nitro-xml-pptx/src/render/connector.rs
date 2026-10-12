@@ -24,7 +24,14 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     set_inner_markup_stub(ctx, id, &svg);
     let text = el.text.as_deref().unwrap_or("");
     if !text.trim().is_empty() {
-        paint_text_body(ctx, id, text, el.text_color.as_deref(), el.font_size_px);
+        paint_text_body(
+            ctx,
+            id,
+            text,
+            el.text_color.as_deref(),
+            el.font_size_px,
+            el.text_body_layout.as_ref(),
+        );
     }
     ctx.view_ir.push_painted("connector", el, None);
 }

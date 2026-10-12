@@ -69,6 +69,7 @@ pub struct ChartSummarySeries {
 #[derive(Clone, Debug, Default)]
 pub struct ChartSummary {
     pub chart_type: ChartSummaryType,
+    pub is3_d: bool,
     pub grouping: Option<String>,
     pub bar_gap_width: Option<i32>,
     pub bar_overlap: Option<i32>,

@@ -8,12 +8,15 @@ mod render;
 #[allow(dead_code)]
 mod oracle_svg;
 
+use std::collections::HashMap;
+
 use nitro_xml_opc::chart::ChartSpace;
 
 use crate::command_buffer::StringTable;
 use crate::measure::MeasureBatch;
 use crate::CommandBuffer;
 
+pub use render::chart_blip_rel_ids;
 pub use render::theme_palette::{DEFAULT_THEME_COLORS, THEME_SLOTS};
 pub use render::{chart_space_kind, ChartSvgMeasureOptions, ChartThemeFonts, DRAWN_CHART_TYPES};
 
@@ -23,6 +26,14 @@ pub struct ChartSvgOptions {
     /// Document theme colours in [`THEME_SLOTS`] order (hex without `#`); missing slots use Office defaults.
     pub theme_colors: Option<Vec<String>>,
     pub theme_fonts: ChartThemeFonts,
+    /// Chart-part relationship ids → image URLs for `a:blipFill` picture fills.
+    pub chart_images: HashMap<String, String>,
+    /// Unique prefix for SVG pattern element ids (e.g. element id on slide).
+    pub picture_id_prefix: String,
+    /// UI-layer bar3D extrusion polygons (`applyChart3DDepth`); off for S1 oracle parity.
+    pub bar3d_extrusion: bool,
+    /// Picture pattern fills from chart blips; off for S1 oracle parity.
+    pub picture_fills: bool,
 }
 
 impl Default for ChartSvgOptions {
@@ -34,6 +45,10 @@ impl Default for ChartSvgOptions {
                 major: None,
                 minor: None,
             },
+            chart_images: HashMap::new(),
+            picture_id_prefix: "chart".to_string(),
+            bar3d_extrusion: false,
+            picture_fills: false,
         }
     }
 }
@@ -55,6 +70,10 @@ pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOpti
             measure,
             theme_colors: options.svg.theme_colors.clone(),
             theme_fonts: options.svg.theme_fonts.clone(),
+            chart_images: options.svg.chart_images.clone(),
+            picture_id_prefix: options.svg.picture_id_prefix.clone(),
+            bar3d_extrusion: options.svg.bar3d_extrusion,
+            picture_fills: options.svg.picture_fills,
         },
     )
 }
@@ -79,6 +98,10 @@ pub fn probe_chart_space_measures(
                 major: None,
                 minor: None,
             },
+            chart_images: HashMap::new(),
+            picture_id_prefix: "chart".to_string(),
+            bar3d_extrusion: false,
+            picture_fills: false,
         },
     );
 }
@@ -109,6 +132,10 @@ pub fn paint_chart_space(
                 measure_widths: widths,
                 theme_colors: options.svg.theme_colors.clone(),
                 theme_fonts: options.svg.theme_fonts.clone(),
+                chart_images: options.svg.chart_images.clone(),
+                picture_id_prefix: options.svg.picture_id_prefix.clone(),
+                bar3d_extrusion: options.svg.bar3d_extrusion,
+                picture_fills: options.svg.picture_fills,
             },
         },
     );

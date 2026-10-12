@@ -6,6 +6,7 @@ use nitro_xml_render::measure::LayoutReadKind;
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_style, set_text_content};
 use crate::slide::DumpElement;
+use crate::text_layout::{TextBodyLayout, TextBodyVAlign};
 
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
     let id = create_child(ctx, parent, "div");
@@ -14,7 +15,14 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "text");
     let text = el.text.as_deref().unwrap_or("");
-    let block = paint_text_body(ctx, id, text, el.text_color.as_deref(), el.font_size_px);
+    let block = paint_text_body(
+        ctx,
+        id,
+        text,
+        el.text_color.as_deref(),
+        el.font_size_px,
+        el.text_body_layout.as_ref(),
+    );
     // Autofit uses post-apply ScrollHeight + ComputedStyle (docs/boundary.md #127).
     ctx.layout_reads
         .push(block, LayoutReadKind::ScrollHeight, 0);
@@ -30,11 +38,22 @@ pub fn paint_text_body<I: StringIntern>(
     text: &str,
     text_color: Option<&str>,
     font_size_px: Option<f64>,
+    layout: Option<&TextBodyLayout>,
 ) -> u32 {
     let block = create_child(ctx, parent, "div");
     set_attr(ctx, block, "class", "pptxv-text");
     set_style(ctx, block, "white-space", "pre-wrap");
-    set_style(ctx, block, "word-wrap", "break-word");
+    set_style(ctx, block, "word-break", "break-word");
+    if layout.is_some() {
+        set_style(ctx, block, "box-sizing", "border-box");
+        set_style(ctx, block, "width", "100%");
+        set_style(ctx, block, "height", "100%");
+        set_style(ctx, block, "display", "flex");
+        set_style(ctx, block, "flex-direction", "column");
+    }
+    if let Some(layout) = layout {
+        apply_text_body_layout(ctx, block, layout);
+    }
     let size = font_size_px.unwrap_or(18.0).max(1.0);
     set_style(
         ctx,
@@ -53,6 +72,36 @@ pub fn paint_text_body<I: StringIntern>(
         ctx.measure.push(font_id, size as f32, text_id);
     }
     block
+}
+
+fn apply_text_body_layout<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    block: u32,
+    layout: &TextBodyLayout,
+) {
+    let justify = match layout.v_align {
+        TextBodyVAlign::Top => "flex-start",
+        TextBodyVAlign::Middle => "center",
+        TextBodyVAlign::Bottom => "flex-end",
+    };
+    set_style(ctx, block, "justify-content", justify);
+    if let Some(align) = layout.text_align {
+        set_style(ctx, block, "text-align", align.as_css());
+    }
+    set_style(ctx, block, "padding-top", &format_px(layout.inset_top_px));
+    set_style(
+        ctx,
+        block,
+        "padding-bottom",
+        &format_px(layout.inset_bottom_px),
+    );
+    set_style(ctx, block, "padding-left", &format_px(layout.inset_left_px));
+    set_style(
+        ctx,
+        block,
+        "padding-right",
+        &format_px(layout.inset_right_px),
+    );
 }
 
 fn format_px(v: f64) -> String {

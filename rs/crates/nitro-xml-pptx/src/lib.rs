@@ -7,11 +7,14 @@
 mod auto_number;
 mod inheritance;
 mod level_style;
+mod outer_shadow;
 mod placeholder_defaults;
 mod presentation;
 mod slide;
 mod table;
+mod table_style;
 mod text;
+mod text_layout;
 mod theme;
 
 pub use presentation::{Error, Presentation, Slide};

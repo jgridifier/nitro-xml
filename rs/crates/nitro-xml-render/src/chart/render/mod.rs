@@ -3,8 +3,11 @@
 
 mod bar_cluster_geometry;
 mod built_in_text_style;
+mod chart_3d_depth;
 mod chart_appearance;
 mod chart_colors;
+mod chart_palette_shade;
+mod chart_picture_fill;
 mod chart_scale;
 mod chart_spacing;
 mod chart_title_text;
@@ -38,6 +41,7 @@ mod svg_util;
 pub mod theme_palette;
 mod wrap_styled_runs;
 
+pub use chart_picture_fill::chart_blip_rel_ids;
 pub use render_space::{
     chart_space_kind, render_chart_space_svg, ChartThemeFonts, RenderChartSpaceOptions,
     DRAWN_CHART_TYPES,

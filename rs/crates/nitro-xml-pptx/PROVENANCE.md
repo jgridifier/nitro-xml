@@ -14,8 +14,11 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | `src/placeholder_defaults.rs` | `PlaceholderLookup.ts`, `PlaceholderDefaults.ts` | Effective placeholder level-style cascade for bullets. |
 | `src/table.rs` | `PptxGraphicFrameParser.ts` | Table row count on graphic-frame dump elements. |
 | `src/render/stage.rs` | `dom/slide-stage.ts`, `render/slide-background.ts` | P1 stage; solid/linear background (#27). |
-| `src/render/shape.rs` | `dom/elements/text-shape.ts` | P2 fill and stroke (#27). |
-| `src/render/text.rs` | `dom/elements/text-block.ts` | P3 text body; run colour and size (#27). |
+| `src/render/shape.rs` | `dom/elements/text-shape.ts` | P2 fill, stroke, `box-shadow` from outerShdw (#27). |
+| `src/outer_shadow.rs` | `render/visual-effects.ts`, `PptxShapeEffectStyleExtractor.ts` | Parse `a:outerShdw` → CSS `box-shadow` (#27). |
+| `src/render/prst_geom.rs` | `render/shape-geometry-cascade.ts`, `core/geometry/shape-geometry.ts`, `geometry/preset-clip-paths-core.ts` | `a:prstGeom` border-radius and clip-path for ellipse, roundRect, arrows (#27). |
+| `src/render/text.rs` | `dom/elements/text-block.ts`, `render/text-body-layout.ts` | P3 text body; `bodyPr` anchor + `pPr` align via flex (#27). |
+| `src/text_layout.rs` | `text-body-properties-parser.ts`, `text-body-layout.ts` | Parse `a:bodyPr/@anchor`, insets, and paragraph `algn` for paint. |
 | `src/render/smartart.rs` | `dom/elements/smartart-svg.ts` | P11 S2 cached-drawing paint at the element box (#27). |
 | `src/render/picture.rs` | `dom/elements/image.ts` | P5 picture frame (#27, placeholder img). |
 | `src/render/group.rs` | `dom/elements/group.ts` | P6 group transform + child recursion (#27). |

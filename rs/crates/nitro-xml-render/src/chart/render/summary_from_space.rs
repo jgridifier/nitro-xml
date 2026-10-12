@@ -163,8 +163,10 @@ pub fn chart_summary_from_space(chart_space: &ChartSpace) -> ChartSummary {
                 .collect()
         })
         .unwrap_or_default();
+    let is3_d = group.map(|g| g.is3_d).unwrap_or(false);
     let mut summary = ChartSummary {
         chart_type,
+        is3_d,
         series,
         show_legend: chart_space.legend.is_some(),
         ..Default::default()

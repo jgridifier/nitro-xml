@@ -96,7 +96,14 @@ pub fn parse_fill_element(fill: &Element) -> Option<DrawingFill> {
                 .and_then(|b| super::dom::attr_ns(b, ns::R, "embed"))
                 .or_else(|| blip.and_then(|b| super::dom::attr(b, "embed")))
                 .map(|s| s.to_string());
-            Some(DrawingFill::Picture { rel_id })
+            let opacity = blip
+                .and_then(|b| first(b, "alphaModFix", ns::A))
+                .and_then(|a| {
+                    super::dom::attr(a, "amt")
+                        .and_then(|v| v.parse::<f64>().ok())
+                        .map(|amt| (amt / 100_000.0).clamp(0.0, 1.0))
+                });
+            Some(DrawingFill::Picture { rel_id, opacity })
         }
         _ => Some(DrawingFill::Unsupported {
             element: fill.local.clone(),

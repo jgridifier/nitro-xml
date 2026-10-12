@@ -27,10 +27,7 @@ fn main() {
         &RenderChartSpaceOptions {
             width: 480,
             height: 320,
-            svg: ChartSvgOptions {
-                measure_widths: Vec::new(),
-                ..Default::default()
-            },
+            svg: ChartSvgOptions::default(),
         },
     );
     print!("{}", svg);

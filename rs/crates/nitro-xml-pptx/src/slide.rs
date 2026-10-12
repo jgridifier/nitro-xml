@@ -26,7 +26,8 @@ use crate::level_style::{
     level_style_for, LevelStylesMap, MasterTxStyles, PlaceholderTextLevelStyle,
 };
 use crate::placeholder_defaults::PlaceholderDefaultsCache;
-use crate::table::table_row_count;
+use crate::table::{parse_table_model, table_row_count};
+use crate::table_style::TableStyleMap;
 use crate::text::{
     extract_element_text, placeholder_is_body_type, text_body_has_renderable_content,
     TextExtractContext,
@@ -84,6 +85,9 @@ pub struct DumpElement {
     pub shape_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub table_row_count: Option<usize>,
+    /// Parsed `a:tbl` cells. Not part of the issue-24 dump.
+    #[serde(skip)]
+    pub(crate) table_data: Option<crate::table::TableData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<DumpElement>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -101,11 +105,20 @@ pub struct DumpElement {
     pub text_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font_size_px: Option<f64>,
+    /// Parsed `p:txBody` anchor / alignment for painters (not in JSON dump).
+    #[serde(skip)]
+    pub text_body_layout: Option<crate::text_layout::TextBodyLayout>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chart_r_id: Option<String>,
     /// Chart part XML. Not part of the issue-24 dump.
     #[serde(skip)]
     pub chart_xml: Option<String>,
+    /// Package path of the chart part (for resolving chart `a:blipFill` rels).
+    #[serde(skip)]
+    pub chart_part_path: Option<String>,
+    /// Resolved `data:` URLs for chart `a:blipFill` relationship ids.
+    #[serde(skip)]
+    pub chart_image_urls: Option<std::collections::HashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub smartart_dm_r_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -138,6 +151,9 @@ pub struct DumpElement {
     /// Document order of this element among emitted spTree children (dump merge).
     #[serde(skip)]
     pub seq: u32,
+    /// CSS `box-shadow` from `a:effectLst/a:outerShdw`. Not in the issue-24 dump.
+    #[serde(skip)]
+    pub box_shadow: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -170,6 +186,7 @@ pub struct ParseCtx<'a> {
     pub color_map: Option<&'a ThemeColorMap>,
     /// Theme `a:fmtScheme` used by `a:fillRef` / `a:lnRef` (idx 1–3 and 1001–1003).
     pub format_scheme: Option<&'a ThemeFormatScheme>,
+    pub table_style_map: Option<&'a TableStyleMap>,
 }
 
 impl<'a> ParseCtx<'a> {
@@ -728,6 +745,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         tx_body,
         ph_info.as_ref(),
         ctx,
+        rot,
     );
     build_dump(
         type_,
@@ -934,7 +952,7 @@ fn parse_connector(cxn: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElem
         None,
         None,
         false,
-        shape_paint_extras(cxn, Some(sp_pr), None, tx_body, None, ctx),
+        shape_paint_extras(cxn, Some(sp_pr), None, tx_body, None, ctx, None),
     )
 }
 
@@ -1036,7 +1054,7 @@ fn scale_element_subtree(el: &mut DumpElement, scale_x: f64, scale_y: f64) {
     }
 }
 
-fn parse_graphic_frame(frame: &Element, id: String, _ctx: &ParseCtx) -> Option<DumpElement> {
+fn parse_graphic_frame(frame: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElement> {
     let nv_pr = child_path(frame, &[("nvGraphicFramePr", ns::P), ("nvPr", ns::P)]);
     let ph_info = extract_placeholder_info(nv_pr);
     let xfrm = child_local(frame, "xfrm", ns::P).or_else(|| child_local(frame, "xfrm", ns::A));
@@ -1083,7 +1101,7 @@ fn parse_graphic_frame(frame: &Element, id: String, _ctx: &ParseCtx) -> Option<D
     if let Some(table) = child_local(graphic, "tbl", ns::A) {
         let (w, h) = table_grid_pixel_extent(table).unwrap_or((w, h));
         let rows = table_row_count(table);
-        return build_dump(
+        let mut el = build_dump(
             "table",
             id,
             c_nv_pr,
@@ -1106,7 +1124,14 @@ fn parse_graphic_frame(frame: &Element, id: String, _ctx: &ParseCtx) -> Option<D
             None,
             false,
             PaintExtras::default(),
-        );
+        )?;
+        el.table_data = Some(parse_table_model(
+            table,
+            ctx.theme_colors,
+            ctx.color_map,
+            ctx.table_style_map,
+        ));
+        return Some(el);
     }
     if graphic_is_chart(graphic) {
         let extras = PaintExtras {
@@ -1553,6 +1578,7 @@ fn build_dump(
         text,
         shape_type,
         table_row_count,
+        table_data: None,
         children: match children {
             None => None,
             Some(c) if c.is_empty() => {
@@ -1571,8 +1597,11 @@ fn build_dump(
         stroke_width_px: extras.stroke_width_px,
         text_color: extras.text_color,
         font_size_px: extras.font_size_px,
+        text_body_layout: extras.text_body_layout,
         chart_r_id: extras.chart_r_id,
         chart_xml: None,
+        chart_part_path: None,
+        chart_image_urls: None,
         smartart_dm_r_id: extras.smartart_dm_r_id,
         smartart_lo_r_id: extras.smartart_lo_r_id,
         smartart_qs_r_id: extras.smartart_qs_r_id,
@@ -1585,6 +1614,7 @@ fn build_dump(
         is_media: false,
         image_src: None,
         seq: 0,
+        box_shadow: extras.box_shadow,
     })
 }
 
@@ -1853,6 +1883,7 @@ struct PaintExtras {
     stroke_width_px: Option<f64>,
     text_color: Option<String>,
     font_size_px: Option<f64>,
+    text_body_layout: Option<crate::text_layout::TextBodyLayout>,
     chart_r_id: Option<String>,
     smartart_dm_r_id: Option<String>,
     smartart_lo_r_id: Option<String>,
@@ -1861,6 +1892,7 @@ struct PaintExtras {
     image_rel_id: Option<String>,
     image_rel_owner: Option<String>,
     ole_spid: Option<String>,
+    box_shadow: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -1973,7 +2005,7 @@ fn background_of_c_sld(
                     });
                 }
             }
-            Some(DrawingFill::Picture { rel_id }) if rel_id.is_some() => {
+            Some(DrawingFill::Picture { rel_id, .. }) if rel_id.is_some() => {
                 return Some(BackgroundPaint {
                     color: None,
                     gradient: None,
@@ -2002,7 +2034,7 @@ fn background_from_bg_ref(
     if let Some(fill) = matrix_fill(format_scheme, idx) {
         match fill {
             DrawingFill::None => return None,
-            DrawingFill::Picture { rel_id } if rel_id.is_some() => {
+            DrawingFill::Picture { rel_id, .. } if rel_id.is_some() => {
                 return Some(BackgroundPaint {
                     color: None,
                     gradient: None,
@@ -2056,6 +2088,7 @@ fn shape_paint_extras(
     tx_body: Option<&Element>,
     ph_info: Option<&PlaceholderInfo>,
     ctx: &ParseCtx,
+    rotation_deg: Option<f64>,
 ) -> PaintExtras {
     let fallback = crate::theme::default_scheme_color_map();
     let theme = SchemeTheme {
@@ -2073,7 +2106,7 @@ fn shape_paint_extras(
             extras.fill_mode = Some("gradient".to_owned());
             extras.fill_gradient = linear_gradient_css(fill, theme);
         }
-        Some(DrawingFill::Picture { rel_id }) => {
+        Some(DrawingFill::Picture { rel_id, .. }) => {
             extras.image_rel_id = rel_id;
         }
         Some(_) | None => {}
@@ -2120,6 +2153,10 @@ fn shape_paint_extras(
         let (color, size) = first_run_text_paint(tx, theme, fallback.as_ref());
         extras.text_color = color;
         extras.font_size_px = size;
+        extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
+    }
+    if let Some(sp_pr) = effective_sp_pr {
+        extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(sp_pr, &theme, rotation_deg);
     }
     extras
 }
@@ -2507,6 +2544,7 @@ mod tests {
             theme_colors: Some(theme),
             color_map: None,
             format_scheme: None,
+            table_style_map: None,
         }
     }
 

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/pptx/core/core/runtime/PptxHandlerRuntimeLoadSession.ts,
 // PptxHandlerRuntimeLoadPipeline.ts and PptxHandlerRuntimeSlideMasters.ts; chart/SmartArt part
-// resolution and VML OLE preview rels for #27; changes in PROVENANCE.md.
+// resolution (data-part diagramDrawing, else the owner slide/layout/master) and VML OLE preview
+// rels for #27; changes in PROVENANCE.md.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -21,8 +22,11 @@ use crate::slide::{
     text_body_has_content, unwrap_alternate_content_deep, DumpElement, ParseCtx, ParsedSpTree,
     SpTreeOptions, EMU_PER_PX,
 };
+use crate::table_style::{parse_table_style_list, TableStyleMap};
 use crate::theme::{default_scheme_color_map, is_presentation_theme_path, parse_theme_part, Theme};
+use nitro_xml_opc::chart::parse_chart_space_xml;
 use nitro_xml_opc::drawingml::{parse_theme_color_map, ThemeColorMap, ThemeFormatScheme};
+use nitro_xml_render::chart::chart_blip_rel_ids;
 
 pub type Error = OpcError;
 
@@ -70,6 +74,26 @@ fn missing_part(name: impl Into<String>) -> Error {
     OpcError::MissingPart { name: name.into() }
 }
 
+fn is_diagram_drawing(type_: &str) -> bool {
+    type_ == rel_types::DIAGRAM_DRAWING || type_.contains("diagramDrawing")
+}
+
+/// Trailing digits of a diagram part (`data1.xml`, `../diagrams/drawing1.xml` → `1`).
+fn diagram_file_stem(path: &str) -> Option<&str> {
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    let stem = name.strip_suffix(".xml").unwrap_or(name);
+    let head_len = stem
+        .rfind(|c: char| !c.is_ascii_digit())
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    let digits = &stem[head_len..];
+    if digits.is_empty() {
+        None
+    } else {
+        Some(digits)
+    }
+}
+
 pub struct Slide {
     pub path: String,
     pub layout_path: Option<String>,
@@ -85,6 +109,8 @@ pub struct Slide {
     pub background_gradient: Option<String>,
     /// Resolved `data:` URL for a blip slide/layout/master background.
     pub background_image: Option<String>,
+    /// Theme scheme colours for SmartArt `a:schemeClr` (`accent1` → `#156082`).
+    pub scheme_colors: BTreeMap<String, String>,
 }
 
 pub struct SlideMasterLayout {
@@ -128,6 +154,7 @@ pub struct Presentation<'a> {
     master_tx_styles: HashMap<String, MasterTxStyles>,
     layout_placeholder_levels: HashMap<String, PlaceholderDefaultsCache>,
     master_placeholder_levels: HashMap<String, PlaceholderDefaultsCache>,
+    table_style_map: TableStyleMap,
 }
 
 impl<'a> Presentation<'a> {
@@ -168,9 +195,11 @@ impl<'a> Presentation<'a> {
             master_tx_styles: HashMap::new(),
             layout_placeholder_levels: HashMap::new(),
             master_placeholder_levels: HashMap::new(),
+            table_style_map: TableStyleMap::new(),
         };
 
         pres.presentation_level_styles = Self::load_presentation_default_text_style(&pres_doc.root);
+        pres.table_style_map = pres.load_table_styles()?;
         pres.theme = pres.load_theme()?;
         pres.slide_masters = pres.load_slide_masters()?;
         pres.slide_paths = pres.load_slide_paths()?;
@@ -316,6 +345,11 @@ impl<'a> Presentation<'a> {
             }
         }
         Ok(root.to_string())
+    }
+
+    fn load_table_styles(&mut self) -> Result<TableStyleMap, Error> {
+        let xml = self.package.text("ppt/tableStyles.xml")?;
+        Ok(xml.map(parse_table_style_list).unwrap_or_default())
     }
 
     fn load_theme(&mut self) -> Result<Option<Theme>, Error> {
@@ -545,6 +579,7 @@ impl<'a> Presentation<'a> {
             theme_colors: Some(&theme_colors),
             color_map: Some(&color_map),
             format_scheme: format_scheme.as_ref(),
+            table_style_map: Some(&self.table_style_map),
         };
         let id_prefix = format!("{}-", path);
         let slide_options = SpTreeOptions::default();
@@ -581,6 +616,7 @@ impl<'a> Presentation<'a> {
             background_color,
             background_gradient,
             background_image,
+            scheme_colors: theme_colors.clone(),
         };
         self.slides[index] = Some(slide);
         Ok(())
@@ -709,28 +745,48 @@ impl<'a> Presentation<'a> {
         self.package.text(&path).ok().flatten().map(str::to_owned)
     }
 
+    /// Cached `dsp:drawing` for a diagram data relationship.
+    ///
+    /// Order: the data part's `diagramDrawing` rel (older packages), then a
+    /// `diagramDrawing` rel on the owner slide, layout, or master. When the
+    /// owner lists several drawings, the target that shares the data part's
+    /// stem (`data1` → `drawing1`) wins; otherwise the first drawing rel.
     fn smartart_drawing(&mut self, owner: &str, dm_r_id: &str) -> (Option<String>, Option<String>) {
         let Some(data_path) = self.resolve_rel_target(owner, dm_r_id).ok().flatten() else {
             return (None, None);
         };
-        let drawing_rel = {
-            let Ok(rels) = self.package.rels(&data_path) else {
-                return (None, None);
-            };
-            rels.values()
-                .find(|r| {
-                    r.type_ == rel_types::DIAGRAM_DRAWING || r.type_.contains("diagramDrawing")
-                })
-                .cloned()
-        };
-        let Some(rel) = drawing_rel else {
-            return (None, None);
-        };
-        let Some(path) = self.package.target(&data_path, &rel) else {
-            return (None, None);
-        };
+        if let Some(found) = self.diagram_drawing_on(&data_path, None) {
+            return found;
+        }
+        self.diagram_drawing_on(owner, diagram_file_stem(&data_path))
+            .unwrap_or((None, None))
+    }
+
+    /// First `diagramDrawing` on `part`, or the one whose filename stem matches
+    /// `prefer_stem` when that part declares more than one.
+    fn diagram_drawing_on(
+        &mut self,
+        part: &str,
+        prefer_stem: Option<&str>,
+    ) -> Option<(Option<String>, Option<String>)> {
+        let rels: Vec<Relationship> = self
+            .package
+            .rels(part)
+            .ok()?
+            .values()
+            .filter(|r| is_diagram_drawing(&r.type_))
+            .cloned()
+            .collect();
+        if rels.is_empty() {
+            return None;
+        }
+        let chosen = rels
+            .iter()
+            .find(|r| prefer_stem.is_some_and(|stem| diagram_file_stem(&r.target) == Some(stem)))
+            .unwrap_or(&rels[0]);
+        let path = self.package.target(part, chosen)?;
         let xml = self.package.text(&path).ok().flatten().map(str::to_owned);
-        (Some(path), xml)
+        Some((Some(path), xml))
     }
 
     fn attach_paint_payloads(&mut self, owner: &str, elements: &mut [DumpElement]) {
@@ -807,12 +863,42 @@ impl<'a> Presentation<'a> {
         image_data_url(&bytes, &path)
     }
 
+    fn attach_chart_image_urls(&mut self, el: &mut DumpElement) {
+        if el.chart_image_urls.is_some() {
+            return;
+        }
+        let xml = match el.chart_xml.as_deref() {
+            Some(x) => x,
+            None => return,
+        };
+        let part = match el.chart_part_path.as_deref() {
+            Some(p) => p,
+            None => return,
+        };
+        let parsed = parse_chart_space_xml(xml);
+        let mut urls = HashMap::new();
+        for rel_id in chart_blip_rel_ids(&parsed.chart_space) {
+            if let Some(url) = self.image_data_url_for_rel(part, &rel_id) {
+                urls.insert(rel_id, url);
+            }
+        }
+        if !urls.is_empty() {
+            el.chart_image_urls = Some(urls);
+        }
+    }
+
     fn attach_graphic_payloads(&mut self, owner: &str, elements: &mut [DumpElement]) {
         for el in elements.iter_mut() {
             if el.chart_xml.is_none() {
                 if let Some(rid) = el.chart_r_id.clone() {
+                    if let Some(path) = self.resolve_rel_target(owner, &rid).ok().flatten() {
+                        el.chart_part_path = Some(path);
+                    }
                     el.chart_xml = self.chart_part_xml(owner, &rid);
                 }
+            }
+            if el.chart_xml.is_some() {
+                self.attach_chart_image_urls(el);
             }
             if el.smartart_drawing_xml.is_none() {
                 if let Some(dm) = el.smartart_dm_r_id.clone() {
@@ -888,6 +974,7 @@ impl<'a> Presentation<'a> {
                 theme_colors: Some(&theme_colors),
                 color_map: Some(color_map),
                 format_scheme: format_scheme.as_ref(),
+                table_style_map: Some(&self.table_style_map),
             };
             let token = Self::part_token(master_path);
             let options = SpTreeOptions {
@@ -956,6 +1043,7 @@ impl<'a> Presentation<'a> {
                 theme_colors: Some(&theme_colors),
                 color_map: Some(&color_map),
                 format_scheme: format_scheme.as_ref(),
+                table_style_map: Some(&self.table_style_map),
             };
             let token = Self::part_token(layout_path);
             let options = SpTreeOptions {
@@ -1201,6 +1289,7 @@ mod tests {
     use super::*;
     use crate::render::{paint_slide_frame, SlidePaintViewport, StringIntern};
     use nitro_xml_render::measure::MeasureBatch;
+    use nitro_xml_render::smartart::{smartart_svg, smartart_svg_with_scheme};
     use nitro_xml_render::{CommandBuffer, LayoutReadBatch};
 
     struct Rec(Vec<String>);
@@ -1462,6 +1551,283 @@ mod tests {
         assert!(joined.contains(&src));
         assert!(joined.contains("img"));
         assert!(!joined.contains("[OLE]"));
+    }
+
+    #[test]
+    fn slide_rels_supply_smartart_drawing() {
+        // Catches: SmartArt drawing only on slide rels leaves smartart_drawing_xml unset so Alpha/Beta/Gamma never paint.
+        let drawing1 = cached_drawing(&["Alpha", "Beta", "Gamma"]);
+        let drawing9 = cached_drawing(&["Nope"]);
+        let drawing8 = cached_drawing(&["Later"]);
+        let pres = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldSz cx="9144000" cy="5143500"/>
+  <p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst>
+</p:presentation>"#;
+        let pres_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>"#;
+        let root_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>"#;
+        let slide = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="5" name="SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <p:xfrm><a:off x="0" y="0"/><a:ext cx="5715000" cy="3333750"/></p:xfrm>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+        <dgm:relIds xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" r:dm="rId3"/>
+      </a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>"#;
+        // No ppt/diagrams/_rels/data1.xml.rels. drawing9 is listed first so a
+        // first-rel fallback would paint Nope instead of data1's drawing1.
+        let slide_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data1.xml"/>
+  <Relationship Id="rId7" Type="http://schemas.microsoft.com/office/2007/relationships/diagramDrawing" Target="../diagrams/drawing9.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2007/relationships/diagramDrawing" Target="../diagrams/drawing1.xml"/>
+  <Relationship Id="rId8" Type="http://schemas.microsoft.com/office/2007/relationships/diagramDrawing" Target="../diagrams/drawing8.xml"/>
+</Relationships>"#;
+        let types = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+</Types>"#;
+        let data = br#"<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>"#;
+        let bytes = zip_stored(&[
+            ("[Content_Types].xml", types),
+            ("_rels/.rels", root_rels),
+            ("ppt/presentation.xml", pres),
+            ("ppt/_rels/presentation.xml.rels", pres_rels),
+            ("ppt/slides/slide1.xml", slide),
+            ("ppt/slides/_rels/slide1.xml.rels", slide_rels),
+            ("ppt/diagrams/data1.xml", data),
+            ("ppt/diagrams/drawing1.xml", drawing1.as_bytes()),
+            ("ppt/diagrams/drawing9.xml", drawing9.as_bytes()),
+            ("ppt/diagrams/drawing8.xml", drawing8.as_bytes()),
+        ]);
+        let mut opened = Presentation::open(&bytes).unwrap();
+        let (xml, width, height) = {
+            let slide = opened.slide(0).unwrap();
+            let el = slide
+                .elements
+                .iter()
+                .find(|el| el.type_ == "smartArt")
+                .expect("smartArt");
+            assert_eq!(
+                el.smartart_drawing_path.as_deref(),
+                Some("ppt/diagrams/drawing1.xml")
+            );
+            let xml = el.smartart_drawing_xml.clone().expect("drawing xml");
+            assert!(xml.contains("Alpha") && xml.contains("Beta") && xml.contains("Gamma"));
+            assert!(!xml.contains("Nope") && !xml.contains("Later"));
+            (xml, el.width, el.height)
+        };
+        let svg = smartart_svg(Some(&xml), width, height);
+        assert!(
+            svg.contains("Alpha") && svg.contains("Beta") && svg.contains("Gamma"),
+            "{svg}"
+        );
+        assert!(svg.contains("<rect "), "{svg}");
+        assert!(!svg.contains(">SmartArt<"), "{svg}");
+        let mut intern = Rec(Vec::new());
+        let mut buffer = CommandBuffer::new();
+        let mut measure = MeasureBatch::default();
+        let mut reads = LayoutReadBatch::default();
+        paint_slide_frame(
+            &mut buffer,
+            &mut intern,
+            &mut measure,
+            &mut reads,
+            &mut opened,
+            &SlidePaintViewport {
+                slide_index: 0,
+                scale: 1.0,
+                viewport_w: 960,
+                viewport_h: 540,
+                selected_ids: Vec::new(),
+            },
+        )
+        .unwrap();
+        let joined = intern.0.join("\n");
+        assert!(
+            joined.contains("Alpha") && joined.contains("Gamma"),
+            "{joined}"
+        );
+        assert!(!joined.contains(">SmartArt<"), "{joined}");
+
+        // Data-part diagramDrawing still wins when both sides declare one.
+        let from_data = cached_drawing(&["FromData"]);
+        let data_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.microsoft.com/office/2007/relationships/diagramDrawing" Target="drawing-from-data.xml"/>
+</Relationships>"#;
+        let slide_one = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.microsoft.com/office/2007/relationships/diagramDrawing" Target="../diagrams/drawing1.xml"/>
+</Relationships>"#;
+        let both = zip_stored(&[
+            ("[Content_Types].xml", types),
+            ("_rels/.rels", root_rels),
+            ("ppt/presentation.xml", pres),
+            ("ppt/_rels/presentation.xml.rels", pres_rels),
+            ("ppt/slides/slide1.xml", slide),
+            ("ppt/slides/_rels/slide1.xml.rels", slide_one),
+            ("ppt/diagrams/data1.xml", data),
+            ("ppt/diagrams/_rels/data1.xml.rels", data_rels),
+            ("ppt/diagrams/drawing-from-data.xml", from_data.as_bytes()),
+            ("ppt/diagrams/drawing1.xml", drawing1.as_bytes()),
+        ]);
+        let mut both_opened = Presentation::open(&both).unwrap();
+        let both_slide = both_opened.slide(0).unwrap();
+        let both_el = both_slide
+            .elements
+            .iter()
+            .find(|el| el.type_ == "smartArt")
+            .expect("smartArt");
+        assert_eq!(
+            both_el.smartart_drawing_path.as_deref(),
+            Some("ppt/diagrams/drawing-from-data.xml")
+        );
+        assert!(both_el
+            .smartart_drawing_xml
+            .as_deref()
+            .unwrap()
+            .contains("FromData"));
+
+        assert_fixture_drawing(
+            "f374280d2eb7_smartart-build-reveal.pptx",
+            0,
+            "Alpha",
+            "drawing1.xml",
+        );
+        assert_fixture_drawing(
+            "a61f509fcab9_chevron-list--hier5.pptx",
+            0,
+            "Node One",
+            "drawing1.xml",
+        );
+        assert_fixture_drawing(
+            "091abf411e47_smartart-orgchart-assistants.pptx",
+            0,
+            "Manager",
+            "drawing1.xml",
+        );
+        assert_fixture_drawing(
+            "091abf411e47_smartart-orgchart-assistants.pptx",
+            1,
+            "Manager",
+            "drawing2.xml",
+        );
+        assert_fixture_drawing(
+            "091abf411e47_smartart-orgchart-assistants.pptx",
+            2,
+            "Manager",
+            "drawing3.xml",
+        );
+    }
+
+    #[test]
+    fn smartart_fixtures_paint_without_clamp_panic() {
+        // Catches: a short SmartArt shape panics in f64::clamp, aborting wasm so the host's next call reports recursive aliasing.
+        let shp = paint_fixture("real/pptx/python-pptx-shp-shapes.pptx", 0);
+        assert!(shp.contains("Smart Art"), "{shp}");
+        let accent = paint_fixture("upstream/pptx/21343018c511_accent-process--hier5.pptx", 0);
+        assert!(accent.contains("Node One"), "{accent}");
+        let org = paint_fixture(
+            "upstream/pptx/091abf411e47_smartart-orgchart-assistants.pptx",
+            0,
+        );
+        assert!(org.contains("Manager"), "{org}");
+        assert!(
+            org.contains("#156082"),
+            "orgchart accent1 should be teal, got {org}"
+        );
+        assert!(
+            !org.contains("#D6DCE4"),
+            "textless frames painted as pale placeholders: {org}"
+        );
+    }
+
+    fn paint_fixture(rel: &str, slide_index: usize) -> String {
+        let path = format!("{}/../../../fixtures/{rel}", env!("CARGO_MANIFEST_DIR"));
+        let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("read {path}"));
+        let mut opened = Presentation::open(&bytes).unwrap();
+        let mut intern = Rec(Vec::new());
+        let mut buffer = CommandBuffer::new();
+        let mut measure = MeasureBatch::default();
+        let mut reads = LayoutReadBatch::default();
+        paint_slide_frame(
+            &mut buffer,
+            &mut intern,
+            &mut measure,
+            &mut reads,
+            &mut opened,
+            &SlidePaintViewport {
+                slide_index,
+                scale: 1.0,
+                viewport_w: 960,
+                viewport_h: 540,
+                selected_ids: Vec::new(),
+            },
+        )
+        .unwrap();
+        intern.0.join("\n")
+    }
+
+    fn cached_drawing(labels: &[&str]) -> String {
+        let mut body = String::from(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><dsp:spTree>"#,
+        );
+        for (i, label) in labels.iter().enumerate() {
+            let y = i * 50;
+            body.push_str(&format!(
+                r#"<dsp:sp><dsp:spPr><a:xfrm><a:off x="0" y="{y}"/><a:ext cx="200" cy="40"/></a:xfrm><a:solidFill><a:srgbClr val="4472C4"/></a:solidFill></dsp:spPr><dsp:txBody><a:p><a:r><a:t>{label}</a:t></a:r></a:p></dsp:txBody></dsp:sp>"#
+            ));
+        }
+        body.push_str("</dsp:spTree></dsp:drawing>");
+        body
+    }
+
+    fn assert_fixture_drawing(name: &str, slide_index: usize, needle: &str, path_suffix: &str) {
+        let path = format!(
+            "{}/../../../fixtures/upstream/pptx/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("read {path}"));
+        let mut opened = Presentation::open(&bytes).unwrap();
+        let slide = opened.slide(slide_index).unwrap();
+        let el = slide
+            .elements
+            .iter()
+            .find(|el| el.type_ == "smartArt")
+            .unwrap_or_else(|| panic!("{name} slide {slide_index} smartArt"));
+        let xml = el
+            .smartart_drawing_xml
+            .as_deref()
+            .unwrap_or_else(|| panic!("{name} drawing xml"));
+        assert!(xml.contains(needle), "{name} missing {needle}");
+        let drawing_path = el.smartart_drawing_path.as_deref().unwrap_or("");
+        assert!(
+            drawing_path.ends_with(path_suffix),
+            "{name} path {drawing_path}"
+        );
+        let scheme = slide.scheme_colors.clone();
+        let svg = smartart_svg_with_scheme(Some(xml), el.width, el.height, Some(&scheme));
+        assert!(svg.contains(needle), "{name} svg");
+        assert!(svg.contains("<rect "), "{name} svg");
+        assert!(!svg.contains(">SmartArt<"), "{name} stub");
     }
 
     fn is_dk2_blue(paint: &str) -> bool {

@@ -3,6 +3,7 @@
 
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_style};
+use super::prst_geom::apply_preset_geometry;
 use super::text::paint_text_body;
 use crate::slide::DumpElement;
 
@@ -34,13 +35,9 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             }
         }
     }
-    let real_stroke = el.stroke_color.is_some();
     if let Some(st) = &el.shape_type {
         set_attr(ctx, id, "data-shape-type", st);
-        if st != "rect" && !real_stroke {
-            set_style(ctx, id, "border", "1px solid #4a86c8");
-            set_style(ctx, id, "border-radius", "2px");
-        }
+        apply_preset_geometry(ctx, id, st, el.width, el.height);
     }
     if let Some(color) = &el.stroke_color {
         let width = el.stroke_width_px.unwrap_or(1.0).max(0.0);
@@ -51,6 +48,9 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             &format!("{}px solid {color}", format_px(width)),
         );
     }
+    if let Some(shadow) = &el.box_shadow {
+        set_style(ctx, id, "box-shadow", shadow);
+    }
     if let Some(rot) = el.rotation {
         if rot.abs() > 0.01 {
             set_style(ctx, id, "transform", &format!("rotate({}deg)", rot));
@@ -58,7 +58,14 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     }
     let text = el.text.as_deref().unwrap_or("");
     if !text.trim().is_empty() {
-        paint_text_body(ctx, id, text, el.text_color.as_deref(), el.font_size_px);
+        paint_text_body(
+            ctx,
+            id,
+            text,
+            el.text_color.as_deref(),
+            el.font_size_px,
+            el.text_body_layout.as_ref(),
+        );
     }
     ctx.view_ir
         .push_painted(if el.type_ == "text" { "text" } else { "shape" }, el, None);

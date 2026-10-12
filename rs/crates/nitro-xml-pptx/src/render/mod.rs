@@ -34,8 +34,14 @@ mod view_ir;
 mod wordart;
 mod zoom;
 
+pub use chart3d::paint as paint_chart3d;
 pub use context::StringIntern;
+pub use print::print_slide_html;
+pub use raster_export::export_slide_png;
 pub use selection::{contains_id, copy_text, hit_top_level, top_level_ids};
+pub use smartart3d::paint as paint_smartart3d;
+pub use svg_export::export_slide_svg;
+pub use three_host::is_available as webgl_host_available;
 pub use view_ir::{dump_pptx_view_ir, dump_pptx_view_ir_string, ViewIrCollector, ViewIrNode};
 
 use nitro_xml_render::measure::MeasureBatch;
@@ -160,6 +166,7 @@ mod tests {
             text: None,
             shape_type: None,
             table_row_count: None,
+            table_data: None,
             children: None,
             fill_color: None,
             fill_gradient: None,

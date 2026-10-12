@@ -26,8 +26,10 @@ pub fn parse_xml_str(xml: &str) -> Result<Document, XmlError> {
 }
 
 /// Hard cap on element nesting. Upstream has no depth budget; this beats that by failing closed
-/// before the owned parse stack can grow without bound.
-pub const MAX_XML_DEPTH: usize = 256;
+/// before the owned parse stack can grow without bound. Set above the parity gate's crafted
+/// 2 000-deep accept case (`tools/model-compare/gates/make_xml_cases.py` `deep.xml`) and the
+/// iterative [`Element`](super::tree::Element) `Drop` that clears 2 000-deep trees.
+pub const MAX_XML_DEPTH: usize = 4096;
 
 /// Options for [`parse_xml_str_with_options`].
 #[derive(Clone, Copy, Debug)]

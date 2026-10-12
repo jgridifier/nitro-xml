@@ -9,7 +9,7 @@ reproducers found while fuzzing (#30 parser-hardening slice).
 
 | Path | Purpose | Licence |
 |------|---------|---------|
-| `xml/depth-bomb-257.xml` | Nesting depth > `MAX_XML_DEPTH` (256); must reject, not panic | MIT (original) |
+| `xml/depth-bomb-over-max.xml` | Nesting depth > `MAX_XML_DEPTH` (4096); must reject, not panic | MIT (original) |
 | `xml/reject-*.xml`, `xml/fuzz-doctype-reject.xml` | Copied from `fixtures/xml/` (DTD/ENTITY off) | see `fixtures/xml/SOURCES.md` |
 | `zip/ratio-bomb-11mib.zip` | Declared 11 MiB / 1 compressed byte (above `MIN_RATIO_CHECK_BYTES`, ratio ≫ 1000) | MIT (original) |
 

@@ -35,7 +35,7 @@ and legitimate high-compression cases live in `fixtures/fuzz/`.
 | `max_part_bytes` | 200 MiB | upstream parity |
 | `max_compression_ratio` | **1000** | safer than upstream; `0` disables |
 | `min_ratio_check_bytes` | **10 MiB** | ratio ignored below this size |
-| `max_depth` (XML) | **256** | safer than upstream (unbounded) |
+| `max_depth` (XML) | **4096** | safer than upstream (unbounded); above parity `deep.xml` (2000) |
 
 Use `ZipLimits::upstream_parity()` / `PackageOpenOptions::upstream_parity()` for
 absolute caps only. Override any field via `ZipPackage::open_with_limits` or

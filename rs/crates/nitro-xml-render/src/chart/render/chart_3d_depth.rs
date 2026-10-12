@@ -33,11 +33,19 @@ pub fn compute_depth_vector(view3_d: Option<&ChartView3D>) -> DepthVector {
     }
 }
 
+/// Fractional position along the depth axis in `(0, 1]` (upstream `seriesDepthFactor`).
 fn series_depth_factor(series_index: usize, series_count: usize) -> f64 {
     if series_count <= 1 {
         return 1.0;
     }
     (series_index + 1) as f64 / series_count as f64
+}
+
+fn unique_series_indexes(bars: &[BarRect]) -> Vec<usize> {
+    let mut indexes: Vec<usize> = bars.iter().map(|b| b.series_index).collect();
+    indexes.sort_unstable();
+    indexes.dedup();
+    indexes
 }
 
 fn scale_depth_vector(depth: DepthVector, factor: f64) -> DepthVector {
@@ -114,21 +122,15 @@ pub fn bar3d_extrusion_markup(bars: &[BarRect], depth: DepthVector, grouping: &s
             out.extend(bar_extrusion_polygons(bar, depth));
         }
     } else {
-        let series_count = bars
-            .iter()
-            .map(|b| b.series_index)
-            .max()
-            .map(|m| m + 1)
-            .unwrap_or(1);
-        let mut indexes: Vec<usize> = bars.iter().map(|b| b.series_index).collect();
-        indexes.sort_unstable();
-        indexes.dedup();
-        indexes.sort_by(|a, b| {
+        let unique = unique_series_indexes(bars);
+        let series_count = unique.len().max(1);
+        let mut paint_order = unique;
+        paint_order.sort_by(|a, b| {
             series_depth_factor(*b, series_count)
                 .partial_cmp(&series_depth_factor(*a, series_count))
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
-        for si in indexes {
+        for si in paint_order {
             let series_depth = compute_series_depth(depth, si, series_count);
             for bar in bars.iter().filter(|b| b.series_index == si) {
                 out.extend(bar_extrusion_polygons(bar, series_depth));
@@ -136,4 +138,59 @@ pub fn bar3d_extrusion_markup(bars: &[BarRect], depth: DepthVector, grouping: &s
         }
     }
     out.join("")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Catches: clustered bar3D seriesCount used max(seriesIndex)+1 instead of distinct plotted series count, over-shrinking per-series depth.
+    #[test]
+    fn series_count_is_distinct_plotted_series() {
+        let bars = [
+            BarRect {
+                x: 0.0,
+                y: 0.0,
+                w: 10.0,
+                h: 10.0,
+                fill: "#000".to_string(),
+                series_index: 0,
+            },
+            BarRect {
+                x: 20.0,
+                y: 0.0,
+                w: 10.0,
+                h: 10.0,
+                fill: "#000".to_string(),
+                series_index: 2,
+            },
+        ];
+        assert_eq!(unique_series_indexes(&bars).len(), 2);
+        assert!((series_depth_factor(2, 2) - 1.5).abs() < 1e-9);
+    }
+
+    // Catches: default view3D depth vector magnitude drift from upstream computeDepthVector (~13px at depthPercent 100).
+    #[test]
+    fn compute_depth_vector_default_magnitude() {
+        let v = compute_depth_vector(None);
+        assert!((v.magnitude - 13.0).abs() < 0.01);
+        assert!(v.dx > 0.0);
+        assert!(v.dy < 0.0);
+        assert!((v.dx - 20.0_f64.to_radians().sin() * 13.0).abs() < 0.01);
+    }
+
+    // Catches: bar3D extrusion depth falling below upstream when depthPercent is authored at 100 on rAngAx charts.
+    #[test]
+    fn compute_depth_vector_respects_depth_percent() {
+        let view = ChartView3D {
+            rot_x: Some(15.0),
+            rot_y: Some(20.0),
+            depth_percent: Some(100.0),
+            height_percent: None,
+            right_angle_axes: Some(true),
+            perspective: None,
+        };
+        let v = compute_depth_vector(Some(&view));
+        assert!((v.magnitude - 13.0).abs() < 0.01);
+    }
 }

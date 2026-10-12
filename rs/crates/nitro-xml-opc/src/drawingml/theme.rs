@@ -2,11 +2,12 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/drawingml/theme.ts; changes listed in PROVENANCE.md.
 
 use super::color::parse_drawing_color_in;
+use super::dom::attr;
 use super::dom::{elements, first};
 use super::fill::{parse_drawing_line, parse_fill_element};
 use super::theme_model::{
     DrawingTheme, ThemeColorMap, ThemeColorScheme, ThemeColorSlot, ThemeEffectStyle,
-    ThemeFontCollection, ThemeFontScheme, ThemeFormatScheme, THEME_COLOR_SLOTS,
+    ThemeFontCollection, ThemeFontScheme, ThemeFormatScheme, ThemeSp3dBevel, THEME_COLOR_SLOTS,
 };
 use super::types::DrawingFill;
 use crate::xml::{ns, parse_xml_str, Document, Element};
@@ -97,6 +98,45 @@ fn parse_line_style_list(list: Option<&Element>) -> Vec<super::types::DrawingLin
         .collect()
 }
 
+fn parse_bevel_emu(value: Option<&str>) -> Option<i32> {
+    value.and_then(|s| s.parse().ok())
+}
+
+fn parse_bevel_node(bevel: &Element) -> (String, Option<i32>, Option<i32>) {
+    let prst = attr(bevel, "prst")
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "circle".to_string());
+    let w = parse_bevel_emu(attr(bevel, "w"));
+    let h = parse_bevel_emu(attr(bevel, "h"));
+    (prst, w, h)
+}
+
+fn parse_sp3d_bevel(sp3d: &Element) -> Option<ThemeSp3dBevel> {
+    let bevel_t = first(sp3d, "bevelT", ns::A);
+    let bevel_b = first(sp3d, "bevelB", ns::A);
+    if bevel_t.is_none() && bevel_b.is_none() {
+        return None;
+    }
+    let (top_type, top_width_emu, top_height_emu) = bevel_t
+        .map(parse_bevel_node)
+        .unwrap_or_else(|| ("none".to_string(), None, None));
+    let (bottom_type, bottom_width_emu, bottom_height_emu) = bevel_b
+        .map(|b| {
+            let (t, w, h) = parse_bevel_node(b);
+            (Some(t), w, h)
+        })
+        .unwrap_or((None, None, None));
+    Some(ThemeSp3dBevel {
+        top_type,
+        top_width_emu,
+        top_height_emu,
+        bottom_type,
+        bottom_width_emu,
+        bottom_height_emu,
+    })
+}
+
 fn parse_effect_style_list(list: Option<&Element>) -> Vec<ThemeEffectStyle> {
     let Some(list) = list else {
         return Vec::new();
@@ -110,12 +150,12 @@ fn parse_effect_style_list(list: Option<&Element>) -> Vec<ThemeEffectStyle> {
                 .cloned();
             let sp3d = first(effect_style, "sp3d", ns::A);
             let prst_material = sp3d.and_then(|s| non_empty(super::dom::attr(s, "prstMaterial")));
-            let has_bevel = sp3d.is_some_and(|s| {
-                first(s, "bevelT", ns::A).is_some() || first(s, "bevelB", ns::A).is_some()
-            });
+            let sp3d_bevel = sp3d.and_then(parse_sp3d_bevel);
+            let has_bevel = sp3d_bevel.is_some();
             ThemeEffectStyle {
                 effect_lst,
                 prst_material,
+                sp3d_bevel,
                 has_bevel,
             }
         })
@@ -252,5 +292,12 @@ mod tests {
         assert!(fmt.effect_styles[0].prst_material.is_none());
         assert_eq!(fmt.effect_styles[1].prst_material.as_deref(), Some("metal"));
         assert!(fmt.effect_styles[1].has_bevel);
+        let bevel = fmt.effect_styles[1]
+            .sp3d_bevel
+            .as_ref()
+            .expect("sp3d bevel");
+        assert_eq!(bevel.top_type, "circle");
+        assert_eq!(bevel.top_width_emu, Some(10_000));
+        assert_eq!(bevel.top_height_emu, Some(10_000));
     }
 }

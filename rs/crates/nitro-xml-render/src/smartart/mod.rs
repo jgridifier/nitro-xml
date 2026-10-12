@@ -649,6 +649,8 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         parsed.adjustments.as_ref(),
         parsed.paths.as_deref(),
     );
+    let kind =
+        smartart_custgeom_paint_kind(&geom_name, &paragraphs, no_fill, stroke_width, w, h, kind);
 
     Some(SpBox {
         x,
@@ -740,6 +742,44 @@ fn relative_luminance(hex: &str) -> f64 {
         return 0.5;
     };
     (0.2126 * f64::from(r) + 0.7152 * f64::from(g) + 0.0722 * f64::from(b)) / 255.0
+}
+
+/// Match TS `projectDrawingShapes` + `getPresetShapeVectorGeometry` for cached
+/// `shapeType: "custom"`: preset clip-path resolution fails, so `outlinePathData`
+/// strokes the shape box as a closed rectangle instead of the authored polyline.
+fn smartart_custgeom_paint_kind(
+    geom_name: &str,
+    paragraphs: &[TextParagraph],
+    no_fill: bool,
+    stroke_width: f64,
+    w: f64,
+    h: f64,
+    kind: ShapeKind,
+) -> ShapeKind {
+    if geom_name != "custom" || !no_fill || stroke_width <= 0.0 {
+        return kind;
+    }
+    let has_text = paragraphs
+        .iter()
+        .any(|p| p.runs.iter().any(|r| !r.text.trim().is_empty()));
+    if has_text {
+        return kind;
+    }
+    ShapeKind::Path {
+        d: outline_rect_path_data(w, h),
+    }
+}
+
+fn outline_rect_path_data(width: f64, height: f64) -> String {
+    let w = width.max(1.0);
+    let h = height.max(1.0);
+    format!(
+        "M 0 0 L {} 0 L {} {} L 0 {} Z",
+        num(w),
+        num(w),
+        num(h),
+        num(h)
+    )
 }
 
 fn resolve_kind(
@@ -1300,7 +1340,7 @@ mod tests {
         );
     }
 
-    // Catches: orgchart fan connectors (textless custGeom + noFill + ln) dropped from the SVG.
+    // Catches: orgchart fan connectors (textless custGeom + noFill + ln) painted as polylines instead of TS outlinePathData box rects.
     #[test]
     fn custgeom_stroke_connector_kept() {
         let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
@@ -1333,9 +1373,18 @@ mod tests {
             "expected EMU/12700 stroke width, got {:?}",
             args[0].stroke_width
         );
+        assert!(
+            args[0].path_len > 33,
+            "expected closed box outline path_len, got {:?}",
+            args[0]
+        );
         let svg = smartart_svg(Some(xml), 120.0, 200.0);
         assert!(svg.contains("<path "), "{svg}");
         assert!(svg.contains("fill=\"none\""), "{svg}");
+        assert!(
+            svg.contains(" Z\""),
+            "expected closed box outline path: {svg}"
+        );
         assert!(
             svg.contains("stroke-width=\"1.5\""),
             "TS parseDrawingShape uses 19050/12700 = 1.5px: {svg}"

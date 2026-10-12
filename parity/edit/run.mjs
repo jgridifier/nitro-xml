@@ -20,14 +20,11 @@ import JSZip from 'jszip';
 import { comparePackages } from '../roundtrip/compare.mjs';
 import { validateOpenXml, errorSubset, libreOfficeReopen } from '../roundtrip/validate.mjs';
 import { familyOf, packageKind } from '../roundtrip/corpus.mjs';
-import { applyAndSave, applyDocxModel } from './apply.mjs';
+import { applyAndSave } from './apply.mjs';
 import { loadEditScripts, resolveFixture, fixtureAbs, ROOT } from './scripts.mjs';
 import { rustDocxSave } from './rust-docx.mjs';
-<<<<<<< HEAD
 import { rustXlsxSave } from './rust-xlsx.mjs';
-=======
 import { snapshotDocx, stableStringify } from '../undo/snapshot.mjs';
->>>>>>> 4cad488 (Closes #82: docx tracked changes accept/reject and comments.)
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, 'out');
@@ -115,7 +112,8 @@ async function runOne(script) {
 	const fam = familyOf(kind);
 	const input = new Uint8Array(readFileSync(abs));
 
-	// Model-only scripts (#82 revisions/comments): skip package save until #80 writer covers them.
+	// Model-only scripts (#82 revisions/comments): skip package save when TS/Rust
+	// package rewrite cannot round-trip (poi-delins / comments.xml).
 	if (script.modelOnly) {
 		/** @type {string | null} */
 		let applyError = null;
@@ -261,7 +259,6 @@ async function main() {
 		};
 	}
 
-<<<<<<< HEAD
 	/**
 	 * @param {string} label
 	 * @param {typeof scripts} subset
@@ -272,14 +269,6 @@ async function main() {
 		const failures = [];
 		for (const script of subset) {
 			process.stdout.write(`${label}: ${script.id} … `);
-=======
-	/** @type {{ id: string, losses: object[] }[]} */
-	const rustFailures = [];
-	if (args.rustDocx) {
-		const docxScripts = scripts.filter((s) => s.format === 'docx' && !s.modelOnly);
-		for (const script of docxScripts) {
-			process.stdout.write(`rust-docx: ${script.id} … `);
->>>>>>> 4cad488 (Closes #82: docx tracked changes accept/reject and comments.)
 			try {
 				const input = new Uint8Array(readFileSync(fixtureAbs(resolveFixture(script))));
 				const tsOut = await applyAndSave(input, script);
@@ -306,7 +295,7 @@ async function main() {
 	}
 
 	const rustDocxFailures = args.rustDocx
-		? await compareRust('rust-docx', scripts.filter((s) => s.format === 'docx'), (input, scriptPath) =>
+		? await compareRust('rust-docx', scripts.filter((s) => s.format === 'docx' && !s.modelOnly), (input, scriptPath) =>
 				rustDocxSave(input, scriptPath, { skipDocumentRewrite: false }),
 			)
 		: [];
@@ -403,7 +392,7 @@ async function main() {
 		failedIds: failed.map((r) => r.id),
 		rustDocx: args.rustDocx
 			? {
-					compared: scripts.filter((s) => s.format === 'docx').length,
+					compared: scripts.filter((s) => s.format === 'docx' && !s.modelOnly).length,
 					fail: rustDocxFailures.length,
 				}
 			: null,
@@ -433,7 +422,7 @@ async function main() {
 		lines.push(`  FAIL: ${failed.map((r) => r.id).join(', ')}`);
 	}
 	if (args.rustDocx) {
-		const compared = scripts.filter((s) => s.format === 'docx').length;
+		const compared = scripts.filter((s) => s.format === 'docx' && !s.modelOnly).length;
 		lines.push(
 			`  rust-docx ${compared - rustDocxFailures.length}/${compared} match TS (docProps allowed)`,
 		);

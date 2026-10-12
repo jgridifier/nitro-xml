@@ -23,7 +23,6 @@ const SOFT_DEFAULT = [
 	'poi-bug54849',
 	'poi-wordwithattachments',
 	'poi-bug65649',
-	'poi-chartex',
 	'poi-delins',
 	'poi-drawing',
 	'poi-endnotes',

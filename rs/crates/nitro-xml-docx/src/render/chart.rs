@@ -61,8 +61,10 @@ pub fn docx_chart_svg(
     height: u32,
     measure_widths: &[f64],
     theme: Option<&Value>,
+    color_palette: Option<i32>,
 ) -> String {
-    let svg = chart_svg_options(theme, measure_widths);
+    let mut svg = chart_svg_options(theme, measure_widths);
+    svg.color_palette = color_palette;
     nitro_xml_render::chart::render_chart_space_svg(
         space,
         &RenderChartSpaceOptions { width, height, svg },
@@ -97,7 +99,7 @@ pub fn paint_docx_chart(
         measure.widths.clear();
         w
     };
-    let svg = docx_chart_svg(space, width, height, &widths, theme);
+    let svg = docx_chart_svg(space, width, height, &widths, theme, None);
     let markup_id = strings.intern(&svg);
     // Do not `buffer.begin()` — Print Layout embeds the chart in an existing frame.
     buffer.set_inner_markup(parent_id, markup_id);
@@ -152,9 +154,9 @@ mod tests {
             !batch.is_empty(),
             "expected chart SVG paint to queue measureText probes"
         );
-        let estimated = docx_chart_svg(&space, 480, 320, &[], None);
+        let estimated = docx_chart_svg(&space, 480, 320, &[], None, None);
         let widths: Vec<f64> = vec![42.0; batch.len()];
-        let measured = docx_chart_svg(&space, 480, 320, &widths, None);
+        let measured = docx_chart_svg(&space, 480, 320, &widths, None, None);
         assert_ne!(
             estimated, measured,
             "canvas widths should change chart label layout vs estimates"
@@ -191,7 +193,7 @@ mod tests {
             .stdout;
         let xml = String::from_utf8_lossy(&xml);
         let space = parse_chart_space_xml(&xml).chart_space;
-        let svg = docx_chart_svg(&space, 480, 320, &[], theme);
+        let svg = docx_chart_svg(&space, 480, 320, &[], theme, None);
         assert!(
             svg.contains("5B9BD5") || svg.contains("#5B9BD5"),
             "expected document theme blue in chart SVG"

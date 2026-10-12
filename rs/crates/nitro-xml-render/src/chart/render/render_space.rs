@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use nitro_xml_opc::chart::ChartSpace;
 
 use super::built_in_text_style::effective_built_in_chart_style_from_space;
-use super::chart_appearance::{overlay_authored_tx_pr_appearance, overlay_chart_space_sp_pr};
+use super::chart_appearance::{
+    overlay_authored_axis_sp_pr, overlay_authored_tx_pr_appearance, overlay_chart_space_sp_pr,
+};
 use super::chart_colors::chart_color_scheme;
 use super::chart_picture_fill::resolve_chart_picture_fills;
 use super::chart_title_text::chart_title_text;
@@ -92,6 +94,7 @@ pub fn render_chart_space_svg(
     if options.docx_chart_chrome {
         if let Some(appearance) = view.appearance.as_mut() {
             overlay_authored_tx_pr_appearance(appearance, space, &resolve);
+            overlay_authored_axis_sp_pr(appearance, space, &resolve);
             overlay_chart_space_sp_pr(appearance, space, &resolve);
         }
     } else if options.bar3d_extrusion {
@@ -131,7 +134,7 @@ pub fn render_chart_space_svg(
     if let Some(title) = &space.title {
         view.title_overlay = title.overlay.unwrap_or(false);
         // Title manual layout comes from chart formatting entries (upstream chart-view), not `c:title/layout`.
-        view.title_text = chart_title_text(&summary, title, title_appearance.as_ref());
+        view.title_text = chart_title_text(&summary, title, title_appearance.as_ref(), &resolve);
     }
     render_chart_svg(&view, options.width, options.height, &mut options.measure)
 }

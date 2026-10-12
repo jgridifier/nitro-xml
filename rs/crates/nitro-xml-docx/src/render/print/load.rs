@@ -4,6 +4,7 @@
 use std::collections::{HashMap, HashSet};
 
 use nitro_xml_opc::chart::{parse_chart_space_xml, ChartSpace};
+use nitro_xml_opc::xml::parse_xml_str;
 use nitro_xml_render::{CommandBuffer, MeasureBatch};
 
 use super::chart_cache::chart_measure_specs;
@@ -31,6 +32,7 @@ pub struct PrintSession {
     pub result: LayoutResult,
     pub picture_urls: HashMap<String, String>,
     pub chart_spaces: HashMap<String, ChartSpace>,
+    pub chart_color_palettes: HashMap<String, i32>,
     pub line_numbers: Vec<Option<PrintLineNumbering>>,
     pub page_borders: Vec<Option<PageBorders>>,
     pub suppressed: HashSet<String>,
@@ -49,7 +51,7 @@ impl PrintSession {
     pub fn open(bytes: &'static [u8]) -> Result<Self, String> {
         let mut loaded = read_package(bytes).map_err(|e| e.to_string())?;
         let picture_urls = collect_pictures(&mut loaded);
-        let chart_spaces = collect_charts(&mut loaded);
+        let (chart_spaces, chart_color_palettes) = collect_charts(&mut loaded);
         let warnings = loaded.model.warnings.clone();
         let model = loaded.model;
         let sections = model.sections.as_deref().unwrap_or(&[]);
@@ -64,6 +66,7 @@ impl PrintSession {
             },
             picture_urls,
             chart_spaces,
+            chart_color_palettes,
             warnings,
             measure_cache: MeasureCache::new(),
             measure_pending: Vec::new(),
@@ -262,6 +265,7 @@ impl PrintSession {
             suppressed_line_number_paragraphs: &self.suppressed,
             picture_urls: &self.picture_urls,
             chart_spaces: &self.chart_spaces,
+            chart_color_palettes: &self.chart_color_palettes,
             model: Some(&self.model),
             review_mode: ReviewDisplayMode::All,
             now,
@@ -290,9 +294,15 @@ fn collect_pictures(loaded: &mut LoadedDocument<'_>) -> HashMap<String, String> 
     out
 }
 
-fn collect_charts(loaded: &mut LoadedDocument<'_>) -> HashMap<String, ChartSpace> {
+const CHART_COLOR_STYLE_REL: &str =
+    "http://schemas.microsoft.com/office/2011/relationships/chartColorStyle";
+
+fn collect_charts(
+    loaded: &mut LoadedDocument<'_>,
+) -> (HashMap<String, ChartSpace>, HashMap<String, i32>) {
     let names: Vec<String> = loaded.package.part_names().map(str::to_string).collect();
-    let mut out = HashMap::new();
+    let mut spaces = HashMap::new();
+    let mut palettes = HashMap::new();
     for name in names {
         if !(name.contains("/charts/") && name.ends_with(".xml")) {
             continue;
@@ -301,9 +311,42 @@ fn collect_charts(loaded: &mut LoadedDocument<'_>) -> HashMap<String, ChartSpace
             Ok(Some(xml)) => xml.to_string(),
             _ => continue,
         };
-        out.insert(name, parse_chart_space_xml(&xml).chart_space);
+        spaces.insert(name.clone(), parse_chart_space_xml(&xml).chart_space);
+        if let Some(id) = chart_color_palette_for_part(loaded, &name) {
+            palettes.insert(name, id);
+        }
     }
-    out
+    (spaces, palettes)
+}
+
+fn chart_color_palette_for_part(loaded: &mut LoadedDocument<'_>, chart_part: &str) -> Option<i32> {
+    let colors_part = loaded
+        .package
+        .target_of_type(chart_part, CHART_COLOR_STYLE_REL)
+        .ok()
+        .flatten()?;
+    let xml = loaded.package.text(&colors_part).ok().flatten()?;
+    parse_chart_color_style_id(xml)
+}
+
+/// `cs:colorStyle/@id` from chart color-style parts (upstream `chartColorStyleId`).
+fn parse_chart_color_style_id(xml: &str) -> Option<i32> {
+    let doc = parse_xml_str(xml).ok()?;
+    if doc.root.local != "colorStyle" {
+        return None;
+    }
+    let id = doc
+        .root
+        .attrs
+        .iter()
+        .find(|a| a.local == "id")
+        .map(|a| a.value.as_str())?;
+    let id = id.parse::<i32>().ok()?;
+    if id >= 0 {
+        Some(id)
+    } else {
+        None
+    }
 }
 
 fn mime_of(name: &str) -> &'static str {
@@ -438,6 +481,7 @@ mod incremental_layout_tests {
             },
             picture_urls: HashMap::new(),
             chart_spaces: HashMap::new(),
+            chart_color_palettes: HashMap::new(),
             line_numbers: Vec::new(),
             page_borders: Vec::new(),
             suppressed: HashSet::new(),

@@ -156,6 +156,30 @@ pub fn overlay_chart_space_sp_pr(
     overlay_shape_part(appearance, "chartArea", space.sp_pr.as_ref(), resolve);
 }
 
+/// Axis `c:spPr` and value-axis major gridlines (`readChartFormatting` direct entries).
+pub fn overlay_authored_axis_sp_pr(
+    appearance: &mut ChartAppearance,
+    space: &ChartSpace,
+    resolve: &dyn Fn(&DrawingColor) -> Option<String>,
+) {
+    for axis in &space.plot_area.axes {
+        let part = match axis.kind.as_str() {
+            "cat" | "date" => "categoryAxis",
+            "val" => "valueAxis",
+            _ => continue,
+        };
+        overlay_shape_part(appearance, part, axis.sp_pr.as_ref(), resolve);
+        if axis.kind == "val" {
+            overlay_shape_part(
+                appearance,
+                "gridlineMajor",
+                axis.major_gridlines_sp_pr.as_ref(),
+                resolve,
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

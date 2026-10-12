@@ -3,7 +3,7 @@
 
 use nitro_xml_opc::chart::ChartView3D;
 
-use super::chart_palette_shade::shade_hex;
+use super::chart_palette_shade::{shade_hex, tint_hex};
 use super::svg_util::{esc, n};
 
 const DEFAULT_ROT_X: f64 = 15.0;
@@ -73,8 +73,8 @@ fn bar_extrusion_polygons(rect: &BarRect, depth: DepthVector) -> Vec<String> {
     let h = rect.h;
     let dx = depth.dx;
     let dy = depth.dy;
-    let side_fill = shade_hex(&rect.fill, 0.22);
-    let top_fill = shade_hex(&rect.fill, 0.12);
+    let side_fill = shade_hex(&rect.fill, 0.25);
+    let top_fill = tint_hex(&rect.fill, 0.22);
     let top = format!(
         "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"none\"/>",
         n(x),

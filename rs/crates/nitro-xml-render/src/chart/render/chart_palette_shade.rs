@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/ui/src/pptx/render/chart-style-palette.ts (`shade`); changes listed in PROVENANCE.md.
 
+/// Lighten a `#rrggbb` colour toward white. `amount` in `[0, 1]`.
+pub fn tint_hex(hex: &str, amount: f64) -> String {
+    let amount = amount.clamp(0.0, 1.0);
+    let (r, g, b) = hex_to_rgb(hex);
+    rgb_to_hex(
+        r + (255.0 - r) * amount,
+        g + (255.0 - g) * amount,
+        b + (255.0 - b) * amount,
+    )
+}
+
 /// Darken a `#rrggbb` colour toward black. `amount` in `[0, 1]`.
 pub fn shade_hex(hex: &str, amount: f64) -> String {
     let amount = amount.clamp(0.0, 1.0);

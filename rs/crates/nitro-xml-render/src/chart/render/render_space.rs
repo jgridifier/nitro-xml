@@ -40,6 +40,8 @@ pub struct RenderChartSpaceOptions<'a> {
     pub theme_fonts: ChartThemeFonts,
     pub chart_images: HashMap<String, String>,
     pub picture_id_prefix: String,
+    /// Theme slot colours (`lt1`…`folHlink`), same order as [`THEME_SLOTS`](theme_palette::THEME_SLOTS).
+    pub theme_colors: Option<Vec<String>>,
 }
 
 pub fn chart_space_kind(space: &ChartSpace) -> (Option<ChartSummaryType>, bool) {

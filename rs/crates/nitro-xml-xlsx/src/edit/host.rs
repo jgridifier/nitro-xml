@@ -2,7 +2,7 @@
 //! Mutable xlsx edit host: workbook slice + parsed worksheets (#66).
 
 use std::any::Any;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use nitro_xml_opc::edit::{EditHost, EditScope, HostSnapshot};
 use serde_json::{json, Map, Value};
@@ -16,6 +16,17 @@ use crate::workbook::{load_workbook, parse_all_worksheets};
 
 use super::style_patch::cell_style_from_json;
 
+/// One row or column insert/delete, recorded so save can move carried `sqref` markup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AxisShiftRecord {
+    pub sheet: u32,
+    /// True when the shift is along rows.
+    pub row: bool,
+    pub at: u32,
+    /// Positive inserts, negative deletes.
+    pub count: i32,
+}
+
 /// In-memory xlsx document the cell/style command runners mutate.
 #[derive(Debug, Clone)]
 pub struct XlsxHost {
@@ -25,6 +36,21 @@ pub struct XlsxHost {
     pub touched: BTreeSet<(u32, u32, u32)>,
     /// Style-key → index cache for [`super::style_patch::intern_style`].
     pub style_cache: HashMap<String, usize>,
+    /// Sheets whose cells, rows, or columns changed since open (or the last undo to clean).
+    pub dirty_sheets: BTreeSet<u32>,
+    /// The style table changed (a new xf or a number-format patch).
+    pub styles_dirty: bool,
+    /// Sheet list, names, or order changed.
+    pub workbook_dirty: bool,
+    /// Every formula cell is stale after a structure edit.
+    pub all_formulas_stale: bool,
+    /// Value edits. Formula cells that read these addresses are stale.
+    pub dirty_precedents: BTreeSet<(u32, u32, u32)>,
+    /// Formula cells marked stale, keyed by sheet index.
+    pub stale: BTreeMap<u32, BTreeSet<(u32, u32)>>,
+    /// Row/column shifts applied since open, in order. Save uses this to move
+    /// conditional-format `sqref`s that are still copied from the source part.
+    pub axis_shifts: Vec<AxisShiftRecord>,
 }
 
 impl XlsxHost {
@@ -66,11 +92,95 @@ impl XlsxHost {
             sheets,
             touched: BTreeSet::new(),
             style_cache: HashMap::new(),
+            dirty_sheets: BTreeSet::new(),
+            styles_dirty: false,
+            workbook_dirty: false,
+            all_formulas_stale: false,
+            dirty_precedents: BTreeSet::new(),
+            stale: BTreeMap::new(),
+            axis_shifts: Vec::new(),
         })
     }
 
     pub fn mark_touched(&mut self, sheet: u32, row: u32, col: u32) {
         self.touched.insert((sheet, row, col));
+    }
+
+    /// True when a save must rewrite modeled parts instead of returning the original bytes.
+    pub fn is_dirty(&self) -> bool {
+        self.styles_dirty
+            || self.workbook_dirty
+            || self.all_formulas_stale
+            || !self.dirty_sheets.is_empty()
+    }
+
+    /// Record a value edit and recompute which formula cells read it.
+    pub fn note_value_edit(&mut self, sheet: u32, row: u32, col: u32) {
+        self.dirty_sheets.insert(sheet);
+        self.dirty_precedents.insert((sheet, row, col));
+        self.recompute_stale();
+    }
+
+    /// Sheet add, delete, move, or rename: the workbook part is dirty and every formula is stale.
+    pub fn mark_structure_dirty(&mut self) {
+        self.workbook_dirty = true;
+        self.all_formulas_stale = true;
+    }
+
+    /// Shift dirty and stale indexes the same way sheet structure commands shift `touched`.
+    pub fn remap_sheet_indexes(&mut self, mut map: impl FnMut(u32) -> Option<u32>) {
+        self.dirty_sheets = self.dirty_sheets.iter().filter_map(|s| map(*s)).collect();
+        self.dirty_precedents = self
+            .dirty_precedents
+            .iter()
+            .filter_map(|(s, r, c)| map(*s).map(|sheet| (sheet, *r, *c)))
+            .collect();
+        let mut next: BTreeMap<u32, BTreeSet<(u32, u32)>> = BTreeMap::new();
+        for (sheet, cells) in &self.stale {
+            if let Some(mapped) = map(*sheet) {
+                next.entry(mapped)
+                    .or_default()
+                    .extend(cells.iter().copied());
+            }
+        }
+        self.stale = next;
+        self.axis_shifts = self
+            .axis_shifts
+            .iter()
+            .filter_map(|rec| map(rec.sheet).map(|sheet| AxisShiftRecord { sheet, ..*rec }))
+            .collect();
+    }
+
+    /// Formula cells on `sheet` that need a recalc, sorted by row then column.
+    pub fn stale_cells(&self, sheet: u32) -> Vec<(u32, u32)> {
+        let mut set = self.stale.get(&sheet).cloned().unwrap_or_default();
+        if self.all_formulas_stale {
+            if let Some(sh) = self.sheets.get(sheet as usize) {
+                for cell in &sh.cells {
+                    if cell.formula.is_some() {
+                        set.insert((cell.row, cell.col));
+                    }
+                }
+            }
+        }
+        set.into_iter().collect()
+    }
+
+    fn recompute_stale(&mut self) {
+        let names: Vec<String> = self.sheets.iter().map(|s| s.name.clone()).collect();
+        let mut formulas = Vec::new();
+        for (index, sheet) in self.sheets.iter().enumerate() {
+            for cell in &sheet.cells {
+                if let Some(formula) = &cell.formula {
+                    formulas.push((index as u32, cell.row, cell.col, formula.clone()));
+                }
+            }
+        }
+        let stale = crate::write::stale_formula_cells(&names, &formulas, &self.dirty_precedents);
+        self.stale.clear();
+        for (sheet, row, col) in stale {
+            self.stale.entry(sheet).or_default().insert((row, col));
+        }
     }
 
     pub fn sheet_mut(&mut self, index: u32) -> Result<&mut ActiveWorksheet, String> {
@@ -191,6 +301,13 @@ impl XlsxHost {
     }
 
     fn state_json(&self) -> Value {
+        let mut stale_map = Map::new();
+        for (sheet, cells) in &self.stale {
+            stale_map.insert(
+                sheet.to_string(),
+                Value::Array(cells.iter().map(|(r, c)| json!([r, c])).collect()),
+            );
+        }
         json!({
             "styles": self.workbook.styles.iter().map(|s| s.to_json()).collect::<Vec<_>>(),
             "activeSheet": self.workbook.active_sheet,
@@ -218,6 +335,18 @@ impl XlsxHost {
                 })
             }).collect::<Vec<_>>(),
             "touched": self.touched.iter().map(|(s, r, c)| json!([s, r, c])).collect::<Vec<_>>(),
+            "dirtySheets": self.dirty_sheets.iter().copied().collect::<Vec<_>>(),
+            "stylesDirty": self.styles_dirty,
+            "workbookDirty": self.workbook_dirty,
+            "allFormulasStale": self.all_formulas_stale,
+            "dirtyPrecedents": self.dirty_precedents.iter().map(|(s, r, c)| json!([s, r, c])).collect::<Vec<_>>(),
+            "stale": stale_map,
+            "axisShifts": self.axis_shifts.iter().map(|rec| json!({
+                "sheet": rec.sheet,
+                "row": rec.row,
+                "at": rec.at,
+                "count": rec.count,
+            })).collect::<Vec<_>>(),
         })
     }
 
@@ -387,6 +516,89 @@ impl XlsxHost {
             }
         }
         self.style_cache.clear();
+        self.dirty_sheets.clear();
+        self.styles_dirty = false;
+        self.workbook_dirty = false;
+        self.all_formulas_stale = false;
+        self.dirty_precedents.clear();
+        self.stale.clear();
+        if let Some(sheets) = v.get("dirtySheets").and_then(|x| x.as_array()) {
+            for sheet in sheets {
+                if let Some(index) = sheet.as_u64() {
+                    self.dirty_sheets.insert(index as u32);
+                }
+            }
+        }
+        self.styles_dirty = v
+            .get("stylesDirty")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+        self.workbook_dirty = v
+            .get("workbookDirty")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+        self.all_formulas_stale = v
+            .get("allFormulasStale")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+        if let Some(precedents) = v.get("dirtyPrecedents").and_then(|x| x.as_array()) {
+            for entry in precedents {
+                let Some(arr) = entry.as_array() else {
+                    continue;
+                };
+                if arr.len() == 3 {
+                    if let (Some(s), Some(r), Some(c)) =
+                        (arr[0].as_u64(), arr[1].as_u64(), arr[2].as_u64())
+                    {
+                        self.dirty_precedents.insert((s as u32, r as u32, c as u32));
+                    }
+                }
+            }
+        }
+        if let Some(map) = v.get("stale").and_then(|x| x.as_object()) {
+            for (key, cells) in map {
+                let Ok(sheet) = key.parse::<u32>() else {
+                    continue;
+                };
+                let Some(arr) = cells.as_array() else {
+                    continue;
+                };
+                let set = self.stale.entry(sheet).or_default();
+                for pair in arr {
+                    let Some(pair) = pair.as_array() else {
+                        continue;
+                    };
+                    if pair.len() == 2 {
+                        if let (Some(r), Some(c)) = (pair[0].as_u64(), pair[1].as_u64()) {
+                            set.insert((r as u32, c as u32));
+                        }
+                    }
+                }
+            }
+        }
+        self.axis_shifts.clear();
+        if let Some(list) = v.get("axisShifts").and_then(|x| x.as_array()) {
+            for entry in list {
+                let Some(obj) = entry.as_object() else {
+                    continue;
+                };
+                let Some(sheet) = obj.get("sheet").and_then(|x| x.as_u64()) else {
+                    continue;
+                };
+                let Some(at) = obj.get("at").and_then(|x| x.as_u64()) else {
+                    continue;
+                };
+                let Some(count) = obj.get("count").and_then(|x| x.as_i64()) else {
+                    continue;
+                };
+                self.axis_shifts.push(AxisShiftRecord {
+                    sheet: sheet as u32,
+                    row: obj.get("row").and_then(|x| x.as_bool()).unwrap_or(true),
+                    at: at as u32,
+                    count: count as i32,
+                });
+            }
+        }
         Ok(())
     }
 }

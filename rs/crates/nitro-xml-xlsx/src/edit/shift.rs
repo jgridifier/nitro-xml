@@ -9,23 +9,23 @@
 //! hyperlinks, comments, and data-validation ranges. Defined names and every
 //! sheet's cell formulas are rewritten with the #71 reference model.
 //!
-//! TODO(#76): tables, conditional formats, drawings, charts, auto-filter, print
-//! area, and preserved `extLst` / sparkline XML are not shifted (not on
-//! [`ActiveWorksheet`], or only kept as raw extension XML).
+//! TODO(#76): tables, drawings, charts, auto-filter, and print area are not
+//! shifted (not on [`ActiveWorksheet`]). Conditional-format and other carried
+//! `sqref` markup is rewritten on save from [`XlsxHost::axis_shifts`].
 
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use nitro_xml_opc::edit::{ChangeKind, ChangeSet, Command, CommandRegistry, EditError};
 
-use crate::address::{MAX_COL, MAX_ROW};
+use crate::address::{format_range, parse_range, MAX_COL, MAX_ROW};
 use crate::formula::{rewrite_ref, same_spec, tokenize, RefKind, RefSpec, Token, TokenKind};
 use crate::model::{
     ActiveWorksheet, CellAddress, CellRange, ColumnInfo, DumpCell, DumpCellValue, FreezePane,
     RowInfo, SheetSelection, SheetView,
 };
 
-use super::host::XlsxHost;
+use super::host::{AxisShiftRecord, XlsxHost};
 use super::structure::normalize_columns;
 
 /// Row or column axis, matching upstream `Axis`.
@@ -826,12 +826,157 @@ fn apply_axis_shift(
         };
         rewrite_formulas(host, &spec);
     }
-    let sheet = host.sheet_mut(sheet_index).map_err(sheet_err)?;
-    shift_sheet_content(sheet, &shift)?;
-    if shift.count > 0 {
-        inherit_formats(sheet, shift.axis, shift.at, shift.count as u32);
+    {
+        let sheet = host.sheet_mut(sheet_index).map_err(sheet_err)?;
+        shift_sheet_content(sheet, &shift)?;
+        if shift.count > 0 {
+            inherit_formats(sheet, shift.axis, shift.at, shift.count as u32);
+        }
     }
+    host.axis_shifts.push(AxisShiftRecord {
+        sheet: sheet_index,
+        row: shift.axis == Axis::Row,
+        at: shift.at,
+        count: shift.count,
+    });
     Ok(())
+}
+
+/// Rewrites `sqref` attributes and `<sqref>` text in one carried worksheet child.
+/// `None` when the element's own `sqref` attribute loses every range (the block is dropped).
+pub(crate) fn rewrite_carried_sqrefs(xml: &str, shifts: &[AxisShift]) -> Option<String> {
+    if shifts.is_empty() || !xml.contains("sqref") {
+        return Some(xml.to_owned());
+    }
+    let rewritten = rewrite_sqrefs(xml, shifts);
+    if root_sqref_empty(&rewritten) {
+        None
+    } else {
+        Some(rewritten)
+    }
+}
+
+fn root_sqref_empty(xml: &str) -> bool {
+    let bytes = xml.as_bytes();
+    let Some(start) = bytes.iter().position(|b| *b == b'<') else {
+        return false;
+    };
+    let Some(end) = bytes[start..].iter().position(|b| *b == b'>') else {
+        return false;
+    };
+    let tag = &xml[start..start + end];
+    tag.contains("sqref=\"\"") || tag.contains("sqref=''")
+}
+
+fn rewrite_sqrefs(xml: &str, shifts: &[AxisShift]) -> String {
+    let chars: Vec<char> = xml.chars().collect();
+    let mut out = String::with_capacity(xml.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if is_sqref_name(&chars, i) {
+            let name_end = i + 5;
+            let mut j = name_end;
+            while j < chars.len() && chars[j].is_whitespace() {
+                j += 1;
+            }
+            if chars.get(j) == Some(&'=') {
+                j += 1;
+                while j < chars.len() && chars[j].is_whitespace() {
+                    j += 1;
+                }
+                if let Some(quote) = chars.get(j).copied().filter(|c| *c == '"' || *c == '\'') {
+                    let value_start = j + 1;
+                    let mut k = value_start;
+                    while k < chars.len() && chars[k] != quote {
+                        k += 1;
+                    }
+                    let value: String = chars[value_start..k].iter().collect();
+                    out.extend(chars[i..value_start].iter());
+                    out.push_str(&shift_sqref_value(&value, shifts));
+                    i = k;
+                    continue;
+                }
+            } else if chars.get(j) == Some(&'>') && !tag_is_closing(&chars, i) {
+                let content_start = j + 1;
+                let mut k = content_start;
+                while k + 1 < chars.len() && !(chars[k] == '<' && chars[k + 1] == '/') {
+                    k += 1;
+                }
+                let value: String = chars[content_start..k].iter().collect();
+                out.extend(chars[i..content_start].iter());
+                out.push_str(&shift_sqref_value(value.trim(), shifts));
+                i = k;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+fn is_sqref_name(chars: &[char], i: usize) -> bool {
+    let name = ['s', 'q', 'r', 'e', 'f'];
+    if i + name.len() > chars.len() || chars[i..i + name.len()] != name {
+        return false;
+    }
+    let prev_ok = i == 0 || !is_name_char(chars[i - 1]);
+    let next = chars.get(i + name.len()).copied();
+    prev_ok && next.is_none_or(|c| !is_name_char(c))
+}
+
+fn is_name_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.'
+}
+
+fn tag_is_closing(chars: &[char], name_at: usize) -> bool {
+    let mut k = name_at;
+    while k > 0 {
+        k -= 1;
+        if chars[k] == '<' {
+            return chars.get(k + 1) == Some(&'/');
+        }
+        if !(chars[k].is_whitespace() || chars[k] == ':' || chars[k].is_ascii_alphanumeric()) {
+            return false;
+        }
+    }
+    false
+}
+
+fn shift_sqref_value(value: &str, shifts: &[AxisShift]) -> String {
+    let mut changed = false;
+    let mut parts = Vec::new();
+    for token in value.split_whitespace() {
+        match shift_sqref_token(token, shifts) {
+            Some(next) => {
+                if next != token {
+                    changed = true;
+                }
+                parts.push(next);
+            }
+            None => changed = true,
+        }
+    }
+    if changed {
+        parts.join(" ")
+    } else {
+        value.to_owned()
+    }
+}
+
+fn shift_sqref_token(token: &str, shifts: &[AxisShift]) -> Option<String> {
+    let Some(mut range) = parse_range(token) else {
+        return Some(token.to_owned());
+    };
+    let original = range.clone();
+    for shift in shifts {
+        range = shift_range(&range, shift)?;
+    }
+    if range == original {
+        Some(token.to_owned())
+    } else {
+        Some(format_range(&range))
+    }
 }
 
 fn shift_axis(

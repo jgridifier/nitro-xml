@@ -160,11 +160,14 @@ pub fn write_input(
     };
 
     if text.is_empty() {
-        let sheet = host.sheet_mut(sheet_index).map_err(sheet_err)?;
-        if let Some(i) = find_cell_index(sheet, row, col) {
-            clear_contents(&mut sheet.cells[i]);
+        {
+            let sheet = host.sheet_mut(sheet_index).map_err(sheet_err)?;
+            if let Some(i) = find_cell_index(sheet, row, col) {
+                clear_contents(&mut sheet.cells[i]);
+            }
+            prune_cell(sheet, row, col);
         }
-        prune_cell(sheet, row, col);
+        host.note_value_edit(sheet_index, row, col);
         return Ok(());
     }
 
@@ -174,8 +177,11 @@ pub fn write_input(
         clear_contents(cell);
         if format == "@" {
             cell.value = DumpCellValue::String(text.to_owned());
-            return Ok(());
         }
+    }
+    if format == "@" {
+        host.note_value_edit(sheet_index, row, col);
+        return Ok(());
     }
 
     let parsed = parse_cell_input(
@@ -217,7 +223,9 @@ pub fn write_input(
         let cell = ensure_cell(sheet, row, col);
         set_style_id(cell, next);
         prune_cell(sheet, row, col);
+        host.styles_dirty = true;
     }
+    host.note_value_edit(sheet_index, row, col);
     Ok(())
 }
 
@@ -230,19 +238,22 @@ pub fn write_value(
     value: &CellValue,
 ) -> Result<(), EditError> {
     host.mark_touched(sheet_index, row, col);
-    let sheet = host.sheet_mut(sheet_index).map_err(sheet_err)?;
-    let clear =
-        matches!(value, CellValue::Blank) || matches!(value, CellValue::Text(s) if s.is_empty());
-    if clear {
-        if let Some(i) = find_cell_index(sheet, row, col) {
-            clear_contents(&mut sheet.cells[i]);
+    {
+        let sheet = host.sheet_mut(sheet_index).map_err(sheet_err)?;
+        let clear = matches!(value, CellValue::Blank)
+            || matches!(value, CellValue::Text(s) if s.is_empty());
+        if clear {
+            if let Some(i) = find_cell_index(sheet, row, col) {
+                clear_contents(&mut sheet.cells[i]);
+            }
+            prune_cell(sheet, row, col);
+        } else {
+            let cell = ensure_cell(sheet, row, col);
+            clear_contents(cell);
+            cell.value = cell_value_to_dump(value);
         }
-        prune_cell(sheet, row, col);
-    } else {
-        let cell = ensure_cell(sheet, row, col);
-        clear_contents(cell);
-        cell.value = cell_value_to_dump(value);
     }
+    host.note_value_edit(sheet_index, row, col);
     Ok(())
 }
 
@@ -302,6 +313,8 @@ pub fn patch_range(
             prune_cell(sheet, row, col);
         }
     }
+    host.dirty_sheets.insert(sheet_index);
+    host.styles_dirty = true;
     Ok(())
 }
 

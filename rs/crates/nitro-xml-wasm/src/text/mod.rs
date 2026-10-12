@@ -11,6 +11,7 @@ pub mod caret;
 pub mod clipboard;
 pub mod ime;
 pub mod keys;
+pub mod mobile;
 pub mod rich;
 pub mod selection;
 
@@ -20,6 +21,7 @@ pub use clipboard::{
     ClipboardPayload,
 };
 pub use keys::{apply_key, KeyAction, KeyEvent};
+pub use mobile::{MobileSurface, SelectionHandle};
 pub use selection::TextField;
 
 use wasm_bindgen::prelude::*;
@@ -185,4 +187,95 @@ pub fn text_surface_eval(script_json: &str) -> Result<String, JsValue> {
         });
     }
     Ok(out.to_string())
+}
+
+/// Headless eval for mobile keyboard + touch-handle parity (#60).
+///
+/// Script JSON matches [`text_surface_eval`] plus mobile ops:
+/// - `{ "op": "config", "mobile": bool, "readonly": bool, "inputMode", "enterKeyHint", "inputType" }`
+/// - `{ "op": "beforeInput", "inputType": string, "data": string? }`
+/// - `{ "op": "handleDrag", "which": "start"|"end", "utf16": number }`
+/// - `{ "op": "pointer", "x": number, "extend": bool }` (ignored when not mobile-active)
+#[wasm_bindgen(js_name = mobileTextEval)]
+pub fn mobile_text_eval(script_json: &str) -> Result<String, JsValue> {
+    let v: serde_json::Value = serde_json::from_str(script_json)
+        .map_err(|e| JsValue::from_str(&format!("bad script json: {e}")))?;
+    let text = v
+        .get("text")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
+    let anchor_u16 = v.get("anchor").and_then(|x| x.as_u64()).unwrap_or(0) as usize;
+    let focus_u16 = v.get("focus").and_then(|x| x.as_u64()).unwrap_or(0) as usize;
+    let char_w = v.get("charWidth").and_then(|x| x.as_f64()).unwrap_or(8.0) as f32;
+    let line_h = v.get("lineHeight").and_then(|x| x.as_f64()).unwrap_or(16.0) as f32;
+
+    let mut surface = MobileSurface::from_utf16_selection(&text, anchor_u16, focus_u16);
+    let ops = v
+        .get("ops")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let width_fn = |s: &str| s.chars().count() as f32 * char_w;
+
+    for op in ops {
+        let kind = op.get("op").and_then(|x| x.as_str()).unwrap_or("");
+        match kind {
+            "config" => {
+                let mut cfg = surface.config().clone();
+                if let Some(m) = op.get("mobile").and_then(|x| x.as_bool()) {
+                    cfg.mobile_enabled = m;
+                }
+                if let Some(r) = op.get("readonly").and_then(|x| x.as_bool()) {
+                    cfg.readonly = r;
+                }
+                if let Some(s) = op.get("inputMode").and_then(|x| x.as_str()) {
+                    cfg.input_mode = s.to_string();
+                }
+                if let Some(s) = op.get("enterKeyHint").and_then(|x| x.as_str()) {
+                    cfg.enter_key_hint = s.to_string();
+                }
+                if let Some(s) = op.get("inputType").and_then(|x| x.as_str()) {
+                    cfg.input_type = s.to_string();
+                }
+                surface.set_config(cfg);
+            }
+            "beforeInput" => {
+                let input_type = op.get("inputType").and_then(|x| x.as_str()).unwrap_or("");
+                let data = op.get("data").and_then(|x| x.as_str());
+                surface.apply_before_input(input_type, data);
+            }
+            "handleDrag" => {
+                let which = op.get("which").and_then(|x| x.as_str()).unwrap_or("end");
+                let utf16 = op.get("utf16").and_then(|x| x.as_u64()).unwrap_or(0) as usize;
+                let handle = if which == "start" {
+                    SelectionHandle::Start
+                } else {
+                    SelectionHandle::End
+                };
+                surface.drag_handle(handle, utf16);
+            }
+            "pointer" => {
+                let x = op.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+                let extend = op.get("extend").and_then(|v| v.as_bool()).unwrap_or(false);
+                surface.pointer_at_x(x, extend, &width_fn);
+            }
+            "insert" => {
+                let t = op.get("text").and_then(|x| x.as_str()).unwrap_or("");
+                surface.field.insert(t);
+            }
+            "setText" => {
+                let t = op.get("text").and_then(|x| x.as_str()).unwrap_or("");
+                let caret = op
+                    .get("caret")
+                    .and_then(|x| x.as_u64())
+                    .map(|n| selection::utf16_to_byte(t, n as usize));
+                surface.field.set_text(t, caret);
+            }
+            _ => {}
+        }
+    }
+
+    Ok(surface.host_snapshot(char_w, line_h, &width_fn).to_string())
 }

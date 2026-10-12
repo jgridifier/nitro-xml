@@ -3,11 +3,7 @@ name = "nitro-xml-wasm"
 description = "Nitro XML WebAssembly boundary (the only wasm-bindgen crate)"
 version.workspace = true
 edition.workspace = true
-<<<<<<< HEAD
-# Ported chrome files (shortcuts/ribbon) are Apache-2.0; see PROVENANCE.md.
-=======
-# Ported clipboard-text helpers are Apache-2.0; see PROVENANCE.md.
->>>>>>> d4c7819 (feat(wasm): single-line text-editing surface for cell/formula bar (#55))
+# Ported chrome (shortcuts/ribbon) and clipboard-text helpers are Apache-2.0; see PROVENANCE.md.
 license = "MIT AND Apache-2.0"
 repository.workspace = true
 homepage.workspace = true

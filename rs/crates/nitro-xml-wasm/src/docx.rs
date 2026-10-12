@@ -36,6 +36,11 @@ impl DocxState {
         self.session.layout_ready
     }
 
+    /// True when layout and chart canvas measures (if any) are ready to paint.
+    pub fn paint_ready(&self) -> bool {
+        self.session.layout_ready && self.session.charts_measured()
+    }
+
     pub fn set_active_page(&mut self, index: usize) -> Result<(), String> {
         let n = self.page_count();
         if n == 0 {
@@ -124,18 +129,24 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
     let was_ready = handle
         .docx
         .as_ref()
-        .map(|d| d.layout_ready())
+        .map(|d| d.paint_ready())
         .unwrap_or(false);
     let prev_page_count = handle.docx.as_ref().map(|d| d.page_count()).unwrap_or(0);
 
-    let ready = if let Some(ref mut docx) = handle.docx {
+    let layout_ready = if let Some(ref mut docx) = handle.docx {
         docx.session
             .tick_measure(&mut handle.measures, &mut handle.strings)
     } else {
         false
     };
 
-    if !ready {
+    let paint_ready = handle
+        .docx
+        .as_ref()
+        .map(|d| d.paint_ready())
+        .unwrap_or(false);
+
+    if !layout_ready || !paint_ready {
         handle.commands.begin();
         return;
     }

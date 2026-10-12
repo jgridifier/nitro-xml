@@ -33,6 +33,7 @@ const HARD_FIXTURES = new Set([
 	'fixtures/real/docx/python-docx-tbl-cell-access.docx',
 	'fixtures/real/docx/python-docx-tbl-cell-props.docx',
 	'fixtures/real/docx/python-docx-tbl-on-off-props.docx',
+	'fixtures/real/docx/poi-bug65649.docx',
 ]);
 
 function listDocxFiles() {

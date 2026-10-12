@@ -91,6 +91,10 @@ impl PrintSession {
         self.charts_measured
     }
 
+    pub fn chart_svg_cache_len(&self) -> usize {
+        self.chart_svg_cache.len()
+    }
+
     pub fn layout_complete(&self) -> bool {
         self.layout_complete
     }
@@ -105,11 +109,6 @@ impl PrintSession {
         measures: &mut MeasureBatch,
         intern: &mut I,
     ) -> bool {
-        if self.layout_complete {
-            self.tick_chart_measures(measures, intern);
-            return self.layout_ready;
-        }
-
         if !self.measure_pending.is_empty()
             && measures.awaiting() == 0
             && measures.widths.len() == self.measure_pending.len()
@@ -184,6 +183,9 @@ impl PrintSession {
         self.merge_layout_result(&partial);
         if !partial.pages.is_empty() {
             self.layout_ready = true;
+            if chart_measure_specs(&self.result).is_empty() {
+                self.charts_measured = true;
+            }
         }
 
         if status.complete {
@@ -196,6 +198,13 @@ impl PrintSession {
             }
             self.layout_complete = true;
             self.layout_ready = true;
+            if chart_measure_specs(&self.result).is_empty() {
+                self.charts_measured = true;
+            }
+        }
+
+        if self.layout_complete {
+            self.tick_chart_measures(measures, intern);
         }
 
         self.layout_ready
@@ -518,6 +527,34 @@ mod incremental_layout_tests {
         let _ = measures.take_requests();
         let widths: Vec<f64> = (0..n).map(|_| 48.0).collect();
         measures.set_results(&widths).expect("measure results");
+    }
+
+    #[test]
+    fn poi_61745_chart_svg_cache_after_measure() {
+        // Catches: print session never fills chart SVG cache after layout (charts stay on estimates).
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/real/docx/poi-61745.docx");
+        let bytes = std::fs::read(&path).expect("fixture");
+        let leaked: &'static [u8] = Box::leak(bytes.into_boxed_slice());
+        let mut session = PrintSession::open(leaked).expect("open");
+        let mut measures = MeasureBatch::new();
+        let mut intern = TestIntern::new();
+        for _ in 0..256 {
+            session.tick_measure(&mut measures, &mut intern);
+            if !measures.is_empty() {
+                let n = measures.len();
+                let _ = measures.take_requests();
+                let widths: Vec<f64> = (0..n).map(|i| 10.0 + (i as f64) * 0.5).collect();
+                measures.set_results(&widths).expect("measure");
+            }
+            if session.charts_measured() && session.chart_svg_cache_len() > 0 {
+                return;
+            }
+        }
+        assert!(
+            session.charts_measured() && session.chart_svg_cache_len() > 0,
+            "expected measured chart SVG cache after layout+measure ticks"
+        );
     }
 
     #[test]

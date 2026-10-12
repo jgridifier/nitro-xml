@@ -1,0 +1,15 @@
+{
+  "id": "pptx-fill-none",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Clear fill (mode none, null colour)",
+  "ops": [
+    {
+      "op": "setShapeFill",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "fillColor": null,
+      "fillMode": "none"
+    }
+  ]
+}

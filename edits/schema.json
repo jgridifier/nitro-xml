@@ -72,7 +72,18 @@
             "deleteTableColumn",
             "setShapeText",
             "patchShapeGeometry",
-            "setShapeTextStyle"
+            "setShapeTextStyle",
+            "addShape",
+            "deleteShape",
+            "duplicateShape",
+            "bringForward",
+            "sendBackward",
+            "bringToFront",
+            "sendToBack",
+            "groupShapes",
+            "ungroupShapes",
+            "setShapeFill",
+            "setShapeLine"
           ]
         }
       },
@@ -726,6 +737,170 @@
               "color": {
                 "type": "string"
               }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "addShape" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex", "shapeType", "x", "y", "width", "height"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "shapeType": { "type": "string" },
+              "x": { "type": "number" },
+              "y": { "type": "number" },
+              "width": { "type": "number" },
+              "height": { "type": "number" },
+              "id": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "deleteShape" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "elementIndex": { "type": "integer", "minimum": 0 },
+              "elementId": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "duplicateShape" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "elementIndex": { "type": "integer", "minimum": 0 },
+              "elementId": { "type": "string" },
+              "newId": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "bringForward" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "elementIndex": { "type": "integer", "minimum": 0 },
+              "elementId": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "sendBackward" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "elementIndex": { "type": "integer", "minimum": 0 },
+              "elementId": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "bringToFront" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "elementIndex": { "type": "integer", "minimum": 0 },
+              "elementId": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "sendToBack" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "elementIndex": { "type": "integer", "minimum": 0 },
+              "elementId": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "groupShapes" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex", "elementIds", "groupId"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "elementIds": { "type": "array", "items": { "type": "string" }, "minItems": 2 },
+              "groupId": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "ungroupShapes" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "groupId": { "type": "string" },
+              "elementId": { "type": "string" },
+              "childIds": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "setShapeFill" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "elementIndex": { "type": "integer", "minimum": 0 },
+              "elementId": { "type": "string" },
+              "fillColor": { "type": ["string", "null"] },
+              "fillMode": { "type": "string", "enum": ["solid", "none"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "op": { "const": "setShapeLine" } },
+            "required": ["op"]
+          },
+          "then": {
+            "required": ["slideIndex"],
+            "properties": {
+              "slideIndex": { "type": "integer", "minimum": 0 },
+              "elementIndex": { "type": "integer", "minimum": 0 },
+              "elementId": { "type": "string" },
+              "strokeColor": { "type": ["string", "null"] },
+              "strokeWidth": { "type": "number" }
             }
           }
         }

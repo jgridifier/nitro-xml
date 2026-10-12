@@ -1,0 +1,18 @@
+{
+  "id": "pptx-add-rect",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Add a rectangle with a deterministic id",
+  "ops": [
+    {
+      "op": "addShape",
+      "slideIndex": 0,
+      "shapeType": "rect",
+      "x": 40,
+      "y": 24,
+      "width": 160,
+      "height": 90,
+      "id": "added-rect"
+    }
+  ]
+}

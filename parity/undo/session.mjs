@@ -5,6 +5,7 @@
  */
 
 import { join } from 'node:path';
+import { applyPptxOps, loadPptxMutators } from '../edit/apply.mjs';
 import { ROOT } from '../edit/scripts.mjs';
 import {
 	snapshotXlsx,
@@ -337,32 +338,12 @@ async function runDocx(bytes, script) {
 	};
 }
 
-function resolvePptxElement(slides, op) {
-	const slide = slides[op.slideIndex];
-	if (!slide) throw new Error(`slide ${op.slideIndex} missing`);
-	if (op.elementId) {
-		const el = slide.elements.find((e) => e.id === op.elementId);
-		if (!el) throw new Error(`element ${op.elementId} missing`);
-		return el;
-	}
-	const idx = op.elementIndex ?? 0;
-	const el = slide.elements[idx];
-	if (!el) throw new Error(`element index ${idx} missing`);
-	return el;
-}
-
 async function runPptx(bytes, script) {
 	const up = upstreamRoot();
 	const { PptxHandler } = await import(`${up}/src/core/pptx/core/PptxHandler.ts`);
-	const { updateElement, patchElementGeometry, cloneSlides } = await import(
-		`${up}/src/core/pptx/editor/render/editor-mutations.ts`
-	);
-	const { remapTextToSegments } = await import(
-		`${up}/src/core/pptx/editor/render/remap-text.ts`
-	);
-	const { EditorHistory } = await import(
-		`${up}/src/core/pptx/editor/render/editor-history.ts`
-	);
+	const { cloneSlides } = await import(`${up}/src/core/pptx/editor/render/editor-mutations.ts`);
+	const { EditorHistory } = await import(`${up}/src/core/pptx/editor/render/editor-history.ts`);
+	const mut = await loadPptxMutators();
 
 	const handler = new PptxHandler();
 	const noopData = await handler.load(toArrayBuffer(bytes));
@@ -395,36 +376,12 @@ async function runPptx(bytes, script) {
 	push('start', 'open');
 
 	for (const op of script.ops) {
-		const el = resolvePptxElement(slides, op);
 		history.record(cloneSlides(slides), op.op);
-		let label = op.op;
-		if (op.op === 'setShapeText') {
-			slides = updateElement(slides, op.slideIndex, el.id, {
-				text: op.text,
-				textSegments: remapTextToSegments(op.text, el.textSegments, el.textStyle),
-			});
-			label = `setShapeText ${op.slideIndex}`;
-		} else if (op.op === 'patchShapeGeometry') {
-			const box = {
-				x: op.x ?? el.x ?? 0,
-				y: op.y ?? el.y ?? 0,
-				width: op.width ?? el.width ?? 0,
-				height: op.height ?? el.height ?? 0,
-				rotation: op.rotation ?? el.rotation ?? 0,
-			};
-			slides = patchElementGeometry(slides, op.slideIndex, el.id, box);
-			label = `patchShapeGeometry ${op.slideIndex}`;
-		} else if (op.op === 'setShapeTextStyle') {
-			const textStyle = { ...(el.textStyle || {}) };
-			if (op.bold !== undefined) textStyle.bold = op.bold;
-			if (op.italic !== undefined) textStyle.italic = op.italic;
-			if (op.fontSize !== undefined) textStyle.fontSize = op.fontSize;
-			if (op.color !== undefined) textStyle.color = op.color;
-			slides = updateElement(slides, op.slideIndex, el.id, { textStyle });
-			label = `setShapeTextStyle ${op.slideIndex}`;
-		} else {
-			throw new Error(`unsupported pptx op: ${op.op}`);
-		}
+		slides = applyPptxOps(slides, [op], mut);
+		const label =
+			op.op === 'setShapeText' || op.op === 'patchShapeGeometry' || op.op === 'setShapeTextStyle'
+				? `${op.op} ${op.slideIndex}`
+				: `${op.op} ${op.slideIndex ?? ''}`;
 		push('do', label);
 	}
 	const afterDos = snapshotPptx(slides);

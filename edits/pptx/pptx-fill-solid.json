@@ -1,0 +1,15 @@
+{
+  "id": "pptx-fill-solid",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Set a solid fill on slide 0",
+  "ops": [
+    {
+      "op": "setShapeFill",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "fillColor": "#C00000",
+      "fillMode": "solid"
+    }
+  ]
+}

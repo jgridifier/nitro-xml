@@ -1,0 +1,13 @@
+{
+  "id": "pptx-delete-s0",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Delete the only shape on slide 0",
+  "ops": [
+    {
+      "op": "deleteShape",
+      "slideIndex": 0,
+      "elementIndex": 0
+    }
+  ]
+}

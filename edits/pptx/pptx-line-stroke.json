@@ -1,0 +1,15 @@
+{
+  "id": "pptx-line-stroke",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Set stroke colour and width on slide 0",
+  "ops": [
+    {
+      "op": "setShapeLine",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "strokeColor": "#112233",
+      "strokeWidth": 2.25
+    }
+  ]
+}

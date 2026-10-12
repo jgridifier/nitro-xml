@@ -114,7 +114,15 @@ fn scopes_for(op: &Op) -> Vec<EditScope> {
         | Op::GroupShapes { .. }
         | Op::UngroupShapes { .. }
         | Op::SetShapeFill { .. }
-        | Op::SetShapeLine { .. } => vec![EditScope::Workbook],
+        | Op::SetShapeLine { .. }
+        | Op::AcceptRevision { .. }
+        | Op::RejectRevision { .. }
+        | Op::AcceptAllRevisions
+        | Op::RejectAllRevisions
+        | Op::AddComment { .. }
+        | Op::ReplyToComment { .. }
+        | Op::ResolveComment { .. }
+        | Op::DeleteComment { .. } => vec![EditScope::Workbook],
     }
 }
 
@@ -360,7 +368,7 @@ mod tests {
                 n += 1;
             }
         }
-        assert_eq!(n, 80, "expected 80 edit scripts");
+        assert_eq!(n, 85, "expected 85 edit scripts");
     }
 
     #[test]

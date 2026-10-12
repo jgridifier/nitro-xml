@@ -1,0 +1,17 @@
+{
+  "id": "docx-add-comment-para0",
+  "format": "docx",
+  "fixture": "real-docx-poi-testComment",
+  "description": "Add model-level comment on paragraph 0 run 0",
+  "modelOnly": true,
+  "ops": [
+    {
+      "op": "addComment",
+      "blockIndex": 0,
+      "runIndex": 0,
+      "author": "Reviewer",
+      "text": "Note from edit script",
+      "id": "edit-comment-test-1"
+    }
+  ]
+}

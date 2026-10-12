@@ -1,0 +1,8 @@
+{
+  "id": "docx-reject-revision-1",
+  "format": "docx",
+  "fixture": "real-docx-poi-delins",
+  "description": "Reject tracked deletion id 1 in poi-delins",
+  "modelOnly": true,
+  "ops": [{ "op": "rejectRevision", "id": "1" }]
+}

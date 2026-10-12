@@ -7,6 +7,7 @@
 import { join } from 'node:path';
 import { applyPptxOps, loadPptxMutators } from '../edit/apply.mjs';
 import { ROOT } from '../edit/scripts.mjs';
+import { applyDocxOp } from '../edit/apply.mjs';
 import {
 	snapshotXlsx,
 	snapshotDocx,
@@ -178,91 +179,6 @@ async function runXlsx(bytes, script) {
 	};
 }
 
-function applyDocxOp(model, op) {
-	switch (op.op) {
-		case 'setParagraphText': {
-			const block = model.blocks[op.blockIndex];
-			if (!block || block.type !== 'paragraph') {
-				throw new Error(`block ${op.blockIndex} is not a paragraph`);
-			}
-			const run = { text: op.text };
-			if (op.bold !== undefined) run.bold = op.bold;
-			if (op.italic !== undefined) run.italic = op.italic;
-			if (op.fontSize !== undefined) run.fontSize = op.fontSize;
-			if (op.color !== undefined) run.color = op.color;
-			block.runs = [run];
-			return `setParagraphText ${op.blockIndex}`;
-		}
-		case 'setRunFormatting': {
-			const block = model.blocks[op.blockIndex];
-			if (!block || block.type !== 'paragraph') {
-				throw new Error(`block ${op.blockIndex} is not a paragraph`);
-			}
-			const ri = op.runIndex ?? 0;
-			const run = block.runs[ri];
-			if (!run) throw new Error(`run ${ri} missing`);
-			if (op.bold !== undefined) run.bold = op.bold;
-			if (op.italic !== undefined) run.italic = op.italic;
-			if (op.fontSize !== undefined) run.fontSize = op.fontSize;
-			if (op.color !== undefined) run.color = op.color;
-			if (op.underline !== undefined) run.underline = op.underline;
-			return `setRunFormatting ${op.blockIndex}`;
-		}
-		case 'setParagraphAlign': {
-			const block = model.blocks[op.blockIndex];
-			if (!block || block.type !== 'paragraph') {
-				throw new Error(`block ${op.blockIndex} is not a paragraph`);
-			}
-			block.align = op.align;
-			return `setParagraphAlign ${op.blockIndex}`;
-		}
-		case 'setTableCellText': {
-			const table = model.blocks[op.blockIndex];
-			if (!table || table.type !== 'table') throw new Error(`not a table`);
-			const cell = table.rows[op.row]?.[op.col];
-			if (!cell) throw new Error(`cell missing`);
-			const para = cell.paragraphs[0] || {
-				type: 'paragraph',
-				id: `p-${op.row}-${op.col}`,
-				runs: [],
-			};
-			para.runs = [{ text: op.text }];
-			cell.paragraphs[0] = para;
-			return `setTableCellText ${op.row},${op.col}`;
-		}
-		case 'insertTableRow': {
-			const table = model.blocks[op.blockIndex];
-			if (!table || table.type !== 'table') throw new Error(`not a table`);
-			const cols = table.rows[0]?.length || 1;
-			const row = Array.from({ length: cols }, (_, c) => emptyDocxCell(`r${op.at}-c${c}`));
-			table.rows.splice(op.at, 0, row);
-			return `insertTableRow ${op.at}`;
-		}
-		case 'deleteTableRow': {
-			const table = model.blocks[op.blockIndex];
-			if (!table || table.type !== 'table') throw new Error(`not a table`);
-			table.rows.splice(op.at, 1);
-			return `deleteTableRow ${op.at}`;
-		}
-		case 'insertTableColumn': {
-			const table = model.blocks[op.blockIndex];
-			if (!table || table.type !== 'table') throw new Error(`not a table`);
-			for (const [ri, row] of table.rows.entries()) {
-				row.splice(op.at, 0, emptyDocxCell(`r${ri}-c${op.at}`));
-			}
-			return `insertTableColumn ${op.at}`;
-		}
-		case 'deleteTableColumn': {
-			const table = model.blocks[op.blockIndex];
-			if (!table || table.type !== 'table') throw new Error(`not a table`);
-			for (const row of table.rows) row.splice(op.at, 1);
-			return `deleteTableColumn ${op.at}`;
-		}
-		default:
-			throw new Error(`unsupported docx op: ${op.op}`);
-	}
-}
-
 function restoreDocxModel(model, snapModel) {
 	const keys = new Set([...Object.keys(model), ...Object.keys(snapModel)]);
 	for (const k of keys) {
@@ -276,7 +192,7 @@ async function runDocx(bytes, script) {
 	const { loadDocx } = await import(`${up}/src/core/docx/parse.ts`);
 
 	const noopLoaded = await loadDocx(bytes);
-	const noopSave = await noopLoaded.save();
+	const noopSave = script.modelOnly ? new Uint8Array(0) : await noopLoaded.save();
 
 	const loaded = await loadDocx(bytes);
 	const model = loaded.model;
@@ -315,7 +231,7 @@ async function runDocx(bytes, script) {
 		push('undo', entry.label);
 	}
 	const afterUndoAll = snapshotDocx(model);
-	const undoSave = await loaded.save(model);
+	const undoSave = script.modelOnly ? new Uint8Array(0) : await loaded.save(model);
 
 	while (future.length) {
 		const entry = future.pop();
@@ -324,7 +240,7 @@ async function runDocx(bytes, script) {
 		push('redo', entry.label);
 	}
 	const afterRedoAll = snapshotDocx(model);
-	const redoSave = await loaded.save(model);
+	const redoSave = script.modelOnly ? new Uint8Array(0) : await loaded.save(model);
 
 	return {
 		checkpoints,
@@ -335,6 +251,7 @@ async function runDocx(bytes, script) {
 		undoSave,
 		redoSave,
 		noopSave,
+		modelOnly: !!script.modelOnly,
 	};
 }
 

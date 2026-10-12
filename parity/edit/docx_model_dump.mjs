@@ -20,6 +20,16 @@ function upstreamRoot() {
 	return process.env.UPSTREAM_DIR || join(ROOT, 'upstream');
 }
 
+function projectRevision(rev) {
+	if (!rev) return null;
+	return {
+		id: rev.id,
+		kind: rev.kind,
+		author: rev.author,
+		...(rev.move ? { move: rev.move } : {}),
+	};
+}
+
 function projectRun(r) {
 	return {
 		text: r.text ?? '',
@@ -28,6 +38,9 @@ function projectRun(r) {
 		underline: !!r.underline,
 		fontSize: r.fontSize ?? null,
 		color: r.color ?? null,
+		commentIds: r.commentIds ?? null,
+		revision: projectRevision(r.revision),
+		formatRevision: projectRevision(r.formatRevision),
 	};
 }
 
@@ -40,6 +53,8 @@ function projectBlock(index, b) {
 				(row || []).map((cell) => ({
 					paragraphs: (cell.paragraphs || []).map((p) => ({
 						align: p.align ?? null,
+						markRevision: projectRevision(p.markRevision),
+						formatRevision: projectRevision(p.formatRevision),
 						runs: (p.runs || []).map(projectRun),
 					})),
 				})),
@@ -50,11 +65,37 @@ function projectBlock(index, b) {
 		index,
 		type: b.type || 'paragraph',
 		align: b.align ?? null,
+		markRevision: projectRevision(b.markRevision),
+		formatRevision: projectRevision(b.formatRevision),
 		runs: (b.runs || []).map(projectRun),
 	};
 }
 
-function collectTouched(ops, out) {
+function projectComments(comments) {
+	return (comments || []).map((c) => ({
+		id: c.id ?? null,
+		author: c.author ?? null,
+		text: c.text ?? null,
+		resolved: !!c.resolved,
+		parentId: c.parentId ?? null,
+	}));
+}
+
+const REVISION_OPS = new Set([
+	'acceptRevision',
+	'rejectRevision',
+	'acceptAllRevisions',
+	'rejectAllRevisions',
+]);
+
+const COMMENT_OPS = new Set([
+	'addComment',
+	'replyToComment',
+	'resolveComment',
+	'deleteComment',
+]);
+
+function collectTouched(ops, out, blockCount) {
 	for (const op of ops) {
 		switch (op.op) {
 			case 'setParagraphText':
@@ -65,10 +106,23 @@ function collectTouched(ops, out) {
 			case 'deleteTableRow':
 			case 'insertTableColumn':
 			case 'deleteTableColumn':
+			case 'addComment':
 				out.add(op.blockIndex);
 				break;
+			case 'acceptAllRevisions':
+			case 'rejectAllRevisions':
+			case 'deleteComment':
+				for (let i = 0; i < blockCount; i++) out.add(i);
+				break;
+			case 'acceptRevision':
+			case 'rejectRevision':
+				for (let i = 0; i < blockCount; i++) out.add(i);
+				break;
+			case 'replyToComment':
+			case 'resolveComment':
+				break;
 			case 'batch':
-				collectTouched(op.ops || [], out);
+				collectTouched(op.ops || [], out, blockCount);
 				break;
 			default:
 				break;
@@ -90,15 +144,17 @@ async function main() {
 	const script = JSON.parse(readFileSync(scriptPath, 'utf8'));
 	const loaded = await loadDocx(bytes);
 	const touched = new Set();
-	collectTouched(script.ops || [], touched);
+	collectTouched(script.ops || [], touched, loaded.model.blocks.length);
 	applyDocxOps(loaded.model, script.ops);
 	const blocks = [...touched]
 		.sort((a, b) => a - b)
 		.map((i) => projectBlock(i, loaded.model.blocks[i]));
-	writeFileSync(
-		outPath,
-		JSON.stringify({ format: 'docx', blocks }, null, 0) + '\n',
-	);
+	const out = { format: 'docx', blocks };
+	const touchesComments = (script.ops || []).some((op) => COMMENT_OPS.has(op.op));
+	if (touchesComments) {
+		out.comments = projectComments(loaded.model.comments);
+	}
+	writeFileSync(outPath, JSON.stringify(out, null, 0) + '\n');
 }
 
 main().catch((e) => {

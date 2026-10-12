@@ -4,11 +4,14 @@
 //! Package XML writers land with the save path; this module owns model mutations
 //! for edit/undo parity against the TS oracle.
 
+pub mod comments;
 pub mod drawing;
 pub mod format;
 pub mod header_footer;
 pub mod host;
 pub mod numbering;
+pub mod restore_format;
+pub mod revisions;
 pub mod section;
 pub mod table;
 pub mod text;
@@ -29,6 +32,8 @@ fn register_docx_commands(registry: &mut CommandRegistry) {
     register_text_commands(registry);
     register_format_commands(registry);
     register_table_commands(registry);
+    revisions::register_revision_commands(registry);
+    comments::register_comment_commands(registry);
 }
 
 /// Replay a docx edit script; returns report + differential model snapshot.
@@ -176,6 +181,15 @@ mod tests {
         "docx-set-para-italic",
         "docx-set-para-size-color",
         "docx-text-and-format",
+    ];
+
+    /// Revisions and comments (#82).
+    const DOCX_REVISION_COMMENT_SCRIPTS: &[&str] = &[
+        "docx-accept-revision-0",
+        "docx-reject-revision-1",
+        "docx-resolve-comment-0",
+        "docx-add-comment-para0",
+        "docx-reply-comment-0",
     ];
 
     /// Table / pages10 #50 docx scripts (#79 scope).
@@ -356,6 +370,35 @@ mod tests {
     }
 
     #[test]
+    fn catches_docx_revision_comment_scripts_match_ts_model() {
+        // Catches: Rust docx revision/comment edits drifting from upstream TS (#82 / #50).
+        let mut ok = 0usize;
+        for id in DOCX_REVISION_COMMENT_SCRIPTS {
+            let path = edits_docx().join(format!("{id}.json"));
+            let script_json = fs::read_to_string(&path).unwrap();
+            let script: Value = serde_json::from_str(&script_json).unwrap();
+            let fixture_id = script["fixture"].as_str().unwrap();
+            let fixture = fixture_path(fixture_id);
+            let bytes = fs::read(&fixture).unwrap();
+            let (report, rust_snap) = replay_docx_script(&bytes, &script_json)
+                .unwrap_or_else(|e| panic!("{id} replay: {e}"));
+            assert_eq!(report.status, "ok", "{id} report={report:?}");
+            ok += 1;
+
+            if let Some(ts_snap) = ts_model_dump(&fixture, &script_json) {
+                assert_eq!(
+                    rust_snap,
+                    ts_snap,
+                    "{id} model snapshot mismatch\nrust={}\nts={}",
+                    serde_json::to_string_pretty(&rust_snap).unwrap(),
+                    serde_json::to_string_pretty(&ts_snap).unwrap()
+                );
+            }
+        }
+        assert_eq!(ok, 5, "expected 5 revision/comment docx scripts");
+    }
+
+    #[test]
     fn catches_docx_undo_parity_checkpoints_match_ts() {
         // Catches: Rust docx undo/redo drifting from TS at any do/undo/redo step (#78/#79 / #51).
         let mut local_ok = 0usize;
@@ -364,6 +407,7 @@ mod tests {
         let all: Vec<&str> = DOCX_TEXT_SCRIPTS
             .iter()
             .chain(DOCX_TABLE_SCRIPTS.iter())
+            .chain(DOCX_REVISION_COMMENT_SCRIPTS.iter())
             .copied()
             .collect();
         for id in &all {
@@ -397,10 +441,28 @@ mod tests {
             }
             ts_ok += 1;
         }
-        assert_eq!(local_ok, 22);
+        assert_eq!(local_ok, 27);
         if ts_attempts > 0 {
-            assert_eq!(ts_ok, 22, "docx TS undo-parity {ts_ok}/{ts_attempts}");
+            assert_eq!(
+                ts_ok, ts_attempts,
+                "docx TS undo-parity {ts_ok}/{ts_attempts} (revision save may skip TS)"
+            );
         }
+    }
+
+    #[test]
+    fn catches_accept_revision_unknown_id_negative_control() {
+        // Catches: acceptRevision with unknown id must error, not no-op (#82 negative).
+        let script = r#"{
+            "id": "neg-accept-revision",
+            "format": "docx",
+            "fixture": "real-docx-poi-delins",
+            "ops": [{ "op": "acceptRevision", "id": "no-such-revision" }]
+        }"#;
+        let fixture = fixture_path("real-docx-poi-delins");
+        let bytes = fs::read(&fixture).unwrap();
+        let (report, _) = replay_docx_script(&bytes, script).unwrap();
+        assert_ne!(report.status, "ok", "must not silently succeed");
     }
 
     #[test]

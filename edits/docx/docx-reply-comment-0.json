@@ -1,0 +1,15 @@
+{
+  "id": "docx-reply-comment-0",
+  "format": "docx",
+  "fixture": "real-docx-poi-testComment",
+  "description": "Reply to existing comment 0",
+  "ops": [
+    {
+      "op": "replyToComment",
+      "parentId": "0",
+      "author": "Reviewer",
+      "text": "Reply from edit script",
+      "id": "edit-reply-1"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "docx-resolve-comment-0",
+  "format": "docx",
+  "fixture": "real-docx-poi-testComment",
+  "description": "Resolve comment thread 0",
+  "ops": [{ "op": "resolveComment", "id": "0", "resolved": true }]
+}

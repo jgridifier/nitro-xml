@@ -1,0 +1,224 @@
+[
+  {
+    "id": "arrows-and-shift",
+    "ok": true,
+    "summary": "OK arrows-and-shift: text/sel match; caret ±1px",
+    "rust": {
+      "anchor": 9,
+      "caret": {
+        "h": 16,
+        "w": 1,
+        "x": 56,
+        "y": 0
+      },
+      "clipboard": "",
+      "escapedSelected": "or",
+      "focus": 7,
+      "parsedClipboardRows": [],
+      "selected": "or",
+      "selectionRects": [
+        {
+          "h": 16,
+          "w": 16,
+          "x": 56,
+          "y": 0
+        }
+      ],
+      "text": "hello world"
+    },
+    "ts": {
+      "text": "hello world",
+      "anchor": 9,
+      "focus": 7,
+      "selected": "or",
+      "clipboard": "",
+      "caret": {
+        "x": 56,
+        "y": 0,
+        "w": 1,
+        "h": 16
+      }
+    }
+  },
+  {
+    "id": "mod-word-left",
+    "ok": true,
+    "summary": "OK mod-word-left: text/sel match; caret ±1px",
+    "rust": {
+      "anchor": 6,
+      "caret": {
+        "h": 16,
+        "w": 1,
+        "x": 48,
+        "y": 0
+      },
+      "clipboard": "",
+      "escapedSelected": "",
+      "focus": 6,
+      "parsedClipboardRows": [],
+      "selected": "",
+      "selectionRects": [],
+      "text": "hello world"
+    },
+    "ts": {
+      "text": "hello world",
+      "anchor": 6,
+      "focus": 6,
+      "selected": "",
+      "clipboard": "",
+      "caret": {
+        "x": 48,
+        "y": 0,
+        "w": 1,
+        "h": 16
+      }
+    }
+  },
+  {
+    "id": "home-end",
+    "ok": true,
+    "summary": "OK home-end: text/sel match; caret ±1px",
+    "rust": {
+      "anchor": 0,
+      "caret": {
+        "h": 16,
+        "w": 1,
+        "x": 24,
+        "y": 0
+      },
+      "clipboard": "",
+      "escapedSelected": "abc",
+      "focus": 3,
+      "parsedClipboardRows": [],
+      "selected": "abc",
+      "selectionRects": [
+        {
+          "h": 16,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        }
+      ],
+      "text": "abc"
+    },
+    "ts": {
+      "text": "abc",
+      "anchor": 0,
+      "focus": 3,
+      "selected": "abc",
+      "clipboard": "",
+      "caret": {
+        "x": 24,
+        "y": 0,
+        "w": 1,
+        "h": 16
+      }
+    }
+  },
+  {
+    "id": "pointer-click",
+    "ok": true,
+    "summary": "OK pointer-click: text/sel match; caret ±1px",
+    "rust": {
+      "anchor": 2,
+      "caret": {
+        "h": 16,
+        "w": 1,
+        "x": 16,
+        "y": 0
+      },
+      "clipboard": "",
+      "escapedSelected": "",
+      "focus": 2,
+      "parsedClipboardRows": [],
+      "selected": "",
+      "selectionRects": [],
+      "text": "abcdef"
+    },
+    "ts": {
+      "text": "abcdef",
+      "anchor": 2,
+      "focus": 2,
+      "selected": "",
+      "clipboard": "",
+      "caret": {
+        "x": 16,
+        "y": 0,
+        "w": 1,
+        "h": 16
+      }
+    }
+  },
+  {
+    "id": "cut-paste",
+    "ok": true,
+    "summary": "OK cut-paste: text/sel match; caret ±1px",
+    "rust": {
+      "anchor": 4,
+      "caret": {
+        "h": 16,
+        "w": 1,
+        "x": 32,
+        "y": 0
+      },
+      "clipboard": "bcd",
+      "escapedSelected": "",
+      "focus": 4,
+      "parsedClipboardRows": [
+        [
+          "bcd"
+        ]
+      ],
+      "selected": "",
+      "selectionRects": [],
+      "text": "aXYZef"
+    },
+    "ts": {
+      "text": "aXYZef",
+      "anchor": 4,
+      "focus": 4,
+      "selected": "",
+      "clipboard": "bcd",
+      "caret": {
+        "x": 32,
+        "y": 0,
+        "w": 1,
+        "h": 16
+      }
+    }
+  },
+  {
+    "id": "negative-readonly-noop",
+    "ok": true,
+    "summary": "OK negative-readonly-noop: text/sel match; caret ±1px",
+    "rust": {
+      "anchor": 2,
+      "caret": {
+        "h": 16,
+        "w": 1,
+        "x": 16,
+        "y": 0
+      },
+      "clipboard": "",
+      "escapedSelected": "",
+      "focus": 2,
+      "parsedClipboardRows": [],
+      "selected": "",
+      "selectionRects": [],
+      "text": "stay"
+    },
+    "ts": {
+      "text": "stay",
+      "anchor": 2,
+      "focus": 2,
+      "selected": "",
+      "clipboard": "",
+      "caret": {
+        "x": 16,
+        "y": 0,
+        "w": 1,
+        "h": 16
+      }
+    }
+  }
+]

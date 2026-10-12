@@ -162,8 +162,8 @@ pub fn dialog_html(open: &OpenDialog) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::focus::{FocusRestore, FocusStack};
+    use super::*;
 
     #[test]
     fn catches_non_dismissible_ignores_escape_and_backdrop() {

@@ -28,7 +28,8 @@ use nitro_xml_opc::edit::{
 };
 use serde_json::Value;
 
-fn register_docx_commands(registry: &mut CommandRegistry) {
+/// All script + model mutation commands for [`DocxHost`].
+pub fn register_docx_command_registry(registry: &mut CommandRegistry) {
     register_text_commands(registry);
     register_format_commands(registry);
     register_table_commands(registry);
@@ -59,7 +60,7 @@ pub fn replay_docx_session(
     }
     let host = DocxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
     let mut registry = CommandRegistry::with_schema_stubs();
-    register_docx_commands(&mut registry);
+    register_docx_command_registry(&mut registry);
     let mut session = EditSession::new(host, EditHistory::new());
     let mut report = replay_script(&script, &registry, &mut session);
     report.history_commits = session.history.committed().len();
@@ -77,7 +78,7 @@ pub fn undo_parity_checkpoints(bytes: &[u8], script_json: &str) -> Result<Vec<Va
 
     let host = DocxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
     let mut registry = CommandRegistry::with_schema_stubs();
-    register_docx_commands(&mut registry);
+    register_docx_command_registry(&mut registry);
     let mut session = EditSession::new(host, EditHistory::new());
 
     let mut checkpoints = Vec::new();

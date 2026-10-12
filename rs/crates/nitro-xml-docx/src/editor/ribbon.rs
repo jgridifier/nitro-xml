@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: MIT
+//! Word Home ribbon HTML and stable control ids (#83).
+
+use super::commands::DocxCommandSurface;
+
+fn esc(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+fn button(id: &str, label: &str, surface: &DocxCommandSurface, large: bool) -> String {
+    let enabled = surface.is_enabled(id);
+    let cls = if large {
+        "dve-ribbon-large"
+    } else {
+        "dve-ribbon-inline"
+    };
+    format!(
+        "<button type=\"button\" class=\"{cls}\" data-command=\"{id}\" aria-label=\"{lbl}\"{dis}>{lbl}</button>",
+        cls = cls,
+        id = esc(id),
+        lbl = esc(label),
+        dis = if enabled { "" } else { " disabled" },
+    )
+}
+
+/// Home tab ribbon markup (subset of upstream Word Home: Clipboard, Font, Editing).
+pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
+    let tab = esc(active_tab);
+    let mut html = String::from("<nav class=\"dve-ribbon\" aria-label=\"Ribbon\">");
+    html.push_str(&format!(
+        "<div class=\"dve-ribbon-tabs\" role=\"tablist\"><button type=\"button\" role=\"tab\" aria-selected=\"{}\" data-tab=\"home\">Home</button></div>",
+        active_tab == "home"
+    ));
+    if active_tab == "home" {
+        html.push_str("<div class=\"dve-ribbon-panel\" role=\"tabpanel\" data-tab=\"home\">");
+        html.push_str("<section class=\"dve-ribbon-group\" aria-label=\"Clipboard\">");
+        html.push_str(&button("paste", "Paste", surface, true));
+        html.push_str(&button("cut", "Cut", surface, false));
+        html.push_str(&button("copy", "Copy", surface, false));
+        html.push_str("</section>");
+        html.push_str("<section class=\"dve-ribbon-group\" aria-label=\"Font\">");
+        html.push_str(&button("bold", "Bold", surface, false));
+        html.push_str(&button("italic", "Italic", surface, false));
+        html.push_str(&button("underline", "Underline", surface, false));
+        html.push_str("</section>");
+        html.push_str("<section class=\"dve-ribbon-group\" aria-label=\"Editing\">");
+        html.push_str(&button("find-and-replace", "Find", surface, false));
+        html.push_str(&button("replace", "Replace", surface, false));
+        html.push_str("</section>");
+        html.push_str("</div>");
+    }
+    html.push_str("</nav>");
+    let _ = tab;
+    html
+}
+
+/// Search panel HTML shown under the ribbon when find/replace is open.
+pub fn search_panel_html(surface: &DocxCommandSurface) -> String {
+    if !surface.search_panel_open {
+        return String::new();
+    }
+    let st = surface.search.status();
+    format!(
+        r#"<section class="dve-search-panel" role="region" aria-label="Find and replace">
+<label>Find<input type="search" name="find" aria-label="Find text" /></label>
+<label>Replace<input type="text" name="replace" aria-label="Replace with" /></label>
+<span role="status">{count} matches</span>
+<button type="button" data-command="search.findPrevious" aria-label="Find previous">Previous</button>
+<button type="button" data-command="search.findNext" aria-label="Find next">Next</button>
+<button type="button" data-command="search.replaceOne" aria-label="Replace"{dis1}>Replace</button>
+<button type="button" data-command="search.replaceAll" aria-label="Replace all"{dis2}>Replace all</button>
+</section>"#,
+        count = st.count,
+        dis1 = if st.read_only { " disabled" } else { "" },
+        dis2 = if st.read_only { " disabled" } else { "" },
+    )
+}

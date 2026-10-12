@@ -28,6 +28,7 @@ mod default_styles;
 mod drawing;
 pub mod dump;
 pub mod edit;
+pub mod editor;
 mod equation;
 mod field_runs;
 mod fields;
@@ -86,6 +87,7 @@ pub use table_styles::parse_table_style_catalog;
 pub use theme::{diagram_color_theme, parse_color_scheme_mapping, parse_theme};
 
 pub mod render;
+pub use editor::DocxEditor;
 pub use layout::{
     apply_uax9_result, create_fake_measurer, layout_document, layout_document_model,
     layout_document_model_cached, layout_until_measured, measure_font_css, relayout_incremental,

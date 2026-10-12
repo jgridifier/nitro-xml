@@ -88,9 +88,10 @@ pub use theme::{diagram_color_theme, parse_color_scheme_mapping, parse_theme};
 pub mod render;
 pub use layout::{
     apply_uax9_result, create_fake_measurer, layout_document, layout_document_model,
-    layout_document_model_cached, layout_until_measured, measure_font_css,
-    reorder_line_fragments_uax9, CachedLayout, CachedMeasurer, LayoutResult, LayoutSession,
-    MeasureCache, MeasureKey, MeasureSample, PendingKind, PendingMeasure, TickStatus,
+    layout_document_model_cached, layout_until_measured, measure_font_css, relayout_incremental,
+    relayout_incremental_model, reorder_line_fragments_uax9, CachedLayout, CachedMeasurer,
+    DirtyHint, LayoutResult, LayoutSession, MeasureCache, MeasureKey, MeasureSample, PendingKind,
+    PendingMeasure, TickStatus,
 };
 pub use render::{
     line_numbering_from_section, page_borders_from_section, paint_print_layout,

@@ -34,27 +34,63 @@ impl SectionFlow {
         continue_at: Option<f64>,
         balance: Option<BalanceHint>,
     ) -> Self {
+        Self::new_from_block(
+            section,
+            pages,
+            section_index,
+            _exclusions,
+            continue_at,
+            balance,
+            0,
+            false,
+        )
+    }
+
+    pub(crate) fn new_from_block(
+        section: LayoutSectionSerde,
+        pages: Vec<LayoutPageBox>,
+        section_index: usize,
+        _exclusions: Option<HashMap<usize, Vec<Exclusion>>>,
+        continue_at: Option<f64>,
+        balance: Option<BalanceHint>,
+        start_block_index: usize,
+        resume_same_section: bool,
+    ) -> Self {
         let blocks = section.blocks.iter().map(parse_block).collect();
-        Self {
-            cursor: PageCursor::new(
+        let columns = section.columns.unwrap_or(super::input::LayoutColumns {
+            count: 1,
+            gap_px: 0.0,
+            separator: None,
+            widths: None,
+        });
+        let cursor = if continue_at.is_some() {
+            PageCursor::new(
                 pages,
-                section.page,
-                section.columns.unwrap_or(super::input::LayoutColumns {
-                    count: 1,
-                    gap_px: 0.0,
-                    separator: None,
-                    widths: None,
-                }),
+                section.page.clone(),
+                columns.clone(),
                 section_index,
                 continue_at,
                 balance,
-            ),
+            )
+        } else if resume_same_section && !pages.is_empty() {
+            PageCursor::resume_on_existing(
+                pages,
+                section.page.clone(),
+                columns,
+                section_index,
+                balance,
+            )
+        } else {
+            PageCursor::new(pages, section.page, columns, section_index, None, balance)
+        };
+        Self {
+            cursor,
             balance_valid: true,
             balanced: false,
             blocks,
             paragraph_cache: HashMap::new(),
             first_row_height_cache: HashMap::new(),
-            block_index: 0,
+            block_index: start_block_index,
         }
     }
 

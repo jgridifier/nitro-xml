@@ -106,6 +106,95 @@ pub fn dump_docx_layout(bytes: &[u8]) -> Result<String, String> {
     Ok(serde_json::to_string(&out).unwrap())
 }
 
+/// Apply an edit script, then dump layout IR via incremental relayout (#81).
+///
+/// Asserts incremental ≡ full before emitting JSON (same shape as [`dump_docx_layout`]).
+pub fn dump_docx_layout_after_edit(bytes: &[u8], script_json: &str) -> Result<String, String> {
+    use crate::body::DocumentModel;
+    use crate::edit::host::DocxHost;
+    use crate::edit::replay_docx_session;
+    use crate::layout::{relayout_incremental_model, DirtyHint};
+
+    let (_report, session) = replay_docx_session(bytes, script_json).map_err(|e| e.to_string())?;
+    let host = &session.host;
+    let model = DocumentModel {
+        format: host.format.clone(),
+        blocks: host.blocks.clone(),
+        page: host.page.clone().unwrap_or(json!({})),
+        warnings: Vec::new(),
+        paragraph_styles: host.paragraph_styles.clone(),
+        character_styles: host.character_styles.clone(),
+        table_styles: None,
+        numbering_catalog: host.numbering_catalog.clone(),
+        theme: None,
+        sections: host
+            .sections
+            .as_ref()
+            .and_then(|v| serde_json::from_value(v.clone()).ok()),
+        footnotes: None,
+        endnotes: None,
+        footnote_num_fmt: None,
+        endnote_num_fmt: None,
+        even_and_odd_headers: host.even_and_odd_headers,
+        auto_hyphenation: false,
+        comments: None,
+        track_changes: None,
+        track_formatting: None,
+        track_moves: None,
+        media_part_names: Vec::new(),
+    };
+    let measurer = create_fake_measurer();
+    let opts = LayoutReviewOptions::default();
+    let prev = {
+        let base = DocxHost::open(bytes).map_err(|e| e.to_string())?;
+        let base_model = DocumentModel {
+            format: base.format.clone(),
+            blocks: base.blocks.clone(),
+            page: base.page.clone().unwrap_or(json!({})),
+            warnings: Vec::new(),
+            paragraph_styles: base.paragraph_styles.clone(),
+            character_styles: base.character_styles.clone(),
+            table_styles: None,
+            numbering_catalog: base.numbering_catalog.clone(),
+            theme: None,
+            sections: base
+                .sections
+                .as_ref()
+                .and_then(|v| serde_json::from_value(v.clone()).ok()),
+            footnotes: None,
+            endnotes: None,
+            footnote_num_fmt: None,
+            endnote_num_fmt: None,
+            even_and_odd_headers: base.even_and_odd_headers,
+            auto_hyphenation: false,
+            comments: None,
+            track_changes: None,
+            track_formatting: None,
+            track_moves: None,
+            media_part_names: Vec::new(),
+        };
+        layout_document_model(&base_model, &measurer, opts.clone())
+    };
+    let dirty = DirtyHint::from_host(host);
+    let full = layout_document_model(&model, &measurer, opts.clone());
+    let mut inc = relayout_incremental_model(&prev, &model, &measurer, dirty, opts);
+    let full_json = serde_json::to_value(&full.pages).map_err(|e| e.to_string())?;
+    let inc_json = serde_json::to_value(&inc.pages).map_err(|e| e.to_string())?;
+    if full_json != inc_json {
+        return Err("incremental layout IR diverges from full after edit".into());
+    }
+    crate::layout::strip_layout_ir_chart_part_names(&mut inc);
+    let mut approximations = inc.approximations;
+    approximations.sort();
+    let _ = full;
+    let out = serde_json::json!({
+        "format": "docx",
+        "pages": inc.pages,
+        "approximations": approximations,
+    });
+    Ok(serde_json::to_string(&out).unwrap())
+}
+
 /// One measured layout pass. `cache_json` is a map of measure keys to
 /// `{width, lineHeight?, ascent?}`. Pending probes are emitted when the cache
 /// cannot yet answer every call.

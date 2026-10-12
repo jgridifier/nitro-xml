@@ -65,7 +65,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f parity/undo/out/gate-summary.txt ];
     echo '```'
     cat parity/undo/out/gate-summary.txt
     echo "Rust xlsx vs TS: exit $rust_xlsx_rc (22/22 expected when green)"
-    echo "Rust docx vs TS: exit $rust_docx_rc (14/14 text+format scripts; tables #79)"
+    echo "Rust docx vs TS: exit $rust_docx_rc (22/22 text+format+table scripts)"
     echo "Rust pptx: unsupported"
     echo '```'
   } >> "$GITHUB_STEP_SUMMARY"

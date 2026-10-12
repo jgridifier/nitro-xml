@@ -60,6 +60,11 @@ function collectTouched(ops, out) {
 			case 'setParagraphText':
 			case 'setRunFormatting':
 			case 'setParagraphAlign':
+			case 'setTableCellText':
+			case 'insertTableRow':
+			case 'deleteTableRow':
+			case 'insertTableColumn':
+			case 'deleteTableColumn':
 				out.add(op.blockIndex);
 				break;
 			case 'batch':

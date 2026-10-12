@@ -125,6 +125,9 @@ mod tests {
             numbering_catalog: None,
             paragraph_styles: None,
             character_styles: None,
+            sections: None,
+            page: None,
+            even_and_odd_headers: false,
             touched: Default::default(),
         };
         toggle_bullet_list(&mut host, 0).unwrap();

@@ -12,7 +12,7 @@ use serde_json::{json, Map, Value};
 
 use crate::body::read_package;
 
-/// In-memory docx document the text/format/numbering runners mutate.
+/// In-memory docx document the text/format/table/section runners mutate.
 #[derive(Debug, Clone)]
 pub struct DocxHost {
     pub format: String,
@@ -20,6 +20,10 @@ pub struct DocxHost {
     pub numbering_catalog: Option<Value>,
     pub paragraph_styles: Option<Value>,
     pub character_styles: Option<Value>,
+    /// Section properties including header/footer stories (#79).
+    pub sections: Option<Value>,
+    pub page: Option<Value>,
+    pub even_and_odd_headers: bool,
     /// Block indices touched this session (for differential dumps).
     pub touched: BTreeSet<usize>,
 }
@@ -34,6 +38,9 @@ impl DocxHost {
             numbering_catalog: m.numbering_catalog.clone(),
             paragraph_styles: m.paragraph_styles.clone(),
             character_styles: m.character_styles.clone(),
+            sections: m.sections.as_ref().map(|s| json!(s)),
+            page: Some(m.page.clone()),
+            even_and_odd_headers: m.even_and_odd_headers,
             touched: BTreeSet::new(),
         })
     }
@@ -62,6 +69,18 @@ impl DocxHost {
         let ty = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
         if ty != "paragraph" {
             return Err(format!("block {block_index} is not a paragraph (got {ty})"));
+        }
+        Ok(block)
+    }
+
+    pub fn table_mut(&mut self, block_index: usize) -> Result<&mut Value, String> {
+        let block = self
+            .blocks
+            .get_mut(block_index)
+            .ok_or_else(|| format!("block {block_index} missing"))?;
+        let ty = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        if ty != "table" {
+            return Err(format!("block {block_index} is not a table (got {ty})"));
         }
         Ok(block)
     }
@@ -95,6 +114,9 @@ impl DocxHost {
             "numberingCatalog": self.numbering_catalog,
             "paragraphStyles": self.paragraph_styles,
             "characterStyles": self.character_styles,
+            "sections": self.sections,
+            "page": self.page,
+            "evenAndOddHeaders": self.even_and_odd_headers,
             "touched": self.touched.iter().copied().collect::<Vec<_>>(),
         })
     }
@@ -113,6 +135,12 @@ impl DocxHost {
         self.numbering_catalog = v.get("numberingCatalog").cloned().filter(|x| !x.is_null());
         self.paragraph_styles = v.get("paragraphStyles").cloned().filter(|x| !x.is_null());
         self.character_styles = v.get("characterStyles").cloned().filter(|x| !x.is_null());
+        self.sections = v.get("sections").cloned().filter(|x| !x.is_null());
+        self.page = v.get("page").cloned().filter(|x| !x.is_null());
+        self.even_and_odd_headers = v
+            .get("evenAndOddHeaders")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
         self.touched.clear();
         if let Some(arr) = v.get("touched").and_then(|x| x.as_array()) {
             for x in arr {

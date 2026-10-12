@@ -118,7 +118,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/auto_number.rs` | `auto-number-format.ts`, `auto-number-scripts.ts` @ e66aaec | Auto-number bullet markers (#26). |
 | `rs/crates/nitro-xml-pptx/src/level_style.rs` | `PptxHandlerRuntimePlaceholderStyles.ts`, `PptxHandlerRuntimeMasterElements.ts` @ e66aaec | Master/layout list-style bullets (#26). |
 | `rs/crates/nitro-xml-pptx/src/placeholder_defaults.rs` | `PptxHandlerRuntimePlaceholderLookup.ts`, `PptxHandlerRuntimePlaceholderDefaults.ts` @ e66aaec | Placeholder level-style lookup (#26). |
-| `rs/crates/nitro-xml-pptx/src/table.rs` | `PptxGraphicFrameParser.ts` @ e66aaec | Table graphic frame row count (#26). |
+| `rs/crates/nitro-xml-pptx/src/table.rs` | `PptxGraphicFrameParser.ts`, `core/builders/PptxTableDataParser.ts`, `render/table-style-fill.ts` @ e66aaec | Table graphic frame row count (#26). Cell text, spans, grid widths, row heights, solid fills, and Medium Style 2 - Accent 1 whole-table tint (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/stage.rs` | `src/ui/src/pptx/dom/slide-stage.ts`, `src/ui/src/pptx/render/slide-background.ts` @ e66aaec | P1 stage + z-order; resolved solid/linear/blip slide background (`background-image:url(...)`) (#27); reading-surface `role`/`aria-roledescription`/`aria-label` (#42). Selection outline call (#43) is original. |
 | `rs/crates/nitro-xml-pptx/src/render/shape.rs` | `dom/elements/text-shape.ts` @ e66aaec | P2 shape fill (`background-color` / `background-image`) and stroke border (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/text.rs` | `dom/elements/text-block.ts` @ e66aaec | P3 text body; run colour and `a:sz` font size, Calibri fallback (#27). |
@@ -128,7 +128,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/render/ole.rs` | `dom/elements/ole.ts` @ e66aaec | P15 OLE preview `<img>` when `previewImageData` resolved; otherwise the `[OLE]` stub (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/group.rs` | `dom/elements/group.ts` @ e66aaec | P6 group (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/connector.rs` | `dom/elements/connector.ts` @ e66aaec | P7 connector SVG stub (#27). |
-| `rs/crates/nitro-xml-pptx/src/render/table.rs` | `dom/elements/table.ts` @ e66aaec | P8 table stub (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/table.rs` | `dom/elements/table.ts` @ e66aaec | P8 HTML table: colgroup percentages, skip `hMerge`/`vMerge`, cell text, fill, and border (#27). |
 | `rs/crates/nitro-xml-docx/src/body.rs` | `src/core/docx/parse.ts`, `block-parser.ts`, `document-parts.ts` @ e66aaec | `read_package`, block container parse, document parts orchestration; no save path. |
 | `rs/crates/nitro-xml-docx/src/run.rs` | `src/core/docx/block-parser.ts` (`parseRun`) @ e66aaec | Run parse for body/HF/notes. |
 | `rs/crates/nitro-xml-docx/src/table.rs` | `src/core/docx/parse-table.ts`, `write-table.ts` (`canEditTableStructure`) @ e66aaec | Table/cell parse and structureEditable. |

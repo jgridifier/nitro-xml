@@ -26,7 +26,7 @@ use crate::level_style::{
     level_style_for, LevelStylesMap, MasterTxStyles, PlaceholderTextLevelStyle,
 };
 use crate::placeholder_defaults::PlaceholderDefaultsCache;
-use crate::table::table_row_count;
+use crate::table::{parse_table_model, table_row_count};
 use crate::text::{
     extract_element_text, placeholder_is_body_type, text_body_has_renderable_content,
     TextExtractContext,
@@ -84,6 +84,9 @@ pub struct DumpElement {
     pub shape_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub table_row_count: Option<usize>,
+    /// Parsed `a:tbl` cells. Not part of the issue-24 dump.
+    #[serde(skip)]
+    pub(crate) table_data: Option<crate::table::TableData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<DumpElement>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1036,7 +1039,7 @@ fn scale_element_subtree(el: &mut DumpElement, scale_x: f64, scale_y: f64) {
     }
 }
 
-fn parse_graphic_frame(frame: &Element, id: String, _ctx: &ParseCtx) -> Option<DumpElement> {
+fn parse_graphic_frame(frame: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElement> {
     let nv_pr = child_path(frame, &[("nvGraphicFramePr", ns::P), ("nvPr", ns::P)]);
     let ph_info = extract_placeholder_info(nv_pr);
     let xfrm = child_local(frame, "xfrm", ns::P).or_else(|| child_local(frame, "xfrm", ns::A));
@@ -1083,7 +1086,7 @@ fn parse_graphic_frame(frame: &Element, id: String, _ctx: &ParseCtx) -> Option<D
     if let Some(table) = child_local(graphic, "tbl", ns::A) {
         let (w, h) = table_grid_pixel_extent(table).unwrap_or((w, h));
         let rows = table_row_count(table);
-        return build_dump(
+        let mut el = build_dump(
             "table",
             id,
             c_nv_pr,
@@ -1106,7 +1109,9 @@ fn parse_graphic_frame(frame: &Element, id: String, _ctx: &ParseCtx) -> Option<D
             None,
             false,
             PaintExtras::default(),
-        );
+        )?;
+        el.table_data = Some(parse_table_model(table, ctx.theme_colors, ctx.color_map));
+        return Some(el);
     }
     if graphic_is_chart(graphic) {
         let extras = PaintExtras {
@@ -1553,6 +1558,7 @@ fn build_dump(
         text,
         shape_type,
         table_row_count,
+        table_data: None,
         children: match children {
             None => None,
             Some(c) if c.is_empty() => {

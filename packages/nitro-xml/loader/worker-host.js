@@ -94,6 +94,36 @@ return this._request("editor-chrome", () => {
 this._worker.postMessage({ type: "editor-chrome" });
 });
 }
+async editorKey(ev, mac) {
+const msg = await this._request("editor-key", () => {
+this._worker.postMessage({
+type: "editor-key",
+key: ev.key || "",
+ctrl: !!ev.ctrlKey,
+meta: !!ev.metaKey,
+alt: !!ev.altKey,
+shift: !!ev.shiftKey,
+mac: !!mac,
+});
+});
+try {
+return JSON.parse(msg.result || "{}");
+} catch {
+return {};
+}
+}
+async save() {
+const msg = await this._request("saved", () => {
+this._worker.postMessage({ type: "save" });
+});
+return msg.bytes;
+}
+async applyEdit(spec) {
+const msg = await this._request("apply-edit", () => {
+this._worker.postMessage({ type: "apply-edit", spec: spec || "" });
+});
+return msg.result;
+}
 async matchShortcut(ev, mac) {
 const msg = await this._request("match-shortcut", () => {
 this._worker.postMessage({
@@ -151,6 +181,7 @@ this._worker.postMessage({ type: "measure-results", widths }, [widths.buffer]);
 const drawCtx =
 this._canvas && this._canvas.getContext ? this._canvas.getContext("2d") : null;
 const resolve = (id) => (strings && strings[id]) || "";
+if (frame.h && this.onChrome) this.onChrome(frame.h);
 const result = applyCommandBuffer(commands, {
 canvas: drawCtx,
 root: this._root,

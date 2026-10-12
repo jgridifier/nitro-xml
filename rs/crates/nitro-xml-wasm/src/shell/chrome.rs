@@ -29,9 +29,10 @@ const PPTX_NAV: &str = "|ArrowRight:nav-next|ArrowLeft:nav-prev|PageDown:nav-nex
 /// and any open dialog/menu overlay (#54).
 pub fn combined_chrome_html(state: &ShellState, editor: &EditorChrome) -> String {
     let ribbon = editor.ribbon_html();
+    let formula = editor.formula_html();
     let overlay = editor.overlay_html();
     let shell = chrome_html(state);
-    format!("{ribbon}{shell}{overlay}")
+    format!("{ribbon}{formula}{shell}{overlay}")
 }
 
 /// Full chrome fragment (toolbar, find, tabs, diagnostics) for the loader host.

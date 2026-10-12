@@ -653,4 +653,21 @@ mod tests {
         chrome.set_read_only(true);
         assert!(ribbon_html(&chrome).is_empty());
     }
+
+    #[test]
+    fn formula_bar_cleared_when_readonly() {
+        // Catches: readonly chrome must not keep formula-bar HTML after leaving edit mode.
+        let mut chrome = EditorChrome::new();
+        chrome.load();
+        chrome.set_read_only(false);
+        chrome.set_formula_html("<div class=\"xfb\"></div>".into());
+        assert!(chrome.formula_html().contains("xfb"));
+        chrome.set_read_only(true);
+        assert!(
+            chrome.formula_html().is_empty(),
+            "readonly must drop the formula bar"
+        );
+        chrome.set_formula_html("<div class=\"xfb\"></div>".into());
+        assert!(chrome.formula_html().is_empty());
+    }
 }

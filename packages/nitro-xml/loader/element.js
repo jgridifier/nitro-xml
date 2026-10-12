@@ -70,6 +70,9 @@ export class ViewerElement extends HTMLElement {
     // Assign _d after open (#27).
     const ro = this._readonly !== false;
     const d = new WD({ canvas: this._c, root: this._r, name: n });
+    d.onChrome = (h) => {
+      if (this._ch && h) this._ch.innerHTML = h;
+    };
     if (!ro) await loadEditorModule();
     await d.open(b, n, { readonly: ro });
     this._d = d;
@@ -320,28 +323,85 @@ export class ShellViewerElement extends ViewerElement {
       let k = (m ? "m" : "") + e.key;
       if (q && e.key == "Enter") k = e.shiftKey ? "qSEnter" : "qEnter";
       else if (q && e.key == "Escape") k = "qEscape";
-      for (const p of ((ch.firstElementChild && ch.firstElementChild.dataset.hk) || "").split("|")) {
+      const hkRoot = (ch.querySelector && ch.querySelector("[data-hk]")) || ch.firstElementChild;
+      for (const p of ((hkRoot && hkRoot.dataset.hk) || "").split("|")) {
         const i = p.indexOf(":");
         if (p.slice(0, i) === k) {
           e.preventDefault();
           return g(p.slice(i + 1));
         }
       }
+      const path = e.composedPath ? e.composedPath() : [];
+      const inFind = path.some((n) => n.classList && n.classList.contains("q"));
       if (!this._readonly && (e.ctrlKey || e.metaKey || e.altKey)) {
         void this._d.matchShortcut(e, mac).then((hit) => {
-          if (!hit || (!hit.command && !hit.action)) return;
+          if (hit && (hit.command || hit.action)) {
+            e.preventDefault();
+            if (hit.command) g("cmd", hit.command);
+            else if (hit.action === "help") g("diagnostics-toggle");
+            return;
+          }
+          if (!inFind && this._d.editorKey) {
+            return this._d.editorKey(e, mac).then((edit) => {
+              if (!edit || !edit.handled) return;
+              e.preventDefault();
+              if (edit.h != null && this._ch) this._ch.innerHTML = edit.h;
+              this._tick();
+            });
+          }
+        });
+        return;
+      }
+      if (!this._readonly && !inFind && this._d.editorKey) {
+        void this._d.editorKey(e, mac).then((hit) => {
+          if (!hit || !hit.handled) return;
           e.preventDefault();
-          if (hit.command) g("cmd", hit.command);
-          else if (hit.action === "help") g("diagnostics-toggle");
+          if (hit.h != null && this._ch) this._ch.innerHTML = hit.h;
+          this._tick();
         });
       }
     };
+  }
+  _fileName() {
+    const src = this.getAttribute("src") || "";
+    const base = src.split("?")[0].split("#")[0].split("/").pop();
+    return base || "workbook.xlsx";
+  }
+  _downloadBytes(bytes, name) {
+    if (typeof document === "undefined" || !document.createElement) return bytes;
+    const blob = new Blob([bytes], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const a = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = name || this._fileName();
+    a.click();
+    URL.revokeObjectURL(url);
+    return bytes;
+  }
+  /** Edited package bytes. Throws while `readonly` is set. */
+  async save() {
+    if (this._readonly) throw new Error("read-only");
+    if (!this._d || !this._d.save) throw new Error("no document");
+    return this._d.save();
+  }
+  /** Save and start a browser download of the edited workbook. */
+  async download(name) {
+    const bytes = await this.save();
+    this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: true }));
+    return this._downloadBytes(bytes, name || this._fileName());
   }
   /** Apply Rust chrome + side effects. Short keys: `h` html, `c` copy, `p` hyperlink. */
   async shellAction(op, arg = "") {
     if (!this._d) return null;
     const r = await this._d.shellAction(op, arg);
     if (this._ch && r.h != null) this._ch.innerHTML = r.h;
+    if (r.save && !this._readonly && this._d && this._d.save) {
+      const bytes = await this._d.save();
+      this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: true }));
+      this._downloadBytes(bytes, this._fileName());
+    }
     if (r.c != null) {
       navigator.clipboard && navigator.clipboard.writeText && navigator.clipboard.writeText(r.c);
       this.dispatchEvent(new CustomEvent("nitro-copy", { detail: r.c, bubbles: !0 }));

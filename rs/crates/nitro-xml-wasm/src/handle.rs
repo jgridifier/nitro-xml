@@ -16,6 +16,7 @@ use crate::shell::{
 };
 use crate::transport::StringTable;
 use crate::xlsx::{is_xlsx_extension, search_options_from_json, XlsxState};
+use crate::xlsx_edit::{editor_key_json, EditorKeyEffect};
 
 fn process_frame(handle: &mut Handle) {
     if handle.xlsx.is_some() {
@@ -188,6 +189,12 @@ impl Handle {
     #[wasm_bindgen(js_name = setReadOnly)]
     pub fn set_read_only(&mut self, read_only: bool) {
         self.editor.set_read_only(read_only);
+        if !read_only {
+            if let Some(xlsx) = self.xlsx.as_mut() {
+                let _ = xlsx.ensure_edit(&self.bytes);
+            }
+        }
+        self.refresh_formula_bar();
         self.shell.dirty_ui = true;
     }
 
@@ -461,23 +468,22 @@ impl Handle {
     /// loader apply path tiny; long keys remain for harnesses. Op `ui` is snapshot-only.
     #[wasm_bindgen(js_name = shellAction)]
     pub fn shell_action(&mut self, op: &str, arg: &str) -> Result<String, JsValue> {
+        if matches!(
+            op,
+            "formula-cancel"
+                | "formula-commit"
+                | "formula-fx"
+                | "formula-expand"
+                | "formula-focus"
+                | "save"
+        ) {
+            return self.editor_chrome_op(op);
+        }
         if op == "cmd" {
-            let host: &mut dyn std::any::Any = &mut ();
-            let _ran = self.editor.dispatch_command(arg, host);
-            let ui = ShellUi::to_json(&self.shell, &self.editor);
-            let h = ui
-                .get("chromeHtml")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let out = serde_json::json!({
-                "h": h,
-                "ui": ui,
-                "ribbonAction": self.editor.commands.last_ribbon_action,
-            });
-            return Ok(out.to_string());
+            return self.dispatch_chrome_command(arg);
         }
         if op == "ui" || op.is_empty() {
+            self.refresh_formula_bar();
             let ui = ShellUi::to_json(&self.shell, &self.editor);
             let h = ui
                 .get("chromeHtml")
@@ -610,6 +616,7 @@ impl Handle {
             }
             serde_json::Value::Object(m)
         });
+        self.refresh_formula_bar();
         let ui = ShellUi::to_json(&self.shell, &self.editor);
         let h = ui
             .get("chromeHtml")
@@ -940,14 +947,232 @@ impl Handle {
         self.events.len()
     }
 
+    /// Chrome HTML when the shell UI changed (formula bar follows the selection). `None` if clean.
+    #[wasm_bindgen(js_name = takeChromeIfDirty)]
+    pub fn take_chrome_if_dirty(&mut self) -> Option<String> {
+        if !self.shell.dirty_ui {
+            return None;
+        }
+        self.shell.dirty_ui = false;
+        if self.editor.read_only() || !self.editor.loaded() {
+            return None;
+        }
+        self.refresh_formula_bar();
+        let ui = ShellUi::to_json(&self.shell, &self.editor);
+        ui.get("chromeHtml")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_owned())
+    }
+
     /// Drain pending events (engine tick). Returns how many were dropped.
     #[wasm_bindgen(js_name = drainEvents)]
     pub fn drain_events(&mut self) -> u32 {
         self.events.drain() as u32
     }
+
+    /// Save the open xlsx workbook. Unedited documents return the original bytes (#68).
+    #[wasm_bindgen(js_name = saveDocument)]
+    pub fn save_document(&mut self) -> Result<Vec<u8>, JsValue> {
+        let xlsx = self
+            .xlsx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        if !self.editor.read_only() {
+            let _ = xlsx.ensure_edit(&self.bytes);
+        }
+        xlsx.save_bytes(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("save_failed", e)))
+    }
+
+    /// Headless edit: `{"command":"home.bold"}` or `{"command":"setCellInput","sheet":0,...}`.
+    #[wasm_bindgen(js_name = applyEdit)]
+    pub fn apply_edit(&mut self, spec: &str) -> Result<String, JsValue> {
+        if self.editor.read_only() {
+            return Err(JsValue::from(OoxmlError::with_code(
+                "read_only",
+                "editing is disabled",
+            )));
+        }
+        let xlsx = self
+            .xlsx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        xlsx.ensure_edit(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+        let effect = xlsx
+            .apply_raw_edit(spec)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?;
+        if matches!(
+            effect,
+            nitro_xml_xlsx::editor::ChromeEffect::Applied { structure: true }
+        ) {
+            self.refresh_xlsx_tabs();
+        }
+        process_frame(self);
+        self.refresh_formula_bar();
+        Ok(self.chrome_payload(false))
+    }
+
+    /// Formula bar / in-cell keys. F2 and typing start an edit; Enter commits; Escape cancels.
+    #[allow(clippy::too_many_arguments)]
+    #[wasm_bindgen(js_name = editorKey)]
+    pub fn editor_key(
+        &mut self,
+        key: &str,
+        ctrl: bool,
+        meta: bool,
+        alt: bool,
+        shift: bool,
+        mac: bool,
+    ) -> Result<String, JsValue> {
+        if self.editor.read_only() {
+            return Ok(editor_key_json(EditorKeyEffect::Ignored, None));
+        }
+        let xlsx = self
+            .xlsx
+            .as_mut()
+            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+        xlsx.ensure_edit(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+        let effect = xlsx
+            .editor_key(key, shift, ctrl, meta, alt, mac)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?;
+        if !matches!(effect, EditorKeyEffect::Ignored) {
+            if let Some(sel) = self.xlsx.as_ref().and_then(|x| x.selection_ref_now()) {
+                self.shell.selection_ref = sel;
+            }
+            process_frame(self);
+            self.refresh_formula_bar();
+            self.shell.dirty_ui = true;
+        }
+        let selection = self.xlsx.as_ref().and_then(|x| x.selection_ref_now());
+        let mut payload: serde_json::Value =
+            serde_json::from_str(&editor_key_json(effect, selection))
+                .unwrap_or(serde_json::json!({}));
+        if payload.get("handled").and_then(|v| v.as_bool()) == Some(true) {
+            let ui = ShellUi::to_json(&self.shell, &self.editor);
+            if let Some(obj) = payload.as_object_mut() {
+                if let Some(h) = ui.get("chromeHtml").and_then(|v| v.as_str()) {
+                    obj.insert("h".into(), serde_json::Value::String(h.to_owned()));
+                }
+            }
+        }
+        Ok(payload.to_string())
+    }
 }
 
 impl Handle {
+    fn refresh_formula_bar(&mut self) {
+        if self.editor.read_only() || !self.editor.loaded() {
+            self.editor.set_formula_html(String::new());
+            return;
+        }
+        let html = self
+            .xlsx
+            .as_ref()
+            .map(|xlsx| xlsx.formula_bar_html(false))
+            .unwrap_or_default();
+        self.editor.set_formula_html(html);
+    }
+
+    fn refresh_xlsx_tabs(&mut self) {
+        let Some(xlsx) = self.xlsx.as_ref() else {
+            return;
+        };
+        let tabs = xlsx
+            .sheets_json()
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|s| {
+                        let index = s.get("index")?.as_u64()? as u32;
+                        let name = s.get("name")?.as_str()?.to_owned();
+                        Some((index, name))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let active = xlsx.active as u32;
+        self.shell.set_tabs(tabs, active);
+    }
+
+    fn chrome_payload(&mut self, save: bool) -> String {
+        self.refresh_formula_bar();
+        let ui = ShellUi::to_json(&self.shell, &self.editor);
+        let h = ui
+            .get("chromeHtml")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_owned();
+        serde_json::json!({
+            "h": h,
+            "ui": ui,
+            "save": save,
+            "ribbonAction": self.editor.commands.last_ribbon_action,
+        })
+        .to_string()
+    }
+
+    fn editor_chrome_op(&mut self, op: &str) -> Result<String, JsValue> {
+        if self.editor.read_only() {
+            return Ok(self.chrome_payload(false));
+        }
+        if let Some(xlsx) = self.xlsx.as_mut() {
+            xlsx.ensure_edit(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            match op {
+                "formula-cancel" => xlsx.formula_cancel(),
+                "formula-commit" => {
+                    xlsx.formula_commit()
+                        .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?;
+                }
+                "formula-fx" => {
+                    xlsx.formula_fx()
+                        .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?;
+                }
+                "formula-expand" => xlsx.formula_expand(),
+                "formula-focus" => {
+                    xlsx.formula_focus()
+                        .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?;
+                }
+                "save" => {}
+                _ => {}
+            }
+        }
+        let save = op == "save";
+        if !save {
+            process_frame(self);
+        }
+        Ok(self.chrome_payload(save))
+    }
+
+    fn dispatch_chrome_command(&mut self, id: &str) -> Result<String, JsValue> {
+        let mut save = false;
+        let mut structure = false;
+        if !self.editor.read_only() {
+            if let Some(xlsx) = self.xlsx.as_mut() {
+                xlsx.ensure_edit(&self.bytes)
+                    .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+                match xlsx.dispatch_chrome(id) {
+                    Ok(nitro_xml_xlsx::editor::ChromeEffect::Save) => save = true,
+                    Ok(nitro_xml_xlsx::editor::ChromeEffect::Applied { structure: s }) => {
+                        structure = s;
+                    }
+                    Ok(nitro_xml_xlsx::editor::ChromeEffect::Unmapped) | Err(_) => {}
+                }
+            }
+        }
+        let host: &mut dyn std::any::Any = &mut ();
+        let _ran = self.editor.dispatch_command(id, host);
+        if structure {
+            self.refresh_xlsx_tabs();
+        }
+        if !save {
+            process_frame(self);
+        }
+        Ok(self.chrome_payload(save))
+    }
+
     fn set_font_source_default(&mut self) {
         self.font_source = FontSource::google_fonts();
         self.font_source_resolver = None;

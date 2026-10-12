@@ -39,6 +39,22 @@ pub struct GridPaintViewport {
     pub zoom_pct: Option<f64>,
 }
 
+/// In-cell editor overlay drawn on top of the active cell (#69).
+#[derive(Debug, Clone)]
+pub struct EditOverlay {
+    pub row: u32,
+    pub col: u32,
+    pub text: String,
+    pub caret: usize,
+}
+
+/// Stale-formula marks and the in-cell editor for one paint (#69). Empty in the viewer.
+#[derive(Debug, Clone, Default)]
+pub struct EditorPaintHints {
+    pub stale: Vec<(u32, u32)>,
+    pub edit: Option<EditOverlay>,
+}
+
 /// Build one frame's command buffer for the cell grid (X1–X6).
 #[allow(clippy::too_many_arguments)]
 pub fn paint_grid_frame<I: StringIntern>(
@@ -50,6 +66,7 @@ pub fn paint_grid_frame<I: StringIntern>(
     sheet_index: usize,
     all_sheets: &[Option<ActiveWorksheet>],
     viewport: &GridPaintViewport,
+    hints: &EditorPaintHints,
 ) {
     let metrics = create_grid_metrics(
         sheet,
@@ -71,6 +88,7 @@ pub fn paint_grid_frame<I: StringIntern>(
         all_sheets,
         &metrics,
         viewport,
+        hints,
     );
     selection::paint(buf, intern, sheet, &metrics, viewport);
     headers::paint(buf, intern, sheet, &metrics, viewport);
@@ -97,6 +115,33 @@ pub fn paint_grid_frame_vec<I: StringIntern>(
         sheet_index,
         all_sheets,
         viewport,
+        &EditorPaintHints::default(),
+    );
+    buf.take()
+}
+
+/// Same as [`paint_grid_frame_vec`] with stale marks and the in-cell editor (#69).
+pub fn paint_grid_frame_with_hints<I: StringIntern>(
+    intern: &mut I,
+    workbook: &WorkbookSlice,
+    sheet: &ActiveWorksheet,
+    sheet_index: usize,
+    all_sheets: &[Option<ActiveWorksheet>],
+    viewport: &GridPaintViewport,
+    hints: &EditorPaintHints,
+) -> Vec<u8> {
+    let mut buf = CommandBuffer::new();
+    let mut measures = MeasureBatch::new();
+    paint_grid_frame(
+        &mut buf,
+        intern,
+        &mut measures,
+        workbook,
+        sheet,
+        sheet_index,
+        all_sheets,
+        viewport,
+        hints,
     );
     buf.take()
 }

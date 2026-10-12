@@ -68,6 +68,10 @@ break;
 case "take-frame": {
 if (!handle) throw new Error("no document");
 handle.prepareFrame();
+let chromeHtml = null;
+if (typeof handle.takeChromeIfDirty === "function") {
+chromeHtml = handle.takeChromeIfDirty() || null;
+}
 let measureReqs = null;
 let measureCount = 0;
 if ((handle.measureCount | 0) > 0) {
@@ -110,6 +114,7 @@ layoutReqs.props.buffer,
 self.postMessage(
 {
 type: "frame",
+h: chromeHtml,
 commands,
 measureReqs,
 measureCount,
@@ -156,6 +161,31 @@ case "editor-chrome":
 if (!handle) throw new Error("no document");
 handle.loadEditorChrome();
 self.postMessage({ type: "editor-chrome", ok: true });
+break;
+case "editor-key":
+if (!handle) throw new Error("no document");
+self.postMessage({
+type: "editor-key",
+result: handle.editorKey(
+msg.key || "",
+!!msg.ctrl,
+!!msg.meta,
+!!msg.alt,
+!!msg.shift,
+!!msg.mac,
+),
+});
+break;
+case "save": {
+if (!handle) throw new Error("no document");
+const raw = handle.saveDocument();
+const bytes = new Uint8Array(raw);
+self.postMessage({ type: "saved", bytes }, [bytes.buffer]);
+break;
+}
+case "apply-edit":
+if (!handle) throw new Error("no document");
+self.postMessage({ type: "apply-edit", result: handle.applyEdit(msg.spec || "") });
 break;
 case "dispose": {
 if (handle) {

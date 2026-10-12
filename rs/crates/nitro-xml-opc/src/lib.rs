@@ -12,5 +12,6 @@ pub mod chart;
 pub mod drawingml;
 pub mod fonts;
 pub mod opc;
+pub mod write;
 pub mod xml;
 pub mod zip;

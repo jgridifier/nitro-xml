@@ -40,18 +40,21 @@ fi
 echo "roundtrip: installing harness deps"
 ( cd parity/roundtrip && bun install )
 
+echo "roundtrip: building Rust opc_noop_save (#65)"
+( cd rs && cargo build --release -q -p nitro-xml-opc --example opc_noop_save )
+
 echo "roundtrip: C14N / rels unit tests"
 ( cd parity/roundtrip && bun test )
 
-echo "roundtrip: TS-vs-TS no-op save + Open XML SDK + LibreOffice over fixtures/manifest.json"
+echo "roundtrip: TS-vs-TS + Rust-vs-original no-op save + Open XML SDK + LibreOffice (#49 / #65 / #48)"
 set +e
-( cd parity/roundtrip && bun ./run.mjs --ci )
+( cd parity/roundtrip && bun ./run.mjs --ci --engine both )
 rc=$?
 set -e
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f parity/roundtrip/out/gate-summary.txt ]; then
   {
-    echo "## Round-trip gate (#49 / #48)"
+    echo "## Round-trip gate (#49 / #65 / #48)"
     echo '```'
     cat parity/roundtrip/out/gate-summary.txt
     echo '```'

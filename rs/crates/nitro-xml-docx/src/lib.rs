@@ -27,6 +27,7 @@ mod comments;
 mod default_styles;
 mod drawing;
 pub mod dump;
+pub mod edit;
 mod equation;
 mod field_runs;
 mod fields;

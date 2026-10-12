@@ -68,7 +68,7 @@ function applyXlsxOps(session, ops, parseRange) {
  * @param {object} model DocumentModel
  * @param {object[]} ops
  */
-function applyDocxOps(model, ops) {
+export function applyDocxOps(model, ops) {
 	for (const op of ops) {
 		switch (op.op) {
 			case 'setParagraphText': {

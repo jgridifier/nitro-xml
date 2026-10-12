@@ -21,15 +21,19 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         set_style(ctx, id, "background-size", "100% 100%");
         set_style(ctx, id, "background-repeat", "no-repeat");
     } else {
-        match el.fill_mode.as_deref() {
-            Some("none") => {}
-            Some("gradient") => {
-                if let Some(gradient) = &el.fill_gradient {
-                    set_style(ctx, id, "background-image", gradient);
-                }
-            }
-            _ => {
-                if let Some(color) = &el.fill_color {
+        let fill_bg = match el.fill_mode.as_deref() {
+            Some("none") => None,
+            Some("gradient") => el.fill_gradient.clone(),
+            _ => None,
+        };
+        if let Some(bg) =
+            compose_background_image(el.material_overlay.as_deref(), fill_bg.as_deref())
+        {
+            set_style(ctx, id, "background-image", &bg);
+        }
+        if fill_bg.is_none() {
+            if let Some(color) = &el.fill_color {
+                if !matches!(el.fill_mode.as_deref(), Some("none")) {
                     set_style(ctx, id, "background-color", color);
                 }
             }
@@ -48,8 +52,10 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             &format!("{}px solid {color}", format_px(width)),
         );
     }
-    if let Some(shadow) = &el.box_shadow {
-        set_style(ctx, id, "box-shadow", shadow);
+    if let Some(shadow) =
+        compose_box_shadow(el.material_box_shadow.as_deref(), el.box_shadow.as_deref())
+    {
+        set_style(ctx, id, "box-shadow", &shadow);
     }
     if let Some(rot) = el.rotation {
         if rot.abs() > 0.01 {
@@ -70,6 +76,26 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     }
     ctx.view_ir
         .push_painted(if el.type_ == "text" { "text" } else { "shape" }, el, None);
+}
+
+/// Material inset shadows first, then outer/drop shadows (matches upstream layering).
+fn compose_box_shadow(material: Option<&str>, outer: Option<&str>) -> Option<String> {
+    match (material, outer) {
+        (Some(m), Some(o)) => Some(format!("{m}, {o}")),
+        (Some(m), None) => Some(m.to_owned()),
+        (None, Some(o)) => Some(o.to_owned()),
+        (None, None) => None,
+    }
+}
+
+/// Material gradient on top of fill gradient (TS `visual-3d-materials` order).
+fn compose_background_image(overlay: Option<&str>, fill: Option<&str>) -> Option<String> {
+    match (overlay, fill) {
+        (Some(o), Some(f)) => Some(format!("{o}, {f}")),
+        (Some(o), None) => Some(o.to_owned()),
+        (None, Some(f)) => Some(f.to_owned()),
+        (None, None) => None,
+    }
 }
 
 fn format_px(v: f64) -> String {

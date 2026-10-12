@@ -105,11 +105,19 @@ fn parse_effect_style_list(list: Option<&Element>) -> Vec<ThemeEffectStyle> {
         .into_iter()
         .filter(|element| element.local == "effectStyle")
         .map(|effect_style| {
-            // TODO(#27): `a:scene3d` / `a:sp3d` on effectStyle (idx 3 bevel) — box-shadow only for M1.
             let effect_lst = first(effect_style, "effectLst", ns::A)
                 .or_else(|| first(effect_style, "effectDag", ns::A))
                 .cloned();
-            ThemeEffectStyle { effect_lst }
+            let sp3d = first(effect_style, "sp3d", ns::A);
+            let prst_material = sp3d.and_then(|s| non_empty(super::dom::attr(s, "prstMaterial")));
+            let has_bevel = sp3d.is_some_and(|s| {
+                first(s, "bevelT", ns::A).is_some() || first(s, "bevelB", ns::A).is_some()
+            });
+            ThemeEffectStyle {
+                effect_lst,
+                prst_material,
+                has_bevel,
+            }
         })
         .collect()
 }
@@ -215,5 +223,34 @@ mod tests {
             first(lst, "outerShdw", ns::A).is_some(),
             "expected outerShdw in parsed effect style"
         );
+    }
+
+    // Catches: effectStyleLst sp3d/@prstMaterial dropped so effectRef idx=2 never picks up metal.
+    #[test]
+    fn effect_style_parses_sp3d_preset_material() {
+        let xml = r#"<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <a:themeElements>
+            <a:clrScheme name="Office"/>
+            <a:fontScheme name="Office"><a:majorFont/><a:minorFont/></a:fontScheme>
+            <a:fmtScheme name="Office">
+              <a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>
+              <a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>
+              <a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>
+              <a:effectStyleLst>
+                <a:effectStyle><a:effectLst/></a:effectStyle>
+                <a:effectStyle>
+                  <a:effectLst/>
+                  <a:sp3d prstMaterial="metal"><a:bevelT w="10000" h="10000"/></a:sp3d>
+                </a:effectStyle>
+              </a:effectStyleLst>
+            </a:fmtScheme>
+          </a:themeElements>
+        </a:theme>"#;
+        let theme = parse_theme_xml(xml, "t");
+        let fmt = theme.format_scheme.expect("fmtScheme");
+        assert_eq!(fmt.effect_styles.len(), 2);
+        assert!(fmt.effect_styles[0].prst_material.is_none());
+        assert_eq!(fmt.effect_styles[1].prst_material.as_deref(), Some("metal"));
+        assert!(fmt.effect_styles[1].has_bevel);
     }
 }

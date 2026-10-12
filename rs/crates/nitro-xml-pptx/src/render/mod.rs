@@ -196,6 +196,8 @@ mod tests {
             image_src: None,
             seq: 0,
             box_shadow: None,
+            material_box_shadow: None,
+            material_overlay: None,
             text_shadow: None,
         };
         let mut c = ViewIrCollector::default();

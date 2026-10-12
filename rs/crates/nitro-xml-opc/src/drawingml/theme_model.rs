@@ -117,6 +117,12 @@ pub struct ThemeEffectStyle {
     #[serde(skip)]
     /// Cloned `a:effectLst` (or `a:effectDag`) subtree for paint-time resolution.
     pub effect_lst: Option<crate::xml::Element>,
+    /// `a:sp3d/@prstMaterial` on the same `a:effectStyle` (theme matrix 3-D material).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prst_material: Option<String>,
+    /// True when `a:sp3d` carries `a:bevelT` or `a:bevelB` (bevel paint is follow-up work).
+    #[serde(skip)]
+    pub has_bevel: bool,
 }
 
 /// `a:fmtScheme` style matrix. `fillRef`/`lnRef`/`effectRef` idx 1–3 index the fill,

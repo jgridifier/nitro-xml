@@ -16,6 +16,7 @@ mod table_style;
 mod text;
 mod text_layout;
 mod theme;
+mod visual_3d_materials;
 
 pub use presentation::{Error, Presentation, Slide};
 pub use render::{

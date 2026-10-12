@@ -7,6 +7,32 @@ use nitro_xml_opc::xml::{ns, Element};
 
 use crate::inheritance::{attr, child_local, children_local};
 
+/// `a:bodyPr` autofit mode (upstream `TextStyle.autoFitMode`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextAutoFitMode {
+    /// `a:spAutoFit` — resize the shape to fit text.
+    Shrink,
+    /// `a:normAutofit` — shrink text to fit the box.
+    Normal,
+    /// `a:noAutofit`.
+    None,
+}
+
+/// Parse autofit mode from `p:txBody` / `a:bodyPr` children (upstream `parseBodyAutofit`).
+pub fn parse_body_autofit(tx_body: &Element) -> Option<TextAutoFitMode> {
+    let body_pr = child_local(tx_body, "bodyPr", ns::A)?;
+    if child_local(body_pr, "spAutoFit", ns::A).is_some() {
+        return Some(TextAutoFitMode::Shrink);
+    }
+    if child_local(body_pr, "normAutofit", ns::A).is_some() {
+        return Some(TextAutoFitMode::Normal);
+    }
+    if child_local(body_pr, "noAutofit", ns::A).is_some() {
+        return Some(TextAutoFitMode::None);
+    }
+    None
+}
+
 /// Default `a:bodyPr` text insets at 96 DPI (91440×45720 EMU), matching upstream constants.
 pub const DEFAULT_BODY_INSET_LR_PX: f64 = 91440.0 / 9525.0;
 pub const DEFAULT_BODY_INSET_TB_PX: f64 = 45720.0 / 9525.0;
@@ -177,5 +203,18 @@ mod tests {
         assert_eq!(layout.v_align, TextBodyVAlign::Middle);
         assert_eq!(layout.text_align, Some(TextAlignCss::Center));
         assert!((layout.inset_left_px - DEFAULT_BODY_INSET_LR_PX).abs() < 0.01);
+    }
+
+    // Catches: keyframes title shapes with a:spAutoFit never queue ScrollHeight resize.
+    #[test]
+    fn sp_autofit_body_pr_parses_as_shrink() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr><a:spAutoFit/></a:bodyPr>
+              <a:p><a:r><a:t>Title</a:t></a:r></a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        assert_eq!(parse_body_autofit(&doc.root), Some(TextAutoFitMode::Shrink));
     }
 }

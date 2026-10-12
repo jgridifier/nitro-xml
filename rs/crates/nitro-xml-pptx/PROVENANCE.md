@@ -19,7 +19,8 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | `src/visual_3d_materials.rs` | `render/visual-3d-materials.ts`, `render/visual-3d.ts` | Metal+bevel legacy brightness compensation until SVG bevel lighting (#27). |
 | `src/render/prst_geom.rs` | `render/shape-geometry-cascade.ts`, `core/geometry/shape-geometry.ts`, `geometry/preset-clip-paths-core.ts` | `a:prstGeom` border-radius and clip-path for ellipse, roundRect, arrows (#27). |
 | `src/render/text.rs` | `dom/elements/text-block.ts`, `render/text-body-layout.ts`, `render/text-effects.ts`, `render/text-run-style.ts` | P3 text body; `bodyPr` anchor + `pPr` align via flex; run `outerShdw` → `text-shadow`; first-run font + text outline (#27). |
-| `src/text_layout.rs` | `text-body-properties-parser.ts`, `text-body-layout.ts` | Parse `a:bodyPr/@anchor`, insets, and paragraph `algn` for paint. |
+| `src/render/shape_autofit_resize.rs` | `render/shape-autofit-resize.ts` | `a:spAutoFit` shape height from post-apply `ScrollHeight` (#27). |
+| `src/text_layout.rs` | `text-body-properties-parser.ts`, `text-body-layout.ts` | Parse `a:bodyPr/@anchor`, insets, paragraph `algn`, and autofit mode for paint. |
 | `src/render/smartart.rs` | `dom/elements/smartart-svg.ts` | P11 S2 cached-drawing paint at the element box (#27). |
 | `src/render/picture.rs` | `dom/elements/image.ts` | P5 picture frame; `a:glow` on `img` (#27). |
 | `src/render/group.rs` | `dom/elements/group.ts` | P6 group transform + child recursion (#27). |

@@ -4,12 +4,14 @@
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_style};
 use super::prst_geom::apply_preset_geometry;
+use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
 use super::text::{paint_text_body, TextBodyPaint};
 use crate::slide::DumpElement;
 
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
+    let painted_h = ctx.sp_autofit.painted_height(&el.id, el.height);
     let id = create_child(ctx, parent, "div");
-    position_box(ctx, id, el.x, el.y, el.width, el.height);
+    position_box(ctx, id, el.x, el.y, el.width, painted_h);
     set_attr(ctx, id, "data-pptx-element", "true");
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "shape");
@@ -41,7 +43,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     }
     if let Some(st) = &el.shape_type {
         set_attr(ctx, id, "data-shape-type", st);
-        apply_preset_geometry(ctx, id, st, el.width, el.height);
+        apply_preset_geometry(ctx, id, st, el.width, painted_h);
     }
     if let Some(color) = &el.stroke_color {
         let width = el.stroke_width_px.unwrap_or(1.0).max(0.0);
@@ -67,7 +69,16 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     }
     let text = el.text.as_deref().unwrap_or("");
     if !text.trim().is_empty() {
-        paint_text_body(ctx, id, text, TextBodyPaint::from_element(el));
+        let block = paint_text_body(ctx, id, text, TextBodyPaint::from_element(el));
+        queue_sp_autofit_scroll_height(
+            ctx.layout_reads,
+            &mut ctx.layout_read_records,
+            ctx.sp_autofit,
+            &el.id,
+            el.auto_fit_mode,
+            block,
+            painted_h,
+        );
     }
     ctx.view_ir
         .push_painted(if el.type_ == "text" { "text" } else { "shape" }, el, None);

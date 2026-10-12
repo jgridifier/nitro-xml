@@ -35,7 +35,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         set_style(ctx, id, "background", "#e8e8e8");
     }
     // P5 a:tile sx/sy uses intrinsic pixels via NaturalWidth read-back (#127).
-    ctx.layout_reads.push(img, LayoutReadKind::NaturalWidth, 0);
+    ctx.push_layout_read(img, LayoutReadKind::NaturalWidth, 0, None);
     // EMF/WMF → TODO metafile S3 (`nitro_xml_render::metafile`).
     ctx.view_ir.push_painted("image", el, None);
 }

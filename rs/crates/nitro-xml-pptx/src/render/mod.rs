@@ -24,6 +24,7 @@ mod prst_geom;
 mod raster_export;
 mod selection;
 mod shape;
+mod shape_autofit_resize;
 mod slideshow;
 mod smartart;
 mod smartart3d;
@@ -50,6 +51,9 @@ use nitro_xml_render::measure::MeasureBatch;
 use nitro_xml_render::{CommandBuffer, LayoutReadBatch};
 
 use crate::presentation::Presentation;
+
+pub use shape_autofit_resize::SpAutofitPaintState;
+use shape_autofit_resize::SpAutofitPaintState as SpAutofitState;
 
 pub struct SlidePaintViewport {
     pub slide_index: usize,
@@ -90,6 +94,7 @@ pub fn paint_slide_frame<I: StringIntern>(
     measure: &mut MeasureBatch,
     layout_reads: &mut LayoutReadBatch,
     pres: &mut Presentation,
+    sp_autofit: &mut SpAutofitState,
     viewport: &SlidePaintViewport,
 ) -> Result<Vec<ViewIrNode>, crate::presentation::Error> {
     let (canvas_w, canvas_h) = pres.canvas_size();
@@ -98,25 +103,38 @@ pub fn paint_slide_frame<I: StringIntern>(
     } else {
         fit_slide_scale(canvas_w, canvas_h, viewport.viewport_w, viewport.viewport_h)
     };
-    let slide = pres.slide(viewport.slide_index)?;
-    let scheme = slide.scheme_colors.clone();
+    let slide_index = viewport.slide_index;
+    if layout_reads.awaiting() == 0 && !layout_reads.values.is_empty() {
+        sp_autofit
+            .slide_mut(slide_index)
+            .apply_layout_results(layout_reads);
+    }
     buffer.begin();
     // Fresh per-frame queues (awaiting replies from a prior take stay intact).
     measure.clear_pending();
     layout_reads.clear_pending();
     let mut view_ir = ViewIrCollector::default();
-    let mut ctx = context::PaintContext::new(
-        buffer,
-        intern,
-        measure,
-        layout_reads,
-        &mut view_ir,
-        scale,
-        canvas_w,
-        canvas_h,
-        &scheme,
-    );
-    stage::paint_slide_stage(&mut ctx, slide, &viewport.selected_ids);
+    let records = {
+        let slide = pres.slide(viewport.slide_index)?;
+        let scheme = slide.scheme_colors.clone();
+        let slide_autofit = sp_autofit.slide_mut(slide_index);
+        let mut ctx = context::PaintContext::new(
+            buffer,
+            intern,
+            measure,
+            layout_reads,
+            &mut view_ir,
+            scale,
+            canvas_w,
+            canvas_h,
+            &scheme,
+            slide_index,
+            slide_autofit,
+        );
+        stage::paint_slide_stage(&mut ctx, slide, &viewport.selected_ids);
+        ctx.layout_read_records
+    };
+    sp_autofit.slide_mut(slide_index).finish_frame(records);
     Ok(view_ir.nodes)
 }
 
@@ -128,6 +146,7 @@ pub fn open_and_paint_slide_frame<I: StringIntern>(
     viewport: &SlidePaintViewport,
 ) -> Result<(CommandBuffer, Vec<ViewIrNode>), crate::presentation::Error> {
     let mut pres = Presentation::open(bytes)?;
+    let mut sp_autofit = SpAutofitState::default();
     let mut buffer = CommandBuffer::new();
     let nodes = paint_slide_frame(
         &mut buffer,
@@ -135,6 +154,7 @@ pub fn open_and_paint_slide_frame<I: StringIntern>(
         measure,
         layout_reads,
         &mut pres,
+        &mut sp_autofit,
         viewport,
     )?;
     Ok((buffer, nodes))
@@ -184,6 +204,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             text_body_layout: None,
+            auto_fit_mode: None,
             chart_r_id: None,
             chart_xml: None,
             chart_part_path: None,

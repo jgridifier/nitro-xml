@@ -119,6 +119,9 @@ pub struct DumpElement {
     /// Parsed `p:txBody` anchor / alignment for painters (not in JSON dump).
     #[serde(skip)]
     pub text_body_layout: Option<crate::text_layout::TextBodyLayout>,
+    /// `a:spAutoFit` / `a:normAutofit` / `a:noAutofit` from `a:bodyPr` (paint only).
+    #[serde(skip)]
+    pub auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chart_r_id: Option<String>,
     /// Chart part XML. Not part of the issue-24 dump.
@@ -1634,6 +1637,7 @@ fn build_dump(
         text_stroke_width_px: extras.text_stroke_width_px,
         text_stroke_color: extras.text_stroke_color,
         text_body_layout: extras.text_body_layout,
+        auto_fit_mode: extras.auto_fit_mode,
         chart_r_id: extras.chart_r_id,
         chart_xml: None,
         chart_part_path: None,
@@ -1928,6 +1932,7 @@ struct PaintExtras {
     text_stroke_width_px: Option<f64>,
     text_stroke_color: Option<String>,
     text_body_layout: Option<crate::text_layout::TextBodyLayout>,
+    auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
     chart_r_id: Option<String>,
     smartart_dm_r_id: Option<String>,
     smartart_lo_r_id: Option<String>,
@@ -2218,6 +2223,7 @@ fn shape_paint_extras(
         extras.text_stroke_width_px = paint.stroke_width_px;
         extras.text_stroke_color = paint.stroke_color;
         extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
+        extras.auto_fit_mode = crate::text_layout::parse_body_autofit(tx);
         extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }
     if let Some(sp_pr) = effective_sp_pr {

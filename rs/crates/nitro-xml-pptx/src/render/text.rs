@@ -7,6 +7,7 @@ use nitro_xml_render::measure::LayoutReadKind;
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_style, set_text_content};
 use super::font_substitution::substitute_font_family_stack;
+use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
 use crate::slide::DumpElement;
 use crate::text_layout::{TextBodyLayout, TextBodyVAlign};
 
@@ -38,19 +39,26 @@ impl<'a> TextBodyPaint<'a> {
 }
 
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
+    let painted_h = ctx.sp_autofit.painted_height(&el.id, el.height);
     let id = create_child(ctx, parent, "div");
-    position_box(ctx, id, el.x, el.y, el.width, el.height);
+    position_box(ctx, id, el.x, el.y, el.width, painted_h);
     set_attr(ctx, id, "data-pptx-element", "true");
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "text");
     let text = el.text.as_deref().unwrap_or("");
     let block = paint_text_body(ctx, id, text, TextBodyPaint::from_element(el));
-    // Autofit uses post-apply ScrollHeight + ComputedStyle (docs/boundary.md #127).
-    ctx.layout_reads
-        .push(block, LayoutReadKind::ScrollHeight, 0);
+    queue_sp_autofit_scroll_height(
+        ctx.layout_reads,
+        &mut ctx.layout_read_records,
+        ctx.sp_autofit,
+        &el.id,
+        el.auto_fit_mode,
+        block,
+        painted_h,
+    );
+    // TODO(#27): normAutofit shrink uses ComputedStyle + iterative steps.
     let font_size_prop = ctx.intern.intern("font-size");
-    ctx.layout_reads
-        .push(block, LayoutReadKind::ComputedStyle, font_size_prop);
+    ctx.push_layout_read(block, LayoutReadKind::ComputedStyle, font_size_prop, None);
     ctx.view_ir.push_painted("text", el, None);
 }
 
@@ -182,6 +190,8 @@ mod tests {
         let mut layout_reads = LayoutReadBatch::default();
         let mut view_ir = ViewIrCollector::default();
         let scheme = BTreeMap::new();
+        let mut sp_autofit = crate::render::SpAutofitPaintState::default();
+        let slide_autofit = sp_autofit.slide_mut(0);
         let mut ctx = PaintContext::new(
             &mut buffer,
             &mut intern,
@@ -192,6 +202,8 @@ mod tests {
             960.0,
             540.0,
             &scheme,
+            0,
+            slide_autofit,
         );
         paint_text_body(&mut ctx, 1, "Hi", paint);
         intern

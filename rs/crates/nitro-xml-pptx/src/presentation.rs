@@ -1398,12 +1398,14 @@ mod tests {
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
         let mut reads = LayoutReadBatch::default();
+        let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
             &mut reads,
             &mut opened,
+            &mut sp_autofit,
             &SlidePaintViewport {
                 slide_index: 0,
                 scale: 1.0,
@@ -1538,12 +1540,14 @@ mod tests {
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
         let mut reads = LayoutReadBatch::default();
+        let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
             &mut reads,
             &mut opened,
+            &mut sp_autofit,
             &SlidePaintViewport {
                 slide_index: 0,
                 scale: 1.0,
@@ -1649,12 +1653,14 @@ mod tests {
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
         let mut reads = LayoutReadBatch::default();
+        let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
             &mut reads,
             &mut opened,
+            &mut sp_autofit,
             &SlidePaintViewport {
                 slide_index: 0,
                 scale: 1.0,
@@ -1777,12 +1783,14 @@ mod tests {
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
         let mut reads = LayoutReadBatch::default();
+        let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
             &mut reads,
             &mut opened,
+            &mut sp_autofit,
             &SlidePaintViewport {
                 slide_index,
                 scale: 1.0,

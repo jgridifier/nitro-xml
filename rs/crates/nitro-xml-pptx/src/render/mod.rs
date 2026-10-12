@@ -178,6 +178,7 @@ mod tests {
             stroke_width_px: None,
             text_color: None,
             font_size_px: None,
+            text_body_layout: None,
             chart_r_id: None,
             chart_xml: None,
             chart_part_path: None,

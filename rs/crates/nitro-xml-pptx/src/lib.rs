@@ -13,6 +13,7 @@ mod slide;
 mod table;
 mod table_style;
 mod text;
+mod text_layout;
 mod theme;
 
 pub use presentation::{Error, Presentation, Slide};

@@ -105,6 +105,9 @@ pub struct DumpElement {
     pub text_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font_size_px: Option<f64>,
+    /// Parsed `p:txBody` anchor / alignment for painters (not in JSON dump).
+    #[serde(skip)]
+    pub text_body_layout: Option<crate::text_layout::TextBodyLayout>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chart_r_id: Option<String>,
     /// Chart part XML. Not part of the issue-24 dump.
@@ -1590,6 +1593,7 @@ fn build_dump(
         stroke_width_px: extras.stroke_width_px,
         text_color: extras.text_color,
         font_size_px: extras.font_size_px,
+        text_body_layout: extras.text_body_layout,
         chart_r_id: extras.chart_r_id,
         chart_xml: None,
         chart_part_path: None,
@@ -1874,6 +1878,7 @@ struct PaintExtras {
     stroke_width_px: Option<f64>,
     text_color: Option<String>,
     font_size_px: Option<f64>,
+    text_body_layout: Option<crate::text_layout::TextBodyLayout>,
     chart_r_id: Option<String>,
     smartart_dm_r_id: Option<String>,
     smartart_lo_r_id: Option<String>,
@@ -2141,6 +2146,7 @@ fn shape_paint_extras(
         let (color, size) = first_run_text_paint(tx, theme, fallback.as_ref());
         extras.text_color = color;
         extras.font_size_px = size;
+        extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
     }
     extras
 }

@@ -8,26 +8,17 @@
 
 use std::collections::BTreeMap;
 
-use nitro_xml_opc::drawingml::{hex_to_rgb_channels, theme_color_slot_for, DrawingColorTheme, ThemeColorMap};
 use nitro_xml_opc::drawingml::EMU_PER_PIXEL;
+use nitro_xml_opc::drawingml::{
+    hex_to_rgb_channels, theme_color_slot_for, DrawingColorTheme, ThemeColorMap,
+};
 use nitro_xml_opc::xml::{ns, parse_xml_str, Element};
 
 use crate::inheritance::{attr, child_local, children_local};
 
 const TABLE_STYLE_PARTS: &[&str] = &[
-    "wholeTbl",
-    "band1H",
-    "band2H",
-    "band1V",
-    "band2V",
-    "lastCol",
-    "firstCol",
-    "lastRow",
-    "seCell",
-    "swCell",
-    "firstRow",
-    "neCell",
-    "nwCell",
+    "wholeTbl", "band1H", "band2H", "band1V", "band2V", "lastCol", "firstCol", "lastRow", "seCell",
+    "swCell", "firstRow", "neCell", "nwCell",
 ];
 
 /// GUID → parsed `a:tblStyle` from `ppt/tableStyles.xml`.
@@ -293,7 +284,10 @@ fn parse_border_side(side: Option<&Element>) -> Option<TableStyleBorder> {
             .map(str::to_owned),
     };
     let mut has = border.no_fill || border.dash.is_some();
-    if let Some(w) = attr(ln, "w").and_then(|s| s.parse::<i64>().ok()).filter(|w| *w > 0) {
+    if let Some(w) = attr(ln, "w")
+        .and_then(|s| s.parse::<i64>().ok())
+        .filter(|w| *w > 0)
+    {
         border.width_px = (w as f64 / EMU_PER_PIXEL as f64).max(1.0);
         has = true;
     }
@@ -439,13 +433,7 @@ pub(crate) fn resolve_package_cell_style(
     }
 
     let border = resolve_cell_border_css(
-        entry,
-        flags,
-        row_index,
-        col_index,
-        row_count,
-        col_count,
-        theme,
+        entry, flags, row_index, col_index, row_count, col_count, theme,
     );
     (fill, text, border)
 }
@@ -637,7 +625,12 @@ fn border_to_css(border: &TableStyleBorder, theme: &TableTheme<'_>) -> Option<St
     let color = border
         .color
         .clone()
-        .or_else(|| border.fill.as_ref().and_then(|f| resolve_style_fill(f, theme)))
+        .or_else(|| {
+            border
+                .fill
+                .as_ref()
+                .and_then(|f| resolve_style_fill(f, theme))
+        })
         .unwrap_or_else(|| "#000000".to_owned());
     let width = border.width_px.max(1.0);
     let style = ooxml_dash_to_css(border.dash.as_deref());
@@ -691,27 +684,13 @@ mod tests {
             last_col: false,
             band_row: true,
         };
-        let (fill, text, border) = resolve_package_cell_style(
-            entry,
-            &flags,
-            1,
-            1,
-            4,
-            4,
-            &table_theme,
-        );
+        let (fill, text, border) =
+            resolve_package_cell_style(entry, &flags, 1, 1, 4, 4, &table_theme);
         assert_eq!(fill.as_deref(), Some("#CFD7E7"));
         assert_eq!(text.as_deref(), Some("#000000"));
         assert!(border.as_ref().is_some_and(|b| b.contains("solid")));
-        let (header_fill, header_text, _) = resolve_package_cell_style(
-            entry,
-            &flags,
-            0,
-            0,
-            4,
-            4,
-            &table_theme,
-        );
+        let (header_fill, header_text, _) =
+            resolve_package_cell_style(entry, &flags, 0, 0, 4, 4, &table_theme);
         assert_eq!(header_fill.as_deref(), Some("#4472C4"));
         assert_eq!(header_text.as_deref(), Some("#FFFFFF"));
     }

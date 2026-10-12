@@ -71,8 +71,8 @@ pub(crate) fn parse_table_model(
     let package_entry = style_id
         .as_deref()
         .and_then(|id| table_style_map.and_then(|m| lookup_table_style(m, id)));
-    let styled_builtin = style_id.as_deref().is_some_and(is_medium_style_2_accent1)
-        && package_entry.is_none();
+    let styled_builtin =
+        style_id.as_deref().is_some_and(is_medium_style_2_accent1) && package_entry.is_none();
     let xml_rows = children_local(table, "tr", ns::A);
     let row_count = xml_rows.len();
     let col_count = column_widths.len();

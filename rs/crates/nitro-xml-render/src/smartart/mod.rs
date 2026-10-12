@@ -241,14 +241,27 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
         }
 
         if !shape.text.is_empty() {
-            let font = fit_font(shape.h, stroke_w.max(default_stroke));
-            body.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"#222222\">{}</text>",
-                num(cx),
-                num(cy),
-                num(font),
-                escape(&shape.text),
-            ));
+            // Match TS projectDrawingShapes: ~20% of height, wrapped to ~82% width.
+            // `fit_font` keeps the short-connector wasm clamp safety net.
+            let font = (shape.h * 0.2)
+                .min(fit_font(shape.h, stroke_w.max(default_stroke)))
+                .clamp(shape.h * 0.08, shape.h * 0.35)
+                .max(1.0);
+            let line_height = font * 1.2;
+            let max_width = (shape.w * 0.82).max(font);
+            let lines = wrap_smartart_text(&shape.text, font, max_width);
+            let total_h = line_height * lines.len().max(1) as f64;
+            let mut y = cy - total_h / 2.0 + line_height / 2.0;
+            for line in &lines {
+                body.push_str(&format!(
+                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"#222222\">{}</text>",
+                    num(cx),
+                    num(y),
+                    num(font),
+                    escape(line),
+                ));
+                y += line_height;
+            }
         }
     }
     format!(
@@ -302,6 +315,36 @@ fn fit_font(h: f64, stroke: f64) -> f64 {
         return max_size;
     }
     preferred.clamp(min_size.max(1.0), max_size).max(1.0)
+}
+
+fn wrap_smartart_text(text: &str, font: f64, max_width: f64) -> Vec<String> {
+    let char_w = font * 0.55;
+    if char_w <= 0.0 || max_width <= 0.0 {
+        return vec![text.to_owned()];
+    }
+    let max_chars = (max_width / char_w).floor().max(1.0) as usize;
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        if current.is_empty() {
+            current = word.to_owned();
+            continue;
+        }
+        if current.len() + 1 + word.len() <= max_chars {
+            current.push(' ');
+            current.push_str(word);
+        } else {
+            lines.push(std::mem::take(&mut current));
+            current = word.to_owned();
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    if lines.is_empty() {
+        lines.push(text.to_owned());
+    }
+    lines
 }
 
 fn num(v: f64) -> String {
@@ -627,8 +670,31 @@ fn hex6(val: &str) -> Option<String> {
 
 fn text_of(el: &Element) -> String {
     let mut parts = Vec::new();
-    collect_text(el, &mut parts);
-    parts.join("").trim().to_owned()
+    collect_text_paras(el, &mut parts);
+    parts.join(" ").split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn collect_text_paras(el: &Element, parts: &mut Vec<String>) {
+    let mut stack: Vec<&Element> = vec![el];
+    while let Some(node) = stack.pop() {
+        if node.local == "p" {
+            let mut para = Vec::new();
+            collect_text(node, &mut para);
+            let joined = para.join("").trim().to_owned();
+            if !joined.is_empty() {
+                parts.push(joined);
+            }
+            continue;
+        }
+        for child in node.children.iter().rev() {
+            if let Node::Element(child) = child {
+                stack.push(child);
+            }
+        }
+    }
+    if parts.is_empty() {
+        collect_text(el, parts);
+    }
 }
 
 fn collect_text(el: &Element, parts: &mut Vec<String>) {

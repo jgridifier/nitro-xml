@@ -15,7 +15,7 @@ mod circular_arrow;
 use std::collections::BTreeMap;
 
 use nitro_xml_opc::drawingml::{
-    evaluate_preset_shape, ooxml_arc_to_svg, parse_drawing_geometry, DrawingPath,
+    emu_to_pixels, evaluate_preset_shape, ooxml_arc_to_svg, parse_drawing_geometry, DrawingPath,
     DrawingPathCommand,
 };
 use nitro_xml_opc::xml::{parse_xml_str, Element, Node};
@@ -133,8 +133,8 @@ struct SpBox {
     stroke_width: f64,
     text: String,
     font_color: String,
-    /// Authored font size in EMUs when `a:rPr/@sz` is present.
-    font_size_emu: Option<f64>,
+    /// Authored font size in CSS px when `a:rPr/@sz` is present (`sz/100 * 96/72`).
+    font_size_px: Option<f64>,
     geom_name: String,
     kind: ShapeKind,
     is_pic: bool,
@@ -248,13 +248,15 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
         }
 
         if !shape.text.is_empty() {
-            // Prefer authored `sz` (hundredths of a point → EMU); else ~20% of height.
-            let font = shape
-                .font_size_emu
-                .unwrap_or(shape.h * 0.2)
-                .min(fit_font(shape.h, stroke_w.max(default_stroke)))
-                .clamp(shape.h * 0.08, shape.h * 0.35)
-                .max(1.0);
+            // Match TS `projectDrawingShapes`: authored CSS px as-is; else clamp(height*0.2, 8..14).
+            // Coordinates are already EMU→px so font-size stays under Chromium's ~10000px clamp.
+            let font = match shape.font_size_px {
+                Some(sz) if sz > 0.0 => sz.min(shape.h.max(1.0)).max(1.0),
+                _ => (shape.h * 0.2)
+                    .clamp(8.0, 14.0)
+                    .min(fit_font(shape.h, stroke_w.max(default_stroke)))
+                    .max(1.0),
+            };
             let line_height = font * 1.2;
             let max_width = (shape.w * 0.82).max(font);
             let lines = wrap_smartart_text(&shape.text, font, max_width);
@@ -401,10 +403,11 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
     let xfrm = child_any(sp_pr, "xfrm")?;
     let off = child_any(xfrm, "off")?;
     let ext = child_any(xfrm, "ext")?;
-    let x = attr_f64(off, "x")?;
-    let y = attr_f64(off, "y")?;
-    let w = attr_f64(ext, "cx")?;
-    let h = attr_f64(ext, "cy")?;
+    // Match TS `parseDrawingShape`: geometry + labels live in CSS px (EMU / 9525).
+    let x = emu_to_pixels(attr_f64(off, "x")? as i64);
+    let y = emu_to_pixels(attr_f64(off, "y")? as i64);
+    let w = emu_to_pixels(attr_f64(ext, "cx")? as i64);
+    let h = emu_to_pixels(attr_f64(ext, "cy")? as i64);
     if w <= 0.0 || h <= 0.0 {
         return None;
     }
@@ -415,10 +418,15 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         let fill = solid_hex(sp_pr, scheme).unwrap_or_else(|| "#D6DCE4".to_owned());
         (fill, solid_fill_alpha(sp_pr))
     };
-    let (stroke, stroke_width) = stroke_of(sp_pr, scheme);
+    let (stroke, stroke_width_emu) = stroke_of(sp_pr, scheme);
+    let stroke_width = if stroke_width_emu > 0.0 {
+        emu_to_pixels(stroke_width_emu as i64)
+    } else {
+        0.0
+    };
     let text = text_of(sp);
     let font_color = font_color_of(sp, scheme, &fill);
-    let font_size_emu = authored_font_size_emu(sp);
+    let font_size_px = authored_font_size_px(sp);
     let rotation = attr_f64(xfrm, "rot").map(|r| r / 60_000.0);
     let flip_h =
         attr_str(xfrm, "flipH").is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
@@ -446,7 +454,7 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         stroke_width,
         text,
         font_color,
-        font_size_emu,
+        font_size_px,
         geom_name,
         kind,
         is_pic,
@@ -489,14 +497,14 @@ fn font_color_of(sp: &Element, scheme: Option<&BTreeMap<String, String>>, fill: 
     }
 }
 
-fn authored_font_size_emu(sp: &Element) -> Option<f64> {
-    // `sz` is hundredths of a point; 1pt = 12700 EMU.
+fn authored_font_size_px(sp: &Element) -> Option<f64> {
+    // Match TS smartart-drawing-shape-style: `(sz/100) * (96/72)` CSS px.
     let mut stack: Vec<&Element> = vec![sp];
     while let Some(node) = stack.pop() {
         if node.local == "rPr" || node.local == "defRPr" {
             if let Some(sz) = attr_f64(node, "sz") {
                 if sz > 0.0 {
-                    return Some(sz / 100.0 * 12_700.0);
+                    return Some((sz / 100.0) * (96.0 / 72.0));
                 }
             }
         }
@@ -942,9 +950,35 @@ mod tests {
         scheme.insert("accent1".to_owned(), "#156082".to_owned());
         scheme.insert("lt1".to_owned(), "#FFFFFF".to_owned());
         let svg = smartart_svg_with_scheme(Some(xml), 400.0, 200.0, Some(&scheme));
-        assert!(svg.contains("Node One"), "{svg}");
+        assert!(svg.contains(">Node<") && svg.contains(">One<"), "{svg}");
         assert!(svg.contains("fill=\"#FFFFFF\""), "{svg}");
         assert!(svg.contains("#156082"), "{svg}");
+        // Catches: EMU font-size clamped by Chromium (~10000px) → invisible labels.
+        assert!(
+            svg.contains("font-size=\"41.33"),
+            "authored 31pt → ~41.33px; got {svg}"
+        );
+    }
+
+    // Catches: EMU viewBox + EMU font-size collapses under Chromium's CSS font-size clamp.
+    #[test]
+    fn geometry_and_font_are_in_css_pixels() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="9525" y="19050"/><a:ext cx="952500" cy="476250"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="112233"/></a:solidFill>
+              </dsp:spPr>
+              <dsp:txBody><a:p><a:r><a:t>Px</a:t></a:r></a:p></dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let svg = smartart_svg(Some(xml), 200.0, 100.0);
+        assert!(svg.contains("viewBox=\"1 2 100 50\"") || svg.contains("viewBox=\"1 2 100.0 50.0\""), "{svg}");
+        // Default label size clamped to 8..14 px (height*0.2 = 10).
+        assert!(svg.contains("font-size=\"10\""), "{svg}");
     }
 
     // Catches: noFill text frames inventing a grey stroke rectangle around SmartArt labels.

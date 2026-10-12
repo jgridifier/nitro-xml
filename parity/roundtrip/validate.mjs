@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 /**
- * Validator + LibreOffice hooks for gate (a) (#49).
- * Soft-skip until #48 installs tools via setup-validators.sh.
+ * Validator + LibreOffice hooks for gate (a) (#49 / #48).
+ * Requires tools from scripts/ci/setup-validators.sh in CI.
  */
 
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
-import { mkdtempSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -33,31 +33,44 @@ export function sofficeBin() {
 	return null;
 }
 
+function dotnetEnv() {
+	const env = { ...process.env };
+	const dotnetRoot = join(toolsDir(), 'dotnet');
+	if (existsSync(join(dotnetRoot, 'dotnet'))) {
+		env.DOTNET_ROOT = dotnetRoot;
+		env.PATH = `${dotnetRoot}:${env.PATH || ''}`;
+	}
+	return env;
+}
+
 /**
- * Run Open XML SDK validator; return JSON error array or null if tool missing.
+ * Run Open XML SDK validator; return JSON error array.
  * @param {string} filePath
  * @returns {{ skipped: boolean, errors?: object[], reason?: string }}
  */
 export function validateOpenXml(filePath) {
 	const bin = ooxmlValidateBin();
 	if (!bin) {
-		return { skipped: true, reason: 'TODO(#48): ooxml-validate not installed' };
+		return { skipped: true, reason: 'ooxml-validate not installed (run setup-validators.sh / #48)' };
 	}
+	const env = dotnetEnv();
 	const cmd =
 		bin.kind === 'exe'
-			? spawnSync(bin.path, [filePath], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
+			? spawnSync(bin.path, [filePath], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, env })
 			: spawnSync('dotnet', [bin.path, filePath], {
 					encoding: 'utf8',
 					maxBuffer: 16 * 1024 * 1024,
+					env,
 				});
 	if (cmd.status !== 0 && !cmd.stdout) {
-		return { skipped: false, errors: [{ message: cmd.stderr || 'validator failed' }] };
+		return { skipped: false, errors: [{ id: 'validator-fail', description: cmd.stderr || 'validator failed' }] };
 	}
 	try {
 		const parsed = JSON.parse(cmd.stdout || '[]');
-		return { skipped: false, errors: Array.isArray(parsed) ? parsed : parsed.errors || [] };
+		const errors = Array.isArray(parsed) ? parsed : parsed.errors || [];
+		return { skipped: false, errors };
 	} catch {
-		return { skipped: false, errors: [{ message: 'validator returned non-JSON' }] };
+		return { skipped: false, errors: [{ id: 'validator-non-json', description: 'validator returned non-JSON' }] };
 	}
 }
 
@@ -70,34 +83,97 @@ export function errorSubset(inputErrors, outputErrors) {
 	return { ok: extras.length === 0, extras };
 }
 
+function pdfPageCount(pdfPath) {
+	const buf = readFileSync(pdfPath);
+	const re = /\/Type\s*\/Page(?!\s*s)\b/g;
+	return (buf.toString('latin1').match(re) || []).length;
+}
+
 /**
- * LibreOffice headless reopen. Soft-skip if soffice missing (#48).
+ * LibreOffice headless unit count for one package (PRODUCT_SPEC §5).
+ * xlsx/xlsm → convert to ODS, count <table:table>; pptx/docx → PDF page count.
  * @param {Uint8Array} bytes
- * @param {string} ext file extension without dot
+ * @param {string} ext
+ * @returns {{ ok: boolean, count: number, detail?: string }}
  */
-export function libreOfficeReopen(bytes, ext) {
+function libreOfficeCount(bytes, ext) {
 	const bin = sofficeBin();
-	if (!bin) {
-		return { skipped: true, reason: 'TODO(#48): LibreOffice not installed', ok: true };
-	}
+	if (!bin) return { ok: false, count: -1, detail: 'no soffice' };
+	const e = ext.replace(/^\./, '').toLowerCase();
 	const dir = mkdtempSync(join(tmpdir(), 'nitro-lo-'));
 	try {
-		const input = join(dir, `in.${ext}`);
+		const input = join(dir, `in.${e}`);
 		writeFileSync(input, bytes);
+		if (e.startsWith('xls')) {
+			const r = spawnSync(
+				bin,
+				['--headless', '--norestore', '--convert-to', 'ods', '--outdir', dir, input],
+				{ encoding: 'utf8', timeout: 180_000 },
+			);
+			const ods = readdirSync(dir).filter((f) => f.endsWith('.ods'));
+			if (r.status !== 0 || !ods.length) {
+				return { ok: false, count: -1, detail: (r.stderr || r.stdout || 'ods convert failed').slice(0, 240) };
+			}
+			// ODS is a zip; count table:table in content.xml without extra deps.
+			const unzip = spawnSync('unzip', ['-p', join(dir, ods[0]), 'content.xml'], {
+				encoding: 'utf8',
+				maxBuffer: 64 * 1024 * 1024,
+			});
+			if (unzip.status !== 0) {
+				return { ok: false, count: -1, detail: 'ods content.xml missing' };
+			}
+			const count = (unzip.stdout.match(/<table:table[\s>]/g) || []).length;
+			return { ok: count > 0, count };
+		}
 		const r = spawnSync(
 			bin,
 			['--headless', '--norestore', '--convert-to', 'pdf', '--outdir', dir, input],
-			{ encoding: 'utf8', timeout: 120_000 },
+			{ encoding: 'utf8', timeout: 180_000 },
 		);
 		const pdfs = readdirSync(dir).filter((f) => f.endsWith('.pdf'));
-		return {
-			skipped: false,
-			ok: r.status === 0 && pdfs.length > 0,
-			detail: r.status !== 0 ? (r.stderr || r.stdout || '').slice(0, 200) : undefined,
-		};
+		if (r.status !== 0 || !pdfs.length) {
+			return { ok: false, count: -1, detail: (r.stderr || r.stdout || 'pdf convert failed').slice(0, 240) };
+		}
+		const count = pdfPageCount(join(dir, pdfs[0]));
+		return { ok: count > 0, count };
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
+}
+
+/**
+ * LibreOffice reopen: convert input and output; require exit 0 and equal counts.
+ * @param {Uint8Array} inputBytes
+ * @param {Uint8Array} outputBytes
+ * @param {string} ext
+ */
+export function libreOfficeReopen(inputBytes, outputBytes, ext) {
+	const bin = sofficeBin();
+	if (!bin) {
+		return { skipped: true, reason: 'LibreOffice not installed (run setup-validators.sh / #48)', ok: true };
+	}
+	const inn = libreOfficeCount(inputBytes, ext);
+	if (!inn.ok) {
+		return { skipped: false, ok: false, count: inn.count, expectCount: inn.count, detail: `input: ${inn.detail}` };
+	}
+	const out = libreOfficeCount(outputBytes, ext);
+	if (!out.ok) {
+		return {
+			skipped: false,
+			ok: false,
+			count: out.count,
+			expectCount: inn.count,
+			detail: `output: ${out.detail}`,
+		};
+	}
+	const ok = out.count === inn.count;
+	return {
+		skipped: false,
+		ok,
+		count: out.count,
+		expectCount: inn.count,
+		detail: ok ? undefined : `count ${out.count} != input ${inn.count}`,
+	};
 }
 
 export { ROOT };

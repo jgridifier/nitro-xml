@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: MIT
-//! Docx text, character/paragraph formatting, styles and lists on the rich surface (#78).
+//! Docx editing on the rich surface: text/format (#78) and tables/sections (#79).
 //!
-//! Table structure edits are `TODO(#79)`. Package XML writers land with the save path;
-//! this module owns model mutations for edit/undo parity against the TS oracle.
+//! Package XML writers land with the save path; this module owns model mutations
+//! for edit/undo parity against the TS oracle.
 
+pub mod drawing;
 pub mod format;
+pub mod header_footer;
 pub mod host;
 pub mod numbering;
+pub mod section;
+pub mod table;
 pub mod text;
 
 pub use format::{register_format_commands, set_paragraph_align, set_run_formatting};
 pub use host::DocxHost;
 pub use numbering::{apply_numbering, clear_numbering, ensure_list_definition, toggle_bullet_list};
+pub use table::register_table_commands;
 pub use text::{join_paragraph, register_text_commands, set_paragraph_text, split_paragraph};
 
 use nitro_xml_opc::edit::{
@@ -19,6 +24,12 @@ use nitro_xml_opc::edit::{
     EditSession, ReplayReport,
 };
 use serde_json::Value;
+
+fn register_docx_commands(registry: &mut CommandRegistry) {
+    register_text_commands(registry);
+    register_format_commands(registry);
+    register_table_commands(registry);
+}
 
 /// Replay a docx edit script; returns report + differential model snapshot.
 pub fn replay_docx_script(
@@ -30,7 +41,7 @@ pub fn replay_docx_script(
     Ok((report, snapshot))
 }
 
-/// Open a session, register docx text/format commands, replay (history retained).
+/// Open a session, register docx commands, replay (history retained).
 pub fn replay_docx_session(
     bytes: &[u8],
     script_json: &str,
@@ -43,9 +54,7 @@ pub fn replay_docx_session(
     }
     let host = DocxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
     let mut registry = CommandRegistry::with_schema_stubs();
-    register_text_commands(&mut registry);
-    register_format_commands(&mut registry);
-    // Table ops stay schema stubs → unsupported until #79.
+    register_docx_commands(&mut registry);
     let mut session = EditSession::new(host, EditHistory::new());
     let mut report = replay_script(&script, &registry, &mut session);
     report.history_commits = session.history.committed().len();
@@ -63,8 +72,7 @@ pub fn undo_parity_checkpoints(bytes: &[u8], script_json: &str) -> Result<Vec<Va
 
     let host = DocxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
     let mut registry = CommandRegistry::with_schema_stubs();
-    register_text_commands(&mut registry);
-    register_format_commands(&mut registry);
+    register_docx_commands(&mut registry);
     let mut session = EditSession::new(host, EditHistory::new());
 
     let mut checkpoints = Vec::new();
@@ -152,7 +160,7 @@ mod tests {
         })
     }
 
-    /// Non-table #50 docx scripts (#78 scope). Table scripts are #79.
+    /// Non-table #50 docx scripts (#78 scope).
     const DOCX_TEXT_SCRIPTS: &[&str] = &[
         "docx-borders-para",
         "docx-both-paras",
@@ -170,6 +178,18 @@ mod tests {
         "docx-text-and-format",
     ];
 
+    /// Table / pages10 #50 docx scripts (#79 scope).
+    const DOCX_TABLE_SCRIPTS: &[&str] = &[
+        "docx-pages10-table-cell",
+        "docx-pages10-table-cell-b",
+        "docx-pages10-insert-row",
+        "docx-pages10-delete-row",
+        "docx-pages10-insert-col",
+        "docx-pages10-delete-col",
+        "docx-pages10-multi",
+        "docx-pages10-para-text",
+    ];
+
     fn ts_model_dump(fixture: &Path, script_json: &str) -> Option<Value> {
         let bun = bun_bin();
         if Command::new(&bun).arg("--version").output().is_err() {
@@ -179,7 +199,15 @@ mod tests {
         if !dump_mjs.is_file() {
             return None;
         }
-        let dir = std::env::temp_dir().join(format!("docx-edit-dump-{}", std::process::id()));
+        // Unique dir per call — parallel cargo tests share a PID.
+        let dir = std::env::temp_dir().join(format!(
+            "docx-edit-dump-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
         let _ = fs::create_dir_all(&dir);
         let script_path = dir.join("script.json");
         let out_path = dir.join("out.json");
@@ -192,9 +220,11 @@ mod tests {
             .status()
             .ok()?;
         if !status.success() {
+            let _ = fs::remove_dir_all(&dir);
             return None;
         }
         let text = fs::read_to_string(&out_path).ok()?;
+        let _ = fs::remove_dir_all(&dir);
         serde_json::from_str(&text).ok()
     }
 
@@ -207,7 +237,14 @@ mod tests {
         if !helper.is_file() {
             return None;
         }
-        let dir = std::env::temp_dir().join(format!("docx-undo-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "docx-undo-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
         let _ = fs::create_dir_all(&dir);
         let script_path = dir.join("script.json");
         let out_path = dir.join("out.json");
@@ -220,11 +257,44 @@ mod tests {
             .status()
             .ok()?;
         if !status.success() {
+            let _ = fs::remove_dir_all(&dir);
             return None;
         }
         let text = fs::read_to_string(&out_path).ok()?;
+        let _ = fs::remove_dir_all(&dir);
         let v: Value = serde_json::from_str(&text).ok()?;
         v.get("checkpoints").and_then(|c| c.as_array()).cloned()
+    }
+
+    fn assert_undo_local_ok(id: &str, rust_cps: &[Value]) {
+        let start = rust_cps
+            .iter()
+            .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("start"))
+            .and_then(|c| c.get("snapshot"))
+            .expect("start");
+        let after_dos = rust_cps
+            .iter()
+            .rev()
+            .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("do"))
+            .and_then(|c| c.get("snapshot"))
+            .expect("after-dos");
+        let after_undo = rust_cps
+            .iter()
+            .rev()
+            .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("undo"))
+            .and_then(|c| c.get("snapshot"))
+            .unwrap_or(start);
+        let after_redo = rust_cps
+            .iter()
+            .rev()
+            .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("redo"))
+            .and_then(|c| c.get("snapshot"))
+            .unwrap_or(after_dos);
+        assert_eq!(after_undo, start, "{id} undo-all must restore start");
+        assert_eq!(
+            after_redo, after_dos,
+            "{id} redo-all must restore after-dos"
+        );
     }
 
     #[test]
@@ -257,12 +327,46 @@ mod tests {
     }
 
     #[test]
+    fn catches_docx_table_scripts_match_ts_model() {
+        // Catches: Rust docx table cell/row/col edits drifting from upstream TS (#79 / #50).
+        let mut ok = 0usize;
+        for id in DOCX_TABLE_SCRIPTS {
+            let path = edits_docx().join(format!("{id}.json"));
+            let script_json = fs::read_to_string(&path).unwrap();
+            let script: Value = serde_json::from_str(&script_json).unwrap();
+            let fixture_id = script["fixture"].as_str().unwrap();
+            let fixture = fixture_path(fixture_id);
+            let bytes = fs::read(&fixture).unwrap();
+            let (report, rust_snap) = replay_docx_script(&bytes, &script_json)
+                .unwrap_or_else(|e| panic!("{id} replay: {e}"));
+            assert_eq!(report.status, "ok", "{id} report={report:?}");
+            ok += 1;
+
+            if let Some(ts_snap) = ts_model_dump(&fixture, &script_json) {
+                assert_eq!(
+                    rust_snap,
+                    ts_snap,
+                    "{id} model snapshot mismatch\nrust={}\nts={}",
+                    serde_json::to_string_pretty(&rust_snap).unwrap(),
+                    serde_json::to_string_pretty(&ts_snap).unwrap()
+                );
+            }
+        }
+        assert_eq!(ok, 8, "expected 8 pages10/table docx scripts");
+    }
+
+    #[test]
     fn catches_docx_undo_parity_checkpoints_match_ts() {
-        // Catches: Rust docx undo/redo drifting from TS at any do/undo/redo step (#78 / #51).
+        // Catches: Rust docx undo/redo drifting from TS at any do/undo/redo step (#78/#79 / #51).
         let mut local_ok = 0usize;
         let mut ts_ok = 0usize;
         let mut ts_attempts = 0usize;
-        for id in DOCX_TEXT_SCRIPTS {
+        let all: Vec<&str> = DOCX_TEXT_SCRIPTS
+            .iter()
+            .chain(DOCX_TABLE_SCRIPTS.iter())
+            .copied()
+            .collect();
+        for id in &all {
             let path = edits_docx().join(format!("{id}.json"));
             let script_json = fs::read_to_string(&path).unwrap();
             let script: Value = serde_json::from_str(&script_json).unwrap();
@@ -272,35 +376,7 @@ mod tests {
 
             let rust_cps = undo_parity_checkpoints(&bytes, &script_json)
                 .unwrap_or_else(|e| panic!("{id} rust undo: {e}"));
-
-            let start = rust_cps
-                .iter()
-                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("start"))
-                .and_then(|c| c.get("snapshot"))
-                .expect("start");
-            let after_dos = rust_cps
-                .iter()
-                .rev()
-                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("do"))
-                .and_then(|c| c.get("snapshot"))
-                .expect("after-dos");
-            let after_undo = rust_cps
-                .iter()
-                .rev()
-                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("undo"))
-                .and_then(|c| c.get("snapshot"))
-                .unwrap_or(start);
-            let after_redo = rust_cps
-                .iter()
-                .rev()
-                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("redo"))
-                .and_then(|c| c.get("snapshot"))
-                .unwrap_or(after_dos);
-            assert_eq!(after_undo, start, "{id} undo-all must restore start");
-            assert_eq!(
-                after_redo, after_dos,
-                "{id} redo-all must restore after-dos"
-            );
+            assert_undo_local_ok(id, &rust_cps);
             local_ok += 1;
 
             let Some(ts_cps) = ts_undo_checkpoints(&fixture, &script_json) else {
@@ -321,22 +397,31 @@ mod tests {
             }
             ts_ok += 1;
         }
-        assert_eq!(local_ok, 14);
+        assert_eq!(local_ok, 22);
         if ts_attempts > 0 {
-            assert_eq!(ts_ok, 14, "docx TS undo-parity {ts_ok}/{ts_attempts}");
+            assert_eq!(ts_ok, 22, "docx TS undo-parity {ts_ok}/{ts_attempts}");
         }
     }
 
     #[test]
-    fn catches_table_ops_remain_unsupported_negative_control() {
-        // Catches: #78 accidentally claiming table edit ops as ok before #79.
-        let path = edits_docx().join("docx-pages10-table-cell.json");
-        let script_json = fs::read_to_string(&path).unwrap();
-        let script: Value = serde_json::from_str(&script_json).unwrap();
-        let fixture = fixture_path(script["fixture"].as_str().unwrap());
+    fn catches_table_op_on_paragraph_errors_negative_control() {
+        // Catches: setTableCellText succeeding on a non-table block (#79 negative).
+        let script = r#"{
+            "id": "neg-table-on-para",
+            "format": "docx",
+            "fixture": "gen-docx-line-numbers",
+            "ops": [{
+                "op": "setTableCellText",
+                "blockIndex": 0,
+                "row": 0,
+                "col": 0,
+                "text": "X"
+            }]
+        }"#;
+        let fixture = fixture_path("gen-docx-line-numbers");
         let bytes = fs::read(&fixture).unwrap();
-        let (report, _) = replay_docx_script(&bytes, &script_json).unwrap();
-        assert_ne!(report.status, "ok", "table ops must stay unsupported");
+        let (report, _) = replay_docx_script(&bytes, script).unwrap();
+        assert_ne!(report.status, "ok", "must not silently succeed");
         assert!(
             report.status == "unsupported" || report.status == "error",
             "status={}",

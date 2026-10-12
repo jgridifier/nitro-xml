@@ -189,6 +189,9 @@ mod tests {
             numbering_catalog: None,
             paragraph_styles: None,
             character_styles: None,
+            sections: None,
+            page: None,
+            even_and_odd_headers: false,
             touched: Default::default(),
         };
         let err = set_paragraph_text(&mut host, 0, "x", &Default::default()).unwrap_err();

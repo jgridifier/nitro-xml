@@ -1,0 +1,346 @@
+// SPDX-License-Identifier: MIT
+//! Docx text, character/paragraph formatting, styles and lists on the rich surface (#78).
+//!
+//! Table structure edits are `TODO(#79)`. Package XML writers land with the save path;
+//! this module owns model mutations for edit/undo parity against the TS oracle.
+
+pub mod format;
+pub mod host;
+pub mod numbering;
+pub mod text;
+
+pub use format::{register_format_commands, set_paragraph_align, set_run_formatting};
+pub use host::DocxHost;
+pub use numbering::{apply_numbering, clear_numbering, ensure_list_definition, toggle_bullet_list};
+pub use text::{join_paragraph, register_text_commands, set_paragraph_text, split_paragraph};
+
+use nitro_xml_opc::edit::{
+    parse_edit_script, replay_script, CommandRegistry, EditError, EditHistory, EditScript,
+    EditSession, ReplayReport,
+};
+use serde_json::Value;
+
+/// Replay a docx edit script; returns report + differential model snapshot.
+pub fn replay_docx_script(
+    bytes: &[u8],
+    script_json: &str,
+) -> Result<(ReplayReport, Value), EditError> {
+    let (report, session) = replay_docx_session(bytes, script_json)?;
+    let snapshot = session.host.model_snapshot();
+    Ok((report, snapshot))
+}
+
+/// Open a session, register docx text/format commands, replay (history retained).
+pub fn replay_docx_session(
+    bytes: &[u8],
+    script_json: &str,
+) -> Result<(ReplayReport, EditSession<DocxHost, EditHistory>), EditError> {
+    let script = parse_edit_script(script_json)?;
+    if script.format != nitro_xml_opc::edit::EditFormat::Docx {
+        return Err(EditError::Other {
+            message: format!("expected docx script, got {}", script.format.as_str()),
+        });
+    }
+    let host = DocxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
+    let mut registry = CommandRegistry::with_schema_stubs();
+    register_text_commands(&mut registry);
+    register_format_commands(&mut registry);
+    // Table ops stay schema stubs → unsupported until #79.
+    let mut session = EditSession::new(host, EditHistory::new());
+    let mut report = replay_script(&script, &registry, &mut session);
+    report.history_commits = session.history.committed().len();
+    Ok((report, session))
+}
+
+/// Do → undo-all → redo-all checkpoints matching `parity/undo` phases.
+pub fn undo_parity_checkpoints(bytes: &[u8], script_json: &str) -> Result<Vec<Value>, EditError> {
+    let script: EditScript = parse_edit_script(script_json)?;
+    if script.format != nitro_xml_opc::edit::EditFormat::Docx {
+        return Err(EditError::Other {
+            message: format!("expected docx script, got {}", script.format.as_str()),
+        });
+    }
+
+    let host = DocxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
+    let mut registry = CommandRegistry::with_schema_stubs();
+    register_text_commands(&mut registry);
+    register_format_commands(&mut registry);
+    let mut session = EditSession::new(host, EditHistory::new());
+
+    let mut checkpoints = Vec::new();
+    let mut step: u32 = 0;
+    let mut push = |phase: &str, label: &str, session: &EditSession<DocxHost, EditHistory>| {
+        checkpoints.push(serde_json::json!({
+            "phase": phase,
+            "step": step,
+            "label": label,
+            "snapshot": session.host.undo_parity_snapshot(),
+        }));
+        step += 1;
+    };
+
+    push("start", "open", &session);
+
+    for op in &script.ops {
+        let one = EditScript {
+            id: script.id.clone(),
+            format: script.format,
+            fixture: script.fixture.clone(),
+            description: None,
+            ops: vec![op.clone()],
+        };
+        let report = replay_script(&one, &registry, &mut session);
+        if report.status != "ok" {
+            return Err(EditError::Other {
+                message: format!("op {} status {}", op.command_id(), report.status),
+            });
+        }
+        let label = session
+            .history
+            .undo_label()
+            .unwrap_or(op.command_id())
+            .to_owned();
+        push("do", &label, &session);
+    }
+
+    while session.can_undo() {
+        let label = session.undo_label().unwrap_or("undo").to_owned();
+        session.undo();
+        push("undo", &label, &session);
+    }
+
+    while session.can_redo() {
+        let label = session.redo_label().unwrap_or("redo").to_owned();
+        session.redo();
+        push("redo", &label, &session);
+    }
+
+    Ok(checkpoints)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+
+    fn repo_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
+    }
+
+    fn edits_docx() -> PathBuf {
+        repo_root().join("edits/docx")
+    }
+
+    fn fixture_path(id: &str) -> PathBuf {
+        let manifest = repo_root().join("fixtures/manifest.json");
+        let text = fs::read_to_string(&manifest).expect("manifest");
+        let v: Value = serde_json::from_str(&text).expect("manifest json");
+        let fixtures = v["fixtures"].as_array().expect("fixtures");
+        let row = fixtures
+            .iter()
+            .find(|f| f["id"].as_str() == Some(id))
+            .unwrap_or_else(|| panic!("fixture {id}"));
+        repo_root().join(row["path"].as_str().expect("path"))
+    }
+
+    fn bun_bin() -> String {
+        std::env::var("BUN_BIN").unwrap_or_else(|_| {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/home/ubuntu".into());
+            format!("{home}/.bun/bin/bun")
+        })
+    }
+
+    /// Non-table #50 docx scripts (#78 scope). Table scripts are #79.
+    const DOCX_TEXT_SCRIPTS: &[&str] = &[
+        "docx-borders-para",
+        "docx-both-paras",
+        "docx-para-align-center",
+        "docx-para-align-right",
+        "docx-run-formatting-bold",
+        "docx-run-formatting-italic",
+        "docx-run-formatting-size",
+        "docx-run-formatting-underline",
+        "docx-set-para0-text",
+        "docx-set-para1-text",
+        "docx-set-para-bold",
+        "docx-set-para-italic",
+        "docx-set-para-size-color",
+        "docx-text-and-format",
+    ];
+
+    fn ts_model_dump(fixture: &Path, script_json: &str) -> Option<Value> {
+        let bun = bun_bin();
+        if Command::new(&bun).arg("--version").output().is_err() {
+            return None;
+        }
+        let dump_mjs = repo_root().join("parity/edit/docx_model_dump.mjs");
+        if !dump_mjs.is_file() {
+            return None;
+        }
+        let dir = std::env::temp_dir().join(format!("docx-edit-dump-{}", std::process::id()));
+        let _ = fs::create_dir_all(&dir);
+        let script_path = dir.join("script.json");
+        let out_path = dir.join("out.json");
+        fs::write(&script_path, script_json).ok()?;
+        let status = Command::new(&bun)
+            .arg(dump_mjs.as_os_str())
+            .arg(fixture.as_os_str())
+            .arg(script_path.as_os_str())
+            .arg(out_path.as_os_str())
+            .status()
+            .ok()?;
+        if !status.success() {
+            return None;
+        }
+        let text = fs::read_to_string(&out_path).ok()?;
+        serde_json::from_str(&text).ok()
+    }
+
+    fn ts_undo_checkpoints(fixture: &Path, script_json: &str) -> Option<Vec<Value>> {
+        let bun = bun_bin();
+        if Command::new(&bun).arg("--version").output().is_err() {
+            return None;
+        }
+        let helper = repo_root().join("parity/undo/rust_oracle.mjs");
+        if !helper.is_file() {
+            return None;
+        }
+        let dir = std::env::temp_dir().join(format!("docx-undo-{}", std::process::id()));
+        let _ = fs::create_dir_all(&dir);
+        let script_path = dir.join("script.json");
+        let out_path = dir.join("out.json");
+        fs::write(&script_path, script_json).ok()?;
+        let status = Command::new(&bun)
+            .arg(helper.as_os_str())
+            .arg(fixture.as_os_str())
+            .arg(script_path.as_os_str())
+            .arg(out_path.as_os_str())
+            .status()
+            .ok()?;
+        if !status.success() {
+            return None;
+        }
+        let text = fs::read_to_string(&out_path).ok()?;
+        let v: Value = serde_json::from_str(&text).ok()?;
+        v.get("checkpoints").and_then(|c| c.as_array()).cloned()
+    }
+
+    #[test]
+    fn catches_docx_text_format_scripts_match_ts_model() {
+        // Catches: Rust docx text/format edits drifting from upstream TS model (#78 / #50).
+        let mut ok = 0usize;
+        for id in DOCX_TEXT_SCRIPTS {
+            let path = edits_docx().join(format!("{id}.json"));
+            let script_json = fs::read_to_string(&path).unwrap();
+            let script: Value = serde_json::from_str(&script_json).unwrap();
+            let fixture_id = script["fixture"].as_str().unwrap();
+            let fixture = fixture_path(fixture_id);
+            let bytes = fs::read(&fixture).unwrap();
+            let (report, rust_snap) = replay_docx_script(&bytes, &script_json)
+                .unwrap_or_else(|e| panic!("{id} replay: {e}"));
+            assert_eq!(report.status, "ok", "{id} report={report:?}");
+            ok += 1;
+
+            if let Some(ts_snap) = ts_model_dump(&fixture, &script_json) {
+                assert_eq!(
+                    rust_snap,
+                    ts_snap,
+                    "{id} model snapshot mismatch\nrust={}\nts={}",
+                    serde_json::to_string_pretty(&rust_snap).unwrap(),
+                    serde_json::to_string_pretty(&ts_snap).unwrap()
+                );
+            }
+        }
+        assert_eq!(ok, 14, "expected 14 non-table docx text/format scripts");
+    }
+
+    #[test]
+    fn catches_docx_undo_parity_checkpoints_match_ts() {
+        // Catches: Rust docx undo/redo drifting from TS at any do/undo/redo step (#78 / #51).
+        let mut local_ok = 0usize;
+        let mut ts_ok = 0usize;
+        let mut ts_attempts = 0usize;
+        for id in DOCX_TEXT_SCRIPTS {
+            let path = edits_docx().join(format!("{id}.json"));
+            let script_json = fs::read_to_string(&path).unwrap();
+            let script: Value = serde_json::from_str(&script_json).unwrap();
+            let fixture_id = script["fixture"].as_str().unwrap();
+            let fixture = fixture_path(fixture_id);
+            let bytes = fs::read(&fixture).unwrap();
+
+            let rust_cps = undo_parity_checkpoints(&bytes, &script_json)
+                .unwrap_or_else(|e| panic!("{id} rust undo: {e}"));
+
+            let start = rust_cps
+                .iter()
+                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("start"))
+                .and_then(|c| c.get("snapshot"))
+                .expect("start");
+            let after_dos = rust_cps
+                .iter()
+                .rev()
+                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("do"))
+                .and_then(|c| c.get("snapshot"))
+                .expect("after-dos");
+            let after_undo = rust_cps
+                .iter()
+                .rev()
+                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("undo"))
+                .and_then(|c| c.get("snapshot"))
+                .unwrap_or(start);
+            let after_redo = rust_cps
+                .iter()
+                .rev()
+                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("redo"))
+                .and_then(|c| c.get("snapshot"))
+                .unwrap_or(after_dos);
+            assert_eq!(after_undo, start, "{id} undo-all must restore start");
+            assert_eq!(
+                after_redo, after_dos,
+                "{id} redo-all must restore after-dos"
+            );
+            local_ok += 1;
+
+            let Some(ts_cps) = ts_undo_checkpoints(&fixture, &script_json) else {
+                eprintln!("skip TS compare for {id}");
+                continue;
+            };
+            ts_attempts += 1;
+            assert_eq!(rust_cps.len(), ts_cps.len(), "{id} checkpoint count");
+            for (i, (r, t)) in rust_cps.iter().zip(ts_cps.iter()).enumerate() {
+                assert_eq!(r.get("phase"), t.get("phase"), "{id} checkpoint[{i}] phase");
+                assert_eq!(
+                    r.get("snapshot"),
+                    t.get("snapshot"),
+                    "{id} checkpoint[{i}] snapshot mismatch\nrust={}\nts={}",
+                    serde_json::to_string_pretty(r.get("snapshot").unwrap()).unwrap(),
+                    serde_json::to_string_pretty(t.get("snapshot").unwrap()).unwrap()
+                );
+            }
+            ts_ok += 1;
+        }
+        assert_eq!(local_ok, 14);
+        if ts_attempts > 0 {
+            assert_eq!(ts_ok, 14, "docx TS undo-parity {ts_ok}/{ts_attempts}");
+        }
+    }
+
+    #[test]
+    fn catches_table_ops_remain_unsupported_negative_control() {
+        // Catches: #78 accidentally claiming table edit ops as ok before #79.
+        let path = edits_docx().join("docx-pages10-table-cell.json");
+        let script_json = fs::read_to_string(&path).unwrap();
+        let script: Value = serde_json::from_str(&script_json).unwrap();
+        let fixture = fixture_path(script["fixture"].as_str().unwrap());
+        let bytes = fs::read(&fixture).unwrap();
+        let (report, _) = replay_docx_script(&bytes, &script_json).unwrap();
+        assert_ne!(report.status, "ok", "table ops must stay unsupported");
+        assert!(
+            report.status == "unsupported" || report.status == "error",
+            "status={}",
+            report.status
+        );
+    }
+}

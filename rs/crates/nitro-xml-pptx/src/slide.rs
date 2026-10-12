@@ -2313,10 +2313,21 @@ fn apply_effect_ref(
         extras.box_shadow =
             crate::outer_shadow::box_shadow_from_effect_lst(effect_lst, &ph, rotation_deg);
     }
+    let mut inset_shadows: Vec<String> = Vec::new();
+    if let Some(bevel) = effect_style.sp3d_bevel.as_ref() {
+        if let Some(shadow) = crate::visual_3d_bevel::get_3d_bevel_shadow(bevel, None) {
+            inset_shadows.push(shadow);
+        }
+    }
     if let Some(material) = effect_style.prst_material.as_deref() {
         let mat = crate::visual_3d_materials::get_material_css_overrides(material);
-        extras.material_box_shadow = mat.box_shadow.map(str::to_owned);
+        if let Some(shadow) = mat.box_shadow {
+            inset_shadows.push(shadow.to_owned());
+        }
         extras.material_overlay = mat.background_image.map(str::to_owned);
+    }
+    if !inset_shadows.is_empty() {
+        extras.material_box_shadow = Some(inset_shadows.join(", "));
     }
 }
 
@@ -3210,6 +3221,10 @@ mod tests {
             .as_deref()
             .expect("material_box_shadow");
         assert!(
+            inset.contains("inset -1px -1px 3px rgba(255,255,255,"),
+            "default circle bevel on 10000 EMU, got {inset}"
+        );
+        assert!(
             inset.contains("inset -3px -3px 8px"),
             "metal inset specular, got {inset}"
         );
@@ -3244,8 +3259,12 @@ mod tests {
                 .as_deref()
                 .expect("Profil effectRef idx=2 metal inset");
             assert!(
-                inset.contains("inset"),
-                "expected inset specular on Profil, got {inset:?}"
+                inset.contains("inset -3px -3px 8px"),
+                "metal inset specular on Profil, got {inset:?}"
+            );
+            assert!(
+                inset.contains("rgba(255,255,255,") && inset.matches("inset ").count() >= 3,
+                "Profil metal+bevelT should stack bevel and material inset layers, got {inset:?}"
             );
             assert!(
                 el.material_overlay

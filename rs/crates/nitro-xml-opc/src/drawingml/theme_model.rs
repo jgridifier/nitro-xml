@@ -111,6 +111,23 @@ pub struct ThemeFontScheme {
     pub minor: ThemeFontCollection,
 }
 
+/// Parsed `a:sp3d/a:bevelT` and optional `a:bevelB` on a theme `a:effectStyle`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ThemeSp3dBevel {
+    /// `a:bevelT/@prst` (defaults to `circle` when the element is present but `prst` is omitted).
+    pub top_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_width_emu: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_height_emu: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bottom_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bottom_width_emu: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bottom_height_emu: Option<i32>,
+}
+
 /// One `a:effectStyle` entry from `a:effectStyleLst` (shadow/glow/etc. live under `a:effectLst`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ThemeEffectStyle {
@@ -120,7 +137,10 @@ pub struct ThemeEffectStyle {
     /// `a:sp3d/@prstMaterial` on the same `a:effectStyle` (theme matrix 3-D material).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prst_material: Option<String>,
-    /// True when `a:sp3d` carries `a:bevelT` or `a:bevelB` (bevel paint is follow-up work).
+    /// Bevel dimensions from `a:sp3d` when `a:bevelT` / `a:bevelB` are present.
+    #[serde(skip)]
+    pub sp3d_bevel: Option<ThemeSp3dBevel>,
+    /// True when `a:sp3d` carries `a:bevelT` or `a:bevelB`.
     #[serde(skip)]
     pub has_bevel: bool,
 }

@@ -47,7 +47,7 @@ pub use theme_color::{
 pub use theme_model::{
     DrawingTheme, ThemeColorMap, ThemeColorMapKey, ThemeColorScheme, ThemeColorSlot,
     ThemeEffectStyle, ThemeFontCollection, ThemeFontScheme, ThemeFormatScheme, ThemeLogicalColor,
-    DEFAULT_THEME_COLOR_MAP, THEME_COLOR_SLOTS,
+    ThemeSp3dBevel, DEFAULT_THEME_COLOR_MAP, THEME_COLOR_SLOTS,
 };
 pub use types::{
     AttributeReader, ColorTransform, DrawingColor, DrawingColorKind, DrawingFill, DrawingFrame,

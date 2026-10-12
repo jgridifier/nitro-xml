@@ -70,6 +70,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/password_hash.rs` | `src/core/xlsx/read/password-hash.ts @ e66aaec` | Agile hash attribute reader for workbook protection. |
 | `rs/crates/nitro-xml-xlsx/src/style_parts.rs` | `src/core/xlsx/read/style-parts.ts @ e66aaec` | Fonts, fills, borders, colours, indexed palette. |
 | `rs/crates/nitro-xml-xlsx/src/styles.rs` | `src/core/xlsx/read/styles.ts`, `src/core/xlsx/styles.ts` (`styleKey`, `styleAt`) @ e66aaec | Styles part, xf map, named styles, dxfs; `styleKey` via sorted JSON; `style_at` for display-text (#130). |
+| `rs/crates/nitro-xml-xlsx/src/edit/style_patch.rs` | `src/core/xlsx/styles.ts` (`StylePatch`, `patchStyle`, `internStyle`, `applyStylePatch`) @ e66aaec | Style patch merge + intern for cell format edits (#66); JSON patch parse for edit scripts. |
+| `rs/crates/nitro-xml-xlsx/src/edit/cells.rs` | `src/core/xlsx/edit/cell-values.ts`, `format.ts`, `context.ts` (`ensureCell`, `pruneCell`, `baseStyleId`) @ e66aaec | `writeInput` / `writeValue` / range style patch over `DumpCell` store; registry runners for #66. |
 | `rs/crates/nitro-xml-xlsx/src/shared_strings.rs` | `src/core/xlsx/read/shared-strings.ts @ e66aaec` | Plain and rich shared strings; phonetics ignored. |
 | `rs/crates/nitro-xml-xlsx/src/theme.rs` | `src/core/xlsx/read/theme.ts` (+ minimal DrawingML colour/font scheme) @ e66aaec | SpreadsheetML palette slot order; latin major/minor fonts. |
 | `rs/crates/nitro-xml-xlsx/src/workbook.rs` | `src/core/xlsx/read/load.ts`, `workbook-part.ts`, `workbook.ts` (defaults) @ e66aaec | Stage-3 load orchestration, Print_Area lift, sheet stubs, warnings; Stage-16 lazy `parse_worksheet` for the active sheet only. |

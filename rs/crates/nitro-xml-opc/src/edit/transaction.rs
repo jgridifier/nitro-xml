@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 //! Atomic transactions with rollback; emits change-sets on commit (#63).
 
+use std::any::Any;
+
 use crate::edit::change_set::{ChangeKind, ChangeSet, EditScope};
 use crate::edit::error::EditError;
 use crate::edit::history::{HistoryHooks, HistoryStep};
@@ -10,9 +12,11 @@ use crate::edit::history::{HistoryHooks, HistoryStep};
 pub struct HostSnapshot(pub Vec<u8>);
 
 /// Document host the session snapshots around a mutation.
-pub trait EditHost {
+pub trait EditHost: Any {
     fn capture(&self, scopes: &[EditScope]) -> HostSnapshot;
     fn restore(&mut self, snap: &HostSnapshot);
+    fn as_any(&mut self) -> &mut dyn Any;
+    fn as_any_ref(&self) -> &dyn Any;
 }
 
 /// Host with no model — structural replay and unit tests only.
@@ -25,6 +29,14 @@ impl EditHost for NullHost {
     }
 
     fn restore(&mut self, _snap: &HostSnapshot) {}
+
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn as_any_ref(&self) -> &dyn Any {
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -181,6 +193,14 @@ mod tests {
                 buf.copy_from_slice(&snap.0);
                 self.value = i32::from_le_bytes(buf);
             }
+        }
+
+        fn as_any(&mut self) -> &mut dyn Any {
+            self
+        }
+
+        fn as_any_ref(&self) -> &dyn Any {
+            self
         }
     }
 

@@ -105,17 +105,7 @@ mod tests {
     #[test]
     fn catches_set_margins_writes_section_page_and_syncs_host_page() {
         // Catches: section margin edit updating only host.page and leaving sections empty (#79).
-        let mut host = DocxHost {
-            format: "docx".into(),
-            blocks: vec![],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            touched: Default::default(),
-        };
+        let mut host = DocxHost::stub(vec![]);
         set_section_margins(&mut host, 0, 1440, 1440, 1440, 1440).unwrap();
         assert_eq!(
             host.sections.as_ref().unwrap()[0]["page"]["margins"]["top"],

@@ -283,21 +283,11 @@ mod tests {
     #[test]
     fn catches_insert_table_row_on_paragraph_is_rejected() {
         // Catches: table structure ops silently mutating a paragraph block (#79 negative).
-        let mut host = DocxHost {
-            format: "docx".into(),
-            blocks: vec![json!({
-                "type": "paragraph",
-                "id": "p0",
-                "runs": [{ "text": "x" }],
-            })],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            touched: Default::default(),
-        };
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "x" }],
+        })]);
         let err = insert_table_row(&mut host, 0, 0).unwrap_err();
         assert!(err.to_string().contains("not a table"));
     }

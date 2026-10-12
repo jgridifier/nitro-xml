@@ -21,25 +21,47 @@ import { validateOpenXml, errorSubset, libreOfficeReopen } from '../roundtrip/va
 import { familyOf, packageKind } from '../roundtrip/corpus.mjs';
 import { applyAndSave } from './apply.mjs';
 import { loadEditScripts, resolveFixture, fixtureAbs, ROOT } from './scripts.mjs';
+import { rustDocxSave } from './rust-docx.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, 'out');
 
 function parseArgs(argv) {
-	const out = { format: null, id: null, ci: false };
+	const out = {
+		format: null,
+		id: null,
+		ci: false,
+		rustDocx: false,
+		negativeControl: false,
+	};
 	for (let i = 2; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === '--format') out.format = argv[++i];
 		else if (a === '--id') out.id = argv[++i];
 		else if (a === '--ci') out.ci = true;
+		else if (a === '--rust-docx') out.rustDocx = true;
+		else if (a === '--negative-control') out.negativeControl = true;
 		else if (a === '--help' || a === '-h') {
 			console.log(
-				'Usage: bun run.mjs [--ci] [--format xlsx|docx|pptx] [--id script-id]',
+				'Usage: bun run.mjs [--ci] [--format xlsx|docx|pptx] [--id script-id] [--rust-docx] [--negative-control]',
 			);
 			process.exit(0);
 		}
 	}
 	return out;
+}
+
+function isDocPropsLoss(loss) {
+	if (loss.category === 'docProps') return true;
+	const part = loss.part ? String(loss.part) : '';
+	return part.startsWith('docProps/') || part.toLowerCase().includes('docprops');
+}
+
+async function documentXmlRewritten(inputBytes, outputBytes) {
+	const cmp = await comparePackages(inputBytes, outputBytes);
+	return (cmp.losses || []).some(
+		(l) => l.category === 'xml-rewrite' && l.part === 'word/document.xml',
+	);
 }
 
 function assertPin() {
@@ -190,6 +212,69 @@ async function main() {
 		};
 	}
 
+	/** @type {{ id: string, losses: object[] }[]} */
+	const rustFailures = [];
+	if (args.rustDocx) {
+		const docxScripts = scripts.filter((s) => s.format === 'docx');
+		for (const script of docxScripts) {
+			process.stdout.write(`rust-docx: ${script.id} … `);
+			try {
+				const input = new Uint8Array(readFileSync(fixtureAbs(resolveFixture(script))));
+				const tsOut = await applyAndSave(input, script);
+				const rustOut = rustDocxSave(input, script.path, { skipDocumentRewrite: false });
+				const cmp = await comparePackages(tsOut, rustOut);
+				const losses = (cmp.losses || []).filter((l) => !isDocPropsLoss(l));
+				if (losses.length) {
+					rustFailures.push({ id: script.id, losses });
+					const sample = losses
+						.slice(0, 3)
+						.map((l) => `${l.category}:${l.part || ''} ${l.detail}`)
+						.join(' | ');
+					console.log(`FAIL ${losses.length} (${sample})`);
+				} else {
+					console.log('ok');
+				}
+			} catch (e) {
+				const message = String(e && e.message ? e.message : e).slice(0, 300);
+				rustFailures.push({ id: script.id, losses: [{ category: 'error', detail: message }] });
+				console.log(`FAIL ${message}`);
+			}
+		}
+	}
+
+	let negativeControl = null;
+	if (args.negativeControl) {
+		const script =
+			scripts.find((s) => s.id === 'docx-set-para0-text') ||
+			scripts.find((s) => s.format === 'docx');
+		if (!script) {
+			console.error('negative-control: FAIL (no docx script)');
+			process.exit(1);
+		}
+		const input = new Uint8Array(readFileSync(fixtureAbs(resolveFixture(script))));
+		const dirty = rustDocxSave(input, script.path, { skipDocumentRewrite: false });
+		const skipped = rustDocxSave(input, script.path, { skipDocumentRewrite: true });
+		const dirtyRewrote = await documentXmlRewritten(input, dirty);
+		const skipRewrote = await documentXmlRewritten(input, skipped);
+		if (!dirtyRewrote) {
+			negativeControl = 'fail-missing-on-dirty';
+			console.error(
+				'negative-control: FAIL (dirty save did not rewrite word/document.xml; detector had nothing to reject)',
+			);
+		} else if (skipRewrote) {
+			negativeControl = 'fail-skip-ignored';
+			console.error(
+				'negative-control: FAIL (--skip-document-rewrite still changed word/document.xml)',
+			);
+		} else {
+			negativeControl = 'pass';
+			console.log(
+				'negative-control: detector FAIL (document.xml unchanged) — expected for --skip-document-rewrite',
+			);
+			console.log('negative-control: PASS');
+		}
+	}
+
 	const failed = rows.filter((r) => !r.ok);
 	const summary = {
 		gate: 'edit-parity',
@@ -199,6 +284,10 @@ async function main() {
 		fail: failed.length,
 		byFormat,
 		failedIds: failed.map((r) => r.id),
+		rustDocx: args.rustDocx
+			? { compared: scripts.filter((s) => s.format === 'docx').length, fail: rustFailures.length }
+			: null,
+		negativeControl,
 	};
 
 	const expectedDiffs = Object.fromEntries(
@@ -217,12 +306,25 @@ async function main() {
 	if (failed.length) {
 		lines.push(`  FAIL: ${failed.map((r) => r.id).join(', ')}`);
 	}
+	if (args.rustDocx) {
+		const compared = scripts.filter((s) => s.format === 'docx').length;
+		lines.push(
+			`  rust-docx ${compared - rustFailures.length}/${compared} match TS (docProps allowed)`,
+		);
+		if (rustFailures.length) {
+			lines.push(`  rust-docx FAIL: ${rustFailures.map((r) => r.id).join(', ')}`);
+		}
+	}
+	if (negativeControl) {
+		lines.push(`  negative-control: ${negativeControl}`);
+	}
 	const gateText = lines.join('\n') + '\n';
 	writeFileSync(join(OUT, 'gate-summary.txt'), gateText);
 	process.stdout.write(gateText);
 
-	if (args.ci && failed.length) process.exit(1);
-	if (!args.ci && failed.length) process.exit(1);
+	const rustBad = rustFailures.length > 0;
+	const controlBad = negativeControl && negativeControl !== 'pass';
+	if (failed.length || rustBad || controlBad) process.exit(1);
 }
 
 main().catch((e) => {

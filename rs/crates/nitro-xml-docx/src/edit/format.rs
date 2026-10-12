@@ -131,21 +131,11 @@ mod tests {
     #[test]
     fn catches_run_formatting_preserves_text_while_toggling_bold() {
         // Catches: setRunFormatting replacing the run text instead of patching props (#78).
-        let mut host = DocxHost {
-            format: "docx".into(),
-            blocks: vec![json!({
-                "type": "paragraph",
-                "id": "p0",
-                "runs": [{ "text": "Hi", "bold": false }],
-            })],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            touched: Default::default(),
-        };
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi", "bold": false }],
+        })]);
         let mut patch = serde_json::Map::new();
         patch.insert("bold".into(), json!(true));
         set_run_formatting(&mut host, 0, 0, &patch).unwrap();

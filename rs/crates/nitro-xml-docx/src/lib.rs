@@ -60,11 +60,13 @@ mod theme;
 mod theme_color;
 mod warnings;
 mod watermark;
+pub mod write;
 mod xml_util;
 
 pub use body::{
     get_media, parse_blocks_from_container, read_package, DocumentModel, LoadedDocument,
 };
+pub use write::{save_docx, save_docx_with_options, DocxSaveOptions};
 
 /// Built-in `word/styles.xml` when the package has no styles part (upstream `DEFAULT_STYLES_XML`).
 pub use default_styles::default_styles_xml;

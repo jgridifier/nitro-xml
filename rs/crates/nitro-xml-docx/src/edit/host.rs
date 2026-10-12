@@ -10,6 +10,8 @@ use std::collections::BTreeSet;
 use nitro_xml_opc::edit::{EditHost, EditScope, HostSnapshot};
 use serde_json::{json, Map, Value};
 
+use nitro_xml_opc::opc::Package;
+
 use crate::body::read_package;
 
 /// In-memory docx document the text/format/table/section runners mutate.
@@ -17,6 +19,10 @@ use crate::body::read_package;
 pub struct DocxHost {
     pub format: String,
     pub blocks: Vec<Value>,
+    /// Model at open time (TS `binding.base.blocks` for save identity).
+    pub base_blocks: Vec<Value>,
+    /// Original `word/document.xml` text for in-place block rewrite (#80).
+    pub source_document_xml: String,
     pub numbering_catalog: Option<Value>,
     pub paragraph_styles: Option<Value>,
     pub character_styles: Option<Value>,
@@ -29,12 +35,40 @@ pub struct DocxHost {
 }
 
 impl DocxHost {
+    /// Minimal host for unit tests (no package binding).
+    #[cfg(test)]
+    pub(crate) fn stub(blocks: Vec<Value>) -> Self {
+        let base_blocks = blocks.clone();
+        Self {
+            format: "docx".into(),
+            blocks,
+            base_blocks,
+            source_document_xml: r#"<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body/></w:document>"#.into(),
+            numbering_catalog: None,
+            paragraph_styles: None,
+            character_styles: None,
+            sections: None,
+            page: None,
+            even_and_odd_headers: false,
+            touched: BTreeSet::new(),
+        }
+    }
+
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
         let loaded = read_package(bytes).map_err(|e| e.to_string())?;
+        let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
+        let source_document_xml = pkg
+            .text("word/document.xml")
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "word/document.xml missing".to_string())?
+            .to_owned();
         let m = &loaded.model;
+        let blocks = m.blocks.clone();
         Ok(Self {
             format: m.format.clone(),
-            blocks: m.blocks.clone(),
+            blocks: blocks.clone(),
+            base_blocks: blocks,
+            source_document_xml,
             numbering_catalog: m.numbering_catalog.clone(),
             paragraph_styles: m.paragraph_styles.clone(),
             character_styles: m.character_styles.clone(),
@@ -43,6 +77,11 @@ impl DocxHost {
             even_and_odd_headers: m.even_and_odd_headers,
             touched: BTreeSet::new(),
         })
+    }
+
+    /// True when the live model differs from the package-open snapshot (TS save dirty check).
+    pub fn is_dirty(&self) -> bool {
+        !blocks_json_equal(&self.blocks, &self.base_blocks)
     }
 
     pub fn mark_touched(&mut self, block: usize) {
@@ -111,6 +150,8 @@ impl DocxHost {
         json!({
             "format": self.format,
             "blocks": self.blocks,
+            "baseBlocks": self.base_blocks,
+            "sourceDocumentXml": self.source_document_xml,
             "numberingCatalog": self.numbering_catalog,
             "paragraphStyles": self.paragraph_styles,
             "characterStyles": self.character_styles,
@@ -132,6 +173,12 @@ impl DocxHost {
             .and_then(|x| x.as_array())
             .cloned()
             .unwrap_or_default();
+        if let Some(arr) = v.get("baseBlocks").and_then(|x| x.as_array()) {
+            self.base_blocks = arr.clone();
+        }
+        if let Some(s) = v.get("sourceDocumentXml").and_then(|x| x.as_str()) {
+            self.source_document_xml = s.to_owned();
+        }
         self.numbering_catalog = v.get("numberingCatalog").cloned().filter(|x| !x.is_null());
         self.paragraph_styles = v.get("paragraphStyles").cloned().filter(|x| !x.is_null());
         self.character_styles = v.get("characterStyles").cloned().filter(|x| !x.is_null());
@@ -248,6 +295,10 @@ fn project_block(index: usize, b: &Value) -> Value {
 }
 
 /// Build a single-run paragraph replacement payload (TS `setParagraphText`).
+fn blocks_json_equal(a: &[Value], b: &[Value]) -> bool {
+    serde_json::to_vec(a).ok() == serde_json::to_vec(b).ok()
+}
+
 pub fn make_run(text: &str, attrs: &Map<String, Value>) -> Value {
     let mut run = Map::new();
     run.insert("text".into(), json!(text));

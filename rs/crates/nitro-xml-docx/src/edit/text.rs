@@ -183,17 +183,7 @@ mod tests {
     #[test]
     fn catches_set_paragraph_text_on_table_block_is_rejected() {
         // Catches: setParagraphText silently mutating a table as if it were a paragraph (#78 negative).
-        let mut host = DocxHost {
-            format: "docx".into(),
-            blocks: vec![json!({ "type": "table", "rows": [] })],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            touched: Default::default(),
-        };
+        let mut host = DocxHost::stub(vec![json!({ "type": "table", "rows": [] })]);
         let err = set_paragraph_text(&mut host, 0, "x", &Default::default()).unwrap_err();
         assert!(err.to_string().contains("not a paragraph"));
     }

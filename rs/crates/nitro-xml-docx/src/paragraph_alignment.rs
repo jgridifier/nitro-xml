@@ -47,6 +47,23 @@ pub fn parse_justification(p_pr: Option<&Element>) -> ParsedJustification {
     }
 }
 
+/// `w:jc` value to write (`paragraphJustification` upstream).
+pub fn paragraph_justification_for_write(block: &serde_json::Value) -> Option<String> {
+    let align = block.get("align").and_then(|v| v.as_str());
+    let justification = block.get("justification").and_then(|v| v.as_str());
+    let rtl = block.get("direction").and_then(|v| v.as_str()) == Some("rtl");
+    if let Some(jc) = justification {
+        if align_from_justification(jc, rtl) == align {
+            return Some(jc.to_owned());
+        }
+    }
+    match align {
+        None => None,
+        Some("justify") => Some("both".to_owned()),
+        Some(other) => Some(other.to_owned()),
+    }
+}
+
 fn is_st_jc(value: &str) -> bool {
     matches!(
         value,

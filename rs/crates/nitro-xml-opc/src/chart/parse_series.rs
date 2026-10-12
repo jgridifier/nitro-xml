@@ -61,7 +61,6 @@ fn parse_data_point(context: &mut ChartParseContext, element: &Element) -> Chart
         "bubble3D",
         "explosion",
         "spPr",
-        "pictureOptions",
         "extLst",
     ]
     .into_iter()
@@ -101,7 +100,6 @@ pub fn parse_series(context: &mut ChartParseContext, element: &Element) -> Chart
         "bubbleSize",
         "bubble3D",
         "shape",
-        "pictureOptions",
         "extLst",
     ]
     .into_iter()

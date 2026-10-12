@@ -660,7 +660,10 @@ mod tests {
     // Catches: package Table_0 from poi-bug68703 not applied (unstyled table cells).
     #[test]
     fn bug68703_table_0_whole_and_band_fills() {
-        let path = "/workspace/fixtures/real/pptx/poi-bug68703.pptx";
+        let path = format!(
+            "{}/../../../fixtures/real/pptx/poi-bug68703.pptx",
+            env!("CARGO_MANIFEST_DIR")
+        );
         let mut file = std::fs::File::open(path).expect("fixture");
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes).expect("read");

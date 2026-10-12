@@ -38,7 +38,11 @@ pub fn bars(
 
     for (si, s) in model.series.iter().enumerate() {
         let row = values.get(si);
-        let series_pictures = model.picture_fills.by_series.get(si);
+        let series_pictures = if model.picture_fills_enabled {
+            model.picture_fills.by_series.get(si)
+        } else {
+            None
+        };
         for i in 0..model.categories.len() {
             let v = match row.and_then(|r| r.get(i)).copied().flatten() {
                 Some(x) => x,
@@ -89,7 +93,7 @@ pub fn bars(
                 geom,
                 picture_defs,
             );
-            if model.is3_d {
+            if model.is3_d && model.bar3d_extrusion {
                 bar_rects.push(BarRect {
                     x: rx,
                     y: ry,
@@ -117,7 +121,7 @@ pub fn bars(
         }
     }
 
-    if model.is3_d {
+    if model.is3_d && model.bar3d_extrusion {
         let depth = compute_depth_vector(model.view3_d.as_ref());
         let extrusion = bar3d_extrusion_markup(&bar_rects, depth, &model.grouping);
         if !extrusion.is_empty() {

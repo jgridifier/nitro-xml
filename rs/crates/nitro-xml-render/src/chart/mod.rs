@@ -30,6 +30,10 @@ pub struct ChartSvgOptions {
     pub chart_images: HashMap<String, String>,
     /// Unique prefix for SVG pattern element ids (e.g. element id on slide).
     pub picture_id_prefix: String,
+    /// UI-layer bar3D extrusion polygons (`applyChart3DDepth`); off for S1 oracle parity.
+    pub bar3d_extrusion: bool,
+    /// Picture pattern fills from chart blips; off for S1 oracle parity.
+    pub picture_fills: bool,
 }
 
 impl Default for ChartSvgOptions {
@@ -43,6 +47,8 @@ impl Default for ChartSvgOptions {
             },
             chart_images: HashMap::new(),
             picture_id_prefix: "chart".to_string(),
+            bar3d_extrusion: false,
+            picture_fills: false,
         }
     }
 }
@@ -66,6 +72,8 @@ pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOpti
             theme_fonts: options.svg.theme_fonts.clone(),
             chart_images: options.svg.chart_images.clone(),
             picture_id_prefix: options.svg.picture_id_prefix.clone(),
+            bar3d_extrusion: options.svg.bar3d_extrusion,
+            picture_fills: options.svg.picture_fills,
         },
     )
 }
@@ -92,6 +100,8 @@ pub fn probe_chart_space_measures(
             },
             chart_images: HashMap::new(),
             picture_id_prefix: "chart".to_string(),
+            bar3d_extrusion: false,
+            picture_fills: false,
         },
     );
 }
@@ -124,6 +134,8 @@ pub fn paint_chart_space(
                 theme_fonts: options.svg.theme_fonts.clone(),
                 chart_images: options.svg.chart_images.clone(),
                 picture_id_prefix: options.svg.picture_id_prefix.clone(),
+                bar3d_extrusion: options.svg.bar3d_extrusion,
+                picture_fills: options.svg.picture_fills,
             },
         },
     );

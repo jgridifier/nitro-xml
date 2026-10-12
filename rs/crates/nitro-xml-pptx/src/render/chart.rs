@@ -67,6 +67,8 @@ pub fn paint_pptx_chart_xml(
                     chart_images,
                     picture_id_prefix: picture_id_prefix.to_string(),
                     theme_colors,
+                    bar3d_extrusion: true,
+                    picture_fills: true,
                     ..Default::default()
                 },
             },

@@ -40,8 +40,10 @@ pub struct RenderChartSpaceOptions<'a> {
     pub theme_fonts: ChartThemeFonts,
     pub chart_images: HashMap<String, String>,
     pub picture_id_prefix: String,
-    /// Theme slot colours (`lt1`…`folHlink`), same order as [`THEME_SLOTS`](theme_palette::THEME_SLOTS).
-    pub theme_colors: Option<Vec<String>>,
+    /// UI-layer bar3D extrusion; off for S1 oracle parity.
+    pub bar3d_extrusion: bool,
+    /// Picture pattern fills from chart blips; off for S1 oracle parity.
+    pub picture_fills: bool,
 }
 
 pub fn chart_space_kind(space: &ChartSpace) -> (Option<ChartSummaryType>, bool) {
@@ -65,7 +67,13 @@ pub fn render_chart_space_svg(
     );
     let mut view = chart_summary_view(&summary, &theme);
     view.view3_d = space.view3_d.clone();
-    view.picture_fills = resolve_chart_picture_fills(space, &options.chart_images);
+    view.bar3d_extrusion = options.bar3d_extrusion;
+    view.picture_fills_enabled = options.picture_fills;
+    view.picture_fills = if options.picture_fills {
+        resolve_chart_picture_fills(space, &options.chart_images)
+    } else {
+        super::chart_picture_fill::ChartPictureFills::default()
+    };
     view.picture_prefix = options.picture_id_prefix.clone();
     let title_appearance = view
         .appearance

@@ -248,7 +248,7 @@ pub struct ChartDataPoint {
     pub marker: Option<ChartMarker>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sp_pr: Option<ChartShapeProperties>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing)]
     pub picture_options: Option<ChartPictureOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ext_lst: Option<String>,
@@ -290,7 +290,7 @@ pub struct ChartSpaceSeries {
     pub bubble3_d: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shape: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing)]
     pub picture_options: Option<ChartPictureOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ext_lst: Option<String>,

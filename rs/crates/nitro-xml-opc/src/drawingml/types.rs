@@ -68,7 +68,7 @@ pub enum DrawingFill {
     Picture {
         #[serde(skip_serializing_if = "Option::is_none", rename = "relId")]
         rel_id: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing)]
         opacity: Option<f64>,
     },
     Unsupported {

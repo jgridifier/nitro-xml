@@ -423,6 +423,15 @@ mod tests {
     }
 
     #[test]
+    fn catches_parity_crafted_2000_deep_still_accepted() {
+        // Catches: MAX_XML_DEPTH set below the parity gate's crafted deep.xml (2000), rejecting
+        // an input upstream accepts.
+        let depth = 2000;
+        let xml = format!("{}{}", "<a>".repeat(depth), "</a>".repeat(depth));
+        parse_xml_str(&xml).expect("parity deep.xml depth must remain accepted");
+    }
+
+    #[test]
     fn catches_lt_in_attribute_value_rejected() {
         // Catches: quick-xml accepts a literal '<' in attribute values; xmldom rejects it.
         assert!(parse_xml_str(r#"<a b="<"/>"#).is_err());

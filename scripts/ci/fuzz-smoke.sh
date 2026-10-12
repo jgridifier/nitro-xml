@@ -83,3 +83,6 @@ echo "$msg"
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   echo "$msg" >>"$GITHUB_STEP_SUMMARY"
 fi
+
+# Browser WASM open-and-render for MAX_XML_DEPTH fixtures (not native-only).
+bash "$ROOT/scripts/ci/wasm_deep_nest.sh"

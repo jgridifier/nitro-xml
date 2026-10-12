@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 //! Per-frame paint context: DOM node ids, view-IR collection, intern hook.
 
+use std::collections::BTreeMap;
+
 use nitro_xml_render::measure::MeasureBatch;
 use nitro_xml_render::{CommandBuffer, LayoutReadBatch};
 
@@ -19,6 +21,8 @@ pub struct PaintContext<'a, I> {
     pub scale: f64,
     pub canvas_w: f64,
     pub canvas_h: f64,
+    /// Theme scheme (`accent1` → `#156082`) for SmartArt `a:schemeClr`.
+    pub scheme: &'a BTreeMap<String, String>,
     next_id: u32,
 }
 
@@ -33,6 +37,7 @@ impl<'a, I> PaintContext<'a, I> {
         scale: f64,
         canvas_w: f64,
         canvas_h: f64,
+        scheme: &'a BTreeMap<String, String>,
     ) -> Self {
         Self {
             buffer,
@@ -43,6 +48,7 @@ impl<'a, I> PaintContext<'a, I> {
             scale,
             canvas_w,
             canvas_h,
+            scheme,
             next_id: 2,
         }
     }

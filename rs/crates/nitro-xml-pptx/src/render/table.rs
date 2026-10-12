@@ -120,6 +120,7 @@ fn px(v: f64) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::path::PathBuf;
 
     use nitro_xml_render::measure::{LayoutReadBatch, MeasureBatch};
@@ -187,6 +188,7 @@ mod tests {
         let mut measure = MeasureBatch::default();
         let mut layout_reads = LayoutReadBatch::default();
         let mut view_ir = ViewIrCollector::default();
+        let scheme = BTreeMap::new();
         let mut ctx = PaintContext::new(
             &mut buffer,
             &mut intern,
@@ -196,6 +198,7 @@ mod tests {
             1.0,
             960.0,
             540.0,
+            &scheme,
         );
         paint(&mut ctx, table, 1);
         for label in ["1A", "1B", "1C", "2A", "2B", "2C", "3A", "3B", "3C"] {

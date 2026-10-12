@@ -97,6 +97,7 @@ pub fn paint_slide_frame<I: StringIntern>(
         fit_slide_scale(canvas_w, canvas_h, viewport.viewport_w, viewport.viewport_h)
     };
     let slide = pres.slide(viewport.slide_index)?;
+    let scheme = slide.scheme_colors.clone();
     buffer.begin();
     // Fresh per-frame queues (awaiting replies from a prior take stay intact).
     measure.clear_pending();
@@ -111,6 +112,7 @@ pub fn paint_slide_frame<I: StringIntern>(
         scale,
         canvas_w,
         canvas_h,
+        &scheme,
     );
     stage::paint_slide_stage(&mut ctx, slide, &viewport.selected_ids);
     Ok(view_ir.nodes)

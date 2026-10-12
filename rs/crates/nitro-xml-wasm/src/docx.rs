@@ -32,10 +32,6 @@ impl DocxState {
         self.session.result.pages.len()
     }
 
-    pub fn layout_ready(&self) -> bool {
-        self.session.layout_ready
-    }
-
     /// True when layout and chart canvas measures (if any) are ready to paint.
     pub fn paint_ready(&self) -> bool {
         self.session.layout_ready && self.session.charts_measured()

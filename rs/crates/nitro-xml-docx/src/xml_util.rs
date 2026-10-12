@@ -77,40 +77,68 @@ pub fn text_content(el: &Element) -> String {
 
 /// Serialize an element subtree to a string (equation OMML and revision snapshots).
 pub fn serialize_element(el: &Element) -> String {
+    struct WriteFrame<'a> {
+        el: &'a Element,
+        child_idx: usize,
+        opened: bool,
+    }
+
     fn write_el(el: &Element, out: &mut String) {
-        out.push('<');
-        if let Some(ns_uri) = &el.ns {
-            if let Some(prefix) = ns_prefix(ns_uri) {
-                out.push_str(prefix);
-                out.push(':');
+        let mut stack = vec![WriteFrame {
+            el,
+            child_idx: 0,
+            opened: false,
+        }];
+        while let Some(frame) = stack.last_mut() {
+            if !frame.opened {
+                out.push('<');
+                if let Some(ns_uri) = &frame.el.ns {
+                    if let Some(prefix) = ns_prefix(ns_uri) {
+                        out.push_str(prefix);
+                        out.push(':');
+                    }
+                }
+                out.push_str(&frame.el.local);
+                for attr in &frame.el.attrs {
+                    out.push(' ');
+                    write_attr(attr, out);
+                }
+                let child_els: Vec<_> = frame.el.element_children();
+                if child_els.is_empty() && !has_text(frame.el) {
+                    out.push_str("/>");
+                    stack.pop();
+                    continue;
+                }
+                out.push('>');
+                frame.opened = true;
+                continue;
             }
-        }
-        out.push_str(&el.local);
-        for attr in &el.attrs {
-            out.push(' ');
-            write_attr(attr, out);
-        }
-        let child_els: Vec<_> = el.element_children();
-        if child_els.is_empty() && !has_text(el) {
-            out.push_str("/>");
-            return;
-        }
-        out.push('>');
-        for child in &el.children {
-            match child {
-                Node::Text(t) => escape_text(t, out),
-                Node::Element(e) => write_el(e, out),
+            if frame.child_idx < frame.el.children.len() {
+                let child = &frame.el.children[frame.child_idx];
+                frame.child_idx += 1;
+                match child {
+                    Node::Text(t) => escape_text(t, out),
+                    Node::Element(e) => {
+                        stack.push(WriteFrame {
+                            el: e,
+                            child_idx: 0,
+                            opened: false,
+                        });
+                    }
+                }
+                continue;
             }
-        }
-        out.push_str("</");
-        if let Some(ns_uri) = &el.ns {
-            if let Some(prefix) = ns_prefix(ns_uri) {
-                out.push_str(prefix);
-                out.push(':');
+            out.push_str("</");
+            if let Some(ns_uri) = &frame.el.ns {
+                if let Some(prefix) = ns_prefix(ns_uri) {
+                    out.push_str(prefix);
+                    out.push(':');
+                }
             }
+            out.push_str(&frame.el.local);
+            out.push('>');
+            stack.pop();
         }
-        out.push_str(&el.local);
-        out.push('>');
     }
     fn write_attr(attr: &Attr, out: &mut String) {
         if let Some(ns_uri) = &attr.ns {
@@ -206,5 +234,22 @@ impl ElementExt for Element {
 
     fn attr_ns(&self, namespace: &str, local: &str) -> Option<String> {
         attr_ns(self, namespace, local)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nitro_xml_opc::xml::parse_xml_str;
+
+    // Catches: `serialize_element` recursing once per nesting level and overflowing the WASM stack
+    // at MAX_XML_DEPTH (4096).
+    #[test]
+    fn serialize_element_deep_tree_does_not_overflow_stack() {
+        let xml = format!("{}x{}", "<a>".repeat(4096), "</a>".repeat(4096));
+        let root = parse_xml_str(&xml).expect("parses").root;
+        let serialized = serialize_element(&root);
+        assert!(serialized.contains('x'));
+        assert!(serialized.starts_with("<a>"));
     }
 }

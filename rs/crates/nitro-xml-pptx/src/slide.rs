@@ -1160,13 +1160,14 @@ fn graphic_is_ole(g: &Element) -> bool {
 }
 
 fn find_local_deep<'a>(el: &'a Element, local: &str) -> Option<&'a Element> {
-    if el.local == local {
-        return Some(el);
-    }
-    for child in &el.children {
-        if let Node::Element(c) = child {
-            if let Some(found) = find_local_deep(c, local) {
-                return Some(found);
+    let mut stack: Vec<&'a Element> = vec![el];
+    while let Some(node) = stack.pop() {
+        if node.local == local {
+            return Some(node);
+        }
+        for child in node.children.iter().rev() {
+            if let Node::Element(c) = child {
+                stack.push(c);
             }
         }
     }
@@ -1175,21 +1176,22 @@ fn find_local_deep<'a>(el: &'a Element, local: &str) -> Option<&'a Element> {
 
 /// `a:blip/@r:embed` anywhere under `el` (OLE `p:pic` preview).
 fn deep_blip_embed(el: &Element) -> Option<String> {
-    if el.local == "blip" && (el.ns.as_deref() == Some(ns::A) || el.ns.is_none()) {
-        let embed = el
-            .attrs
-            .iter()
-            .find(|a| a.local == "embed" && (a.ns.is_none() || a.ns.as_deref() == Some(ns::R)))
-            .map(|a| a.value.clone())
-            .filter(|id| !id.is_empty());
-        if embed.is_some() {
-            return embed;
+    let mut stack: Vec<&Element> = vec![el];
+    while let Some(node) = stack.pop() {
+        if node.local == "blip" && (node.ns.as_deref() == Some(ns::A) || node.ns.is_none()) {
+            let embed = node
+                .attrs
+                .iter()
+                .find(|a| a.local == "embed" && (a.ns.is_none() || a.ns.as_deref() == Some(ns::R)))
+                .map(|a| a.value.clone())
+                .filter(|id| !id.is_empty());
+            if embed.is_some() {
+                return embed;
+            }
         }
-    }
-    for child in &el.children {
-        if let Node::Element(c) = child {
-            if let Some(id) = deep_blip_embed(c) {
-                return Some(id);
+        for child in node.children.iter().rev() {
+            if let Node::Element(c) = child {
+                stack.push(c);
             }
         }
     }
@@ -1232,21 +1234,19 @@ fn imagedata_rel_attr(el: &Element) -> Option<String> {
 
 /// Relationship id of `v:shape/@id == spid` → `v:imagedata`.
 pub(crate) fn vml_shape_image_rel(root: &Element, spid: &str) -> Option<String> {
-    fn walk(el: &Element, spid: &str) -> Option<String> {
+    let mut stack: Vec<&Element> = vec![root];
+    while let Some(el) = stack.pop() {
         let is_shape = el.local == "shape" && (el.ns.as_deref() == Some(ns::V) || el.ns.is_none());
         if is_shape && attr(el, "id") == Some(spid) {
             return first_imagedata_rel(el);
         }
-        for child in &el.children {
+        for child in el.children.iter().rev() {
             if let Node::Element(c) = child {
-                if let Some(rel) = walk(c, spid) {
-                    return Some(rel);
-                }
+                stack.push(c);
             }
         }
-        None
     }
-    walk(root, spid)
+    None
 }
 
 /// Fill an OLE element's preview rel from a loaded `vmlDrawing` part.
@@ -2957,5 +2957,16 @@ mod tests {
         assert!(ole.width > 0.0 && ole.height > 0.0);
         let (_, kinds) = issue24_dump_parts(&parsed.elements, &parsed.other_kind_seq);
         assert_eq!(kinds, vec!["ole".to_owned()]);
+    }
+
+    // Catches: VML / blip deep searches recursing once per nesting level and overflowing the WASM
+    // stack at MAX_XML_DEPTH (4096).
+    #[test]
+    fn vml_deep_walks_do_not_overflow_stack() {
+        let xml = format!("{}{}", "<a>".repeat(4096), "</a>".repeat(4096));
+        let root = parse_xml_str(&xml).expect("parses").root;
+        assert!(find_local_deep(&root, "missing").is_none());
+        assert!(deep_blip_embed(&root).is_none());
+        assert!(vml_shape_image_rel(&root, "nope").is_none());
     }
 }

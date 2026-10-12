@@ -93,9 +93,10 @@ pub type FieldResultMetadata = HashMap<usize, (Value, Option<Value>)>;
 pub fn story_field_results(container: &Element) -> FieldResultMetadata {
     let mut metadata = HashMap::new();
     let mut tracker = FieldTracker::new();
-    fn visit(element: &Element, tracker: &mut FieldTracker, metadata: &mut FieldResultMetadata) {
+    let mut stack: Vec<&Element> = vec![container];
+    while let Some(element) = stack.pop() {
         if named_w(element, "fldSimple") || named_w(element, "txbxContent") {
-            return;
+            continue;
         }
         if named_w(element, "r") {
             let mut run = json!({ "text": "" });
@@ -105,13 +106,12 @@ pub fn story_field_results(container: &Element) -> FieldResultMetadata {
                 let flags = run.get("fieldFlags").cloned();
                 metadata.insert(element as *const Element as usize, (field, flags));
             }
-            return;
+            continue;
         }
-        for child in element.element_children() {
-            visit(child, tracker, metadata);
+        for child in element.element_children().into_iter().rev() {
+            stack.push(child);
         }
     }
-    visit(container, &mut tracker, &mut metadata);
     metadata
 }
 
@@ -130,5 +130,24 @@ pub fn field_placeholder_text(instr: Option<&str>) -> &'static str {
         "FILENAME" => "[File name]",
         _ if !code.is_empty() => "[Field]",
         _ => "[Field]",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nitro_xml_opc::xml::parse_xml_str;
+
+    // Catches: `story_field_results` recursing once per nesting level and overflowing the WASM
+    // stack at MAX_XML_DEPTH (4096).
+    #[test]
+    fn story_field_results_deep_tree_does_not_overflow_stack() {
+        let inner = format!("{}{}", "<w:p>".repeat(4095), "</w:p>".repeat(4095));
+        let xml = format!(
+            "<w:body xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">{}</w:body>",
+            inner
+        );
+        let root = parse_xml_str(&xml).expect("parses").root;
+        let _meta = story_field_results(&root);
     }
 }

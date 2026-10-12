@@ -89,17 +89,21 @@ pub fn x_text(element: Option<&Element>) -> String {
 
 /// Decodes `_xHHHH_` escapes (`_x000D_` carriage return, `_x005F_` a literal underscore).
 /// All descendant elements named `local` in `ns_uri` (document order).
+///
+/// Iterative walk so a [`MAX_XML_DEPTH`](nitro_xml_opc::xml::MAX_XML_DEPTH)-deep tree cannot
+/// blow the WASM stack.
 pub fn descendants<'a>(root: &'a Element, local: &str, ns_uri: &str) -> Vec<&'a Element> {
     let mut out = Vec::new();
-    fn walk<'b>(node: &'b Element, local: &str, ns_uri: &str, out: &mut Vec<&'b Element>) {
-        for child in elements(node) {
-            if child.local == local && child.ns.as_deref() == Some(ns_uri) {
-                out.push(child);
-            }
-            walk(child, local, ns_uri, out);
+    let mut stack: Vec<&Element> = elements(root).collect();
+    stack.reverse();
+    while let Some(node) = stack.pop() {
+        if node.local == local && node.ns.as_deref() == Some(ns_uri) {
+            out.push(node);
         }
+        let mut children: Vec<&Element> = elements(node).collect();
+        children.reverse();
+        stack.extend(children);
     }
-    walk(root, local, ns_uri, &mut out);
     out
 }
 

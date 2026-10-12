@@ -132,7 +132,7 @@ async function runOne(script) {
 
 	let libreoffice = { skipped: true };
 	if (kind) {
-		const lo = libreOfficeReopen(input, out1, kind);
+		const lo = libreOfficeReopen(out1, kind);
 		libreoffice = lo;
 	}
 

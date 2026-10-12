@@ -88,14 +88,34 @@ pub fn first<'a>(parent: &'a Element, local: &str, namespace: &str) -> Option<&'
 #[allow(dead_code)]
 pub fn descendants<'a>(root: &'a Element, local: &str) -> Vec<&'a Element> {
     let mut result = Vec::new();
-    fn visit<'a>(node: &'a Element, local: &str, out: &mut Vec<&'a Element>) {
-        for child in all_elements(node) {
+    let mut stack: Vec<&Element> = vec![root];
+    while let Some(node) = stack.pop() {
+        for child in all_elements(node).into_iter().rev() {
             if child.local == local {
-                out.push(child);
+                result.push(child);
             }
-            visit(child, local, out);
+            stack.push(child);
         }
     }
-    visit(root, local, &mut result);
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xml::parse_xml_str;
+
+    fn deep_chain(depth: usize) -> Element {
+        let xml = format!("{}{}", "<a>".repeat(depth), "</a>".repeat(depth));
+        parse_xml_str(&xml).expect("deep chain parses").root
+    }
+
+    // Catches: `descendants` recursing once per nesting level and overflowing the WASM stack at
+    // MAX_XML_DEPTH (4096).
+    #[test]
+    fn descendants_deep_tree_does_not_overflow_stack() {
+        let root = deep_chain(4096);
+        let hits = descendants(&root, "a");
+        assert_eq!(hits.len(), 4095);
+    }
 }

@@ -107,17 +107,23 @@ async function runOne(script) {
 		stableStringify(a.checkpoints.map((c) => ({ phase: c.phase, label: c.label, snapshot: c.snapshot }))) ===
 		stableStringify(b.checkpoints.map((c) => ({ phase: c.phase, label: c.label, snapshot: c.snapshot })));
 
-	const undoVsNoop = await comparePackages(a.noopSave, a.undoSave);
-	const undoPkg = undoSaveOk(undoVsNoop);
-	const redoVsEdit = await comparePackages(a.redoSave, (
-		await (async () => {
-			// redo-all save should match a fresh apply+save from the edit harness path
-			const { applyAndSave } = await import('../edit/apply.mjs');
-			return applyAndSave(input, script);
-		})()
-	));
-
-	const redoPkgOk = redoSaveOk(redoVsEdit);
+	let undoVsNoop = { lossless: true, losses: [] };
+	let undoPkg = { ok: true, allowedResidue: false };
+	let redoPkgOk = true;
+	let redoVsEdit = { lossless: true, losses: [] };
+	if (!script.modelOnly && !a.modelOnly) {
+		undoVsNoop = await comparePackages(a.noopSave, a.undoSave);
+		undoPkg = undoSaveOk(undoVsNoop);
+		redoVsEdit = await comparePackages(
+			a.redoSave,
+			await (async () => {
+				// redo-all save should match a fresh apply+save from the edit harness path
+				const { applyAndSave } = await import('../edit/apply.mjs');
+				return applyAndSave(input, script);
+			})(),
+		);
+		redoPkgOk = redoSaveOk(redoVsEdit);
+	}
 
 	const ok =
 		undoRestored &&

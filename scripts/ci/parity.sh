@@ -101,7 +101,10 @@ if [ "$visual_rc" -ne 0 ]; then
   exit 1
 fi
 
-msg="parity: PASS (xml + opc + xlsx worksheet/view-IR/engine/shell + docx styles/body/layout/page-count + pptx + chart model/S1 SVG + visual DPR1/2/print)"
+echo "parity: formula parser differential (#71)"
+bash scripts/ci/formula_parity.sh
+
+msg="parity: PASS (xml + opc + xlsx worksheet/view-IR/engine/shell + formula parser (#71) + docx styles/body/layout/page-count + pptx + chart model/S1 SVG + visual DPR1/2/print)"
 echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"

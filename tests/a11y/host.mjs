@@ -46,6 +46,7 @@ export function hostUrl(base, c, side) {
 		height: String(c.height || 480),
 	});
 	if (c.format === 'pptx') q.set('slide', String(c.slide || 0));
+	if (c.edit) q.set('edit', '1');
 	return `${base}/repo/tests/a11y/pages/${page}?${q}`;
 }
 

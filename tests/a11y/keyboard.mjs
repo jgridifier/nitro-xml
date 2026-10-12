@@ -16,11 +16,31 @@ import {
 	ensureVisualBundles,
 } from './host.mjs';
 import { readyCases } from './registry.mjs';
-import { RUST_SHELL_INVENTORY } from './allowlist.mjs';
+import { RUST_RIBBON_INVENTORY, RUST_SHELL_INVENTORY } from './allowlist.mjs';
 
 /**
  * @param {import('playwright').Page} page
  */
+async function ribbonInventory(page) {
+	return page.evaluate((wanted) => {
+		const host = window.__a11yHost;
+		const root = host?.shadowRoot || host;
+		if (!root) return { found: [], missing: wanted.map((w) => w.command) };
+		const found = [];
+		const missing = [];
+		for (const w of wanted) {
+			const el = root.querySelector(`[data-g="${w.command}"]`);
+			if (!el) {
+				missing.push(w.command);
+				continue;
+			}
+			const name = el.getAttribute('aria-label') || (el.textContent || '').trim();
+			found.push({ command: w.command, name });
+		}
+		return { found, missing };
+	}, RUST_RIBBON_INVENTORY);
+}
+
 async function shellInventory(page) {
 	return page.evaluate((wanted) => {
 		const host = window.__a11yHost;
@@ -113,13 +133,19 @@ async function checkCase(c, browser, base) {
 			await page.goto(hostUrl(base, c, 'rust'), { waitUntil: 'domcontentloaded' });
 			await waitReady(page);
 			const inv = await shellInventory(page);
+			const rib = c.edit ? await ribbonInventory(page) : { missing: [], found: [] };
 			const order = await focusOrder(page);
 
 			const missing = inv.missing || [];
+			const ribbonMissing = rib.missing || [];
 			const unnamed = (inv.found || []).filter((f) => !f.name);
 			const unreachable = (inv.found || []).filter((f) => f.disabled || f.tabIndex < -1);
 			// Buttons are in tab order by default (tabIndex 0 or default).
-			const ok = missing.length === 0 && unnamed.length === 0 && unreachable.length === 0;
+			const ok =
+				missing.length === 0 &&
+				ribbonMissing.length === 0 &&
+				unnamed.length === 0 &&
+				unreachable.length === 0;
 
 			// Focus order should include zoom/find/copy at minimum when Tab works across shadow.
 			const actionsInOrder = new Set(order.map((o) => o.action).filter(Boolean));
@@ -138,8 +164,8 @@ async function checkCase(c, browser, base) {
 				inventory: inv,
 				focusOrder: order,
 				summary: ok
-					? `OK ${c.id}: shell controls reachable (${inv.found.length}/${RUST_SHELL_INVENTORY.length}); ${focusNote}`
-					: `FAIL ${c.id}: missing=[${missing.join(',')}] unnamed=[${unnamed.map((u) => u.action).join(',')}]`,
+					? `OK ${c.id}: shell controls reachable (${inv.found.length}/${RUST_SHELL_INVENTORY.length})${c.edit ? `; ribbon ${rib.found.length}/${RUST_RIBBON_INVENTORY.length}` : ''}; ${focusNote}`
+					: `FAIL ${c.id}: missing=[${missing.join(',')}] ribbon=[${ribbonMissing.join(',')}] unnamed=[${unnamed.map((u) => u.action).join(',')}]`,
 			};
 		} catch (e) {
 			lastErr = e;

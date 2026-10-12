@@ -1,0 +1,60 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>xlsx edit chrome visual</title>
+  <style>
+    html, body { margin: 0; background: #fff; }
+    #stage { width: 960px; height: 120px; overflow: hidden; }
+    nitro-xlsx { display: block; width: 100%; height: 100%; }
+    xlsx-editor { display: block; width: 100%; height: 100%; --xve-title-bar-display: none; }
+  </style>
+</head>
+<body>
+  <div id="stage" data-ready="0"></div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const side = params.get('side');
+    const fixture = params.get('fixture');
+    const stage = document.getElementById('stage');
+
+    async function mountRust() {
+      const { defineNitroXlsx, initCore, loadEditorModule } = await import('/repo/packages/nitro-xml/loader/index.js');
+      await initCore();
+      await loadEditorModule();
+      defineNitroXlsx();
+      const el = document.createElement('nitro-xlsx');
+      stage.appendChild(el);
+      const res = await fetch(fixture);
+      const bytes = await res.arrayBuffer();
+      await el.loadBuffer(bytes, 'book.xlsx');
+      await el.shellAction('ui');
+      window.__visualHost = el.shadowRoot?.querySelector('.rb') || el;
+    }
+
+    async function mountTs() {
+      const { defineXlsxEditor } = await import('/out/bundles/xlsx-editor.js');
+      defineXlsxEditor();
+      const el = document.createElement('xlsx-editor');
+      el.setAttribute('show-formula-bar', 'false');
+      stage.appendChild(el);
+      const res = await fetch(fixture);
+      await el.load(new Uint8Array(await res.arrayBuffer()), 'book.xlsx');
+      const ribbon = el.shadowRoot?.querySelector('.xve-ribbon');
+      window.__visualHost = ribbon || el;
+    }
+
+    try {
+      if (!fixture) throw new Error('missing fixture');
+      if (side === 'rust') await mountRust();
+      else if (side === 'ts') await mountTs();
+      else throw new Error('side?');
+      stage.dataset.ready = '1';
+    } catch (e) {
+      stage.dataset.ready = 'err';
+      stage.textContent = String(e);
+    }
+  </script>
+</body>
+</html>

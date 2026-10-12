@@ -46,6 +46,12 @@ handle.openDocument(msg.name);
 } catch {
 }
 }
+if (msg.readonly === false) {
+handle.loadEditorChrome();
+handle.setReadOnly(false);
+} else {
+handle.setReadOnly(true);
+}
 self.postMessage({
 type: "opened",
 byteLength: handle.byteLength,
@@ -130,6 +136,26 @@ break;
 case "sa":
 if (!handle) throw new Error("no document");
 self.postMessage({ type: "sa", result: handle.shellAction(msg.op||"ui", msg.arg||"") });
+break;
+case "match-shortcut":
+if (!handle) throw new Error("no document");
+self.postMessage({
+type: "match-shortcut",
+result: handle.matchShortcut(
+msg.key || "",
+msg.code || "",
+!!msg.ctrl,
+!!msg.meta,
+!!msg.alt,
+!!msg.shift,
+!!msg.mac,
+),
+});
+break;
+case "editor-chrome":
+if (!handle) throw new Error("no document");
+handle.loadEditorChrome();
+self.postMessage({ type: "editor-chrome", ok: true });
 break;
 case "dispose": {
 if (handle) {

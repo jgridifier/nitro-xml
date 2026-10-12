@@ -3,13 +3,14 @@
 
 use serde_json::{json, Value};
 
-use super::chrome::chrome_html;
+use super::chrome::combined_chrome_html;
 use super::state::ShellState;
+use crate::chrome::EditorChrome;
 
 pub struct ShellUi;
 
 impl ShellUi {
-    pub fn to_json(state: &ShellState) -> Value {
+    pub fn to_json(state: &ShellState, editor: &EditorChrome) -> Value {
         let tabs: Vec<Value> = state
             .tabs
             .iter()
@@ -70,7 +71,7 @@ impl ShellUi {
             "pendingHyperlink": pending,
             "lastCopy": state.last_copy,
             // Trusted Rust-built chrome; loader assigns innerHTML only (#29 budget).
-            "chromeHtml": chrome_html(state),
+            "chromeHtml": combined_chrome_html(state, editor),
         })
     }
 }

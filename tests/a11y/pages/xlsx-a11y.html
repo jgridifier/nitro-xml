@@ -38,6 +38,7 @@
     const fixture = params.get('fixture');
     const width = Number(params.get('width') || 800);
     const height = Number(params.get('height') || 480);
+    const editMode = params.get('edit') === '1';
     const stage = document.getElementById('stage');
     stage.style.width = `${width}px`;
     stage.style.height = `${height}px`;
@@ -101,12 +102,13 @@
     }
 
     async function mountRust() {
-      const { defineNitroXlsx, initCore } = await import('/repo/packages/nitro-xml/loader/index.js');
+      const { defineNitroXlsx, initCore, loadEditorModule } = await import('/repo/packages/nitro-xml/loader/index.js');
       const fontMirror = new URL('/out/fonts/css2', location.origin).href;
       await initCore({ fontSource: fontMirror });
+      if (editMode) await loadEditorModule();
       defineNitroXlsx();
       const el = document.createElement('nitro-xlsx');
-      el.setAttribute('readonly', '');
+      if (!editMode) el.setAttribute('readonly', '');
       applyLightTheme(el);
       stage.appendChild(el);
       el.style.width = '100%';

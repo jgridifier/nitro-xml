@@ -31,6 +31,15 @@ export const A11Y_CASES = [
 		height: 480,
 	},
 	{
+		id: 'xlsx-edit-chrome',
+		format: 'xlsx',
+		ready: true,
+		fixture: 'fixtures/real/xlsx/poi-45544.xlsx',
+		width: 960,
+		height: 200,
+		edit: true,
+	},
+	{
 		id: 'pptx-poi-51187',
 		format: 'pptx',
 		ready: true,

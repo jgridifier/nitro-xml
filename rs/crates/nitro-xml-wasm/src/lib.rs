@@ -17,6 +17,7 @@ use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "bench")]
 mod bench;
+mod chrome;
 mod docx;
 mod edit;
 mod events;
@@ -32,6 +33,13 @@ pub use handle::{Handle, OoxmlError, Warning};
 #[wasm_bindgen]
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_owned()
+}
+
+/// Lazy editor chrome module hook for the loader (`loadEditorModule`).
+#[wasm_bindgen(js_name = loadEditorChromeModule)]
+pub fn load_editor_chrome_module() -> bool {
+    let _ = chrome::SHORTCUTS.len();
+    true
 }
 
 /// Diagnostic part graph for an OOXML package (`Package::open` + content types / rels).

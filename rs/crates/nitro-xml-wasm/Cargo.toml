@@ -3,7 +3,8 @@ name = "nitro-xml-wasm"
 description = "Nitro XML WebAssembly boundary (the only wasm-bindgen crate)"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+# Ported chrome files (shortcuts/ribbon) are Apache-2.0; see PROVENANCE.md.
+license = "MIT AND Apache-2.0"
 repository.workspace = true
 homepage.workspace = true
 publish.workspace = true

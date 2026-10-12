@@ -6,7 +6,12 @@ import {
   isSupportedExtension as ok,
   ACCEPT,
 } from "./formats.js";
-import { prewarmWorker as pw, wasmSupported as ws, unsupportedBrowserError as ube } from "./bootstrap.js";
+import {
+  prewarmWorker as pw,
+  wasmSupported as ws,
+  unsupportedBrowserError as ube,
+  loadEditorModule,
+} from "./bootstrap.js";
 import { WorkerDocument as WD } from "./worker-host.js";
 import { EventKind as EK, KeyId } from "./events.js";
 
@@ -64,7 +69,9 @@ export class ViewerElement extends HTMLElement {
     this._d && this._d.dispose();
     // Assign _d after open (#27).
     const d = new WD({ canvas: this._c, root: this._r, name: n });
-    await d.open(b, n);
+    const ro = this._readonly !== false;
+    if (!ro) await loadEditorModule();
+    await d.open(b, n, { readonly: ro });
     this._d = d;
     await this._ao();
     this._tick();
@@ -277,6 +284,11 @@ export class ShellViewerElement extends ViewerElement {
     ch.oninput = (e) => {
       e.target.classList.contains("q") && g("find-query", e.target.value);
     };
+    const mac =
+      typeof navigator !== "undefined" &&
+      /mac|iphone|ipad|ipod/i.test(
+        (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "",
+      );
     this.onkeydown = (e) => {
       if (!this._d) return;
       const q = e.target.classList.contains("q");
@@ -290,6 +302,14 @@ export class ShellViewerElement extends ViewerElement {
           e.preventDefault();
           return g(p.slice(i + 1));
         }
+      }
+      if (!this._readonly && (e.ctrlKey || e.metaKey || e.altKey)) {
+        void this._d.matchShortcut(e, mac).then((hit) => {
+          if (!hit || (!hit.command && !hit.action)) return;
+          e.preventDefault();
+          if (hit.command) g("cmd", hit.command);
+          else if (hit.action === "help") g("diagnostics-toggle");
+        });
       }
     };
   }

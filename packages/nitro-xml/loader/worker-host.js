@@ -32,7 +32,7 @@ this._measureCanvas = null;
 this._pendingLayoutReqs = null;
 this._strings = null;
 }
-async open(buffer, name) {
+async open(buffer, name, opts = {}) {
 const n = name || this._name;
 if (n && !isSupportedExtension(n)) throw unsupportedFormatError();
 this._name = n;
@@ -40,12 +40,37 @@ const fontSource =
 this._fontSource !== undefined ? this._fontSource : getDefaultFontSource();
 const serializable =
 typeof fontSource === "function" ? undefined : fontSource;
+const readonly = opts.readonly !== false;
 return this._request("opened", () => {
 this._worker.postMessage(
-{ type: "open", bytes: buffer, name: n, fontSource: serializable },
+{ type: "open", bytes: buffer, name: n, fontSource: serializable, readonly },
 [buffer],
 );
 });
+}
+async loadEditorChrome() {
+return this._request("editor-chrome", () => {
+this._worker.postMessage({ type: "editor-chrome" });
+});
+}
+async matchShortcut(ev, mac) {
+const msg = await this._request("match-shortcut", () => {
+this._worker.postMessage({
+type: "match-shortcut",
+key: ev.key || "",
+code: ev.code || "",
+ctrl: !!ev.ctrlKey,
+meta: !!ev.metaKey,
+alt: !!ev.altKey,
+shift: !!ev.shiftKey,
+mac: !!mac,
+});
+});
+try {
+return JSON.parse(msg.result || "{}");
+} catch {
+return {};
+}
 }
 pushEvent(ev) {
 this._events.push(ev);

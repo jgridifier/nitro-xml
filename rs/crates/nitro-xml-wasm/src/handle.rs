@@ -7,6 +7,7 @@
 //! reference without an explicit free. Crash recovery reloads into a fresh
 //! worker (PRODUCT_SPEC.md §5(e)).
 
+use crate::chrome::{EditorChrome, KeyEventLike};
 use crate::docx::{is_docx_extension, DocxState};
 use crate::events::{self, EventQueue};
 use crate::pptx::{is_pptx_extension, PptxState};
@@ -151,6 +152,7 @@ pub struct Handle {
     pub(crate) pptx: Option<PptxState>,
     pub(crate) docx: Option<DocxState>,
     pub(crate) shell: ShellState,
+    pub(crate) editor: EditorChrome,
     #[cfg(feature = "bench")]
     pub(crate) grid: crate::bench::SyntheticGrid,
 }
@@ -176,8 +178,59 @@ impl Handle {
             pptx: None,
             docx: None,
             shell: ShellState::default(),
+            editor: EditorChrome::new(),
             #[cfg(feature = "bench")]
             grid: crate::bench::SyntheticGrid::new(),
+        }
+    }
+
+    /// Read-only mode hides editor ribbon and disables editing commands (#53).
+    #[wasm_bindgen(js_name = setReadOnly)]
+    pub fn set_read_only(&mut self, read_only: bool) {
+        self.editor.set_read_only(read_only);
+        self.shell.dirty_ui = true;
+    }
+
+    /// Lazy-load editor chrome: register command stubs and enable ribbon HTML.
+    #[wasm_bindgen(js_name = loadEditorChrome)]
+    pub fn load_editor_chrome(&mut self) {
+        self.editor.load();
+        self.shell.dirty_ui = true;
+    }
+
+    /// Match a keyboard event against the shortcut table; returns JSON `{command?, action?}` or `{}`.
+    #[allow(clippy::too_many_arguments)]
+    #[wasm_bindgen(js_name = matchShortcut)]
+    pub fn match_shortcut(
+        &self,
+        key: &str,
+        code: &str,
+        ctrl: bool,
+        meta: bool,
+        alt: bool,
+        shift: bool,
+        mac: bool,
+    ) -> String {
+        let ev = KeyEventLike {
+            key,
+            code: if code.is_empty() { None } else { Some(code) },
+            ctrl_key: ctrl,
+            meta_key: meta,
+            alt_key: alt,
+            shift_key: shift,
+        };
+        match self.editor.match_shortcut(&ev, mac) {
+            Some(m) => {
+                let mut out = serde_json::Map::new();
+                if let Some(c) = m.command {
+                    out.insert("command".into(), serde_json::Value::String(c.to_string()));
+                }
+                if let Some(a) = m.action {
+                    out.insert("action".into(), serde_json::Value::String(a.to_string()));
+                }
+                serde_json::Value::Object(out).to_string()
+            }
+            None => "{}".into(),
         }
     }
 
@@ -408,8 +461,24 @@ impl Handle {
     /// loader apply path tiny; long keys remain for harnesses. Op `ui` is snapshot-only.
     #[wasm_bindgen(js_name = shellAction)]
     pub fn shell_action(&mut self, op: &str, arg: &str) -> Result<String, JsValue> {
+        if op == "cmd" {
+            let host: &mut dyn std::any::Any = &mut ();
+            let _ran = self.editor.dispatch_command(arg, host);
+            let ui = ShellUi::to_json(&self.shell, &self.editor);
+            let h = ui
+                .get("chromeHtml")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let out = serde_json::json!({
+                "h": h,
+                "ui": ui,
+                "ribbonAction": self.editor.commands.last_ribbon_action,
+            });
+            return Ok(out.to_string());
+        }
         if op == "ui" || op.is_empty() {
-            let ui = ShellUi::to_json(&self.shell);
+            let ui = ShellUi::to_json(&self.shell, &self.editor);
             let h = ui
                 .get("chromeHtml")
                 .and_then(|v| v.as_str())
@@ -541,7 +610,7 @@ impl Handle {
             }
             serde_json::Value::Object(m)
         });
-        let ui = ShellUi::to_json(&self.shell);
+        let ui = ShellUi::to_json(&self.shell, &self.editor);
         let h = ui
             .get("chromeHtml")
             .and_then(|v| v.as_str())

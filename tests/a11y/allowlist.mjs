@@ -153,6 +153,14 @@ export const RUST_SHELL_INVENTORY = Object.freeze([
 	{ action: 'diagnostics-toggle', name: 'Diagnostics' },
 ]);
 
+/** Home ribbon controls inventoried in xlsx edit-mode a11y (#53). */
+export const RUST_RIBBON_INVENTORY = Object.freeze([
+	{ command: 'home.bold', name: 'Bold' },
+	{ command: 'home.italic', name: 'Italic' },
+	{ command: 'home.copy', name: 'Copy' },
+	{ command: 'home.paste', name: 'Paste' },
+]);
+
 /**
  * Pptx reading-stage oracle has no sheet/slide tablist; nitro Stage-6 does (#29).
  * xlsx compares tab presence (cardinality ignored — see ax-tree.mjs).

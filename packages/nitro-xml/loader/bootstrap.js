@@ -110,8 +110,11 @@ await initCore();
 return "core";
 }
 export async function loadEditorModule() {
-await initCore();
-return "editor-stub";
+const core = await initCore();
+if (typeof core.exports.loadEditorChromeModule === "function") {
+core.exports.loadEditorChromeModule();
+}
+return "editor-chrome";
 }
 export function prewarmWorker(workerUrl) {
 if (typeof Worker === "undefined") return null;

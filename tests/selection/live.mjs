@@ -54,11 +54,15 @@ async function waitReady(page, timeoutMs = 60_000) {
 	}
 }
 
-/** Open a viewer page; retry once on flaky worker "no document" after #156 shell. */
+/**
+ * Open a viewer page; retry on flaky worker "no document" (#156) and measure-batch
+ * race ("expected N widths, got M") — same pattern as tests/a11y/keyboard.mjs.
+ */
 async function openViewer(ctx, server, c, side) {
 	const url = viewerUrl(server.url, c, side);
 	let lastErr;
-	for (let attempt = 0; attempt < 2; attempt++) {
+	const maxAttempts = 3;
+	for (let attempt = 0; attempt < maxAttempts; attempt++) {
 		const page = await ctx.newPage();
 		try {
 			await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -67,7 +71,10 @@ async function openViewer(ctx, server, c, side) {
 		} catch (e) {
 			lastErr = e;
 			await page.close().catch(() => {});
-			if (attempt === 0 && String(e).includes('no document')) continue;
+			const msg = String(e && e.message ? e.message : e);
+			const retryable =
+				msg.includes('no document') || /expected \d+ widths, got \d+/.test(msg);
+			if (attempt < maxAttempts - 1 && retryable) continue;
 			throw e;
 		}
 	}

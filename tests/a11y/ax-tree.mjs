@@ -137,6 +137,30 @@ async function checkCase(c, browser, base) {
 		await context.close();
 	}
 
+	// Edit-chrome cases (#53): short viewport is ribbon-focused; content grid AX is not the oracle.
+	// Require rust to expose the Ribbon toolbar (+ tablist); skip TS content multiset compare.
+	if (c.edit) {
+		const rustNodes = /** @type {any[]} */ (raw.rust || []);
+		const hasRibbon = rustNodes.some(
+			(n) => n.role === 'toolbar' && (n.name === 'Ribbon' || /ribbon/i.test(n.name || '')),
+		);
+		const hasTablist = rustNodes.some((n) => n.role === 'tablist');
+		const ok = hasRibbon && hasTablist;
+		return {
+			ok,
+			id: c.id,
+			format: c.format,
+			tsKeys: keys.ts,
+			rustKeys: keys.rust,
+			onlyTs: [],
+			onlyRust: ok ? [] : ['toolbar:Ribbon', !hasTablist ? 'tablist' : ''].filter(Boolean),
+			raw,
+			summary: ok
+				? `OK ${c.id}: edit chrome AX has Ribbon toolbar + tablist`
+				: `FAIL ${c.id}: edit chrome missing Ribbon toolbar and/or tablist`,
+		};
+	}
+
 	// xlsx: require shared grid + status; headers may differ in count (viewport) — compare role presence sets.
 	// pptx: require slide region.
 	const { onlyA: onlyTs, onlyB: onlyRust } = multisetDiff(keys.ts, keys.rust);

@@ -25,6 +25,7 @@
       await loadEditorModule();
       defineNitroXlsx();
       const el = document.createElement('nitro-xlsx');
+      el.setAttribute('readonly', 'false');
       stage.appendChild(el);
       const res = await fetch(fixture);
       const bytes = await res.arrayBuffer();

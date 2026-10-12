@@ -12,11 +12,12 @@ echo "chrome_gate: rust chrome tests"
 echo "chrome_gate: build wasm"
 bash scripts/build-wasm.sh
 
+echo "chrome_gate: rust negative control (readonly hide)"
+(cd "$ROOT/rs" && cargo test -p nitro-xml-wasm ribbon_hidden_in_readonly -- --nocapture)
+
 if command -v bun >/dev/null 2>&1; then
-  echo "chrome_gate: negative control (node+bun if DOM available)"
-  # Headless check via wasm-only path when no browser.
-  (cd "$ROOT/rs" && cargo test -p nitro-xml-wasm ribbon_hidden_in_readonly -- --nocapture) || exit 1
-  echo "chrome_gate: PASS (ribbon readonly negative covered in wasm tests)"
-else
-  echo "chrome_gate: bun missing; wasm tests only"
+  echo "chrome_gate: browser negative control"
+  bun "$ROOT/tests/chrome/browser-negative.mjs"
 fi
+
+echo "chrome_gate: PASS"

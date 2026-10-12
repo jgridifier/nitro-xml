@@ -108,7 +108,8 @@
       if (editMode) await loadEditorModule();
       defineNitroXlsx();
       const el = document.createElement('nitro-xlsx');
-      if (!editMode) el.setAttribute('readonly', '');
+      // Absence of the attribute still means readonly (loader default); edit mode needs "false".
+      el.setAttribute('readonly', editMode ? 'false' : '');
       applyLightTheme(el);
       stage.appendChild(el);
       el.style.width = '100%';

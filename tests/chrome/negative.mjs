@@ -42,7 +42,7 @@ async function openEdit() {
 	defineNitroXlsx();
 	const bytes = readFileSync(join(ROOT, FIXTURE));
 	const el = document.createElement("nitro-xlsx");
-	el.removeAttribute("readonly");
+	el.setAttribute("readonly", "false");
 	document.body.appendChild(el);
 	await el.loadBuffer(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), "book.xlsx");
 	const html = (await el.shellAction("ui")).h || "";

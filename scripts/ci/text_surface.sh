@@ -23,15 +23,19 @@ echo "text_surface: rust unit tests"
 echo "text_surface: build wasm"
 bash scripts/build-wasm.sh
 
-echo "text_surface: caret/selection parity vs textarea"
+echo "text_surface: caret/selection parity vs textarea (#55)"
 ( cd "$ROOT" && bun tests/text/caret_parity.mjs )
 
+echo "text_surface: rich multi-paragraph parity (#61)"
+( cd "$ROOT" && bun tests/text/rich_parity.mjs )
+
 echo "text_surface: PASS"
-if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f tests/text/out/gate-summary.txt ]; then
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
-    echo "## Text surface gate (#55)"
+    echo "## Text surface gate (#55 / #61)"
     echo '```'
-    cat tests/text/out/gate-summary.txt
+    [ -f tests/text/out/gate-summary.txt ] && cat tests/text/out/gate-summary.txt
+    [ -f tests/text/out/rich-gate-summary.txt ] && cat tests/text/out/rich-gate-summary.txt
     echo '```'
   } >> "$GITHUB_STEP_SUMMARY"
 fi

@@ -20,7 +20,7 @@ import JSZip from 'jszip';
 import { comparePackages } from '../roundtrip/compare.mjs';
 import { validateOpenXml, errorSubset, libreOfficeReopen } from '../roundtrip/validate.mjs';
 import { familyOf, packageKind } from '../roundtrip/corpus.mjs';
-import { applyAndSave } from './apply.mjs';
+import { applyAndSave, applyDocxModel } from './apply.mjs';
 import { loadEditScripts, resolveFixture, fixtureAbs, ROOT } from './scripts.mjs';
 import { rustDocxSave } from './rust-docx.mjs';
 import { rustXlsxSave } from './rust-xlsx.mjs';

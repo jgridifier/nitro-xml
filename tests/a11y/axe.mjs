@@ -18,6 +18,16 @@ import {
 import { readyCases } from './registry.mjs';
 import { AXE_ALLOW, axeAllowed } from './allowlist.mjs';
 
+function selectedCases() {
+	const only = (process.env.A11Y_ONLY || '')
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean);
+	const all = readyCases();
+	if (!only.length) return all;
+	return all.filter((c) => only.includes(c.id));
+}
+
 const AXE_SRC = join(A11Y, 'node_modules/axe-core/axe.min.js');
 
 /**
@@ -41,6 +51,10 @@ async function runAxe(page) {
 			description: v.description,
 			nodes: (v.nodes || []).length,
 			targets: (v.nodes || []).slice(0, 5).map((n) => (n.target || []).join(' ')),
+			html: (v.nodes || []).slice(0, 3).map((n) => (n.html || '').slice(0, 240)),
+			failureSummary: (v.nodes || [])
+				.slice(0, 2)
+				.map((n) => (n.failureSummary || '').slice(0, 400)),
 		}));
 	});
 }
@@ -83,7 +97,18 @@ async function checkCase(c, browser, base) {
 		newOnRust,
 		summary: ok
 			? `OK ${c.id}: axe new-vs-upstream 0 (ts=${bySide.ts.length} rust=${bySide.rust.length} serious/critical after allow-list)`
-			: `FAIL ${c.id}: ${newOnRust.length} new serious/critical on rust: ${newOnRust.map((v) => v.id).join(', ')}`,
+			: `FAIL ${c.id}: ${newOnRust.length} new serious/critical on rust: ${newOnRust
+					.map((v) => {
+						const detail = [
+							...(v.targets || []).slice(0, 2),
+							...(v.html || []).slice(0, 2),
+							...(v.failureSummary || []).slice(0, 1),
+						]
+							.filter(Boolean)
+							.join(' || ');
+						return `${v.id}${detail ? ` {${detail}}` : ''}`;
+					})
+					.join(', ')}`,
 	};
 }
 
@@ -95,7 +120,7 @@ export async function runAxeChecks() {
 	const browser = await chromium.launch({ headless: true });
 	const results = [];
 	try {
-		for (const c of readyCases()) {
+		for (const c of selectedCases()) {
 			results.push(await checkCase(c, browser, server.url));
 		}
 	} finally {

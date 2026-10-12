@@ -45,7 +45,7 @@ pub fn formula_bar_html(view: &FormulaBarView) -> String {
 <div class="xfb-actions">
 <button type="button" class="xfb-btn xfb-cancel" data-a="formula-cancel" aria-label="Cancel" title="Cancel"><span aria-hidden="true">✕</span></button>
 <button type="button" class="xfb-btn xfb-enter" data-a="formula-commit" aria-label="Enter" title="Enter"><span aria-hidden="true">✓</span></button>
-<button type="button" class="xfb-btn xfb-fx" data-a="formula-fx" aria-label="Insert Function" title="Insert Function"><i aria-hidden="true">fx</i></button>
+<button type="button" class="xfb-btn xfb-fx" data-a="formula-fx" aria-label="fx Insert Function" title="Insert Function"><i aria-hidden="true">fx</i></button>
 </div>
 <div class="xfb-field" part="formula-input" role="textbox" tabindex="0" data-a="formula-focus" aria-label="Formula Bar" aria-multiline="{multiline}">{before}<span class="xfb-caret" aria-hidden="true"{caret_hidden}></span>{after}</div>
 <button type="button" class="xfb-btn xfb-expand" data-a="formula-expand" aria-label="{expand_label}" title="{expand_label}" aria-expanded="{expanded_attr}"><span aria-hidden="true">▾</span></button>
@@ -146,6 +146,10 @@ mod tests {
         assert!(html.contains("<span aria-hidden=\"true\">✕</span>"));
         assert!(html.contains("<span aria-hidden=\"true\">✓</span>"));
         assert!(html.contains("<i aria-hidden=\"true\">fx</i>"));
+        assert!(
+            html.contains("aria-label=\"fx Insert Function\""),
+            "accessible name must include visible fx text for axe label-content-name-mismatch"
+        );
         assert!(html.contains("<span aria-hidden=\"true\">▾</span>"));
     }
 }

@@ -10,6 +10,7 @@
 
 pub mod chart;
 pub mod drawingml;
+pub mod edit;
 pub mod fonts;
 pub mod opc;
 pub mod xml;

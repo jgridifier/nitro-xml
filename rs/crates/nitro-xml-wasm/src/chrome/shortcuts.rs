@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/ui/src/xlsx/keyboard.ts; changes listed in PROVENANCE.md.
 
 //! Global keyboard shortcuts for the xlsx editor chrome (#53).

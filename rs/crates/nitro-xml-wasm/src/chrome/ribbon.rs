@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/ui/src/xlsx/ribbon/tabs/home.ts and home-groups.ts; changes listed in PROVENANCE.md.
 
 //! Declarative Home ribbon HTML (#53). Galleries render as menu stubs (TODO(#54)).

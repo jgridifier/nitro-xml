@@ -96,7 +96,7 @@ pub fn smartart_draw_args(
             fill: s.fill.clone(),
             stroke: s.stroke.clone(),
             stroke_width: s.stroke_width,
-            text: s.text.clone(),
+            text: s.flat_text(),
             path_len: s.kind.path_d().map(|d| d.len()).unwrap_or(0),
         })
         .collect()
@@ -141,6 +141,35 @@ impl ShapeKind {
     }
 }
 
+#[derive(Clone, Default)]
+struct TextInsets {
+    left: f64,
+    right: f64,
+    top: f64,
+    bottom: f64,
+}
+
+/// Independent text frame from `dsp:txXfrm` plus `a:bodyPr` insets (CSS px).
+#[derive(Clone)]
+struct TextFrameGeom {
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    insets: TextInsets,
+}
+
+#[derive(Clone)]
+struct TextRun {
+    text: String,
+    font_size_px: Option<f64>,
+}
+
+#[derive(Clone)]
+struct TextParagraph {
+    runs: Vec<TextRun>,
+}
+
 struct SpBox {
     x: f64,
     y: f64,
@@ -150,7 +179,8 @@ struct SpBox {
     fill_opacity: Option<f64>,
     stroke: String,
     stroke_width: f64,
-    text: String,
+    paragraphs: Vec<TextParagraph>,
+    text_frame: Option<TextFrameGeom>,
     font_color: String,
     /// Authored font size in CSS px when `a:rPr/@sz` is present (`sz/100 * 96/72`).
     font_size_px: Option<f64>,
@@ -162,8 +192,20 @@ struct SpBox {
     flip_v: bool,
 }
 
+impl SpBox {
+    fn flat_text(&self) -> String {
+        paragraphs_plain_text(&self.paragraphs)
+    }
+
+    fn has_text(&self) -> bool {
+        self.paragraphs
+            .iter()
+            .any(|p| p.runs.iter().any(|r| !r.text.trim().is_empty()))
+    }
+}
+
 fn keep_shape(shape: &SpBox) -> bool {
-    if !shape.text.is_empty() {
+    if shape.has_text() {
         return true;
     }
     if shape.is_pic {
@@ -266,32 +308,8 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
             }
         }
 
-        if !shape.text.is_empty() {
-            // Match TS `projectDrawingShapes`: authored CSS px as-is; else clamp(height*0.2, 8..14).
-            // Coordinates are already EMU→px so font-size stays under Chromium's ~10000px clamp.
-            let font = match shape.font_size_px {
-                Some(sz) if sz > 0.0 => sz.min(shape.h.max(1.0)).max(1.0),
-                _ => (shape.h * 0.2)
-                    .clamp(8.0, 14.0)
-                    .min(fit_font(shape.h, stroke_w.max(default_stroke)))
-                    .max(1.0),
-            };
-            let line_height = font * 1.2;
-            let max_width = (shape.w * 0.82).max(font);
-            let lines = wrap_smartart_text(&shape.text, font, max_width);
-            let total_h = line_height * lines.len().max(1) as f64;
-            let mut y = cy - total_h / 2.0 + line_height / 2.0;
-            for line in &lines {
-                body.push_str(&format!(
-                    "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">{}</text>",
-                    num(cx),
-                    num(y),
-                    num(font),
-                    escape(&shape.font_color),
-                    escape(line),
-                ));
-                y += line_height;
-            }
+        if shape.has_text() {
+            append_shape_text(&mut body, shape, stroke_w.max(default_stroke));
         }
     }
     format!(
@@ -345,6 +363,146 @@ fn fit_font(h: f64, stroke: f64) -> f64 {
         return max_size;
     }
     preferred.clamp(min_size.max(1.0), max_size).max(1.0)
+}
+
+const TEXT_WIDTH_FRACTION: f64 = 0.82;
+
+struct PositionedTextLine {
+    y: f64,
+    spans: Vec<(String, f64)>,
+}
+
+fn default_label_font(shape: &SpBox, stroke: f64) -> f64 {
+    let frame_h = shape.text_frame.as_ref().map(|f| f.h).unwrap_or(shape.h);
+    match shape.font_size_px {
+        Some(sz) if sz > 0.0 => sz.min(frame_h.max(1.0)).max(1.0),
+        _ => (frame_h * 0.2)
+            .clamp(8.0, 14.0)
+            .min(fit_font(frame_h, stroke))
+            .max(1.0),
+    }
+}
+
+fn text_layout_metrics(shape: &SpBox, stroke: f64) -> (f64, f64, f64, f64) {
+    let base_font = default_label_font(shape, stroke);
+    if let Some(tf) = shape.text_frame.as_ref() {
+        if tf.w > 0.0 && tf.h > 0.0 {
+            let content_w = (tf.w - tf.insets.left - tf.insets.right).max(1.0);
+            let content_h = (tf.h - tf.insets.top - tf.insets.bottom).max(1.0);
+            let text_cx = tf.x + tf.insets.left + content_w / 2.0;
+            let text_cy = tf.y + tf.insets.top + content_h / 2.0;
+            return (text_cx, text_cy, content_w, base_font);
+        }
+    }
+    let text_cx = shape.x + shape.w / 2.0;
+    let text_cy = shape.y + shape.h / 2.0;
+    let max_width = (shape.w * TEXT_WIDTH_FRACTION).max(base_font);
+    (text_cx, text_cy, max_width, base_font)
+}
+
+fn paragraph_to_lines(
+    para: &TextParagraph,
+    base_font: f64,
+    max_width: f64,
+) -> Vec<Vec<(String, f64)>> {
+    if para.runs.is_empty() {
+        return Vec::new();
+    }
+    if para.runs.len() == 1 {
+        let run = &para.runs[0];
+        let font = run.font_size_px.unwrap_or(base_font);
+        let wrapped = wrap_smartart_text(&run.text, font, max_width);
+        return wrapped.into_iter().map(|line| vec![(line, font)]).collect();
+    }
+    let max_run_font = para
+        .runs
+        .iter()
+        .map(|r| r.font_size_px.unwrap_or(base_font))
+        .fold(base_font, f64::max);
+    let joined = para
+        .runs
+        .iter()
+        .map(|r| r.text.as_str())
+        .collect::<String>();
+    let wrapped = wrap_smartart_text(&joined, max_run_font, max_width);
+    if wrapped.len() <= 1 {
+        return vec![para
+            .runs
+            .iter()
+            .map(|r| (r.text.clone(), r.font_size_px.unwrap_or(base_font)))
+            .collect()];
+    }
+    wrapped
+        .into_iter()
+        .map(|line| vec![(line, max_run_font)])
+        .collect()
+}
+
+fn layout_shape_text(shape: &SpBox, stroke: f64) -> Vec<PositionedTextLine> {
+    let (_text_cx, text_cy, max_width, base_font) = text_layout_metrics(shape, stroke);
+    let mut logical_lines: Vec<Vec<(String, f64)>> = Vec::new();
+    for para in &shape.paragraphs {
+        logical_lines.extend(paragraph_to_lines(para, base_font, max_width));
+    }
+    if logical_lines.is_empty() {
+        return Vec::new();
+    }
+    let line_height_ratio = 1.2;
+    let line_heights: Vec<f64> = logical_lines
+        .iter()
+        .map(|spans| {
+            spans
+                .iter()
+                .map(|(_, sz)| sz * line_height_ratio)
+                .fold(0.0, f64::max)
+                .max(base_font * line_height_ratio)
+        })
+        .collect();
+    let total_h = line_heights.iter().sum::<f64>();
+    let mut y = text_cy - total_h / 2.0;
+    logical_lines
+        .into_iter()
+        .zip(line_heights)
+        .map(|(spans, lh)| {
+            y += lh / 2.0;
+            let line = PositionedTextLine { y, spans };
+            y += lh / 2.0;
+            line
+        })
+        .collect()
+}
+
+fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64) {
+    let (text_cx, _, _, base_font) = text_layout_metrics(shape, stroke);
+    for line in layout_shape_text(shape, stroke) {
+        if line.spans.len() == 1 {
+            let (text, font) = &line.spans[0];
+            body.push_str(&format!(
+                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">{}</text>",
+                num(text_cx),
+                num(line.y),
+                num(*font),
+                escape(&shape.font_color),
+                escape(text),
+            ));
+            continue;
+        }
+        body.push_str(&format!(
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">",
+            num(text_cx),
+            num(line.y),
+            num(base_font),
+            escape(&shape.font_color),
+        ));
+        for (text, font) in &line.spans {
+            body.push_str(&format!(
+                "<tspan font-size=\"{}\">{}</tspan>",
+                num(*font),
+                escape(text),
+            ));
+        }
+        body.push_str("</text>");
+    }
 }
 
 fn wrap_smartart_text(text: &str, font: f64, max_width: f64) -> Vec<String> {
@@ -443,7 +601,8 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
     } else {
         0.0
     };
-    let text = text_of(sp);
+    let paragraphs = text_paragraphs_of(sp);
+    let text_frame = text_frame_of(sp);
     let font_color = font_color_of(sp, scheme, &fill);
     let font_size_px = authored_font_size_px(sp);
     let rotation = attr_f64(xfrm, "rot").map(|r| r / 60_000.0);
@@ -471,7 +630,8 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         fill_opacity,
         stroke,
         stroke_width,
-        text,
+        paragraphs,
+        text_frame,
         font_color,
         font_size_px,
         geom_name,
@@ -608,10 +768,23 @@ fn custom_paths_to_svg(paths: &[DrawingPath], shape_w: f64, shape_h: f64) -> Opt
     for path in paths {
         let space_w = path.width.filter(|v| *v > 0.0);
         let space_h = path.height.filter(|v| *v > 0.0);
+        let in_path_space = space_w.is_some() || space_h.is_some();
         let scale_x = space_w.map(|sw| shape_w / sw).unwrap_or(1.0);
         let scale_y = space_h.map(|sh| shape_h / sh).unwrap_or(1.0);
-        let sx = |v: f64| v * scale_x;
-        let sy = |v: f64| v * scale_y;
+        let sx = |v: f64| {
+            if in_path_space {
+                v * scale_x
+            } else {
+                emu_to_pixels(v as i64)
+            }
+        };
+        let sy = |v: f64| {
+            if in_path_space {
+                v * scale_y
+            } else {
+                emu_to_pixels(v as i64)
+            }
+        };
         let mut pen_x = 0.0;
         let mut pen_y = 0.0;
         for cmd in &path.commands {
@@ -725,25 +898,86 @@ fn solid_hex_from_color_child(
     Some(resolved.hex)
 }
 
-fn text_of(el: &Element) -> String {
-    let mut parts = Vec::new();
-    collect_text_paras(el, &mut parts);
-    parts
-        .join(" ")
-        .split_whitespace()
+fn paragraphs_plain_text(paragraphs: &[TextParagraph]) -> String {
+    paragraphs
+        .iter()
+        .map(|para| {
+            para.runs
+                .iter()
+                .map(|r| r.text.as_str())
+                .collect::<String>()
+        })
+        .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
-        .join(" ")
+        .join("\n")
 }
 
-fn collect_text_paras(el: &Element, parts: &mut Vec<String>) {
-    let mut stack: Vec<&Element> = vec![el];
+fn emu_attr_px(el: &Element, name: &str) -> Option<f64> {
+    attr_f64(el, name).map(|v| emu_to_pixels(v as i64))
+}
+
+fn text_frame_of(sp: &Element) -> Option<TextFrameGeom> {
+    let tx_xfrm = child_any(sp, "txXfrm")?;
+    let off = child_any(tx_xfrm, "off")?;
+    let ext = child_any(tx_xfrm, "ext")?;
+    let x = emu_attr_px(off, "x")?;
+    let y = emu_attr_px(off, "y")?;
+    let w = emu_attr_px(ext, "cx")?;
+    let h = emu_attr_px(ext, "cy")?;
+    if w <= 0.0 || h <= 0.0 {
+        return None;
+    }
+    let mut insets = TextInsets::default();
+    if let Some(tx_body) = child_any(sp, "txBody") {
+        if let Some(body_pr) = child_any(tx_body, "bodyPr") {
+            insets.left = emu_attr_px(body_pr, "lIns").unwrap_or(0.0);
+            insets.right = emu_attr_px(body_pr, "rIns").unwrap_or(0.0);
+            insets.top = emu_attr_px(body_pr, "tIns").unwrap_or(0.0);
+            insets.bottom = emu_attr_px(body_pr, "bIns").unwrap_or(0.0);
+        }
+    }
+    Some(TextFrameGeom { x, y, w, h, insets })
+}
+
+fn run_font_size_px(r_pr: &Element) -> Option<f64> {
+    attr_f64(r_pr, "sz").and_then(|sz| {
+        if sz > 0.0 {
+            Some((sz / 100.0) * (96.0 / 72.0))
+        } else {
+            None
+        }
+    })
+}
+
+fn text_paragraphs_of(sp: &Element) -> Vec<TextParagraph> {
+    let tx_body = child_any(sp, "txBody");
+    let mut paragraphs = Vec::new();
+    if let Some(tx_body) = tx_body {
+        collect_tx_paragraphs(tx_body, &mut paragraphs);
+    }
+    if paragraphs.is_empty() {
+        let mut flat = Vec::new();
+        collect_text(sp, &mut flat);
+        let joined = flat.join("").trim().to_owned();
+        if !joined.is_empty() {
+            paragraphs.push(TextParagraph {
+                runs: vec![TextRun {
+                    text: joined,
+                    font_size_px: None,
+                }],
+            });
+        }
+    }
+    paragraphs
+}
+
+fn collect_tx_paragraphs(tx_body: &Element, out: &mut Vec<TextParagraph>) {
+    let mut stack: Vec<&Element> = vec![tx_body];
     while let Some(node) = stack.pop() {
         if node.local == "p" {
-            let mut para = Vec::new();
-            collect_text(node, &mut para);
-            let joined = para.join("").trim().to_owned();
-            if !joined.is_empty() {
-                parts.push(joined);
+            let runs = paragraph_runs(node);
+            if runs.iter().any(|r| !r.text.is_empty()) {
+                out.push(TextParagraph { runs });
             }
             continue;
         }
@@ -753,9 +987,39 @@ fn collect_text_paras(el: &Element, parts: &mut Vec<String>) {
             }
         }
     }
-    if parts.is_empty() {
-        collect_text(el, parts);
+}
+
+fn paragraph_runs(paragraph: &Element) -> Vec<TextRun> {
+    let mut runs = Vec::new();
+    for child in &paragraph.children {
+        let node = match child {
+            Node::Element(e) => e,
+            _ => continue,
+        };
+        if node.local != "r" {
+            continue;
+        }
+        let r_pr = child_any(node, "rPr");
+        let font_size_px = r_pr.and_then(run_font_size_px);
+        let mut text_parts = Vec::new();
+        collect_text(node, &mut text_parts);
+        let text = text_parts.join("");
+        if !text.is_empty() {
+            runs.push(TextRun { text, font_size_px });
+        }
     }
+    if runs.is_empty() {
+        let mut text_parts = Vec::new();
+        collect_text(paragraph, &mut text_parts);
+        let text = text_parts.join("").trim().to_owned();
+        if !text.is_empty() {
+            runs.push(TextRun {
+                text,
+                font_size_px: None,
+            });
+        }
+    }
+    runs
 }
 
 fn collect_text(el: &Element, parts: &mut Vec<String>) {
@@ -1039,6 +1303,108 @@ mod tests {
         let svg = smartart_svg(None, 200.0, 80.0);
         assert!(svg.contains(">SmartArt<"), "{svg}");
         assert!(svg.contains("width=\"200\""), "{svg}");
+    }
+
+    // Catches: chevron labels centred on shape box and wrapped at 0.82×w instead of dsp:txXfrm minus bodyPr insets.
+    #[test]
+    fn tx_xfrm_and_body_insets_drive_text_wrap_and_center() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="1905000" cy="952500"/></a:xfrm>
+                <a:prstGeom prst="chevron"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="156082"/></a:solidFill>
+              </dsp:spPr>
+              <dsp:txXfrm>
+                <a:off x="0" y="238125"/><a:ext cx="476250" cy="476250"/>
+              </dsp:txXfrm>
+              <dsp:txBody>
+                <a:bodyPr lIns="45720" rIns="45720" tIns="45720" bIns="45720"/>
+                <a:p><a:r><a:t>Left</a:t></a:r></a:p>
+              </dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let svg = smartart_svg(Some(xml), 220.0, 120.0);
+        // Text frame is the left quarter of the shape (~50px wide), not centred at x=100.
+        assert!(
+            svg.contains("x=\"25\"") || svg.contains("x=\"25.0\""),
+            "expected label centred in txXfrm inset box, got {svg}"
+        );
+        assert!(
+            !svg.contains("x=\"100\""),
+            "shape-centred label should not appear: {svg}"
+        );
+    }
+
+    // Catches: text-cycle flattening multiple a:p into one wrapped line and dropping per-run sz.
+    #[test]
+    fn paragraph_breaks_and_per_run_font_sizes_preserved() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="1000000" cy="1000000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="CCCCCC"/></a:solidFill>
+              </dsp:spPr>
+              <dsp:txBody>
+                <a:p><a:r><a:rPr sz="2000"/><a:t>Small</a:t></a:r></a:p>
+                <a:p><a:r><a:rPr sz="4000"/><a:t>Big</a:t></a:r></a:p>
+              </dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let svg = smartart_svg(Some(xml), 120.0, 120.0);
+        assert!(svg.contains(">Small<"), "{svg}");
+        assert!(svg.contains(">Big<"), "{svg}");
+        assert!(
+            svg.contains("font-size=\"26.67") || svg.contains("font-size=\"26.6"),
+            "{svg}"
+        );
+        assert!(
+            svg.contains("font-size=\"53.33") || svg.contains("font-size=\"53.3"),
+            "{svg}"
+        );
+        assert!(
+            !svg.contains(">Small Big<") && !svg.contains(">Small<Big<"),
+            "paragraphs must not merge: {svg}"
+        );
+    }
+
+    // Catches: custGeom paths without a:path/@w|@h left in EMU so connectors collapse in viewBox.
+    #[test]
+    fn custgeom_without_path_space_scales_emu_to_shape_pixels() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="183641" cy="804522"/></a:xfrm>
+                <a:custGeom>
+                  <a:pathLst>
+                    <a:path>
+                      <a:moveTo><a:pt x="0" y="0"/></a:moveTo>
+                      <a:lnTo><a:pt x="183641" y="804522"/></a:lnTo>
+                    </a:path>
+                  </a:pathLst>
+                </a:custGeom>
+                <a:noFill/>
+                <a:ln w="19050"><a:solidFill><a:srgbClr val="156082"/></a:solidFill></a:ln>
+              </dsp:spPr>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let svg = smartart_svg(Some(xml), 120.0, 200.0);
+        assert!(svg.contains("<path "), "{svg}");
+        assert!(
+            !svg.contains("183641"),
+            "path coords should be CSS px not EMU: {svg}"
+        );
+        assert!(
+            svg.contains("L 19.28 84.46") || svg.contains("L 19.3 84.5") || svg.contains("L 19 84"),
+            "{svg}"
+        );
     }
 
     // Catches: SmartArt shape/text walks recursing once per nesting level and overflowing the WASM

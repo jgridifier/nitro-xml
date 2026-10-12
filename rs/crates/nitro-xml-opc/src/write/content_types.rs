@@ -52,7 +52,10 @@ mod tests {
     fn content_types_xml_is_sorted_and_stable() {
         let types = ContentTypes {
             defaults: BTreeMap::from([
-                ("rels".into(), "application/vnd.openxmlformats-package.relationships+xml".into()),
+                (
+                    "rels".into(),
+                    "application/vnd.openxmlformats-package.relationships+xml".into(),
+                ),
                 ("xml".into(), "application/xml".into()),
             ]),
             overrides: BTreeMap::from([(

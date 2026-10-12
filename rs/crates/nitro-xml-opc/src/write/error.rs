@@ -13,7 +13,9 @@ pub enum WriteError {
     Xml(XmlError),
     Io(std::io::Error),
     /// A dirty part was requested but the source package could not supply carry metadata.
-    MissingPart { name: String },
+    MissingPart {
+        name: String,
+    },
     /// Zip crate / encoding failure while emitting an entry.
     Encode(String),
 }

@@ -109,12 +109,7 @@ impl<'src> PackageWriter<'src> {
         let name = normalize_name(name.into());
         if let Some(ct) = part.content_type.as_deref() {
             let key = override_key(&name);
-            let changed = self
-                .content_types
-                .overrides
-                .get(&key)
-                .map(String::as_str)
-                != Some(ct);
+            let changed = self.content_types.overrides.get(&key).map(String::as_str) != Some(ct);
             self.content_types.overrides.insert(key, ct.to_owned());
             // Only regenerate [Content_Types].xml when the type map actually changes.
             if changed {
@@ -126,7 +121,12 @@ impl<'src> PackageWriter<'src> {
     }
 
     /// Convenience: add UTF-8 XML/text as deflated bytes.
-    pub fn add_text(&mut self, name: impl Into<String>, text: impl AsRef<str>, content_type: Option<&str>) {
+    pub fn add_text(
+        &mut self,
+        name: impl Into<String>,
+        text: impl AsRef<str>,
+        content_type: Option<&str>,
+    ) {
         let mut part = PartWrite::bytes(text.as_ref().as_bytes().to_vec());
         if let Some(ct) = content_type {
             part = part.with_content_type(ct);
@@ -263,10 +263,7 @@ impl<'src> PackageWriter<'src> {
     }
 }
 
-fn content_types_part(
-    dirty: &IndexMap<String, PartWrite>,
-    types: &ContentTypes,
-) -> PartWrite {
+fn content_types_part(dirty: &IndexMap<String, PartWrite>, types: &ContentTypes) -> PartWrite {
     let xml = if let Some(part) = dirty.get(CONTENT_TYPES_NAME) {
         part.data.clone()
     } else {

@@ -154,9 +154,7 @@ fn replay_ops<H: EditHost, Hist: HistoryHooks>(
                 let mut batch_unsupported = false;
                 let mut batch_error = false;
                 let mut leaf = Vec::new();
-                let run = session.batch(batch_label.clone(), |_host| {
-                    // Nested session API: run each leaf against the registry inside this batch.
-                    // We cannot re-borrow `session` here; execute registry only and record.
+                let run = session.batch(batch_label.clone(), |host| {
                     for child in inner {
                         if let Op::Batch { .. } = child {
                             batch_error = true;
@@ -167,7 +165,7 @@ fn replay_ops<H: EditHost, Hist: HistoryHooks>(
                             });
                             continue;
                         }
-                        match apply_leaf(registry, child) {
+                        match apply_leaf(registry, host, child) {
                             Ok(_cs) => leaf.push(OpResult {
                                 op: child.command_id().into(),
                                 status: "ok".into(),
@@ -212,8 +210,8 @@ fn replay_ops<H: EditHost, Hist: HistoryHooks>(
                 let kind = kind_for(other);
                 let id = other.command_id();
                 let args = other.args_json()?;
-                match session.run(id, kind, scopes, |_host| {
-                    apply_leaf(registry, other).map(|_| ())
+                match session.run(id, kind, scopes, |host| {
+                    apply_leaf(registry, host, other).map(|_| ())
                 }) {
                     Ok(_) => out.push(OpResult {
                         op: id.into(),
@@ -243,10 +241,14 @@ fn replay_ops<H: EditHost, Hist: HistoryHooks>(
     Ok(())
 }
 
-fn apply_leaf(registry: &CommandRegistry, op: &Op) -> Result<ChangeSet, EditError> {
+fn apply_leaf<H: EditHost>(
+    registry: &CommandRegistry,
+    host: &mut H,
+    op: &Op,
+) -> Result<ChangeSet, EditError> {
     let id = op.command_id();
     let args = op.args_json()?;
-    registry.run(id, &args)
+    registry.run(id, host.as_any(), &args)
 }
 
 /// Convenience: parse JSON + replay with schema stubs (all unsupported until #66+).

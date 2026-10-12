@@ -226,7 +226,9 @@ export async function runVisualGate() {
 	try {
 		await prepareAll();
 		server = await startVisualServer();
-		browser = await chromium.launch({ headless: true });
+		// Match TS and Rust glyph AA at DPR2 (Linux Chromium otherwise keeps
+		// ClearType on light-DOM Print Layout while shadow `.dom` goes grayscale).
+		browser = await chromium.launch({ headless: true, args: ['--disable-lcd-text'] });
 
 		// Harness self-check: TS-vs-TS at DPR 1 for every ready case (acceptance: green before Rust).
 		for (const c of readyCases()) {

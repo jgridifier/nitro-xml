@@ -51,7 +51,7 @@ fn attrs_for_run(model: &ChartViewModel, run: &ChartTitleRun, base_size: f64) ->
 pub fn chart_rich_title_svg(
     model: &ChartViewModel,
     width: u32,
-    measure: &mut ChartSvgMeasureOptions,
+    measure: &mut ChartSvgMeasureOptions<'_>,
     frame_height: u32,
 ) -> Option<RichTitle> {
     let title = model.title.as_deref()?;

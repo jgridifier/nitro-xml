@@ -14,11 +14,28 @@ use crate::command_buffer::StringTable;
 use crate::measure::MeasureBatch;
 use crate::CommandBuffer;
 
+pub use render::theme_palette::{DEFAULT_THEME_COLORS, THEME_SLOTS};
 pub use render::{chart_space_kind, ChartSvgMeasureOptions, ChartThemeFonts, DRAWN_CHART_TYPES};
 
 pub struct ChartSvgOptions {
     /// Prior-frame `measureText` widths consumed in document order by the painter.
     pub measure_widths: Vec<f64>,
+    /// Document theme colours in [`THEME_SLOTS`] order (hex without `#`); missing slots use Office defaults.
+    pub theme_colors: Option<Vec<String>>,
+    pub theme_fonts: ChartThemeFonts,
+}
+
+impl Default for ChartSvgOptions {
+    fn default() -> Self {
+        Self {
+            measure_widths: Vec::new(),
+            theme_colors: None,
+            theme_fonts: ChartThemeFonts {
+                major: None,
+                minor: None,
+            },
+        }
+    }
 }
 
 pub struct RenderChartSpaceOptions {
@@ -32,12 +49,38 @@ pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOpti
     let measure = render::ChartSvgMeasureOptions::from_widths(options.svg.measure_widths.clone());
     render::render_chart_space_svg(
         space,
-        &render::RenderChartSpaceOptions {
+        &mut render::RenderChartSpaceOptions {
             width: options.width,
             height: options.height,
             measure,
+            theme_colors: options.svg.theme_colors.clone(),
+            theme_fonts: options.svg.theme_fonts.clone(),
         },
     )
+}
+
+/// Queue canvas `measureText` probes for one chart (document order matches [`render_chart_space_svg`]).
+pub fn probe_chart_space_measures(
+    space: &ChartSpace,
+    width: u32,
+    height: u32,
+    batch: &mut MeasureBatch,
+    intern: &mut dyn FnMut(&str) -> u32,
+) {
+    let measure = render::ChartSvgMeasureOptions::probing(batch, intern);
+    let _ = render::render_chart_space_svg(
+        space,
+        &mut render::RenderChartSpaceOptions {
+            width,
+            height,
+            measure,
+            theme_colors: None,
+            theme_fonts: ChartThemeFonts {
+                major: None,
+                minor: None,
+            },
+        },
+    );
 }
 
 /// Encodes chart SVG into `buffer` as one `SetInnerMarkup` handoff; interns markup into `strings`.
@@ -64,6 +107,8 @@ pub fn paint_chart_space(
             height: options.height,
             svg: ChartSvgOptions {
                 measure_widths: widths,
+                theme_colors: options.svg.theme_colors.clone(),
+                theme_fonts: options.svg.theme_fonts.clone(),
             },
         },
     );

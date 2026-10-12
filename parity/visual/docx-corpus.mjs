@@ -13,15 +13,29 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const DOCX_EXT = /\.(docx|docm|dotx|dotm)$/i;
 
-/** Fixture paths (repo-relative) that pass ≤0.1% at DPR1 + DPR2 + print. */
+/**
+ * Fixture paths (repo-relative) that pass ≤0.1% at DPR1 + DPR2 + print.
+ * Visual runner launches Chromium with `--disable-lcd-text` so DPR2 AA matches
+ * (negative control: without that flag poi-endnotes DPR2 is ~0.92% and would hard-fail).
+ */
 const HARD_FIXTURES = new Set([
+	'fixtures/real/docx/poi-45690.docm',
 	'fixtures/real/docx/poi-58067.docx',
+	'fixtures/real/docx/poi-60158.docm',
 	'fixtures/real/docx/poi-60316.docx',
 	'fixtures/real/docx/poi-60316.dotx',
 	'fixtures/real/docx/poi-60329.docx',
 	'fixtures/real/docx/poi-61470.docx',
+	'fixtures/real/docx/poi-Bug54849.docx',
 	'fixtures/real/docx/poi-SimpleMacro.docm',
+	'fixtures/real/docx/poi-WordWithAttachments.docx',
+	'fixtures/real/docx/poi-bug65649.docx',
+	'fixtures/real/docx/poi-delins.docx',
+	'fixtures/real/docx/poi-drawing.docx',
+	'fixtures/real/docx/poi-endnotes.docx',
+	'fixtures/real/docx/poi-form_footnotes.docx',
 	'fixtures/real/docx/poi-testComment.docx',
+	'fixtures/real/docx/python-docx-blk-paras-and-tables.docx',
 	'fixtures/real/docx/python-docx-comments-rich-para.docx',
 	'fixtures/real/docx/python-docx-doc-access-sections.docx',
 	'fixtures/real/docx/python-docx-having-images.docx',

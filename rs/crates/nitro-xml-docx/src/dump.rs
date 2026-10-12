@@ -90,11 +90,12 @@ pub fn dump_docx_styles(bytes: &[u8]) -> Result<String, String> {
 pub fn dump_docx_layout(bytes: &[u8]) -> Result<String, String> {
     let loaded = read_package(bytes).map_err(|e| e.to_string())?;
 
-    let result = layout_document_model(
+    let mut result = layout_document_model(
         &loaded.model,
         &create_fake_measurer(),
         LayoutReviewOptions::default(),
     );
+    crate::layout::strip_layout_ir_chart_part_names(&mut result);
     let mut approximations = result.approximations;
     approximations.sort();
     let out = serde_json::json!({

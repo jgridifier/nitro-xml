@@ -17,7 +17,7 @@ pub fn render_chart_svg(
     model: &ChartViewModel,
     width: u32,
     height: u32,
-    measure: &mut ChartSvgMeasureOptions,
+    measure: &mut ChartSvgMeasureOptions<'_>,
 ) -> String {
     let (model, defs) = chart_gradient_paint(model, width.max(1), height.max(1));
     let w = width.max(1) as f64;

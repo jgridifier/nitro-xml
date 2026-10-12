@@ -12,6 +12,8 @@
       overflow: auto;
       background: #fff;
       font-family: "Liberation Sans", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
     #stage nitro-docx {
       display: flex;
@@ -117,12 +119,11 @@
       await el.loadUrl(fixture);
       const shadow = el.shadowRoot;
       hideShellChrome(shadow);
-      const cv = shadow?.querySelector('canvas');
-      if (cv) cv.style.visibility = 'hidden';
       injectStyle(
         shadow,
         await (await fetch('/fonts/visual-fonts.css')).text() +
-          `\n:host,.dom,.dve-print-line,.dve-print-line span{font-family:"Liberation Sans",Arial,sans-serif!important}`,
+          `\ncanvas{display:none!important}` +
+          `\n:host,.dom,.dve-print-line,.dve-print-line span{font-family:"Liberation Sans",Arial,sans-serif!important;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}`,
         'font-pin',
       );
       if (el.document) {

@@ -35,7 +35,7 @@ mod svg_scatter;
 mod svg_text_metrics;
 mod svg_title_text;
 mod svg_util;
-mod theme_palette;
+pub mod theme_palette;
 mod wrap_styled_runs;
 
 pub use render_space::{

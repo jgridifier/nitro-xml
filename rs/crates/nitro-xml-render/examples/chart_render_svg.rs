@@ -29,6 +29,7 @@ fn main() {
             height: 320,
             svg: ChartSvgOptions {
                 measure_widths: Vec::new(),
+                ..Default::default()
             },
         },
     );

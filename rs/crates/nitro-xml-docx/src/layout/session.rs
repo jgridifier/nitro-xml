@@ -121,6 +121,14 @@ impl LayoutSession {
         self.status()
     }
 
+    /// Logical pages committed so far (no UAX #9). Grows until [`Self::result`] is available.
+    pub fn committed_layout_result(&self) -> LayoutResult {
+        LayoutResult {
+            pages: self.committed_pages(),
+            approximations: self.notes.iter().cloned().collect(),
+        }
+    }
+
     /// Logical pages. Matches eager [`super::layout::layout_document`] once complete.
     pub fn result(&self) -> Option<LayoutResult> {
         if !self.complete {
@@ -183,6 +191,20 @@ impl LayoutSession {
             Phase::InSection { flow, .. } => flow.cursor.pages.len(),
             Phase::Finalize => self.pending_pages.len(),
             Phase::Done => self.result_pages.len(),
+        }
+    }
+
+    fn committed_pages(&self) -> Vec<LayoutPageBox> {
+        if self.complete {
+            return self.result_pages.clone();
+        }
+        match &self.phase {
+            Phase::InSection { flow, .. } => {
+                let n = self.committed_count();
+                flow.cursor.pages.iter().take(n).cloned().collect()
+            }
+            Phase::Finalize => self.pending_pages.clone(),
+            Phase::Done => self.result_pages.clone(),
         }
     }
 

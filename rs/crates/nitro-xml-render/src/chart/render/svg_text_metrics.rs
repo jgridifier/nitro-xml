@@ -1,21 +1,43 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/chart-svg-text-metrics.ts
 
+use crate::measure::MeasureBatch;
+
 use super::svg_util::{fit, text_width, TextAttrs};
 
 pub const CHART_FONT_FAMILY: &str = "Calibri, Carlito, Arial, sans-serif";
 
-#[derive(Clone, Debug, Default)]
-pub struct ChartSvgMeasureOptions {
+#[derive(Default)]
+pub struct ChartSvgMeasureOptions<'a> {
     pub measure_widths: Vec<f64>,
     pub width_index: usize,
+    /// When true, each width lookup queues `measureText` and uses estimates until widths arrive.
+    pub probing: bool,
+    probe_batch: Option<&'a mut MeasureBatch>,
+    probe_intern: Option<&'a mut dyn FnMut(&str) -> u32>,
 }
 
-impl ChartSvgMeasureOptions {
-    pub fn from_widths(widths: Vec<f64>) -> Self {
-        Self {
+impl ChartSvgMeasureOptions<'_> {
+    pub fn from_widths(widths: Vec<f64>) -> ChartSvgMeasureOptions<'static> {
+        ChartSvgMeasureOptions {
             measure_widths: widths,
             width_index: 0,
+            probing: false,
+            probe_batch: None,
+            probe_intern: None,
+        }
+    }
+
+    pub fn probing<'b>(
+        batch: &'b mut MeasureBatch,
+        intern: &'b mut dyn FnMut(&str) -> u32,
+    ) -> ChartSvgMeasureOptions<'b> {
+        ChartSvgMeasureOptions {
+            measure_widths: Vec::new(),
+            width_index: 0,
+            probing: true,
+            probe_batch: Some(batch),
+            probe_intern: Some(intern),
         }
     }
 
@@ -25,6 +47,17 @@ impl ChartSvgMeasureOptions {
             self.width_index += 1;
             if w.is_finite() && w >= 0.0 {
                 return Some(w);
+            }
+        }
+        if self.probing {
+            if let Some(batch) = self.probe_batch.as_deref_mut() {
+                if let Some(intern) = self.probe_intern.as_mut() {
+                    let font = css_font(attrs);
+                    let font_id = intern(&font);
+                    let text_id = intern(content);
+                    let size = attrs.size.unwrap_or(10.0) as f32;
+                    batch.push(font_id, size, text_id);
+                }
             }
         }
         let size = attrs.size.unwrap_or(10.0);
@@ -49,7 +82,7 @@ fn css_font(attrs: &TextAttrs) -> String {
 pub fn chart_text_width(
     content: &str,
     attrs: &TextAttrs,
-    options: &mut ChartSvgMeasureOptions,
+    options: &mut ChartSvgMeasureOptions<'_>,
 ) -> f64 {
     options
         .next_width(content, attrs)
@@ -60,9 +93,9 @@ pub fn fit_chart_text(
     content: &str,
     max_width: f64,
     attrs: &TextAttrs,
-    options: &mut ChartSvgMeasureOptions,
+    options: &mut ChartSvgMeasureOptions<'_>,
 ) -> String {
-    if options.measure_widths.is_empty() {
+    if !options.probing && options.measure_widths.is_empty() {
         return fit(content, max_width, attrs.size.unwrap_or(10.0));
     }
     if chart_text_width(content, attrs, options) <= max_width {
@@ -85,7 +118,7 @@ pub fn fit_chart_text(
 
 pub fn chart_font_metrics(
     _attrs: &TextAttrs,
-    _options: &ChartSvgMeasureOptions,
+    _options: &ChartSvgMeasureOptions<'_>,
 ) -> Option<(f64, f64)> {
     None
 }

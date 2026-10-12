@@ -54,11 +54,11 @@ pub(crate) fn finalize_floats(
     result
 }
 
-pub fn layout_document_model(
+/// Adapt the document model to layout input (review projection + adapter).
+pub fn prepare_layout_document_input(
     model: &DocumentModel,
-    measurer: &dyn TextMeasurer,
     options: LayoutReviewOptions,
-) -> LayoutResult {
+) -> (LayoutDocumentInput, Vec<String>) {
     let mode = match options
         .review_display_mode
         .unwrap_or(crate::review_formatting_display::ReviewDisplayMode::All)
@@ -87,6 +87,15 @@ pub fn layout_document_model(
         approximations.push(message);
     };
     let input = adapt_document_model(&projected.model, &mut layout_note, &options);
+    (input, approximations)
+}
+
+pub fn layout_document_model(
+    model: &DocumentModel,
+    measurer: &dyn TextMeasurer,
+    options: LayoutReviewOptions,
+) -> LayoutResult {
+    let (input, approximations) = prepare_layout_document_input(model, options);
     let result = layout_document(&input, measurer);
     let mut merged = HashSet::new();
     for a in approximations {

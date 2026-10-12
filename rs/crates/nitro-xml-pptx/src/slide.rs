@@ -174,6 +174,9 @@ pub struct DumpElement {
     /// CSS `text-shadow` from first-run `a:rPr/a:effectLst/a:outerShdw`. Not in the issue-24 dump.
     #[serde(skip)]
     pub text_shadow: Option<String>,
+    /// CSS `filter` from `a:effectLst/a:glow` (and legacy metal+bevel compensation). Not in the issue-24 dump.
+    #[serde(skip)]
+    pub effect_filter: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -914,6 +917,17 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
     };
     let shape_type = geometry_name(Some(&effective_sp_pr));
     let c_nv_pr = child_path(pic, &[("nvPicPr", ns::P), ("cNvPr", ns::P)]);
+    let fallback = crate::theme::default_scheme_color_map();
+    let theme = SchemeTheme {
+        colors: ctx.theme_colors.unwrap_or(&fallback),
+        map: ctx.color_map,
+    };
+    let mut extras = PaintExtras {
+        image_rel_id: blip_embed_id(pic),
+        ..PaintExtras::default()
+    };
+    extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(&effective_sp_pr, &theme, rot);
+    extras.effect_filter = crate::outer_shadow::effect_filter_from_sp_pr(&effective_sp_pr, &theme);
     build_dump(
         "picture",
         id,
@@ -936,10 +950,7 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
         None,
         None,
         false,
-        PaintExtras {
-            image_rel_id: blip_embed_id(pic),
-            ..PaintExtras::default()
-        },
+        extras,
     )
 }
 
@@ -1643,6 +1654,7 @@ fn build_dump(
         material_box_shadow: extras.material_box_shadow,
         material_overlay: extras.material_overlay,
         text_shadow: extras.text_shadow,
+        effect_filter: extras.effect_filter,
     })
 }
 
@@ -1928,6 +1940,7 @@ struct PaintExtras {
     material_box_shadow: Option<String>,
     material_overlay: Option<String>,
     text_shadow: Option<String>,
+    effect_filter: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -2209,6 +2222,10 @@ fn shape_paint_extras(
     }
     if let Some(sp_pr) = effective_sp_pr {
         extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(sp_pr, &theme, rotation_deg);
+        crate::outer_shadow::merge_effect_filter_into(
+            &mut extras.effect_filter,
+            crate::outer_shadow::effect_filter_from_sp_pr(sp_pr, &theme),
+        );
     }
     if extras.box_shadow.is_none() {
         apply_effect_ref(
@@ -2312,14 +2329,26 @@ fn apply_effect_ref(
     if let Some(effect_lst) = effect_style.effect_lst.as_ref() {
         extras.box_shadow =
             crate::outer_shadow::box_shadow_from_effect_lst(effect_lst, &ph, rotation_deg);
+        crate::outer_shadow::merge_effect_filter_into(
+            &mut extras.effect_filter,
+            crate::outer_shadow::effect_filter_from_effect_lst(effect_lst, &ph),
+        );
     }
     let mut inset_shadows: Vec<String> = Vec::new();
+    let mut has_bevel = false;
     if let Some(bevel) = effect_style.sp3d_bevel.as_ref() {
         if let Some(shadow) = crate::visual_3d_bevel::get_3d_bevel_shadow(bevel, None) {
             inset_shadows.push(shadow);
+            has_bevel = true;
         }
     }
     if let Some(material) = effect_style.prst_material.as_deref() {
+        if material == "metal" && has_bevel {
+            crate::outer_shadow::merge_effect_filter_into(
+                &mut extras.effect_filter,
+                Some(crate::visual_3d_materials::METAL_BEVEL_LEGACY_FILTER.to_owned()),
+            );
+        }
         let mat = crate::visual_3d_materials::get_material_css_overrides(material);
         if let Some(shadow) = mat.box_shadow {
             inset_shadows.push(shadow.to_owned());
@@ -3272,7 +3301,36 @@ mod tests {
                     .is_some_and(|o| o.contains("linear-gradient")),
                 "expected material gradient overlay on Profil"
             );
+            assert!(
+                el.effect_filter
+                    .as_deref()
+                    .is_some_and(|f| f.contains("brightness(0.88)")),
+                "metal+bevel legacy compensation until SVG bevel lighting, got {:?}",
+                el.effect_filter
+            );
         }
+    }
+
+    // Catches: master/layout picture a:glow on spPr never becomes a drop-shadow filter.
+    #[test]
+    fn picture_sp_pr_glow_sets_effect_filter() {
+        let colors = theme();
+        let xml = r#"<p:pic xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:nvPicPr><p:cNvPr id="56" name="Picture 5"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+          <p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+            <a:effectLst><a:glow rad="228600"><a:schemeClr val="accent2"><a:alpha val="40000"/></a:schemeClr></a:glow></a:effectLst>
+          </p:spPr>
+        </p:pic>"#;
+        let el =
+            parse_picture(&parse_xml_str(xml).unwrap().root, "p".into(), &ctx(&colors)).unwrap();
+        let filter = el.effect_filter.as_deref().expect("picture glow filter");
+        assert!(
+            filter.contains("drop-shadow(0 0 12px"),
+            "poi-keyframes Picture 5 halo radius, got {filter}"
+        );
     }
 
     // Catches: lnRef idx=2 painted at 1px instead of the theme line width.

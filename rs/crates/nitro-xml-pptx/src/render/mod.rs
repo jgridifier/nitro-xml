@@ -203,6 +203,7 @@ mod tests {
             material_box_shadow: None,
             material_overlay: None,
             text_shadow: None,
+            effect_filter: None,
         };
         let mut c = ViewIrCollector::default();
         c.push_painted("element", &el, None);

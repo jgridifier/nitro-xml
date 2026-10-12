@@ -17,6 +17,9 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     set_attr(ctx, img, "alt", el.name.as_deref().unwrap_or(""));
     set_style(ctx, img, "width", "100%");
     set_style(ctx, img, "height", "100%");
+    if let Some(shadow) = el.box_shadow.as_deref() {
+        set_style(ctx, id, "box-shadow", shadow);
+    }
     if let Some(src) = el.image_src.as_deref() {
         set_attr(ctx, img, "src", src);
         set_style(ctx, img, "object-fit", "fill");
@@ -24,6 +27,9 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         set_style(ctx, id, "background-image", &url);
         set_style(ctx, id, "background-size", "100% 100%");
         set_style(ctx, id, "background-repeat", "no-repeat");
+        if let Some(filter) = el.effect_filter.as_deref() {
+            set_style(ctx, img, "filter", filter);
+        }
     } else {
         set_style(ctx, img, "object-fit", "contain");
         set_style(ctx, id, "background", "#e8e8e8");

@@ -8,6 +8,11 @@ pub struct MaterialCssOverrides {
     pub background_image: Option<&'static str>,
 }
 
+/// Compensates for missing SVG bevel lighting when `metal` and `bevelT` stack CSS inset
+/// bevel + material overlays (TS uses `getBevelLightingFilterMarkup` instead).
+/// TODO(#27): remove once SVG bevel lighting filters ship.
+pub const METAL_BEVEL_LEGACY_FILTER: &str = "brightness(0.88) saturate(0.82)";
+
 /// Returns CSS overrides for a theme-matrix material token (empty for unknown values).
 pub fn get_material_css_overrides(material: &str) -> MaterialCssOverrides {
     match material {

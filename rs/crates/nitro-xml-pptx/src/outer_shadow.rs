@@ -34,6 +34,72 @@ pub(crate) fn box_shadow_from_effect_lst(
     outer_shdw_to_css(outer, theme, rotation_deg, ShadowCssKind::Box)
 }
 
+/// Build CSS `filter` (`drop-shadow`) from `a:spPr/a:effectLst/a:glow`.
+///
+/// Radius: OOXML `rad` EMU → px, then halved for CSS blur (matches upstream
+/// `getEffectFilterCss`). Default opacity 0.75 when the colour has no alpha.
+pub(crate) fn effect_filter_from_sp_pr(
+    sp_pr: &Element,
+    theme: &dyn DrawingColorTheme,
+) -> Option<String> {
+    let effect_lst = child_local(sp_pr, "effectLst", ns::A)?;
+    effect_filter_from_effect_lst(effect_lst, theme)
+}
+
+/// Build CSS `filter` from `a:effectLst/a:glow` (theme matrix or `spPr`).
+pub(crate) fn effect_filter_from_effect_lst(
+    effect_lst: &Element,
+    theme: &dyn DrawingColorTheme,
+) -> Option<String> {
+    let glow = child_local(effect_lst, "glow", ns::A)?;
+    glow_to_effect_filter(glow, theme)
+}
+
+/// Join two CSS `filter` chains in upstream order (existing, then appended).
+pub(crate) fn merge_effect_filters(
+    existing: Option<String>,
+    add: Option<String>,
+) -> Option<String> {
+    match (existing, add) {
+        (None, None) => None,
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (Some(a), Some(b)) => Some(format!("{a} {b}")),
+    }
+}
+
+pub(crate) fn merge_effect_filter_into(target: &mut Option<String>, add: Option<String>) {
+    *target = merge_effect_filters(target.take(), add);
+}
+
+fn glow_to_effect_filter(glow: &Element, theme: &dyn DrawingColorTheme) -> Option<String> {
+    let rad_emu = attr_i64(glow, "rad").unwrap_or(0).max(0);
+    if rad_emu == 0 {
+        return None;
+    }
+    let radius_px = emu_to_pixels(rad_emu);
+    if radius_px <= 0.0 {
+        return None;
+    }
+    let color = parse_drawing_color_in(Some(glow))?;
+    let resolved = resolve_drawing_color(&color, Some(theme), None)?;
+    if resolved.hex.is_empty() {
+        return None;
+    }
+    let opacity = if resolved.alpha < 0.999 {
+        resolved.alpha
+    } else {
+        0.75
+    };
+    let blur_px = (radius_px / 2.0).max(0.0).round();
+    let color_css = shadow_color_css(&resolved.hex, opacity)?;
+    Some(format!(
+        "drop-shadow(0 0 {}px {})",
+        format_px(blur_px),
+        color_css
+    ))
+}
+
 /// Build CSS `text-shadow` from `a:rPr/a:effectLst/a:outerShdw`.
 ///
 /// Offsets match [`box_shadow_from_effect_lst`]; blur uses full `blurRad` EMU→px like upstream
@@ -181,6 +247,25 @@ mod tests {
             "blurRad 50800 → ~3px blur, got {shadow}"
         );
         assert!(shadow.contains("rgba("), "alpha 40000 → rgba, got {shadow}");
+    }
+
+    // Catches: a:glow rad not halved for CSS blur so full-bleed picture halos overshoot TS.
+    #[test]
+    fn glow_rad_maps_to_drop_shadow_filter() {
+        let glow_xml = format!(
+            r#"<a:glow xmlns:a="{A_NS}" rad="228600"><a:srgbClr val="00B050"><a:alpha val="40000"/></a:srgbClr></a:glow>"#
+        );
+        let lst_xml = format!(r#"<a:effectLst xmlns:a="{A_NS}">{glow_xml}</a:effectLst>"#);
+        let doc = parse_xml_str(&lst_xml).expect("effectLst");
+        let filter = effect_filter_from_effect_lst(&doc.root, &EmptyTheme).expect("glow filter");
+        assert!(
+            filter.contains("drop-shadow(0 0 12px "),
+            "228600 EMU → 24px radius → 12px blur, got {filter}"
+        );
+        assert!(
+            filter.contains("rgba("),
+            "alpha 40000 → rgba colour, got {filter}"
+        );
     }
 
     // Catches: rotWithShape=false shadow not counter-rotated with the shape.

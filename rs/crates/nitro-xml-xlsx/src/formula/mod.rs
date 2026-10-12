@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/formula/{ast,tokenizer,lexemes,parser,structured,ref-text}.ts
 // and referencedRanges/referenceSpans in transform.ts; changes listed in PROVENANCE.md.
-//! Excel formula parser and calc scheduler: tokens, AST, dependency graph, recalc order.
-//! Function bodies are #73–#75.
+//! Excel formula parser, calc scheduler, and Math & Trig / Statistical functions.
+//! Other function families are #74–#75.
 
 mod ast;
 mod calc;
@@ -10,6 +10,8 @@ mod graph;
 mod lexer;
 mod parser;
 mod refs;
+
+pub mod fns;
 
 pub use ast::{
     normalize_function_name, normalize_local_name, ArrayConstant, BinaryOp, FormulaAst,

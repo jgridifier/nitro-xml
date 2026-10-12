@@ -57,6 +57,10 @@
             "addSheet",
             "renameSheet",
             "deleteSheet",
+            "insertRows",
+            "deleteRows",
+            "insertColumns",
+            "deleteColumns",
             "batch",
             "setParagraphText",
             "setRunFormatting",
@@ -276,6 +280,44 @@
               "index": {
                 "type": "integer",
                 "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "insertRows",
+                  "deleteRows",
+                  "insertColumns",
+                  "deleteColumns"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "sheet",
+              "at",
+              "count"
+            ],
+            "properties": {
+              "sheet": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
               }
             }
           }

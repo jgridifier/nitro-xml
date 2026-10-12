@@ -115,6 +115,18 @@ async function runXlsx(bytes, script) {
 			case 'deleteSheet':
 				session.deleteSheet(op.index);
 				return `deleteSheet ${op.index}`;
+			case 'insertRows':
+				session.insertRows(op.sheet, op.at, op.count);
+				return `insertRows ${op.sheet}:${op.at}:${op.count}`;
+			case 'deleteRows':
+				session.deleteRows(op.sheet, op.at, op.count);
+				return `deleteRows ${op.sheet}:${op.at}:${op.count}`;
+			case 'insertColumns':
+				session.insertColumns(op.sheet, op.at, op.count);
+				return `insertColumns ${op.sheet}:${op.at}:${op.count}`;
+			case 'deleteColumns':
+				session.deleteColumns(op.sheet, op.at, op.count);
+				return `deleteColumns ${op.sheet}:${op.at}:${op.count}`;
 			case 'batch':
 				session.batch(op.label || 'batch', () => {
 					for (const inner of op.ops) applyOne(inner);

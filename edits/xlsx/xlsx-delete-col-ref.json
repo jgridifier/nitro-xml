@@ -1,0 +1,21 @@
+{
+  "id": "xlsx-delete-col-ref",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Set C1 to =A1 and delete column A so the reference becomes #REF!",
+  "ops": [
+    {
+      "op": "setCellInput",
+      "sheet": 0,
+      "row": 0,
+      "col": 2,
+      "text": "=A1"
+    },
+    {
+      "op": "deleteColumns",
+      "sheet": 0,
+      "at": 0,
+      "count": 1
+    }
+  ]
+}

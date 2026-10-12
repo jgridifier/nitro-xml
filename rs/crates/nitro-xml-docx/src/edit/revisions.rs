@@ -620,23 +620,11 @@ mod tests {
     #[test]
     fn catches_accept_revision_unknown_id_errors() {
         // Catches: acceptRevision with a missing revision id must fail like upstream TS (#82).
-        let mut host = DocxHost {
-            format: "docx".into(),
-            blocks: vec![json!({
-                "type": "paragraph",
-                "id": "p0",
-                "runs": [{ "text": "hi" }]
-            })],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            comments: None,
-            comments_touched: false,
-            touched: Default::default(),
-        };
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "hi" }]
+        })]);
         let err = accept_revision(&mut host, "missing").unwrap_err();
         assert!(err.to_string().contains("No revision"));
     }

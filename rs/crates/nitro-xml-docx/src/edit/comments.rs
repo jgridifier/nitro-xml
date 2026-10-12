@@ -350,19 +350,8 @@ mod tests {
     #[test]
     fn catches_resolve_comment_missing_id_errors() {
         // Catches: resolveComment on a missing thread id must fail like upstream TS (#82).
-        let mut host = DocxHost {
-            format: "docx".into(),
-            blocks: vec![],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            comments: Some(vec![json!({ "id": "0", "author": "A", "text": "t" })]),
-            comments_touched: false,
-            touched: Default::default(),
-        };
+        let mut host = DocxHost::stub(vec![]);
+        host.comments = Some(vec![json!({ "id": "0", "author": "A", "text": "t" })]);
         let mut registry = CommandRegistry::new();
         register_comment_commands(&mut registry);
         let err = registry

@@ -32,6 +32,7 @@ use crate::text::{
     extract_element_text, placeholder_is_body_type, text_body_has_renderable_content,
     TextExtractContext,
 };
+use crate::theme::ThemeFontScheme;
 
 /// EMU per CSS pixel at 96 DPI (same as [`EMU_PER_PIXEL`]).
 pub const EMU_PER_PX: i64 = EMU_PER_PIXEL;
@@ -105,9 +106,22 @@ pub struct DumpElement {
     pub text_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font_size_px: Option<f64>,
+    /// First-run `a:latin/@typeface` or `p:style/a:fontRef` theme latin (paint only).
+    #[serde(skip)]
+    pub font_family: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub font_bold: bool,
+    /// `a:rPr/a:ln/@w` in CSS px (paint only).
+    #[serde(skip)]
+    pub text_stroke_width_px: Option<f64>,
+    #[serde(skip)]
+    pub text_stroke_color: Option<String>,
     /// Parsed `p:txBody` anchor / alignment for painters (not in JSON dump).
     #[serde(skip)]
     pub text_body_layout: Option<crate::text_layout::TextBodyLayout>,
+    /// `a:spAutoFit` / `a:normAutofit` / `a:noAutofit` from `a:bodyPr` (paint only).
+    #[serde(skip)]
+    pub auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chart_r_id: Option<String>,
     /// Chart part XML. Not part of the issue-24 dump.
@@ -163,6 +177,9 @@ pub struct DumpElement {
     /// CSS `text-shadow` from first-run `a:rPr/a:effectLst/a:outerShdw`. Not in the issue-24 dump.
     #[serde(skip)]
     pub text_shadow: Option<String>,
+    /// CSS `filter` from `a:effectLst/a:glow` (and legacy metal+bevel compensation). Not in the issue-24 dump.
+    #[serde(skip)]
+    pub effect_filter: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -195,6 +212,7 @@ pub struct ParseCtx<'a> {
     pub color_map: Option<&'a ThemeColorMap>,
     /// Theme `a:fmtScheme` used by `a:fillRef` / `a:lnRef` / `a:effectRef` (idx 1–3 and 1001–1003).
     pub format_scheme: Option<&'a ThemeFormatScheme>,
+    pub font_scheme: Option<&'a ThemeFontScheme>,
     pub table_style_map: Option<&'a TableStyleMap>,
 }
 
@@ -902,6 +920,17 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
     };
     let shape_type = geometry_name(Some(&effective_sp_pr));
     let c_nv_pr = child_path(pic, &[("nvPicPr", ns::P), ("cNvPr", ns::P)]);
+    let fallback = crate::theme::default_scheme_color_map();
+    let theme = SchemeTheme {
+        colors: ctx.theme_colors.unwrap_or(&fallback),
+        map: ctx.color_map,
+    };
+    let mut extras = PaintExtras {
+        image_rel_id: blip_embed_id(pic),
+        ..PaintExtras::default()
+    };
+    extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(&effective_sp_pr, &theme, rot);
+    extras.effect_filter = crate::outer_shadow::effect_filter_from_sp_pr(&effective_sp_pr, &theme);
     build_dump(
         "picture",
         id,
@@ -924,10 +953,7 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
         None,
         None,
         false,
-        PaintExtras {
-            image_rel_id: blip_embed_id(pic),
-            ..PaintExtras::default()
-        },
+        extras,
     )
 }
 
@@ -1606,7 +1632,12 @@ fn build_dump(
         stroke_width_px: extras.stroke_width_px,
         text_color: extras.text_color,
         font_size_px: extras.font_size_px,
+        font_family: extras.font_family,
+        font_bold: extras.font_bold,
+        text_stroke_width_px: extras.text_stroke_width_px,
+        text_stroke_color: extras.text_stroke_color,
         text_body_layout: extras.text_body_layout,
+        auto_fit_mode: extras.auto_fit_mode,
         chart_r_id: extras.chart_r_id,
         chart_xml: None,
         chart_part_path: None,
@@ -1627,6 +1658,7 @@ fn build_dump(
         material_box_shadow: extras.material_box_shadow,
         material_overlay: extras.material_overlay,
         text_shadow: extras.text_shadow,
+        effect_filter: extras.effect_filter,
     })
 }
 
@@ -1895,7 +1927,12 @@ struct PaintExtras {
     stroke_width_px: Option<f64>,
     text_color: Option<String>,
     font_size_px: Option<f64>,
+    font_family: Option<String>,
+    font_bold: bool,
+    text_stroke_width_px: Option<f64>,
+    text_stroke_color: Option<String>,
     text_body_layout: Option<crate::text_layout::TextBodyLayout>,
+    auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
     chart_r_id: Option<String>,
     smartart_dm_r_id: Option<String>,
     smartart_lo_r_id: Option<String>,
@@ -1908,6 +1945,7 @@ struct PaintExtras {
     material_box_shadow: Option<String>,
     material_overlay: Option<String>,
     text_shadow: Option<String>,
+    effect_filter: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -2165,14 +2203,35 @@ fn shape_paint_extras(
             let styles = ctx.effective_level_styles(ph);
             level_style_for(&styles, 0).cloned()
         });
-        let (color, size) = first_run_text_paint(tx, theme, fallback.as_ref());
-        extras.text_color = color;
-        extras.font_size_px = size;
+        let paint = first_run_text_paint(
+            tx,
+            theme,
+            FirstRunTextPaintCtx {
+                shape,
+                inherited_shape,
+                font_scheme: ctx.font_scheme,
+                level_fallback: fallback.as_ref(),
+                is_placeholder: ph_info.is_some(),
+                presentation_level_styles: ctx.presentation_level_styles,
+                master_tx_styles: ctx.master_tx_styles,
+            },
+        );
+        extras.text_color = paint.color;
+        extras.font_size_px = paint.size;
+        extras.font_family = paint.font_family;
+        extras.font_bold = paint.bold;
+        extras.text_stroke_width_px = paint.stroke_width_px;
+        extras.text_stroke_color = paint.stroke_color;
         extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
+        extras.auto_fit_mode = crate::text_layout::parse_body_autofit(tx);
         extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }
     if let Some(sp_pr) = effective_sp_pr {
         extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(sp_pr, &theme, rotation_deg);
+        crate::outer_shadow::merge_effect_filter_into(
+            &mut extras.effect_filter,
+            crate::outer_shadow::effect_filter_from_sp_pr(sp_pr, &theme),
+        );
     }
     if extras.box_shadow.is_none() {
         apply_effect_ref(
@@ -2276,11 +2335,34 @@ fn apply_effect_ref(
     if let Some(effect_lst) = effect_style.effect_lst.as_ref() {
         extras.box_shadow =
             crate::outer_shadow::box_shadow_from_effect_lst(effect_lst, &ph, rotation_deg);
+        crate::outer_shadow::merge_effect_filter_into(
+            &mut extras.effect_filter,
+            crate::outer_shadow::effect_filter_from_effect_lst(effect_lst, &ph),
+        );
+    }
+    let mut inset_shadows: Vec<String> = Vec::new();
+    let mut has_bevel = false;
+    if let Some(bevel) = effect_style.sp3d_bevel.as_ref() {
+        if let Some(shadow) = crate::visual_3d_bevel::get_3d_bevel_shadow(bevel, None) {
+            inset_shadows.push(shadow);
+            has_bevel = true;
+        }
     }
     if let Some(material) = effect_style.prst_material.as_deref() {
+        if material == "metal" && has_bevel {
+            crate::outer_shadow::merge_effect_filter_into(
+                &mut extras.effect_filter,
+                Some(crate::visual_3d_materials::METAL_BEVEL_LEGACY_FILTER.to_owned()),
+            );
+        }
         let mat = crate::visual_3d_materials::get_material_css_overrides(material);
-        extras.material_box_shadow = mat.box_shadow.map(str::to_owned);
+        if let Some(shadow) = mat.box_shadow {
+            inset_shadows.push(shadow.to_owned());
+        }
         extras.material_overlay = mat.background_image.map(str::to_owned);
+    }
+    if !inset_shadows.is_empty() {
+        extras.material_box_shadow = Some(inset_shadows.join(", "));
     }
 }
 
@@ -2424,13 +2506,36 @@ fn gradient_flat_color(
         .and_then(|stop| css_color_in(&stop.color, theme, blend_white))
 }
 
+struct FirstRunTextPaint {
+    color: Option<String>,
+    size: Option<f64>,
+    font_family: Option<String>,
+    bold: bool,
+    stroke_width_px: Option<f64>,
+    stroke_color: Option<String>,
+}
+
+struct FirstRunTextPaintCtx<'a> {
+    shape: &'a Element,
+    inherited_shape: Option<&'a Element>,
+    font_scheme: Option<&'a ThemeFontScheme>,
+    level_fallback: Option<&'a PlaceholderTextLevelStyle>,
+    is_placeholder: bool,
+    presentation_level_styles: Option<&'a LevelStylesMap>,
+    master_tx_styles: Option<&'a MasterTxStyles>,
+}
+
 fn first_run_text_paint(
     tx: &Element,
     theme: SchemeTheme<'_>,
-    level_fallback: Option<&PlaceholderTextLevelStyle>,
-) -> (Option<String>, Option<f64>) {
+    ctx: FirstRunTextPaintCtx<'_>,
+) -> FirstRunTextPaint {
     let mut color = None;
     let mut size = None;
+    let mut font_family = None;
+    let mut bold = false;
+    let mut stroke_width_px = None;
+    let mut stroke_color = None;
     for para in children_local(tx, "p", ns::A) {
         let def = child_path(para, &[("pPr", ns::A), ("defRPr", ns::A)]);
         let runs: Vec<&Element> = para
@@ -2443,6 +2548,20 @@ fn first_run_text_paint(
             .collect();
         if runs.is_empty() {
             apply_rpr(def, &mut color, &mut size, theme);
+            if font_family.is_none() {
+                font_family =
+                    resolve_run_font_family(def, ctx.shape, ctx.inherited_shape, ctx.font_scheme);
+            }
+            if !bold {
+                bold = def.map(rpr_bold).unwrap_or(false);
+            }
+            if stroke_width_px.is_none() {
+                if let Some(def) = def {
+                    let (w, c) = rpr_text_stroke(def, theme);
+                    stroke_width_px = w;
+                    stroke_color = c;
+                }
+            }
             if color.is_some() && size.is_some() {
                 break;
             }
@@ -2458,9 +2577,30 @@ fn first_run_text_paint(
         if size.is_none() {
             size = rpr.and_then(sz_to_px).or_else(|| def.and_then(sz_to_px));
         }
+        if font_family.is_none() {
+            font_family = resolve_run_font_family(
+                rpr.or(def),
+                ctx.shape,
+                ctx.inherited_shape,
+                ctx.font_scheme,
+            );
+        }
+        if !bold {
+            bold = rpr
+                .map(rpr_bold)
+                .unwrap_or_else(|| def.map(rpr_bold).unwrap_or(false));
+        }
+        if stroke_width_px.is_none() {
+            let stroke_rpr = rpr.or(def);
+            if let Some(r) = stroke_rpr {
+                let (w, c) = rpr_text_stroke(r, theme);
+                stroke_width_px = w;
+                stroke_color = c;
+            }
+        }
         break;
     }
-    if let Some(style) = level_fallback {
+    if let Some(style) = ctx.level_fallback {
         // Colour from master/layout level styles; leave size to the host CSS
         // fallback until placeholder autofit/align lands (layout sz alone
         // over-enlarges titles and worsens visual median).
@@ -2468,7 +2608,102 @@ fn first_run_text_paint(
             color = level_style_text_color(style, theme);
         }
     }
-    (color, size)
+    if size.is_none() && !ctx.is_placeholder {
+        size =
+            non_placeholder_font_size_fallback(ctx.presentation_level_styles, ctx.master_tx_styles);
+    }
+    FirstRunTextPaint {
+        color,
+        size,
+        font_family,
+        bold,
+        stroke_width_px,
+        stroke_color,
+    }
+}
+
+fn non_placeholder_font_size_fallback(
+    presentation_level_styles: Option<&LevelStylesMap>,
+    master_tx_styles: Option<&MasterTxStyles>,
+) -> Option<f64> {
+    presentation_level_styles
+        .and_then(|map| level_style_for(map, 0))
+        .and_then(|s| s.font_size_px)
+        .or_else(|| {
+            master_tx_styles
+                .and_then(|tx| level_style_for(&tx.other_style, 0))
+                .and_then(|s| s.font_size_px)
+        })
+}
+
+fn resolve_run_font_family(
+    rpr: Option<&Element>,
+    shape: &Element,
+    inherited_shape: Option<&Element>,
+    font_scheme: Option<&ThemeFontScheme>,
+) -> Option<String> {
+    if let Some(r) = rpr {
+        if let Some(face) = latin_typeface(r) {
+            return Some(face);
+        }
+    }
+    font_ref_family(shape, inherited_shape, font_scheme)
+}
+
+fn latin_typeface(rpr: &Element) -> Option<String> {
+    child_local(rpr, "latin", ns::A)
+        .and_then(|latin| attr(latin, "typeface"))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+}
+
+fn rpr_bold(rpr: &Element) -> bool {
+    matches!(attr(rpr, "b"), Some("1") | Some("true") | Some("on"))
+}
+
+fn rpr_text_stroke(rpr: &Element, theme: SchemeTheme<'_>) -> (Option<f64>, Option<String>) {
+    let Some(ln) = child_local(rpr, "ln", ns::A) else {
+        return (None, None);
+    };
+    let Some(line) = parse_drawing_line(Some(ln)) else {
+        return (None, None);
+    };
+    let width = line.width_emu.filter(|w| *w > 0).map(emu_to_pixels);
+    let color = match &line.fill {
+        Some(DrawingFill::Solid { color }) => css_color(color, theme, false),
+        Some(fill) => gradient_flat_color(fill, &theme, false),
+        None => None,
+    };
+    (width, color)
+}
+
+fn font_ref_family(
+    shape: &Element,
+    inherited_shape: Option<&Element>,
+    font_scheme: Option<&ThemeFontScheme>,
+) -> Option<String> {
+    let scheme = font_scheme?;
+    let ref_el = style_ref_node(shape, inherited_shape, "fontRef")?;
+    let idx = attr(ref_el, "idx").unwrap_or("minor");
+    if idx == "none" {
+        return None;
+    }
+    theme_font_latin(scheme, idx)
+}
+
+fn theme_font_latin(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
+    let fonts = match idx {
+        "major" => scheme.major_font.as_ref(),
+        "minor" => scheme.minor_font.as_ref(),
+        _ => None,
+    }?;
+    fonts
+        .latin
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
 }
 
 fn first_run_text_shadow(
@@ -2638,6 +2873,7 @@ mod tests {
             theme_colors: Some(theme),
             color_map: None,
             format_scheme: None,
+            font_scheme: None,
             table_style_map: None,
         }
     }
@@ -3021,6 +3257,10 @@ mod tests {
             .as_deref()
             .expect("material_box_shadow");
         assert!(
+            inset.contains("inset -1px -1px 3px rgba(255,255,255,"),
+            "default circle bevel on 10000 EMU, got {inset}"
+        );
+        assert!(
             inset.contains("inset -3px -3px 8px"),
             "metal inset specular, got {inset}"
         );
@@ -3055,8 +3295,12 @@ mod tests {
                 .as_deref()
                 .expect("Profil effectRef idx=2 metal inset");
             assert!(
-                inset.contains("inset"),
-                "expected inset specular on Profil, got {inset:?}"
+                inset.contains("inset -3px -3px 8px"),
+                "metal inset specular on Profil, got {inset:?}"
+            );
+            assert!(
+                inset.contains("rgba(255,255,255,") && inset.matches("inset ").count() >= 3,
+                "Profil metal+bevelT should stack bevel and material inset layers, got {inset:?}"
             );
             assert!(
                 el.material_overlay
@@ -3064,7 +3308,36 @@ mod tests {
                     .is_some_and(|o| o.contains("linear-gradient")),
                 "expected material gradient overlay on Profil"
             );
+            assert!(
+                el.effect_filter
+                    .as_deref()
+                    .is_some_and(|f| f.contains("brightness(0.88)")),
+                "metal+bevel legacy compensation until SVG bevel lighting, got {:?}",
+                el.effect_filter
+            );
         }
+    }
+
+    // Catches: master/layout picture a:glow on spPr never becomes a drop-shadow filter.
+    #[test]
+    fn picture_sp_pr_glow_sets_effect_filter() {
+        let colors = theme();
+        let xml = r#"<p:pic xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:nvPicPr><p:cNvPr id="56" name="Picture 5"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+          <p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="9144000" cy="6858000"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+            <a:effectLst><a:glow rad="228600"><a:schemeClr val="accent2"><a:alpha val="40000"/></a:schemeClr></a:glow></a:effectLst>
+          </p:spPr>
+        </p:pic>"#;
+        let el =
+            parse_picture(&parse_xml_str(xml).unwrap().root, "p".into(), &ctx(&colors)).unwrap();
+        let filter = el.effect_filter.as_deref().expect("picture glow filter");
+        assert!(
+            filter.contains("drop-shadow(0 0 12px"),
+            "poi-keyframes Picture 5 halo radius, got {filter}"
+        );
     }
 
     // Catches: lnRef idx=2 painted at 1px instead of the theme line width.
@@ -3262,6 +3535,100 @@ mod tests {
         assert!(ole.width > 0.0 && ole.height > 0.0);
         let (_, kinds) = issue24_dump_parts(&parsed.elements, &parsed.other_kind_seq);
         assert_eq!(kinds, vec!["ole".to_owned()]);
+    }
+
+    fn corbel_minor_scheme() -> crate::theme::ThemeFontScheme {
+        crate::theme::ThemeFontScheme {
+            major_font: None,
+            minor_font: Some(crate::theme::ThemeFonts {
+                latin: Some("Corbel".to_owned()),
+                east_asia: None,
+                complex_script: None,
+            }),
+        }
+    }
+
+    // Catches: gradFill text outline ln with no solidFill leaves stroke color unset for paint.
+    #[test]
+    fn first_run_text_stroke_uses_first_gradient_stop() {
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="1" name="T"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+          <p:txBody>
+            <a:bodyPr/>
+            <a:p><a:r><a:rPr sz="1800" lang="en-US">
+              <a:ln w="12700">
+                <a:gradFill>
+                  <a:gsLst>
+                    <a:gs pos="0"><a:srgbClr val="FF0000"/></a:gs>
+                    <a:gs pos="100000"><a:srgbClr val="0000FF"/></a:gs>
+                  </a:gsLst>
+                  <a:lin ang="0" scaled="0"/>
+                </a:gradFill>
+              </a:ln>
+            </a:rPr><a:t>Grad</a:t></a:r></a:p>
+          </p:txBody>
+        </p:sp>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el = parse_shape(&doc.root, "s".into(), &ctx(&colors), false).unwrap();
+        assert_eq!(el.text_stroke_color.as_deref(), Some("#FF0000"));
+    }
+
+    // Catches: Informal Roman bold + black text outline from first-run a:rPr left unpainted.
+    #[test]
+    fn first_run_informal_roman_bold_and_text_stroke() {
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="1" name="T"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+          <p:txBody>
+            <a:bodyPr/>
+            <a:p><a:r><a:rPr sz="5400" b="1" lang="en-US">
+              <a:latin typeface="Informal Roman"/>
+              <a:ln w="31550"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln>
+            </a:rPr><a:t>Selamat</a:t></a:r></a:p>
+          </p:txBody>
+        </p:sp>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el = parse_shape(&doc.root, "s".into(), &ctx(&colors), false).unwrap();
+        assert_eq!(el.font_family.as_deref(), Some("Informal Roman"));
+        assert!(el.font_bold);
+        assert!((el.font_size_px.unwrap() - 72.0).abs() < 0.05);
+        assert!((el.text_stroke_width_px.unwrap() - 31550.0 / 9525.0).abs() < 0.02);
+        assert_eq!(el.text_stroke_color.as_deref(), Some("#000000"));
+    }
+
+    // Catches: p:style fontRef minor ignored when a:latin is absent so menu labels stay Calibri.
+    #[test]
+    fn font_ref_minor_resolves_corbel_without_latin() {
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="2" name="Btn"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+          <p:style><a:fontRef idx="minor"><a:schemeClr val="dk1"/></a:fontRef></p:style>
+          <p:txBody>
+            <a:bodyPr/>
+            <a:p><a:r><a:rPr lang="en-US"/><a:t>Menu</a:t></a:r></a:p>
+          </p:txBody>
+        </p:sp>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let scheme = corbel_minor_scheme();
+        let parse_ctx = ParseCtx {
+            font_scheme: Some(&scheme),
+            ..ctx(&colors)
+        };
+        let el = parse_shape(&doc.root, "s".into(), &parse_ctx, false).unwrap();
+        assert_eq!(el.font_family.as_deref(), Some("Corbel"));
     }
 
     // Catches: VML / blip deep searches recursing once per nesting level and overflowing the WASM

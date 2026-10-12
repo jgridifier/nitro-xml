@@ -5,6 +5,7 @@ mod bar_cluster_geometry;
 mod built_in_text_style;
 mod chart_3d_depth;
 mod chart_appearance;
+mod chart_auto_title;
 mod chart_axis_nice;
 mod chart_colors;
 mod chart_palette_shade;

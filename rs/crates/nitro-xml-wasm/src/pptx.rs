@@ -4,7 +4,8 @@
 use crate::events::{Event, MOD_CTRL, MOD_META, MOD_SHIFT};
 use crate::transport::StringTable;
 use nitro_xml_pptx::render::{
-    contains_id, copy_text, fit_slide_scale, hit_top_level, top_level_ids, StringIntern,
+    contains_id, copy_text, fit_slide_scale, hit_top_level, top_level_ids, SpAutofitPaintState,
+    StringIntern,
 };
 use nitro_xml_pptx::{paint_slide_frame, Presentation, SlidePaintViewport};
 use serde_json::{json, Value};
@@ -20,6 +21,7 @@ impl StringIntern for StringTable {
 
 pub struct PptxState {
     pub pres: Presentation<'static>,
+    pub sp_autofit: SpAutofitPaintState,
     pub active: usize,
     pub viewport_w: i32,
     pub viewport_h: i32,
@@ -34,6 +36,7 @@ impl PptxState {
         let pres = Presentation::open(leaked).map_err(|e| e.to_string())?;
         Ok(Self {
             pres,
+            sp_autofit: SpAutofitPaintState::default(),
             active: 0,
             viewport_w: DEFAULT_W,
             viewport_h: DEFAULT_H,
@@ -138,6 +141,7 @@ impl PptxState {
             measures,
             layout_reads,
             &mut self.pres,
+            &mut self.sp_autofit,
             &viewport,
         );
     }

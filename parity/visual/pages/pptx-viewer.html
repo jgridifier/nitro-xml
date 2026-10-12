@@ -103,6 +103,7 @@
       el.style.height = '100%';
       stage.appendChild(el);
       await el.loadUrl(fixture);
+      await waitFonts();
       const shadow = el.shadowRoot;
       // Hide Stage-6 shell chrome so the shot is the slide surface only.
       const chrome = shadow?.querySelector('.chrome');
@@ -169,6 +170,11 @@
         }
       }
       if (!painted) throw new Error('nitro-pptx: no slide DOM paint');
+      // spAutoFit: layout read-back runs on the tick after apply (#27).
+      for (let c = 0; c < 12; c++) {
+        if (el.document) await el.document.tick();
+        await waitFrames(1);
+      }
       await waitFonts();
       await waitFrames(3);
     }

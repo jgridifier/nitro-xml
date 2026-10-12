@@ -189,6 +189,8 @@ mod tests {
         let mut layout_reads = LayoutReadBatch::default();
         let mut view_ir = ViewIrCollector::default();
         let scheme = BTreeMap::new();
+        let mut sp_autofit = crate::render::SpAutofitPaintState::default();
+        let slide_autofit = sp_autofit.slide_mut(0);
         let mut ctx = PaintContext::new(
             &mut buffer,
             &mut intern,
@@ -199,6 +201,8 @@ mod tests {
             960.0,
             540.0,
             &scheme,
+            0,
+            slide_autofit,
         );
         paint(&mut ctx, table, 1);
         for label in ["1A", "1B", "1C", "2A", "2B", "2C", "3A", "3B", "3C"] {

@@ -568,6 +568,7 @@ impl<'a> Presentation<'a> {
             .and_then(|mp| self.master_tx_styles.get(mp));
         let theme_colors = self.theme_colors_owned();
         let format_scheme = self.format_scheme_owned();
+        let font_scheme = self.theme.as_ref().and_then(|t| t.font_scheme.as_ref());
         let ctx = ParseCtx {
             slide_path: &path,
             layout_sp_tree,
@@ -579,6 +580,7 @@ impl<'a> Presentation<'a> {
             theme_colors: Some(&theme_colors),
             color_map: Some(&color_map),
             format_scheme: format_scheme.as_ref(),
+            font_scheme,
             table_style_map: Some(&self.table_style_map),
         };
         let id_prefix = format!("{}-", path);
@@ -963,6 +965,7 @@ impl<'a> Presentation<'a> {
         let mut parsed = {
             let master_ph = self.master_placeholder_levels.get(master_path);
             let master_tx = self.master_tx_styles.get(master_path);
+            let font_scheme = self.theme.as_ref().and_then(|t| t.font_scheme.as_ref());
             let ctx = ParseCtx {
                 slide_path: master_path,
                 layout_sp_tree: None,
@@ -974,6 +977,7 @@ impl<'a> Presentation<'a> {
                 theme_colors: Some(&theme_colors),
                 color_map: Some(color_map),
                 format_scheme: format_scheme.as_ref(),
+                font_scheme,
                 table_style_map: Some(&self.table_style_map),
             };
             let token = Self::part_token(master_path);
@@ -1032,6 +1036,7 @@ impl<'a> Presentation<'a> {
         let theme_colors = self.theme_colors_owned();
         let format_scheme = self.format_scheme_owned();
         let mut layout_parsed = {
+            let font_scheme = self.theme.as_ref().and_then(|t| t.font_scheme.as_ref());
             let ctx = ParseCtx {
                 slide_path: layout_path,
                 layout_sp_tree: Some(&sp_tree),
@@ -1043,6 +1048,7 @@ impl<'a> Presentation<'a> {
                 theme_colors: Some(&theme_colors),
                 color_map: Some(&color_map),
                 format_scheme: format_scheme.as_ref(),
+                font_scheme,
                 table_style_map: Some(&self.table_style_map),
             };
             let token = Self::part_token(layout_path);
@@ -1392,12 +1398,14 @@ mod tests {
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
         let mut reads = LayoutReadBatch::default();
+        let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
             &mut reads,
             &mut opened,
+            &mut sp_autofit,
             &SlidePaintViewport {
                 slide_index: 0,
                 scale: 1.0,
@@ -1532,12 +1540,14 @@ mod tests {
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
         let mut reads = LayoutReadBatch::default();
+        let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
             &mut reads,
             &mut opened,
+            &mut sp_autofit,
             &SlidePaintViewport {
                 slide_index: 0,
                 scale: 1.0,
@@ -1643,12 +1653,14 @@ mod tests {
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
         let mut reads = LayoutReadBatch::default();
+        let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
             &mut reads,
             &mut opened,
+            &mut sp_autofit,
             &SlidePaintViewport {
                 slide_index: 0,
                 scale: 1.0,
@@ -1771,12 +1783,14 @@ mod tests {
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
         let mut reads = LayoutReadBatch::default();
+        let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
             &mut reads,
             &mut opened,
+            &mut sp_autofit,
             &SlidePaintViewport {
                 slide_index,
                 scale: 1.0,

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use nitro_xml_opc::chart::ChartSpace;
 
+use super::chart_appearance::overlay_authored_tx_pr_appearance;
 use super::chart_picture_fill::resolve_chart_picture_fills;
 use super::chart_title_text::chart_title_text;
 use super::chart_view::chart_summary_view;
@@ -68,6 +69,11 @@ pub fn render_chart_space_svg(
     let mut view = chart_summary_view(&summary, &theme);
     view.view3_d = space.view3_d.clone();
     view.bar3d_extrusion = options.bar3d_extrusion;
+    if options.bar3d_extrusion {
+        if let Some(appearance) = view.appearance.as_mut() {
+            overlay_authored_tx_pr_appearance(appearance, space);
+        }
+    }
     view.picture_fills_enabled = options.picture_fills;
     view.picture_fills = if options.picture_fills {
         resolve_chart_picture_fills(space, &options.chart_images)

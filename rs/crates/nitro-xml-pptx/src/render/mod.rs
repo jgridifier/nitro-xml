@@ -19,6 +19,7 @@ mod ole;
 mod picture;
 mod placeholder;
 mod print;
+mod prst_geom;
 mod raster_export;
 mod selection;
 mod shape;

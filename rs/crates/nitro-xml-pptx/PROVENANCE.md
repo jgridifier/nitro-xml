@@ -15,6 +15,7 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | `src/table.rs` | `PptxGraphicFrameParser.ts` | Table row count on graphic-frame dump elements. |
 | `src/render/stage.rs` | `dom/slide-stage.ts`, `render/slide-background.ts` | P1 stage; solid/linear background (#27). |
 | `src/render/shape.rs` | `dom/elements/text-shape.ts` | P2 fill and stroke (#27). |
+| `src/render/prst_geom.rs` | `render/shape-geometry-cascade.ts`, `core/geometry/shape-geometry.ts`, `geometry/preset-clip-paths-core.ts` | `a:prstGeom` border-radius and clip-path for ellipse, roundRect, arrows (#27). |
 | `src/render/text.rs` | `dom/elements/text-block.ts` | P3 text body; run colour and size (#27). |
 | `src/render/smartart.rs` | `dom/elements/smartart-svg.ts` | P11 S2 cached-drawing paint at the element box (#27). |
 | `src/render/picture.rs` | `dom/elements/image.ts` | P5 picture frame (#27, placeholder img). |

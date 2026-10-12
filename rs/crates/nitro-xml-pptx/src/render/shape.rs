@@ -3,6 +3,7 @@
 
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_style};
+use super::prst_geom::apply_preset_geometry;
 use super::text::paint_text_body;
 use crate::slide::DumpElement;
 
@@ -34,13 +35,9 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             }
         }
     }
-    let real_stroke = el.stroke_color.is_some();
     if let Some(st) = &el.shape_type {
         set_attr(ctx, id, "data-shape-type", st);
-        if st != "rect" && !real_stroke {
-            set_style(ctx, id, "border", "1px solid #4a86c8");
-            set_style(ctx, id, "border-radius", "2px");
-        }
+        apply_preset_geometry(ctx, id, st, el.width, el.height);
     }
     if let Some(color) = &el.stroke_color {
         let width = el.stroke_width_px.unwrap_or(1.0).max(0.0);

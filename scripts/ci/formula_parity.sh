@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Formula parser differential (#71): every stored formula in the xlsx corpus
-# against upstream parseFormula (AST + refs + token join). Not a workflow job
-# until Jared adds it. Agents never edit .github/workflows/.
+# against upstream parseFormula (AST + refs + token join). Invoked from
+# scripts/ci/parity.sh. Agents never edit .github/workflows/.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD

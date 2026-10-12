@@ -2462,33 +2462,24 @@ fn first_run_text_shadow(
     theme: SchemeTheme<'_>,
     rotation_deg: Option<f64>,
 ) -> Option<String> {
-    for para in children_local(tx, "p", ns::A) {
-        let def = child_path(para, &[("pPr", ns::A), ("defRPr", ns::A)]);
-        let runs: Vec<&Element> = para
-            .children
-            .iter()
-            .filter_map(|n| match n {
-                Node::Element(el) if el.local == "r" || el.local == "fld" => Some(el),
-                _ => None,
-            })
-            .collect();
-        let rpr = if runs.is_empty() {
-            def
-        } else {
-            child_local(runs[0], "rPr", ns::A).or(def)
-        };
-        if let Some(rpr) = rpr {
-            if let Some(effect_lst) = child_local(rpr, "effectLst", ns::A) {
-                return crate::outer_shadow::text_shadow_from_effect_lst(
-                    effect_lst,
-                    &theme,
-                    rotation_deg,
-                );
-            }
-        }
-        break;
-    }
-    None
+    let para = children_local(tx, "p", ns::A).into_iter().next()?;
+    let def = child_path(para, &[("pPr", ns::A), ("defRPr", ns::A)]);
+    let runs: Vec<&Element> = para
+        .children
+        .iter()
+        .filter_map(|n| match n {
+            Node::Element(el) if el.local == "r" || el.local == "fld" => Some(el),
+            _ => None,
+        })
+        .collect();
+    let rpr = if runs.is_empty() {
+        def
+    } else {
+        child_local(runs[0], "rPr", ns::A).or(def)
+    };
+    let rpr = rpr?;
+    let effect_lst = child_local(rpr, "effectLst", ns::A)?;
+    crate::outer_shadow::text_shadow_from_effect_lst(effect_lst, &theme, rotation_deg)
 }
 
 fn level_style_text_color(

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
-//! Xlsx cell value, number-format and style edits on the shared command registry (#66).
-//!
-//! Structure scripts (`addSheet` / `renameSheet` / `deleteSheet`) stay unsupported until #67.
+//! Xlsx cell value, number-format, style, and structure edits on the shared command registry (#66, #67).
 
 pub mod cells;
 pub mod host;
+pub mod structure;
 pub mod style_patch;
 
 pub use cells::register_cell_commands;
 pub use host::XlsxHost;
+pub use structure::register_structure_commands;
 
 use nitro_xml_opc::edit::{
     parse_edit_script, replay_script, CommandRegistry, EditError, EditSession, RecordingHistory,
@@ -30,6 +30,7 @@ pub fn replay_cell_script(
     let host = XlsxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
     let mut registry = CommandRegistry::with_schema_stubs();
     register_cell_commands(&mut registry);
+    register_structure_commands(&mut registry);
     let mut session = EditSession::new(host, RecordingHistory::new());
     let mut report = replay_script(&script, &registry, &mut session);
     report.history_commits = session.history.committed.len();
@@ -71,8 +72,8 @@ mod tests {
         })
     }
 
-    /// Cell/style scripts that must replay and match the TS model dump.
-    const CELL_STYLE_SCRIPTS: &[&str] = &[
+    /// All xlsx edit-script corpus ids (cell/style + structure).
+    const XLSX_SCRIPTS: &[&str] = &[
         "xlsx-batch-cells",
         "xlsx-bidi-cell",
         "xlsx-merges-edit-a1",
@@ -90,9 +91,6 @@ mod tests {
         "xlsx-style-numfmt",
         "xlsx-style-underline-strike",
         "xlsx-value-and-style",
-    ];
-
-    const STRUCTURE_UNSUPPORTED: &[&str] = &[
         "xlsx-add-sheet",
         "xlsx-add-delete-sheet",
         "xlsx-add-rename-sheet",
@@ -132,11 +130,10 @@ mod tests {
     }
 
     #[test]
-    fn catches_cell_style_scripts_match_ts_model_and_structure_stay_unsupported() {
-        // Catches: Rust xlsx cell/style edits drifting from upstream TS model state (#66),
-        // or structure ops falsely reporting ok before #67.
-        let mut cell_ok = 0usize;
-        for id in CELL_STYLE_SCRIPTS {
+    fn catches_xlsx_edit_scripts_match_ts_model_including_structure() {
+        // Catches: Rust xlsx cell/style/structure edits drifting from upstream TS model state (#66/#67).
+        let mut ok = 0usize;
+        for id in XLSX_SCRIPTS {
             let path = edits_xlsx().join(format!("{id}.json"));
             let script_json = fs::read_to_string(&path).unwrap_or_else(|e| {
                 panic!("read {}: {e}", path.display());
@@ -150,7 +147,7 @@ mod tests {
             let (report, rust_snap) = replay_cell_script(&bytes, &script_json)
                 .unwrap_or_else(|e| panic!("{id} replay: {e}"));
             assert_eq!(report.status, "ok", "{id} report={report:?}");
-            cell_ok += 1;
+            ok += 1;
 
             if let Some(ts_snap) = ts_model_dump(&fixture, &script_json) {
                 assert_eq!(
@@ -162,35 +159,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(cell_ok, 17, "expected 17 cell/style scripts");
-
-        let mut struct_unsupported = 0usize;
-        for id in STRUCTURE_UNSUPPORTED {
-            let path = edits_xlsx().join(format!("{id}.json"));
-            let script_json = fs::read_to_string(&path).unwrap();
-            let script: Value = serde_json::from_str(&script_json).unwrap();
-            let fixture_id = script["fixture"].as_str().unwrap();
-            let fixture = fixture_path(fixture_id);
-            let bytes = fs::read(&fixture).unwrap();
-            let (report, _) = replay_cell_script(&bytes, &script_json).unwrap();
-            assert_ne!(report.status, "ok", "{id} must not pass until #67");
-            assert!(
-                report.ops.iter().any(|o| o.status == "unsupported"),
-                "{id} must report unsupported structure ops: {report:?}"
-            );
-            // Pure structure scripts are fully unsupported; multi-sheet-ops may error
-            // after addSheet fails (sheet index missing) — still not a pass.
-            if *id != "xlsx-multi-sheet-ops" {
-                assert_eq!(
-                    report.status, "unsupported",
-                    "{id} must stay unsupported until #67: {report:?}"
-                );
-            }
-            struct_unsupported += 1;
-        }
-        assert_eq!(struct_unsupported, 5);
-
-        // 17 ok + 5 unsupported = 22 xlsx edit scripts.
-        assert_eq!(cell_ok + struct_unsupported, 22);
+        assert_eq!(ok, 22, "expected 22 xlsx edit scripts");
     }
 }

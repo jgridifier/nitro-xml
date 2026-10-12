@@ -6,7 +6,8 @@
  *   bun parity/edit/xlsx_model_dump.mjs <fixture.xlsx> <script.json> <out.json>
  *
  * Snapshot shape (matches Rust XlsxHost::model_snapshot):
- *   { cells: [{ sheet, r, c, v, f?, s?, style }], stylesCount }
+ *   { cells: [{ sheet, r, c, v, f?, s?, style }], stylesCount,
+ *     sheets: [{ name, sheetId, state }], activeSheet }
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -78,6 +79,15 @@ function applyXlsxOps(session, ops, parseRange) {
 				session.applyCellStyle(op.sheet, [range], op.name);
 				break;
 			}
+			case 'addSheet':
+				session.addSheet(op.name, op.at);
+				break;
+			case 'renameSheet':
+				session.renameSheet(op.index, op.name);
+				break;
+			case 'deleteSheet':
+				session.deleteSheet(op.index);
+				break;
 			case 'batch':
 				session.batch(op.label || 'batch', () => applyXlsxOps(session, op.ops, parseRange));
 				break;
@@ -142,6 +152,12 @@ async function main() {
 	const snap = {
 		cells,
 		stylesCount: session.workbook.styles.length,
+		sheets: session.workbook.sheets.map((s) => ({
+			name: s.name,
+			sheetId: s.sheetId,
+			state: s.state,
+		})),
+		activeSheet: session.workbook.activeSheet,
 	};
 	writeFileSync(outPath, JSON.stringify(snap) + '\n');
 }

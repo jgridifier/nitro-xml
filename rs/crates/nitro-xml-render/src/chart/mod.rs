@@ -23,6 +23,8 @@ pub use render::{chart_space_kind, ChartSvgMeasureOptions, ChartThemeFonts, DRAW
 pub struct ChartSvgOptions {
     /// Prior-frame `measureText` widths consumed in document order by the painter.
     pub measure_widths: Vec<f64>,
+    /// Office color palette id from the chart part (docx `colorPalette`).
+    pub color_palette: Option<i32>,
     /// Document theme colours in [`THEME_SLOTS`] order (hex without `#`); missing slots use Office defaults.
     pub theme_colors: Option<Vec<String>>,
     pub theme_fonts: ChartThemeFonts,
@@ -34,12 +36,15 @@ pub struct ChartSvgOptions {
     pub bar3d_extrusion: bool,
     /// Picture pattern fills from chart blips; off for S1 oracle parity.
     pub picture_fills: bool,
+    /// Apply `c:txPr` / chart-space `spPr` from the part (docx print); off for bare S1 oracle dumps.
+    pub docx_chart_chrome: bool,
 }
 
 impl Default for ChartSvgOptions {
     fn default() -> Self {
         Self {
             measure_widths: Vec::new(),
+            color_palette: None,
             theme_colors: None,
             theme_fonts: ChartThemeFonts {
                 major: None,
@@ -49,6 +54,7 @@ impl Default for ChartSvgOptions {
             picture_id_prefix: "chart".to_string(),
             bar3d_extrusion: false,
             picture_fills: false,
+            docx_chart_chrome: false,
         }
     }
 }
@@ -74,6 +80,8 @@ pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOpti
             picture_id_prefix: options.svg.picture_id_prefix.clone(),
             bar3d_extrusion: options.svg.bar3d_extrusion,
             picture_fills: options.svg.picture_fills,
+            color_palette: options.svg.color_palette,
+            docx_chart_chrome: options.svg.docx_chart_chrome,
         },
     )
 }
@@ -102,6 +110,8 @@ pub fn probe_chart_space_measures(
             picture_id_prefix: "chart".to_string(),
             bar3d_extrusion: false,
             picture_fills: false,
+            color_palette: None,
+            docx_chart_chrome: false,
         },
     );
 }
@@ -136,6 +146,8 @@ pub fn paint_chart_space(
                 picture_id_prefix: options.svg.picture_id_prefix.clone(),
                 bar3d_extrusion: options.svg.bar3d_extrusion,
                 picture_fills: options.svg.picture_fills,
+                color_palette: options.svg.color_palette,
+                docx_chart_chrome: options.svg.docx_chart_chrome,
             },
         },
     );

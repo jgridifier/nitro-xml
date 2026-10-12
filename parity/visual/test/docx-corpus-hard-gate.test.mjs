@@ -16,7 +16,11 @@ test('hard docx corpus cases fail the gate on mismatch', () => {
 		expect(hardFailForMismatch(c, false)).toBe(true);
 		expect(hardFailForMismatch(c, true)).toBe(false);
 	}
-	const soft = docxVisualCorpus().find((c) => c.fixture.endsWith('poi-61745.docx'));
+	const soft = docxVisualCorpus().find((c) => c.fixture.endsWith('poi-chartex.docx'));
 	expect(soft).toBeDefined();
+	expect(soft.informational).toBe(true);
 	expect(hardFailForMismatch(soft, false)).toBe(false);
+	const hardened = docxVisualCorpus().find((c) => c.fixture.endsWith('poi-61745.docx'));
+	expect(hardened).toBeDefined();
+	expect(hardened.informational).toBe(false);
 });

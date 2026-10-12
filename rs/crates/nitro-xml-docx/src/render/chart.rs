@@ -16,6 +16,7 @@ pub fn chart_svg_options(theme: Option<&Value>, measure_widths: &[f64]) -> Chart
         measure_widths: measure_widths.to_vec(),
         theme_colors: theme_color_vector(theme),
         theme_fonts: chart_theme_fonts(theme),
+        docx_chart_chrome: true,
         ..Default::default()
     }
 }

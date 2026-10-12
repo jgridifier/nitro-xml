@@ -34,6 +34,7 @@ const HARD_FIXTURES = new Set([
 	'fixtures/real/docx/poi-drawing.docx',
 	'fixtures/real/docx/poi-endnotes.docx',
 	'fixtures/real/docx/poi-form_footnotes.docx',
+	'fixtures/real/docx/poi-61745.docx',
 	'fixtures/real/docx/poi-testComment.docx',
 	'fixtures/real/docx/python-docx-blk-paras-and-tables.docx',
 	'fixtures/real/docx/python-docx-comments-rich-para.docx',

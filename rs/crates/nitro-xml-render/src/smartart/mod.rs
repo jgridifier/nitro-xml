@@ -10,6 +10,8 @@
 //! approach). Textless path/connector shapes are kept; empty noFill placeholder
 //! frames are still dropped. Used by pptx; xlsx/docx can call the same entry.
 
+mod circular_arrow;
+
 use std::collections::BTreeMap;
 
 use nitro_xml_opc::drawingml::{
@@ -173,22 +175,18 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
     let default_stroke = (vw.max(vh) / 200.0).max(1.0);
     let mut body = String::new();
     for shape in shapes {
+        let paint_body = shape.fill != "none" || shape.stroke != "none";
         let stroke_w = if shape.stroke_width > 0.0 {
             shape.stroke_width
         } else {
             default_stroke
         };
-        let stroke = if shape.stroke == "none" && shape.fill == "none" {
-            "#666666"
-        } else {
-            shape.stroke.as_str()
-        };
-        let stroke_attr = if stroke == "none" {
+        let stroke_attr = if shape.stroke == "none" {
             "stroke=\"none\"".to_owned()
         } else {
             format!(
                 "stroke=\"{}\" stroke-width=\"{}\" stroke-linejoin=\"round\"",
-                escape(stroke),
+                escape(&shape.stroke),
                 num(stroke_w)
             )
         };
@@ -200,43 +198,45 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
             .map(|t| format!(" transform=\"{}\"", escape(t)))
             .unwrap_or_default();
 
-        match &shape.kind {
-            ShapeKind::Rect { rx } => {
-                let rx_attr = if *rx > 0.0 {
-                    format!(" rx=\"{}\"", num(*rx))
-                } else {
-                    String::new()
-                };
-                body.push_str(&format!(
-                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{rx_attr} fill=\"{}\" {stroke_attr}{transform_attr}/>",
-                    num(shape.x),
-                    num(shape.y),
-                    num(shape.w.max(1.0)),
-                    num(shape.h.max(1.0)),
-                    escape(&shape.fill),
-                ));
-            }
-            ShapeKind::Ellipse => {
-                body.push_str(&format!(
-                    "<ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" {stroke_attr}{transform_attr}/>",
-                    num(cx),
-                    num(cy),
-                    num((shape.w / 2.0).max(0.5)),
-                    num((shape.h / 2.0).max(0.5)),
-                    escape(&shape.fill),
-                ));
-            }
-            ShapeKind::Path { d } => {
-                let path_transform = match &transform {
-                    Some(t) => format!("{t} translate({} {})", num(shape.x), num(shape.y)),
-                    None => format!("translate({} {})", num(shape.x), num(shape.y)),
-                };
-                body.push_str(&format!(
-                    "<path d=\"{}\" fill=\"{}\" {stroke_attr} transform=\"{}\"/>",
-                    escape(d),
-                    escape(&shape.fill),
-                    escape(&path_transform),
-                ));
+        if paint_body {
+            match &shape.kind {
+                ShapeKind::Rect { rx } => {
+                    let rx_attr = if *rx > 0.0 {
+                        format!(" rx=\"{}\"", num(*rx))
+                    } else {
+                        String::new()
+                    };
+                    body.push_str(&format!(
+                        "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{rx_attr} fill=\"{}\" {stroke_attr}{transform_attr}/>",
+                        num(shape.x),
+                        num(shape.y),
+                        num(shape.w.max(1.0)),
+                        num(shape.h.max(1.0)),
+                        escape(&shape.fill),
+                    ));
+                }
+                ShapeKind::Ellipse => {
+                    body.push_str(&format!(
+                        "<ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" {stroke_attr}{transform_attr}/>",
+                        num(cx),
+                        num(cy),
+                        num((shape.w / 2.0).max(0.5)),
+                        num((shape.h / 2.0).max(0.5)),
+                        escape(&shape.fill),
+                    ));
+                }
+                ShapeKind::Path { d } => {
+                    let path_transform = match &transform {
+                        Some(t) => format!("{t} translate({} {})", num(shape.x), num(shape.y)),
+                        None => format!("translate({} {})", num(shape.x), num(shape.y)),
+                    };
+                    body.push_str(&format!(
+                        "<path d=\"{}\" fill=\"{}\" {stroke_attr} transform=\"{}\"/>",
+                        escape(d),
+                        escape(&shape.fill),
+                        escape(&path_transform),
+                    ));
+                }
             }
         }
 
@@ -426,6 +426,12 @@ fn resolve_kind(
             .map(|(k, v)| (k.clone(), *v as f64))
             .collect::<std::collections::HashMap<_, _>>()
     });
+    // Match TS SmartArt paint: adjustment-aware circularArrow polygon before ECMA evaluator.
+    if normalized == "circulararrow" {
+        if let Some(d) = circular_arrow::circular_arrow_path_d(w, h, adj.as_ref()) {
+            return ShapeKind::Path { d };
+        }
+    }
     if let Some(eval) = evaluate_preset_shape(geometry, w, h, adj.as_ref()) {
         if !eval.svg_path.is_empty() {
             return ShapeKind::Path { d: eval.svg_path };
@@ -541,11 +547,62 @@ fn stroke_of(sp_pr: &Element, scheme: Option<&BTreeMap<String, String>>) -> (Str
 fn solid_hex(container: &Element, scheme: Option<&BTreeMap<String, String>>) -> Option<String> {
     let fill = child_any(container, "solidFill")?;
     if let Some(srgb) = child_any(fill, "srgbClr") {
-        return hex6(attr_str(srgb, "val")?);
+        let mut hex = hex6(attr_str(srgb, "val")?)?;
+        apply_simple_tint_shade(srgb, &mut hex);
+        return Some(hex);
     }
     let scheme_el = child_any(fill, "schemeClr")?;
     let name = attr_str(scheme_el, "val")?;
-    scheme_hex(scheme?, name)
+    let mut hex = scheme_hex(scheme?, name)?;
+    apply_simple_tint_shade(scheme_el, &mut hex);
+    Some(hex)
+}
+
+/// Apply DrawingML `tint` / `shade` (100000ths) onto a `#RRGGBB` fill for SmartArt.
+fn apply_simple_tint_shade(color_el: &Element, hex: &mut String) {
+    let tint = child_any(color_el, "tint")
+        .and_then(|e| attr_str(e, "val"))
+        .and_then(|v| v.parse::<f64>().ok())
+        .map(|v| (v / 100_000.0).clamp(0.0, 1.0));
+    let shade = child_any(color_el, "shade")
+        .and_then(|e| attr_str(e, "val"))
+        .and_then(|v| v.parse::<f64>().ok())
+        .map(|v| (v / 100_000.0).clamp(0.0, 1.0));
+    if tint.is_none() && shade.is_none() {
+        return;
+    }
+    let raw = hex.trim_start_matches('#');
+    if raw.len() != 6 {
+        return;
+    }
+    let Ok(r) = u8::from_str_radix(&raw[0..2], 16) else {
+        return;
+    };
+    let Ok(g) = u8::from_str_radix(&raw[2..4], 16) else {
+        return;
+    };
+    let Ok(b) = u8::from_str_radix(&raw[4..6], 16) else {
+        return;
+    };
+    let mut rf = f64::from(r);
+    let mut gf = f64::from(g);
+    let mut bf = f64::from(b);
+    if let Some(t) = tint {
+        rf += (255.0 - rf) * t;
+        gf += (255.0 - gf) * t;
+        bf += (255.0 - bf) * t;
+    }
+    if let Some(s) = shade {
+        rf *= s;
+        gf *= s;
+        bf *= s;
+    }
+    *hex = format!(
+        "#{:02X}{:02X}{:02X}",
+        rf.round().clamp(0.0, 255.0) as u8,
+        gf.round().clamp(0.0, 255.0) as u8,
+        bf.round().clamp(0.0, 255.0) as u8
+    );
 }
 
 fn scheme_hex(scheme: &BTreeMap<String, String>, name: &str) -> Option<String> {
@@ -687,6 +744,28 @@ mod tests {
         assert!(!svg.contains(">SmartArt<"), "{svg}");
     }
 
+    // Catches: noFill text frames inventing a grey stroke rectangle around SmartArt labels.
+    #[test]
+    fn text_only_nofill_frame_emits_text_without_body() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="1000000" cy="1000000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:noFill/>
+                <a:ln><a:noFill/></a:ln>
+              </dsp:spPr>
+              <dsp:txBody><a:p><a:r><a:t>Label</a:t></a:r></a:p></dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let svg = smartart_svg(Some(xml), 200.0, 200.0);
+        assert!(svg.contains("Label"), "{svg}");
+        assert!(!svg.contains("<rect "), "{svg}");
+        assert!(!svg.contains("<path "), "{svg}");
+    }
+
     // Catches: text-cycle SmartArt painting circularArrow presets as axis-aligned rects / dropping them when textless.
     #[test]
     fn circular_arrow_preset_emits_path_draw_arg() {
@@ -705,10 +784,14 @@ mod tests {
         assert_eq!(args.len(), 1);
         assert_eq!(args[0].kind, "path");
         assert_eq!(args[0].geom, "circularArrow");
-        assert!(args[0].path_len > 20, "{args:?}");
+        assert!(args[0].path_len > 200, "{args:?}");
         let svg = smartart_svg(Some(xml), 200.0, 200.0);
         assert!(svg.contains("<path "), "{svg}");
         assert!(!svg.contains("<rect "), "{svg}");
+        assert!(
+            !svg.contains(" A "),
+            "TS paint uses adjustment-aware polygon, not arcTo: {svg}"
+        );
     }
 
     // Catches: orgchart fan connectors (textless custGeom + noFill + ln) dropped from the SVG.

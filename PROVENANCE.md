@@ -136,6 +136,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/text_layout.rs` | `text-body-properties-parser.ts`, `text-body-layout.ts` @ e66aaec | Parse `a:bodyPr/@anchor`, insets, paragraph `algn` for paint. |
 | `rs/crates/nitro-xml-pptx/src/render/smartart.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | P11 calls S2 cached-drawing SVG at the element box, with the slide theme scheme (#27). |
 | `rs/crates/nitro-xml-render/src/smartart/mod.rs` | `src/ui/src/pptx/render/smartart-drawing.ts` (`projectDrawingShapes` / `resolveShapeKind`), `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | S2/P11 cached drawing: preset + custGeom SVG paths, ellipse/roundRect, keep textless connectors; empty noFill placeholders still omitted. Layout fallback / 3D deferred. |
+| `rs/crates/nitro-xml-render/src/smartart/circular_arrow.rs` | `src/core/geometry/adjustment-aware-shapes.ts` (`buildCircularArrow`) @ e66aaec | TS SmartArt paint silhouette for `circularArrow` (polygon sample, not ECMA `arcTo`) (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/picture.rs` | `dom/elements/image.ts` @ e66aaec | P5 picture frame; img `src` and CSS background from the resolved blip data URL, including media posters (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/ole.rs` | `dom/elements/ole.ts` @ e66aaec | P15 OLE preview `<img>` when `previewImageData` resolved; otherwise the `[OLE]` stub (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/group.rs` | `dom/elements/group.ts` @ e66aaec | P6 group (#27). |

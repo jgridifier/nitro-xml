@@ -154,6 +154,9 @@ pub struct DumpElement {
     /// CSS `box-shadow` from `a:effectLst/a:outerShdw`. Not in the issue-24 dump.
     #[serde(skip)]
     pub box_shadow: Option<String>,
+    /// CSS `text-shadow` from first-run `a:rPr/a:effectLst/a:outerShdw`. Not in the issue-24 dump.
+    #[serde(skip)]
+    pub text_shadow: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1615,6 +1618,7 @@ fn build_dump(
         image_src: None,
         seq: 0,
         box_shadow: extras.box_shadow,
+        text_shadow: extras.text_shadow,
     })
 }
 
@@ -1893,6 +1897,7 @@ struct PaintExtras {
     image_rel_owner: Option<String>,
     ole_spid: Option<String>,
     box_shadow: Option<String>,
+    text_shadow: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -2154,6 +2159,7 @@ fn shape_paint_extras(
         extras.text_color = color;
         extras.font_size_px = size;
         extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
+        extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }
     if let Some(sp_pr) = effective_sp_pr {
         extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(sp_pr, &theme, rotation_deg);
@@ -2449,6 +2455,40 @@ fn first_run_text_paint(
         }
     }
     (color, size)
+}
+
+fn first_run_text_shadow(
+    tx: &Element,
+    theme: SchemeTheme<'_>,
+    rotation_deg: Option<f64>,
+) -> Option<String> {
+    for para in children_local(tx, "p", ns::A) {
+        let def = child_path(para, &[("pPr", ns::A), ("defRPr", ns::A)]);
+        let runs: Vec<&Element> = para
+            .children
+            .iter()
+            .filter_map(|n| match n {
+                Node::Element(el) if el.local == "r" || el.local == "fld" => Some(el),
+                _ => None,
+            })
+            .collect();
+        let rpr = if runs.is_empty() {
+            def
+        } else {
+            child_local(runs[0], "rPr", ns::A).or(def)
+        };
+        if let Some(rpr) = rpr {
+            if let Some(effect_lst) = child_local(rpr, "effectLst", ns::A) {
+                return crate::outer_shadow::text_shadow_from_effect_lst(
+                    effect_lst,
+                    &theme,
+                    rotation_deg,
+                );
+            }
+        }
+        break;
+    }
+    None
 }
 
 fn level_style_text_color(
@@ -2856,6 +2896,50 @@ mod tests {
         )
         .unwrap();
         assert_eq!(el.fill_color.as_deref(), Some("#ABCDEF"));
+    }
+
+    // Catches: keyframes title run outerShdw never becomes text-shadow so the pink title floats without TS drop shadow.
+    #[test]
+    fn first_run_outer_shdw_becomes_text_shadow() {
+        let colors = theme();
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="16" name="Title"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
+          <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r>
+            <a:rPr lang="en-US" sz="5400"><a:solidFill><a:schemeClr val="accent2"/></a:solidFill>
+              <a:effectLst><a:outerShdw blurRad="50800" dist="40000" dir="5400000" algn="tl" rotWithShape="0">
+                <a:srgbClr val="000000"><a:alpha val="33000"/></a:srgbClr>
+              </a:outerShdw></a:effectLst>
+            </a:rPr><a:t>Selamat Belajar Biologi</a:t>
+          </a:r></a:p></p:txBody>
+        </p:sp>"#;
+        let el = parse_shape(
+            &parse_xml_str(xml).unwrap().root,
+            "title".into(),
+            &ctx(&colors),
+            false,
+        )
+        .unwrap();
+        let shadow = el
+            .text_shadow
+            .as_deref()
+            .expect("text_shadow from rPr effectLst");
+        assert!(
+            shadow.contains("0px 4px"),
+            "dir 90° dist≈4px → vertical offset, got {shadow}"
+        );
+        assert!(
+            shadow.contains("5px"),
+            "blurRad 50800 → ~5px blur (TS ≈5.3), got {shadow}"
+        );
+        assert!(
+            shadow.contains("rgba(0, 0, 0, 0.33)"),
+            "alpha 33000 → 0.33, got {shadow}"
+        );
+        assert!(
+            el.box_shadow.is_none(),
+            "noFill spPr must not set box-shadow"
+        );
     }
 
     // Catches: effectRef idx 1 outerShdw never becomes box-shadow so keyframes menu buttons float without shadow.

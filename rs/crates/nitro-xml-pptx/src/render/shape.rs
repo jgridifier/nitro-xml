@@ -65,6 +65,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             el.text_color.as_deref(),
             el.font_size_px,
             el.text_body_layout.as_ref(),
+            el.text_shadow.as_deref(),
         );
     }
     ctx.view_ir

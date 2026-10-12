@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// Ported from ChristopherVR/ooxml@e66aaec src/ui/src/pptx/dom/elements/text-block.ts; changes in PROVENANCE.md.
+// Ported from ChristopherVR/ooxml@e66aaec src/ui/src/pptx/dom/elements/text-block.ts,
+// src/ui/src/pptx/render/text-effects.ts; changes in PROVENANCE.md.
 
 use nitro_xml_render::measure::LayoutReadKind;
 
@@ -22,6 +23,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         el.text_color.as_deref(),
         el.font_size_px,
         el.text_body_layout.as_ref(),
+        el.text_shadow.as_deref(),
     );
     // Autofit uses post-apply ScrollHeight + ComputedStyle (docs/boundary.md #127).
     ctx.layout_reads
@@ -39,6 +41,7 @@ pub fn paint_text_body<I: StringIntern>(
     text_color: Option<&str>,
     font_size_px: Option<f64>,
     layout: Option<&TextBodyLayout>,
+    text_shadow: Option<&str>,
 ) -> u32 {
     let block = create_child(ctx, parent, "div");
     set_attr(ctx, block, "class", "pptxv-text");
@@ -63,6 +66,9 @@ pub fn paint_text_body<I: StringIntern>(
     );
     if let Some(color) = text_color {
         set_style(ctx, block, "color", color);
+    }
+    if let Some(shadow) = text_shadow {
+        set_style(ctx, block, "text-shadow", shadow);
     }
     set_text_content(ctx, block, text);
     // Batched measureText for GDI-style tracking (upstream text-metric-tracking).

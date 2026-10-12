@@ -30,7 +30,8 @@ function projectCell(cell) {
 		v: cell.v ?? cell.value ?? null,
 		t: cell.t ?? cell.type ?? null,
 		f: cell.f ?? cell.formula ?? null,
-		s: cell.s ?? cell.style ?? null,
+		// Upstream Cell uses styleId; keep s/style aliases for hand dumps.
+		s: cell.styleId ?? cell.s ?? cell.style ?? null,
 	};
 }
 

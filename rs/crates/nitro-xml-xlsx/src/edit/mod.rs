@@ -24,29 +24,46 @@ use crate::editor::{
 };
 
 /// Replay an xlsx edit script against loaded package bytes; returns the report and model snapshot.
+///
+/// Recalculates so formula values match `parity/edit/xlsx_model_dump.mjs`. Edit-parity save
+/// uses [`replay_xlsx_session`], which does not.
 pub fn replay_cell_script(
     bytes: &[u8],
     script_json: &str,
 ) -> Result<(ReplayReport, Value), EditError> {
-    let (report, session) = replay_xlsx_session(bytes, script_json)?;
+    let (report, session) = replay_xlsx_session_with(bytes, script_json, true)?;
     let snapshot = session.host.model_snapshot();
     Ok((report, snapshot))
 }
 
 /// Open a session, register xlsx commands, and replay the script (history retained for undo/redo).
 ///
-/// Automatic calculation runs after every applied step so formula cells in the snapshot are current.
+/// Calculation stays off, matching TS `createEditSession(workbook, { recalc: false })` in
+/// `parity/edit/apply.mjs`. [`replay_formula_checkpoints`] takes its own flag (`xlsx_editor_recalc`
+/// passes `true` unless `--no-recalc`). [`undo_parity_checkpoints`] stays on so model
+/// checkpoints match the oracle when `XLSX_RECALC=1`.
 pub fn replay_xlsx_session(
     bytes: &[u8],
     script_json: &str,
 ) -> Result<(ReplayReport, EditSession<XlsxHost, EditHistory>), EditError> {
+    replay_xlsx_session_with(bytes, script_json, false)
+}
+
+fn replay_xlsx_session_with(
+    bytes: &[u8],
+    script_json: &str,
+    recalc: bool,
+) -> Result<(ReplayReport, EditSession<XlsxHost, EditHistory>), EditError> {
     let script = parse_edit_script(script_json)?;
-    let (mut session, registry, mut calc) = open_xlsx_edit(bytes, &script, true)?;
+    let (mut session, registry, mut calc) = open_xlsx_edit(bytes, &script, recalc)?;
     let report = replay_ops_with_calc(&script, &registry, &mut session, &mut calc)?;
     Ok((report, session))
 }
 
-/// Formula-cell checkpoints after every do, undo, and redo (`recalc` false leaves values stale).
+/// Formula-cell checkpoints after every do, undo, and redo.
+///
+/// `recalc: false` leaves cached values stale (the editor-recalc negative control).
+/// `xlsx_editor_recalc` passes `true` unless `--no-recalc`.
 pub fn replay_formula_checkpoints(
     bytes: &[u8],
     script_json: &str,
@@ -253,6 +270,9 @@ fn hint_from_op(op: &Op, host: &XlsxHost) -> Option<CalcHint> {
 }
 
 /// Do → undo-all → redo-all checkpoints matching `parity/undo` phases (snapshots only).
+///
+/// Recalc stays on. The live TS compare sets `XLSX_RECALC=1`; the undo-parity save gate
+/// leaves that unset, and edit-parity save goes through [`replay_xlsx_session`] (off).
 pub fn undo_parity_checkpoints(bytes: &[u8], script_json: &str) -> Result<Vec<Value>, EditError> {
     let script: EditScript = parse_edit_script(script_json)?;
     if script.format != nitro_xml_opc::edit::EditFormat::Xlsx {

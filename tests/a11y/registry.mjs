@@ -40,6 +40,16 @@ export const A11Y_CASES = [
 		edit: true,
 	},
 	{
+		// PRODUCT_SPEC §3: layouts checked at 375 px (#54 dialogs/menus chrome).
+		id: 'xlsx-edit-chrome-375',
+		format: 'xlsx',
+		ready: true,
+		fixture: 'fixtures/real/xlsx/poi-45544.xlsx',
+		width: 375,
+		height: 667,
+		edit: true,
+	},
+	{
 		id: 'pptx-poi-51187',
 		format: 'pptx',
 		ready: true,

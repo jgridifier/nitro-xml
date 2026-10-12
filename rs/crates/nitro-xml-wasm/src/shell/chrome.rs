@@ -25,15 +25,13 @@ const HOTKEYS: &str = "mf:find-open|mc:copy|m=:zoom-in|m+:zoom-in|m-:zoom-out|Es
 /// Pptx and docx bind arrow/page keys to page navigation (xlsx keeps arrows for the grid).
 const PPTX_NAV: &str = "|ArrowRight:nav-next|ArrowLeft:nav-prev|PageDown:nav-next|PageUp:nav-prev";
 
-/// Stage-6 shell plus optional editor ribbon (ribbon above toolbar when edit mode).
+/// Stage-6 shell plus optional editor ribbon (ribbon above toolbar when edit mode)
+/// and any open dialog/menu overlay (#54).
 pub fn combined_chrome_html(state: &ShellState, editor: &EditorChrome) -> String {
     let ribbon = editor.ribbon_html();
+    let overlay = editor.overlay_html();
     let shell = chrome_html(state);
-    if ribbon.is_empty() {
-        shell
-    } else {
-        format!("{ribbon}{shell}")
-    }
+    format!("{ribbon}{shell}{overlay}")
 }
 
 /// Full chrome fragment (toolbar, find, tabs, diagnostics) for the loader host.

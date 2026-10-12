@@ -60,6 +60,38 @@ fn scopes_for(op: &Op) -> Vec<EditScope> {
         Op::AddSheet { .. } | Op::RenameSheet { .. } | Op::DeleteSheet { .. } => {
             vec![EditScope::Workbook]
         }
+        Op::InsertRows { sheet, at, count } | Op::DeleteRows { sheet, at, count } => {
+            let signed = if matches!(op, Op::InsertRows { .. }) {
+                *count as i32
+            } else {
+                -(*count as i32)
+            };
+            vec![
+                EditScope::Shift {
+                    sheet: *sheet,
+                    axis: "row".into(),
+                    at: *at,
+                    count: signed,
+                },
+                EditScope::Refs,
+            ]
+        }
+        Op::InsertColumns { sheet, at, count } | Op::DeleteColumns { sheet, at, count } => {
+            let signed = if matches!(op, Op::InsertColumns { .. }) {
+                *count as i32
+            } else {
+                -(*count as i32)
+            };
+            vec![
+                EditScope::Shift {
+                    sheet: *sheet,
+                    axis: "col".into(),
+                    at: *at,
+                    count: signed,
+                },
+                EditScope::Refs,
+            ]
+        }
         Op::Batch { .. } => vec![EditScope::Workbook],
         Op::SetParagraphText { .. }
         | Op::SetRunFormatting { .. }
@@ -80,6 +112,10 @@ fn kind_for(op: &Op) -> ChangeKind {
         Op::SetCellInput { .. } | Op::SetCellValue { .. } => ChangeKind::Cells,
         Op::ApplyStyle { .. } | Op::ApplyCellStyle { .. } => ChangeKind::Format,
         Op::AddSheet { .. } | Op::RenameSheet { .. } | Op::DeleteSheet { .. } => ChangeKind::Sheets,
+        Op::InsertRows { .. }
+        | Op::DeleteRows { .. }
+        | Op::InsertColumns { .. }
+        | Op::DeleteColumns { .. } => ChangeKind::Structure,
         Op::Batch { .. } => ChangeKind::Batch,
         Op::InsertTableRow { .. }
         | Op::DeleteTableRow { .. }
@@ -301,7 +337,7 @@ mod tests {
                 n += 1;
             }
         }
-        assert_eq!(n, 66, "expected 66 edit scripts");
+        assert_eq!(n, 72, "expected 72 edit scripts");
     }
 
     #[test]

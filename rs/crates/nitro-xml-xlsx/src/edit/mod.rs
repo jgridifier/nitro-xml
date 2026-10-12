@@ -4,11 +4,13 @@
 
 pub mod cells;
 pub mod host;
+pub mod shift;
 pub mod structure;
 pub mod style_patch;
 
 pub use cells::register_cell_commands;
 pub use host::XlsxHost;
+pub use shift::register_shift_commands;
 pub use structure::register_structure_commands;
 
 use nitro_xml_opc::edit::{
@@ -42,6 +44,7 @@ pub fn replay_xlsx_session(
     let mut registry = CommandRegistry::with_schema_stubs();
     register_cell_commands(&mut registry);
     register_structure_commands(&mut registry);
+    register_shift_commands(&mut registry);
     let mut session = EditSession::new(host, EditHistory::new());
     let mut report = replay_script(&script, &registry, &mut session);
     report.history_commits = session.history.committed().len();
@@ -61,6 +64,7 @@ pub fn undo_parity_checkpoints(bytes: &[u8], script_json: &str) -> Result<Vec<Va
     let mut registry = CommandRegistry::with_schema_stubs();
     register_cell_commands(&mut registry);
     register_structure_commands(&mut registry);
+    register_shift_commands(&mut registry);
     let mut session = EditSession::new(host, EditHistory::new());
 
     let mut checkpoints = Vec::new();
@@ -171,6 +175,12 @@ mod tests {
         "xlsx-add-rename-sheet",
         "xlsx-rename-sheet",
         "xlsx-multi-sheet-ops",
+        "xlsx-insert-row-formula",
+        "xlsx-delete-row-ref",
+        "xlsx-insert-col-formula",
+        "xlsx-delete-col-ref",
+        "xlsx-insert-row-area",
+        "xlsx-delete-row-area",
     ];
 
     fn ts_model_dump(fixture: &Path, script_json: &str) -> Option<Value> {
@@ -265,7 +275,7 @@ mod tests {
                 );
             }
         }
-        assert_eq!(ok, 22, "expected 22 xlsx edit scripts");
+        assert_eq!(ok, 28, "expected 28 xlsx edit scripts");
     }
 
     #[test]
@@ -345,15 +355,15 @@ mod tests {
             }
             ts_ok += 1;
         }
-        assert_eq!(local_ok, 22, "xlsx local undo-parity expected 22/22");
+        assert_eq!(local_ok, 28, "xlsx local undo-parity expected 28/28");
         if ts_attempts > 0 {
             assert_eq!(
-                ts_ok, 22,
-                "xlsx TS undo-parity expected 22/22 (got {ts_ok}/{ts_attempts})"
+                ts_ok, 28,
+                "xlsx TS undo-parity expected 28/28 (got {ts_ok}/{ts_attempts})"
             );
-            eprintln!("xlsx undo-parity: {ts_ok}/22 (TS match)");
+            eprintln!("xlsx undo-parity: {ts_ok}/28 (TS match)");
         } else {
-            eprintln!("xlsx undo-parity: {local_ok}/22 (local undo/redo only; no bun oracle)");
+            eprintln!("xlsx undo-parity: {local_ok}/28 (local undo/redo only; no bun oracle)");
         }
     }
 }

@@ -55,6 +55,18 @@ function applyXlsxOps(session, ops, parseRange) {
 			case 'deleteSheet':
 				session.deleteSheet(op.index);
 				break;
+			case 'insertRows':
+				session.insertRows(op.sheet, op.at, op.count);
+				break;
+			case 'deleteRows':
+				session.deleteRows(op.sheet, op.at, op.count);
+				break;
+			case 'insertColumns':
+				session.insertColumns(op.sheet, op.at, op.count);
+				break;
+			case 'deleteColumns':
+				session.deleteColumns(op.sheet, op.at, op.count);
+				break;
 			case 'batch':
 				session.batch(op.label || 'batch', () => applyXlsxOps(session, op.ops, parseRange));
 				break;

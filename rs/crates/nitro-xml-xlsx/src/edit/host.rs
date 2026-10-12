@@ -8,8 +8,8 @@ use nitro_xml_opc::edit::{EditHost, EditScope, HostSnapshot};
 use serde_json::{json, Map, Value};
 
 use crate::model::{
-    ActiveWorksheet, CellAddress, CellRange, ColumnInfo, DefinedName, DumpCell, DumpCellValue,
-    RowInfo, WorkbookSlice,
+    ActiveWorksheet, CellAddress, CellRange, ColumnInfo, DataValidation, DefinedName, DumpCell,
+    DumpCellValue, FreezePane, HyperlinkInfo, RowInfo, SheetSelection, SheetView, WorkbookSlice,
 };
 use crate::styles::style_at;
 use crate::workbook::{load_workbook, parse_all_worksheets};
@@ -210,6 +210,11 @@ impl XlsxHost {
                         m.insert("row".into(), json!(r));
                         Value::Object(m)
                     }).collect::<Vec<_>>(),
+                    "merges": sh.merges.iter().map(CellRange::to_json).collect::<Vec<_>>(),
+                    "view": view_to_snap(&sh.view),
+                    "hyperlinks": sh.hyperlinks.iter().map(hyperlink_to_snap).collect::<Vec<_>>(),
+                    "commentAddresses": sh.comment_addresses.iter().map(|a| json!({ "row": a.row, "col": a.col })).collect::<Vec<_>>(),
+                    "dataValidations": sh.data_validations.iter().map(validation_to_snap).collect::<Vec<_>>(),
                 })
             }).collect::<Vec<_>>(),
             "touched": self.touched.iter().map(|(s, r, c)| json!([s, r, c])).collect::<Vec<_>>(),
@@ -324,6 +329,33 @@ impl XlsxHost {
                     let (row, info) = row_info_from_json(entry)?;
                     ws.row_info.insert(row, info);
                 }
+            }
+            if let Some(merges) = obj.get("merges").and_then(|x| x.as_array()) {
+                ws.merges = merges
+                    .iter()
+                    .map(cell_range_from_json)
+                    .collect::<Result<Vec<_>, _>>()?;
+            }
+            if let Some(view) = obj.get("view") {
+                ws.view = view_from_snap(view)?;
+            }
+            if let Some(links) = obj.get("hyperlinks").and_then(|x| x.as_array()) {
+                ws.hyperlinks = links
+                    .iter()
+                    .map(hyperlink_from_snap)
+                    .collect::<Result<Vec<_>, _>>()?;
+            }
+            if let Some(comments) = obj.get("commentAddresses").and_then(|x| x.as_array()) {
+                ws.comment_addresses = comments
+                    .iter()
+                    .map(cell_address_from_json)
+                    .collect::<Result<Vec<_>, _>>()?;
+            }
+            if let Some(rules) = obj.get("dataValidations").and_then(|x| x.as_array()) {
+                ws.data_validations = rules
+                    .iter()
+                    .map(validation_from_snap)
+                    .collect::<Result<Vec<_>, _>>()?;
             }
             restored.push(ws);
         }
@@ -455,6 +487,170 @@ fn dump_cell_from_snap(v: &Value) -> Result<DumpCell, String> {
             .get("valueMetadata")
             .and_then(|x| x.as_u64())
             .map(|n| n as u32),
+    })
+}
+
+fn view_to_snap(view: &SheetView) -> Value {
+    let mut m = Map::new();
+    m.insert("showGridLines".into(), Value::Bool(view.show_grid_lines));
+    m.insert("showHeaders".into(), Value::Bool(view.show_headers));
+    m.insert("showZeros".into(), Value::Bool(view.show_zeros));
+    m.insert("rightToLeft".into(), Value::Bool(view.right_to_left));
+    m.insert("zoom".into(), crate::model::js_num(view.zoom));
+    if let Some(freeze) = &view.freeze {
+        m.insert("freeze".into(), freeze.to_json());
+    }
+    if let Some(top) = &view.top_left {
+        m.insert("topLeft".into(), json!({ "row": top.row, "col": top.col }));
+    }
+    if let Some(selection) = &view.selection {
+        m.insert(
+            "selection".into(),
+            json!({
+                "active": { "row": selection.active.row, "col": selection.active.col },
+                "anchor": { "row": selection.anchor.row, "col": selection.anchor.col },
+                "ranges": selection.ranges.iter().map(CellRange::to_json).collect::<Vec<_>>(),
+            }),
+        );
+    }
+    if let Some(show) = view.show_formulas {
+        m.insert("showFormulas".into(), Value::Bool(show));
+    }
+    Value::Object(m)
+}
+
+fn view_from_snap(v: &Value) -> Result<SheetView, String> {
+    let obj = v
+        .as_object()
+        .ok_or_else(|| "view must be an object".to_owned())?;
+    let mut view = crate::sheet_props::default_sheet_view();
+    if let Some(b) = obj.get("showGridLines").and_then(|x| x.as_bool()) {
+        view.show_grid_lines = b;
+    }
+    if let Some(b) = obj.get("showHeaders").and_then(|x| x.as_bool()) {
+        view.show_headers = b;
+    }
+    if let Some(b) = obj.get("showZeros").and_then(|x| x.as_bool()) {
+        view.show_zeros = b;
+    }
+    if let Some(b) = obj.get("rightToLeft").and_then(|x| x.as_bool()) {
+        view.right_to_left = b;
+    }
+    if let Some(z) = obj.get("zoom").and_then(|x| x.as_f64()) {
+        view.zoom = z;
+    }
+    if let Some(freeze) = obj.get("freeze") {
+        let f = freeze
+            .as_object()
+            .ok_or_else(|| "freeze must be an object".to_owned())?;
+        view.freeze = Some(FreezePane {
+            rows: f.get("rows").and_then(|x| x.as_u64()).unwrap_or(0) as u32,
+            cols: f.get("cols").and_then(|x| x.as_u64()).unwrap_or(0) as u32,
+        });
+    }
+    if let Some(top) = obj.get("topLeft") {
+        view.top_left = Some(cell_address_from_json(top)?);
+    }
+    if let Some(selection) = obj.get("selection") {
+        view.selection = Some(selection_from_snap(selection)?);
+    }
+    if let Some(show) = obj.get("showFormulas").and_then(|x| x.as_bool()) {
+        view.show_formulas = Some(show);
+    }
+    Ok(view)
+}
+
+fn selection_from_snap(v: &Value) -> Result<SheetSelection, String> {
+    let obj = v
+        .as_object()
+        .ok_or_else(|| "selection must be an object".to_owned())?;
+    let active = cell_address_from_json(obj.get("active").ok_or("selection missing active")?)?;
+    let anchor = match obj.get("anchor") {
+        Some(anchor) => cell_address_from_json(anchor)?,
+        None => active,
+    };
+    let ranges = obj
+        .get("ranges")
+        .and_then(|x| x.as_array())
+        .ok_or_else(|| "selection missing ranges".to_owned())?;
+    Ok(SheetSelection {
+        active,
+        anchor,
+        ranges: ranges
+            .iter()
+            .map(cell_range_from_json)
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+fn hyperlink_to_snap(link: &HyperlinkInfo) -> Value {
+    let mut m = Map::new();
+    m.insert("range".into(), link.range.to_json());
+    if let Some(tooltip) = &link.tooltip {
+        m.insert("tooltip".into(), Value::String(tooltip.clone()));
+    }
+    if let Some(target) = &link.target {
+        m.insert("target".into(), Value::String(target.clone()));
+    }
+    if let Some(location) = &link.location {
+        m.insert("location".into(), Value::String(location.clone()));
+    }
+    Value::Object(m)
+}
+
+fn hyperlink_from_snap(v: &Value) -> Result<HyperlinkInfo, String> {
+    let obj = v
+        .as_object()
+        .ok_or_else(|| "hyperlink must be an object".to_owned())?;
+    Ok(HyperlinkInfo {
+        range: cell_range_from_json(obj.get("range").ok_or("hyperlink missing range")?)?,
+        tooltip: obj
+            .get("tooltip")
+            .and_then(|x| x.as_str())
+            .map(str::to_owned),
+        target: obj
+            .get("target")
+            .and_then(|x| x.as_str())
+            .map(str::to_owned),
+        location: obj
+            .get("location")
+            .and_then(|x| x.as_str())
+            .map(str::to_owned),
+    })
+}
+
+fn validation_to_snap(rule: &DataValidation) -> Value {
+    let mut m = Map::new();
+    m.insert(
+        "ranges".into(),
+        Value::Array(rule.ranges.iter().map(CellRange::to_json).collect()),
+    );
+    m.insert("type".into(), Value::String(rule.validation_type.clone()));
+    if let Some(show) = rule.show_drop_down {
+        m.insert("showDropDown".into(), Value::Bool(show));
+    }
+    Value::Object(m)
+}
+
+fn validation_from_snap(v: &Value) -> Result<DataValidation, String> {
+    let obj = v
+        .as_object()
+        .ok_or_else(|| "data validation must be an object".to_owned())?;
+    let ranges = obj
+        .get("ranges")
+        .and_then(|x| x.as_array())
+        .ok_or_else(|| "validation missing ranges".to_owned())?;
+    Ok(DataValidation {
+        ranges: ranges
+            .iter()
+            .map(cell_range_from_json)
+            .collect::<Result<Vec<_>, _>>()?,
+        validation_type: obj
+            .get("type")
+            .and_then(|x| x.as_str())
+            .unwrap_or("none")
+            .to_owned(),
+        show_drop_down: obj.get("showDropDown").and_then(|x| x.as_bool()),
     })
 }
 

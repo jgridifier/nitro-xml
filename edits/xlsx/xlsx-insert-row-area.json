@@ -1,0 +1,21 @@
+{
+  "id": "xlsx-insert-row-area",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Set D1 to =A1:A3 and insert a row inside the area so it grows to A1:A4",
+  "ops": [
+    {
+      "op": "setCellInput",
+      "sheet": 0,
+      "row": 0,
+      "col": 3,
+      "text": "=A1:A3"
+    },
+    {
+      "op": "insertRows",
+      "sheet": 0,
+      "at": 1,
+      "count": 1
+    }
+  ]
+}

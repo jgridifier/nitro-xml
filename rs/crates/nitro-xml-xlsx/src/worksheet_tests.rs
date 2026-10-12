@@ -71,3 +71,63 @@ fn hidden_column_and_freeze_in_view_dump() {
     assert_eq!(cols[0].hidden, Some(true));
     assert_eq!(view.show_grid_lines, default_sheet_view().show_grid_lines);
 }
+
+#[test]
+fn catches_max_depth_worksheet_shell_open_and_paint() {
+    // Catches: a worksheet sibling tree at MAX_XML_DEPTH blowing Drop/Clone/paint on open.
+    use crate::model::DumpCellValue;
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../fixtures/fuzz/xlsx/deep-nest-4096.xlsx"
+    );
+    let bytes = std::fs::read(path).expect("fixture");
+    let wb = crate::load_workbook(&bytes).expect("workbook opens");
+    let sheets = crate::parse_all_worksheets(&bytes, &wb).expect("sheets");
+    let sheet = sheets[0].as_ref().expect("sheet0");
+    let a1 = sheet
+        .cells
+        .iter()
+        .find(|c| c.row == 0 && c.col == 0)
+        .expect("A1");
+    match &a1.value {
+        DumpCellValue::String(s) => assert_eq!(s, "deep-nest-ok"),
+        other => panic!("A1 should be deep-nest-ok, got {other:?}"),
+    }
+    let mut next_id = 1u32;
+    let mut intern = |_s: &str| -> u32 {
+        let id = next_id;
+        next_id += 1;
+        id
+    };
+    let viewport = crate::GridPaintViewport {
+        scroll_x: 0,
+        scroll_y: 0,
+        width: 800,
+        height: 600,
+        frozen_rows: 0,
+        frozen_cols: 0,
+        zoom_pct: None,
+    };
+    let cmds = crate::render::paint_grid_frame_vec(&mut intern, &wb, sheet, 0, &sheets, &viewport);
+    assert!(
+        !cmds.is_empty(),
+        "paint must emit commands for the deep-nest workbook"
+    );
+}
+
+#[test]
+fn catches_over_max_depth_worksheet_opens_or_rejects_without_panic() {
+    // Catches: depth > MAX_XML_DEPTH panicking instead of soft-empty / Err.
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../fixtures/fuzz/xlsx/deep-nest-over-max.xlsx"
+    );
+    let bytes = std::fs::read(path).expect("fixture");
+    let result = std::panic::catch_unwind(|| crate::load_workbook(&bytes));
+    assert!(result.is_ok(), "must not panic");
+    let wb = result.unwrap();
+    // Soft-empty sheet (shell parse failed) or full Err are both acceptable.
+    if let Ok(wb) = wb {
+        let _ = crate::parse_all_worksheets(&bytes, &wb);
+    }
+}

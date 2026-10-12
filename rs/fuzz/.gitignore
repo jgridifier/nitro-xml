@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+/target/
+/corpus/
+/artifacts/
+/coverage/
+**/*.profraw
+**/*.profdata

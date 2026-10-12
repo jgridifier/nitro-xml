@@ -4,9 +4,12 @@
 //! `src/core/xlsx/read/package.ts`); this module keeps its limits and case-insensitive part
 //! lookup over the `zip` crate.
 //!
-//! - Limits: compressed input size, non-directory entry count, declared size per part and declared
-//!   total. The declared sizes are checked at open; the real guard counts inflated bytes while
-//!   reading, so a header that under-declares its size is rejected before it inflates further.
+//! - Limits: compressed input size, non-directory entry count, declared size per part, and declared
+//!   total match upstream. An optional per-part compression-ratio guard (disabled below
+//!   [`MIN_RATIO_CHECK_BYTES`], default ratio [`MAX_COMPRESSION_RATIO`]) is strictly safer without
+//!   rejecting measured legitimate high-ratio parts. All limits are overridable via [`ZipLimits`].
+//!   Declared sizes are checked at open; inflation also counts real bytes so a header that
+//!   under-declares its size is rejected before it expands further.
 //! - Lazy inflation: opening reads only the central directory. [`ZipPackage::read`] inflates one
 //!   part on demand, counting its bytes against the package total.
 //! - Lookup: [`ZipPackage::actual`] matches a name exactly, then case-insensitively, like upstream
@@ -21,27 +24,41 @@ use ::zip::ZipArchive;
 
 pub use error::ZipError;
 
-/// Largest accepted compressed package.
+/// Largest accepted compressed package (upstream parity).
 pub const MAX_INPUT_BYTES: u64 = 50 * 1024 * 1024;
-/// Largest number of non-directory entries.
+/// Largest number of non-directory entries (upstream parity).
 pub const MAX_PARTS: usize = 10_000;
-/// Largest total of inflated bytes across all parts.
+/// Largest total of inflated bytes across all parts (upstream parity).
 pub const MAX_UNCOMPRESSED_BYTES: u64 = 300 * 1024 * 1024;
-/// Largest inflated size of one part.
+/// Largest inflated size of one part (upstream parity).
 pub const MAX_PART_BYTES: u64 = 200 * 1024 * 1024;
+/// Default per-part inflated/compressed ratio cap. Upstream has no ratio guard; this default is
+/// set well above measured legitimate OOXML parts (~257× on a 21 MiB repeated-paragraph
+/// `word/document.xml`) so real files still open. `0` disables the ratio check.
+pub const MAX_COMPRESSION_RATIO: u64 = 1_000;
+/// Uncompressed size floor for the ratio check. Parts smaller than this skip the ratio guard
+/// (absolute size caps still apply). Keeps small high-ratio media / quickStyle parts from being
+/// false positives while still catching large zip-bomb declarations early.
+pub const MIN_RATIO_CHECK_BYTES: u64 = 10 * 1024 * 1024;
 
 /// Read chunk size; also the granularity at which limits are enforced while inflating.
 const CHUNK_BYTES: usize = 64 * 1024;
 /// Upper bound on the up-front allocation for one part, whatever its declared size.
 const MAX_PREALLOCATE_BYTES: u64 = 64 * 1024 * 1024;
 
-/// Size limits for [`ZipPackage::open_with_limits`]. `Default` is the exported constants.
+/// Size limits for [`ZipPackage::open_with_limits`]. `Default` matches upstream absolute caps and
+/// adds the safer ratio-with-floor policy; every field is overridable.
 #[derive(Debug, Clone, Copy)]
 pub struct ZipLimits {
     pub max_input_bytes: u64,
     pub max_parts: usize,
     pub max_part_bytes: u64,
     pub max_total_bytes: u64,
+    /// Max inflated/compressed ratio per part; `0` disables the ratio check entirely.
+    pub max_compression_ratio: u64,
+    /// Only apply [`Self::max_compression_ratio`] when the part's uncompressed size is at least
+    /// this many bytes. `0` applies the ratio to every part.
+    pub min_ratio_check_bytes: u64,
 }
 
 impl Default for ZipLimits {
@@ -51,6 +68,22 @@ impl Default for ZipLimits {
             max_parts: MAX_PARTS,
             max_part_bytes: MAX_PART_BYTES,
             max_total_bytes: MAX_UNCOMPRESSED_BYTES,
+            max_compression_ratio: MAX_COMPRESSION_RATIO,
+            min_ratio_check_bytes: MIN_RATIO_CHECK_BYTES,
+        }
+    }
+}
+
+impl ZipLimits {
+    /// Upstream-parity absolute caps only (no compression-ratio guard).
+    pub const fn upstream_parity() -> Self {
+        Self {
+            max_input_bytes: MAX_INPUT_BYTES,
+            max_parts: MAX_PARTS,
+            max_part_bytes: MAX_PART_BYTES,
+            max_total_bytes: MAX_UNCOMPRESSED_BYTES,
+            max_compression_ratio: 0,
+            min_ratio_check_bytes: 0,
         }
     }
 }
@@ -63,6 +96,20 @@ struct Entry {
     index: usize,
     /// Declared uncompressed size.
     size: u64,
+    /// Declared compressed size (0 when unknown / stored with zero length).
+    compressed: u64,
+}
+
+fn exceeds_compression_ratio(
+    compressed: u64,
+    uncompressed: u64,
+    ratio: u64,
+    min_uncompressed: u64,
+) -> bool {
+    ratio > 0
+        && compressed > 0
+        && uncompressed >= min_uncompressed
+        && uncompressed > compressed.saturating_mul(ratio)
 }
 
 /// An opened zip package. Parts are inflated on demand by [`ZipPackage::read`].
@@ -102,7 +149,7 @@ impl<'a> ZipPackage<'a> {
         }
         let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(invalid)?;
 
-        let mut found: Vec<(String, usize, u64)> = Vec::new();
+        let mut found: Vec<(String, usize, u64, u64)> = Vec::new();
         for index in 0..archive.len() {
             let file = archive.by_index_raw(index).map_err(invalid)?;
             if file.is_dir() {
@@ -110,16 +157,24 @@ impl<'a> ZipPackage<'a> {
             }
             let raw_name = file.name().map_err(invalid)?;
             let name = raw_name.strip_prefix('/').unwrap_or(&raw_name).to_owned();
-            found.push((name, index, file.size()));
+            found.push((name, index, file.size(), file.compressed_size()));
         }
 
         if found.len() > limits.max_parts {
             return Err(ZipError::TooManyParts);
         }
         let mut declared_total: u64 = 0;
-        for (name, _, size) in &found {
+        for (name, _, size, compressed) in &found {
             if *size > limits.max_part_bytes {
                 return Err(ZipError::PartTooLarge { name: name.clone() });
+            }
+            if exceeds_compression_ratio(
+                *compressed,
+                *size,
+                limits.max_compression_ratio,
+                limits.min_ratio_check_bytes,
+            ) {
+                return Err(ZipError::CompressionRatio { name: name.clone() });
             }
             declared_total = declared_total.saturating_add(*size);
         }
@@ -130,7 +185,7 @@ impl<'a> ZipPackage<'a> {
         let mut entries: Vec<Entry> = Vec::with_capacity(found.len());
         let mut by_name: HashMap<String, usize> = HashMap::with_capacity(found.len());
         let mut lower: HashMap<String, usize> = HashMap::with_capacity(found.len());
-        for (name, index, size) in found {
+        for (name, index, size, compressed) in found {
             // A later entry with the same normalised name replaces the earlier one in place.
             let pos = match by_name.get(&name) {
                 Some(&pos) => {
@@ -139,6 +194,7 @@ impl<'a> ZipPackage<'a> {
                             name: name.clone(),
                             index,
                             size,
+                            compressed,
                         };
                     }
                     pos
@@ -148,6 +204,7 @@ impl<'a> ZipPackage<'a> {
                         name: name.clone(),
                         index,
                         size,
+                        compressed,
                     });
                     by_name.insert(name.clone(), entries.len() - 1);
                     entries.len() - 1
@@ -206,8 +263,10 @@ impl<'a> ZipPackage<'a> {
         let Some(entry) = self.position(name).and_then(|pos| self.entries.get(pos)) else {
             return Ok(None);
         };
-        let (index, declared) = (entry.index, entry.size);
+        let (index, declared, compressed) = (entry.index, entry.size, entry.compressed);
         let max_total = self.limits.max_total_bytes;
+        let max_ratio = self.limits.max_compression_ratio;
+        let min_ratio_bytes = self.limits.min_ratio_check_bytes;
         let inflated_total = self.inflated_total;
         let stored_name = entry.name.as_str();
 
@@ -239,6 +298,11 @@ impl<'a> ZipPackage<'a> {
                     name: stored_name.to_owned(),
                 });
             }
+            if exceeds_compression_ratio(compressed, produced, max_ratio, min_ratio_bytes) {
+                return Err(ZipError::CompressionRatio {
+                    name: stored_name.to_owned(),
+                });
+            }
             if inflated_total.saturating_add(produced) > max_total {
                 return Err(ZipError::TotalTooLarge);
             }
@@ -249,6 +313,11 @@ impl<'a> ZipPackage<'a> {
         let produced = u64::try_from(out.len()).unwrap_or(u64::MAX);
         if produced != declared {
             return Err(ZipError::SizeMismatch {
+                name: stored_name.to_owned(),
+            });
+        }
+        if exceeds_compression_ratio(compressed, produced, max_ratio, min_ratio_bytes) {
+            return Err(ZipError::CompressionRatio {
                 name: stored_name.to_owned(),
             });
         }
@@ -324,6 +393,132 @@ mod tests {
             pkg.read("xl/big.bin"),
             Err(ZipError::SizeMismatch { .. })
         ));
+    }
+
+    fn deflate_headers(name: &[u8], compressed_len: u32, declared: u32) -> Vec<u8> {
+        let mut local = Vec::new();
+        local.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
+        local.extend_from_slice(&20u16.to_le_bytes());
+        local.extend_from_slice(&0u16.to_le_bytes());
+        local.extend_from_slice(&8u16.to_le_bytes());
+        local.extend_from_slice(&0u32.to_le_bytes());
+        local.extend_from_slice(&0u32.to_le_bytes());
+        local.extend_from_slice(&compressed_len.to_le_bytes());
+        local.extend_from_slice(&declared.to_le_bytes());
+        local.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        local.extend_from_slice(&0u16.to_le_bytes());
+        local.extend_from_slice(name);
+        local.extend(std::iter::repeat_n(0x01, compressed_len as usize));
+
+        let mut central = Vec::new();
+        central.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&8u16.to_le_bytes());
+        central.extend_from_slice(&0u32.to_le_bytes());
+        central.extend_from_slice(&0u32.to_le_bytes());
+        central.extend_from_slice(&compressed_len.to_le_bytes());
+        central.extend_from_slice(&declared.to_le_bytes());
+        central.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&0u32.to_le_bytes());
+        central.extend_from_slice(&0u32.to_le_bytes());
+        central.extend_from_slice(name);
+
+        let cd_offset = local.len() as u32;
+        let mut bytes = local;
+        bytes.extend_from_slice(&central);
+        bytes.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&(central.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&cd_offset.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes
+    }
+
+    // Catches: a large deflate entry declaring uncompressed >> compressed * MAX_COMPRESSION_RATIO
+    // (above the size floor) slipping past absolute size caps.
+    #[test]
+    fn declared_compression_ratio_rejected_at_open() {
+        // 11 MiB declared / 1 compressed byte → ratio ≫ 1000 and above the 10 MiB floor.
+        let declared = (MIN_RATIO_CHECK_BYTES + 1024 * 1024) as u32;
+        const {
+            assert!(MIN_RATIO_CHECK_BYTES > 0);
+            assert!(MAX_COMPRESSION_RATIO > 0);
+        }
+        assert!((declared as u64) > MIN_RATIO_CHECK_BYTES);
+        assert!((declared as u64) > MAX_COMPRESSION_RATIO); // 1-byte compressed ⇒ ratio == declared
+        let bytes = deflate_headers(b"bomb.bin", 1, declared);
+        assert!(matches!(
+            ZipPackage::open(&bytes),
+            Err(ZipError::CompressionRatio { .. })
+        ));
+    }
+
+    // Catches: rejecting a small high-ratio part that is under the size floor (legitimate media /
+    // quickStyle parts and our <10 MiB repeated-paragraph fixtures must still open).
+    #[test]
+    fn compression_ratio_skipped_below_size_floor() {
+        // 50 KiB declared / 1 compressed → ratio 50_000, but under the 10 MiB floor.
+        let bytes = deflate_headers(b"small.bin", 1, 50_000);
+        ZipPackage::open(&bytes).expect("below floor: absolute caps only");
+    }
+
+    // Catches: ZipLimits::upstream_parity disabling the ratio guard so callers can match JSZip.
+    #[test]
+    fn upstream_parity_limits_skip_ratio_guard() {
+        let declared = (MIN_RATIO_CHECK_BYTES + 1024 * 1024) as u32;
+        let bytes = deflate_headers(b"bomb.bin", 1, declared);
+        ZipPackage::open_with_limits(&bytes, ZipLimits::upstream_parity())
+            .expect("upstream_parity has no ratio guard");
+    }
+
+    // Catches: a ~255× legitimate repeated-paragraph document.xml (7 MiB, under the 10 MiB floor)
+    // being rejected by a naive global ratio cap of 200.
+    #[test]
+    fn legitimate_repeated_paragraphs_50k_opens() {
+        let bytes =
+            include_bytes!("../../../../../fixtures/fuzz/docx/repeated-paragraphs-50k.docx");
+        let mut pkg = ZipPackage::open(bytes).expect("opens under default limits");
+        let doc = pkg
+            .read("word/document.xml")
+            .expect("read")
+            .expect("present");
+        assert!(doc.len() > 6_000_000, "expected ~7 MiB document.xml");
+    }
+
+    // Catches: a ~257× legitimate 21 MiB document.xml (above the floor) being rejected because the
+    // ratio cap was set too close to real-world high-ratio text parts.
+    #[test]
+    fn legitimate_repeated_paragraphs_150k_opens() {
+        let bytes =
+            include_bytes!("../../../../../fixtures/fuzz/docx/repeated-paragraphs-150k.docx");
+        let mut pkg = ZipPackage::open(bytes).expect("opens; 257x < default ratio 1000");
+        let doc = pkg
+            .read("word/document.xml")
+            .expect("read")
+            .expect("present");
+        assert!(doc.len() > 20_000_000, "expected ~21 MiB document.xml");
+    }
+
+    // Catches: 100k styled empty rows xlsx rejected by an over-aggressive ratio policy.
+    #[test]
+    fn legitimate_repeated_empty_rows_100k_xlsx_opens() {
+        let bytes =
+            include_bytes!("../../../../../fixtures/fuzz/xlsx/repeated-empty-rows-100k.xlsx");
+        let mut pkg = ZipPackage::open(bytes).expect("opens");
+        let sheet = pkg
+            .read("xl/worksheets/sheet1.xml")
+            .expect("read")
+            .expect("present");
+        assert!(sheet.len() > 3_000_000);
     }
 
     // Catches: part lookup being case-sensitive or keeping the leading '/', unlike SourceIndex.actual.

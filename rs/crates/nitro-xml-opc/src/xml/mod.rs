@@ -14,5 +14,7 @@ mod tree;
 
 pub use error::XmlError;
 pub use namespaces::ns;
-pub use parse::{parse_xml_bytes, parse_xml_str, parse_xml_str_with_options, ParseOptions};
+pub use parse::{
+    parse_xml_bytes, parse_xml_str, parse_xml_str_with_options, ParseOptions, MAX_XML_DEPTH,
+};
 pub use tree::{Attr, Document, Element, Node};

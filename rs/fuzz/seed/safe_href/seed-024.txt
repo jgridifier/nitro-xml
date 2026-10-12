@@ -1,0 +1,1 @@
+data:text/html,<h1>XSS</h1>

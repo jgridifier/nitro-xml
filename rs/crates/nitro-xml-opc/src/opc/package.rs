@@ -15,7 +15,7 @@ use crate::opc::relationships::{
     parse_relationships, relationships_part_for, resolve_part_path, RelMode, Relationship,
 };
 use crate::opc::signature::{detect_digital_signatures, is_signature_part};
-use crate::zip::ZipPackage;
+use crate::zip::{ZipLimits, ZipPackage};
 
 /// Property part paths discovered from package relationships (listed only; XML not parsed here).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -23,6 +23,22 @@ pub struct PropertyParts {
     pub core: Option<String>,
     pub app: Option<String>,
     pub custom: Option<String>,
+}
+
+/// Options for [`Package::open_with_options`]. Defaults match upstream absolute zip caps plus the
+/// safer compression-ratio-with-floor policy (see [`ZipLimits::default`]).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PackageOpenOptions {
+    pub zip: ZipLimits,
+}
+
+impl PackageOpenOptions {
+    /// Absolute zip caps only — same as upstream `readZipParts` defaults (no ratio guard).
+    pub const fn upstream_parity() -> Self {
+        Self {
+            zip: ZipLimits::upstream_parity(),
+        }
+    }
 }
 
 /// An opened OPC package with cached content types and relationships.
@@ -35,12 +51,20 @@ pub struct Package<'a> {
 }
 
 impl<'a> Package<'a> {
-    /// Open bytes as an allow-listed Office Open XML package.
+    /// Open bytes as an allow-listed Office Open XML package with default limits.
     pub fn open(bytes: &'a [u8]) -> Result<Self, OpcError> {
+        Self::open_with_options(bytes, PackageOpenOptions::default())
+    }
+
+    /// Open with explicit zip / security limits.
+    pub fn open_with_options(
+        bytes: &'a [u8],
+        options: PackageOpenOptions,
+    ) -> Result<Self, OpcError> {
         if let Some(detected) = sniff_unsupported_container(bytes) {
             return Err(OpcError::unsupported(detected));
         }
-        let mut zip = ZipPackage::open(bytes)?;
+        let mut zip = ZipPackage::open_with_limits(bytes, options.zip)?;
         let ct_xml = Self::read_text_uncached(&mut zip, "[Content_Types].xml")?;
         let content_types = parse_content_types(ct_xml.as_deref())?;
 

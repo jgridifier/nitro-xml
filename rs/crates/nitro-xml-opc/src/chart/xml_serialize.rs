@@ -65,77 +65,113 @@ pub fn build_xml_with_prefixes(element: &Element, prefixes: &HashMap<String, Str
     out
 }
 
+struct WriteFrame<'a> {
+    el: &'a Element,
+    emit_root_xmlns: bool,
+    child_idx: usize,
+    opened: bool,
+    close_prefix: String,
+}
+
 fn write_element(
     element: &Element,
     out: &mut String,
     emit_root_xmlns: bool,
     prefixes: &HashMap<String, String>,
 ) {
-    let pfx = element_prefix(element, prefixes);
-    out.push('<');
-    out.push_str(&pfx);
-    out.push_str(&element.local);
-    for attr in &element.attrs {
-        out.push(' ');
-        out.push_str(attr_prefix(attr.ns.as_deref()));
-        out.push_str(&attr.local);
-        out.push('=');
-        out.push('"');
-        escape_attr(&attr.value, out);
-        out.push('"');
-    }
-    if emit_root_xmlns {
-        if let Some((name, uri)) = xmlns_for_element(element, prefixes) {
-            out.push(' ');
-            out.push_str(&name);
-            out.push('=');
-            out.push('"');
-            escape_attr(&uri, out);
-            out.push('"');
-        }
-    }
-    let parent_uri = element.ns.as_deref();
-    let mut declared_child_ns = std::collections::HashSet::new();
-    for child in element.children.iter().filter_map(|c| match c {
-        Node::Element(e) => Some(e),
-        _ => None,
-    }) {
-        let uri = child.ns.as_deref();
-        if uri.is_none() || uri == parent_uri {
+    let mut stack = vec![WriteFrame {
+        el: element,
+        emit_root_xmlns,
+        child_idx: 0,
+        opened: false,
+        close_prefix: String::new(),
+    }];
+    while let Some(frame) = stack.last_mut() {
+        if !frame.opened {
+            let pfx = element_prefix(frame.el, prefixes);
+            frame.close_prefix = pfx.clone();
+            out.push('<');
+            out.push_str(&pfx);
+            out.push_str(&frame.el.local);
+            for attr in &frame.el.attrs {
+                out.push(' ');
+                out.push_str(attr_prefix(attr.ns.as_deref()));
+                out.push_str(&attr.local);
+                out.push('=');
+                out.push('"');
+                escape_attr(&attr.value, out);
+                out.push('"');
+            }
+            if frame.emit_root_xmlns {
+                if let Some((name, uri)) = xmlns_for_element(frame.el, prefixes) {
+                    out.push(' ');
+                    out.push_str(&name);
+                    out.push('=');
+                    out.push('"');
+                    escape_attr(&uri, out);
+                    out.push('"');
+                }
+            }
+            let parent_uri = frame.el.ns.as_deref();
+            let mut declared_child_ns = std::collections::HashSet::new();
+            for child in frame.el.children.iter().filter_map(|c| match c {
+                Node::Element(e) => Some(e),
+                _ => None,
+            }) {
+                let uri = child.ns.as_deref();
+                if uri.is_none() || uri == parent_uri {
+                    continue;
+                }
+                if !declared_child_ns.insert(uri.unwrap()) {
+                    continue;
+                }
+                if let Some((name, uri_s)) = xmlns_for_element(child, prefixes) {
+                    out.push(' ');
+                    out.push_str(&name);
+                    out.push('=');
+                    out.push('"');
+                    escape_attr(&uri_s, out);
+                    out.push('"');
+                }
+            }
+            let has_element_children = frame
+                .el
+                .children
+                .iter()
+                .any(|c| matches!(c, Node::Element(_)));
+            let has_text = frame.el.children.iter().any(|c| matches!(c, Node::Text(_)));
+            if !has_element_children && !has_text {
+                out.push_str("/>");
+                stack.pop();
+                continue;
+            }
+            out.push('>');
+            frame.opened = true;
             continue;
         }
-        if !declared_child_ns.insert(uri.unwrap()) {
+        if frame.child_idx < frame.el.children.len() {
+            let child = &frame.el.children[frame.child_idx];
+            frame.child_idx += 1;
+            match child {
+                Node::Element(e) => {
+                    stack.push(WriteFrame {
+                        el: e,
+                        emit_root_xmlns: false,
+                        child_idx: 0,
+                        opened: false,
+                        close_prefix: String::new(),
+                    });
+                }
+                Node::Text(t) => escape_text(t, out),
+            }
             continue;
         }
-        if let Some((name, uri_s)) = xmlns_for_element(child, prefixes) {
-            out.push(' ');
-            out.push_str(&name);
-            out.push('=');
-            out.push('"');
-            escape_attr(&uri_s, out);
-            out.push('"');
-        }
+        out.push_str("</");
+        out.push_str(&frame.close_prefix);
+        out.push_str(&frame.el.local);
+        out.push('>');
+        stack.pop();
     }
-    let has_element_children = element
-        .children
-        .iter()
-        .any(|c| matches!(c, Node::Element(_)));
-    let has_text = element.children.iter().any(|c| matches!(c, Node::Text(_)));
-    if !has_element_children && !has_text {
-        out.push_str("/>");
-        return;
-    }
-    out.push('>');
-    for child in &element.children {
-        match child {
-            Node::Element(e) => write_element(e, out, false, prefixes),
-            Node::Text(t) => escape_text(t, out),
-        }
-    }
-    out.push_str("</");
-    out.push_str(&pfx);
-    out.push_str(&element.local);
-    out.push('>');
 }
 
 fn escape_attr(value: &str, out: &mut String) {
@@ -244,4 +280,20 @@ pub fn extension_list(
 ) -> Option<String> {
     let ext_lst = super::dom::c_child(parent, "extLst");
     ext_lst.map(|e| build_xml_with_prefixes(e, prefixes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xml::parse_xml_str;
+
+    // Catches: chart `build_xml` recursing once per nesting level and overflowing the WASM stack
+    // at MAX_XML_DEPTH (4096).
+    #[test]
+    fn build_xml_deep_tree_does_not_overflow_stack() {
+        let xml = format!("{}x{}", "<a>".repeat(4096), "</a>".repeat(4096));
+        let root = parse_xml_str(&xml).expect("parses").root;
+        let serialized = build_xml(&root);
+        assert!(serialized.contains('x'));
+    }
 }

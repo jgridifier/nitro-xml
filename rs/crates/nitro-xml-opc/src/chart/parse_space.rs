@@ -173,6 +173,7 @@ pub fn parse_chart_space_xml(xml: &str) -> ChartSpaceParseResult {
         xml,
         ParseOptions {
             sort_attributes: false,
+            ..ParseOptions::default()
         },
     )
     .expect("chart xml parse");

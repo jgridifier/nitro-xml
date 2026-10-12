@@ -17,7 +17,7 @@ mod signature;
 pub use content_types::{content_type_for_part, parse_content_types, ContentTypes};
 pub use error::OpcError;
 pub use format::AllowedFormat;
-pub use package::{Package, PropertyParts};
+pub use package::{Package, PackageOpenOptions, PropertyParts};
 pub use rel_types as relationship_types;
 pub use relationships::{
     parse_relationships, relationships_part_for, resolve_part_path, RelMode, Relationship,

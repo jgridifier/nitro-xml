@@ -97,24 +97,27 @@ fn text_box_paragraphs(graphic_data: Option<&Element>) -> Option<Vec<String>> {
 
 fn paragraph_text_deep(paragraph: &Element) -> String {
     let mut out = String::new();
-    fn visit(el: &Element, buf: &mut String) {
+    let mut stack: Vec<&Element> = vec![paragraph];
+    while let Some(el) = stack.pop() {
         if el.ns.as_deref() == Some(W_NS) && el.local == "t" {
-            buf.push_str(&text_content(el));
+            out.push_str(&text_content(el));
         }
-        for c in el.element_children() {
-            visit(c, buf);
+        for c in el.element_children().into_iter().rev() {
+            stack.push(c);
         }
     }
-    visit(paragraph, &mut out);
     out
 }
 
 fn collect_text_box_paragraphs(node: &Element, out: &mut Vec<String>) {
-    for child in node.element_children() {
-        if child.ns.as_deref() == Some(W_NS) && child.local == "p" {
-            out.push(paragraph_text_deep(child));
-        } else {
-            collect_text_box_paragraphs(child, out);
+    let mut stack: Vec<&Element> = vec![node];
+    while let Some(el) = stack.pop() {
+        for child in el.element_children().into_iter().rev() {
+            if child.ns.as_deref() == Some(W_NS) && child.local == "p" {
+                out.push(paragraph_text_deep(child));
+            } else {
+                stack.push(child);
+            }
         }
     }
 }
@@ -538,5 +541,25 @@ pub fn parse_drawing(node: &Element, context: &DrawingContext) -> Value {
         parse_vml_picture(node, context)
     } else {
         parse_modern_drawing(node, context)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nitro_xml_opc::xml::parse_xml_str;
+
+    // Catches: text-box paragraph collection recursing once per nesting level and overflowing the
+    // WASM stack at MAX_XML_DEPTH (4096).
+    #[test]
+    fn paragraph_text_deep_tree_does_not_overflow_stack() {
+        let w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        let xml = format!(
+            "{}<w:t xmlns:w=\"{w}\">hi</w:t>{}",
+            "<a>".repeat(4095),
+            "</a>".repeat(4095)
+        );
+        let root = parse_xml_str(&xml).expect("parses").root;
+        assert_eq!(paragraph_text_deep(&root), "hi");
     }
 }

@@ -18,6 +18,8 @@ pub enum ZipError {
     PartTooLarge { name: String },
     /// The declared or inflated total is above the package limit.
     TotalTooLarge,
+    /// An entry's declared or inflated size exceeds the compression-ratio cap (zip-bomb).
+    CompressionRatio { name: String },
     /// An entry inflated to a size other than its declared size.
     SizeMismatch { name: String },
 }
@@ -31,6 +33,7 @@ impl ZipError {
             Self::TooManyParts => "too_many_parts",
             Self::PartTooLarge { .. } => "part_too_large",
             Self::TotalTooLarge => "total_too_large",
+            Self::CompressionRatio { .. } => "compression_ratio",
             Self::SizeMismatch { .. } => "size_mismatch",
         }
     }
@@ -46,6 +49,12 @@ impl fmt::Display for ZipError {
                 write!(f, "part {name} exceeds the uncompressed part size limit")
             }
             Self::TotalTooLarge => write!(f, "package exceeds the uncompressed content limit"),
+            Self::CompressionRatio { name } => {
+                write!(
+                    f,
+                    "part {name} exceeds the compression-ratio limit (zip-bomb guard)"
+                )
+            }
             Self::SizeMismatch { name } => {
                 write!(f, "part {name} does not inflate to its declared size")
             }

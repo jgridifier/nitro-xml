@@ -236,16 +236,19 @@ fn process_alternate_content(ac: &Element, parts: &mut Vec<String>) {
 }
 
 fn branch_has_math(el: &Element) -> bool {
-    for child in &el.children {
-        if let Node::Element(e) = child {
-            if e.ns.as_deref() == Some(ns::M) && matches!(e.local.as_str(), "oMath" | "oMathPara") {
-                return true;
-            }
-            if e.local == "m" {
-                return true;
-            }
-            if branch_has_math(e) {
-                return true;
+    let mut stack: Vec<&Element> = vec![el];
+    while let Some(node) = stack.pop() {
+        for child in node.children.iter().rev() {
+            if let Node::Element(e) = child {
+                if e.ns.as_deref() == Some(ns::M)
+                    && matches!(e.local.as_str(), "oMath" | "oMathPara")
+                {
+                    return true;
+                }
+                if e.local == "m" {
+                    return true;
+                }
+                stack.push(e);
             }
         }
     }
@@ -291,28 +294,34 @@ fn process_field(field: &Element, parts: &mut Vec<String>) {
 
 #[allow(clippy::single_match)]
 fn paragraph_has_renderable_content(p: &Element) -> bool {
-    for child in &p.children {
-        match child {
-            Node::Element(el) => {
-                if el.ns.as_deref() == Some(ns::A)
-                    && matches!(el.local.as_str(), "r" | "fld" | "t" | "br")
-                {
-                    return true;
-                }
-                if el.ns.as_deref() == Some(ns::M)
-                    && matches!(el.local.as_str(), "oMath" | "oMathPara")
-                {
-                    return true;
-                }
-                if el.ns.as_deref() == Some(ns::MC) && el.local == "AlternateContent" {
-                    if let Some(branch) = children_local(el, "Choice", ns::MC).into_iter().next() {
-                        if branch_has_math(branch) || paragraph_has_renderable_content(branch) {
-                            return true;
+    let mut stack: Vec<&Element> = vec![p];
+    while let Some(el) = stack.pop() {
+        for child in &el.children {
+            match child {
+                Node::Element(el) => {
+                    if el.ns.as_deref() == Some(ns::A)
+                        && matches!(el.local.as_str(), "r" | "fld" | "t" | "br")
+                    {
+                        return true;
+                    }
+                    if el.ns.as_deref() == Some(ns::M)
+                        && matches!(el.local.as_str(), "oMath" | "oMathPara")
+                    {
+                        return true;
+                    }
+                    if el.ns.as_deref() == Some(ns::MC) && el.local == "AlternateContent" {
+                        if let Some(branch) =
+                            children_local(el, "Choice", ns::MC).into_iter().next()
+                        {
+                            if branch_has_math(branch) {
+                                return true;
+                            }
+                            stack.push(branch);
                         }
                     }
                 }
+                _ => {}
             }
-            _ => {}
         }
     }
     false
@@ -449,13 +458,17 @@ fn bullet_info_from_level_style(style: &PlaceholderTextLevelStyle) -> Option<Bul
 }
 
 fn scan_text(node: &Element) -> bool {
-    if node.local == "t" && node.ns.as_deref() == Some(ns::A) {
-        return !node.text_content().trim().is_empty();
-    }
-    for c in &node.children {
-        if let Node::Element(e) = c {
-            if scan_text(e) {
+    let mut stack: Vec<&Element> = vec![node];
+    while let Some(cur) = stack.pop() {
+        if cur.local == "t" && cur.ns.as_deref() == Some(ns::A) {
+            if !cur.text_content().trim().is_empty() {
                 return true;
+            }
+            continue;
+        }
+        for c in cur.children.iter().rev() {
+            if let Node::Element(e) = c {
+                stack.push(e);
             }
         }
     }
@@ -490,5 +503,15 @@ mod tests {
             presentation_level_styles: None,
         };
         assert_eq!(extract_element_text(&ctx, &tx), "Eq [Equation]");
+    }
+
+    // Catches: `scan_text` / `branch_has_math` recursing once per nesting level and overflowing the
+    // WASM stack at MAX_XML_DEPTH (4096).
+    #[test]
+    fn scan_text_deep_tree_does_not_overflow_stack() {
+        let xml = format!("{}{}", "<a>".repeat(4096), "</a>".repeat(4096));
+        let root = parse_xml_str(&xml).expect("parses").root;
+        assert!(!scan_text(&root));
+        assert!(!branch_has_math(&root));
     }
 }

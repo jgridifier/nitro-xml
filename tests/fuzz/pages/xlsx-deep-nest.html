@@ -1,0 +1,101 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>wasm deep-nest open+render</title>
+</head>
+<body>
+  <pre id="out">pending</pre>
+  <script type="module">
+    /**
+     * Full WASM open-and-render path in a real browser (not Node, not native
+     * Rust). Confirms MAX_XML_DEPTH=4096 trees do not trap the WASM stack.
+     */
+    const params = new URLSearchParams(location.search);
+    const fixture = params.get('fixture');
+    const expect = params.get('expect') || 'open'; // open | reject
+    const out = document.getElementById('out');
+
+    function report(ok, detail) {
+      const payload = { ok, expect, fixture, ...detail };
+      out.textContent = JSON.stringify(payload, null, 2);
+      document.title = ok ? `ok:${expect}` : `fail:${expect}`;
+      window.__deepNest = payload;
+      document.documentElement.dataset.ready = ok ? '1' : 'err';
+    }
+
+    try {
+      if (!fixture) throw new Error('missing fixture');
+      const { default: init, Handle } = await import(
+        '/repo/packages/nitro-xml/pkg/nitro_xml_wasm.js'
+      );
+      await init();
+      const res = await fetch(fixture);
+      if (!res.ok) throw new Error(`fixture fetch ${res.status}`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const name = fixture.split('/').pop() || 'book.xlsx';
+      const h = new Handle(bytes);
+      let openError = null;
+      try {
+        h.openDocument(name);
+      } catch (e) {
+        openError = {
+          code: e?.code || e?.name || 'error',
+          message: String(e?.message || e),
+        };
+      }
+
+      if (expect === 'reject') {
+        // Over-max may fail open with a depth/open error, or open an empty sheet
+        // when worksheet shell parse fails soft — either is clean (no trap).
+        if (openError) {
+          h.free();
+          report(true, { outcome: 'rejected', openError });
+        } else {
+          h.prepareFrame();
+          const cmds = h.takeFrameCommands();
+          const fmt = h.documentFormat();
+          h.free();
+          report(true, {
+            outcome: 'opened-soft',
+            format: fmt,
+            commandBytes: cmds?.byteLength ?? cmds?.length ?? 0,
+          });
+        }
+      } else {
+        if (openError) {
+          report(false, { outcome: 'open-failed', openError });
+        } else {
+          // openDocument already paints once; prepareFrame re-paints.
+          h.prepareFrame();
+          const cmds = h.takeFrameCommands();
+          const fmt = h.documentFormat();
+          let cell = '';
+          try {
+            cell = h.cellText(0, 'A1') || '';
+          } catch {
+            cell = '';
+          }
+          const commandBytes = cmds?.byteLength ?? cmds?.length ?? 0;
+          h.free();
+          // Cell text proves sheetData still loaded beside the deep sibling tree.
+          const ok = fmt === 'xlsx' && commandBytes > 0 && cell.includes('deep-nest-ok');
+          report(ok, {
+            outcome: ok ? 'opened-and-painted' : 'incomplete',
+            format: fmt,
+            commandBytes,
+            cellText: cell,
+          });
+        }
+      }
+    } catch (e) {
+      // WASM trap / unexpected throw surfaces here.
+      report(false, {
+        outcome: 'trap-or-throw',
+        error: String(e && e.stack ? e.stack : e),
+      });
+    }
+  </script>
+</body>
+</html>

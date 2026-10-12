@@ -110,15 +110,18 @@ fn collect_shapes(root: &Element) -> Vec<SpBox> {
 }
 
 fn walk_shapes(el: &Element, out: &mut Vec<SpBox>) {
-    if el.local == "sp" {
-        if let Some(box_) = sp_box(el) {
-            out.push(box_);
+    let mut stack: Vec<&Element> = vec![el];
+    while let Some(node) = stack.pop() {
+        if node.local == "sp" {
+            if let Some(box_) = sp_box(node) {
+                out.push(box_);
+            }
+            continue;
         }
-        return;
-    }
-    for child in &el.children {
-        if let Node::Element(child) = child {
-            walk_shapes(child, out);
+        for child in node.children.iter().rev() {
+            if let Node::Element(child) = child {
+                stack.push(child);
+            }
         }
     }
 }
@@ -165,16 +168,19 @@ fn text_of(el: &Element) -> String {
 }
 
 fn collect_text(el: &Element, parts: &mut Vec<String>) {
-    if el.local == "t" {
-        let t = el.text_content();
-        if !t.is_empty() {
-            parts.push(t);
+    let mut stack: Vec<&Element> = vec![el];
+    while let Some(node) = stack.pop() {
+        if node.local == "t" {
+            let t = node.text_content();
+            if !t.is_empty() {
+                parts.push(t);
+            }
+            continue;
         }
-        return;
-    }
-    for child in &el.children {
-        if let Node::Element(child) = child {
-            collect_text(child, parts);
+        for child in node.children.iter().rev() {
+            if let Node::Element(child) = child {
+                stack.push(child);
+            }
         }
     }
 }
@@ -199,7 +205,8 @@ fn attr_f64(el: &Element, local: &str) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::smartart_svg;
+    use super::{collect_shapes, collect_text, smartart_svg};
+    use nitro_xml_opc::xml::parse_xml_str;
 
     // Catches: a cached dsp:sp drawing collapsed to the labelled SmartArt stub.
     #[test]
@@ -228,5 +235,18 @@ mod tests {
         let svg = smartart_svg(None, 200.0, 80.0);
         assert!(svg.contains(">SmartArt<"), "{svg}");
         assert!(svg.contains("width=\"200\""), "{svg}");
+    }
+
+    // Catches: SmartArt shape/text walks recursing once per nesting level and overflowing the WASM
+    // stack at MAX_XML_DEPTH (4096).
+    #[test]
+    fn deep_nesting_shape_walk_does_not_overflow_stack() {
+        let xml = format!("{}{}", "<a>".repeat(4096), "</a>".repeat(4096));
+        let root = parse_xml_str(&xml).expect("parses").root;
+        let shapes = collect_shapes(&root);
+        assert!(shapes.is_empty());
+        let mut parts = Vec::new();
+        collect_text(&root, &mut parts);
+        assert!(parts.is_empty());
     }
 }

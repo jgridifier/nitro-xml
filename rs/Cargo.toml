@@ -12,6 +12,8 @@ members = [
     "crates/nitro-xml-wasm",
     "crates/nitro-xml",
 ]
+# cargo-fuzz nest (nightly + libFuzzer); has its own [workspace] in fuzz/Cargo.toml.
+exclude = ["fuzz"]
 
 [workspace.package]
 license = "MIT"   # default for crates with only original files; a crate containing ported upstream files sets `license = "MIT AND Apache-2.0"` itself (see AGENTS.md §6, PROVENANCE.md)

@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/chart-svg-cartesian.ts
 
+use super::chart_axis_nice::{
+    axis_scale_from_nice_bounds, axis_target_intervals, nice_value_axis_bounds,
+};
+use super::chart_plot_layout::{category_axis_band_px, left_value_axis_band_px, PlotLayout};
 use super::chart_scale::format_axis_value;
 use super::chart_view::{category_totals, ChartViewModel};
+use super::summary::ChartSummaryType;
 use super::svg_appearance::{chart_area_rect, chart_stroke, chart_text_attributes};
 use super::svg_bars::bars;
 use super::svg_util::{fit, line, text, text_width, Rect};
@@ -33,15 +38,61 @@ impl Frame {
     }
 }
 
-fn axes(model: &ChartViewModel, area: Rect, out: &mut Vec<String>) -> Option<Frame> {
+fn value_data_bounds(model: &ChartViewModel) -> (f64, f64) {
+    let stackable = matches!(
+        model.type_,
+        ChartSummaryType::Bar
+            | ChartSummaryType::Column
+            | ChartSummaryType::Line
+            | ChartSummaryType::Area
+    );
+    let mut min = f64::INFINITY;
+    let mut max = f64::NEG_INFINITY;
+    if stackable && model.grouping == "stacked" {
+        for i in 0..model.categories.len() {
+            let mut pos = 0.0;
+            let mut neg = 0.0;
+            for s in &model.series {
+                let v = s.values.get(i).copied().flatten().unwrap_or(0.0);
+                if v >= 0.0 {
+                    pos += v;
+                } else {
+                    neg += v;
+                }
+            }
+            min = min.min(neg);
+            max = max.max(pos);
+        }
+    } else {
+        for s in &model.series {
+            for v in s.values.iter().flatten() {
+                min = min.min(*v);
+                max = max.max(*v);
+            }
+        }
+    }
+    if min == f64::INFINITY {
+        (0.0, 1.0)
+    } else {
+        (min, max)
+    }
+}
+
+fn axes(
+    model: &ChartViewModel,
+    area: Rect,
+    out: &mut Vec<String>,
+    plot_layout: Option<PlotLayout>,
+) -> Option<Frame> {
     let axis = model.value_axis.as_ref()?;
-    let scale = &axis.scale;
+    let p9_bar3d = model.is3_d
+        && model.bar3d_extrusion
+        && matches!(
+            model.type_,
+            ChartSummaryType::Bar | ChartSummaryType::Column
+        );
     let percent = axis.percent;
-    let labels: Vec<String> = scale
-        .ticks
-        .iter()
-        .map(|t| format_axis_value(*t, percent))
-        .collect();
+    let mut scale = axis.scale.clone();
     let value_attrs = chart_text_attributes(model, "valueAxis", 10.0);
     let category_attrs = chart_text_attributes(model, "categoryAxis", 10.0);
     let value_size = value_attrs.size.unwrap_or(10.0);
@@ -61,9 +112,10 @@ fn axes(model: &ChartViewModel, area: Rect, out: &mut Vec<String>) -> Option<Fra
         .and_then(|e| e.labels_visible)
         .unwrap_or(true);
     let label_w = if value_labels {
-        labels
+        scale
+            .ticks
             .iter()
-            .map(|l| text_width(l, value_size))
+            .map(|t| text_width(&format_axis_value(*t, percent), value_size))
             .fold(8.0, f64::max)
             + 6.0
     } else {
@@ -85,6 +137,24 @@ fn axes(model: &ChartViewModel, area: Rect, out: &mut Vec<String>) -> Option<Fra
             w: (area.w - cat_w - 4.0).max(1.0),
             h: (area.h - (value_size * 1.5).max(16.0)).max(1.0),
         }
+    } else if p9_bar3d {
+        if let Some(layout) = plot_layout {
+            Rect {
+                x: layout.plot_left,
+                y: layout.plot_top,
+                w: layout.plot_width,
+                h: layout.plot_height,
+            }
+        } else {
+            let left = left_value_axis_band_px(label_w);
+            let bottom = category_axis_band_px(model.category_label_offset, category_size);
+            Rect {
+                x: area.x + left,
+                y: area.y + 4.0,
+                w: (area.w - left - 4.0).max(1.0),
+                h: (area.h - bottom - 4.0).max(1.0),
+            }
+        }
     } else {
         Rect {
             x: area.x + label_w,
@@ -93,6 +163,16 @@ fn axes(model: &ChartViewModel, area: Rect, out: &mut Vec<String>) -> Option<Fra
             h: (area.h - (category_size * 1.5).max(20.0)).max(1.0),
         }
     };
+    if p9_bar3d {
+        let (data_min, data_max) = value_data_bounds(model);
+        let bounds = nice_value_axis_bounds(data_min, data_max, axis_target_intervals(plot.h), 0.0);
+        scale = axis_scale_from_nice_bounds(bounds);
+    }
+    let labels: Vec<String> = scale
+        .ticks
+        .iter()
+        .map(|t| format_axis_value(*t, percent))
+        .collect();
     let span = scale.max - scale.min;
     let span = if span == 0.0 { 1.0 } else { span };
     let min = scale.min;
@@ -208,12 +288,17 @@ fn plotted(model: &ChartViewModel) -> Vec<Vec<Option<f64>>> {
         .collect()
 }
 
-pub fn cartesian_svg(model: &ChartViewModel, area: Rect, picture_defs: &mut Vec<String>) -> String {
+pub fn cartesian_svg(
+    model: &ChartViewModel,
+    area: Rect,
+    picture_defs: &mut Vec<String>,
+    plot_layout: Option<PlotLayout>,
+) -> String {
     let mut out: Vec<String> = Vec::new();
     if model.type_ == super::summary::ChartSummaryType::Scatter {
         return super::svg_scatter::scatter(model, area, &mut out);
     }
-    let frame = axes(model, area, &mut out);
+    let frame = axes(model, area, &mut out, plot_layout);
     if frame.is_none() {
         return out.join("");
     }
@@ -228,4 +313,73 @@ pub fn cartesian_svg(model: &ChartViewModel, area: Rect, picture_defs: &mut Vec<
         super::svg_lines::lines_and_areas(model, &frame, &mut out, &values);
     }
     out.join("")
+}
+
+#[cfg(test)]
+mod tests {
+    use nitro_xml_opc::chart::parse_chart_space_xml;
+
+    use crate::chart::{render_chart_space_svg, ChartSvgOptions, RenderChartSpaceOptions};
+
+    fn first_bar_rect(svg: &str) -> (f64, f64, f64, f64) {
+        let marker = "<g data-chart-series=\"0\" data-chart-point=\"0\">";
+        let start = svg.find(marker).expect("bar group");
+        let rest = &svg[start..];
+        let rect_start = rest.find("<rect x=\"").expect("front rect");
+        let rest = &rest[rect_start + 9..];
+        let parts = rest.split('"').collect::<Vec<_>>();
+        let x = parts[0].parse().expect("x");
+        let y = parts[2].parse().expect("y");
+        let w = parts[4].parse().expect("w");
+        let h = parts[6].parse().expect("h");
+        (x, y, w, h)
+    }
+
+    // Catches: 3D clustered column plot origin drifts ~25px left/up vs P9 so extrusion faces miss TS pixels.
+    #[test]
+    fn bar3d_clustered_plot_layout_matches_p9_bands_at_slide_size() {
+        let deck = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/upstream/pptx/2789ff8d6772_three-d-charts.pptx");
+        let bytes = std::fs::read(&deck).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+        let mut chart_xml = String::new();
+        {
+            let mut file = archive.by_name("ppt/charts/chart1.xml").unwrap();
+            std::io::Read::read_to_string(&mut file, &mut chart_xml).unwrap();
+        }
+        let parsed = parse_chart_space_xml(&chart_xml);
+        let svg_opts = ChartSvgOptions {
+            bar3d_extrusion: true,
+            ..Default::default()
+        };
+        let svg = render_chart_space_svg(
+            &parsed.chart_space,
+            &RenderChartSpaceOptions {
+                width: 840,
+                height: 460,
+                svg: svg_opts,
+            },
+        );
+        assert!(
+            svg.contains("Chart Title"),
+            "expected auto title placeholder to reserve P9 title band"
+        );
+        let (x, y, w, h) = first_bar_rect(&svg);
+        assert!(
+            x > 67.3,
+            "regression: x {x} should be right of legacy S1 ~67.3"
+        );
+        assert!(
+            (x - 92.3).abs() < 15.0,
+            "bar x drift: got {x}, expected ~92.3 (legacy S1 ~67.3)"
+        );
+        assert!(
+            !svg.contains(">6</text>"),
+            "value axis should top out at 5 for this deck, not legacy S1 0..6"
+        );
+        assert!(
+            y > 90.0 && y < 220.0 && w > 35.0 && h > 250.0,
+            "bar box sanity: got ({x},{y},{w},{h})"
+        );
+    }
 }

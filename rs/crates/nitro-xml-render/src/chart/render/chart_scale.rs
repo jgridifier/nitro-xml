@@ -15,7 +15,7 @@ pub struct NiceScaleOptions {
     pub no_zero: bool,
 }
 
-fn clean(n: f64) -> f64 {
+pub(crate) fn clean(n: f64) -> f64 {
     let s = format!("{:.12}", n);
     s.parse().unwrap_or(n)
 }

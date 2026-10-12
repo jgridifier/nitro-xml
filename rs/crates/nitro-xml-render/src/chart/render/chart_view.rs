@@ -64,6 +64,8 @@ pub struct ChartViewModel {
     pub title_layout: Option<nitro_xml_opc::chart::ChartManualLayout>,
     pub title_text: Option<ChartTitleText>,
     pub legend_overlay: bool,
+    /// `c:catAx/c:lblOffset` as a percent (100 = default); used for P9 plot-area bottom band.
+    pub category_label_offset: f64,
 }
 
 fn supported_type(t: ChartSummaryType) -> bool {
@@ -266,6 +268,7 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
         title_layout: None,
         title_text: None,
         legend_overlay: false,
+        category_label_offset: 100.0,
     };
     if type_ == ChartSummaryType::Scatter {
         for (i, s) in model.series.iter_mut().enumerate() {

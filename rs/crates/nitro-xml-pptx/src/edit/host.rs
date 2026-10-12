@@ -2,6 +2,7 @@
 //! Mutable pptx edit host: slide-owned elements plus text/fill overlays (#84).
 
 use std::any::Any;
+use std::collections::BTreeSet;
 
 use nitro_xml_opc::drawingml::{
     patch_shape_fill, patch_shape_line, resolve_xfrm_emu, EMU_PER_PIXEL,
@@ -108,6 +109,14 @@ pub struct EditableElement {
     pub children: Vec<EditableElement>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shape_type: Option<String>,
+    /// Index of this shape among the slide part's spTree children at open.
+    /// `None` for shapes created in this session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_sp_index: Option<usize>,
+    /// When set, this element serializes through another element's source XML
+    /// node (upstream `cloneElement` shares `rawXml`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xml_share_of: Option<String>,
 }
 
 impl EditableElement {
@@ -133,6 +142,8 @@ impl EditableElement {
             stroke_width: None,
             children: Vec::new(),
             shape_type: None,
+            source_sp_index: None,
+            xml_share_of: None,
         }
     }
 
@@ -167,6 +178,9 @@ impl EditableElement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PptxHost {
     pub slides: Vec<EditableSlide>,
+    /// OPC part names mutated since open (or since the restored snapshot).
+    #[serde(default)]
+    pub dirty_parts: BTreeSet<String>,
 }
 
 impl PptxHost {
@@ -184,11 +198,35 @@ impl PptxHost {
                 .elements
                 .iter()
                 .filter(|el| el.id.starts_with(&path))
-                .map(editable_from_dump)
+                .enumerate()
+                .map(|(i, el)| {
+                    let mut editable = editable_from_dump(el);
+                    editable.source_sp_index = Some(i);
+                    editable
+                })
                 .collect();
             slides.push(EditableSlide { path, elements });
         }
-        Ok(Self { slides })
+        Ok(Self {
+            slides,
+            dirty_parts: BTreeSet::new(),
+        })
+    }
+
+    /// True when a shape command has marked at least one slide part.
+    pub fn is_dirty(&self) -> bool {
+        !self.dirty_parts.is_empty()
+    }
+
+    fn touch(&mut self, slide_index: u32) -> Result<(), String> {
+        let path = self
+            .slides
+            .get(slide_index as usize)
+            .ok_or_else(|| format!("slide {slide_index} missing"))?
+            .path
+            .clone();
+        self.dirty_parts.insert(path);
+        Ok(())
     }
 
     pub fn slide_mut(&mut self, index: u32) -> Result<&mut EditableSlide, String> {
@@ -273,6 +311,8 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
             .map(|kids| kids.iter().map(editable_from_dump).collect())
             .unwrap_or_default(),
         shape_type: el.shape_type.clone(),
+        source_sp_index: None,
+        xml_share_of: None,
     }
 }
 
@@ -355,7 +395,7 @@ impl PptxHost {
             shapes::remap_text_to_segments(text, &el.text_segments, el.text_style.as_ref());
         el.text = Some(text.to_owned());
         el.text_segments = segments;
-        Ok(())
+        self.touch(slide_index)
     }
 
     pub fn patch_geometry(
@@ -375,7 +415,7 @@ impl PptxHost {
             patch.height.unwrap_or(el.height),
             patch.rotation.unwrap_or(el.rotation),
         );
-        Ok(())
+        self.touch(slide_index)
     }
 
     pub fn set_text_style(
@@ -401,7 +441,7 @@ impl PptxHost {
         if let Some(color) = patch.color {
             style.color = Some(color.to_owned());
         }
-        Ok(())
+        self.touch(slide_index)
     }
 
     pub fn add_shape(&mut self, slide_index: u32, shape: NewShape<'_>) -> Result<(), String> {
@@ -419,7 +459,7 @@ impl PptxHost {
             Some("solid"),
         );
         slide.elements.push(el);
-        Ok(())
+        self.touch(slide_index)
     }
 
     pub fn delete_shape(
@@ -431,7 +471,7 @@ impl PptxHost {
         let slide = self.slide_mut(slide_index)?;
         let idx = Self::resolve_index(slide, element_id, element_index)?;
         slide.elements.remove(idx);
-        Ok(())
+        self.touch(slide_index)
     }
 
     pub fn duplicate_shape(
@@ -445,14 +485,23 @@ impl PptxHost {
         let idx = Self::resolve_index(slide, element_id, element_index)?;
         let mut copy = slide.elements[idx].clone();
         let source_id = copy.id.clone();
+        // Upstream `cloneElement` shares `rawXml`. A shape that came from the
+        // package (or already aliases one) keeps that node; an in-session
+        // shape has no raw XML and is serialized on its own.
+        let share = copy
+            .xml_share_of
+            .clone()
+            .or_else(|| copy.source_sp_index.map(|_| source_id.clone()));
         copy.id = new_id
             .map(str::to_owned)
             .unwrap_or_else(|| format!("dup-{source_id}"));
+        copy.source_sp_index = None;
+        copy.xml_share_of = share;
         copy.x += shapes::DUPLICATE_OFFSET_PX;
         copy.y += shapes::DUPLICATE_OFFSET_PX;
         copy.sync_emus();
         slide.elements.push(copy);
-        Ok(())
+        self.touch(slide_index)
     }
 
     pub fn reorder(
@@ -466,7 +515,7 @@ impl PptxHost {
         let idx = Self::resolve_index(slide, element_id, element_index)?;
         let id = slide.elements[idx].id.clone();
         slide.elements = shapes::reorder(&slide.elements, &id, op);
-        Ok(())
+        self.touch(slide_index)
     }
 
     pub fn group_shapes(
@@ -477,7 +526,7 @@ impl PptxHost {
     ) -> Result<(), String> {
         let slide = self.slide_mut(slide_index)?;
         slide.elements = shapes::group_elements(&slide.elements, element_ids, group_id);
-        Ok(())
+        self.touch(slide_index)
     }
 
     pub fn ungroup_shapes(
@@ -492,7 +541,7 @@ impl PptxHost {
             return Err(format!("element {group_id} missing"));
         }
         slide.elements = shapes::ungroup_elements(&slide.elements, group_id, child_ids);
-        Ok(())
+        self.touch(slide_index)
     }
 
     pub fn set_fill(
@@ -506,7 +555,7 @@ impl PptxHost {
         let slide = self.slide_mut(slide_index)?;
         let idx = Self::resolve_index(slide, element_id, element_index)?;
         slide.elements[idx].patch_fill(color, mode);
-        Ok(())
+        self.touch(slide_index)
     }
 
     pub fn set_line(
@@ -520,7 +569,7 @@ impl PptxHost {
         let slide = self.slide_mut(slide_index)?;
         let idx = Self::resolve_index(slide, element_id, element_index)?;
         slide.elements[idx].patch_line(color, width);
-        Ok(())
+        self.touch(slide_index)
     }
 }
 

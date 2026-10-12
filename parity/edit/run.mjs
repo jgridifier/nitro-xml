@@ -25,6 +25,25 @@ import { loadEditScripts, resolveFixture, fixtureAbs, ROOT } from './scripts.mjs
 import { rustDocxSave } from './rust-docx.mjs';
 import { rustXlsxSave } from './rust-xlsx.mjs';
 import { snapshotDocx, stableStringify } from '../undo/snapshot.mjs';
+import { rustPptxSave } from './rust-pptx.mjs';
+
+/** Shape ops implemented by the #84 host. Scripts that need #85/#86 are soft-skipped. */
+const PPTX_SHAPE_OPS = new Set([
+	'setShapeText',
+	'patchShapeGeometry',
+	'setShapeTextStyle',
+	'addShape',
+	'deleteShape',
+	'duplicateShape',
+	'bringForward',
+	'sendBackward',
+	'bringToFront',
+	'sendToBack',
+	'groupShapes',
+	'ungroupShapes',
+	'setShapeFill',
+	'setShapeLine',
+]);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, 'out');
@@ -36,6 +55,7 @@ function parseArgs(argv) {
 		ci: false,
 		rustDocx: false,
 		rustXlsx: false,
+		rustPptx: false,
 		negativeControl: false,
 	};
 	for (let i = 2; i < argv.length; i++) {
@@ -45,10 +65,11 @@ function parseArgs(argv) {
 		else if (a === '--ci') out.ci = true;
 		else if (a === '--rust-docx') out.rustDocx = true;
 		else if (a === '--rust-xlsx') out.rustXlsx = true;
+		else if (a === '--rust-pptx') out.rustPptx = true;
 		else if (a === '--negative-control') out.negativeControl = true;
 		else if (a === '--help' || a === '-h') {
 			console.log(
-				'Usage: bun run.mjs [--ci] [--format xlsx|docx|pptx] [--id script-id] [--rust-docx] [--rust-xlsx] [--negative-control]',
+				'Usage: bun run.mjs [--ci] [--format xlsx|docx|pptx] [--id script-id] [--rust-docx] [--rust-xlsx] [--rust-pptx] [--negative-control]',
 			);
 			process.exit(0);
 		}
@@ -75,6 +96,21 @@ async function workbookHasFullCalc(bytes) {
 	if (!file) return false;
 	const xml = await file.async('string');
 	return /fullCalcOnLoad\s*=\s*"1"/.test(xml);
+}
+
+function pptxShapeScript(script) {
+	return (script.ops || []).every((op) => PPTX_SHAPE_OPS.has(op.op));
+}
+
+async function slideXmlRewritten(inputBytes, outputBytes) {
+	const cmp = await comparePackages(inputBytes, outputBytes);
+	return (cmp.losses || []).some(
+		(l) =>
+			l.category === 'xml-rewrite' &&
+			typeof l.part === 'string' &&
+			l.part.startsWith('ppt/slides/slide') &&
+			l.part.endsWith('.xml'),
+	);
 }
 
 function assertPin() {
@@ -305,10 +341,36 @@ async function main() {
 			)
 		: [];
 
-	// Each writer's negative control runs when that writer is selected. With
-	// neither --rust-docx nor --rust-xlsx, both controls run.
-	const runDocxControl = args.negativeControl && (args.rustDocx || !args.rustXlsx);
-	const runXlsxControl = args.negativeControl && (args.rustXlsx || !args.rustDocx);
+	/** @type {string[]} */
+	const rustPptxSkipped = [];
+	/** @type {{ id: string, losses: object[] }[]} */
+	let rustPptxFailures = [];
+	if (args.rustPptx) {
+		const shapeScripts = [];
+		for (const script of scripts.filter((s) => s.format === 'pptx')) {
+			if (!pptxShapeScript(script)) {
+				rustPptxSkipped.push(script.id);
+				console.log(`rust-pptx: ${script.id} … skip (needs #85/#86)`);
+			} else {
+				shapeScripts.push(script);
+			}
+		}
+		rustPptxFailures = await compareRust(
+			'rust-pptx',
+			shapeScripts,
+			(input, scriptPath) => rustPptxSave(input, scriptPath, { skipSlideRewrite: false }),
+		);
+	}
+	const rustPptxCompared = args.rustPptx
+		? scripts.filter((s) => s.format === 'pptx').length - rustPptxSkipped.length
+		: 0;
+
+	// Each writer's negative control runs when that writer is selected.
+	// With no --rust-* flag, every control runs (same as selecting all three).
+	const anyRust = args.rustDocx || args.rustXlsx || args.rustPptx;
+	const runDocxControl = args.negativeControl && (!anyRust || args.rustDocx);
+	const runXlsxControl = args.negativeControl && (!anyRust || args.rustXlsx);
+	const runPptxControl = args.negativeControl && (!anyRust || args.rustPptx);
 
 	let negativeControlDocx = null;
 	if (runDocxControl) {
@@ -376,9 +438,46 @@ async function main() {
 		}
 	}
 
+	let negativeControlPptx = null;
+	if (runPptxControl) {
+		const script =
+			scripts.find((s) => s.id === 'pptx-set-text-s0') ||
+			scripts.find((s) => s.format === 'pptx' && pptxShapeScript(s));
+		if (!script) {
+			console.error('negative-control pptx: FAIL (no pptx shape script)');
+			process.exit(1);
+		}
+		const input = new Uint8Array(readFileSync(fixtureAbs(resolveFixture(script))));
+		const dirty = rustPptxSave(input, script.path, { skipSlideRewrite: false });
+		const skipped = rustPptxSave(input, script.path, { skipSlideRewrite: true });
+		const dirtyRewrote = await slideXmlRewritten(input, dirty);
+		const skipRewrote = await slideXmlRewritten(input, skipped);
+		if (!dirtyRewrote) {
+			negativeControlPptx = 'fail-missing-on-dirty';
+			console.error(
+				'negative-control pptx: FAIL (dirty save did not rewrite ppt/slides/slideN.xml; detector had nothing to reject)',
+			);
+		} else if (skipRewrote) {
+			negativeControlPptx = 'fail-skip-ignored';
+			console.error(
+				'negative-control pptx: FAIL (--skip-slide-rewrite still changed ppt/slides/slideN.xml)',
+			);
+		} else {
+			negativeControlPptx = 'pass';
+			console.log(
+				'negative-control pptx: detector FAIL (slide XML unchanged) — expected for --skip-slide-rewrite',
+			);
+			console.log('negative-control pptx: PASS');
+		}
+	}
+
 	const negativeControl =
-		negativeControlDocx || negativeControlXlsx
-			? { docx: negativeControlDocx, xlsx: negativeControlXlsx }
+		negativeControlDocx || negativeControlXlsx || negativeControlPptx
+			? {
+					docx: negativeControlDocx,
+					xlsx: negativeControlXlsx,
+					pptx: negativeControlPptx,
+				}
 			: null;
 
 	const failed = rows.filter((r) => !r.ok);
@@ -400,6 +499,13 @@ async function main() {
 			? {
 					compared: scripts.filter((s) => s.format === 'xlsx').length,
 					fail: rustXlsxFailures.length,
+				}
+			: null,
+		rustPptx: args.rustPptx
+			? {
+					compared: rustPptxCompared,
+					fail: rustPptxFailures.length,
+					skipped: rustPptxSkipped,
 				}
 			: null,
 		negativeControl,
@@ -439,20 +545,36 @@ async function main() {
 			lines.push(`  rust-xlsx FAIL: ${rustXlsxFailures.map((r) => r.id).join(', ')}`);
 		}
 	}
+	if (args.rustPptx) {
+		lines.push(
+			`  rust-pptx ${rustPptxCompared - rustPptxFailures.length}/${rustPptxCompared} match TS (docProps allowed)`,
+		);
+		if (rustPptxSkipped.length) {
+			lines.push(`  rust-pptx skip: ${rustPptxSkipped.join(', ')}`);
+		}
+		if (rustPptxFailures.length) {
+			lines.push(`  rust-pptx FAIL: ${rustPptxFailures.map((r) => r.id).join(', ')}`);
+		}
+	}
 	if (negativeControlDocx) {
 		lines.push(`  negative-control docx: ${negativeControlDocx}`);
 	}
 	if (negativeControlXlsx) {
 		lines.push(`  negative-control xlsx: ${negativeControlXlsx}`);
 	}
+	if (negativeControlPptx) {
+		lines.push(`  negative-control pptx: ${negativeControlPptx}`);
+	}
 	const gateText = lines.join('\n') + '\n';
 	writeFileSync(join(OUT, 'gate-summary.txt'), gateText);
 	process.stdout.write(gateText);
 
-	const rustBad = rustDocxFailures.length > 0 || rustXlsxFailures.length > 0;
+	const rustBad =
+		rustDocxFailures.length > 0 || rustXlsxFailures.length > 0 || rustPptxFailures.length > 0;
 	const controlBad =
 		(negativeControlDocx && negativeControlDocx !== 'pass') ||
-		(negativeControlXlsx && negativeControlXlsx !== 'pass');
+		(negativeControlXlsx && negativeControlXlsx !== 'pass') ||
+		(negativeControlPptx && negativeControlPptx !== 'pass');
 	if (failed.length || rustBad || controlBad) process.exit(1);
 }
 

@@ -50,7 +50,6 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     queue_sp_autofit_scroll_height(
         ctx.layout_reads,
         &mut ctx.layout_read_records,
-        ctx.sp_autofit,
         &el.id,
         el.auto_fit_mode,
         block,

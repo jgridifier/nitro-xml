@@ -40,7 +40,6 @@ pub(crate) struct LayoutReadRecord {
 #[derive(Debug, Default)]
 pub struct SpAutofitSlideState {
     pub height_overrides: std::collections::HashMap<String, f64>,
-    settled: std::collections::HashSet<String>,
     last_read_records: Vec<LayoutReadRecord>,
 }
 
@@ -50,10 +49,6 @@ impl SpAutofitSlideState {
             .get(element_id)
             .copied()
             .unwrap_or(authored_height)
-    }
-
-    pub fn is_settled(&self, element_id: &str) -> bool {
-        self.settled.contains(element_id)
     }
 
     pub(crate) fn finish_frame(&mut self, records: Vec<LayoutReadRecord>) {
@@ -77,9 +72,6 @@ impl SpAutofitSlideState {
                 compute_auto_fit_shape_height_px(Some(*mode), measured, *current_height)
             {
                 self.height_overrides.insert(element_id.clone(), next);
-                self.settled.remove(element_id);
-            } else if *mode == TextAutoFitMode::Shrink && measured > 0.0 {
-                self.settled.insert(element_id.clone());
             }
         }
         self.last_read_records.clear();
@@ -101,16 +93,12 @@ impl SpAutofitPaintState {
 pub fn queue_sp_autofit_scroll_height(
     layout_reads: &mut LayoutReadBatch,
     records: &mut Vec<LayoutReadRecord>,
-    slide_state: &mut SpAutofitSlideState,
     element_id: &str,
     auto_fit_mode: Option<TextAutoFitMode>,
     text_block_node_id: u32,
     current_height_px: f64,
 ) {
     if auto_fit_mode != Some(TextAutoFitMode::Shrink) {
-        return;
-    }
-    if slide_state.is_settled(element_id) {
         return;
     }
     layout_reads.push(text_block_node_id, LayoutReadKind::ScrollHeight, 0);

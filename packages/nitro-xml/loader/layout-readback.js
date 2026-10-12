@@ -6,6 +6,32 @@ ComputedStyle: 3,
 NaturalWidth: 4,
 });
 export const LAYOUT_RESULT_LANES = 4;
+
+/** Natural content height at `el`'s width (upstream `measureAutoFitContentHeightPx`). */
+function measureScrollHeightPx(el) {
+if (!el || typeof document === "undefined") return el?.scrollHeight || 0;
+const doc = el.ownerDocument || document;
+const width = el.offsetWidth || 0;
+const clone = el.cloneNode(true);
+clone.style.position = "fixed";
+clone.style.visibility = "hidden";
+clone.style.pointerEvents = "none";
+clone.style.left = "-99999px";
+clone.style.top = "0";
+clone.style.right = "auto";
+clone.style.bottom = "auto";
+clone.style.width = `${width}px`;
+clone.style.height = "auto";
+clone.style.minHeight = "0";
+clone.style.maxHeight = "none";
+doc.body.appendChild(clone);
+try {
+return clone.scrollHeight || 0;
+} finally {
+doc.body.removeChild(clone);
+}
+}
+
 export function packLayoutReqs(nodes, kinds, props) {
 const n = nodes.length;
 const reqs = new Array(n);
@@ -41,7 +67,7 @@ out[base + 3] = rect.height;
 break;
 }
 case LayoutReadKind.ScrollHeight: {
-out[base] = el.scrollHeight || 0;
+out[base] = measureScrollHeightPx(el);
 break;
 }
 case LayoutReadKind.ComputedStyle: {

@@ -52,13 +52,17 @@ function assertPin() {
 	if (head !== pin) throw new Error(`upstream not at pin ${pin} (got ${head})`);
 }
 
-/** Package compare allowing known TS residues (style table after style undo). */
+/** Package compare allowing known residues (style table after style undo; docProps timestamps). */
 function undoSaveOk(cmp) {
 	if (cmp.lossless) return { ok: true, allowedResidue: false };
-	const onlyStyles = cmp.losses.every(
-		(l) => l.category === 'styles' || (l.part && String(l.part).includes('styles')),
+	const allowed = cmp.losses.every(
+		(l) =>
+			l.category === 'styles' ||
+			(l.part && String(l.part).includes('styles')) ||
+			l.category === 'docProps' ||
+			(l.part && String(l.part).startsWith('docProps/')),
 	);
-	return { ok: onlyStyles, allowedResidue: onlyStyles };
+	return { ok: allowed, allowedResidue: allowed };
 }
 
 /** Redo/edit package compare: allow docProps timestamp drift from multiple saves. */

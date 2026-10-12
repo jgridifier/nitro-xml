@@ -262,18 +262,18 @@ async function textareaOracle(chromium, c) {
 					el.setSelectionRange(c, c);
 				}
 			}
-			const a = el.selectionStart;
-			const b = el.selectionEnd;
+			const selStart = el.selectionStart;
+			const selEnd = el.selectionEnd;
 			const dir = el.selectionDirection || 'none';
 			// Emit anchor/focus (caret = focus) like Rust; reverse when direction is backward.
-			const anchor = dir === 'backward' ? b : a;
-			const focus = dir === 'backward' ? a : b;
-			const caretX = focus * charW;
+			const outAnchor = dir === 'backward' ? selEnd : selStart;
+			const outFocus = dir === 'backward' ? selStart : selEnd;
+			const caretX = outFocus * charW;
 			return {
 				text: el.value,
-				anchor,
-				focus,
-				selected: el.value.slice(Math.min(a, b), Math.max(a, b)),
+				anchor: outAnchor,
+				focus: outFocus,
+				selected: el.value.slice(Math.min(selStart, selEnd), Math.max(selStart, selEnd)),
 				clipboard,
 				caret: { x: caretX, y: 0, w: 1, h: 16 },
 			};
@@ -338,7 +338,9 @@ async function main() {
 	if (failed) process.exit(1);
 }
 
-main().catch((e) => {
+try {
+	await main();
+} catch (e) {
 	console.error(e);
 	process.exit(1);
-});
+}

@@ -37,7 +37,10 @@ pub fn paste_plain(field: &mut TextField, text: &str) -> bool {
 
 /// Quotes a TSV field the way Excel does when it holds a tab, line break or quote.
 fn quote_field(text: &str) -> String {
-    if text.bytes().any(|b| matches!(b, b'\t' | b'\r' | b'\n' | b'"')) {
+    if text
+        .bytes()
+        .any(|b| matches!(b, b'\t' | b'\r' | b'\n' | b'"'))
+    {
         let mut out = String::with_capacity(text.len() + 2);
         out.push('"');
         for ch in text.chars() {
@@ -104,7 +107,10 @@ pub fn parse_tsv(text: &str) -> Vec<Vec<String>> {
             if let Some(close) = find_closing_quote(&chars, i + 1) {
                 let next = chars.get(close + 1).copied();
                 if next.is_none() || next == Some('\t') || next == Some('\n') {
-                    field = chars[i + 1..close].iter().collect::<String>().replace("\"\"", "\"");
+                    field = chars[i + 1..close]
+                        .iter()
+                        .collect::<String>()
+                        .replace("\"\"", "\"");
                     i = close + 1;
                     at_field_start = false;
                     continue;
@@ -192,7 +198,10 @@ mod tests {
     #[test]
     fn catches_tsv_roundtrip_quoted_tab_and_newline() {
         // Catches: Excel-style TSV must quote fields that hold tab/newline/quote.
-        let rows = vec![vec!["a\tb".into(), "c\"d".into()], vec!["e\nf".into(), "g".into()]];
+        let rows = vec![
+            vec!["a\tb".into(), "c\"d".into()],
+            vec!["e\nf".into(), "g".into()],
+        ];
         let tsv = to_tsv(&rows);
         let parsed = parse_tsv(&tsv);
         assert_eq!(parsed, rows);

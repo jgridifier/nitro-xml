@@ -6,7 +6,9 @@
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::selection::{next_grapheme, next_word_boundary, prev_grapheme, prev_word_boundary, TextField};
+use super::selection::{
+    next_grapheme, next_word_boundary, prev_grapheme, prev_word_boundary, TextField,
+};
 
 /// Axis-aligned CSS-px rectangle (origin top-left of the field content box).
 #[derive(Clone, Copy, Debug, PartialEq)]

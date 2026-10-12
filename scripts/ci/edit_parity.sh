@@ -34,6 +34,9 @@ echo "edit-parity: installing harness deps"
 echo "edit-parity: schema / corpus unit tests"
 ( cd parity/edit && bun test )
 
+echo "edit-parity: formula-shift negative control (#76)"
+( cd rs && cargo test -p nitro-xml-xlsx --lib catches_unshifted_formula_after_row_insert -- --nocapture )
+
 echo "edit-parity: TS-vs-TS apply+save over edits/*.json"
 set +e
 ( cd parity/edit && bun ./run.mjs --ci )

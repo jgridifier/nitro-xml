@@ -15,6 +15,10 @@ pub const SCHEMA_OP_IDS: &[&str] = &[
     "addSheet",
     "renameSheet",
     "deleteSheet",
+    "insertRows",
+    "deleteRows",
+    "insertColumns",
+    "deleteColumns",
     "batch",
     "setParagraphText",
     "setRunFormatting",
@@ -87,6 +91,14 @@ pub enum Op {
     RenameSheet { index: u32, name: String },
     #[serde(rename = "deleteSheet")]
     DeleteSheet { index: u32 },
+    #[serde(rename = "insertRows")]
+    InsertRows { sheet: u32, at: u32, count: u32 },
+    #[serde(rename = "deleteRows")]
+    DeleteRows { sheet: u32, at: u32, count: u32 },
+    #[serde(rename = "insertColumns")]
+    InsertColumns { sheet: u32, at: u32, count: u32 },
+    #[serde(rename = "deleteColumns")]
+    DeleteColumns { sheet: u32, at: u32, count: u32 },
     #[serde(rename = "batch")]
     Batch {
         #[serde(default)]
@@ -189,6 +201,10 @@ impl Op {
             Self::AddSheet { .. } => "addSheet",
             Self::RenameSheet { .. } => "renameSheet",
             Self::DeleteSheet { .. } => "deleteSheet",
+            Self::InsertRows { .. } => "insertRows",
+            Self::DeleteRows { .. } => "deleteRows",
+            Self::InsertColumns { .. } => "insertColumns",
+            Self::DeleteColumns { .. } => "deleteColumns",
             Self::Batch { .. } => "batch",
             Self::SetParagraphText { .. } => "setParagraphText",
             Self::SetRunFormatting { .. } => "setRunFormatting",

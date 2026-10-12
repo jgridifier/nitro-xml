@@ -1,0 +1,21 @@
+{
+  "id": "xlsx-insert-col-formula",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Set B1 to =A1 and insert a column at the left so the formula becomes B1",
+  "ops": [
+    {
+      "op": "setCellInput",
+      "sheet": 0,
+      "row": 0,
+      "col": 1,
+      "text": "=A1"
+    },
+    {
+      "op": "insertColumns",
+      "sheet": 0,
+      "at": 0,
+      "count": 1
+    }
+  ]
+}

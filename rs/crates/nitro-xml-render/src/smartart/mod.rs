@@ -21,6 +21,13 @@ use nitro_xml_opc::drawingml::{
 };
 use nitro_xml_opc::xml::{parse_xml_str, Element, Node};
 
+/// `a:ln/@w` on diagram drawing shapes: TS `parseDrawingShape` maps EMU ÷ 12700 to SVG stroke-width.
+const EMU_PER_SMARTART_LINE_WIDTH: f64 = 12700.0;
+
+fn smartart_ln_width_emu_to_svg(emu: f64) -> f64 {
+    emu / EMU_PER_SMARTART_LINE_WIDTH
+}
+
 struct SchemeMap<'a>(&'a BTreeMap<String, String>);
 
 impl DrawingColorTheme for SchemeMap<'_> {
@@ -597,7 +604,7 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
     };
     let (stroke, stroke_width_emu) = stroke_of(sp_pr, scheme);
     let stroke_width = if stroke_width_emu > 0.0 {
-        emu_to_pixels(stroke_width_emu as i64)
+        smartart_ln_width_emu_to_svg(stroke_width_emu)
     } else {
         0.0
     };
@@ -1292,9 +1299,18 @@ mod tests {
         assert_eq!(args[0].kind, "path");
         assert_eq!(args[0].fill, "none");
         assert_eq!(args[0].stroke, "#156082");
+        assert!(
+            (args[0].stroke_width - 1.5).abs() < 0.01,
+            "expected EMU/12700 stroke width, got {:?}",
+            args[0].stroke_width
+        );
         let svg = smartart_svg(Some(xml), 120.0, 200.0);
         assert!(svg.contains("<path "), "{svg}");
         assert!(svg.contains("fill=\"none\""), "{svg}");
+        assert!(
+            svg.contains("stroke-width=\"1.5\""),
+            "TS parseDrawingShape uses 19050/12700 = 1.5px: {svg}"
+        );
     }
 
     // Catches: missing drawing XML painting an empty frame instead of a label.

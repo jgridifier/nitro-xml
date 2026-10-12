@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use crate::xml::Element;
 
 use super::dom::{c_child, c_children};
-use super::model::{ChartDataPoint, ChartMarker, ChartSpaceSeries};
+use super::model::{ChartDataPoint, ChartMarker, ChartPictureOptions, ChartSpaceSeries};
 use super::parse_text::{parse_chart_text, parse_data_labels, parse_data_source};
 use super::parse_util::{
     c_bool, c_number, c_val, extension_list_of, report_unmodelled, shape_properties,
@@ -25,6 +25,34 @@ fn parse_marker(context: &mut ChartParseContext, element: Option<&Element>) -> O
     })
 }
 
+fn parse_picture_options(
+    context: &mut ChartParseContext,
+    element: &Element,
+) -> Option<ChartPictureOptions> {
+    let po = c_child(Some(element), "pictureOptions")?;
+    let handled: HashSet<&str> = [
+        "applyToFront",
+        "applyToSides",
+        "applyToEnd",
+        "pictureFormat",
+        "pictureStackUnit",
+        "extLst",
+    ]
+    .into_iter()
+    .collect();
+    report_unmodelled(context, po, &handled);
+    let format = c_val(Some(po), "pictureFormat");
+    let picture_format =
+        format.filter(|f| matches!(f.as_str(), "stretch" | "stack" | "stackScale" | "sideways"));
+    Some(ChartPictureOptions {
+        apply_to_front: c_bool(context, Some(po), "applyToFront"),
+        apply_to_sides: c_bool(context, Some(po), "applyToSides"),
+        apply_to_end: c_bool(context, Some(po), "applyToEnd"),
+        picture_format,
+        picture_stack_unit: c_number(context, Some(po), "pictureStackUnit"),
+    })
+}
+
 fn parse_data_point(context: &mut ChartParseContext, element: &Element) -> ChartDataPoint {
     let handled: HashSet<&str> = [
         "idx",
@@ -33,6 +61,7 @@ fn parse_data_point(context: &mut ChartParseContext, element: &Element) -> Chart
         "bubble3D",
         "explosion",
         "spPr",
+        "pictureOptions",
         "extLst",
     ]
     .into_iter()
@@ -48,6 +77,7 @@ fn parse_data_point(context: &mut ChartParseContext, element: &Element) -> Chart
         explosion: c_number(context, Some(element), "explosion"),
         marker: parse_marker(context, c_child(Some(element), "marker")),
         sp_pr: shape_properties(context, Some(element)),
+        picture_options: parse_picture_options(context, element),
         ext_lst: extension_list_of(context, Some(element)),
     }
 }
@@ -71,6 +101,7 @@ pub fn parse_series(context: &mut ChartParseContext, element: &Element) -> Chart
         "bubbleSize",
         "bubble3D",
         "shape",
+        "pictureOptions",
         "extLst",
     ]
     .into_iter()
@@ -97,6 +128,7 @@ pub fn parse_series(context: &mut ChartParseContext, element: &Element) -> Chart
         explosion: c_number(context, Some(element), "explosion"),
         bubble3_d: c_bool(context, Some(element), "bubble3D"),
         shape: c_val(Some(element), "shape"),
+        picture_options: parse_picture_options(context, element),
         ext_lst: extension_list_of(context, Some(element)),
     }
 }

@@ -197,7 +197,10 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-render/src/chart/render/svg.rs` | `src/core/chart/render/chart-svg.ts` @ e66aaec | S1 SVG document. |
 | `rs/crates/nitro-xml-render/src/chart/render/svg_util.rs` | `src/core/chart/render/chart-svg-util.ts` @ e66aaec | SVG helpers. |
 | `rs/crates/nitro-xml-render/src/chart/render/svg_cartesian.rs` | `src/core/chart/render/chart-svg-cartesian.ts` @ e66aaec | Cartesian painter. |
-| `rs/crates/nitro-xml-render/src/chart/render/svg_bars.rs` | `src/core/chart/render/chart-svg-bars.ts` @ e66aaec | Bar series. |
+| `rs/crates/nitro-xml-render/src/chart/render/svg_bars.rs` | `src/core/chart/render/chart-svg-bars.ts` @ e66aaec | Bar series; `bar3D` extrusion faces + picture pattern fills (#27). |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_3d_depth.rs` | `src/ui/src/pptx/render/chart-3d-depth.ts` @ e66aaec | Oblique `bar3D` top/side extrusion from `c:view3D` (#27). |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_picture_fill.rs` | `src/ui/src/pptx/render/chart-datapoint-picture-fills.ts`, `chart-picture-pattern-def.ts` @ e66aaec | `c:dPt`/`c:ser` blip picture fills as SVG patterns (#27). |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_palette_shade.rs` | `src/ui/src/pptx/render/chart-style-palette.ts` (`shade`) @ e66aaec | Extrusion face tinting (#27). |
 | `rs/crates/nitro-xml-render/src/chart/render/svg_radial.rs` | `src/core/chart/render/chart-svg-radial.ts` @ e66aaec | Pie/doughnut/radar. |
 | `rs/crates/nitro-xml-render/src/chart/render/svg_legend.rs` | `src/core/chart/render/chart-svg-legend.ts` @ e66aaec | Legend layout. |
 | `rs/crates/nitro-xml-render/src/chart/render/svg_appearance.rs` | `src/core/chart/render/chart-svg-appearance.ts` @ e66aaec | Chart area fills and gradients. |

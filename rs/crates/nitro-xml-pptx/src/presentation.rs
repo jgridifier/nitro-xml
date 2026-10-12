@@ -24,7 +24,9 @@ use crate::slide::{
 };
 use crate::table_style::{parse_table_style_list, TableStyleMap};
 use crate::theme::{default_scheme_color_map, is_presentation_theme_path, parse_theme_part, Theme};
+use nitro_xml_opc::chart::parse_chart_space_xml;
 use nitro_xml_opc::drawingml::{parse_theme_color_map, ThemeColorMap, ThemeFormatScheme};
+use nitro_xml_render::chart::chart_blip_rel_ids;
 
 pub type Error = OpcError;
 
@@ -861,12 +863,42 @@ impl<'a> Presentation<'a> {
         image_data_url(&bytes, &path)
     }
 
+    fn attach_chart_image_urls(&mut self, el: &mut DumpElement) {
+        if el.chart_image_urls.is_some() {
+            return;
+        }
+        let xml = match el.chart_xml.as_deref() {
+            Some(x) => x,
+            None => return,
+        };
+        let part = match el.chart_part_path.as_deref() {
+            Some(p) => p,
+            None => return,
+        };
+        let parsed = parse_chart_space_xml(xml);
+        let mut urls = HashMap::new();
+        for rel_id in chart_blip_rel_ids(&parsed.chart_space) {
+            if let Some(url) = self.image_data_url_for_rel(part, &rel_id) {
+                urls.insert(rel_id, url);
+            }
+        }
+        if !urls.is_empty() {
+            el.chart_image_urls = Some(urls);
+        }
+    }
+
     fn attach_graphic_payloads(&mut self, owner: &str, elements: &mut [DumpElement]) {
         for el in elements.iter_mut() {
             if el.chart_xml.is_none() {
                 if let Some(rid) = el.chart_r_id.clone() {
+                    if let Some(path) = self.resolve_rel_target(owner, &rid).ok().flatten() {
+                        el.chart_part_path = Some(path);
+                    }
                     el.chart_xml = self.chart_part_xml(owner, &rid);
                 }
+            }
+            if el.chart_xml.is_some() {
+                self.attach_chart_image_urls(el);
             }
             if el.smartart_drawing_xml.is_none() {
                 if let Some(dm) = el.smartart_dm_r_id.clone() {

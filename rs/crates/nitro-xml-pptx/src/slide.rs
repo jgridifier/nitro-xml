@@ -110,6 +110,12 @@ pub struct DumpElement {
     /// Chart part XML. Not part of the issue-24 dump.
     #[serde(skip)]
     pub chart_xml: Option<String>,
+    /// Package path of the chart part (for resolving chart `a:blipFill` rels).
+    #[serde(skip)]
+    pub chart_part_path: Option<String>,
+    /// Resolved `data:` URLs for chart `a:blipFill` relationship ids.
+    #[serde(skip)]
+    pub chart_image_urls: Option<std::collections::HashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub smartart_dm_r_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1586,6 +1592,8 @@ fn build_dump(
         font_size_px: extras.font_size_px,
         chart_r_id: extras.chart_r_id,
         chart_xml: None,
+        chart_part_path: None,
+        chart_image_urls: None,
         smartart_dm_r_id: extras.smartart_dm_r_id,
         smartart_lo_r_id: extras.smartart_lo_r_id,
         smartart_qs_r_id: extras.smartart_qs_r_id,

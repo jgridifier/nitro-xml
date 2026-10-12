@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/render-space.ts
 
+use std::collections::HashMap;
+
 use nitro_xml_opc::chart::ChartSpace;
 
+use super::chart_picture_fill::resolve_chart_picture_fills;
 use super::chart_title_text::chart_title_text;
 use super::chart_view::chart_summary_view;
 use super::style_resolve::ResolvedChartStyleEntry;
@@ -35,6 +38,8 @@ pub struct RenderChartSpaceOptions<'a> {
     pub measure: ChartSvgMeasureOptions<'a>,
     pub theme_colors: Option<Vec<String>>,
     pub theme_fonts: ChartThemeFonts,
+    pub chart_images: HashMap<String, String>,
+    pub picture_id_prefix: String,
 }
 
 pub fn chart_space_kind(space: &ChartSpace) -> (Option<ChartSummaryType>, bool) {
@@ -57,6 +62,9 @@ pub fn render_chart_space_svg(
         options.theme_fonts.minor.as_deref(),
     );
     let mut view = chart_summary_view(&summary, &theme);
+    view.view3_d = space.view3_d.clone();
+    view.picture_fills = resolve_chart_picture_fills(space, &options.chart_images);
+    view.picture_prefix = options.picture_id_prefix.clone();
     let title_appearance = view
         .appearance
         .as_ref()

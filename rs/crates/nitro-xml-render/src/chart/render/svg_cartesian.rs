@@ -208,7 +208,7 @@ fn plotted(model: &ChartViewModel) -> Vec<Vec<Option<f64>>> {
         .collect()
 }
 
-pub fn cartesian_svg(model: &ChartViewModel, area: Rect) -> String {
+pub fn cartesian_svg(model: &ChartViewModel, area: Rect, picture_defs: &mut Vec<String>) -> String {
     let mut out: Vec<String> = Vec::new();
     if model.type_ == super::summary::ChartSummaryType::Scatter {
         return super::svg_scatter::scatter(model, area, &mut out);
@@ -223,7 +223,7 @@ pub fn cartesian_svg(model: &ChartViewModel, area: Rect) -> String {
         model.type_,
         super::summary::ChartSummaryType::Bar | super::summary::ChartSummaryType::Column
     ) {
-        bars(model, &frame, &mut out, &values);
+        bars(model, &frame, &mut out, picture_defs, &values);
     } else {
         super::svg_lines::lines_and_areas(model, &frame, &mut out, &values);
     }

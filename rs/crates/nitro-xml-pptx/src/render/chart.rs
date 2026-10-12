@@ -15,6 +15,7 @@ use super::dom::{create_child, position_box, set_attr, set_inner_markup_stub};
 use crate::slide::DumpElement;
 
 /// Paint S1 chart SVG into `parent_id` (does not clear `buffer`).
+#[allow(clippy::too_many_arguments)]
 pub fn paint_pptx_chart_xml(
     xml: &str,
     width: u32,
@@ -22,6 +23,8 @@ pub fn paint_pptx_chart_xml(
     buffer: &mut CommandBuffer,
     measure: &mut MeasureBatch,
     parent_id: u32,
+    picture_id_prefix: &str,
+    chart_images: std::collections::HashMap<String, String>,
     mut intern: impl FnMut(&str) -> u32,
 ) -> ChartSpace {
     let parsed = parse_chart_space_xml(xml);
@@ -30,7 +33,6 @@ pub fn paint_pptx_chart_xml(
         .iter()
         .any(|i| i.code == "CHART_ROOT_UNEXPECTED")
     {
-        // cx:/chartex and other unsupported roots: labelled frame (full P9 is out of scope).
         format!(
             "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\" role=\"img\"><text>chartex (TODO #28)</text></svg>"
         )
@@ -42,6 +44,8 @@ pub fn paint_pptx_chart_xml(
                 height,
                 svg: ChartSvgOptions {
                     measure_widths: measure.widths.clone(),
+                    chart_images,
+                    picture_id_prefix: picture_id_prefix.to_string(),
                     ..Default::default()
                 },
             },
@@ -65,7 +69,10 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         let buffer = &mut *ctx.buffer;
         let measure = &mut *ctx.measure;
         let intern = &mut *ctx.intern;
-        paint_pptx_chart_xml(&xml, w, h, buffer, measure, id, |s| intern.intern(s));
+        let chart_images = el.chart_image_urls.clone().unwrap_or_default();
+        paint_pptx_chart_xml(&xml, w, h, buffer, measure, id, &el.id, chart_images, |s| {
+            intern.intern(s)
+        });
     } else {
         let svg = format!(
             "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" role=\"img\"><rect width=\"100%\" height=\"100%\" fill=\"#f5f5f5\" stroke=\"#999\"/><text x=\"8\" y=\"20\" font-size=\"14\" fill=\"#333\">Chart</text></svg>"

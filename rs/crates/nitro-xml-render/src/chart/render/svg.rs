@@ -20,6 +20,7 @@ pub fn render_chart_svg(
     measure: &mut ChartSvgMeasureOptions<'_>,
 ) -> String {
     let (model, defs) = chart_gradient_paint(model, width.max(1), height.max(1));
+    let mut picture_defs: Vec<String> = Vec::new();
     let w = width.max(1) as f64;
     let h = height.max(1) as f64;
     let mut out = Vec::new();
@@ -128,7 +129,7 @@ pub fn render_chart_svg(
         let body = match model.type_ {
             ChartSummaryType::Pie | ChartSummaryType::Doughnut => pie_svg(&model, area),
             ChartSummaryType::Radar => radar_svg(&model, area),
-            _ => cartesian_svg(&model, area),
+            _ => cartesian_svg(&model, area, &mut picture_defs),
         };
         out.push(body);
     }
@@ -137,6 +138,9 @@ pub fn render_chart_svg(
     }
     if !foreground_title.is_empty() {
         out.push(foreground_title);
+    }
+    if !picture_defs.is_empty() {
+        out.push(format!("<defs>{}</defs>", picture_defs.join("")));
     }
     out.push("</svg>".to_string());
     out.join("")

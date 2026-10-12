@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/chart-view.ts
 
+use nitro_xml_opc::chart::ChartView3D;
 use nitro_xml_opc::drawingml::{
     resolve_drawing_color, DrawingFill, HslRounding, ResolveOptions, TransformOrder,
 };
@@ -8,6 +9,7 @@ use std::collections::HashMap;
 
 use super::chart_appearance::{chart_appearance, ChartAppearance};
 use super::chart_colors::{auto_series_color, chart_color_scheme};
+use super::chart_picture_fill::ChartPictureFills;
 use super::chart_scale::{nice_scale, AxisScale, NiceScaleOptions};
 use super::chart_title_text::ChartTitleText;
 use super::chart_value_axis::value_axis;
@@ -52,6 +54,10 @@ pub struct ChartViewModel {
     pub appearance: Option<ChartAppearance>,
     pub bar_gap_width: Option<i32>,
     pub bar_overlap: Option<i32>,
+    pub is3_d: bool,
+    pub view3_d: Option<ChartView3D>,
+    pub picture_prefix: String,
+    pub picture_fills: ChartPictureFills,
     pub title_overlay: bool,
     pub title_layout: Option<nitro_xml_opc::chart::ChartManualLayout>,
     pub title_text: Option<ChartTitleText>,
@@ -248,6 +254,10 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
         appearance: chart_appearance(chart, theme),
         bar_gap_width: chart.bar_gap_width,
         bar_overlap: chart.bar_overlap,
+        is3_d: chart.is3_d,
+        view3_d: None,
+        picture_prefix: "chart".to_string(),
+        picture_fills: ChartPictureFills::default(),
         title_overlay: false,
         title_layout: None,
         title_text: None,

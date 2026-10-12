@@ -133,7 +133,8 @@ export function snapshotDocx(model) {
 }
 
 /**
- * Pptx: per-slide element geometry + text + textStyle.
+ * Pptx: per-slide element geometry + text + textStyle, plus notes and the
+ * thumbnail rail (slide order + id; preview bytes stay null).
  * @param {any[]} slides
  */
 function projectPptxElement(el) {
@@ -171,11 +172,19 @@ function projectPptxElement(el) {
 }
 
 export function snapshotPptx(slides) {
+	const projected = (slides || []).map((slide, slideIndex) => ({
+		slideIndex,
+		id: slide.id ?? null,
+		notes: slide.notes ?? null,
+		elements: (slide.elements || []).map(projectPptxElement),
+	}));
 	return {
 		format: 'pptx',
-		slides: (slides || []).map((slide, slideIndex) => ({
-			slideIndex,
-			elements: (slide.elements || []).map(projectPptxElement),
+		slides: projected,
+		thumbnails: projected.map((slide) => ({
+			slideIndex: slide.slideIndex,
+			id: slide.id,
+			preview: null,
 		})),
 	};
 }

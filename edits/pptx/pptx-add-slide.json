@@ -1,0 +1,10 @@
+{
+  "id": "pptx-add-slide",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Insert a blank slide at index 0, then append another",
+  "ops": [
+    { "op": "addSlide", "at": 0 },
+    { "op": "addSlide" }
+  ]
+}

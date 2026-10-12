@@ -50,6 +50,11 @@ pub const SCHEMA_OP_IDS: &[&str] = &[
     "replyToComment",
     "resolveComment",
     "deleteComment",
+    "addSlide",
+    "deleteSlide",
+    "duplicateSlide",
+    "reorderSlide",
+    "setNotesText",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -357,6 +362,23 @@ pub enum Op {
     },
     #[serde(rename = "deleteComment")]
     DeleteComment { id: String },
+    #[serde(rename = "addSlide")]
+    AddSlide {
+        #[serde(default)]
+        at: Option<u32>,
+    },
+    #[serde(rename = "deleteSlide")]
+    DeleteSlide { index: u32 },
+    #[serde(rename = "duplicateSlide")]
+    DuplicateSlide { index: u32 },
+    #[serde(rename = "reorderSlide")]
+    ReorderSlide { from: u32, to: u32 },
+    #[serde(rename = "setNotesText")]
+    SetNotesText {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        text: String,
+    },
 }
 
 impl Op {
@@ -405,6 +427,11 @@ impl Op {
             Self::ReplyToComment { .. } => "replyToComment",
             Self::ResolveComment { .. } => "resolveComment",
             Self::DeleteComment { .. } => "deleteComment",
+            Self::AddSlide { .. } => "addSlide",
+            Self::DeleteSlide { .. } => "deleteSlide",
+            Self::DuplicateSlide { .. } => "duplicateSlide",
+            Self::ReorderSlide { .. } => "reorderSlide",
+            Self::SetNotesText { .. } => "setNotesText",
         }
     }
 

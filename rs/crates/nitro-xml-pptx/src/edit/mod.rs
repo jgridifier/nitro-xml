@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
-//! PowerPoint shape edits on the shared command registry (#84).
+//! PowerPoint shape and slide edits on the shared command registry (#84, #86).
 //! Undo/redo uses the shared [`EditHistory`] (#64).
 
 pub mod host;
 pub mod shapes;
+pub mod slides;
 
 pub use host::PptxHost;
 pub use shapes::register_shape_commands;
+pub use slides::register_slide_commands;
 
 use nitro_xml_opc::edit::{
     parse_edit_script, replay_script, CommandRegistry, EditError, EditHistory, EditScript,
@@ -38,6 +40,7 @@ pub fn replay_pptx_session(
     let host = PptxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
     let mut registry = CommandRegistry::with_schema_stubs();
     register_shape_commands(&mut registry);
+    register_slide_commands(&mut registry);
     let mut session = EditSession::new(host, EditHistory::new());
     let mut report = replay_script(&script, &registry, &mut session);
     report.history_commits = session.history.committed().len();
@@ -56,6 +59,7 @@ pub fn undo_parity_checkpoints(bytes: &[u8], script_json: &str) -> Result<Vec<Va
     let host = PptxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
     let mut registry = CommandRegistry::with_schema_stubs();
     register_shape_commands(&mut registry);
+    register_slide_commands(&mut registry);
     let mut session = EditSession::new(host, EditHistory::new());
 
     let mut checkpoints = Vec::new();
@@ -220,8 +224,8 @@ mod tests {
         // Catches: Rust pptx shape edits drifting from the upstream TS slide model (#84).
         let paths = pptx_script_paths();
         assert!(
-            paths.len() >= 30,
-            "expected the original 22 scripts plus shape-edit corpus, got {}",
+            paths.len() >= 35,
+            "expected shape-edit plus slide-op corpus, got {}",
             paths.len()
         );
         let mut ok = 0usize;
@@ -353,6 +357,28 @@ mod tests {
                 paths.len()
             );
         }
+    }
+
+    #[test]
+    fn catches_pptx_delete_last_slide_rejected() {
+        // Catches: deleteSlide on the only remaining slide empties the deck.
+        let script = r#"{"id":"pptx-delete-last","format":"pptx","fixture":"gen-pptx-notes-print","ops":[{"op":"deleteSlide","index":0}]}"#;
+        let bytes = fs::read(fixture_path("gen-pptx-notes-print")).expect("fixture");
+        let (report, snap) = replay_shape_script(&bytes, script).expect("replay");
+        assert_ne!(report.status, "ok", "{report:?}");
+        assert_eq!(report.history_commits, 0, "{report:?}");
+        let detail = report
+            .ops
+            .first()
+            .and_then(|op| op.detail.as_deref())
+            .unwrap_or("");
+        assert!(
+            detail.contains("cannot delete the last slide"),
+            "rejection detail must name the last-slide guard: {report:?}"
+        );
+        assert_eq!(snap["slides"].as_array().map(|a| a.len()), Some(1));
+        assert_eq!(snap["thumbnails"].as_array().map(|a| a.len()), Some(1));
+        assert_eq!(snap["slides"][0]["notes"], "Speaker notes");
     }
 
     #[test]

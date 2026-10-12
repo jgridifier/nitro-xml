@@ -67,8 +67,24 @@ pub struct NewShape<'a> {
 /// One slide's editable element list (layout/master decorations are not included).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EditableSlide {
+    /// Stable rail id. Loaded slides use the part path (`ppt/slides/slide1.xml`).
+    pub id: String,
     pub path: String,
+    /// Speaker notes. `None` serialises as JSON null in the parity snapshot.
+    #[serde(default)]
+    pub notes: Option<String>,
     pub elements: Vec<EditableElement>,
+    /// Part cloned on duplicate (`sourceSlideId`). Omitted from the parity snapshot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_slide_id: Option<String>,
+}
+
+/// One thumbnail-rail cell. `preview` stays empty until a painter fills it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SlideThumbnail {
+    pub slide_index: u32,
+    pub id: String,
+    pub preview: Option<Vec<u8>>,
 }
 
 /// Slim editor element. Snapshot fields match `parity/undo/snapshot.mjs` `snapshotPptx`.
@@ -194,6 +210,7 @@ impl PptxHost {
         for i in 0..count {
             let slide = pres.slide(i).map_err(|e| e.to_string())?;
             let path = slide.path.clone();
+            let notes = slide.notes_text.clone();
             let elements = slide
                 .elements
                 .iter()
@@ -205,7 +222,13 @@ impl PptxHost {
                     editable
                 })
                 .collect();
-            slides.push(EditableSlide { path, elements });
+            slides.push(EditableSlide {
+                id: path.clone(),
+                path,
+                notes,
+                elements,
+                source_slide_id: None,
+            });
         }
         Ok(Self {
             slides,
@@ -246,15 +269,47 @@ impl PptxHost {
         self.undo_parity_snapshot()
     }
 
+    /// Thumbnail rail in slide order. Preview bytes are a stub (`None`).
+    pub fn thumbnails(&self) -> Vec<SlideThumbnail> {
+        self.slides
+            .iter()
+            .enumerate()
+            .map(|(slide_index, slide)| SlideThumbnail {
+                slide_index: slide_index as u32,
+                id: slide.id.clone(),
+                preview: None,
+            })
+            .collect()
+    }
+
     pub fn undo_parity_snapshot(&self) -> Value {
-        json!({
-            "format": "pptx",
-            "slides": self.slides.iter().enumerate().map(|(slide_index, slide)| {
+        let slides: Vec<Value> = self
+            .slides
+            .iter()
+            .enumerate()
+            .map(|(slide_index, slide)| {
                 json!({
                     "slideIndex": slide_index,
+                    "id": slide.id,
+                    "notes": slide.notes,
                     "elements": slide.elements.iter().map(project_element).collect::<Vec<_>>(),
                 })
-            }).collect::<Vec<_>>(),
+            })
+            .collect();
+        let thumbnails: Vec<Value> = slides
+            .iter()
+            .map(|slide| {
+                json!({
+                    "slideIndex": slide["slideIndex"],
+                    "id": slide["id"],
+                    "preview": Value::Null,
+                })
+            })
+            .collect();
+        json!({
+            "format": "pptx",
+            "slides": slides,
+            "thumbnails": thumbnails,
         })
     }
 }
@@ -570,6 +625,96 @@ impl PptxHost {
         let idx = Self::resolve_index(slide, element_id, element_index)?;
         slide.elements[idx].patch_line(color, width);
         self.touch(slide_index)
+    }
+
+    /// Insert a blank slide at `at` (append when `at` is `None`). Returns the new index.
+    pub fn add_slide(&mut self, at: Option<u32>) -> Result<u32, String> {
+        let len = self.slides.len();
+        let index = at.map(|a| (a as usize).min(len)).unwrap_or(len);
+        let id = format!("added-slide-{len}");
+        self.slides.insert(
+            index,
+            EditableSlide {
+                id: id.clone(),
+                path: id,
+                notes: None,
+                elements: Vec::new(),
+                source_slide_id: None,
+            },
+        );
+        Ok(index as u32)
+    }
+
+    /// Remove a slide. The last remaining slide is rejected.
+    pub fn delete_slide(&mut self, index: u32) -> Result<(), String> {
+        if self.slides.len() <= 1 {
+            return Err("cannot delete the last slide".into());
+        }
+        let index = index as usize;
+        if index >= self.slides.len() {
+            return Err(format!("slide index {index} out of range"));
+        }
+        self.slides.remove(index);
+        Ok(())
+    }
+
+    /// Deep-copy the slide at `index` and insert the copy immediately after it.
+    pub fn duplicate_slide(&mut self, index: u32) -> Result<u32, String> {
+        let index = index as usize;
+        if index >= self.slides.len() {
+            return Err(format!("slide index {index} out of range"));
+        }
+        let len = self.slides.len();
+        let source_id = self.slides[index].id.clone();
+        let inherited = if source_id.starts_with("ppt/slides/") {
+            source_id
+        } else {
+            self.slides[index]
+                .source_slide_id
+                .clone()
+                .unwrap_or_else(|| self.slides[index].id.clone())
+        };
+        let mut copy = self.slides[index].clone();
+        let id = format!("dup-slide-{len}");
+        copy.id = id.clone();
+        copy.path = id;
+        copy.source_slide_id = Some(inherited);
+        let prefix = format!("dup-{len}-");
+        for el in &mut copy.elements {
+            reassign_element_id(el, &prefix);
+        }
+        let insert_at = index + 1;
+        self.slides.insert(insert_at, copy);
+        Ok(insert_at as u32)
+    }
+
+    /// Move the slide at `from` to index `to`. `from == to` is a no-op.
+    pub fn reorder_slide(&mut self, from: u32, to: u32) -> Result<(), String> {
+        let len = self.slides.len();
+        let from = from as usize;
+        let to = to as usize;
+        if from >= len || to >= len {
+            return Err("slide index out of range".into());
+        }
+        if from == to {
+            return Ok(());
+        }
+        let slide = self.slides.remove(from);
+        self.slides.insert(to, slide);
+        Ok(())
+    }
+
+    pub fn set_notes_text(&mut self, slide_index: u32, text: &str) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        slide.notes = Some(text.to_owned());
+        Ok(())
+    }
+}
+
+fn reassign_element_id(el: &mut EditableElement, prefix: &str) {
+    el.id = format!("{prefix}{}", el.id);
+    for child in &mut el.children {
+        reassign_element_id(child, prefix);
     }
 }
 

@@ -1,0 +1,9 @@
+{
+  "id": "pptx-reorder-slide",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Move the first slide to the end of the thumbnail rail",
+  "ops": [
+    { "op": "reorderSlide", "from": 0, "to": 9 }
+  ]
+}

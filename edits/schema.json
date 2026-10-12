@@ -34,7 +34,7 @@
     },
     "modelOnly": {
       "type": "boolean",
-      "description": "Model/undo parity only — skip package save (upstream save broken or Depends on #80 writer)."
+      "description": "Model/undo parity only \u2014 skip package save (upstream save broken or Depends on #80 writer)."
     },
     "ops": {
       "type": "array",
@@ -95,7 +95,12 @@
             "addComment",
             "replyToComment",
             "resolveComment",
-            "deleteComment"
+            "deleteComment",
+            "addSlide",
+            "deleteSlide",
+            "duplicateSlide",
+            "reorderSlide",
+            "setNotesText"
           ]
         }
       },
@@ -754,165 +759,382 @@
         },
         {
           "if": {
-            "properties": { "op": { "const": "addShape" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "addShape"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex", "shapeType", "x", "y", "width", "height"],
+            "required": [
+              "slideIndex",
+              "shapeType",
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "shapeType": { "type": "string" },
-              "x": { "type": "number" },
-              "y": { "type": "number" },
-              "width": { "type": "number" },
-              "height": { "type": "number" },
-              "id": { "type": "string" }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "shapeType": {
+                "type": "string"
+              },
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "id": {
+                "type": "string"
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "op": { "const": "deleteShape" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "deleteShape"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex"],
+            "required": [
+              "slideIndex"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "elementIndex": { "type": "integer", "minimum": 0 },
-              "elementId": { "type": "string" }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "op": { "const": "duplicateShape" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "duplicateShape"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex"],
+            "required": [
+              "slideIndex"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "elementIndex": { "type": "integer", "minimum": 0 },
-              "elementId": { "type": "string" },
-              "newId": { "type": "string" }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "newId": {
+                "type": "string"
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "op": { "const": "bringForward" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "bringForward"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex"],
+            "required": [
+              "slideIndex"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "elementIndex": { "type": "integer", "minimum": 0 },
-              "elementId": { "type": "string" }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "op": { "const": "sendBackward" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "sendBackward"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex"],
+            "required": [
+              "slideIndex"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "elementIndex": { "type": "integer", "minimum": 0 },
-              "elementId": { "type": "string" }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "op": { "const": "bringToFront" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "bringToFront"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex"],
+            "required": [
+              "slideIndex"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "elementIndex": { "type": "integer", "minimum": 0 },
-              "elementId": { "type": "string" }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "op": { "const": "sendToBack" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "sendToBack"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex"],
+            "required": [
+              "slideIndex"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "elementIndex": { "type": "integer", "minimum": 0 },
-              "elementId": { "type": "string" }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "op": { "const": "groupShapes" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "groupShapes"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex", "elementIds", "groupId"],
+            "required": [
+              "slideIndex",
+              "elementIds",
+              "groupId"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "elementIds": { "type": "array", "items": { "type": "string" }, "minItems": 2 },
-              "groupId": { "type": "string" }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 2
+              },
+              "groupId": {
+                "type": "string"
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "op": { "const": "ungroupShapes" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "ungroupShapes"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex"],
+            "required": [
+              "slideIndex"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "groupId": { "type": "string" },
-              "elementId": { "type": "string" },
-              "childIds": { "type": "array", "items": { "type": "string" } }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "groupId": {
+                "type": "string"
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "childIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "op": { "const": "setShapeFill" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "setShapeFill"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex"],
+            "required": [
+              "slideIndex"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "elementIndex": { "type": "integer", "minimum": 0 },
-              "elementId": { "type": "string" },
-              "fillColor": { "type": ["string", "null"] },
-              "fillMode": { "type": "string", "enum": ["solid", "none"] }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "fillColor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fillMode": {
+                "type": "string",
+                "enum": [
+                  "solid",
+                  "none"
+                ]
+              }
             }
           }
         },
         {
           "if": {
-            "properties": { "op": { "const": "setShapeLine" } },
-            "required": ["op"]
+            "properties": {
+              "op": {
+                "const": "setShapeLine"
+              }
+            },
+            "required": [
+              "op"
+            ]
           },
           "then": {
-            "required": ["slideIndex"],
+            "required": [
+              "slideIndex"
+            ],
             "properties": {
-              "slideIndex": { "type": "integer", "minimum": 0 },
-              "elementIndex": { "type": "integer", "minimum": 0 },
-              "elementId": { "type": "string" },
-              "strokeColor": { "type": ["string", "null"] },
-              "strokeWidth": { "type": "number" }
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "strokeColor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "strokeWidth": {
+                "type": "number"
+              }
             }
           }
         },
@@ -1099,6 +1321,127 @@
             ],
             "properties": {
               "id": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "addSlide"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "properties": {
+              "at": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "deleteSlide"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "index"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "duplicateSlide"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "index"
+            ],
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "reorderSlide"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "from",
+              "to"
+            ],
+            "properties": {
+              "from": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "to": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setNotesText"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "text"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "text": {
                 "type": "string"
               }
             }

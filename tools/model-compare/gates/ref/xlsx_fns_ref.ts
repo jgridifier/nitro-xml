@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Reference side of the formula-function differential (#73 Math & Trig /
-// Statistical, #74 Logical / Text / Information / Date & Time).
+// Statistical, #74 Logical / Text / Information / Date & Time,
+// #75 Lookup & Reference / Financial / Engineering).
 // Reads a JSON array of cases and prints {formula, rows} from recalculateAll
 // (cleaned spill), using the seeded engine in test-helpers.ts.
 // `date1904: true` selects the 1904 date system before calculation.

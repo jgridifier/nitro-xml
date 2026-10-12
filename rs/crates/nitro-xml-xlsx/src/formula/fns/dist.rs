@@ -3,6 +3,7 @@
 // distributions-f.ts (fCdf and the inverse helpers) and the distribution bodies in
 // distributions.ts / distributions-more.ts; changes listed in PROVENANCE.md.
 //! Incomplete gamma and beta, normal/t/chi/F inverses, and discrete probabilities.
+//! `erf` is also the Engineering `ERF` family.
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::cognitive_complexity)]
 

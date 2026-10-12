@@ -20,10 +20,11 @@ import JSZip from 'jszip';
 import { comparePackages } from '../roundtrip/compare.mjs';
 import { validateOpenXml, errorSubset, libreOfficeReopen } from '../roundtrip/validate.mjs';
 import { familyOf, packageKind } from '../roundtrip/corpus.mjs';
-import { applyAndSave } from './apply.mjs';
+import { applyAndSave, applyDocxModel } from './apply.mjs';
 import { loadEditScripts, resolveFixture, fixtureAbs, ROOT } from './scripts.mjs';
 import { rustDocxSave } from './rust-docx.mjs';
 import { rustXlsxSave } from './rust-xlsx.mjs';
+import { snapshotDocx, stableStringify } from '../undo/snapshot.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, 'out');
@@ -110,6 +111,40 @@ async function runOne(script) {
 	const kind = packageKind(row);
 	const fam = familyOf(kind);
 	const input = new Uint8Array(readFileSync(abs));
+
+	// Model-only scripts (#82 revisions/comments): skip package save when TS/Rust
+	// package rewrite cannot round-trip (poi-delins / comments.xml).
+	if (script.modelOnly) {
+		/** @type {string | null} */
+		let applyError = null;
+		/** @type {any} */
+		let snap1 = null;
+		/** @type {any} */
+		let snap2 = null;
+		try {
+			snap1 = snapshotDocx(await applyDocxModel(input, script));
+			snap2 = snapshotDocx(await applyDocxModel(input, script));
+		} catch (e) {
+			applyError = String(e && e.message ? e.message : e).slice(0, 400);
+		}
+		const deterministic =
+			!applyError && stableStringify(snap1) === stableStringify(snap2);
+		return {
+			id: script.id,
+			format: script.format,
+			fixture: script.fixture,
+			description: script.description,
+			ok: deterministic,
+			modelOnly: true,
+			deterministic,
+			applyError,
+			expectedDiff: null,
+			validator: { skipped: true, reason: 'modelOnly' },
+			libreoffice: { skipped: true, reason: 'modelOnly' },
+			family: fam,
+			kind,
+		};
+	}
 
 	/** @type {Uint8Array | null} */
 	let out1 = null;
@@ -260,7 +295,7 @@ async function main() {
 	}
 
 	const rustDocxFailures = args.rustDocx
-		? await compareRust('rust-docx', scripts.filter((s) => s.format === 'docx'), (input, scriptPath) =>
+		? await compareRust('rust-docx', scripts.filter((s) => s.format === 'docx' && !s.modelOnly), (input, scriptPath) =>
 				rustDocxSave(input, scriptPath, { skipDocumentRewrite: false }),
 			)
 		: [];
@@ -357,7 +392,7 @@ async function main() {
 		failedIds: failed.map((r) => r.id),
 		rustDocx: args.rustDocx
 			? {
-					compared: scripts.filter((s) => s.format === 'docx').length,
+					compared: scripts.filter((s) => s.format === 'docx' && !s.modelOnly).length,
 					fail: rustDocxFailures.length,
 				}
 			: null,
@@ -387,7 +422,7 @@ async function main() {
 		lines.push(`  FAIL: ${failed.map((r) => r.id).join(', ')}`);
 	}
 	if (args.rustDocx) {
-		const compared = scripts.filter((s) => s.format === 'docx').length;
+		const compared = scripts.filter((s) => s.format === 'docx' && !s.modelOnly).length;
 		lines.push(
 			`  rust-docx ${compared - rustDocxFailures.length}/${compared} match TS (docProps allowed)`,
 		);

@@ -32,6 +32,10 @@
     "description": {
       "type": "string"
     },
+    "modelOnly": {
+      "type": "boolean",
+      "description": "Model/undo parity only — skip package save (upstream save broken or Depends on #80 writer)."
+    },
     "ops": {
       "type": "array",
       "minItems": 1,
@@ -83,7 +87,15 @@
             "groupShapes",
             "ungroupShapes",
             "setShapeFill",
-            "setShapeLine"
+            "setShapeLine",
+            "acceptRevision",
+            "rejectRevision",
+            "acceptAllRevisions",
+            "rejectAllRevisions",
+            "addComment",
+            "replyToComment",
+            "resolveComment",
+            "deleteComment"
           ]
         }
       },
@@ -901,6 +913,194 @@
               "elementId": { "type": "string" },
               "strokeColor": { "type": ["string", "null"] },
               "strokeWidth": { "type": "number" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "acceptRevision"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "rejectRevision"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "acceptAllRevisions"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {}
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "rejectAllRevisions"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {}
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "addComment"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "blockIndex",
+              "author",
+              "text"
+            ],
+            "properties": {
+              "blockIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "runIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "author": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "replyToComment"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentId",
+              "author",
+              "text"
+            ],
+            "properties": {
+              "parentId": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "resolveComment"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "resolved": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "deleteComment"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              }
             }
           }
         }

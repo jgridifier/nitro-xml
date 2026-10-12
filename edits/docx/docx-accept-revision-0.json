@@ -1,0 +1,8 @@
+{
+  "id": "docx-accept-revision-0",
+  "format": "docx",
+  "fixture": "real-docx-poi-delins",
+  "description": "Accept first tracked insertion (id 0) in poi-delins",
+  "modelOnly": true,
+  "ops": [{ "op": "acceptRevision", "id": "0" }]
+}

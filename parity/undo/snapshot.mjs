@@ -66,6 +66,40 @@ export function snapshotXlsx(workbook) {
  * Docx: blocks projection (paragraphs + tables).
  * @param {any} model
  */
+function projectRevision(rev) {
+	if (!rev) return null;
+	return {
+		id: rev.id,
+		kind: rev.kind,
+		author: rev.author,
+		...(rev.move ? { move: rev.move } : {}),
+	};
+}
+
+function projectRun(r) {
+	return {
+		text: r.text ?? '',
+		bold: !!r.bold,
+		italic: !!r.italic,
+		underline: !!r.underline,
+		fontSize: r.fontSize ?? null,
+		color: r.color ?? null,
+		commentIds: r.commentIds ?? null,
+		revision: projectRevision(r.revision),
+		formatRevision: projectRevision(r.formatRevision),
+	};
+}
+
+function projectComments(comments) {
+	return (comments || []).map((c) => ({
+		id: c.id ?? null,
+		author: c.author ?? null,
+		text: c.text ?? null,
+		resolved: !!c.resolved,
+		parentId: c.parentId ?? null,
+	}));
+}
+
 export function snapshotDocx(model) {
 	const blocks = (model.blocks || []).map((b, index) => {
 		if (b.type === 'table') {
@@ -76,14 +110,9 @@ export function snapshotDocx(model) {
 					(row || []).map((cell) => ({
 						paragraphs: (cell.paragraphs || []).map((p) => ({
 							align: p.align ?? null,
-							runs: (p.runs || []).map((r) => ({
-								text: r.text ?? '',
-								bold: !!r.bold,
-								italic: !!r.italic,
-								underline: !!r.underline,
-								fontSize: r.fontSize ?? null,
-								color: r.color ?? null,
-							})),
+							markRevision: projectRevision(p.markRevision),
+							formatRevision: projectRevision(p.formatRevision),
+							runs: (p.runs || []).map(projectRun),
 						})),
 					})),
 				),
@@ -93,17 +122,14 @@ export function snapshotDocx(model) {
 			index,
 			type: b.type || 'paragraph',
 			align: b.align ?? null,
-			runs: (b.runs || []).map((r) => ({
-				text: r.text ?? '',
-				bold: !!r.bold,
-				italic: !!r.italic,
-				underline: !!r.underline,
-				fontSize: r.fontSize ?? null,
-				color: r.color ?? null,
-			})),
+			markRevision: projectRevision(b.markRevision),
+			formatRevision: projectRevision(b.formatRevision),
+			runs: (b.runs || []).map(projectRun),
 		};
 	});
-	return { format: 'docx', blocks };
+	const snap = { format: 'docx', blocks };
+	if (model.comments) snap.comments = projectComments(model.comments);
+	return snap;
 }
 
 /**

@@ -6,6 +6,51 @@
 
 import { join } from 'node:path';
 import { ROOT } from './scripts.mjs';
+import {
+	acceptRevision,
+	rejectRevision,
+	acceptAllRevisions,
+	rejectAllRevisions,
+} from '../../upstream/src/core/docx/revision-commands.ts';
+import {
+	deleteComment,
+	resolveComment,
+	replyToComment,
+} from '../../upstream/src/core/docx/ui/comment-commands.ts';
+
+let commentSerial = 0;
+function nextCommentId(provided) {
+	return provided || `dve-comment-${Date.now().toString(36)}-${++commentSerial}`;
+}
+
+function attachCommentId(run, id) {
+	const ids = [...(run.commentIds || [])];
+	if (!ids.includes(id)) ids.push(id);
+	ids.sort();
+	run.commentIds = ids;
+}
+
+function forEachRun(model, fn) {
+	for (const block of model.blocks || []) {
+		if (block.type === 'paragraph') {
+			for (const run of block.runs || []) fn(run);
+		} else if (block.type === 'table') {
+			for (const row of block.rows || []) {
+				for (const cell of row || []) {
+					for (const para of cell.paragraphs || []) {
+						for (const run of para.runs || []) fn(run);
+					}
+				}
+			}
+		}
+	}
+}
+
+function removeCommentAnchor(run, id) {
+	const remaining = (run.commentIds || []).filter((existing) => existing !== id);
+	if (remaining.length) run.commentIds = remaining;
+	else delete run.commentIds;
+}
 
 function upstreamRoot() {
 	return process.env.UPSTREAM_DIR || join(ROOT, 'upstream');
@@ -78,11 +123,11 @@ function applyXlsxOps(session, ops, parseRange) {
 
 /**
  * @param {object} model DocumentModel
- * @param {object[]} ops
+ * @param {object} op
+ * @returns {string} undo label
  */
-export function applyDocxOps(model, ops) {
-	for (const op of ops) {
-		switch (op.op) {
+export function applyDocxOp(model, op) {
+	switch (op.op) {
 			case 'setParagraphText': {
 				const block = model.blocks[op.blockIndex];
 				if (!block || block.type !== 'paragraph') {
@@ -95,7 +140,7 @@ export function applyDocxOps(model, ops) {
 				if (op.fontSize !== undefined) run.fontSize = op.fontSize;
 				if (op.color !== undefined) run.color = op.color;
 				block.runs = [run];
-				break;
+				return `setParagraphText ${op.blockIndex}`;
 			}
 			case 'setRunFormatting': {
 				const block = model.blocks[op.blockIndex];
@@ -110,7 +155,7 @@ export function applyDocxOps(model, ops) {
 				if (op.fontSize !== undefined) run.fontSize = op.fontSize;
 				if (op.color !== undefined) run.color = op.color;
 				if (op.underline !== undefined) run.underline = op.underline;
-				break;
+				return `setRunFormatting ${op.blockIndex}`;
 			}
 			case 'setParagraphAlign': {
 				const block = model.blocks[op.blockIndex];
@@ -118,7 +163,7 @@ export function applyDocxOps(model, ops) {
 					throw new Error(`block ${op.blockIndex} is not a paragraph`);
 				}
 				block.align = op.align;
-				break;
+				return `setParagraphAlign ${op.blockIndex}`;
 			}
 			case 'setTableCellText': {
 				const table = model.blocks[op.blockIndex];
@@ -134,7 +179,7 @@ export function applyDocxOps(model, ops) {
 				};
 				para.runs = [{ text: op.text }];
 				cell.paragraphs[0] = para;
-				break;
+				return `setTableCellText ${op.row},${op.col}`;
 			}
 			case 'insertTableRow': {
 				const table = model.blocks[op.blockIndex];
@@ -146,7 +191,7 @@ export function applyDocxOps(model, ops) {
 					emptyDocxCell(`r${op.at}-c${c}`),
 				);
 				table.rows.splice(op.at, 0, row);
-				break;
+				return `insertTableRow ${op.at}`;
 			}
 			case 'deleteTableRow': {
 				const table = model.blocks[op.blockIndex];
@@ -155,7 +200,7 @@ export function applyDocxOps(model, ops) {
 				}
 				if (table.rows.length <= 1) throw new Error('cannot delete last table row');
 				table.rows.splice(op.at, 1);
-				break;
+				return `deleteTableRow ${op.at}`;
 			}
 			case 'insertTableColumn': {
 				const table = model.blocks[op.blockIndex];
@@ -165,7 +210,7 @@ export function applyDocxOps(model, ops) {
 				for (const [ri, row] of table.rows.entries()) {
 					row.splice(op.at, 0, emptyDocxCell(`r${ri}-c${op.at}`));
 				}
-				break;
+				return `insertTableColumn ${op.at}`;
 			}
 			case 'deleteTableColumn': {
 				const table = model.blocks[op.blockIndex];
@@ -176,12 +221,81 @@ export function applyDocxOps(model, ops) {
 					throw new Error('cannot delete last table column');
 				}
 				for (const row of table.rows) row.splice(op.at, 1);
-				break;
+				return `deleteTableColumn ${op.at}`;
+			}
+			case 'acceptRevision': {
+				Object.assign(model, acceptRevision(model, op.id));
+				return `acceptRevision ${op.id}`;
+			}
+			case 'rejectRevision': {
+				Object.assign(model, rejectRevision(model, op.id));
+				return `rejectRevision ${op.id}`;
+			}
+			case 'acceptAllRevisions': {
+				Object.assign(model, acceptAllRevisions(model));
+				return 'acceptAllRevisions';
+			}
+			case 'rejectAllRevisions': {
+				Object.assign(model, rejectAllRevisions(model));
+				return 'rejectAllRevisions';
+			}
+			case 'addComment': {
+				const block = model.blocks[op.blockIndex];
+				if (!block || block.type !== 'paragraph') {
+					throw new Error(`block ${op.blockIndex} is not a paragraph`);
+				}
+				const id = nextCommentId(op.id);
+				const comment = { id, author: op.author, text: op.text, resolved: false };
+				model.comments = [...(model.comments || []), comment];
+				const ri = op.runIndex;
+				if (ri !== undefined) {
+					const run = block.runs?.[ri];
+					if (!run) throw new Error(`run ${ri} missing`);
+					attachCommentId(run, id);
+				} else {
+					for (const run of block.runs || []) attachCommentId(run, id);
+				}
+				return `addComment ${id}`;
+			}
+			case 'replyToComment': {
+				if (!(model.comments || []).some((c) => c.id === op.parentId)) {
+					throw new Error(`comment ${op.parentId} missing`);
+				}
+				model.comments = replyToComment(
+					model.comments || [],
+					op.parentId,
+					op.author,
+					op.text,
+					op.id ? () => op.id : undefined,
+				);
+				return `replyToComment ${op.parentId}`;
+			}
+			case 'resolveComment': {
+				if (!(model.comments || []).some((c) => c.id === op.id)) {
+					throw new Error(`comment ${op.id} missing`);
+				}
+				model.comments = resolveComment(model.comments || [], op.id, op.resolved ?? true);
+				return `resolveComment ${op.id}`;
+			}
+			case 'deleteComment': {
+				if (!(model.comments || []).some((c) => c.id === op.id)) {
+					throw new Error(`comment ${op.id} missing`);
+				}
+				model.comments = deleteComment(model.comments || [], op.id);
+				forEachRun(model, (run) => removeCommentAnchor(run, op.id));
+				return `deleteComment ${op.id}`;
 			}
 			default:
 				throw new Error(`unsupported docx op: ${op.op}`);
 		}
-	}
+}
+
+/**
+ * @param {object} model DocumentModel
+ * @param {object[]} ops
+ */
+export function applyDocxOps(model, ops) {
+	for (const op of ops) applyDocxOp(model, op);
 }
 
 function resolvePptxElement(slides, op) {
@@ -379,6 +493,20 @@ export async function loadPptxMutators() {
 		ungroupElements,
 		cloneElement,
 	};
+}
+
+/**
+ * Open docx bytes, apply ops, return the mutated model (no save).
+ * Used for `modelOnly` scripts when upstream save cannot round-trip (#82 / #80).
+ * @param {Uint8Array} bytes
+ * @param {{ ops: object[] }} script
+ */
+export async function applyDocxModel(bytes, script) {
+	const up = upstreamRoot();
+	const { loadDocx } = await import(`${up}/src/core/docx/parse.ts`);
+	const loaded = await loadDocx(bytes);
+	applyDocxOps(loaded.model, script.ops);
+	return loaded.model;
 }
 
 /**

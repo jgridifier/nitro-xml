@@ -30,6 +30,8 @@ pub struct DocxHost {
     pub sections: Option<Value>,
     pub page: Option<Value>,
     pub even_and_odd_headers: bool,
+    pub comments: Option<Vec<Value>>,
+    pub comments_touched: bool,
     /// Block indices touched this session (for differential dumps).
     pub touched: BTreeSet<usize>,
 }
@@ -50,6 +52,8 @@ impl DocxHost {
             sections: None,
             page: None,
             even_and_odd_headers: false,
+            comments: None,
+            comments_touched: false,
             touched: BTreeSet::new(),
         }
     }
@@ -75,6 +79,8 @@ impl DocxHost {
             sections: m.sections.as_ref().map(|s| json!(s)),
             page: Some(m.page.clone()),
             even_and_odd_headers: m.even_and_odd_headers,
+            comments: m.comments.clone(),
+            comments_touched: false,
             touched: BTreeSet::new(),
         })
     }
@@ -86,6 +92,12 @@ impl DocxHost {
 
     pub fn mark_touched(&mut self, block: usize) {
         self.touched.insert(block);
+    }
+
+    pub fn mark_all_blocks_touched(&mut self) {
+        for i in 0..self.blocks.len() {
+            self.touched.insert(i);
+        }
     }
 
     pub fn paragraph_mut(&mut self, block_index: usize) -> Result<&mut Value, String> {
@@ -132,7 +144,15 @@ impl DocxHost {
                 blocks.push(project_block(i, b));
             }
         }
-        json!({ "format": "docx", "blocks": blocks })
+        let mut snap = json!({ "format": "docx", "blocks": blocks });
+        if self.comments_touched {
+            if let Some(c) = &self.comments {
+                snap.as_object_mut()
+                    .expect("object")
+                    .insert("comments".into(), project_comments(c));
+            }
+        }
+        snap
     }
 
     /// Canonical undo-parity projection — matches `parity/undo/snapshot.mjs` `snapshotDocx`.
@@ -143,7 +163,13 @@ impl DocxHost {
             .enumerate()
             .map(|(index, b)| project_block(index, b))
             .collect();
-        json!({ "format": "docx", "blocks": blocks })
+        let mut snap = json!({ "format": "docx", "blocks": blocks });
+        if let Some(c) = &self.comments {
+            snap.as_object_mut()
+                .expect("object")
+                .insert("comments".into(), project_comments(c));
+        }
+        snap
     }
 
     fn state_json(&self) -> Value {
@@ -158,6 +184,8 @@ impl DocxHost {
             "sections": self.sections,
             "page": self.page,
             "evenAndOddHeaders": self.even_and_odd_headers,
+            "comments": self.comments,
+            "commentsTouched": self.comments_touched,
             "touched": self.touched.iter().copied().collect::<Vec<_>>(),
         })
     }
@@ -186,6 +214,11 @@ impl DocxHost {
         self.page = v.get("page").cloned().filter(|x| !x.is_null());
         self.even_and_odd_headers = v
             .get("evenAndOddHeaders")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+        self.comments = v.get("comments").and_then(|x| x.as_array()).cloned();
+        self.comments_touched = v
+            .get("commentsTouched")
             .and_then(|x| x.as_bool())
             .unwrap_or(false);
         self.touched.clear();
@@ -223,6 +256,28 @@ impl EditHost for DocxHost {
     }
 }
 
+fn project_revision(rev: Option<&Value>) -> Value {
+    match rev {
+        None => Value::Null,
+        Some(r) => {
+            let mut obj = Map::new();
+            if let Some(id) = r.get("id") {
+                obj.insert("id".into(), id.clone());
+            }
+            if let Some(kind) = r.get("kind") {
+                obj.insert("kind".into(), kind.clone());
+            }
+            if let Some(author) = r.get("author") {
+                obj.insert("author".into(), author.clone());
+            }
+            if let Some(mv) = r.get("move") {
+                obj.insert("move".into(), mv.clone());
+            }
+            Value::Object(obj)
+        }
+    }
+}
+
 fn project_run(r: &Value) -> Value {
     json!({
         "text": r.get("text").and_then(|t| t.as_str()).unwrap_or(""),
@@ -231,7 +286,26 @@ fn project_run(r: &Value) -> Value {
         "underline": r.get("underline").and_then(|b| b.as_bool()).unwrap_or(false),
         "fontSize": r.get("fontSize").cloned().unwrap_or(Value::Null),
         "color": r.get("color").cloned().unwrap_or(Value::Null),
+        "commentIds": r.get("commentIds").cloned().unwrap_or(Value::Null),
+        "revision": project_revision(r.get("revision")),
+        "formatRevision": project_revision(r.get("formatRevision")),
     })
+}
+
+fn project_comments(comments: &[Value]) -> Value {
+    let rows: Vec<Value> = comments
+        .iter()
+        .map(|c| {
+            json!({
+                "id": c.get("id").cloned().unwrap_or(Value::Null),
+                "author": c.get("author").cloned().unwrap_or(Value::Null),
+                "text": c.get("text").cloned().unwrap_or(Value::Null),
+                "resolved": c.get("resolved").and_then(|v| v.as_bool()).unwrap_or(false),
+                "parentId": c.get("parentId").cloned().unwrap_or(Value::Null),
+            })
+        })
+        .collect();
+    Value::Array(rows)
 }
 
 fn project_block(index: usize, b: &Value) -> Value {
@@ -261,6 +335,8 @@ fn project_block(index: usize, b: &Value) -> Value {
                                                     .map(|p| {
                                                         json!({
                                                             "align": p.get("align").cloned().unwrap_or(Value::Null),
+                                                            "markRevision": project_revision(p.get("markRevision")),
+                                                            "formatRevision": project_revision(p.get("formatRevision")),
                                                             "runs": p.get("runs").and_then(|r| r.as_array()).map(|rs| {
                                                                 rs.iter().map(project_run).collect::<Vec<_>>()
                                                             }).unwrap_or_default(),
@@ -290,6 +366,8 @@ fn project_block(index: usize, b: &Value) -> Value {
         "index": index,
         "type": ty,
         "align": b.get("align").cloned().unwrap_or(Value::Null),
+        "markRevision": project_revision(b.get("markRevision")),
+        "formatRevision": project_revision(b.get("formatRevision")),
         "runs": runs,
     })
 }

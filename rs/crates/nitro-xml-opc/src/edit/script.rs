@@ -42,6 +42,14 @@ pub const SCHEMA_OP_IDS: &[&str] = &[
     "ungroupShapes",
     "setShapeFill",
     "setShapeLine",
+    "acceptRevision",
+    "rejectRevision",
+    "acceptAllRevisions",
+    "rejectAllRevisions",
+    "addComment",
+    "replyToComment",
+    "resolveComment",
+    "deleteComment",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -312,6 +320,43 @@ pub enum Op {
         #[serde(flatten)]
         rest: Map<String, Value>,
     },
+    #[serde(rename = "acceptRevision")]
+    AcceptRevision { id: String },
+    #[serde(rename = "rejectRevision")]
+    RejectRevision { id: String },
+    #[serde(rename = "acceptAllRevisions")]
+    AcceptAllRevisions,
+    #[serde(rename = "rejectAllRevisions")]
+    RejectAllRevisions,
+    #[serde(rename = "addComment")]
+    AddComment {
+        #[serde(rename = "blockIndex")]
+        block_index: u32,
+        #[serde(default)]
+        #[serde(rename = "runIndex")]
+        run_index: Option<u32>,
+        author: String,
+        text: String,
+        #[serde(default)]
+        id: Option<String>,
+    },
+    #[serde(rename = "replyToComment")]
+    ReplyToComment {
+        #[serde(rename = "parentId")]
+        parent_id: String,
+        author: String,
+        text: String,
+        #[serde(default)]
+        id: Option<String>,
+    },
+    #[serde(rename = "resolveComment")]
+    ResolveComment {
+        id: String,
+        #[serde(default)]
+        resolved: Option<bool>,
+    },
+    #[serde(rename = "deleteComment")]
+    DeleteComment { id: String },
 }
 
 impl Op {
@@ -352,6 +397,14 @@ impl Op {
             Self::UngroupShapes { .. } => "ungroupShapes",
             Self::SetShapeFill { .. } => "setShapeFill",
             Self::SetShapeLine { .. } => "setShapeLine",
+            Self::AcceptRevision { .. } => "acceptRevision",
+            Self::RejectRevision { .. } => "rejectRevision",
+            Self::AcceptAllRevisions => "acceptAllRevisions",
+            Self::RejectAllRevisions => "rejectAllRevisions",
+            Self::AddComment { .. } => "addComment",
+            Self::ReplyToComment { .. } => "replyToComment",
+            Self::ResolveComment { .. } => "resolveComment",
+            Self::DeleteComment { .. } => "deleteComment",
         }
     }
 

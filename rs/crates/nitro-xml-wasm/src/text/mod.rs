@@ -12,6 +12,7 @@ pub mod clipboard;
 pub mod keys;
 pub mod rich;
 pub mod selection;
+pub mod spell;
 
 pub use caret::{caret_rect, offset_at_x, selection_rects};
 pub use clipboard::{

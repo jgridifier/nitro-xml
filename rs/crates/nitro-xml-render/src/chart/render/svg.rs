@@ -3,7 +3,8 @@
 
 use super::chart_auto_title::resolve_p9_chart_title_text;
 use super::chart_plot_layout::{
-    chart_title_reserve_px, compute_plot_layout, CHART_PX_PER_PT, DEFAULT_CHART_TEXT_PX,
+    chart_title_baseline_y, chart_title_reserve_px, compute_plot_layout, CHART_PX_PER_PT,
+    DEFAULT_CHART_TEXT_PX,
 };
 use super::chart_view::ChartViewModel;
 use super::summary::ChartSummaryType;
@@ -116,7 +117,12 @@ pub fn render_chart_svg(
         if title_attrs.fill.is_none() {
             title_attrs.fill = Some("#404040".to_string());
         }
-        out.push(text(w / 2.0, 8.0 + size, &label, &title_attrs));
+        let title_baseline_y = if p9_bar3d {
+            chart_title_baseline_y(size)
+        } else {
+            8.0 + size
+        };
+        out.push(text(w / 2.0, title_baseline_y, &label, &title_attrs));
         if !model.title_overlay && !p9_bar3d {
             area.y += title_height;
             area.h -= title_height;

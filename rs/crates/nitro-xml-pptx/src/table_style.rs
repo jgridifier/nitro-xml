@@ -187,7 +187,7 @@ fn parse_section_text(tc_tx: &Element) -> Option<TableStyleText> {
     let color = child_local(tc_tx, "srgbClr", ns::A)
         .and_then(|c| attr(c, "val"))
         .filter(|s| !s.is_empty())
-        .map(|hex| srgb_to_hex(hex));
+        .map(srgb_to_hex);
     if scheme_color.is_none() && color.is_none() {
         return None;
     }
@@ -201,8 +201,8 @@ fn parse_color_choice_fill(solid: Option<&Element>) -> Option<TableStyleFill> {
     let solid = solid?;
     if let Some(scheme) = child_local(solid, "schemeClr", ns::A) {
         let scheme_color = attr(scheme, "val").filter(|s| !s.is_empty())?;
-        let tint = child_local(scheme, "tint", ns::A).and_then(|n| parse_ooxml_percent_attr(n));
-        let shade = child_local(scheme, "shade", ns::A).and_then(|n| parse_ooxml_percent_attr(n));
+        let tint = child_local(scheme, "tint", ns::A).and_then(parse_ooxml_percent_attr);
+        let shade = child_local(scheme, "shade", ns::A).and_then(parse_ooxml_percent_attr);
         return Some(TableStyleFill {
             scheme_color: Some(scheme_color.to_owned()),
             color: None,
@@ -213,8 +213,8 @@ fn parse_color_choice_fill(solid: Option<&Element>) -> Option<TableStyleFill> {
     }
     if let Some(srgb) = child_local(solid, "srgbClr", ns::A) {
         let color = attr(srgb, "val").filter(|s| !s.is_empty())?;
-        let tint = child_local(srgb, "tint", ns::A).and_then(|n| parse_ooxml_percent_attr(n));
-        let shade = child_local(srgb, "shade", ns::A).and_then(|n| parse_ooxml_percent_attr(n));
+        let tint = child_local(srgb, "tint", ns::A).and_then(parse_ooxml_percent_attr);
+        let shade = child_local(srgb, "shade", ns::A).and_then(parse_ooxml_percent_attr);
         return Some(TableStyleFill {
             scheme_color: None,
             color: Some(srgb_to_hex(color)),

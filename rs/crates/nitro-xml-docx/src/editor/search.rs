@@ -274,23 +274,11 @@ mod tests {
     use serde_json::json;
 
     fn host_with_para(text: &str) -> DocxHost {
-        DocxHost {
-            format: "docx".into(),
-            blocks: vec![json!({
-                "type": "paragraph",
-                "id": "p0",
-                "runs": [{ "text": text }],
-            })],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            comments: None,
-            comments_touched: false,
-            touched: Default::default(),
-        }
+        DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": text }],
+        })])
     }
 
     #[test]

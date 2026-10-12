@@ -188,21 +188,9 @@ mod tests {
         // Catches: Mod+F not wiring to find-and-replace (#83).
         let mut editor = DocxEditor {
             session: EditSession::new(
-                DocxHost {
-                    format: "docx".into(),
-                    blocks: vec![
-                        json!({ "type": "paragraph", "id": "p", "runs": [{ "text": "a" }] }),
-                    ],
-                    numbering_catalog: None,
-                    paragraph_styles: None,
-                    character_styles: None,
-                    sections: None,
-                    page: None,
-                    even_and_odd_headers: false,
-                    comments: None,
-                    comments_touched: false,
-                    touched: Default::default(),
-                },
+                DocxHost::stub(vec![
+                    json!({ "type": "paragraph", "id": "p", "runs": [{ "text": "a" }] }),
+                ]),
                 EditHistory::new(),
             ),
             commands: DocxCommandSurface::new(false),

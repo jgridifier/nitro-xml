@@ -263,23 +263,11 @@ mod tests {
     use serde_json::json;
 
     fn session_host() -> (EditSession<DocxHost, EditHistory>, DocxHost) {
-        let host = DocxHost {
-            format: "docx".into(),
-            blocks: vec![json!({
-                "type": "paragraph",
-                "id": "p0",
-                "runs": [{ "text": "Hi", "bold": false }],
-            })],
-            numbering_catalog: None,
-            paragraph_styles: None,
-            character_styles: None,
-            sections: None,
-            page: None,
-            even_and_odd_headers: false,
-            comments: None,
-            comments_touched: false,
-            touched: Default::default(),
-        };
+        let host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi", "bold": false }],
+        })]);
         let session = EditSession::new(host.clone(), EditHistory::new());
         (session, host)
     }

@@ -47,4 +47,3 @@ pub use render_space::{
     DRAWN_CHART_TYPES,
 };
 pub use svg_text_metrics::ChartSvgMeasureOptions;
-pub use theme_palette::THEME_SLOTS;

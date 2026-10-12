@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/ui/src/pptx/render/visual-effects.ts,
-// src/core/pptx/core/core/builders/PptxShapeEffectStyleExtractor.ts; changes in PROVENANCE.md.
+// src/core/pptx/core/core/builders/PptxShapeEffectStyleExtractor.ts,
+// src/core/pptx/core/core/runtime/PptxHandlerRuntimeTextRunEffects.ts; changes in PROVENANCE.md.
 
 use crate::inheritance::child_local;
 use nitro_xml_opc::drawingml::{
@@ -20,7 +21,44 @@ pub(crate) fn box_shadow_from_sp_pr(
     rotation_deg: Option<f64>,
 ) -> Option<String> {
     let effect_lst = child_local(sp_pr, "effectLst", ns::A)?;
+    box_shadow_from_effect_lst(effect_lst, theme, rotation_deg)
+}
+
+/// Build CSS `box-shadow` from `a:effectLst/a:outerShdw` (theme `effectStyleLst` or `spPr`).
+pub(crate) fn box_shadow_from_effect_lst(
+    effect_lst: &Element,
+    theme: &dyn DrawingColorTheme,
+    rotation_deg: Option<f64>,
+) -> Option<String> {
     let outer = child_local(effect_lst, "outerShdw", ns::A)?;
+    outer_shdw_to_css(outer, theme, rotation_deg, ShadowCssKind::Box)
+}
+
+/// Build CSS `text-shadow` from `a:rPr/a:effectLst/a:outerShdw`.
+///
+/// Offsets match [`box_shadow_from_effect_lst`]; blur uses full `blurRad` EMU→px like upstream
+/// `PptxHandlerRuntimeTextRunEffects` (shape `box-shadow` halves blur for CSS radius).
+pub(crate) fn text_shadow_from_effect_lst(
+    effect_lst: &Element,
+    theme: &dyn DrawingColorTheme,
+    rotation_deg: Option<f64>,
+) -> Option<String> {
+    let outer = child_local(effect_lst, "outerShdw", ns::A)?;
+    outer_shdw_to_css(outer, theme, rotation_deg, ShadowCssKind::Text)
+}
+
+#[derive(Clone, Copy)]
+enum ShadowCssKind {
+    Box,
+    Text,
+}
+
+fn outer_shdw_to_css(
+    outer: &Element,
+    theme: &dyn DrawingColorTheme,
+    rotation_deg: Option<f64>,
+    kind: ShadowCssKind,
+) -> Option<String> {
     let color = parse_drawing_color_in(Some(outer))?;
     let resolved = resolve_drawing_color(&color, Some(theme), None)?;
     if resolved.hex.is_empty() {
@@ -42,7 +80,11 @@ pub(crate) fn box_shadow_from_sp_pr(
     let offset_x = (angle_rad.cos() * distance_px).round();
     let offset_y = (angle_rad.sin() * distance_px).round();
 
-    let blur_px = (emu_to_pixels(blur_emu) / 2.0).max(0.0).round();
+    let blur_em_px = emu_to_pixels(blur_emu).max(0.0);
+    let blur_px = match kind {
+        ShadowCssKind::Box => (blur_em_px / 2.0).round(),
+        ShadowCssKind::Text => blur_em_px.round(),
+    };
 
     let color_css = shadow_color_css(&resolved.hex, resolved.alpha)?;
     Some(format!(

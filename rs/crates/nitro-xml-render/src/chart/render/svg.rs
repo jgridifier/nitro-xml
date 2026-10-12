@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/chart-svg.ts
 
+use super::chart_plot_layout::{
+    chart_title_reserve_px, compute_plot_layout, CHART_PX_PER_PT, DEFAULT_CHART_TEXT_PX,
+};
 use super::chart_view::ChartViewModel;
 use super::summary::ChartSummaryType;
 use super::svg_appearance::{chart_area_rect, chart_gradient_paint, chart_text_attributes};
@@ -20,6 +23,12 @@ pub fn render_chart_svg(
     measure: &mut ChartSvgMeasureOptions<'_>,
 ) -> String {
     let (model, defs) = chart_gradient_paint(model, width.max(1), height.max(1));
+    let p9_bar3d = model.is3_d
+        && model.bar3d_extrusion
+        && matches!(
+            model.type_,
+            ChartSummaryType::Bar | ChartSummaryType::Column
+        );
     let mut picture_defs: Vec<String> = Vec::new();
     let w = width.max(1) as f64;
     let h = height.max(1) as f64;
@@ -61,7 +70,7 @@ pub fn render_chart_svg(
         } else {
             out.push(rich.markup);
         }
-        if !model.title_overlay {
+        if !model.title_overlay && !p9_bar3d {
             area.y += rich.height;
             area.h -= rich.height;
         }
@@ -98,7 +107,7 @@ pub fn render_chart_svg(
             title_attrs.fill = Some("#404040".to_string());
         }
         out.push(text(w / 2.0, 8.0 + size, &label, &title_attrs));
-        if !model.title_overlay {
+        if !model.title_overlay && !p9_bar3d {
             area.y += title_height;
             area.h -= title_height;
         }
@@ -119,8 +128,39 @@ pub fn render_chart_svg(
         out.push("</svg>".to_string());
         return out.join("");
     }
-    let legend = chart_legend_svg(&model, area, w, h, measure);
-    area = legend.plot;
+    let plot_layout = if p9_bar3d {
+        let title_attrs = chart_text_attributes(&model, "title", 14.0);
+        let title_px = title_attrs.size.unwrap_or(14.0 * CHART_PX_PER_PT);
+        let cat_attrs = chart_text_attributes(&model, "categoryAxis", 10.0);
+        let cat_px = cat_attrs.size.unwrap_or(DEFAULT_CHART_TEXT_PX);
+        Some(compute_plot_layout(
+            w,
+            h,
+            chart_title_reserve_px(model.title.is_some() || model.title_placeholder, title_px),
+            model.show_legend,
+            &model.legend_position,
+            model.category_label_offset,
+            cat_px,
+        ))
+    } else {
+        None
+    };
+    let legend_area = if p9_bar3d {
+        Rect {
+            x: 0.0,
+            y: 0.0,
+            w,
+            h,
+        }
+    } else {
+        area
+    };
+    let mut legend_model = model.clone();
+    if p9_bar3d {
+        legend_model.legend_overlay = true;
+    }
+    let legend = chart_legend_svg(&legend_model, legend_area, w, h, measure);
+    area = if p9_bar3d { legend_area } else { legend.plot };
     let legend_markup = legend.markup;
     if !legend.foreground {
         out.push(legend_markup.clone());
@@ -129,7 +169,7 @@ pub fn render_chart_svg(
         let body = match model.type_ {
             ChartSummaryType::Pie | ChartSummaryType::Doughnut => pie_svg(&model, area),
             ChartSummaryType::Radar => radar_svg(&model, area),
-            _ => cartesian_svg(&model, area, &mut picture_defs),
+            _ => cartesian_svg(&model, area, &mut picture_defs, plot_layout),
         };
         out.push(body);
     }

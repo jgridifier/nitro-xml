@@ -74,6 +74,8 @@ pub struct ChartSummary {
     pub bar_gap_width: Option<i32>,
     pub bar_overlap: Option<i32>,
     pub title: Option<String>,
+    /// `c:title` is present and `c:autoTitleDeleted` is not true, even when no title text is resolved.
+    pub title_placeholder: bool,
     pub series: Vec<ChartSummarySeries>,
     pub show_legend: bool,
     pub legend_position: Option<String>,

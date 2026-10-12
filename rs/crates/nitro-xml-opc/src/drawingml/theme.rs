@@ -5,8 +5,8 @@ use super::color::parse_drawing_color_in;
 use super::dom::{elements, first};
 use super::fill::{parse_drawing_line, parse_fill_element};
 use super::theme_model::{
-    DrawingTheme, ThemeColorMap, ThemeColorScheme, ThemeColorSlot, ThemeFontCollection,
-    ThemeFontScheme, ThemeFormatScheme, THEME_COLOR_SLOTS,
+    DrawingTheme, ThemeColorMap, ThemeColorScheme, ThemeColorSlot, ThemeEffectStyle,
+    ThemeFontCollection, ThemeFontScheme, ThemeFormatScheme, THEME_COLOR_SLOTS,
 };
 use super::types::DrawingFill;
 use crate::xml::{ns, parse_xml_str, Document, Element};
@@ -97,13 +97,39 @@ fn parse_line_style_list(list: Option<&Element>) -> Vec<super::types::DrawingLin
         .collect()
 }
 
-/// `a:fmtScheme` fill / line / background-fill lists (effect styles stay deferred).
+fn parse_effect_style_list(list: Option<&Element>) -> Vec<ThemeEffectStyle> {
+    let Some(list) = list else {
+        return Vec::new();
+    };
+    elements(list)
+        .into_iter()
+        .filter(|element| element.local == "effectStyle")
+        .map(|effect_style| {
+            let effect_lst = first(effect_style, "effectLst", ns::A)
+                .or_else(|| first(effect_style, "effectDag", ns::A))
+                .cloned();
+            let sp3d = first(effect_style, "sp3d", ns::A);
+            let prst_material = sp3d.and_then(|s| non_empty(super::dom::attr(s, "prstMaterial")));
+            let has_bevel = sp3d.is_some_and(|s| {
+                first(s, "bevelT", ns::A).is_some() || first(s, "bevelB", ns::A).is_some()
+            });
+            ThemeEffectStyle {
+                effect_lst,
+                prst_material,
+                has_bevel,
+            }
+        })
+        .collect()
+}
+
+/// `a:fmtScheme` fill / line / effect / background-fill style lists.
 pub fn parse_theme_format_scheme(fmt: Option<&Element>) -> Option<ThemeFormatScheme> {
     let fmt = fmt?;
     Some(ThemeFormatScheme {
         name: non_empty(super::dom::attr(fmt, "name")),
         fill_styles: parse_fill_style_list(first(fmt, "fillStyleLst", ns::A)),
         line_styles: parse_line_style_list(first(fmt, "lnStyleLst", ns::A)),
+        effect_styles: parse_effect_style_list(first(fmt, "effectStyleLst", ns::A)),
         background_fill_styles: parse_fill_style_list(first(fmt, "bgFillStyleLst", ns::A)),
     })
 }
@@ -167,6 +193,15 @@ mod tests {
               <a:bgFillStyleLst>
                 <a:solidFill><a:srgbClr val="ABCDEF"/></a:solidFill>
               </a:bgFillStyleLst>
+              <a:effectStyleLst>
+                <a:effectStyle>
+                  <a:effectLst>
+                    <a:outerShdw blurRad="19050" dist="38100" dir="2700000" rotWithShape="0">
+                      <a:schemeClr val="phClr"><a:alpha val="45000"/></a:schemeClr>
+                    </a:outerShdw>
+                  </a:effectLst>
+                </a:effectStyle>
+              </a:effectStyleLst>
             </a:fmtScheme>
           </a:themeElements>
         </a:theme>"#;
@@ -181,5 +216,41 @@ mod tests {
             DrawingFill::Solid { color } => assert_eq!(color.value, "ABCDEF"),
             other => panic!("expected solid bg fill, got {other:?}"),
         }
+        assert_eq!(fmt.effect_styles.len(), 1);
+        let lst = fmt.effect_styles[0].effect_lst.as_ref().expect("effectLst");
+        assert_eq!(lst.local, "effectLst");
+        assert!(
+            first(lst, "outerShdw", ns::A).is_some(),
+            "expected outerShdw in parsed effect style"
+        );
+    }
+
+    // Catches: effectStyleLst sp3d/@prstMaterial dropped so effectRef idx=2 never picks up metal.
+    #[test]
+    fn effect_style_parses_sp3d_preset_material() {
+        let xml = r#"<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <a:themeElements>
+            <a:clrScheme name="Office"/>
+            <a:fontScheme name="Office"><a:majorFont/><a:minorFont/></a:fontScheme>
+            <a:fmtScheme name="Office">
+              <a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>
+              <a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>
+              <a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>
+              <a:effectStyleLst>
+                <a:effectStyle><a:effectLst/></a:effectStyle>
+                <a:effectStyle>
+                  <a:effectLst/>
+                  <a:sp3d prstMaterial="metal"><a:bevelT w="10000" h="10000"/></a:sp3d>
+                </a:effectStyle>
+              </a:effectStyleLst>
+            </a:fmtScheme>
+          </a:themeElements>
+        </a:theme>"#;
+        let theme = parse_theme_xml(xml, "t");
+        let fmt = theme.format_scheme.expect("fmtScheme");
+        assert_eq!(fmt.effect_styles.len(), 2);
+        assert!(fmt.effect_styles[0].prst_material.is_none());
+        assert_eq!(fmt.effect_styles[1].prst_material.as_deref(), Some("metal"));
+        assert!(fmt.effect_styles[1].has_bevel);
     }
 }

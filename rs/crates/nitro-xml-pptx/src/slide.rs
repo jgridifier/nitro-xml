@@ -154,6 +154,15 @@ pub struct DumpElement {
     /// CSS `box-shadow` from `a:effectLst/a:outerShdw`. Not in the issue-24 dump.
     #[serde(skip)]
     pub box_shadow: Option<String>,
+    /// Inset specular `box-shadow` from theme `effectStyleLst/a:sp3d/@prstMaterial`. Not in the issue-24 dump.
+    #[serde(skip)]
+    pub material_box_shadow: Option<String>,
+    /// Material gradient overlay (`background-image` layer). Not in the issue-24 dump.
+    #[serde(skip)]
+    pub material_overlay: Option<String>,
+    /// CSS `text-shadow` from first-run `a:rPr/a:effectLst/a:outerShdw`. Not in the issue-24 dump.
+    #[serde(skip)]
+    pub text_shadow: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -184,7 +193,7 @@ pub struct ParseCtx<'a> {
     /// Master `p:clrMap`, or a layout/slide `a:overrideClrMapping` that replaces it.
     /// Missing keys fall back to `bg1→lt1`, `tx1→dk1`, `bg2→lt2`, `tx2→dk2`.
     pub color_map: Option<&'a ThemeColorMap>,
-    /// Theme `a:fmtScheme` used by `a:fillRef` / `a:lnRef` (idx 1–3 and 1001–1003).
+    /// Theme `a:fmtScheme` used by `a:fillRef` / `a:lnRef` / `a:effectRef` (idx 1–3 and 1001–1003).
     pub format_scheme: Option<&'a ThemeFormatScheme>,
     pub table_style_map: Option<&'a TableStyleMap>,
 }
@@ -1615,6 +1624,9 @@ fn build_dump(
         image_src: None,
         seq: 0,
         box_shadow: extras.box_shadow,
+        material_box_shadow: extras.material_box_shadow,
+        material_overlay: extras.material_overlay,
+        text_shadow: extras.text_shadow,
     })
 }
 
@@ -1893,6 +1905,9 @@ struct PaintExtras {
     image_rel_owner: Option<String>,
     ole_spid: Option<String>,
     box_shadow: Option<String>,
+    material_box_shadow: Option<String>,
+    material_overlay: Option<String>,
+    text_shadow: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -2154,9 +2169,20 @@ fn shape_paint_extras(
         extras.text_color = color;
         extras.font_size_px = size;
         extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
+        extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }
     if let Some(sp_pr) = effective_sp_pr {
         extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(sp_pr, &theme, rotation_deg);
+    }
+    if extras.box_shadow.is_none() {
+        apply_effect_ref(
+            shape,
+            inherited_shape,
+            theme,
+            ctx.format_scheme,
+            rotation_deg,
+            &mut extras,
+        );
     }
     extras
 }
@@ -2212,6 +2238,49 @@ fn matrix_line(scheme: Option<&ThemeFormatScheme>, idx: i32) -> Option<&DrawingL
         scheme.line_styles.get((idx - 1) as usize)
     } else {
         None
+    }
+}
+
+fn matrix_effect(
+    scheme: Option<&ThemeFormatScheme>,
+    idx: i32,
+) -> Option<&nitro_xml_opc::drawingml::ThemeEffectStyle> {
+    let scheme = scheme?;
+    if (1..=999).contains(&idx) {
+        scheme.effect_styles.get((idx - 1) as usize)
+    } else {
+        None
+    }
+}
+
+fn apply_effect_ref(
+    shape: &Element,
+    inherited_shape: Option<&Element>,
+    theme: SchemeTheme<'_>,
+    format_scheme: Option<&ThemeFormatScheme>,
+    rotation_deg: Option<f64>,
+    extras: &mut PaintExtras,
+) {
+    let Some(ref_el) = style_ref_node(shape, inherited_shape, "effectRef") else {
+        return;
+    };
+    let idx = style_ref_idx(ref_el);
+    if idx <= 0 || idx == 1000 {
+        return;
+    }
+    let override_color = parse_drawing_color_in(Some(ref_el));
+    let Some(effect_style) = matrix_effect(format_scheme, idx) else {
+        return;
+    };
+    let ph = ph_theme(theme, override_color.as_ref());
+    if let Some(effect_lst) = effect_style.effect_lst.as_ref() {
+        extras.box_shadow =
+            crate::outer_shadow::box_shadow_from_effect_lst(effect_lst, &ph, rotation_deg);
+    }
+    if let Some(material) = effect_style.prst_material.as_deref() {
+        let mat = crate::visual_3d_materials::get_material_css_overrides(material);
+        extras.material_box_shadow = mat.box_shadow.map(str::to_owned);
+        extras.material_overlay = mat.background_image.map(str::to_owned);
     }
 }
 
@@ -2400,6 +2469,31 @@ fn first_run_text_paint(
         }
     }
     (color, size)
+}
+
+fn first_run_text_shadow(
+    tx: &Element,
+    theme: SchemeTheme<'_>,
+    rotation_deg: Option<f64>,
+) -> Option<String> {
+    let para = children_local(tx, "p", ns::A).into_iter().next()?;
+    let def = child_path(para, &[("pPr", ns::A), ("defRPr", ns::A)]);
+    let runs: Vec<&Element> = para
+        .children
+        .iter()
+        .filter_map(|n| match n {
+            Node::Element(el) if el.local == "r" || el.local == "fld" => Some(el),
+            _ => None,
+        })
+        .collect();
+    let rpr = if runs.is_empty() {
+        def
+    } else {
+        child_local(runs[0], "rPr", ns::A).or(def)
+    };
+    let rpr = rpr?;
+    let effect_lst = child_local(rpr, "effectLst", ns::A)?;
+    crate::outer_shadow::text_shadow_from_effect_lst(effect_lst, &theme, rotation_deg)
 }
 
 fn level_style_text_color(
@@ -2738,6 +2832,15 @@ mod tests {
                   <a:lin ang="0"/>
                 </a:gradFill>
               </a:bgFillStyleLst>
+              <a:effectStyleLst>
+                <a:effectStyle>
+                  <a:effectLst>
+                    <a:outerShdw blurRad="19050" dist="38100" dir="2700000" rotWithShape="0">
+                      <a:schemeClr val="phClr"><a:alpha val="45000"/></a:schemeClr>
+                    </a:outerShdw>
+                  </a:effectLst>
+                </a:effectStyle>
+              </a:effectStyleLst>
             </a:fmtScheme>
           </a:themeElements>
         </a:theme>"#;
@@ -2798,6 +2901,170 @@ mod tests {
         )
         .unwrap();
         assert_eq!(el.fill_color.as_deref(), Some("#ABCDEF"));
+    }
+
+    // Catches: keyframes title run outerShdw never becomes text-shadow so the pink title floats without TS drop shadow.
+    #[test]
+    fn first_run_outer_shdw_becomes_text_shadow() {
+        let colors = theme();
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="16" name="Title"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
+          <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r>
+            <a:rPr lang="en-US" sz="5400"><a:solidFill><a:schemeClr val="accent2"/></a:solidFill>
+              <a:effectLst><a:outerShdw blurRad="50800" dist="40000" dir="5400000" algn="tl" rotWithShape="0">
+                <a:srgbClr val="000000"><a:alpha val="33000"/></a:srgbClr>
+              </a:outerShdw></a:effectLst>
+            </a:rPr><a:t>Selamat Belajar Biologi</a:t>
+          </a:r></a:p></p:txBody>
+        </p:sp>"#;
+        let el = parse_shape(
+            &parse_xml_str(xml).unwrap().root,
+            "title".into(),
+            &ctx(&colors),
+            false,
+        )
+        .unwrap();
+        let shadow = el
+            .text_shadow
+            .as_deref()
+            .expect("text_shadow from rPr effectLst");
+        assert!(
+            shadow.contains("0px 4px"),
+            "dir 90° dist≈4px → vertical offset, got {shadow}"
+        );
+        assert!(
+            shadow.contains("5px"),
+            "blurRad 50800 → ~5px blur (TS ≈5.3), got {shadow}"
+        );
+        assert!(
+            shadow.contains("rgba(0, 0, 0, 0.33)"),
+            "alpha 33000 → 0.33, got {shadow}"
+        );
+        assert!(
+            el.box_shadow.is_none(),
+            "noFill spPr must not set box-shadow"
+        );
+    }
+
+    // Catches: effectRef idx 1 outerShdw never becomes box-shadow so keyframes menu buttons float without shadow.
+    #[test]
+    fn effect_ref_resolves_theme_outer_shadow() {
+        let colors = theme();
+        let scheme = office_matrix();
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="1" name="S"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+          <p:style><a:effectRef idx="1"><a:schemeClr val="accent1"/></a:effectRef></p:style>
+        </p:sp>"#;
+        let el = parse_shape(
+            &parse_xml_str(xml).unwrap().root,
+            "s".into(),
+            &ctx_with_matrix(&colors, &scheme),
+            false,
+        )
+        .unwrap();
+        let shadow = el.box_shadow.as_deref().expect("box_shadow from effectRef");
+        assert!(
+            shadow.contains("rgba(68, 114, 196,"),
+            "phClr from accent1, got {shadow}"
+        );
+        assert!(
+            shadow.contains("3px 3px"),
+            "45° dist≈4px → ~3px offsets, got {shadow}"
+        );
+    }
+
+    // Catches: effectRef idx=2 theme metal sp3d never yields inset specular on the shape.
+    #[test]
+    fn effect_ref_resolves_theme_metal_material() {
+        let colors = theme();
+        let xml = r#"<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <a:themeElements>
+            <a:clrScheme name="Office"/>
+            <a:fontScheme name="Office"><a:majorFont/><a:minorFont/></a:fontScheme>
+            <a:fmtScheme name="Office">
+              <a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>
+              <a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>
+              <a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>
+              <a:effectStyleLst>
+                <a:effectStyle><a:effectLst/></a:effectStyle>
+                <a:effectStyle>
+                  <a:effectLst>
+                    <a:outerShdw blurRad="19050" dist="38100" dir="2700000" rotWithShape="0">
+                      <a:schemeClr val="phClr"><a:alpha val="45000"/></a:schemeClr>
+                    </a:outerShdw>
+                  </a:effectLst>
+                  <a:sp3d prstMaterial="metal"><a:bevelT w="10000" h="10000"/></a:sp3d>
+                </a:effectStyle>
+              </a:effectStyleLst>
+            </a:fmtScheme>
+          </a:themeElements>
+        </a:theme>"#;
+        let scheme = nitro_xml_opc::drawingml::parse_theme_xml(xml, "t")
+            .format_scheme
+            .expect("fmtScheme");
+        let shape_xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="1" name="S"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+          <p:style><a:effectRef idx="2"><a:schemeClr val="accent1"/></a:effectRef></p:style>
+        </p:sp>"#;
+        let el = parse_shape(
+            &parse_xml_str(shape_xml).unwrap().root,
+            "s".into(),
+            &ctx_with_matrix(&colors, &scheme),
+            false,
+        )
+        .unwrap();
+        let inset = el
+            .material_box_shadow
+            .as_deref()
+            .expect("material_box_shadow");
+        assert!(
+            inset.contains("inset -3px -3px 8px"),
+            "metal inset specular, got {inset}"
+        );
+        let overlay = el.material_overlay.as_deref().expect("material_overlay");
+        assert!(
+            overlay.starts_with("linear-gradient(135deg"),
+            "metal gradient overlay, got {overlay}"
+        );
+        assert!(el.box_shadow.is_some(), "outer shadow from effectLst");
+    }
+
+    // Catches: keyframes Profil effectRef idx=2 metal never gets inset specular so the green button stays flat.
+    #[test]
+    fn keyframes_profil_effectref_metal_material() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/pptx/poi-keyframes.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let profil: Vec<_> = slide
+            .elements
+            .iter()
+            .filter(|e| e.text.as_deref() == Some("Profil"))
+            .collect();
+        assert!(!profil.is_empty(), "no Profil elements");
+        for el in &profil {
+            let inset = el
+                .material_box_shadow
+                .as_deref()
+                .expect("Profil effectRef idx=2 metal inset");
+            assert!(
+                inset.contains("inset"),
+                "expected inset specular on Profil, got {inset:?}"
+            );
+            assert!(
+                el.material_overlay
+                    .as_deref()
+                    .is_some_and(|o| o.contains("linear-gradient")),
+                "expected material gradient overlay on Profil"
+            );
+        }
     }
 
     // Catches: lnRef idx=2 painted at 1px instead of the theme line width.

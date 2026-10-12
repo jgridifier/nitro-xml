@@ -111,8 +111,22 @@ pub struct ThemeFontScheme {
     pub minor: ThemeFontCollection,
 }
 
-/// `a:fmtScheme` style matrix. `fillRef`/`lnRef` idx 1–3 index the fill and
-/// line lists; idx 1001–1003 index [`Self::background_fill_styles`].
+/// One `a:effectStyle` entry from `a:effectStyleLst` (shadow/glow/etc. live under `a:effectLst`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ThemeEffectStyle {
+    #[serde(skip)]
+    /// Cloned `a:effectLst` (or `a:effectDag`) subtree for paint-time resolution.
+    pub effect_lst: Option<crate::xml::Element>,
+    /// `a:sp3d/@prstMaterial` on the same `a:effectStyle` (theme matrix 3-D material).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prst_material: Option<String>,
+    /// True when `a:sp3d` carries `a:bevelT` or `a:bevelB` (bevel paint is follow-up work).
+    #[serde(skip)]
+    pub has_bevel: bool,
+}
+
+/// `a:fmtScheme` style matrix. `fillRef`/`lnRef`/`effectRef` idx 1–3 index the fill,
+/// line, and effect lists; idx 1001–1003 index [`Self::background_fill_styles`].
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ThemeFormatScheme {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -121,6 +135,8 @@ pub struct ThemeFormatScheme {
     pub fill_styles: Vec<DrawingFill>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub line_styles: Vec<DrawingLine>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effect_styles: Vec<ThemeEffectStyle>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub background_fill_styles: Vec<DrawingFill>,
 }

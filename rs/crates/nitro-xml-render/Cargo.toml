@@ -18,3 +18,6 @@ unicode-segmentation = "1"
 # Kept for downstream callers that still gate on the feature name; S1 is always on (#28).
 chart-rust-s1 = []
 default = ["chart-rust-s1"]
+
+[dev-dependencies]
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs", "unreserved"] }

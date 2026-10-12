@@ -90,6 +90,13 @@ pub fn render_chart_space_svg(
             fill_color: e.fill_color.clone(),
             labels_visible: e.labels_visible,
         });
+    view.category_label_offset = space
+        .plot_area
+        .axes
+        .iter()
+        .find(|a| a.kind == "catAx" || a.kind == "dateAx")
+        .and_then(|a| a.label_offset)
+        .unwrap_or(100.0);
     if let Some(title) = &space.title {
         view.title_overlay = title.overlay.unwrap_or(false);
         // Title manual layout comes from chart formatting entries (upstream chart-view), not `c:title/layout`.

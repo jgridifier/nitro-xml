@@ -41,14 +41,14 @@ pub fn formula_bar_html(view: &FormulaBarView) -> String {
 .xfb-caret[hidden]{{display:none}}
 .xfb-save{{margin-left:4px;font:inherit;padding:0 6px}}
 </style>
-<div class="xfb-name" part="name-box" aria-label="Name Box">{name}</div>
+<div class="xfb-name" part="name-box" aria-label="Name Box {name}">{name}</div>
 <div class="xfb-actions">
-<button type="button" class="xfb-btn xfb-cancel" data-a="formula-cancel" aria-label="Cancel" title="Cancel">✕</button>
-<button type="button" class="xfb-btn xfb-enter" data-a="formula-commit" aria-label="Enter" title="Enter">✓</button>
-<button type="button" class="xfb-btn xfb-fx" data-a="formula-fx" aria-label="Insert Function" title="Insert Function"><i>fx</i></button>
+<button type="button" class="xfb-btn xfb-cancel" data-a="formula-cancel" aria-label="Cancel" title="Cancel"><span aria-hidden="true">✕</span></button>
+<button type="button" class="xfb-btn xfb-enter" data-a="formula-commit" aria-label="Enter" title="Enter"><span aria-hidden="true">✓</span></button>
+<button type="button" class="xfb-btn xfb-fx" data-a="formula-fx" aria-label="Insert Function" title="Insert Function"><i aria-hidden="true">fx</i></button>
 </div>
-<div class="xfb-field" part="formula-input" role="textbox" tabindex="0" data-a="formula-focus" aria-label="Formula Bar" aria-multiline="{multiline}">{before}<span class="xfb-caret"{caret_hidden}></span>{after}</div>
-<button type="button" class="xfb-btn xfb-expand" data-a="formula-expand" aria-label="{expand_label}" aria-expanded="{expanded_attr}">▾</button>
+<div class="xfb-field" part="formula-input" role="textbox" tabindex="0" data-a="formula-focus" aria-label="Formula Bar" aria-multiline="{multiline}">{before}<span class="xfb-caret" aria-hidden="true"{caret_hidden}></span>{after}</div>
+<button type="button" class="xfb-btn xfb-expand" data-a="formula-expand" aria-label="{expand_label}" title="{expand_label}" aria-expanded="{expanded_attr}"><span aria-hidden="true">▾</span></button>
 <button type="button" class="xfb-save" data-a="save" aria-label="Save">Save</button>
 </div>"##,
         editing = editing,
@@ -128,5 +128,24 @@ mod tests {
         assert!(html.contains("data-a=\"save\""));
         assert!(!html.to_ascii_lowercase().contains("<textarea"));
         assert!(!html.to_ascii_lowercase().contains("<input"));
+    }
+
+    #[test]
+    fn formula_bar_icon_glyphs_are_aria_hidden() {
+        // Catches: bare ✕/✓/fx/▾ text vs aria-label fails axe label-content-name-mismatch at 375px.
+        let view = FormulaBarView {
+            read_only: false,
+            name: "B2".into(),
+            text: "1".into(),
+            caret: 1,
+            editing: false,
+            expanded: false,
+        };
+        let html = formula_bar_html(&view);
+        assert!(html.contains("aria-label=\"Name Box B2\""));
+        assert!(html.contains("<span aria-hidden=\"true\">✕</span>"));
+        assert!(html.contains("<span aria-hidden=\"true\">✓</span>"));
+        assert!(html.contains("<i aria-hidden=\"true\">fx</i>"));
+        assert!(html.contains("<span aria-hidden=\"true\">▾</span>"));
     }
 }

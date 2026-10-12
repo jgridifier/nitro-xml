@@ -340,9 +340,9 @@ mod tests {
         (x, y, w, h)
     }
 
-    // Catches: P9 bar3D value scale used zero headroom so cat0 series0 bar y/height drift ~50px vs TS buildBars.
+    // Catches: auto-title placeholder reserving a title band shrinks bar3D plot height vs TS oracle SVG.
     #[test]
-    fn bar3d_clustered_plot_layout_matches_p9_bands_at_slide_size() {
+    fn bar3d_clustered_plot_layout_matches_ts_oracle_at_gate_size() {
         let deck = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../fixtures/upstream/pptx/2789ff8d6772_three-d-charts.pptx");
         let bytes = std::fs::read(&deck).unwrap();
@@ -353,28 +353,24 @@ mod tests {
             std::io::Read::read_to_string(&mut file, &mut chart_xml).unwrap();
         }
         let parsed = parse_chart_space_xml(&chart_xml);
-        let svg_opts = ChartSvgOptions {
-            bar3d_extrusion: true,
-            ..Default::default()
-        };
         let svg = render_chart_space_svg(
             &parsed.chart_space,
             &RenderChartSpaceOptions {
-                width: 840,
-                height: 460,
-                svg: svg_opts,
+                width: 480,
+                height: 320,
+                svg: ChartSvgOptions::default(),
             },
         );
         assert!(
-            svg.contains("Chart Title"),
-            "expected auto title placeholder to reserve P9 title band"
+            !svg.contains("Chart Title"),
+            "auto title without c:tx must not paint synthetic placeholder (matches upstream summary)"
         );
         let (x, y, w, h) = first_bar_rect(&svg);
-        // TS `buildBars` / `valueToY` at 840×460 (chart1 clustered column).
-        const TS_X: f64 = 80.66666666666666;
-        const TS_Y: f64 = 156.68453333333335;
-        const TS_W: f64 = 43.55555555555556;
-        const TS_H: f64 = 252.16346666666666;
+        // TS `renderChartSpaceSvg` at 480×320 (chart1 clustered column).
+        const TS_X: f64 = 40.58;
+        const TS_Y: f64 = 86.04;
+        const TS_W: f64 = 24.78;
+        const TS_H: f64 = 187.29;
         assert!(
             (x - TS_X).abs() < 5.0,
             "bar x drift: got {x}, expected ~{TS_X}"

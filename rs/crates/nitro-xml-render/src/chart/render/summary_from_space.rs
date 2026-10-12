@@ -197,21 +197,11 @@ pub fn chart_summary_from_space(chart_space: &ChartSpace) -> ChartSummary {
     if chart_space.title.is_some() && chart_space.auto_title_deleted != Some(true) {
         if let Some(title) = &chart_space.title {
             if let Some(text) = &title.text {
-                if !text.is_empty() {
-                    summary.title = Some(text.clone());
-                } else if summary.series.len() == 1 {
-                    if let Some(name) = &summary.series[0].name {
-                        summary.title = Some(name.clone());
-                    }
-                } else if !summary.series.is_empty() {
-                    summary.title = Some("Chart Title".to_string());
-                }
+                summary.title = Some(text.clone());
             } else if summary.series.len() == 1 {
                 if let Some(name) = &summary.series[0].name {
                     summary.title = Some(name.clone());
                 }
-            } else if !summary.series.is_empty() {
-                summary.title = Some("Chart Title".to_string());
             }
         }
     }

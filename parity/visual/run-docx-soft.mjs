@@ -137,7 +137,7 @@ mkdirSync(join(OUT, 'pdfs'), { recursive: true });
 mkdirSync(join(OUT, 'diffs'), { recursive: true });
 await prepareAll();
 const server = await startVisualServer();
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, args: ['--disable-lcd-text'] });
 const rows = [];
 
 for (const c of cases) {

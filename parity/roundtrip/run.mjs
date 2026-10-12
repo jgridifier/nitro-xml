@@ -7,12 +7,17 @@
  *   bun parity/roundtrip/run.mjs
  *   bun parity/roundtrip/run.mjs --engine rust
  *   bun parity/roundtrip/run.mjs --engine both --ci
+ *   bun parity/roundtrip/run.mjs --mode touch          # rebuild path (#65 proof)
  *   bun parity/roundtrip/run.mjs --format xlsx
  *   bun parity/roundtrip/run.mjs --fixture <id>
+ *
+ * Identity note: Rust `--engine rust` uses the identity shortcut (original bytes).
+ * `--mode touch` dirties one part and rebuilds — that is the real writer proof.
  *
  * Writes:
  *   parity/roundtrip/out/summary.json
  *   parity/roundtrip/out/rust-summary.json   (when engine includes rust)
+ *   parity/roundtrip/out/touch-summary.json  (when --mode touch)
  *   parity/roundtrip/ts-losses.json          (TS inventory; ratchet down only)
  */
 
@@ -29,9 +34,14 @@ import {
 	packageKind,
 	familyOf,
 } from './corpus.mjs';
-import { comparePackages } from './compare.mjs';
+import { comparePackages, compareTouchRebuild } from './compare.mjs';
 import { tsNoopSave } from './ts-save.mjs';
-import { rustNoopSave, ensureOpcNoopSave } from './rust-save.mjs';
+import {
+	rustNoopSave,
+	rustTouchSave,
+	ensureOpcNoopSave,
+	ensureOpcTouchSave,
+} from './rust-save.mjs';
 import { validateOpenXml, errorSubset, libreOfficeReopen } from './validate.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -39,17 +49,27 @@ const OUT = join(HERE, 'out');
 const LOSSES_PATH = join(HERE, 'ts-losses.json');
 
 function parseArgs(argv) {
-	const out = { format: null, fixture: null, limit: 0, ci: false, engine: 'ts' };
+	const out = {
+		format: null,
+		fixture: null,
+		limit: 0,
+		ci: false,
+		engine: 'ts',
+		mode: 'identity',
+		negativeControl: false,
+	};
 	for (let i = 2; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === '--format') out.format = argv[++i];
 		else if (a === '--fixture') out.fixture = argv[++i];
 		else if (a === '--limit') out.limit = Number(argv[++i]);
 		else if (a === '--engine') out.engine = String(argv[++i] || 'ts').toLowerCase();
+		else if (a === '--mode') out.mode = String(argv[++i] || 'identity').toLowerCase();
+		else if (a === '--negative-control') out.negativeControl = true;
 		else if (a === '--ci') out.ci = true;
 		else if (a === '--help' || a === '-h') {
 			console.log(
-				'Usage: bun run.mjs [--ci] [--engine ts|rust|both] [--format xlsx|docx|pptx] [--fixture id] [--limit N]',
+				'Usage: bun run.mjs [--ci] [--engine ts|rust|both] [--mode identity|touch] [--negative-control] [--format xlsx|docx|pptx] [--fixture id] [--limit N]',
 			);
 			process.exit(0);
 		}
@@ -58,6 +78,11 @@ function parseArgs(argv) {
 		console.error(`unknown --engine ${out.engine} (want ts|rust|both)`);
 		process.exit(2);
 	}
+	if (!['identity', 'touch'].includes(out.mode)) {
+		console.error(`unknown --mode ${out.mode} (want identity|touch)`);
+		process.exit(2);
+	}
+	if (out.mode === 'touch') out.engine = 'rust';
 	return out;
 }
 
@@ -288,9 +313,254 @@ function formatSummary(label, inventory, byFormat, categories, results) {
 	].join('\n');
 }
 
+async function runOneTouch(row) {
+	const abs = fixtureAbs(row);
+	const kind = packageKind(row);
+	const fam = familyOf(kind);
+	const input = new Uint8Array(readFileSync(abs));
+	let touched;
+	let saveError = null;
+	try {
+		touched = rustTouchSave(input);
+	} catch (e) {
+		saveError = String(e && e.message ? e.message : e).slice(0, 300);
+	}
+
+	if (saveError) {
+		// Non-zip / encrypted packages cannot rebuild — skip, not a writer regression.
+		const skip =
+			/invalid Zip|EOCD|Could not find EOCD|encrypted|MissingPart/i.test(saveError);
+		return {
+			id: row.id,
+			path: row.path,
+			format: fam,
+			kind,
+			engine: 'rust-touch',
+			skipped: skip,
+			lossless: false,
+			byteIdentical: false,
+			saveError,
+			dirtyPart: null,
+			losses: [{ category: skip ? 'skip-not-opc' : 'save-error', detail: saveError }],
+			partCounts: { input: 0, output: 0 },
+			validator: { skipped: true, ok: true },
+			libreoffice: { skipped: true, ok: true },
+			hasVba: (row.features || []).includes('vba') || kind.endsWith('m'),
+		};
+	}
+
+	const output = touched.bytes;
+	const dirtyPart = touched.dirtyPart;
+	const byteIdentical =
+		input.length === output.length && input.every((b, i) => b === output[i]);
+	const cmp = await compareTouchRebuild(input, output, dirtyPart);
+
+	const vIn = validateOpenXml(abs);
+	let validator = { skipped: vIn.skipped, reason: vIn.reason, ok: vIn.skipped };
+	if (!vIn.skipped) {
+		const tmp = join(OUT, `_tmp_touch_${row.id}.${kind}`);
+		writeFileSync(tmp, output);
+		const vOut = validateOpenXml(tmp);
+		const sub = errorSubset(vIn.errors, vOut.errors || []);
+		validator = {
+			skipped: false,
+			ok: sub.ok,
+			inputErrors: (vIn.errors || []).length,
+			outputErrors: (vOut.errors || []).length,
+			extras: sub.extras.length,
+		};
+	}
+
+	let lo = libreOfficeReopen(input, output, kind);
+	if (lo && !lo.skipped && lo.ok === false && String(lo.detail || '').startsWith('input:')) {
+		lo = { ...lo, ok: true, identityInputUnreadable: true };
+	}
+
+	const losses = [...cmp.losses];
+	if (!validator.skipped && validator.ok === false) {
+		losses.push({
+			category: 'validator',
+			detail: `Open XML SDK new errors: ${validator.extras}`,
+		});
+	}
+	if (!lo.skipped && lo.ok === false) {
+		losses.push({
+			category: 'libreoffice',
+			detail: lo.detail || `count ${lo.count} != ${lo.expectCount}`,
+		});
+	}
+	if (byteIdentical) {
+		losses.push({
+			category: 'identity-shortcut',
+			detail: 'touch save returned original bytes — rebuild path not exercised',
+		});
+	}
+
+	return {
+		id: row.id,
+		path: row.path,
+		format: fam,
+		kind,
+		tier: row.tier,
+		features: row.features || [],
+		engine: 'rust-touch',
+		skipped: false,
+		lossless: losses.length === 0 && cmp.lossless && validator.ok !== false && lo.ok !== false,
+		byteIdentical,
+		dirtyPart,
+		losses,
+		partCounts: cmp.partCounts,
+		validator,
+		libreoffice: lo,
+		hasVba: (row.features || []).includes('vba') || kind.endsWith('m'),
+	};
+}
+
+async function runTouchMode(rows, args) {
+	console.log(
+		`roundtrip Rust touch-rebuild (dirty one part + raw_copy carry): ${rows.length} fixtures`,
+	);
+	console.log(
+		'note: identity no-op uses a copy shortcut; this mode proves PackageWriter::rebuild',
+	);
+
+	const results = [];
+	let i = 0;
+	for (const row of rows) {
+		i++;
+		const tagLabel = `[${i}/${rows.length}] ${row.id}`;
+		try {
+			const r = await runOneTouch(row);
+			results.push(r);
+			if (r.skipped) {
+				console.log(`  SKIP ${tagLabel} (${r.saveError?.slice(0, 60) || 'not opc'})`);
+				continue;
+			}
+			const tag = r.lossless ? 'LOSSLESS' : 'LOSSY';
+			const n = r.losses?.length || 0;
+			console.log(
+				`  ${tag} ${tagLabel} dirty=${r.dirtyPart || '?'}${n ? ` (${n} losses)` : ''}`,
+			);
+		} catch (e) {
+			const err = String(e && e.stack ? e.stack : e).slice(0, 400);
+			results.push({
+				id: row.id,
+				path: row.path,
+				format: familyOf(packageKind(row)),
+				kind: packageKind(row),
+				engine: 'rust-touch',
+				skipped: false,
+				lossless: false,
+				byteIdentical: false,
+				losses: [{ category: 'harness-error', detail: err }],
+				saveError: err,
+			});
+			console.log(`  ERROR ${tagLabel}: ${err.split('\n')[0]}`);
+		}
+	}
+
+	const eligible = results.filter((r) => !r.skipped);
+	const { inventory, categories, byFormat } = buildInventory(
+		eligible,
+		'E1-a-rust-touch-rebuild',
+		'Rust PackageWriter touch-rebuild: one dirty part rewritten; others raw_copy (CD crc/method/size/order). Proves rebuild path (identity shortcut is separate).',
+		false,
+	);
+	inventory.counts.skipped = results.length - eligible.length;
+	inventory.counts.totalFixtures = results.length;
+
+	writeFileSync(
+		join(OUT, 'touch-summary.json'),
+		JSON.stringify({ inventory, results }, null, 2),
+	);
+
+	const summary = [
+		formatSummary('roundtrip-touch', inventory, byFormat, categories, eligible),
+		`skipped (not opc): ${inventory.counts.skipped}`,
+		`identity shortcut used: ${eligible.filter((r) => r.byteIdentical).length} (must be 0)`,
+	].join('\n');
+	writeFileSync(join(OUT, 'touch-gate-summary.txt'), summary + '\n');
+	console.log(summary);
+
+	if (args.negativeControl && eligible.length) {
+		const sample = eligible.find((r) => r.lossless) || eligible[0];
+		const abs = fixtureAbs(rows.find((r) => r.id === sample.id));
+		const input = new Uint8Array(readFileSync(abs));
+		// Pick a carry victim: first part that isn't the dirty one.
+		const { listZipCentralDirectory } = await import('./zip-cd.mjs');
+		let corruptName = null;
+		try {
+			const cd = listZipCentralDirectory(input);
+			corruptName = cd.find((e) => e.name !== sample.dirtyPart)?.name || null;
+		} catch {
+			corruptName = null;
+		}
+		if (!corruptName) {
+			console.error('negative-control: could not pick a carry part');
+			return { results, inventory, byFormat, categories, summary, exitCode: 1 };
+		}
+		console.log(
+			`negative-control: corrupt carry of ${corruptName} on ${sample.id} (dirty=${sample.dirtyPart})`,
+		);
+		const bad = rustTouchSave(input, { corruptCarry: corruptName });
+		const cmp = await compareTouchRebuild(input, bad.bytes, bad.dirtyPart);
+		if (cmp.lossless) {
+			console.error(
+				'negative-control: FAIL — expected check to detect flipped compression, but compare was lossless',
+			);
+			return { results, inventory, byFormat, categories, summary, exitCode: 1 };
+		}
+		const methodLoss = cmp.losses.some(
+			(l) => l.category === 'zip-cd-method' || l.category === 'zip-cd-crc' || l.category === 'zip-cd-csize',
+		);
+		if (!methodLoss) {
+			console.error(
+				`negative-control: FAIL — losses did not include zip-cd-* metadata: ${JSON.stringify(cmp.losses.slice(0, 5))}`,
+			);
+			return { results, inventory, byFormat, categories, summary, exitCode: 1 };
+		}
+		console.log(
+			`negative-control: OK — check failed as expected (${cmp.losses.length} losses, e.g. ${cmp.losses[0].category} on ${cmp.losses[0].part || '?'})`,
+		);
+		console.log('negative-control: reverted (corrupt path only used for this probe)');
+	}
+
+	let exitCode = 0;
+	if (args.ci && eligible.length === 0) {
+		console.error('roundtrip (touch): no eligible fixtures');
+		exitCode = 1;
+	}
+	if (eligible.length && eligible.every((r) => (r.losses || []).some((l) => l.category === 'harness-error'))) {
+		console.error('roundtrip (touch): every fixture hit a harness error');
+		exitCode = 1;
+	}
+	const lossy = eligible.filter((r) => !r.lossless);
+	if (args.ci && lossy.length) {
+		console.error(`roundtrip (touch): ${lossy.length} lossy fixtures`);
+		exitCode = 1;
+	}
+
+	const requireValidators =
+		args.ci ||
+		process.env.NITRO_REQUIRE_VALIDATORS === '1' ||
+		process.env.NITRO_REQUIRE_VALIDATORS === 'true';
+	if (requireValidators) {
+		const validatorSkipped = eligible.filter((r) => r.validator?.skipped);
+		const loSkipped = eligible.filter((r) => r.libreoffice?.skipped);
+		if (validatorSkipped.length || loSkipped.length) {
+			console.error(
+				`roundtrip (touch): validators required but skipped (openxml=${validatorSkipped.length}, lo=${loSkipped.length})`,
+			);
+			exitCode = 1;
+		}
+	}
+
+	return { results, inventory, byFormat, categories, summary, exitCode };
+}
+
 async function runEngine(engine, rows, args) {
 	const label =
-		engine === 'ts' ? 'roundtrip TS-vs-TS no-op save' : 'roundtrip Rust-vs-original no-op save';
+		engine === 'ts' ? 'roundtrip TS-vs-TS no-op save' : 'roundtrip Rust-vs-original no-op save (identity shortcut)';
 	console.log(`${label}: ${rows.length} fixtures`);
 
 	const results = [];
@@ -434,10 +704,6 @@ async function main() {
 	assertPin();
 	mkdirSync(OUT, { recursive: true });
 
-	if (args.engine === 'rust' || args.engine === 'both') {
-		ensureOpcNoopSave();
-	}
-
 	const manifest = loadManifest();
 	let rows = selectRoundtripCorpus(manifest, { format: args.format || undefined });
 	if (args.fixture) {
@@ -449,6 +715,23 @@ async function main() {
 	}
 	rows = rows.filter((r) => fixtureExists(r));
 	if (args.limit > 0) rows = rows.slice(0, args.limit);
+
+	if (args.mode === 'touch') {
+		ensureOpcTouchSave();
+		const touch = await runTouchMode(rows, args);
+		writeFileSync(join(OUT, 'gate-summary.txt'), touch.summary + '\n');
+		if (process.env.GITHUB_STEP_SUMMARY) {
+			appendFileSync(
+				process.env.GITHUB_STEP_SUMMARY,
+				`## Round-trip touch-rebuild (#65)\n\n\`\`\`\n${touch.summary}\n\`\`\`\n`,
+			);
+		}
+		process.exit(touch.exitCode || 0);
+	}
+
+	if (args.engine === 'rust' || args.engine === 'both') {
+		ensureOpcNoopSave();
+	}
 
 	const engines =
 		args.engine === 'both' ? ['ts', 'rust'] : args.engine === 'rust' ? ['rust'] : ['ts'];

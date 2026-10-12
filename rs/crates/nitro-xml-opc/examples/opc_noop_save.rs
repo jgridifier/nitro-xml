@@ -4,8 +4,9 @@
 //! Usage:
 //!   opc_noop_save <input> <output>
 //!
-//! Reads the package, opens a PackageWriter with no dirty parts, and writes
-//! the finished bytes (identity when untouched).
+//! Uses [`nitro_xml_opc::write::noop_save`] — the **identity shortcut** that
+//! returns the input bytes unchanged (no zip rebuild). To prove the real
+//! PackageWriter rebuild/`raw_copy` path, use `opc_touch_save` instead.
 
 use std::env;
 use std::fs;

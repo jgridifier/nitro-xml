@@ -40,29 +40,47 @@ fi
 echo "roundtrip: installing harness deps"
 ( cd parity/roundtrip && bun install )
 
-echo "roundtrip: building Rust opc_noop_save (#65)"
-( cd rs && cargo build --release -q -p nitro-xml-opc --example opc_noop_save )
+echo "roundtrip: building Rust opc_noop_save + opc_touch_save (#65)"
+( cd rs && cargo build --release -q -p nitro-xml-opc --example opc_noop_save --example opc_touch_save )
 
-echo "roundtrip: C14N / rels unit tests"
+echo "roundtrip: C14N / rels / zip-cd unit tests"
 ( cd parity/roundtrip && bun test )
 
-echo "roundtrip: TS-vs-TS + Rust-vs-original no-op save + Open XML SDK + LibreOffice (#49 / #65 / #48)"
+echo "roundtrip: TS-vs-TS + Rust identity-shortcut + Open XML SDK + LibreOffice (#49 / #65 / #48)"
 set +e
 ( cd parity/roundtrip && bun ./run.mjs --ci --engine both )
-rc=$?
+rc_identity=$?
 set -e
 
-if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f parity/roundtrip/out/gate-summary.txt ]; then
-  {
-    echo "## Round-trip gate (#49 / #65 / #48)"
+echo "roundtrip: Rust touch-rebuild proof + negative control (#65)"
+set +e
+( cd parity/roundtrip && bun ./run.mjs --ci --mode touch --negative-control )
+rc_touch=$?
+set -e
+
+{
+  echo "## Round-trip gate (#49 / #65 / #48)"
+  if [ -f parity/roundtrip/out/gate-summary.txt ]; then
+    echo '### Identity (shortcut documented)'
     echo '```'
     cat parity/roundtrip/out/gate-summary.txt
     echo '```'
-  } >> "$GITHUB_STEP_SUMMARY"
-fi
+  fi
+  if [ -f parity/roundtrip/out/touch-gate-summary.txt ]; then
+    echo '### Touch-rebuild (real PackageWriter path)'
+    echo '```'
+    cat parity/roundtrip/out/touch-gate-summary.txt
+    echo '```'
+  fi
+} > /tmp/roundtrip-gate-combined.txt
 
-if [ "$rc" -ne 0 ]; then
-  echo "roundtrip: FAIL" >&2
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+  cat /tmp/roundtrip-gate-combined.txt >> "$GITHUB_STEP_SUMMARY"
+fi
+cat /tmp/roundtrip-gate-combined.txt
+
+if [ "$rc_identity" -ne 0 ] || [ "$rc_touch" -ne 0 ]; then
+  echo "roundtrip: FAIL (identity=$rc_identity touch=$rc_touch)" >&2
   exit 1
 fi
 echo "roundtrip: PASS"

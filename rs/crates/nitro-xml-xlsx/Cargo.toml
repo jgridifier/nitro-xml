@@ -29,3 +29,7 @@ path = "examples/xlsx_view_ir_dump.rs"
 [[example]]
 name = "xlsx_formula_dump"
 path = "examples/xlsx_formula_dump.rs"
+
+[[example]]
+name = "xlsx_calc_dump"
+path = "examples/xlsx_calc_dump.rs"

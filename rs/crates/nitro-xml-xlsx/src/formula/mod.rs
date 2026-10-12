@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/formula/{ast,tokenizer,lexemes,parser,structured,ref-text}.ts
 // and referencedRanges/referenceSpans in transform.ts; changes listed in PROVENANCE.md.
-//! Excel formula parser: tokens, AST, structured refs, and direct reference spans.
-//! Evaluation, the calc graph, and the function library are later issues (#72+).
+//! Excel formula parser and calc scheduler: tokens, AST, dependency graph, recalc order.
+//! Function bodies are #73–#75.
 
 mod ast;
+mod calc;
+mod graph;
 mod lexer;
 mod parser;
 mod refs;
@@ -14,6 +16,7 @@ pub use ast::{
     FormulaError, RefCorner, RefKind, RefSpec, SheetPrefix, StructuredRef, StructuredSpecial,
     UnaryOp,
 };
+pub use calc::{load_calc_engine, CalcEngine, CellPos, CIRCULAR_REFERENCE_WARNING};
 pub use lexer::{join_tokens, number_literal, tokenize, Token, TokenKind, TokenValue};
 pub use parser::{parse_formula, parse_tokens, MAX_FUNCTION_NESTING};
 pub use refs::{

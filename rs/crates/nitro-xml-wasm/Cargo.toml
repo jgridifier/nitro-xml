@@ -3,7 +3,7 @@ name = "nitro-xml-wasm"
 description = "Nitro XML WebAssembly boundary (the only wasm-bindgen crate)"
 version.workspace = true
 edition.workspace = true
-# Ported chrome files (shortcuts/ribbon) are Apache-2.0; see PROVENANCE.md.
+# Ported chrome (shortcuts/ribbon) and clipboard-text helpers are Apache-2.0; see PROVENANCE.md.
 license = "MIT AND Apache-2.0"
 repository.workspace = true
 homepage.workspace = true
@@ -29,6 +29,7 @@ js-sys = "0.3"
 serde_json = "1"
 serde = { version = "1", features = ["derive"], optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
+unicode-segmentation = "1"
 # Debug builds only (the hook is behind cfg(debug_assertions) and stripped from release by LTO).
 console_error_panic_hook = "0.1.7"
 

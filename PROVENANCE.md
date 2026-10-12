@@ -296,3 +296,4 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/render/print/options.rs` | `src/ui/src/docx/print-layout.ts` (`PrintLayoutOptions`) @ e66aaec | Painter inputs besides `LayoutResult`. |
 | `rs/crates/nitro-xml-wasm/src/chrome/shortcuts.rs` | `src/ui/src/xlsx/keyboard.ts` @ e66aaec | Rust `SHORTCUTS` table and `matches_keys` / `find_shortcut` / `format_keys`; platform flag passed in (no `navigator` in unit tests). |
 | `rs/crates/nitro-xml-wasm/src/chrome/ribbon.rs` | `src/ui/src/xlsx/ribbon/tabs/home.ts`, `home-groups.ts` @ e66aaec | Declarative Home tab groups as static HTML; galleries/menus stubbed (TODO #54). |
+| `rs/crates/nitro-xml-wasm/src/text/clipboard.rs` | `src/core/xlsx/edit/clipboard-text.ts`, `clipboard-html.ts` (`escapeHtml`) @ e66aaec | TSV quote/parse/toTsv and `escape_html` / plain HTML table for the single-line text surface (#55); styled multi-cell `toHtml` remains `TODO(#69)`. |

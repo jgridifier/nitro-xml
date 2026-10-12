@@ -24,6 +24,7 @@ mod events;
 mod handle;
 mod pptx;
 mod shell;
+mod text;
 mod transport;
 mod xlsx;
 

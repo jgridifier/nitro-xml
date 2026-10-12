@@ -1,0 +1,398 @@
+{
+  "xlsx-add-delete-sheet": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  },
+  "xlsx-add-rename-sheet": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  },
+  "xlsx-add-sheet": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-batch-cells": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-bidi-cell": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-merges-edit-a1": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-merges-style": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-multi-sheet-ops": {
+    "total": 10,
+    "do": 3,
+    "undo": 3,
+    "redo": 3
+  },
+  "xlsx-rename-sheet": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-set-cell-formula": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-set-cell-number": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-set-cell-text": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-set-cell-value-bool": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-set-cell-value-number": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-set-cell-value-string": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-style-align": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-style-bold": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-style-fill": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-style-italic-color": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-style-numfmt": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-style-underline-strike": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "xlsx-value-and-style": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  },
+  "docx-borders-para": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-both-paras": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  },
+  "docx-pages10-delete-col": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  },
+  "docx-pages10-delete-row": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  },
+  "docx-pages10-insert-col": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-pages10-insert-row": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  },
+  "docx-pages10-multi": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  },
+  "docx-pages10-para-text": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-pages10-table-cell-b": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-pages10-table-cell": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-para-align-center": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-para-align-right": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-run-formatting-bold": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-run-formatting-italic": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-run-formatting-size": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-run-formatting-underline": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-set-para-bold": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-set-para-italic": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-set-para-size-color": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-set-para0-text": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-set-para1-text": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "docx-text-and-format": {
+    "total": 10,
+    "do": 3,
+    "undo": 3,
+    "redo": 3
+  },
+  "pptx-full-edit-s0": {
+    "total": 10,
+    "do": 3,
+    "undo": 3,
+    "redo": 3
+  },
+  "pptx-geometry-rotate": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-move-resize-s0": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-move-s0": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-move-s1": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-move-s5": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-multi-slides-text": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  },
+  "pptx-notes-move": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-notes-text": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-resize-s0": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-resize-s1": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-set-text-s0": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-set-text-s1": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-set-text-s2": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-set-text-s5": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-style-bold": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-style-color": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-style-italic": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-style-s1-combo": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-style-size": {
+    "total": 4,
+    "do": 1,
+    "undo": 1,
+    "redo": 1
+  },
+  "pptx-text-and-move": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  },
+  "pptx-text-and-style": {
+    "total": 7,
+    "do": 2,
+    "undo": 2,
+    "redo": 2
+  }
+}

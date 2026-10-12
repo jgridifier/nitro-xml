@@ -6,6 +6,7 @@ use nitro_xml_render::measure::LayoutReadKind;
 
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_style, set_text_content};
+use super::font_substitution::substitute_font_family_stack;
 use crate::slide::DumpElement;
 use crate::text_layout::{TextBodyLayout, TextBodyVAlign};
 
@@ -74,17 +75,10 @@ pub fn paint_text_body<I: StringIntern>(
         apply_text_body_layout(ctx, block, layout);
     }
     let size = paint.font_size_px.unwrap_or(24.0).max(1.0);
-    let family = paint
-        .font_family
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or("Calibri");
-    let stack = format!(
-        "\"{}\", Calibri, Carlito, Arial, sans-serif",
-        family.replace('"', "")
-    );
+    let stack = substitute_font_family_stack(paint.font_family);
     set_style(ctx, block, "font-family", &stack);
     set_style(ctx, block, "font-size", &format!("{}px", format_px(size)));
+    set_style(ctx, block, "line-height", "1.2");
     if paint.font_bold {
         set_style(ctx, block, "font-weight", "700");
     }
@@ -107,6 +101,11 @@ pub fn paint_text_body<I: StringIntern>(
     set_text_content(ctx, block, text);
     // Batched measureText for GDI-style tracking (upstream text-metric-tracking).
     if !text.is_empty() {
+        let family = paint
+            .font_family
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or("Calibri");
         let font_id = ctx.intern.intern(family);
         let text_id = ctx.intern.intern(text);
         ctx.measure.push(font_id, size as f32, text_id);
@@ -235,6 +234,49 @@ mod tests {
         assert!(
             intern.0.iter().any(|s| s == "3.31px #000000"),
             "stroke value, got {:?}",
+            intern.0
+        );
+    }
+
+    #[test]
+    fn text_body_default_line_height_matches_upstream() {
+        // Catches: missing line-height: 1.2 on pptxv-text blocks (DEFAULT_LINE_HEIGHT).
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(16.0),
+            font_family: None,
+            font_bold: false,
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: None,
+            text_shadow: None,
+        });
+        assert!(
+            intern.0.iter().any(|s| s == "1.2"),
+            "line-height, got {:?}",
+            intern.0
+        );
+    }
+
+    #[test]
+    fn informal_roman_font_stack_not_calibri_prefixed() {
+        // Catches: Informal Roman painted with Calibri/Carlito fallback chain.
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(16.0),
+            font_family: Some("Informal Roman"),
+            font_bold: false,
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: None,
+            text_shadow: None,
+        });
+        assert!(
+            intern
+                .0
+                .iter()
+                .any(|s| s == "\"Informal Roman\", sans-serif"),
+            "font-family stack, got {:?}",
             intern.0
         );
     }

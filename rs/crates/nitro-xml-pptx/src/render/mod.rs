@@ -11,6 +11,7 @@ mod context;
 mod dispatch;
 mod dom;
 mod equation;
+mod font_substitution;
 mod group;
 mod ink;
 mod media;

@@ -2664,9 +2664,10 @@ fn rpr_text_stroke(rpr: &Element, theme: SchemeTheme<'_>) -> (Option<f64>, Optio
         return (None, None);
     };
     let width = line.width_emu.filter(|w| *w > 0).map(emu_to_pixels);
-    let color = match line.fill {
-        Some(DrawingFill::Solid { color }) => css_color(&color, theme, false),
-        _ => None,
+    let color = match &line.fill {
+        Some(DrawingFill::Solid { color }) => css_color(color, theme, false),
+        Some(fill) => gradient_flat_color(fill, &theme, false),
+        None => None,
     };
     (width, color)
 }
@@ -3539,6 +3540,36 @@ mod tests {
                 complex_script: None,
             }),
         }
+    }
+
+    // Catches: gradFill text outline ln with no solidFill leaves stroke color unset for paint.
+    #[test]
+    fn first_run_text_stroke_uses_first_gradient_stop() {
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="1" name="T"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+          <p:txBody>
+            <a:bodyPr/>
+            <a:p><a:r><a:rPr sz="1800" lang="en-US">
+              <a:ln w="12700">
+                <a:gradFill>
+                  <a:gsLst>
+                    <a:gs pos="0"><a:srgbClr val="FF0000"/></a:gs>
+                    <a:gs pos="100000"><a:srgbClr val="0000FF"/></a:gs>
+                  </a:gsLst>
+                  <a:lin ang="0" scaled="0"/>
+                </a:gradFill>
+              </a:ln>
+            </a:rPr><a:t>Grad</a:t></a:r></a:p>
+          </p:txBody>
+        </p:sp>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el = parse_shape(&doc.root, "s".into(), &ctx(&colors), false).unwrap();
+        assert_eq!(el.text_stroke_color.as_deref(), Some("#FF0000"));
     }
 
     // Catches: Informal Roman bold + black text outline from first-run a:rPr left unpainted.

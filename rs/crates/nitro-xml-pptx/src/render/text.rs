@@ -73,7 +73,7 @@ pub fn paint_text_body<I: StringIntern>(
     if let Some(layout) = paint.layout {
         apply_text_body_layout(ctx, block, layout);
     }
-    let size = paint.font_size_px.unwrap_or(18.0).max(1.0);
+    let size = paint.font_size_px.unwrap_or(24.0).max(1.0);
     let family = paint
         .font_family
         .map(str::trim)
@@ -91,9 +91,16 @@ pub fn paint_text_body<I: StringIntern>(
     if let Some(color) = paint.text_color {
         set_style(ctx, block, "color", color);
     }
-    // TODO(#27): Emit `-webkit-text-stroke` / `paint-order` once outline matches TS under the
-    // Liberation font pin (`TextBodyPaint` still carries parsed stroke width/color).
-    let _ = (paint.text_stroke_width_px, paint.text_stroke_color);
+    if let Some(width) = paint.text_stroke_width_px.filter(|w| *w > 0.0) {
+        let stroke_color = paint.text_stroke_color.unwrap_or("currentColor");
+        set_style(
+            ctx,
+            block,
+            "-webkit-text-stroke",
+            &format!("{}px {}", format_px(width), stroke_color),
+        );
+        set_style(ctx, block, "paint-order", "stroke fill");
+    }
     if let Some(shadow) = paint.text_shadow {
         set_style(ctx, block, "text-shadow", shadow);
     }
@@ -143,5 +150,112 @@ fn format_px(v: f64) -> String {
     } else {
         let s = format!("{v:.2}");
         s.trim_end_matches('0').trim_end_matches('.').to_owned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use nitro_xml_render::measure::{LayoutReadBatch, MeasureBatch};
+    use nitro_xml_render::CommandBuffer;
+
+    use super::super::context::{PaintContext, StringIntern};
+    use super::super::view_ir::ViewIrCollector;
+    use super::{paint_text_body, TextBodyPaint};
+
+    struct Intern(Vec<String>);
+
+    impl StringIntern for Intern {
+        fn intern(&mut self, s: &str) -> u32 {
+            if let Some(i) = self.0.iter().position(|existing| existing == s) {
+                return i as u32;
+            }
+            self.0.push(s.to_owned());
+            (self.0.len() - 1) as u32
+        }
+    }
+
+    fn paint_with(paint: TextBodyPaint<'_>) -> Intern {
+        let mut buffer = CommandBuffer::new();
+        let mut intern = Intern(Vec::new());
+        let mut measure = MeasureBatch::default();
+        let mut layout_reads = LayoutReadBatch::default();
+        let mut view_ir = ViewIrCollector::default();
+        let scheme = BTreeMap::new();
+        let mut ctx = PaintContext::new(
+            &mut buffer,
+            &mut intern,
+            &mut measure,
+            &mut layout_reads,
+            &mut view_ir,
+            1.0,
+            960.0,
+            540.0,
+            &scheme,
+        );
+        paint_text_body(&mut ctx, 1, "Hi", paint);
+        intern
+    }
+
+    #[test]
+    fn text_outline_without_solid_color_uses_current_color() {
+        // Catches: Selamat-like ln with no solid stroke color never gets currentColor text-stroke.
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(16.0),
+            font_family: None,
+            font_bold: false,
+            text_stroke_width_px: Some(2.0),
+            text_stroke_color: None,
+            layout: None,
+            text_shadow: None,
+        });
+        assert!(
+            intern.0.iter().any(|s| s == "2px currentColor"),
+            "stroke value, got {:?}",
+            intern.0
+        );
+        assert!(intern.0.iter().any(|s| s == "paint-order"));
+        assert!(intern.0.iter().any(|s| s == "stroke fill"));
+    }
+
+    #[test]
+    fn text_outline_with_color_uses_explicit_hex() {
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(16.0),
+            font_family: None,
+            font_bold: false,
+            text_stroke_width_px: Some(3.31),
+            text_stroke_color: Some("#000000"),
+            layout: None,
+            text_shadow: None,
+        });
+        assert!(
+            intern.0.iter().any(|s| s == "3.31px #000000"),
+            "stroke value, got {:?}",
+            intern.0
+        );
+    }
+
+    #[test]
+    fn default_font_size_is_24px() {
+        // Catches: paint defaulting missing font size to 18px instead of upstream 24px (18pt).
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: None,
+            font_family: None,
+            font_bold: false,
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: None,
+            text_shadow: None,
+        });
+        assert!(
+            intern.0.iter().any(|s| s == "24px"),
+            "font-size, got {:?}",
+            intern.0
+        );
     }
 }

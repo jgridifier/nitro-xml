@@ -3,7 +3,7 @@
 # Editor recalculation and formula-coverage gate (#77).
 # Every edits/xlsx/*.json formula cell matches the upstream edit session after
 # each do/undo/redo. A negative control (recalc off) must disagree.
-# The only approved catalog gap is the 12 Database functions.
+# The Rust registry must match FUNCTION_CATALOG (gap 0).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
@@ -49,26 +49,17 @@ def load(path):
 ts, rust = load(ts_path), load(rust_path)
 missing = sorted(set(ts) - set(rust))
 extra = sorted(set(rust) - set(ts))
-approved = [
-    "DAVERAGE", "DCOUNT", "DCOUNTA", "DGET", "DMAX", "DMIN",
-    "DPRODUCT", "DSTDEV", "DSTDEVP", "DSUM", "DVAR", "DVARP",
-]
 if extra:
     print("editor-recalc: Rust registry has names absent from FUNCTION_CATALOG:", extra)
     sys.exit(1)
-if missing != approved:
-    print("editor-recalc: catalog gap is not the 12 Database functions")
-    print(" missing:", missing)
+if missing:
+    print("editor-recalc: catalog names missing from the Rust registry:", missing)
     sys.exit(1)
 doc = open(doc_path, encoding="utf-8").read()
-for name in approved:
-    if name not in doc:
-        print(f"editor-recalc: docs/formula-coverage.md omits {name}")
-        sys.exit(1)
-if "469" not in doc or "481" not in doc:
-    print("editor-recalc: coverage doc is missing the 481/469 counts")
+if "481" not in doc or "gap is **0**" not in doc or "Database | 12 | 12" not in doc:
+    print("editor-recalc: coverage doc is missing the 481/481 Database row or gap 0")
     sys.exit(1)
-print(f"editor-recalc: catalog {len(ts)} rust {len(rust)} gap {len(missing)} (Database only)")
+print(f"editor-recalc: catalog {len(ts)} rust {len(rust)} gap {len(missing)}")
 PY
 
 MANIFEST="$ROOT/fixtures/manifest.json"
@@ -156,4 +147,4 @@ if not rust_f or rust_f[0].get("v") is not None:
 print("editor-recalc: negative control FAIL as expected")
 PY
 
-echo "editor-recalc: PASS scripts=$scripts steps=$steps formula_cells=$formula_cells ported=469 gap=12"
+echo "editor-recalc: PASS scripts=$scripts steps=$steps formula_cells=$formula_cells ported=481 gap=0"

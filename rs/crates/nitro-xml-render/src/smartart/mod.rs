@@ -11,6 +11,9 @@
 //! frames are still dropped. Used by pptx; xlsx/docx can call the same entry.
 
 mod circular_arrow;
+mod text_wrap_estimate;
+
+use text_wrap_estimate::{drawing_text_base_line_height_ratio, wrap_text_by_estimated_width};
 
 use std::collections::BTreeMap;
 
@@ -414,6 +417,7 @@ fn text_layout_metrics(shape: &SpBox, stroke: f64) -> (f64, f64, f64, f64) {
 fn paragraph_to_lines(
     para: &TextParagraph,
     base_font: f64,
+    wrap_font: f64,
     max_width: f64,
 ) -> Vec<Vec<(String, f64)>> {
     if para.runs.is_empty() {
@@ -422,7 +426,10 @@ fn paragraph_to_lines(
     if para.runs.len() == 1 {
         let run = &para.runs[0];
         let font = run.font_size_px.unwrap_or(base_font);
-        let wrapped = wrap_smartart_text(&run.text, font, max_width);
+        let wrapped = wrap_text_by_estimated_width(&run.text, max_width, wrap_font);
+        if wrapped.is_empty() {
+            return vec![vec![(run.text.clone(), font)]];
+        }
         return wrapped.into_iter().map(|line| vec![(line, font)]).collect();
     }
     let max_run_font = para
@@ -435,7 +442,7 @@ fn paragraph_to_lines(
         .iter()
         .map(|r| r.text.as_str())
         .collect::<String>();
-    let wrapped = wrap_smartart_text(&joined, max_run_font, max_width);
+    let wrapped = wrap_text_by_estimated_width(&joined, max_width, wrap_font);
     if wrapped.len() <= 1 {
         return vec![para
             .runs
@@ -451,10 +458,12 @@ fn paragraph_to_lines(
 
 fn layout_shape_text(shape: &SpBox, stroke: f64) -> Vec<PositionedTextLine> {
     let (_text_cx, text_cy, max_width, base_font) = text_layout_metrics(shape, stroke);
+    let shape_text = shape.flat_text();
+    let wrap_font = base_font;
     let mut logical_lines: Vec<(Vec<(String, f64)>, f64)> = Vec::new();
     for para in &shape.paragraphs {
-        let line_height_ratio = paragraph_line_height_ratio(para);
-        for line in paragraph_to_lines(para, base_font, max_width) {
+        let line_height_ratio = paragraph_line_height_ratio(para, &shape_text);
+        for line in paragraph_to_lines(para, base_font, wrap_font, max_width) {
             logical_lines.push((line, line_height_ratio));
         }
     }
@@ -482,12 +491,10 @@ fn layout_shape_text(shape: &SpBox, stroke: f64) -> Vec<PositionedTextLine> {
         .collect()
 }
 
-const DEFAULT_SMARTART_LINE_HEIGHT_RATIO: f64 = 1.2;
-
-fn paragraph_line_height_ratio(para: &TextParagraph) -> f64 {
+fn paragraph_line_height_ratio(para: &TextParagraph, shape_text: &str) -> f64 {
     let ln = para.line_spacing_ratio.unwrap_or(1.0);
     let aft = para.space_after_ratio.unwrap_or(0.0);
-    DEFAULT_SMARTART_LINE_HEIGHT_RATIO * ln + aft
+    drawing_text_base_line_height_ratio(shape_text) * ln + aft
 }
 
 fn spacing_pct_from_p_pr(p_pr: &Element, local: &str) -> Option<f64> {
@@ -532,36 +539,6 @@ fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64) {
         }
         body.push_str("</text>");
     }
-}
-
-fn wrap_smartart_text(text: &str, font: f64, max_width: f64) -> Vec<String> {
-    let char_w = font * 0.55;
-    if char_w <= 0.0 || max_width <= 0.0 {
-        return vec![text.to_owned()];
-    }
-    let max_chars = (max_width / char_w).floor().max(1.0) as usize;
-    let mut lines = Vec::new();
-    let mut current = String::new();
-    for word in text.split_whitespace() {
-        if current.is_empty() {
-            current = word.to_owned();
-            continue;
-        }
-        if current.len() + 1 + word.len() <= max_chars {
-            current.push(' ');
-            current.push_str(word);
-        } else {
-            lines.push(std::mem::take(&mut current));
-            current = word.to_owned();
-        }
-    }
-    if !current.is_empty() {
-        lines.push(current);
-    }
-    if lines.is_empty() {
-        lines.push(text.to_owned());
-    }
-    lines
 }
 
 fn num(v: f64) -> String {

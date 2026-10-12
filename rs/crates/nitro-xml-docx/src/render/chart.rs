@@ -3,8 +3,8 @@
 
 use nitro_xml_opc::chart::ChartSpace;
 use nitro_xml_render::chart::{
-    probe_chart_space_measures, ChartSvgOptions, ChartThemeFonts, DEFAULT_THEME_COLORS,
-    RenderChartSpaceOptions, THEME_SLOTS,
+    probe_chart_space_measures, ChartSvgOptions, ChartThemeFonts, RenderChartSpaceOptions,
+    DEFAULT_THEME_COLORS, THEME_SLOTS,
 };
 use nitro_xml_render::measure::MeasureBatch;
 use nitro_xml_render::{CommandBuffer, StringTable};

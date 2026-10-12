@@ -1,14 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/docx/layout/input.ts; changes listed in PROVENANCE.md.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LayoutChart {
     pub label: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub svg: Option<String>,
+    /// Package part for ChartSpace lookup; omitted from layout IR (see [`Serialize`]).
+    #[serde(rename = "partName", default, skip_serializing)]
+    pub part_name: Option<String>,
+}
+
+impl Serialize for LayoutChart {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let field_count = 1 + usize::from(self.svg.is_some());
+        let mut state = serializer.serialize_struct("LayoutChart", field_count)?;
+        state.serialize_field("label", &self.label)?;
+        if let Some(svg) = &self.svg {
+            state.serialize_field("svg", svg)?;
+        }
+        state.end()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -341,6 +360,77 @@ pub fn block_to_value(block: &LayoutBlock) -> serde_json::Value {
         LayoutBlock::Paragraph(p) => serde_json::to_value(p).expect("paragraph"),
         LayoutBlock::Table(t) => serde_json::to_value(t).expect("table"),
     }
+}
+
+fn inject_chart_part_names_paragraph(paragraph: &LayoutParagraph, value: &mut serde_json::Value) {
+    let Some(runs_json) = value.get_mut("runs").and_then(|v| v.as_array_mut()) else {
+        return;
+    };
+    for (run_index, run) in paragraph.runs.iter().enumerate() {
+        let Some(part_name) = run
+            .object
+            .as_ref()
+            .and_then(|obj| obj.chart.as_ref())
+            .and_then(|chart| chart.part_name.as_deref())
+            .filter(|name| !name.is_empty())
+        else {
+            continue;
+        };
+        let Some(run_json) = runs_json.get_mut(run_index) else {
+            continue;
+        };
+        let Some(object_json) = run_json.get_mut("object").and_then(|v| v.as_object_mut()) else {
+            continue;
+        };
+        let Some(chart_json) = object_json.get_mut("chart").and_then(|v| v.as_object_mut()) else {
+            continue;
+        };
+        chart_json.insert(
+            "partName".into(),
+            serde_json::Value::String(part_name.to_string()),
+        );
+    }
+}
+
+fn inject_chart_part_names_block(block: &LayoutBlock, value: &mut serde_json::Value) {
+    match block {
+        LayoutBlock::Paragraph(paragraph) => inject_chart_part_names_paragraph(paragraph, value),
+        LayoutBlock::Table(table) => {
+            let Some(rows_json) = value.get_mut("rows").and_then(|v| v.as_array_mut()) else {
+                return;
+            };
+            for (row_index, row) in table.rows.iter().enumerate() {
+                let Some(row_json) = rows_json.get_mut(row_index).and_then(|v| v.as_array_mut())
+                else {
+                    continue;
+                };
+                for (cell_index, cell) in row.cells.iter().enumerate() {
+                    let Some(cell_json) = row_json.get_mut(cell_index) else {
+                        continue;
+                    };
+                    let Some(paragraphs_json) = cell_json
+                        .get_mut("paragraphs")
+                        .and_then(|v| v.as_array_mut())
+                    else {
+                        continue;
+                    };
+                    for (paragraph_index, paragraph) in cell.paragraphs.iter().enumerate() {
+                        let Some(paragraph_json) = paragraphs_json.get_mut(paragraph_index) else {
+                            continue;
+                        };
+                        inject_chart_part_names_paragraph(paragraph, paragraph_json);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Layout section blocks JSON: chart package parts are injected for parse round-trips only.
+pub fn block_to_layout_json(block: &LayoutBlock) -> serde_json::Value {
+    let mut value = block_to_value(block);
+    inject_chart_part_names_block(block, &mut value);
+    value
 }
 
 pub fn parse_block(value: &serde_json::Value) -> LayoutBlock {

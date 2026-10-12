@@ -209,8 +209,152 @@ pub struct LayoutResult {
     pub approximations: Vec<String>,
 }
 
+fn inject_chart_part_name_fragment(
+    fragment: &LayoutFragment,
+    fragment_json: &mut serde_json::Value,
+) {
+    let part_name = fragment
+        .object
+        .as_ref()
+        .and_then(|object| object.chart.as_ref())
+        .and_then(|chart| chart.part_name.as_deref())
+        .filter(|name| !name.is_empty());
+    let Some(part_name) = part_name else {
+        return;
+    };
+    let Some(object_json) = fragment_json
+        .get_mut("object")
+        .and_then(|value| value.as_object_mut())
+    else {
+        return;
+    };
+    let Some(chart_json) = object_json
+        .get_mut("chart")
+        .and_then(|value| value.as_object_mut())
+    else {
+        return;
+    };
+    chart_json.insert(
+        "partName".into(),
+        serde_json::Value::String(part_name.to_string()),
+    );
+}
+
+fn inject_chart_part_names_block_box(block: &LayoutBlockBox, value: &mut serde_json::Value) {
+    match block {
+        LayoutBlockBox::Paragraph(paragraph) => {
+            let Some(lines_json) = value.get_mut("lines").and_then(|v| v.as_array_mut()) else {
+                return;
+            };
+            for (line_index, line) in paragraph.lines.iter().enumerate() {
+                let Some(line_json) = lines_json.get_mut(line_index) else {
+                    continue;
+                };
+                let Some(fragments_json) = line_json
+                    .get_mut("fragments")
+                    .and_then(|v| v.as_array_mut())
+                else {
+                    continue;
+                };
+                for (fragment_index, fragment) in line.fragments.iter().enumerate() {
+                    if let Some(fragment_json) = fragments_json.get_mut(fragment_index) {
+                        inject_chart_part_name_fragment(fragment, fragment_json);
+                    }
+                }
+            }
+        }
+        LayoutBlockBox::Table(table) => {
+            let Some(rows_json) = value.get_mut("rows").and_then(|v| v.as_array_mut()) else {
+                return;
+            };
+            for (row_index, row) in table.rows.iter().enumerate() {
+                let Some(row_json) = rows_json.get_mut(row_index) else {
+                    continue;
+                };
+                let Some(cells_json) = row_json.get_mut("cells").and_then(|v| v.as_array_mut())
+                else {
+                    continue;
+                };
+                for (cell_index, cell) in row.cells.iter().enumerate() {
+                    let Some(cell_json) = cells_json.get_mut(cell_index) else {
+                        continue;
+                    };
+                    let Some(paragraphs_json) = cell_json
+                        .get_mut("paragraphs")
+                        .and_then(|v| v.as_array_mut())
+                    else {
+                        continue;
+                    };
+                    for (paragraph_index, paragraph) in cell.iter().enumerate() {
+                        let Some(paragraph_json) = paragraphs_json.get_mut(paragraph_index) else {
+                            continue;
+                        };
+                        let Some(lines_json) = paragraph_json
+                            .get_mut("lines")
+                            .and_then(|v| v.as_array_mut())
+                        else {
+                            continue;
+                        };
+                        for (line_index, line) in paragraph.lines.iter().enumerate() {
+                            let Some(line_json) = lines_json.get_mut(line_index) else {
+                                continue;
+                            };
+                            let Some(fragments_json) = line_json
+                                .get_mut("fragments")
+                                .and_then(|v| v.as_array_mut())
+                            else {
+                                continue;
+                            };
+                            for (fragment_index, fragment) in line.fragments.iter().enumerate() {
+                                if let Some(fragment_json) = fragments_json.get_mut(fragment_index)
+                                {
+                                    inject_chart_part_name_fragment(fragment, fragment_json);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn block_box_to_value(block: &LayoutBlockBox) -> serde_json::Value {
-    serde_json::to_value(block).expect("block box")
+    let mut value = serde_json::to_value(block).expect("block box");
+    inject_chart_part_names_block_box(block, &mut value);
+    value
+}
+
+/// Remove print-only chart package part names before layout IR parity dumps.
+pub fn strip_layout_ir_chart_part_names(result: &mut LayoutResult) {
+    for page in &mut result.pages {
+        for column in &mut page.columns {
+            for block in &mut column.blocks {
+                strip_chart_part_names_value(block);
+            }
+        }
+    }
+}
+
+fn strip_chart_part_names_value(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            if let Some(chart) = map.get_mut("chart") {
+                if let Some(chart_map) = chart.as_object_mut() {
+                    chart_map.remove("partName");
+                }
+            }
+            for child in map.values_mut() {
+                strip_chart_part_names_value(child);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                strip_chart_part_names_value(item);
+            }
+        }
+        _ => {}
+    }
 }
 
 pub fn push_block_box(column: &mut LayoutColumnBox, block: LayoutBlockBox) {

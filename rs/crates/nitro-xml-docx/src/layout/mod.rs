@@ -45,7 +45,7 @@ pub use measure::{
     create_fake_measurer, measure_font_css, CachedMeasurer, MeasureCache, MeasureKey,
     MeasureSample, PendingKind, PendingMeasure,
 };
-pub use result::LayoutResult;
+pub use result::{strip_layout_ir_chart_part_names, LayoutResult};
 pub use review_display::LayoutReviewOptions;
 pub use session::{LayoutSession, TickStatus};
 

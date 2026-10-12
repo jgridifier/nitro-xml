@@ -71,14 +71,19 @@ fn paint_chart<I: StringIntern>(
     docx_theme: Option<&Value>,
 ) -> u32 {
     let el = dom.el(parent, "div");
-    let space = charts.get(picture.part_name);
+    let chart_part = chart
+        .part_name
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(picture.part_name);
+    let space = charts.get(chart_part);
     if let Some(space) = space {
         dom.class(el, "dve-print-picture dve-print-chart");
         dom.attr(el, "data-docx-chart", "1");
         dom.attr(el, "title", &chart.label);
         let w = picture.width_px.round().max(1.0) as u32;
         let h = picture.height_px.round().max(1.0) as u32;
-        let key = chart_svg_key(picture.part_name, w, h);
+        let key = chart_svg_key(chart_part, w, h);
         let svg = chart_svg_cache
             .get(&key)
             .cloned()

@@ -19,7 +19,7 @@ use super::adapt_notes::{endnote_paragraphs, note_labels, paragraph_footnotes};
 use super::adapt_paragraph_box::{group_paragraph_borders, paragraph_box};
 use super::adapt_table::adapt_table;
 use super::input::{
-    block_to_value, LayoutBlock, LayoutDocumentInput, LayoutParagraph, LayoutRun,
+    block_to_layout_json, LayoutBlock, LayoutDocumentInput, LayoutParagraph, LayoutRun,
     LayoutSectionSerde, LayoutTabStop,
 };
 use super::review_display::{review_source_length, LayoutReviewOptions};
@@ -196,7 +196,7 @@ pub fn adapt_document_model(
                     .iter()
                     .enumerate()
                     .filter(|(i, _)| !folded.contains(i))
-                    .map(|(_, b)| block_to_value(b))
+                    .map(|(_, b)| block_to_layout_json(b))
                     .collect(),
                 section_break: None,
                 vertical_align: None,
@@ -296,13 +296,13 @@ pub fn adapt_document_model(
                             if prev_is_table {
                                 let mut marked = paragraph.clone();
                                 marked.after_table_section_break = Some(true);
-                                return Some(block_to_value(&LayoutBlock::Paragraph(marked)));
+                                return Some(block_to_layout_json(&LayoutBlock::Paragraph(marked)));
                             }
                             return None;
                         }
                     }
                 }
-                Some(block_to_value(block))
+                Some(block_to_layout_json(block))
             })
             .collect();
         result.push(LayoutSectionSerde {
@@ -768,13 +768,6 @@ fn adapt_run(
                 .get("partName")
                 .and_then(|v| v.as_str())
                 .filter(|s| !s.is_empty())
-                .or_else(|| {
-                    image
-                        .get("chart")
-                        .and_then(|c| c.get("partName"))
-                        .and_then(|v| v.as_str())
-                        .filter(|s| !s.is_empty())
-                })
                 .unwrap_or("");
             let mut obj = super::input::LayoutObject {
                 part_name: part_name.into(),
@@ -791,18 +784,24 @@ fn adapt_run(
                 chart: None,
             };
             if image.get("chart").is_some() {
-                obj.chart = Some(
-                    serde_json::from_value(docx_chart_paint(
-                        image.get("chart").unwrap(),
-                        obj.width_px,
-                        obj.height_px,
-                        theme,
-                    ))
-                    .unwrap_or(super::input::LayoutChart {
-                        label: "Chart".into(),
-                        svg: None,
-                    }),
-                );
+                let chart_json = image.get("chart").unwrap();
+                let mut chart = serde_json::from_value(docx_chart_paint(
+                    chart_json,
+                    obj.width_px,
+                    obj.height_px,
+                    theme,
+                ))
+                .unwrap_or(super::input::LayoutChart {
+                    label: "Chart".into(),
+                    svg: None,
+                    part_name: None,
+                });
+                chart.part_name = chart_json
+                    .get("partName")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string);
+                obj.chart = Some(chart);
             }
             obj
         });
@@ -943,7 +942,7 @@ mod chart_part_name_tests {
 
     #[test]
     fn chart_image_uses_chart_part_name_when_media_part_empty() {
-        // Catches: chart LayoutObject keeps empty partName so print paint misses ChartSpace lookup.
+        // Catches: chart package part stored on LayoutChart (not object.partName) for print lookup without IR drift.
         let model = DocumentModel {
             format: "docx".into(),
             blocks: vec![json!({
@@ -1002,7 +1001,8 @@ mod chart_part_name_tests {
             LayoutBlock::Table(_) => panic!("expected paragraph"),
         };
         let object = run.object.as_ref().expect("chart run object");
-        assert_eq!(object.part_name, "word/charts/chart1.xml");
-        assert!(object.chart.is_some());
+        assert_eq!(object.part_name, "");
+        let chart = object.chart.as_ref().expect("chart");
+        assert_eq!(chart.part_name.as_deref(), Some("word/charts/chart1.xml"));
     }
 }

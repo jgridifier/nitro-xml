@@ -70,16 +70,31 @@ fn push_chart_fragment(
     let Some(object) = fragment.object.as_ref() else {
         return;
     };
-    if object.chart.is_none() || object.part_name.is_empty() {
+    if object.chart.is_none() {
         return;
     }
+    let part_name = object
+        .chart
+        .as_ref()
+        .and_then(|c| c.part_name.as_deref())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            if object.part_name.is_empty() {
+                None
+            } else {
+                Some(object.part_name.as_str())
+            }
+        });
+    let Some(part_name) = part_name else {
+        return;
+    };
     let width = object.width_px.round().max(1.0) as u32;
     let height = object.height_px.round().max(1.0) as u32;
-    let key = chart_svg_key(&object.part_name, width, height);
+    let key = chart_svg_key(part_name, width, height);
     if seen.insert(key.clone()) {
         out.push(ChartMeasureSpec {
             key,
-            part_name: object.part_name.clone(),
+            part_name: part_name.to_string(),
             width,
             height,
         });

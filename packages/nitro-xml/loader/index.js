@@ -33,6 +33,7 @@ export {
   packLayoutReqs,
 } from "./layout-readback.js";
 export { openDocument, DocumentSession } from "./session.js";
+export { createJournal } from "./journal.js";
 export { WorkerDocument } from "./worker-host.js";
 export {
   defineNitroXml,

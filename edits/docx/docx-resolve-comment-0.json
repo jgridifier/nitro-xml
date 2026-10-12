@@ -3,5 +3,12 @@
   "format": "docx",
   "fixture": "real-docx-poi-testComment",
   "description": "Resolve comment thread 0",
-  "ops": [{ "op": "resolveComment", "id": "0", "resolved": true }]
+  "modelOnly": true,
+  "ops": [
+    {
+      "op": "resolveComment",
+      "id": "0",
+      "resolved": true
+    }
+  ]
 }

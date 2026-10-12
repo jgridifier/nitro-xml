@@ -3,6 +3,7 @@
   "format": "docx",
   "fixture": "real-docx-poi-testComment",
   "description": "Reply to existing comment 0",
+  "modelOnly": true,
   "ops": [
     {
       "op": "replyToComment",

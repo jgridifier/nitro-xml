@@ -50,4 +50,4 @@ Rust `CalcEngine` has no `shift_cells` or `rename_sheet`, so a shift or rename h
 
 Formula and spill values are copied back onto `XlsxHost` sheets. `model_snapshot` and undo snapshots therefore show the calculated result instead of the null left when a formula is typed. Manual calculation mode (`calcMode: manual`) keeps that null until Calculate Now.
 
-The calc scheduler still returns a catalogued function call's cached value (the #72 evaluator). The #50 xlsx edit scripts do not call those functions; they use arithmetic, references, and range formulas. Database bodies are not part of this scheduler.
+Workbook recalculation evaluates registered calls (`FormulaAst::Call` and `Invoke`) through `formula::fns`. A name that is not in the catalog, or a formula that did not parse, keeps a stored value when one exists and is `#NAME?` otherwise. The 12 Database functions are catalog names with no implementation, so they are not keep-cached and evaluate to `#NAME?`. `NOW` and `RAND` use the pinned harness clock (2026-10-03 12:00) and the seeded random sequence.

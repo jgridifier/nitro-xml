@@ -344,6 +344,12 @@ fn book_seed(host: &XlsxHost) -> CalcBookSeed {
             .iter()
             .map(|sheet| CalcSheetSeed {
                 merges: sheet.merges.clone(),
+                hidden_rows: sheet
+                    .row_info
+                    .iter()
+                    .filter(|(_, info)| info.hidden == Some(true))
+                    .map(|(row, _)| *row)
+                    .collect(),
                 cells: sheet
                     .cells
                     .iter()

@@ -2,13 +2,18 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/formula/{engine,engine-core,engine-host,
 // engine-prepare,engine-order,engine-types,engine-util,evaluator,operators,coerce,text-number,
 // references,values,store,spill,date-serial}.ts; changes listed in PROVENANCE.md.
-//! Dependency-graph recalculation. Function bodies are #73–#75: a call to a catalogued
-//! function keeps the cell's pre-recalculation value after its arguments would have been read.
+//! Dependency-graph recalculation. Catalogued function calls evaluate through
+//! [`crate::formula::fns`]; an unknown name is `#NAME?`.
 
 use crate::address::{parse_range, MAX_COL, MAX_ROW};
 use crate::formula::ast::{
-    ArrayConstant, BinaryOp, FormulaAst, FormulaError, SheetPrefix, StructuredRef,
-    StructuredSpecial, UnaryOp,
+    normalize_local_name, ArrayConstant, BinaryOp, FormulaAst, FormulaError, SheetPrefix,
+    StructuredRef, StructuredSpecial, UnaryOp,
+};
+use crate::formula::fns::{
+    call_function, get_function, param_kind, Area as FnArea, CallCtx, ErrorCode, EvalHost,
+    FuncKind, LambdaValue, Matrix as FnMatrix, ParamKind, RefValue, Scalar as FnScalar,
+    Value as FnValue,
 };
 use crate::formula::graph::{
     analyze, bounding_box, cell_range, formula_order, prefix_sheets, range_has, ranges_intersect,
@@ -24,7 +29,10 @@ use crate::xml_util::{att, num_attr, rel_attr, x_children, x_first};
 use nitro_xml_opc::opc::{relationship_types, Package, Relationship};
 use nitro_xml_opc::xml::parse_xml_str;
 use regex::Regex;
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+use std::sync::OnceLock;
 
 /// Shown once when a recalculation finds a circular reference.
 pub const CIRCULAR_REFERENCE_WARNING: &str =
@@ -64,6 +72,8 @@ pub struct CalcCellSeed {
 pub struct CalcSheetSeed {
     pub merges: Vec<CellRange>,
     pub cells: Vec<CalcCellSeed>,
+    /// Rows with `rowInfo.hidden`.
+    pub hidden_rows: Vec<u32>,
 }
 
 /// Workbook grid the editor installs after a structural edit the graph cannot follow.
@@ -111,6 +121,7 @@ enum Value {
     Scalar(Scalar),
     Ref(Vec<Area>),
     Matrix(Matrix),
+    Lambda(Box<LambdaValue>),
 }
 
 impl Value {
@@ -255,6 +266,7 @@ struct SheetGrid {
     rows: BTreeMap<u32, BTreeSet<u32>>,
     merges: Vec<CellRange>,
     tables: Vec<TableMeta>,
+    hidden: BTreeSet<u32>,
 }
 
 struct FpChange {
@@ -270,6 +282,7 @@ struct Frame<'a> {
     depth: u32,
     root: Option<&'a FormulaAst>,
     legacy: bool,
+    scope: &'a HashMap<String, FnValue>,
 }
 
 /// Workbook-bound calc engine (prepare, recalculate, circular cells).
@@ -304,6 +317,8 @@ pub struct CalcEngine {
     footprint_changes: Vec<FpChange>,
     bounds_cache: Vec<Option<(u32, u32)>>,
     parsed: HashMap<String, Result<FormulaAst, FormulaError>>,
+    /// Seeded `RAND` / `RANDBETWEEN`, matching the function harness.
+    rand_seed: Cell<u64>,
 }
 
 impl CalcEngine {
@@ -321,6 +336,14 @@ impl CalcEngine {
         let mut formula_locs = Vec::new();
         for (index, stub) in workbook.sheets.iter().enumerate() {
             let worksheet = parsed.get(index).and_then(|sheet| sheet.as_ref());
+            let mut hidden = BTreeSet::new();
+            if let Some(worksheet) = worksheet {
+                for (row, info) in &worksheet.row_info {
+                    if info.hidden == Some(true) {
+                        hidden.insert(*row);
+                    }
+                }
+            }
             let mut grid = SheetGrid {
                 cells: HashMap::new(),
                 rows: BTreeMap::new(),
@@ -328,6 +351,7 @@ impl CalcEngine {
                     .map(|sheet| sheet.merges.clone())
                     .unwrap_or_default(),
                 tables: tables.get(index).cloned().unwrap_or_default(),
+                hidden,
             };
             if let Some(worksheet) = worksheet {
                 for cell in &worksheet.cells {
@@ -391,6 +415,7 @@ impl CalcEngine {
             evaluated_at: HashMap::new(),
             footprint_changes: Vec::new(),
             parsed: HashMap::new(),
+            rand_seed: Cell::new(42),
         })
     }
 
@@ -591,6 +616,7 @@ impl CalcEngine {
                 rows: BTreeMap::new(),
                 merges: sheet.merges,
                 tables: Vec::new(),
+                hidden: sheet.hidden_rows.into_iter().collect(),
             };
             for cell in sheet.cells {
                 let empty = matches!(cell.value, DumpCellValue::Null)
@@ -1049,8 +1075,6 @@ impl CalcEngine {
         self.pending.remove(&id);
         let formula = self.nodes[id as usize].formula.clone();
         let keep = self.nodes[id as usize].keep_cached;
-        let has_call = self.nodes[id as usize].has_call;
-        let unsupported = self.nodes[id as usize].unsupported;
         let sheet = self.nodes[id as usize].sheet;
         let row = self.nodes[id as usize].row;
         let col = self.nodes[id as usize].col;
@@ -1063,15 +1087,7 @@ impl CalcEngine {
         }
         self.nodes[id as usize].computes += 1;
         self.in_progress.insert(id);
-        let evaluated = if has_call {
-            // TODO(#73): no function bodies. A catalogued call keeps the cached value;
-            // an unknown name (unsupported, and not keepCached) is #NAME?, matching upstream.
-            if unsupported {
-                Ok(Stored::Scalar(Scalar::error("#NAME?")))
-            } else {
-                Ok(Stored::Scalar(self.cell_scalar(sheet, row, col)))
-            }
-        } else if let Some(ast) = ast {
+        let evaluated = if let Some(ast) = ast {
             let frame = Frame {
                 sheet,
                 row,
@@ -1079,10 +1095,11 @@ impl CalcEngine {
                 depth: 0,
                 root: Some(&ast),
                 legacy,
+                scope: empty_scope(),
             };
-            match self.eval(&ast, &frame) {
-                Ok(value) => self.finalize(value, legacy, sheet, row, col),
-                Err(halt) => Err(halt),
+            match catch_deferred(|| self.eval(&ast, &frame)) {
+                Ok(Ok(value)) => self.finalize(value, legacy, sheet, row, col),
+                Ok(Err(halt)) | Err(halt) => Err(halt),
             }
         } else {
             Ok(Stored::Scalar(Scalar::error(
@@ -1130,6 +1147,7 @@ impl CalcEngine {
             return Ok(Stored::Scalar(clean(scalar)));
         }
         let stored = match value {
+            Value::Lambda(_) => return Ok(Stored::Scalar(Scalar::error("#CALC!"))),
             Value::Ref(areas) => {
                 if areas.len() != 1 {
                     Stored::Scalar(Scalar::error("#VALUE!"))
@@ -1500,6 +1518,7 @@ impl CalcEngine {
         match value {
             Value::Matrix(matrix) => Ok(matrix.get(0, 0)),
             Value::Scalar(scalar) => Ok(scalar),
+            Value::Lambda(_) => Ok(Scalar::error("#CALC!")),
             Value::Ref(areas) => {
                 if areas.len() != 1 {
                     return Ok(Scalar::error("#VALUE!"));
@@ -1683,7 +1702,12 @@ impl CalcEngine {
                 }))
             }
             FormulaAst::Binary { .. } => self.eval_binary(node, frame),
-            FormulaAst::Call { .. } | FormulaAst::Invoke { .. } => Ok(Value::err("#NAME?")),
+            FormulaAst::Call {
+                name,
+                raw_name,
+                args,
+            } => self.eval_call(name, raw_name, args, frame),
+            FormulaAst::Invoke { callee, args } => self.eval_invoke(callee, args, frame),
         }
     }
 
@@ -1736,6 +1760,12 @@ impl CalcEngine {
         prefix: &Option<SheetPrefix>,
         frame: &Frame<'_>,
     ) -> Result<Value, Halt> {
+        if prefix.is_none() {
+            let key = normalize_local_name(name);
+            if let Some(bound) = frame.scope.get(&key) {
+                return Ok(from_fns(bound.clone()));
+            }
+        }
         let mut sheet = frame.sheet;
         if let Some(prefix) = prefix {
             if prefix.book.is_some() {
@@ -1763,6 +1793,7 @@ impl CalcEngine {
                     depth: frame.depth + 1,
                     root: None,
                     legacy: frame.legacy,
+                    scope: empty_scope(),
                 },
             );
         }
@@ -1834,6 +1865,9 @@ impl CalcEngine {
     }
 
     fn operand(&mut self, value: Value, frame: &Frame<'_>) -> Result<Value, Halt> {
+        if matches!(value, Value::Lambda(_)) {
+            return Ok(Value::err("#CALC!"));
+        }
         let Value::Ref(areas) = value else {
             return Ok(value);
         };
@@ -1989,6 +2023,499 @@ impl CalcEngine {
             .iter()
             .find(|table| range_has(&table.range, row, col))
             .map(|table| (sheet, table))
+    }
+
+    fn eval_to_fns(&mut self, node: &FormulaAst, frame: &Frame<'_>) -> Result<FnValue, Halt> {
+        Ok(to_fns(self.eval(node, frame)?))
+    }
+
+    fn eval_invoke<'a>(
+        &mut self,
+        callee: &'a FormulaAst,
+        args: &'a [FormulaAst],
+        frame: &Frame<'a>,
+    ) -> Result<Value, Halt> {
+        let callee_value = self.eval(callee, frame)?;
+        if is_error_value(&callee_value) {
+            return Ok(callee_value);
+        }
+        let Value::Lambda(lambda) = callee_value else {
+            return Ok(Value::err("#VALUE!"));
+        };
+        let mut values = Vec::with_capacity(args.len());
+        for arg in args {
+            values.push(self.eval_to_fns(arg, frame)?);
+        }
+        Ok(from_fns(self.call_lambda(&lambda, &values, frame)?))
+    }
+
+    fn eval_call<'a>(
+        &mut self,
+        name: &str,
+        raw_name: &str,
+        args: &'a [FormulaAst],
+        frame: &Frame<'a>,
+    ) -> Result<Value, Halt> {
+        let key = normalize_local_name(raw_name);
+        if let Some(FnValue::Lambda(lambda)) = frame.scope.get(&key).cloned() {
+            let mut values = Vec::with_capacity(args.len());
+            for arg in args {
+                values.push(self.eval_to_fns(arg, frame)?);
+            }
+            return Ok(from_fns(self.call_lambda(&lambda, &values, frame)?));
+        }
+        let Some(spec) = get_function(name) else {
+            return self.call_defined_name(raw_name, args, frame);
+        };
+        if args.len() < spec.min_args || args.len() > spec.max_args {
+            return Ok(Value::err("#VALUE!"));
+        }
+        let ptr = self as *mut CalcEngine;
+        let host = EngineHost { engine: ptr };
+        let sheet = frame.sheet;
+        let row = frame.row;
+        let col = frame.col;
+        let legacy = frame.legacy;
+        let depth = frame.depth;
+        let root = frame.root;
+        let scope = frame.scope;
+        let date1904 = self.date1904;
+        let eval = move |node: &FormulaAst| -> FnValue {
+            // SAFETY: `ptr` is this calc engine, pinned for the call. The hook runs
+            // only from a function body and does not overlap another `&mut` of it.
+            let engine = unsafe { &mut *ptr };
+            let local = Frame {
+                sheet,
+                row,
+                col,
+                depth,
+                root: None,
+                legacy,
+                scope,
+            };
+            match engine.eval(node, &local) {
+                Ok(value) => to_fns(value),
+                Err(Halt::Deferred(id)) => raise_deferred(id),
+            }
+        };
+        let eval_in = move |node: &FormulaAst, inner: &HashMap<String, FnValue>| -> FnValue {
+            let engine = unsafe { &mut *ptr };
+            let local = Frame {
+                sheet,
+                row,
+                col,
+                depth,
+                root: None,
+                legacy,
+                scope: inner,
+            };
+            match engine.eval(node, &local) {
+                Ok(value) => to_fns(value),
+                Err(Halt::Deferred(id)) => raise_deferred(id),
+            }
+        };
+        let call_lambda_fn = move |lambda: &LambdaValue, values: &[FnValue]| -> FnValue {
+            let engine = unsafe { &mut *ptr };
+            let local = Frame {
+                sheet,
+                row,
+                col,
+                depth,
+                root: None,
+                legacy,
+                scope,
+            };
+            match engine.call_lambda(lambda, values, &local) {
+                Ok(value) => value,
+                Err(Halt::Deferred(id)) => raise_deferred(id),
+            }
+        };
+        let ctx = CallCtx {
+            host: &host,
+            sheet: sheet as usize,
+            row: row as i32,
+            col: col as i32,
+            legacy,
+            date1904,
+            depth,
+            scope,
+            eval: Some(&eval),
+            eval_in: Some(&eval_in),
+            call_lambda: Some(&call_lambda_fn),
+        };
+        let result = match spec.kind {
+            FuncKind::Lazy { f } => f(&ctx, args),
+            _ => {
+                let mut values = Vec::with_capacity(args.len());
+                for (index, arg) in args.iter().enumerate() {
+                    let use_legacy = legacy && param_kind(spec, index) != ParamKind::Any;
+                    let local = Frame {
+                        sheet,
+                        row,
+                        col,
+                        depth,
+                        root,
+                        legacy: use_legacy,
+                        scope,
+                    };
+                    let engine = unsafe { &mut *ptr };
+                    values.push(match engine.eval(arg, &local) {
+                        Ok(value) => to_fns(value),
+                        Err(Halt::Deferred(id)) => raise_deferred(id),
+                    });
+                }
+                Ok(call_function(name, &values, &ctx))
+            }
+        };
+        match result {
+            Ok(value) => Ok(from_fns(value)),
+            Err(code) => Ok(Value::err(code.as_excel())),
+        }
+    }
+
+    fn call_defined_name(
+        &mut self,
+        raw_name: &str,
+        args: &[FormulaAst],
+        frame: &Frame<'_>,
+    ) -> Result<Value, Halt> {
+        let Some(formula) = self.lookup_defined(raw_name, frame.sheet, false) else {
+            return Ok(Value::err("#NAME?"));
+        };
+        if frame.depth >= MAX_NAME_DEPTH {
+            return Ok(Value::err("#NAME?"));
+        }
+        let ast = match self.parse_cached(&formula) {
+            Ok(ast) => ast,
+            Err(_) => return Ok(Value::err("#NAME?")),
+        };
+        let named = self.eval(
+            &ast,
+            &Frame {
+                sheet: frame.sheet,
+                row: frame.row,
+                col: frame.col,
+                depth: frame.depth + 1,
+                root: None,
+                legacy: frame.legacy,
+                scope: empty_scope(),
+            },
+        )?;
+        let Value::Lambda(lambda) = named else {
+            return Ok(Value::err("#NAME?"));
+        };
+        let mut values = Vec::with_capacity(args.len());
+        for arg in args {
+            values.push(self.eval_to_fns(arg, frame)?);
+        }
+        Ok(from_fns(self.call_lambda(&lambda, &values, frame)?))
+    }
+
+    fn call_lambda(
+        &mut self,
+        lambda: &LambdaValue,
+        args: &[FnValue],
+        frame: &Frame<'_>,
+    ) -> Result<FnValue, Halt> {
+        if args.len() > lambda.params.len() {
+            return Ok(FnValue::error(ErrorCode::Value));
+        }
+        let mut scope = lambda.scope.clone();
+        for (index, name) in lambda.params.iter().enumerate() {
+            let value = args.get(index).cloned().unwrap_or_else(FnValue::blank);
+            scope.insert(name.clone(), value);
+        }
+        self.eval_to_fns(
+            &lambda.body,
+            &Frame {
+                sheet: frame.sheet,
+                row: frame.row,
+                col: frame.col,
+                depth: frame.depth,
+                root: None,
+                legacy: frame.legacy,
+                scope: &scope,
+            },
+        )
+    }
+}
+
+struct DeferredHalt(u32);
+
+fn raise_deferred(id: u32) -> ! {
+    std::panic::panic_any(DeferredHalt(id));
+}
+
+fn catch_deferred<T>(body: impl FnOnce() -> T) -> Result<T, Halt> {
+    match catch_unwind(AssertUnwindSafe(body)) {
+        Ok(value) => Ok(value),
+        Err(payload) => match payload.downcast::<DeferredHalt>() {
+            Ok(halt) => Err(Halt::Deferred(halt.0)),
+            Err(payload) => resume_unwind(payload),
+        },
+    }
+}
+
+fn empty_scope() -> &'static HashMap<String, FnValue> {
+    static EMPTY: OnceLock<HashMap<String, FnValue>> = OnceLock::new();
+    EMPTY.get_or_init(HashMap::new)
+}
+
+/// `EvalHost` for a calc engine. Reads compute pending formulas. A nest that is too
+/// deep panics with [`DeferredHalt`] so [`catch_deferred`] can retry it, the same
+/// unwind `Deferred` uses upstream.
+struct EngineHost {
+    engine: *mut CalcEngine,
+}
+
+impl EvalHost for EngineHost {
+    fn read_cell(&self, sheet: usize, row: i32, col: i32) -> FnScalar {
+        if row < 0 || col < 0 {
+            return FnScalar::Blank;
+        }
+        // SAFETY: the pointer is the engine evaluating this call. Methods do not hold
+        // a Rust reference across the re-entrant read.
+        let engine = unsafe { &mut *self.engine };
+        match engine.read_cell(sheet as u32, row as u32, col as u32) {
+            Ok(value) => scalar_to_fns(value),
+            Err(Halt::Deferred(id)) => raise_deferred(id),
+        }
+    }
+
+    fn for_each_stored(
+        &self,
+        sheet: usize,
+        area: FnArea,
+        visit: &mut dyn FnMut(FnScalar, i32, i32),
+    ) {
+        let start_row = u32::try_from(area.start_row).unwrap_or(0);
+        let end_row = u32::try_from(area.end_row).unwrap_or(0);
+        let start_col = u32::try_from(area.start_col).unwrap_or(0);
+        let end_col = u32::try_from(area.end_col).unwrap_or(0);
+        if area.end_row < 0 || area.end_col < 0 || start_row > end_row || start_col > end_col {
+            return;
+        }
+        let engine = unsafe { &mut *self.engine };
+        let coords = {
+            let Some(grid) = engine.sheets.get(sheet) else {
+                return;
+            };
+            let mut coords = Vec::new();
+            for (row, cols) in grid.rows.range(start_row..=end_row) {
+                for col in cols.range(start_col..=end_col) {
+                    coords.push((*row, *col));
+                }
+            }
+            coords
+        };
+        for (row, col) in coords {
+            let value = match engine.read_cell(sheet as u32, row, col) {
+                Ok(value) => value,
+                Err(Halt::Deferred(id)) => raise_deferred(id),
+            };
+            if value.is_empty() {
+                continue;
+            }
+            visit(scalar_to_fns(value), row as i32, col as i32);
+        }
+    }
+
+    fn bounds(&self, sheet: usize) -> (i32, i32) {
+        let engine = unsafe { &mut *self.engine };
+        let (rows, cols) = engine.bounds_of(sheet as u32);
+        (rows as i32, cols as i32)
+    }
+
+    fn cell_formula(&self, sheet: usize, row: i32, col: i32) -> Option<String> {
+        if row < 0 || col < 0 {
+            return None;
+        }
+        let engine = unsafe { &*self.engine };
+        engine.cell_formula(sheet as u32, row as u32, col as u32)
+    }
+
+    fn sheet_count(&self) -> usize {
+        let engine = unsafe { &*self.engine };
+        engine.sheet_names.len()
+    }
+
+    fn sheet_name(&self, index: usize) -> Option<&str> {
+        let text = unsafe { &*self.engine }
+            .sheet_names
+            .get(index)
+            .map(|name| name.as_str() as *const str)?;
+        // SAFETY: `text` points into this engine's sheet names, which outlive the host.
+        Some(unsafe { &*text })
+    }
+
+    fn find_sheet(&self, name: &str) -> Option<usize> {
+        let engine = unsafe { &*self.engine };
+        if let Some(index) = engine.sheet_names.iter().position(|sheet| sheet == name) {
+            return Some(index);
+        }
+        engine
+            .sheet_names
+            .iter()
+            .position(|sheet| sheet.eq_ignore_ascii_case(name))
+    }
+
+    fn random(&self) -> f64 {
+        const MOD: u64 = 2_147_483_647;
+        let engine = unsafe { &*self.engine };
+        let next = engine.rand_seed.get().saturating_mul(16807) % MOD;
+        engine.rand_seed.set(next);
+        (next.saturating_sub(1)) as f64 / (MOD - 1) as f64
+    }
+
+    fn now_serial(&self) -> f64 {
+        let engine = unsafe { &*self.engine };
+        crate::formula::fns::pinned_now_serial(engine.date1904)
+    }
+
+    fn row_hidden(&self, sheet: usize, row: i32) -> bool {
+        if row < 0 {
+            return false;
+        }
+        let engine = unsafe { &*self.engine };
+        engine
+            .sheets
+            .get(sheet)
+            .is_some_and(|grid| grid.hidden.contains(&(row as u32)))
+    }
+
+    fn occupied(&self, sheet: usize, row: i32, col: i32) -> bool {
+        if row < 0 || col < 0 {
+            return false;
+        }
+        let engine = unsafe { &*self.engine };
+        let Some(cell) = engine
+            .sheets
+            .get(sheet)
+            .and_then(|grid| grid.cells.get(&pos_key(row as u32, col as u32)))
+        else {
+            return false;
+        };
+        cell.formula.is_some() || cell.spill_anchor.is_some() || !cell.value.is_empty()
+    }
+}
+
+fn scalar_to_fns(value: Scalar) -> FnScalar {
+    match value {
+        Scalar::Empty => FnScalar::Blank,
+        Scalar::Number(n) => FnScalar::Number(n),
+        Scalar::Text(text) => FnScalar::Text(text),
+        Scalar::Bool(value) => FnScalar::Bool(value),
+        Scalar::Error(code) => FnScalar::Error(ErrorCode::parse(&code).unwrap_or(ErrorCode::Value)),
+    }
+}
+
+fn scalar_from_fns(value: FnScalar) -> Scalar {
+    match value {
+        FnScalar::Blank => Scalar::Empty,
+        FnScalar::Number(n) => Scalar::Number(n),
+        FnScalar::Text(text) => Scalar::Text(text),
+        FnScalar::Bool(value) => Scalar::Bool(value),
+        FnScalar::Error(code) => Scalar::error(code.as_excel()),
+    }
+}
+
+fn area_to_fns(area: Area) -> FnArea {
+    FnArea {
+        sheet: area.sheet as usize,
+        start_row: area.range.start.row as i32,
+        start_col: area.range.start.col as i32,
+        end_row: area.range.end.row as i32,
+        end_col: area.range.end.col as i32,
+    }
+}
+
+fn area_from_fns(area: FnArea) -> Area {
+    Area {
+        sheet: area.sheet as u32,
+        range: norm_range(CellRange {
+            start: CellAddress {
+                row: area.start_row.max(0) as u32,
+                col: area.start_col.max(0) as u32,
+            },
+            end: CellAddress {
+                row: area.end_row.max(0) as u32,
+                col: area.end_col.max(0) as u32,
+            },
+        }),
+    }
+}
+
+fn matrix_to_fns(matrix: Matrix) -> FnMatrix {
+    let Matrix {
+        dense,
+        pad_rows,
+        pad_cols,
+        fill,
+    } = matrix;
+    let stored_rows = dense.len() as u32;
+    let stored_cols = dense.first().map(|line| line.len()).unwrap_or(0) as u32;
+    let padded = pad_rows > stored_rows || pad_cols > stored_cols;
+    let dense = dense
+        .into_iter()
+        .map(|line| line.into_iter().map(scalar_to_fns).collect())
+        .collect();
+    let block = FnMatrix::from_rows(dense);
+    if padded {
+        FnMatrix::padded(
+            block,
+            pad_rows as usize,
+            pad_cols as usize,
+            scalar_to_fns(fill),
+        )
+    } else {
+        block
+    }
+}
+
+fn matrix_from_fns(matrix: FnMatrix) -> Matrix {
+    let stored_rows = matrix.block_rows();
+    let stored_cols = matrix.block_cols();
+    let mut dense = Vec::with_capacity(stored_rows);
+    for row in 0..stored_rows {
+        let mut line = Vec::with_capacity(stored_cols);
+        for col in 0..stored_cols {
+            line.push(scalar_from_fns(matrix.get(row, col)));
+        }
+        dense.push(line);
+    }
+    let mut out = Matrix::plain(dense);
+    if matrix.is_padded() {
+        let fill = if matrix.rows() > stored_rows {
+            scalar_from_fns(matrix.get(stored_rows, 0))
+        } else if matrix.cols() > stored_cols {
+            scalar_from_fns(matrix.get(0, stored_cols))
+        } else {
+            Scalar::Empty
+        };
+        out = out.padded(matrix.rows() as u32, matrix.cols() as u32, fill);
+    }
+    out
+}
+
+fn to_fns(value: Value) -> FnValue {
+    match value {
+        Value::Scalar(scalar) => FnValue::Scalar(scalar_to_fns(scalar)),
+        Value::Matrix(matrix) => FnValue::Matrix(matrix_to_fns(matrix)),
+        Value::Ref(areas) => FnValue::Ref(RefValue {
+            areas: areas.into_iter().map(area_to_fns).collect(),
+        }),
+        Value::Lambda(lambda) => FnValue::Lambda(lambda),
+    }
+}
+
+fn from_fns(value: FnValue) -> Value {
+    match value {
+        FnValue::Scalar(scalar) => Value::Scalar(scalar_from_fns(scalar)),
+        FnValue::Matrix(matrix) => Value::Matrix(matrix_from_fns(matrix)),
+        FnValue::Ref(reference) => {
+            Value::Ref(reference.areas.into_iter().map(area_from_fns).collect())
+        }
+        FnValue::Lambda(lambda) => Value::Lambda(lambda),
     }
 }
 
@@ -2295,6 +2822,7 @@ fn as_matrix(value: Value) -> Matrix {
         Value::Matrix(matrix) => matrix,
         Value::Scalar(scalar) => Matrix::plain(vec![vec![scalar]]),
         Value::Ref(_) => Matrix::plain(vec![vec![Scalar::error("#VALUE!")]]),
+        Value::Lambda(_) => Matrix::plain(vec![vec![Scalar::error("#CALC!")]]),
     }
 }
 
@@ -3156,6 +3684,7 @@ mod tests {
             rows: BTreeMap::new(),
             merges: Vec::new(),
             tables: Vec::new(),
+            hidden: BTreeSet::new(),
         };
         let mut locs = Vec::new();
         for (row, col, formula, value) in cells {
@@ -3205,6 +3734,7 @@ mod tests {
             footprint_changes: Vec::new(),
             bounds_cache: vec![None],
             parsed: HashMap::new(),
+            rand_seed: Cell::new(42),
         }
     }
 
@@ -3245,7 +3775,9 @@ mod tests {
         let index = node(&engine, 1, 0);
         assert!(!index.dynamic_deps.is_empty());
         assert!(!index.cyclic);
-        assert!(!engine.cycles.contains(engine.by_cell[&(0, 1, 0)]));
+        // The range covers the anchor, so evaluating it records a dynamic cycle.
+        // The static `cyclic` flag stays clear.
+        assert!(engine.cycles.contains(engine.by_cell[&(0, 1, 0)]));
     }
 
     #[test]
@@ -3274,5 +3806,33 @@ mod tests {
         assert_eq!(node(&engine, 0, 1).computes, plain);
         assert!(node(&engine, 0, 2).computes > index);
         assert!(node(&engine, 0, 3).computes > now);
+    }
+
+    #[test]
+    fn catches_catalogued_call_keeping_the_cached_value() {
+        // Catches: SUM(B1,C1) and LET(x,SUM(1,2),x) leaving the cached 99 instead of calling the function library.
+        let mut engine = engine(&[
+            (0, 1, None, 2.0),
+            (0, 2, None, 3.0),
+            (1, 0, Some("=SUM(B1,C1)"), 99.0),
+            (1, 1, Some("=LET(x,SUM(1,2),x)"), 99.0),
+            (1, 2, Some("=NOSUCH(1)"), 99.0),
+        ]);
+        engine.prepare(None);
+        engine.recalculate_all();
+        assert!(
+            matches!(engine.cell_scalar(0, 1, 0), Scalar::Number(n) if n == 5.0),
+            "SUM(B1,C1) must be 5, got {:?}",
+            engine.cell_scalar(0, 1, 0)
+        );
+        assert!(
+            matches!(engine.cell_scalar(0, 1, 1), Scalar::Number(n) if n == 3.0),
+            "LET must publish SUM(1,2) as 3, got {:?}",
+            engine.cell_scalar(0, 1, 1)
+        );
+        assert!(
+            matches!(engine.cell_scalar(0, 1, 2), Scalar::Number(n) if n == 99.0),
+            "an unknown name with a cached value stays cached"
+        );
     }
 }

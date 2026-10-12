@@ -1,0 +1,22 @@
+{
+  "id": "xlsx-set-cell-sum",
+  "format": "xlsx",
+  "fixture": "gen-xlsx-cells-1k",
+  "description": "Set D1 to SUM of two cells and D2 to LET of SUM(1,2)",
+  "ops": [
+    {
+      "op": "setCellInput",
+      "sheet": 0,
+      "row": 0,
+      "col": 3,
+      "text": "=SUM(B1,C1)"
+    },
+    {
+      "op": "setCellInput",
+      "sheet": 0,
+      "row": 1,
+      "col": 3,
+      "text": "=LET(x,SUM(1,2),x)"
+    }
+  ]
+}

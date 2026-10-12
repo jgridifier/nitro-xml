@@ -25,18 +25,25 @@ pub fn parse_xml_str(xml: &str) -> Result<Document, XmlError> {
     parse_xml_str_with_options(xml, ParseOptions::default())
 }
 
+/// Hard cap on element nesting. Upstream has no depth budget; this beats that by failing closed
+/// before the owned parse stack can grow without bound.
+pub const MAX_XML_DEPTH: usize = 256;
+
 /// Options for [`parse_xml_str_with_options`].
 #[derive(Clone, Copy, Debug)]
 pub struct ParseOptions {
     /// When true (default), attributes are sorted for stable dumps; chart fragment `buildXml`
     /// parity needs document order (`false`).
     pub sort_attributes: bool,
+    /// Maximum element nesting depth (default [`MAX_XML_DEPTH`]). `0` disables the check.
+    pub max_depth: usize,
 }
 
 impl Default for ParseOptions {
     fn default() -> Self {
         Self {
             sort_attributes: true,
+            max_depth: MAX_XML_DEPTH,
         }
     }
 }
@@ -45,6 +52,7 @@ impl Default for ParseOptions {
 pub fn parse_xml_str_with_options(xml: &str, options: ParseOptions) -> Result<Document, XmlError> {
     let xml = xml.strip_prefix('\u{feff}').unwrap_or(xml);
     // Parity with parseXml: any DOCTYPE / ENTITY substring is rejected before parsing.
+    // Entity *expansion* is off: only predefined + numeric refs are decoded later.
     if contains_dtd_or_entity(xml) {
         return Err(XmlError::new(
             "dtd",
@@ -52,7 +60,7 @@ pub fn parse_xml_str_with_options(xml: &str, options: ParseOptions) -> Result<Do
         ));
     }
     let xml = normalize_line_endings(xml);
-    parse_normalized(&xml, options.sort_attributes)
+    parse_normalized(&xml, options)
 }
 
 fn decode_utf8(bytes: &[u8]) -> Cow<'_, str> {
@@ -90,7 +98,9 @@ fn starts_with_ignore_ascii_case(hay: &[u8], needle: &[u8]) -> bool {
             .all(|(a, b)| a.eq_ignore_ascii_case(b))
 }
 
-fn parse_normalized(xml: &str, sort_attributes: bool) -> Result<Document, XmlError> {
+fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlError> {
+    let sort_attributes = options.sort_attributes;
+    let max_depth = options.max_depth;
     let mut reader = NsReader::from_str(xml);
     let config = reader.config_mut();
     config.trim_text(false);
@@ -112,6 +122,12 @@ fn parse_normalized(xml: &str, sort_attributes: bool) -> Result<Document, XmlErr
                 if seen_root_end && stack.is_empty() {
                     return Err(XmlError::new("parse", "only one root element allowed"));
                 }
+                if max_depth > 0 && stack.len() >= max_depth {
+                    return Err(XmlError::new(
+                        "depth",
+                        format!("XML nesting exceeds the depth limit ({max_depth})"),
+                    ));
+                }
                 let ns = resolve_element_ns(resolve)?;
                 let local = local_name_str(e.local_name().as_ref())?;
                 let attrs = collect_attrs(&reader, &e, sort_attributes)?;
@@ -122,6 +138,13 @@ fn parse_normalized(xml: &str, sort_attributes: bool) -> Result<Document, XmlErr
             Event::Empty(e) => {
                 if seen_root_end && stack.is_empty() {
                     return Err(XmlError::new("parse", "only one root element allowed"));
+                }
+                // Empty elements still occupy one nesting level under their parent.
+                if max_depth > 0 && stack.len() >= max_depth {
+                    return Err(XmlError::new(
+                        "depth",
+                        format!("XML nesting exceeds the depth limit ({max_depth})"),
+                    ));
                 }
                 let ns = resolve_element_ns(resolve)?;
                 let local = local_name_str(e.local_name().as_ref())?;
@@ -380,6 +403,21 @@ mod tests {
         // inside CDATA still rejects (not a real DTD parse).
         let err = parse_xml_str("<a><![CDATA[<!DOCTYPE]]></a>").unwrap_err();
         assert_eq!(err.kind(), "dtd");
+    }
+
+    #[test]
+    fn catches_unbounded_element_nesting_without_depth_cap() {
+        // Catches: a deep nesting bomb growing the owned Element stack without a depth budget.
+        let depth = MAX_XML_DEPTH + 1;
+        let mut xml = String::new();
+        for _ in 0..depth {
+            xml.push_str("<a>");
+        }
+        for _ in 0..depth {
+            xml.push_str("</a>");
+        }
+        let err = parse_xml_str(&xml).unwrap_err();
+        assert_eq!(err.kind(), "depth");
     }
 
     #[test]

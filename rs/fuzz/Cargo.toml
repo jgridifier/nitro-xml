@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "nitro-xml-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "MIT"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+nitro-xml-opc = { path = "../crates/nitro-xml-opc" }
+nitro-xml-xlsx = { path = "../crates/nitro-xml-xlsx" }
+nitro-xml-docx = { path = "../crates/nitro-xml-docx" }
+nitro-xml-pptx = { path = "../crates/nitro-xml-pptx" }
+
+# Isolate from the parent workspace so cargo-fuzz can use nightly independently.
+[workspace]
+members = ["."]
+resolver = "2"
+
+[[bin]]
+name = "xml_parse"
+path = "fuzz_targets/xml_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "zip_open"
+path = "fuzz_targets/zip_open.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "opc_open"
+path = "fuzz_targets/opc_open.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "xlsx_load"
+path = "fuzz_targets/xlsx_load.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "docx_load"
+path = "fuzz_targets/docx_load.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pptx_load"
+path = "fuzz_targets/pptx_load.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "safe_href"
+path = "fuzz_targets/safe_href.rs"
+test = false
+doc = false
+bench = false

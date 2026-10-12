@@ -4,9 +4,10 @@
 //! `src/core/xlsx/read/package.ts`); this module keeps its limits and case-insensitive part
 //! lookup over the `zip` crate.
 //!
-//! - Limits: compressed input size, non-directory entry count, declared size per part and declared
-//!   total. The declared sizes are checked at open; the real guard counts inflated bytes while
-//!   reading, so a header that under-declares its size is rejected before it inflates further.
+//! - Limits: compressed input size, non-directory entry count, declared size per part, declared
+//!   total, and a per-part compression ratio (`MAX_COMPRESSION_RATIO`) that beats upstream's
+//!   absolute-only zip-bomb caps. Declared sizes are checked at open; inflation also counts real
+//!   bytes so a header that under-declares its size is rejected before it expands further.
 //! - Lazy inflation: opening reads only the central directory. [`ZipPackage::read`] inflates one
 //!   part on demand, counting its bytes against the package total.
 //! - Lookup: [`ZipPackage::actual`] matches a name exactly, then case-insensitively, like upstream
@@ -29,6 +30,10 @@ pub const MAX_PARTS: usize = 10_000;
 pub const MAX_UNCOMPRESSED_BYTES: u64 = 300 * 1024 * 1024;
 /// Largest inflated size of one part.
 pub const MAX_PART_BYTES: u64 = 200 * 1024 * 1024;
+/// Cap on inflated/compressed size per part (zip-bomb ratio). Upstream relies only on absolute
+/// size caps; this additional ratio rejects under-compressed bombs earlier. Stored entries
+/// (compressed == 0 or compressed == declared) are exempt.
+pub const MAX_COMPRESSION_RATIO: u64 = 200;
 
 /// Read chunk size; also the granularity at which limits are enforced while inflating.
 const CHUNK_BYTES: usize = 64 * 1024;
@@ -42,6 +47,8 @@ pub struct ZipLimits {
     pub max_parts: usize,
     pub max_part_bytes: u64,
     pub max_total_bytes: u64,
+    /// Max inflated/compressed ratio per part; `0` disables the ratio check.
+    pub max_compression_ratio: u64,
 }
 
 impl Default for ZipLimits {
@@ -51,6 +58,7 @@ impl Default for ZipLimits {
             max_parts: MAX_PARTS,
             max_part_bytes: MAX_PART_BYTES,
             max_total_bytes: MAX_UNCOMPRESSED_BYTES,
+            max_compression_ratio: MAX_COMPRESSION_RATIO,
         }
     }
 }
@@ -63,6 +71,12 @@ struct Entry {
     index: usize,
     /// Declared uncompressed size.
     size: u64,
+    /// Declared compressed size (0 when unknown / stored with zero length).
+    compressed: u64,
+}
+
+fn exceeds_compression_ratio(compressed: u64, uncompressed: u64, ratio: u64) -> bool {
+    ratio > 0 && compressed > 0 && uncompressed > compressed.saturating_mul(ratio)
 }
 
 /// An opened zip package. Parts are inflated on demand by [`ZipPackage::read`].
@@ -102,7 +116,7 @@ impl<'a> ZipPackage<'a> {
         }
         let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(invalid)?;
 
-        let mut found: Vec<(String, usize, u64)> = Vec::new();
+        let mut found: Vec<(String, usize, u64, u64)> = Vec::new();
         for index in 0..archive.len() {
             let file = archive.by_index_raw(index).map_err(invalid)?;
             if file.is_dir() {
@@ -110,16 +124,19 @@ impl<'a> ZipPackage<'a> {
             }
             let raw_name = file.name().map_err(invalid)?;
             let name = raw_name.strip_prefix('/').unwrap_or(&raw_name).to_owned();
-            found.push((name, index, file.size()));
+            found.push((name, index, file.size(), file.compressed_size()));
         }
 
         if found.len() > limits.max_parts {
             return Err(ZipError::TooManyParts);
         }
         let mut declared_total: u64 = 0;
-        for (name, _, size) in &found {
+        for (name, _, size, compressed) in &found {
             if *size > limits.max_part_bytes {
                 return Err(ZipError::PartTooLarge { name: name.clone() });
+            }
+            if exceeds_compression_ratio(*compressed, *size, limits.max_compression_ratio) {
+                return Err(ZipError::CompressionRatio { name: name.clone() });
             }
             declared_total = declared_total.saturating_add(*size);
         }
@@ -130,7 +147,7 @@ impl<'a> ZipPackage<'a> {
         let mut entries: Vec<Entry> = Vec::with_capacity(found.len());
         let mut by_name: HashMap<String, usize> = HashMap::with_capacity(found.len());
         let mut lower: HashMap<String, usize> = HashMap::with_capacity(found.len());
-        for (name, index, size) in found {
+        for (name, index, size, compressed) in found {
             // A later entry with the same normalised name replaces the earlier one in place.
             let pos = match by_name.get(&name) {
                 Some(&pos) => {
@@ -139,6 +156,7 @@ impl<'a> ZipPackage<'a> {
                             name: name.clone(),
                             index,
                             size,
+                            compressed,
                         };
                     }
                     pos
@@ -148,6 +166,7 @@ impl<'a> ZipPackage<'a> {
                         name: name.clone(),
                         index,
                         size,
+                        compressed,
                     });
                     by_name.insert(name.clone(), entries.len() - 1);
                     entries.len() - 1
@@ -206,8 +225,9 @@ impl<'a> ZipPackage<'a> {
         let Some(entry) = self.position(name).and_then(|pos| self.entries.get(pos)) else {
             return Ok(None);
         };
-        let (index, declared) = (entry.index, entry.size);
+        let (index, declared, compressed) = (entry.index, entry.size, entry.compressed);
         let max_total = self.limits.max_total_bytes;
+        let max_ratio = self.limits.max_compression_ratio;
         let inflated_total = self.inflated_total;
         let stored_name = entry.name.as_str();
 
@@ -239,6 +259,11 @@ impl<'a> ZipPackage<'a> {
                     name: stored_name.to_owned(),
                 });
             }
+            if exceeds_compression_ratio(compressed, produced, max_ratio) {
+                return Err(ZipError::CompressionRatio {
+                    name: stored_name.to_owned(),
+                });
+            }
             if inflated_total.saturating_add(produced) > max_total {
                 return Err(ZipError::TotalTooLarge);
             }
@@ -249,6 +274,11 @@ impl<'a> ZipPackage<'a> {
         let produced = u64::try_from(out.len()).unwrap_or(u64::MAX);
         if produced != declared {
             return Err(ZipError::SizeMismatch {
+                name: stored_name.to_owned(),
+            });
+        }
+        if exceeds_compression_ratio(compressed, produced, max_ratio) {
+            return Err(ZipError::CompressionRatio {
                 name: stored_name.to_owned(),
             });
         }
@@ -323,6 +353,66 @@ mod tests {
         assert!(matches!(
             pkg.read("xl/big.bin"),
             Err(ZipError::SizeMismatch { .. })
+        ));
+    }
+
+    // Catches: a deflate entry declaring uncompressed >> compressed * MAX_COMPRESSION_RATIO slipping past absolute size caps.
+    #[test]
+    fn declared_compression_ratio_rejected_at_open() {
+        // Hand-built local+central headers: 1 compressed byte declaring DECLARED uncompressed.
+        const DECLARED: u32 = 50_000;
+        const {
+            assert!(DECLARED as u64 > MAX_COMPRESSION_RATIO);
+        }
+        let name = b"bomb.bin";
+        let mut local = Vec::new();
+        local.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
+        local.extend_from_slice(&20u16.to_le_bytes()); // version
+        local.extend_from_slice(&0u16.to_le_bytes()); // flags
+        local.extend_from_slice(&8u16.to_le_bytes()); // deflate
+        local.extend_from_slice(&0u32.to_le_bytes()); // time/date
+        local.extend_from_slice(&0u32.to_le_bytes()); // crc (unchecked at open)
+        local.extend_from_slice(&1u32.to_le_bytes()); // compressed
+        local.extend_from_slice(&DECLARED.to_le_bytes()); // uncompressed
+        local.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        local.extend_from_slice(&0u16.to_le_bytes()); // extra
+        local.extend_from_slice(name);
+        local.push(0x01); // one compressed byte (garbage; open does not inflate)
+
+        let mut central = Vec::new();
+        central.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&20u16.to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes());
+        central.extend_from_slice(&8u16.to_le_bytes());
+        central.extend_from_slice(&0u32.to_le_bytes());
+        central.extend_from_slice(&0u32.to_le_bytes());
+        central.extend_from_slice(&1u32.to_le_bytes());
+        central.extend_from_slice(&DECLARED.to_le_bytes());
+        central.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        central.extend_from_slice(&0u16.to_le_bytes()); // extra
+        central.extend_from_slice(&0u16.to_le_bytes()); // comment
+        central.extend_from_slice(&0u16.to_le_bytes()); // disk
+        central.extend_from_slice(&0u16.to_le_bytes()); // internal
+        central.extend_from_slice(&0u32.to_le_bytes()); // external
+        central.extend_from_slice(&0u32.to_le_bytes()); // local offset
+        central.extend_from_slice(name);
+
+        let cd_offset = local.len() as u32;
+        let mut bytes = local;
+        bytes.extend_from_slice(&central);
+        bytes.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&(central.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&cd_offset.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+
+        assert!(matches!(
+            ZipPackage::open(&bytes),
+            Err(ZipError::CompressionRatio { .. })
         ));
     }
 

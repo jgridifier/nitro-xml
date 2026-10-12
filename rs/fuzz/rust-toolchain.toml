@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: MIT
+# cargo-fuzz requires nightly; the main rs/ workspace stays on the pinned stable.
+[toolchain]
+channel = "nightly"
+components = ["rustfmt", "clippy", "llvm-tools-preview"]
+profile = "minimal"

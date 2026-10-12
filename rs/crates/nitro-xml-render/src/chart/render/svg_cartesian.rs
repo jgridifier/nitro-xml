@@ -2,7 +2,7 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/chart-svg-cartesian.ts
 
 use super::chart_axis_nice::{
-    axis_scale_from_nice_bounds, axis_target_intervals, nice_value_axis_bounds,
+    axis_scale_from_nice_bounds, axis_target_intervals, nice_value_axis_bounds, VALUE_AXIS_HEADROOM,
 };
 use super::chart_plot_layout::{category_axis_band_px, left_value_axis_band_px, PlotLayout};
 use super::chart_scale::format_axis_value;
@@ -165,7 +165,12 @@ fn axes(
     };
     if p9_bar3d {
         let (data_min, data_max) = value_data_bounds(model);
-        let bounds = nice_value_axis_bounds(data_min, data_max, axis_target_intervals(plot.h), 0.0);
+        let bounds = nice_value_axis_bounds(
+            data_min,
+            data_max,
+            axis_target_intervals(plot.h),
+            VALUE_AXIS_HEADROOM,
+        );
         scale = axis_scale_from_nice_bounds(bounds);
     }
     let labels: Vec<String> = scale
@@ -335,7 +340,7 @@ mod tests {
         (x, y, w, h)
     }
 
-    // Catches: 3D clustered column plot origin drifts ~25px left/up vs P9 so extrusion faces miss TS pixels.
+    // Catches: P9 bar3D value scale used zero headroom so cat0 series0 bar y/height drift ~50px vs TS buildBars.
     #[test]
     fn bar3d_clustered_plot_layout_matches_p9_bands_at_slide_size() {
         let deck = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -365,21 +370,30 @@ mod tests {
             "expected auto title placeholder to reserve P9 title band"
         );
         let (x, y, w, h) = first_bar_rect(&svg);
+        // TS `buildBars` / `valueToY` at 840×460 (chart1 clustered column).
+        const TS_X: f64 = 80.66666666666666;
+        const TS_Y: f64 = 156.68453333333335;
+        const TS_W: f64 = 43.55555555555556;
+        const TS_H: f64 = 252.16346666666666;
         assert!(
-            x > 67.3,
-            "regression: x {x} should be right of legacy S1 ~67.3"
+            (x - TS_X).abs() < 5.0,
+            "bar x drift: got {x}, expected ~{TS_X}"
         );
         assert!(
-            (x - 92.3).abs() < 15.0,
-            "bar x drift: got {x}, expected ~92.3 (legacy S1 ~67.3)"
+            (y - TS_Y).abs() < 5.0,
+            "bar y drift: got {y}, expected ~{TS_Y}"
         );
         assert!(
-            !svg.contains(">6</text>"),
-            "value axis should top out at 5 for this deck, not legacy S1 0..6"
+            (h - TS_H).abs() < 5.0,
+            "bar height drift: got {h}, expected ~{TS_H}"
         );
         assert!(
-            y > 90.0 && y < 220.0 && w > 35.0 && h > 250.0,
-            "bar box sanity: got ({x},{y},{w},{h})"
+            (w - TS_W).abs() < 5.0,
+            "bar width drift: got {w}, expected ~{TS_W}"
+        );
+        assert!(
+            svg.contains(">6</text>"),
+            "P9 value axis should top out at 6 for chart1 (global min 1.8 / max 5 + 5% headroom)"
         );
     }
 }

@@ -4,7 +4,9 @@
 use super::chart_scale::{clean, AxisScale};
 
 const NICE_STEPS: [f64; 5] = [1.0, 2.0, 2.5, 5.0, 10.0];
-const HEADROOM: f64 = 0.05;
+/// Default headroom fraction matching TS `niceValueAxisBounds` (5% of data span).
+pub const VALUE_AXIS_HEADROOM: f64 = 0.05;
+const HEADROOM: f64 = VALUE_AXIS_HEADROOM;
 const POINTS_PER_GRIDLINE: f64 = 20.0;
 const MIN_TARGET_INTERVALS: i32 = 1;
 const MAX_TARGET_INTERVALS: i32 = 10;
@@ -131,6 +133,28 @@ pub fn nice_value_axis_bounds(
         min: clean(min),
         max: clean(max),
         major_unit: unit,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        axis_scale_from_nice_bounds, axis_target_intervals, nice_value_axis_bounds,
+        VALUE_AXIS_HEADROOM,
+    };
+
+    // Catches: deck chart1 global min 1.8 / max 5 must nice to 0..6 like TS, not 0..5.
+    #[test]
+    fn three_d_charts_value_axis_nices_to_six() {
+        let bounds = nice_value_axis_bounds(
+            1.8,
+            5.0,
+            axis_target_intervals(351.856),
+            VALUE_AXIS_HEADROOM,
+        );
+        let scale = axis_scale_from_nice_bounds(bounds);
+        assert!((scale.max - 6.0).abs() < 1e-6);
+        assert!((scale.major_unit - 1.0).abs() < 1e-6);
     }
 }
 

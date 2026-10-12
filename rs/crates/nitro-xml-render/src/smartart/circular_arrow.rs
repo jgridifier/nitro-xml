@@ -141,7 +141,10 @@ mod tests {
         assert!(d.starts_with('M'), "{d}");
         assert!(d.contains('L'), "{d}");
         assert!(d.ends_with('Z'), "{d}");
-        assert!(!d.contains('A'), "TS paint uses polygon samples, not arcTo: {d}");
+        assert!(
+            !d.contains('A'),
+            "TS paint uses polygon samples, not arcTo: {d}"
+        );
         assert!(d.len() > 200, "expected dense polygon, got {}", d.len());
     }
 }

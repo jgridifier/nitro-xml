@@ -408,12 +408,20 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
     let (stroke, stroke_width) = stroke_of(sp_pr, scheme);
     let text = text_of(sp);
     let rotation = attr_f64(xfrm, "rot").map(|r| r / 60_000.0);
-    let flip_h = attr_str(xfrm, "flipH").is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
-    let flip_v = attr_str(xfrm, "flipV").is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    let flip_h =
+        attr_str(xfrm, "flipH").is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    let flip_v =
+        attr_str(xfrm, "flipV").is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
 
     let parsed = parse_drawing_geometry(Some(sp_pr));
     let geom_name = parsed.geometry.clone();
-    let kind = resolve_kind(&parsed.geometry, w, h, parsed.adjustments.as_ref(), parsed.paths.as_deref());
+    let kind = resolve_kind(
+        &parsed.geometry,
+        w,
+        h,
+        parsed.adjustments.as_ref(),
+        parsed.paths.as_deref(),
+    );
 
     Some(SpBox {
         x,
@@ -555,8 +563,7 @@ fn custom_paths_to_svg(paths: &[DrawingPath], shape_w: f64, shape_h: f64) -> Opt
                     // (degrees * 60000) via guide_eval::angle_to_radians.
                     let st = *start_angle * 60_000.0;
                     let sw = *swing_angle * 60_000.0;
-                    if let Some(result) =
-                        ooxml_arc_to_svg(sx(*w_r), sy(*h_r), st, sw, pen_x, pen_y)
+                    if let Some(result) = ooxml_arc_to_svg(sx(*w_r), sy(*h_r), st, sw, pen_x, pen_y)
                     {
                         parts.push(result.svg);
                         pen_x = result.end_x;
@@ -671,7 +678,11 @@ fn hex6(val: &str) -> Option<String> {
 fn text_of(el: &Element) -> String {
     let mut parts = Vec::new();
     collect_text_paras(el, &mut parts);
-    parts.join(" ").split_whitespace().collect::<Vec<_>>().join(" ")
+    parts
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn collect_text_paras(el: &Element, parts: &mut Vec<String>) {

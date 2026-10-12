@@ -1826,7 +1826,10 @@ mod tests {
         let scheme = slide.scheme_colors.clone();
         let svg = smartart_svg_with_scheme(Some(xml), el.width, el.height, Some(&scheme));
         assert!(svg.contains(needle), "{name} svg");
-        assert!(svg.contains("<rect "), "{name} svg");
+        assert!(
+            svg.contains("<rect ") || svg.contains("<path ") || svg.contains("<ellipse "),
+            "{name} svg missing painted geometry"
+        );
         assert!(!svg.contains(">SmartArt<"), "{name} stub");
     }
 

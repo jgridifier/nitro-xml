@@ -47,6 +47,46 @@ pub struct CellPos {
     pub col: u32,
 }
 
+/// One cell copied from the edit host into the engine.
+#[derive(Debug, Clone)]
+pub struct CalcCellSeed {
+    pub row: u32,
+    pub col: u32,
+    pub value: DumpCellValue,
+    pub formula: Option<String>,
+    pub spill_anchor: Option<CellAddress>,
+    pub legacy: bool,
+    pub array_range: Option<CellRange>,
+}
+
+/// One sheet of [`CalcBookSeed`].
+#[derive(Debug, Clone)]
+pub struct CalcSheetSeed {
+    pub merges: Vec<CellRange>,
+    pub cells: Vec<CalcCellSeed>,
+}
+
+/// Workbook grid the editor installs after a structural edit the graph cannot follow.
+#[derive(Debug, Clone)]
+pub struct CalcBookSeed {
+    pub sheet_names: Vec<String>,
+    pub date1904: bool,
+    pub iterate: Option<(f64, f64)>,
+    pub defined: Vec<(String, String, Option<u32>)>,
+    pub sheets: Vec<CalcSheetSeed>,
+}
+
+/// A formula or spill cell after recalculation, ready to copy back onto the host.
+#[derive(Debug, Clone)]
+pub struct CalculatedCell {
+    pub sheet: u32,
+    pub row: u32,
+    pub col: u32,
+    pub value: DumpCellValue,
+    pub has_formula: bool,
+    pub spill_anchor: Option<CellAddress>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 enum Scalar {
     Empty,
@@ -517,6 +557,133 @@ impl CalcEngine {
         self.needs_full = true;
         self.ranked = false;
         self.cycles = InsSet::default();
+    }
+
+    /// Warnings recorded by the last recalculation (circular references).
+    pub fn warnings(&self) -> &[String] {
+        &self.warnings
+    }
+
+    /// Replace the grid from the edit host and mark the dependency graph stale.
+    ///
+    /// `CalcEngine` has no `shift_cells` / `rename_sheet`. Structural edits reload
+    /// the cells the host already shifted, then [`Self::invalidate`] plus
+    /// [`Self::recalculate_all`] rebuild every formula.
+    pub fn replace_book(&mut self, seed: CalcBookSeed) {
+        self.invalidate();
+        self.sheet_names = seed.sheet_names;
+        self.date1904 = seed.date1904;
+        self.iterate = seed.iterate;
+        self.defined = seed
+            .defined
+            .into_iter()
+            .map(|(name, formula, local_sheet)| NameDef {
+                name,
+                formula,
+                local_sheet,
+            })
+            .collect();
+        let mut sheets = Vec::with_capacity(seed.sheets.len());
+        let mut formula_locs = Vec::new();
+        for (index, sheet) in seed.sheets.into_iter().enumerate() {
+            let mut grid = SheetGrid {
+                cells: HashMap::new(),
+                rows: BTreeMap::new(),
+                merges: sheet.merges,
+                tables: Vec::new(),
+            };
+            for cell in sheet.cells {
+                let empty = matches!(cell.value, DumpCellValue::Null)
+                    && cell.formula.is_none()
+                    && cell.spill_anchor.is_none();
+                if empty {
+                    continue;
+                }
+                if cell.formula.is_some() {
+                    formula_locs.push((index as u32, cell.row, cell.col));
+                }
+                grid.insert(
+                    cell.row,
+                    cell.col,
+                    HostCell {
+                        value: scalar_from_dump(&cell.value),
+                        formula: cell.formula,
+                        spill_anchor: cell.spill_anchor,
+                        legacy: cell.legacy,
+                        array_range: cell.array_range,
+                    },
+                );
+            }
+            sheets.push(grid);
+        }
+        self.sheets = sheets;
+        self.bounds_cache = vec![None; self.sheets.len()];
+        self.formula_locs = formula_locs;
+        self.needs_full = true;
+        self.fresh = false;
+    }
+
+    /// Copy one edited cell into the grid before [`Self::recalculate_from`].
+    pub fn sync_input(&mut self, sheet: u32, input: CalcCellSeed) {
+        let Some(grid) = self.sheets.get_mut(sheet as usize) else {
+            return;
+        };
+        let row = input.row;
+        let col = input.col;
+        if matches!(input.value, DumpCellValue::Null) && input.formula.is_none() {
+            grid.remove_at(row, col);
+            return;
+        }
+        let scalar = scalar_from_dump(&input.value);
+        let key = pos_key(row, col);
+        if let Some(cell) = grid.cells.get_mut(&key) {
+            let formula_changed = cell.formula != input.formula;
+            cell.value = scalar;
+            cell.formula = input.formula;
+            cell.legacy = input.legacy;
+            cell.array_range = input.array_range;
+            if formula_changed {
+                cell.spill_anchor = None;
+            }
+        } else {
+            grid.insert(
+                row,
+                col,
+                HostCell {
+                    value: scalar,
+                    formula: input.formula,
+                    spill_anchor: None,
+                    legacy: input.legacy,
+                    array_range: input.array_range,
+                },
+            );
+        }
+    }
+
+    /// Formula anchors and spill cells produced by the last recalculation.
+    pub fn export_calculated(&self) -> Vec<CalculatedCell> {
+        let mut out = Vec::new();
+        for (sheet, grid) in self.sheets.iter().enumerate() {
+            for (&row, cols) in &grid.rows {
+                for &col in cols {
+                    let Some(cell) = grid.cells.get(&pos_key(row, col)) else {
+                        continue;
+                    };
+                    if cell.formula.is_none() && cell.spill_anchor.is_none() {
+                        continue;
+                    }
+                    out.push(CalculatedCell {
+                        sheet: sheet as u32,
+                        row,
+                        col,
+                        value: scalar_to_dump(&cell.value),
+                        has_formula: cell.formula.is_some(),
+                        spill_anchor: cell.spill_anchor,
+                    });
+                }
+            }
+        }
+        out
     }
 
     /// Formula cells marked circular by the last recalculation, in discovery order.
@@ -1857,6 +2024,16 @@ impl SheetGrid {
         self.rows.entry(row).or_default().insert(col);
         self.cells.insert(pos_key(row, col), cell);
     }
+
+    fn remove_at(&mut self, row: u32, col: u32) {
+        self.cells.remove(&pos_key(row, col));
+        if let Some(cols) = self.rows.get_mut(&row) {
+            cols.remove(&col);
+            if cols.is_empty() {
+                self.rows.remove(&row);
+            }
+        }
+    }
 }
 
 fn build_footprints(nodes: &[FormulaNode]) -> AreaIndex {
@@ -1944,6 +2121,16 @@ fn scalar_from_dump(value: &DumpCellValue) -> Scalar {
         DumpCellValue::String(text) => Scalar::Text(text.clone()),
         DumpCellValue::Bool(value) => Scalar::Bool(*value),
         DumpCellValue::Error(code) => Scalar::Error(code.clone()),
+    }
+}
+
+fn scalar_to_dump(value: &Scalar) -> DumpCellValue {
+    match value {
+        Scalar::Empty => DumpCellValue::Null,
+        Scalar::Number(n) => DumpCellValue::Number(*n),
+        Scalar::Text(text) => DumpCellValue::String(text.clone()),
+        Scalar::Bool(value) => DumpCellValue::Bool(*value),
+        Scalar::Error(code) => DumpCellValue::Error(code.clone()),
     }
 }
 

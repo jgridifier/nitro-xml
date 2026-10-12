@@ -15,9 +15,13 @@ pub use structure::register_structure_commands;
 
 use nitro_xml_opc::edit::{
     parse_edit_script, replay_script, CommandRegistry, EditError, EditHistory, EditScript,
-    EditSession, ReplayReport,
+    EditSession, HistoryStep, Op, ReplayReport,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
+
+use crate::editor::{
+    formula_cells_json, CalcHint, EditorStep, SessionCalculator, ShiftAxis, StepMode,
+};
 
 /// Replay an xlsx edit script against loaded package bytes; returns the report and model snapshot.
 pub fn replay_cell_script(
@@ -30,25 +34,222 @@ pub fn replay_cell_script(
 }
 
 /// Open a session, register xlsx commands, and replay the script (history retained for undo/redo).
+///
+/// Automatic calculation runs after every applied step so formula cells in the snapshot are current.
 pub fn replay_xlsx_session(
     bytes: &[u8],
     script_json: &str,
 ) -> Result<(ReplayReport, EditSession<XlsxHost, EditHistory>), EditError> {
     let script = parse_edit_script(script_json)?;
+    let (mut session, registry, mut calc) = open_xlsx_edit(bytes, &script, true)?;
+    let report = replay_ops_with_calc(&script, &registry, &mut session, &mut calc)?;
+    Ok((report, session))
+}
+
+/// Formula-cell checkpoints after every do, undo, and redo (`recalc` false leaves values stale).
+pub fn replay_formula_checkpoints(
+    bytes: &[u8],
+    script_json: &str,
+    recalc: bool,
+) -> Result<Value, EditError> {
+    let script = parse_edit_script(script_json)?;
+    let (mut session, registry, mut calc) = open_xlsx_edit(bytes, &script, recalc)?;
+    let mut checkpoints = Vec::new();
+    let mut push = |phase: &str, session: &EditSession<XlsxHost, EditHistory>| {
+        checkpoints.push(json!({
+            "phase": phase,
+            "formulas": formula_cells_json(&session.host),
+        }));
+    };
+    push("start", &session);
+    for op in &script.ops {
+        let report = apply_op_with_calc(&script, op, &registry, &mut session, &mut calc)?;
+        if report.status != "ok" {
+            return Err(EditError::Other {
+                message: format!("op {} status {}", op.command_id(), report.status),
+            });
+        }
+        push("do", &session);
+    }
+    while session.can_undo() {
+        undo_with_calc(&mut session, &mut calc);
+        push("undo", &session);
+    }
+    while session.can_redo() {
+        redo_with_calc(&mut session, &mut calc);
+        push("redo", &session);
+    }
+    Ok(json!({ "checkpoints": checkpoints }))
+}
+
+fn open_xlsx_edit(
+    bytes: &[u8],
+    script: &EditScript,
+    recalc: bool,
+) -> Result<
+    (
+        EditSession<XlsxHost, EditHistory>,
+        CommandRegistry,
+        SessionCalculator,
+    ),
+    EditError,
+> {
     if script.format != nitro_xml_opc::edit::EditFormat::Xlsx {
         return Err(EditError::Other {
             message: format!("expected xlsx script, got {}", script.format.as_str()),
         });
     }
     let host = XlsxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
+    let calc =
+        SessionCalculator::open(bytes, recalc).map_err(|e| EditError::Other { message: e })?;
     let mut registry = CommandRegistry::with_schema_stubs();
     register_cell_commands(&mut registry);
     register_structure_commands(&mut registry);
     register_shift_commands(&mut registry);
-    let mut session = EditSession::new(host, EditHistory::new());
-    let mut report = replay_script(&script, &registry, &mut session);
+    Ok((EditSession::new(host, EditHistory::new()), registry, calc))
+}
+
+fn replay_ops_with_calc(
+    script: &EditScript,
+    registry: &CommandRegistry,
+    session: &mut EditSession<XlsxHost, EditHistory>,
+    calc: &mut SessionCalculator,
+) -> Result<ReplayReport, EditError> {
+    let mut ops = Vec::new();
+    let mut status = "ok".to_owned();
+    for op in &script.ops {
+        let part = apply_op_with_calc(script, op, registry, session, calc)?;
+        let part_status = part.status.clone();
+        ops.extend(part.ops);
+        if part_status != "ok" {
+            status = part_status;
+            break;
+        }
+    }
+    if ops.is_empty() {
+        status = "error".to_owned();
+    }
+    Ok(ReplayReport {
+        id: script.id.clone(),
+        format: script.format.as_str().to_owned(),
+        status,
+        ops,
+        history_commits: session.history.committed().len(),
+    })
+}
+
+fn apply_op_with_calc(
+    script: &EditScript,
+    op: &Op,
+    registry: &CommandRegistry,
+    session: &mut EditSession<XlsxHost, EditHistory>,
+    calc: &mut SessionCalculator,
+) -> Result<ReplayReport, EditError> {
+    if op_is_structural(op) {
+        calc.before_structural(&session.host);
+    }
+    let hint = hint_from_op(op, &session.host);
+    let one = EditScript {
+        id: script.id.clone(),
+        format: script.format,
+        fixture: script.fixture.clone(),
+        description: None,
+        ops: vec![op.clone()],
+    };
+    let mut report = replay_script(&one, registry, session);
     report.history_commits = session.history.committed().len();
-    Ok((report, session))
+    if report.status == "ok" {
+        if let Some(step) = session.history.done().last() {
+            let mut editor_step = editor_step_from_history(step);
+            editor_step.hint = hint;
+            calc.after_step(&mut session.host, &editor_step, StepMode::Apply);
+        }
+    }
+    Ok(report)
+}
+
+fn undo_with_calc(session: &mut EditSession<XlsxHost, EditHistory>, calc: &mut SessionCalculator) {
+    let step = session.history.done().last().cloned();
+    session.undo();
+    if let Some(step) = step {
+        calc.after_step(
+            &mut session.host,
+            &editor_step_from_history(&step),
+            StepMode::Undo,
+        );
+    }
+}
+
+fn redo_with_calc(session: &mut EditSession<XlsxHost, EditHistory>, calc: &mut SessionCalculator) {
+    let step = session.history.undone().last().cloned();
+    session.redo();
+    if let Some(step) = step {
+        calc.after_step(
+            &mut session.host,
+            &editor_step_from_history(&step),
+            StepMode::Redo,
+        );
+    }
+}
+
+fn editor_step_from_history(step: &HistoryStep) -> EditorStep {
+    EditorStep {
+        structural: step.structural,
+        sheet: step.change.sheet,
+        ranges: step.change.ranges.clone(),
+        hint: None,
+    }
+}
+
+fn op_is_structural(op: &Op) -> bool {
+    matches!(
+        op,
+        Op::AddSheet { .. }
+            | Op::RenameSheet { .. }
+            | Op::DeleteSheet { .. }
+            | Op::InsertRows { .. }
+            | Op::DeleteRows { .. }
+            | Op::InsertColumns { .. }
+            | Op::DeleteColumns { .. }
+            | Op::Batch { .. }
+    )
+}
+
+fn hint_from_op(op: &Op, host: &XlsxHost) -> Option<CalcHint> {
+    match op {
+        Op::InsertRows { sheet, at, count } => Some(CalcHint::Shift {
+            sheet: *sheet,
+            axis: ShiftAxis::Row,
+            at: *at,
+            count: *count as i32,
+        }),
+        Op::DeleteRows { sheet, at, count } => Some(CalcHint::Shift {
+            sheet: *sheet,
+            axis: ShiftAxis::Row,
+            at: *at,
+            count: -(*count as i32),
+        }),
+        Op::InsertColumns { sheet, at, count } => Some(CalcHint::Shift {
+            sheet: *sheet,
+            axis: ShiftAxis::Col,
+            at: *at,
+            count: *count as i32,
+        }),
+        Op::DeleteColumns { sheet, at, count } => Some(CalcHint::Shift {
+            sheet: *sheet,
+            axis: ShiftAxis::Col,
+            at: *at,
+            count: -(*count as i32),
+        }),
+        Op::RenameSheet { index, name } => {
+            let from = host.sheets.get(*index as usize)?.name.clone();
+            Some(CalcHint::Rename {
+                from,
+                to: name.clone(),
+            })
+        }
+        _ => None,
+    }
 }
 
 /// Do → undo-all → redo-all checkpoints matching `parity/undo` phases (snapshots only).
@@ -60,12 +261,7 @@ pub fn undo_parity_checkpoints(bytes: &[u8], script_json: &str) -> Result<Vec<Va
         });
     }
 
-    let host = XlsxHost::open(bytes).map_err(|e| EditError::Other { message: e })?;
-    let mut registry = CommandRegistry::with_schema_stubs();
-    register_cell_commands(&mut registry);
-    register_structure_commands(&mut registry);
-    register_shift_commands(&mut registry);
-    let mut session = EditSession::new(host, EditHistory::new());
+    let (mut session, registry, mut calc) = open_xlsx_edit(bytes, &script, true)?;
 
     let mut checkpoints = Vec::new();
     let mut step: u32 = 0;
@@ -82,14 +278,7 @@ pub fn undo_parity_checkpoints(bytes: &[u8], script_json: &str) -> Result<Vec<Va
     push("start", "open", &session);
 
     for op in &script.ops {
-        let one = EditScript {
-            id: script.id.clone(),
-            format: script.format,
-            fixture: script.fixture.clone(),
-            description: None,
-            ops: vec![op.clone()],
-        };
-        let report = replay_script(&one, &registry, &mut session);
+        let report = apply_op_with_calc(&script, op, &registry, &mut session, &mut calc)?;
         if report.status != "ok" {
             return Err(EditError::Other {
                 message: format!("op {} status {}", op.command_id(), report.status),
@@ -105,13 +294,13 @@ pub fn undo_parity_checkpoints(bytes: &[u8], script_json: &str) -> Result<Vec<Va
 
     while session.can_undo() {
         let label = session.undo_label().unwrap_or("undo").to_owned();
-        session.undo();
+        undo_with_calc(&mut session, &mut calc);
         push("undo", &label, &session);
     }
 
     while session.can_redo() {
         let label = session.redo_label().unwrap_or("redo").to_owned();
-        session.redo();
+        redo_with_calc(&mut session, &mut calc);
         push("redo", &label, &session);
     }
 
@@ -230,6 +419,7 @@ mod tests {
         let out_path = dir.join("out.json");
         fs::write(&script_path, script_json).ok()?;
         let status = Command::new(&bun)
+            .env("XLSX_RECALC", "1")
             .arg(helper.as_os_str())
             .arg(fixture.as_os_str())
             .arg(script_path.as_os_str())

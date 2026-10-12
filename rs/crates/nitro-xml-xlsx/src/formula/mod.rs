@@ -18,7 +18,10 @@ pub use ast::{
     FormulaError, RefCorner, RefKind, RefSpec, SheetPrefix, StructuredRef, StructuredSpecial,
     UnaryOp,
 };
-pub use calc::{load_calc_engine, CalcEngine, CellPos, CIRCULAR_REFERENCE_WARNING};
+pub use calc::{
+    load_calc_engine, CalcBookSeed, CalcCellSeed, CalcEngine, CalcSheetSeed, CalculatedCell,
+    CellPos, CIRCULAR_REFERENCE_WARNING,
+};
 pub use lexer::{join_tokens, number_literal, tokenize, Token, TokenKind, TokenValue};
 pub use parser::{parse_formula, parse_tokens, MAX_FUNCTION_NESTING};
 pub use refs::{

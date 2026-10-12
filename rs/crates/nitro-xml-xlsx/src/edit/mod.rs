@@ -271,7 +271,11 @@ mod tests {
     #[test]
     fn catches_xlsx_undo_parity_checkpoints_match_ts() {
         // Catches: Rust undo/redo drifting from upstream TS model at any do/undo/redo step (#64).
-        let mut ok = 0usize;
+        // Local undo invariants always run (rust.sh has no bun). TS compare runs when the
+        // live oracle is available (undo_parity.sh / local bun).
+        let mut local_ok = 0usize;
+        let mut ts_ok = 0usize;
+        let mut ts_attempts = 0usize;
         for id in XLSX_SCRIPTS {
             let path = edits_xlsx().join(format!("{id}.json"));
             let script_json = fs::read_to_string(&path).unwrap();
@@ -283,11 +287,41 @@ mod tests {
             let rust_cps = undo_parity_checkpoints(&bytes, &script_json)
                 .unwrap_or_else(|e| panic!("{id} rust undo: {e}"));
 
+            let start = rust_cps
+                .iter()
+                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("start"))
+                .and_then(|c| c.get("snapshot"))
+                .expect("start snapshot");
+            let after_dos = rust_cps
+                .iter()
+                .rev()
+                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("do"))
+                .and_then(|c| c.get("snapshot"))
+                .expect("after-dos snapshot");
+            let after_undo = rust_cps
+                .iter()
+                .rev()
+                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("undo"))
+                .and_then(|c| c.get("snapshot"))
+                .unwrap_or(start);
+            let after_redo = rust_cps
+                .iter()
+                .rev()
+                .find(|c| c.get("phase").and_then(|p| p.as_str()) == Some("redo"))
+                .and_then(|c| c.get("snapshot"))
+                .unwrap_or(after_dos);
+            assert_eq!(after_undo, start, "{id} undo-all must restore start");
+            assert_eq!(
+                after_redo, after_dos,
+                "{id} redo-all must restore after-dos"
+            );
+            local_ok += 1;
+
             let Some(ts_cps) = ts_undo_checkpoints(&fixture, &script_json) else {
-                eprintln!("skip {id}: no TS undo oracle");
+                eprintln!("skip TS compare for {id}: bun/oracle not available");
                 continue;
             };
-
+            ts_attempts += 1;
             assert_eq!(
                 rust_cps.len(),
                 ts_cps.len(),
@@ -309,9 +343,17 @@ mod tests {
                     serde_json::to_string_pretty(t_snap).unwrap()
                 );
             }
-            ok += 1;
+            ts_ok += 1;
         }
-        assert_eq!(ok, 22, "xlsx undo-parity expected 22/22");
-        eprintln!("xlsx undo-parity: {ok}/22");
+        assert_eq!(local_ok, 22, "xlsx local undo-parity expected 22/22");
+        if ts_attempts > 0 {
+            assert_eq!(
+                ts_ok, 22,
+                "xlsx TS undo-parity expected 22/22 (got {ts_ok}/{ts_attempts})"
+            );
+            eprintln!("xlsx undo-parity: {ts_ok}/22 (TS match)");
+        } else {
+            eprintln!("xlsx undo-parity: {local_ok}/22 (local undo/redo only; no bun oracle)");
+        }
     }
 }

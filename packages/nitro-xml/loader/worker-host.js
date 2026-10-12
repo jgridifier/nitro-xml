@@ -13,18 +13,16 @@ this._canvas = opts.canvas || null;
 this._root = opts.root || null;
 this._name = opts.name || "";
 this._fontSource = opts.fontSource;
+this._workerUrl = opts.workerUrl;
 this._nodes = new Map();
 this._images = new Map();
 this._pending = new Map();
 this._req = 0;
-this._worker =
-takePrewarmedWorker() ||
-prewarmWorker(opts.workerUrl) ||
-new Worker(new URL("./worker.js", import.meta.url), {
-type: "module",
-name: "nitro-xml-doc",
-});
-this._worker.onmessage = (ev) => this._onMessage(ev.data);
+this._originalBytes = null;
+this._ro = true;
+this._viewerReloadAttempted = false;
+this._worker = this._newWorker(true);
+this._wireWorker();
 this._events = createEventCoalescer((bytes) => {
 this._worker.postMessage({ type: "events", bytes }, [bytes.buffer]);
 });
@@ -32,19 +30,62 @@ this._measureCanvas = null;
 this._pendingLayoutReqs = null;
 this._strings = null;
 }
+_newWorker(prewarm) {
+const url = this._workerUrl || new URL("./worker.js", import.meta.url);
+return (
+(prewarm && takePrewarmedWorker()) ||
+(prewarm && prewarmWorker(this._workerUrl)) ||
+new Worker(url, { type: "module", name: "nitro-xml-doc" })
+);
+}
+_wireWorker() {
+this._worker.onmessage = (ev) => this._onMessage(ev.data);
+this._worker.onerror = () => {
+const err = Object.assign(new Error("Worker crashed"), { code: "worker_crashed" });
+for (const [, p] of this._pending) p.reject(err);
+this._pending.clear();
+};
+}
 async open(buffer, name, opts = {}) {
 const n = name || this._name;
 if (n && !isSupportedExtension(n)) throw unsupportedFormatError();
 this._name = n;
+const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+this._originalBytes = new Uint8Array(u8);
+this._ro = opts.readonly !== false;
+this._viewerReloadAttempted = false;
+return this._openBytes(u8, n, opts);
+}
+async reloadOnce() {
+if (this._viewerReloadAttempted) {
+throw Object.assign(new Error("Could not reopen this document after a crash."), { code: "viewer_recovery_exhausted" });
+}
+if (!this._originalBytes) throw Object.assign(new Error("no bytes"), { code: "viewer_recovery_failed" });
+this._viewerReloadAttempted = true;
+this._events.flushNow();
+try {
+this._worker.postMessage({ type: "dispose" });
+} catch {
+}
+this._worker.terminate();
+this._pending.clear();
+this._worker = this._newWorker(false);
+this._wireWorker();
+await this._openBytes(new Uint8Array(this._originalBytes), this._name, { readonly: this._ro });
+return this;
+}
+async _openBytes(buffer, name, opts = {}) {
+const n = name || this._name;
 const fontSource =
 this._fontSource !== undefined ? this._fontSource : getDefaultFontSource();
 const serializable =
 typeof fontSource === "function" ? undefined : fontSource;
 const readonly = opts.readonly !== false;
+const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
 return this._request("opened", () => {
 this._worker.postMessage(
-{ type: "open", bytes: buffer, name: n, fontSource: serializable, readonly },
-[buffer],
+{ type: "open", bytes: u8, name: n, fontSource: serializable, readonly },
+[u8.buffer],
 );
 });
 }

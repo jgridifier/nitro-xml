@@ -68,8 +68,8 @@ export class ViewerElement extends HTMLElement {
     this._surf();
     this._d && this._d.dispose();
     // Assign _d after open (#27).
-    const d = new WD({ canvas: this._c, root: this._r, name: n });
     const ro = this._readonly !== false;
+    const d = new WD({ canvas: this._c, root: this._r, name: n });
     if (!ro) await loadEditorModule();
     await d.open(b, n, { readonly: ro });
     this._d = d;
@@ -230,6 +230,30 @@ export class ViewerElement extends HTMLElement {
     }
   }
   _fail(e) {
+    const c = e && e.code;
+    if (
+      this._readonly !== false &&
+      this._d &&
+      !this._d._viewerReloadAttempted &&
+      (c === "worker_crashed" || c === "viewer_recovery_failed")
+    ) {
+      void this._tryViewerReload();
+      return;
+    }
+    this._showViewerError(e);
+  }
+  async _tryViewerReload() {
+    if (!this._d || this._readonly === false) return;
+    try {
+      this._clr();
+      await this._d.reloadOnce();
+      await this._ao();
+      this._tick();
+    } catch (e) {
+      this._showViewerError(e);
+    }
+  }
+  _showViewerError(e) {
     this._show(
       e && e.code == "unsupported_browser"
         ? UB

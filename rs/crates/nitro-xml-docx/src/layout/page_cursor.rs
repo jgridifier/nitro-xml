@@ -92,6 +92,82 @@ impl PageCursor {
         cursor
     }
 
+    /// Continue layout on the last page after incremental trim (same section, no `push_page`).
+    pub(crate) fn resume_on_existing(
+        pages: Vec<LayoutPageBox>,
+        geometry: LayoutPageGeometry,
+        columns: LayoutColumns,
+        section_index: usize,
+        balance: Option<BalanceHint>,
+    ) -> Self {
+        let content_width = geometry.width_px - geometry.margin_left_px - geometry.margin_right_px;
+        let equal_column_width_px = ((content_width
+            - columns.gap_px * (columns.count as f64 - 1.0))
+            / columns.count as f64)
+            .max(1.0);
+        let column_count_cfg = columns.count;
+        let mut cursor = Self {
+            pages,
+            equal_column_width_px,
+            column_base: 0,
+            column_top_px: 0.0,
+            geometry,
+            columns,
+            column_index: 0,
+            y_px: 0.0,
+            section_index,
+            page_in_section: 1,
+            reserved_px: 0.0,
+            pending: None,
+            balance,
+        };
+        if cursor.pages.is_empty() {
+            cursor.push_page();
+            return cursor;
+        }
+        let last = cursor.pages.last().expect("pages");
+        cursor.page_in_section = last.page_in_section + 1;
+        let page = cursor.pages.last().expect("pages");
+        let column_count = column_count_cfg.min(page.columns.len()).max(1);
+        let mut active_column = 0usize;
+        let mut y_px = cursor.column_top_px;
+        for col_index in 0..column_count {
+            let col = page.columns.get(col_index);
+            let bottom = col
+                .map(|column| {
+                    column
+                        .blocks
+                        .iter()
+                        .map(|block| {
+                            let y = block.get("yPx").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                            let h = block
+                                .get("heightPx")
+                                .and_then(|v| v.as_f64())
+                                .unwrap_or(0.0);
+                            y + h
+                        })
+                        .fold(y_px, f64::max)
+                })
+                .unwrap_or(y_px);
+            if bottom >= y_px {
+                y_px = bottom;
+                active_column = col_index;
+            }
+        }
+        cursor.column_index = active_column;
+        cursor.y_px = y_px;
+        cursor.column_top_px = page
+            .columns
+            .get(active_column)
+            .and_then(|c| c.start_y_px)
+            .unwrap_or(0.0);
+        let col_count = cursor.columns.count;
+        if page.columns.len() >= col_count {
+            cursor.column_base = page.columns.len() - col_count;
+        }
+        cursor
+    }
+
     fn column_boxes(&self, offset_px: f64) -> Vec<LayoutColumnBox> {
         let mut column_boxes = Vec::new();
         let mut x_px = offset_px;

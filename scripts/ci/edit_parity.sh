@@ -59,6 +59,26 @@ if [ "$rc" -ne 0 ]; then
   echo "edit-parity: FAIL" >&2
   exit 1
 fi
+
+echo "edit-parity: post-edit layout IR (incremental vs TS) (#81)"
+( cd rs && cargo build --release -q -p nitro-xml-docx --example docx_edit_layout_dump )
+set +e
+( cd parity/edit && bun ./docx_layout_after_edit.mjs --ci )
+layout_rc=$?
+set -e
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f parity/edit/out/layout-after-edit-summary.txt ]; then
+  {
+    echo "## Post-edit layout IR (#81)"
+    echo '```'
+    cat parity/edit/out/layout-after-edit-summary.txt
+    echo '```'
+  } >> "$GITHUB_STEP_SUMMARY"
+fi
+if [ "$layout_rc" -ne 0 ]; then
+  echo "edit-parity: post-edit layout FAIL" >&2
+  exit 1
+fi
+
 echo "edit-parity: PASS"
 echo "Please add the \`edit-parity\` job to branch-protection required checks (Jared / Chief of Staff)."
 exit 0

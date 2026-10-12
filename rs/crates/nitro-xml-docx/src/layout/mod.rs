@@ -13,6 +13,7 @@ mod floats;
 mod flow_paragraph;
 mod flow_table;
 mod fonts;
+mod incremental;
 mod input;
 mod keep_rules;
 mod layout;
@@ -37,6 +38,7 @@ mod util;
 mod wrap;
 
 pub use bidi::{apply_uax9_result, reorder_line_fragments_uax9};
+pub use incremental::{relayout_incremental, relayout_incremental_model, DirtyHint};
 pub use layout::{
     layout_document, layout_document_model, layout_document_model_cached, layout_until_measured,
     prepare_layout_document_input, CachedLayout,

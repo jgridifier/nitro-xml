@@ -16,6 +16,17 @@ use crate::workbook::{load_workbook, parse_all_worksheets};
 
 use super::style_patch::cell_style_from_json;
 
+/// One row or column insert/delete, recorded so save can move carried `sqref` markup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AxisShiftRecord {
+    pub sheet: u32,
+    /// True when the shift is along rows.
+    pub row: bool,
+    pub at: u32,
+    /// Positive inserts, negative deletes.
+    pub count: i32,
+}
+
 /// In-memory xlsx document the cell/style command runners mutate.
 #[derive(Debug, Clone)]
 pub struct XlsxHost {
@@ -37,6 +48,9 @@ pub struct XlsxHost {
     pub dirty_precedents: BTreeSet<(u32, u32, u32)>,
     /// Formula cells marked stale, keyed by sheet index.
     pub stale: BTreeMap<u32, BTreeSet<(u32, u32)>>,
+    /// Row/column shifts applied since open, in order. Save uses this to move
+    /// conditional-format `sqref`s that are still copied from the source part.
+    pub axis_shifts: Vec<AxisShiftRecord>,
 }
 
 impl XlsxHost {
@@ -84,6 +98,7 @@ impl XlsxHost {
             all_formulas_stale: false,
             dirty_precedents: BTreeSet::new(),
             stale: BTreeMap::new(),
+            axis_shifts: Vec::new(),
         })
     }
 
@@ -129,6 +144,11 @@ impl XlsxHost {
             }
         }
         self.stale = next;
+        self.axis_shifts = self
+            .axis_shifts
+            .iter()
+            .filter_map(|rec| map(rec.sheet).map(|sheet| AxisShiftRecord { sheet, ..*rec }))
+            .collect();
     }
 
     /// Formula cells on `sheet` that need a recalc, sorted by row then column.
@@ -321,6 +341,12 @@ impl XlsxHost {
             "allFormulasStale": self.all_formulas_stale,
             "dirtyPrecedents": self.dirty_precedents.iter().map(|(s, r, c)| json!([s, r, c])).collect::<Vec<_>>(),
             "stale": stale_map,
+            "axisShifts": self.axis_shifts.iter().map(|rec| json!({
+                "sheet": rec.sheet,
+                "row": rec.row,
+                "at": rec.at,
+                "count": rec.count,
+            })).collect::<Vec<_>>(),
         })
     }
 
@@ -548,6 +574,29 @@ impl XlsxHost {
                         }
                     }
                 }
+            }
+        }
+        self.axis_shifts.clear();
+        if let Some(list) = v.get("axisShifts").and_then(|x| x.as_array()) {
+            for entry in list {
+                let Some(obj) = entry.as_object() else {
+                    continue;
+                };
+                let Some(sheet) = obj.get("sheet").and_then(|x| x.as_u64()) else {
+                    continue;
+                };
+                let Some(at) = obj.get("at").and_then(|x| x.as_u64()) else {
+                    continue;
+                };
+                let Some(count) = obj.get("count").and_then(|x| x.as_i64()) else {
+                    continue;
+                };
+                self.axis_shifts.push(AxisShiftRecord {
+                    sheet: sheet as u32,
+                    row: obj.get("row").and_then(|x| x.as_bool()).unwrap_or(true),
+                    at: at as u32,
+                    count: count as i32,
+                });
             }
         }
         Ok(())

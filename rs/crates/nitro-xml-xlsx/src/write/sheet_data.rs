@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/write/sheet-data.ts; changes listed in PROVENANCE.md.
-//! `<sheetData>` in row and column order. Dynamic-array metadata is left for a later issue.
+//! `<sheetData>` in row and column order. Dynamic-array formulas are written as
+//! `t="array"` anchors with an XLDAPR `cm` index.
 
 use std::collections::BTreeMap;
 
@@ -8,6 +9,7 @@ use crate::address::{format_address, format_range};
 use crate::model::{ActiveWorksheet, CellAddress, DumpCell, DumpCellValue, RowInfo};
 use crate::number_format::js_number_string;
 
+use super::dynamic_array::needs_array_evaluation;
 use super::shared_strings::SharedStringTable;
 use super::xml_out::{attr_bool, attr_f64, attr_str, attr_u32, encode_escapes, escape_text};
 
@@ -25,16 +27,42 @@ fn stored_error(code: &str) -> &str {
     }
 }
 
-fn cell_xml(strings: &mut SharedStringTable, style_count: usize, cell: &DumpCell) -> String {
+fn is_dynamic_formula(cell: &DumpCell) -> bool {
+    if cell.array_range.is_some() || cell.legacy_formula == Some(true) {
+        return false;
+    }
+    if cell.dynamic_array == Some(true) {
+        return true;
+    }
+    if let DumpCellValue::Error(code) = &cell.value {
+        if code == "#SPILL!" {
+            return true;
+        }
+    }
+    cell.formula.as_deref().is_some_and(needs_array_evaluation)
+}
+
+fn cell_xml(
+    strings: &mut SharedStringTable,
+    style_count: usize,
+    dynamic_cm: u32,
+    dynamic_used: &mut bool,
+    cell: &DumpCell,
+) -> String {
     let addr = format_address(&CellAddress {
         row: cell.row,
         col: cell.col,
     });
     let s = style_attr(cell.style_id, style_count);
     let mut f = String::new();
+    let mut cm: Option<u32> = None;
     if let Some(formula) = &cell.formula {
         let formula = escape_text(formula);
-        if let Some(range) = &cell.array_range {
+        if is_dynamic_formula(cell) {
+            *dynamic_used = true;
+            cm = Some(dynamic_cm);
+            f = format!("<f t=\"array\" ref=\"{addr}\" aca=\"false\">{formula}</f>");
+        } else if let Some(range) = &cell.array_range {
             f = format!(
                 "<f t=\"array\" ref=\"{}\">{formula}</f>",
                 format_range(range)
@@ -81,10 +109,11 @@ fn cell_xml(strings: &mut SharedStringTable, style_count: usize, cell: &DumpCell
         DumpCellValue::Null => {}
     }
     let attrs = format!(
-        "{}{}{}",
+        "{}{}{}{}",
         attr_str("r", Some(&addr)),
         attr_u32("s", s),
         attr_str("t", t),
+        attr_u32("cm", cm),
     );
     if f.is_empty() && v.is_empty() && t != Some("str") {
         return format!("<c{attrs}/>");
@@ -126,6 +155,8 @@ fn row_open(row: u32, info: Option<&RowInfo>, style_count: usize) -> String {
 pub fn sheet_data_xml(
     strings: &mut SharedStringTable,
     style_count: usize,
+    dynamic_cm: u32,
+    dynamic_used: &mut bool,
     sheet: &ActiveWorksheet,
 ) -> String {
     let mut by_row: BTreeMap<u32, BTreeMap<u32, &DumpCell>> = BTreeMap::new();
@@ -145,7 +176,7 @@ pub fn sheet_data_xml(
         let info = sheet.row_info.get(&row);
         let body = by_row.get(&row).map(|cols| {
             cols.values()
-                .map(|cell| cell_xml(strings, style_count, cell))
+                .map(|cell| cell_xml(strings, style_count, dynamic_cm, dynamic_used, cell))
                 .collect::<String>()
         });
         let body = body.unwrap_or_default();

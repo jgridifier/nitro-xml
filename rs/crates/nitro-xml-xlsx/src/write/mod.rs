@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! Workbook writer (#68): dirty saves rebuild modeled parts; a clean host returns the original bytes.
 
+mod dynamic_array;
 mod fragments;
 mod shared_strings;
 mod sheet_data;
@@ -22,14 +23,17 @@ use nitro_xml_opc::opc::{
 use nitro_xml_opc::write::PackageWriter;
 use nitro_xml_opc::xml::ns;
 
+use crate::edit::shift::Axis;
 use crate::edit::XlsxHost;
+use crate::metadata::parse_dynamic_array_metadata;
 use crate::model::SheetState;
 
+use self::dynamic_array::DYNAMIC_ARRAY_METADATA_XML;
 use self::shared_strings::SharedStringTable;
 use self::styles::StyleWriter;
 use self::theme::theme_part;
 use self::workbook_part::{workbook_xml, SheetRef};
-use self::worksheet::worksheet_xml;
+use self::worksheet::{worksheet_xml, SheetWriteExtra};
 use self::xml_out::{escape_attr, relative_target};
 
 pub(crate) use stale::stale_formula_cells;
@@ -48,6 +52,8 @@ const CT_CHARTSHEET: &str =
 const CT_DIALOGSHEET: &str =
     "application/vnd.openxmlformats-officedocument.spreadsheetml.dialogsheet+xml";
 const CT_MACROSHEET: &str = "application/vnd.ms-excel.macrosheet+xml";
+const CT_SHEET_METADATA: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml";
 
 const SIG_ORIGIN: &str =
     "http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin";
@@ -111,6 +117,8 @@ pub fn save_xlsx_with_options(
     let theme_source_part = rel_target(&book_part, &book_rels, rt::THEME);
     let styles_xml = part_text(&mut package, styles_part.as_deref())?;
     let theme_xml = part_text(&mut package, theme_source_part.as_deref())?;
+    let metadata_source = rel_target(&book_part, &book_rels, rt::SHEET_METADATA);
+    let metadata_xml = part_text(&mut package, metadata_source.as_deref())?;
     let workbook_xml_src = part_text(&mut package, Some(&book_part))?;
     let mut sheet_sources: HashMap<String, String> = HashMap::new();
     for sheet in &host.sheets {
@@ -170,7 +178,9 @@ pub fn save_xlsx_with_options(
     }
 
     let style_count = host.workbook.styles.len();
+    let dynamic_cm = dynamic_cm_index(metadata_xml.as_deref());
     let mut strings = SharedStringTable::default();
+    let mut dynamic_used = false;
     let mut sheet_refs = Vec::with_capacity(host.sheets.len());
     for (index, sheet) in host.sheets.iter().enumerate() {
         let part_name = match assigned[index].clone() {
@@ -183,12 +193,27 @@ pub fn save_xlsx_with_options(
         };
         let special = sheet_rel_for_ct(part_ct.get(&part_name).map(String::as_str));
         if special.is_none() {
+            let shifts: Vec<_> = host
+                .axis_shifts
+                .iter()
+                .filter(|rec| rec.sheet == index as u32)
+                .map(|rec| crate::edit::shift::AxisShift {
+                    axis: if rec.row { Axis::Row } else { Axis::Col },
+                    at: rec.at,
+                    count: rec.count,
+                })
+                .collect();
             let xml = worksheet_xml(
                 sheet,
                 index as u32 == active,
                 style_count,
                 &mut strings,
                 sheet_sources.get(&part_name).map(String::as_str),
+                SheetWriteExtra {
+                    shifts: &shifts,
+                    dynamic_cm,
+                    dynamic_used: &mut dynamic_used,
+                },
             );
             writer.add_text(&part_name, xml, Some(CT_WORKSHEET));
         }
@@ -235,6 +260,15 @@ pub fn save_xlsx_with_options(
     }
     rels.add(rt::THEME, relative_target(&book_part, &out_theme), false);
     keep_parts.insert(out_theme);
+
+    write_metadata(
+        &mut writer,
+        &mut rels,
+        &book_part,
+        &mut keep_parts,
+        metadata_source.as_deref(),
+        dynamic_used,
+    );
 
     let book_ct = if kept_vba {
         CT_WORKBOOK_MACRO
@@ -317,6 +351,37 @@ pub fn save_xlsx_with_options(
 /// Formula cells on `sheet` whose cached values must be recomputed, sorted by row then column.
 pub fn stale_cells(host: &XlsxHost, sheet: u32) -> Vec<(u32, u32)> {
     host.stale_cells(sheet)
+}
+
+fn dynamic_cm_index(source: Option<&str>) -> u32 {
+    source
+        .map(|xml| parse_dynamic_array_metadata(Some(xml)))
+        .and_then(|set| set.into_iter().min())
+        .unwrap_or(1)
+}
+
+/// Keeps a source `xl/metadata.xml` (so existing `cm` / `vm` indexes stay valid).
+/// A workbook with no metadata part gets the XLDAPR part when a dynamic-array formula was written.
+fn write_metadata(
+    writer: &mut PackageWriter<'_>,
+    rels: &mut RelSet,
+    book_part: &str,
+    keep_parts: &mut HashSet<String>,
+    source_part: Option<&str>,
+    dynamic_used: bool,
+) {
+    if let Some(part) = source_part {
+        keep_parts.insert(part.to_owned());
+        rels.add(rt::SHEET_METADATA, relative_target(book_part, part), false);
+        return;
+    }
+    if !dynamic_used {
+        return;
+    }
+    let part = "xl/metadata.xml".to_owned();
+    writer.add_text(&part, DYNAMIC_ARRAY_METADATA_XML, Some(CT_SHEET_METADATA));
+    rels.add(rt::SHEET_METADATA, relative_target(book_part, &part), false);
+    keep_parts.insert(part);
 }
 
 fn owned_rels(package: &mut Package<'_>, part: &str) -> Result<Vec<Relationship>, String> {

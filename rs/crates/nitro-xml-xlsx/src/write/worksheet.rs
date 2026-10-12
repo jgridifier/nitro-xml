@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use nitro_xml_opc::xml::ns;
 
+use crate::edit::shift::{rewrite_carried_sqrefs, AxisShift};
 use crate::model::ActiveWorksheet;
 
 use super::fragments::direct_child_xml;
@@ -72,19 +73,36 @@ const OWNED: &[&str] = &[
     "mergeCells",
 ];
 
+/// Shift log and dynamic-array flag threaded through one worksheet write.
+pub struct SheetWriteExtra<'a> {
+    pub shifts: &'a [AxisShift],
+    pub dynamic_cm: u32,
+    pub dynamic_used: &'a mut bool,
+}
+
 pub fn worksheet_xml(
     sheet: &ActiveWorksheet,
     tab_selected: bool,
     style_count: usize,
     strings: &mut SharedStringTable,
     source_xml: Option<&str>,
+    extra: SheetWriteExtra<'_>,
 ) -> String {
     let mut generated: HashMap<&str, String> = HashMap::new();
     generated.insert("dimension", dimension_xml(sheet));
     generated.insert("sheetViews", sheet_views_xml(sheet, tab_selected));
     generated.insert("sheetFormatPr", sheet_format_xml(sheet));
     generated.insert("cols", cols_xml(sheet, style_count));
-    generated.insert("sheetData", sheet_data_xml(strings, style_count, sheet));
+    generated.insert(
+        "sheetData",
+        sheet_data_xml(
+            strings,
+            style_count,
+            extra.dynamic_cm,
+            extra.dynamic_used,
+            sheet,
+        ),
+    );
     generated.insert("mergeCells", merge_cells_xml(sheet));
     let source = source_xml.map(direct_child_xml).unwrap_or_default();
     let mut grouped: HashMap<String, Vec<String>> = HashMap::new();
@@ -101,7 +119,11 @@ pub fn worksheet_xml(
             }
         } else if let Some(chunks) = grouped.get(*name) {
             for chunk in chunks {
-                body.push_str(chunk);
+                if extra.shifts.is_empty() || !chunk.contains("sqref") {
+                    body.push_str(chunk);
+                } else if let Some(next) = rewrite_carried_sqrefs(chunk, extra.shifts) {
+                    body.push_str(&next);
+                }
             }
         }
     }

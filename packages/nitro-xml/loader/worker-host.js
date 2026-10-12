@@ -106,23 +106,17 @@ shift: !!ev.shiftKey,
 mac: !!mac,
 });
 });
-try {
-return JSON.parse(msg.result || "{}");
-} catch {
-return {};
-}
+try { return JSON.parse(msg.result || "{}"); } catch { return {}; }
 }
 async save() {
-const msg = await this._request("saved", () => {
+return (await this._request("saved", () => {
 this._worker.postMessage({ type: "save" });
-});
-return msg.bytes;
+})).bytes;
 }
 async applyEdit(spec) {
-const msg = await this._request("apply-edit", () => {
+return (await this._request("apply-edit", () => {
 this._worker.postMessage({ type: "apply-edit", spec: spec || "" });
-});
-return msg.result;
+})).result;
 }
 async matchShortcut(ev, mac) {
 const msg = await this._request("match-shortcut", () => {

@@ -331,8 +331,15 @@ export class ShellViewerElement extends ViewerElement {
           return g(p.slice(i + 1));
         }
       }
-      const path = e.composedPath ? e.composedPath() : [];
-      const inFind = path.some((n) => n.classList && n.classList.contains("q"));
+      const inFind = (e.composedPath ? e.composedPath() : []).some(
+        (n) => n.classList && n.classList.contains("q"),
+      );
+      const paintEdit = (edit) => {
+        if (!edit || !edit.handled) return;
+        e.preventDefault();
+        if (edit.h != null && this._ch) this._ch.innerHTML = edit.h;
+        this._tick();
+      };
       if (!this._readonly && (e.ctrlKey || e.metaKey || e.altKey)) {
         void this._d.matchShortcut(e, mac).then((hit) => {
           if (hit && (hit.command || hit.action)) {
@@ -341,56 +348,38 @@ export class ShellViewerElement extends ViewerElement {
             else if (hit.action === "help") g("diagnostics-toggle");
             return;
           }
-          if (!inFind && this._d.editorKey) {
-            return this._d.editorKey(e, mac).then((edit) => {
-              if (!edit || !edit.handled) return;
-              e.preventDefault();
-              if (edit.h != null && this._ch) this._ch.innerHTML = edit.h;
-              this._tick();
-            });
-          }
+          if (!inFind && this._d.editorKey) return this._d.editorKey(e, mac).then(paintEdit);
         });
         return;
       }
       if (!this._readonly && !inFind && this._d.editorKey) {
-        void this._d.editorKey(e, mac).then((hit) => {
-          if (!hit || !hit.handled) return;
-          e.preventDefault();
-          if (hit.h != null && this._ch) this._ch.innerHTML = hit.h;
-          this._tick();
-        });
+        void this._d.editorKey(e, mac).then(paintEdit);
       }
     };
   }
   _fileName() {
     const src = this.getAttribute("src") || "";
-    const base = src.split("?")[0].split("#")[0].split("/").pop();
-    return base || "workbook.xlsx";
+    return (src.split(/[?#]/)[0].split("/").pop()) || "workbook.xlsx";
   }
   _downloadBytes(bytes, name) {
-    if (typeof document === "undefined" || !document.createElement) return bytes;
-    const blob = new Blob([bytes], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
+    if (typeof document === "undefined") return bytes;
     const a = document.createElement("a");
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(new Blob([bytes]));
     a.href = url;
     a.download = name || this._fileName();
     a.click();
     URL.revokeObjectURL(url);
     return bytes;
   }
-  /** Edited package bytes. Throws while `readonly` is set. */
   async save() {
     if (this._readonly) throw new Error("read-only");
     if (!this._d || !this._d.save) throw new Error("no document");
     return this._d.save();
   }
-  /** Save and start a browser download of the edited workbook. */
   async download(name) {
     const bytes = await this.save();
-    this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: true }));
-    return this._downloadBytes(bytes, name || this._fileName());
+    this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: !0 }));
+    return this._downloadBytes(bytes, name);
   }
   /** Apply Rust chrome + side effects. Short keys: `h` html, `c` copy, `p` hyperlink. */
   async shellAction(op, arg = "") {
@@ -399,8 +388,8 @@ export class ShellViewerElement extends ViewerElement {
     if (this._ch && r.h != null) this._ch.innerHTML = r.h;
     if (r.save && !this._readonly && this._d && this._d.save) {
       const bytes = await this._d.save();
-      this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: true }));
-      this._downloadBytes(bytes, this._fileName());
+      this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: !0 }));
+      this._downloadBytes(bytes);
     }
     if (r.c != null) {
       navigator.clipboard && navigator.clipboard.writeText && navigator.clipboard.writeText(r.c);

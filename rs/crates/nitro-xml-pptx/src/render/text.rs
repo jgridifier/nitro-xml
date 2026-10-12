@@ -9,6 +9,33 @@ use super::dom::{create_child, position_box, set_attr, set_style, set_text_conte
 use crate::slide::DumpElement;
 use crate::text_layout::{TextBodyLayout, TextBodyVAlign};
 
+#[derive(Clone, Copy)]
+pub struct TextBodyPaint<'a> {
+    pub text_color: Option<&'a str>,
+    pub font_size_px: Option<f64>,
+    pub font_family: Option<&'a str>,
+    pub font_bold: bool,
+    pub text_stroke_width_px: Option<f64>,
+    pub text_stroke_color: Option<&'a str>,
+    pub layout: Option<&'a TextBodyLayout>,
+    pub text_shadow: Option<&'a str>,
+}
+
+impl<'a> TextBodyPaint<'a> {
+    pub fn from_element(el: &'a DumpElement) -> Self {
+        Self {
+            text_color: el.text_color.as_deref(),
+            font_size_px: el.font_size_px,
+            font_family: el.font_family.as_deref(),
+            font_bold: el.font_bold,
+            text_stroke_width_px: el.text_stroke_width_px,
+            text_stroke_color: el.text_stroke_color.as_deref(),
+            layout: el.text_body_layout.as_ref(),
+            text_shadow: el.text_shadow.as_deref(),
+        }
+    }
+}
+
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
@@ -16,15 +43,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "text");
     let text = el.text.as_deref().unwrap_or("");
-    let block = paint_text_body(
-        ctx,
-        id,
-        text,
-        el.text_color.as_deref(),
-        el.font_size_px,
-        el.text_body_layout.as_ref(),
-        el.text_shadow.as_deref(),
-    );
+    let block = paint_text_body(ctx, id, text, TextBodyPaint::from_element(el));
     // Autofit uses post-apply ScrollHeight + ComputedStyle (docs/boundary.md #127).
     ctx.layout_reads
         .push(block, LayoutReadKind::ScrollHeight, 0);
@@ -38,42 +57,59 @@ pub fn paint_text_body<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     parent: u32,
     text: &str,
-    text_color: Option<&str>,
-    font_size_px: Option<f64>,
-    layout: Option<&TextBodyLayout>,
-    text_shadow: Option<&str>,
+    paint: TextBodyPaint<'_>,
 ) -> u32 {
     let block = create_child(ctx, parent, "div");
     set_attr(ctx, block, "class", "pptxv-text");
     set_style(ctx, block, "white-space", "pre-wrap");
     set_style(ctx, block, "word-break", "break-word");
-    if layout.is_some() {
+    if paint.layout.is_some() {
         set_style(ctx, block, "box-sizing", "border-box");
         set_style(ctx, block, "width", "100%");
         set_style(ctx, block, "height", "100%");
         set_style(ctx, block, "display", "flex");
         set_style(ctx, block, "flex-direction", "column");
     }
-    if let Some(layout) = layout {
+    if let Some(layout) = paint.layout {
         apply_text_body_layout(ctx, block, layout);
     }
-    let size = font_size_px.unwrap_or(18.0).max(1.0);
-    set_style(
-        ctx,
-        block,
-        "font",
-        &format!("{}px Calibri, Carlito, Arial, sans-serif", format_px(size)),
+    let size = paint.font_size_px.unwrap_or(18.0).max(1.0);
+    let family = paint
+        .font_family
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("Calibri");
+    let stack = format!(
+        "\"{}\", Calibri, Carlito, Arial, sans-serif",
+        family.replace('"', "")
     );
-    if let Some(color) = text_color {
+    set_style(ctx, block, "font-family", &stack);
+    set_style(ctx, block, "font-size", &format!("{}px", format_px(size)));
+    if paint.font_bold {
+        set_style(ctx, block, "font-weight", "700");
+    }
+    if let Some(color) = paint.text_color {
         set_style(ctx, block, "color", color);
     }
-    if let Some(shadow) = text_shadow {
+    if let Some(width) = paint.text_stroke_width_px {
+        if width > 0.0 {
+            let stroke_color = paint.text_stroke_color.unwrap_or("#000000");
+            set_style(
+                ctx,
+                block,
+                "-webkit-text-stroke",
+                &format!("{}px {}", format_px(width), stroke_color),
+            );
+            set_style(ctx, block, "paint-order", "stroke fill");
+        }
+    }
+    if let Some(shadow) = paint.text_shadow {
         set_style(ctx, block, "text-shadow", shadow);
     }
     set_text_content(ctx, block, text);
     // Batched measureText for GDI-style tracking (upstream text-metric-tracking).
     if !text.is_empty() {
-        let font_id = ctx.intern.intern("Calibri");
+        let font_id = ctx.intern.intern(family);
         let text_id = ctx.intern.intern(text);
         ctx.measure.push(font_id, size as f32, text_id);
     }

@@ -4,7 +4,7 @@
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_style};
 use super::prst_geom::apply_preset_geometry;
-use super::text::paint_text_body;
+use super::text::{paint_text_body, TextBodyPaint};
 use crate::slide::DumpElement;
 
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
@@ -64,15 +64,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     }
     let text = el.text.as_deref().unwrap_or("");
     if !text.trim().is_empty() {
-        paint_text_body(
-            ctx,
-            id,
-            text,
-            el.text_color.as_deref(),
-            el.font_size_px,
-            el.text_body_layout.as_ref(),
-            el.text_shadow.as_deref(),
-        );
+        paint_text_body(ctx, id, text, TextBodyPaint::from_element(el));
     }
     ctx.view_ir
         .push_painted(if el.type_ == "text" { "text" } else { "shape" }, el, None);

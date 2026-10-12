@@ -17,7 +17,7 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | `src/render/shape.rs` | `dom/elements/text-shape.ts` | P2 fill, stroke, `box-shadow` from outerShdw (#27). |
 | `src/outer_shadow.rs` | `render/visual-effects.ts`, `PptxShapeEffectStyleExtractor.ts`, `render/text-effects.ts` | Parse `a:outerShdw` → CSS `box-shadow` / `text-shadow` (#27). |
 | `src/render/prst_geom.rs` | `render/shape-geometry-cascade.ts`, `core/geometry/shape-geometry.ts`, `geometry/preset-clip-paths-core.ts` | `a:prstGeom` border-radius and clip-path for ellipse, roundRect, arrows (#27). |
-| `src/render/text.rs` | `dom/elements/text-block.ts`, `render/text-body-layout.ts`, `render/text-effects.ts` | P3 text body; `bodyPr` anchor + `pPr` align via flex; run `outerShdw` → `text-shadow` (#27). |
+| `src/render/text.rs` | `dom/elements/text-block.ts`, `render/text-body-layout.ts`, `render/text-effects.ts`, `render/text-run-style.ts` | P3 text body; `bodyPr` anchor + `pPr` align via flex; run `outerShdw` → `text-shadow`; first-run font + text outline (#27). |
 | `src/text_layout.rs` | `text-body-properties-parser.ts`, `text-body-layout.ts` | Parse `a:bodyPr/@anchor`, insets, and paragraph `algn` for paint. |
 | `src/render/smartart.rs` | `dom/elements/smartart-svg.ts` | P11 S2 cached-drawing paint at the element box (#27). |
 | `src/render/picture.rs` | `dom/elements/image.ts` | P5 picture frame (#27, placeholder img). |

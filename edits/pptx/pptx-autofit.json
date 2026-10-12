@@ -1,0 +1,14 @@
+{
+  "id": "pptx-autofit",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Set slide 0 autofit to shrink (spAutoFit)",
+  "ops": [
+    {
+      "op": "setShapeAutofit",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "mode": "shrink"
+    }
+  ]
+}

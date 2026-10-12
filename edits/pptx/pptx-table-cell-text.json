@@ -1,0 +1,16 @@
+{
+  "id": "pptx-table-cell-text",
+  "format": "pptx",
+  "fixture": "upstream-e0dce36d2088",
+  "description": "Replace text in table cell (1,1)",
+  "ops": [
+    {
+      "op": "setSlideCellText",
+      "slideIndex": 0,
+      "elementIndex": 1,
+      "row": 1,
+      "col": 1,
+      "text": "edited cell"
+    }
+  ]
+}

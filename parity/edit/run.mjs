@@ -197,13 +197,18 @@ async function runOne(script) {
 	}
 
 	if (applyError || !out1 || !out2) {
+		const negative =
+			String(script.id).includes('negative') &&
+			applyError &&
+			/not a table|rejected/i.test(applyError);
 		return {
 			id: script.id,
 			format: script.format,
 			fixture: script.fixture,
-			ok: false,
-			deterministic: false,
-			applyError,
+			ok: !!negative,
+			deterministic: !!negative,
+			applyError: negative ? null : applyError,
+			negative: !!negative,
 			expectedDiff: null,
 			validator: { skipped: true },
 			libreoffice: { skipped: true },

@@ -100,7 +100,16 @@
             "deleteSlide",
             "duplicateSlide",
             "reorderSlide",
-            "setNotesText"
+            "setNotesText",
+            "setShapeRunStyle",
+            "setShapeParagraphAlign",
+            "setShapeBullets",
+            "setShapeAutofit",
+            "setSlideCellText",
+            "insertSlideTableRow",
+            "deleteSlideTableRow",
+            "insertSlideTableColumn",
+            "deleteSlideTableColumn"
           ]
         }
       },
@@ -1443,6 +1452,386 @@
               },
               "text": {
                 "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setShapeRunStyle"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "paragraphIndex",
+              "runIndex"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "paragraphIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "runIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "bold": {
+                "type": "boolean"
+              },
+              "italic": {
+                "type": "boolean"
+              },
+              "underline": {
+                "type": "boolean"
+              },
+              "fontSize": {
+                "type": "number"
+              },
+              "color": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setShapeParagraphAlign"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "paragraphIndex",
+              "align"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "paragraphIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "align": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setShapeBullets"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "kind"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "bullet",
+                  "numbered",
+                  "none"
+                ]
+              },
+              "startParagraph": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "endParagraph": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setShapeAutofit"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "mode"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "normal",
+                  "shrink"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "setSlideCellText"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "row",
+              "col",
+              "text"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "row": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "col": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "insertSlideTableRow"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "row",
+              "position"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "row": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "position": {
+                "type": "string",
+                "enum": [
+                  "above",
+                  "below"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "deleteSlideTableRow"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "row"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "row": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "insertSlideTableColumn"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "col",
+              "position"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "col": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "position": {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "right"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "deleteSlideTableColumn"
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "required": [
+              "slideIndex",
+              "col"
+            ],
+            "properties": {
+              "slideIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "elementId": {
+                "type": "string"
+              },
+              "col": {
+                "type": "integer",
+                "minimum": 0
               }
             }
           }

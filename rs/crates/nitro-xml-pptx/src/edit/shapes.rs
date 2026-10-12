@@ -31,6 +31,7 @@ pub enum ZOrder {
 }
 
 /// Editor text style projected by `snapshotPptx` (bold/italic/fontSize/color).
+/// `autoFit` / `autoFitMode` are omitted from the snapshot until an edit sets them.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TextStyleSnap {
     #[serde(default)]
@@ -41,20 +42,50 @@ pub struct TextStyleSnap {
     pub font_size: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_fit: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_fit_mode: Option<String>,
 }
 
-/// One plain-text segment. Style flags are the snapshot fields (`seg.bold`, not `seg.style`).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Bullet metadata carried on the first segment of a paragraph (`bulletInfo`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct BulletInfoSnap {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub char: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_num_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_num_start_at: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paragraph_index: Option<u32>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub none: bool,
+}
+
+/// One text segment. Style flags are the snapshot fields (`seg.bold`, not `seg.style`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TextSegmentSnap {
     pub text: String,
     #[serde(default)]
     pub bold: bool,
     #[serde(default)]
     pub italic: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub underline: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font_size: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    /// Paragraph `a:pPr/@algn` on the first segment of a paragraph (`center`, not `ctr`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub align: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bullet_info: Option<BulletInfoSnap>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_paragraph_break: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_line_break: bool,
 }
 
 impl TextSegmentSnap {
@@ -66,6 +97,19 @@ impl TextSegmentSnap {
             italic: style.italic,
             font_size: style.font_size,
             color: style.color,
+            ..Self::default()
+        }
+    }
+
+    pub(super) fn copy_run_style(&self) -> Self {
+        Self {
+            text: String::new(),
+            bold: self.bold,
+            italic: self.italic,
+            underline: self.underline,
+            font_size: self.font_size,
+            color: self.color.clone(),
+            ..Self::default()
         }
     }
 }
@@ -102,8 +146,11 @@ pub fn remap_text_to_segments(
                 text: "\n".to_owned(),
                 bold: break_style.map(|s| s.bold).unwrap_or(false),
                 italic: break_style.map(|s| s.italic).unwrap_or(false),
+                underline: break_style.map(|s| s.underline).unwrap_or(false),
                 font_size: break_style.and_then(|s| s.font_size),
                 color: break_style.and_then(|s| s.color.clone()),
+                is_paragraph_break: true,
+                ..TextSegmentSnap::default()
             });
         }
         let orig = original_paras.get(pi).map(Vec::as_slice).unwrap_or(&[]);
@@ -129,8 +176,12 @@ fn remap_paragraph(
             text: String::new(),
             bold: first.bold,
             italic: first.italic,
+            underline: first.underline,
             font_size: first.font_size,
             color: first.color.clone(),
+            align: first.align.clone(),
+            bullet_info: first.bullet_info.clone(),
+            ..TextSegmentSnap::default()
         }];
     }
     let total: usize = orig.iter().map(|s| s.text.len()).sum();
@@ -140,8 +191,12 @@ fn remap_paragraph(
             text: para_new.to_owned(),
             bold: first.bold,
             italic: first.italic,
+            underline: first.underline,
             font_size: first.font_size,
             color: first.color.clone(),
+            align: first.align.clone(),
+            bullet_info: first.bullet_info.clone(),
+            ..TextSegmentSnap::default()
         }];
     }
     let mut remapped = Vec::new();
@@ -169,8 +224,16 @@ fn remap_paragraph(
                 text: seg_text,
                 bold: orig_seg.bold,
                 italic: orig_seg.italic,
+                underline: orig_seg.underline,
                 font_size: orig_seg.font_size,
                 color: orig_seg.color.clone(),
+                align: if i == 0 { orig_seg.align.clone() } else { None },
+                bullet_info: if i == 0 {
+                    orig_seg.bullet_info.clone()
+                } else {
+                    None
+                },
+                ..TextSegmentSnap::default()
             });
         }
         new_pos += advance;
@@ -181,8 +244,12 @@ fn remap_paragraph(
             text: para_new.to_owned(),
             bold: first.bold,
             italic: first.italic,
+            underline: first.underline,
             font_size: first.font_size,
             color: first.color.clone(),
+            align: first.align.clone(),
+            bullet_info: first.bullet_info.clone(),
+            ..TextSegmentSnap::default()
         });
     }
     remapped
@@ -350,28 +417,28 @@ pub fn ungroup_elements(
     out
 }
 
-fn host_mut(host: &mut dyn Any) -> Result<&mut PptxHost, EditError> {
+pub(super) fn host_mut(host: &mut dyn Any) -> Result<&mut PptxHost, EditError> {
     host.downcast_mut::<PptxHost>()
         .ok_or_else(|| EditError::Other {
             message: "host is not PptxHost".into(),
         })
 }
 
-fn map_err(err: String) -> EditError {
+pub(super) fn map_err(err: String) -> EditError {
     EditError::Other { message: err }
 }
 
-fn arg_u32_opt(args: &Value, key: &str) -> Option<u32> {
+pub(super) fn arg_u32_opt(args: &Value, key: &str) -> Option<u32> {
     args.get(key).and_then(|v| v.as_u64()).map(|n| n as u32)
 }
 
-fn arg_u32(args: &Value, key: &str) -> Result<u32, EditError> {
+pub(super) fn arg_u32(args: &Value, key: &str) -> Result<u32, EditError> {
     arg_u32_opt(args, key).ok_or_else(|| EditError::Other {
         message: format!("missing or invalid `{key}`"),
     })
 }
 
-fn arg_str<'a>(args: &'a Value, key: &str) -> Result<&'a str, EditError> {
+pub(super) fn arg_str<'a>(args: &'a Value, key: &str) -> Result<&'a str, EditError> {
     args.get(key)
         .and_then(|v| v.as_str())
         .ok_or_else(|| EditError::Other {
@@ -379,15 +446,15 @@ fn arg_str<'a>(args: &'a Value, key: &str) -> Result<&'a str, EditError> {
         })
 }
 
-fn arg_f64_opt(args: &Value, key: &str) -> Option<f64> {
+pub(super) fn arg_f64_opt(args: &Value, key: &str) -> Option<f64> {
     args.get(key).and_then(|v| v.as_f64())
 }
 
-fn arg_bool_opt(args: &Value, key: &str) -> Option<bool> {
+pub(super) fn arg_bool_opt(args: &Value, key: &str) -> Option<bool> {
     args.get(key).and_then(|v| v.as_bool())
 }
 
-fn arg_id(args: &Value) -> Option<&str> {
+pub(super) fn arg_id(args: &Value) -> Option<&str> {
     args.get("elementId").and_then(|v| v.as_str())
 }
 

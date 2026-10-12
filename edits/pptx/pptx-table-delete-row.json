@@ -1,0 +1,14 @@
+{
+  "id": "pptx-table-delete-row",
+  "format": "pptx",
+  "fixture": "upstream-e0dce36d2088",
+  "description": "Delete rows until one remains, then the last-row delete is a no-op",
+  "ops": [
+    { "op": "deleteSlideTableRow", "slideIndex": 0, "elementIndex": 1, "row": 5 },
+    { "op": "deleteSlideTableRow", "slideIndex": 0, "elementIndex": 1, "row": 4 },
+    { "op": "deleteSlideTableRow", "slideIndex": 0, "elementIndex": 1, "row": 3 },
+    { "op": "deleteSlideTableRow", "slideIndex": 0, "elementIndex": 1, "row": 2 },
+    { "op": "deleteSlideTableRow", "slideIndex": 0, "elementIndex": 1, "row": 1 },
+    { "op": "deleteSlideTableRow", "slideIndex": 0, "elementIndex": 1, "row": 0 }
+  ]
+}

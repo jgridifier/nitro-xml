@@ -127,7 +127,16 @@ fn scopes_for(op: &Op) -> Vec<EditScope> {
         | Op::DeleteSlide { .. }
         | Op::DuplicateSlide { .. }
         | Op::ReorderSlide { .. }
-        | Op::SetNotesText { .. } => vec![EditScope::Workbook],
+        | Op::SetNotesText { .. }
+        | Op::SetShapeRunStyle { .. }
+        | Op::SetShapeParagraphAlign { .. }
+        | Op::SetShapeBullets { .. }
+        | Op::SetShapeAutofit { .. }
+        | Op::SetSlideCellText { .. }
+        | Op::InsertSlideTableRow { .. }
+        | Op::DeleteSlideTableRow { .. }
+        | Op::InsertSlideTableColumn { .. }
+        | Op::DeleteSlideTableColumn { .. } => vec![EditScope::Workbook],
     }
 }
 
@@ -158,10 +167,18 @@ fn kind_for(op: &Op) -> ChangeKind {
         | Op::AddSlide { .. }
         | Op::DeleteSlide { .. }
         | Op::DuplicateSlide { .. }
-        | Op::ReorderSlide { .. } => ChangeKind::Structure,
-        Op::SetShapeFill { .. } | Op::SetShapeLine { .. } | Op::SetShapeTextStyle { .. } => {
-            ChangeKind::Format
-        }
+        | Op::ReorderSlide { .. }
+        | Op::InsertSlideTableRow { .. }
+        | Op::DeleteSlideTableRow { .. }
+        | Op::InsertSlideTableColumn { .. }
+        | Op::DeleteSlideTableColumn { .. } => ChangeKind::Structure,
+        Op::SetShapeFill { .. }
+        | Op::SetShapeLine { .. }
+        | Op::SetShapeTextStyle { .. }
+        | Op::SetShapeRunStyle { .. }
+        | Op::SetShapeParagraphAlign { .. }
+        | Op::SetShapeBullets { .. }
+        | Op::SetShapeAutofit { .. } => ChangeKind::Format,
         _ => ChangeKind::Other,
     }
 }
@@ -377,8 +394,9 @@ mod tests {
                 n += 1;
             }
         }
-        assert_eq!(n, 91, "expected 91 edit scripts");
+        assert_eq!(n, 101, "expected 101 edit scripts");
     }
+
 
     #[test]
     fn catches_replay_without_handlers_is_unsupported_not_ok() {

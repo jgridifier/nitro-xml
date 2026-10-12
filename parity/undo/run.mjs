@@ -92,12 +92,14 @@ async function runOne(script) {
 	}
 
 	if (error || !a || !b) {
+		const negative =
+			String(script.id).includes('negative') && error && /not a table|rejected/i.test(error);
 		return {
 			id: script.id,
 			format: script.format,
 			fixture: script.fixture,
-			ok: false,
-			error,
+			ok: !!negative,
+			error: negative ? null : error,
 		};
 	}
 

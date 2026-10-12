@@ -5,7 +5,7 @@
  */
 
 import { join } from 'node:path';
-import { applyPptxOps, loadPptxMutators } from '../edit/apply.mjs';
+import { applyPptxOps, loadPptxMutators, withStableRandom } from '../edit/apply.mjs';
 import { ROOT } from '../edit/scripts.mjs';
 import { applyDocxOp } from '../edit/apply.mjs';
 import {
@@ -268,10 +268,12 @@ async function runPptx(bytes, script) {
 
 	const handler = new PptxHandler();
 	const noopData = await handler.load(toArrayBuffer(bytes));
-	const noopSave = await handler.save(noopData.slides, {
-		headerFooter: noopData.headerFooter,
-		tableStyles: noopData.tableStyleMap,
-	});
+	const noopSave = await withStableRandom(() =>
+		handler.save(noopData.slides, {
+			headerFooter: noopData.headerFooter,
+			tableStyles: noopData.tableStyleMap,
+		}),
+	);
 
 	const data = await handler.load(toArrayBuffer(bytes));
 	let slides = data.slides;
@@ -314,7 +316,7 @@ async function runPptx(bytes, script) {
 		push('undo', r.label);
 	}
 	const afterUndoAll = snapshotPptx(slides);
-	const undoSave = await handler.save(slides, saveOpts);
+	const undoSave = await withStableRandom(() => handler.save(slides, saveOpts));
 
 	while (history.canRedo) {
 		const r = history.redo(cloneSlides(slides));
@@ -323,7 +325,7 @@ async function runPptx(bytes, script) {
 		push('redo', r.label);
 	}
 	const afterRedoAll = snapshotPptx(slides);
-	const redoSave = await handler.save(slides, saveOpts);
+	const redoSave = await withStableRandom(() => handler.save(slides, saveOpts));
 
 	return {
 		checkpoints,

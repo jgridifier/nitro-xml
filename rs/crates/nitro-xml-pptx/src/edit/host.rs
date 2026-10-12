@@ -32,7 +32,8 @@ fn js_opt(n: Option<f64>) -> Value {
 use crate::presentation::Presentation;
 use crate::slide::DumpElement;
 
-use super::shapes::{self, TextSegmentSnap, TextStyleSnap};
+use super::shapes::{self, BulletInfoSnap, TextSegmentSnap, TextStyleSnap};
+use super::table::TableModel;
 
 /// CSS-pixel geometry fields omitted from a patch keep the current value.
 #[derive(Debug, Clone, Copy, Default)]
@@ -133,6 +134,9 @@ pub struct EditableElement {
     /// node (upstream `cloneElement` shares `rawXml`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xml_share_of: Option<String>,
+    /// Parsed `a:tbl`. Omitted from the snapshot when the element is not a table.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub table: Option<TableModel>,
 }
 
 impl EditableElement {
@@ -160,6 +164,7 @@ impl EditableElement {
             shape_type: None,
             source_sp_index: None,
             xml_share_of: None,
+            table: None,
         }
     }
 
@@ -317,27 +322,32 @@ impl PptxHost {
 fn editable_from_dump(el: &DumpElement) -> EditableElement {
     // Own geometry matches the TS editor model (inherited xfrm is already folded
     // into x/y by the parser when the shape has no own transform — same as upstream).
-    let text_style = if el.text.is_some() || el.text_color.is_some() || el.font_size_px.is_some() {
+    let editor = el.editor_text.as_ref();
+    let has_text = el.text.is_some() || editor.is_some();
+    let text_style = if has_text {
         Some(TextStyleSnap {
-            bold: false,
-            italic: false,
-            // TS `textStyle.fontSize` / `.color` stay unset until an edit; paint-resolved
-            // px/hex live on the dump only and are not the editor snapshot fields.
-            font_size: None,
-            color: None,
+            bold: editor.map(|e| e.bold).unwrap_or(false),
+            italic: editor.map(|e| e.italic).unwrap_or(false),
+            // Authored `a:rPr` only. Paint-resolved theme sizes stay unset so
+            // `gen-pptx-slides-10` (no run properties) keeps fontSize/color null.
+            font_size: editor.and_then(|e| e.font_size),
+            color: editor.and_then(|e| e.color.clone()),
+            auto_fit: editor.and_then(|e| e.auto_fit),
+            auto_fit_mode: editor.and_then(|e| e.auto_fit_mode.clone()),
         })
     } else {
         None
     };
-    let text_segments = match &el.text {
-        Some(text) => vec![TextSegmentSnap {
-            text: text.clone(),
-            bold: false,
-            italic: false,
-            font_size: None,
-            color: None,
-        }],
-        None => Vec::new(),
+    let text_segments = if let Some(editor) = editor.filter(|e| !e.segments.is_empty()) {
+        editor.segments.clone()
+    } else {
+        match &el.text {
+            Some(text) => vec![TextSegmentSnap {
+                text: text.clone(),
+                ..TextSegmentSnap::default()
+            }],
+            None => Vec::new(),
+        }
     };
     EditableElement {
         id: el.id.clone(),
@@ -354,10 +364,16 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
         text: el.text.clone(),
         text_style,
         text_segments,
-        // Authored editor fill/line start unset. The dump's resolved paint colours
-        // are not on TS `shapeStyle` for these fixtures; edits write them explicitly.
-        fill_color: None,
-        fill_mode: None,
+        // Resolved theme paints stay off the editor model (gen-pptx has no authored
+        // fill). An authored `a:noFill` is `fillMode: none` + `fillColor: transparent`.
+        fill_color: match el.fill_mode.as_deref() {
+            Some("none") => Some("transparent".to_owned()),
+            _ => None,
+        },
+        fill_mode: match el.fill_mode.as_deref() {
+            Some("none") => Some("none".to_owned()),
+            _ => None,
+        },
         stroke_color: None,
         stroke_width: None,
         children: el
@@ -368,6 +384,7 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
         shape_type: el.shape_type.clone(),
         source_sp_index: None,
         xml_share_of: None,
+        table: el.table_data.as_ref().map(TableModel::from_parsed),
     }
 }
 
@@ -377,7 +394,7 @@ fn project_element(el: &EditableElement) -> Value {
     } else {
         Value::Null
     };
-    json!({
+    let mut value = json!({
         "id": el.id,
         "x": js_num(el.x),
         "y": js_num(el.y),
@@ -386,30 +403,118 @@ fn project_element(el: &EditableElement) -> Value {
         "rotation": js_num(el.rotation),
         "text": el.text,
         "textStyle": project_style(el.text_style.as_ref()),
-        "textSegments": el.text_segments.iter().map(|seg| json!({
-            "text": seg.text,
-            "bold": seg.bold,
-            "italic": seg.italic,
-            "fontSize": js_opt(seg.font_size),
-            "color": seg.color,
-        })).collect::<Vec<_>>(),
+        "textSegments": el.text_segments.iter().map(project_segment).collect::<Vec<_>>(),
         "fillColor": el.fill_color,
         "fillMode": el.fill_mode,
         "strokeColor": el.stroke_color,
         "strokeWidth": js_opt(el.stroke_width),
         "children": children,
+    });
+    if let Some(table) = &el.table {
+        value["tableData"] = project_table(table);
+    }
+    value
+}
+
+fn project_segment(seg: &TextSegmentSnap) -> Value {
+    let mut value = json!({
+        "text": seg.text,
+        "bold": seg.bold,
+        "italic": seg.italic,
+        "fontSize": js_opt(seg.font_size),
+        "color": seg.color,
+    });
+    if seg.underline {
+        value["underline"] = Value::Bool(true);
+    }
+    if let Some(align) = &seg.align {
+        value["align"] = Value::String(align.clone());
+    }
+    if let Some(info) = project_bullet(seg.bullet_info.as_ref()) {
+        value["bulletInfo"] = info;
+    }
+    value
+}
+
+fn project_bullet(info: Option<&BulletInfoSnap>) -> Option<Value> {
+    let info = info?;
+    let mut value = serde_json::Map::new();
+    if let Some(ch) = &info.char {
+        value.insert("char".to_owned(), Value::String(ch.clone()));
+    }
+    if let Some(kind) = &info.auto_num_type {
+        value.insert("autoNumType".to_owned(), Value::String(kind.clone()));
+    }
+    if info.auto_num_type.is_some() {
+        if let Some(start) = info.auto_num_start_at {
+            value.insert("autoNumStartAt".to_owned(), json!(start));
+        }
+        if let Some(index) = info.paragraph_index {
+            value.insert("paragraphIndex".to_owned(), json!(index));
+        }
+    }
+    if info.none {
+        value.insert("none".to_owned(), Value::Bool(true));
+    }
+    if value.is_empty() {
+        None
+    } else {
+        Some(Value::Object(value))
+    }
+}
+
+fn project_table(table: &TableModel) -> Value {
+    json!({
+        "columnWidths": table.column_widths.iter().copied().map(js_num).collect::<Vec<_>>(),
+        "rows": table.rows.iter().map(|row| {
+            let mut value = json!({
+                "cells": row.cells.iter().map(project_cell).collect::<Vec<_>>(),
+            });
+            if let Some(height) = row.height {
+                if height != 0.0 {
+                    value["height"] = js_num(height);
+                }
+            }
+            value
+        }).collect::<Vec<_>>(),
     })
+}
+
+fn project_cell(cell: &super::table::TableCellModel) -> Value {
+    let mut value = json!({ "text": cell.text });
+    if cell.grid_span > 1 {
+        value["gridSpan"] = json!(cell.grid_span);
+    }
+    if cell.row_span > 1 {
+        value["rowSpan"] = json!(cell.row_span);
+    }
+    if cell.h_merge {
+        value["hMerge"] = Value::Bool(true);
+    }
+    if cell.v_merge {
+        value["vMerge"] = Value::Bool(true);
+    }
+    value
 }
 
 fn project_style(style: Option<&TextStyleSnap>) -> Value {
     match style {
         None => Value::Null,
-        Some(s) => json!({
-            "bold": s.bold,
-            "italic": s.italic,
-            "fontSize": js_opt(s.font_size),
-            "color": s.color,
-        }),
+        Some(s) => {
+            let mut value = json!({
+                "bold": s.bold,
+                "italic": s.italic,
+                "fontSize": js_opt(s.font_size),
+                "color": s.color,
+            });
+            if let Some(auto_fit) = s.auto_fit {
+                value["autoFit"] = Value::Bool(auto_fit);
+            }
+            if let Some(mode) = &s.auto_fit_mode {
+                value["autoFitMode"] = Value::String(mode.clone());
+            }
+            value
+        }
     }
 }
 

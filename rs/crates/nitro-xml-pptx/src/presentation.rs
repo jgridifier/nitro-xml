@@ -106,6 +106,8 @@ pub struct Slide {
     pub background_gradient: Option<String>,
     /// Resolved `data:` URL for a blip slide/layout/master background.
     pub background_image: Option<String>,
+    /// Theme scheme colours for SmartArt `a:schemeClr` (`accent1` → `#156082`).
+    pub scheme_colors: BTreeMap<String, String>,
 }
 
 pub struct SlideMasterLayout {
@@ -602,6 +604,7 @@ impl<'a> Presentation<'a> {
             background_color,
             background_gradient,
             background_image,
+            scheme_colors: theme_colors.clone(),
         };
         self.slides[index] = Some(slide);
         Ok(())
@@ -1242,7 +1245,7 @@ mod tests {
     use super::*;
     use crate::render::{paint_slide_frame, SlidePaintViewport, StringIntern};
     use nitro_xml_render::measure::MeasureBatch;
-    use nitro_xml_render::smartart::smartart_svg;
+    use nitro_xml_render::smartart::{smartart_svg, smartart_svg_with_scheme};
     use nitro_xml_render::{CommandBuffer, LayoutReadBatch};
 
     struct Rec(Vec<String>);
@@ -1690,6 +1693,54 @@ mod tests {
         );
     }
 
+    #[test]
+    fn smartart_fixtures_paint_without_clamp_panic() {
+        // Catches: a short SmartArt shape panics in f64::clamp, aborting wasm so the host's next call reports recursive aliasing.
+        let shp = paint_fixture("real/pptx/python-pptx-shp-shapes.pptx", 0);
+        assert!(shp.contains("Smart Art"), "{shp}");
+        let accent = paint_fixture("upstream/pptx/21343018c511_accent-process--hier5.pptx", 0);
+        assert!(accent.contains("Node One"), "{accent}");
+        let org = paint_fixture(
+            "upstream/pptx/091abf411e47_smartart-orgchart-assistants.pptx",
+            0,
+        );
+        assert!(org.contains("Manager"), "{org}");
+        assert!(
+            org.contains("#156082"),
+            "orgchart accent1 should be teal, got {org}"
+        );
+        assert!(
+            !org.contains("#D6DCE4"),
+            "textless frames painted as pale placeholders: {org}"
+        );
+    }
+
+    fn paint_fixture(rel: &str, slide_index: usize) -> String {
+        let path = format!("{}/../../../fixtures/{rel}", env!("CARGO_MANIFEST_DIR"));
+        let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("read {path}"));
+        let mut opened = Presentation::open(&bytes).unwrap();
+        let mut intern = Rec(Vec::new());
+        let mut buffer = CommandBuffer::new();
+        let mut measure = MeasureBatch::default();
+        let mut reads = LayoutReadBatch::default();
+        paint_slide_frame(
+            &mut buffer,
+            &mut intern,
+            &mut measure,
+            &mut reads,
+            &mut opened,
+            &SlidePaintViewport {
+                slide_index,
+                scale: 1.0,
+                viewport_w: 960,
+                viewport_h: 540,
+                selected_ids: Vec::new(),
+            },
+        )
+        .unwrap();
+        intern.0.join("\n")
+    }
+
     fn cached_drawing(labels: &[&str]) -> String {
         let mut body = String::from(
             r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -1728,7 +1779,8 @@ mod tests {
             drawing_path.ends_with(path_suffix),
             "{name} path {drawing_path}"
         );
-        let svg = smartart_svg(Some(xml), el.width, el.height);
+        let scheme = slide.scheme_colors.clone();
+        let svg = smartart_svg_with_scheme(Some(xml), el.width, el.height, Some(&scheme));
         assert!(svg.contains(needle), "{name} svg");
         assert!(svg.contains("<rect "), "{name} svg");
         assert!(!svg.contains(">SmartArt<"), "{name} stub");

@@ -122,8 +122,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/render/stage.rs` | `src/ui/src/pptx/dom/slide-stage.ts`, `src/ui/src/pptx/render/slide-background.ts` @ e66aaec | P1 stage + z-order; resolved solid/linear/blip slide background (`background-image:url(...)`) (#27); reading-surface `role`/`aria-roledescription`/`aria-label` (#42). Selection outline call (#43) is original. |
 | `rs/crates/nitro-xml-pptx/src/render/shape.rs` | `dom/elements/text-shape.ts` @ e66aaec | P2 shape fill (`background-color` / `background-image`) and stroke border (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/text.rs` | `dom/elements/text-block.ts` @ e66aaec | P3 text body; run colour and `a:sz` font size, Calibri fallback (#27). |
-| `rs/crates/nitro-xml-pptx/src/render/smartart.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | P11 calls S2 cached-drawing SVG at the element box (#27). |
-| `rs/crates/nitro-xml-render/src/smartart/mod.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | S2 bootstrap: `dsp:sp` rects + text, else a labelled SmartArt frame. Full layout/3D deferred. |
+| `rs/crates/nitro-xml-pptx/src/render/smartart.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | P11 calls S2 cached-drawing SVG at the element box, with the slide theme scheme (#27). |
+| `rs/crates/nitro-xml-render/src/smartart/mod.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | S2 bootstrap: labelled `dsp:sp`/`dsp:pic` rects (schemeClr via the theme; textless frames omitted) else a labelled SmartArt frame. Font size does not panic on short shapes. Full layout/3D deferred. |
 | `rs/crates/nitro-xml-pptx/src/render/picture.rs` | `dom/elements/image.ts` @ e66aaec | P5 picture frame; img `src` and CSS background from the resolved blip data URL, including media posters (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/ole.rs` | `dom/elements/ole.ts` @ e66aaec | P15 OLE preview `<img>` when `previewImageData` resolved; otherwise the `[OLE]` stub (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/group.rs` | `dom/elements/group.ts` @ e66aaec | P6 group (#27). |

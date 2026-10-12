@@ -5,7 +5,7 @@
 //!
 //! Full layout fallback and P12 3D remain follow-ups (`smartart3d.rs`).
 
-use nitro_xml_render::smartart::smartart_svg;
+use nitro_xml_render::smartart::smartart_svg_with_scheme;
 
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_inner_markup_stub};
@@ -17,7 +17,12 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     set_attr(ctx, id, "data-pptx-element", "true");
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "smartArt");
-    let svg = smartart_svg(el.smartart_drawing_xml.as_deref(), el.width, el.height);
+    let svg = smartart_svg_with_scheme(
+        el.smartart_drawing_xml.as_deref(),
+        el.width,
+        el.height,
+        Some(ctx.scheme),
+    );
     set_inner_markup_stub(ctx, id, &svg);
     ctx.view_ir.push_painted("smartArt", el, None);
 }

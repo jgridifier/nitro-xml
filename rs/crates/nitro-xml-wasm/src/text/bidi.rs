@@ -84,8 +84,14 @@ mod tests {
         assert!(paragraph_is_rtl(f.text()));
         f.set_caret(utf16_to_byte_approx(f.text(), 3));
         let before = f.focus();
-        assert_eq!(apply_key(&mut f, &key("ArrowRight", false)), KeyAction::Handled);
-        assert!(f.focus() < before, "ArrowRight should decrease logical offset in RTL");
+        assert_eq!(
+            apply_key(&mut f, &key("ArrowRight", false)),
+            KeyAction::Handled
+        );
+        assert!(
+            f.focus() < before,
+            "ArrowRight should decrease logical offset in RTL"
+        );
     }
 
     #[test]

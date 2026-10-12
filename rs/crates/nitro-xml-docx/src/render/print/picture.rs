@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use nitro_xml_opc::chart::ChartSpace;
 
+use super::chart_cache::chart_svg_key;
 use super::dom::{Dom, StringIntern};
 use crate::layout::LayoutChart;
 use crate::render::chart::docx_chart_svg;
@@ -24,9 +25,10 @@ pub fn paint_picture<I: StringIntern>(
     picture: &PicturePaint<'_>,
     urls: &HashMap<String, String>,
     charts: &HashMap<String, ChartSpace>,
+    chart_svg_cache: &HashMap<String, String>,
 ) -> u32 {
     if let Some(chart) = picture.chart {
-        return paint_chart(dom, parent, picture, chart, charts);
+        return paint_chart(dom, parent, picture, chart, charts, chart_svg_cache);
     }
     let url = if picture.part_name.is_empty() {
         None
@@ -55,6 +57,7 @@ fn paint_chart<I: StringIntern>(
     picture: &PicturePaint<'_>,
     chart: &LayoutChart,
     charts: &HashMap<String, ChartSpace>,
+    chart_svg_cache: &HashMap<String, String>,
 ) -> u32 {
     let el = dom.el(parent, "div");
     let space = charts.get(picture.part_name);
@@ -64,7 +67,11 @@ fn paint_chart<I: StringIntern>(
         dom.attr(el, "title", &chart.label);
         let w = picture.width_px.round().max(1.0) as u32;
         let h = picture.height_px.round().max(1.0) as u32;
-        let svg = docx_chart_svg(space, w, h, &[]);
+        let key = chart_svg_key(picture.part_name, w, h);
+        let svg = chart_svg_cache
+            .get(&key)
+            .cloned()
+            .unwrap_or_else(|| docx_chart_svg(space, w, h, &[]));
         dom.markup(el, &svg);
     } else if let Some(svg) = chart.svg.as_deref().filter(|s| !s.is_empty()) {
         dom.class(el, "dve-print-picture dve-print-chart");

@@ -29,15 +29,35 @@ pub struct RenderChartSpaceOptions {
 
 /// Standalone SVG for a parsed chart part (S1).
 pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOptions) -> String {
-    let measure = render::ChartSvgMeasureOptions::from_widths(options.svg.measure_widths.clone());
+    let measure =
+        render::ChartSvgMeasureOptions::from_widths(options.svg.measure_widths.clone());
     render::render_chart_space_svg(
         space,
-        &render::RenderChartSpaceOptions {
+        &mut render::RenderChartSpaceOptions {
             width: options.width,
             height: options.height,
             measure,
         },
     )
+}
+
+/// Queue canvas `measureText` probes for one chart (document order matches [`render_chart_space_svg`]).
+pub fn probe_chart_space_measures(
+    space: &ChartSpace,
+    width: u32,
+    height: u32,
+    batch: &mut MeasureBatch,
+    intern: &mut dyn FnMut(&str) -> u32,
+) {
+    let measure = render::ChartSvgMeasureOptions::probing(batch, intern);
+    let _ = render::render_chart_space_svg(
+        space,
+        &mut render::RenderChartSpaceOptions {
+            width,
+            height,
+            measure,
+        },
+    );
 }
 
 /// Encodes chart SVG into `buffer` as one `SetInnerMarkup` handoff; interns markup into `strings`.

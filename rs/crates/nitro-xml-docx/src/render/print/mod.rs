@@ -2,6 +2,7 @@
 //! Print Layout painter (D1–D7): one DOM command buffer per frame.
 
 mod blocks;
+mod chart_cache;
 mod dom;
 mod header_footer;
 mod line_numbers;

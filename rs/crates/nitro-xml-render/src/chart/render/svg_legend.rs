@@ -18,7 +18,7 @@ pub fn chart_legend_svg(
     area: Rect,
     _frame_w: f64,
     _frame_h: f64,
-    measure: &mut ChartSvgMeasureOptions,
+    measure: &mut ChartSvgMeasureOptions<'_>,
 ) -> LegendResult {
     let mut automatic: Vec<String> = Vec::new();
     let mut bounds_box: Option<Rect> = None;
@@ -71,7 +71,7 @@ fn automatic_legend(
     model: &ChartViewModel,
     area: Rect,
     out: &mut Vec<String>,
-    measure: &mut ChartSvgMeasureOptions,
+    measure: &mut ChartSvgMeasureOptions<'_>,
     bounds: &mut Option<Rect>,
 ) -> Rect {
     let entries = legend_entries(model);

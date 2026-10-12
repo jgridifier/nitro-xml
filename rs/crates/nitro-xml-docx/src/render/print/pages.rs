@@ -133,6 +133,7 @@ pub fn paint_print_layout<I: StringIntern>(
                     },
                     options.picture_urls,
                     options.chart_spaces,
+                    options.chart_svg_cache,
                 );
                 let mut class = String::from("dve-print-picture dve-print-float");
                 if options.picture_urls.get(&float.part_name).is_none() {
@@ -282,6 +283,7 @@ fn paint_line<I: StringIntern>(
                 },
                 options.picture_urls,
                 options.chart_spaces,
+                options.chart_svg_cache,
             );
             dom.px(picture, "left", fragment.x_px);
             dom.px(picture, "top", fragment.top_px.unwrap_or(0.0));
@@ -507,6 +509,7 @@ mod tests {
         let suppressed = HashSet::new();
         let urls = HashMap::new();
         let charts = HashMap::new();
+        let chart_svg_cache = HashMap::new();
         let options = PrintLayoutOptions {
             line_numbers: &lines,
             page_borders: &borders,
@@ -519,6 +522,7 @@ mod tests {
             page_color: None,
             zoom: 1.0,
             current_page: Some(0),
+            chart_svg_cache: &chart_svg_cache,
         };
         let mut buf = CommandBuffer::new();
         let mut intern = Rec(Vec::new());

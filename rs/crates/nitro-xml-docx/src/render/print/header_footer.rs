@@ -396,6 +396,7 @@ fn paint_floating_pictures<I: StringIntern>(
                 },
                 options.picture_urls,
                 options.chart_spaces,
+                options.chart_svg_cache,
             );
             let mut class = String::from("dve-print-picture dve-print-float");
             if options.picture_urls.get(&float.part_name).is_none() {

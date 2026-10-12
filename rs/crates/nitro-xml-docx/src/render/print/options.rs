@@ -48,4 +48,6 @@ pub struct PrintLayoutOptions<'a> {
     pub zoom: f64,
     /// Page index marked `data-nitro-current` for shell page navigation.
     pub current_page: Option<usize>,
+    /// Measured chart SVG keyed by part name and pixel size.
+    pub chart_svg_cache: &'a HashMap<String, String>,
 }

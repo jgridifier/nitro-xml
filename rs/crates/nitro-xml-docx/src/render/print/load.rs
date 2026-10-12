@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use nitro_xml_opc::chart::{parse_chart_space_xml, ChartSpace};
 use nitro_xml_render::{CommandBuffer, MeasureBatch};
 
+use super::chart_cache::{chart_measure_specs, ChartMeasureSpec};
 use super::dom::StringIntern;
 use super::line_numbers::{
     line_numbering_from_section, suppressed_line_number_ids, PrintLineNumbering,
@@ -19,6 +20,7 @@ use crate::layout::{
     LayoutResult, LayoutReviewOptions, LayoutSession, MeasureCache, MeasureSample, PendingKind,
     PendingMeasure,
 };
+use crate::render::chart::{docx_chart_svg, probe_docx_chart_measures};
 use crate::review_formatting_display::ReviewDisplayMode;
 
 /// MeasureBatch sizePx sentinels (loader `fillMeasureWidths`; createCanvasMeasurer).
@@ -40,6 +42,16 @@ pub struct PrintSession {
     layout_session: Option<LayoutSession>,
     pub layout_ready: bool,
     layout_complete: bool,
+    chart_svg_cache: HashMap<String, String>,
+    chart_measure_jobs: Vec<ChartMeasureJob>,
+    chart_measure_pending: usize,
+    charts_measured: bool,
+}
+
+struct ChartMeasureJob {
+    spec: ChartMeasureSpec,
+    width_start: usize,
+    width_count: usize,
 }
 
 impl PrintSession {
@@ -68,7 +80,15 @@ impl PrintSession {
             layout_session: None,
             layout_ready: false,
             layout_complete: false,
+            chart_svg_cache: HashMap::new(),
+            chart_measure_jobs: Vec::new(),
+            chart_measure_pending: 0,
+            charts_measured: false,
         })
+    }
+
+    pub fn charts_measured(&self) -> bool {
+        self.charts_measured
     }
 
     pub fn layout_complete(&self) -> bool {
@@ -86,7 +106,8 @@ impl PrintSession {
         intern: &mut I,
     ) -> bool {
         if self.layout_complete {
-            return true;
+            self.tick_chart_measures(measures, intern);
+            return self.layout_ready;
         }
 
         if !self.measure_pending.is_empty()
@@ -180,6 +201,75 @@ impl PrintSession {
         self.layout_ready
     }
 
+    fn tick_chart_measures<I: StringIntern>(
+        &mut self,
+        measures: &mut MeasureBatch,
+        intern: &mut I,
+    ) {
+        if self.charts_measured {
+            return;
+        }
+
+        if self.chart_measure_pending > 0
+            && measures.awaiting() == 0
+            && measures.widths.len() == self.chart_measure_pending
+        {
+            let widths = measures.widths.clone();
+            measures.widths.clear();
+            for job in &self.chart_measure_jobs {
+                let slice = widths
+                    .get(job.width_start..job.width_start + job.width_count)
+                    .unwrap_or(&[]);
+                if let Some(space) = self.chart_spaces.get(&job.spec.part_name) {
+                    let svg = docx_chart_svg(space, job.spec.width, job.spec.height, slice);
+                    self.chart_svg_cache.insert(job.spec.key.clone(), svg);
+                }
+            }
+            self.chart_measure_jobs.clear();
+            self.chart_measure_pending = 0;
+            self.charts_measured = true;
+            return;
+        }
+
+        if measures.awaiting() > 0 || self.chart_measure_pending > 0 {
+            return;
+        }
+        if !measures.is_empty() || !self.measure_pending.is_empty() {
+            return;
+        }
+
+        let specs = chart_measure_specs(&self.result);
+        if specs.is_empty() {
+            self.charts_measured = true;
+            return;
+        }
+
+        let mut intern_fn = |text: &str| intern.intern(text);
+        let mut jobs = Vec::with_capacity(specs.len());
+        for spec in specs {
+            let Some(space) = self.chart_spaces.get(&spec.part_name) else {
+                continue;
+            };
+            let width_start = measures.len();
+            probe_docx_chart_measures(space, spec.width, spec.height, measures, &mut intern_fn);
+            let width_count = measures.len() - width_start;
+            if width_count == 0 {
+                continue;
+            }
+            jobs.push(ChartMeasureJob {
+                spec,
+                width_start,
+                width_count,
+            });
+        }
+        if jobs.is_empty() {
+            self.charts_measured = true;
+            return;
+        }
+        self.chart_measure_jobs = jobs;
+        self.chart_measure_pending = measures.len();
+    }
+
     fn merge_layout_result(&mut self, partial: &LayoutResult) {
         if partial.pages.len() > self.result.pages.len() {
             self.result.pages = partial.pages.clone();
@@ -233,6 +323,7 @@ impl PrintSession {
             page_color: None,
             zoom,
             current_page,
+            chart_svg_cache: &self.chart_svg_cache,
         };
         paint_print_layout(buf, intern, &self.result, &options);
     }
@@ -412,6 +503,10 @@ mod incremental_layout_tests {
             layout_session: None,
             layout_ready: false,
             layout_complete: false,
+            chart_svg_cache: HashMap::new(),
+            chart_measure_jobs: Vec::new(),
+            chart_measure_pending: 0,
+            charts_measured: false,
         }
     }
 

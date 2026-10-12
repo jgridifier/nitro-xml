@@ -1,0 +1,147 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>nitro-xml edit a11y host (#59)</title>
+  <style>
+    html, body { margin: 0; padding: 16px; font-family: system-ui, sans-serif; }
+    #stage { max-width: 640px; }
+    .xg-live {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+    .xg-field { position: relative; border: 1px solid #ccc; min-height: 28px; }
+    .xg-field-input {
+      width: 100%;
+      min-height: 24px;
+      border: 0;
+      font: 14px/20px monospace;
+      resize: vertical;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage" data-ready="0"></div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const side = params.get('side');
+    const label = params.get('label') || 'Formula Bar';
+    const readonly = params.get('readonly') === '1';
+    const scriptRaw = params.get('script') || '{}';
+    const stage = document.getElementById('stage');
+
+    function mountLive(root) {
+      const live = document.createElement('div');
+      live.className = 'xg-live';
+      live.setAttribute('aria-live', 'polite');
+      live.setAttribute('role', 'status');
+      live.id = 'edit-live';
+      root.appendChild(live);
+      return live;
+    }
+
+    /** Upstream formula-field.ts shape: textarea owns caret/IME; polite status beside it. */
+    function mountTsOracle() {
+      const root = document.createElement('div');
+      root.id = 'edit-root';
+      const fieldRoot = document.createElement('div');
+      fieldRoot.className = 'xg-field xfb-input';
+      const input = document.createElement('textarea');
+      input.className = 'xg-field-input';
+      input.spellcheck = false;
+      input.autocomplete = 'off';
+      input.wrap = 'soft';
+      input.rows = 1;
+      if (!readonly) {
+        input.setAttribute('aria-label', label);
+        fieldRoot.appendChild(input);
+      }
+      root.appendChild(fieldRoot);
+      const live = mountLive(root);
+      stage.appendChild(root);
+
+      let script;
+      try {
+        script = JSON.parse(scriptRaw);
+      } catch (e) {
+        throw new Error(`bad script: ${e}`);
+      }
+      const text = script.text ?? '';
+      const anchor = script.anchor ?? 0;
+      const focus = script.focus ?? 0;
+      if (!readonly && fieldRoot.contains(input)) {
+        input.value = text;
+        input.focus();
+        input.setSelectionRange(anchor, focus);
+        for (const op of script.ops ?? []) {
+          if (op.op === 'insert') {
+            const t = op.text ?? '';
+            const a = input.selectionStart;
+            const b = input.selectionEnd;
+            input.value = input.value.slice(0, a) + t + input.value.slice(b);
+            const c = a + t.length;
+            input.setSelectionRange(c, c);
+            live.textContent = input.value;
+          } else if (op.op === 'select') {
+            const a = op.anchor ?? 0;
+            const f = op.focus ?? 0;
+            input.setSelectionRange(a, f);
+            const sel = input.value.slice(Math.min(a, f), Math.max(a, f));
+            live.textContent = sel ? `Selected ${sel}` : '';
+          } else if (op.op === 'caret') {
+            const f = op.focus ?? 0;
+            input.setSelectionRange(f, f);
+            live.textContent = f > 0 || input.value ? `Caret at character ${f + 1}` : '';
+          }
+        }
+      }
+      window.__editA11y = { input, live, readonly };
+    }
+
+    async function mountRustOracle() {
+      const root = document.createElement('div');
+      root.id = 'edit-root';
+      const fieldRoot = document.createElement('div');
+      fieldRoot.className = 'xg-field xfb-input';
+      const input = document.createElement('textarea');
+      input.className = 'xg-field-input';
+      input.readOnly = true;
+      input.tabIndex = 0;
+      root.appendChild(fieldRoot);
+      const live = mountLive(root);
+      stage.appendChild(root);
+
+      const { default: init, a11yEval } = await import('/repo/packages/nitro-xml/pkg/nitro_xml_wasm.js');
+      await init();
+      const payload = JSON.parse(a11yEval(scriptRaw));
+      if (!payload.textbox.hidden) {
+        fieldRoot.appendChild(input);
+        for (const [k, v] of payload.attrs) {
+          if (k === 'role') input.setAttribute('role', v);
+          else if (k.startsWith('aria-')) input.setAttribute(k, v);
+          else if (k === 'data-a11y-value') input.value = v;
+          else if (k === 'data-a11y-selection-start') input.dataset.selectionStart = v;
+          else if (k === 'data-a11y-selection-end') input.dataset.selectionEnd = v;
+        }
+      }
+      live.textContent = payload.live ?? '';
+      window.__editA11y = { input, live, readonly, payload };
+    }
+
+    try {
+      if (side === 'ts') mountTsOracle();
+      else if (side === 'rust') await mountRustOracle();
+      else throw new Error(`unknown side ${side}`);
+      stage.dataset.ready = '1';
+    } catch (e) {
+      stage.dataset.ready = 'err';
+      stage.textContent = String(e && e.stack ? e.stack : e);
+    }
+  </script>
+</body>
+</html>

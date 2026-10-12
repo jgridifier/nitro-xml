@@ -10,8 +10,10 @@ import { A11Y_CASES } from './registry.mjs';
 import { runAxeChecks } from './axe.mjs';
 import { runAxTreeChecks } from './ax-tree.mjs';
 import { runKeyboardChecks } from './keyboard.mjs';
+import { spawnSync } from 'node:child_process';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), 'out');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 function perFormat(results) {
 	/** @type {Record<string, {ok:boolean, lines:string[]}>} */
@@ -34,8 +36,26 @@ async function main() {
 	const kb = await runKeyboardChecks();
 	console.log(kb.summary);
 
+	let editOk = true;
+	let editSummary = 'a11y-edit: skipped';
+	const editRunner = join(dirname(fileURLToPath(import.meta.url)), 'edit/run.mjs');
+	const editRun = spawnSync('bun', [editRunner], {
+		cwd: ROOT,
+		encoding: 'utf8',
+		maxBuffer: 16 * 1024 * 1024,
+	});
+	if (editRun.stdout) console.log(editRun.stdout.trimEnd());
+	if (editRun.stderr) console.error(editRun.stderr.trimEnd());
+	editOk = editRun.status === 0;
+	try {
+		const { readFileSync } = await import('node:fs');
+		editSummary = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'edit/out/gate-summary.txt'), 'utf8').trim();
+	} catch {
+		editSummary = editOk ? 'a11y-edit: PASS' : 'a11y-edit: FAIL';
+	}
+
 	const deferred = A11Y_CASES.filter((c) => !c.ready).map((c) => `${c.id}: ${c.todo}`);
-	const ok = axe.ok && ax.ok && kb.ok;
+	const ok = axe.ok && ax.ok && kb.ok && editOk;
 
 	const formats = ['xlsx', 'pptx', 'docx'];
 	const formatLines = [];
@@ -60,6 +80,7 @@ async function main() {
 		axe.summary,
 		ax.summary,
 		kb.summary,
+		editSummary,
 		...(deferred.length ? ['deferred cases:', ...deferred.map((d) => `  - ${d}`)] : []),
 	].join('\n');
 	writeFileSync(join(OUT, 'gate-summary.txt'), summary + '\n');

@@ -36,10 +36,19 @@ Stage-6 shell controls. This checklist is the remaining human pass per stage.
 2. VO + Command + Y (or rotor → Form Controls) lists shell buttons/tabs with names.
 3. Grid/slide roles match the automated AX snapshot roles for that fixture.
 
-## Editor surface (later)
+## Editor surface — NVDA / VoiceOver (#59)
 
-Cell-editor focus sink, formula bar, and IME/caret a11y are E-text (#55+), not this gate.
-Allow-listed in `tests/a11y/allowlist.mjs` until those issues land.
+Automated edit coverage: `tests/a11y/edit/` (axe + CDP AX-tree + live region), wired
+into `scripts/ci/a11y.sh` after the viewer gate (#42). Host paint is still #69; the
+harness mounts upstream-shaped formula fields and Rust `a11yEval` projections.
+
+1. Open an xlsx fixture in **edit** mode (not read-only viewer).
+2. Tab to the **Formula Bar** or in-cell editor; NVDA should report a textbox with that name.
+3. Type `=A1`; the polite status (`.xg-live`) should announce the value (same string as automated gate).
+4. Shift+arrow to extend selection; status should mention the selected characters.
+5. **Negative:** read-only viewer — no formula-bar textbox in the rotor; no edit announcements.
+
+Record OS, AT version, and fixture id with pass/fail in the #59 handoff when you run this manually.
 
 ## Recording a spot-check
 

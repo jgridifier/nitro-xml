@@ -27,6 +27,7 @@ use crate::level_style::{
 };
 use crate::placeholder_defaults::PlaceholderDefaultsCache;
 use crate::table::{parse_table_model, table_row_count};
+use crate::table_style::TableStyleMap;
 use crate::text::{
     extract_element_text, placeholder_is_body_type, text_body_has_renderable_content,
     TextExtractContext,
@@ -173,6 +174,7 @@ pub struct ParseCtx<'a> {
     pub color_map: Option<&'a ThemeColorMap>,
     /// Theme `a:fmtScheme` used by `a:fillRef` / `a:lnRef` (idx 1–3 and 1001–1003).
     pub format_scheme: Option<&'a ThemeFormatScheme>,
+    pub table_style_map: Option<&'a TableStyleMap>,
 }
 
 impl<'a> ParseCtx<'a> {
@@ -1110,7 +1112,12 @@ fn parse_graphic_frame(frame: &Element, id: String, ctx: &ParseCtx) -> Option<Du
             false,
             PaintExtras::default(),
         )?;
-        el.table_data = Some(parse_table_model(table, ctx.theme_colors, ctx.color_map));
+        el.table_data = Some(parse_table_model(
+            table,
+            ctx.theme_colors,
+            ctx.color_map,
+            ctx.table_style_map,
+        ));
         return Some(el);
     }
     if graphic_is_chart(graphic) {
@@ -1979,7 +1986,7 @@ fn background_of_c_sld(
                     });
                 }
             }
-            Some(DrawingFill::Picture { rel_id }) if rel_id.is_some() => {
+            Some(DrawingFill::Picture { rel_id, .. }) if rel_id.is_some() => {
                 return Some(BackgroundPaint {
                     color: None,
                     gradient: None,
@@ -2008,7 +2015,7 @@ fn background_from_bg_ref(
     if let Some(fill) = matrix_fill(format_scheme, idx) {
         match fill {
             DrawingFill::None => return None,
-            DrawingFill::Picture { rel_id } if rel_id.is_some() => {
+            DrawingFill::Picture { rel_id, .. } if rel_id.is_some() => {
                 return Some(BackgroundPaint {
                     color: None,
                     gradient: None,
@@ -2079,7 +2086,7 @@ fn shape_paint_extras(
             extras.fill_mode = Some("gradient".to_owned());
             extras.fill_gradient = linear_gradient_css(fill, theme);
         }
-        Some(DrawingFill::Picture { rel_id }) => {
+        Some(DrawingFill::Picture { rel_id, .. }) => {
             extras.image_rel_id = rel_id;
         }
         Some(_) | None => {}
@@ -2513,6 +2520,7 @@ mod tests {
             theme_colors: Some(theme),
             color_map: None,
             format_scheme: None,
+            table_style_map: None,
         }
     }
 

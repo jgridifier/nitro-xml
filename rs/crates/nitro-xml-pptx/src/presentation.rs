@@ -22,6 +22,7 @@ use crate::slide::{
     text_body_has_content, unwrap_alternate_content_deep, DumpElement, ParseCtx, ParsedSpTree,
     SpTreeOptions, EMU_PER_PX,
 };
+use crate::table_style::{parse_table_style_list, TableStyleMap};
 use crate::theme::{default_scheme_color_map, is_presentation_theme_path, parse_theme_part, Theme};
 use nitro_xml_opc::drawingml::{parse_theme_color_map, ThemeColorMap, ThemeFormatScheme};
 
@@ -151,6 +152,7 @@ pub struct Presentation<'a> {
     master_tx_styles: HashMap<String, MasterTxStyles>,
     layout_placeholder_levels: HashMap<String, PlaceholderDefaultsCache>,
     master_placeholder_levels: HashMap<String, PlaceholderDefaultsCache>,
+    table_style_map: TableStyleMap,
 }
 
 impl<'a> Presentation<'a> {
@@ -191,9 +193,11 @@ impl<'a> Presentation<'a> {
             master_tx_styles: HashMap::new(),
             layout_placeholder_levels: HashMap::new(),
             master_placeholder_levels: HashMap::new(),
+            table_style_map: TableStyleMap::new(),
         };
 
         pres.presentation_level_styles = Self::load_presentation_default_text_style(&pres_doc.root);
+        pres.table_style_map = pres.load_table_styles()?;
         pres.theme = pres.load_theme()?;
         pres.slide_masters = pres.load_slide_masters()?;
         pres.slide_paths = pres.load_slide_paths()?;
@@ -339,6 +343,11 @@ impl<'a> Presentation<'a> {
             }
         }
         Ok(root.to_string())
+    }
+
+    fn load_table_styles(&mut self) -> Result<TableStyleMap, Error> {
+        let xml = self.package.text("ppt/tableStyles.xml")?;
+        Ok(xml.map(parse_table_style_list).unwrap_or_default())
     }
 
     fn load_theme(&mut self) -> Result<Option<Theme>, Error> {
@@ -568,6 +577,7 @@ impl<'a> Presentation<'a> {
             theme_colors: Some(&theme_colors),
             color_map: Some(&color_map),
             format_scheme: format_scheme.as_ref(),
+            table_style_map: Some(&self.table_style_map),
         };
         let id_prefix = format!("{}-", path);
         let slide_options = SpTreeOptions::default();
@@ -932,6 +942,7 @@ impl<'a> Presentation<'a> {
                 theme_colors: Some(&theme_colors),
                 color_map: Some(color_map),
                 format_scheme: format_scheme.as_ref(),
+                table_style_map: Some(&self.table_style_map),
             };
             let token = Self::part_token(master_path);
             let options = SpTreeOptions {
@@ -1000,6 +1011,7 @@ impl<'a> Presentation<'a> {
                 theme_colors: Some(&theme_colors),
                 color_map: Some(&color_map),
                 format_scheme: format_scheme.as_ref(),
+                table_style_map: Some(&self.table_style_map),
             };
             let token = Self::part_token(layout_path);
             let options = SpTreeOptions {

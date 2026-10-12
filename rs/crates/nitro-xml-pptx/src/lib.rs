@@ -11,6 +11,7 @@ mod placeholder_defaults;
 mod presentation;
 mod slide;
 mod table;
+mod table_style;
 mod text;
 mod theme;
 

@@ -12,6 +12,10 @@ use nitro_xml_opc::drawingml::{
 use nitro_xml_opc::xml::{ns, Element, Node};
 
 use crate::inheritance::{attr, child_local, children_local};
+use crate::table_style::{
+    normalize_table_style_guid, resolve_package_cell_style, TableBandFlags, TableStyleMap,
+    TableTheme,
+};
 
 /// PowerPoint's default inserted-table style: Medium Style 2 - Accent 1.
 const MEDIUM_STYLE_2_ACCENT_1: &str = "5C22544A-7EE6-4342-B048-85BDC9FD1C3A";
@@ -51,6 +55,7 @@ pub(crate) fn parse_table_model(
     table: &Element,
     theme_colors: Option<&BTreeMap<String, String>>,
     color_map: Option<&ThemeColorMap>,
+    table_style_map: Option<&TableStyleMap>,
 ) -> TableData {
     let fallback = crate::theme::default_scheme_color_map();
     let colors = theme_colors.unwrap_or(&fallback);
@@ -63,7 +68,11 @@ pub(crate) fn parse_table_model(
     let tbl_pr = child_local(table, "tblPr", ns::A);
     let style_id = table_style_id(tbl_pr);
     let flags = band_flags(tbl_pr);
-    let styled = style_id.as_deref().is_some_and(is_medium_style_2_accent1);
+    let package_entry = style_id
+        .as_deref()
+        .and_then(|id| table_style_map.and_then(|m| lookup_table_style(m, id)));
+    let styled_builtin = style_id.as_deref().is_some_and(is_medium_style_2_accent1)
+        && package_entry.is_none();
     let xml_rows = children_local(table, "tr", ns::A);
     let row_count = xml_rows.len();
     let col_count = column_widths.len();
@@ -83,7 +92,8 @@ pub(crate) fn parse_table_model(
                         cell,
                         &theme,
                         CellPlace {
-                            styled,
+                            package_entry,
+                            styled_builtin,
                             flags: &flags,
                             row_index,
                             col_index,
@@ -102,12 +112,25 @@ pub(crate) fn parse_table_model(
 }
 
 struct CellPlace<'a> {
-    styled: bool,
+    package_entry: Option<&'a crate::table_style::TableStyleEntry>,
+    styled_builtin: bool,
     flags: &'a BandFlags,
     row_index: usize,
     col_index: usize,
     row_count: usize,
     col_count: usize,
+}
+
+fn lookup_table_style<'a>(
+    map: &'a TableStyleMap,
+    id: &str,
+) -> Option<&'a crate::table_style::TableStyleEntry> {
+    let key = normalize_table_style_guid(id);
+    if let Some(entry) = map.get(&key) {
+        return Some(entry);
+    }
+    let bare = id.trim().trim_matches(|c| c == '{' || c == '}');
+    map.get(&normalize_table_style_guid(bare))
 }
 
 fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> TableCell {
@@ -116,7 +139,30 @@ fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> Ta
     let explicit = tc_pr
         .and_then(|p| child_local(p, "solidFill", ns::A))
         .and_then(|fill| solid_css(fill, theme));
-    let (style_fill, style_text, style_border) = if place.styled && !no_fill {
+    let (style_fill, style_text, style_border) = if no_fill {
+        (None, None, None)
+    } else if let Some(entry) = place.package_entry {
+        let band = TableBandFlags {
+            first_row: place.flags.first_row,
+            last_row: place.flags.last_row,
+            first_col: place.flags.first_col,
+            last_col: place.flags.last_col,
+            band_row: place.flags.band_row,
+        };
+        let table_theme = TableTheme {
+            colors: theme.colors,
+            map: theme.map,
+        };
+        resolve_package_cell_style(
+            entry,
+            &band,
+            place.row_index,
+            place.col_index,
+            place.row_count,
+            place.col_count,
+            &table_theme,
+        )
+    } else if place.styled_builtin {
         style_layers(
             theme,
             place.flags,

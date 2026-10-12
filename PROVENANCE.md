@@ -84,7 +84,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/sheet_props.rs` | `src/core/xlsx/read/sheet-props.ts @ e66aaec` | Sheet format, default row/col sizes, column defs, row info, sheet view / freeze / selection. |
 | `rs/crates/nitro-xml-xlsx/src/dates.rs` | `src/core/xlsx/read/dates.ts @ e66aaec` | `iso_to_serial` via `numfmt::date_to_serial` and 1900 leap-day quirks. |
 | `rs/crates/nitro-xml-xlsx/src/metadata.rs` | `src/core/xlsx/read/metadata.ts @ e66aaec` | Dynamic-array metadata part for spill anchors. |
-| `rs/crates/nitro-xml-xlsx/src/formula_text.rs` | `src/core/xlsx/read/formula-text.ts @ e66aaec` | `strip_future_prefixes` moved from `workbook.rs`. |
+| `rs/crates/nitro-xml-xlsx/src/formula_text.rs` | `src/core/xlsx/read/formula-text.ts @ e66aaec` | `strip_future_prefixes` on read; `add_future_prefixes` writes `_xlfn.` / `_xlfn._xlws.` (spill/`@` storage still plain text). |
 | `rs/crates/nitro-xml-xlsx/src/formula_translate.rs` | `src/core/xlsx/formula/transform.ts`, `tokenizer.ts`, `lexemes.ts`, `ref-text.ts @ e66aaec` | `translate_formula` for shared-formula slaves (relative A1 shift). |
 | `rs/crates/nitro-xml-xlsx/src/formula_internal.rs` | `src/core/xlsx/formula/tokenizer.ts`, `lexemes.ts @ e66aaec` | Minimal tokenizer/rewriter used only by `formula_translate.rs` (not a full formula engine). |
 | `rs/crates/nitro-xml-xlsx/src/formula/mod.rs` | `src/core/xlsx/formula/ast.ts`, `tokenizer.ts`, `parser.ts`, `transform.ts`, `engine.ts` @ e66aaec | Module root, #71 JSON dump, and calc-engine re-exports. |
@@ -353,7 +353,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/write/shared_strings.rs` | `src/core/xlsx/write/shared-strings.ts` @ e66aaec | Shared-string table built while sheets are written (`count` / `uniqueCount`). |
 | `rs/crates/nitro-xml-xlsx/src/write/theme.rs` | `src/core/xlsx/write/theme.ts` @ e66aaec | Carry an unchanged theme; otherwise the default Office theme. Palette slot order stays spreadsheet `lt1, dk1, …`. |
 | `rs/crates/nitro-xml-xlsx/src/write/styles.rs` | `src/core/xlsx/write/styles.ts` @ e66aaec | `StyleWriter` for cell xfs. Source numFmt ids and dxf/tableStyles markup are copied. |
-| `rs/crates/nitro-xml-xlsx/src/write/sheet_data.rs` | `src/core/xlsx/write/sheet-data.ts` @ e66aaec | Row-major `sheetData`. Dynamic-array formulas are `t="array"` anchors with `aca="false"` and the XLDAPR `cm` index. |
+| `rs/crates/nitro-xml-xlsx/src/write/sheet_data.rs` | `src/core/xlsx/write/sheet-data.ts` @ e66aaec | Row-major `sheetData`. Dynamic-array formulas are `t="array"` anchors with `aca="false"` and the XLDAPR `cm` index. Cell formulas get `add_future_prefixes` on write. |
 | `rs/crates/nitro-xml-xlsx/src/write/sheet_props.rs` | `src/core/xlsx/write/sheet-props.ts` @ e66aaec | Subset: dimension, sheetViews, sheetFormat, cols, mergeCells. |
 | `rs/crates/nitro-xml-xlsx/src/write/workbook_part.rs` | `src/core/xlsx/write/workbook-part.ts` @ e66aaec | Workbook part. `fullCalcOnLoad="1"` is optional so the negative control can omit it. |
 | `rs/crates/nitro-xml-xlsx/src/write/dynamic_array.rs` | `src/core/xlsx/write/dynamic-array.ts`, `src/core/xlsx/formula/array-context.ts` @ e66aaec | XLDAPR `metadata.xml` constant and `needs_array_evaluation`. Call parameter kinds are not consulted (no function registry); unknown calls only propagate child `needs`. |

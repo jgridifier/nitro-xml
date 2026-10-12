@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 
 use crate::address::{format_address, format_range};
+use crate::formula_text::add_future_prefixes;
 use crate::model::{ActiveWorksheet, CellAddress, DumpCell, DumpCellValue, RowInfo};
 use crate::number_format::js_number_string;
 
@@ -57,7 +58,7 @@ fn cell_xml(
     let mut f = String::new();
     let mut cm: Option<u32> = None;
     if let Some(formula) = &cell.formula {
-        let formula = escape_text(formula);
+        let formula = escape_text(&add_future_prefixes(formula));
         if is_dynamic_formula(cell) {
             *dynamic_used = true;
             cm = Some(dynamic_cm);

@@ -43,6 +43,7 @@ pub struct ChartViewModel {
     pub type_: ChartSummaryType,
     pub grouping: String,
     pub title: Option<String>,
+    pub title_placeholder: bool,
     pub show_legend: bool,
     pub legend_position: String,
     pub categories: Vec<String>,
@@ -244,6 +245,7 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
         type_,
         grouping,
         title: chart.title.clone(),
+        title_placeholder: chart.title_placeholder,
         show_legend: chart.show_legend,
         legend_position: chart
             .legend_position

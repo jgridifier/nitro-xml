@@ -340,7 +340,7 @@ mod tests {
         (x, y, w, h)
     }
 
-    // Catches: auto-title placeholder reserving a title band shrinks bar3D plot height vs TS oracle SVG.
+    // Catches: P9 bar3D plot layout must match TS oracle SVG at 480×320 (S1, no extrusion).
     #[test]
     fn bar3d_clustered_plot_layout_matches_ts_oracle_at_gate_size() {
         let deck = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -390,6 +390,42 @@ mod tests {
         assert!(
             svg.contains(">6</text>"),
             "P9 value axis should top out at 6 for chart1 (global min 1.8 / max 5 + 5% headroom)"
+        );
+    }
+
+    // Catches: multi-series auto-title placeholder must reserve P9 title band without painting "Chart Title".
+    #[test]
+    fn bar3d_title_placeholder_reserves_plot_band_without_synthetic_title() {
+        let deck = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/upstream/pptx/2789ff8d6772_three-d-charts.pptx");
+        let bytes = std::fs::read(&deck).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+        let mut chart_xml = String::new();
+        {
+            let mut file = archive.by_name("ppt/charts/chart1.xml").unwrap();
+            std::io::Read::read_to_string(&mut file, &mut chart_xml).unwrap();
+        }
+        let parsed = parse_chart_space_xml(&chart_xml);
+
+        let svg = render_chart_space_svg(
+            &parsed.chart_space,
+            &RenderChartSpaceOptions {
+                width: 480,
+                height: 320,
+                svg: ChartSvgOptions {
+                    bar3d_extrusion: true,
+                    ..Default::default()
+                },
+            },
+        );
+        assert!(
+            !svg.contains("Chart Title"),
+            "placeholder reserve must not paint synthetic title text"
+        );
+        let (_, y, _, _) = first_bar_rect(&svg);
+        assert!(
+            y > 86.04,
+            "title band reserve should push clustered bars down (got y={y})"
         );
     }
 }

@@ -195,6 +195,7 @@ pub fn chart_summary_from_space(chart_space: &ChartSpace) -> ChartSummary {
         }
     }
     if chart_space.title.is_some() && chart_space.auto_title_deleted != Some(true) {
+        summary.title_placeholder = true;
         if let Some(title) = &chart_space.title {
             if let Some(text) = &title.text {
                 summary.title = Some(text.clone());

@@ -136,7 +136,7 @@ pub fn render_chart_svg(
         Some(compute_plot_layout(
             w,
             h,
-            chart_title_reserve_px(model.title.is_some(), title_px),
+            chart_title_reserve_px(model.title.is_some() || model.title_placeholder, title_px),
             model.show_legend,
             &model.legend_position,
             model.category_label_offset,

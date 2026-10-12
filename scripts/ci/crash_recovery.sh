@@ -22,19 +22,19 @@ echo "crash-recovery: loader viewer recover unit tests"
 node --test "$ROOT/packages/nitro-xml/loader/test/viewer-recover.test.mjs"
 
 echo "crash-recovery: viewer reload harness (#30)"
-export NITRO_CRASH_SEED="${NITRO_CRASH_SEED:-30}"
-bun "$ROOT/tests/crash/viewer_reload.mjs" --ci
-VIEWER_SUMMARY="crash-recovery: viewer reload-once OK (seed=${NITRO_CRASH_SEED})"
+VIEWER_SEED="${NITRO_VIEWER_CRASH_SEED:-30}"
+NITRO_CRASH_SEED="$VIEWER_SEED" bun "$ROOT/tests/crash/viewer_reload.mjs" --ci
+VIEWER_SUMMARY="crash-recovery: viewer reload-once OK (seed=${VIEWER_SEED})"
 echo "$VIEWER_SUMMARY"
 
 echo "crash-recovery: loader journal unit tests"
 node --test "$ROOT/packages/nitro-xml/loader/test/journal.test.mjs"
 
 echo "crash-recovery: editor journal + TS oracle (crash injection)"
-export NITRO_CRASH_SEED="${NITRO_CRASH_SEED:-62}"
-bun "$ROOT/tests/crash/run.mjs" --ci
+EDITOR_SEED="${NITRO_EDITOR_CRASH_SEED:-62}"
+NITRO_CRASH_SEED="$EDITOR_SEED" bun "$ROOT/tests/crash/run.mjs" --ci
 
-EDITOR_SUMMARY="crash-recovery: editor op-journal replay OK (seed=${NITRO_CRASH_SEED})"
+EDITOR_SUMMARY="crash-recovery: editor op-journal replay OK (seed=${EDITOR_SEED})"
 echo "$EDITOR_SUMMARY"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {

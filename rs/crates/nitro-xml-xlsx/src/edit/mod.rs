@@ -232,9 +232,7 @@ mod tests {
         }
         let text = fs::read_to_string(&out_path).ok()?;
         let v: Value = serde_json::from_str(&text).ok()?;
-        v.get("checkpoints")
-            .and_then(|c| c.as_array())
-            .cloned()
+        v.get("checkpoints").and_then(|c| c.as_array()).cloned()
     }
 
     #[test]

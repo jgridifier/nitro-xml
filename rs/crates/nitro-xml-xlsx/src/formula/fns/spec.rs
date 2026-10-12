@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/formula/functions/types.ts; changes listed in PROVENANCE.md.
-//! Function specifications for the math and statistical families.
+//! Function specifications for the math, statistical, logical, text, information and date families.
+
+use crate::formula::ast::FormulaAst;
 
 use super::host::CallCtx;
 use super::value::{Fx, Value};
@@ -22,6 +24,10 @@ pub enum FuncKind {
     },
     General {
         f: fn(&CallCtx<'_>, &[Value]) -> Fx<Value>,
+    },
+    /// Arguments stay as syntax so `IF` / `LET` / `LAMBDA` can skip or rebind them.
+    Lazy {
+        f: fn(&CallCtx<'_>, &[FormulaAst]) -> Fx<Value>,
     },
 }
 
@@ -94,5 +100,28 @@ pub fn gen_spec(
         params,
         volatile,
         kind: FuncKind::General { f },
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn lazy_spec(
+    name: &'static str,
+    category: &'static str,
+    syntax: &'static str,
+    description: &'static str,
+    min_args: usize,
+    max_args: usize,
+    f: fn(&CallCtx<'_>, &[FormulaAst]) -> Fx<Value>,
+) -> FunctionSpec {
+    FunctionSpec {
+        name,
+        category,
+        syntax,
+        description,
+        min_args,
+        max_args,
+        params: &[],
+        volatile: false,
+        kind: FuncKind::Lazy { f },
     }
 }

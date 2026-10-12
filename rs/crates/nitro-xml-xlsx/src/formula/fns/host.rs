@@ -2,10 +2,15 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/formula/context.ts, call.ts (`forEach` /
 // `toMatrix` / `toScalar`) and references.ts (`areaToMatrix`, implicit intersection);
 // changes listed in PROVENANCE.md.
-//! The slice of the calc host that math and statistical functions read.
+//! The slice of the calc host that formula functions read.
+
+use std::collections::HashMap;
+
+use crate::formula::ast::FormulaAst;
 
 use super::value::{
-    check_array_size, Area, ErrorCode, Fx, Matrix, Scalar, Value, VisitKind, MAX_ARRAY_CELLS,
+    check_array_size, Area, ErrorCode, Fx, LambdaValue, Matrix, Scalar, Value, VisitKind,
+    MAX_ARRAY_CELLS,
 };
 
 /// Cells a function can read. The grid behind this is `TODO(#72)`'s calc engine; the harness
@@ -20,9 +25,17 @@ pub trait EvalHost {
     fn sheet_name(&self, index: usize) -> Option<&str>;
     fn find_sheet(&self, name: &str) -> Option<usize>;
     fn random(&self) -> f64;
+    /// Wall-clock serial for `NOW` / `TODAY`. The harness clock is 2026-10-03 12:00.
+    fn now_serial(&self) -> f64 {
+        0.0
+    }
     fn row_hidden(&self, sheet: usize, row: i32) -> bool;
     fn occupied(&self, sheet: usize, row: i32, col: i32) -> bool;
 }
+
+type EvalFn<'b> = dyn Fn(&FormulaAst) -> Value + 'b;
+type EvalInFn<'b> = dyn Fn(&FormulaAst, &HashMap<String, Value>) -> Value + 'b;
+type CallLambdaFn<'b> = dyn Fn(&LambdaValue, &[Value]) -> Value + 'b;
 
 /// What a function implementation sees: position, date system, and the host.
 pub struct CallCtx<'a> {
@@ -34,6 +47,14 @@ pub struct CallCtx<'a> {
     pub legacy: bool,
     pub date1904: bool,
     pub depth: u32,
+    /// Names bound by the enclosing `LET` or `LAMBDA`.
+    pub scope: &'a HashMap<String, Value>,
+    /// Evaluates one argument in [`Self::scope`].
+    pub eval: Option<&'a EvalFn<'a>>,
+    /// Evaluates one argument in an explicit scope.
+    pub eval_in: Option<&'a EvalInFn<'a>>,
+    /// Calls a `LAMBDA` with already evaluated arguments.
+    pub call_lambda: Option<&'a CallLambdaFn<'a>>,
 }
 
 impl<'a> CallCtx<'a> {
@@ -57,6 +78,7 @@ impl<'a> CallCtx<'a> {
             }
             Value::Matrix(matrix) => matrix.for_each_value(|value| visit(value, VisitKind::Array)),
             Value::Scalar(scalar) => visit(scalar, VisitKind::Direct),
+            Value::Lambda(_) => visit(&Scalar::Error(ErrorCode::Calc), VisitKind::Direct),
         }
     }
 
@@ -64,6 +86,7 @@ impl<'a> CallCtx<'a> {
         match value {
             Value::Matrix(matrix) => Ok(matrix.clone()),
             Value::Scalar(scalar) => Ok(Matrix::from_rows(vec![vec![scalar.clone()]])),
+            Value::Lambda(_) => Err(ErrorCode::Calc),
             Value::Ref(reference) => {
                 let Some(area) = reference.areas.first() else {
                     return Err(ErrorCode::Value);
@@ -131,6 +154,7 @@ pub fn implicit_intersection(ctx: &CallCtx<'_>, value: &Value) -> Scalar {
     match value {
         Value::Matrix(matrix) => matrix.get(0, 0),
         Value::Scalar(scalar) => scalar.clone(),
+        Value::Lambda(_) => Scalar::Error(ErrorCode::Calc),
         Value::Ref(reference) => {
             let Some(area) = reference.areas.first().copied() else {
                 return Scalar::Error(ErrorCode::Value);

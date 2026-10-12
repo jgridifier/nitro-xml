@@ -2,7 +2,11 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/formula/values.ts; changes listed in PROVENANCE.md.
 //! Scalars, errors, and matrices as Excel formula functions see them.
 
+use std::collections::HashMap;
+
 use serde_json::{json, Value as Json};
+
+use crate::formula::ast::FormulaAst;
 
 /// Excel error codes formulas return.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -352,12 +356,21 @@ impl RefValue {
     }
 }
 
-/// Anything a formula expression evaluates to. Lambdas are `#CALC!` (`TODO(#74)`).
+/// A `LAMBDA` closure: parameter names, body, and the scope it captured.
+#[derive(Clone, Debug)]
+pub struct LambdaValue {
+    pub params: Vec<String>,
+    pub body: FormulaAst,
+    pub scope: HashMap<String, Value>,
+}
+
+/// Anything a formula expression evaluates to.
 #[derive(Clone, Debug)]
 pub enum Value {
     Scalar(Scalar),
     Matrix(Matrix),
     Ref(RefValue),
+    Lambda(Box<LambdaValue>),
 }
 
 impl Value {

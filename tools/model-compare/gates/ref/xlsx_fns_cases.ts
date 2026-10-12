@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-// #73 sweep cases for Math & Trig and Statistical functions.
-// Sources: FUNCTION_CATALOG minArgs, plus inputs from
+// Sweep cases for Math & Trig, Statistical (#73), and Logical, Text,
+// Information, and Date & Time (#74).
+// Sources: FUNCTION_CATALOG, plus inputs from
 // upstream/src/core/xlsx/formula/functions/functions.test.ts,
 // hypothesis-tests.test.ts and distributions-f.test.ts.
-// Reads UPSTREAM_DIR. Prints a JSON array of {formula, cells?, hidden?, sheet?, row?, col?, sheets?, source}.
+// Reads UPSTREAM_DIR. Prints a JSON array of
+// {formula, cells?, hidden?, sheet?, row?, col?, sheets?, date1904?, source}.
 import { readFileSync } from 'node:fs';
 
 const up = process.env.UPSTREAM_DIR;
@@ -17,7 +19,14 @@ const { FUNCTION_CATALOG, getFunction } = await import(
 );
 const { parseFormula } = await import(`${up}/src/core/xlsx/formula/parser.ts`);
 
-const FAMILIES = new Set(['Math & Trig', 'Statistical']);
+const FAMILIES = new Set([
+	'Math & Trig',
+	'Statistical',
+	'Logical',
+	'Text',
+	'Information',
+	'Date & Time',
+]);
 
 /** Constants shared by range cases. No formula cells, so RAND's seed stays put. */
 const GRID: Record<string, unknown> = {
@@ -65,6 +74,7 @@ type Case = {
 	sheets?: string[];
 	source: string;
 	kind?: string;
+	date1904?: boolean;
 };
 
 const SRC = 'upstream functions.test.ts / hypothesis-tests.test.ts / distributions-f.test.ts';
@@ -295,6 +305,113 @@ const OVERRIDES: Record<string, string> = {
 	'WEIBULL.DIST': 'WEIBULL.DIST(2,3,1,FALSE)',
 	'Z.TEST': 'Z.TEST(A1:A6,4)',
 	ZTEST: 'ZTEST(A1:A6,4,1)',
+	AND: 'AND(TRUE,1,"TRUE")',
+	BYCOL: 'BYCOL(A1:B2,LAMBDA(c,SUM(c)))',
+	BYROW: 'BYROW(A1:B2,LAMBDA(r,SUM(r)))',
+	FALSE: 'FALSE()',
+	IF: 'IF(C2,A1,B1)',
+	IFERROR: 'IFERROR(1/0,9)',
+	IFNA: 'IFNA(NA(),3)',
+	IFS: 'IFS(FALSE,1,TRUE,2)',
+	LAMBDA: 'LAMBDA(x,x+1)(5)',
+	LET: 'LET(x,1,y,x+2,y+3)',
+	MAKEARRAY: 'MAKEARRAY(2,3,LAMBDA(r,c,r*10+c))',
+	MAP: 'MAP(A1:A3,LAMBDA(x,x*2))',
+	NOT: 'NOT(C3)',
+	OR: 'OR(FALSE,0,C2)',
+	REDUCE: 'REDUCE(0,A1:A3,LAMBDA(a,b,a+b))',
+	SCAN: 'SCAN(0,A1:A3,LAMBDA(a,b,a+b))',
+	SWITCH: 'SWITCH(2,1,"a",2,"b","c")',
+	TRUE: 'TRUE()',
+	XOR: 'XOR(TRUE,TRUE,FALSE)',
+	ARRAYTOTEXT: 'ARRAYTOTEXT(A1:B2,1)',
+	CHAR: 'CHAR(65)',
+	CLEAN: 'CLEAN(CHAR(9)&"ab")',
+	CODE: 'CODE("A")',
+	CONCAT: 'CONCAT("a",C1,1)',
+	CONCATENATE: 'CONCATENATE("a","b",C5)',
+	DOLLAR: 'DOLLAR(1234.567,2)',
+	ENCODEURL: 'ENCODEURL("a b/c")',
+	EXACT: 'EXACT("Ab","ab")',
+	FIND: 'FIND("b","abc",1)',
+	FINDB: 'FINDB("b","abc")',
+	FIXED: 'FIXED(1234.567,1,FALSE)',
+	LEFT: 'LEFT("héllo",3)',
+	LEFTB: 'LEFTB("héllo",3)',
+	LEN: 'LEN("héllo")',
+	LENB: 'LENB("héllo")',
+	LOWER: 'LOWER("HeLLo")',
+	MID: 'MID("abcd",2,2)',
+	MIDB: 'MIDB("abcd",2,2)',
+	NUMBERVALUE: 'NUMBERVALUE("1.234,56",",",".")',
+	PROPER: 'PROPER("hello WORLD")',
+	REGEXEXTRACT: 'REGEXEXTRACT("ab12cd","\\d+")',
+	REGEXREPLACE: 'REGEXREPLACE("a1b2","\\d","#")',
+	REGEXTEST: 'REGEXTEST("abc","B",1)',
+	REPLACE: 'REPLACE("abcd",2,2,"XY")',
+	REPLACEB: 'REPLACEB("abcd",2,2,"XY")',
+	REPT: 'REPT("ab",3)',
+	RIGHT: 'RIGHT("abcd",2)',
+	RIGHTB: 'RIGHTB("abcd",2)',
+	SEARCH: 'SEARCH("B*","xabc")',
+	SEARCHB: 'SEARCHB("B*","xabc")',
+	SUBSTITUTE: 'SUBSTITUTE("abab","a","x",2)',
+	T: 'T(C1)',
+	TEXT: 'TEXT(DATE(2020,1,15),"yyyy-mm-dd")',
+	TEXTAFTER: 'TEXTAFTER("a-b-c","-",2)',
+	TEXTBEFORE: 'TEXTBEFORE("a-b-c","-",2)',
+	TEXTJOIN: 'TEXTJOIN(",",TRUE,A1,C4,C1)',
+	TEXTSPLIT: 'TEXTSPLIT("a,b;c,d",",",";")',
+	TRIM: 'TRIM("  a   b  ")',
+	UNICHAR: 'UNICHAR(233)',
+	UNICODE: 'UNICODE("é")',
+	UPPER: 'UPPER("hello")',
+	VALUE: 'VALUE("$1,234.50")',
+	VALUETOTEXT: 'VALUETOTEXT("a b",1)',
+	CELL: 'CELL("address",A1)',
+	'ERROR.TYPE': 'ERROR.TYPE(1/0)',
+	ISBLANK: 'ISBLANK(C6)',
+	ISERR: 'ISERR(1/0)',
+	ISERROR: 'ISERROR(NA())',
+	ISEVEN: 'ISEVEN(2.9)',
+	ISFORMULA: 'ISFORMULA(A1)',
+	ISLOGICAL: 'ISLOGICAL(C2)',
+	ISNA: 'ISNA(NA())',
+	ISNONTEXT: 'ISNONTEXT(A1)',
+	ISNUMBER: 'ISNUMBER(C5)',
+	ISODD: 'ISODD(3)',
+	ISREF: 'ISREF(A1:B2)',
+	ISTEXT: 'ISTEXT(C1)',
+	N: 'N(C2)',
+	NA: 'NA()',
+	SHEET: 'SHEET("Sheet2")',
+	SHEETS: 'SHEETS()',
+	TYPE: 'TYPE(A1:A2)',
+	DATE: 'DATE(2020,1,15)',
+	DATEDIF: 'DATEDIF(DATE(2020,1,31),DATE(2021,3,1),"YM")',
+	DATEVALUE: 'DATEVALUE("2020-01-15")',
+	DAY: 'DAY(60)',
+	DAYS: 'DAYS(DATE(2020,1,10),DATE(2020,1,1))',
+	DAYS360: 'DAYS360(DATE(2020,1,31),DATE(2020,2,29),FALSE)',
+	EDATE: 'EDATE(DATE(2020,1,31),1)',
+	EOMONTH: 'EOMONTH(DATE(2020,1,15),1)',
+	HOUR: 'HOUR(TIME(13,2,3))',
+	ISOWEEKNUM: 'ISOWEEKNUM(1)',
+	MINUTE: 'MINUTE(TIME(1,2,3))',
+	MONTH: 'MONTH(DATE(2020,2,29))',
+	NETWORKDAYS: 'NETWORKDAYS(DATE(2020,1,1),DATE(2020,1,10))',
+	'NETWORKDAYS.INTL': 'NETWORKDAYS.INTL(DATE(2020,1,1),DATE(2020,1,10),"0000011")',
+	NOW: 'NOW()',
+	SECOND: 'SECOND(TIME(1,2,3))',
+	TIME: 'TIME(1,30,0)',
+	TIMEVALUE: 'TIMEVALUE("1:30 PM")',
+	TODAY: 'TODAY()',
+	WEEKDAY: 'WEEKDAY(1,1)',
+	WEEKNUM: 'WEEKNUM(DATE(2020,1,15),2)',
+	WORKDAY: 'WORKDAY(DATE(2020,1,1),5)',
+	'WORKDAY.INTL': 'WORKDAY.INTL(DATE(2020,1,1),5,"0000011")',
+	YEAR: 'YEAR(DATE(2020,1,15))',
+	YEARFRAC: 'YEARFRAC(DATE(2020,1,1),DATE(2021,1,1),1)',
 };
 
 function autoFormula(name: string, minArgs: number): string {
@@ -314,12 +431,16 @@ function sweepCases(): Case[] {
 		const formula = OVERRIDES[info.name] ?? autoFormula(info.name, spec.minArgs);
 		seen.add(info.name);
 		const volatile = info.name === 'RAND' || info.name === 'RANDBETWEEN';
-		cases.push({
+		const item: Case = {
 			formula,
 			cells: volatile ? {} : GRID,
 			source: OVERRIDES[info.name] ? SRC : `FUNCTION_CATALOG minArgs ${info.category}`,
 			kind: 'sweep',
-		});
+		};
+		cases.push(item);
+		if (info.category === 'Date & Time') {
+			cases.push({ ...item, date1904: true, source: `${item.source} (1904)` });
+		}
 	}
 	const missing = catalog.filter((info: { name: string }) => !seen.has(info.name)).map((info: { name: string }) => info.name);
 	if (missing.length) throw new Error(`sweep missed ${missing.join(',')}`);
@@ -371,8 +492,91 @@ function sweepCases(): Case[] {
 		{ formula: 'MAX(A1:A2)', cells: { A1: 'a' }, source: SRC, kind: 'sweep' },
 		{ formula: 'NORM.S.INV(0.5)', source: 'distributions.ts', kind: 'sweep' },
 		{ formula: 'LINEST(B1:B3)', cells: GRID, source: 'regression.ts default x', kind: 'sweep' },
+		{ formula: 'IF(TRUE,1,1/0)', cells: GRID, source: 'logical.ts short-circuit', kind: 'sweep' },
+		{ formula: 'IF(FALSE,1/0,2)', cells: GRID, source: 'logical.ts short-circuit', kind: 'sweep' },
+		{ formula: 'IF({TRUE,FALSE},10,20)', cells: GRID, source: 'logical.ts elementwise', kind: 'sweep' },
+		{
+			formula: 'IFERROR(H1:I1,9)',
+			cells: { ...GRID, H1: 1, I1: '=1/0' },
+			source: 'logical.ts',
+			kind: 'sweep',
+		},
+		{ formula: 'IFNA(1/0,3)', cells: GRID, source: 'logical.ts', kind: 'sweep' },
+		{ formula: 'AND(A1:C3)', cells: GRID, source: 'logical.ts range skip', kind: 'sweep' },
+		{ formula: 'OR(C1:C6)', cells: GRID, source: 'logical.ts', kind: 'sweep' },
+		{ formula: 'LET(f,LAMBDA(x,x+1),f(4))', cells: GRID, source: 'logical.ts', kind: 'sweep' },
+		{ formula: 'MAP({1,2},{10;20},LAMBDA(a,b,a+b))', cells: GRID, source: 'lambda.ts', kind: 'sweep' },
+		{
+			formula: 'ISFORMULA(B1)',
+			cells: { ...GRID, B1: '=A1+1' },
+			source: 'info.ts',
+			kind: 'sweep',
+		},
+		{ formula: 'TYPE(1)', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'TYPE("a")', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'TYPE(TRUE)', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'TYPE(NA())', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'TYPE({1,2})', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'TYPE(LAMBDA(x,x))', cells: GRID, source: 'info.ts lambda', kind: 'sweep' },
+		{ formula: 'ERROR.TYPE(NA())', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'ERROR.TYPE(1)', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'SHEET()', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'SHEET(Sheet2!A1)', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'SHEETS(A1)', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'SHEETS(Sheet1:Sheet2!A1)', cells: GRID, source: 'info.ts 3d', kind: 'sweep' },
+		{ formula: 'CELL("address")', cells: GRID, source: 'info.ts anchor', kind: 'sweep' },
+		{ formula: 'CELL("contents",C6)', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'CELL("type",C1)', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'CELL("col",A1)', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'ISEVEN(TRUE)', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'ISODD(1/0)', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'ISBLANK(C4)', cells: GRID, source: 'info.ts empty text', kind: 'sweep' },
+		{ formula: 'N("x")', cells: GRID, source: 'info.ts', kind: 'sweep' },
+		{ formula: 'FIND("é","aé",1)', cells: GRID, source: 'text.ts utf16', kind: 'sweep' },
+		{ formula: 'SEARCH("a?c","xabc")', cells: GRID, source: 'text.ts wildcard', kind: 'sweep' },
+		{ formula: 'TEXTBEFORE("a-b","/",,,,"missing")', cells: GRID, source: 'text-extra.ts', kind: 'sweep' },
+		{ formula: 'TEXTSPLIT("a,,b",",",,TRUE)', cells: GRID, source: 'text-extra.ts', kind: 'sweep' },
+		{ formula: 'VALUETOTEXT(1,0)', cells: GRID, source: 'text-extra.ts', kind: 'sweep' },
+		{ formula: 'CODE("€")', cells: GRID, source: 'text-convert.ts', kind: 'sweep' },
+		{ formula: 'CHAR(128)', cells: GRID, source: 'text-convert.ts cp1252', kind: 'sweep' },
+	];
+	const dateEdges: Case[] = [
+		{ formula: 'DATE(1900,2,29)', cells: GRID, source: 'date-calc.ts leap day', kind: 'sweep' },
+		{ formula: 'DATE(1900,3,1)', cells: GRID, source: 'date-calc.ts', kind: 'sweep' },
+		{ formula: 'DATE(1899,12,31)', cells: GRID, source: 'date-calc.ts year window', kind: 'sweep' },
+		{ formula: 'DAY(DATE(2020,2,29))', cells: GRID, source: 'datetime.ts', kind: 'sweep' },
+		{ formula: 'WEEKDAY(1,3)', cells: GRID, source: 'date-calc.ts', kind: 'sweep' },
+		{ formula: 'WEEKNUM(DATE(2020,1,1),21)', cells: GRID, source: 'date-calc.ts iso', kind: 'sweep' },
+		{ formula: 'EDATE(DATE(2020,1,31),-1)', cells: GRID, source: 'date-calc.ts', kind: 'sweep' },
+		{ formula: 'EOMONTH(DATE(2020,1,31),1)', cells: GRID, source: 'date-calc.ts', kind: 'sweep' },
+		{ formula: 'DATEDIF(DATE(2020,1,31),DATE(2020,3,30),"MD")', cells: GRID, source: 'date-calc.ts', kind: 'sweep' },
+		{ formula: 'DAYS360(DATE(2020,1,31),DATE(2020,3,31),TRUE)', cells: GRID, source: 'date-calc.ts', kind: 'sweep' },
+		{ formula: 'YEARFRAC(DATE(2020,1,1),DATE(2020,7,1),0)', cells: GRID, source: 'date-calc.ts', kind: 'sweep' },
+		{ formula: 'YEARFRAC(DATE(2019,1,1),DATE(2020,1,1),1)', cells: GRID, source: 'date-calc.ts actual/actual', kind: 'sweep' },
+		{
+			formula: 'NETWORKDAYS(DATE(2020,1,1),DATE(2020,1,10),DATE(2020,1,1))',
+			cells: GRID,
+			source: 'workdays.ts holiday',
+			kind: 'sweep',
+		},
+		{
+			formula: 'WORKDAY(DATE(2020,1,1),1,H1)',
+			cells: { ...GRID, H1: '=DATE(2020,1,2)' },
+			source: 'workdays.ts holiday',
+			kind: 'sweep',
+		},
+		{ formula: 'WORKDAY.INTL(DATE(2020,1,6),1,1)', cells: GRID, source: 'workdays.ts weekend code', kind: 'sweep' },
+		{ formula: 'TIME(25,0,0)', cells: GRID, source: 'datetime.ts', kind: 'sweep' },
+		{ formula: 'DATEVALUE("1/2/2020")', cells: GRID, source: 'datetime.ts', kind: 'sweep' },
+		{ formula: 'TIMEVALUE("13:05:07")', cells: GRID, source: 'datetime.ts', kind: 'sweep' },
+		{ formula: 'TEXT(DATE(2020,1,15),"yyyy-mm-dd")', cells: GRID, source: 'text-convert.ts date format', kind: 'sweep' },
+		{ formula: 'VALUE("2020-01-15")', cells: GRID, source: 'text-convert.ts date text', kind: 'sweep' },
 	];
 	cases.push(...edges);
+	for (const item of dateEdges) {
+		cases.push(item);
+		cases.push({ ...item, date1904: true, source: `${item.source} (1904)` });
+	}
 	const names = new Set<string>();
 	for (const item of cases) {
 		let ast: { type?: string; name?: string; args?: unknown[]; operand?: unknown; left?: unknown; right?: unknown; callee?: unknown };
@@ -411,7 +615,11 @@ function inScope(node: unknown, allowed: Set<string>): boolean {
 		left?: unknown;
 		right?: unknown;
 	};
-	if (ast.type === 'name' || ast.type === 'structured' || ast.type === 'invoke') return false;
+	if (ast.type === 'name' || ast.type === 'structured') return false;
+	if (ast.type === 'invoke') {
+		const invoked = ast as { callee?: unknown; args?: unknown[] };
+		return inScope(invoked.callee, allowed) && (invoked.args ?? []).every((arg) => inScope(arg, allowed));
+	}
 	if (ast.type === 'call') {
 		if (!ast.name || !allowed.has(ast.name)) return false;
 		return (ast.args ?? []).every((arg) => inScope(arg, allowed));

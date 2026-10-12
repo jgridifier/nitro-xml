@@ -281,6 +281,90 @@ export async function comparePackages(input, output) {
 	};
 }
 
+/**
+ * Touch-rebuild compare (#65): dirty part C14N-equal; every other part
+ * byte-identical; carried zip CD (order/method/crc/sizes) identical.
+ * @param {Uint8Array} input
+ * @param {Uint8Array} output
+ * @param {string} dirtyPart
+ */
+export async function compareTouchRebuild(input, output, dirtyPart) {
+	const { compareCarriedZipCd } = await import('./zip-cd.mjs');
+	/** @type {Loss[]} */
+	const losses = [];
+	const dirty = String(dirtyPart || '').replace(/^\//, '');
+
+	const inParts = await zipParts(input);
+	const outParts = await zipParts(output);
+	const inNames = new Set(inParts.keys());
+	const outNames = new Set(outParts.keys());
+
+	for (const name of inNames) {
+		if (!outNames.has(name)) {
+			losses.push({
+				category: 'part-missing',
+				part: name,
+				detail: 'part missing after touch save',
+			});
+		}
+	}
+	for (const name of outNames) {
+		if (!inNames.has(name)) {
+			losses.push({
+				category: 'part-added',
+				part: name,
+				detail: 'part added on touch save',
+			});
+		}
+	}
+
+	for (const name of inNames) {
+		if (!outNames.has(name)) continue;
+		const a = inParts.get(name);
+		const b = outParts.get(name);
+		if (name === dirty) {
+			if (isBinaryPart(name)) {
+				if (!bytesEqual(a, b)) {
+					losses.push({
+						category: 'dirty-binary',
+						part: name,
+						detail: 'dirty binary part bytes differ',
+					});
+				}
+			} else {
+				const ca = canonicalizeXml(decodeUtf8(a));
+				const cb = canonicalizeXml(decodeUtf8(b));
+				if (ca !== cb) {
+					losses.push({
+						category: 'dirty-c14n',
+						part: name,
+						detail: 'dirty part not canonically equal',
+					});
+				}
+			}
+			continue;
+		}
+		// Untouched parts: inflated bytes must be identical.
+		if (!bytesEqual(a, b)) {
+			losses.push({
+				category: 'carry-bytes',
+				part: name,
+				detail: `untouched part bytes differ (in=${a.length}, out=${b.length})`,
+			});
+		}
+	}
+
+	const cd = compareCarriedZipCd(input, output, dirty);
+	if (!cd.ok) losses.push(...cd.losses);
+
+	return {
+		lossless: losses.length === 0,
+		losses,
+		partCounts: { input: inNames.size, output: outNames.size },
+		dirtyPart: dirty,
+	};
+}
+
 /** Catches: C14N must ignore attribute order and xmlns prefix renaming. */
 export function _testOnly_canonicalizeXml(xml) {
 	return canonicalizeXml(xml);

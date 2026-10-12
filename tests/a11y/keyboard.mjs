@@ -102,39 +102,56 @@ async function focusOrder(page, maxTabs = 24) {
  * @param {string} base
  */
 async function checkCase(c, browser, base) {
-	const context = await browser.newContext({ deviceScaleFactor: 1 });
-	const page = await context.newPage();
-	await page.goto(hostUrl(base, c, 'rust'), { waitUntil: 'domcontentloaded' });
-	await waitReady(page);
-	const inv = await shellInventory(page);
-	const order = await focusOrder(page);
+	// Catches: measure-batch race ("expected N widths, got M") leaving the host in
+	// dataset.ready=err on a cold keyboard open; one reload usually clears it.
+	const maxAttempts = 3;
+	let lastErr;
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		const context = await browser.newContext({ deviceScaleFactor: 1 });
+		try {
+			const page = await context.newPage();
+			await page.goto(hostUrl(base, c, 'rust'), { waitUntil: 'domcontentloaded' });
+			await waitReady(page);
+			const inv = await shellInventory(page);
+			const order = await focusOrder(page);
 
-	const missing = inv.missing || [];
-	const unnamed = (inv.found || []).filter((f) => !f.name);
-	const unreachable = (inv.found || []).filter((f) => f.disabled || f.tabIndex < -1);
-	// Buttons are in tab order by default (tabIndex 0 or default).
-	const ok = missing.length === 0 && unnamed.length === 0 && unreachable.length === 0;
+			const missing = inv.missing || [];
+			const unnamed = (inv.found || []).filter((f) => !f.name);
+			const unreachable = (inv.found || []).filter((f) => f.disabled || f.tabIndex < -1);
+			// Buttons are in tab order by default (tabIndex 0 or default).
+			const ok = missing.length === 0 && unnamed.length === 0 && unreachable.length === 0;
 
-	// Focus order should include zoom/find/copy at minimum when Tab works across shadow.
-	const actionsInOrder = new Set(order.map((o) => o.action).filter(Boolean));
-	const shellReached = RUST_SHELL_INVENTORY.filter((w) => actionsInOrder.has(w.action));
-	// Shadow-delegatesFocus may block Tab into closed chrome in some hosts; inventory DOM check is primary.
-	const focusNote =
-		shellReached.length >= 3
-			? `focus-order hit ${shellReached.length}/${RUST_SHELL_INVENTORY.length} shell actions`
-			: `focus-order hit ${shellReached.length}/${RUST_SHELL_INVENTORY.length} (DOM inventory is authoritative; Tab into shadow may be limited)`;
+			// Focus order should include zoom/find/copy at minimum when Tab works across shadow.
+			const actionsInOrder = new Set(order.map((o) => o.action).filter(Boolean));
+			const shellReached = RUST_SHELL_INVENTORY.filter((w) => actionsInOrder.has(w.action));
+			// Shadow-delegatesFocus may block Tab into closed chrome in some hosts; inventory DOM check is primary.
+			const focusNote =
+				shellReached.length >= 3
+					? `focus-order hit ${shellReached.length}/${RUST_SHELL_INVENTORY.length} shell actions`
+					: `focus-order hit ${shellReached.length}/${RUST_SHELL_INVENTORY.length} (DOM inventory is authoritative; Tab into shadow may be limited)`;
 
-	await context.close();
-	return {
-		ok,
-		id: c.id,
-		format: c.format,
-		inventory: inv,
-		focusOrder: order,
-		summary: ok
-			? `OK ${c.id}: shell controls reachable (${inv.found.length}/${RUST_SHELL_INVENTORY.length}); ${focusNote}`
-			: `FAIL ${c.id}: missing=[${missing.join(',')}] unnamed=[${unnamed.map((u) => u.action).join(',')}]`,
-	};
+			await context.close();
+			return {
+				ok,
+				id: c.id,
+				format: c.format,
+				inventory: inv,
+				focusOrder: order,
+				summary: ok
+					? `OK ${c.id}: shell controls reachable (${inv.found.length}/${RUST_SHELL_INVENTORY.length}); ${focusNote}`
+					: `FAIL ${c.id}: missing=[${missing.join(',')}] unnamed=[${unnamed.map((u) => u.action).join(',')}]`,
+			};
+		} catch (e) {
+			lastErr = e;
+			await context.close().catch(() => {});
+			const msg = String(e && e.message ? e.message : e);
+			if (attempt < maxAttempts && /expected \d+ widths, got \d+/.test(msg)) {
+				continue;
+			}
+			throw e;
+		}
+	}
+	throw lastErr;
 }
 
 export async function runKeyboardChecks() {

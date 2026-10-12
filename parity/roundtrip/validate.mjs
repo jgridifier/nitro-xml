@@ -99,7 +99,10 @@ function pdfPageCount(pdfPath) {
 function libreOfficeCount(bytes, ext) {
 	const bin = sofficeBin();
 	if (!bin) return { ok: false, count: -1, detail: 'no soffice' };
-	const e = ext.replace(/^\./, '').toLowerCase();
+	if (ext == null || ext === '') {
+		return { ok: false, count: -1, detail: 'missing package extension' };
+	}
+	const e = String(ext).replace(/^\./, '').toLowerCase();
 	const dir = mkdtempSync(join(tmpdir(), 'nitro-lo-'));
 	try {
 		const input = join(dir, `in.${e}`);

@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-10-11T21:45:53.638Z",
+  "generatedAt": "2026-10-12T03:44:26.919Z",
   "upstreamPin": "e66aaec24adc0b68472eae1fc42aa4598e09c352",
   "gate": "E0-a-ts-vs-ts",
   "note": "TS no-op save losses. Rust writer (#65) must meet or beat this bar. Ratchet down only.",
   "counts": {
-    "total": 243,
-    "lossless": 88,
+    "total": 244,
+    "lossless": 89,
     "lossy": 155,
-    "byteIdentical": 79,
+    "byteIdentical": 80,
     "byFormat": {
       "xlsx": {
         "lossless": 0,
@@ -15,9 +15,9 @@
         "n": 46
       },
       "docx": {
-        "lossless": 79,
+        "lossless": 80,
         "lossy": 1,
-        "n": 80
+        "n": 81
       },
       "pptx": {
         "lossless": 9,
@@ -85,6 +85,7 @@
     }
   ],
   "hardRequirements": [
+    "bidi-arabic-hebrew-paragraphs",
     "gen-docx-equation",
     "gen-docx-line-numbers",
     "gen-docx-page-borders",

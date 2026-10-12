@@ -22,7 +22,18 @@ const STATIC_HARD = 'fixtures/real/xlsx/poi-45544.xlsx';
  * Visual runner launches Chromium with `--disable-lcd-text` (same as docx).
  */
 export const HARD_FIXTURES = new Set([
-	// Populated as fixtures converge; poi-45544 is the static hard case.
+	'fixtures/real/xlsx/poi-56644.xlsx',
+	'fixtures/real/xlsx/poi-57893-many-merges.xlsx',
+	'fixtures/real/xlsx/poi-61652.xlsx',
+	'fixtures/real/xlsx/poi-ExcelPivotTableSample.xlsx',
+	'fixtures/real/xlsx/poi-FormulaEvalTestData_Copy.xlsx',
+	'fixtures/real/xlsx/poi-StructuredRefs-lots-with-lookups.xlsx',
+	'fixtures/real/xlsx/poi-WithEmbeded.xlsx',
+	'fixtures/real/xlsx/poi-bug64512_embed.xlsx',
+	'fixtures/real/xlsx/poi-test.xltx',
+	'fixtures/real/xlsx/python-pptx-shp-embedded-xlsx.xlsx',
+	'fixtures/real/xlsx/usgov-census-NST-EST2024-POP.xlsx',
+	'fixtures/real/xlsx/usgov-eia-MER-T01.01.xlsx',
 ]);
 
 function listXlsxFiles() {

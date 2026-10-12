@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/chart-appearance.ts (S1 subset)
 
+use nitro_xml_opc::chart::ChartSpace;
+use nitro_xml_opc::chart::ChartTextBody;
 use nitro_xml_opc::drawingml::{
-    resolve_drawing_color, HslRounding, ResolveOptions, TransformOrder,
+    resolve_drawing_color, DrawingTextRunProperties, HslRounding, ResolveOptions, TransformOrder,
 };
 use std::collections::HashMap;
 
@@ -52,5 +54,110 @@ pub fn chart_appearance(
         None
     } else {
         Some(out)
+    }
+}
+
+fn tx_pr_default_properties(tx_pr: &ChartTextBody) -> Option<&DrawingTextRunProperties> {
+    tx_pr
+        .body
+        .paragraphs
+        .first()
+        .and_then(|p| p.default_properties.as_ref())
+}
+
+fn apply_tx_pr_defaults(entry: &mut ResolvedChartStyleEntry, props: &DrawingTextRunProperties) {
+    if let Some(sz) = props.size_pt {
+        entry.font_size = Some(sz);
+    }
+    if let Some(b) = props.bold {
+        entry.bold = Some(b);
+    }
+    if let Some(i) = props.italic {
+        entry.italic = Some(i);
+    }
+}
+
+fn overlay_part(appearance: &mut ChartAppearance, part: &str, tx_pr: Option<&ChartTextBody>) {
+    let Some(props) = tx_pr.and_then(tx_pr_default_properties) else {
+        return;
+    };
+    let entry = appearance.entry(part.to_string()).or_default();
+    apply_tx_pr_defaults(entry, props);
+}
+
+/// Direct `c:txPr` / `defRPr` sizes for pptx bar3D visual path (not S1 oracle dump).
+pub fn overlay_authored_tx_pr_appearance(appearance: &mut ChartAppearance, space: &ChartSpace) {
+    if let Some(title) = &space.title {
+        overlay_part(appearance, "title", title.tx_pr.as_ref());
+    }
+    if let Some(legend) = &space.legend {
+        overlay_part(appearance, "legend", legend.tx_pr.as_ref());
+    }
+    for axis in &space.plot_area.axes {
+        let part = match axis.kind.as_str() {
+            "cat" | "date" => "categoryAxis",
+            "val" => "valueAxis",
+            _ => continue,
+        };
+        overlay_part(appearance, part, axis.tx_pr.as_ref());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nitro_xml_opc::chart::parse_chart_space_xml;
+
+    // Catches: bar3d/pptx path uses legend/axis sz from txPr (~11.97pt) not bare built-in 10pt.
+    #[test]
+    fn overlay_tx_pr_replaces_axis_and_legend_font_sizes() {
+        let deck = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/upstream/pptx/2789ff8d6772_three-d-charts.pptx");
+        let bytes = std::fs::read(&deck).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+        let mut chart_xml = String::new();
+        {
+            let mut file = archive.by_name("ppt/charts/chart1.xml").unwrap();
+            std::io::Read::read_to_string(&mut file, &mut chart_xml).unwrap();
+        }
+        let parsed = parse_chart_space_xml(&chart_xml);
+        let mut appearance = ChartAppearance::from([
+            (
+                "categoryAxis".to_string(),
+                ResolvedChartStyleEntry {
+                    font_size: Some(10.0),
+                    bold: Some(false),
+                    ..Default::default()
+                },
+            ),
+            (
+                "legend".to_string(),
+                ResolvedChartStyleEntry {
+                    font_size: Some(10.0),
+                    bold: Some(false),
+                    ..Default::default()
+                },
+            ),
+        ]);
+        overlay_authored_tx_pr_appearance(&mut appearance, &parsed.chart_space);
+
+        let axis_sz = appearance
+            .get("categoryAxis")
+            .and_then(|e| e.font_size)
+            .unwrap();
+        let legend_sz = appearance.get("legend").and_then(|e| e.font_size).unwrap();
+        let title_sz = appearance.get("title").and_then(|e| e.font_size).unwrap();
+        assert!(
+            (axis_sz - 11.97).abs() < 0.01,
+            "category axis txPr sz: got {axis_sz}"
+        );
+        assert!(
+            (legend_sz - 11.97).abs() < 0.01,
+            "legend txPr sz: got {legend_sz}"
+        );
+        assert!(
+            (title_sz - 18.62).abs() < 0.01,
+            "title txPr sz: got {title_sz}"
+        );
     }
 }

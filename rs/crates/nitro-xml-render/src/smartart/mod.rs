@@ -15,10 +15,32 @@ mod circular_arrow;
 use std::collections::BTreeMap;
 
 use nitro_xml_opc::drawingml::{
-    emu_to_pixels, evaluate_preset_shape, ooxml_arc_to_svg, parse_drawing_geometry, DrawingPath,
+    emu_to_pixels, evaluate_preset_shape, ooxml_arc_to_svg, parse_drawing_color_in,
+    parse_drawing_geometry, resolve_drawing_color, DrawingColorTheme, DrawingPath,
     DrawingPathCommand,
 };
 use nitro_xml_opc::xml::{parse_xml_str, Element, Node};
+
+struct SchemeMap<'a>(&'a BTreeMap<String, String>);
+
+impl DrawingColorTheme for SchemeMap<'_> {
+    fn scheme(&self, name: &str) -> Option<String> {
+        let slot = match name {
+            "bg1" => "lt1",
+            "tx1" => "dk1",
+            "bg2" => "lt2",
+            "tx2" => "dk2",
+            other => other,
+        };
+        self.0
+            .get(slot)
+            .or_else(|| self.0.get(name))
+            .map(|s| {
+                let raw = s.trim().trim_start_matches('#');
+                format!("#{raw}")
+            })
+    }
+}
 
 /// SVG markup for a SmartArt frame. `drawing_xml` is the diagram drawing part
 /// (`dsp:drawing`) when the package resolved one.
@@ -534,22 +556,6 @@ fn relative_luminance(hex: &str) -> f64 {
     (0.2126 * f64::from(r) + 0.7152 * f64::from(g) + 0.0722 * f64::from(b)) / 255.0
 }
 
-fn solid_hex_from_color_child(
-    container: &Element,
-    scheme: Option<&BTreeMap<String, String>>,
-) -> Option<String> {
-    if let Some(srgb) = child_any(container, "srgbClr") {
-        let mut hex = hex6(attr_str(srgb, "val")?)?;
-        apply_simple_tint_shade(srgb, &mut hex);
-        return Some(hex);
-    }
-    let scheme_el = child_any(container, "schemeClr")?;
-    let name = attr_str(scheme_el, "val")?;
-    let mut hex = scheme_hex(scheme?, name)?;
-    apply_simple_tint_shade(scheme_el, &mut hex);
-    Some(hex)
-}
-
 fn resolve_kind(
     geometry: &str,
     w: f64,
@@ -705,83 +711,23 @@ fn stroke_of(sp_pr: &Element, scheme: Option<&BTreeMap<String, String>>) -> (Str
 
 fn solid_hex(container: &Element, scheme: Option<&BTreeMap<String, String>>) -> Option<String> {
     let fill = child_any(container, "solidFill")?;
-    if let Some(srgb) = child_any(fill, "srgbClr") {
-        let mut hex = hex6(attr_str(srgb, "val")?)?;
-        apply_simple_tint_shade(srgb, &mut hex);
-        return Some(hex);
-    }
-    let scheme_el = child_any(fill, "schemeClr")?;
-    let name = attr_str(scheme_el, "val")?;
-    let mut hex = scheme_hex(scheme?, name)?;
-    apply_simple_tint_shade(scheme_el, &mut hex);
-    Some(hex)
+    solid_hex_from_color_child(fill, scheme)
 }
 
-/// Apply DrawingML `tint` / `shade` (100000ths) onto a `#RRGGBB` fill for SmartArt.
-fn apply_simple_tint_shade(color_el: &Element, hex: &mut String) {
-    let tint = child_any(color_el, "tint")
-        .and_then(|e| attr_str(e, "val"))
-        .and_then(|v| v.parse::<f64>().ok())
-        .map(|v| (v / 100_000.0).clamp(0.0, 1.0));
-    let shade = child_any(color_el, "shade")
-        .and_then(|e| attr_str(e, "val"))
-        .and_then(|v| v.parse::<f64>().ok())
-        .map(|v| (v / 100_000.0).clamp(0.0, 1.0));
-    if tint.is_none() && shade.is_none() {
-        return;
+fn solid_hex_from_color_child(
+    container: &Element,
+    scheme: Option<&BTreeMap<String, String>>,
+) -> Option<String> {
+    let color = parse_drawing_color_in(Some(container))?;
+    let theme = scheme.map(SchemeMap);
+    let theme_ref = theme
+        .as_ref()
+        .map(|t| t as &dyn DrawingColorTheme);
+    let resolved = resolve_drawing_color(&color, theme_ref, None)?;
+    if resolved.hex.is_empty() {
+        return None;
     }
-    let raw = hex.trim_start_matches('#');
-    if raw.len() != 6 {
-        return;
-    }
-    let Ok(r) = u8::from_str_radix(&raw[0..2], 16) else {
-        return;
-    };
-    let Ok(g) = u8::from_str_radix(&raw[2..4], 16) else {
-        return;
-    };
-    let Ok(b) = u8::from_str_radix(&raw[4..6], 16) else {
-        return;
-    };
-    let mut rf = f64::from(r);
-    let mut gf = f64::from(g);
-    let mut bf = f64::from(b);
-    if let Some(t) = tint {
-        rf += (255.0 - rf) * t;
-        gf += (255.0 - gf) * t;
-        bf += (255.0 - bf) * t;
-    }
-    if let Some(s) = shade {
-        rf *= s;
-        gf *= s;
-        bf *= s;
-    }
-    *hex = format!(
-        "#{:02X}{:02X}{:02X}",
-        rf.round().clamp(0.0, 255.0) as u8,
-        gf.round().clamp(0.0, 255.0) as u8,
-        bf.round().clamp(0.0, 255.0) as u8
-    );
-}
-
-fn scheme_hex(scheme: &BTreeMap<String, String>, name: &str) -> Option<String> {
-    let slot = match name {
-        "bg1" => "lt1",
-        "tx1" => "dk1",
-        "bg2" => "lt2",
-        "tx2" => "dk2",
-        other => other,
-    };
-    let raw = scheme.get(slot).or_else(|| scheme.get(name))?;
-    hex6(raw.trim().trim_start_matches('#'))
-}
-
-fn hex6(val: &str) -> Option<String> {
-    if val.len() == 6 && val.chars().all(|c| c.is_ascii_hexdigit()) {
-        Some(format!("#{}", val.to_ascii_uppercase()))
-    } else {
-        None
-    }
+    Some(resolved.hex)
 }
 
 fn text_of(el: &Element) -> String {
@@ -958,6 +904,31 @@ mod tests {
             svg.contains("font-size=\"41.33"),
             "authored 31pt → ~41.33px; got {svg}"
         );
+    }
+
+    // Catches: SmartArt tint inverted (40% kept as 40% toward white) so chevron children stay teal not grey.
+    #[test]
+    fn scheme_tint_keeps_fraction_of_accent_toward_white() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="1000000" cy="500000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:schemeClr val="accent1"><a:tint val="40000"/></a:schemeClr></a:solidFill>
+              </dsp:spPr>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        let svg = smartart_svg_with_scheme(Some(xml), 200.0, 100.0, Some(&scheme));
+        // Linear-light tint 40% of #156082 (not the inverted sRGB lerp #73A0B4).
+        assert!(
+            !svg.contains("#73A0B4") && !svg.contains("#73a0b4"),
+            "inverted tint: {svg}"
+        );
+        assert!(svg.contains("fill=\"#"), "{svg}");
     }
 
     // Catches: EMU viewBox + EMU font-size collapses under Chromium's CSS font-size clamp.

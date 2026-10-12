@@ -1741,7 +1741,11 @@ mod tests {
     fn smartart_fixtures_paint_without_clamp_panic() {
         // Catches: a short SmartArt shape panics in f64::clamp, aborting wasm so the host's next call reports recursive aliasing.
         let shp = paint_fixture("real/pptx/python-pptx-shp-shapes.pptx", 0);
-        assert!(shp.contains("Smart Art"), "{shp}");
+        // Labels may wrap ("Smart" / "Art") once font-size is CSS px, not EMU.
+        assert!(
+            shp.contains("Smart Art") || (shp.contains(">Smart<") && shp.contains(">Art<")),
+            "{shp}"
+        );
         let accent = paint_fixture("upstream/pptx/21343018c511_accent-process--hier5.pptx", 0);
         assert!(accent.contains("Node One"), "{accent}");
         let org = paint_fixture(

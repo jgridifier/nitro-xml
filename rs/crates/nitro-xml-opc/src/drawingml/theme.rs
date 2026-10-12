@@ -5,8 +5,8 @@ use super::color::parse_drawing_color_in;
 use super::dom::{elements, first};
 use super::fill::{parse_drawing_line, parse_fill_element};
 use super::theme_model::{
-    DrawingTheme, ThemeColorMap, ThemeColorScheme, ThemeColorSlot, ThemeFontCollection,
-    ThemeFontScheme, ThemeFormatScheme, THEME_COLOR_SLOTS,
+    DrawingTheme, ThemeColorMap, ThemeColorScheme, ThemeColorSlot, ThemeEffectStyle,
+    ThemeFontCollection, ThemeFontScheme, ThemeFormatScheme, THEME_COLOR_SLOTS,
 };
 use super::types::DrawingFill;
 use crate::xml::{ns, parse_xml_str, Document, Element};
@@ -97,13 +97,31 @@ fn parse_line_style_list(list: Option<&Element>) -> Vec<super::types::DrawingLin
         .collect()
 }
 
-/// `a:fmtScheme` fill / line / background-fill lists (effect styles stay deferred).
+fn parse_effect_style_list(list: Option<&Element>) -> Vec<ThemeEffectStyle> {
+    let Some(list) = list else {
+        return Vec::new();
+    };
+    elements(list)
+        .into_iter()
+        .filter(|element| element.local == "effectStyle")
+        .map(|effect_style| {
+            // TODO(#27): `a:scene3d` / `a:sp3d` on effectStyle (idx 3 bevel) — box-shadow only for M1.
+            let effect_lst = first(effect_style, "effectLst", ns::A)
+                .or_else(|| first(effect_style, "effectDag", ns::A))
+                .cloned();
+            ThemeEffectStyle { effect_lst }
+        })
+        .collect()
+}
+
+/// `a:fmtScheme` fill / line / effect / background-fill style lists.
 pub fn parse_theme_format_scheme(fmt: Option<&Element>) -> Option<ThemeFormatScheme> {
     let fmt = fmt?;
     Some(ThemeFormatScheme {
         name: non_empty(super::dom::attr(fmt, "name")),
         fill_styles: parse_fill_style_list(first(fmt, "fillStyleLst", ns::A)),
         line_styles: parse_line_style_list(first(fmt, "lnStyleLst", ns::A)),
+        effect_styles: parse_effect_style_list(first(fmt, "effectStyleLst", ns::A)),
         background_fill_styles: parse_fill_style_list(first(fmt, "bgFillStyleLst", ns::A)),
     })
 }
@@ -167,6 +185,15 @@ mod tests {
               <a:bgFillStyleLst>
                 <a:solidFill><a:srgbClr val="ABCDEF"/></a:solidFill>
               </a:bgFillStyleLst>
+              <a:effectStyleLst>
+                <a:effectStyle>
+                  <a:effectLst>
+                    <a:outerShdw blurRad="19050" dist="38100" dir="2700000" rotWithShape="0">
+                      <a:schemeClr val="phClr"><a:alpha val="45000"/></a:schemeClr>
+                    </a:outerShdw>
+                  </a:effectLst>
+                </a:effectStyle>
+              </a:effectStyleLst>
             </a:fmtScheme>
           </a:themeElements>
         </a:theme>"#;
@@ -181,5 +208,12 @@ mod tests {
             DrawingFill::Solid { color } => assert_eq!(color.value, "ABCDEF"),
             other => panic!("expected solid bg fill, got {other:?}"),
         }
+        assert_eq!(fmt.effect_styles.len(), 1);
+        let lst = fmt.effect_styles[0].effect_lst.as_ref().expect("effectLst");
+        assert_eq!(lst.local, "effectLst");
+        assert!(
+            first(lst, "outerShdw", ns::A).is_some(),
+            "expected outerShdw in parsed effect style"
+        );
     }
 }

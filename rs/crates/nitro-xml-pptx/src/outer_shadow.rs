@@ -20,7 +20,24 @@ pub(crate) fn box_shadow_from_sp_pr(
     rotation_deg: Option<f64>,
 ) -> Option<String> {
     let effect_lst = child_local(sp_pr, "effectLst", ns::A)?;
+    box_shadow_from_effect_lst(effect_lst, theme, rotation_deg)
+}
+
+/// Build CSS `box-shadow` from `a:effectLst/a:outerShdw` (theme `effectStyleLst` or `spPr`).
+pub(crate) fn box_shadow_from_effect_lst(
+    effect_lst: &Element,
+    theme: &dyn DrawingColorTheme,
+    rotation_deg: Option<f64>,
+) -> Option<String> {
     let outer = child_local(effect_lst, "outerShdw", ns::A)?;
+    box_shadow_from_outer_shdw(outer, theme, rotation_deg)
+}
+
+fn box_shadow_from_outer_shdw(
+    outer: &Element,
+    theme: &dyn DrawingColorTheme,
+    rotation_deg: Option<f64>,
+) -> Option<String> {
     let color = parse_drawing_color_in(Some(outer))?;
     let resolved = resolve_drawing_color(&color, Some(theme), None)?;
     if resolved.hex.is_empty() {

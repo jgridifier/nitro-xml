@@ -184,7 +184,7 @@ pub struct ParseCtx<'a> {
     /// Master `p:clrMap`, or a layout/slide `a:overrideClrMapping` that replaces it.
     /// Missing keys fall back to `bg1→lt1`, `tx1→dk1`, `bg2→lt2`, `tx2→dk2`.
     pub color_map: Option<&'a ThemeColorMap>,
-    /// Theme `a:fmtScheme` used by `a:fillRef` / `a:lnRef` (idx 1–3 and 1001–1003).
+    /// Theme `a:fmtScheme` used by `a:fillRef` / `a:lnRef` / `a:effectRef` (idx 1–3 and 1001–1003).
     pub format_scheme: Option<&'a ThemeFormatScheme>,
     pub table_style_map: Option<&'a TableStyleMap>,
 }
@@ -2158,6 +2158,16 @@ fn shape_paint_extras(
     if let Some(sp_pr) = effective_sp_pr {
         extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(sp_pr, &theme, rotation_deg);
     }
+    if extras.box_shadow.is_none() {
+        apply_effect_ref(
+            shape,
+            inherited_shape,
+            theme,
+            ctx.format_scheme,
+            rotation_deg,
+            &mut extras,
+        );
+    }
     extras
 }
 
@@ -2213,6 +2223,45 @@ fn matrix_line(scheme: Option<&ThemeFormatScheme>, idx: i32) -> Option<&DrawingL
     } else {
         None
     }
+}
+
+fn matrix_effect(
+    scheme: Option<&ThemeFormatScheme>,
+    idx: i32,
+) -> Option<&nitro_xml_opc::drawingml::ThemeEffectStyle> {
+    let scheme = scheme?;
+    if (1..=999).contains(&idx) {
+        scheme.effect_styles.get((idx - 1) as usize)
+    } else {
+        None
+    }
+}
+
+fn apply_effect_ref(
+    shape: &Element,
+    inherited_shape: Option<&Element>,
+    theme: SchemeTheme<'_>,
+    format_scheme: Option<&ThemeFormatScheme>,
+    rotation_deg: Option<f64>,
+    extras: &mut PaintExtras,
+) {
+    let Some(ref_el) = style_ref_node(shape, inherited_shape, "effectRef") else {
+        return;
+    };
+    let idx = style_ref_idx(ref_el);
+    if idx <= 0 || idx == 1000 {
+        return;
+    }
+    let override_color = parse_drawing_color_in(Some(ref_el));
+    let Some(effect_style) = matrix_effect(format_scheme, idx) else {
+        return;
+    };
+    let Some(effect_lst) = effect_style.effect_lst.as_ref() else {
+        return;
+    };
+    let ph = ph_theme(theme, override_color.as_ref());
+    extras.box_shadow =
+        crate::outer_shadow::box_shadow_from_effect_lst(effect_lst, &ph, rotation_deg);
 }
 
 fn ph_hex(color: &DrawingColor, theme: SchemeTheme<'_>) -> Option<String> {
@@ -2738,6 +2787,15 @@ mod tests {
                   <a:lin ang="0"/>
                 </a:gradFill>
               </a:bgFillStyleLst>
+              <a:effectStyleLst>
+                <a:effectStyle>
+                  <a:effectLst>
+                    <a:outerShdw blurRad="19050" dist="38100" dir="2700000" rotWithShape="0">
+                      <a:schemeClr val="phClr"><a:alpha val="45000"/></a:schemeClr>
+                    </a:outerShdw>
+                  </a:effectLst>
+                </a:effectStyle>
+              </a:effectStyleLst>
             </a:fmtScheme>
           </a:themeElements>
         </a:theme>"#;
@@ -2798,6 +2856,34 @@ mod tests {
         )
         .unwrap();
         assert_eq!(el.fill_color.as_deref(), Some("#ABCDEF"));
+    }
+
+    // Catches: effectRef idx 1 outerShdw never becomes box-shadow so keyframes menu buttons float without shadow.
+    #[test]
+    fn effect_ref_resolves_theme_outer_shadow() {
+        let colors = theme();
+        let scheme = office_matrix();
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="1" name="S"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+          <p:style><a:effectRef idx="1"><a:schemeClr val="accent1"/></a:effectRef></p:style>
+        </p:sp>"#;
+        let el = parse_shape(
+            &parse_xml_str(xml).unwrap().root,
+            "s".into(),
+            &ctx_with_matrix(&colors, &scheme),
+            false,
+        )
+        .unwrap();
+        let shadow = el.box_shadow.as_deref().expect("box_shadow from effectRef");
+        assert!(
+            shadow.contains("rgba(68, 114, 196,"),
+            "phClr from accent1, got {shadow}"
+        );
+        assert!(
+            shadow.contains("3px 3px"),
+            "45° dist≈4px → ~3px offsets, got {shadow}"
+        );
     }
 
     // Catches: lnRef idx=2 painted at 1px instead of the theme line width.

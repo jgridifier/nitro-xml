@@ -101,7 +101,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-opc/src/drawingml/fill.rs` | `src/core/drawingml/drawing-fill.ts` @ e66aaec | Fill/line readers; deterministic `sourceXml` via `serialize.rs` instead of DOM `XMLSerializer`. |
 | `rs/crates/nitro-xml-opc/src/drawingml/geometry_parse.rs` | `src/core/drawingml/drawing-geometry.ts` @ e66aaec | Frame, transform and geometry readers over `Element`. |
 | `rs/crates/nitro-xml-opc/src/drawingml/theme_model.rs` | `src/core/drawingml/theme-model.ts` @ e66aaec | Theme colour/font scheme types and default colour map. `ThemeFormatScheme` is the `a:fmtScheme` fill/line/background matrix (effect styles deferred). |
-| `rs/crates/nitro-xml-opc/src/drawingml/theme.rs` | `src/core/drawingml/theme.ts` @ e66aaec | Theme part and colour-map parsing over the owned XML tree. Also parses `a:fmtScheme` fillStyleLst / lnStyleLst / bgFillStyleLst. |
+| `rs/crates/nitro-xml-opc/src/drawingml/theme.rs` | `src/core/drawingml/theme.ts`, `PptxHandlerRuntimeThemeFormatScheme.ts` @ e66aaec | Theme part and colour-map parsing over the owned XML tree. Parses `a:fmtScheme` fillStyleLst / lnStyleLst / effectStyleLst / bgFillStyleLst (#27). |
 | `rs/crates/nitro-xml-opc/src/drawingml/theme_color.rs` | `src/core/drawingml/theme-color.ts` @ e66aaec | Scheme colour resolution bridge to `resolve_drawing_color`. |
 | `rs/crates/nitro-xml-opc/src/drawingml/guide_eval.rs` | `src/core/geometry/guide-formula-eval.ts` @ e66aaec | OOXML guide formula parser and evaluator. |
 | `rs/crates/nitro-xml-opc/src/drawingml/guide_api.rs` | `src/core/geometry/guide-formula-api.ts` @ e66aaec | Built-in variables and ordered guide evaluation. |

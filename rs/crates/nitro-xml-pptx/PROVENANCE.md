@@ -26,6 +26,7 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | `src/render/smartart.rs` | `dom/elements/smartart-svg.ts` | P11 S2 cached-drawing paint at the element box (#27). |
 | `src/render/picture.rs` | `dom/elements/image.ts` | P5 picture frame; `a:glow` on `img` (#27). |
 | `src/render/group.rs` | `dom/elements/group.ts` | P6 group transform + child recursion (#27). |
-| `src/render/connector.rs` | `dom/elements/connector.ts` | P7 connector SVG stub (#27). |
+| `src/render/connector.rs` | `dom/elements/connector.ts` | P7 connector SVG stroke (#27). |
+| `src/render/connector_geometry.rs` | `core/geometry/connector-geometry.ts`, `connector-preset-geometry.ts` | xfrm flip endpoints + bent/curved preset paths (#27). |
 | `src/render/table.rs` | `dom/elements/table.ts` | P8 table grid stub (#27). |
 

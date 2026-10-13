@@ -224,11 +224,41 @@ pub struct TextPaintParagraph {
     pub align: Option<TextAlignCss>,
     pub rtl: Option<bool>,
     pub tab_stops: Vec<TextPaintTabStop>,
+    /// Bullet glyph or formatted auto-number marker (paint only).
+    pub bullet_marker: Option<String>,
+    pub margin_left_px: Option<f64>,
+    pub text_indent_px: Option<f64>,
+}
+
+/// Master/layout `txStyles` + `lstStyle` cascade for list paint (#27).
+pub struct TextPaintListStyleCtx<'a> {
+    pub own_tx_body: Option<&'a Element>,
+    pub inherited_tx_body: Option<&'a Element>,
+    pub is_body_placeholder: bool,
+    pub effective_level_styles: Option<&'a crate::level_style::LevelStylesMap>,
+    pub presentation_level_styles: Option<&'a crate::level_style::LevelStylesMap>,
 }
 
 /// Walk `p:txBody` paragraphs for multi-`p` / per-run BiDi painting (#27).
 pub fn parse_text_paint_paragraphs(tx_body: &Element) -> Vec<TextPaintParagraph> {
+    parse_text_paint_paragraphs_with_list_styles(tx_body, None)
+}
+
+/// Like [`parse_text_paint_paragraphs`] but resolves bullets and indents from merged txStyles.
+pub fn parse_text_paint_paragraphs_with_list_styles(
+    tx_body: &Element,
+    list_styles: Option<&TextPaintListStyleCtx<'_>>,
+) -> Vec<TextPaintParagraph> {
+    use crate::auto_number::{
+        break_auto_number_run, format_auto_number_bullet, next_auto_number, AutoNumberSequence,
+    };
+    use crate::text::{
+        paragraph_has_renderable_content, resolve_paragraph_bullet_info,
+        resolve_paragraph_indent_layout,
+    };
+
     let paras = children_local(tx_body, "p", ns::A);
+    let mut auto_seq = AutoNumberSequence::default();
     paras
         .iter()
         .map(|p| {
@@ -239,11 +269,69 @@ pub fn parse_text_paint_paragraphs(tx_body: &Element) -> Vec<TextPaintParagraph>
             let rtl = p_pr.and_then(|pp| parse_optional_bool_attr(attr(pp, "rtl")));
             let tab_stops = p_pr.map(parse_tab_stops).unwrap_or_default();
             let runs = collect_paint_runs(p);
+
+            let (bullet_marker, margin_left_px, text_indent_px) = if let Some(ctx) = list_styles {
+                let has_renderable = paragraph_has_renderable_content(p);
+                let bullet = resolve_paragraph_bullet_info(
+                    p,
+                    ctx.own_tx_body,
+                    ctx.inherited_tx_body,
+                    ctx.is_body_placeholder,
+                    ctx.effective_level_styles,
+                    ctx.presentation_level_styles,
+                );
+                let auto_num_scheme = bullet.as_ref().and_then(|b| {
+                    if !b.none && b.char.is_none() {
+                        b.auto_num_type.clone()
+                    } else {
+                        None
+                    }
+                });
+                let level = paragraph_level(p);
+                let mut marker = None;
+                if let Some(ref info) = bullet {
+                    if !info.none {
+                        let show = has_renderable || auto_num_scheme.is_none();
+                        if show {
+                            if let Some(ch) = &info.char {
+                                marker = Some(ch.clone());
+                            } else if let Some(scheme) = auto_num_scheme.as_ref() {
+                                if has_renderable {
+                                    let start = info.auto_num_start_at;
+                                    let ord =
+                                        next_auto_number(&mut auto_seq, level, &scheme, start);
+                                    marker = Some(format_auto_number_bullet(&scheme, ord));
+                                }
+                            }
+                        }
+                    }
+                }
+                if auto_num_scheme.is_none() {
+                    break_auto_number_run(&mut auto_seq, level);
+                }
+                let has_bullet = marker.is_some();
+                let indent = resolve_paragraph_indent_layout(
+                    p,
+                    ctx.own_tx_body,
+                    ctx.inherited_tx_body,
+                    ctx.is_body_placeholder,
+                    ctx.effective_level_styles,
+                    ctx.presentation_level_styles,
+                    has_bullet,
+                );
+                (marker, indent.margin_left_px, indent.text_indent_px)
+            } else {
+                (None, None, None)
+            };
+
             TextPaintParagraph {
                 runs,
                 align,
                 rtl,
                 tab_stops,
+                bullet_marker,
+                margin_left_px,
+                text_indent_px,
             }
         })
         .collect()

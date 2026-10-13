@@ -6,6 +6,7 @@ mod chart;
 mod chart3d;
 mod comments;
 mod connector;
+mod connector_geometry;
 mod content_part;
 mod context;
 mod dispatch;
@@ -202,6 +203,7 @@ mod tests {
             font_size_px: None,
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             text_body_layout: None,

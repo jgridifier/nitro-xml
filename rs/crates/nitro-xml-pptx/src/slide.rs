@@ -115,6 +115,8 @@ pub struct DumpElement {
     pub font_family: Option<String>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub font_bold: bool,
+    #[serde(skip)]
+    pub font_italic: bool,
     /// `a:rPr/a:ln/@w` in CSS px (paint only).
     #[serde(skip)]
     pub text_stroke_width_px: Option<f64>,
@@ -1732,6 +1734,7 @@ fn build_dump(
         font_size_px: extras.font_size_px,
         font_family: extras.font_family,
         font_bold: extras.font_bold,
+        font_italic: extras.font_italic,
         text_stroke_width_px: extras.text_stroke_width_px,
         text_stroke_color: extras.text_stroke_color,
         text_body_layout: extras.text_body_layout,
@@ -2033,6 +2036,7 @@ struct PaintExtras {
     font_size_px: Option<f64>,
     font_family: Option<String>,
     font_bold: bool,
+    font_italic: bool,
     text_stroke_width_px: Option<f64>,
     text_stroke_color: Option<String>,
     text_body_layout: Option<crate::text_layout::TextBodyLayout>,
@@ -2310,10 +2314,13 @@ fn shape_paint_extras(
         );
     }
     if let Some(tx) = tx_body {
-        let fallback = ph_info.and_then(|ph| {
-            let styles = ctx.effective_level_styles(ph);
-            level_style_for(&styles, 0).cloned()
-        });
+        let own_tx = child_local(shape, "txBody", ns::P);
+        let inherited_tx = inherited_shape.and_then(|s| child_local(s, "txBody", ns::P));
+        let effective_levels = ph_info.map(|ph| ctx.effective_level_styles(ph));
+        let is_body_ph = ph_info.is_some_and(crate::text::placeholder_is_body_type);
+        let fallback = effective_levels
+            .as_ref()
+            .and_then(|styles| level_style_for(styles, 0).cloned());
         let paint = first_run_text_paint(
             tx,
             theme,
@@ -2331,10 +2338,23 @@ fn shape_paint_extras(
         extras.font_size_px = paint.size;
         extras.font_family = paint.font_family;
         extras.font_bold = paint.bold;
+        extras.font_italic = paint.italic;
         extras.text_stroke_width_px = paint.stroke_width_px;
         extras.text_stroke_color = paint.stroke_color;
         extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
-        extras.text_paint_paragraphs = Some(crate::text_layout::parse_text_paint_paragraphs(tx));
+        let list_ctx =
+            effective_levels
+                .as_ref()
+                .map(|levels| crate::text_layout::TextPaintListStyleCtx {
+                    own_tx_body: own_tx,
+                    inherited_tx_body: inherited_tx,
+                    is_body_placeholder: is_body_ph,
+                    effective_level_styles: Some(levels),
+                    presentation_level_styles: ctx.presentation_level_styles,
+                });
+        extras.text_paint_paragraphs = Some(
+            crate::text_layout::parse_text_paint_paragraphs_with_list_styles(tx, list_ctx.as_ref()),
+        );
         extras.presentation_kinsoku =
             presentation_default_ea_line_break(ctx.presentation_level_styles);
         extras.auto_fit_mode = crate::text_layout::parse_body_autofit(tx);
@@ -2625,6 +2645,7 @@ struct FirstRunTextPaint {
     size: Option<f64>,
     font_family: Option<String>,
     bold: bool,
+    italic: bool,
     stroke_width_px: Option<f64>,
     stroke_color: Option<String>,
 }
@@ -2648,6 +2669,7 @@ fn first_run_text_paint(
     let mut size = None;
     let mut font_family = None;
     let mut bold = false;
+    let mut italic = false;
     let mut stroke_width_px = None;
     let mut stroke_color = None;
     for para in children_local(tx, "p", ns::A) {
@@ -2668,6 +2690,9 @@ fn first_run_text_paint(
             }
             if !bold {
                 bold = def.map(rpr_bold).unwrap_or(false);
+            }
+            if !italic {
+                italic = def.map(rpr_italic).unwrap_or(false);
             }
             if stroke_width_px.is_none() {
                 if let Some(def) = def {
@@ -2704,6 +2729,11 @@ fn first_run_text_paint(
                 .map(rpr_bold)
                 .unwrap_or_else(|| def.map(rpr_bold).unwrap_or(false));
         }
+        if !italic {
+            italic = rpr
+                .map(rpr_italic)
+                .unwrap_or_else(|| def.map(rpr_italic).unwrap_or(false));
+        }
         if stroke_width_px.is_none() {
             let stroke_rpr = rpr.or(def);
             if let Some(r) = stroke_rpr {
@@ -2719,11 +2749,22 @@ fn first_run_text_paint(
             presentation_default_latin_typeface(ctx.presentation_level_styles, ctx.font_scheme);
     }
     if let Some(style) = ctx.level_fallback {
-        // Colour from master/layout level styles; leave size to the host CSS
-        // fallback until placeholder autofit/align lands (layout sz alone
-        // over-enlarges titles and worsens visual median).
         if color.is_none() {
             color = level_style_text_color(style, theme);
+        }
+        if size.is_none() {
+            size = style.font_size_px;
+        }
+        if font_family.is_none() {
+            if let Some(face) = style.default_latin_typeface.as_deref() {
+                font_family = resolve_theme_latin_typeface(face, ctx.font_scheme);
+            }
+        }
+        if !bold {
+            bold = style.font_bold.unwrap_or(false);
+        }
+        if !italic {
+            italic = style.font_italic.unwrap_or(false);
         }
     }
     if size.is_none() && !ctx.is_placeholder {
@@ -2735,6 +2776,7 @@ fn first_run_text_paint(
         size,
         font_family,
         bold,
+        italic,
         stroke_width_px,
         stroke_color,
     }
@@ -2778,6 +2820,10 @@ fn latin_typeface(rpr: &Element) -> Option<String> {
 
 fn rpr_bold(rpr: &Element) -> bool {
     matches!(attr(rpr, "b"), Some("1") | Some("true") | Some("on"))
+}
+
+fn rpr_italic(rpr: &Element) -> bool {
+    matches!(attr(rpr, "i"), Some("1") | Some("true") | Some("on"))
 }
 
 fn rpr_text_stroke(rpr: &Element, theme: SchemeTheme<'_>) -> (Option<f64>, Option<String>) {
@@ -3173,7 +3219,7 @@ mod tests {
         };
         let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
         assert_eq!(el.text_color.as_deref(), Some("#FFFFFF"));
-        assert!(el.font_size_px.is_none());
+        assert!((el.font_size_px.unwrap() - 80.0).abs() < 0.05);
     }
 
     // Catches: c:chart graphic frames dumped as otherKinds instead of chart elements.

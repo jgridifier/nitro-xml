@@ -4,7 +4,9 @@
 
 use std::collections::BTreeMap;
 
-use nitro_xml_opc::drawingml::{parse_drawing_color_in, resolve_drawing_color, DrawingColor};
+use nitro_xml_opc::drawingml::{
+    emu_to_pixels, parse_drawing_color_in, resolve_drawing_color, DrawingColor,
+};
 use nitro_xml_opc::xml::{ns, Element};
 
 use crate::inheritance::{attr, child_local, children_local};
@@ -27,6 +29,14 @@ pub struct PlaceholderTextLevelStyle {
     pub ea_line_break: Option<bool>,
     /// `a:defRPr/a:latin/@typeface` (may be a theme token such as `+mn-lt`).
     pub default_latin_typeface: Option<String>,
+    /// `a:defRPr/@b` when authored (`1` / `0`).
+    pub font_bold: Option<bool>,
+    /// `a:defRPr/@i` when authored.
+    pub font_italic: Option<bool>,
+    /// `a:pPr/@marL` in CSS px.
+    pub margin_left_px: Option<f64>,
+    /// `a:pPr/@indent` in CSS px (may be negative for hanging indents).
+    pub indent_px: Option<f64>,
 }
 
 pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle {
@@ -54,6 +64,7 @@ pub fn parse_level_style_from_ppr(p_pr: &Element) -> Option<PlaceholderTextLevel
     if let Some(v) = attr(p_pr, "eaLnBrk") {
         style.ea_line_break = Some(matches!(v, "1" | "true" | "on"));
     }
+    apply_paragraph_margin_attrs(&mut style, p_pr);
     apply_def_rpr(&mut style, p_pr);
     if level_style_has_payload(&style) {
         Some(style)
@@ -71,6 +82,21 @@ fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
         || style.font_size_px.is_some()
         || style.ea_line_break.is_some()
         || style.default_latin_typeface.is_some()
+        || style.font_bold.is_some()
+        || style.font_italic.is_some()
+        || style.margin_left_px.is_some()
+        || style.indent_px.is_some()
+}
+
+fn apply_paragraph_margin_attrs(style: &mut PlaceholderTextLevelStyle, p_pr: &Element) {
+    style.margin_left_px = emu_attr_to_px(p_pr, "marL");
+    style.indent_px = emu_attr_to_px(p_pr, "indent");
+}
+
+fn emu_attr_to_px(el: &Element, local: &str) -> Option<f64> {
+    attr(el, local)
+        .and_then(|s| s.parse::<i64>().ok())
+        .map(emu_to_pixels)
 }
 
 /// `a:defRPr` solid fill and `sz` on `a:lvlNpPr` / `a:defPPr`.
@@ -87,6 +113,12 @@ fn apply_def_rpr(style: &mut PlaceholderTextLevelStyle, p_pr: &Element) {
         }
     }
     style.font_size_px = sz_attr_to_px(def);
+    if let Some(b) = attr(def, "b") {
+        style.font_bold = Some(matches!(b, "1" | "true" | "on"));
+    }
+    if let Some(i) = attr(def, "i") {
+        style.font_italic = Some(matches!(i, "1" | "true" | "on"));
+    }
     let Some(fill) = child_local(def, "solidFill", ns::A) else {
         return;
     };
@@ -203,6 +235,10 @@ fn merge_level_style(
             .default_latin_typeface
             .clone()
             .or_else(|| base.default_latin_typeface.clone()),
+        font_bold: over.font_bold.or(base.font_bold),
+        font_italic: over.font_italic.or(base.font_italic),
+        margin_left_px: over.margin_left_px.or(base.margin_left_px),
+        indent_px: over.indent_px.or(base.indent_px),
     }
 }
 
@@ -304,5 +340,67 @@ fn collect_ph_defaults(sp_tree: &Element, out: &mut BTreeMap<String, LevelStyles
     }
     for grp in children_local(sp_tree, "grpSp", ns::P) {
         collect_ph_defaults(grp, out);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nitro_xml_opc::xml::parse_xml_str;
+
+    // Catches: layout `lvl1pPr` that only overrides `sz` dropping the master's `defRPr` colour.
+    #[test]
+    fn merge_level_style_keeps_master_color_when_override_only_sets_size() {
+        let master = parse_level_style_from_ppr(
+            &parse_xml_str(
+                r#"<a:lvl1pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <a:defRPr sz="4400"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:defRPr>
+                </a:lvl1pPr>"#,
+            )
+            .unwrap()
+            .root,
+        )
+        .unwrap();
+        let layout = parse_level_style_from_ppr(
+            &parse_xml_str(
+                r#"<a:lvl1pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <a:defRPr sz="6000"/>
+                </a:lvl1pPr>"#,
+            )
+            .unwrap()
+            .root,
+        )
+        .unwrap();
+        let merged = merge_level_style(&master, &layout);
+        assert_eq!(merged.text_color_hex.as_deref(), Some("#FFFFFF"));
+        assert!((merged.font_size_px.unwrap() - 80.0).abs() < 0.05);
+    }
+
+    // Catches: master `marL`/`indent`/`buChar` lost when layout level only tweaks alignment.
+    #[test]
+    fn merge_level_style_keeps_master_bullet_and_margins() {
+        let master = parse_level_style_from_ppr(
+            &parse_xml_str(
+                r#"<a:lvl2pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+ marL="914400" indent="-342900">
+                  <a:buChar char="•"/>
+                </a:lvl2pPr>"#,
+            )
+            .unwrap()
+            .root,
+        )
+        .unwrap();
+        let layout = parse_level_style_from_ppr(
+            &parse_xml_str(
+                r#"<a:lvl2pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" algn="l"/>"#,
+            )
+            .unwrap()
+            .root,
+        );
+        assert!(layout.is_none());
+        let merged = merge_level_style(&master, &PlaceholderTextLevelStyle::default());
+        assert_eq!(merged.bullet_char.as_deref(), Some("•"));
+        assert!((merged.margin_left_px.unwrap() - 96.0).abs() < 0.05);
+        assert!((merged.indent_px.unwrap() + 36.0).abs() < 0.05);
     }
 }

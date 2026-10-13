@@ -221,6 +221,7 @@ mod tests {
             font_size_px: None,
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             text_body_layout: None,

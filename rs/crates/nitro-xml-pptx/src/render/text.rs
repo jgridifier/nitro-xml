@@ -26,6 +26,7 @@ pub struct TextBodyPaint<'a> {
     pub font_size_px: Option<f64>,
     pub font_family: Option<&'a str>,
     pub font_bold: bool,
+    pub font_italic: bool,
     pub text_stroke_width_px: Option<f64>,
     pub text_stroke_color: Option<&'a str>,
     pub layout: Option<&'a TextBodyLayout>,
@@ -43,6 +44,7 @@ impl<'a> TextBodyPaint<'a> {
             font_size_px: el.font_size_px,
             font_family: el.font_family.as_deref(),
             font_bold: el.font_bold,
+            font_italic: el.font_italic,
             text_stroke_width_px: el.text_stroke_width_px,
             text_stroke_color: el.text_stroke_color.as_deref(),
             layout: el.text_body_layout.as_ref(),
@@ -124,6 +126,9 @@ pub fn paint_text_body<I: StringIntern>(
     if paint.font_bold {
         set_style(ctx, block, "font-weight", "700");
     }
+    if paint.font_italic {
+        set_style(ctx, block, "font-style", "italic");
+    }
     if let Some(color) = paint.text_color {
         set_style(ctx, block, "color", color);
     }
@@ -176,7 +181,16 @@ fn paint_run_typography<I: StringIntern>(
         "font-weight",
         if paint.font_bold { "700" } else { "normal" },
     );
-    set_style(ctx, run, "font-style", "normal");
+    set_style(
+        ctx,
+        run,
+        "font-style",
+        if paint.font_italic {
+            "italic"
+        } else {
+            "normal"
+        },
+    );
     if let Some(color) = paint.text_color {
         set_style(ctx, run, "color", color);
     }
@@ -211,6 +225,22 @@ fn paint_rich_paragraphs<I: StringIntern>(
         let para = create_child(ctx, block, "p");
         set_attr(ctx, para, "class", "pptxv-para");
         set_style(ctx, para, "margin", "0");
+        if let Some(margin_left) = para_model.margin_left_px {
+            set_style(
+                ctx,
+                para,
+                "margin-left",
+                &format!("{}px", format_px(margin_left)),
+            );
+        }
+        if let Some(text_indent) = para_model.text_indent_px {
+            set_style(
+                ctx,
+                para,
+                "text-indent",
+                &format!("{}px", format_px(text_indent)),
+            );
+        }
         if let Some(align) = css_align {
             set_style(ctx, para, "text-align", align.as_css());
         }
@@ -220,6 +250,17 @@ fn paint_rich_paragraphs<I: StringIntern>(
         } else {
             set_style(ctx, para, "direction", "ltr");
             set_style(ctx, para, "unicode-bidi", "embed");
+        }
+        if let Some(marker) = &para_model.bullet_marker {
+            paint_bullet_marker(
+                ctx,
+                para,
+                marker,
+                para_model.text_indent_px,
+                paint,
+                size,
+                stack,
+            );
         }
         for run_model in &para_model.runs {
             append_paint_run(
@@ -234,6 +275,28 @@ fn paint_rich_paragraphs<I: StringIntern>(
             );
         }
     }
+}
+
+fn paint_bullet_marker<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    para: u32,
+    marker: &str,
+    text_indent_px: Option<f64>,
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+) {
+    let bullet = create_child(ctx, para, "span");
+    set_attr(ctx, bullet, "data-pptx-bullet-marker", "");
+    set_style(ctx, bullet, "display", "inline-block");
+    set_style(ctx, bullet, "text-indent", "0px");
+    if let Some(hang) = text_indent_px.filter(|v| *v < 0.0) {
+        set_style(ctx, bullet, "min-width", &format!("{}px", format_px(-hang)));
+    } else {
+        set_style(ctx, bullet, "margin-inline-end", "0.35em");
+    }
+    set_text_content(ctx, bullet, marker);
+    paint_run_typography(ctx, bullet, paint, size, stack);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -732,6 +795,7 @@ mod tests {
             font_size_px: Some(16.0),
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: Some(2.0),
             text_stroke_color: None,
             layout: None,
@@ -756,6 +820,7 @@ mod tests {
             font_size_px: Some(16.0),
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: Some(3.31),
             text_stroke_color: Some("#000000"),
             layout: None,
@@ -779,6 +844,7 @@ mod tests {
             font_size_px: Some(16.0),
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -802,6 +868,7 @@ mod tests {
             font_size_px: Some(16.0),
             font_family: Some("Informal Roman"),
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -828,6 +895,7 @@ mod tests {
             font_size_px: Some(16.0),
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -875,6 +943,7 @@ mod tests {
             font_size_px: Some(16.0),
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -896,6 +965,7 @@ mod tests {
             font_size_px: Some(16.0),
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -924,6 +994,7 @@ mod tests {
                 font_size_px: Some(24.0),
                 font_family: Some("Arial"),
                 font_bold: false,
+                font_italic: false,
                 text_stroke_width_px: None,
                 text_stroke_color: None,
                 layout: None,
@@ -967,6 +1038,7 @@ mod tests {
             font_size_px: Some(16.0),
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: Some(&layout),
@@ -999,6 +1071,7 @@ mod tests {
             font_size_px: Some(16.0),
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: Some(&layout),
@@ -1032,6 +1105,7 @@ mod tests {
             font_size_px: None,
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,

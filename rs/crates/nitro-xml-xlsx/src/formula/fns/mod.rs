@@ -1,20 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/formula/functions/registry.ts
-// (Math & Trig and Statistical entries) and src/core/xlsx/formula/call.ts;
-// changes listed in PROVENANCE.md.
+// and src/core/xlsx/formula/call.ts; changes listed in PROVENANCE.md.
 //! Formula functions. Math & Trig and Statistical are #73. Logical, text, information
-//! and date & time are #74. Lookup, financial, engineering and the rest of the array
-//! family are `TODO(#75)`. The workbook calc graph is `TODO(#72)`.
+//! and date & time are #74. Lookup & Reference (including dynamic arrays), Financial
+//! and Engineering are #75. Database functions (DAVERAGE … DVARP) are `TODO(#75-followup)`.
+//! The workbook calc graph is `TODO(#72)`.
 
+mod array;
 mod coerce;
 mod criteria;
 mod datetime;
 mod dist;
+mod engineering;
 mod eval;
+mod financial;
 mod helpers;
 mod host;
 mod info;
 mod logical;
+mod lookup;
 mod math;
 mod ops;
 mod spec;
@@ -43,6 +47,10 @@ fn registry() -> &'static HashMap<String, FunctionSpec> {
             .chain(text::specs())
             .chain(info::specs())
             .chain(datetime::specs())
+            .chain(lookup::specs())
+            .chain(array::specs())
+            .chain(financial::specs())
+            .chain(engineering::specs())
         {
             map.insert(spec.name.to_ascii_uppercase(), spec);
         }
@@ -50,7 +58,7 @@ fn registry() -> &'static HashMap<String, FunctionSpec> {
     })
 }
 
-/// Upper-case function this crate implements (math, statistical, logical, text, information, date).
+/// Upper-case function this crate implements.
 pub fn get_function(name: &str) -> Option<&'static FunctionSpec> {
     registry().get(&name.to_ascii_uppercase())
 }

@@ -2,6 +2,7 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/formula/functions/datetime.ts,
 // workdays.ts and date-calc.ts; changes listed in PROVENANCE.md.
 //! Date & time functions, including NETWORKDAYS and WORKDAY.
+//! `serial_arg`, `add_months`, `days360` and `year_frac` are shared with financial functions.
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::cognitive_complexity)]
 
@@ -440,7 +441,7 @@ fn opt_num(ctx: &CallCtx<'_>, args: &[Value], index: usize, fallback: f64) -> Fx
     }
 }
 
-fn serial_arg(ctx: &CallCtx<'_>, value: &Value) -> Fx<f64> {
+pub(crate) fn serial_arg(ctx: &CallCtx<'_>, value: &Value) -> Fx<f64> {
     let n = num(ctx, value)?;
     if n < 0.0 || n > MAX_SERIAL + 0.99999999 {
         return Err(ErrorCode::Num);
@@ -518,7 +519,7 @@ fn time_fn(ctx: &CallCtx<'_>, args: &[Value]) -> Fx<Value> {
     Ok(Value::number(total % 86_400.0 / 86_400.0))
 }
 
-fn add_months(serial: f64, months: f64, date1904: bool, end_of_month: bool) -> Fx<f64> {
+pub(crate) fn add_months(serial: f64, months: f64, date1904: bool, end_of_month: bool) -> Fx<f64> {
     let serial = bounded(serial)?;
     let Ymd { year, month, day } = serial_to_ymd(serial, date1904);
     let total = i64::from(year) * 12 + i64::from(month - 1) + months.trunc() as i64;
@@ -626,7 +627,7 @@ fn datedif(start: f64, end: f64, unit: String, date1904: bool) -> Fx<f64> {
     Ok(f64::from(value))
 }
 
-fn days360(start: f64, end: f64, european: bool, date1904: bool) -> f64 {
+pub(crate) fn days360(start: f64, end: f64, european: bool, date1904: bool) -> f64 {
     let a = serial_to_ymd(start, date1904);
     let b = serial_to_ymd(end, date1904);
     let mut d1 = a.day;
@@ -673,7 +674,7 @@ fn year_frac_30(a: Ymd, b: Ymd) -> f64 {
     f64::from((b.year - a.year) * 360 + (b.month - a.month) * 30 + (d2 - d1)) / 360.0
 }
 
-fn year_frac(start: f64, end: f64, basis: f64, date1904: bool) -> Fx<f64> {
+pub(crate) fn year_frac(start: f64, end: f64, basis: f64, date1904: bool) -> Fx<f64> {
     let mut start = start.floor();
     let mut end = end.floor();
     if start > end {

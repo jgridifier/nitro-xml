@@ -148,6 +148,15 @@ pub fn moving_end(selection: &SheetSelection) -> CellAddress {
     }
 }
 
+/// Selection used for grid chrome paint when the file has no `sheetView/selection` node.
+/// Matches upstream `initialSelection` (active A1, one range).
+pub fn paint_selection(sheet: &ActiveWorksheet) -> SheetSelection {
+    if let Some(s) = sheet.view.selection.as_ref() {
+        return s.clone();
+    }
+    select_cell(sheet, CellAddress { row: 0, col: 0 })
+}
+
 /// A fresh one-cell selection at `at` (merge-expanded). Active stays on the clicked cell.
 pub fn select_cell(sheet: &ActiveWorksheet, at: CellAddress) -> SheetSelection {
     let range = expand_for_merges(sheet, cell_range(at));
@@ -315,6 +324,17 @@ mod tests {
             ext_lst: vec![],
             sparkline_groups: vec![],
         }
+    }
+
+    #[test]
+    fn catches_paint_selection_defaults_to_a1_when_view_has_none() {
+        // Catches: grid chrome without sheetView/selection must match upstream initialSelection (A1).
+        let sheet = sheet_with_merge();
+        assert!(sheet.view.selection.is_none());
+        let sel = paint_selection(&sheet);
+        assert_eq!(sel.active, CellAddress { row: 0, col: 0 });
+        assert_eq!(col_selected(&sel, 0), "part");
+        assert_eq!(row_selected(&sel, 0), "part");
     }
 
     #[test]

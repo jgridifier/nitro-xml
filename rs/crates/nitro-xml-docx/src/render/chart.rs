@@ -207,9 +207,9 @@ mod tests {
 
 #[cfg(test)]
 mod chrome_gate_tests {
-    use std::path::PathBuf;
-    use nitro_xml_opc::chart::parse_chart_space_xml;
     use super::docx_chart_svg;
+    use nitro_xml_opc::chart::parse_chart_space_xml;
+    use std::path::PathBuf;
 
     #[test]
     fn docx_chrome_emits_rich_title_runs() {

@@ -164,6 +164,7 @@ dependencies = [
  "nitro-xml-opc",
  "nitro-xml-pptx",
  "nitro-xml-xlsx",
+ "serde_json",
 ]
 
 [[package]]

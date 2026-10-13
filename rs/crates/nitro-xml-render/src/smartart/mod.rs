@@ -211,6 +211,8 @@ struct SpBox {
     paragraphs: Vec<TextParagraph>,
     text_frame: Option<TextFrameGeom>,
     font_color: String,
+    /// `dsp:style/a:fontRef` resolved explicitly (skip underlying-fill label pass).
+    label_font_from_ref: bool,
     /// Authored font size in CSS px when `a:rPr/@sz` is present (`sz/100 * 96/72`).
     font_size_px: Option<f64>,
     geom_name: String,
@@ -602,6 +604,7 @@ fn escape(s: &str) -> String {
 fn collect_shapes(root: &Element, scheme: Option<&BTreeMap<String, String>>) -> Vec<SpBox> {
     let mut out = Vec::new();
     walk_shapes(root, scheme, &mut out);
+    resolve_label_font_colors(&mut out);
     out
 }
 
@@ -651,7 +654,10 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
     };
     let paragraphs = text_paragraphs_of(sp);
     let text_frame = text_frame_of(sp);
-    let font_color = font_color_of(sp, scheme, &fill);
+    let (font_color, label_font_from_ref) = match font_ref_color(sp, scheme) {
+        Some(c) => (c, true),
+        None => (String::new(), false),
+    };
     let font_size_px = authored_font_size_px(sp);
     let rotation = attr_f64(xfrm, "rot").map(|r| r / 60_000.0);
     let flip_h =
@@ -683,6 +689,7 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         paragraphs,
         text_frame,
         font_color,
+        label_font_from_ref,
         font_size_px,
         geom_name,
         kind,
@@ -708,21 +715,87 @@ fn solid_fill_alpha(container: &Element) -> Option<f64> {
     Some((v / 100_000.0).clamp(0.0, 1.0))
 }
 
-fn font_color_of(sp: &Element, scheme: Option<&BTreeMap<String, String>>, fill: &str) -> String {
-    if let Some(style) = child_any(sp, "style") {
-        if let Some(font_ref) = child_any(style, "fontRef") {
-            if let Some(hex) = solid_hex_from_color_child(font_ref, scheme) {
-                return hex;
-            }
+fn font_ref_color(sp: &Element, scheme: Option<&BTreeMap<String, String>>) -> Option<String> {
+    let style = child_any(sp, "style")?;
+    let font_ref = child_any(style, "fontRef")?;
+    solid_hex_from_color_child(font_ref, scheme)
+}
+
+fn shape_label_center(shape: &SpBox) -> (f64, f64) {
+    if let Some(tf) = shape.text_frame.as_ref() {
+        return (tf.x + tf.w / 2.0, tf.y + tf.h / 2.0);
+    }
+    (shape.x + shape.w / 2.0, shape.y + shape.h / 2.0)
+}
+
+/// Paint-order search for a filled shape under this label (TS `underlyingFill`).
+fn underlying_fill(shape: &SpBox, shapes: &[SpBox], index: usize) -> Option<String> {
+    let (cx, cy) = shape_label_center(shape);
+    for below in (0..index).rev() {
+        let cand = &shapes[below];
+        if cand.fill == "none" || cand.is_pic {
+            continue;
+        }
+        if cx >= cand.x && cx <= cand.x + cand.w && cy >= cand.y && cy <= cand.y + cand.h {
+            return Some(blend_onto_white(&cand.fill, cand.fill_opacity));
         }
     }
-    // Contrast against fill (TS drawingShapeLabelColor): light fill → dark text.
-    if fill != "none" && relative_luminance(fill) > 0.55 {
-        "#222222".to_owned()
-    } else if fill != "none" {
-        "#FFFFFF".to_owned()
+    None
+}
+
+fn blend_onto_white(hex: &str, opacity: Option<f64>) -> String {
+    let opacity = opacity.filter(|o| *o < 0.999).unwrap_or(1.0);
+    if opacity >= 1.0 || !hex.starts_with('#') {
+        return hex.to_owned();
+    }
+    let raw = hex.trim_start_matches('#');
+    if raw.len() != 6 {
+        return hex.to_owned();
+    }
+    let parse = |s: &str| u8::from_str_radix(s, 16).unwrap_or(128);
+    let r = parse(&raw[0..2]);
+    let g = parse(&raw[2..4]);
+    let b = parse(&raw[4..6]);
+    let blend = |c: u8| ((f64::from(c) * opacity) + 255.0 * (1.0 - opacity)).round() as u8;
+    format!("#{:02X}{:02X}{:02X}", blend(r), blend(g), blend(b))
+}
+
+fn contrast_text_color(fill_basis: &str) -> String {
+    if relative_luminance(fill_basis) > 0.55 {
+        "#1a1a1a".to_owned()
     } else {
-        "#222222".to_owned()
+        "#FFFFFF".to_owned()
+    }
+}
+
+fn label_color_for_shape(shapes: &[SpBox], index: usize) -> String {
+    let shape = &shapes[index];
+    let basis = if shape.fill != "none" {
+        Some(blend_onto_white(&shape.fill, shape.fill_opacity))
+    } else {
+        underlying_fill(shape, shapes, index)
+    };
+    basis
+        .map(|b| contrast_text_color(&b))
+        .unwrap_or_else(|| "#1a1a1a".to_owned())
+}
+
+fn resolve_label_font_colors(shapes: &mut [SpBox]) {
+    let colors: Vec<String> = shapes
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            if s.label_font_from_ref {
+                s.font_color.clone()
+            } else {
+                label_color_for_shape(shapes, i)
+            }
+        })
+        .collect();
+    for (shape, color) in shapes.iter_mut().zip(colors) {
+        if !shape.label_font_from_ref {
+            shape.font_color = color;
+        }
     }
 }
 
@@ -1625,6 +1698,33 @@ mod tests {
         scheme.insert("accent1".to_owned(), "#156082".to_owned());
         let args = smartart_draw_args(Some(xml), Some(&scheme));
         assert_eq!(args[0].stroke, "#0E4B66", "got {:?}", args[0].stroke);
+    }
+
+    // Catches: noFill SmartArt label boxes keeping #222222 instead of contrast on the painted shape below.
+    #[test]
+    fn nofill_label_reads_contrast_from_shape_below() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="2000000" cy="1000000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="1f3864"/></a:solidFill>
+              </dsp:spPr>
+            </dsp:sp>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="100000" y="100000"/><a:ext cx="1800000" cy="800000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:noFill/>
+              </dsp:spPr>
+              <dsp:txBody><a:p><a:r><a:t>Heading</a:t></a:r></a:p></dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let args = smartart_draw_args(Some(xml), None);
+        assert_eq!(args.len(), 2);
+        assert_eq!(args[1].font_color, "#FFFFFF", "{:?}", args);
     }
 
     // Catches: node labels ignoring `dsp:style/a:fontRef` `lt1` and using dark contrast on accent1 fill.

@@ -11,13 +11,16 @@
 //! frames are still dropped. Used by pptx; xlsx/docx can call the same entry.
 
 mod circular_arrow;
+mod text_wrap_estimate;
+
+use text_wrap_estimate::{drawing_text_base_line_height_ratio, wrap_text_by_estimated_width};
 
 use std::collections::BTreeMap;
 
 use nitro_xml_opc::drawingml::{
     emu_to_pixels, evaluate_preset_shape, ooxml_arc_to_svg, parse_drawing_color_in,
     parse_drawing_geometry, resolve_drawing_color, DrawingColorTheme, DrawingPath,
-    DrawingPathCommand,
+    DrawingPathCommand, EMU_PER_PIXEL,
 };
 use nitro_xml_opc::xml::{parse_xml_str, Element, Node};
 
@@ -26,6 +29,16 @@ const EMU_PER_SMARTART_LINE_WIDTH: f64 = 12700.0;
 
 fn smartart_ln_width_emu_to_svg(emu: f64) -> f64 {
     emu / EMU_PER_SMARTART_LINE_WIDTH
+}
+
+/// Match TS `parseDrawingShape`: `Math.round(emu / EMU_PER_PX)` for shape boxes.
+fn smartart_drawing_css_px(emu: i64) -> f64 {
+    (emu as f64 / EMU_PER_PIXEL as f64).round()
+}
+
+fn smartart_drawing_emu_attr_px(el: &Element, name: &str) -> Option<f64> {
+    let emu = attr_str(el, name)?.parse::<i64>().ok()?;
+    Some(smartart_drawing_css_px(emu))
 }
 
 struct SchemeMap<'a>(&'a BTreeMap<String, String>);
@@ -169,12 +182,18 @@ struct TextFrameGeom {
 #[derive(Clone)]
 struct TextRun {
     text: String,
+    /// Parsed for parity with OOXML; SmartArt label paint uses shape-level first-run size (TS).
+    #[allow(dead_code)]
     font_size_px: Option<f64>,
 }
 
 #[derive(Clone)]
 struct TextParagraph {
     runs: Vec<TextRun>,
+    /// `a:lnSpc/a:spcPct/@val` as a multiplier (90000 → 0.9).
+    line_spacing_ratio: Option<f64>,
+    /// `a:spcAft/a:spcPct/@val` as a multiplier added to the line-height ratio.
+    space_after_ratio: Option<f64>,
 }
 
 struct SpBox {
@@ -409,7 +428,8 @@ fn text_layout_metrics(shape: &SpBox, stroke: f64) -> (f64, f64, f64, f64) {
 
 fn paragraph_to_lines(
     para: &TextParagraph,
-    base_font: f64,
+    label_font: f64,
+    wrap_font: f64,
     max_width: f64,
 ) -> Vec<Vec<(String, f64)>> {
     if para.runs.is_empty() {
@@ -417,66 +437,90 @@ fn paragraph_to_lines(
     }
     if para.runs.len() == 1 {
         let run = &para.runs[0];
-        let font = run.font_size_px.unwrap_or(base_font);
-        let wrapped = wrap_smartart_text(&run.text, font, max_width);
-        return wrapped.into_iter().map(|line| vec![(line, font)]).collect();
+        let wrapped = wrap_text_by_estimated_width(&run.text, max_width, wrap_font);
+        if wrapped.is_empty() {
+            return vec![vec![(run.text.clone(), label_font)]];
+        }
+        return wrapped
+            .into_iter()
+            .map(|line| vec![(line, label_font)])
+            .collect();
     }
-    let max_run_font = para
-        .runs
-        .iter()
-        .map(|r| r.font_size_px.unwrap_or(base_font))
-        .fold(base_font, f64::max);
     let joined = para
         .runs
         .iter()
         .map(|r| r.text.as_str())
         .collect::<String>();
-    let wrapped = wrap_smartart_text(&joined, max_run_font, max_width);
+    let wrapped = wrap_text_by_estimated_width(&joined, max_width, wrap_font);
     if wrapped.len() <= 1 {
         return vec![para
             .runs
             .iter()
-            .map(|r| (r.text.clone(), r.font_size_px.unwrap_or(base_font)))
+            .map(|r| (r.text.clone(), label_font))
             .collect()];
     }
     wrapped
         .into_iter()
-        .map(|line| vec![(line, max_run_font)])
+        .map(|line| vec![(line, label_font)])
         .collect()
 }
 
+/// First authored run size (`extractDrawingShapeTextStyle` / `projectDrawingShapes`).
+fn shape_label_font(shape: &SpBox, stroke: f64) -> f64 {
+    shape
+        .font_size_px
+        .unwrap_or_else(|| default_label_font(shape, stroke))
+}
+
+/// Line box ratio from the first paragraph only (TS `projectDrawingShapes` shape fields).
+fn shape_line_height_ratio(shape: &SpBox) -> f64 {
+    let shape_text = shape.flat_text();
+    let para = shape.paragraphs.first();
+    let ln = para.and_then(|p| p.line_spacing_ratio).unwrap_or(1.0);
+    let aft = para.and_then(|p| p.space_after_ratio).unwrap_or(0.0);
+    drawing_text_base_line_height_ratio(&shape_text) * ln + aft
+}
+
 fn layout_shape_text(shape: &SpBox, stroke: f64) -> Vec<PositionedTextLine> {
-    let (_text_cx, text_cy, max_width, base_font) = text_layout_metrics(shape, stroke);
-    let mut logical_lines: Vec<Vec<(String, f64)>> = Vec::new();
+    let label_font = shape_label_font(shape, stroke);
+    let (_text_cx, text_cy, max_width, _) = text_layout_metrics(shape, stroke);
+    let line_height_ratio = shape_line_height_ratio(shape);
+    let mut logical_lines: Vec<(Vec<(String, f64)>, f64)> = Vec::new();
     for para in &shape.paragraphs {
-        logical_lines.extend(paragraph_to_lines(para, base_font, max_width));
+        for line in paragraph_to_lines(para, label_font, label_font, max_width) {
+            logical_lines.push((line, line_height_ratio));
+        }
     }
     if logical_lines.is_empty() {
         return Vec::new();
     }
-    let line_height_ratio = 1.2;
     let line_heights: Vec<f64> = logical_lines
         .iter()
-        .map(|spans| {
-            spans
-                .iter()
-                .map(|(_, sz)| sz * line_height_ratio)
-                .fold(0.0, f64::max)
-                .max(base_font * line_height_ratio)
-        })
+        .map(|(_, ratio)| label_font * ratio)
         .collect();
     let total_h = line_heights.iter().sum::<f64>();
     let mut y = text_cy - total_h / 2.0;
     logical_lines
         .into_iter()
         .zip(line_heights)
-        .map(|(spans, lh)| {
+        .map(|((spans, _), lh)| {
             y += lh / 2.0;
             let line = PositionedTextLine { y, spans };
             y += lh / 2.0;
             line
         })
         .collect()
+}
+
+fn spacing_pct_from_p_pr(p_pr: &Element, local: &str) -> Option<f64> {
+    let spacing = child_any(p_pr, local)?;
+    let spc_pct = child_any(spacing, "spcPct")?;
+    let val = attr_f64(spc_pct, "val")?;
+    if val > 0.0 {
+        Some(val / 100_000.0)
+    } else {
+        None
+    }
 }
 
 fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64) {
@@ -510,36 +554,6 @@ fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64) {
         }
         body.push_str("</text>");
     }
-}
-
-fn wrap_smartart_text(text: &str, font: f64, max_width: f64) -> Vec<String> {
-    let char_w = font * 0.55;
-    if char_w <= 0.0 || max_width <= 0.0 {
-        return vec![text.to_owned()];
-    }
-    let max_chars = (max_width / char_w).floor().max(1.0) as usize;
-    let mut lines = Vec::new();
-    let mut current = String::new();
-    for word in text.split_whitespace() {
-        if current.is_empty() {
-            current = word.to_owned();
-            continue;
-        }
-        if current.len() + 1 + word.len() <= max_chars {
-            current.push(' ');
-            current.push_str(word);
-        } else {
-            lines.push(std::mem::take(&mut current));
-            current = word.to_owned();
-        }
-    }
-    if !current.is_empty() {
-        lines.push(current);
-    }
-    if lines.is_empty() {
-        lines.push(text.to_owned());
-    }
-    lines
 }
 
 fn num(v: f64) -> String {
@@ -587,11 +601,11 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
     let xfrm = child_any(sp_pr, "xfrm")?;
     let off = child_any(xfrm, "off")?;
     let ext = child_any(xfrm, "ext")?;
-    // Match TS `parseDrawingShape`: geometry + labels live in CSS px (EMU / 9525).
-    let x = emu_to_pixels(attr_f64(off, "x")? as i64);
-    let y = emu_to_pixels(attr_f64(off, "y")? as i64);
-    let w = emu_to_pixels(attr_f64(ext, "cx")? as i64);
-    let h = emu_to_pixels(attr_f64(ext, "cy")? as i64);
+    // Match TS `parseDrawingShape`: geometry + labels live in rounded CSS px.
+    let x = smartart_drawing_emu_attr_px(off, "x")?;
+    let y = smartart_drawing_emu_attr_px(off, "y")?;
+    let w = smartart_drawing_emu_attr_px(ext, "cx")?;
+    let h = smartart_drawing_emu_attr_px(ext, "cy")?;
     if w <= 0.0 || h <= 0.0 {
         return None;
     }
@@ -627,6 +641,8 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         parsed.adjustments.as_ref(),
         parsed.paths.as_deref(),
     );
+    let kind =
+        smartart_custgeom_paint_kind(&geom_name, &paragraphs, no_fill, stroke_width, w, h, kind);
 
     Some(SpBox {
         x,
@@ -718,6 +734,44 @@ fn relative_luminance(hex: &str) -> f64 {
         return 0.5;
     };
     (0.2126 * f64::from(r) + 0.7152 * f64::from(g) + 0.0722 * f64::from(b)) / 255.0
+}
+
+/// Match TS `projectDrawingShapes` + `getPresetShapeVectorGeometry` for cached
+/// `shapeType: "custom"`: preset clip-path resolution fails, so `outlinePathData`
+/// strokes the shape box as a closed rectangle instead of the authored polyline.
+fn smartart_custgeom_paint_kind(
+    geom_name: &str,
+    paragraphs: &[TextParagraph],
+    no_fill: bool,
+    stroke_width: f64,
+    w: f64,
+    h: f64,
+    kind: ShapeKind,
+) -> ShapeKind {
+    if geom_name != "custom" || !no_fill || stroke_width <= 0.0 {
+        return kind;
+    }
+    let has_text = paragraphs
+        .iter()
+        .any(|p| p.runs.iter().any(|r| !r.text.trim().is_empty()));
+    if has_text {
+        return kind;
+    }
+    ShapeKind::Path {
+        d: outline_rect_path_data(w, h),
+    }
+}
+
+fn outline_rect_path_data(width: f64, height: f64) -> String {
+    let w = width.max(1.0);
+    let h = height.max(1.0);
+    format!(
+        "M 0 0 L {} 0 L {} {} L 0 {} Z",
+        num(w),
+        num(w),
+        num(h),
+        num(h)
+    )
 }
 
 fn resolve_kind(
@@ -972,6 +1026,8 @@ fn text_paragraphs_of(sp: &Element) -> Vec<TextParagraph> {
                     text: joined,
                     font_size_px: None,
                 }],
+                line_spacing_ratio: None,
+                space_after_ratio: None,
             });
         }
     }
@@ -984,7 +1040,12 @@ fn collect_tx_paragraphs(tx_body: &Element, out: &mut Vec<TextParagraph>) {
         if node.local == "p" {
             let runs = paragraph_runs(node);
             if runs.iter().any(|r| !r.text.is_empty()) {
-                out.push(TextParagraph { runs });
+                let p_pr = child_any(node, "pPr");
+                out.push(TextParagraph {
+                    runs,
+                    line_spacing_ratio: p_pr.and_then(|p| spacing_pct_from_p_pr(p, "lnSpc")),
+                    space_after_ratio: p_pr.and_then(|p| spacing_pct_from_p_pr(p, "spcAft")),
+                });
             }
             continue;
         }
@@ -1221,6 +1282,37 @@ mod tests {
         assert!(svg.contains("font-size=\"10\""), "{svg}");
     }
 
+    // Catches: SmartArt xfrm extents stay fractional (139910 EMU → 14.69px) so connector
+    // outline rects and node boxes drift from TS Math.round(EMU/9525).
+    #[test]
+    fn drawing_shape_extents_round_like_parse_drawing_shape() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="6381238" y="669943"/><a:ext cx="139910" cy="612939"/></a:xfrm>
+                <a:custGeom><a:pathLst><a:path><a:moveTo><a:pt x="139910" y="0"/></a:moveTo></a:path></a:pathLst></a:custGeom>
+                <a:noFill/>
+                <a:ln w="19050"><a:solidFill><a:srgbClr val="34599C"/></a:solidFill></a:ln>
+              </dsp:spPr>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let args = smartart_draw_args(Some(xml), None);
+        assert_eq!(args.len(), 1);
+        assert_eq!(args[0].w, 15.0);
+        assert_eq!(args[0].h, 64.0);
+        let svg = smartart_svg(Some(xml), 200.0, 200.0);
+        assert!(
+            svg.contains("L 15 0 L 15 64"),
+            "outline rect must use rounded box: {svg}"
+        );
+        assert!(
+            !svg.contains("14.69"),
+            "fractional extent leaks into path: {svg}"
+        );
+    }
+
     // Catches: noFill text frames inventing a grey stroke rectangle around SmartArt labels.
     #[test]
     fn text_only_nofill_frame_emits_text_without_body() {
@@ -1271,7 +1363,7 @@ mod tests {
         );
     }
 
-    // Catches: orgchart fan connectors (textless custGeom + noFill + ln) dropped from the SVG.
+    // Catches: orgchart fan connectors (textless custGeom + noFill + ln) painted as polylines instead of TS outlinePathData box rects.
     #[test]
     fn custgeom_stroke_connector_kept() {
         let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
@@ -1304,9 +1396,15 @@ mod tests {
             "expected EMU/12700 stroke width, got {:?}",
             args[0].stroke_width
         );
+        assert_eq!(args[0].w, 19.0);
+        assert_eq!(args[0].h, 84.0);
         let svg = smartart_svg(Some(xml), 120.0, 200.0);
         assert!(svg.contains("<path "), "{svg}");
         assert!(svg.contains("fill=\"none\""), "{svg}");
+        assert!(
+            svg.contains("L 19 0 L 19 84"),
+            "expected closed box outline path: {svg}"
+        );
         assert!(
             svg.contains("stroke-width=\"1.5\""),
             "TS parseDrawingShape uses 19050/12700 = 1.5px: {svg}"
@@ -1354,7 +1452,7 @@ mod tests {
         );
     }
 
-    // Catches: text-cycle flattening multiple a:p into one wrapped line and dropping per-run sz.
+    // Catches: text-cycle flattening multiple a:p into one wrapped line; label font is first-run sz for all lines (TS projectDrawingShapes).
     #[test]
     fn paragraph_breaks_and_per_run_font_sizes_preserved() {
         let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
@@ -1377,15 +1475,61 @@ mod tests {
         assert!(svg.contains(">Big<"), "{svg}");
         assert!(
             svg.contains("font-size=\"26.67") || svg.contains("font-size=\"26.6"),
-            "{svg}"
+            "both paragraphs use first-run font size: {svg}"
         );
         assert!(
-            svg.contains("font-size=\"53.33") || svg.contains("font-size=\"53.3"),
-            "{svg}"
+            !svg.contains("font-size=\"53.33") && !svg.contains("font-size=\"53.3"),
+            "lvl-1 run sz must not override shape label font: {svg}"
         );
         assert!(
             !svg.contains(">Small Big<") && !svg.contains(">Small<Big<"),
             "paragraphs must not merge: {svg}"
+        );
+    }
+
+    // Catches: SmartArt labels ignoring a:lnSpc/a:spcAft and always using 1.2× line height.
+    #[test]
+    fn paragraph_ln_spc_and_spc_aft_adjust_label_line_spacing() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="4000000" cy="2000000"/></a:xfrm>
+                <a:solidFill><a:srgbClr val="156082"/></a:solidFill>
+              </dsp:spPr>
+              <dsp:txBody>
+                <a:p>
+                  <a:pPr>
+                    <a:lnSpc><a:spcPct val="50000"/></a:lnSpc>
+                    <a:spcAft><a:spcPct val="10000"/></a:spcAft>
+                  </a:pPr>
+                  <a:r><a:rPr sz="2400"/><a:t>Alpha</a:t></a:r>
+                </a:p>
+                <a:p><a:r><a:rPr sz="2400"/><a:t>Beta</a:t></a:r></a:p>
+              </dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let svg = smartart_svg(Some(xml), 400.0, 200.0);
+        let ys: Vec<f64> = svg
+            .split("<text ")
+            .skip(1)
+            .filter_map(|chunk| {
+                chunk
+                    .split("y=\"")
+                    .nth(1)
+                    .and_then(|rest| rest.split('"').next())
+                    .and_then(|y| y.parse().ok())
+            })
+            .collect();
+        assert_eq!(ys.len(), 2, "expected two label lines: {svg}");
+        let font_px = 24.0 * (96.0 / 72.0);
+        // TS uses first-paragraph lnSpc/spcAft for every line in the shape label block.
+        let expected_gap = font_px * (1.2 * 0.5 + 0.1);
+        let actual_gap = (ys[1] - ys[0]).abs();
+        assert!(
+            (actual_gap - expected_gap).abs() < 0.5,
+            "line gap {actual_gap} should reflect first-paragraph lnSpc+spcAft (~{expected_gap}): {svg}"
         );
     }
 

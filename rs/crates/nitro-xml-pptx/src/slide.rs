@@ -2672,8 +2672,8 @@ fn rpr_text_stroke(rpr: &Element, theme: SchemeTheme<'_>) -> (Option<f64>, Optio
     let width = line.width_emu.filter(|w| *w > 0).map(emu_to_pixels);
     let color = match &line.fill {
         Some(DrawingFill::Solid { color }) => css_color(color, theme, false),
-        Some(fill) => gradient_flat_color(fill, &theme, false),
-        None => None,
+        // gradFill / other non-solid: paint uses `currentColor` (matches upstream text-outline).
+        _ => None,
     };
     (width, color)
 }
@@ -3548,9 +3548,9 @@ mod tests {
         }
     }
 
-    // Catches: gradFill text outline ln with no solidFill leaves stroke color unset for paint.
+    // Catches: Selamat-like gradFill ln must not flatten first stop into teal text-stroke.
     #[test]
-    fn first_run_text_stroke_uses_first_gradient_stop() {
+    fn gradfill_text_outline_leaves_stroke_color_unset_for_current_color() {
         let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
           <p:nvSpPr><p:cNvPr id="1" name="T"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
           <p:spPr>
@@ -3575,7 +3575,8 @@ mod tests {
         let doc = parse_xml_str(xml).unwrap();
         let colors = theme();
         let el = parse_shape(&doc.root, "s".into(), &ctx(&colors), false).unwrap();
-        assert_eq!(el.text_stroke_color.as_deref(), Some("#FF0000"));
+        assert!(el.text_stroke_width_px.unwrap() > 0.0);
+        assert_eq!(el.text_stroke_color, None);
     }
 
     // Catches: Informal Roman bold + black text outline from first-run a:rPr left unpainted.

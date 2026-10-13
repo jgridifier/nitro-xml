@@ -1809,9 +1809,10 @@ mod tests {
 <dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><dsp:spTree>"#,
         );
         for (i, label) in labels.iter().enumerate() {
-            let y = i * 50;
+            // Real diagram drawings store EMU (TS `parseDrawingShape` rounds EMU/9525).
+            let y = i * 476_250;
             body.push_str(&format!(
-                r#"<dsp:sp><dsp:spPr><a:xfrm><a:off x="0" y="{y}"/><a:ext cx="200" cy="40"/></a:xfrm><a:solidFill><a:srgbClr val="4472C4"/></a:solidFill></dsp:spPr><dsp:txBody><a:p><a:r><a:t>{label}</a:t></a:r></a:p></dsp:txBody></dsp:sp>"#
+                r#"<dsp:sp><dsp:spPr><a:xfrm><a:off x="0" y="{y}"/><a:ext cx="914400" cy="457200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="4472C4"/></a:solidFill></dsp:spPr><dsp:txBody><a:p><a:r><a:t>{label}</a:t></a:r></a:p></dsp:txBody></dsp:sp>"#
             ));
         }
         body.push_str("</dsp:spTree></dsp:drawing>");

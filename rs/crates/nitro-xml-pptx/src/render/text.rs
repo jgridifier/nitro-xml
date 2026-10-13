@@ -9,6 +9,7 @@ use super::dom::{create_child, position_box, set_attr, set_style, set_text_conte
 use super::font_substitution::substitute_font_family_stack;
 use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
 use crate::slide::DumpElement;
+use crate::text_body_rect::{resolve_text_body_rect_padding, TextBodyRectPadding};
 use crate::text_layout::{TextBodyLayout, TextBodyVAlign};
 
 #[derive(Clone, Copy)]
@@ -21,6 +22,7 @@ pub struct TextBodyPaint<'a> {
     pub text_stroke_color: Option<&'a str>,
     pub layout: Option<&'a TextBodyLayout>,
     pub text_shadow: Option<&'a str>,
+    pub geom_rect_padding: TextBodyRectPadding,
 }
 
 impl<'a> TextBodyPaint<'a> {
@@ -34,6 +36,12 @@ impl<'a> TextBodyPaint<'a> {
             text_stroke_color: el.text_stroke_color.as_deref(),
             layout: el.text_body_layout.as_ref(),
             text_shadow: el.text_shadow.as_deref(),
+            geom_rect_padding: resolve_text_body_rect_padding(
+                el.shape_type.as_deref(),
+                el.width,
+                el.height,
+                None,
+            ),
         }
     }
 }
@@ -79,7 +87,9 @@ pub fn paint_text_body<I: StringIntern>(
         set_style(ctx, block, "flex-direction", "column");
     }
     if let Some(layout) = paint.layout {
-        apply_text_body_layout(ctx, block, layout);
+        apply_text_body_layout(ctx, block, layout, paint.geom_rect_padding);
+    } else if paint.geom_rect_padding != TextBodyRectPadding::default() {
+        apply_geom_rect_padding_only(ctx, block, paint.geom_rect_padding);
     }
     let size = paint.font_size_px.unwrap_or(24.0).max(1.0);
     let stack = substitute_font_family_stack(paint.font_family);
@@ -130,10 +140,25 @@ fn append_paragraph_text<I: StringIntern>(ctx: &mut PaintContext<'_, I>, block: 
     set_text_content(ctx, para, text);
 }
 
+fn apply_geom_rect_padding_only<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    block: u32,
+    rect: TextBodyRectPadding,
+) {
+    set_style(ctx, block, "box-sizing", "border-box");
+    set_style(ctx, block, "width", "100%");
+    set_style(ctx, block, "height", "100%");
+    set_style(ctx, block, "padding-top", &format_px(rect.top));
+    set_style(ctx, block, "padding-bottom", &format_px(rect.bottom));
+    set_style(ctx, block, "padding-left", &format_px(rect.left));
+    set_style(ctx, block, "padding-right", &format_px(rect.right));
+}
+
 fn apply_text_body_layout<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     block: u32,
     layout: &TextBodyLayout,
+    rect: TextBodyRectPadding,
 ) {
     let justify = match layout.v_align {
         TextBodyVAlign::Top => "flex-start",
@@ -144,19 +169,29 @@ fn apply_text_body_layout<I: StringIntern>(
     if let Some(align) = layout.text_align {
         set_style(ctx, block, "text-align", align.as_css());
     }
-    set_style(ctx, block, "padding-top", &format_px(layout.inset_top_px));
+    set_style(
+        ctx,
+        block,
+        "padding-top",
+        &format_px(layout.inset_top_px + rect.top),
+    );
     set_style(
         ctx,
         block,
         "padding-bottom",
-        &format_px(layout.inset_bottom_px),
+        &format_px(layout.inset_bottom_px + rect.bottom),
     );
-    set_style(ctx, block, "padding-left", &format_px(layout.inset_left_px));
+    set_style(
+        ctx,
+        block,
+        "padding-left",
+        &format_px(layout.inset_left_px + rect.left),
+    );
     set_style(
         ctx,
         block,
         "padding-right",
-        &format_px(layout.inset_right_px),
+        &format_px(layout.inset_right_px + rect.right),
     );
 }
 
@@ -178,6 +213,8 @@ mod tests {
 
     use super::super::context::{PaintContext, StringIntern};
     use super::super::view_ir::ViewIrCollector;
+    use crate::text_body_rect::TextBodyRectPadding;
+
     use super::{paint_text_body, TextBodyPaint};
 
     struct Intern(Vec<String>);
@@ -230,6 +267,7 @@ mod tests {
             text_stroke_color: None,
             layout: None,
             text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
         });
         assert!(
             intern.0.iter().any(|s| s == "2px currentColor"),
@@ -251,6 +289,7 @@ mod tests {
             text_stroke_color: Some("#000000"),
             layout: None,
             text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
         });
         assert!(
             intern.0.iter().any(|s| s == "3.31px #000000"),
@@ -271,6 +310,7 @@ mod tests {
             text_stroke_color: None,
             layout: None,
             text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
         });
         assert!(
             intern.0.iter().any(|s| s == "1.2"),
@@ -291,6 +331,7 @@ mod tests {
             text_stroke_color: None,
             layout: None,
             text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
         });
         assert!(
             intern
@@ -314,6 +355,7 @@ mod tests {
             text_stroke_color: None,
             layout: None,
             text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
         });
         assert!(intern.0.iter().any(|s| s == "pptxv-para"));
         assert!(intern.0.iter().any(|s| s == "p"));
@@ -331,6 +373,7 @@ mod tests {
             text_stroke_color: None,
             layout: None,
             text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
         });
         assert!(
             intern.0.iter().any(|s| s == "24px"),

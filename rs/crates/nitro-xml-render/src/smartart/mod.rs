@@ -172,6 +172,8 @@ struct TextFrameGeom {
 #[derive(Clone)]
 struct TextRun {
     text: String,
+    /// Parsed for parity with OOXML; SmartArt label paint uses shape-level first-run size (TS).
+    #[allow(dead_code)]
     font_size_px: Option<f64>,
 }
 
@@ -416,7 +418,7 @@ fn text_layout_metrics(shape: &SpBox, stroke: f64) -> (f64, f64, f64, f64) {
 
 fn paragraph_to_lines(
     para: &TextParagraph,
-    base_font: f64,
+    label_font: f64,
     wrap_font: f64,
     max_width: f64,
 ) -> Vec<Vec<(String, f64)>> {
@@ -425,18 +427,15 @@ fn paragraph_to_lines(
     }
     if para.runs.len() == 1 {
         let run = &para.runs[0];
-        let font = run.font_size_px.unwrap_or(base_font);
         let wrapped = wrap_text_by_estimated_width(&run.text, max_width, wrap_font);
         if wrapped.is_empty() {
-            return vec![vec![(run.text.clone(), font)]];
+            return vec![vec![(run.text.clone(), label_font)]];
         }
-        return wrapped.into_iter().map(|line| vec![(line, font)]).collect();
+        return wrapped
+            .into_iter()
+            .map(|line| vec![(line, label_font)])
+            .collect();
     }
-    let max_run_font = para
-        .runs
-        .iter()
-        .map(|r| r.font_size_px.unwrap_or(base_font))
-        .fold(base_font, f64::max);
     let joined = para
         .runs
         .iter()
@@ -447,23 +446,38 @@ fn paragraph_to_lines(
         return vec![para
             .runs
             .iter()
-            .map(|r| (r.text.clone(), r.font_size_px.unwrap_or(base_font)))
+            .map(|r| (r.text.clone(), label_font))
             .collect()];
     }
     wrapped
         .into_iter()
-        .map(|line| vec![(line, max_run_font)])
+        .map(|line| vec![(line, label_font)])
         .collect()
 }
 
-fn layout_shape_text(shape: &SpBox, stroke: f64) -> Vec<PositionedTextLine> {
-    let (_text_cx, text_cy, max_width, base_font) = text_layout_metrics(shape, stroke);
+/// First authored run size (`extractDrawingShapeTextStyle` / `projectDrawingShapes`).
+fn shape_label_font(shape: &SpBox, stroke: f64) -> f64 {
+    shape
+        .font_size_px
+        .unwrap_or_else(|| default_label_font(shape, stroke))
+}
+
+/// Line box ratio from the first paragraph only (TS `projectDrawingShapes` shape fields).
+fn shape_line_height_ratio(shape: &SpBox) -> f64 {
     let shape_text = shape.flat_text();
-    let wrap_font = base_font;
+    let para = shape.paragraphs.first();
+    let ln = para.and_then(|p| p.line_spacing_ratio).unwrap_or(1.0);
+    let aft = para.and_then(|p| p.space_after_ratio).unwrap_or(0.0);
+    drawing_text_base_line_height_ratio(&shape_text) * ln + aft
+}
+
+fn layout_shape_text(shape: &SpBox, stroke: f64) -> Vec<PositionedTextLine> {
+    let label_font = shape_label_font(shape, stroke);
+    let (_text_cx, text_cy, max_width, _) = text_layout_metrics(shape, stroke);
+    let line_height_ratio = shape_line_height_ratio(shape);
     let mut logical_lines: Vec<(Vec<(String, f64)>, f64)> = Vec::new();
     for para in &shape.paragraphs {
-        let line_height_ratio = paragraph_line_height_ratio(para, &shape_text);
-        for line in paragraph_to_lines(para, base_font, wrap_font, max_width) {
+        for line in paragraph_to_lines(para, label_font, label_font, max_width) {
             logical_lines.push((line, line_height_ratio));
         }
     }
@@ -472,10 +486,7 @@ fn layout_shape_text(shape: &SpBox, stroke: f64) -> Vec<PositionedTextLine> {
     }
     let line_heights: Vec<f64> = logical_lines
         .iter()
-        .map(|(spans, ratio)| {
-            let max_sz = spans.iter().map(|(_, sz)| *sz).fold(base_font, f64::max);
-            max_sz * ratio
-        })
+        .map(|(_, ratio)| label_font * ratio)
         .collect();
     let total_h = line_heights.iter().sum::<f64>();
     let mut y = text_cy - total_h / 2.0;
@@ -489,12 +500,6 @@ fn layout_shape_text(shape: &SpBox, stroke: f64) -> Vec<PositionedTextLine> {
             line
         })
         .collect()
-}
-
-fn paragraph_line_height_ratio(para: &TextParagraph, shape_text: &str) -> f64 {
-    let ln = para.line_spacing_ratio.unwrap_or(1.0);
-    let aft = para.space_after_ratio.unwrap_or(0.0);
-    drawing_text_base_line_height_ratio(shape_text) * ln + aft
 }
 
 fn spacing_pct_from_p_pr(p_pr: &Element, local: &str) -> Option<f64> {
@@ -1409,7 +1414,7 @@ mod tests {
         );
     }
 
-    // Catches: text-cycle flattening multiple a:p into one wrapped line and dropping per-run sz.
+    // Catches: text-cycle flattening multiple a:p into one wrapped line; label font is first-run sz for all lines (TS projectDrawingShapes).
     #[test]
     fn paragraph_breaks_and_per_run_font_sizes_preserved() {
         let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
@@ -1432,11 +1437,11 @@ mod tests {
         assert!(svg.contains(">Big<"), "{svg}");
         assert!(
             svg.contains("font-size=\"26.67") || svg.contains("font-size=\"26.6"),
-            "{svg}"
+            "both paragraphs use first-run font size: {svg}"
         );
         assert!(
-            svg.contains("font-size=\"53.33") || svg.contains("font-size=\"53.3"),
-            "{svg}"
+            !svg.contains("font-size=\"53.33") && !svg.contains("font-size=\"53.3"),
+            "lvl-1 run sz must not override shape label font: {svg}"
         );
         assert!(
             !svg.contains(">Small Big<") && !svg.contains(">Small<Big<"),
@@ -1481,13 +1486,12 @@ mod tests {
             .collect();
         assert_eq!(ys.len(), 2, "expected two label lines: {svg}");
         let font_px = 24.0 * (96.0 / 72.0);
-        let tight = font_px * (1.2 * 0.5 + 0.1);
-        let default_line = font_px * 1.2;
-        let expected_gap = tight / 2.0 + default_line / 2.0;
+        // TS uses first-paragraph lnSpc/spcAft for every line in the shape label block.
+        let expected_gap = font_px * (1.2 * 0.5 + 0.1);
         let actual_gap = (ys[1] - ys[0]).abs();
         assert!(
             (actual_gap - expected_gap).abs() < 0.5,
-            "line gap {actual_gap} should reflect lnSpc+spcAft (~{expected_gap}): {svg}"
+            "line gap {actual_gap} should reflect first-paragraph lnSpc+spcAft (~{expected_gap}): {svg}"
         );
     }
 

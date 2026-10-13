@@ -205,6 +205,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             text_body_layout: None,
+            presentation_kinsoku: false,
             auto_fit_mode: None,
             chart_r_id: None,
             chart_xml: None,

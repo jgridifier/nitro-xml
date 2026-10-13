@@ -10,10 +10,12 @@ use super::font_substitution::substitute_font_family_stack;
 use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
 use crate::slide::DumpElement;
 use crate::text_body_rect::{resolve_text_body_rect_padding, TextBodyRectPadding};
-use crate::text_layout::{TextBodyLayout, TextBodyVAlign};
+use crate::text_layout::{TextAlignCss, TextBodyLayout, TextBodyVAlign};
 
 /// Loader `fillMeasureWidths` sentinel: returns GDI letter-spacing px/char (upstream `text-metric-tracking`).
 const SIZE_PPTX_METRIC_TRACKING: f32 = -3.0;
+/// Visual host pins run glyphs to Liberation (`#ts-wrap *` / shadow font-pin); block keeps `DEFAULT_FONT_FAMILY`.
+const VISUAL_HOST_RUN_FONT_STACK: &str = "\"Liberation Sans\", Arial, sans-serif";
 
 #[derive(Clone, Copy)]
 pub struct TextBodyPaint<'a> {
@@ -26,6 +28,8 @@ pub struct TextBodyPaint<'a> {
     pub layout: Option<&'a TextBodyLayout>,
     pub text_shadow: Option<&'a str>,
     pub geom_rect_padding: TextBodyRectPadding,
+    /// When true, apply strict kinsoku (`p:defaultTextStyle/@eaLnBrk="1"` decks only).
+    pub presentation_kinsoku: bool,
 }
 
 impl<'a> TextBodyPaint<'a> {
@@ -45,6 +49,7 @@ impl<'a> TextBodyPaint<'a> {
                 el.height,
                 None,
             ),
+            presentation_kinsoku: el.presentation_kinsoku,
         }
     }
 }
@@ -81,7 +86,11 @@ pub fn paint_text_body<I: StringIntern>(
     let block = create_child(ctx, parent, "div");
     set_attr(ctx, block, "class", "pptxv-text");
     set_style(ctx, block, "white-space", "pre-wrap");
-    apply_default_kinsoku_line_break(ctx, block);
+    if paint.presentation_kinsoku {
+        apply_presentation_kinsoku_line_break(ctx, block);
+    } else {
+        set_style(ctx, block, "word-break", "break-word");
+    }
     if paint.layout.is_some() {
         // Upstream text bodies use content-box (default): `width: 100%` is the
         // text column inside `a:bodyPr` insets, not including padding.
@@ -108,9 +117,15 @@ pub fn paint_text_body<I: StringIntern>(
     }
     set_style(ctx, block, "overflow", "visible");
     set_style(ctx, block, "text-spacing-trim", "space-all");
-    let (_para, run) = append_paragraph_text(ctx, block, text);
+    let para_align = paint.layout.and_then(|l| l.text_align);
+    let (_para, run) = append_paragraph_text(ctx, block, text, para_align);
+    if paint.font_family.is_none() {
+        set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+    }
     paint_run_typography(ctx, run, &paint, size, &stack);
-    apply_gdi_metric_letter_spacing(ctx, run, text, size, paint.font_family, paint.font_bold);
+    if paint.font_family.is_some() {
+        apply_gdi_metric_letter_spacing(ctx, run, text, size, paint.font_family, paint.font_bold);
+    }
     if let Some(shadow) = paint.text_shadow {
         set_style(ctx, block, "text-shadow", shadow);
     }
@@ -124,7 +139,9 @@ fn paint_run_typography<I: StringIntern>(
     size: f64,
     stack: &str,
 ) {
-    set_style(ctx, run, "font-family", stack);
+    if paint.font_family.is_some() {
+        set_style(ctx, run, "font-family", stack);
+    }
     set_style(ctx, run, "font-size", &format!("{}px", format_px(size)));
     set_style(
         ctx,
@@ -153,21 +170,26 @@ fn append_paragraph_text<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     block: u32,
     text: &str,
+    text_align: Option<TextAlignCss>,
 ) -> (u32, u32) {
     let para = create_child(ctx, block, "p");
     set_attr(ctx, para, "class", "pptxv-para");
     set_style(ctx, para, "margin", "0");
-    set_style(ctx, para, "text-align", "left");
+    if let Some(align) = text_align {
+        set_style(ctx, para, "text-align", align.as_css());
+    }
     set_style(ctx, para, "direction", "ltr");
     set_style(ctx, para, "unicode-bidi", "embed");
-    apply_default_kinsoku_line_break(ctx, para);
     let run = create_child(ctx, para, "span");
     set_text_content(ctx, run, text);
     (para, run)
 }
 
-/// PowerPoint default `a:pPr/@eaLnBrk="1"` (presentation `defaultTextStyle`) mapped like upstream `getKinsokuLineBreakStyles`.
-fn apply_default_kinsoku_line_break<I: StringIntern>(ctx: &mut PaintContext<'_, I>, node: u32) {
+/// `p:defaultTextStyle` with `eaLnBrk="1"` mapped like upstream `getKinsokuLineBreakStyles`.
+fn apply_presentation_kinsoku_line_break<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    node: u32,
+) {
     set_style(ctx, node, "line-break", "strict");
     set_style(ctx, node, "word-break", "normal");
     set_style(ctx, node, "overflow-wrap", "break-word");
@@ -295,11 +317,14 @@ fn apply_text_body_layout<I: StringIntern>(
 }
 
 fn format_px(v: f64) -> String {
-    if (v - v.round()).abs() < 0.05 {
-        format!("{}", v.round() as i64)
+    if !v.is_finite() {
+        return "0".to_owned();
+    }
+    let rounded = v.round();
+    if (v - rounded).abs() < 1e-6 {
+        format!("{}", rounded as i64)
     } else {
-        let s = format!("{v:.2}");
-        s.trim_end_matches('0').trim_end_matches('.').to_owned()
+        format!("{}", v)
     }
 }
 
@@ -374,6 +399,7 @@ mod tests {
             layout: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "2px currentColor"),
@@ -396,6 +422,7 @@ mod tests {
             layout: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "3.31px #000000"),
@@ -417,6 +444,7 @@ mod tests {
             layout: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "1.2"),
@@ -438,6 +466,7 @@ mod tests {
             layout: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
         });
         assert!(
             intern
@@ -462,6 +491,7 @@ mod tests {
             layout: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: true,
         });
         assert!(
             intern.0.iter().any(|s| s == "overflow-wrap"),
@@ -507,6 +537,7 @@ mod tests {
             layout: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
         });
         assert!(intern.0.iter().any(|s| s == "span"));
         assert!(intern.0.iter().any(|s| s == "font-weight"));
@@ -526,6 +557,7 @@ mod tests {
             layout: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
         });
         assert!(intern.0.iter().any(|s| s == "pptxv-para"));
         assert!(intern.0.iter().any(|s| s == "p"));
@@ -536,7 +568,8 @@ mod tests {
         // Catches: measure batch queued for pptx text but letter-spacing never applied on paint.
         let mut measure = MeasureBatch::default();
         let mut intern = Intern(Vec::new());
-        let stack = super::super::font_substitution::substitute_font_family_stack(None);
+        let stack =
+            super::super::font_substitution::substitute_font_family_stack(Some("Arial"));
         let canvas_font = format!("24px {}", stack);
         let font_id = intern.intern(&canvas_font);
         let text_id = intern.intern("Hi");
@@ -545,13 +578,14 @@ mod tests {
             TextBodyPaint {
                 text_color: None,
                 font_size_px: Some(24.0),
-                font_family: None,
+                font_family: Some("Arial"),
                 font_bold: false,
                 text_stroke_width_px: None,
                 text_stroke_color: None,
                 layout: None,
                 text_shadow: None,
                 geom_rect_padding: TextBodyRectPadding::default(),
+                presentation_kinsoku: false,
             },
             measure,
             Some(intern),
@@ -593,6 +627,7 @@ mod tests {
             layout: Some(&layout),
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
         });
         assert!(
             !intern.0.iter().any(|s| s == "border-box"),
@@ -623,6 +658,7 @@ mod tests {
             layout: Some(&layout),
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "9.6px"),
@@ -654,6 +690,7 @@ mod tests {
             layout: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "24px"),

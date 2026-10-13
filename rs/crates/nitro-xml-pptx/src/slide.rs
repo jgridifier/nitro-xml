@@ -23,7 +23,8 @@ use crate::inheritance::{
     tx_body_of_placeholder, PlaceholderInfo, PlaceholderNode,
 };
 use crate::level_style::{
-    level_style_for, LevelStylesMap, MasterTxStyles, PlaceholderTextLevelStyle,
+    level_style_for, presentation_default_ea_line_break, LevelStylesMap, MasterTxStyles,
+    PlaceholderTextLevelStyle,
 };
 use crate::placeholder_defaults::PlaceholderDefaultsCache;
 use crate::table::{parse_table_model, table_row_count};
@@ -122,6 +123,9 @@ pub struct DumpElement {
     /// Parsed `p:txBody` anchor / alignment for painters (not in JSON dump).
     #[serde(skip)]
     pub text_body_layout: Option<crate::text_layout::TextBodyLayout>,
+    /// Strict kinsoku CSS when the deck defines `p:defaultTextStyle/@eaLnBrk` (paint only).
+    #[serde(skip)]
+    pub presentation_kinsoku: bool,
     /// `a:spAutoFit` / `a:normAutofit` / `a:noAutofit` from `a:bodyPr` (paint only).
     #[serde(skip)]
     pub auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
@@ -1641,6 +1645,7 @@ fn build_dump(
         text_stroke_width_px: extras.text_stroke_width_px,
         text_stroke_color: extras.text_stroke_color,
         text_body_layout: extras.text_body_layout,
+        presentation_kinsoku: extras.presentation_kinsoku,
         auto_fit_mode: extras.auto_fit_mode,
         chart_r_id: extras.chart_r_id,
         chart_xml: None,
@@ -1937,6 +1942,7 @@ struct PaintExtras {
     text_stroke_width_px: Option<f64>,
     text_stroke_color: Option<String>,
     text_body_layout: Option<crate::text_layout::TextBodyLayout>,
+    presentation_kinsoku: bool,
     auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
     chart_r_id: Option<String>,
     smartart_dm_r_id: Option<String>,
@@ -2231,6 +2237,8 @@ fn shape_paint_extras(
         extras.text_stroke_width_px = paint.stroke_width_px;
         extras.text_stroke_color = paint.stroke_color;
         extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
+        extras.presentation_kinsoku =
+            presentation_default_ea_line_break(ctx.presentation_level_styles);
         extras.auto_fit_mode = crate::text_layout::parse_body_autofit(tx);
         extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }
@@ -2609,9 +2617,8 @@ fn first_run_text_paint(
         break;
     }
     if font_family.is_none() {
-        if let Some(scheme) = ctx.font_scheme {
-            font_family = theme_font_latin(scheme, "minor");
-        }
+        font_family =
+            presentation_default_latin_typeface(ctx.presentation_level_styles, ctx.font_scheme);
     }
     if let Some(style) = ctx.level_fallback {
         // Colour from master/layout level styles; leave size to the host CSS
@@ -2703,6 +2710,44 @@ fn font_ref_family(
         return None;
     }
     theme_font_latin(scheme, idx)
+}
+
+fn presentation_default_latin_typeface(
+    styles: Option<&LevelStylesMap>,
+    font_scheme: Option<&ThemeFontScheme>,
+) -> Option<String> {
+    let styles = styles?;
+    for key in [0i8, -1i8] {
+        if let Some(face) = styles
+            .get(&key)
+            .and_then(|s| s.default_latin_typeface.as_deref())
+        {
+            if let Some(resolved) = resolve_theme_latin_typeface(face, font_scheme) {
+                return Some(resolved);
+            }
+        }
+    }
+    None
+}
+
+fn resolve_theme_latin_typeface(
+    typeface: &str,
+    font_scheme: Option<&ThemeFontScheme>,
+) -> Option<String> {
+    let t = typeface.trim();
+    if t.is_empty() {
+        return None;
+    }
+    if t.eq_ignore_ascii_case("+mn-lt") {
+        return font_scheme.and_then(|s| theme_font_latin(s, "minor"));
+    }
+    if t.eq_ignore_ascii_case("+mj-lt") {
+        return font_scheme.and_then(|s| theme_font_latin(s, "major"));
+    }
+    if t.starts_with('+') {
+        return None;
+    }
+    Some(t.to_owned())
 }
 
 fn theme_font_latin(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {

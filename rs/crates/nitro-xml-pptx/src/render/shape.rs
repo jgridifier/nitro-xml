@@ -110,11 +110,15 @@ fn compose_background_image(overlay: Option<&str>, fill: Option<&str>) -> Option
 }
 
 fn format_px(v: f64) -> String {
-    if (v - v.round()).abs() < 0.05 {
-        format!("{}", v.round() as i64)
+    if !v.is_finite() {
+        return "0".to_owned();
+    }
+    let rounded = v.round();
+    if (v - rounded).abs() < 1e-6 {
+        format!("{}", rounded as i64)
     } else {
-        let s = format!("{v:.2}");
-        s.trim_end_matches('0').trim_end_matches('.').to_owned()
+        // Full float string so stroke/font lengths match upstream/Chromium (#27).
+        format!("{}", v)
     }
 }
 
@@ -220,6 +224,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             text_body_layout: None,
+            presentation_kinsoku: false,
             auto_fit_mode: None,
             chart_r_id: None,
             chart_xml: None,

@@ -215,6 +215,8 @@ struct SpBox {
     label_font_from_ref: bool,
     /// Authored font size in CSS px when `a:rPr/@sz` is present (`sz/100 * 96/72`).
     font_size_px: Option<f64>,
+    /// `a:rPr/@kern` in hundredths of a point (SmartArt gallery labels use 1200).
+    kerning_hundredths_pt: Option<i64>,
     geom_name: String,
     kind: ShapeKind,
     is_pic: bool,
@@ -561,38 +563,54 @@ fn spacing_pct_from_p_pr(p_pr: &Element, local: &str) -> Option<f64> {
 }
 
 fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64, origin_x: f64, origin_y: f64) {
-    let (text_cx, _, _, base_font) = text_layout_metrics(shape, stroke);
+    let lines = layout_shape_text(shape, stroke);
+    if lines.is_empty() {
+        return;
+    }
+    let (text_cx, _, _, _) = text_layout_metrics(shape, stroke);
     let text_cx = text_cx - origin_x;
-    for line in layout_shape_text(shape, stroke) {
+    let label_font = shape_label_font(shape, stroke);
+    let kerning_attr = match resolve_font_kerning(shape.kerning_hundredths_pt, label_font) {
+        Some(kw) => format!(" style=\"font-kerning:{}\"", kw),
+        None => String::new(),
+    };
+    body.push_str(&format!(
+        "<text x=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\"{kerning_attr}>",
+        svg_user_coord(text_cx),
+        svg_user_coord(label_font),
+        escape(&shape.font_color),
+    ));
+    for line in lines {
         let line_y = line.y - origin_y;
         if line.spans.len() == 1 {
-            let (text, font) = &line.spans[0];
+            let (text, _) = &line.spans[0];
             body.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">{}</text>",
+                "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
                 svg_user_coord(text_cx),
                 svg_user_coord(line_y),
-                svg_user_coord(*font),
-                escape(&shape.font_color),
                 escape(text),
             ));
             continue;
         }
-        body.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">",
-            svg_user_coord(text_cx),
-            svg_user_coord(line_y),
-            svg_user_coord(base_font),
-            escape(&shape.font_color),
-        ));
-        for (text, font) in &line.spans {
-            body.push_str(&format!(
-                "<tspan font-size=\"{}\">{}</tspan>",
-                svg_user_coord(*font),
-                escape(text),
-            ));
+        for (i, (text, font)) in line.spans.iter().enumerate() {
+            if i == 0 {
+                body.push_str(&format!(
+                    "<tspan x=\"{}\" y=\"{}\" font-size=\"{}\">{}</tspan>",
+                    svg_user_coord(text_cx),
+                    svg_user_coord(line_y),
+                    svg_user_coord(*font),
+                    escape(text),
+                ));
+            } else {
+                body.push_str(&format!(
+                    "<tspan font-size=\"{}\">{}</tspan>",
+                    svg_user_coord(*font),
+                    escape(text),
+                ));
+            }
         }
-        body.push_str("</text>");
     }
+    body.push_str("</text>");
 }
 
 fn num(v: f64) -> String {
@@ -682,6 +700,7 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         None => (String::new(), false),
     };
     let font_size_px = authored_font_size_px(sp);
+    let kerning_hundredths_pt = authored_kern_hundredths_pt(sp);
     let rotation = attr_f64(xfrm, "rot").map(|r| r / 60_000.0);
     let flip_h =
         attr_str(xfrm, "flipH").is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
@@ -714,6 +733,7 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         font_color,
         label_font_from_ref,
         font_size_px,
+        kerning_hundredths_pt,
         geom_name,
         kind,
         is_pic,
@@ -840,6 +860,42 @@ fn authored_font_size_px(sp: &Element) -> Option<f64> {
         }
     }
     None
+}
+
+fn authored_kern_hundredths_pt(sp: &Element) -> Option<i64> {
+    let mut stack: Vec<&Element> = vec![sp];
+    while let Some(node) = stack.pop() {
+        if node.local == "rPr" {
+            if let Some(kern) = attr_str(node, "kern") {
+                if let Ok(v) = kern.parse::<i64>() {
+                    return Some(v);
+                }
+            }
+        }
+        for child in node.children.iter().rev() {
+            if let Node::Element(child) = child {
+                stack.push(child);
+            }
+        }
+    }
+    None
+}
+
+/// Match upstream `resolveFontKerning` (`text-run-style.ts`).
+fn resolve_font_kerning(
+    kern_hundredths_pt: Option<i64>,
+    font_size_px: f64,
+) -> Option<&'static str> {
+    let kern = kern_hundredths_pt?;
+    if kern == 0 {
+        return Some("none");
+    }
+    let font_pt = font_size_px * (72.0 / 96.0);
+    if font_pt >= kern as f64 / 100.0 {
+        Some("normal")
+    } else {
+        Some("none")
+    }
 }
 
 fn relative_luminance(hex: &str) -> f64 {
@@ -1542,6 +1598,45 @@ mod tests {
         assert!(svg.contains("width=\"200\""), "{svg}");
     }
 
+    // Catches: SmartArt labels emitted as one <text> per wrapped line so Chromium recenters each line independently vs TS appendSvgTextLines tspans.
+    #[test]
+    fn label_lines_use_single_text_with_positioned_tspans() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="2000000" cy="800000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="156082"/></a:solidFill>
+              </dsp:spPr>
+              <dsp:txBody>
+                <a:p><a:r><a:rPr sz="2400" kern="1200"/><a:t>Alpha</a:t></a:r></a:p>
+                <a:p><a:r><a:rPr sz="2400" kern="1200"/><a:t>Gamma</a:t></a:r></a:p>
+              </dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let svg = smartart_svg(Some(xml), 300.0, 120.0);
+        assert_eq!(
+            svg.matches("<text ").count(),
+            1,
+            "one text block per shape: {svg}"
+        );
+        assert_eq!(
+            svg.matches("<tspan ").count(),
+            2,
+            "one tspan per line: {svg}"
+        );
+        assert!(
+            svg.contains("font-kerning:normal"),
+            "kern=1200 at 24pt enables kerning: {svg}"
+        );
+        assert!(
+            svg.contains("x=\"105\"") && svg.contains("<tspan x=\"105\""),
+            "tspan repeats parent anchor x: {svg}"
+        );
+    }
+
     // Catches: chevron labels centred on shape box and wrapped at 0.82×w instead of dsp:txXfrm minus bodyPr insets.
     #[test]
     fn tx_xfrm_and_body_insets_drive_text_wrap_and_center() {
@@ -1635,7 +1730,7 @@ mod tests {
         </dsp:drawing>"#;
         let svg = smartart_svg(Some(xml), 400.0, 200.0);
         let ys: Vec<f64> = svg
-            .split("<text ")
+            .split("<tspan ")
             .skip(1)
             .filter_map(|chunk| {
                 chunk
@@ -1645,7 +1740,7 @@ mod tests {
                     .and_then(|y| y.parse().ok())
             })
             .collect();
-        assert_eq!(ys.len(), 2, "expected two label lines: {svg}");
+        assert_eq!(ys.len(), 2, "expected two label tspans: {svg}");
         let font_px = 24.0 * (96.0 / 72.0);
         // TS uses first-paragraph lnSpc/spcAft for every line in the shape label block.
         let expected_gap = font_px * (1.2 * 0.5 + 0.1);

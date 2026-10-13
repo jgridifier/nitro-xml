@@ -505,9 +505,11 @@ mod tests {
     // Catches: brushes nested under definitions with cm widths collapse to ~1.89px / ~3.78px.
     #[test]
     fn parse_fixture_inkml_brush_widths_and_colors() {
-        let bytes =
-            std::fs::read("/workspace/fixtures/upstream/pptx/73913b502a2e_ink-contentpart.pptx")
-                .unwrap();
+        let path = format!(
+            "{}/../../../fixtures/upstream/pptx/73913b502a2e_ink-contentpart.pptx",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let bytes = std::fs::read(&path).unwrap_or_else(|_| panic!("read {path}"));
         let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
         let mut file = zip.by_name("ppt/ink/ink1.xml").unwrap();
         let mut ink_xml = String::new();

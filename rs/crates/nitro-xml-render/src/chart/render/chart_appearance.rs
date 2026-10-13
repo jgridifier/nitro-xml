@@ -4,14 +4,15 @@
 use nitro_xml_opc::chart::ChartSpace;
 use nitro_xml_opc::chart::ChartTextBody;
 use nitro_xml_opc::drawingml::{
-    resolve_drawing_color, DrawingTextRunProperties, HslRounding, ResolveOptions, TransformOrder,
+    resolve_drawing_color, DrawingColor, DrawingTextRunProperties, HslRounding, ResolveOptions,
+    TransformOrder,
 };
 use std::collections::HashMap;
 
 use super::built_in_text_style::{built_in_chart_text_style, effective_built_in_chart_style};
 use super::chart_colors::chart_color_scheme;
 use super::drawing_color_css::drawing_color_css;
-use super::style_resolve::{resolve_chart_style_entry, ResolvedChartStyleEntry};
+use super::style_resolve::{fill_color_solid, resolve_chart_style_entry, ResolvedChartStyleEntry};
 use super::summary::{ChartSummary, ChartThemePalette};
 
 pub const EMU_PER_POINT: f64 = 12700.0;
@@ -65,7 +66,11 @@ fn tx_pr_default_properties(tx_pr: &ChartTextBody) -> Option<&DrawingTextRunProp
         .and_then(|p| p.default_properties.as_ref())
 }
 
-fn apply_tx_pr_defaults(entry: &mut ResolvedChartStyleEntry, props: &DrawingTextRunProperties) {
+fn apply_tx_pr_defaults(
+    entry: &mut ResolvedChartStyleEntry,
+    props: &DrawingTextRunProperties,
+    resolve_color: &dyn Fn(&DrawingColor) -> Option<String>,
+) {
     if let Some(sz) = props.size_pt {
         entry.font_size = Some(sz);
     }
@@ -75,23 +80,45 @@ fn apply_tx_pr_defaults(entry: &mut ResolvedChartStyleEntry, props: &DrawingText
     if let Some(i) = props.italic {
         entry.italic = Some(i);
     }
+    if let Some(color) = props.color.as_ref() {
+        if let Some(css) = resolve_color(color) {
+            entry.color = Some(css);
+        }
+    }
 }
 
-fn overlay_part(appearance: &mut ChartAppearance, part: &str, tx_pr: Option<&ChartTextBody>) {
+fn overlay_part(
+    appearance: &mut ChartAppearance,
+    part: &str,
+    tx_pr: Option<&ChartTextBody>,
+    resolve_color: &dyn Fn(&DrawingColor) -> Option<String>,
+) {
     let Some(props) = tx_pr.and_then(tx_pr_default_properties) else {
         return;
     };
     let entry = appearance.entry(part.to_string()).or_default();
-    apply_tx_pr_defaults(entry, props);
+    apply_tx_pr_defaults(entry, props, resolve_color);
 }
 
-/// Direct `c:txPr` / `defRPr` sizes for pptx bar3D visual path (not S1 oracle dump).
-pub fn overlay_authored_tx_pr_appearance(appearance: &mut ChartAppearance, space: &ChartSpace) {
+/// Direct `c:txPr` / `defRPr` sizes and colours for pptx bar3D visual path (not S1 oracle dump).
+pub fn overlay_authored_tx_pr_appearance(
+    appearance: &mut ChartAppearance,
+    space: &ChartSpace,
+    theme: &ChartThemePalette,
+) {
+    let scheme = chart_color_scheme(theme);
+    let resolve_color = |color: &DrawingColor| {
+        let resolve_opts = ResolveOptions {
+            transform_order: TransformOrder::Document,
+            hsl_rounding: HslRounding::HalfDown,
+        };
+        drawing_color_css(resolve_drawing_color(color, Some(&scheme), Some(resolve_opts)).as_ref())
+    };
     if let Some(title) = &space.title {
-        overlay_part(appearance, "title", title.tx_pr.as_ref());
+        overlay_part(appearance, "title", title.tx_pr.as_ref(), &resolve_color);
     }
     if let Some(legend) = &space.legend {
-        overlay_part(appearance, "legend", legend.tx_pr.as_ref());
+        overlay_part(appearance, "legend", legend.tx_pr.as_ref(), &resolve_color);
     }
     for axis in &space.plot_area.axes {
         let part = match axis.kind.as_str() {
@@ -99,13 +126,26 @@ pub fn overlay_authored_tx_pr_appearance(appearance: &mut ChartAppearance, space
             "val" => "valueAxis",
             _ => continue,
         };
-        overlay_part(appearance, part, axis.tx_pr.as_ref());
+        overlay_part(appearance, part, axis.tx_pr.as_ref(), &resolve_color);
+        if axis.kind == "val" {
+            if let Some(sp) = &axis.major_gridlines_sp_pr {
+                if let Some(line) = &sp.line {
+                    if let Some(color) = fill_color_solid(line.fill.as_ref(), &resolve_color) {
+                        appearance
+                            .entry("gridlineMajor".to_string())
+                            .or_default()
+                            .line_color = Some(color);
+                    }
+                }
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chart::render::theme_palette;
     use nitro_xml_opc::chart::parse_chart_space_xml;
 
     // Catches: bar3d/pptx path uses legend/axis sz from txPr (~11.97pt) not bare built-in 10pt.
@@ -139,7 +179,8 @@ mod tests {
                 },
             ),
         ]);
-        overlay_authored_tx_pr_appearance(&mut appearance, &parsed.chart_space);
+        let theme = theme_palette::chart_theme_palette(None, None, None);
+        overlay_authored_tx_pr_appearance(&mut appearance, &parsed.chart_space, &theme);
 
         let axis_sz = appearance
             .get("categoryAxis")
@@ -159,5 +200,18 @@ mod tests {
             (title_sz - 18.62).abs() < 0.01,
             "title txPr sz: got {title_sz}"
         );
+        let axis_color = appearance
+            .get("categoryAxis")
+            .and_then(|e| e.color.as_deref())
+            .unwrap();
+        assert!(
+            axis_color.starts_with('#') && axis_color != "#000000",
+            "category axis txPr scheme colour should resolve to gray, got {axis_color}"
+        );
+        let grid = appearance
+            .get("gridlineMajor")
+            .and_then(|e| e.line_color.as_deref())
+            .expect("valAx majorGridlines colour");
+        assert!(grid.starts_with('#'), "major gridline colour: {grid}");
     }
 }

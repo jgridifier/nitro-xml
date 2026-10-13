@@ -1313,10 +1313,9 @@ impl Handle {
 
     fn copy_docx_plain(&self) -> String {
         let selection = self.shell.selection_ref.clone();
-        let page = self.shell.nav_index;
         self.docx
             .as_ref()
-            .map(|d| d.copy_plain(&selection, page))
+            .map(|d| d.copy_plain(&selection))
             .unwrap_or_default()
     }
 
@@ -1355,6 +1354,12 @@ impl Handle {
         }
         let _ = self.shell_action("find-query", "a");
         let _ = self.shell_action("copy", "");
+        // Docx shell dump matches the TS oracle's whole-body `copySample`; interactive
+        // `copy` without a block id stays empty so live selection can use DOM text.
+        let docx_body = self.docx.as_ref().map(|d| d.body_plain());
+        if let Some(body) = docx_body {
+            self.shell.last_copy = body;
+        }
         let links = if let Some(docx) = self.docx.as_ref() {
             docx.hyperlinks_json()
         } else {

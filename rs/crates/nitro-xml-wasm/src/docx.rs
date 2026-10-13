@@ -121,29 +121,24 @@ impl DocxState {
         matches
     }
 
-    /// Plain text for copy: the selected paragraph, else the active page's
-    /// paragraphs, else the whole body.
-    pub(crate) fn copy_plain(&self, selection_id: &str, active_page: u32) -> String {
+    /// Plain text for interactive copy: the selected paragraph only.
+    /// No selection → empty (DOM text selection is the host's job; shell dump
+    /// uses [`Self::body_plain`] so Ctrl+C without a block id does not dump the page).
+    pub(crate) fn copy_plain(&self, selection_id: &str) -> String {
         let paras = body_paragraphs(&self.session.model.blocks);
-        if !selection_id.is_empty() && selection_id != "A1" {
-            if let Some(p) = paras.iter().find(|p| p.block_id == selection_id) {
-                return p.text.clone();
-            }
-        }
-        let pages = block_page_map(&self.session.result);
-        if self.page_count() > 1 && !pages.is_empty() {
-            let text = paras
-                .iter()
-                .filter(|p| pages.get(&p.block_id).copied() == Some(active_page))
-                .map(|p| p.text.as_str())
-                .filter(|t| !t.is_empty())
-                .collect::<Vec<_>>()
-                .join("\n");
-            if !text.is_empty() {
-                return text;
-            }
+        if selection_id.is_empty() || selection_id == "A1" {
+            return String::new();
         }
         paras
+            .iter()
+            .find(|p| p.block_id == selection_id)
+            .map(|p| p.text.clone())
+            .unwrap_or_default()
+    }
+
+    /// Whole-body plain text for the #29 shell differential (`copySample`).
+    pub(crate) fn body_plain(&self) -> String {
+        body_paragraphs(&self.session.model.blocks)
             .iter()
             .map(|p| p.text.as_str())
             .filter(|t| !t.is_empty())

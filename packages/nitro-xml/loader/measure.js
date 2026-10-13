@@ -1,40 +1,5 @@
 // SPDX-License-Identifier: MIT
-/** Batched measureText. sizePx -1/−2 = lineHeight/ascent; -3 = pptx GDI letter-spacing (px/char). */
-const ADVANCE_STEPS_PER_PX = 6;
-const MAX_TRACKING_PX_PER_CHAR = 1 / (2 * ADVANCE_STEPS_PER_PX);
-
-function advancesOf(ctx, canvasFont, chars) {
-  ctx.font = canvasFont;
-  ctx.fontKerning = "none";
-  const advances = [];
-  let previous = 0;
-  let prefix = "";
-  for (const char of chars) {
-    prefix += char;
-    const width = ctx.measureText(prefix).width;
-    advances.push(width - previous);
-    previous = width;
-  }
-  return advances;
-}
-
-/** Ported from upstream text-metric-tracking.ts `resolveMetricTrackingPx`. */
-export function resolveMetricTrackingPx(ctx, text, canvasFont) {
-  if (!text || !ctx) return 0;
-  const chars = [...text];
-  let powerPoint = 0;
-  for (const advance of advancesOf(ctx, canvasFont, chars)) {
-    powerPoint += Math.round(advance * ADVANCE_STEPS_PER_PX);
-  }
-  ctx.font = canvasFont;
-  ctx.fontKerning = "auto";
-  const natural = ctx.measureText(text).width;
-  if (!(natural > 0)) return 0;
-  powerPoint /= ADVANCE_STEPS_PER_PX;
-  const raw = (powerPoint - natural) / chars.length;
-  return Math.min(MAX_TRACKING_PX_PER_CHAR, Math.max(-MAX_TRACKING_PX_PER_CHAR, raw));
-}
-
+/** Batched measureText. sizePx -1/−2 = lineHeight/ascent; -3 = pptx GDI track (px/char). */
 export function fillMeasureWidths(ctx, n, fontAt, sizeAt, textAt) {
   const widths = new Float64Array(n);
   if (!ctx) return widths;
@@ -42,12 +7,30 @@ export function fillMeasureWidths(ctx, n, fontAt, sizeAt, textAt) {
     const f = fontAt(i) || "sans-serif",
       sz = sizeAt(i),
       text = textAt(i) || "";
-    const canvasFont = /\d+(\.\d+)?px/.test(f) ? f : `${sz < 0 ? 12 : sz}px ${f}`;
+    ctx.font = /\d+(\.\d+)?px/.test(f) ? f : `${sz < 0 ? 12 : sz}px ${f}`;
     if (sz === -3) {
-      widths[i] = resolveMetricTrackingPx(ctx, text, canvasFont);
+      // GDI: round advances to 1/6px (upstream text-metric-tracking).
+      if (!text) {
+        widths[i] = 0;
+        continue;
+      }
+      const ch = [...text];
+      ctx.fontKerning = "none";
+      let ppt = 0,
+        prev = 0,
+        pref = "";
+      for (const c of ch) {
+        pref += c;
+        const w = ctx.measureText(pref).width;
+        ppt += Math.round((w - prev) * 6);
+        prev = w;
+      }
+      ctx.fontKerning = "auto";
+      const nat = ctx.measureText(text).width,
+        lim = 1 / 12;
+      widths[i] = nat > 0 ? Math.min(lim, Math.max(-lim, (ppt / 6 - nat) / ch.length)) : 0;
       continue;
     }
-    ctx.font = canvasFont;
     const m = ctx.measureText(sz < 0 ? "Mg" : text),
       a = m.fontBoundingBoxAscent,
       d = m.fontBoundingBoxDescent;
@@ -79,19 +62,4 @@ export function flushMeasureBatch(handle, ctx) {
       : new Float64Array(n);
   handle.setMeasureResults(widths);
   return n;
-}
-function ptr(handle, name) {
-  const v = handle[name];
-  return typeof v === "function" ? v.call(handle) : v;
-}
-/** @deprecated prefer Handle.takeMeasureReqs SoA; kept for tests that poke wasm memory. */
-export function readMeasureReqsFromMemory(handle, memory) {
-  const n = handle.measureCount | 0;
-  if (n === 0) return [];
-  const u32 = new Uint32Array(memory.buffer, ptr(handle, "measureFontPtr"), n);
-  const f32 = new Float32Array(memory.buffer, ptr(handle, "measureSizePtr"), n);
-  const t32 = new Uint32Array(memory.buffer, ptr(handle, "measureTextPtr"), n);
-  const out = new Array(n);
-  for (let i = 0; i < n; i++) out[i] = { fontId: u32[i], sizePx: f32[i], textId: t32[i] };
-  return out;
 }

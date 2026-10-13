@@ -24,7 +24,7 @@ export {
 
 export { Op, applyCommandBuffer, cssColor } from "./apply.js";
 export { EventKind, EVENT_VERSION, encodeEventBatch, createEventCoalescer } from "./events.js";
-export { flushMeasureBatch, readMeasureReqsFromMemory } from "./measure.js";
+export { flushMeasureBatch } from "./measure.js";
 export {
   LayoutReadKind,
   LAYOUT_RESULT_LANES,

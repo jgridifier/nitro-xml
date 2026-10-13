@@ -272,7 +272,7 @@ fn diagram_shape_bounds(shape: &SpBox) -> (f64, f64, f64, f64) {
     )
 }
 
-fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
+fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
     let mut min_x = f64::INFINITY;
     let mut min_y = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
@@ -290,6 +290,8 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
         max_x = 1.0;
         max_y = 1.0;
     }
+    let origin_x = min_x;
+    let origin_y = min_y;
     let vw = (max_x - min_x).max(1.0);
     let vh = (max_y - min_y).max(1.0);
     let default_stroke = (vw.max(vh) / 200.0).max(1.0);
@@ -307,11 +309,13 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
             format!(
                 "stroke=\"{}\" stroke-width=\"{}\"",
                 escape(&shape.stroke),
-                num(stroke_w)
+                svg_user_coord(stroke_w)
             )
         };
-        let cx = shape.x + shape.w / 2.0;
-        let cy = shape.y + shape.h / 2.0;
+        let sx = shape.x - origin_x;
+        let sy = shape.y - origin_y;
+        let cx = sx + shape.w / 2.0;
+        let cy = sy + shape.h / 2.0;
         let transform = shape_transform(shape, cx, cy);
         let transform_attr = transform
             .as_ref()
@@ -329,8 +333,8 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
                     let opacity = fill_opacity_attr(shape.fill_opacity);
                     body.push_str(&format!(
                         "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{rx_attr} fill=\"{}\"{opacity} {stroke_attr}{transform_attr}/>",
-                        num(shape.x),
-                        num(shape.y),
+                        num(sx),
+                        num(sy),
                         num(shape.w.max(1.0)),
                         num(shape.h.max(1.0)),
                         escape(&shape.fill),
@@ -349,8 +353,8 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
                 }
                 ShapeKind::Path { d } => {
                     let path_transform = match &transform {
-                        Some(t) => format!("{t} translate({} {})", num(shape.x), num(shape.y)),
-                        None => format!("translate({} {})", num(shape.x), num(shape.y)),
+                        Some(t) => format!("{t} translate({} {})", num(sx), num(sy)),
+                        None => format!("translate({} {})", num(sx), num(sy)),
                     };
                     let opacity = fill_opacity_attr(shape.fill_opacity);
                     body.push_str(&format!(
@@ -364,15 +368,19 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
         }
 
         if shape.has_text() {
-            append_shape_text(&mut body, shape, stroke_w.max(default_stroke));
+            append_shape_text(
+                &mut body,
+                shape,
+                stroke_w.max(default_stroke),
+                origin_x,
+                origin_y,
+            );
         }
     }
     format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"{} {} {} {}\" role=\"img\">{body}</svg>",
-        num(min_x),
-        num(min_y),
-        num(vw),
-        num(vh),
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {} {}\" preserveAspectRatio=\"xMidYMid meet\" style=\"width:100%;height:100%;pointer-events:none;display:block\" role=\"img\">{body}</svg>",
+        svg_user_coord(vw),
+        svg_user_coord(vh),
     )
 }
 
@@ -552,16 +560,18 @@ fn spacing_pct_from_p_pr(p_pr: &Element, local: &str) -> Option<f64> {
     }
 }
 
-fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64) {
+fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64, origin_x: f64, origin_y: f64) {
     let (text_cx, _, _, base_font) = text_layout_metrics(shape, stroke);
+    let text_cx = text_cx - origin_x;
     for line in layout_shape_text(shape, stroke) {
+        let line_y = line.y - origin_y;
         if line.spans.len() == 1 {
             let (text, font) = &line.spans[0];
             body.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">{}</text>",
-                num(text_cx),
-                num(line.y),
-                num(*font),
+                svg_user_coord(text_cx),
+                svg_user_coord(line_y),
+                svg_user_coord(*font),
                 escape(&shape.font_color),
                 escape(text),
             ));
@@ -569,15 +579,15 @@ fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64) {
         }
         body.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">",
-            num(text_cx),
-            num(line.y),
-            num(base_font),
+            svg_user_coord(text_cx),
+            svg_user_coord(line_y),
+            svg_user_coord(base_font),
             escape(&shape.font_color),
         ));
         for (text, font) in &line.spans {
             body.push_str(&format!(
                 "<tspan font-size=\"{}\">{}</tspan>",
-                num(*font),
+                svg_user_coord(*font),
                 escape(text),
             ));
         }
@@ -592,6 +602,19 @@ fn num(v: f64) -> String {
         let s = format!("{v:.2}");
         s.trim_end_matches('0').trim_end_matches('.').to_owned()
     }
+}
+
+/// Match TS SVG attribute number serialization (no `num()` 2dp rounding).
+fn svg_user_coord(v: f64) -> String {
+    if !v.is_finite() {
+        return "0".to_owned();
+    }
+    let rounded = v.round();
+    if (v - rounded).abs() < 1e-9 {
+        return format!("{}", rounded as i64);
+    }
+    let s = format!("{:.12}", v);
+    s.trim_end_matches('0').trim_end_matches('.').to_owned()
 }
 
 fn escape(s: &str) -> String {
@@ -1375,7 +1398,7 @@ mod tests {
         </dsp:drawing>"#;
         let svg = smartart_svg(Some(xml), 200.0, 100.0);
         assert!(
-            svg.contains("viewBox=\"1 2 100 50\"") || svg.contains("viewBox=\"1 2 100.0 50.0\""),
+            svg.contains("viewBox=\"0 0 100 50\"") || svg.contains("viewBox=\"0 0 100.0 50.0\""),
             "{svg}"
         );
         // Default label size clamped to 8..14 px (height*0.2 = 10).

@@ -7,7 +7,7 @@ use crate::intern::StringIntern;
 use crate::model::ActiveWorksheet;
 use crate::render::geometry::header_sizes;
 use crate::render::grid::LINES_ID;
-use crate::render::viewport::{paint_indices, visible_cells_for_host};
+use crate::render::viewport::visible_cells_for_host;
 use crate::render::GridPaintViewport;
 use crate::view::metrics::GridMetrics;
 
@@ -49,20 +49,11 @@ pub fn paint<I: StringIntern>(
     }
     let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let vis = visible_cells_for_host(metrics, viewport, sizes.w, sizes.h);
-    let (rows, cols) = paint_indices(&vis);
-    if rows.is_empty() || cols.is_empty() {
-        return;
-    }
-    let first = rows[0];
-    let last = rows[rows.len() - 1];
-    let left = metrics.col_left(cols[0]);
-    let right = metrics.col_left(cols[cols.len() - 1] + 1);
-    let top = metrics.row_top(first);
-    let bottom = metrics.row_top(last + 1);
     let div = intern.intern("div");
     let mut i = 0u32;
 
     // Plane-relative coords (upstream gridlines.ts); scroll is on `.xg-plane`.
+    // Paint per-quadrant row/col sets like grid-view.ts (main / top / left / corner).
     let mut line = |x: i32, y: i32, w: i32, h: i32| {
         let id = LINE_BASE + i;
         i += 1;
@@ -79,10 +70,30 @@ pub fn paint<I: StringIntern>(
         set_style(buf, intern, id, "height", &format!("{}px", h));
     };
 
-    for col in cols {
-        line(metrics.col_left(col + 1) - 1, top, 1, bottom - top);
-    }
-    for row in rows {
-        line(left, metrics.row_top(row + 1) - 1, right - left, 1);
-    }
+    let mut paint_set = |rows: &[u32], cols: &[u32]| {
+        if rows.is_empty() || cols.is_empty() {
+            return;
+        }
+        let first = rows[0];
+        let last = rows[rows.len() - 1];
+        let left = metrics.col_left(cols[0]);
+        let right = metrics.col_left(cols[cols.len() - 1] + 1);
+        let top = metrics.row_top(first);
+        let bottom = metrics.row_top(last + 1);
+        for col in cols {
+            line(metrics.col_left(col + 1) - 1, top, 1, bottom - top);
+        }
+        for row in rows {
+            // Bottom edge of the frozen block is `.xg-freeze-h`, not a gridline (pane-chrome.ts).
+            if viewport.frozen_rows > 0 && row + 1 == viewport.frozen_rows {
+                continue;
+            }
+            line(left, metrics.row_top(row + 1) - 1, right - left, 1);
+        }
+    };
+
+    paint_set(&vis.rows, &vis.cols);
+    paint_set(&vis.frozen_rows, &vis.cols);
+    paint_set(&vis.rows, &vis.frozen_cols);
+    paint_set(&vis.frozen_rows, &vis.frozen_cols);
 }

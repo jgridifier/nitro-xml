@@ -6,6 +6,7 @@ use nitro_xml_render::command_buffer::CommandBuffer;
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, CellRange};
 use crate::render::grid::OVERLAY_ID;
+use crate::render::selection_ops::paint_selection;
 use crate::render::GridPaintViewport;
 use crate::sheet_access::merge_at;
 use crate::view::metrics::GridMetrics;
@@ -79,10 +80,7 @@ pub fn paint<I: StringIntern>(
     viewport: &GridPaintViewport,
 ) {
     let _ = viewport;
-    let selection = sheet.view.selection.as_ref();
-    let Some(selection) = selection else {
-        return;
-    };
+    let selection = paint_selection(sheet);
 
     let active = selection.active;
     let active_range = merge_at(sheet, active.row, active.col)

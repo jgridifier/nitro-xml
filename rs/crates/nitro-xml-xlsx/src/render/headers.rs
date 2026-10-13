@@ -9,7 +9,7 @@ use crate::intern::StringIntern;
 use crate::model::ActiveWorksheet;
 use crate::render::geometry::header_sizes;
 use crate::render::grid::ROOT_ID;
-use crate::render::selection_ops::{col_selected, row_selected};
+use crate::render::selection_ops::{col_selected, paint_selection, row_selected};
 use crate::render::viewport::{paint_indices, visible_cells_for_host};
 use crate::render::GridPaintViewport;
 use crate::view::metrics::GridMetrics;
@@ -91,7 +91,7 @@ pub fn paint<I: StringIntern>(
     let font_px = header_font_px(metrics.zoom);
     let scroll_x = viewport.scroll_x;
     let scroll_y = viewport.scroll_y;
-    let selection = sheet.view.selection.as_ref();
+    let selection = paint_selection(sheet);
     let cells_w = (viewport.width - sizes.w).max(0);
     let cells_h = (viewport.height - sizes.h).max(0);
 
@@ -138,9 +138,7 @@ pub fn paint<I: StringIntern>(
         }
         buf.create_element(id, div, HDR_COL_ID);
         let mut hdr_class = String::from("xg-hd");
-        if let Some(sel) = selection {
-            apply_header_sel(col_selected(sel, *col), &mut hdr_class);
-        }
+        apply_header_sel(col_selected(&selection, *col), &mut hdr_class);
         set_attr(buf, intern, id, "class", &hdr_class);
         set_attr(buf, intern, id, "role", "columnheader");
         set_attr(buf, intern, id, "data-index", &col.to_string());
@@ -163,9 +161,7 @@ pub fn paint<I: StringIntern>(
         }
         buf.create_element(id, div, HDR_ROW_ID);
         let mut hdr_class = String::from("xg-hd");
-        if let Some(sel) = selection {
-            apply_header_sel(row_selected(sel, *row), &mut hdr_class);
-        }
+        apply_header_sel(row_selected(&selection, *row), &mut hdr_class);
         set_attr(buf, intern, id, "class", &hdr_class);
         set_attr(buf, intern, id, "role", "rowheader");
         set_attr(buf, intern, id, "data-index", &row.to_string());

@@ -22,6 +22,8 @@ pub const PLANE_ID: u32 = 11;
 pub const LINES_ID: u32 = 12;
 pub const CELLS_ID: u32 = 13;
 pub const OVERLAY_ID: u32 = 14;
+const FREEZE_H_ID: u32 = 15;
+const FREEZE_V_ID: u32 = 16;
 
 fn set_style<I: StringIntern>(
     buf: &mut CommandBuffer,
@@ -143,4 +145,34 @@ pub fn paint_frame<I: StringIntern>(
     set_attr(buf, intern, CELLS_ID, "class", "xg-cells");
     buf.create_element(OVERLAY_ID, div, PLANE_ID);
     set_attr(buf, intern, OVERLAY_ID, "class", "xg-overlay");
+
+    // pane-chrome.ts freeze dividers (view space, not plane).
+    if viewport.frozen_rows > 0 {
+        let frozen_h = metrics.row_top(viewport.frozen_rows);
+        buf.create_element(FREEZE_H_ID, div, ROOT_ID);
+        set_attr(buf, intern, FREEZE_H_ID, "class", "xg-freeze-h");
+        place(
+            buf,
+            intern,
+            FREEZE_H_ID,
+            0,
+            sizes.h + frozen_h - 1,
+            viewport.width,
+            1,
+        );
+    }
+    if viewport.frozen_cols > 0 {
+        let frozen_w = metrics.col_left(viewport.frozen_cols);
+        buf.create_element(FREEZE_V_ID, div, ROOT_ID);
+        set_attr(buf, intern, FREEZE_V_ID, "class", "xg-freeze-v");
+        place(
+            buf,
+            intern,
+            FREEZE_V_ID,
+            sizes.w + frozen_w - 1,
+            0,
+            1,
+            viewport.height,
+        );
+    }
 }

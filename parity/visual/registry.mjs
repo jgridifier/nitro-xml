@@ -9,6 +9,7 @@
 
 import { docxVisualCorpus } from './docx-corpus.mjs';
 import { pptxVisualCorpus } from './pptx-corpus.mjs';
+import { xlsxVisualCorpus } from './xlsx-corpus.mjs';
 
 /** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'pptx-viewer' | 'docx-layout-ir' | 'docx-viewer'} VisualKind */
 
@@ -91,6 +92,7 @@ const STATIC_CASES = [
 /** @type {VisualCase[]} */
 export const VISUAL_CASES = [
 	...STATIC_CASES,
+	...xlsxVisualCorpus(),
 	...docxVisualCorpus(),
 	...pptxVisualCorpus(),
 ];

@@ -192,7 +192,12 @@ fn apply_geom_rect_padding_only<I: StringIntern>(
     set_style(ctx, block, "width", "100%");
     set_style(ctx, block, "height", "100%");
     // CSS lengths need a unit; bare numbers are ignored by the browser.
-    set_style(ctx, block, "padding-top", &format!("{}px", format_px(rect.top)));
+    set_style(
+        ctx,
+        block,
+        "padding-top",
+        &format!("{}px", format_px(rect.top)),
+    );
     set_style(
         ctx,
         block,

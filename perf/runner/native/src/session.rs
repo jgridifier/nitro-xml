@@ -359,7 +359,7 @@ fn apply_stream<H, F>(
     data: &[u8],
     session: &mut EditSession<H, EditHistory>,
     registry: &CommandRegistry,
-    start: &Value,
+    _start: &Value,
     mut make_op: F,
 ) -> Result<(SessionStats, Vec<Value>), String>
 where

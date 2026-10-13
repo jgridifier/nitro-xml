@@ -435,7 +435,7 @@ pub fn parse_ink_ml_content(root: &Element, box_w: f64, box_h: f64) -> Option<In
             let mapped: Vec<Vec<f64>> = points
                 .iter()
                 .map(|p| {
-                    let x = p.get(0).copied().unwrap_or(0.0);
+                    let x = p.first().copied().unwrap_or(0.0);
                     let y = p.get(1).copied().unwrap_or(0.0);
                     let (mx, my) = map(x, y);
                     vec![mx, my]
@@ -550,13 +550,7 @@ mod tests {
         assert!((ys.iter().copied().fold(f64::INFINITY, f64::min) - 0.0).abs() < 0.01);
         let max_x = xs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let max_y = ys.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        assert!(
-            (max_x - w).abs() < 0.01,
-            "max_x={max_x} expected w={w}"
-        );
-        assert!(
-            (max_y - h).abs() < 0.01,
-            "max_y={max_y} expected h={h}"
-        );
+        assert!((max_x - w).abs() < 0.01, "max_x={max_x} expected w={w}");
+        assert!((max_y - h).abs() < 0.01, "max_y={max_y} expected h={h}");
     }
 }

@@ -2608,6 +2608,11 @@ fn first_run_text_paint(
         }
         break;
     }
+    if font_family.is_none() {
+        if let Some(scheme) = ctx.font_scheme {
+            font_family = theme_font_latin(scheme, "minor");
+        }
+    }
     if let Some(style) = ctx.level_fallback {
         // Colour from master/layout level styles; leave size to the host CSS
         // fallback until placeholder autofit/align lands (layout sz alone

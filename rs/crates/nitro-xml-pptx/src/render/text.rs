@@ -81,9 +81,10 @@ pub fn paint_text_body<I: StringIntern>(
     let block = create_child(ctx, parent, "div");
     set_attr(ctx, block, "class", "pptxv-text");
     set_style(ctx, block, "white-space", "pre-wrap");
-    set_style(ctx, block, "word-break", "break-word");
+    apply_default_kinsoku_line_break(ctx, block);
     if paint.layout.is_some() {
-        set_style(ctx, block, "box-sizing", "border-box");
+        // Upstream text bodies use content-box (default): `width: 100%` is the
+        // text column inside `a:bodyPr` insets, not including padding.
         set_style(ctx, block, "width", "100%");
         set_style(ctx, block, "height", "100%");
         set_style(ctx, block, "display", "flex");
@@ -105,24 +106,46 @@ pub fn paint_text_body<I: StringIntern>(
     if let Some(color) = paint.text_color {
         set_style(ctx, block, "color", color);
     }
+    set_style(ctx, block, "overflow", "visible");
+    set_style(ctx, block, "text-spacing-trim", "space-all");
+    let (_para, run) = append_paragraph_text(ctx, block, text);
+    paint_run_typography(ctx, run, &paint, size, &stack);
+    apply_gdi_metric_letter_spacing(ctx, run, text, size, paint.font_family, paint.font_bold);
+    if let Some(shadow) = paint.text_shadow {
+        set_style(ctx, block, "text-shadow", shadow);
+    }
+    block
+}
+
+fn paint_run_typography<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    run: u32,
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+) {
+    set_style(ctx, run, "font-family", stack);
+    set_style(ctx, run, "font-size", &format!("{}px", format_px(size)));
+    set_style(
+        ctx,
+        run,
+        "font-weight",
+        if paint.font_bold { "700" } else { "normal" },
+    );
+    set_style(ctx, run, "font-style", "normal");
+    if let Some(color) = paint.text_color {
+        set_style(ctx, run, "color", color);
+    }
     if let Some(width) = paint.text_stroke_width_px.filter(|w| *w > 0.0) {
         let stroke_color = paint.text_stroke_color.unwrap_or("currentColor");
         set_style(
             ctx,
-            block,
+            run,
             "-webkit-text-stroke",
             &format!("{}px {}", format_px(width), stroke_color),
         );
-        set_style(ctx, block, "paint-order", "stroke fill");
+        set_style(ctx, run, "paint-order", "stroke fill");
     }
-    if let Some(shadow) = paint.text_shadow {
-        set_style(ctx, block, "text-shadow", shadow);
-    }
-    set_style(ctx, block, "overflow", "visible");
-    set_style(ctx, block, "text-spacing-trim", "space-all");
-    let para = append_paragraph_text(ctx, block, text);
-    apply_gdi_metric_letter_spacing(ctx, para, text, size, paint.font_family, paint.font_bold);
-    block
 }
 
 /// One `<p class="pptxv-para">` per body (upstream `renderTextBlock`).
@@ -130,12 +153,24 @@ fn append_paragraph_text<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     block: u32,
     text: &str,
-) -> u32 {
+) -> (u32, u32) {
     let para = create_child(ctx, block, "p");
     set_attr(ctx, para, "class", "pptxv-para");
     set_style(ctx, para, "margin", "0");
-    set_text_content(ctx, para, text);
-    para
+    set_style(ctx, para, "text-align", "left");
+    set_style(ctx, para, "direction", "ltr");
+    set_style(ctx, para, "unicode-bidi", "embed");
+    apply_default_kinsoku_line_break(ctx, para);
+    let run = create_child(ctx, para, "span");
+    set_text_content(ctx, run, text);
+    (para, run)
+}
+
+/// PowerPoint default `a:pPr/@eaLnBrk="1"` (presentation `defaultTextStyle`) mapped like upstream `getKinsokuLineBreakStyles`.
+fn apply_default_kinsoku_line_break<I: StringIntern>(ctx: &mut PaintContext<'_, I>, node: u32) {
+    set_style(ctx, node, "line-break", "strict");
+    set_style(ctx, node, "word-break", "normal");
+    set_style(ctx, node, "overflow-wrap", "break-word");
 }
 
 fn canvas_measure_font(family_stack: &str, size_px: f64, bold: bool) -> String {
@@ -188,7 +223,6 @@ fn apply_geom_rect_padding_only<I: StringIntern>(
     block: u32,
     rect: TextBodyRectPadding,
 ) {
-    set_style(ctx, block, "box-sizing", "border-box");
     set_style(ctx, block, "width", "100%");
     set_style(ctx, block, "height", "100%");
     // CSS lengths need a unit; bare numbers are ignored by the browser.
@@ -416,6 +450,70 @@ mod tests {
     }
 
     #[test]
+    fn kinsoku_uses_overflow_wrap_not_legacy_word_break() {
+        // Catches: `word-break: break-word` on the body splitting long Latin labels on different columns than upstream.
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(16.0),
+            font_family: None,
+            font_bold: false,
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: None,
+            text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
+        });
+        assert!(
+            intern.0.iter().any(|s| s == "overflow-wrap"),
+            "overflow-wrap prop, got {:?}",
+            intern.0
+        );
+        assert!(
+            intern.0.iter().any(|s| s == "break-word"),
+            "overflow-wrap value, got {:?}",
+            intern.0
+        );
+        assert!(
+            intern
+                .0
+                .iter()
+                .any(|s| s == "word-break" && intern.0.iter().any(|v| v == "normal")),
+            "word-break normal, got {:?}",
+            intern.0
+        );
+        let mut legacy_word_break = false;
+        for i in 0..intern.0.len().saturating_sub(1) {
+            if intern.0[i] == "word-break" && intern.0[i + 1] == "break-word" {
+                legacy_word_break = true;
+            }
+        }
+        assert!(
+            !legacy_word_break,
+            "legacy word-break:break-word must not be used, got {:?}",
+            intern.0
+        );
+    }
+
+    #[test]
+    fn plain_text_runs_live_in_span_inside_pptxv_para() {
+        // Catches: metric tracking and run typography on <p> instead of an inner <span> like upstream run paint.
+        let intern = paint_with(TextBodyPaint {
+            text_color: Some("#000000"),
+            font_size_px: Some(16.0),
+            font_family: None,
+            font_bold: false,
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: None,
+            text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
+        });
+        assert!(intern.0.iter().any(|s| s == "span"));
+        assert!(intern.0.iter().any(|s| s == "font-weight"));
+        assert!(intern.0.iter().any(|s| s == "normal"));
+    }
+
+    #[test]
     fn text_body_wraps_plain_text_in_pptxv_para() {
         // Catches: plain text painted as a flex-child text node instead of <p class="pptxv-para">.
         let intern = paint_with(TextBodyPaint {
@@ -469,6 +567,36 @@ mod tests {
                 .iter()
                 .any(|s| s.contains("px") && s.starts_with("-0.02")),
             "tracking value, got {:?}",
+            intern.0
+        );
+    }
+
+    #[test]
+    fn text_body_layout_omits_border_box_sizing() {
+        // Catches: border-box on `.pptxv-text` shrinking the wrap column inside default body insets.
+        use crate::text_layout::{TextAlignCss, TextBodyLayout, TextBodyVAlign};
+        let layout = TextBodyLayout {
+            v_align: TextBodyVAlign::Top,
+            text_align: Some(TextAlignCss::Left),
+            inset_top_px: 4.8,
+            inset_bottom_px: 4.8,
+            inset_left_px: 9.6,
+            inset_right_px: 9.6,
+        };
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(16.0),
+            font_family: None,
+            font_bold: false,
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: Some(&layout),
+            text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
+        });
+        assert!(
+            !intern.0.iter().any(|s| s == "border-box"),
+            "text body must use content-box like upstream, got {:?}",
             intern.0
         );
     }

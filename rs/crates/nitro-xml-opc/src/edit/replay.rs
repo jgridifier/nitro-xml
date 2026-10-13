@@ -123,7 +123,7 @@ fn scopes_for(op: &Op) -> Vec<EditScope> {
         | Op::ReplyToComment { .. }
         | Op::ResolveComment { .. }
         | Op::DeleteComment { .. } => vec![EditScope::Workbook],
-        | Op::AddSlide { .. }
+        Op::AddSlide { .. }
         | Op::DeleteSlide { .. }
         | Op::DuplicateSlide { .. }
         | Op::ReorderSlide { .. }

@@ -191,10 +191,26 @@ fn apply_geom_rect_padding_only<I: StringIntern>(
     set_style(ctx, block, "box-sizing", "border-box");
     set_style(ctx, block, "width", "100%");
     set_style(ctx, block, "height", "100%");
-    set_style(ctx, block, "padding-top", &format_px(rect.top));
-    set_style(ctx, block, "padding-bottom", &format_px(rect.bottom));
-    set_style(ctx, block, "padding-left", &format_px(rect.left));
-    set_style(ctx, block, "padding-right", &format_px(rect.right));
+    // CSS lengths need a unit; bare numbers are ignored by the browser.
+    set_style(ctx, block, "padding-top", &format!("{}px", format_px(rect.top)));
+    set_style(
+        ctx,
+        block,
+        "padding-bottom",
+        &format!("{}px", format_px(rect.bottom)),
+    );
+    set_style(
+        ctx,
+        block,
+        "padding-left",
+        &format!("{}px", format_px(rect.left)),
+    );
+    set_style(
+        ctx,
+        block,
+        "padding-right",
+        &format!("{}px", format_px(rect.right)),
+    );
 }
 
 fn apply_text_body_layout<I: StringIntern>(
@@ -212,29 +228,30 @@ fn apply_text_body_layout<I: StringIntern>(
     if let Some(align) = layout.text_align {
         set_style(ctx, block, "text-align", align.as_css());
     }
+    // Upstream `toPxLengths`: inset + text-rect padding must be `Npx`, not bare `N`.
     set_style(
         ctx,
         block,
         "padding-top",
-        &format_px(layout.inset_top_px + rect.top),
+        &format!("{}px", format_px(layout.inset_top_px + rect.top)),
     );
     set_style(
         ctx,
         block,
         "padding-bottom",
-        &format_px(layout.inset_bottom_px + rect.bottom),
+        &format!("{}px", format_px(layout.inset_bottom_px + rect.bottom)),
     );
     set_style(
         ctx,
         block,
         "padding-left",
-        &format_px(layout.inset_left_px + rect.left),
+        &format!("{}px", format_px(layout.inset_left_px + rect.left)),
     );
     set_style(
         ctx,
         block,
         "padding-right",
-        &format_px(layout.inset_right_px + rect.right),
+        &format!("{}px", format_px(layout.inset_right_px + rect.right)),
     );
 }
 
@@ -447,6 +464,46 @@ mod tests {
                 .iter()
                 .any(|s| s.contains("px") && s.starts_with("-0.02")),
             "tracking value, got {:?}",
+            intern.0
+        );
+    }
+
+    #[test]
+    fn text_body_padding_uses_px_units() {
+        // Catches: body insets painted as bare numbers (browser drops them) instead of Npx.
+        use crate::text_layout::{TextAlignCss, TextBodyLayout, TextBodyVAlign};
+        let layout = TextBodyLayout {
+            v_align: TextBodyVAlign::Top,
+            text_align: Some(TextAlignCss::Left),
+            inset_top_px: 4.8,
+            inset_bottom_px: 4.8,
+            inset_left_px: 9.6,
+            inset_right_px: 9.6,
+        };
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(16.0),
+            font_family: None,
+            font_bold: false,
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: Some(&layout),
+            text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
+        });
+        assert!(
+            intern.0.iter().any(|s| s == "9.6px"),
+            "horizontal padding with px, got {:?}",
+            intern.0
+        );
+        assert!(
+            intern.0.iter().any(|s| s == "4.8px"),
+            "vertical padding with px, got {:?}",
+            intern.0
+        );
+        assert!(
+            !intern.0.iter().any(|s| s == "9.6" || s == "4.8"),
+            "bare inset numbers must not be used as CSS lengths, got {:?}",
             intern.0
         );
     }

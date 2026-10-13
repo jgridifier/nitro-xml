@@ -95,6 +95,10 @@ enum RoundMode {
     Down,
 }
 
+pub(crate) fn round_half_digits(x: f64, digits: f64) -> f64 {
+    round_to(x, digits, RoundMode::Half)
+}
+
 fn round_to(x: f64, digits: f64, mode: RoundMode) -> f64 {
     if !x.is_finite() {
         return x;

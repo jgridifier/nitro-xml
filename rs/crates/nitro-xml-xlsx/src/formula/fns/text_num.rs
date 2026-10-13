@@ -158,15 +158,15 @@ fn parse_time(text: &str) -> Option<f64> {
     Some((hours * 3600.0 + minutes * 60.0 + seconds) / 86_400.0)
 }
 
-fn is_gregorian_leap(year: i32) -> bool {
+pub(crate) fn is_leap_year(year: i32) -> bool {
     year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 }
 
-fn days_in_month(year: i32, month: i32) -> i32 {
+pub(crate) fn days_in_month(year: i32, month: i32) -> i32 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
-        2 if is_gregorian_leap(year) => 29,
+        2 if is_leap_year(year) => 29,
         2 => 28,
         _ => 0,
     }
@@ -191,7 +191,7 @@ fn epoch_days(date1904: bool) -> i64 {
     }
 }
 
-fn month_start_serial(year: i32, month0: i32, date1904: bool) -> i64 {
+pub(crate) fn month_start_serial(year: i32, month0: i32, date1904: bool) -> i64 {
     let days = days_from_civil(year, month0 + 1, 1) - epoch_days(date1904);
     if !date1904 && days < 61 {
         days - 1
@@ -424,4 +424,74 @@ pub fn number_to_text(value: f64) -> String {
     let exp_abs = exponent.unsigned_abs();
     let exp = format!("{}{exp_abs:02}", if exponent < 0 { "-" } else { "+" });
     format!("{}{mant}E{exp}", if negative { "-" } else { "" })
+}
+
+/// Calendar date of a serial. Serial 0 is 1900-01-00 and serial 60 is 1900-02-29.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Ymd {
+    pub year: i32,
+    pub month: i32,
+    pub day: i32,
+}
+
+/// Inverse of [`days_from_civil`] (Howard Hinnant).
+fn civil_from_days(mut z: i64) -> Ymd {
+    z += 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if m <= 2 { y + 1 } else { y };
+    Ymd {
+        year: year as i32,
+        month: m as i32,
+        day: d as i32,
+    }
+}
+
+pub(crate) fn serial_to_ymd(serial: f64, date1904: bool) -> Ymd {
+    let days = serial.floor() as i64;
+    if date1904 {
+        return civil_from_days(epoch_days(true) + days);
+    }
+    if days == 0 {
+        return Ymd {
+            year: 1900,
+            month: 1,
+            day: 0,
+        };
+    }
+    if days == 60 {
+        return Ymd {
+            year: 1900,
+            month: 2,
+            day: 29,
+        };
+    }
+    let adjusted = if days < 60 { days + 1 } else { days };
+    civil_from_days(epoch_days(false) + adjusted)
+}
+
+/// Day of the week, 0 = Sunday. Serial 1 in the 1900 system is a Sunday.
+pub(crate) fn weekday_of(serial: f64, date1904: bool) -> i32 {
+    let days = serial.floor() as i64;
+    let n = if date1904 { days + 5 } else { days - 1 };
+    n.rem_euclid(7) as i32
+}
+
+/// Whole seconds in the fractional day. An exact half second rounds to even.
+pub(crate) fn serial_seconds(serial: f64) -> i64 {
+    let seconds = (serial - serial.floor()) * 86_400.0;
+    let whole = seconds.floor();
+    let rest = seconds - whole;
+    let rounded = if rest > 0.5 || (rest == 0.5 && (whole as i64) % 2 == 1) {
+        whole + 1.0
+    } else {
+        whole
+    };
+    (rounded as i64).rem_euclid(86_400)
 }

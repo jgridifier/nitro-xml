@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Reference side of the #73 Math & Trig / Statistical differential.
+// Reference side of the formula-function differential (#73 Math & Trig /
+// Statistical, #74 Logical / Text / Information / Date & Time).
 // Reads a JSON array of cases and prints {formula, rows} from recalculateAll
 // (cleaned spill), using the seeded engine in test-helpers.ts.
+// `date1904: true` selects the 1904 date system before calculation.
 import { readFileSync } from 'node:fs';
 
 const up = process.env.UPSTREAM_DIR;
@@ -21,6 +23,7 @@ type Case = {
 	row?: number;
 	col?: number;
 	sheets?: string[];
+	date1904?: boolean;
 };
 
 function colLabel(col: number): string {
@@ -38,6 +41,7 @@ function dumpCase(item: Case): { formula: string; rows: unknown[][] } {
 	const formula = item.formula ?? '';
 	const sheets = item.sheets?.length ? item.sheets : ['Sheet1', 'Sheet2'];
 	const wb = book(item.cells ?? {}, sheets);
+	if (item.date1904) wb.date1904 = true;
 	if (item.hidden) {
 		for (const [name, rows] of Object.entries(item.hidden)) {
 			const sheet = wb.sheets.findIndex((candidate: { name: string }) => candidate.name === name);

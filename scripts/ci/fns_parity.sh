@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Math & Trig and Statistical function differential (#73).
-# Sweep every catalog function, then in-scope xlsx corpus formulas, against
-# upstream recalculateAll. A built-in negative control must fail.
+# Formula-function differential (#73 Math & Trig / Statistical, #74 Logical /
+# Text / Information / Date & Time, including the 1904 date system).
+# Sweep every catalog function in those families, then in-scope xlsx corpus
+# formulas, against upstream recalculateAll. A built-in negative control must fail.
 # Invoked from scripts/ci/parity.sh. Agents never edit .github/workflows/.
 set -euo pipefail
 cd "$(dirname "$0")/../.."

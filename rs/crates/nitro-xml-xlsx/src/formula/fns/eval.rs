@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/formula/{evaluator,call,engine-util,references,spill}.ts
 // (the slice math and statistical functions need); changes listed in PROVENANCE.md.
-//! Minimal evaluator for Math & Trig and Statistical calls.
-//! Dependency spilling and defined names stay `TODO(#72)`. Lambdas stay `TODO(#74)`.
+//! Minimal evaluator for the formula families this crate implements.
+//! Dependency spilling and defined names stay `TODO(#72)`.
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::cognitive_complexity)]
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::OnceLock;
 
 use serde_json::{json, Value as Json};
 
@@ -76,6 +77,7 @@ pub struct GridHost {
     names: Vec<String>,
     sheets: Vec<BTreeMap<(i32, i32), Slot>>,
     hidden: HashSet<(usize, i32)>,
+    date1904: bool,
     seed: Cell<u64>,
     memo: RefCell<HashMap<Key, Scalar>>,
     stack: RefCell<Vec<Key>>,
@@ -96,6 +98,7 @@ impl GridHost {
             names,
             sheets,
             hidden: HashSet::new(),
+            date1904: false,
             seed: Cell::new(42),
             memo: RefCell::new(HashMap::new()),
             stack: RefCell::new(Vec::new()),
@@ -333,7 +336,7 @@ impl GridHost {
             Ok(ast) => ast,
             Err(err) => return Settled::scalar(Scalar::Error(parse_error_code(&err))),
         };
-        let value = eval_node(self, &ast, &ast, key);
+        let value = eval_node(self, &ast, &ast, key, empty_scope());
         spill_check(self, key, finalize(self, value))
     }
 
@@ -415,6 +418,11 @@ impl EvalHost for GridHost {
         (next.saturating_sub(1)) as f64 / (RAND_MOD - 1) as f64
     }
 
+    fn now_serial(&self) -> f64 {
+        // test-helpers.ts pins the clock at 2026-10-03 12:00 local.
+        super::text_num::ymd_to_serial(2026, 10, 3, self.date1904).unwrap_or(0.0) + 0.5
+    }
+
     fn row_hidden(&self, sheet: usize, row: i32) -> bool {
         self.hidden.contains(&(sheet, row))
     }
@@ -451,6 +459,23 @@ fn strip_eq(formula: &str) -> String {
     formula.strip_prefix('=').unwrap_or(formula).to_owned()
 }
 
+fn empty_scope() -> &'static HashMap<String, Value> {
+    static EMPTY: OnceLock<HashMap<String, Value>> = OnceLock::new();
+    EMPTY.get_or_init(HashMap::new)
+}
+
+fn noop_eval(_node: &FormulaAst) -> Value {
+    Value::error(ErrorCode::Value)
+}
+
+fn noop_eval_in(_node: &FormulaAst, _scope: &HashMap<String, Value>) -> Value {
+    Value::error(ErrorCode::Value)
+}
+
+fn noop_lambda(_lambda: &super::value::LambdaValue, _args: &[Value]) -> Value {
+    Value::error(ErrorCode::Value)
+}
+
 fn ctx<'a>(host: &'a GridHost, at: Key) -> CallCtx<'a> {
     let depth = host.stack.borrow().len() as u32;
     CallCtx {
@@ -459,8 +484,12 @@ fn ctx<'a>(host: &'a GridHost, at: Key) -> CallCtx<'a> {
         row: at.1,
         col: at.2,
         legacy: false,
-        date1904: false,
+        date1904: host.date1904,
         depth,
+        scope: empty_scope(),
+        eval: Some(&noop_eval),
+        eval_in: Some(&noop_eval_in),
+        call_lambda: Some(&noop_lambda),
     }
 }
 
@@ -471,7 +500,14 @@ fn error_code(value: &Value) -> Option<ErrorCode> {
     }
 }
 
-fn eval_node(host: &GridHost, node: &FormulaAst, root: &FormulaAst, at: Key) -> Value {
+fn eval_node(
+    host: &GridHost,
+    node: &FormulaAst,
+    root: &FormulaAst,
+    at: Key,
+    scope: &HashMap<String, Value>,
+) -> Value {
+    let date1904 = host.date1904;
     match node {
         FormulaAst::Number { value } => Value::number(*value),
         FormulaAst::String { value } => Value::Scalar(Scalar::Text(value.clone())),
@@ -486,7 +522,15 @@ fn eval_node(host: &GridHost, node: &FormulaAst, root: &FormulaAst, at: Key) -> 
                 .collect(),
         )),
         FormulaAst::Ref { .. } => eval_ref(host, node, at),
-        FormulaAst::Name { .. } => Value::error(ErrorCode::Name),
+        FormulaAst::Name { prefix, name } => {
+            if prefix.is_none() {
+                let key = crate::formula::ast::normalize_local_name(name);
+                if let Some(value) = scope.get(&key) {
+                    return value.clone();
+                }
+            }
+            Value::error(ErrorCode::Name)
+        }
         FormulaAst::Structured { reference, .. } => {
             if reference.table.is_some() {
                 Value::error(ErrorCode::Name)
@@ -495,29 +539,38 @@ fn eval_node(host: &GridHost, node: &FormulaAst, root: &FormulaAst, at: Key) -> 
             }
         }
         FormulaAst::Unary { op, operand } => match op {
-            UnaryOp::Plus => eval_node(host, operand, root, at),
+            UnaryOp::Plus => eval_node(host, operand, root, at, scope),
             UnaryOp::Minus => unary_map(
-                operand_value(host, &eval_node(host, operand, root, at), at),
-                |value| scalar_unary(false, value, false),
+                operand_value(host, &eval_node(host, operand, root, at, scope), at),
+                |value| scalar_unary(false, value, date1904),
             ),
             UnaryOp::At => {
-                let value = eval_node(host, operand, root, at);
+                let value = eval_node(host, operand, root, at, scope);
                 Value::Scalar(implicit_intersection(&ctx(host, at), &value))
             }
         },
         FormulaAst::Percent { operand } => unary_map(
-            operand_value(host, &eval_node(host, operand, root, at), at),
-            |value| scalar_unary(true, value, false),
+            operand_value(host, &eval_node(host, operand, root, at, scope), at),
+            |value| scalar_unary(true, value, date1904),
         ),
-        FormulaAst::Binary { .. } => eval_binary(host, node, root, at),
-        FormulaAst::Call { name, args, .. } => eval_call(host, name, args, root, at),
-        FormulaAst::Invoke { callee, .. } => {
-            let value = eval_node(host, callee, root, at);
-            if let Some(code) = error_code(&value) {
-                Value::error(code)
-            } else {
-                // TODO(#74): LAMBDA invocation.
-                Value::error(ErrorCode::Value)
+        FormulaAst::Binary { .. } => eval_binary(host, node, root, at, scope),
+        FormulaAst::Call {
+            name,
+            raw_name,
+            args,
+        } => eval_call(host, name, raw_name, args, root, at, scope),
+        FormulaAst::Invoke { callee, args } => {
+            let callee_value = eval_node(host, callee, root, at, scope);
+            let values: Vec<Value> = args
+                .iter()
+                .map(|arg| eval_node(host, arg, root, at, scope))
+                .collect();
+            if let Some(code) = error_code(&callee_value) {
+                return Value::error(code);
+            }
+            match callee_value {
+                Value::Lambda(lambda) => invoke_lambda(host, &lambda, &values, root, at),
+                _ => Value::error(ErrorCode::Value),
             }
         }
     }
@@ -569,16 +622,22 @@ fn eval_ref(host: &GridHost, node: &FormulaAst, at: Key) -> Value {
     })
 }
 
-fn eval_binary(host: &GridHost, node: &FormulaAst, root: &FormulaAst, at: Key) -> Value {
+fn eval_binary(
+    host: &GridHost,
+    node: &FormulaAst,
+    root: &FormulaAst,
+    at: Key,
+    scope: &HashMap<String, Value>,
+) -> Value {
     let mut spine = Vec::new();
     let mut leftmost = node;
     while let FormulaAst::Binary { left, .. } = leftmost {
         spine.push(leftmost);
         leftmost = left;
     }
-    let mut value = eval_node(host, leftmost, root, at);
+    let mut value = eval_node(host, leftmost, root, at, scope);
     for item in spine.iter().rev() {
-        value = apply_binary(host, item, value, root, at);
+        value = apply_binary(host, item, value, root, at, scope);
     }
     value
 }
@@ -589,6 +648,7 @@ fn apply_binary(
     left: Value,
     root: &FormulaAst,
     at: Key,
+    scope: &HashMap<String, Value>,
 ) -> Value {
     let FormulaAst::Binary { op, right, .. } = node else {
         return Value::error(ErrorCode::Value);
@@ -597,7 +657,7 @@ fn apply_binary(
         if let Some(code) = error_code(&left) {
             return Value::error(code);
         }
-        let right = eval_node(host, right, root, at);
+        let right = eval_node(host, right, root, at, scope);
         if let Some(code) = error_code(&right) {
             return Value::error(code);
         }
@@ -607,12 +667,12 @@ fn apply_binary(
             _ => union_op(&left, &right),
         };
     }
-    let right = eval_node(host, right, root, at);
+    let right = eval_node(host, right, root, at, scope);
     let snap = std::ptr::eq(node, root) && matches!(op, BinaryOp::Add | BinaryOp::Sub);
     match broadcast2(
         &operand_value(host, &left, at),
         &operand_value(host, &right, at),
-        |x, y| scalar_binary(*op, x, y, snap, false),
+        |x, y| scalar_binary(*op, x, y, snap, host.date1904),
     ) {
         Ok(ScalarOrMatrix::Scalar(value)) => Value::Scalar(value),
         Ok(ScalarOrMatrix::Matrix(matrix)) => Value::Matrix(matrix),
@@ -688,6 +748,7 @@ fn operand_value(host: &GridHost, value: &Value, _at: Key) -> ScalarOrMatrix {
     match value {
         Value::Matrix(matrix) => ScalarOrMatrix::Matrix(matrix.clone()),
         Value::Scalar(scalar) => ScalarOrMatrix::Scalar(scalar.clone()),
+        Value::Lambda(_) => ScalarOrMatrix::Scalar(Scalar::Error(ErrorCode::Calc)),
         Value::Ref(reference) => {
             if reference.is_cell() {
                 let Some(area) = reference.areas.first() else {
@@ -724,25 +785,79 @@ fn unary_map(value: ScalarOrMatrix, mut func: impl FnMut(&Scalar) -> Scalar) -> 
     }
 }
 
-fn eval_call(
+fn invoke_lambda(
     host: &GridHost,
-    name: &str,
-    args: &[FormulaAst],
+    lambda: &super::value::LambdaValue,
+    args: &[Value],
     root: &FormulaAst,
     at: Key,
 ) -> Value {
+    if args.len() > lambda.params.len() {
+        return Value::error(ErrorCode::Value);
+    }
+    let mut scope = lambda.scope.clone();
+    for (index, name) in lambda.params.iter().enumerate() {
+        let value = args.get(index).cloned().unwrap_or_else(Value::blank);
+        scope.insert(name.clone(), value);
+    }
+    eval_node(host, &lambda.body, root, at, &scope)
+}
+
+fn eval_call(
+    host: &GridHost,
+    name: &str,
+    raw_name: &str,
+    args: &[FormulaAst],
+    root: &FormulaAst,
+    at: Key,
+    scope: &HashMap<String, Value>,
+) -> Value {
+    let local_key = crate::formula::ast::normalize_local_name(raw_name);
+    if let Some(Value::Lambda(lambda)) = scope.get(&local_key) {
+        let values: Vec<Value> = args
+            .iter()
+            .map(|arg| eval_node(host, arg, root, at, scope))
+            .collect();
+        return invoke_lambda(host, lambda, &values, root, at);
+    }
     let Some(spec) = super::get_function(name) else {
         return Value::error(ErrorCode::Name);
     };
     if args.len() < spec.min_args || args.len() > spec.max_args {
         return Value::error(ErrorCode::Value);
     }
+    let eval = |node: &FormulaAst| eval_node(host, node, root, at, scope);
+    let eval_in =
+        |node: &FormulaAst, inner: &HashMap<String, Value>| eval_node(host, node, root, at, inner);
+    let call_lambda = |lambda: &super::value::LambdaValue, values: &[Value]| {
+        invoke_lambda(host, lambda, values, root, at)
+    };
+    let depth = host.stack.borrow().len() as u32;
+    let context = CallCtx {
+        host,
+        sheet: at.0,
+        row: at.1,
+        col: at.2,
+        legacy: false,
+        date1904: host.date1904,
+        depth,
+        scope,
+        eval: Some(&eval),
+        eval_in: Some(&eval_in),
+        call_lambda: Some(&call_lambda),
+    };
+    if let FuncKind::Lazy { f } = spec.kind {
+        return match f(&context, args) {
+            Ok(value) => value,
+            Err(code) => Value::error(code),
+        };
+    }
     let mut values = Vec::with_capacity(args.len());
     for arg in args {
         // `any` parameters keep references; both kinds evaluate the argument.
-        values.push(eval_node(host, arg, root, at));
+        values.push(eval_node(host, arg, root, at, scope));
     }
-    apply_function(spec, values, &ctx(host, at))
+    apply_function(spec, values, &context)
 }
 
 /// Calls a registered function. `value` arguments lift over arrays; `any` arguments do not.
@@ -821,6 +936,7 @@ fn invoke(spec: &FunctionSpec, args: &[Value], ctx: &CallCtx<'_>) -> Value {
             Ok(value) => value,
             Err(code) => Value::error(code),
         },
+        FuncKind::Lazy { .. } => Value::error(ErrorCode::Value),
     }
 }
 
@@ -853,6 +969,7 @@ fn to_element(value: Value, ctx: &CallCtx<'_>) -> Scalar {
         Value::Matrix(matrix) => matrix.get(0, 0),
         Value::Ref(_) => ctx.to_scalar(&value),
         Value::Scalar(scalar) => scalar,
+        Value::Lambda(_) => Scalar::Error(ErrorCode::Calc),
     }
 }
 
@@ -874,6 +991,7 @@ fn finalize(host: &GridHost, value: Value) -> Final {
         }
         Value::Scalar(scalar) => Final::Scalar(scalar),
         Value::Matrix(matrix) => Final::Matrix(matrix),
+        Value::Lambda(_) => return Final::Scalar(Scalar::Error(ErrorCode::Calc)),
     };
     match current {
         Final::Matrix(matrix) if matrix.rows() == 1 && matrix.cols() == 1 => {
@@ -1040,6 +1158,10 @@ fn dump_one(case: &Json) -> Json {
     }
     let borrowed: Vec<&str> = names.iter().map(String::as_str).collect();
     let mut host = GridHost::new(&borrowed);
+    host.date1904 = case
+        .get("date1904")
+        .and_then(Json::as_bool)
+        .unwrap_or(false);
     if let Some(cells) = case.get("cells").and_then(Json::as_object) {
         for (key, value) in cells {
             if let Some((sheet, row, col)) = parse_cell_key(&host, key) {

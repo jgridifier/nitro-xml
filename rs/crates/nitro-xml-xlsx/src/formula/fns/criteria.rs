@@ -45,6 +45,7 @@ fn shape_of(value: &Value) -> Fx<(i64, i64)> {
         }
         Value::Matrix(matrix) => Ok((matrix.rows() as i64, matrix.cols() as i64)),
         Value::Scalar(_) => Ok((1, 1)),
+        Value::Lambda(_) => Err(ErrorCode::Calc),
     }
 }
 
@@ -186,6 +187,9 @@ pub fn criteria_pairs(args: &[Value], from: usize) -> Fx<Vec<CriteriaPair>> {
 }
 
 fn criteria_value(ctx: &CallCtx<'_>, value: &Value) -> Fx<Value> {
+    if matches!(value, Value::Lambda(_)) {
+        return Err(ErrorCode::Calc);
+    }
     let mut current = value.clone();
     if let Value::Ref(reference) = &current {
         if reference.is_cell() {

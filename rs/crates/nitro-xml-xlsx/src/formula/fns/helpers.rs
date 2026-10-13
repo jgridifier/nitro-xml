@@ -19,6 +19,7 @@ pub fn scalar_of(value: &Value) -> Fx<Scalar> {
         Value::Scalar(scalar) => Ok(scalar.clone()),
         Value::Matrix(matrix) => Ok(matrix.get(0, 0)),
         Value::Ref(_) => Err(ErrorCode::Value),
+        Value::Lambda(_) => Err(ErrorCode::Value),
     }
 }
 

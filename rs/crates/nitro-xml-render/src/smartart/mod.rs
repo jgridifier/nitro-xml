@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 use nitro_xml_opc::drawingml::{
     emu_to_pixels, evaluate_preset_shape, ooxml_arc_to_svg, parse_drawing_color_in,
     parse_drawing_geometry, resolve_drawing_color, DrawingColorTheme, DrawingPath,
-    DrawingPathCommand,
+    DrawingPathCommand, EMU_PER_PIXEL,
 };
 use nitro_xml_opc::xml::{parse_xml_str, Element, Node};
 
@@ -29,6 +29,16 @@ const EMU_PER_SMARTART_LINE_WIDTH: f64 = 12700.0;
 
 fn smartart_ln_width_emu_to_svg(emu: f64) -> f64 {
     emu / EMU_PER_SMARTART_LINE_WIDTH
+}
+
+/// Match TS `parseDrawingShape`: `Math.round(emu / EMU_PER_PX)` for shape boxes.
+fn smartart_drawing_css_px(emu: i64) -> f64 {
+    (emu as f64 / EMU_PER_PIXEL as f64).round()
+}
+
+fn smartart_drawing_emu_attr_px(el: &Element, name: &str) -> Option<f64> {
+    let emu = attr_str(el, name)?.parse::<i64>().ok()?;
+    Some(smartart_drawing_css_px(emu))
 }
 
 struct SchemeMap<'a>(&'a BTreeMap<String, String>);
@@ -591,11 +601,11 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
     let xfrm = child_any(sp_pr, "xfrm")?;
     let off = child_any(xfrm, "off")?;
     let ext = child_any(xfrm, "ext")?;
-    // Match TS `parseDrawingShape`: geometry + labels live in CSS px (EMU / 9525).
-    let x = emu_to_pixels(attr_f64(off, "x")? as i64);
-    let y = emu_to_pixels(attr_f64(off, "y")? as i64);
-    let w = emu_to_pixels(attr_f64(ext, "cx")? as i64);
-    let h = emu_to_pixels(attr_f64(ext, "cy")? as i64);
+    // Match TS `parseDrawingShape`: geometry + labels live in rounded CSS px.
+    let x = smartart_drawing_emu_attr_px(off, "x")?;
+    let y = smartart_drawing_emu_attr_px(off, "y")?;
+    let w = smartart_drawing_emu_attr_px(ext, "cx")?;
+    let h = smartart_drawing_emu_attr_px(ext, "cy")?;
     if w <= 0.0 || h <= 0.0 {
         return None;
     }
@@ -1272,6 +1282,37 @@ mod tests {
         assert!(svg.contains("font-size=\"10\""), "{svg}");
     }
 
+    // Catches: SmartArt xfrm extents stay fractional (139910 EMU → 14.69px) so connector
+    // outline rects and node boxes drift from TS Math.round(EMU/9525).
+    #[test]
+    fn drawing_shape_extents_round_like_parse_drawing_shape() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="6381238" y="669943"/><a:ext cx="139910" cy="612939"/></a:xfrm>
+                <a:custGeom><a:pathLst><a:path><a:moveTo><a:pt x="139910" y="0"/></a:moveTo></a:path></a:pathLst></a:custGeom>
+                <a:noFill/>
+                <a:ln w="19050"><a:solidFill><a:srgbClr val="34599C"/></a:solidFill></a:ln>
+              </dsp:spPr>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let args = smartart_draw_args(Some(xml), None);
+        assert_eq!(args.len(), 1);
+        assert_eq!(args[0].w, 15.0);
+        assert_eq!(args[0].h, 64.0);
+        let svg = smartart_svg(Some(xml), 200.0, 200.0);
+        assert!(
+            svg.contains("L 15 0 L 15 64"),
+            "outline rect must use rounded box: {svg}"
+        );
+        assert!(
+            !svg.contains("14.69"),
+            "fractional extent leaks into path: {svg}"
+        );
+    }
+
     // Catches: noFill text frames inventing a grey stroke rectangle around SmartArt labels.
     #[test]
     fn text_only_nofill_frame_emits_text_without_body() {
@@ -1355,16 +1396,13 @@ mod tests {
             "expected EMU/12700 stroke width, got {:?}",
             args[0].stroke_width
         );
-        assert!(
-            args[0].path_len > 33,
-            "expected closed box outline path_len, got {:?}",
-            args[0]
-        );
+        assert_eq!(args[0].w, 19.0);
+        assert_eq!(args[0].h, 84.0);
         let svg = smartart_svg(Some(xml), 120.0, 200.0);
         assert!(svg.contains("<path "), "{svg}");
         assert!(svg.contains("fill=\"none\""), "{svg}");
         assert!(
-            svg.contains(" Z\""),
+            svg.contains("L 19 0 L 19 84"),
             "expected closed box outline path: {svg}"
         );
         assert!(

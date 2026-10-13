@@ -184,11 +184,36 @@ fn paragraph_level(p: &Element) -> i32 {
     lvl.unwrap_or(0)
 }
 
+/// Tab stop from `a:pPr/a:tabLst` (upstream `TabStopSpec` subset).
+#[derive(Debug, Clone)]
+pub struct TextPaintTabStop {
+    pub position_px: f64,
+    pub align: TextTabAlign,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextTabAlign {
+    Left,
+    Center,
+    Right,
+    Decimal,
+}
+
+/// Phonetic guide on a run (`a:ruby`), ready for `<ruby>` / `<rt>` painting.
+#[derive(Debug, Clone)]
+pub struct TextPaintRuby {
+    pub annotation: String,
+    pub font_size_px: Option<f64>,
+    pub text_align: Option<&'static str>,
+}
+
 /// One styled run inside a painted paragraph (upstream `ParagraphRun` subset).
 #[derive(Debug, Clone)]
 pub struct TextPaintRun {
     pub text: String,
     pub rtl: Option<bool>,
+    pub underline: bool,
+    pub ruby: Option<TextPaintRuby>,
 }
 
 /// Paragraph-level BiDi + alignment for painters (upstream `RenderParagraph` subset).
@@ -197,6 +222,7 @@ pub struct TextPaintParagraph {
     pub runs: Vec<TextPaintRun>,
     pub align: Option<TextAlignCss>,
     pub rtl: Option<bool>,
+    pub tab_stops: Vec<TextPaintTabStop>,
 }
 
 /// Walk `p:txBody` paragraphs for multi-`p` / per-run BiDi painting (#27).
@@ -210,8 +236,14 @@ pub fn parse_text_paint_paragraphs(tx_body: &Element) -> Vec<TextPaintParagraph>
                 .and_then(|pp| attr(pp, "algn"))
                 .and_then(parse_paragraph_align);
             let rtl = p_pr.and_then(|pp| parse_optional_bool_attr(attr(pp, "rtl")));
+            let tab_stops = p_pr.map(parse_tab_stops).unwrap_or_default();
             let runs = collect_paint_runs(p);
-            TextPaintParagraph { runs, align, rtl }
+            TextPaintParagraph {
+                runs,
+                align,
+                rtl,
+                tab_stops,
+            }
         })
         .collect()
 }
@@ -224,24 +256,27 @@ fn collect_paint_runs(p: &Element) -> Vec<TextPaintRun> {
                 if let Some(text) = run_text_content(el) {
                     let r_pr = child_local(el, "rPr", ns::A);
                     let rtl = r_pr.and_then(|rp| parse_optional_bool_attr(attr(rp, "rtl")));
-                    runs.push(TextPaintRun { text, rtl });
+                    let underline = r_pr.map(rpr_has_underline).unwrap_or(false);
+                    let ruby = parse_run_ruby(el);
+                    runs.push(TextPaintRun {
+                        text,
+                        rtl,
+                        underline,
+                        ruby,
+                    });
                 }
             }
-        }
-    }
-    if runs.is_empty() {
-        let flat = p.text_content();
-        if !flat.is_empty() {
-            runs.push(TextPaintRun {
-                text: flat,
-                rtl: None,
-            });
         }
     }
     runs
 }
 
 fn run_text_content(r: &Element) -> Option<String> {
+    if let Some(ruby) = child_local(r, "ruby", ns::A) {
+        if let Some(text) = ruby_base_text(ruby) {
+            return Some(text);
+        }
+    }
     if let Some(t) = child_local(r, "t", ns::A) {
         let s = t.text_content();
         if !s.is_empty() {
@@ -249,6 +284,150 @@ fn run_text_content(r: &Element) -> Option<String> {
         }
     }
     None
+}
+
+fn ruby_base_text(ruby: &Element) -> Option<String> {
+    let base = child_local(ruby, "rubyBase", ns::A)?;
+    let mut out = String::new();
+    for child in &base.children {
+        if let Node::Element(e) = child {
+            if e.local == "r" && e.ns.as_deref() == Some(ns::A) {
+                if let Some(t) = child_local(e, "t", ns::A) {
+                    out.push_str(&t.text_content());
+                }
+            }
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+fn ruby_rt_text(ruby: &Element) -> Option<String> {
+    let rt = child_local(ruby, "rt", ns::A)?;
+    let mut out = String::new();
+    for child in &rt.children {
+        if let Node::Element(e) = child {
+            if e.local == "r" && e.ns.as_deref() == Some(ns::A) {
+                if let Some(t) = child_local(e, "t", ns::A) {
+                    out.push_str(&t.text_content());
+                }
+            }
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+fn parse_run_ruby(r: &Element) -> Option<TextPaintRuby> {
+    let ruby = child_local(r, "ruby", ns::A)?;
+    let annotation = ruby_rt_text(ruby)?;
+    let ruby_pr = child_local(ruby, "rubyPr", ns::A);
+    let hps_px = ruby_pr
+        .and_then(|rp| attr(rp, "hps"))
+        .and_then(|s| s.parse::<f64>().ok())
+        .filter(|sz| *sz > 0.0)
+        .map(|sz| sz / 100.0 * 96.0 / 72.0);
+    let text_align = ruby_pr
+        .and_then(|rp| attr(rp, "algn"))
+        .map(ruby_pr_align_to_css);
+    Some(TextPaintRuby {
+        annotation,
+        font_size_px: hps_px,
+        text_align,
+    })
+}
+
+fn ruby_pr_align_to_css(algn: &str) -> &'static str {
+    match algn {
+        "l" => "left",
+        "r" => "right",
+        "dist" | "distCat" | "distLetter" => "justify",
+        _ => "center",
+    }
+}
+
+fn rpr_has_underline(rpr: &Element) -> bool {
+    match attr(rpr, "u") {
+        None | Some("none") => false,
+        Some(_) => true,
+    }
+}
+
+fn parse_tab_stops(p_pr: &Element) -> Vec<TextPaintTabStop> {
+    let Some(tab_lst) = child_local(p_pr, "tabLst", ns::A) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for tab in children_local(tab_lst, "tab", ns::A) {
+        let pos = attr(tab, "pos")
+            .and_then(|s| s.parse::<i64>().ok())
+            .filter(|p| *p > 0)
+            .map(emu_to_pixels);
+        if let Some(position_px) = pos {
+            let align = match attr(tab, "algn") {
+                Some("ctr") => TextTabAlign::Center,
+                Some("r") => TextTabAlign::Right,
+                Some("dec") => TextTabAlign::Decimal,
+                _ => TextTabAlign::Left,
+            };
+            out.push(TextPaintTabStop { position_px, align });
+        }
+    }
+    out.sort_by(|a, b| {
+        a.position_px
+            .partial_cmp(&b.position_px)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    out
+}
+
+/// Lay out tab-separated segments (upstream `computeTabbedLayout` subset).
+pub fn compute_tabbed_line_layout(
+    segments: &[&str],
+    tab_stops: &[TextPaintTabStop],
+    mut measure: impl FnMut(&str) -> f64,
+    default_tab_px: f64,
+) -> Vec<(String, f64)> {
+    const EPS: f64 = 0.01;
+    const FALLBACK_STEP_PX: f64 = 48.0;
+    let step = if default_tab_px > 0.0 {
+        default_tab_px
+    } else {
+        FALLBACK_STEP_PX
+    };
+    let mut pieces: Vec<(String, f64)> = Vec::new();
+    let mut cursor = 0.0;
+    for (i, text) in segments.iter().enumerate() {
+        if i == 0 {
+            pieces.push((text.to_string(), 0.0));
+            cursor = measure(text);
+            continue;
+        }
+        let width = measure(text);
+        let stop = tab_stops.iter().find(|s| s.position_px > cursor + EPS);
+        let (tab_x, align) = if let Some(s) = stop {
+            (s.position_px, s.align)
+        } else {
+            let tab_x = (cursor / step + 1.0 + EPS).floor() * step;
+            (tab_x, TextTabAlign::Left)
+        };
+        let left = match align {
+            TextTabAlign::Center => tab_x - width / 2.0,
+            TextTabAlign::Right => tab_x - width,
+            TextTabAlign::Decimal | TextTabAlign::Left => tab_x,
+        };
+        let left = left.max(cursor);
+        let leader = left - cursor;
+        pieces.push((text.to_string(), leader));
+        cursor = left + width;
+    }
+    pieces
 }
 
 /// Map OOXML alignment + RTL to CSS `text-align` (upstream `resolveCssTextAlign`).
@@ -296,6 +475,39 @@ mod tests {
         )
         .unwrap();
         assert_eq!(parse_body_autofit(&doc.root), Some(TextAutoFitMode::Shrink));
+    }
+
+    // Catches: ruby runs flattened to `p.text_content()` so annotation duplicates base text in paint.
+    #[test]
+    fn underline_words_ruby_tab_fixture_paint_runs() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr wrap="none"><a:noAutofit/></a:bodyPr>
+              <a:p><a:r><a:rPr lang="ja-JP" sz="2400" u="words"/><a:ruby>
+                <a:rubyPr algn="ctr" hps="1200"/>
+                <a:rt><a:r><a:rPr lang="ja-JP" sz="1200"/><a:t>あるふぁべと</a:t></a:r></a:rt>
+                <a:rubyBase><a:r><a:rPr lang="en-US" sz="2400" u="words"/><a:t>ALFA BETO</a:t></a:r></a:rubyBase>
+              </a:ruby></a:r></a:p>
+              <a:p><a:pPr><a:tabLst><a:tab pos="2743200" algn="l"/></a:tabLst></a:pPr>
+              <a:r><a:rPr lang="en-US" sz="2400" u="words"/><a:t>GAMA DELTO	EPSI</a:t></a:r></a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let paras = parse_text_paint_paragraphs(&doc.root);
+        assert_eq!(paras.len(), 2);
+        assert_eq!(paras[0].runs.len(), 1);
+        assert_eq!(paras[0].runs[0].text, "ALFA BETO");
+        assert!(paras[0].runs[0].underline);
+        assert_eq!(
+            paras[0].runs[0]
+                .ruby
+                .as_ref()
+                .map(|r| r.annotation.as_str()),
+            Some("あるふぁべと")
+        );
+        assert_eq!(paras[1].tab_stops.len(), 1);
+        assert!((paras[1].tab_stops[0].position_px - 288.0).abs() < 0.1);
+        assert!(paras[1].runs[0].text.contains('\t'));
     }
 
     // Catches: `a:pPr/@rtl` paragraphs painted as one LTR `<p>` so Arabic/Hebrew slides miss the gate.

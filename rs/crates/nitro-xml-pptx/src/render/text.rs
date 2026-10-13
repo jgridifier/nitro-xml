@@ -11,8 +11,8 @@ use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
 use crate::slide::DumpElement;
 use crate::text_body_rect::{resolve_text_body_rect_padding, TextBodyRectPadding};
 use crate::text_layout::{
-    resolve_css_text_align, TextAlignCss, TextBodyLayout, TextBodyVAlign, TextPaintParagraph,
-    TextPaintRun,
+    compute_tabbed_line_layout, resolve_css_text_align, TextAlignCss, TextBodyLayout,
+    TextBodyVAlign, TextPaintParagraph, TextPaintRuby, TextPaintRun, TextPaintTabStop,
 };
 
 /// Loader `fillMeasureWidths` sentinel: returns GDI letter-spacing px/char (upstream `text-metric-tracking`).
@@ -222,23 +222,101 @@ fn paint_rich_paragraphs<I: StringIntern>(
             set_style(ctx, para, "unicode-bidi", "embed");
         }
         for run_model in &para_model.runs {
-            append_paint_run(ctx, para, run_model, para_rtl, paint, size, stack);
+            append_paint_run(
+                ctx,
+                para,
+                run_model,
+                para_rtl,
+                &para_model.tab_stops,
+                paint,
+                size,
+                stack,
+            );
         }
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn append_paint_run<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     para: u32,
     run_model: &TextPaintRun,
     paragraph_rtl: Option<bool>,
+    tab_stops: &[TextPaintTabStop],
     paint: &TextBodyPaint<'_>,
     size: f64,
     stack: &str,
 ) {
-    let run = create_child(ctx, para, "span");
-    set_text_content(ctx, run, &run_model.text);
-    if let Some(run_rtl) = run_model.rtl {
+    if !tab_stops.is_empty() && run_model.text.contains('\t') {
+        paint_tabbed_run(
+            ctx,
+            para,
+            run_model,
+            paragraph_rtl,
+            tab_stops,
+            paint,
+            size,
+            stack,
+        );
+        return;
+    }
+    let host = if let Some(ruby) = &run_model.ruby {
+        let ruby_el = create_child(ctx, para, "ruby");
+        apply_run_rtl(ctx, ruby_el, run_model.rtl, paragraph_rtl);
+        if paint.font_family.is_none() {
+            set_style(ctx, ruby_el, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+        }
+        paint_run_typography(ctx, ruby_el, paint, size, stack);
+        if run_model.underline {
+            apply_run_underline(ctx, ruby_el);
+        }
+        let base = create_child(ctx, ruby_el, "span");
+        set_text_content(ctx, base, &run_model.text);
+        if paint.font_family.is_some() {
+            apply_gdi_metric_letter_spacing(
+                ctx,
+                base,
+                &run_model.text,
+                size,
+                paint.font_family,
+                paint.font_bold,
+            );
+        }
+        paint_ruby_annotation(ctx, ruby_el, ruby, size, stack);
+        ruby_el
+    } else {
+        let run = create_child(ctx, para, "span");
+        set_text_content(ctx, run, &run_model.text);
+        apply_run_rtl(ctx, run, run_model.rtl, paragraph_rtl);
+        if paint.font_family.is_none() {
+            set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+        }
+        paint_run_typography(ctx, run, paint, size, stack);
+        if run_model.underline {
+            apply_run_underline(ctx, run);
+        }
+        if paint.font_family.is_some() {
+            apply_gdi_metric_letter_spacing(
+                ctx,
+                run,
+                &run_model.text,
+                size,
+                paint.font_family,
+                paint.font_bold,
+            );
+        }
+        run
+    };
+    let _ = host;
+}
+
+fn apply_run_rtl<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    run: u32,
+    run_rtl: Option<bool>,
+    paragraph_rtl: Option<bool>,
+) {
+    if let Some(run_rtl) = run_rtl {
         set_style(ctx, run, "direction", if run_rtl { "rtl" } else { "ltr" });
         let bidi = if Some(run_rtl) != paragraph_rtl {
             "bidi-override"
@@ -247,19 +325,98 @@ fn append_paint_run<I: StringIntern>(
         };
         set_style(ctx, run, "unicode-bidi", bidi);
     }
-    if paint.font_family.is_none() {
-        set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+}
+
+fn apply_run_underline<I: StringIntern>(ctx: &mut PaintContext<'_, I>, run: u32) {
+    set_style(ctx, run, "text-decoration-line", "underline");
+    set_style(ctx, run, "text-decoration-style", "solid");
+    set_style(ctx, run, "text-decoration-thickness", "1px");
+}
+
+fn paint_ruby_annotation<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    ruby_el: u32,
+    ruby: &TextPaintRuby,
+    base_size_px: f64,
+    stack: &str,
+) {
+    let rt = create_child(ctx, ruby_el, "rt");
+    set_text_content(ctx, rt, &ruby.annotation);
+    let rt_size = ruby.font_size_px.unwrap_or(base_size_px * 0.5);
+    set_style(ctx, rt, "font-size", &format!("{}px", format_px(rt_size)));
+    set_style(ctx, rt, "font-family", stack);
+    if let Some(align) = ruby.text_align {
+        set_style(ctx, rt, "text-align", align);
     }
-    paint_run_typography(ctx, run, paint, size, stack);
-    if paint.font_family.is_some() {
-        apply_gdi_metric_letter_spacing(
-            ctx,
-            run,
-            &run_model.text,
-            size,
-            paint.font_family,
-            paint.font_bold,
-        );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn paint_tabbed_run<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    para: u32,
+    run_model: &TextPaintRun,
+    paragraph_rtl: Option<bool>,
+    tab_stops: &[TextPaintTabStop],
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+) {
+    let line_host = create_child(ctx, para, "span");
+    set_style(ctx, line_host, "display", "inline-block");
+    set_style(ctx, line_host, "white-space", "nowrap");
+    apply_run_rtl(ctx, line_host, run_model.rtl, paragraph_rtl);
+    let canvas_font = canvas_measure_font(stack, size, paint.font_bold);
+    let font_id = ctx.intern.intern(&canvas_font);
+    let measure = |text: &str| -> f64 {
+        if text.is_empty() {
+            return 0.0;
+        }
+        let text_id = ctx.intern.intern(text);
+        if let Some(w) = ctx.measure.cached_width(font_id, text_id) {
+            return w;
+        }
+        ctx.measure.push(font_id, size as f32, text_id);
+        // First paint pass before measure replies: leader width 0 until cache fills.
+        text.len() as f64 * size * 0.5
+    };
+    let segments: Vec<&str> = run_model.text.split('\t').collect();
+    let pieces = compute_tabbed_line_layout(&segments, tab_stops, measure, 0.0);
+    for (i, (text, leader_width)) in pieces.iter().enumerate() {
+        if i > 0 && *leader_width > 0.5 {
+            let leader = create_child(ctx, line_host, "span");
+            set_attr(ctx, leader, "aria-hidden", "true");
+            set_style(ctx, leader, "display", "inline-block");
+            set_style(
+                ctx,
+                leader,
+                "width",
+                &format!("{}px", format_px(*leader_width)),
+            );
+            set_style(ctx, leader, "overflow", "hidden");
+            set_style(ctx, leader, "white-space", "nowrap");
+            set_style(ctx, leader, "vertical-align", "baseline");
+        }
+        let piece = create_child(ctx, line_host, "span");
+        set_text_content(ctx, piece, text);
+        set_style(ctx, piece, "display", "inline-block");
+        set_style(ctx, piece, "white-space", "pre");
+        if paint.font_family.is_none() {
+            set_style(ctx, piece, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+        }
+        paint_run_typography(ctx, piece, paint, size, stack);
+        if run_model.underline {
+            apply_run_underline(ctx, piece);
+        }
+        if paint.font_family.is_some() {
+            apply_gdi_metric_letter_spacing(
+                ctx,
+                piece,
+                text,
+                size,
+                paint.font_family,
+                paint.font_bold,
+            );
+        }
     }
 }
 

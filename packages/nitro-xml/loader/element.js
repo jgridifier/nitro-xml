@@ -273,22 +273,16 @@ export class ShellViewerElement extends ViewerElement {
     super();
     this._ch = null;
     this._readonly = !0;
-    this._zoomAttr = null;
     this._wp = 1;
   }
   static get observedAttributes() {
-    return ["src", "readonly", "zoom"];
+    return ["src", "readonly"];
   }
   attributeChangedCallback(n, _, v) {
     if (n == "readonly") this._readonly = v != "false";
-    if (n == "zoom") {
-      this._zoomAttr = v;
-      if (this._d && v) void this.shellAction("zoom-set", v);
-    }
   }
   connectedCallback() {
     this._readonly = this.getAttribute("readonly") != "false";
-    this._zoomAttr = this.getAttribute("zoom");
     super.connectedCallback();
   }
   get readonly() {
@@ -296,7 +290,7 @@ export class ShellViewerElement extends ViewerElement {
   }
   async _ao() {
     await this.shellAction("ui");
-    if (this._zoomAttr) await this.shellAction("zoom-set", this._zoomAttr);
+    const z=this.getAttribute("zoom");if(z)await this.shellAction("zoom-set",z);
   }
   _css() {
     return ":host{display:flex;flex-direction:column;min-height:12rem;background:#fff}.v{position:relative;flex:1;min-height:0;outline:none;background:#fff}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}canvas{background:#fff}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";
@@ -318,11 +312,7 @@ export class ShellViewerElement extends ViewerElement {
     ch.oninput = (e) => {
       e.target.classList.contains("q") && g("find-query", e.target.value);
     };
-    const mac =
-      typeof navigator !== "undefined" &&
-      /mac|iphone|ipad|ipod/i.test(
-        (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "",
-      );
+    const mac=typeof navigator!="undefined"&&/mac|iphone|ipad|ipod/i.test((navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||"");
     this.onkeydown = (e) => {
       if (!this._d) return;
       const q = e.target.classList.contains("q");
@@ -406,9 +396,7 @@ export class ShellViewerElement extends ViewerElement {
       r.p.open && r.p.target && window.open(r.p.target, "_blank", "noopener,noreferrer");
       this.dispatchEvent(new CustomEvent("nitro-hyperlink", { detail: r.p, bubbles: !0 }));
     }
-    if (op.indexOf("find") === 0 && r.ui && r.ui.find) {
-      this.dispatchEvent(new CustomEvent("nitro-find", { detail: r.ui.find, bubbles: !0 }));
-    }
+    r.ui&&r.ui.find&&!op.indexOf("find")&&this.dispatchEvent(new CustomEvent("nitro-find",{detail:r.ui.find,bubbles:!0}));
     this._tick();
     return r;
   }

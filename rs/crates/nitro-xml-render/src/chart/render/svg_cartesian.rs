@@ -20,6 +20,12 @@ pub struct Frame {
     horizontal: bool,
 }
 
+/// P9 category tick baseline below `plotBottom` (TS `buildMultiLevelCategoryLabels`).
+fn p9_category_label_baseline_y(plot_bottom: f64, label_offset_percent: f64, font_px: f64) -> f64 {
+    let offset = 4.0 + 8.0 * (label_offset_percent / 100.0);
+    plot_bottom + offset + 0.8 * font_px
+}
+
 impl Frame {
     pub fn value(&self, v: f64) -> f64 {
         if self.horizontal {
@@ -271,7 +277,11 @@ fn axes(
             let mut a = category_attrs.clone();
             a.anchor = Some("middle");
             let cat_y = if p9_bar3d {
-                plot.y + plot.h + 12.0
+                p9_category_label_baseline_y(
+                    plot.y + plot.h,
+                    model.category_label_offset,
+                    category_size,
+                )
             } else {
                 plot.y + plot.h + category_size + 3.0
             };

@@ -204,3 +204,28 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod chrome_gate_tests {
+    use std::path::PathBuf;
+    use nitro_xml_opc::chart::parse_chart_space_xml;
+    use super::docx_chart_svg;
+
+    #[test]
+    fn docx_chrome_emits_rich_title_runs() {
+        // Catches: docx_chart_chrome false path used for print, regressing poi-chartex pixel parity.
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/real/docx/poi-chartex.docx");
+        let xml = std::process::Command::new("unzip")
+            .args(["-p", root.to_str().unwrap(), "word/charts/chart1.xml"])
+            .output()
+            .expect("unzip");
+        let space = parse_chart_space_xml(std::str::from_utf8(&xml.stdout).unwrap()).chart_space;
+        let svg = docx_chart_svg(&space, 480, 320, &[], None, None);
+        assert!(
+            svg.contains("data-chart-title-run"),
+            "expected rich title runs under docx chrome, got: {}",
+            &svg[..svg.len().min(200)]
+        );
+    }
+}

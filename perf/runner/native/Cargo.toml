@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: MIT
+# Long-session correctness harness (#90). Test/bench only — never shipped.
+[package]
+name = "nitro-long-session"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "long-session"
+path = "src/main.rs"
+
+[dependencies]
+nitro-xml-opc = { path = "../../../rs/crates/nitro-xml-opc" }
+nitro-xml-xlsx = { path = "../../../rs/crates/nitro-xml-xlsx" }
+nitro-xml-docx = { path = "../../../rs/crates/nitro-xml-docx" }
+nitro-xml-pptx = { path = "../../../rs/crates/nitro-xml-pptx" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

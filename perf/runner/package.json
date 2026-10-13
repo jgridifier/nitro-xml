@@ -1,0 +1,10 @@
+{
+  "name": "nitro-xml-long-session-runner",
+  "private": true,
+  "description": "1000-op session correctness harness (#90). Test/bench only, never shipped.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "session": "bun session.ts"
+  }
+}

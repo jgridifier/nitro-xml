@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/ui/src/xlsx/grid/cell-layer.ts; changes listed in PROVENANCE.md.
 
+use std::collections::HashSet;
+
 use nitro_xml_render::command_buffer::CommandBuffer;
 use nitro_xml_render::measure::MeasureBatch;
 
+use crate::editor::mark_stale_class;
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
 use crate::render::geometry::header_sizes;
-use crate::render::grid::CELLS_ID;
+use crate::render::grid::{CELLS_ID, OVERLAY_ID};
 use crate::render::viewport::{paint_indices, visible_cells_for_host};
-use crate::render::GridPaintViewport;
+use crate::render::{EditorPaintHints, GridPaintViewport};
 use crate::sheet_access::CellIndex;
 use crate::view::cell_items::{build_items, BuildInput};
 use crate::view::cell_paint::{
@@ -25,6 +28,11 @@ const TEXT_BASE: u32 = 10_000;
 const BORDER_BASE: u32 = 20_000;
 const COMMENT_BASE: u32 = 30_000;
 const ERROR_BASE: u32 = 40_000;
+const STALE_BASE: u32 = 60_000;
+const EDITOR_BOX: u32 = 70_000;
+const EDITOR_BEFORE: u32 = 70_001;
+const EDITOR_CARET: u32 = 70_002;
+const EDITOR_AFTER: u32 = 70_003;
 
 fn set_style<I: StringIntern>(
     buf: &mut CommandBuffer,
@@ -59,6 +67,7 @@ fn paint_one_cell<I: StringIntern>(
     n: usize,
     item: &CellItem,
     zoom: f64,
+    stale: bool,
 ) {
     let cell_id = CELL_BASE + n as u32;
     // Plane-relative coords; scroll is on `.xg-plane` translate3d (upstream cell-layer.ts).
@@ -75,7 +84,11 @@ fn paint_one_cell<I: StringIntern>(
     if item.merged {
         cell_class.push_str(" xg-merged");
     }
+    mark_stale_class(&mut cell_class, stale);
     set_attr(buf, intern, cell_id, "class", &cell_class);
+    if stale {
+        set_attr(buf, intern, cell_id, "data-stale", "1");
+    }
     set_style(buf, intern, cell_id, "left", &format!("{}px", left));
     set_style(buf, intern, cell_id, "top", &format!("{}px", top));
     set_style(buf, intern, cell_id, "width", &format!("{}px", item.w));
@@ -314,6 +327,21 @@ fn paint_one_cell<I: StringIntern>(
         buf.create_element(er_id, div, cell_id);
         set_attr(buf, intern, er_id, "class", "xg-er");
     }
+
+    if stale {
+        let mark = STALE_BASE + n as u32;
+        buf.create_element(mark, div, cell_id);
+        set_attr(buf, intern, mark, "class", "xg-stale-mark");
+        set_attr(buf, intern, mark, "title", "Stale formula");
+        set_style(buf, intern, mark, "position", "absolute");
+        set_style(buf, intern, mark, "left", "0");
+        set_style(buf, intern, mark, "bottom", "0");
+        set_style(buf, intern, mark, "width", "0");
+        set_style(buf, intern, mark, "height", "0");
+        set_style(buf, intern, mark, "borderRight", "8px solid transparent");
+        set_style(buf, intern, mark, "borderBottom", "8px solid #c45911");
+        set_style(buf, intern, mark, "zIndex", "3");
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -327,11 +355,13 @@ pub fn paint<I: StringIntern>(
     all_sheets: &[Option<ActiveWorksheet>],
     metrics: &crate::view::metrics::GridMetrics,
     viewport: &GridPaintViewport,
+    hints: &EditorPaintHints,
 ) {
     let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let vis = visible_cells_for_host(metrics, viewport, sizes.w, sizes.h);
     let (rows, cols) = paint_indices(&vis);
     if rows.is_empty() || cols.is_empty() {
+        paint_edit_overlay(buf, intern, metrics, hints);
         return;
     }
     let index = CellIndex::build(sheet);
@@ -364,12 +394,73 @@ pub fn paint<I: StringIntern>(
     let span = intern.intern("span");
     // Upstream CellViewCache returns null for isBlankView — no DOM node.
     // View-IR keeps blanks (oracle view() never null); only the painter skips.
+    let stale: HashSet<(u32, u32)> = hints.stale.iter().copied().collect();
     let mut n = 0usize;
     for item in &items {
-        if !item.merged && is_blank_view(&item.view) {
+        let is_stale = stale.contains(&(item.row, item.col));
+        if !item.merged && is_blank_view(&item.view) && !is_stale {
             continue;
         }
-        paint_one_cell(buf, intern, div, span, n, item, metrics.zoom);
+        paint_one_cell(buf, intern, div, span, n, item, metrics.zoom, is_stale);
         n += 1;
     }
+    paint_edit_overlay(buf, intern, metrics, hints);
+}
+
+fn paint_edit_overlay<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    metrics: &crate::view::metrics::GridMetrics,
+    hints: &EditorPaintHints,
+) {
+    let Some(edit) = &hints.edit else {
+        return;
+    };
+    let div = intern.intern("div");
+    let span = intern.intern("span");
+    let left = metrics.col_left(edit.col);
+    let top = metrics.row_top(edit.row);
+    let w = metrics.col_width(edit.col).max(8);
+    let h = metrics.row_height(edit.row).max(8);
+    buf.create_element(EDITOR_BOX, div, OVERLAY_ID);
+    set_attr(buf, intern, EDITOR_BOX, "class", "xg-edit");
+    set_style(buf, intern, EDITOR_BOX, "position", "absolute");
+    set_style(buf, intern, EDITOR_BOX, "left", &format!("{left}px"));
+    set_style(buf, intern, EDITOR_BOX, "top", &format!("{top}px"));
+    set_style(buf, intern, EDITOR_BOX, "width", &format!("{w}px"));
+    set_style(buf, intern, EDITOR_BOX, "height", &format!("{h}px"));
+    set_style(buf, intern, EDITOR_BOX, "background", "#fff");
+    set_style(buf, intern, EDITOR_BOX, "border", "2px solid #217346");
+    set_style(buf, intern, EDITOR_BOX, "boxSizing", "border-box");
+    set_style(buf, intern, EDITOR_BOX, "zIndex", "6");
+    set_style(buf, intern, EDITOR_BOX, "overflow", "hidden");
+    set_style(buf, intern, EDITOR_BOX, "whiteSpace", "pre");
+    set_style(
+        buf,
+        intern,
+        EDITOR_BOX,
+        "font",
+        "13px Calibri,Carlito,sans-serif",
+    );
+    set_style(buf, intern, EDITOR_BOX, "padding", "0 2px");
+    let (before, after) = split_caret(&edit.text, edit.caret);
+    buf.create_element(EDITOR_BEFORE, span, EDITOR_BOX);
+    buf.set_text(EDITOR_BEFORE, intern.intern(before));
+    buf.create_element(EDITOR_CARET, span, EDITOR_BOX);
+    set_attr(buf, intern, EDITOR_CARET, "class", "xg-edit-caret");
+    set_style(buf, intern, EDITOR_CARET, "display", "inline-block");
+    set_style(buf, intern, EDITOR_CARET, "width", "1px");
+    set_style(buf, intern, EDITOR_CARET, "height", "1em");
+    set_style(buf, intern, EDITOR_CARET, "background", "#111");
+    set_style(buf, intern, EDITOR_CARET, "verticalAlign", "text-bottom");
+    buf.create_element(EDITOR_AFTER, span, EDITOR_BOX);
+    buf.set_text(EDITOR_AFTER, intern.intern(after));
+}
+
+fn split_caret(text: &str, caret: usize) -> (&str, &str) {
+    let mut c = caret.min(text.len());
+    while c > 0 && !text.is_char_boundary(c) {
+        c -= 1;
+    }
+    text.split_at(c)
 }

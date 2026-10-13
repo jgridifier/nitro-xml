@@ -3,12 +3,14 @@
 
 use crate::events::{Event, MOD_ALT, MOD_CTRL, MOD_META, MOD_SHIFT};
 use crate::transport::StringTable;
+use nitro_xml_xlsx::editor::EditorSession;
 use nitro_xml_xlsx::model::ActiveWorksheet;
 use nitro_xml_xlsx::model::{CellAddress, CellRange, SheetSelection};
 use nitro_xml_xlsx::render::{
     all_range, arrow_origin, clamped_hit, current_region_or_all, extend_selection, header_sizes,
     hit, moving_end, navigate_arrow, select_cell, selection_ref, Arrow, HitArea, HitInput,
 };
+use nitro_xml_xlsx::render::{EditOverlay, EditorPaintHints};
 use nitro_xml_xlsx::view::metrics::{create_grid_metrics, GridMetrics, GridMetricsOptions};
 use nitro_xml_xlsx::{
     cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook, open_first_view,
@@ -34,6 +36,8 @@ pub struct XlsxState {
     /// Viewport-sized workbook. `None` after a search or hyperlink lookup upgrades to the full
     /// `load_workbook` path (those need every cell, not the painted window).
     lazy: Option<FirstView>,
+    /// Live edit session when the document is not read-only (#69).
+    pub edit: Option<EditorSession>,
 }
 
 impl XlsxState {
@@ -61,6 +65,7 @@ impl XlsxState {
                 zoom_pct: None,
                 drag: None,
                 lazy: Some(first),
+                edit: None,
             },
             warnings,
         ))
@@ -256,6 +261,7 @@ impl XlsxState {
             return;
         }
         let viewport = self.viewport();
+        let hints = self.editor_paint_hints();
         let active = self.active;
         let workbook = &self.workbook;
         let sheets_ref = &self.sheets;
@@ -270,7 +276,30 @@ impl XlsxState {
             active,
             sheets_ref,
             &viewport,
+            &hints,
         );
+    }
+
+    fn editor_paint_hints(&self) -> EditorPaintHints {
+        let Some(edit) = &self.edit else {
+            return EditorPaintHints::default();
+        };
+        let stale = edit.stale_cells(self.active as u32);
+        let edit_overlay = if edit.cell().is_editing() && edit.cell().sheet() == self.active as u32
+        {
+            Some(EditOverlay {
+                row: edit.cell().row(),
+                col: edit.cell().col(),
+                text: edit.cell().text().to_owned(),
+                caret: edit.cell().focus(),
+            })
+        } else {
+            None
+        };
+        EditorPaintHints {
+            stale,
+            edit: edit_overlay,
+        }
     }
 
     /// Apply a frame of input. Returns the new selection ref when the painted selection changed.
@@ -322,6 +351,13 @@ impl XlsxState {
         let py = y.round() as i32;
         match type_ {
             0 if button == 0 => {
+                if self
+                    .edit
+                    .as_ref()
+                    .is_some_and(|edit| edit.cell().is_editing())
+                {
+                    let _ = self.commit_live_edit();
+                }
                 let hit = {
                     let zoom = self.zoom_pct;
                     let scroll_x = self.scroll_x;
@@ -372,6 +408,13 @@ impl XlsxState {
     }
 
     fn on_key(&mut self, key: &str, mods: u8) -> Option<String> {
+        if self
+            .edit
+            .as_ref()
+            .is_some_and(|edit| edit.cell().is_editing())
+        {
+            return None;
+        }
         if mods & MOD_ALT != 0 {
             return None;
         }

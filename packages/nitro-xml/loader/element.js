@@ -70,6 +70,9 @@ export class ViewerElement extends HTMLElement {
     // Assign _d after open (#27).
     const ro = this._readonly !== false;
     const d = new WD({ canvas: this._c, root: this._r, name: n });
+    d.onChrome = (h) => {
+      if (this._ch && h) this._ch.innerHTML = h;
+    };
     if (!ro) await loadEditorModule();
     await d.open(b, n, { readonly: ro });
     this._d = d;
@@ -320,28 +323,74 @@ export class ShellViewerElement extends ViewerElement {
       let k = (m ? "m" : "") + e.key;
       if (q && e.key == "Enter") k = e.shiftKey ? "qSEnter" : "qEnter";
       else if (q && e.key == "Escape") k = "qEscape";
-      for (const p of ((ch.firstElementChild && ch.firstElementChild.dataset.hk) || "").split("|")) {
+      const hkRoot = (ch.querySelector && ch.querySelector("[data-hk]")) || ch.firstElementChild;
+      for (const p of ((hkRoot && hkRoot.dataset.hk) || "").split("|")) {
         const i = p.indexOf(":");
         if (p.slice(0, i) === k) {
           e.preventDefault();
           return g(p.slice(i + 1));
         }
       }
+      const inFind = (e.composedPath ? e.composedPath() : []).some(
+        (n) => n.classList && n.classList.contains("q"),
+      );
+      const paintEdit = (edit) => {
+        if (!edit || !edit.handled) return;
+        e.preventDefault();
+        if (edit.h != null && this._ch) this._ch.innerHTML = edit.h;
+        this._tick();
+      };
       if (!this._readonly && (e.ctrlKey || e.metaKey || e.altKey)) {
         void this._d.matchShortcut(e, mac).then((hit) => {
-          if (!hit || (!hit.command && !hit.action)) return;
-          e.preventDefault();
-          if (hit.command) g("cmd", hit.command);
-          else if (hit.action === "help") g("diagnostics-toggle");
+          if (hit && (hit.command || hit.action)) {
+            e.preventDefault();
+            if (hit.command) g("cmd", hit.command);
+            else if (hit.action === "help") g("diagnostics-toggle");
+            return;
+          }
+          if (!inFind && this._d.editorKey) return this._d.editorKey(e, mac).then(paintEdit);
         });
+        return;
+      }
+      if (!this._readonly && !inFind && this._d.editorKey) {
+        void this._d.editorKey(e, mac).then(paintEdit);
       }
     };
+  }
+  _fileName() {
+    const src = this.getAttribute("src") || "";
+    return (src.split(/[?#]/)[0].split("/").pop()) || "workbook.xlsx";
+  }
+  _downloadBytes(bytes, name) {
+    if (typeof document === "undefined") return bytes;
+    const a = document.createElement("a");
+    const url = URL.createObjectURL(new Blob([bytes]));
+    a.href = url;
+    a.download = name || this._fileName();
+    a.click();
+    URL.revokeObjectURL(url);
+    return bytes;
+  }
+  async save() {
+    if (this._readonly) throw new Error("read-only");
+    if (!this._d || !this._d.save) throw new Error("no document");
+    return this._d.save();
+  }
+  async download(name) {
+    const bytes = await this.save();
+    this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: !0 }));
+    return this._downloadBytes(bytes, name);
   }
   /** Apply Rust chrome + side effects. Short keys: `h` html, `c` copy, `p` hyperlink. */
   async shellAction(op, arg = "") {
     if (!this._d) return null;
     const r = await this._d.shellAction(op, arg);
     if (this._ch && r.h != null) this._ch.innerHTML = r.h;
+    if (r.save && !this._readonly && this._d && this._d.save) {
+      const bytes = await this._d.save();
+      this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: !0 }));
+      this._downloadBytes(bytes);
+    }
     if (r.c != null) {
       navigator.clipboard && navigator.clipboard.writeText && navigator.clipboard.writeText(r.c);
       this.dispatchEvent(new CustomEvent("nitro-copy", { detail: r.c, bubbles: !0 }));

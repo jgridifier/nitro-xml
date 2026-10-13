@@ -12,6 +12,7 @@ pub mod comments;
 pub mod dates;
 pub mod display_text;
 pub mod edit;
+pub mod editor;
 pub mod engine_api;
 pub mod formula;
 pub mod formula_text;

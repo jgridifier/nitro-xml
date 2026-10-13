@@ -42,6 +42,8 @@ pub struct EditorChrome {
     loaded: bool,
     overlay: Overlay,
     focus: focus::FocusStack,
+    /// Formula bar fragment. Empty while read-only (#69 negative control).
+    formula_html: String,
 }
 
 impl EditorChrome {
@@ -53,6 +55,7 @@ impl EditorChrome {
             loaded: false,
             overlay: Overlay::None,
             focus: focus::FocusStack::new(),
+            formula_html: String::new(),
         }
     }
 
@@ -70,6 +73,7 @@ impl EditorChrome {
         if read_only {
             self.overlay = Overlay::None;
             self.focus.clear();
+            self.formula_html.clear();
         }
     }
 
@@ -103,6 +107,22 @@ impl EditorChrome {
 
     pub fn has_overlay(&self) -> bool {
         !matches!(self.overlay, Overlay::None)
+    }
+
+    pub fn formula_html(&self) -> &str {
+        if self.read_only || !self.loaded {
+            ""
+        } else {
+            &self.formula_html
+        }
+    }
+
+    pub fn set_formula_html(&mut self, html: String) {
+        if self.read_only || !self.loaded {
+            self.formula_html.clear();
+            return;
+        }
+        self.formula_html = html;
     }
 
     pub fn is_enabled(&self, id: &str) -> bool {

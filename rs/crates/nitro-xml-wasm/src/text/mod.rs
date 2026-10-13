@@ -4,8 +4,8 @@
 //! Upstream xlsx uses a native `<textarea>` for caret, selection, IME and
 //! clipboard while editing (`formula-field.ts`). Nitro owns that surface in
 //! Rust: grapheme/word/line caret motion, shift-selection, pointer hit-test,
-//! and plain/TSV clipboard helpers. Host chrome (formula bar / cell editor)
-//! lands in #69; IME composition is [`ime`].
+//! and plain/TSV clipboard helpers. The formula bar and cell editor (#69)
+//! feed keys through [`apply_key`]. IME composition is [`ime`].
 
 pub mod a11y;
 pub mod bidi;

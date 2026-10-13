@@ -88,6 +88,8 @@ async function probe(page, base, readonly) {
 			hasBold: html.includes('data-g="home.bold"') || !!root?.querySelector('[data-g="home.bold"]'),
 			hasDialog: html.includes('role="dialog"') || !!root?.querySelector('[role="dialog"]'),
 			hasMenu: html.includes('role="menu"') || !!root?.querySelector('[role="menu"]'),
+			hasFormulaBar:
+				html.includes('part="formula-bar"') || !!root?.querySelector('[part="formula-bar"]'),
 		};
 	});
 }
@@ -132,18 +134,18 @@ async function main() {
 	try {
 		const page = await browser.newPage();
 		const ro = await probe(page, server.url, true);
-		if (ro.hasRibbon || ro.hasBold || ro.hasDialog || ro.hasMenu) {
+		if (ro.hasRibbon || ro.hasBold || ro.hasDialog || ro.hasMenu || ro.hasFormulaBar) {
 			throw new Error(`negative control FAIL: chrome present in readonly (${JSON.stringify(ro)})`);
 		}
 		const ed = await probe(page, server.url, false);
-		if (!ed.hasRibbon || !ed.hasBold) {
-			throw new Error(`edit mode missing ribbon (${JSON.stringify(ed)})`);
+		if (!ed.hasRibbon || !ed.hasBold || !ed.hasFormulaBar) {
+			throw new Error(`edit mode missing ribbon or formula bar (${JSON.stringify(ed)})`);
 		}
 		if (ed.hasDialog || ed.hasMenu) {
 			throw new Error(`edit mode unexpectedly open overlay (${JSON.stringify(ed)})`);
 		}
 		console.log(
-			'chrome-browser-negative: PASS (readonly empty; edit Ribbon; overlay eval dialog/menu)',
+			'chrome-browser-negative: PASS (readonly empty; edit Ribbon+formula bar; overlay eval dialog/menu)',
 		);
 	} finally {
 		await browser.close();

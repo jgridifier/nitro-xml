@@ -27,6 +27,7 @@ mod shell;
 mod text;
 mod transport;
 mod xlsx;
+mod xlsx_edit;
 
 pub use handle::{Handle, OoxmlError, Warning};
 

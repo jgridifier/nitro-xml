@@ -414,8 +414,12 @@ fn string_list(args: &Value, key: &str) -> Result<Vec<String>, EditError> {
         .collect())
 }
 
-fn change(kind: ChangeKind, label: &str) -> ChangeSet {
-    ChangeSet::new(kind, label)
+fn change(host: &PptxHost, slide: u32, kind: ChangeKind, label: &str) -> ChangeSet {
+    let mut cs = ChangeSet::new(kind, label);
+    if let Ok(slide) = host.slide(slide) {
+        cs.dirty_parts.push(slide.path.clone());
+    }
+    cs
 }
 
 /// Register every pptx shape op from `edits/schema.json`.
@@ -432,7 +436,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                 &text,
             )
             .map_err(map_err)?;
-            Ok(change(ChangeKind::Other, "setShapeText"))
+            Ok(change(h, slide, ChangeKind::Other, "setShapeText"))
         }),
     );
     registry.register(
@@ -452,7 +456,12 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                 },
             )
             .map_err(map_err)?;
-            Ok(change(ChangeKind::Structure, "patchShapeGeometry"))
+            Ok(change(
+                h,
+                slide,
+                ChangeKind::Structure,
+                "patchShapeGeometry",
+            ))
         }),
     );
     registry.register(
@@ -475,7 +484,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                 },
             )
             .map_err(map_err)?;
-            Ok(change(ChangeKind::Format, "setShapeTextStyle"))
+            Ok(change(h, slide, ChangeKind::Format, "setShapeTextStyle"))
         }),
     );
     registry.register(
@@ -508,7 +517,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                 },
             )
             .map_err(map_err)?;
-            Ok(change(ChangeKind::Structure, "addShape"))
+            Ok(change(h, slide, ChangeKind::Structure, "addShape"))
         }),
     );
     registry.register(
@@ -517,7 +526,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
             let slide = arg_u32(args, "slideIndex")?;
             h.delete_shape(slide, arg_id(args), arg_u32_opt(args, "elementIndex"))
                 .map_err(map_err)?;
-            Ok(change(ChangeKind::Structure, "deleteShape"))
+            Ok(change(h, slide, ChangeKind::Structure, "deleteShape"))
         }),
     );
     registry.register(
@@ -532,7 +541,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                 new_id,
             )
             .map_err(map_err)?;
-            Ok(change(ChangeKind::Structure, "duplicateShape"))
+            Ok(change(h, slide, ChangeKind::Structure, "duplicateShape"))
         }),
     );
     for (id, op) in [
@@ -546,7 +555,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
             let slide = arg_u32(args, "slideIndex")?;
             h.reorder(slide, arg_id(args), arg_u32_opt(args, "elementIndex"), op)
                 .map_err(map_err)?;
-            Ok(change(ChangeKind::Structure, id))
+            Ok(change(h, slide, ChangeKind::Structure, id))
         }));
     }
     registry.register(
@@ -556,7 +565,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
             let ids = string_list(args, "elementIds")?;
             let group_id = arg_str(args, "groupId")?.to_owned();
             h.group_shapes(slide, &ids, &group_id).map_err(map_err)?;
-            Ok(change(ChangeKind::Structure, "groupShapes"))
+            Ok(change(h, slide, ChangeKind::Structure, "groupShapes"))
         }),
     );
     registry.register(
@@ -582,7 +591,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                 .unwrap_or_default();
             h.ungroup_shapes(slide, &group_id, &child_ids)
                 .map_err(map_err)?;
-            Ok(change(ChangeKind::Structure, "ungroupShapes"))
+            Ok(change(h, slide, ChangeKind::Structure, "ungroupShapes"))
         }),
     );
     registry.register(
@@ -598,7 +607,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                 mode,
             )
             .map_err(map_err)?;
-            Ok(change(ChangeKind::Format, "setShapeFill"))
+            Ok(change(h, slide, ChangeKind::Format, "setShapeFill"))
         }),
     );
     registry.register(
@@ -613,7 +622,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                 arg_f64_opt(args, "strokeWidth"),
             )
             .map_err(map_err)?;
-            Ok(change(ChangeKind::Format, "setShapeLine"))
+            Ok(change(h, slide, ChangeKind::Format, "setShapeLine"))
         }),
     );
 }

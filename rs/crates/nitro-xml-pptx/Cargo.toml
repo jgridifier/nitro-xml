@@ -26,3 +26,7 @@ path = "examples/pptx_dump.rs"
 [[example]]
 name = "pptx_view_ir_dump"
 path = "examples/pptx_view_ir_dump.rs"
+
+[[example]]
+name = "pptx_save"
+path = "examples/pptx_save.rs"

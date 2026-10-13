@@ -19,10 +19,12 @@ mod text_layout;
 mod theme;
 mod visual_3d_bevel;
 mod visual_3d_materials;
+pub mod write;
 
 pub use presentation::{Error, Presentation, Slide};
 pub use render::{
     dump_pptx_view_ir, dump_pptx_view_ir_string, paint_slide_frame, SlidePaintViewport,
 };
+pub use write::{save_pptx, save_pptx_with_options, PptxSaveOptions};
 
 pub mod render;

@@ -43,9 +43,12 @@ echo "edit-parity: docx writer example"
 echo "edit-parity: xlsx writer example"
 ( cd rs && cargo build --release -p nitro-xml-xlsx --example xlsx_save )
 
-echo "edit-parity: TS-vs-TS apply+save over edits/*.json, plus Rust docx and xlsx compare"
+echo "edit-parity: pptx writer example"
+( cd rs && cargo build --release -p nitro-xml-pptx --example pptx_save )
+
+echo "edit-parity: TS-vs-TS apply+save over edits/*.json, plus Rust docx, xlsx, and pptx compare"
 set +e
-( cd parity/edit && bun ./run.mjs --ci --rust-docx --rust-xlsx --negative-control )
+( cd parity/edit && bun ./run.mjs --ci --rust-docx --rust-xlsx --rust-pptx --negative-control )
 rc=$?
 set -e
 

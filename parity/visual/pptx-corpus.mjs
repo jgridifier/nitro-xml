@@ -45,6 +45,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'upstream-7cc22f8e5927',
 	'upstream-9f78c22429d9',
 	'upstream-21343018c511',
+	'upstream-165297e1d546',
 	'bidi-arabic-hebrew-slides',
 ]);
 

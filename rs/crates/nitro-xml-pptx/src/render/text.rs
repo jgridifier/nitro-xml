@@ -248,30 +248,45 @@ fn append_paint_run<I: StringIntern>(
     stack: &str,
 ) {
     if !tab_stops.is_empty() && run_model.text.contains('\t') {
-        paint_tabbed_run(
-            ctx,
-            para,
-            run_model,
-            paragraph_rtl,
-            tab_stops,
-            paint,
-            size,
-            stack,
-        );
+        if tab_stops.len() == 1 && tab_stops[0].align == crate::text_layout::TextTabAlign::Left {
+            paint_css_tab_run(
+                ctx,
+                para,
+                run_model,
+                paragraph_rtl,
+                tab_stops[0].position_px,
+                paint,
+                size,
+                stack,
+            );
+        } else {
+            paint_tabbed_run(
+                ctx,
+                para,
+                run_model,
+                paragraph_rtl,
+                tab_stops,
+                paint,
+                size,
+                stack,
+            );
+        }
         return;
     }
     let host = if let Some(ruby) = &run_model.ruby {
         let ruby_el = create_child(ctx, para, "ruby");
+        set_style(ctx, ruby_el, "ruby-position", "over");
+        set_style(ctx, ruby_el, "ruby-align", "center");
         apply_run_rtl(ctx, ruby_el, run_model.rtl, paragraph_rtl);
-        if paint.font_family.is_none() {
-            set_style(ctx, ruby_el, "font-family", VISUAL_HOST_RUN_FONT_STACK);
-        }
-        paint_run_typography(ctx, ruby_el, paint, size, stack);
-        if run_model.underline {
-            apply_run_underline(ctx, ruby_el);
-        }
         let base = create_child(ctx, ruby_el, "span");
         set_text_content(ctx, base, &run_model.text);
+        if paint.font_family.is_none() {
+            set_style(ctx, base, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+        }
+        paint_run_typography(ctx, base, paint, size, stack);
+        if run_model.underline {
+            apply_run_underline(ctx, base);
+        }
         if paint.font_family.is_some() {
             apply_gdi_metric_letter_spacing(
                 ctx,
@@ -282,7 +297,11 @@ fn append_paint_run<I: StringIntern>(
                 paint.font_bold,
             );
         }
+        let open_rp = create_child(ctx, ruby_el, "rp");
+        set_text_content(ctx, open_rp, "(");
         paint_ruby_annotation(ctx, ruby_el, ruby, size, stack);
+        let close_rp = create_child(ctx, ruby_el, "rp");
+        set_text_content(ctx, close_rp, ")");
         ruby_el
     } else {
         let run = create_child(ctx, para, "span");
@@ -331,6 +350,7 @@ fn apply_run_underline<I: StringIntern>(ctx: &mut PaintContext<'_, I>, run: u32)
     set_style(ctx, run, "text-decoration-line", "underline");
     set_style(ctx, run, "text-decoration-style", "solid");
     set_style(ctx, run, "text-decoration-thickness", "1px");
+    set_style(ctx, run, "text-decoration-skip-ink", "none");
 }
 
 fn paint_ruby_annotation<I: StringIntern>(
@@ -345,8 +365,46 @@ fn paint_ruby_annotation<I: StringIntern>(
     let rt_size = ruby.font_size_px.unwrap_or(base_size_px * 0.5);
     set_style(ctx, rt, "font-size", &format!("{}px", format_px(rt_size)));
     set_style(ctx, rt, "font-family", stack);
+    if let Some(lang) = &ruby.lang {
+        set_attr(ctx, rt, "lang", lang);
+    }
     if let Some(align) = ruby.text_align {
         set_style(ctx, rt, "text-align", align);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn paint_css_tab_run<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    para: u32,
+    run_model: &TextPaintRun,
+    paragraph_rtl: Option<bool>,
+    tab_px: f64,
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+) {
+    let run = create_child(ctx, para, "span");
+    set_text_content(ctx, run, &run_model.text);
+    apply_run_rtl(ctx, run, run_model.rtl, paragraph_rtl);
+    set_style(ctx, run, "white-space", "pre");
+    set_style(ctx, run, "tab-size", &format_layout_px(tab_px));
+    if paint.font_family.is_none() {
+        set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+    }
+    paint_run_typography(ctx, run, paint, size, stack);
+    if run_model.underline {
+        apply_run_underline(ctx, run);
+    }
+    if paint.font_family.is_some() {
+        apply_gdi_metric_letter_spacing(
+            ctx,
+            run,
+            &run_model.text,
+            size,
+            paint.font_family,
+            paint.font_bold,
+        );
     }
 }
 
@@ -371,12 +429,22 @@ fn paint_tabbed_run<I: StringIntern>(
         if text.is_empty() {
             return 0.0;
         }
-        let text_id = ctx.intern.intern(text);
-        if let Some(w) = ctx.measure.cached_width(font_id, text_id) {
-            return w;
+        // Distinct intern key from GDI tracking (-3) so tab layout keeps full widths.
+        let width_key = ctx.intern.intern(&format!("tabw:{text}"));
+        if let Some(w) = ctx.measure.cached_width(font_id, width_key) {
+            let tracking_key = ctx.intern.intern(text);
+            let tracking = ctx
+                .measure
+                .cached_width(font_id, tracking_key)
+                .unwrap_or(0.0);
+            let chars = text.chars().count();
+            return if tracking.abs() > 1e-9 && chars > 0 {
+                w + tracking * chars as f64
+            } else {
+                w
+            };
         }
-        ctx.measure.push(font_id, size as f32, text_id);
-        // First paint pass before measure replies: leader width 0 until cache fills.
+        ctx.measure.push(font_id, size as f32, width_key);
         text.len() as f64 * size * 0.5
     };
     let segments: Vec<&str> = run_model.text.split('\t').collect();
@@ -386,12 +454,7 @@ fn paint_tabbed_run<I: StringIntern>(
             let leader = create_child(ctx, line_host, "span");
             set_attr(ctx, leader, "aria-hidden", "true");
             set_style(ctx, leader, "display", "inline-block");
-            set_style(
-                ctx,
-                leader,
-                "width",
-                &format!("{}px", format_px(*leader_width)),
-            );
+            set_style(ctx, leader, "width", &format_layout_px(*leader_width));
             set_style(ctx, leader, "overflow", "hidden");
             set_style(ctx, leader, "white-space", "nowrap");
             set_style(ctx, leader, "vertical-align", "baseline");
@@ -578,6 +641,17 @@ fn apply_text_body_layout<I: StringIntern>(
         "padding-right",
         &format!("{}px", format_px(layout.inset_right_px + rect.right)),
     );
+}
+
+fn format_layout_px(v: f64) -> String {
+    if !v.is_finite() || v.abs() < 1e-9 {
+        return "0px".to_owned();
+    }
+    let s = format!("{:.4}", v)
+        .trim_end_matches('0')
+        .trim_end_matches('.')
+        .to_owned();
+    format!("{}px", s)
 }
 
 fn format_px(v: f64) -> String {

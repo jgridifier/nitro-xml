@@ -205,6 +205,7 @@ pub struct TextPaintRuby {
     pub annotation: String,
     pub font_size_px: Option<f64>,
     pub text_align: Option<&'static str>,
+    pub lang: Option<String>,
 }
 
 /// One styled run inside a painted paragraph (upstream `ParagraphRun` subset).
@@ -336,11 +337,28 @@ fn parse_run_ruby(r: &Element) -> Option<TextPaintRuby> {
     let text_align = ruby_pr
         .and_then(|rp| attr(rp, "algn"))
         .map(ruby_pr_align_to_css);
+    let lang = ruby_rt_lang(ruby);
     Some(TextPaintRuby {
         annotation,
         font_size_px: hps_px,
         text_align,
+        lang,
     })
+}
+
+fn ruby_rt_lang(ruby: &Element) -> Option<String> {
+    let rt = child_local(ruby, "rt", ns::A)?;
+    for child in &rt.children {
+        if let Node::Element(e) = child {
+            if e.local == "r" && e.ns.as_deref() == Some(ns::A) {
+                let r_pr = child_local(e, "rPr", ns::A);
+                if let Some(lang) = r_pr.and_then(|rp| attr(rp, "lang")) {
+                    return Some(lang.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 fn ruby_pr_align_to_css(algn: &str) -> &'static str {

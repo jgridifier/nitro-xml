@@ -128,7 +128,9 @@ async function main() {
 	const bytes = new Uint8Array(readFileSync(fixturePath));
 	const script = JSON.parse(readFileSync(scriptPath, 'utf8'));
 	const workbook = await loadXlsx(bytes);
-	const session = createEditSession(workbook, { recalc: false });
+	// Recalc so formula values match Rust `replay_cell_script` (#77). This dump
+	// is the model-snapshot oracle only; edit-parity apply keeps recalc off.
+	const session = createEditSession(workbook, { recalc: true });
 
 	const touched = new Set();
 	collectTouched(script.ops, touched, parseRange);

@@ -3,8 +3,8 @@
 // and src/core/xlsx/formula/call.ts; changes listed in PROVENANCE.md.
 //! Formula functions. Math & Trig and Statistical are #73. Logical, text, information
 //! and date & time are #74. Lookup & Reference (including dynamic arrays), Financial
-//! and Engineering are #75. Database functions (DAVERAGE … DVARP) are `TODO(#75-followup)`.
-//! The workbook calc graph is `TODO(#72)`.
+//! and Engineering are #75. The 12 Database functions (`DAVERAGE` … `DVARP`) are the
+//! only catalog gap; the next follow-up registers them. See `docs/formula-coverage.md`.
 
 mod array;
 mod coerce;
@@ -29,9 +29,14 @@ mod text_num;
 mod value;
 
 pub use eval::{call_function, dump_fn_cases, evaluate_formula, GridHost};
-pub use host::CallCtx;
-pub use spec::FunctionSpec;
-pub use value::{ErrorCode, Scalar, Value};
+pub use host::{CallCtx, EvalHost};
+pub use spec::{param_kind, FuncKind, FunctionSpec, ParamKind};
+pub use value::{Area, ErrorCode, LambdaValue, Matrix, RefValue, Scalar, Value};
+
+/// Wall-clock serial the function harness and the calc engine share (2026-10-03 12:00).
+pub(crate) fn pinned_now_serial(date1904: bool) -> f64 {
+    text_num::ymd_to_serial(2026, 10, 3, date1904).unwrap_or(0.0) + 0.5
+}
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -61,4 +66,14 @@ fn registry() -> &'static HashMap<String, FunctionSpec> {
 /// Upper-case function this crate implements.
 pub fn get_function(name: &str) -> Option<&'static FunctionSpec> {
     registry().get(&name.to_ascii_uppercase())
+}
+
+/// Registered `(name, category)` pairs, sorted by name. Database functions are absent.
+pub fn registered_functions() -> Vec<(&'static str, &'static str)> {
+    let mut rows: Vec<(&'static str, &'static str)> = registry()
+        .values()
+        .map(|spec| (spec.name, spec.category))
+        .collect();
+    rows.sort_by_key(|row| row.0);
+    rows
 }

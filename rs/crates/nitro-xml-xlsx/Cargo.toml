@@ -41,3 +41,7 @@ path = "examples/xlsx_save.rs"
 [[example]]
 name = "xlsx_fns_dump"
 path = "examples/xlsx_fns_dump.rs"
+
+[[example]]
+name = "xlsx_editor_recalc"
+path = "examples/xlsx_editor_recalc.rs"

@@ -72,7 +72,11 @@ async function runXlsx(bytes, script) {
 	const noopSave = await saveXlsx(noopWb);
 
 	const workbook = await loadXlsx(bytes);
-	const session = createEditSession(workbook, { recalc: false });
+	// XLSX_RECALC=1 matches the Rust editor calculator (#77). The undo-parity
+	// save gate leaves this unset so cached formula values stay as loaded.
+	const session = createEditSession(workbook, {
+		recalc: process.env.XLSX_RECALC === '1',
+	});
 	/** @type {Checkpoint[]} */
 	const checkpoints = [];
 	let step = 0;

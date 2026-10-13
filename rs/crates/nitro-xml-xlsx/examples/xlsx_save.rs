@@ -5,7 +5,9 @@
 //! xlsx_save <in> <out> [--script edits.json] [--omit-full-calc]
 //! ```
 //!
-//! `--omit-full-calc` is the negative control: a dirty save without `fullCalcOnLoad="1"`.
+//! Script replay matches TS edit-parity (`recalc: false` in `parity/edit/apply.mjs`):
+//! cached formula values stay as loaded. `--omit-full-calc` is the negative control:
+//! a dirty save without `fullCalcOnLoad="1"`.
 
 use std::env;
 use std::fs;

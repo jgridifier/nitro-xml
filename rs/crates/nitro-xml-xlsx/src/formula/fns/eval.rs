@@ -420,7 +420,7 @@ impl EvalHost for GridHost {
 
     fn now_serial(&self) -> f64 {
         // test-helpers.ts pins the clock at 2026-10-03 12:00 local.
-        super::text_num::ymd_to_serial(2026, 10, 3, self.date1904).unwrap_or(0.0) + 0.5
+        super::pinned_now_serial(self.date1904)
     }
 
     fn row_hidden(&self, sheet: usize, row: i32) -> bool {
@@ -879,7 +879,8 @@ fn apply_function(spec: &FunctionSpec, mut args: Vec<Value>, ctx: &CallCtx<'_>) 
         }
         let mut arg = slot.clone();
         if let Value::Ref(reference) = &arg {
-            if reference.is_cell() {
+            // A cell is read. A legacy formula intersects any larger reference.
+            if reference.is_cell() || ctx.legacy {
                 arg = Value::Scalar(ctx.to_scalar(&arg));
             } else {
                 match ctx.to_matrix(&arg) {

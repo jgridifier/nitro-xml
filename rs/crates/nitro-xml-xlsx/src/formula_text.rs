@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/read/formula-text.ts (stripFuturePrefixes);
-// changes listed in PROVENANCE.md.
-//! Formula text normalization on read.
+// Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/read/formula-text.ts
+// (stripFuturePrefixes, addFuturePrefixes); changes listed in PROVENANCE.md.
+//! Formula text normalization. The model keeps plain names; the writer adds `_xlfn.` prefixes.
 
 /// Removes `_xlfn.` / `_xlws.` function prefixes (and turns `ANCHORARRAY(A1)` into `A1#`).
 pub fn strip_future_prefixes(formula: &str) -> String {
@@ -20,6 +20,199 @@ pub fn strip_future_prefixes(formula: &str) -> String {
         true
     });
     from_stored_syntax(&plain)
+}
+
+/// Post-2007 functions. Excel stores them with an `_xlfn.` prefix (`FILTER` and `SORT`
+/// with `_xlfn._xlws.`). Names are uppercase and sorted for binary search.
+const FUTURE_FUNCTIONS: &[&str] = &[
+    "ACOT",
+    "ACOTH",
+    "AGGREGATE",
+    "ANCHORARRAY",
+    "ARABIC",
+    "ARRAYTOTEXT",
+    "BASE",
+    "BETA.DIST",
+    "BETA.INV",
+    "BINOM.DIST",
+    "BINOM.DIST.RANGE",
+    "BINOM.INV",
+    "BITAND",
+    "BITLSHIFT",
+    "BITOR",
+    "BITRSHIFT",
+    "BITXOR",
+    "BYCOL",
+    "BYROW",
+    "CEILING.MATH",
+    "CEILING.PRECISE",
+    "CHISQ.DIST",
+    "CHISQ.DIST.RT",
+    "CHISQ.INV",
+    "CHISQ.INV.RT",
+    "CHISQ.TEST",
+    "CHOOSECOLS",
+    "CHOOSEROWS",
+    "COMBINA",
+    "CONCAT",
+    "CONFIDENCE.NORM",
+    "CONFIDENCE.T",
+    "COT",
+    "COTH",
+    "COVARIANCE.P",
+    "COVARIANCE.S",
+    "CSC",
+    "CSCH",
+    "DAYS",
+    "DECIMAL",
+    "DROP",
+    "ENCODEURL",
+    "ERF.PRECISE",
+    "ERFC.PRECISE",
+    "EXPAND",
+    "EXPON.DIST",
+    "F.DIST",
+    "F.DIST.RT",
+    "F.INV",
+    "F.INV.RT",
+    "F.TEST",
+    "FIELDVALUE",
+    "FILTER",
+    "FILTERXML",
+    "FLOOR.MATH",
+    "FLOOR.PRECISE",
+    "FORECAST.ETS",
+    "FORECAST.ETS.CONFINT",
+    "FORECAST.ETS.SEASONALITY",
+    "FORECAST.ETS.STAT",
+    "FORECAST.LINEAR",
+    "FORMULATEXT",
+    "GAMMA",
+    "GAMMA.DIST",
+    "GAMMA.INV",
+    "GAMMALN.PRECISE",
+    "GAUSS",
+    "GROUPBY",
+    "HSTACK",
+    "HYPGEOM.DIST",
+    "IFNA",
+    "IFS",
+    "IMAGE",
+    "IMCOSH",
+    "IMCOT",
+    "IMCSC",
+    "IMCSCH",
+    "IMSEC",
+    "IMSECH",
+    "IMSINH",
+    "IMTAN",
+    "ISFORMULA",
+    "ISOMITTED",
+    "ISOWEEKNUM",
+    "LAMBDA",
+    "LET",
+    "LOGNORM.DIST",
+    "LOGNORM.INV",
+    "MAKEARRAY",
+    "MAP",
+    "MAXIFS",
+    "MINIFS",
+    "MODE.MULT",
+    "MODE.SNGL",
+    "MUNIT",
+    "NEGBINOM.DIST",
+    "NETWORKDAYS.INTL",
+    "NORM.DIST",
+    "NORM.INV",
+    "NORM.S.DIST",
+    "NORM.S.INV",
+    "NUMBERVALUE",
+    "PDURATION",
+    "PERCENTILE.EXC",
+    "PERCENTILE.INC",
+    "PERCENTOF",
+    "PERCENTRANK.EXC",
+    "PERCENTRANK.INC",
+    "PERMUTATIONA",
+    "PHI",
+    "PIVOTBY",
+    "POISSON.DIST",
+    "QUARTILE.EXC",
+    "QUARTILE.INC",
+    "RANDARRAY",
+    "RANK.AVG",
+    "RANK.EQ",
+    "REDUCE",
+    "REGEXEXTRACT",
+    "REGEXREPLACE",
+    "REGEXTEST",
+    "RRI",
+    "SCAN",
+    "SEC",
+    "SECH",
+    "SEQUENCE",
+    "SHEET",
+    "SHEETS",
+    "SINGLE",
+    "SKEW.P",
+    "SORT",
+    "SORTBY",
+    "STDEV.P",
+    "STDEV.S",
+    "STOCKHISTORY",
+    "SWITCH",
+    "T.DIST",
+    "T.DIST.2T",
+    "T.DIST.RT",
+    "T.INV",
+    "T.INV.2T",
+    "T.TEST",
+    "TAKE",
+    "TEXTAFTER",
+    "TEXTBEFORE",
+    "TEXTJOIN",
+    "TEXTSPLIT",
+    "TOCOL",
+    "TOROW",
+    "TRIMRANGE",
+    "UNICHAR",
+    "UNICODE",
+    "UNIQUE",
+    "VALUETOTEXT",
+    "VAR.P",
+    "VAR.S",
+    "VSTACK",
+    "WEBSERVICE",
+    "WEIBULL.DIST",
+    "WORKDAY.INTL",
+    "WRAPCOLS",
+    "WRAPROWS",
+    "XLOOKUP",
+    "XMATCH",
+    "XOR",
+];
+
+/// Adds `_xlfn.` prefixes to post-2007 functions, as Excel stores them.
+///
+/// `FILTER` and `SORT` are written `_xlfn._xlws.`. Spill (`A1#`) and implicit
+/// intersection (`@`) stay as typed; upstream `toStoredSyntax` is not applied here.
+pub fn add_future_prefixes(formula: &str) -> String {
+    rewrite_formula(formula, |token, next, out| {
+        if !next.starts_with('(') {
+            return false;
+        }
+        let upper = token.to_ascii_uppercase();
+        if FUTURE_FUNCTIONS.binary_search(&upper.as_str()).is_err() {
+            return false;
+        }
+        if upper == "FILTER" || upper == "SORT" {
+            out.push_str("_xlfn._xlws.");
+        } else {
+            out.push_str("_xlfn.");
+        }
+        out.push_str(token);
+        true
+    })
 }
 
 fn strip_xl_prefix(token: &str) -> &str {

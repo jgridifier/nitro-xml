@@ -71,7 +71,7 @@ pub fn render_chart_space_svg(
     view.bar3d_extrusion = options.bar3d_extrusion;
     if options.bar3d_extrusion {
         if let Some(appearance) = view.appearance.as_mut() {
-            overlay_authored_tx_pr_appearance(appearance, space);
+            overlay_authored_tx_pr_appearance(appearance, space, &theme);
         }
     }
     view.picture_fills_enabled = options.picture_fills;

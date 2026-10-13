@@ -16,12 +16,15 @@ use serde_json::Value;
 
 use crate::edit::host::PptxHost;
 use crate::edit::shapes::register_shape_commands;
+use crate::write::save_pptx;
 
 /// Editable PowerPoint shell: edit session + chrome command surface.
 pub struct PptxEditor {
     pub session: EditSession<PptxHost, EditHistory>,
     pub commands: PptxCommandSurface,
     pub selection: SelectionState,
+    /// Package bytes the writer overlays dirty slides onto (#87).
+    original: Vec<u8>,
     active_tab: String,
     read_only: bool,
 }
@@ -33,17 +36,20 @@ impl PptxEditor {
             session: EditSession::new(host, EditHistory::new()),
             commands: PptxCommandSurface::new(false),
             selection: SelectionState::new(0),
+            original: bytes.to_vec(),
             active_tab: "home".to_string(),
             read_only: false,
         })
     }
 
     /// Build an editor around an existing host (tests / in-memory fixtures).
+    /// Save needs real package bytes — call [`PptxEditor::open`] for that path.
     pub fn from_host(host: PptxHost) -> Self {
         Self {
             session: EditSession::new(host, EditHistory::new()),
             commands: PptxCommandSurface::new(false),
             selection: SelectionState::new(0),
+            original: Vec::new(),
             active_tab: "home".to_string(),
             read_only: false,
         }
@@ -93,8 +99,33 @@ impl PptxEditor {
     }
 
     pub fn dispatch_command(&mut self, id: &str, args: &Value) -> Result<(), EditError> {
+        if id == "file.save" {
+            if self.read_only {
+                return Err(EditError::unsupported("file.save"));
+            }
+            self.save()
+                .map(|_| ())
+                .map_err(|e| EditError::Other { message: e })?;
+            self.commands.last_command = Some("file.save".into());
+            return Ok(());
+        }
         self.commands
             .dispatch(id, args, &mut self.selection, &mut self.session)
+    }
+
+    /// Rewrite dirty slide parts over the open package (`save_pptx`, #87).
+    pub fn save(&mut self) -> Result<Vec<u8>, String> {
+        if self.original.is_empty() {
+            return Err("pptx editor save needs package bytes from open()".into());
+        }
+        let bytes = save_pptx(&self.session.host, &self.original)?;
+        self.original = bytes.clone();
+        self.session.host.dirty_parts.clear();
+        Ok(bytes)
+    }
+
+    pub fn original_bytes(&self) -> &[u8] {
+        &self.original
     }
 
     pub fn match_shortcut(&self, event: &KeyEvent, mac: bool) -> Option<ShortcutMatch> {
@@ -154,6 +185,7 @@ mod tests {
                     el
                 }],
             }],
+            dirty_parts: Default::default(),
         };
         PptxEditor::from_host(host)
     }
@@ -196,5 +228,33 @@ mod tests {
             .ribbon_html()
             .contains("data-command=\"insert.shape\""));
         assert_eq!(editor.selection.primary_id(), Some("new-1"));
+    }
+
+    #[test]
+    fn catches_file_save_rewrites_dirty_slide_via_writer() {
+        // Catches: file.save still stubbed after #87 writer landed on main (#88).
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut editor = PptxEditor::open(bytes.as_slice()).expect("open");
+        let id = editor.session.host.slides[0].elements[0].id.clone();
+        editor.select_elements(vec![id]);
+        editor
+            .dispatch_command(
+                "setShapeText",
+                &json!({ "text": "Saved via editor", "slideIndex": 0 }),
+            )
+            .expect("edit");
+        assert!(editor.session.host.is_dirty());
+        editor
+            .dispatch_command("file.save", &Value::Null)
+            .expect("save");
+        assert!(!editor.session.host.is_dirty());
+        let saved = editor.original_bytes();
+        assert_ne!(saved, bytes.as_slice());
+        let mut pkg = nitro_xml_opc::opc::Package::open(saved).expect("reopen");
+        let xml = pkg
+            .text("ppt/slides/slide1.xml")
+            .expect("part")
+            .expect("slide1");
+        assert!(xml.contains("Saved via editor"), "{xml}");
     }
 }

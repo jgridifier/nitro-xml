@@ -59,8 +59,6 @@ pub struct PptxCommandSurface {
     pub registry: CommandRegistry,
     meta: BTreeMap<String, CommandMeta>,
     pub last_command: Option<String>,
-    /// Set when `file.save` is requested but the writer is not on this branch.
-    pub save_pending: bool,
 }
 
 impl PptxCommandSurface {
@@ -78,7 +76,6 @@ impl PptxCommandSurface {
             registry,
             meta,
             last_command: None,
-            save_pending: false,
         };
         if read_only {
             surface.set_read_only(true);
@@ -113,11 +110,10 @@ impl PptxCommandSurface {
         self.last_command = Some(id.to_string());
 
         match id {
-            // TODO(#87): call `save_pptx` when the writer lands on main.
-            "file.save" => {
-                self.save_pending = true;
-                Err(EditError::unsupported("file.save"))
-            }
+            // Handled by [`crate::editor::PptxEditor::dispatch_command`] via `save_pptx`.
+            "file.save" => Err(EditError::Other {
+                message: "file.save must go through PptxEditor::save".into(),
+            }),
             "edit.undo" => {
                 session.undo();
                 Ok(())
@@ -350,6 +346,7 @@ mod tests {
                     },
                 ],
             }],
+            dirty_parts: Default::default(),
         };
         EditSession::new(host, EditHistory::new())
     }

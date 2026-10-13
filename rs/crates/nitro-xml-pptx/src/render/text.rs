@@ -12,6 +12,9 @@ use crate::slide::DumpElement;
 use crate::text_body_rect::{resolve_text_body_rect_padding, TextBodyRectPadding};
 use crate::text_layout::{TextBodyLayout, TextBodyVAlign};
 
+/// Loader `fillMeasureWidths` sentinel: returns GDI letter-spacing px/char (upstream `text-metric-tracking`).
+const SIZE_PPTX_METRIC_TRACKING: f32 = -3.0;
+
 #[derive(Clone, Copy)]
 pub struct TextBodyPaint<'a> {
     pub text_color: Option<&'a str>,
@@ -117,27 +120,67 @@ pub fn paint_text_body<I: StringIntern>(
     }
     set_style(ctx, block, "overflow", "visible");
     set_style(ctx, block, "text-spacing-trim", "space-all");
-    append_paragraph_text(ctx, block, text);
-    // Batched measureText for GDI-style tracking (upstream text-metric-tracking).
-    if !text.is_empty() {
-        let family = paint
-            .font_family
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .unwrap_or("Calibri");
-        let font_id = ctx.intern.intern(family);
-        let text_id = ctx.intern.intern(text);
-        ctx.measure.push(font_id, size as f32, text_id);
-    }
+    let para = append_paragraph_text(ctx, block, text);
+    apply_gdi_metric_letter_spacing(ctx, para, text, size, paint.font_family, paint.font_bold);
     block
 }
 
 /// One `<p class="pptxv-para">` per body (upstream `renderTextBlock`).
-fn append_paragraph_text<I: StringIntern>(ctx: &mut PaintContext<'_, I>, block: u32, text: &str) {
+fn append_paragraph_text<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    block: u32,
+    text: &str,
+) -> u32 {
     let para = create_child(ctx, block, "p");
     set_attr(ctx, para, "class", "pptxv-para");
     set_style(ctx, para, "margin", "0");
     set_text_content(ctx, para, text);
+    para
+}
+
+fn canvas_measure_font(family_stack: &str, size_px: f64, bold: bool) -> String {
+    if bold {
+        format!("bold {}px {}", format_px(size_px), family_stack)
+    } else {
+        format!("{}px {}", format_px(size_px), family_stack)
+    }
+}
+
+fn apply_gdi_metric_letter_spacing<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    para: u32,
+    text: &str,
+    size_px: f64,
+    font_family: Option<&str>,
+    bold: bool,
+) {
+    if text.is_empty() {
+        return;
+    }
+    let stack = substitute_font_family_stack(font_family);
+    let canvas_font = canvas_measure_font(&stack, size_px, bold);
+    let font_id = ctx.intern.intern(&canvas_font);
+    let text_id = ctx.intern.intern(text);
+    if let Some(tracking) = ctx.measure.cached_width(font_id, text_id) {
+        if tracking.abs() > 1e-9 {
+            set_style(ctx, para, "letter-spacing", &format_tracking_px(tracking));
+        }
+        return;
+    }
+    ctx.measure
+        .push(font_id, SIZE_PPTX_METRIC_TRACKING, text_id);
+}
+
+fn format_tracking_px(tracking: f64) -> String {
+    if tracking.abs() < 1e-9 {
+        return "0".to_owned();
+    }
+    let limit = 1.0 / 12.0;
+    let clamped = tracking.clamp(-limit, limit);
+    format!("{:.6}px", clamped)
+        .trim_end_matches('0')
+        .trim_end_matches('.')
+        .to_owned()
 }
 
 fn apply_geom_rect_padding_only<I: StringIntern>(
@@ -230,9 +273,16 @@ mod tests {
     }
 
     fn paint_with(paint: TextBodyPaint<'_>) -> Intern {
+        paint_with_measure(paint, MeasureBatch::default(), None)
+    }
+
+    fn paint_with_measure(
+        paint: TextBodyPaint<'_>,
+        mut measure: MeasureBatch,
+        intern_seed: Option<Intern>,
+    ) -> Intern {
         let mut buffer = CommandBuffer::new();
-        let mut intern = Intern(Vec::new());
-        let mut measure = MeasureBatch::default();
+        let mut intern = intern_seed.unwrap_or_else(|| Intern(Vec::new()));
         let mut layout_reads = LayoutReadBatch::default();
         let mut view_ir = ViewIrCollector::default();
         let scheme = BTreeMap::new();
@@ -359,6 +409,46 @@ mod tests {
         });
         assert!(intern.0.iter().any(|s| s == "pptxv-para"));
         assert!(intern.0.iter().any(|s| s == "p"));
+    }
+
+    #[test]
+    fn cached_gdi_tracking_becomes_letter_spacing_on_para() {
+        // Catches: measure batch queued for pptx text but letter-spacing never applied on paint.
+        let mut measure = MeasureBatch::default();
+        let mut intern = Intern(Vec::new());
+        let stack = super::super::font_substitution::substitute_font_family_stack(None);
+        let canvas_font = format!("24px {}", stack);
+        let font_id = intern.intern(&canvas_font);
+        let text_id = intern.intern("Hi");
+        measure.cache.insert((font_id, text_id), -0.02);
+        let intern = paint_with_measure(
+            TextBodyPaint {
+                text_color: None,
+                font_size_px: Some(24.0),
+                font_family: None,
+                font_bold: false,
+                text_stroke_width_px: None,
+                text_stroke_color: None,
+                layout: None,
+                text_shadow: None,
+                geom_rect_padding: TextBodyRectPadding::default(),
+            },
+            measure,
+            Some(intern),
+        );
+        assert!(
+            intern.0.iter().any(|s| s == "letter-spacing"),
+            "prop, got {:?}",
+            intern.0
+        );
+        assert!(
+            intern
+                .0
+                .iter()
+                .any(|s| s.contains("px") && s.starts_with("-0.02")),
+            "tracking value, got {:?}",
+            intern.0
+        );
     }
 
     #[test]

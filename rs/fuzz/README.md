@@ -17,6 +17,8 @@ point. The main `rs/` workspace stays on the pinned stable toolchain;
 | `docx_load` | `nitro_xml_docx::read_package` |
 | `pptx_load` | `Presentation::open` |
 | `safe_href` | `is_safe_hyperlink_href` / `hyperlink_policy` |
+| `edit_xlsx` / `edit_docx` / `edit_pptx` | Save-path edit sequences (#89): random ops, undo-to-start, save/reopen |
+| `edit_ci` | CI-sized runner for the three edit targets + negative control (no libFuzzer) |
 
 ## Seeds
 
@@ -50,3 +52,21 @@ cargo fuzz run xml_parse -- -max_total_time=3600
 
 Crashes land in `artifacts/<target>/`. Minimise and copy into `fixtures/fuzz/`
 (not a unit test) before fixing.
+
+## Save-path edit check (#89)
+
+CI runs a short seeded campaign (not 1 CPU-hour):
+
+```bash
+bash scripts/ci/edit_fuzz.sh
+# or: cd rs/fuzz && cargo run --bin edit_ci --release
+```
+
+Overnight / long campaigns (optional):
+
+```bash
+cd rs/fuzz
+cargo fuzz run edit_xlsx -- -max_total_time=3600
+cargo fuzz run edit_docx -- -max_total_time=3600
+cargo fuzz run edit_pptx -- -max_total_time=3600
+```

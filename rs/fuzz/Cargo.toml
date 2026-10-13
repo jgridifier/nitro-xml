@@ -9,8 +9,20 @@ license = "MIT"
 [package.metadata]
 cargo-fuzz = true
 
+[lib]
+name = "nitro_xml_edit_fuzz"
+path = "edit_common.rs"
+test = false
+doctest = false
+
+[features]
+default = []
+# Enable for `cargo fuzz run edit_*` (needs a C++ toolchain + nightly).
+libfuzzer = ["dep:libfuzzer-sys"]
+
 [dependencies]
-libfuzzer-sys = "0.4"
+libfuzzer-sys = { version = "0.4", optional = true }
+serde_json = "1"
 nitro-xml-opc = { path = "../crates/nitro-xml-opc" }
 nitro-xml-xlsx = { path = "../crates/nitro-xml-xlsx" }
 nitro-xml-docx = { path = "../crates/nitro-xml-docx" }
@@ -66,6 +78,34 @@ bench = false
 [[bin]]
 name = "safe_href"
 path = "fuzz_targets/safe_href.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "edit_xlsx"
+path = "fuzz_targets/edit_xlsx.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "edit_docx"
+path = "fuzz_targets/edit_docx.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "edit_pptx"
+path = "fuzz_targets/edit_pptx.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "edit_ci"
+path = "fuzz_targets/edit_ci.rs"
 test = false
 doc = false
 bench = false

@@ -187,6 +187,9 @@ pub struct DumpElement {
     /// CSS `filter` from `a:effectLst/a:glow` (and legacy metal+bevel compensation). Not in the issue-24 dump.
     #[serde(skip)]
     pub effect_filter: Option<String>,
+    /// Draw-tab / `aink` ink strokes (paint only).
+    #[serde(skip)]
+    pub ink_data: Option<crate::ink::InkData>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1199,6 +1202,17 @@ fn parse_graphic_frame(frame: &Element, id: String, ctx: &ParseCtx) -> Option<Du
             flip_v, None, None, None, None, None, false, extras,
         );
     }
+    if crate::ink::graphic_data_is_ink(graphic) {
+        let ink_data = crate::ink::decode_aink_from_graphic_data(graphic);
+        let extras = PaintExtras {
+            ink_data,
+            ..PaintExtras::default()
+        };
+        return build_dump(
+            "ink", id, c_nv_pr, ph_info, x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h,
+            flip_v, None, None, None, None, None, false, extras,
+        );
+    }
     None
 }
 
@@ -1668,6 +1682,7 @@ fn build_dump(
         material_overlay: extras.material_overlay,
         text_shadow: extras.text_shadow,
         effect_filter: extras.effect_filter,
+        ink_data: extras.ink_data,
     })
 }
 
@@ -1957,6 +1972,7 @@ struct PaintExtras {
     material_overlay: Option<String>,
     text_shadow: Option<String>,
     effect_filter: Option<String>,
+    ink_data: Option<crate::ink::InkData>,
 }
 
 #[derive(Clone, Copy)]

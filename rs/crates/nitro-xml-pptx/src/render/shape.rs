@@ -247,6 +247,7 @@ mod tests {
             material_overlay: None,
             text_shadow: None,
             effect_filter: None,
+            ink_data: None,
         }
     }
 

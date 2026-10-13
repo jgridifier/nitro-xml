@@ -153,6 +153,9 @@ pub struct DumpElement {
     /// Diagram drawing part XML (`dsp:drawing`). Not part of the issue-24 dump.
     #[serde(skip)]
     pub smartart_drawing_xml: Option<String>,
+    /// Diagram data part XML (`dgm:dataModel`) for presentation label colours.
+    #[serde(skip)]
+    pub smartart_data_xml: Option<String>,
     /// `r:embed` on a picture or shape blip fill, or an OLE preview relationship.
     /// Resolved to [`Self::image_src`].
     #[serde(skip)]
@@ -1671,6 +1674,7 @@ fn build_dump(
         smartart_cs_r_id: extras.smartart_cs_r_id,
         smartart_drawing_path: None,
         smartart_drawing_xml: None,
+        smartart_data_xml: None,
         image_rel_id: extras.image_rel_id,
         image_rel_owner: extras.image_rel_owner,
         ole_spid: extras.ole_spid,

@@ -902,13 +902,18 @@ impl<'a> Presentation<'a> {
             if el.chart_xml.is_some() {
                 self.attach_chart_image_urls(el);
             }
-            if el.smartart_drawing_xml.is_none() {
+            if el.smartart_drawing_xml.is_none() || el.smartart_data_xml.is_none() {
                 if let Some(dm) = el.smartart_dm_r_id.clone() {
-                    let (path, xml) = self.smartart_drawing(owner, &dm);
-                    if el.smartart_drawing_path.is_none() {
-                        el.smartart_drawing_path = path;
+                    if el.smartart_drawing_xml.is_none() {
+                        let (path, xml) = self.smartart_drawing(owner, &dm);
+                        if el.smartart_drawing_path.is_none() {
+                            el.smartart_drawing_path = path;
+                        }
+                        el.smartart_drawing_xml = xml;
                     }
-                    el.smartart_drawing_xml = xml;
+                    if el.smartart_data_xml.is_none() {
+                        el.smartart_data_xml = self.part_xml_by_rel(owner, &dm);
+                    }
                 }
             }
             if let Some(children) = el.children.clone() {

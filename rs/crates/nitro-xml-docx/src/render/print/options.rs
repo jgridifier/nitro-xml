@@ -40,6 +40,7 @@ pub struct PrintLayoutOptions<'a> {
     pub suppressed_line_number_paragraphs: &'a HashSet<String>,
     pub picture_urls: &'a HashMap<String, String>,
     pub chart_spaces: &'a HashMap<String, ChartSpace>,
+    pub chart_color_palettes: &'a HashMap<String, i32>,
     pub model: Option<&'a DocumentModel>,
     pub review_mode: ReviewDisplayMode,
     pub now: PrintNow,

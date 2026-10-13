@@ -20,11 +20,9 @@ const FILTERS = process.argv.slice(2);
 const SOFT_DEFAULT = [
 	'poi-45690',
 	'poi-60158',
-	'poi-61745',
 	'poi-bug54849',
 	'poi-wordwithattachments',
 	'poi-bug65649',
-	'poi-chartex',
 	'poi-delins',
 	'poi-drawing',
 	'poi-endnotes',

@@ -16,6 +16,7 @@ pub fn chart_svg_options(theme: Option<&Value>, measure_widths: &[f64]) -> Chart
         measure_widths: measure_widths.to_vec(),
         theme_colors: theme_color_vector(theme),
         theme_fonts: chart_theme_fonts(theme),
+        docx_chart_chrome: true,
         ..Default::default()
     }
 }
@@ -60,8 +61,10 @@ pub fn docx_chart_svg(
     height: u32,
     measure_widths: &[f64],
     theme: Option<&Value>,
+    color_palette: Option<i32>,
 ) -> String {
-    let svg = chart_svg_options(theme, measure_widths);
+    let mut svg = chart_svg_options(theme, measure_widths);
+    svg.color_palette = color_palette;
     nitro_xml_render::chart::render_chart_space_svg(
         space,
         &RenderChartSpaceOptions { width, height, svg },
@@ -96,7 +99,7 @@ pub fn paint_docx_chart(
         measure.widths.clear();
         w
     };
-    let svg = docx_chart_svg(space, width, height, &widths, theme);
+    let svg = docx_chart_svg(space, width, height, &widths, theme, None);
     let markup_id = strings.intern(&svg);
     // Do not `buffer.begin()` — Print Layout embeds the chart in an existing frame.
     buffer.set_inner_markup(parent_id, markup_id);
@@ -151,9 +154,9 @@ mod tests {
             !batch.is_empty(),
             "expected chart SVG paint to queue measureText probes"
         );
-        let estimated = docx_chart_svg(&space, 480, 320, &[], None);
+        let estimated = docx_chart_svg(&space, 480, 320, &[], None, None);
         let widths: Vec<f64> = vec![42.0; batch.len()];
-        let measured = docx_chart_svg(&space, 480, 320, &widths, None);
+        let measured = docx_chart_svg(&space, 480, 320, &widths, None, None);
         assert_ne!(
             estimated, measured,
             "canvas widths should change chart label layout vs estimates"
@@ -190,7 +193,7 @@ mod tests {
             .stdout;
         let xml = String::from_utf8_lossy(&xml);
         let space = parse_chart_space_xml(&xml).chart_space;
-        let svg = docx_chart_svg(&space, 480, 320, &[], theme);
+        let svg = docx_chart_svg(&space, 480, 320, &[], theme, None);
         assert!(
             svg.contains("5B9BD5") || svg.contains("#5B9BD5"),
             "expected document theme blue in chart SVG"
@@ -198,6 +201,31 @@ mod tests {
         assert!(
             !svg.contains("4472C4") && !svg.contains("#4472C4"),
             "default Office accent1 should not appear when document theme is wired"
+        );
+    }
+}
+
+#[cfg(test)]
+mod chrome_gate_tests {
+    use super::docx_chart_svg;
+    use nitro_xml_opc::chart::parse_chart_space_xml;
+    use std::path::PathBuf;
+
+    #[test]
+    fn docx_chrome_emits_rich_title_runs() {
+        // Catches: docx_chart_chrome false path used for print, regressing poi-chartex pixel parity.
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/real/docx/poi-chartex.docx");
+        let xml = std::process::Command::new("unzip")
+            .args(["-p", root.to_str().unwrap(), "word/charts/chart1.xml"])
+            .output()
+            .expect("unzip");
+        let space = parse_chart_space_xml(std::str::from_utf8(&xml.stdout).unwrap()).chart_space;
+        let svg = docx_chart_svg(&space, 480, 320, &[], None, None);
+        assert!(
+            svg.contains("data-chart-title-run"),
+            "expected rich title runs under docx chrome, got: {}",
+            &svg[..svg.len().min(200)]
         );
     }
 }

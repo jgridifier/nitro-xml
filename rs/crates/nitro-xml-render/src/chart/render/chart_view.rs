@@ -122,7 +122,11 @@ fn to_text(value: &serde_json::Value) -> String {
     }
 }
 
-pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> ChartViewModel {
+pub fn chart_summary_view(
+    chart: &ChartSummary,
+    theme: &ChartThemePalette,
+    built_in_style: i32,
+) -> ChartViewModel {
     let type_ = chart.chart_type;
     let radial = matches!(type_, ChartSummaryType::Pie | ChartSummaryType::Doughnut);
     let palette = chart.color_palette.and_then(find_chart_color_palette);
@@ -257,7 +261,7 @@ pub fn chart_summary_view(chart: &ChartSummary, theme: &ChartThemePalette) -> Ch
         x_axis: None,
         horizontal: type_ == ChartSummaryType::Bar,
         supported: supported_type(type_),
-        appearance: chart_appearance(chart, theme),
+        appearance: chart_appearance(chart, theme, built_in_style),
         bar_gap_width: chart.bar_gap_width,
         bar_overlap: chart.bar_overlap,
         is3_d: chart.is3_d,

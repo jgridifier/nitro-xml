@@ -4,9 +4,10 @@
 use std::collections::{HashMap, HashSet};
 
 use nitro_xml_opc::chart::{parse_chart_space_xml, ChartSpace};
+use nitro_xml_opc::xml::parse_xml_str;
 use nitro_xml_render::{CommandBuffer, MeasureBatch};
 
-use super::chart_cache::{chart_measure_specs, ChartMeasureSpec};
+use super::chart_cache::chart_measure_specs;
 use super::dom::StringIntern;
 use super::line_numbers::{
     line_numbering_from_section, suppressed_line_number_ids, PrintLineNumbering,
@@ -20,7 +21,6 @@ use crate::layout::{
     LayoutResult, LayoutReviewOptions, LayoutSession, MeasureCache, MeasureSample, PendingKind,
     PendingMeasure,
 };
-use crate::render::chart::{docx_chart_svg, probe_docx_chart_measures};
 use crate::review_formatting_display::ReviewDisplayMode;
 
 /// MeasureBatch sizePx sentinels (loader `fillMeasureWidths`; createCanvasMeasurer).
@@ -32,6 +32,7 @@ pub struct PrintSession {
     pub result: LayoutResult,
     pub picture_urls: HashMap<String, String>,
     pub chart_spaces: HashMap<String, ChartSpace>,
+    pub chart_color_palettes: HashMap<String, i32>,
     pub line_numbers: Vec<Option<PrintLineNumbering>>,
     pub page_borders: Vec<Option<PageBorders>>,
     pub suppressed: HashSet<String>,
@@ -43,22 +44,14 @@ pub struct PrintSession {
     pub layout_ready: bool,
     layout_complete: bool,
     chart_svg_cache: HashMap<String, String>,
-    chart_measure_jobs: Vec<ChartMeasureJob>,
-    chart_measure_pending: usize,
     charts_measured: bool,
-}
-
-struct ChartMeasureJob {
-    spec: ChartMeasureSpec,
-    width_start: usize,
-    width_count: usize,
 }
 
 impl PrintSession {
     pub fn open(bytes: &'static [u8]) -> Result<Self, String> {
         let mut loaded = read_package(bytes).map_err(|e| e.to_string())?;
         let picture_urls = collect_pictures(&mut loaded);
-        let chart_spaces = collect_charts(&mut loaded);
+        let (chart_spaces, chart_color_palettes) = collect_charts(&mut loaded);
         let warnings = loaded.model.warnings.clone();
         let model = loaded.model;
         let sections = model.sections.as_deref().unwrap_or(&[]);
@@ -73,6 +66,7 @@ impl PrintSession {
             },
             picture_urls,
             chart_spaces,
+            chart_color_palettes,
             warnings,
             measure_cache: MeasureCache::new(),
             measure_pending: Vec::new(),
@@ -81,8 +75,6 @@ impl PrintSession {
             layout_ready: false,
             layout_complete: false,
             chart_svg_cache: HashMap::new(),
-            chart_measure_jobs: Vec::new(),
-            chart_measure_pending: 0,
             charts_measured: false,
         })
     }
@@ -204,85 +196,26 @@ impl PrintSession {
         }
 
         if self.layout_complete {
-            self.tick_chart_measures(measures, intern);
+            self.tick_chart_measures(measures);
         }
 
         self.layout_ready
     }
 
-    fn tick_chart_measures<I: StringIntern>(
-        &mut self,
-        measures: &mut MeasureBatch,
-        intern: &mut I,
-    ) {
+    fn tick_chart_measures(&mut self, measures: &mut MeasureBatch) {
         if self.charts_measured {
             return;
         }
-
-        if self.chart_measure_pending > 0
-            && measures.awaiting() == 0
-            && measures.widths.len() == self.chart_measure_pending
-        {
-            let widths = measures.widths.clone();
-            measures.widths.clear();
-            for job in &self.chart_measure_jobs {
-                let slice = widths
-                    .get(job.width_start..job.width_start + job.width_count)
-                    .unwrap_or(&[]);
-                if let Some(space) = self.chart_spaces.get(&job.spec.part_name) {
-                    let svg = docx_chart_svg(
-                        space,
-                        job.spec.width,
-                        job.spec.height,
-                        slice,
-                        self.model.theme.as_ref(),
-                    );
-                    self.chart_svg_cache.insert(job.spec.key.clone(), svg);
-                }
-            }
-            self.chart_measure_jobs.clear();
-            self.chart_measure_pending = 0;
-            self.charts_measured = true;
-            return;
-        }
-
-        if measures.awaiting() > 0 || self.chart_measure_pending > 0 {
+        if measures.awaiting() > 0 {
             return;
         }
         if !measures.is_empty() || !self.measure_pending.is_empty() {
             return;
         }
-
-        let specs = chart_measure_specs(&self.result);
-        if specs.is_empty() {
-            self.charts_measured = true;
-            return;
-        }
-
-        let mut intern_fn = |text: &str| intern.intern(text);
-        let mut jobs = Vec::with_capacity(specs.len());
-        for spec in specs {
-            let Some(space) = self.chart_spaces.get(&spec.part_name) else {
-                continue;
-            };
-            let width_start = measures.len();
-            probe_docx_chart_measures(space, spec.width, spec.height, measures, &mut intern_fn);
-            let width_count = measures.len() - width_start;
-            if width_count == 0 {
-                continue;
-            }
-            jobs.push(ChartMeasureJob {
-                spec,
-                width_start,
-                width_count,
-            });
-        }
-        if jobs.is_empty() {
-            self.charts_measured = true;
-            return;
-        }
-        self.chart_measure_jobs = jobs;
-        self.chart_measure_pending = measures.len();
+        // Upstream `docxChartPaint` calls `renderChartSpaceSvg` without `measureText`; chart
+        // labels use the S1 width estimates. Canvas measureText (Liberation via @font-face)
+        // diverges from that oracle and regresses soft docx chart fixtures (#23).
+        self.charts_measured = true;
     }
 
     fn merge_layout_result(&mut self, partial: &LayoutResult) {
@@ -332,6 +265,7 @@ impl PrintSession {
             suppressed_line_number_paragraphs: &self.suppressed,
             picture_urls: &self.picture_urls,
             chart_spaces: &self.chart_spaces,
+            chart_color_palettes: &self.chart_color_palettes,
             model: Some(&self.model),
             review_mode: ReviewDisplayMode::All,
             now,
@@ -360,9 +294,15 @@ fn collect_pictures(loaded: &mut LoadedDocument<'_>) -> HashMap<String, String> 
     out
 }
 
-fn collect_charts(loaded: &mut LoadedDocument<'_>) -> HashMap<String, ChartSpace> {
+const CHART_COLOR_STYLE_REL: &str =
+    "http://schemas.microsoft.com/office/2011/relationships/chartColorStyle";
+
+fn collect_charts(
+    loaded: &mut LoadedDocument<'_>,
+) -> (HashMap<String, ChartSpace>, HashMap<String, i32>) {
     let names: Vec<String> = loaded.package.part_names().map(str::to_string).collect();
-    let mut out = HashMap::new();
+    let mut spaces = HashMap::new();
+    let mut palettes = HashMap::new();
     for name in names {
         if !(name.contains("/charts/") && name.ends_with(".xml")) {
             continue;
@@ -371,9 +311,42 @@ fn collect_charts(loaded: &mut LoadedDocument<'_>) -> HashMap<String, ChartSpace
             Ok(Some(xml)) => xml.to_string(),
             _ => continue,
         };
-        out.insert(name, parse_chart_space_xml(&xml).chart_space);
+        spaces.insert(name.clone(), parse_chart_space_xml(&xml).chart_space);
+        if let Some(id) = chart_color_palette_for_part(loaded, &name) {
+            palettes.insert(name, id);
+        }
     }
-    out
+    (spaces, palettes)
+}
+
+fn chart_color_palette_for_part(loaded: &mut LoadedDocument<'_>, chart_part: &str) -> Option<i32> {
+    let colors_part = loaded
+        .package
+        .target_of_type(chart_part, CHART_COLOR_STYLE_REL)
+        .ok()
+        .flatten()?;
+    let xml = loaded.package.text(&colors_part).ok().flatten()?;
+    parse_chart_color_style_id(xml)
+}
+
+/// `cs:colorStyle/@id` from chart color-style parts (upstream `chartColorStyleId`).
+fn parse_chart_color_style_id(xml: &str) -> Option<i32> {
+    let doc = parse_xml_str(xml).ok()?;
+    if doc.root.local != "colorStyle" {
+        return None;
+    }
+    let id = doc
+        .root
+        .attrs
+        .iter()
+        .find(|a| a.local == "id")
+        .map(|a| a.value.as_str())?;
+    let id = id.parse::<i32>().ok()?;
+    if id >= 0 {
+        Some(id)
+    } else {
+        None
+    }
 }
 
 fn mime_of(name: &str) -> &'static str {
@@ -508,6 +481,7 @@ mod incremental_layout_tests {
             },
             picture_urls: HashMap::new(),
             chart_spaces: HashMap::new(),
+            chart_color_palettes: HashMap::new(),
             line_numbers: Vec::new(),
             page_borders: Vec::new(),
             suppressed: HashSet::new(),
@@ -519,8 +493,6 @@ mod incremental_layout_tests {
             layout_ready: false,
             layout_complete: false,
             chart_svg_cache: HashMap::new(),
-            chart_measure_jobs: Vec::new(),
-            chart_measure_pending: 0,
             charts_measured: false,
         }
     }
@@ -536,8 +508,8 @@ mod incremental_layout_tests {
     }
 
     #[test]
-    fn poi_61745_chart_svg_cache_after_measure() {
-        // Catches: print session never fills chart SVG cache after layout (charts stay on estimates).
+    fn docx_print_skips_chart_canvas_measure() {
+        // Catches: print layout probing chart measureText (canvas) instead of upstream docxChartPaint estimates.
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../fixtures/real/docx/poi-61745.docx");
         let bytes = std::fs::read(&path).expect("fixture");
@@ -548,18 +520,20 @@ mod incremental_layout_tests {
         for _ in 0..256 {
             session.tick_measure(&mut measures, &mut intern);
             if !measures.is_empty() {
-                let n = measures.len();
-                let _ = measures.take_requests();
-                let widths: Vec<f64> = (0..n).map(|i| 10.0 + (i as f64) * 0.5).collect();
-                measures.set_results(&widths).expect("measure");
+                resolve_measures(&mut measures);
             }
-            if session.charts_measured() && session.chart_svg_cache_len() > 0 {
-                return;
+            if session.charts_measured() {
+                break;
             }
         }
         assert!(
-            session.charts_measured() && session.chart_svg_cache_len() > 0,
-            "expected measured chart SVG cache after layout+measure ticks"
+            session.charts_measured(),
+            "expected charts_measured after layout without chart measure probes"
+        );
+        assert_eq!(
+            session.chart_svg_cache_len(),
+            0,
+            "docx print charts paint from estimates, not a measured SVG cache"
         );
     }
 

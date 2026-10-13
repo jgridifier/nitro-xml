@@ -133,6 +133,7 @@ pub fn paint_print_layout<I: StringIntern>(
                     },
                     options.picture_urls,
                     options.chart_spaces,
+                    options.chart_color_palettes,
                     options.chart_svg_cache,
                     options.model.and_then(|m| m.theme.as_ref()),
                 );
@@ -284,6 +285,7 @@ fn paint_line<I: StringIntern>(
                 },
                 options.picture_urls,
                 options.chart_spaces,
+                options.chart_color_palettes,
                 options.chart_svg_cache,
                 options.model.and_then(|m| m.theme.as_ref()),
             );
@@ -511,6 +513,7 @@ mod tests {
         let suppressed = HashSet::new();
         let urls = HashMap::new();
         let charts = HashMap::new();
+        let palettes = HashMap::new();
         let chart_svg_cache = HashMap::new();
         let options = PrintLayoutOptions {
             line_numbers: &lines,
@@ -518,6 +521,7 @@ mod tests {
             suppressed_line_number_paragraphs: &suppressed,
             picture_urls: &urls,
             chart_spaces: &charts,
+            chart_color_palettes: &palettes,
             model: None,
             review_mode: ReviewDisplayMode::All,
             now: PrintNow::default(),

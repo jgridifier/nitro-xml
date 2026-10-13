@@ -16,6 +16,26 @@ pub fn effective_built_in_chart_style() -> i32 {
     102
 }
 
+/// Built-in style from `c:chartSpace` (`c14:style` or legacy `c:style`), matching upstream `readBuiltInChartStyle`.
+pub fn effective_built_in_chart_style_from_space(
+    style: Option<f64>,
+    c14_style: Option<f64>,
+) -> i32 {
+    if let Some(s) = c14_style {
+        let id = s as i32;
+        if (101..=148).contains(&id) {
+            return id;
+        }
+    }
+    if let Some(s) = style {
+        let id = s as i32;
+        if (1..=48).contains(&id) || (101..=148).contains(&id) {
+            return id;
+        }
+    }
+    102
+}
+
 pub fn built_in_chart_text_style(id: i32) -> std::collections::HashMap<String, ChartStyleEntry> {
     if !((1..=48).contains(&id) || (101..=148).contains(&id)) {
         return std::collections::HashMap::new();

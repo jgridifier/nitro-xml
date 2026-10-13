@@ -396,6 +396,7 @@ fn paint_floating_pictures<I: StringIntern>(
                 },
                 options.picture_urls,
                 options.chart_spaces,
+                options.chart_color_palettes,
                 options.chart_svg_cache,
                 options.model.and_then(|m| m.theme.as_ref()),
             );

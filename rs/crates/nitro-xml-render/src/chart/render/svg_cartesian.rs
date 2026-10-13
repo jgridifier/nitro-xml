@@ -202,7 +202,12 @@ fn axes(
             if value_labels {
                 let mut a = value_attrs.clone();
                 a.anchor = Some("end");
-                out.push(text(plot.x - 4.0, p + value_size * 0.3, label, &a));
+                if p9_bar3d {
+                    a.baseline = Some("central");
+                    out.push(text(plot.x - 4.0, p, label, &a));
+                } else {
+                    out.push(text(plot.x - 4.0, p + value_size * 0.3, label, &a));
+                }
             }
         }
     }
@@ -212,24 +217,31 @@ fn axes(
     } else {
         plot.y + plot.h - ((zero_v - min) / span) * plot.h
     };
-    if model.horizontal {
-        out.push(line(
-            zero,
-            plot.y,
-            zero,
-            plot.y + plot.h,
-            &axis_stroke.0,
-            axis_stroke.1,
-        ));
+    let draw_zero_line = if p9_bar3d {
+        scale.min < 0.0 && scale.max > 0.0
     } else {
-        out.push(line(
-            plot.x,
-            zero,
-            plot.x + plot.w,
-            zero,
-            &axis_stroke.0,
-            axis_stroke.1,
-        ));
+        true
+    };
+    if draw_zero_line {
+        if model.horizontal {
+            out.push(line(
+                zero,
+                plot.y,
+                zero,
+                plot.y + plot.h,
+                &axis_stroke.0,
+                axis_stroke.1,
+            ));
+        } else {
+            out.push(line(
+                plot.x,
+                zero,
+                plot.x + plot.w,
+                zero,
+                &axis_stroke.0,
+                axis_stroke.1,
+            ));
+        }
     }
     let step = (cats as f64
         / (if model.horizontal { plot.h } else { plot.w } / 14.0)
@@ -258,9 +270,14 @@ fn axes(
         } else {
             let mut a = category_attrs.clone();
             a.anchor = Some("middle");
+            let cat_y = if p9_bar3d {
+                plot.y + plot.h + 12.0
+            } else {
+                plot.y + plot.h + category_size + 3.0
+            };
             out.push(text(
                 p,
-                plot.y + plot.h + category_size + 3.0,
+                cat_y,
                 &fit(c, band_size * step as f64, category_size),
                 &a,
             ));

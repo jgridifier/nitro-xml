@@ -3,9 +3,9 @@
 
 use nitro_xml_opc::chart::ChartTextBody;
 use nitro_xml_opc::chart::{ChartShapeProperties, ChartSpace};
-use nitro_xml_opc::drawingml::DrawingColor;
 use nitro_xml_opc::drawingml::{
-    resolve_drawing_color, DrawingTextRunProperties, HslRounding, ResolveOptions, TransformOrder,
+    resolve_drawing_color, DrawingColor, DrawingTextRunProperties, HslRounding, ResolveOptions,
+    TransformOrder,
 };
 use std::collections::HashMap;
 
@@ -238,6 +238,7 @@ mod tests {
             )
         };
         overlay_authored_tx_pr_appearance(&mut appearance, &parsed.chart_space, &resolve);
+        overlay_authored_axis_sp_pr(&mut appearance, &parsed.chart_space, &resolve);
 
         let axis_sz = appearance
             .get("categoryAxis")
@@ -257,5 +258,18 @@ mod tests {
             (title_sz - 18.62).abs() < 0.01,
             "title txPr sz: got {title_sz}"
         );
+        let axis_color = appearance
+            .get("categoryAxis")
+            .and_then(|e| e.color.as_deref())
+            .unwrap();
+        assert!(
+            axis_color.starts_with('#') && axis_color != "#000000",
+            "category axis txPr scheme colour should resolve to gray, got {axis_color}"
+        );
+        let grid = appearance
+            .get("gridlineMajor")
+            .and_then(|e| e.line_color.as_deref())
+            .expect("valAx majorGridlines colour");
+        assert!(grid.starts_with('#'), "major gridline colour: {grid}");
     }
 }

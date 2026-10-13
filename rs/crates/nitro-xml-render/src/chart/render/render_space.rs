@@ -109,6 +109,7 @@ pub fn render_chart_space_svg(
     } else if options.bar3d_extrusion {
         if let Some(appearance) = view.appearance.as_mut() {
             overlay_authored_tx_pr_appearance(appearance, space, &resolve);
+            overlay_authored_axis_sp_pr(appearance, space, &resolve);
         }
     }
     view.picture_fills_enabled = options.picture_fills;
@@ -133,13 +134,15 @@ pub fn render_chart_space_svg(
             fill_color: e.fill_color.clone(),
             labels_visible: e.labels_visible,
         });
-    view.category_label_offset = space
-        .plot_area
-        .axes
-        .iter()
-        .find(|a| a.kind == "catAx" || a.kind == "dateAx")
-        .and_then(|a| a.label_offset)
-        .unwrap_or(100.0);
+    if options.bar3d_extrusion {
+        view.category_label_offset = space
+            .plot_area
+            .axes
+            .iter()
+            .find(|a| a.kind == "catAx" || a.kind == "dateAx")
+            .and_then(|a| a.label_offset)
+            .unwrap_or(100.0);
+    }
     if let Some(title) = &space.title {
         view.title_overlay = title.overlay.unwrap_or(false);
         // Rich `c:tx/c:rich` titles are docx print chrome; bare S1 uses plain `chart.title` only.

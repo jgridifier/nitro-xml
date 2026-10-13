@@ -4,7 +4,6 @@
 // `quoteSheetName` in address.ts; changes listed in PROVENANCE.md.
 //! Lookup & Reference functions: MATCH through CHOOSE, and the reference functions
 //! ADDRESS through FORMULATEXT.
-//! Database functions (DAVERAGE … DVARP) are `TODO(#75-followup)`.
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::cognitive_complexity)]
 #![allow(clippy::cast_possible_truncation)]

@@ -1,8 +1,8 @@
 # Formula coverage
 
-Upstream `FUNCTION_CATALOG` (`ChristopherVR/ooxml` @ `e66aaec`) has **481** functions. Rust `get_function` / `formula::fns::registered_functions` implements **469**. The gap is **12**, and it is only the Database family.
+Upstream `FUNCTION_CATALOG` (`ChristopherVR/ooxml` @ `e66aaec`) has **481** functions. Rust `get_function` / `formula::fns::registered_functions` implements **481**. The catalog gap is **0**.
 
-`scripts/ci/editor_recalc.sh` rechecks this inventory. A name that appears in the catalog and is not in the table below fails the gate.
+`scripts/ci/editor_recalc.sh` rechecks this inventory. A name that appears in the catalog and is not registered fails the gate.
 
 ## Ported families
 
@@ -17,27 +17,12 @@ Upstream `FUNCTION_CATALOG` (`ChristopherVR/ooxml` @ `e66aaec`) has **481** func
 | Lookup & Reference | 38 | 38 | #75 |
 | Financial | 50 | 50 | #75 |
 | Engineering | 50 | 50 | #75 |
-| Database | 12 | 0 | approved gap (next follow-up) |
-| **Total** | **481** | **469** | |
+| Database | 12 | 12 | #75 |
+| **Total** | **481** | **481** | |
 
 Lookup & Reference includes the dynamic-array functions (`FILTER`, `SORT`, `UNIQUE`, `SEQUENCE`, and the rest of that family).
 
-## Approved gap
-
-The only unported catalog names are the 12 Database functions. They are approved for this PR; the next follow-up registers them. Nothing else is missing.
-
-- `DAVERAGE`
-- `DCOUNT`
-- `DCOUNTA`
-- `DGET`
-- `DMAX`
-- `DMIN`
-- `DPRODUCT`
-- `DSTDEV`
-- `DSTDEVP`
-- `DSUM`
-- `DVAR`
-- `DVARP`
+Database is fully registered (`DAVERAGE`, `DCOUNT`, `DCOUNTA`, `DGET`, `DMAX`, `DMIN`, `DPRODUCT`, `DSTDEV`, `DSTDEVP`, `DSUM`, `DVAR`, `DVARP`). There is no remaining catalog gap.
 
 ## Editor recalculation
 
@@ -50,4 +35,4 @@ Rust `CalcEngine` has no `shift_cells` or `rename_sheet`, so a shift or rename h
 
 Formula and spill values are copied back onto `XlsxHost` sheets. `model_snapshot` and undo snapshots therefore show the calculated result instead of the null left when a formula is typed. Manual calculation mode (`calcMode: manual`) keeps that null until Calculate Now.
 
-Workbook recalculation evaluates registered calls (`FormulaAst::Call` and `Invoke`) through `formula::fns`. A name that is not in the catalog, or a formula that did not parse, keeps a stored value when one exists and is `#NAME?` otherwise. The 12 Database functions are catalog names with no implementation, so they are not keep-cached and evaluate to `#NAME?`. `NOW` and `RAND` use the pinned harness clock (2026-10-03 12:00) and the seeded random sequence.
+Workbook recalculation evaluates registered calls (`FormulaAst::Call` and `Invoke`) through `formula::fns`. A name that is not in the catalog, or a formula that did not parse, keeps a stored value when one exists and is `#NAME?` otherwise. `NOW` and `RAND` use the pinned harness clock (2026-10-03 12:00) and the seeded random sequence.

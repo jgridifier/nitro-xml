@@ -2,13 +2,13 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/formula/functions/registry.ts
 // and src/core/xlsx/formula/call.ts; changes listed in PROVENANCE.md.
 //! Formula functions. Math & Trig and Statistical are #73. Logical, text, information
-//! and date & time are #74. Lookup & Reference (including dynamic arrays), Financial
-//! and Engineering are #75. The 12 Database functions (`DAVERAGE` … `DVARP`) are the
-//! only catalog gap; the next follow-up registers them. See `docs/formula-coverage.md`.
+//! and date & time are #74. Lookup & Reference (including dynamic arrays), Financial,
+//! Engineering, and Database are #75. See `docs/formula-coverage.md`.
 
 mod array;
 mod coerce;
 mod criteria;
+mod database;
 mod datetime;
 mod dist;
 mod engineering;
@@ -56,6 +56,7 @@ fn registry() -> &'static HashMap<String, FunctionSpec> {
             .chain(array::specs())
             .chain(financial::specs())
             .chain(engineering::specs())
+            .chain(database::specs())
         {
             map.insert(spec.name.to_ascii_uppercase(), spec);
         }
@@ -68,7 +69,7 @@ pub fn get_function(name: &str) -> Option<&'static FunctionSpec> {
     registry().get(&name.to_ascii_uppercase())
 }
 
-/// Registered `(name, category)` pairs, sorted by name. Database functions are absent.
+/// Registered `(name, category)` pairs, sorted by name.
 pub fn registered_functions() -> Vec<(&'static str, &'static str)> {
     let mut rows: Vec<(&'static str, &'static str)> = registry()
         .values()

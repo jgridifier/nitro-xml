@@ -568,8 +568,7 @@ mod tests {
         // Catches: measure batch queued for pptx text but letter-spacing never applied on paint.
         let mut measure = MeasureBatch::default();
         let mut intern = Intern(Vec::new());
-        let stack =
-            super::super::font_substitution::substitute_font_family_stack(Some("Arial"));
+        let stack = super::super::font_substitution::substitute_font_family_stack(Some("Arial"));
         let canvas_font = format!("24px {}", stack);
         let font_id = intern.intern(&canvas_font);
         let text_id = intern.intern("Hi");

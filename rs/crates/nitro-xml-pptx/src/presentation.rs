@@ -1755,6 +1755,29 @@ mod tests {
     }
 
     #[test]
+    fn bidi_slides_paint_rtl_paragraphs() {
+        // Catches: Arabic/Hebrew deck paragraphs painted LTR so visual gate stays above 0.1%.
+        let path = format!(
+            "{}/../../../fixtures/bidi/arabic-hebrew-slides.pptx",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let bytes = std::fs::read(&path).unwrap();
+        let opened = Presentation::open(&bytes).unwrap();
+        let slide = opened.slides[0].as_ref().expect("slide 0");
+        let text = slide
+            .elements
+            .iter()
+            .find(|el| el.text.is_some())
+            .expect("text shape");
+        let paras = text
+            .text_paint_paragraphs
+            .as_ref()
+            .expect("paint paragraphs");
+        assert_eq!(paras.len(), 3, "parsed paragraphs: {:?}", paras.len());
+        assert_eq!(paras[2].align, Some(crate::text_layout::TextAlignCss::Left));
+    }
+
+    #[test]
     fn smartart_fixtures_paint_without_clamp_panic() {
         // Catches: a short SmartArt shape panics in f64::clamp, aborting wasm so the host's next call reports recursive aliasing.
         let shp = paint_fixture("real/pptx/python-pptx-shp-shapes.pptx", 0);

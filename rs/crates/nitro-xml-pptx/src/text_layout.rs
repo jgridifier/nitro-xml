@@ -5,7 +5,8 @@
 use nitro_xml_opc::drawingml::{emu_to_pixels, parse_drawing_text_body, DrawingTextBody};
 use nitro_xml_opc::xml::{ns, Element};
 
-use crate::inheritance::{attr, child_local, children_local};
+use crate::inheritance::{attr, child_local, children_local, parse_optional_bool_attr};
+use nitro_xml_opc::xml::Node;
 
 /// `a:bodyPr` autofit mode (upstream `TextStyle.autoFitMode`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,6 +184,85 @@ fn paragraph_level(p: &Element) -> i32 {
     lvl.unwrap_or(0)
 }
 
+/// One styled run inside a painted paragraph (upstream `ParagraphRun` subset).
+#[derive(Debug, Clone)]
+pub struct TextPaintRun {
+    pub text: String,
+    pub rtl: Option<bool>,
+}
+
+/// Paragraph-level BiDi + alignment for painters (upstream `RenderParagraph` subset).
+#[derive(Debug, Clone)]
+pub struct TextPaintParagraph {
+    pub runs: Vec<TextPaintRun>,
+    pub align: Option<TextAlignCss>,
+    pub rtl: Option<bool>,
+}
+
+/// Walk `p:txBody` paragraphs for multi-`p` / per-run BiDi painting (#27).
+pub fn parse_text_paint_paragraphs(tx_body: &Element) -> Vec<TextPaintParagraph> {
+    let paras = children_local(tx_body, "p", ns::A);
+    paras
+        .iter()
+        .map(|p| {
+            let p_pr = child_local(p, "pPr", ns::A);
+            let align = p_pr
+                .and_then(|pp| attr(pp, "algn"))
+                .and_then(parse_paragraph_align);
+            let rtl = p_pr.and_then(|pp| parse_optional_bool_attr(attr(pp, "rtl")));
+            let runs = collect_paint_runs(p);
+            TextPaintParagraph { runs, align, rtl }
+        })
+        .collect()
+}
+
+fn collect_paint_runs(p: &Element) -> Vec<TextPaintRun> {
+    let mut runs = Vec::new();
+    for child in &p.children {
+        if let Node::Element(el) = child {
+            if el.ns.as_deref() == Some(ns::A) && el.local == "r" {
+                if let Some(text) = run_text_content(el) {
+                    let r_pr = child_local(el, "rPr", ns::A);
+                    let rtl = r_pr.and_then(|rp| parse_optional_bool_attr(attr(rp, "rtl")));
+                    runs.push(TextPaintRun { text, rtl });
+                }
+            }
+        }
+    }
+    if runs.is_empty() {
+        let flat = p.text_content();
+        if !flat.is_empty() {
+            runs.push(TextPaintRun {
+                text: flat,
+                rtl: None,
+            });
+        }
+    }
+    runs
+}
+
+fn run_text_content(r: &Element) -> Option<String> {
+    if let Some(t) = child_local(r, "t", ns::A) {
+        let s = t.text_content();
+        if !s.is_empty() {
+            return Some(s);
+        }
+    }
+    None
+}
+
+/// Map OOXML alignment + RTL to CSS `text-align` (upstream `resolveCssTextAlign`).
+pub fn resolve_css_text_align(align: Option<TextAlignCss>, is_rtl: bool) -> Option<TextAlignCss> {
+    if align.is_some() {
+        return align;
+    }
+    if is_rtl {
+        Some(TextAlignCss::Right)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nitro_xml_opc::xml::parse_xml_str;
@@ -216,5 +296,25 @@ mod tests {
         )
         .unwrap();
         assert_eq!(parse_body_autofit(&doc.root), Some(TextAutoFitMode::Shrink));
+    }
+
+    // Catches: `a:pPr/@rtl` paragraphs painted as one LTR `<p>` so Arabic/Hebrew slides miss the gate.
+    #[test]
+    fn bidi_fixture_paragraph_rtl_and_runs() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr/>
+              <a:p><a:pPr algn="r" rtl="1"/><a:r><a:rPr lang="ar-SA"/><a:t>مرحبا</a:t></a:r></a:p>
+              <a:p><a:pPr algn="l"/><a:r><a:rPr lang="en-US"/><a:t>Hello </a:t></a:r>
+              <a:r><a:rPr lang="he-IL"/><a:t>שלום</a:t></a:r></a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let paras = parse_text_paint_paragraphs(&doc.root);
+        assert_eq!(paras.len(), 2);
+        assert_eq!(paras[0].rtl, Some(true));
+        assert_eq!(paras[0].align, Some(TextAlignCss::Right));
+        assert_eq!(paras[1].runs.len(), 2);
+        assert_eq!(paras[1].rtl, None);
     }
 }

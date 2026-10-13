@@ -123,6 +123,9 @@ pub struct DumpElement {
     /// Parsed `p:txBody` anchor / alignment for painters (not in JSON dump).
     #[serde(skip)]
     pub text_body_layout: Option<crate::text_layout::TextBodyLayout>,
+    /// Per-paragraph BiDi + runs for painters (not in JSON dump).
+    #[serde(skip)]
+    pub text_paint_paragraphs: Option<Vec<crate::text_layout::TextPaintParagraph>>,
     /// Strict kinsoku CSS when the deck defines `p:defaultTextStyle/@eaLnBrk` (paint only).
     #[serde(skip)]
     pub presentation_kinsoku: bool,
@@ -1662,6 +1665,7 @@ fn build_dump(
         text_stroke_width_px: extras.text_stroke_width_px,
         text_stroke_color: extras.text_stroke_color,
         text_body_layout: extras.text_body_layout,
+        text_paint_paragraphs: extras.text_paint_paragraphs,
         presentation_kinsoku: extras.presentation_kinsoku,
         auto_fit_mode: extras.auto_fit_mode,
         chart_r_id: extras.chart_r_id,
@@ -1961,6 +1965,7 @@ struct PaintExtras {
     text_stroke_width_px: Option<f64>,
     text_stroke_color: Option<String>,
     text_body_layout: Option<crate::text_layout::TextBodyLayout>,
+    text_paint_paragraphs: Option<Vec<crate::text_layout::TextPaintParagraph>>,
     presentation_kinsoku: bool,
     auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
     chart_r_id: Option<String>,
@@ -2257,6 +2262,7 @@ fn shape_paint_extras(
         extras.text_stroke_width_px = paint.stroke_width_px;
         extras.text_stroke_color = paint.stroke_color;
         extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
+        extras.text_paint_paragraphs = Some(crate::text_layout::parse_text_paint_paragraphs(tx));
         extras.presentation_kinsoku =
             presentation_default_ea_line_break(ctx.presentation_level_styles);
         extras.auto_fit_mode = crate::text_layout::parse_body_autofit(tx);

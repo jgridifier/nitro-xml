@@ -10,7 +10,10 @@ use super::font_substitution::substitute_font_family_stack;
 use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
 use crate::slide::DumpElement;
 use crate::text_body_rect::{resolve_text_body_rect_padding, TextBodyRectPadding};
-use crate::text_layout::{TextAlignCss, TextBodyLayout, TextBodyVAlign};
+use crate::text_layout::{
+    resolve_css_text_align, TextAlignCss, TextBodyLayout, TextBodyVAlign, TextPaintParagraph,
+    TextPaintRun,
+};
 
 /// Loader `fillMeasureWidths` sentinel: returns GDI letter-spacing px/char (upstream `text-metric-tracking`).
 const SIZE_PPTX_METRIC_TRACKING: f32 = -3.0;
@@ -26,6 +29,7 @@ pub struct TextBodyPaint<'a> {
     pub text_stroke_width_px: Option<f64>,
     pub text_stroke_color: Option<&'a str>,
     pub layout: Option<&'a TextBodyLayout>,
+    pub paragraphs: Option<&'a [TextPaintParagraph]>,
     pub text_shadow: Option<&'a str>,
     pub geom_rect_padding: TextBodyRectPadding,
     /// When true, apply strict kinsoku (`p:defaultTextStyle/@eaLnBrk="1"` decks only).
@@ -42,6 +46,7 @@ impl<'a> TextBodyPaint<'a> {
             text_stroke_width_px: el.text_stroke_width_px,
             text_stroke_color: el.text_stroke_color.as_deref(),
             layout: el.text_body_layout.as_ref(),
+            paragraphs: el.text_paint_paragraphs.as_deref(),
             text_shadow: el.text_shadow.as_deref(),
             geom_rect_padding: resolve_text_body_rect_padding(
                 el.shape_type.as_deref(),
@@ -99,8 +104,15 @@ pub fn paint_text_body<I: StringIntern>(
         set_style(ctx, block, "display", "flex");
         set_style(ctx, block, "flex-direction", "column");
     }
+    let per_paragraph_align = paint.paragraphs.is_some_and(|paras| !paras.is_empty());
     if let Some(layout) = paint.layout {
-        apply_text_body_layout(ctx, block, layout, paint.geom_rect_padding);
+        apply_text_body_layout(
+            ctx,
+            block,
+            layout,
+            paint.geom_rect_padding,
+            per_paragraph_align,
+        );
     } else if paint.geom_rect_padding != TextBodyRectPadding::default() {
         apply_geom_rect_padding_only(ctx, block, paint.geom_rect_padding);
     }
@@ -117,14 +129,29 @@ pub fn paint_text_body<I: StringIntern>(
     }
     set_style(ctx, block, "overflow", "visible");
     set_style(ctx, block, "text-spacing-trim", "space-all");
-    let para_align = paint.layout.and_then(|l| l.text_align);
-    let (_para, run) = append_paragraph_text(ctx, block, text, para_align);
-    if paint.font_family.is_none() {
-        set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
-    }
-    paint_run_typography(ctx, run, &paint, size, &stack);
-    if paint.font_family.is_some() {
-        apply_gdi_metric_letter_spacing(ctx, run, text, size, paint.font_family, paint.font_bold);
+    if let Some(paragraphs) = paint.paragraphs.filter(|p| !p.is_empty()) {
+        if paragraphs.iter().any(|p| p.rtl == Some(true)) {
+            set_style(ctx, block, "direction", "rtl");
+            set_style(ctx, block, "unicode-bidi", "plaintext");
+        }
+        paint_rich_paragraphs(ctx, block, paragraphs, &paint, size, &stack);
+    } else {
+        let para_align = paint.layout.and_then(|l| l.text_align);
+        let (_para, run) = append_paragraph_text(ctx, block, text, para_align, None);
+        if paint.font_family.is_none() {
+            set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+        }
+        paint_run_typography(ctx, run, &paint, size, &stack);
+        if paint.font_family.is_some() {
+            apply_gdi_metric_letter_spacing(
+                ctx,
+                run,
+                text,
+                size,
+                paint.font_family,
+                paint.font_bold,
+            );
+        }
     }
     if let Some(shadow) = paint.text_shadow {
         set_style(ctx, block, "text-shadow", shadow);
@@ -165,12 +192,84 @@ fn paint_run_typography<I: StringIntern>(
     }
 }
 
+fn paint_rich_paragraphs<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    block: u32,
+    paragraphs: &[TextPaintParagraph],
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+) {
+    let body_align = paint.layout.and_then(|l| l.text_align);
+    // Paragraphs without `a:pPr/@rtl` inherit the shape's resolved direction
+    // (upstream element `textStyle.rtl`, often from earlier paragraphs in the body).
+    let body_rtl = paragraphs.iter().find_map(|p| p.rtl);
+    for para_model in paragraphs {
+        let para_rtl = para_model.rtl.or(body_rtl);
+        let is_rtl = para_rtl == Some(true);
+        let css_align = resolve_css_text_align(para_model.align.or(body_align), is_rtl);
+        let para = create_child(ctx, block, "p");
+        set_attr(ctx, para, "class", "pptxv-para");
+        set_style(ctx, para, "margin", "0");
+        if let Some(align) = css_align {
+            set_style(ctx, para, "text-align", align.as_css());
+        }
+        if let Some(rtl) = para_rtl {
+            set_style(ctx, para, "direction", if rtl { "rtl" } else { "ltr" });
+            set_style(ctx, para, "unicode-bidi", "embed");
+        } else {
+            set_style(ctx, para, "direction", "ltr");
+            set_style(ctx, para, "unicode-bidi", "embed");
+        }
+        for run_model in &para_model.runs {
+            append_paint_run(ctx, para, run_model, para_rtl, paint, size, stack);
+        }
+    }
+}
+
+fn append_paint_run<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    para: u32,
+    run_model: &TextPaintRun,
+    paragraph_rtl: Option<bool>,
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+) {
+    let run = create_child(ctx, para, "span");
+    set_text_content(ctx, run, &run_model.text);
+    if let Some(run_rtl) = run_model.rtl {
+        set_style(ctx, run, "direction", if run_rtl { "rtl" } else { "ltr" });
+        let bidi = if Some(run_rtl) != paragraph_rtl {
+            "bidi-override"
+        } else {
+            "embed"
+        };
+        set_style(ctx, run, "unicode-bidi", bidi);
+    }
+    if paint.font_family.is_none() {
+        set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+    }
+    paint_run_typography(ctx, run, paint, size, stack);
+    if paint.font_family.is_some() {
+        apply_gdi_metric_letter_spacing(
+            ctx,
+            run,
+            &run_model.text,
+            size,
+            paint.font_family,
+            paint.font_bold,
+        );
+    }
+}
+
 /// One `<p class="pptxv-para">` per body (upstream `renderTextBlock`).
 fn append_paragraph_text<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     block: u32,
     text: &str,
     text_align: Option<TextAlignCss>,
+    paragraph_rtl: Option<bool>,
 ) -> (u32, u32) {
     let para = create_child(ctx, block, "p");
     set_attr(ctx, para, "class", "pptxv-para");
@@ -178,8 +277,13 @@ fn append_paragraph_text<I: StringIntern>(
     if let Some(align) = text_align {
         set_style(ctx, para, "text-align", align.as_css());
     }
-    set_style(ctx, para, "direction", "ltr");
-    set_style(ctx, para, "unicode-bidi", "embed");
+    if let Some(rtl) = paragraph_rtl {
+        set_style(ctx, para, "direction", if rtl { "rtl" } else { "ltr" });
+        set_style(ctx, para, "unicode-bidi", "embed");
+    } else {
+        set_style(ctx, para, "direction", "ltr");
+        set_style(ctx, para, "unicode-bidi", "embed");
+    }
     let run = create_child(ctx, para, "span");
     set_text_content(ctx, run, text);
     (para, run)
@@ -279,6 +383,7 @@ fn apply_text_body_layout<I: StringIntern>(
     block: u32,
     layout: &TextBodyLayout,
     rect: TextBodyRectPadding,
+    per_paragraph_align: bool,
 ) {
     let justify = match layout.v_align {
         TextBodyVAlign::Top => "flex-start",
@@ -286,8 +391,10 @@ fn apply_text_body_layout<I: StringIntern>(
         TextBodyVAlign::Bottom => "flex-end",
     };
     set_style(ctx, block, "justify-content", justify);
-    if let Some(align) = layout.text_align {
-        set_style(ctx, block, "text-align", align.as_css());
+    if !per_paragraph_align {
+        if let Some(align) = layout.text_align {
+            set_style(ctx, block, "text-align", align.as_css());
+        }
     }
     // Upstream `toPxLengths`: inset + text-rect padding must be `Npx`, not bare `N`.
     set_style(
@@ -397,6 +504,7 @@ mod tests {
             text_stroke_width_px: Some(2.0),
             text_stroke_color: None,
             layout: None,
+            paragraphs: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
@@ -420,6 +528,7 @@ mod tests {
             text_stroke_width_px: Some(3.31),
             text_stroke_color: Some("#000000"),
             layout: None,
+            paragraphs: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
@@ -442,6 +551,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
+            paragraphs: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
@@ -464,6 +574,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
+            paragraphs: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
@@ -489,6 +600,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
+            paragraphs: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: true,
@@ -535,6 +647,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
+            paragraphs: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
@@ -555,6 +668,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
+            paragraphs: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
@@ -582,6 +696,7 @@ mod tests {
                 text_stroke_width_px: None,
                 text_stroke_color: None,
                 layout: None,
+                paragraphs: None,
                 text_shadow: None,
                 geom_rect_padding: TextBodyRectPadding::default(),
                 presentation_kinsoku: false,
@@ -624,6 +739,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: Some(&layout),
+            paragraphs: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
@@ -655,6 +771,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: Some(&layout),
+            paragraphs: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
@@ -687,6 +804,7 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
+            paragraphs: None,
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,

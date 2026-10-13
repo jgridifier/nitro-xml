@@ -6,6 +6,7 @@
 
 mod auto_number;
 pub mod edit;
+pub mod editor;
 mod inheritance;
 mod level_style;
 mod outer_shadow;

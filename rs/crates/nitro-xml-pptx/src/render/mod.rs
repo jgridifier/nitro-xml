@@ -197,6 +197,7 @@ mod tests {
             fill_mode: None,
             stroke_color: None,
             stroke_width_px: None,
+            stroke_line_align: None,
             text_color: None,
             font_size_px: None,
             font_family: None,

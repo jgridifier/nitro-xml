@@ -102,6 +102,9 @@ pub struct DumpElement {
     pub stroke_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stroke_width_px: Option<f64>,
+    /// `a:ln/@algn` (`in` / `ctr`); omitted means centred (`ctr`). Paint only.
+    #[serde(skip)]
+    pub stroke_line_align: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1630,6 +1633,7 @@ fn build_dump(
         fill_mode: extras.fill_mode,
         stroke_color: extras.stroke_color,
         stroke_width_px: extras.stroke_width_px,
+        stroke_line_align: extras.stroke_line_align,
         text_color: extras.text_color,
         font_size_px: extras.font_size_px,
         font_family: extras.font_family,
@@ -1925,6 +1929,7 @@ struct PaintExtras {
     fill_mode: Option<String>,
     stroke_color: Option<String>,
     stroke_width_px: Option<f64>,
+    stroke_line_align: Option<String>,
     text_color: Option<String>,
     font_size_px: Option<f64>,
     font_family: Option<String>,
@@ -2177,6 +2182,9 @@ fn shape_paint_extras(
     if let Some(ln) = effective_sp_pr.and_then(|sp| child_local(sp, "ln", ns::A)) {
         if child_local(ln, "noFill", ns::A).is_some() {
             ln_blocks_ref = true;
+        }
+        if let Some(algn) = attr(ln, "algn") {
+            extras.stroke_line_align = Some(algn.to_owned());
         }
         if let Some(line) = parse_drawing_line(Some(ln)) {
             if let Some(width) = line.width_emu {

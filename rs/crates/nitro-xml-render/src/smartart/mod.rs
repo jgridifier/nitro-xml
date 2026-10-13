@@ -890,10 +890,10 @@ fn outline_rect_path_data(width: f64, height: f64) -> String {
     let h = height.max(1.0);
     format!(
         "M 0 0 L {} 0 L {} {} L 0 {} Z",
-        num(w),
-        num(w),
-        num(h),
-        num(h)
+        svg_user_coord(w),
+        svg_user_coord(w),
+        svg_user_coord(h),
+        svg_user_coord(h)
     )
 }
 

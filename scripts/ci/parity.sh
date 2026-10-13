@@ -3,7 +3,8 @@
 # Viewer / foundation parity: TS oracle vs Rust (job: parity).
 # Runs fixtures/verify --skip-on-demand, then bun parity/run --ci (xml + opc +
 # xlsx worksheet (#16) + view-IR (#18) + engine API (#19) + shell (#29) +
-# docx styles/body (#20/#21) + layout + page-count (#22) + pptx presentation model (#24) +
+# docx styles/body (#20/#21) + layout + page-count (#22) + docx/pptx shell (#29) +
+# pptx presentation model (#24) +
 # chart model/S1 SVG (#28)), then visual pixelmatch (#45).
 #
 # Definition of done for #5: this script no longer prints NOT IMPLEMENTED.
@@ -42,6 +43,7 @@ echo "parity: building Rust dump examples"
 ( cd rs && cargo build --release -q -p nitro-xml-opc --example xml_dump --example opc_dump --example chart_dump )
 ( cd rs && cargo build --release -q -p nitro-xml-render --example chart_render_svg )
 ( cd rs && cargo build --release -q -p nitro-xml-xlsx --example xlsx_dump --example xlsx_view_ir_dump --example xlsx_engine_dump --example xlsx_shell_dump )
+( cd rs && cargo build --release -q -p nitro-xml-wasm --example viewer_shell_dump )
 ( cd rs && cargo build --release -q -p nitro-xml-docx --example docx_styles_dump --example docx_layout_dump --example docx_pagecount_dump )
 
 echo "parity: chromium for docx page-count (#22)"
@@ -113,7 +115,7 @@ bash scripts/ci/fns_parity.sh
 echo "parity: editor recalc + formula coverage (#77)"
 bash scripts/ci/editor_recalc.sh
 
-msg="parity: PASS (xml + opc + xlsx worksheet/view-IR/engine/shell + formula parser (#71) + calc graph (#72) + formula functions (#73/#74/#75) + editor recalc (#77) + docx styles/body/layout/page-count + pptx + chart model/S1 SVG + visual DPR1/2/print)"
+msg="parity: PASS (xml + opc + xlsx worksheet/view-IR/engine/shell + formula parser (#71) + calc graph (#72) + formula functions (#73/#74/#75) + editor recalc (#77) + docx styles/body/layout/page-count/shell + pptx model/shell + chart model/S1 SVG + visual DPR1/2/print)"
 echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"

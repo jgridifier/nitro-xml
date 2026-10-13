@@ -10,10 +10,10 @@ import { basename, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import type { Comparison, CorpusResult, Manifest } from '../types.ts';
 import { loadManifest, repoRoot, selectCorpus } from '../corpus.ts';
-import { dumpPptxModelRust, dumpFormatViewIrRust, ensureExample } from '../rust/dump.ts';
+import { dumpPptxModelRust, dumpFormatViewIrRust, dumpViewerShellRust, ensureExample } from '../rust/dump.ts';
 import { diffIr, filterKnownDiffs } from '../diff.ts';
 import { normalizeJson } from '../normalize.ts';
-import { dumpPptxViewIr } from '../oracle/pptx.ts';
+import { dumpPptxViewIr, dumpPptxShellOracle } from '../oracle/pptx.ts';
 import { upstreamDir } from '../paths.ts';
 
 const PPTX_EXT = /\.(pptx|pptm|potx|potm)$/i;
@@ -73,12 +73,16 @@ async function runPptxCorpus(): Promise<CorpusResult> {
 	const notes: string[] = [];
 	ensureExample('pptx_dump', 'nitro-xml-pptx');
 	ensureExample('pptx_view_ir_dump', 'nitro-xml-pptx');
+	ensureExample('viewer_shell_dump', 'nitro-xml-wasm');
 
 	let n = 0;
 	let matched = 0;
 	let allowListedFixtures = 0;
 	let unexpected = 0;
 	let badViewIr = 0;
+	let badShell = 0;
+	let shellN = 0;
+	let negativeChecked = false;
 	for (const f of listPptxFiles(root)) {
 		if (!existsSync(f)) continue;
 		if (/\b(xl_|slides_200)/.test(f)) continue;
@@ -98,6 +102,35 @@ async function runPptxCorpus(): Promise<CorpusResult> {
 			continue;
 		}
 		const diffs = diffIr(ref.json, got.json);
+
+		shellN++;
+		const oracleShell = dumpPptxShellOracle(f);
+		const rustShell = dumpViewerShellRust(f);
+		if (rustShell.status === 101 || rustShell.status === 124 || (rustShell.status !== null && rustShell.status > 128)) {
+			badShell++;
+			if (notes.length < 20) notes.push(`shell panic/timeout/crash rc=${rustShell.status} on ${fixtureId}`);
+		} else if (!oracleShell.ok || !rustShell.ok) {
+			if (oracleShell.ok !== rustShell.ok) {
+				badShell++;
+				if (notes.length < 20) notes.push(`shell accept/reject mismatch on ${fixtureId}`);
+			}
+		} else if (normalizeJson(oracleShell.json) !== normalizeJson(rustShell.json)) {
+			badShell++;
+			if (notes.length < 20) {
+				const path = diffIr(oracleShell.json, rustShell.json)[0]?.path ?? '';
+				notes.push(`shell differs on ${fixtureId} ${path}`);
+			}
+		} else if (!negativeChecked) {
+			negativeChecked = true;
+			const neg = dumpViewerShellRust(f, true);
+			if (!neg.ok || normalizeJson(oracleShell.json) === normalizeJson(neg.json)) {
+				badShell++;
+				notes.push('pptx shell negative-control unexpectedly passed');
+			} else {
+				notes.push('pptx shell negative-control FAIL as expected');
+			}
+		}
+
 		if (diffs.length === 0) {
 			matched++;
 			continue;
@@ -125,17 +158,23 @@ async function runPptxCorpus(): Promise<CorpusResult> {
 			unexpected++;
 			if (notes.length < 20) notes.push(`view-IR error on ${fixtureId}: ${e}`);
 		}
+
+	}
+	if (!negativeChecked) {
+		badShell++;
+		notes.push('pptx shell negative-control did not run');
 	}
 	notes.push(
 		`pptx presentation differential: ${matched}/${n} exact match; ${allowListedFixtures} allow-listed; ${unexpected} unexpected`,
 	);
 	notes.push(`pptx view-IR differential: ${n - badViewIr}/${n} files match upstream`);
-	return { compared: n, mismatched: unexpected, notes };
+	notes.push(`pptx shell differential: ${shellN - badShell}/${shellN} files match upstream`);
+	return { compared: n, mismatched: unexpected + badShell, notes };
 }
 
 export const pptxComparison: Comparison = {
 	id: 'pptx',
-	label: 'pptx presentation + view-IR (#24, #27)',
+	label: 'pptx presentation + view-IR + shell (#24, #27, #29)',
 	ready: true,
 	todo: undefined,
 	async oracle(fixturePath: string) {

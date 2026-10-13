@@ -12,7 +12,8 @@ use crate::docx::{is_docx_extension, DocxState};
 use crate::events::{self, EventQueue};
 use crate::pptx::{is_pptx_extension, PptxState};
 use crate::shell::{
-    apply_action, FindMatch, FormatKind, PendingHyperlink, ShellAction, ShellState, ShellUi,
+    apply_action, cap_chars, open_diagnostic_code, FindMatch, FormatKind, PendingHyperlink,
+    ShellAction, ShellState, ShellUi,
 };
 use crate::transport::StringTable;
 use crate::xlsx::{is_xlsx_extension, search_options_from_json, XlsxState};
@@ -252,10 +253,9 @@ impl Handle {
             self.shell.format = FormatKind::Xlsx;
             self.shell.diagnostics.clear_runtime();
             for w in &warnings {
-                self.shell
-                    .diagnostics
-                    .ingest_warning("xlsx_warning", w, None);
-                self.push_warning("xlsx_warning".into(), w.clone(), None);
+                let code = open_diagnostic_code(w, "xlsx_warning");
+                self.shell.diagnostics.ingest_warning(code, w, None);
+                self.push_warning(code.into(), w.clone(), None);
             }
             self.shell.set_tabs(
                 state
@@ -289,7 +289,7 @@ impl Handle {
         }
         if is_pptx_extension(name) {
             let t0 = now_ms();
-            let state = PptxState::open(&self.bytes)
+            let mut state = PptxState::open(&self.bytes)
                 .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
             self.shell = ShellState::default();
             self.shell.format = FormatKind::Pptx;
@@ -301,6 +301,22 @@ impl Handle {
                     .collect(),
                 state.active as u32,
             );
+            match state.unsupported_labels() {
+                Ok(kinds) => {
+                    for kind in kinds {
+                        self.shell
+                            .diagnostics
+                            .ingest_warning("unsupported_content", &kind, None);
+                        self.push_warning("unsupported_content".into(), kind, None);
+                    }
+                }
+                Err(e) => {
+                    self.shell
+                        .diagnostics
+                        .ingest_warning("pptx_warning", &e, None);
+                    self.push_warning("pptx_warning".into(), e, None);
+                }
+            }
             self.pptx = Some(state);
             self.xlsx = None;
             self.docx = None;
@@ -319,10 +335,9 @@ impl Handle {
             self.shell.format = FormatKind::Docx;
             self.shell.diagnostics.clear_runtime();
             for w in &state.session.warnings {
-                self.shell
-                    .diagnostics
-                    .ingest_warning("docx_warning", w, None);
-                self.push_warning("docx_warning".into(), w.clone(), None);
+                let code = open_diagnostic_code(w, "docx_warning");
+                self.shell.diagnostics.ingest_warning(code, w, None);
+                self.push_warning(code.into(), w.clone(), None);
             }
             self.shell.set_tabs(state.page_tabs(), state.active as u32);
             self.docx = Some(state);
@@ -421,14 +436,25 @@ impl Handle {
 
     #[wasm_bindgen(js_name = hyperlinks)]
     pub fn hyperlinks(&mut self, sheet_index: u32) -> Result<String, JsValue> {
-        let xlsx = self
-            .xlsx
-            .as_mut()
-            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
-        let v = xlsx
-            .hyperlinks(&self.bytes, sheet_index as usize)
-            .map_err(|e| JsValue::from(OoxmlError::with_code("bad_sheet", e)))?;
-        Ok(nitro_xml_xlsx::stringify_json(&v))
+        if let Some(xlsx) = self.xlsx.as_mut() {
+            let v = xlsx
+                .hyperlinks(&self.bytes, sheet_index as usize)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("bad_sheet", e)))?;
+            return Ok(nitro_xml_xlsx::stringify_json(&v));
+        }
+        if let Some(docx) = self.docx.as_ref() {
+            let _ = sheet_index;
+            return Ok(serde_json::Value::Array(docx.hyperlinks_json()).to_string());
+        }
+        if self.pptx.is_some() {
+            // TODO(#27): a:hlinkClick is not stored on the slide model.
+            let _ = sheet_index;
+            return Ok("[]".into());
+        }
+        Err(JsValue::from(OoxmlError::with_code(
+            "no_document",
+            "not opened",
+        )))
     }
 
     #[wasm_bindgen(js_name = hyperlinkAt)]
@@ -503,28 +529,21 @@ impl Handle {
         let mut result = apply_action(&mut self.shell, &action);
         match &action {
             ShellAction::FindQuery(_) | ShellAction::FindOpts { .. } => {
-                if self.xlsx.is_some() {
-                    self.run_find()?;
-                } else {
-                    // pptx/docx find adapters land with #23/#27 search APIs.
-                    self.shell.find.matches.clear();
-                    self.shell.find.index = None;
-                    self.shell.dirty_ui = true;
-                }
+                self.run_find()?;
                 result.reopen_paint = false;
             }
             ShellAction::Copy => {
-                if self.xlsx.is_some() {
-                    let text = self.copy_selection_tsv()?;
-                    self.shell.last_copy = text.clone();
-                    result.copy_text = Some(text);
+                let text = if self.xlsx.is_some() {
+                    self.copy_selection_tsv()?
                 } else if self.pptx.is_some() {
-                    let text = self.copy_pptx_selection()?;
-                    self.shell.last_copy = text.clone();
-                    result.copy_text = Some(text);
+                    self.copy_pptx_selection()?
+                } else if self.docx.is_some() {
+                    self.copy_docx_plain()
                 } else {
-                    result.copy_text = Some(String::new());
-                }
+                    String::new()
+                };
+                self.shell.last_copy = text.clone();
+                result.copy_text = Some(text);
             }
             ShellAction::SelectRef(r) => {
                 if let Some(xlsx) = self.xlsx.as_mut() {
@@ -544,11 +563,23 @@ impl Handle {
                     } else {
                         self.shell.selection_ref = prev_selection;
                     }
+                } else if let Some(docx) = self.docx.as_ref() {
+                    if docx.has_block_id(r) {
+                        self.shell.selection_ref = r.clone();
+                    } else {
+                        self.shell.selection_ref = prev_selection;
+                    }
                 }
             }
             ShellAction::HyperlinkAt { sheet, row, col } => {
                 if self.xlsx.is_some() {
                     self.activate_hyperlink(*sheet, *row, *col)?;
+                } else if self.docx.is_some() {
+                    self.activate_docx_hyperlink(*row, *col)?;
+                } else if self.pptx.is_some() {
+                    // TODO(#27): slide elements do not expose a:hlinkClick targets.
+                    let _ = (sheet, row, col);
+                    self.shell.pending_hyperlink = None;
                 }
             }
             ShellAction::Sheet(_)
@@ -1215,16 +1246,38 @@ impl Handle {
 
     fn run_find(&mut self) -> Result<(), JsValue> {
         let query = self.shell.find.query.clone();
+        let case_sensitive = self.shell.find.case_sensitive;
+        let match_entire = self.shell.find.match_entire;
+        let matches = if self.xlsx.is_some() {
+            self.find_xlsx(&query, case_sensitive, match_entire)?
+        } else if let Some(docx) = self.docx.as_ref() {
+            docx.search_body(&query, case_sensitive, match_entire)
+        } else if let Some(pptx) = self.pptx.as_mut() {
+            pptx.search(&query, case_sensitive, match_entire)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("search_failed", e)))?
+        } else {
+            Vec::new()
+        };
+        self.install_find_matches(matches);
+        Ok(())
+    }
+
+    fn find_xlsx(
+        &mut self,
+        query: &str,
+        case_sensitive: bool,
+        match_entire: bool,
+    ) -> Result<Vec<FindMatch>, JsValue> {
         let opts = nitro_xml_xlsx::SearchOptions {
-            case_sensitive: self.shell.find.case_sensitive,
-            match_entire: self.shell.find.match_entire,
+            case_sensitive,
+            match_entire,
         };
         let xlsx = self
             .xlsx
             .as_mut()
             .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
         let v = xlsx
-            .search(&self.bytes, &query, opts)
+            .search(&self.bytes, query, opts)
             .map_err(|e| JsValue::from(OoxmlError::with_code("search_failed", e)))?;
         let mut matches = Vec::new();
         if let Some(arr) = v.as_array() {
@@ -1245,6 +1298,10 @@ impl Handle {
                 });
             }
         }
+        Ok(matches)
+    }
+
+    fn install_find_matches(&mut self, matches: Vec<FindMatch>) {
         self.shell.find.matches = matches;
         self.shell.find.index = if self.shell.find.matches.is_empty() {
             None
@@ -1252,7 +1309,136 @@ impl Handle {
             Some(0)
         };
         self.shell.dirty_ui = true;
+    }
+
+    fn copy_docx_plain(&self) -> String {
+        let selection = self.shell.selection_ref.clone();
+        let page = self.shell.nav_index;
+        self.docx
+            .as_ref()
+            .map(|d| d.copy_plain(&selection, page))
+            .unwrap_or_default()
+    }
+
+    fn activate_docx_hyperlink(&mut self, row: u32, col: u32) -> Result<(), JsValue> {
+        let hit = self.docx.as_ref().and_then(|d| d.hyperlink_at(row, col));
+        let Some(hit) = hit else {
+            self.shell.pending_hyperlink = None;
+            self.shell.dirty_ui = true;
+            return Ok(());
+        };
+        if let Some(page) = hit.page {
+            if let Some(docx) = self.docx.as_mut() {
+                docx.set_active_page(page as usize)
+                    .map_err(|e| JsValue::from(OoxmlError::with_code("bad_page", e)))?;
+            }
+            self.shell.nav_index = page;
+        }
+        if let Some(id) = hit.block_id {
+            if !id.is_empty() {
+                self.shell.selection_ref = id;
+            }
+        }
+        self.shell.pending_hyperlink = Some(hit.pending);
+        self.shell.dirty_ui = true;
         Ok(())
+    }
+
+    /// Shell projection for the #29 differential (zoom, tabs, find, copy, links, diagnostics).
+    /// `negative` forces zoom `0` so the comparator must reject the snapshot.
+    pub fn shell_parity_json(&mut self, negative: bool) -> String {
+        if self.pptx.is_some() {
+            let id = self.pptx.as_mut().and_then(|p| p.first_text_element_id());
+            if let Some(id) = id {
+                let _ = self.shell_action("select", &id);
+            }
+        }
+        let _ = self.shell_action("find-query", "a");
+        let _ = self.shell_action("copy", "");
+        let links = if let Some(docx) = self.docx.as_ref() {
+            docx.hyperlinks_json()
+        } else {
+            // TODO(#27): pptx a:hlinkClick targets are not on the slide model.
+            Vec::new()
+        };
+        let find: Vec<serde_json::Value> = self
+            .shell
+            .find
+            .matches
+            .iter()
+            .take(20)
+            .map(|m| {
+                serde_json::json!({
+                    "sheet": m.sheet,
+                    "row": m.row,
+                    "col": m.col,
+                    "text": m.text,
+                })
+            })
+            .collect();
+        let tabs: Vec<serde_json::Value> = self
+            .shell
+            .tabs
+            .iter()
+            .map(|(index, name)| {
+                serde_json::json!({
+                    "index": index,
+                    "name": name,
+                    "active": *index == self.shell.nav_index,
+                })
+            })
+            .collect();
+        let selection_kind = if self.pptx.is_some() {
+            if self.shell.selection_ref.is_empty() || self.shell.selection_ref == "A1" {
+                "none"
+            } else {
+                "shape"
+            }
+        } else if self.docx.is_some() {
+            if self.shell.selection_ref.is_empty() || self.shell.selection_ref == "A1" {
+                "body"
+            } else {
+                "paragraph"
+            }
+        } else {
+            "cell"
+        };
+        let mut diagnostics = self.shell.diagnostics.to_json();
+        if let Some(obj) = diagnostics.as_object_mut() {
+            obj.remove("parseMs");
+            obj.remove("paintMs");
+            for key in ["warnings", "fontSubstitutions", "unsupported"] {
+                if let Some(arr) = obj.get_mut(key).and_then(|v| v.as_array_mut()) {
+                    arr.sort_by(|a, b| {
+                        let message = |v: &serde_json::Value| {
+                            v.get("message")
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("")
+                                .to_owned()
+                        };
+                        let code = |v: &serde_json::Value| {
+                            v.get("code")
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("")
+                                .to_owned()
+                        };
+                        (message(a), code(a)).cmp(&(message(b), code(b)))
+                    });
+                }
+            }
+        }
+        serde_json::json!({
+            "format": self.shell.format.as_str(),
+            "zoom": if negative { 0.0 } else { self.shell.zoom_pct },
+            "navIndex": self.shell.nav_index,
+            "tabs": tabs,
+            "selectionKind": selection_kind,
+            "copySample": cap_chars(&self.shell.last_copy, 4096),
+            "hyperlinks": links,
+            "findSample": find,
+            "diagnostics": diagnostics,
+        })
+        .to_string()
     }
 
     fn copy_pptx_selection(&mut self) -> Result<String, JsValue> {

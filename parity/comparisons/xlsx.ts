@@ -69,6 +69,7 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 	ensureExample('xlsx_shell_dump', 'nitro-xml-xlsx');
 
 	let n = 0;
+	let shellNegativeChecked = false;
 	let badWorksheet = 0;
 	let badViewIr = 0;
 	let badEngine = 0;
@@ -156,6 +157,19 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 				badShell++;
 				fileBad = true;
 				if (notes.length < 20) notes.push(`shell differs on ${f}`);
+			} else if (!shellNegativeChecked) {
+				shellNegativeChecked = true;
+				const mutated =
+					rustShell.json && typeof rustShell.json === 'object'
+						? { ...(rustShell.json as Record<string, unknown>), zoom: 0 }
+						: rustShell.json;
+				if (normalizeJson(oracleShell.json) === normalizeJson(mutated)) {
+					badShell++;
+					fileBad = true;
+					notes.push('xlsx shell negative-control unexpectedly passed');
+				} else {
+					notes.push('xlsx shell negative-control FAIL as expected');
+				}
 			}
 		} catch (e) {
 			badShell++;
@@ -168,6 +182,11 @@ async function runXlsxCorpus(): Promise<CorpusResult> {
 	notes.push(`worksheet differential: ${n - badWorksheet}/${n} files match upstream`);
 	notes.push(`view-IR differential: ${n - badViewIr}/${n} files match upstream`);
 	notes.push(`engine API differential: ${n - badEngine}/${n} files match upstream`);
+	if (!shellNegativeChecked) {
+		badShell++;
+		badAny++;
+		notes.push('xlsx shell negative-control did not run');
+	}
 	notes.push(`shell differential: ${n - badShell}/${n} files match upstream`);
 	return { compared: n, mismatched: badAny, notes };
 }

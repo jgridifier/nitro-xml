@@ -116,6 +116,7 @@ pub fn smartart_draw_args(
             fill: s.fill.clone(),
             stroke: s.stroke.clone(),
             stroke_width: s.stroke_width,
+            font_color: s.font_color.clone(),
             text: s.flat_text(),
             path_len: s.kind.path_d().map(|d| d.len()).unwrap_or(0),
         })
@@ -133,6 +134,8 @@ pub struct SmartArtDrawArg {
     pub fill: String,
     pub stroke: String,
     pub stroke_width: f64,
+    /// Label fill (`fontRef` / contrast), matching TS `fontColor` on projected shapes.
+    pub font_color: String,
     pub text: String,
     pub path_len: usize,
 }
@@ -250,17 +253,41 @@ fn labelled_svg(w: f64, h: f64) -> String {
     )
 }
 
+fn diagram_shape_bounds(shape: &SpBox) -> (f64, f64, f64, f64) {
+    let frame = (shape.x, shape.y, shape.x + shape.w, shape.y + shape.h);
+    let (tx, ty, tw, th) = shape
+        .text_frame
+        .as_ref()
+        .map(|tf| (tf.x, tf.y, tf.w, tf.h))
+        .unwrap_or((shape.x, shape.y, shape.w, shape.h));
+    let text_max_x = tx + tw;
+    let text_max_y = ty + th;
+    (
+        frame.0.min(tx),
+        frame.1.min(ty),
+        frame.2.max(text_max_x),
+        frame.3.max(text_max_y),
+    )
+}
+
 fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
-    let min_x = shapes.iter().map(|s| s.x).fold(f64::INFINITY, f64::min);
-    let min_y = shapes.iter().map(|s| s.y).fold(f64::INFINITY, f64::min);
-    let max_x = shapes
-        .iter()
-        .map(|s| s.x + s.w)
-        .fold(f64::NEG_INFINITY, f64::max);
-    let max_y = shapes
-        .iter()
-        .map(|s| s.y + s.h)
-        .fold(f64::NEG_INFINITY, f64::max);
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for shape in shapes {
+        let (smin_x, smin_y, smax_x, smax_y) = diagram_shape_bounds(shape);
+        min_x = min_x.min(smin_x);
+        min_y = min_y.min(smin_y);
+        max_x = max_x.max(smax_x);
+        max_y = max_y.max(smax_y);
+    }
+    if !min_x.is_finite() {
+        min_x = 0.0;
+        min_y = 0.0;
+        max_x = 1.0;
+        max_y = 1.0;
+    }
     let vw = (max_x - min_x).max(1.0);
     let vh = (max_y - min_y).max(1.0);
     let default_stroke = (vw.max(vh) / 200.0).max(1.0);
@@ -276,7 +303,7 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
             "stroke=\"none\"".to_owned()
         } else {
             format!(
-                "stroke=\"{}\" stroke-width=\"{}\" stroke-linejoin=\"round\"",
+                "stroke=\"{}\" stroke-width=\"{}\"",
                 escape(&shape.stroke),
                 num(stroke_w)
             )
@@ -1578,5 +1605,48 @@ mod tests {
         let mut parts = Vec::new();
         collect_text(&root, &mut parts);
         assert!(parts.is_empty());
+    }
+    // Catches: connector `a:ln` `schemeClr`+`shade` left full accent1 so orgchart lines miss TS stroke colour.
+    #[test]
+    fn connector_scheme_shade_on_ln_stroke() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="100000" cy="100000"/></a:xfrm>
+                <a:custGeom><a:pathLst><a:path><a:moveTo><a:pt x="100" y="0"/></a:moveTo><a:lnTo><a:pt x="100" y="100"/></a:lnTo></a:path></a:pathLst></a:custGeom>
+                <a:noFill/>
+                <a:ln w="19050"><a:solidFill><a:schemeClr val="accent1"><a:shade val="60000"/><a:hueOff val="0"/><a:satOff val="0"/><a:lumOff val="0"/><a:alphaOff val="0"/></a:schemeClr></a:solidFill></a:ln>
+              </dsp:spPr>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        let args = smartart_draw_args(Some(xml), Some(&scheme));
+        assert_eq!(args[0].stroke, "#0E4B66", "got {:?}", args[0].stroke);
+    }
+
+    // Catches: node labels ignoring `dsp:style/a:fontRef` `lt1` and using dark contrast on accent1 fill.
+    #[test]
+    fn draw_arg_carries_font_ref_label_colour() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="2000000" cy="1000000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:schemeClr val="accent1"/></a:solidFill>
+              </dsp:spPr>
+              <dsp:style><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></dsp:style>
+              <dsp:txBody><a:p><a:r><a:t>Team</a:t></a:r></a:p></dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        scheme.insert("lt1".to_owned(), "#FFFFFF".to_owned());
+        let args = smartart_draw_args(Some(xml), Some(&scheme));
+        assert_eq!(args[0].font_color, "#FFFFFF", "{:?}", args);
     }
 }

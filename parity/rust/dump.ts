@@ -87,6 +87,23 @@ export function dumpXlsxShellRust(
 	return { ok: r.status === 0, json, status: r.status };
 }
 
+/** Issue #29 docx/pptx viewer shell snapshot (`viewer_shell_dump`). */
+export function dumpViewerShellRust(
+	fixturePath: string,
+	negative = false,
+): { ok: boolean; json: unknown; status: number | null } {
+	const bin = ensureExample('viewer_shell_dump', 'nitro-xml-wasm');
+	const args = negative ? [fixturePath, '--negative'] : [fixturePath];
+	const r = runBin(bin, args, { timeoutMs: 120_000 });
+	let json: unknown = null;
+	try {
+		json = JSON.parse(r.stdout.trim() || 'null');
+	} catch {
+		json = { error: 'parse', raw: r.stdout.slice(0, 200) };
+	}
+	return { ok: r.status === 0, json, status: r.status };
+}
+
 export function dumpDocxStylesRust(
 	fixturePath: string,
 ): { ok: boolean; json: unknown; status: number | null } {

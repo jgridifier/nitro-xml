@@ -26,6 +26,11 @@ impl DiagnosticsState {
         self.unsupported.clear();
     }
 
+    pub fn has_message(&self, message: &str) -> bool {
+        let has = |items: &[DiagnosticItem]| items.iter().any(|i| i.message == message);
+        has(&self.warnings) || has(&self.font_substitutions) || has(&self.unsupported)
+    }
+
     pub fn ingest_warning(&mut self, code: &str, message: &str, part: Option<&str>) {
         let item = DiagnosticItem {
             code: code.into(),
@@ -59,4 +64,24 @@ impl DiagnosticsState {
             "unsupported": self.unsupported.iter().map(map_item).collect::<Vec<_>>(),
         })
     }
+}
+
+/// Bucket an open-time parser message. Placeholder / not-represented text is
+/// unsupported content; everything else stays a warning under `fallback`.
+pub fn open_diagnostic_code(message: &str, fallback: &'static str) -> &'static str {
+    if unsupported_open_message(message) {
+        "unsupported_content"
+    } else {
+        fallback
+    }
+}
+
+fn unsupported_open_message(message: &str) -> bool {
+    let l = message.to_ascii_lowercase();
+    l.contains("placeholder")
+        || l.contains("not represented")
+        || l.contains("cannot be shown")
+        || l.contains("never run")
+        || l.contains("not refreshed")
+        || l.contains("not editable")
 }

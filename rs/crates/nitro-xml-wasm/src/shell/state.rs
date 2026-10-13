@@ -111,6 +111,98 @@ impl Default for ShellState {
     }
 }
 
+/// ASCII-only case fold. Length and char boundaries match JS `for...of` folding
+/// of `A`–`Z`, so docx/pptx shell find stays aligned with the TS oracle.
+pub fn fold_ascii(s: &str) -> String {
+    s.chars()
+        .map(|c| {
+            if c.is_ascii_uppercase() {
+                c.to_ascii_lowercase()
+            } else {
+                c
+            }
+        })
+        .collect()
+}
+
+/// First `max_chars` Unicode scalars.
+pub fn cap_chars(s: &str, max_chars: usize) -> String {
+    if max_chars == 0 {
+        return String::new();
+    }
+    let mut out = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if i >= max_chars {
+            break;
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Record substring hits. `row` is a format-specific ordinal (cell row, paragraph, element).
+pub fn push_text_hits(
+    matches: &mut Vec<FindMatch>,
+    sheet: u32,
+    row: u32,
+    text: &str,
+    query: &str,
+    case_sensitive: bool,
+    match_entire: bool,
+) {
+    if query.is_empty() || text.is_empty() {
+        return;
+    }
+    if match_entire {
+        let ok = if case_sensitive {
+            text == query
+        } else {
+            fold_ascii(text) == fold_ascii(query)
+        };
+        if ok {
+            matches.push(FindMatch {
+                sheet,
+                row,
+                col: 0,
+                text: cap_chars(text, 180),
+            });
+        }
+        return;
+    }
+    let hay = if case_sensitive {
+        text.to_owned()
+    } else {
+        fold_ascii(text)
+    };
+    let needle = if case_sensitive {
+        query.to_owned()
+    } else {
+        fold_ascii(query)
+    };
+    if needle.is_empty() {
+        return;
+    }
+    let mut start = 0usize;
+    while let Some(rel) = hay[start..].find(&needle) {
+        let s = start + rel;
+        let e = s + needle.len();
+        if text.is_char_boundary(s) && text.is_char_boundary(e) {
+            // Scalar index, not a byte offset, so the TS oracle's code-point walk agrees.
+            let col = text[..s].chars().count() as u32;
+            matches.push(FindMatch {
+                sheet,
+                row,
+                col,
+                text: cap_chars(&text[s..e], 180),
+            });
+        }
+        start = s + needle.len().max(1);
+        if start >= hay.len() {
+            break;
+        }
+    }
+}
+
 impl ShellState {
     pub fn clamp_zoom(z: f64) -> f64 {
         if !z.is_finite() || z <= 0.0 {

@@ -33,7 +33,9 @@ pub enum ShellAction {
     Copy,
     DiagnosticsToggle,
     SelectRef(String),
-    /// Activate hyperlink at sheet cell (xlsx); other formats TODO(#23/#27).
+    /// Activate a hyperlink. Xlsx uses sheet cell coordinates. Docx uses
+    /// `(row, col)` as paragraph ordinal and run index. Pptx has no link model
+    /// (`TODO(#27)`).
     HyperlinkAt {
         sheet: u32,
         row: u32,

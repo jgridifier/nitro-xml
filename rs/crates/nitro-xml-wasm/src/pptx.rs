@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 //! Pptx viewer state and engine API (#27).
 
+use std::collections::BTreeSet;
+
 use crate::events::{Event, MOD_CTRL, MOD_META, MOD_SHIFT};
+use crate::shell::{push_text_hits, FindMatch};
 use crate::transport::StringTable;
 use nitro_xml_pptx::render::{
     contains_id, copy_text, fit_slide_scale, hit_top_level, top_level_ids, SpAutofitPaintState,
@@ -217,6 +220,69 @@ impl PptxState {
         }
     }
 
+    /// Shell zoom multiplies the fit-to-viewport scale (100% is fit).
+    pub fn apply_shell_zoom(&mut self, zoom_pct: f64) {
+        let (w, h) = self.pres.canvas_size();
+        let fit = fit_slide_scale(w, h, self.viewport_w, self.viewport_h);
+        let factor = (zoom_pct / 100.0).clamp(0.1, 4.0);
+        self.scale = fit * factor;
+    }
+
+    /// First top-level shape on the active slide whose visible text is non-empty.
+    pub fn first_text_element_id(&mut self) -> Option<String> {
+        let active = self.active;
+        let slide = self.pres.slide(active).ok()?;
+        let ids = top_level_ids(slide);
+        ids.into_iter().find(|id| {
+            let text = copy_text(slide, std::slice::from_ref(id));
+            !text.is_empty()
+        })
+    }
+
+    /// Visible shape text on every slide (`copy_text` per element).
+    /// Table cell text and speaker notes are not on that path — TODO(#27).
+    pub fn search(
+        &mut self,
+        query: &str,
+        case_sensitive: bool,
+        match_entire: bool,
+    ) -> Result<Vec<FindMatch>, String> {
+        self.pres.ensure_all_slides().map_err(|e| e.to_string())?;
+        let mut matches = Vec::new();
+        let n = self.pres.slide_count();
+        for i in 0..n {
+            let slide = self.pres.slide(i).map_err(|e| e.to_string())?;
+            let ids = top_level_ids(slide);
+            for (ei, id) in ids.iter().enumerate() {
+                let text = copy_text(slide, std::slice::from_ref(id));
+                push_text_hits(
+                    &mut matches,
+                    i as u32,
+                    ei as u32,
+                    &text,
+                    query,
+                    case_sensitive,
+                    match_entire,
+                );
+            }
+        }
+        Ok(matches)
+    }
+
+    /// Kinds the slide parser did not turn into elements (unsupported content).
+    pub fn unsupported_labels(&mut self) -> Result<Vec<String>, String> {
+        self.pres.ensure_all_slides().map_err(|e| e.to_string())?;
+        let mut set = BTreeSet::new();
+        let n = self.pres.slide_count();
+        for i in 0..n {
+            let slide = self.pres.slide(i).map_err(|e| e.to_string())?;
+            for kind in &slide.other_kinds {
+                set.insert(kind.clone());
+            }
+        }
+        Ok(set.into_iter().collect())
+    }
+
     pub fn slides_json(&self) -> Value {
         let slides: Vec<Value> = self
             .pres
@@ -262,6 +328,7 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
     }
     handle.events.drain();
     if let Some(ref mut pptx) = handle.pptx {
+        pptx.apply_shell_zoom(handle.shell.zoom_pct);
         pptx.paint(
             &mut handle.strings,
             &mut handle.commands,

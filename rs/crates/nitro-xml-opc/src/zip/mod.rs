@@ -122,8 +122,12 @@ pub struct ZipPackage<'a> {
     /// Lower-cased name to position in `entries`.
     lower: HashMap<String, usize>,
     limits: ZipLimits,
-    /// Bytes inflated by successful `read` calls.
+    /// Bytes inflated by successful `read` / `stream_part` calls.
     inflated_total: u64,
+    /// Part names fully inflated by [`Self::read`] or a `stream_part` that ran to EOF.
+    parts_read: Vec<String>,
+    /// Part names whose inflate started, including streams that stopped early.
+    touched_parts: Vec<String>,
 }
 
 fn invalid(error: impl std::fmt::Display) -> ZipError {
@@ -220,7 +224,32 @@ impl<'a> ZipPackage<'a> {
             lower,
             limits,
             inflated_total: 0,
+            parts_read: Vec::new(),
+            touched_parts: Vec::new(),
         })
+    }
+
+    /// Parts fully inflated, in first-read order.
+    pub fn parts_read(&self) -> &[String] {
+        &self.parts_read
+    }
+
+    /// Parts whose bytes were inflated at least once, including early-stopped streams.
+    pub fn touched_parts(&self) -> &[String] {
+        &self.touched_parts
+    }
+
+    fn note_touch(&mut self, name: &str) {
+        if !self.touched_parts.iter().any(|p| p == name) {
+            self.touched_parts.push(name.to_owned());
+        }
+    }
+
+    fn note_full_read(&mut self, name: &str) {
+        self.note_touch(name);
+        if !self.parts_read.iter().any(|p| p == name) {
+            self.parts_read.push(name.to_owned());
+        }
     }
 
     /// Normalised part names, in archive order.
@@ -259,23 +288,78 @@ impl<'a> ZipPackage<'a> {
 
     /// Inflates one part. `Ok(None)` if no such part exists. Each successful read counts its bytes
     /// against the package total again, so re-reading a part is not free.
+    ///
+    /// A full read is recorded in [`Self::parts_read`] and [`Self::touched_parts`].
     pub fn read(&mut self, name: &str) -> Result<Option<Vec<u8>>, ZipError> {
         let Some(entry) = self.position(name).and_then(|pos| self.entries.get(pos)) else {
             return Ok(None);
         };
         let (index, declared, compressed) = (entry.index, entry.size, entry.compressed);
+        let stored_name = entry.name.clone();
+        let prealloc = usize::try_from(declared.min(MAX_PREALLOCATE_BYTES)).unwrap_or(0);
+        let mut out: Vec<u8> = Vec::with_capacity(prealloc);
+        let (produced, finished) =
+            self.inflate(index, declared, compressed, &stored_name, |chunk| {
+                out.extend_from_slice(chunk);
+                true
+            })?;
+        if !finished || produced != declared {
+            return Err(ZipError::SizeMismatch { name: stored_name });
+        }
+        self.inflated_total = self.inflated_total.saturating_add(produced);
+        self.note_full_read(&stored_name);
+        Ok(Some(out))
+    }
+
+    /// Inflate `name` in chunks. `on_chunk` returns `false` to stop before EOF (the rest of the
+    /// deflate stream is not read). `Ok(Some(true))` means the part was fully inflated;
+    /// `Ok(Some(false))` means the callback stopped early. Missing parts are `Ok(None)` and are
+    /// not recorded.
+    ///
+    /// Full inflates land in [`Self::parts_read`]. Any inflate that starts, including an early
+    /// stop, lands in [`Self::touched_parts`].
+    pub fn stream_part<F>(&mut self, name: &str, on_chunk: F) -> Result<Option<bool>, ZipError>
+    where
+        F: FnMut(&[u8]) -> bool,
+    {
+        let Some(entry) = self.position(name).and_then(|pos| self.entries.get(pos)) else {
+            return Ok(None);
+        };
+        let (index, declared, compressed) = (entry.index, entry.size, entry.compressed);
+        let stored_name = entry.name.clone();
+        let (produced, finished) =
+            self.inflate(index, declared, compressed, &stored_name, on_chunk)?;
+        self.inflated_total = self.inflated_total.saturating_add(produced);
+        if finished {
+            self.note_full_read(&stored_name);
+        } else {
+            self.note_touch(&stored_name);
+        }
+        Ok(Some(finished))
+    }
+
+    /// Returns `(bytes produced, ran to EOF)`.
+    fn inflate<F>(
+        &mut self,
+        index: usize,
+        declared: u64,
+        compressed: u64,
+        stored_name: &str,
+        mut on_chunk: F,
+    ) -> Result<(u64, bool), ZipError>
+    where
+        F: FnMut(&[u8]) -> bool,
+    {
         let max_total = self.limits.max_total_bytes;
         let max_ratio = self.limits.max_compression_ratio;
         let min_ratio_bytes = self.limits.min_ratio_check_bytes;
         let inflated_total = self.inflated_total;
-        let stored_name = entry.name.as_str();
 
         let mut file = self.archive.by_index(index).map_err(invalid)?;
-        let prealloc = usize::try_from(declared.min(MAX_PREALLOCATE_BYTES)).unwrap_or(0);
-        let mut out: Vec<u8> = Vec::with_capacity(prealloc);
         let mut buf = vec![0u8; CHUNK_BYTES];
         // One byte past the declared size, so an over-long stream is seen and stopped.
         let mut limited = (&mut file).take(declared.saturating_add(1));
+        let mut produced_total: u64 = 0;
         loop {
             let n = match limited.read(&mut buf) {
                 Ok(0) => break,
@@ -290,9 +374,7 @@ impl<'a> ZipPackage<'a> {
                 }
                 Err(e) => return Err(invalid(e)),
             };
-            let produced = u64::try_from(out.len())
-                .unwrap_or(u64::MAX)
-                .saturating_add(n as u64);
+            let produced = produced_total.saturating_add(n as u64);
             if produced > declared {
                 return Err(ZipError::SizeMismatch {
                     name: stored_name.to_owned(),
@@ -306,23 +388,27 @@ impl<'a> ZipPackage<'a> {
             if inflated_total.saturating_add(produced) > max_total {
                 return Err(ZipError::TotalTooLarge);
             }
-            if let Some(chunk) = buf.get(..n) {
-                out.extend_from_slice(chunk);
+            produced_total = produced;
+            let keep_going = if let Some(chunk) = buf.get(..n) {
+                on_chunk(chunk)
+            } else {
+                true
+            };
+            if !keep_going {
+                return Ok((produced_total, false));
             }
         }
-        let produced = u64::try_from(out.len()).unwrap_or(u64::MAX);
-        if produced != declared {
+        if produced_total != declared {
             return Err(ZipError::SizeMismatch {
                 name: stored_name.to_owned(),
             });
         }
-        if exceeds_compression_ratio(compressed, produced, max_ratio, min_ratio_bytes) {
+        if exceeds_compression_ratio(compressed, produced_total, max_ratio, min_ratio_bytes) {
             return Err(ZipError::CompressionRatio {
                 name: stored_name.to_owned(),
             });
         }
-        self.inflated_total = inflated_total.saturating_add(produced);
-        Ok(Some(out))
+        Ok((produced_total, true))
     }
 }
 

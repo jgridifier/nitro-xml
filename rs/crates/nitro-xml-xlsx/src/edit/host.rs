@@ -83,6 +83,7 @@ impl XlsxHost {
                         hyperlinks: Vec::new(),
                         ext_lst: Vec::new(),
                         sparkline_groups: Vec::new(),
+                        dimension: None,
                     }
                 })
             })
@@ -431,6 +432,7 @@ impl XlsxHost {
                     hyperlinks: Vec::new(),
                     ext_lst: Vec::new(),
                     sparkline_groups: Vec::new(),
+                    dimension: None,
                 }
             };
             if let Some(p) = obj.get("partName") {

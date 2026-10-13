@@ -140,6 +140,7 @@ pub fn parse_worksheet(
         hyperlinks,
         ext_lst,
         sparkline_groups,
+        dimension: None,
     }
 }
 
@@ -169,6 +170,7 @@ fn empty_worksheet(
         hyperlinks: Vec::new(),
         ext_lst: Vec::new(),
         sparkline_groups: Vec::new(),
+        dimension: None,
     }
 }
 

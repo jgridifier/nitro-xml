@@ -314,6 +314,7 @@ mod tests {
             hyperlinks: vec![],
             ext_lst: vec![],
             sparkline_groups: vec![],
+            dimension: None,
         }
     }
 

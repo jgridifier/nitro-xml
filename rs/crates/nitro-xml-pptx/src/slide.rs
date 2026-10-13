@@ -196,6 +196,9 @@ pub struct DumpElement {
     /// Draw-tab / `aink` ink strokes (paint only).
     #[serde(skip)]
     pub ink_data: Option<crate::ink::InkData>,
+    /// `p:contentPart/@r:id` → InkML part (resolved in presentation load).
+    #[serde(skip)]
+    pub content_part_ink_rel_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -533,7 +536,11 @@ fn parse_sp_tree_child(
             ctx,
         )
         .map(SpTreeParseOutcome::Element),
-        "contentPart" => Some(SpTreeParseOutcome::Other("contentPart".to_owned())),
+        "contentPart" => parse_content_part(
+            node,
+            sp_tree_child_id(id_prefix, "contentPart", entry.index_in_type, options),
+        )
+        .map(SpTreeParseOutcome::Element),
         _ => None,
     }
 }
@@ -1004,6 +1011,69 @@ fn parse_connector(cxn: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElem
         None,
         false,
         shape_paint_extras(cxn, Some(sp_pr), None, tx_body, None, ctx, None),
+    )
+}
+
+fn child_any_local<'a>(parent: &'a Element, local: &str) -> Option<&'a Element> {
+    parent.children.iter().find_map(|n| match n {
+        Node::Element(e) if e.local == local => Some(e),
+        _ => None,
+    })
+}
+
+fn relationship_id_attr(el: &Element) -> Option<String> {
+    el.attrs
+        .iter()
+        .find(|a| a.local == "id" && a.ns.as_deref() == Some(ns::R))
+        .map(|a| a.value.clone())
+        .filter(|s| !s.is_empty())
+}
+
+fn parse_content_part(node: &Element, id: String) -> Option<DumpElement> {
+    let xfrm = child_any_local(node, "xfrm");
+    let (x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v) = xfrm_to_box(xfrm);
+    let width = if w > 0.0 { w } else { 120.0 };
+    let height = if h > 0.0 { h } else { 80.0 };
+    let w_emu = if w_emu > 0 {
+        w_emu
+    } else {
+        (width * EMU_PER_PX as f64).round() as i64
+    };
+    let h_emu = if h_emu > 0 {
+        h_emu
+    } else {
+        (height * EMU_PER_PX as f64).round() as i64
+    };
+    let nv_pr = child_any_local(node, "nvContentPartPr");
+    let c_nv_pr = nv_pr.and_then(|nv| child_any_local(nv, "cNvPr"));
+    let ink_rel = relationship_id_attr(node);
+    let extras = PaintExtras {
+        content_part_ink_rel_id: ink_rel,
+        ..PaintExtras::default()
+    };
+    build_dump(
+        "contentPart",
+        id,
+        c_nv_pr,
+        None,
+        x,
+        y,
+        width,
+        height,
+        x_emu,
+        y_emu,
+        w_emu,
+        h_emu,
+        rot,
+        flip_h,
+        flip_v,
+        None,
+        None,
+        None,
+        None,
+        None,
+        false,
+        extras,
     )
 }
 
@@ -1691,6 +1761,7 @@ fn build_dump(
         text_shadow: extras.text_shadow,
         effect_filter: extras.effect_filter,
         ink_data: extras.ink_data,
+        content_part_ink_rel_id: extras.content_part_ink_rel_id,
     })
 }
 
@@ -1982,6 +2053,7 @@ struct PaintExtras {
     text_shadow: Option<String>,
     effect_filter: Option<String>,
     ink_data: Option<crate::ink::InkData>,
+    content_part_ink_rel_id: Option<String>,
 }
 
 #[derive(Clone, Copy)]

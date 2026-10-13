@@ -28,11 +28,17 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         let h = el.height.max(1.0);
         let mut paths = String::new();
         for stroke in strokes {
+            let opacity_attr = if stroke.opacity < 0.999 {
+                format!(" stroke-opacity=\"{}\"", stroke.opacity)
+            } else {
+                String::new()
+            };
             paths.push_str(&format!(
-                "<path d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" vector-effect=\"non-scaling-stroke\"/>",
+                "<path d=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"{} stroke-linecap=\"round\" stroke-linejoin=\"round\" vector-effect=\"non-scaling-stroke\"/>",
                 xml_attr_escape(&stroke.path_d),
                 xml_attr_escape(&stroke.color),
-                stroke.width
+                stroke.width,
+                opacity_attr
             ));
         }
         let svg = format!(
@@ -45,7 +51,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     ctx.view_ir.push_painted("ink", el, None);
 }
 
-fn xml_attr_escape(s: &str) -> String {
+pub(crate) fn xml_attr_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('"', "&quot;")
         .replace('<', "&lt;")

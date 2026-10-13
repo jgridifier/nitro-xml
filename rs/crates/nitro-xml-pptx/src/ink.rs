@@ -12,6 +12,8 @@ pub struct InkStroke {
     pub path_d: String,
     pub color: String,
     pub width: f64,
+    /// Stroke alpha 0–1 (InkML brush opacity / transparency).
+    pub opacity: f64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,6 +70,7 @@ fn decode_aink_ink(ink_root: &Element) -> Option<InkData> {
             path_d,
             color,
             width,
+            opacity: 1.0,
         });
     }
     if strokes.is_empty() {

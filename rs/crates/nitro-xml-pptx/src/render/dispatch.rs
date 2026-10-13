@@ -3,6 +3,7 @@
 
 use super::chart;
 use super::connector;
+use super::content_part;
 use super::context::{PaintContext, StringIntern};
 use super::group;
 use super::ink;
@@ -33,6 +34,7 @@ pub fn paint_element<I: StringIntern>(
         "ole" => ole::paint(ctx, el, parent),
         "model3d" => placeholder::paint_typed_stub(ctx, "model3d", el, parent, "[3D Model]"),
         "ink" => ink::paint(ctx, el, parent),
+        "contentPart" => content_part::paint(ctx, el, parent),
         _ => placeholder::paint_unknown_element(ctx, el, parent),
     }
 }

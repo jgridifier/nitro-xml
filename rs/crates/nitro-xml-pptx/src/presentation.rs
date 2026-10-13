@@ -795,6 +795,30 @@ impl<'a> Presentation<'a> {
         self.attach_graphic_payloads(owner, elements);
         self.attach_ole_previews(owner, elements);
         self.attach_image_payloads(owner, elements);
+        self.attach_content_part_ink(owner, elements);
+    }
+
+    fn attach_content_part_ink(&mut self, owner: &str, elements: &mut [DumpElement]) {
+        for el in elements.iter_mut() {
+            if el.type_ == "contentPart" && el.ink_data.is_none() {
+                if let Some(rel_id) = el.content_part_ink_rel_id.clone() {
+                    if let Ok(Some(path)) = self.resolve_rel_target(owner, &rel_id) {
+                        if let Ok(Some(xml)) = self.package.text(&path) {
+                            if let Ok(doc) = parse_xml_str(xml) {
+                                el.ink_data = crate::inkml::parse_ink_ml_content(
+                                    &doc.root, el.width, el.height,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(children) = el.children.clone() {
+                let mut children = children;
+                self.attach_content_part_ink(owner, &mut children);
+                el.children = Some(children);
+            }
+        }
     }
 
     /// `vmlDrawing` / `legacyDrawing` parts on `owner`, for OLE `@spid` previews.

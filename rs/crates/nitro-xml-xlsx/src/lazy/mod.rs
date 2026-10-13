@@ -271,6 +271,23 @@ mod tests {
         assert_eq!(left, right);
     }
 
+    // Catches: Apache POI 56644 (real corpus) lazy first-view must paint Customer row like full load.
+    #[test]
+    fn poi_56644_viewport_cell_text_matches_full_load() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/real/xlsx/poi-56644.xlsx");
+        let bytes = std::fs::read(&path).expect("fixture");
+        assert_rect_matches(
+            &bytes,
+            ViewportRect {
+                r0: 0,
+                c0: 0,
+                r1: 36,
+                c1: 14,
+            },
+        );
+    }
+
     // Catches: a viewport-sized parse dropping or rewriting cell text relative to load_workbook.
     #[test]
     fn viewport_cell_text_matches_full_load() {

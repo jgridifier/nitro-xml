@@ -77,8 +77,10 @@ pub fn read_sheet_data_xml(
     store: &mut CellStore,
     row_info: &mut HashMap<u32, RowInfo>,
 ) {
+    // Lazy viewport rows keep `x14ac:dyDescent` (and similar) without the outer worksheet
+    // xmlns declarations, so the wrapper must re-declare x14ac/mc or parsing drops cells.
     let wrapped = format!(
-        r#"<sheetData xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">{}"</sheetData>"#,
+        r#"<sheetData xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">{}</sheetData>"#,
         sheet_data_inner
     );
     let doc = match parse_xml_str(&wrapped) {

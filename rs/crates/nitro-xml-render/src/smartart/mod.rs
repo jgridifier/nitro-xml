@@ -116,6 +116,7 @@ pub fn smartart_draw_args(
             fill: s.fill.clone(),
             stroke: s.stroke.clone(),
             stroke_width: s.stroke_width,
+            font_color: s.font_color.clone(),
             text: s.flat_text(),
             path_len: s.kind.path_d().map(|d| d.len()).unwrap_or(0),
         })
@@ -133,6 +134,8 @@ pub struct SmartArtDrawArg {
     pub fill: String,
     pub stroke: String,
     pub stroke_width: f64,
+    /// Label fill (`fontRef` / contrast), matching TS `fontColor` on projected shapes.
+    pub font_color: String,
     pub text: String,
     pub path_len: usize,
 }
@@ -208,6 +211,8 @@ struct SpBox {
     paragraphs: Vec<TextParagraph>,
     text_frame: Option<TextFrameGeom>,
     font_color: String,
+    /// `dsp:style/a:fontRef` resolved explicitly (skip underlying-fill label pass).
+    label_font_from_ref: bool,
     /// Authored font size in CSS px when `a:rPr/@sz` is present (`sz/100 * 96/72`).
     font_size_px: Option<f64>,
     geom_name: String,
@@ -250,17 +255,43 @@ fn labelled_svg(w: f64, h: f64) -> String {
     )
 }
 
-fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
-    let min_x = shapes.iter().map(|s| s.x).fold(f64::INFINITY, f64::min);
-    let min_y = shapes.iter().map(|s| s.y).fold(f64::INFINITY, f64::min);
-    let max_x = shapes
-        .iter()
-        .map(|s| s.x + s.w)
-        .fold(f64::NEG_INFINITY, f64::max);
-    let max_y = shapes
-        .iter()
-        .map(|s| s.y + s.h)
-        .fold(f64::NEG_INFINITY, f64::max);
+fn diagram_shape_bounds(shape: &SpBox) -> (f64, f64, f64, f64) {
+    let frame = (shape.x, shape.y, shape.x + shape.w, shape.y + shape.h);
+    let (tx, ty, tw, th) = shape
+        .text_frame
+        .as_ref()
+        .map(|tf| (tf.x, tf.y, tf.w, tf.h))
+        .unwrap_or((shape.x, shape.y, shape.w, shape.h));
+    let text_max_x = tx + tw;
+    let text_max_y = ty + th;
+    (
+        frame.0.min(tx),
+        frame.1.min(ty),
+        frame.2.max(text_max_x),
+        frame.3.max(text_max_y),
+    )
+}
+
+fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for shape in shapes {
+        let (smin_x, smin_y, smax_x, smax_y) = diagram_shape_bounds(shape);
+        min_x = min_x.min(smin_x);
+        min_y = min_y.min(smin_y);
+        max_x = max_x.max(smax_x);
+        max_y = max_y.max(smax_y);
+    }
+    if !min_x.is_finite() {
+        min_x = 0.0;
+        min_y = 0.0;
+        max_x = 1.0;
+        max_y = 1.0;
+    }
+    let origin_x = min_x;
+    let origin_y = min_y;
     let vw = (max_x - min_x).max(1.0);
     let vh = (max_y - min_y).max(1.0);
     let default_stroke = (vw.max(vh) / 200.0).max(1.0);
@@ -276,13 +307,15 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
             "stroke=\"none\"".to_owned()
         } else {
             format!(
-                "stroke=\"{}\" stroke-width=\"{}\" stroke-linejoin=\"round\"",
+                "stroke=\"{}\" stroke-width=\"{}\"",
                 escape(&shape.stroke),
-                num(stroke_w)
+                svg_user_coord(stroke_w)
             )
         };
-        let cx = shape.x + shape.w / 2.0;
-        let cy = shape.y + shape.h / 2.0;
+        let sx = shape.x - origin_x;
+        let sy = shape.y - origin_y;
+        let cx = sx + shape.w / 2.0;
+        let cy = sy + shape.h / 2.0;
         let transform = shape_transform(shape, cx, cy);
         let transform_attr = transform
             .as_ref()
@@ -300,8 +333,8 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
                     let opacity = fill_opacity_attr(shape.fill_opacity);
                     body.push_str(&format!(
                         "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{rx_attr} fill=\"{}\"{opacity} {stroke_attr}{transform_attr}/>",
-                        num(shape.x),
-                        num(shape.y),
+                        num(sx),
+                        num(sy),
                         num(shape.w.max(1.0)),
                         num(shape.h.max(1.0)),
                         escape(&shape.fill),
@@ -320,8 +353,8 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
                 }
                 ShapeKind::Path { d } => {
                     let path_transform = match &transform {
-                        Some(t) => format!("{t} translate({} {})", num(shape.x), num(shape.y)),
-                        None => format!("translate({} {})", num(shape.x), num(shape.y)),
+                        Some(t) => format!("{t} translate({} {})", num(sx), num(sy)),
+                        None => format!("translate({} {})", num(sx), num(sy)),
                     };
                     let opacity = fill_opacity_attr(shape.fill_opacity);
                     body.push_str(&format!(
@@ -335,15 +368,19 @@ fn shapes_svg(shapes: &[SpBox], w: f64, h: f64) -> String {
         }
 
         if shape.has_text() {
-            append_shape_text(&mut body, shape, stroke_w.max(default_stroke));
+            append_shape_text(
+                &mut body,
+                shape,
+                stroke_w.max(default_stroke),
+                origin_x,
+                origin_y,
+            );
         }
     }
     format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"{} {} {} {}\" role=\"img\">{body}</svg>",
-        num(min_x),
-        num(min_y),
-        num(vw),
-        num(vh),
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {} {}\" preserveAspectRatio=\"xMidYMid meet\" style=\"width:100%;height:100%;pointer-events:none;display:block\" role=\"img\">{body}</svg>",
+        svg_user_coord(vw),
+        svg_user_coord(vh),
     )
 }
 
@@ -523,16 +560,18 @@ fn spacing_pct_from_p_pr(p_pr: &Element, local: &str) -> Option<f64> {
     }
 }
 
-fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64) {
+fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64, origin_x: f64, origin_y: f64) {
     let (text_cx, _, _, base_font) = text_layout_metrics(shape, stroke);
+    let text_cx = text_cx - origin_x;
     for line in layout_shape_text(shape, stroke) {
+        let line_y = line.y - origin_y;
         if line.spans.len() == 1 {
             let (text, font) = &line.spans[0];
             body.push_str(&format!(
                 "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">{}</text>",
-                num(text_cx),
-                num(line.y),
-                num(*font),
+                svg_user_coord(text_cx),
+                svg_user_coord(line_y),
+                svg_user_coord(*font),
                 escape(&shape.font_color),
                 escape(text),
             ));
@@ -540,15 +579,15 @@ fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64) {
         }
         body.push_str(&format!(
             "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">",
-            num(text_cx),
-            num(line.y),
-            num(base_font),
+            svg_user_coord(text_cx),
+            svg_user_coord(line_y),
+            svg_user_coord(base_font),
             escape(&shape.font_color),
         ));
         for (text, font) in &line.spans {
             body.push_str(&format!(
                 "<tspan font-size=\"{}\">{}</tspan>",
-                num(*font),
+                svg_user_coord(*font),
                 escape(text),
             ));
         }
@@ -565,6 +604,19 @@ fn num(v: f64) -> String {
     }
 }
 
+/// Match TS SVG attribute number serialization (no `num()` 2dp rounding).
+fn svg_user_coord(v: f64) -> String {
+    if !v.is_finite() {
+        return "0".to_owned();
+    }
+    let rounded = v.round();
+    if (v - rounded).abs() < 1e-9 {
+        return format!("{}", rounded as i64);
+    }
+    let s = format!("{:.12}", v);
+    s.trim_end_matches('0').trim_end_matches('.').to_owned()
+}
+
 fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -575,6 +627,7 @@ fn escape(s: &str) -> String {
 fn collect_shapes(root: &Element, scheme: Option<&BTreeMap<String, String>>) -> Vec<SpBox> {
     let mut out = Vec::new();
     walk_shapes(root, scheme, &mut out);
+    resolve_label_font_colors(&mut out);
     out
 }
 
@@ -624,7 +677,10 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
     };
     let paragraphs = text_paragraphs_of(sp);
     let text_frame = text_frame_of(sp);
-    let font_color = font_color_of(sp, scheme, &fill);
+    let (font_color, label_font_from_ref) = match font_ref_color(sp, scheme) {
+        Some(c) => (c, true),
+        None => (String::new(), false),
+    };
     let font_size_px = authored_font_size_px(sp);
     let rotation = attr_f64(xfrm, "rot").map(|r| r / 60_000.0);
     let flip_h =
@@ -656,6 +712,7 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         paragraphs,
         text_frame,
         font_color,
+        label_font_from_ref,
         font_size_px,
         geom_name,
         kind,
@@ -681,21 +738,87 @@ fn solid_fill_alpha(container: &Element) -> Option<f64> {
     Some((v / 100_000.0).clamp(0.0, 1.0))
 }
 
-fn font_color_of(sp: &Element, scheme: Option<&BTreeMap<String, String>>, fill: &str) -> String {
-    if let Some(style) = child_any(sp, "style") {
-        if let Some(font_ref) = child_any(style, "fontRef") {
-            if let Some(hex) = solid_hex_from_color_child(font_ref, scheme) {
-                return hex;
-            }
+fn font_ref_color(sp: &Element, scheme: Option<&BTreeMap<String, String>>) -> Option<String> {
+    let style = child_any(sp, "style")?;
+    let font_ref = child_any(style, "fontRef")?;
+    solid_hex_from_color_child(font_ref, scheme)
+}
+
+fn shape_label_center(shape: &SpBox) -> (f64, f64) {
+    if let Some(tf) = shape.text_frame.as_ref() {
+        return (tf.x + tf.w / 2.0, tf.y + tf.h / 2.0);
+    }
+    (shape.x + shape.w / 2.0, shape.y + shape.h / 2.0)
+}
+
+/// Paint-order search for a filled shape under this label (TS `underlyingFill`).
+fn underlying_fill(shape: &SpBox, shapes: &[SpBox], index: usize) -> Option<String> {
+    let (cx, cy) = shape_label_center(shape);
+    for below in (0..index).rev() {
+        let cand = &shapes[below];
+        if cand.fill == "none" || cand.is_pic {
+            continue;
+        }
+        if cx >= cand.x && cx <= cand.x + cand.w && cy >= cand.y && cy <= cand.y + cand.h {
+            return Some(blend_onto_white(&cand.fill, cand.fill_opacity));
         }
     }
-    // Contrast against fill (TS drawingShapeLabelColor): light fill → dark text.
-    if fill != "none" && relative_luminance(fill) > 0.55 {
-        "#222222".to_owned()
-    } else if fill != "none" {
-        "#FFFFFF".to_owned()
+    None
+}
+
+fn blend_onto_white(hex: &str, opacity: Option<f64>) -> String {
+    let opacity = opacity.filter(|o| *o < 0.999).unwrap_or(1.0);
+    if opacity >= 1.0 || !hex.starts_with('#') {
+        return hex.to_owned();
+    }
+    let raw = hex.trim_start_matches('#');
+    if raw.len() != 6 {
+        return hex.to_owned();
+    }
+    let parse = |s: &str| u8::from_str_radix(s, 16).unwrap_or(128);
+    let r = parse(&raw[0..2]);
+    let g = parse(&raw[2..4]);
+    let b = parse(&raw[4..6]);
+    let blend = |c: u8| ((f64::from(c) * opacity) + 255.0 * (1.0 - opacity)).round() as u8;
+    format!("#{:02X}{:02X}{:02X}", blend(r), blend(g), blend(b))
+}
+
+fn contrast_text_color(fill_basis: &str) -> String {
+    if relative_luminance(fill_basis) > 0.55 {
+        "#1a1a1a".to_owned()
     } else {
-        "#222222".to_owned()
+        "#FFFFFF".to_owned()
+    }
+}
+
+fn label_color_for_shape(shapes: &[SpBox], index: usize) -> String {
+    let shape = &shapes[index];
+    let basis = if shape.fill != "none" {
+        Some(blend_onto_white(&shape.fill, shape.fill_opacity))
+    } else {
+        underlying_fill(shape, shapes, index)
+    };
+    basis
+        .map(|b| contrast_text_color(&b))
+        .unwrap_or_else(|| "#1a1a1a".to_owned())
+}
+
+fn resolve_label_font_colors(shapes: &mut [SpBox]) {
+    let colors: Vec<String> = shapes
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            if s.label_font_from_ref {
+                s.font_color.clone()
+            } else {
+                label_color_for_shape(shapes, i)
+            }
+        })
+        .collect();
+    for (shape, color) in shapes.iter_mut().zip(colors) {
+        if !shape.label_font_from_ref {
+            shape.font_color = color;
+        }
     }
 }
 
@@ -767,10 +890,10 @@ fn outline_rect_path_data(width: f64, height: f64) -> String {
     let h = height.max(1.0);
     format!(
         "M 0 0 L {} 0 L {} {} L 0 {} Z",
-        num(w),
-        num(w),
-        num(h),
-        num(h)
+        svg_user_coord(w),
+        svg_user_coord(w),
+        svg_user_coord(h),
+        svg_user_coord(h)
     )
 }
 
@@ -1275,7 +1398,7 @@ mod tests {
         </dsp:drawing>"#;
         let svg = smartart_svg(Some(xml), 200.0, 100.0);
         assert!(
-            svg.contains("viewBox=\"1 2 100 50\"") || svg.contains("viewBox=\"1 2 100.0 50.0\""),
+            svg.contains("viewBox=\"0 0 100 50\"") || svg.contains("viewBox=\"0 0 100.0 50.0\""),
             "{svg}"
         );
         // Default label size clamped to 8..14 px (height*0.2 = 10).
@@ -1578,5 +1701,75 @@ mod tests {
         let mut parts = Vec::new();
         collect_text(&root, &mut parts);
         assert!(parts.is_empty());
+    }
+    // Catches: connector `a:ln` `schemeClr`+`shade` left full accent1 so orgchart lines miss TS stroke colour.
+    #[test]
+    fn connector_scheme_shade_on_ln_stroke() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="100000" cy="100000"/></a:xfrm>
+                <a:custGeom><a:pathLst><a:path><a:moveTo><a:pt x="100" y="0"/></a:moveTo><a:lnTo><a:pt x="100" y="100"/></a:lnTo></a:path></a:pathLst></a:custGeom>
+                <a:noFill/>
+                <a:ln w="19050"><a:solidFill><a:schemeClr val="accent1"><a:shade val="60000"/><a:hueOff val="0"/><a:satOff val="0"/><a:lumOff val="0"/><a:alphaOff val="0"/></a:schemeClr></a:solidFill></a:ln>
+              </dsp:spPr>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        let args = smartart_draw_args(Some(xml), Some(&scheme));
+        assert_eq!(args[0].stroke, "#0E4B66", "got {:?}", args[0].stroke);
+    }
+
+    // Catches: noFill SmartArt label boxes keeping #222222 instead of contrast on the painted shape below.
+    #[test]
+    fn nofill_label_reads_contrast_from_shape_below() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="2000000" cy="1000000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="1f3864"/></a:solidFill>
+              </dsp:spPr>
+            </dsp:sp>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="100000" y="100000"/><a:ext cx="1800000" cy="800000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:noFill/>
+              </dsp:spPr>
+              <dsp:txBody><a:p><a:r><a:t>Heading</a:t></a:r></a:p></dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let args = smartart_draw_args(Some(xml), None);
+        assert_eq!(args.len(), 2);
+        assert_eq!(args[1].font_color, "#FFFFFF", "{:?}", args);
+    }
+
+    // Catches: node labels ignoring `dsp:style/a:fontRef` `lt1` and using dark contrast on accent1 fill.
+    #[test]
+    fn draw_arg_carries_font_ref_label_colour() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="2000000" cy="1000000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:schemeClr val="accent1"/></a:solidFill>
+              </dsp:spPr>
+              <dsp:style><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></dsp:style>
+              <dsp:txBody><a:p><a:r><a:t>Team</a:t></a:r></a:p></dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        scheme.insert("lt1".to_owned(), "#FFFFFF".to_owned());
+        let args = smartart_draw_args(Some(xml), Some(&scheme));
+        assert_eq!(args[0].font_color, "#FFFFFF", "{:?}", args);
     }
 }

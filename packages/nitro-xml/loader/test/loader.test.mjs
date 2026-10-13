@@ -3,7 +3,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { applyCommandBuffer, Op } from "../apply.js";
 import { encodeEventBatch, EventKind, EVENT_VERSION } from "../events.js";
-import { fillMeasureWidths, flushMeasureBatch, readMeasureReqsFromMemory } from "../measure.js";
+import { fillMeasureWidths, flushMeasureBatch } from "../measure.js";
+import { readMeasureReqsFromMemory } from "./measure-memory.mjs";
 import {
   flushLayoutReadBatch,
   LayoutReadKind,

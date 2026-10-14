@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use nitro_xml_render::command_buffer::CommandBuffer;
 use nitro_xml_render::measure::MeasureBatch;
 
-use crate::cf::icon_body;
+use crate::cf::icon_svg;
 use crate::editor::mark_stale_class;
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
@@ -165,15 +165,16 @@ fn paint_one_cell<I: StringIntern>(
     if let Some(icon) = &item.view.icon {
         let icon_id = ICON_BASE + n as u32;
         let size = (16.0 * (zoom / 100.0)).round().max(1.0) as u32;
-        let svg = intern.intern("svg");
-        buf.create_element(icon_id, svg, cell_id);
+        let markup = icon_svg(&icon.set, icon.index, size);
+        buf.create_element(icon_id, div, cell_id);
         set_attr(buf, intern, icon_id, "class", "xg-ic");
-        set_attr(buf, intern, icon_id, "width", &size.to_string());
-        set_attr(buf, intern, icon_id, "height", &size.to_string());
-        set_attr(buf, intern, icon_id, "viewBox", "0 0 16 16");
-        set_attr(buf, intern, icon_id, "aria-hidden", "true");
-        // SetInnerMarkup parses children in the SVG namespace (loader apply.js).
-        buf.set_inner_markup(icon_id, intern.intern(&icon_body(&icon.set, icon.index)));
+        // Collapse the wrapper to the SVG box (inline SVG baseline would be ~21px tall).
+        set_style(buf, intern, icon_id, "width", &format!("{size}px"));
+        set_style(buf, intern, icon_id, "height", &format!("{size}px"));
+        set_style(buf, intern, icon_id, "lineHeight", "0");
+        set_style(buf, intern, icon_id, "overflow", "hidden");
+        set_style(buf, intern, icon_id, "display", "block");
+        buf.set_inner_markup(icon_id, intern.intern(&markup));
     }
 
     if !item.text.is_empty() {

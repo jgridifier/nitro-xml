@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Accessibility gate (#42): differential axe-core (zero new serious/critical vs
-# upstream TS), CDP Accessibility.getFullAXTree role/name diff, and keyboard
-# reachability of Stage-6 shell controls (job: a11y).
-# xlsx + pptx now; docx when #158 lands.
+# upstream TS), CDP Accessibility.getFullAXTree role/name diff (Chromium), and
+# keyboard reachability of Stage-6 shell controls (job: a11y).
+# axe + keyboard run on Chromium, WebKit and Firefox (#29 cross-browser AC).
 #
 # Definition of done for #42: this script no longer prints NOT IMPLEMENTED.
 # Ask Jared (or the Chief of Staff's gh login) to add the `a11y` job to the
@@ -39,8 +39,12 @@ bash scripts/build-wasm.sh
 
 echo "a11y: installing visual host deps (Playwright from #45)"
 ( cd parity/visual && bun install )
-( cd parity/visual && bunx playwright install --with-deps chromium ) \
-  || ( cd parity/visual && bunx playwright install chromium )
+( cd parity/visual && bunx playwright install --with-deps chromium webkit firefox ) \
+  || ( cd parity/visual && bunx playwright install chromium webkit firefox )
+
+# Default: all three engines. Override with A11Y_BROWSERS=chromium for a fast loop.
+export A11Y_BROWSERS="${A11Y_BROWSERS:-chromium,webkit,firefox}"
+echo "a11y: browsers=${A11Y_BROWSERS} (AX-tree stays Chromium-only via CDP)"
 
 echo "a11y: installing axe-core"
 ( cd tests/a11y && bun install )

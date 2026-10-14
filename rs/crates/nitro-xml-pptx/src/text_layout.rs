@@ -95,7 +95,7 @@ pub enum TextBodyVAlign {
 }
 
 /// Layout parsed from `p:txBody` for painting.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct TextBodyLayout {
     pub v_align: TextBodyVAlign,
     pub text_align: Option<TextAlignCss>,
@@ -103,6 +103,31 @@ pub struct TextBodyLayout {
     pub inset_bottom_px: f64,
     pub inset_left_px: f64,
     pub inset_right_px: f64,
+    /// `a:bodyPr/@numCol` (1..16); values above 1 enable CSS multicol.
+    pub column_count: u8,
+    /// `a:bodyPr/@spcCol` in CSS px.
+    pub column_gap_px: f64,
+    /// `a:bodyPr/@anchorCtr="1"` → `align-items: center` on the text box.
+    pub anchor_center: bool,
+    /// `vertOverflow` / `horzOverflow` clip (upstream `resolveTextOverflowClip`).
+    pub overflow_clip: bool,
+}
+
+impl Default for TextBodyLayout {
+    fn default() -> Self {
+        Self {
+            v_align: TextBodyVAlign::default(),
+            text_align: None,
+            inset_top_px: 0.0,
+            inset_bottom_px: 0.0,
+            inset_left_px: 0.0,
+            inset_right_px: 0.0,
+            column_count: 1,
+            column_gap_px: 0.0,
+            anchor_center: false,
+            overflow_clip: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -207,6 +232,11 @@ pub fn parse_text_body_layout_with_levels(
         })
     });
 
+    let body_pr = child_local(tx_body, "bodyPr", ns::A)
+        .or_else(|| inherited_tx_body.and_then(|tx| child_local(tx, "bodyPr", ns::A)));
+    let (column_count, column_gap_px, anchor_center, overflow_clip) =
+        parse_body_pr_layout_flags(body_pr);
+
     TextBodyLayout {
         v_align,
         text_align,
@@ -214,7 +244,30 @@ pub fn parse_text_body_layout_with_levels(
         inset_bottom_px: inset_bottom,
         inset_left_px: inset_left,
         inset_right_px: inset_right,
+        column_count,
+        column_gap_px,
+        anchor_center,
+        overflow_clip,
     }
+}
+
+fn parse_body_pr_layout_flags(body_pr: Option<&Element>) -> (u8, f64, bool, bool) {
+    let Some(bp) = body_pr else {
+        return (1, 0.0, false, false);
+    };
+    let column_count = attr(bp, "numCol")
+        .and_then(|s| s.parse::<u8>().ok())
+        .map(|n| n.clamp(1, 16))
+        .unwrap_or(1);
+    let column_gap_px = attr(bp, "spcCol")
+        .and_then(|s| s.parse::<i64>().ok())
+        .map(emu_to_pixels)
+        .unwrap_or(0.0);
+    let anchor_center = parse_optional_bool_attr(attr(bp, "anchorCtr")) == Some(true);
+    let vert = attr(bp, "vertOverflow");
+    let horz = attr(bp, "horzOverflow");
+    let overflow_clip = vert == Some("clip") || vert == Some("ellipsis") || horz == Some("clip");
+    (column_count, column_gap_px, anchor_center, overflow_clip)
 }
 
 fn resolve_first_paragraph_align(
@@ -416,23 +469,41 @@ fn collect_paint_runs(p: &Element) -> Vec<TextPaintRun> {
     let mut runs = Vec::new();
     for child in &p.children {
         if let Node::Element(el) = child {
-            if el.ns.as_deref() == Some(ns::A) && el.local == "r" {
-                if let Some(text) = run_text_content(el) {
-                    let r_pr = child_local(el, "rPr", ns::A);
-                    let rtl = r_pr.and_then(|rp| parse_optional_bool_attr(attr(rp, "rtl")));
-                    let underline = r_pr.map(rpr_has_underline).unwrap_or(false);
-                    let ruby = parse_run_ruby(el);
-                    runs.push(TextPaintRun {
-                        text,
-                        rtl,
-                        underline,
-                        ruby,
-                    });
-                }
+            if el.ns.as_deref() != Some(ns::A) {
+                continue;
+            }
+            let text = if el.local == "r" {
+                run_text_content(el)
+            } else if el.local == "fld" {
+                field_text_content(el)
+            } else {
+                None
+            };
+            if let Some(text) = text {
+                let r_pr = child_local(el, "rPr", ns::A);
+                let rtl = r_pr.and_then(|rp| parse_optional_bool_attr(attr(rp, "rtl")));
+                let underline = r_pr.map(rpr_has_underline).unwrap_or(false);
+                let ruby = if el.local == "r" {
+                    parse_run_ruby(el)
+                } else {
+                    None
+                };
+                runs.push(TextPaintRun {
+                    text,
+                    rtl,
+                    underline,
+                    ruby,
+                });
             }
         }
     }
     runs
+}
+
+fn field_text_content(fld: &Element) -> Option<String> {
+    child_local(fld, "t", ns::A)
+        .map(|t| t.text_content())
+        .filter(|s| !s.is_empty())
 }
 
 fn run_text_content(r: &Element) -> Option<String> {
@@ -689,6 +760,22 @@ mod tests {
         assert_eq!(paras[1].tab_stops.len(), 1);
         assert!((paras[1].tab_stops[0].position_px - 288.0).abs() < 0.1);
         assert!(paras[1].runs[0].text.contains('\t'));
+    }
+
+    // Catches: slide-number/date `a:fld` runs dropped from paint paragraphs so hf chrome is blank.
+    #[test]
+    fn field_runs_become_paint_runs() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr/>
+              <a:p><a:fld type="slidenum"><a:rPr lang="en-US"/><a:t>1</a:t></a:fld></a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let paras = parse_text_paint_paragraphs(&doc.root);
+        assert_eq!(paras.len(), 1);
+        assert_eq!(paras[0].runs.len(), 1);
+        assert_eq!(paras[0].runs[0].text, "1");
     }
 
     // Catches: `a:pPr/@rtl` paragraphs painted as one LTR `<p>` so Arabic/Hebrew slides miss the gate.

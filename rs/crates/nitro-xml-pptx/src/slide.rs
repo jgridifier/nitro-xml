@@ -23,8 +23,8 @@ use crate::inheritance::{
     tx_body_of_placeholder, PlaceholderInfo, PlaceholderNode,
 };
 use crate::level_style::{
-    level_style_for, presentation_default_ea_line_break, LevelStylesMap, MasterTxStyles,
-    PlaceholderTextLevelStyle,
+    extract_lst_style_from_tx_body, level_style_for, merge_level_styles,
+    presentation_default_ea_line_break, LevelStylesMap, MasterTxStyles, PlaceholderTextLevelStyle,
 };
 use crate::placeholder_defaults::PlaceholderDefaultsCache;
 use crate::table::{parse_table_model, table_row_count};
@@ -2329,7 +2329,12 @@ fn shape_paint_extras(
     if let Some(tx) = tx_body {
         let own_tx = child_local(shape, "txBody", ns::P);
         let inherited_tx = inherited_shape.and_then(|s| child_local(s, "txBody", ns::P));
-        let effective_levels = ph_info.map(|ph| ctx.effective_level_styles(ph));
+        let mut effective_levels = ph_info.map(|ph| ctx.effective_level_styles(ph));
+        let lst_levels = extract_lst_style_from_tx_body(tx);
+        if !lst_levels.is_empty() {
+            let base = effective_levels.unwrap_or_default();
+            effective_levels = Some(merge_level_styles(&base, &lst_levels));
+        }
         let is_body_ph = ph_info.is_some_and(crate::text::placeholder_is_body_type);
         let fallback = effective_levels
             .as_ref()

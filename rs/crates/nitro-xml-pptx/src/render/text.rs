@@ -84,6 +84,31 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     ctx.view_ir.push_painted("text", el, None);
 }
 
+fn paragraphs_have_paintable_runs(paragraphs: &[TextPaintParagraph]) -> bool {
+    paragraphs
+        .iter()
+        .any(|p| !p.runs.is_empty() || p.bullet_marker.is_some())
+}
+
+fn paint_plain_text_runs<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    block: u32,
+    text: &str,
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+) {
+    let para_align = paint.layout.and_then(|l| l.text_align);
+    let (_para, run) = append_paragraph_text(ctx, block, text, para_align, None);
+    if paint.font_family.is_none() {
+        set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+    }
+    paint_run_typography(ctx, run, paint, size, stack);
+    if paint.font_family.is_some() {
+        apply_gdi_metric_letter_spacing(ctx, run, text, size, paint.font_family, paint.font_bold);
+    }
+}
+
 pub fn paint_text_body<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     parent: u32,
@@ -103,8 +128,12 @@ pub fn paint_text_body<I: StringIntern>(
         // text column inside `a:bodyPr` insets, not including padding.
         set_style(ctx, block, "width", "100%");
         set_style(ctx, block, "height", "100%");
-        set_style(ctx, block, "display", "flex");
-        set_style(ctx, block, "flex-direction", "column");
+        if paint.layout.is_some_and(|l| l.column_count > 1) {
+            set_style(ctx, block, "display", "block");
+        } else {
+            set_style(ctx, block, "display", "flex");
+            set_style(ctx, block, "flex-direction", "column");
+        }
     }
     let per_paragraph_align = paint.paragraphs.is_some_and(|paras| !paras.is_empty());
     if let Some(layout) = paint.layout {
@@ -135,28 +164,17 @@ pub fn paint_text_body<I: StringIntern>(
     set_style(ctx, block, "overflow", "visible");
     set_style(ctx, block, "text-spacing-trim", "space-all");
     if let Some(paragraphs) = paint.paragraphs.filter(|p| !p.is_empty()) {
-        if paragraphs.iter().any(|p| p.rtl == Some(true)) {
-            set_style(ctx, block, "direction", "rtl");
-            set_style(ctx, block, "unicode-bidi", "plaintext");
+        if paragraphs_have_paintable_runs(paragraphs) {
+            if paragraphs.iter().any(|p| p.rtl == Some(true)) {
+                set_style(ctx, block, "direction", "rtl");
+                set_style(ctx, block, "unicode-bidi", "plaintext");
+            }
+            paint_rich_paragraphs(ctx, block, paragraphs, &paint, size, &stack);
+        } else if !text.trim().is_empty() {
+            paint_plain_text_runs(ctx, block, text, &paint, size, &stack);
         }
-        paint_rich_paragraphs(ctx, block, paragraphs, &paint, size, &stack);
     } else {
-        let para_align = paint.layout.and_then(|l| l.text_align);
-        let (_para, run) = append_paragraph_text(ctx, block, text, para_align, None);
-        if paint.font_family.is_none() {
-            set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
-        }
-        paint_run_typography(ctx, run, &paint, size, &stack);
-        if paint.font_family.is_some() {
-            apply_gdi_metric_letter_spacing(
-                ctx,
-                run,
-                text,
-                size,
-                paint.font_family,
-                paint.font_bold,
-            );
-        }
+        paint_plain_text_runs(ctx, block, text, &paint, size, &stack);
     }
     if let Some(shadow) = paint.text_shadow {
         set_style(ctx, block, "text-shadow", shadow);
@@ -668,12 +686,36 @@ fn apply_text_body_layout<I: StringIntern>(
     rect: TextBodyRectPadding,
     per_paragraph_align: bool,
 ) {
-    let justify = match layout.v_align {
-        TextBodyVAlign::Top => "flex-start",
-        TextBodyVAlign::Middle => "center",
-        TextBodyVAlign::Bottom => "flex-end",
-    };
-    set_style(ctx, block, "justify-content", justify);
+    if layout.column_count > 1 {
+        set_style(ctx, block, "display", "block");
+        set_style(ctx, block, "column-count", &layout.column_count.to_string());
+        set_style(
+            ctx,
+            block,
+            "column-gap",
+            &format_layout_px(layout.column_gap_px),
+        );
+        set_style(ctx, block, "column-fill", "auto");
+        let align_content = match layout.v_align {
+            TextBodyVAlign::Top => "flex-start",
+            TextBodyVAlign::Middle => "center",
+            TextBodyVAlign::Bottom => "flex-end",
+        };
+        set_style(ctx, block, "align-content", align_content);
+    } else {
+        let justify = match layout.v_align {
+            TextBodyVAlign::Top => "flex-start",
+            TextBodyVAlign::Middle => "center",
+            TextBodyVAlign::Bottom => "flex-end",
+        };
+        set_style(ctx, block, "justify-content", justify);
+    }
+    if layout.anchor_center {
+        set_style(ctx, block, "align-items", "center");
+    }
+    if layout.overflow_clip {
+        set_style(ctx, block, "overflow", "hidden");
+    }
     if !per_paragraph_align {
         if let Some(align) = layout.text_align {
             set_style(ctx, block, "text-align", align.as_css());
@@ -1032,6 +1074,7 @@ mod tests {
             inset_bottom_px: 4.8,
             inset_left_px: 9.6,
             inset_right_px: 9.6,
+            ..Default::default()
         };
         let intern = paint_with(TextBodyPaint {
             text_color: None,
@@ -1065,6 +1108,7 @@ mod tests {
             inset_bottom_px: 4.8,
             inset_left_px: 9.6,
             inset_right_px: 9.6,
+            ..Default::default()
         };
         let intern = paint_with(TextBodyPaint {
             text_color: None,

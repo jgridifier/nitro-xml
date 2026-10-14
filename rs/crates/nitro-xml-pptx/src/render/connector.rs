@@ -31,6 +31,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         el.flip_vertical,
         stroke,
         stroke_width,
+        el.stroke_dash.as_deref(),
     );
     let marker_seed = el
         .id

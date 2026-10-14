@@ -5,6 +5,7 @@ use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_inner_markup_stub, set_style};
 use super::prst_geom::{apply_preset_geometry, preset_stroke_outline_path};
 use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
+use super::stroke_dash::{css_border_dash_style, svg_stroke_dasharray};
 use super::text::{paint_text_body, TextBodyPaint};
 use crate::slide::DumpElement;
 
@@ -49,11 +50,12 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         let width = el.stroke_width_px.unwrap_or(1.0).max(0.0);
         if width > 0.0 {
             if stroke_uses_css_border(el.stroke_line_align.as_deref()) {
+                let style = css_border_dash_style(el.stroke_dash.as_deref());
                 set_style(
                     ctx,
                     id,
                     "border",
-                    &format!("{}px solid {color}", format_px(width)),
+                    &format!("{}px {} {color}", format_px(width), style),
                 );
             } else {
                 paint_centered_stroke_overlay(
@@ -64,6 +66,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
                     color,
                     width,
                     el.shape_type.as_deref(),
+                    el.stroke_dash.as_deref(),
                 );
             }
         }
@@ -138,6 +141,7 @@ fn stroke_uses_css_border(align: Option<&str>) -> bool {
 const STROKE_OUTLINE_SVG_STYLE: &str =
     "position:absolute;inset:0;width:100%;height:100%;min-width:1px;min-height:1px;overflow:visible;pointer-events:none";
 
+#[allow(clippy::too_many_arguments)]
 fn paint_centered_stroke_overlay<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     parent: u32,
@@ -146,6 +150,7 @@ fn paint_centered_stroke_overlay<I: StringIntern>(
     color: &str,
     stroke_width: f64,
     shape_type: Option<&str>,
+    stroke_dash: Option<&str>,
 ) {
     if width < 1.0 || height < 1.0 {
         return;
@@ -156,8 +161,11 @@ fn paint_centered_stroke_overlay<I: StringIntern>(
     let d = shape_type
         .and_then(|st| preset_stroke_outline_path(st, width, height))
         .unwrap_or_else(|| format!("M 0 0 L {w} 0 L {w} {h} L 0 {h} Z"));
+    let dash_attr = svg_stroke_dasharray(stroke_dash, stroke_width)
+        .map(|da| format!(" stroke-dasharray=\"{da}\""))
+        .unwrap_or_default();
     let svg = format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"pptx-vanilla-gradient-outline\" aria-hidden=\"true\" viewBox=\"0 0 {w} {h}\" preserveAspectRatio=\"none\" style=\"{STROKE_OUTLINE_SVG_STYLE}\"><path d=\"{d}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"{sw}\"/></svg>"
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"pptx-vanilla-gradient-outline\" aria-hidden=\"true\" viewBox=\"0 0 {w} {h}\" preserveAspectRatio=\"none\" style=\"{STROKE_OUTLINE_SVG_STYLE}\"><path d=\"{d}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"{sw}\"{dash_attr}/></svg>"
     );
     let overlay = create_child(ctx, parent, "div");
     set_attr(ctx, overlay, "aria-hidden", "true");
@@ -228,6 +236,7 @@ mod tests {
             stroke_color: Some("#4472C4".to_owned()),
             stroke_width_px: Some(2.0),
             stroke_line_align,
+            stroke_dash: None,
             connector_start_arrow: None,
             connector_end_arrow: None,
             text_color: None,
@@ -256,6 +265,9 @@ mod tests {
             image_rel_owner: None,
             ole_spid: None,
             is_media: false,
+            media_rel_id: None,
+            media_src: None,
+            media_type: None,
             image_src: None,
             seq: 0,
             box_shadow: None,

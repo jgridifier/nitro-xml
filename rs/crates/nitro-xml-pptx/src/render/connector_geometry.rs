@@ -133,6 +133,7 @@ pub struct ConnectorStrokeGeometry {
 }
 
 /// Build connector stroke geometry from element box and xfrm flips (upstream `getConnectorPathGeometry`).
+#[allow(clippy::too_many_arguments)]
 pub fn connector_stroke_geometry(
     shape_type: Option<&str>,
     width: f64,
@@ -141,6 +142,7 @@ pub fn connector_stroke_geometry(
     flip_v: bool,
     stroke: &str,
     stroke_width: f64,
+    stroke_dash: Option<&str>,
 ) -> ConnectorStrokeGeometry {
     let w = if width.is_finite() && width > 0.0 {
         width
@@ -157,10 +159,14 @@ pub fn connector_stroke_geometry(
     let end_x = if flip_h { 0.0 } else { w };
     let end_y = if flip_v { 0.0 } else { h };
 
+    let dash_attr = super::stroke_dash::svg_stroke_dasharray(stroke_dash, stroke_width)
+        .map(|da| format!(" stroke-dasharray=\"{}\"", xml_escape_attr(&da)))
+        .unwrap_or_default();
     let stroke_attrs = format!(
-        "fill=\"none\" stroke=\"{}\" stroke-width=\"{}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"",
+        "fill=\"none\" stroke=\"{}\" stroke-width=\"{}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"{}",
         xml_escape_attr(stroke),
-        stroke_width
+        stroke_width,
+        dash_attr
     );
 
     if let Some(st) = shape_type {

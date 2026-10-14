@@ -32,6 +32,7 @@ mod slideshow;
 mod smartart;
 mod smartart3d;
 mod stage;
+mod stroke_dash;
 mod svg_export;
 mod table;
 mod text;
@@ -204,6 +205,7 @@ mod tests {
             stroke_color: None,
             stroke_width_px: None,
             stroke_line_align: None,
+            stroke_dash: None,
             connector_start_arrow: None,
             connector_end_arrow: None,
             text_color: None,
@@ -232,6 +234,9 @@ mod tests {
             image_rel_owner: None,
             ole_spid: None,
             is_media: false,
+            media_rel_id: None,
+            media_src: None,
+            media_type: None,
             image_src: None,
             seq: 0,
             box_shadow: None,

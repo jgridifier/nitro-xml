@@ -8,6 +8,45 @@ use super::dom::{create_child, position_box, set_attr, set_style};
 use crate::slide::DumpElement;
 
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
+    if el.is_media && el.media_type.as_deref() == Some("video") {
+        paint_media_video(ctx, el, parent);
+        return;
+    }
+    paint_image(ctx, el, parent);
+}
+
+fn paint_media_video<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    el: &DumpElement,
+    parent: u32,
+) {
+    let id = create_child(ctx, parent, "div");
+    position_box(ctx, id, el.x, el.y, el.width, el.height);
+    set_attr(ctx, id, "data-pptx-element", "true");
+    set_attr(ctx, id, "data-element-id", &el.id);
+    set_attr(ctx, id, "data-pptx-kind", "media");
+    if let Some(shadow) = el.box_shadow.as_deref() {
+        set_style(ctx, id, "box-shadow", shadow);
+    }
+    let video = create_child(ctx, id, "video");
+    set_style(ctx, video, "width", "100%");
+    set_style(ctx, video, "height", "100%");
+    set_style(ctx, video, "object-fit", "contain");
+    set_style(ctx, video, "display", "block");
+    set_attr(ctx, video, "controls", "");
+    set_attr(ctx, video, "preload", "metadata");
+    set_attr(ctx, video, "playsinline", "");
+    if let Some(src) = el.media_src.as_deref() {
+        set_attr(ctx, video, "src", src);
+    }
+    if let Some(poster) = el.image_src.as_deref() {
+        set_attr(ctx, video, "poster", poster);
+    }
+    set_attr(ctx, video, "alt", el.name.as_deref().unwrap_or(""));
+    ctx.view_ir.push_painted("video", el, None);
+}
+
+fn paint_image<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
     set_attr(ctx, id, "data-pptx-element", "true");

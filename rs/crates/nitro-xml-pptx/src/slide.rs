@@ -107,6 +107,9 @@ pub struct DumpElement {
     /// `a:ln/@algn` (`in` / `ctr`); omitted means centred (`ctr`). Paint only.
     #[serde(skip)]
     pub stroke_line_align: Option<String>,
+    /// `a:ln/a:prstDash/@val` (paint only).
+    #[serde(skip)]
+    pub stroke_dash: Option<String>,
     /// `a:headEnd/@type` on connector line (paint only).
     #[serde(skip)]
     pub connector_start_arrow: Option<String>,
@@ -181,6 +184,15 @@ pub struct DumpElement {
     /// Video/audio picture: the poster still paints, but the issue-24 dump reports `media`.
     #[serde(skip)]
     pub is_media: bool,
+    /// `a:videoFile` / `p:video` relationship id (paint only).
+    #[serde(skip)]
+    pub media_rel_id: Option<String>,
+    /// Resolved `data:` URL for [`Self::media_rel_id`].
+    #[serde(skip)]
+    pub media_src: Option<String>,
+    /// `video` or `audio` when [`Self::is_media`].
+    #[serde(skip)]
+    pub media_type: Option<String>,
     /// `data:` URL for the resolved blip (img `src` / CSS background). Not in the issue-24 dump.
     #[serde(skip)]
     pub image_src: Option<String>,
@@ -557,6 +569,64 @@ fn parse_sp_tree_child(
 fn picture_is_media(pic: &Element) -> bool {
     let nv_pr = child_path(pic, &[("nvPicPr", ns::P), ("nvPr", ns::P)]);
     drawing_nvpr_has_media(nv_pr)
+}
+
+fn media_reference_from_nv_pr(nv_pr: &Element) -> Option<(String, String)> {
+    for child in &nv_pr.children {
+        let Node::Element(el) = child else {
+            continue;
+        };
+        let ns_uri = el.ns.as_deref();
+        let local = el.local.as_str();
+        let media_type = if ns_uri == Some(ns::P) && (local == "video" || local == "audio") {
+            local.to_owned()
+        } else if ns_uri == Some(ns::A)
+            && matches!(
+                local,
+                "videoFile" | "audioFile" | "wavAudioFile" | "quickTimeFile" | "audioCd"
+            )
+        {
+            if matches!(local, "videoFile" | "quickTimeFile") {
+                "video".to_owned()
+            } else {
+                "audio".to_owned()
+            }
+        } else {
+            continue;
+        };
+        let rel_id = relationship_id_from_element(el);
+        if let Some(id) = rel_id {
+            return Some((id, media_type));
+        }
+    }
+    if nv_pr_has_p14_media(nv_pr) {
+        let ext_lst = child_local(nv_pr, "extLst", ns::P)?;
+        for ext in children_local(ext_lst, "ext", ns::P) {
+            for child in &ext.children {
+                let Node::Element(el) = child else {
+                    continue;
+                };
+                if el.local == "media" {
+                    if let Some(id) = relationship_id_from_element(el) {
+                        return Some((id, "video".to_owned()));
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn relationship_id_from_element(el: &Element) -> Option<String> {
+    for a in &el.attrs {
+        if (a.local == "embed" || a.local == "link")
+            && (a.ns.is_none() || a.ns.as_deref() == Some(ns::R))
+            && !a.value.is_empty()
+        {
+            return Some(a.value.clone());
+        }
+    }
+    None
 }
 
 fn drawing_nvpr_has_media(nv_pr: Option<&Element>) -> bool {
@@ -962,6 +1032,12 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
         image_rel_id: blip_embed_id(pic),
         ..PaintExtras::default()
     };
+    if let Some(nv) = nv_pr {
+        if let Some((rel_id, media_type)) = media_reference_from_nv_pr(nv) {
+            extras.media_rel_id = Some(rel_id);
+            extras.media_type = Some(media_type);
+        }
+    }
     extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(&effective_sp_pr, &theme, rot);
     extras.effect_filter = crate::outer_shadow::effect_filter_from_sp_pr(&effective_sp_pr, &theme);
     build_dump(
@@ -1738,6 +1814,7 @@ fn build_dump(
         stroke_color: extras.stroke_color,
         stroke_width_px: extras.stroke_width_px,
         stroke_line_align: extras.stroke_line_align,
+        stroke_dash: extras.stroke_dash,
         connector_start_arrow: extras.connector_start_arrow,
         connector_end_arrow: extras.connector_end_arrow,
         text_color: extras.text_color,
@@ -1766,6 +1843,9 @@ fn build_dump(
         image_rel_owner: extras.image_rel_owner,
         ole_spid: extras.ole_spid,
         is_media: false,
+        media_rel_id: extras.media_rel_id,
+        media_src: None,
+        media_type: extras.media_type,
         image_src: None,
         seq: 0,
         box_shadow: extras.box_shadow,
@@ -2042,8 +2122,11 @@ struct PaintExtras {
     stroke_color: Option<String>,
     stroke_width_px: Option<f64>,
     stroke_line_align: Option<String>,
+    stroke_dash: Option<String>,
     connector_start_arrow: Option<String>,
     connector_end_arrow: Option<String>,
+    media_rel_id: Option<String>,
+    media_type: Option<String>,
     text_color: Option<String>,
     font_size_px: Option<f64>,
     font_family: Option<String>,
@@ -2315,6 +2398,9 @@ fn shape_paint_extras(
             }
             if let Some(DrawingFill::Solid { color }) = line.fill {
                 extras.stroke_color = css_color(&color, theme, false);
+            }
+            if let Some(dash) = line.dash {
+                extras.stroke_dash = Some(dash);
             }
         }
     }

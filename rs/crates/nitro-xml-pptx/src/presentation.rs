@@ -875,12 +875,23 @@ impl<'a> Presentation<'a> {
                     el.image_src = self.image_data_url_for_rel(&rel_owner, &rel_id);
                 }
             }
+            if el.media_src.is_none() {
+                if let Some(rel_id) = el.media_rel_id.clone() {
+                    el.media_src = self.media_data_url_for_rel(owner, &rel_id);
+                }
+            }
             if let Some(children) = el.children.clone() {
                 let mut children = children;
                 self.attach_image_payloads(owner, &mut children);
                 el.children = Some(children);
             }
         }
+    }
+
+    fn media_data_url_for_rel(&mut self, owner: &str, rel_id: &str) -> Option<String> {
+        let path = self.resolve_rel_target(owner, rel_id).ok().flatten()?;
+        let bytes = self.package.read(&path).ok().flatten()?;
+        media_data_url(&bytes, &path)
     }
 
     fn image_data_url_for_rel(&mut self, owner: &str, rel_id: &str) -> Option<String> {
@@ -1312,6 +1323,26 @@ fn image_mime(part_name: &str) -> Option<&'static str> {
         "svg" => Some("image/svg+xml"),
         "tif" | "tiff" => Some("image/tiff"),
         _ => None,
+    }
+}
+
+/// Package media bytes as a browser `data:` URL (video/audio parts).
+pub(crate) fn media_data_url(bytes: &[u8], part_name: &str) -> Option<String> {
+    let mime = media_mime(part_name)?;
+    Some(format!("data:{mime};base64,{}", base64_encode(bytes)))
+}
+
+fn media_mime(part_name: &str) -> Option<&'static str> {
+    let ext = part_name.rsplit('.').next()?.to_ascii_lowercase();
+    match ext.as_str() {
+        "mp4" | "m4v" => Some("video/mp4"),
+        "mov" => Some("video/quicktime"),
+        "webm" => Some("video/webm"),
+        "mp3" => Some("audio/mpeg"),
+        "m4a" => Some("audio/mp4"),
+        "wav" => Some("audio/wav"),
+        "ogg" => Some("audio/ogg"),
+        _ => image_mime(part_name),
     }
 }
 

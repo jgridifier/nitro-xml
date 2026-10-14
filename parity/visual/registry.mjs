@@ -55,6 +55,18 @@ const STATIC_CASES = [
 		// Hard case: live `<nitro-xlsx>` vs upstream `<xlsx-editor>` ≤0.1% at DPR1/2/print (#150).
 	},
 	{
+		// #29 AC: layout checked at 375 px (mobile viewport) + DPR 1/2.
+		id: 'xlsx-viewer-poi-45544-375',
+		format: 'xlsx',
+		kind: 'xlsx-viewer',
+		ready: true,
+		fixture: 'fixtures/real/xlsx/poi-45544.xlsx',
+		width: 375,
+		height: 667,
+		rust: true,
+		skipPrint: true,
+	},
+	{
 		id: 'chart-poi-dataValidation-chart1',
 		format: 'chart',
 		kind: 'chart-svg',
@@ -87,6 +99,32 @@ const STATIC_CASES = [
 		// Hard case: live `<nitro-docx>` vs upstream Print Layout ≤0.1% at DPR1/DPR2/print (#23).
 		threshold: 0.001,
 	},
+	{
+		// #29 AC: layout checked at 375 px (mobile viewport) + DPR 1/2.
+		id: 'docx-viewer-bidi-paragraphs-375',
+		format: 'docx',
+		kind: 'docx-viewer',
+		ready: true,
+		fixture: 'fixtures/bidi/arabic-hebrew-paragraphs.docx',
+		width: 375,
+		height: 667,
+		rust: true,
+		threshold: 0.001,
+		skipPrint: true,
+	},
+	{
+		// #29 AC: layout checked at 375 px (mobile viewport) + DPR 1/2.
+		id: 'pptx-viewer-poi-51187-375',
+		format: 'pptx',
+		kind: 'pptx-viewer',
+		ready: true,
+		fixture: 'fixtures/real/pptx/poi-51187.pptx',
+		width: 375,
+		height: 667,
+		slide: 0,
+		rust: true,
+		skipPrint: true,
+	},
 ];
 
 /** @type {VisualCase[]} */
@@ -98,5 +136,11 @@ export const VISUAL_CASES = [
 ];
 
 export function readyCases() {
-	return VISUAL_CASES.filter((c) => c.ready);
+	let cases = VISUAL_CASES.filter((c) => c.ready);
+	const only = (process.env.VISUAL_ONLY || '')
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean);
+	if (only.length) cases = cases.filter((c) => only.includes(c.id));
+	return cases;
 }

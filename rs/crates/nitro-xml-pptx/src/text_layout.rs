@@ -65,16 +65,12 @@ pub fn norm_autofit_font_scale_multiplier(
     Some(raw / 100_000.0)
 }
 
-/// Apply `normAutofit` `fontScale` rounded to the nearest whole point (upstream `scaleFontSizeForAutoFit`).
+/// Apply `normAutofit` `fontScale` (upstream `scaleFontSizeForAutoFit` on CSS px sizes).
 pub fn scale_font_size_for_autofit(font_size_px: f64, font_scale: f64) -> f64 {
     if font_scale == 1.0 || !font_scale.is_finite() {
         return font_size_px;
     }
-    // Scale in centi-points so 28×0.625 stays 17.5pt (not 17.499…) before whole-pt round.
-    let pt_centi = (font_size_px * (72.0 / 96.0) * 100.0).round() as i64;
-    let scaled_centi = (pt_centi as f64 * font_scale).round() as i64;
-    let scaled_pt = ((scaled_centi as f64) / 100.0).round();
-    (scaled_pt * PT_TO_PX).max(6.0)
+    (font_size_px * font_scale).round().max(6.0)
 }
 
 /// Estimate `normAutofit` shrink when no authored `fontScale` (whole-point rounding).
@@ -384,6 +380,8 @@ pub struct TextPaintRun {
     pub run_font_size_px: Option<f64>,
     pub run_font_bold: Option<bool>,
     pub run_font_italic: Option<bool>,
+    /// `a:rPr/@kern` only (not `a:defRPr`); matches upstream run `style.kerning`.
+    pub run_font_kern_hundredths: Option<i32>,
     pub run_lang: Option<String>,
     /// `a:rPr/a:solidFill` resolved to `#RRGGBB` when opaque (paint only).
     pub run_text_color: Option<String>,
@@ -866,6 +864,7 @@ fn collect_paint_runs(
                         run_font_size_px: None,
                         run_font_bold: None,
                         run_font_italic: None,
+                        run_font_kern_hundredths: None,
                         run_lang: None,
                         run_text_color: None,
                         script_fonts: None,
@@ -916,6 +915,7 @@ fn collect_paint_runs(
                         font_size_px: None,
                         font_bold: None,
                         font_italic: None,
+                        font_kern_hundredths: None,
                         script_fonts: None,
                     });
                 let run_lang = r_pr.and_then(|rp| attr(rp, "lang")).map(|s| s.to_string());
@@ -930,6 +930,7 @@ fn collect_paint_runs(
                     run_font_size_px: resolved.font_size_px,
                     run_font_bold: resolved.font_bold,
                     run_font_italic: resolved.font_italic,
+                    run_font_kern_hundredths: resolved.font_kern_hundredths,
                     run_lang,
                     run_text_color,
                     script_fonts: resolved.script_fonts,
@@ -949,6 +950,7 @@ struct ResolvedRunPaint {
     font_size_px: Option<f64>,
     font_bold: Option<bool>,
     font_italic: Option<bool>,
+    font_kern_hundredths: Option<i32>,
     script_fonts: Option<ScriptFontSet>,
 }
 
@@ -976,6 +978,7 @@ fn resolve_run_paint_style(
         .map(|sz| sz / 100.0 * 96.0 / 72.0);
     let font_bold = attr(rpr, "b").map(|b| matches!(b, "1" | "true" | "on"));
     let font_italic = attr(rpr, "i").map(|i| matches!(i, "1" | "true" | "on"));
+    let font_kern_hundredths = attr(rpr, "kern").and_then(|k| k.parse::<i32>().ok());
     let font_family = resolve_run_font_family_for_paint(rpr, font_scheme, text);
     let script_fonts = resolve_run_script_font_set(rpr, font_scheme, font_family.as_deref());
     ResolvedRunPaint {
@@ -983,6 +986,7 @@ fn resolve_run_paint_style(
         font_size_px,
         font_bold,
         font_italic,
+        font_kern_hundredths,
         script_fonts,
     }
 }
@@ -1336,14 +1340,14 @@ mod tests {
         assert_eq!(parse_body_autofit(&doc.root), Some(TextAutoFitMode::Shrink));
     }
 
-    // Catches: normAutofit fontScale leaving fractional pt sizes (28pt×62.5% must be 18pt not 17.5pt).
+    // Catches: normAutofit fontScale not rounded like upstream (53.33px×0.7 must paint 37px).
     #[test]
-    fn norm_autofit_font_scale_rounds_to_whole_point() {
+    fn norm_autofit_font_scale_rounds_px_product() {
+        let scaled = scale_font_size_for_autofit(53.33, 0.7);
+        assert!((scaled - 37.0).abs() < 0.01);
         let px_28 = 28.0 * PT_TO_PX;
-        let scaled = scale_font_size_for_autofit(px_28, 0.625);
-        assert!((scaled - 18.0 * PT_TO_PX).abs() < 0.01);
-        let scaled_40 = scale_font_size_for_autofit(px_28, 0.4);
-        assert!((scaled_40 - 11.0 * PT_TO_PX).abs() < 0.01);
+        let scaled_625 = scale_font_size_for_autofit(px_28, 0.625);
+        assert!((scaled_625 - 23.0).abs() < 0.01);
     }
 
     // Catches: ruby runs flattened to `p.text_content()` so annotation duplicates base text in paint.

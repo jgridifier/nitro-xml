@@ -124,22 +124,26 @@ fn paint_plain_text_runs<I: StringIntern>(
     let para_align = paint.layout.and_then(|l| l.text_align);
     let para = open_paragraph(ctx, block, para_align, None);
     let metric_stack = VISUAL_HOST_RUN_FONT_STACK.to_owned();
-    for piece in split_run_for_metric_pieces(text) {
+    let pieces = split_run_for_metric_pieces(text);
+    let emit_gdi = pieces.len() > 1;
+    for piece in pieces {
         let run = create_child(ctx, para, "span");
         set_text_content(ctx, run, &piece);
         if paint.font_family.is_none() {
             set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
         }
         paint_run_typography(ctx, run, paint, size, stack);
-        apply_gdi_metric_letter_spacing_with_stack(
-            ctx,
-            run,
-            &piece,
-            size,
-            &metric_stack,
-            paint.font_bold,
-            paint.font_italic,
-        );
+        if emit_gdi {
+            apply_gdi_metric_letter_spacing_with_stack(
+                ctx,
+                run,
+                &piece,
+                size,
+                &metric_stack,
+                paint.font_bold,
+                paint.font_italic,
+            );
+        }
     }
 }
 
@@ -322,9 +326,7 @@ fn paint_rich_paragraphs<I: StringIntern>(
                 .or(paint.font_family),
             font_bold: para_model.level_font_bold.unwrap_or(paint.font_bold),
             font_italic: para_model.level_font_italic.unwrap_or(paint.font_italic),
-            font_kern_hundredths: para_model
-                .level_font_kern_hundredths
-                .or(paint.font_kern_hundredths),
+            font_kern_hundredths: paint.font_kern_hundredths,
             text_stroke_width_px: paint.text_stroke_width_px,
             text_stroke_color: paint.text_stroke_color,
             layout: paint.layout,
@@ -461,7 +463,7 @@ fn merge_run_level_paint<'a>(
             font_family: run.run_font_family.as_deref().or(base.font_family),
             font_bold: run.run_font_bold.unwrap_or(base.font_bold),
             font_italic: run.run_font_italic.unwrap_or(base.font_italic),
-            font_kern_hundredths: base.font_kern_hundredths,
+            font_kern_hundredths: run.run_font_kern_hundredths.or(base.font_kern_hundredths),
             text_stroke_width_px: base.text_stroke_width_px,
             text_stroke_color: base.text_stroke_color,
             layout: base.layout,
@@ -591,7 +593,9 @@ fn append_paint_run<I: StringIntern>(
         if run_model.underline {
             apply_run_underline(ctx, base);
         }
-        if paint.font_family.is_some() {
+        if paint.font_family.is_some()
+            && should_emit_gdi_tracking_for_run(&display_text, run_model.underline)
+        {
             apply_gdi_metric_letter_spacing(
                 ctx,
                 base,
@@ -629,6 +633,7 @@ fn append_paint_run<I: StringIntern>(
                     run_line_height_zero,
                     east_asian,
                     piece_following,
+                    true,
                 );
             }
             para
@@ -645,6 +650,7 @@ fn append_paint_run<I: StringIntern>(
                 run_line_height_zero,
                 east_asian,
                 following,
+                false,
             )
         }
     } else {
@@ -660,6 +666,7 @@ fn append_paint_run<I: StringIntern>(
             run_line_height_zero,
             east_asian,
             following,
+            false,
         )
     };
     let _ = host;
@@ -713,7 +720,10 @@ fn paint_run_text_span<I: StringIntern>(
     run_line_height_zero: bool,
     east_asian: Option<EastAsianBreakOptions>,
     following: Option<char>,
+    gdi_run_was_split: bool,
 ) -> u32 {
+    let emit_gdi_tracking =
+        gdi_run_was_split || should_emit_gdi_tracking_for_run(text, run_model.underline);
     if let Some(script_fonts) = &run_model.script_fonts {
         let script_runs = crate::unicode_script::segment_by_script(text);
         let needs_split = script_runs.len() > 1
@@ -758,6 +768,7 @@ fn paint_run_text_span<I: StringIntern>(
                     run_line_height_zero,
                     east_asian,
                     seg_following,
+                    emit_gdi_tracking,
                 );
             }
             return last;
@@ -782,6 +793,7 @@ fn paint_run_text_span<I: StringIntern>(
             run_line_height_zero,
             east_asian,
             &pieces[0].text,
+            emit_gdi_tracking,
         );
         return run;
     }
@@ -820,6 +832,7 @@ fn paint_run_text_span<I: StringIntern>(
             run_line_height_zero,
             east_asian,
             &piece.text,
+            emit_gdi_tracking,
         );
         last = run;
     }
@@ -838,6 +851,7 @@ fn paint_run_span_styles<I: StringIntern>(
     run_line_height_zero: bool,
     east_asian: Option<EastAsianBreakOptions>,
     metric_text: &str,
+    emit_gdi_tracking: bool,
 ) {
     apply_run_rtl(ctx, run, run_model.rtl, paragraph_rtl);
     if paint.font_family.is_some() {
@@ -860,7 +874,7 @@ fn paint_run_span_styles<I: StringIntern>(
     if run_model.underline {
         apply_run_underline(ctx, run);
     }
-    if should_apply_gdi_metric(metric_text) {
+    if emit_gdi_tracking && paint.font_family.is_some() {
         apply_gdi_metric_letter_spacing(
             ctx,
             run,
@@ -871,6 +885,14 @@ fn paint_run_span_styles<I: StringIntern>(
             paint.font_italic,
         );
     }
+}
+
+/// Upstream `splitStyledRun`: skip per-run GDI tracking when the run is one metric piece.
+fn should_emit_gdi_tracking_for_run(text: &str, underline: bool) -> bool {
+    if !should_apply_gdi_metric(text) {
+        return false;
+    }
+    underline || split_run_for_metric_pieces(text).len() > 1
 }
 
 fn should_apply_gdi_metric(text: &str) -> bool {
@@ -983,48 +1005,20 @@ fn paint_hyperlink_run<I: StringIntern>(
         set_style(ctx, link, "line-height", "0");
     }
     let display_text = display_run_text(ctx, run_model);
-    if east_asian.is_some() {
-        paint_run_text_span(
-            ctx,
-            link,
-            &display_text,
-            run_model,
-            paragraph_rtl,
-            paint,
-            size,
-            stack,
-            run_line_height_zero,
-            east_asian,
-            following,
-        );
-    } else if uses_per_piece_gdi_metric(paint, &display_text) {
-        for piece in split_run_for_metric_pieces(&display_text) {
-            let run = create_child(ctx, link, "span");
-            set_text_content(ctx, run, &piece);
-            apply_gdi_metric_letter_spacing_with_stack(
-                ctx,
-                run,
-                &piece,
-                size,
-                VISUAL_HOST_RUN_FONT_STACK,
-                paint.font_bold,
-                paint.font_italic,
-            );
-        }
-    } else {
-        set_text_content(ctx, link, &display_text);
-        if should_apply_gdi_metric(&display_text) {
-            apply_gdi_metric_letter_spacing(
-                ctx,
-                link,
-                &display_text,
-                size,
-                paint.font_family,
-                paint.font_bold,
-                paint.font_italic,
-            );
-        }
-    }
+    paint_run_text_span(
+        ctx,
+        link,
+        &display_text,
+        run_model,
+        paragraph_rtl,
+        paint,
+        size,
+        stack,
+        run_line_height_zero,
+        east_asian,
+        following,
+        false,
+    );
 }
 
 fn paint_ruby_annotation<I: StringIntern>(
@@ -1071,7 +1065,9 @@ fn paint_css_tab_run<I: StringIntern>(
     if run_model.underline {
         apply_run_underline(ctx, run);
     }
-    if paint.font_family.is_some() {
+    if paint.font_family.is_some()
+        && should_emit_gdi_tracking_for_run(display_text, run_model.underline)
+    {
         apply_gdi_metric_letter_spacing(
             ctx,
             run,
@@ -1148,7 +1144,9 @@ fn paint_tabbed_run<I: StringIntern>(
         if run_model.underline {
             apply_run_underline(ctx, piece);
         }
-        if paint.font_family.is_some() {
+        if paint.font_family.is_some()
+            && should_emit_gdi_tracking_for_run(text, run_model.underline)
+        {
             apply_gdi_metric_letter_spacing(
                 ctx,
                 piece,
@@ -1497,13 +1495,14 @@ mod tests {
     }
 
     fn paint_with(paint: TextBodyPaint<'_>) -> Intern {
-        paint_with_measure(paint, MeasureBatch::default(), None)
+        paint_with_measure(paint, MeasureBatch::default(), None, "Hi")
     }
 
     fn paint_with_measure(
         paint: TextBodyPaint<'_>,
         mut measure: MeasureBatch,
         intern_seed: Option<Intern>,
+        text: &str,
     ) -> Intern {
         let mut buffer = CommandBuffer::new();
         let mut intern = intern_seed.unwrap_or_else(|| Intern(Vec::new()));
@@ -1526,7 +1525,7 @@ mod tests {
             FieldSubstitutionContext::default(),
             slide_autofit,
         );
-        paint_text_body(&mut ctx, 1, "Hi", paint);
+        paint_text_body(&mut ctx, 1, text, paint);
         intern
     }
 
@@ -1755,6 +1754,7 @@ mod tests {
             },
             measure,
             Some(intern),
+            "Hi there",
         );
         assert!(
             intern.0.iter().any(|s| s == "letter-spacing"),

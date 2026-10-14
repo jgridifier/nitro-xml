@@ -168,6 +168,11 @@ fn paint_one_cell<I: StringIntern>(
         let markup = icon_svg(&icon.set, icon.index, size);
         buf.create_element(icon_id, div, cell_id);
         set_attr(buf, intern, icon_id, "class", "xg-ic");
+        // Collapse the wrapper to the SVG box (inline SVG baseline would be ~21px tall).
+        set_style(buf, intern, icon_id, "width", &format!("{size}px"));
+        set_style(buf, intern, icon_id, "height", &format!("{size}px"));
+        set_style(buf, intern, icon_id, "lineHeight", "0");
+        set_style(buf, intern, icon_id, "overflow", "hidden");
         buf.set_inner_markup(icon_id, intern.intern(&markup));
     }
 

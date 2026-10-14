@@ -726,7 +726,7 @@ pub fn ribbon_html(chrome: &EditorChrome) -> String {
     }
     let tab = esc(chrome.active_tab());
     format!(
-        r##"<div class="xve-ribbon" style="{vars}"><style>.xve-ribbon{{{vars}}}{skin}.rb-menu-stub{{display:none!important}}</style><div class="ribbon-panel" id="xve-panel-{tab}" data-tab="{tab}" data-ribbon-tab="{tab}" data-label="Home">{groups}</div></div>"##,
+        r##"<div class="xve-ribbon rb" role="toolbar" aria-label="Ribbon" style="{vars}"><style>.xve-ribbon{{{vars}}}{skin}.rb-menu-stub{{display:none!important}}</style><div role="tablist" aria-label="Ribbon tabs"><button type="button" role="tab" aria-selected="true" aria-label="Home" data-tab="{tab}">Home</button></div><div class="ribbon-panel" id="xve-panel-{tab}" data-tab="{tab}" data-ribbon-tab="{tab}" data-label="Home">{groups}</div></div>"##,
         vars = RIBBON_VARS,
         skin = RIBBON_SKIN,
         tab = tab,
@@ -741,13 +741,16 @@ mod tests {
 
     #[test]
     fn ribbon_visible_when_loaded_editable() {
-        // Catches: edit-mode chrome must expose Home ribbon controls.
+        // Catches: edit-mode chrome must expose Home ribbon controls + a11y toolbar/tablist.
         let mut chrome = EditorChrome::new();
         chrome.load();
         chrome.set_read_only(false);
         let html = ribbon_html(&chrome);
         assert!(html.contains("ribbon-panel"));
         assert!(html.contains("data-g=\"home.bold\""));
+        assert!(html.contains("role=\"toolbar\""));
+        assert!(html.contains("aria-label=\"Ribbon\""));
+        assert!(html.contains("role=\"tablist\""));
     }
 
     #[test]

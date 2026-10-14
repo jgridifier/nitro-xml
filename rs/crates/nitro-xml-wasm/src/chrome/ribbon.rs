@@ -3,7 +3,12 @@
 
 //! Declarative Home ribbon HTML (#53). Galleries render as menu stubs (TODO(#54)).
 
+use super::ribbon_icons::{command_icon, icon_path, menu_icon, ribbon_icon_svg};
 use super::EditorChrome;
+
+const RIBBON_SKIN: &str = include_str!("ribbon_skin.css");
+
+const RIBBON_VARS: &str = r#"--xl:#217346;--ink:#444444;--muted:#666666;--line:#e1e1e1;--surface:#ffffff;--chrome:#f5f5f5;--accent-soft:rgb(33 115 70 / 0.12);"#;
 
 fn esc(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -479,7 +484,35 @@ const HOME_GROUPS: &[Group] = &[
     },
 ];
 
-fn cmd_button(chrome: &EditorChrome, id: &str, pressed: bool) -> String {
+fn control_is_large(c: &Control) -> bool {
+    match c.kind {
+        ControlKind::Split => matches!(
+            c.command,
+            Some("home.paste") | Some("cells.insert-split") | Some("cells.delete-split")
+        ),
+        ControlKind::Menu | ControlKind::Gallery => c.label.is_some(),
+        _ => false,
+    }
+}
+
+fn icon_markup(command: &str, label: &str, large: bool) -> String {
+    let size = if large { 28 } else { 16 };
+    let path = command_icon(command)
+        .or_else(|| menu_icon(label))
+        .or_else(|| icon_path("caret"));
+    path.map(|p| ribbon_icon_svg(p, size, command))
+        .unwrap_or_default()
+}
+
+fn caret_button() -> String {
+    let p = icon_path("caret").unwrap_or("M7 10l5 5 5-5");
+    format!(
+        "<button type=\"button\" class=\"ribbon-caret\" aria-label=\"Open menu\" aria-haspopup=\"menu\">{}</button>",
+        ribbon_icon_svg(p, 10, "caret"),
+    )
+}
+
+fn cmd_button(chrome: &EditorChrome, id: &str, pressed: bool, large: bool, show_label: bool) -> String {
     let label = chrome.commands.label(id).unwrap_or(id);
     let title = chrome
         .commands
@@ -496,57 +529,116 @@ fn cmd_button(chrome: &EditorChrome, id: &str, pressed: bool) -> String {
     } else {
         " disabled"
     };
+    let cls = if large {
+        "ribbon-large"
+    } else {
+        "ribbon-small ribbon-labelled"
+    };
+    let mut body = icon_markup(id, label, large);
+    if show_label && (large || !icon_markup(id, label, large).is_empty()) {
+        body.push_str(&format!("<span>{}</span>", esc(label)));
+    } else if show_label {
+        body.push_str(&esc(label));
+    }
     format!(
-        "<button type=\"button\" data-a=\"cmd\" data-g=\"{}\" aria-label=\"{}\"{}{}{}>{}</button>",
-        esc(id),
-        esc(label),
-        pressed_attr,
-        title,
-        disabled,
-        esc(label),
+        "<button type=\"button\" class=\"{cls}\" data-a=\"cmd\" data-g=\"{id}\" aria-label=\"{lbl}\"{pressed}{title}{disabled}>{body}</button>",
+        cls = cls,
+        id = esc(id),
+        lbl = esc(label),
+        pressed = pressed_attr,
+        title = title,
+        disabled = disabled,
+        body = body,
+    )
+}
+
+fn render_select(chrome: &EditorChrome, id: &str, width: u32) -> String {
+    let label = chrome.commands.label(id).unwrap_or(id);
+    // Static defaults until selection sync (#53 follow-up). 10 matches poi-45544 A1.
+    let value = if id == "home.font-name" {
+        "Arial"
+    } else if id == "home.font-size" {
+        "10"
+    } else {
+        "General"
+    };
+    format!(
+        r#"<span class="ribbon-combo" style="width:{w}px"><input type="text" data-a="cmd" data-g="{id}" aria-label="{lbl}" value="{val}" />{caret}</span>"#,
+        w = width,
+        id = esc(id),
+        lbl = esc(label),
+        val = esc(value),
+        caret = caret_button(),
     )
 }
 
 fn render_control(chrome: &EditorChrome, c: &Control, out: &mut String) {
     match c.kind {
         ControlKind::Separator => {
-            out.push_str("<span class=\"rb-sep\" aria-hidden=\"true\"></span>")
+            out.push_str("<span class=\"ribbon-separator\" aria-hidden=\"true\"></span>")
         }
         ControlKind::Stack => {
-            out.push_str("<span class=\"rb-stack\">");
+            out.push_str("<div class=\"ribbon-stack\">");
             for sc in STACK_CLIP {
                 render_control(chrome, sc, out);
             }
-            out.push_str("</span>");
+            out.push_str("</div>");
         }
-        ControlKind::Button | ControlKind::Color | ControlKind::Select => {
+        ControlKind::Button => {
             if let Some(id) = c.command {
-                let lbl = c
-                    .label
-                    .unwrap_or_else(|| chrome.commands.label(id).unwrap_or(id));
-                let title = chrome
-                    .commands
-                    .shortcut_display(id)
-                    .map(|s| format!(" title=\"{}\"", esc(&s)))
-                    .unwrap_or_default();
+                // Home icon buttons are glyph-only (aria-label carries the name), matching upstream.
+                let show_label = command_icon(id).is_none();
+                out.push_str(&cmd_button(chrome, id, false, false, show_label));
+            }
+        }
+        ControlKind::Color => {
+            if let Some(id) = c.command {
+                let lbl = c.label.unwrap_or("Color");
+                let bar = if id == "home.font-color" {
+                    // Upstream default font-color swatch (theme accent red), not workbook green.
+                    " style=\"--bar:#c00000\""
+                } else {
+                    " style=\"--bar:#ffc000\""
+                };
                 out.push_str(&format!(
-                    "<button type=\"button\" data-a=\"cmd\" data-g=\"{}\" aria-label=\"{}\"{}>{}</button>",
+                    "<button type=\"button\" class=\"ribbon-small ribbon-color\" data-a=\"cmd\" data-g=\"{}\" aria-label=\"{}\"{}>{}</button>",
                     esc(id),
                     esc(lbl),
-                    title,
-                    esc(lbl),
+                    bar,
+                    icon_markup(id, lbl, false),
                 ));
+            }
+        }
+        ControlKind::Select => {
+            if let Some(id) = c.command {
+                let w = if id == "home.font-name" {
+                    130
+                } else if id == "home.font-size" {
+                    52
+                } else {
+                    96
+                };
+                out.push_str(&render_select(chrome, id, w));
             }
         }
         ControlKind::Toggle => {
             if let Some(id) = c.command {
                 let pressed = chrome.is_checked(id);
-                out.push_str(&cmd_button(chrome, id, pressed));
+                out.push_str(&cmd_button(chrome, id, pressed, false, false));
             }
         }
         ControlKind::Split => {
             if let Some(id) = c.command {
-                out.push_str(&cmd_button(chrome, id, chrome.is_checked(id)));
+                let large = control_is_large(c);
+                let split_cls = if large {
+                    "ribbon-split ribbon-split-large"
+                } else {
+                    "ribbon-split"
+                };
+                out.push_str(&format!("<span class=\"{}\">", split_cls));
+                out.push_str(&cmd_button(chrome, id, chrome.is_checked(id), large, large));
+                out.push_str(&caret_button());
+                out.push_str("</span>");
                 if !c.menu.is_empty() {
                     out.push_str("<span class=\"rb-menu-stub\" hidden>");
                     for entry in c.menu {
@@ -561,15 +653,27 @@ fn render_control(chrome: &EditorChrome, c: &Control, out: &mut String) {
                 .label
                 .or(c.command.and_then(|id| chrome.commands.label(id)))
                 .unwrap_or("Menu");
+            let large = control_is_large(c);
+            let cls = if large {
+                "ribbon-large"
+            } else {
+                "ribbon-small ribbon-labelled"
+            };
             let cmd_attr = c
                 .command
                 .map(|id| format!(" data-g=\"{}\"", esc(id)))
                 .unwrap_or_default();
+            let icon = menu_icon(lbl)
+                .or_else(|| c.command.and_then(command_icon))
+                .map(|p| ribbon_icon_svg(p, if large { 28 } else { 16 }, lbl))
+                .unwrap_or_default();
             out.push_str(&format!(
-                "<button type=\"button\" data-a=\"cmd\"{} aria-label=\"{}\" aria-haspopup=\"menu\">{}</button>",
-                cmd_attr,
-                esc(lbl),
-                esc(lbl),
+                "<button type=\"button\" class=\"{cls}\" data-a=\"cmd\"{cmd} aria-label=\"{lbl}\" aria-haspopup=\"menu\">{icon}<span>{text}</span></button>",
+                cls = cls,
+                cmd = cmd_attr,
+                lbl = esc(lbl),
+                icon = icon,
+                text = esc(lbl),
             ));
             if !c.menu.is_empty() {
                 out.push_str("<span class=\"rb-menu-stub\" hidden>");
@@ -604,7 +708,9 @@ pub fn ribbon_html(chrome: &EditorChrome) -> String {
     }
     let mut groups = String::new();
     for g in HOME_GROUPS {
-        groups.push_str("<div class=\"rb-g\" role=\"group\" aria-label=\"");
+        groups.push_str("<div class=\"ribbon-group\" data-caption=\"");
+        groups.push_str(&esc(g.label));
+        groups.push_str("\" role=\"group\" aria-label=\"");
         groups.push_str(&esc(g.label));
         groups.push_str("\">");
         for c in g.controls {
@@ -612,19 +718,12 @@ pub fn ribbon_html(chrome: &EditorChrome) -> String {
         }
         groups.push_str("</div>");
     }
+    let tab = esc(chrome.active_tab());
     format!(
-        r##"<div class="rb" role="toolbar" aria-label="Ribbon"><style>
-.rb{{display:flex;flex-wrap:wrap;gap:.35rem;padding:.25rem .35rem;border-bottom:1px solid #c8c8c8;font:11px/1.2 system-ui,sans-serif;background:#f3f3f3}}
-.rb-g{{display:flex;flex-wrap:wrap;gap:.15rem;align-items:center;padding:0 .25rem;border-right:1px solid #d0d0d0}}
-.rb-g:last-child{{border-right:none}}
-.rb button{{font:inherit;padding:.1rem .3rem;max-width:6rem;overflow:hidden;text-overflow:ellipsis}}
-.rb-stack{{display:flex;flex-direction:column;gap:.1rem}}
-.rb-sep{{width:1px;height:1.2rem;background:#ccc;margin:0 .1rem}}
-.rb-menu-stub{{display:none}}
-</style>
-<div role="tablist" aria-label="Ribbon tabs"><button type="button" role="tab" aria-selected="true" aria-label="Home" data-tab="{}">Home</button></div>
-{groups}</div>"##,
-        esc(chrome.active_tab()),
+        r##"<div class="xve-ribbon" style="{vars}"><style>.xve-ribbon{{{vars}}}{skin}.rb-menu-stub{{display:none!important}}</style><div class="ribbon-panel" id="xve-panel-{tab}" data-tab="{tab}" data-ribbon-tab="{tab}" data-label="Home">{groups}</div></div>"##,
+        vars = RIBBON_VARS,
+        skin = RIBBON_SKIN,
+        tab = tab,
         groups = groups,
     )
 }
@@ -641,7 +740,7 @@ mod tests {
         chrome.load();
         chrome.set_read_only(false);
         let html = ribbon_html(&chrome);
-        assert!(html.contains("role=\"toolbar\""));
+        assert!(html.contains("ribbon-panel"));
         assert!(html.contains("data-g=\"home.bold\""));
     }
 

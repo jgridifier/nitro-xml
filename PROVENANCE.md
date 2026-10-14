@@ -350,7 +350,9 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/render/print/line_numbers.rs` | `src/ui/src/docx/print-line-numbers.ts` @ e66aaec | Line-number labels. |
 | `rs/crates/nitro-xml-docx/src/render/print/options.rs` | `src/ui/src/docx/print-layout.ts` (`PrintLayoutOptions`) @ e66aaec | Painter inputs besides `LayoutResult`. |
 | `rs/crates/nitro-xml-wasm/src/chrome/shortcuts.rs` | `src/ui/src/xlsx/keyboard.ts` @ e66aaec | Rust `SHORTCUTS` table and `matches_keys` / `find_shortcut` / `format_keys`; platform flag passed in (no `navigator` in unit tests). |
-| `rs/crates/nitro-xml-wasm/src/chrome/ribbon.rs` | `src/ui/src/xlsx/ribbon/tabs/home.ts`, `home-groups.ts` @ e66aaec | Declarative Home tab groups as static HTML; galleries/menus stubbed (TODO #54). |
+| `rs/crates/nitro-xml-wasm/src/chrome/ribbon.rs` | `src/ui/src/xlsx/ribbon/tabs/home.ts`, `home-groups.ts` @ e66aaec | Declarative Home tab groups as static HTML; galleries/menus stubbed (TODO #54). Icon/large/combo markup for edit-chrome pixel parity (#150). |
+| `rs/crates/nitro-xml-wasm/src/chrome/ribbon_icons.rs` | `src/core/xlsx/ui/ribbon/icon-paths.ts`, `commands/icons.ts` @ e66aaec | Stroke SVG path table + `ribbon_icon_svg` for Home controls (#150). |
+| `rs/crates/nitro-xml-wasm/src/chrome/ribbon_skin.css` | `src/ui/src/xlsx/theme/ribbon.css` @ e66aaec | Embedded Home ribbon skin for WASM chrome HTML (#150). |
 | `rs/crates/nitro-xml-wasm/src/text/clipboard.rs` | `src/core/xlsx/edit/clipboard-text.ts`, `clipboard-html.ts` (`escapeHtml`) @ e66aaec | TSV quote/parse/toTsv and `escape_html` / plain HTML table for the single-line text surface (#55); styled multi-cell `toHtml` remains `TODO(#69)`. |
 | `rs/crates/nitro-xml-wasm/src/chrome/focus.rs` | `src/ui/src/dialog/focus.ts`, Tab trap in `dialog/dialog.ts` @ e66aaec | Focus trap index math + restore stack for modal dialogs/menus (#54). |
 | `rs/crates/nitro-xml-wasm/src/chrome/dialog.rs` | `src/ui/src/dialog/dialog.ts`, `src/ui/src/xlsx/dialogs/frame.ts` @ e66aaec | Modal dialog frame HTML (`role=dialog`, `aria-modal`, OK/Cancel); concrete bodies stay follow-ups. |

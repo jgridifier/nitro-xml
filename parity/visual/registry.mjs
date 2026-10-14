@@ -11,7 +11,7 @@ import { docxVisualCorpus } from './docx-corpus.mjs';
 import { pptxVisualCorpus } from './pptx-corpus.mjs';
 import { xlsxVisualCorpus } from './xlsx-corpus.mjs';
 
-/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'pptx-viewer' | 'docx-layout-ir' | 'docx-viewer'} VisualKind */
+/** @typedef {'xlsx-view-ir' | 'chart-svg' | 'xlsx-viewer' | 'xlsx-edit-chrome' | 'pptx-viewer' | 'docx-layout-ir' | 'docx-viewer' | 'docx-edit-chrome'} VisualKind */
 
 /**
  * @typedef {object} VisualCase
@@ -65,6 +65,34 @@ const STATIC_CASES = [
 		height: 667,
 		rust: true,
 		skipPrint: true,
+	},
+	{
+		id: 'xlsx-edit-chrome-poi-45544',
+		format: 'xlsx',
+		kind: 'xlsx-edit-chrome',
+		ready: true,
+		fixture: 'fixtures/real/xlsx/poi-45544.xlsx',
+		width: 960,
+		height: 120,
+		rust: true,
+		threshold: 0.001,
+		skipPrint: true,
+		// Informational until ribbon/formula-bar chrome ≤0.1% vs upstream (#150 follow-up).
+		informational: true,
+	},
+	{
+		id: 'docx-edit-chrome-bidi',
+		format: 'docx',
+		kind: 'docx-edit-chrome',
+		ready: true,
+		fixture: 'fixtures/bidi/arabic-hebrew-paragraphs.docx',
+		width: 960,
+		height: 120,
+		rust: true,
+		threshold: 0.001,
+		skipPrint: true,
+		// Informational: editor ribbon vs upstream docx chrome (#83 / #150 follow-up).
+		informational: true,
 	},
 	{
 		id: 'chart-poi-dataValidation-chart1',

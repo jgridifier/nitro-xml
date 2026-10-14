@@ -31,6 +31,7 @@ export const HARD_FIXTURES = new Set([
 	'fixtures/real/xlsx/poi-ExcelPivotTableSample.xlsx',
 	'fixtures/real/xlsx/poi-FormulaEvalTestData_Copy.xlsx',
 	'fixtures/real/xlsx/poi-StructuredRefs-lots-with-lookups.xlsx',
+	'fixtures/real/xlsx/poi-WithChartSheet.xlsx',
 	'fixtures/real/xlsx/poi-WithEmbeded.xlsx',
 	'fixtures/real/xlsx/poi-bug64512_embed.xlsx',
 	'fixtures/real/xlsx/poi-test.xltx',

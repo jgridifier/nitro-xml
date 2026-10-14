@@ -149,12 +149,19 @@ pub fn moving_end(selection: &SheetSelection) -> CellAddress {
 }
 
 /// Selection used for grid chrome paint when the file has no `sheetView/selection` node.
-/// Matches upstream `initialSelection` (active A1, one range).
+/// Matches upstream `initialSelection`: active A1 and a **single-cell** range — no merge
+/// expansion (unlike click `select_cell`). Expanding A1 across `A1:J1` merges would paint
+/// every column header as selected (poi-no_drawing_patriarch ~0.37%).
 pub fn paint_selection(sheet: &ActiveWorksheet) -> SheetSelection {
     if let Some(s) = sheet.view.selection.as_ref() {
         return s.clone();
     }
-    select_cell(sheet, CellAddress { row: 0, col: 0 })
+    let at = CellAddress { row: 0, col: 0 };
+    SheetSelection {
+        active: at,
+        anchor: at,
+        ranges: vec![cell_range(at)],
+    }
 }
 
 /// A fresh one-cell selection at `at` (merge-expanded). Active stays on the clicked cell.
@@ -334,8 +341,12 @@ mod tests {
         assert!(sheet.view.selection.is_none());
         let sel = paint_selection(&sheet);
         assert_eq!(sel.active, CellAddress { row: 0, col: 0 });
+        assert_eq!(sel.ranges[0].end, CellAddress { row: 0, col: 0 });
         assert_eq!(col_selected(&sel, 0), "part");
         assert_eq!(row_selected(&sel, 0), "part");
+        // Catches: A1:B2 merge must not expand open selection (would mark col B / row 2 headers).
+        assert_eq!(col_selected(&sel, 1), "none");
+        assert_eq!(row_selected(&sel, 1), "none");
     }
 
     #[test]

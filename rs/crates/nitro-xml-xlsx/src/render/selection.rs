@@ -90,16 +90,23 @@ pub fn paint<I: StringIntern>(
             end: active,
         });
 
-    // Upstream: outline wraps the sole selected range; `.xg-active` marks the
-    // active cell when the selection is larger than one cell.
+    // Upstream selection-layer.ts: outline wraps the sole selected range; when
+    // that range is one cell but the active cell sits in a merge, the outline
+    // grows to `activeRange` (merge-sized). `.xg-active` marks the active cell
+    // only when the selection is larger than one cell.
     let last = selection
         .ranges
         .last()
         .cloned()
         .unwrap_or(active_range.clone());
-    let single = selection.ranges.len() <= 1;
+    let single = selection.ranges.len() == 1;
     if single {
-        let (left, top, w, h) = range_box(metrics, &last);
+        let outline_range = if is_single_cell(&last) {
+            &active_range
+        } else {
+            &last
+        };
+        let (left, top, w, h) = range_box(metrics, outline_range);
         place_box(buf, intern, OUTLINE_ID, "xg-outline", left, top, w, h);
     }
     if !single || !is_single_cell(&last) {

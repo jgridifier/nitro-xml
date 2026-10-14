@@ -139,6 +139,24 @@ pub fn eval_cf_formula_number(
     cell_number_value(sheet, index, row, col)
 }
 
+/// Resolve a CF `cellIs` operand to display text (quoted literal or A1 cell).
+pub fn eval_cf_formula_text(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    formula: &str,
+) -> Option<String> {
+    let text = formula.trim().trim_start_matches('=');
+    if text.is_empty() {
+        return None;
+    }
+    if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
+        return Some(text[1..text.len() - 1].replace("\"\"", "\""));
+    }
+    let r = parse_ref(text)?;
+    let (row, col) = relocate(r, 0, 0)?;
+    Some(cell_text(sheet, index, row, col))
+}
+
 fn unquote(s: &str) -> Option<String> {
     let t = s.trim();
     if t.len() >= 2 && t.starts_with('"') && t.ends_with('"') {

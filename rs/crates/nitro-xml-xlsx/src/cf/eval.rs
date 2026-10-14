@@ -3,7 +3,7 @@
 // cf-helpers.ts, cf-values.ts, data-bar-geometry.ts (cellIs/iconSet/colorScale/dataBar/
 // expression path); changes listed in PROVENANCE.md.
 
-use crate::cf::expr::{eval_cf_expression, eval_cf_formula_number};
+use crate::cf::expr::{eval_cf_expression, eval_cf_formula_number, eval_cf_formula_text};
 use crate::model::{
     ActiveWorksheet, CfvoThreshold, Color, ConditionalFormat, ConditionalRule, DifferentialStyle,
     DumpCellValue, ThemePalette,
@@ -241,6 +241,33 @@ fn style_nonempty(style: &DifferentialStyle) -> bool {
         || style.num_fmt.is_some()
 }
 
+fn cell_text_value(value: Option<&DumpCellValue>) -> Option<String> {
+    match value {
+        Some(DumpCellValue::Error(_)) | None => None,
+        Some(DumpCellValue::String(s)) => Some(s.clone()),
+        Some(DumpCellValue::Number(n)) => Some(if n.fract() == 0.0 {
+            format!("{n:.0}")
+        } else {
+            n.to_string()
+        }),
+        Some(DumpCellValue::NumberRaw(s)) => Some(s.clone()),
+        Some(DumpCellValue::Bool(b)) => Some(if *b { "TRUE".into() } else { "FALSE".into() }),
+        Some(DumpCellValue::Null) => Some(String::new()),
+    }
+}
+
+fn test_text_rule(kind: &str, haystack: &str, needle: &str) -> bool {
+    let text = haystack.to_ascii_lowercase();
+    let needle = needle.to_ascii_lowercase();
+    match kind {
+        "containsText" => text.contains(&needle),
+        "notContainsText" => !text.contains(&needle),
+        "beginsWith" => text.starts_with(&needle),
+        "endsWith" => text.ends_with(&needle),
+        _ => false,
+    }
+}
+
 fn rule_priority(rule: &ConditionalRule) -> i32 {
     match rule {
         ConditionalRule::CellIs { priority, .. }
@@ -248,8 +275,68 @@ fn rule_priority(rule: &ConditionalRule) -> i32 {
         | ConditionalRule::ColorScale { priority, .. }
         | ConditionalRule::DataBar { priority, .. }
         | ConditionalRule::IconSet { priority, .. }
+        | ConditionalRule::Text { priority, .. }
+        | ConditionalRule::Top10 { priority, .. }
+        | ConditionalRule::AboveAverage { priority, .. }
+        | ConditionalRule::UniqueDup { priority, .. }
         | ConditionalRule::Other { priority, .. } => *priority,
     }
+}
+
+fn value_key(value: &DumpCellValue) -> Option<String> {
+    match value {
+        DumpCellValue::Null => None,
+        DumpCellValue::String(s) if s.is_empty() => None,
+        DumpCellValue::String(s) => Some(format!("s:{}", s.to_ascii_lowercase())),
+        DumpCellValue::Number(n) if n.is_finite() => Some(format!("n:{n}")),
+        DumpCellValue::NumberRaw(s) => {
+            let n: f64 = s.trim().parse().ok()?;
+            if n.is_finite() {
+                Some(format!("n:{n}"))
+            } else {
+                None
+            }
+        }
+        DumpCellValue::Bool(b) => Some(format!("b:{b}")),
+        DumpCellValue::Error(e) => Some(format!("e:{e}")),
+        DumpCellValue::Number(_) => None,
+    }
+}
+
+fn range_value_counts(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    format: &ConditionalFormat,
+) -> std::collections::HashMap<String, usize> {
+    let mut counts = std::collections::HashMap::new();
+    for range in &format.ranges {
+        for row in range.start.row..=range.end.row {
+            for col in range.start.col..=range.end.col {
+                if let Some(cell) = get_cell(sheet, index, row, col) {
+                    if let Some(key) = value_key(&cell.value) {
+                        *counts.entry(key).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+    }
+    counts
+}
+
+fn apply_style_rule(
+    result: &mut CfApplied,
+    style: &DifferentialStyle,
+    stop_if_true: bool,
+    any: &mut bool,
+) -> bool {
+    if style_nonempty(style) {
+        result.style = Some(merge_dxf(result.style.take(), style));
+    }
+    *any = true;
+    if stop_if_true {
+        return true; // caller should break
+    }
+    false
 }
 
 /// Full CF application for `(row, col)`.
@@ -296,15 +383,38 @@ pub fn cf_at(
                 stop_if_true,
                 ..
             } => {
-                let Some(n) = number else {
+                // Upstream `run`: literal, else A1/formula (incl. `$G$5` / `$G$2` "Grain").
+                let matched = if let Some(n) = number {
+                    let a = formulas
+                        .first()
+                        .and_then(|f| {
+                            literal_number(f).or_else(|| eval_cf_formula_number(sheet, index, f))
+                        })
+                        .unwrap_or(0.0);
+                    let b = formulas.get(1).and_then(|f| {
+                        literal_number(f).or_else(|| eval_cf_formula_number(sheet, index, f))
+                    });
+                    test_operator(operator, n, a, b)
+                } else if operator == "equal" || operator == "notEqual" {
+                    let Some(hay) = cell_text_value(value) else {
+                        continue;
+                    };
+                    let Some(rhs) = formulas
+                        .first()
+                        .and_then(|f| eval_cf_formula_text(sheet, index, f))
+                    else {
+                        continue;
+                    };
+                    let eq = hay.eq_ignore_ascii_case(&rhs);
+                    if operator == "equal" {
+                        eq
+                    } else {
+                        !eq
+                    }
+                } else {
                     continue;
                 };
-                let a = formulas
-                    .first()
-                    .and_then(|f| literal_number(f))
-                    .unwrap_or(0.0);
-                let b = formulas.get(1).and_then(|f| literal_number(f));
-                if !test_operator(operator, n, a, b) {
+                if !matched {
                     continue;
                 }
                 if style_nonempty(style) {
@@ -448,6 +558,115 @@ pub fn cf_at(
                 any = true;
                 true
             }
+            ConditionalRule::Text {
+                kind,
+                text: needle,
+                style,
+                stop_if_true,
+                ..
+            } => {
+                let Some(haystack) = cell_text_value(value) else {
+                    continue;
+                };
+                if !test_text_rule(kind, &haystack, needle) {
+                    continue;
+                }
+                if apply_style_rule(&mut result, style, *stop_if_true, &mut any) {
+                    break;
+                }
+                true
+            }
+            ConditionalRule::Top10 {
+                rank,
+                percent,
+                bottom,
+                style,
+                stop_if_true,
+                ..
+            } => {
+                let Some(n) = number else {
+                    continue;
+                };
+                let sorted = range_numbers(sheet, index, format);
+                if sorted.is_empty() {
+                    continue;
+                }
+                let count = if *percent {
+                    ((sorted.len() as f64 * *rank) / 100.0).floor().max(1.0) as usize
+                } else {
+                    rank.max(1.0) as usize
+                };
+                let k = count.min(sorted.len());
+                let hit = if *bottom {
+                    n <= sorted[k - 1]
+                } else {
+                    n >= sorted[sorted.len() - k]
+                };
+                if !hit {
+                    continue;
+                }
+                if apply_style_rule(&mut result, style, *stop_if_true, &mut any) {
+                    break;
+                }
+                true
+            }
+            ConditionalRule::AboveAverage {
+                below,
+                equal_average,
+                style,
+                stop_if_true,
+                ..
+            } => {
+                let Some(n) = number else {
+                    continue;
+                };
+                let nums = range_numbers(sheet, index, format);
+                if nums.is_empty() {
+                    continue;
+                }
+                let avg = nums.iter().sum::<f64>() / nums.len() as f64;
+                let hit = if *below {
+                    if *equal_average {
+                        n <= avg
+                    } else {
+                        n < avg
+                    }
+                } else if *equal_average {
+                    n >= avg
+                } else {
+                    n > avg
+                };
+                if !hit {
+                    continue;
+                }
+                if apply_style_rule(&mut result, style, *stop_if_true, &mut any) {
+                    break;
+                }
+                true
+            }
+            ConditionalRule::UniqueDup {
+                duplicate,
+                style,
+                stop_if_true,
+                ..
+            } => {
+                let Some(val) = value else {
+                    continue;
+                };
+                let Some(key) = value_key(val) else {
+                    continue;
+                };
+                let counts = range_value_counts(sheet, index, format);
+                let count = counts.get(&key).copied().unwrap_or(0);
+                let hit = if *duplicate { count > 1 } else { count == 1 };
+                if !hit {
+                    continue;
+                }
+                if apply_style_rule(&mut result, style, *stop_if_true, &mut any) {
+                    break;
+                }
+                true
+            }
             ConditionalRule::Other { stop_if_true, .. } => {
                 let _ = stop_if_true;
                 false
@@ -588,6 +807,103 @@ mod tests {
             }],
             dimension: None,
         }
+    }
+
+    #[test]
+    fn cell_is_formula_operand_from_sheet_cell() {
+        // Catches: cellIs lessThan `$G$5` treats operand as 0 so Products2 never gets CF numFmt $#,##0.
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/xlsx/poi-ConditionalFormattingSamples.xlsx"
+        ))
+        .expect("fixture");
+        let wb = crate::load_workbook(&bytes).expect("wb");
+        let idx = wb
+            .sheets
+            .iter()
+            .position(|s| s.name == "Products2")
+            .expect("Products2");
+        let sheet = crate::parse_worksheet_at(&bytes, &wb, idx).expect("sheet");
+        let index = CellIndex::build(&sheet);
+        // D10 = 1103.5 is NOT < 200 — no match. Find a value < 200 in D.
+        // D column under lessThan $G$5(=200): pick a cell known small from oracle ($17).
+        let mut matched = false;
+        for row in 2..24u32 {
+            if let Some(applied) = cf_at(&sheet, &index, row, 3, &wb.theme, &[]) {
+                if applied
+                    .style
+                    .as_ref()
+                    .and_then(|s| s.num_fmt.as_ref())
+                    .is_some()
+                {
+                    matched = true;
+                    break;
+                }
+            }
+        }
+        assert!(
+            matched,
+            "expected at least one D-column cellIs lessThan $G$5 match"
+        );
+        // B column equal $G$2 ("Grain")
+        let mut grain = false;
+        for row in 2..24u32 {
+            if let Some(applied) = cf_at(&sheet, &index, row, 1, &wb.theme, &[]) {
+                if applied
+                    .style
+                    .as_ref()
+                    .and_then(|s| s.font.as_ref())
+                    .is_some()
+                {
+                    grain = true;
+                    break;
+                }
+            }
+        }
+        assert!(grain, "expected B-column equal $G$2 Grain match");
+    }
+
+    #[test]
+    fn contains_text_applies_grain_dxf() {
+        // Catches: containsText rules stay Other so Products1 "Grain" never gets #FFEB9C/#9C6500.
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/xlsx/poi-ConditionalFormattingSamples.xlsx"
+        ))
+        .expect("fixture");
+        let wb = crate::load_workbook(&bytes).expect("wb");
+        let idx = wb
+            .sheets
+            .iter()
+            .position(|s| s.name == "Products1")
+            .expect("Products1");
+        let sheet = crate::parse_worksheet_at(&bytes, &wb, idx).expect("sheet");
+        let index = CellIndex::build(&sheet);
+        let applied = cf_at(&sheet, &index, 8, 1, &wb.theme, &[]).expect("cf");
+        let style = applied.style.expect("dxf");
+        let fill = style.fill.expect("fill");
+        match fill {
+            crate::model::Fill::Pattern {
+                fg_color: Some(c), ..
+            }
+            | crate::model::Fill::Pattern {
+                bg_color: Some(c), ..
+            } => {
+                let rgb = c.rgb.as_deref().unwrap_or("");
+                assert!(
+                    rgb.eq_ignore_ascii_case("FFFFEB9C") || rgb.eq_ignore_ascii_case("FFEB9C"),
+                    "unexpected fill {rgb}"
+                );
+            }
+            other => panic!("unexpected fill {other:?}"),
+        }
+        let font = style.font.expect("font");
+        let color = font.color.expect("font color");
+        let rgb = color.rgb.as_deref().unwrap_or("");
+        assert!(
+            rgb.eq_ignore_ascii_case("FF9C6500") || rgb.eq_ignore_ascii_case("9C6500"),
+            "unexpected font {rgb}"
+        );
     }
 
     #[test]

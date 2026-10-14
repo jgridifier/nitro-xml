@@ -140,6 +140,42 @@ fn read_rule(
                 show_value: bool_attr(set, "showValue") != Some(false),
             })
         }
+        "containsText" | "notContainsText" | "beginsWith" | "endsWith" => {
+            Some(ConditionalRule::Text {
+                kind: kind.to_string(),
+                text: att(Some(rule), "text").unwrap_or("").to_string(),
+                style,
+                priority,
+                stop_if_true,
+            })
+        }
+        "top10" => Some(ConditionalRule::Top10 {
+            rank: num_attr(Some(rule), "rank").unwrap_or(10.0),
+            percent: bool_attr(Some(rule), "percent") == Some(true),
+            bottom: bool_attr(Some(rule), "bottom") == Some(true),
+            style,
+            priority,
+            stop_if_true,
+        }),
+        "aboveAverage" => Some(ConditionalRule::AboveAverage {
+            below: bool_attr(Some(rule), "aboveAverage") == Some(false),
+            equal_average: bool_attr(Some(rule), "equalAverage") == Some(true),
+            style,
+            priority,
+            stop_if_true,
+        }),
+        "duplicateValues" => Some(ConditionalRule::UniqueDup {
+            duplicate: true,
+            style,
+            priority,
+            stop_if_true,
+        }),
+        "uniqueValues" => Some(ConditionalRule::UniqueDup {
+            duplicate: false,
+            style,
+            priority,
+            stop_if_true,
+        }),
         other if !other.is_empty() => Some(ConditionalRule::Other {
             kind: other.to_string(),
             priority,

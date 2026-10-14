@@ -911,6 +911,36 @@ pub enum ConditionalRule {
         reverse: bool,
         show_value: bool,
     },
+    /// Text predicate rules (`containsText` / `notContainsText` / `beginsWith` / `endsWith`).
+    Text {
+        kind: String,
+        text: String,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    Top10 {
+        rank: f64,
+        percent: bool,
+        bottom: bool,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    AboveAverage {
+        below: bool,
+        equal_average: bool,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    /// `duplicateValues` / `uniqueValues`.
+    UniqueDup {
+        duplicate: bool,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
     /// Unsupported / not yet painted rule types kept for future ports.
     Other {
         kind: String,

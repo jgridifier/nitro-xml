@@ -9,7 +9,7 @@ use crate::sheet_access::{
 };
 use crate::styles::style_at;
 use crate::view::sparkline_data::sparkline_view_at;
-use crate::view::style_view::{borders_view, fill_view, font_view, merge_font};
+use crate::view::style_view::{borders_view, fill_view, font_view, merge_border, merge_font};
 use crate::view::types::{CellView, FillView, RichRun};
 use crate::view::units::INDENT_PX_PER_LEVEL;
 
@@ -243,12 +243,18 @@ pub fn cell_view(
         && h_align != "fill"
         && !sheet.merges.iter().any(|m| range_contains(m, row, col));
 
+    // Upstream: `bordersView(mergeBorder(style.border, dxf?.border), …)`.
+    let border_for_view = if let Some(dxf) = cf.as_ref().and_then(|c| c.style.as_ref()) {
+        merge_border(&style.border, dxf.border.as_ref())
+    } else {
+        style.border.clone()
+    };
     let mut view = CellView {
         text: shown.0,
         title: None,
         font: font_view_resolved,
         fill,
-        borders: borders_view(&style.border, &workbook.theme, &indexed),
+        borders: borders_view(&border_for_view, &workbook.theme, &indexed),
         h_align,
         v_align: alignment
             .and_then(|a| a.vertical.as_deref())

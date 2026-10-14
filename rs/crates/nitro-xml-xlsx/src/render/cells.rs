@@ -31,6 +31,7 @@ const COMMENT_BASE: u32 = 30_000;
 const ERROR_BASE: u32 = 40_000;
 const ICON_BASE: u32 = 50_000;
 const DATA_BAR_BASE: u32 = 55_000;
+const DATA_BAR_AXIS_BASE: u32 = 56_000;
 const STALE_BASE: u32 = 60_000;
 const EDITOR_BOX: u32 = 70_000;
 const EDITOR_BEFORE: u32 = 70_001;
@@ -159,6 +160,28 @@ fn paint_one_cell<I: StringIntern>(
             );
         } else {
             set_style(buf, intern, bar_id, "border", "none");
+        }
+        if let Some((frac, axis_color)) = &bar.axis {
+            let axis_id = DATA_BAR_AXIS_BASE + n as u32;
+            buf.create_element(axis_id, div, cell_id);
+            set_attr(buf, intern, axis_id, "class", "xg-db-axis");
+            set_style(buf, intern, axis_id, "position", "absolute");
+            set_style(buf, intern, axis_id, "top", "1px");
+            set_style(buf, intern, axis_id, "bottom", "1px");
+            set_style(
+                buf,
+                intern,
+                axis_id,
+                "left",
+                &format!("{}px", 2.0 + *frac * (item.w as f64 - 4.0)),
+            );
+            set_style(
+                buf,
+                intern,
+                axis_id,
+                "borderLeft",
+                &format!("1px dashed {axis_color}"),
+            );
         }
     }
 

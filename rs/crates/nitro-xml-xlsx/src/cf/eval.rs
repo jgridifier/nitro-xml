@@ -169,7 +169,8 @@ fn resolve_rgb(color: &Color, theme: &ThemePalette, indexed: &[&str]) -> String 
     resolve_color(Some(color), theme, Some("#638EC6"), indexed).unwrap_or_else(|| "#638EC6".into())
 }
 
-fn data_bar_geometry(value: f64, low: f64, high: f64) -> (f64, f64) {
+/// `(start, fraction, axis_fraction)`.
+fn data_bar_geometry(value: f64, low: f64, high: f64) -> (f64, f64, Option<f64>) {
     // Upstream automatic axis + default minLength/maxLength (0 / 1).
     let lo = low.min(0.0);
     let hi = high.max(0.0);
@@ -179,7 +180,7 @@ fn data_bar_geometry(value: f64, low: f64, high: f64) -> (f64, f64) {
         } else {
             0.5
         };
-        return (0.0, fraction);
+        return (0.0, fraction, None);
     }
     if hi <= 0.0 {
         let fraction = if hi > lo {
@@ -188,7 +189,7 @@ fn data_bar_geometry(value: f64, low: f64, high: f64) -> (f64, f64) {
             0.5
         };
         let axis = 1.0;
-        return ((axis - fraction).max(0.0), fraction);
+        return ((axis - fraction).max(0.0), fraction, None);
     }
     let axis = (-lo) / (hi - lo);
     let bounded = value.clamp(lo, hi);
@@ -198,7 +199,7 @@ fn data_bar_geometry(value: f64, low: f64, high: f64) -> (f64, f64) {
     } else {
         axis
     };
-    (start, fraction)
+    (start, fraction, Some(axis))
 }
 
 fn merge_dxf(acc: Option<DifferentialStyle>, next: &DifferentialStyle) -> DifferentialStyle {
@@ -371,7 +372,7 @@ pub fn cf_at(
                 let data_hi = threshold_value(max, &nums);
                 let lo = data_lo.min(0.0);
                 let hi = data_hi.max(0.0);
-                let (start, fraction) = data_bar_geometry(n, lo, hi);
+                let (start, fraction, axis_frac) = data_bar_geometry(n, lo, hi);
                 let positive = resolve_rgb(color, theme, indexed);
                 // x14 defaults: negativeFill/Border #FF0000 when not same-as-positive (NewStyle).
                 let (css, border) = if n < 0.0 {
@@ -382,7 +383,7 @@ pub fn cf_at(
                 result.data_bar = Some(DataBarView {
                     fraction,
                     start: Some(start),
-                    axis: None,
+                    axis: axis_frac.map(|f| (f, "#000000".into())),
                     color: css,
                     negative: if n < 0.0 { Some(true) } else { None },
                     gradient: None,

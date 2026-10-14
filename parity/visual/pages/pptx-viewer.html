@@ -183,12 +183,12 @@
         if (el.document) await el.document.tick();
         await waitFrames(2);
       }
-      // Native `<video controls>`: let metadata paint the transport chrome before capture (#27).
+      // Native `<video>` / `<audio controls>`: let metadata paint transport before capture (#27).
       for (let c = 0; c < 24; c++) {
-        const videos = shadow?.querySelectorAll('video');
-        if (!videos?.length) break;
+        const media = shadow?.querySelectorAll('video,audio');
+        if (!media?.length) break;
         let settled = true;
-        for (const v of videos) {
+        for (const v of media) {
           if (v.readyState < 1) settled = false;
         }
         if (settled && c >= 4) break;

@@ -8,18 +8,22 @@ use super::dom::{create_child, position_box, set_attr, set_style};
 use crate::slide::DumpElement;
 
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
-    if el.is_media && el.media_type.as_deref() == Some("video") {
-        paint_media_video(ctx, el, parent);
-        return;
+    match (el.is_media, el.media_type.as_deref()) {
+        (true, Some("video")) => {
+            paint_media_video(ctx, el, parent);
+        }
+        (true, Some("audio")) => {
+            paint_media_audio(ctx, el, parent);
+        }
+        _ => paint_image(ctx, el, parent),
     }
-    paint_image(ctx, el, parent);
 }
 
-fn paint_media_video<I: StringIntern>(
+fn paint_media_host<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     el: &DumpElement,
     parent: u32,
-) {
+) -> u32 {
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
     set_attr(ctx, id, "class", "pptxv-element pptxv-media");
@@ -29,6 +33,15 @@ fn paint_media_video<I: StringIntern>(
     if let Some(shadow) = el.box_shadow.as_deref() {
         set_style(ctx, id, "box-shadow", shadow);
     }
+    id
+}
+
+fn paint_media_video<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    el: &DumpElement,
+    parent: u32,
+) {
+    let id = paint_media_host(ctx, el, parent);
     let video = create_child(ctx, id, "video");
     set_attr(ctx, video, "class", "pptxv-media-video");
     set_style(ctx, video, "width", "100%");
@@ -46,6 +59,34 @@ fn paint_media_video<I: StringIntern>(
     }
     set_attr(ctx, video, "alt", el.name.as_deref().unwrap_or(""));
     ctx.view_ir.push_painted("video", el, None);
+}
+
+/// Upstream `media.ts`: audio renders native `<audio controls>` (reading-stage transport).
+fn paint_media_audio<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    el: &DumpElement,
+    parent: u32,
+) {
+    let id = paint_media_host(ctx, el, parent);
+    if let Some(src) = el.media_src.as_deref() {
+        let audio = create_child(ctx, id, "audio");
+        set_attr(ctx, audio, "class", "pptxv-media-audio");
+        set_style(ctx, audio, "width", "100%");
+        set_attr(ctx, audio, "controls", "");
+        set_attr(ctx, audio, "preload", "metadata");
+        set_attr(ctx, audio, "src", src);
+    } else if let Some(poster) = el.image_src.as_deref() {
+        // No playable source: poster still (upstream media fallback).
+        let img = create_child(ctx, id, "img");
+        set_attr(ctx, img, "class", "pptxv-media-poster");
+        set_attr(ctx, img, "src", poster);
+        set_attr(ctx, img, "alt", "");
+        set_style(ctx, img, "width", "100%");
+        set_style(ctx, img, "height", "100%");
+        set_style(ctx, img, "object-fit", "contain");
+        set_style(ctx, img, "display", "block");
+    }
+    ctx.view_ir.push_painted("audio", el, None);
 }
 
 fn paint_image<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {

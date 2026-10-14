@@ -3,7 +3,8 @@
 //! P15 OLE previews — poster image when a blip or VML preview resolved, else `[OLE]`.
 
 use super::context::{PaintContext, StringIntern};
-use super::dom::{create_child, position_box, set_attr, set_style, set_text_content};
+use super::dom::{create_child, position_box, set_attr, set_style};
+use super::placeholder;
 use crate::slide::DumpElement;
 
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
@@ -13,35 +14,8 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     // (poi-bug64693 soft band).
     match el.image_src.as_deref() {
         Some(src) if !src.starts_with("nitro-metafile:") => paint_preview(ctx, el, parent),
-        _ => paint_typed_placeholder(ctx, el, parent),
+        _ => placeholder::paint_typed_stub(ctx, "ole", el, parent, "[OLE]"),
     }
-}
-
-fn paint_typed_placeholder<I: StringIntern>(
-    ctx: &mut PaintContext<'_, I>,
-    el: &DumpElement,
-    parent: u32,
-) {
-    // Compact type badge approximating upstream `pptxv-ole-badge` / placeholder
-    // chrome so metafile OLE (bug64693) does not leave a blank hole vs TS.
-    let id = create_child(ctx, parent, "div");
-    position_box(ctx, id, el.x, el.y, el.width, el.height);
-    set_attr(ctx, id, "data-pptx-element", "true");
-    set_attr(ctx, id, "data-element-id", &el.id);
-    set_attr(ctx, id, "data-pptx-kind", "ole");
-    set_style(ctx, id, "display", "flex");
-    set_style(ctx, id, "align-items", "center");
-    set_style(ctx, id, "justify-content", "center");
-    set_style(ctx, id, "background", "#f3f4f6");
-    set_style(ctx, id, "border", "1px solid #d1d5db");
-    let badge = create_child(ctx, id, "div");
-    set_style(ctx, badge, "background", "#4b5563");
-    set_style(ctx, badge, "color", "#ffffff");
-    set_style(ctx, badge, "font", "bold 10px \"Liberation Sans\", Arial, sans-serif");
-    set_style(ctx, badge, "padding", "2px 6px");
-    set_style(ctx, badge, "border-radius", "3px");
-    set_text_content(ctx, badge, "OLE");
-    ctx.view_ir.push_painted("ole", el, None);
 }
 
 fn paint_preview<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {

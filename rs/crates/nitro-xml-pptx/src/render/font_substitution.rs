@@ -23,6 +23,18 @@ fn substitutes() -> &'static [(&'static str, Substitute)] {
             },
         ),
         (
+            "aptos display",
+            Substitute {
+                fallbacks: &["Calibri Light", "Calibri", "Carlito", "Arial", "sans-serif"],
+            },
+        ),
+        (
+            "aptos narrow",
+            Substitute {
+                fallbacks: &["Calibri", "Liberation Sans Narrow", "Arial", "sans-serif"],
+            },
+        ),
+        (
             "calibri",
             Substitute {
                 fallbacks: &["Carlito", "Liberation Sans", "Arial", "sans-serif"],

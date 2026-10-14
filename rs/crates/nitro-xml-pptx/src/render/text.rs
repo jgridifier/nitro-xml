@@ -15,9 +15,9 @@ use crate::east_asian_breaks::{split_east_asian_breaks, EastAsianBreakOptions};
 use crate::slide::DumpElement;
 use crate::text_body_rect::{resolve_text_body_rect_padding, TextBodyRectPadding};
 use crate::text_layout::{
-    compute_body_tab_size_px, compute_tabbed_line_layout, resolve_css_text_align, TextAlignCss,
-    TextBodyLayout, TextBodyVAlign, TextPaintParagraph, TextPaintRuby, TextPaintRun,
-    TextPaintTabStop,
+    compute_body_tab_size_px, compute_tabbed_line_layout, line_height_to_px,
+    resolve_css_text_align, resolve_vert_overflow_clip_lines, TextAlignCss, TextBodyLayout,
+    TextBodyVAlign, TextPaintParagraph, TextPaintRuby, TextPaintRun, TextPaintTabStop,
 };
 
 /// Loader `fillMeasureWidths` sentinel: returns GDI letter-spacing px/char (upstream `text-metric-tracking`).
@@ -43,6 +43,8 @@ pub struct TextBodyPaint<'a> {
     pub geom_rect_padding: TextBodyRectPadding,
     /// When true, apply strict kinsoku (`p:defaultTextStyle/@eaLnBrk="1"` decks only).
     pub presentation_kinsoku: bool,
+    /// Shape box height for `vertOverflow` line-boundary clip-path.
+    pub body_box_height_px: Option<f64>,
 }
 
 impl<'a> TextBodyPaint<'a> {
@@ -66,6 +68,7 @@ impl<'a> TextBodyPaint<'a> {
             ),
             presentation_kinsoku: el.presentation_kinsoku,
             font_kern_hundredths: None,
+            body_box_height_px: Some(el.height.max(0.0)),
         }
     }
 }
@@ -208,6 +211,12 @@ pub fn paint_text_body<I: StringIntern>(
             set_style(ctx, block, "flex-direction", "column");
         }
     }
+    let size = paint.font_size_px.unwrap_or(24.0).max(1.0);
+    let block_line_height = paint
+        .paragraphs
+        .and_then(|ps| ps.first())
+        .and_then(|p| p.line_height_css.as_deref())
+        .unwrap_or("1.2");
     let per_paragraph_align = paint.paragraphs.is_some_and(|paras| !paras.is_empty());
     let italic_body = paint.font_italic
         || paint
@@ -223,14 +232,27 @@ pub fn paint_text_body<I: StringIntern>(
             per_paragraph_align,
             italic_inset_slop,
         );
+        if layout.overflow_clip && layout.v_align == TextBodyVAlign::Top {
+            if let Some(box_h) = paint.body_box_height_px.filter(|h| *h > 0.0) {
+                let pad_top = layout.inset_top_px + paint.geom_rect_padding.top + italic_inset_slop;
+                let pad_bottom =
+                    layout.inset_bottom_px + paint.geom_rect_padding.bottom + italic_inset_slop;
+                let content_h = box_h - pad_top - pad_bottom;
+                let line_h_px = line_height_to_px(size, Some(block_line_height));
+                if let Some(clip) =
+                    resolve_vert_overflow_clip_lines(content_h, pad_bottom, line_h_px)
+                {
+                    set_style(ctx, block, "clip-path", &clip);
+                }
+            }
+        }
     } else if paint.geom_rect_padding != TextBodyRectPadding::default() {
         apply_geom_rect_padding_only(ctx, block, paint.geom_rect_padding);
     }
-    let size = paint.font_size_px.unwrap_or(24.0).max(1.0);
     let stack = substitute_font_family_stack(paint.font_family);
     set_style(ctx, block, "font-family", &stack);
     set_style(ctx, block, "font-size", &format!("{}px", format_px(size)));
-    set_style(ctx, block, "line-height", "1.2");
+    set_style(ctx, block, "line-height", block_line_height);
     if paint.font_bold {
         set_style(ctx, block, "font-weight", "700");
     }
@@ -347,6 +369,7 @@ fn paint_rich_paragraphs<I: StringIntern>(
             text_shadow: paint.text_shadow,
             geom_rect_padding: paint.geom_rect_padding,
             presentation_kinsoku: paint.presentation_kinsoku,
+            body_box_height_px: paint.body_box_height_px,
         };
         let para_rtl = para_model.rtl.or(body_rtl);
         let is_rtl = para_rtl == Some(true);
@@ -493,6 +516,7 @@ fn merge_run_level_paint<'a>(
             text_shadow: base.text_shadow,
             geom_rect_padding: base.geom_rect_padding,
             presentation_kinsoku: base.presentation_kinsoku,
+            body_box_height_px: base.body_box_height_px,
         },
         size,
     )
@@ -622,7 +646,7 @@ fn append_paint_run<I: StringIntern>(
                 base,
                 &display_text,
                 size,
-                paint.font_family,
+                stack,
                 paint.font_bold,
                 paint.font_italic,
             );
@@ -744,11 +768,11 @@ fn paint_run_text_span<I: StringIntern>(
     run_line_height_zero: bool,
     east_asian: Option<EastAsianBreakOptions>,
     following: Option<char>,
-    gdi_run_was_split: bool,
+    _gdi_run_was_split: bool,
 ) -> u32 {
     let wrap_none = paint.layout.is_some_and(|l| l.wrap_none);
-    let emit_gdi_tracking = !wrap_none
-        && (gdi_run_was_split || should_emit_gdi_tracking_for_run(text, run_model.underline));
+    let emit_gdi_tracking =
+        !wrap_none && should_emit_gdi_tracking_for_run(text, run_model.underline);
     if let Some(script_fonts) = &run_model.script_fonts {
         let script_runs = crate::unicode_script::segment_by_script(text);
         let needs_split = script_runs.len() > 1
@@ -774,6 +798,7 @@ fn paint_run_text_span<I: StringIntern>(
                     text_shadow: paint.text_shadow,
                     geom_rect_padding: paint.geom_rect_padding,
                     presentation_kinsoku: paint.presentation_kinsoku,
+                    body_box_height_px: paint.body_box_height_px,
                 };
                 let seg_stack = substitute_font_family_stack(seg_paint.font_family);
                 let seg_following = if idx + 1 < script_runs.len() {
@@ -905,7 +930,7 @@ fn paint_run_span_styles<I: StringIntern>(
             run,
             metric_text,
             size,
-            paint.font_family,
+            stack,
             paint.font_bold,
             paint.font_italic,
         );
@@ -1096,7 +1121,7 @@ fn paint_css_tab_run<I: StringIntern>(
             run,
             display_text,
             size,
-            paint.font_family,
+            stack,
             paint.font_bold,
             paint.font_italic,
         );
@@ -1173,7 +1198,7 @@ fn paint_tabbed_run<I: StringIntern>(
                 piece,
                 text,
                 size,
-                paint.font_family,
+                stack,
                 paint.font_bold,
                 paint.font_italic,
             );
@@ -1258,23 +1283,14 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
     para: u32,
     text: &str,
     size_px: f64,
-    _font_family: Option<&str>,
+    stack: &str,
     bold: bool,
     italic: bool,
 ) {
     if text.is_empty() {
         return;
     }
-    // Visual host pins painted glyphs to Liberation; GDI tracking must measure the same face.
-    apply_gdi_metric_letter_spacing_with_stack(
-        ctx,
-        para,
-        text,
-        size_px,
-        VISUAL_HOST_RUN_FONT_STACK,
-        bold,
-        italic,
-    );
+    apply_gdi_metric_letter_spacing_with_stack(ctx, para, text, size_px, stack, bold, italic);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1567,6 +1583,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
+            body_box_height_px: None,
         });
         assert!(
             intern.0.iter().any(|s| s == "2px currentColor"),
@@ -1593,6 +1610,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
+            body_box_height_px: None,
         });
         assert!(
             intern.0.iter().any(|s| s == "3.31px #000000"),
@@ -1618,6 +1636,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
+            body_box_height_px: None,
         });
         assert!(
             intern.0.iter().any(|s| s == "1.2"),
@@ -1643,6 +1662,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
+            body_box_height_px: None,
         });
         assert!(
             intern
@@ -1686,6 +1706,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
+            body_box_height_px: None,
         });
         assert!(
             intern.0.iter().any(|s| s == "nowrap"),
@@ -1716,6 +1737,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: true,
+            body_box_height_px: None,
         });
         assert!(
             intern.0.iter().any(|s| s == "overflow-wrap"),
@@ -1765,6 +1787,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
+            body_box_height_px: None,
         });
         assert!(intern.0.iter().any(|s| s == "span"));
         assert!(intern.0.iter().any(|s| s == "font-weight"));
@@ -1788,6 +1811,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
+            body_box_height_px: None,
         });
         assert!(intern.0.iter().any(|s| s == "pptxv-para"));
         assert!(intern.0.iter().any(|s| s == "p"));
@@ -1817,6 +1841,7 @@ mod tests {
                 text_shadow: None,
                 geom_rect_padding: TextBodyRectPadding::default(),
                 presentation_kinsoku: false,
+                body_box_height_px: None,
             },
             measure,
             Some(intern),
@@ -1864,6 +1889,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
+            body_box_height_px: None,
         });
         assert!(
             !intern.0.iter().any(|s| s == "border-box"),
@@ -1899,6 +1925,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
+            body_box_height_px: None,
         });
         assert!(
             intern.0.iter().any(|s| s == "9.6px"),
@@ -1934,6 +1961,7 @@ mod tests {
             text_shadow: None,
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
+            body_box_height_px: None,
         });
         assert!(
             intern.0.iter().any(|s| s == "24px"),

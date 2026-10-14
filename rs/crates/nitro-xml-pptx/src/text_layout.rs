@@ -1333,6 +1333,50 @@ pub fn resolve_css_text_align(align: Option<TextAlignCss>, is_rtl: bool) -> Opti
     }
 }
 
+/// Resolve a painted line's height in px from block `line-height` CSS (upstream `lineHeightToPx`).
+pub fn line_height_to_px(font_size_px: f64, line_height_css: Option<&str>) -> f64 {
+    if font_size_px <= 0.0 || !font_size_px.is_finite() {
+        return 0.0;
+    }
+    match line_height_css {
+        Some(s) if s.ends_with("pt") => {
+            let n = s.trim_end_matches("pt").parse::<f64>().unwrap_or(0.0);
+            n * (96.0 / 72.0)
+        }
+        Some(s) => font_size_px * s.parse::<f64>().unwrap_or(DEFAULT_LINE_HEIGHT),
+        None => font_size_px * DEFAULT_LINE_HEIGHT,
+    }
+}
+
+/// `a:bodyPr/@vertOverflow="clip"|"ellipsis"` whole-line clip (upstream `resolveVertOverflowClipLines`).
+pub fn resolve_vert_overflow_clip_lines(
+    content_height_px: f64,
+    padding_bottom_px: f64,
+    line_height_px: f64,
+) -> Option<String> {
+    if line_height_px <= 0.0
+        || !line_height_px.is_finite()
+        || content_height_px <= line_height_px
+    {
+        return None;
+    }
+    let lines = (content_height_px / line_height_px).floor();
+    let hidden = content_height_px - lines * line_height_px;
+    if hidden < 0.5 {
+        return None;
+    }
+    let bottom = ((padding_bottom_px + hidden) * 100.0).round() / 100.0;
+    Some(format!("inset(0 0 {}px 0)", format_clip_px(bottom)))
+}
+
+fn format_clip_px(v: f64) -> String {
+    if (v - v.round()).abs() < 1e-6 {
+        format!("{}", v.round() as i64)
+    } else {
+        format!("{}", v)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nitro_xml_opc::xml::parse_xml_str;
@@ -1409,6 +1453,13 @@ mod tests {
         assert_eq!(paras[1].tab_stops.len(), 1);
         assert!((paras[1].tab_stops[0].position_px - 288.0).abs() < 0.1);
         assert!(paras[1].runs[0].text.contains('\t'));
+    }
+
+    // Catches: vertOverflow clip leaving a half line visible when only overflow:hidden is used.
+    #[test]
+    fn vert_overflow_clip_inset_matches_upstream() {
+        let clip = resolve_vert_overflow_clip_lines(100.0, 5.0, 24.0);
+        assert_eq!(clip.as_deref(), Some("inset(0 0 9px 0)"));
     }
 
     // Catches: subtitle/body placeholders skip txStyle lnSpc so line-height stays 1.2 not 0.9×1.2.

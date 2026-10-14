@@ -1354,10 +1354,7 @@ pub fn resolve_vert_overflow_clip_lines(
     padding_bottom_px: f64,
     line_height_px: f64,
 ) -> Option<String> {
-    if line_height_px <= 0.0
-        || !line_height_px.is_finite()
-        || content_height_px <= line_height_px
-    {
+    if line_height_px <= 0.0 || !line_height_px.is_finite() || content_height_px <= line_height_px {
         return None;
     }
     let lines = (content_height_px / line_height_px).floor();

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-import { scheduleMetafileAttr, scheduleMetafileStyle } from "./metafile-resolve.js";
+import { scheduleMetafileAttr } from "./metafile-resolve.js";
 
 export const Op = Object.freeze({
 FillRect: 1,
@@ -158,10 +158,7 @@ const el = nodes.get(id);
 if (el) {
 const prop = target.resolve(propId);
 const val = target.resolve(valId);
-if (prop != null) {
-el.style[prop] = val ?? "";
-scheduleMetafileStyle(el, prop, val ?? "");
-}
+if (prop != null) el.style[prop] = val ?? "";
 }
 ops++;
 break;

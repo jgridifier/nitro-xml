@@ -32,10 +32,7 @@ pub fn trim_paragraph_trailing_runs(
         {
             break;
         }
-        let trimmed = last
-            .text
-            .trim_end_matches([' ', '\u{3000}'])
-            .to_owned();
+        let trimmed = last.text.trim_end_matches([' ', '\u{3000}']).to_owned();
         changed = true;
         if !trimmed.is_empty() {
             let mut run = out.pop().unwrap();

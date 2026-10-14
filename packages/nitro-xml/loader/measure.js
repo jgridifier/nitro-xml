@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-/** Batched measureText. sizePx -1/−2 = lineHeight/ascent; -3 = pptx GDI track; -4 = hang-punct word-spacing. */
+/** Batched measureText. sizePx -1/−2=lineHeight/ascent; -3=GDI track; -4=hang-punct spacing. */
 export function fillMeasureWidths(ctx, n, fontAt, sizeAt, textAt) {
   const widths = new Float64Array(n);
   if (!ctx) return widths;
@@ -9,7 +9,6 @@ export function fillMeasureWidths(ctx, n, fontAt, sizeAt, textAt) {
       text = textAt(i) || "";
     ctx.font = /\d+(\.\d+)?px/.test(f) ? f : `${sz < 0 ? 12 : sz}px ${f}`;
     if (sz === -3) {
-      // GDI: round advances to 1/6px (upstream text-metric-tracking).
       if (!text) {
         widths[i] = 0;
         continue;
@@ -26,22 +25,15 @@ export function fillMeasureWidths(ctx, n, fontAt, sizeAt, textAt) {
         prev = w;
       }
       ctx.fontKerning = "auto";
-      const nat = ctx.measureText(text).width,
-        lim = 1 / 12;
-      widths[i] = nat > 0 ? Math.min(lim, Math.max(-lim, (ppt / 6 - nat) / ch.length)) : 0;
+      const nat = ctx.measureText(text).width;
+      widths[i] = nat > 0 ? Math.min(1 / 12, Math.max(-1 / 12, (ppt / 6 - nat) / ch.length)) : 0;
       continue;
     }
     if (sz === -4) {
-      const ch = text.startsWith("pptx-hang-space:")
-        ? text.slice("pptx-hang-space:".length)
-        : text;
-      if (!ch) {
-        widths[i] = 0;
-        continue;
-      }
-      const glyph = ctx.measureText(ch).width;
-      const space = ctx.measureText(" ").width;
-      widths[i] = Math.round((glyph - space) * 1000) / 1000;
+      const ch = text.startsWith("pptx-hang-space:") ? text.slice(16) : text;
+      widths[i] = ch
+        ? Math.round((ctx.measureText(ch).width - ctx.measureText(" ").width) * 1e3) / 1e3
+        : 0;
       continue;
     }
     const m = ctx.measureText(sz < 0 ? "Mg" : text),

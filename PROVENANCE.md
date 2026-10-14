@@ -180,6 +180,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/render/ole.rs` | `dom/elements/ole.ts` @ e66aaec | P15 OLE preview `<img>` when `previewImageData` resolved; otherwise the `[OLE]` stub (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/group.rs` | `dom/elements/group.ts` @ e66aaec | P6 group (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/connector.rs` | `dom/elements/connector.ts` @ e66aaec | P7 connector SVG stub (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/connector_geometry.rs` | `src/core/pptx/core/geometry/connector-geometry.ts`, `connector-preset-geometry.ts` @ e66aaec | Bent/curved connector SVG paths via DrawingML preset eval (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/connector_markers.rs` | `src/ui/src/pptx/render/connector-markers.ts` @ e66aaec | Connector headEnd/tailEnd SVG `<marker>` defs (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/table.rs` | `dom/elements/table.ts` @ e66aaec | P8 HTML table: colgroup percentages, skip `hMerge`/`vMerge`, cell text, fill, and border (#27). |
 | `rs/crates/nitro-xml-docx/src/body.rs` | `src/core/docx/parse.ts`, `block-parser.ts`, `document-parts.ts` @ e66aaec | `read_package`, block container parse, document parts orchestration; no save path. |
 | `rs/crates/nitro-xml-docx/src/run.rs` | `src/core/docx/block-parser.ts` (`parseRun`) @ e66aaec | Run parse for body/HF/notes. |

@@ -31,6 +31,7 @@ export const HARD_FIXTURES = new Set([
 	'fixtures/real/xlsx/poi-57893-many-merges.xlsx',
 	'fixtures/real/xlsx/poi-61652.xlsx',
 	'fixtures/real/xlsx/poi-ExcelPivotTableSample.xlsx',
+	'fixtures/real/xlsx/poi-ExcelWithAttachments.xlsm',
 	'fixtures/real/xlsx/poi-FormulaEvalTestData_Copy.xlsx',
 	'fixtures/real/xlsx/poi-StructuredRefs-lots-with-lookups.xlsx',
 	'fixtures/real/xlsx/poi-WithChartSheet.xlsx',

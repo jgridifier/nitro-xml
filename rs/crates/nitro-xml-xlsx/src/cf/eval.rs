@@ -3,7 +3,7 @@
 // cf-helpers.ts, cf-values.ts, data-bar-geometry.ts (cellIs/iconSet/colorScale/dataBar/
 // expression path); changes listed in PROVENANCE.md.
 
-use crate::cf::expr::eval_cf_expression;
+use crate::cf::expr::{eval_cf_expression, eval_cf_formula_number};
 use crate::model::{
     ActiveWorksheet, CfvoThreshold, Color, ConditionalFormat, ConditionalRule, DifferentialStyle,
     DumpCellValue, ThemePalette,
@@ -114,10 +114,20 @@ fn range_numbers(
     nums
 }
 
-fn threshold_value(t: &CfvoThreshold, nums: &[f64]) -> f64 {
+fn threshold_value(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    t: &CfvoThreshold,
+    nums: &[f64],
+) -> f64 {
     let min = nums.first().copied().unwrap_or(0.0);
     let max = nums.last().copied().unwrap_or(0.0);
-    let n = t.value.as_deref().and_then(literal_number).unwrap_or(0.0);
+    // Upstream `n()`: literal first, else evaluate formula (incl. `$T$5` cell refs).
+    let n = t
+        .value
+        .as_deref()
+        .and_then(|v| literal_number(v).or_else(|| eval_cf_formula_number(sheet, index, v)))
+        .unwrap_or(0.0);
     match t.kind.as_str() {
         "min" => min,
         "max" => max,
@@ -341,7 +351,7 @@ pub fn cf_at(
                 let nums = range_numbers(sheet, index, format);
                 let cuts: Vec<f64> = thresholds
                     .iter()
-                    .map(|t| threshold_value(t, &nums))
+                    .map(|t| threshold_value(sheet, index, t, &nums))
                     .collect();
                 let css: Vec<String> = colors
                     .iter()
@@ -368,8 +378,8 @@ pub fn cf_at(
                 };
                 let nums = range_numbers(sheet, index, format);
                 // Match x14 autoMin/autoMax + automatic axis defaults used by Excel 2010+ samples.
-                let data_lo = threshold_value(min, &nums);
-                let data_hi = threshold_value(max, &nums);
+                let data_lo = threshold_value(sheet, index, min, &nums);
+                let data_hi = threshold_value(sheet, index, max, &nums);
                 let lo = data_lo.min(0.0);
                 let hi = data_hi.max(0.0);
                 let (start, fraction, axis_frac) = data_bar_geometry(n, lo, hi);
@@ -380,14 +390,22 @@ pub fn cf_at(
                 } else {
                     (positive.clone(), positive)
                 };
+                // Upstream: `rtl !== geometry.reverse ? 'rightToLeft' : 'leftToRight'`
+                // with LTR sheet + negative values → reverse → rightToLeft.
+                let direction = if n < 0.0 {
+                    "rightToLeft"
+                } else {
+                    "leftToRight"
+                };
                 result.data_bar = Some(DataBarView {
                     fraction,
                     start: Some(start),
                     axis: axis_frac.map(|f| (f, "#000000".into())),
                     color: css,
                     negative: if n < 0.0 { Some(true) } else { None },
-                    gradient: None,
-                    direction: None,
+                    // Upstream dataBarAppearance default gradient true.
+                    gradient: Some(true),
+                    direction: Some(direction.into()),
                     // x14 `border="1"` (NewStyle E2:E17).
                     border_color: Some(border),
                 });
@@ -413,7 +431,7 @@ pub fn cf_at(
                 let nums = range_numbers(sheet, index, format);
                 let cuts: Vec<f64> = thresholds
                     .iter()
-                    .map(|t| threshold_value(t, &nums))
+                    .map(|t| threshold_value(sheet, index, t, &nums))
                     .collect();
                 let mut idx = icon_index(n, &cuts, thresholds);
                 if *reverse && !thresholds.is_empty() {
@@ -570,6 +588,27 @@ mod tests {
             }],
             dimension: None,
         }
+    }
+
+    #[test]
+    fn formula_cfvo_reads_cell_threshold() {
+        // Catches: iconSet cfvo type=formula val=$T$5 treated as 0 so NewStyle T-column icons drift.
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/xlsx/poi-NewStyleConditionalFormattings.xlsx"
+        ))
+        .expect("fixture");
+        let wb = crate::load_workbook(&bytes).expect("wb");
+        let sheet = wb.active_worksheet.as_ref().expect("active");
+        let index = CellIndex::build(sheet);
+        // T2=1 → yellow (index 1); T5=20 → green (index 2); T14=-1 → red (index 0).
+        let t2 = cf_icon_at(sheet, &index, 1, 19).expect("T2");
+        assert_eq!(t2.set, "3TrafficLights2");
+        assert_eq!(t2.index, 1, "T2=1 should be mid bucket once $T$5→20");
+        let t5 = cf_icon_at(sheet, &index, 4, 19).expect("T5");
+        assert_eq!(t5.index, 2, "T5=20 should reach formula threshold");
+        let t14 = cf_icon_at(sheet, &index, 13, 19).expect("T14");
+        assert_eq!(t14.index, 0, "T14=-1 should stay in low bucket");
     }
 
     #[test]

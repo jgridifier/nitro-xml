@@ -101,6 +101,44 @@ fn cell_text(sheet: &ActiveWorksheet, index: &CellIndex, row: u32, col: u32) -> 
     }
 }
 
+fn cell_number_value(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    row: u32,
+    col: u32,
+) -> Option<f64> {
+    match get_cell(sheet, index, row, col).map(|c| &c.value) {
+        Some(DumpCellValue::Number(n)) if n.is_finite() => Some(*n),
+        Some(DumpCellValue::NumberRaw(s)) => s.trim().parse::<f64>().ok().filter(|n| n.is_finite()),
+        Some(DumpCellValue::Bool(b)) => Some(if *b { 1.0 } else { 0.0 }),
+        Some(DumpCellValue::String(s)) => s.trim().parse::<f64>().ok().filter(|n| n.is_finite()),
+        _ => None,
+    }
+}
+
+/// Resolve a CF threshold / operand formula to a number (literal or A1 cell ref).
+///
+/// Formula-type `cfvo` values like `$T$5` are evaluated at the format anchor with
+/// no relative shift (upstream `thresholdValue` → `run` at `ranges[0].start`).
+pub fn eval_cf_formula_number(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    formula: &str,
+) -> Option<f64> {
+    let text = formula.trim().trim_start_matches('=');
+    if text.is_empty() {
+        return None;
+    }
+    if let Ok(n) = text.parse::<f64>() {
+        if n.is_finite() {
+            return Some(n);
+        }
+    }
+    let r = parse_ref(text)?;
+    let (row, col) = relocate(r, 0, 0)?;
+    cell_number_value(sheet, index, row, col)
+}
+
 fn unquote(s: &str) -> Option<String> {
     let t = s.trim();
     if t.len() >= 2 && t.starts_with('"') && t.ends_with('"') {
@@ -307,6 +345,51 @@ mod tests {
             conditional_formats: vec![],
             dimension: None,
         }
+    }
+
+    #[test]
+    fn formula_number_resolves_absolute_cell_ref() {
+        // Catches: formula cfvo `$T$5` stays 0 so iconSet cuts collapse and NewStyle icons drift.
+        let sheet = ActiveWorksheet {
+            name: "t".into(),
+            sheet_id: 1,
+            state: SheetState::Visible,
+            part_name: None,
+            default_row_height: 15.0,
+            default_col_width: None,
+            format: None,
+            view: default_sheet_view(),
+            columns: vec![],
+            merges: vec![],
+            row_info: BTreeMap::new(),
+            cells: vec![DumpCell {
+                row: 4,
+                col: 19,
+                value: DumpCellValue::Number(20.0),
+                type_tag: None,
+                formula: None,
+                style_id: None,
+                rich_text: None,
+                array_range: None,
+                legacy_formula: None,
+                dynamic_array: None,
+                spill_anchor: None,
+                cell_metadata: None,
+                value_metadata: None,
+            }],
+            data_validations: vec![],
+            comment_addresses: vec![],
+            hyperlinks: vec![],
+            ext_lst: vec![],
+            sparkline_groups: vec![],
+            drawings: vec![],
+            conditional_formats: vec![],
+            dimension: None,
+        };
+        let index = CellIndex::build(&sheet);
+        assert_eq!(eval_cf_formula_number(&sheet, &index, "$T$5"), Some(20.0));
+        assert_eq!(eval_cf_formula_number(&sheet, &index, "33"), Some(33.0));
+        assert_eq!(eval_cf_formula_number(&sheet, &index, "U9"), None);
     }
 
     #[test]

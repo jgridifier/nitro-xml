@@ -35,6 +35,14 @@ fn paint_grid<I: StringIntern>(ctx: &mut PaintContext<'_, I>, parent: u32, data:
         "font-family",
         "\"Liberation Sans\", Arial, sans-serif",
     );
+    // Upstream `defaultCellFontSize` from master `p:otherStyle` lvl1 (commonly 18pt).
+    if let Some(pt) = data.default_cell_font_size_pt.filter(|p| *p > 0.0) {
+        let s = format!("{pt:.4}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_owned();
+        set_style(ctx, table, "font-size", &format!("{s}pt"));
+    }
     set_style(ctx, table, "color", "#111827");
     append_colgroup(ctx, table, &data.column_widths);
     let tbody = create_child(ctx, table, "tbody");

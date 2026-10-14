@@ -26,6 +26,8 @@ pub(crate) struct TableData {
     /// Column widths as fractions of the grid (sum to 1).
     pub column_widths: Vec<f64>,
     pub rows: Vec<TableRow>,
+    /// Master `p:otherStyle` lvl1 `defRPr/@sz` in points (upstream `defaultCellFontSize`).
+    pub default_cell_font_size_pt: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +58,7 @@ pub(crate) fn parse_table_model(
     theme_colors: Option<&BTreeMap<String, String>>,
     color_map: Option<&ThemeColorMap>,
     table_style_map: Option<&TableStyleMap>,
+    default_cell_font_size_pt: Option<f64>,
 ) -> TableData {
     let fallback = crate::theme::default_scheme_color_map();
     let colors = theme_colors.unwrap_or(&fallback);
@@ -108,6 +111,7 @@ pub(crate) fn parse_table_model(
     TableData {
         column_widths,
         rows,
+        default_cell_font_size_pt,
     }
 }
 

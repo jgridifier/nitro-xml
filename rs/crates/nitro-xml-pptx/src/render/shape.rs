@@ -47,7 +47,9 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         set_attr(ctx, id, "data-shape-type", st);
         apply_preset_geometry(ctx, id, st, el.width, painted_h);
     }
-    let stroke_width = el.stroke_width_px.unwrap_or(1.0).max(0.0);
+    // Upstream only paints an outline when `strokeWidth > 0`; an `a:ln` with
+    // solidFill but no `@w` must not invent a 1px hairline (be4aaa).
+    let stroke_width = el.stroke_width_px.unwrap_or(0.0).max(0.0);
     let wants_paint_server = matches!(
         el.stroke_fill_mode.as_deref(),
         Some("pattern") | Some("gradient")

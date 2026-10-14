@@ -17,31 +17,40 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
 }
 
 fn paint_preview<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
+    // Outer wrapper stays `position:absolute` from `position_box` (upstream
+    // `getContainerStyle`). Nested preview is the relative host for the badge.
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
     set_attr(ctx, id, "data-pptx-element", "true");
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "ole");
-    set_style(ctx, id, "position", "relative");
-    let img = create_child(ctx, id, "img");
+
+    let preview = create_child(ctx, id, "div");
+    set_attr(ctx, preview, "class", "pptxv-ole-preview");
+    set_style(ctx, preview, "position", "relative");
+    set_style(ctx, preview, "width", "100%");
+    set_style(ctx, preview, "height", "100%");
+
+    let img = create_child(ctx, preview, "img");
     set_attr(ctx, img, "alt", el.name.as_deref().unwrap_or(""));
     set_style(ctx, img, "width", "100%");
     set_style(ctx, img, "height", "100%");
     set_style(ctx, img, "object-fit", "contain");
     set_style(ctx, img, "display", "block");
+    set_style(ctx, img, "pointer-events", "none");
     if let Some(src) = el.image_src.as_deref() {
         // Prefer <img src> so the loader can resolve nitro-metafile: → PNG.
         set_attr(ctx, img, "src", src);
         if !src.starts_with("nitro-metafile:") {
             let url = format!("url({src})");
-            set_style(ctx, id, "background-image", &url);
-            set_style(ctx, id, "background-size", "contain");
-            set_style(ctx, id, "background-repeat", "no-repeat");
-            set_style(ctx, id, "background-position", "center");
+            set_style(ctx, preview, "background-image", &url);
+            set_style(ctx, preview, "background-size", "contain");
+            set_style(ctx, preview, "background-repeat", "no-repeat");
+            set_style(ctx, preview, "background-position", "center");
         }
     }
     // Upstream `buildPreview` type badge (bottom-right).
-    let badge = create_child(ctx, id, "div");
+    let badge = create_child(ctx, preview, "div");
     set_attr(ctx, badge, "aria-hidden", "true");
     set_style(ctx, badge, "position", "absolute");
     set_style(ctx, badge, "bottom", "4px");

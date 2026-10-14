@@ -147,11 +147,7 @@ pub fn chart_font_metrics(
     let line_height = batch.cached_width(font_id, lh_id);
     match (ascent, line_height) {
         (Some(a), Some(lh))
-            if a.is_finite()
-                && lh.is_finite()
-                && a >= 0.0
-                && lh >= a
-                && a + (lh - a) > 0.0 =>
+            if a.is_finite() && lh.is_finite() && a >= 0.0 && lh >= a && a + (lh - a) > 0.0 =>
         {
             Some((a, lh - a))
         }

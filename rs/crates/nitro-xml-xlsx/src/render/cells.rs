@@ -190,7 +190,10 @@ fn paint_one_cell<I: StringIntern>(
         let size = (16.0 * (zoom / 100.0)).round().max(1.0) as u32;
         // Empty host div; loader adopts the root <svg class="xg-ic"> (apply.js).
         buf.create_element(icon_id, div, cell_id);
-        buf.set_inner_markup(icon_id, intern.intern(&icon_svg(&icon.set, icon.index, size)));
+        buf.set_inner_markup(
+            icon_id,
+            intern.intern(&icon_svg(&icon.set, icon.index, size)),
+        );
     }
 
     if !item.text.is_empty() {

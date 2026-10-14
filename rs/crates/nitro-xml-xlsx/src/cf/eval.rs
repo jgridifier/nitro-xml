@@ -429,26 +429,20 @@ pub fn cf_at(
                 stop_if_true,
                 ..
             } => {
-                // Upstream `run`: literal, else A1/formula (incl. `$G$5` / `$G$2` "Grain").
-                let matched = if let Some(n) = number {
-                    let a = formulas
-                        .first()
-                        .and_then(|f| {
-                            literal_number(f).or_else(|| eval_cf_formula_number(sheet, index, f))
-                        })
-                        .unwrap_or(0.0);
-                    let b = formulas.get(1).and_then(|f| {
-                        literal_number(f).or_else(|| eval_cf_formula_number(sheet, index, f))
-                    });
-                    test_operator(operator, n, a, b)
-                } else if operator == "equal" || operator == "notEqual" {
+                // Quoted string operands (`" "`) must not coerce to 0 — number≠text in Excel.
+                let first = formulas.first().map(String::as_str).unwrap_or("");
+                let quoted = {
+                    let t = first.trim().trim_start_matches('=');
+                    t.len() >= 2 && t.starts_with('"') && t.ends_with('"')
+                };
+                let matched = if quoted || number.is_none() {
+                    if operator != "equal" && operator != "notEqual" {
+                        continue;
+                    }
                     let Some(hay) = cell_text_value(value) else {
                         continue;
                     };
-                    let Some(rhs) = formulas
-                        .first()
-                        .and_then(|f| eval_cf_formula_text(sheet, index, f))
-                    else {
+                    let Some(rhs) = eval_cf_formula_text(sheet, index, first) else {
                         continue;
                     };
                     let eq = hay.eq_ignore_ascii_case(&rhs);
@@ -457,6 +451,14 @@ pub fn cf_at(
                     } else {
                         !eq
                     }
+                } else if let Some(n) = number {
+                    let a = literal_number(first)
+                        .or_else(|| eval_cf_formula_number(sheet, index, first))
+                        .unwrap_or(0.0);
+                    let b = formulas.get(1).and_then(|f| {
+                        literal_number(f).or_else(|| eval_cf_formula_number(sheet, index, f))
+                    });
+                    test_operator(operator, n, a, b)
                 } else {
                     continue;
                 };
@@ -768,7 +770,7 @@ impl From<CfIcon> for IconView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{CellAddress, CellRange, DumpCell, SheetState};
+    use crate::model::{CellAddress, CellRange, Color, DumpCell, SheetState, ThemePalette};
     use crate::sheet_props::default_sheet_view;
     use std::collections::BTreeMap;
 
@@ -865,6 +867,86 @@ mod tests {
             }],
             dimension: None,
         }
+    }
+
+    #[test]
+    fn cell_is_quoted_space_does_not_match_number_zero() {
+        // Catches: cellIs equal `" "` coerces operand to 0 so StructuredRefs paints theme-0 white over gray.
+        let sheet = ActiveWorksheet {
+            name: "t".into(),
+            sheet_id: 1,
+            state: SheetState::Visible,
+            part_name: None,
+            default_row_height: 15.0,
+            default_col_width: None,
+            format: None,
+            view: default_sheet_view(),
+            columns: vec![],
+            merges: vec![],
+            row_info: BTreeMap::new(),
+            cells: vec![DumpCell {
+                row: 0,
+                col: 0,
+                value: DumpCellValue::Number(0.0),
+                type_tag: None,
+                formula: None,
+                style_id: None,
+                rich_text: None,
+                array_range: None,
+                legacy_formula: None,
+                dynamic_array: None,
+                spill_anchor: None,
+                cell_metadata: None,
+                value_metadata: None,
+            }],
+            data_validations: vec![],
+            comment_addresses: vec![],
+            hyperlinks: vec![],
+            ext_lst: vec![],
+            sparkline_groups: vec![],
+            drawings: vec![],
+            conditional_formats: vec![ConditionalFormat {
+                ranges: vec![CellRange {
+                    start: CellAddress { row: 0, col: 0 },
+                    end: CellAddress { row: 0, col: 0 },
+                }],
+                rules: vec![ConditionalRule::CellIs {
+                    operator: "equal".into(),
+                    formulas: vec!["\" \"".into()],
+                    style: DifferentialStyle {
+                        font: None,
+                        fill: Some(crate::model::Fill::Pattern {
+                            pattern: "solid".into(),
+                            fg_color: Some(Color {
+                                rgb: Some("FFFFFFFF".into()),
+                                theme: None,
+                                tint: None,
+                                indexed: None,
+                                auto: None,
+                            }),
+                            bg_color: None,
+                        }),
+                        border: None,
+                        num_fmt: None,
+                    },
+                    priority: 1,
+                    stop_if_true: false,
+                }],
+            }],
+            dimension: None,
+        };
+        let index = CellIndex::build(&sheet);
+        let theme = ThemePalette {
+            colors: vec!["FFFFFF".into()],
+            major_font: String::new(),
+            minor_font: String::new(),
+        };
+        assert!(
+            cf_at(&sheet, &index, 0, 0, &theme, &[])
+                .and_then(|a| a.style)
+                .is_none(),
+            "number 0 must not equal quoted space"
+        );
     }
 
     #[test]

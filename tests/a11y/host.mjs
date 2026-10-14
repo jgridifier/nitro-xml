@@ -16,9 +16,45 @@ const A11Y = dirname(fileURLToPath(import.meta.url));
 
 export { ROOT, VISUAL, A11Y };
 
+/** Playwright engines used by the a11y gate (#42 / #29 cross-browser AC). */
+export const A11Y_BROWSER_NAMES = /** @type {const} */ (['chromium', 'webkit', 'firefox']);
+
+/**
+ * Browsers to run. Default: all three. Override with `A11Y_BROWSERS=chromium,webkit`.
+ * AX-tree stays Chromium-only (CDP Accessibility.getFullAXTree).
+ */
+export function a11yBrowsersFromEnv() {
+	const raw = (process.env.A11Y_BROWSERS || A11Y_BROWSER_NAMES.join(','))
+		.split(',')
+		.map((s) => s.trim().toLowerCase())
+		.filter(Boolean);
+	const out = [];
+	for (const name of raw) {
+		if (!A11Y_BROWSER_NAMES.includes(/** @type {*} */ (name))) {
+			throw new Error(`a11y: unknown browser ${name} (want ${A11Y_BROWSER_NAMES.join('|')})`);
+		}
+		if (!out.includes(name)) out.push(name);
+	}
+	return out.length ? out : [...A11Y_BROWSER_NAMES];
+}
+
+export async function loadPlaywright() {
+	return import(pathToFileURL(join(VISUAL, 'node_modules/playwright/index.mjs')).href);
+}
+
 export async function loadChromium() {
-	const mod = await import(pathToFileURL(join(VISUAL, 'node_modules/playwright/index.mjs')).href);
+	const mod = await loadPlaywright();
 	return mod.chromium;
+}
+
+/**
+ * @param {'chromium'|'webkit'|'firefox'} name
+ */
+export async function loadBrowserType(name) {
+	const mod = await loadPlaywright();
+	const t = mod[name];
+	if (!t) throw new Error(`a11y: playwright has no engine ${name}`);
+	return t;
 }
 
 export async function startA11yServer() {

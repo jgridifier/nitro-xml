@@ -76,6 +76,7 @@ async function main() {
 
 	const summary = [
 		`a11y: ${ok ? 'PASS' : 'FAIL'}`,
+		`browsers: axe+keyboard on Chromium/WebKit/Firefox; ax-tree Chromium-only (CDP)`,
 		...formatLines,
 		axe.summary,
 		ax.summary,

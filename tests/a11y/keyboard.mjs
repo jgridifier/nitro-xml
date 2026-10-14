@@ -9,7 +9,8 @@ import { pathToFileURL } from 'node:url';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import {
 	A11Y,
-	loadChromium,
+	a11yBrowsersFromEnv,
+	loadBrowserType,
 	startA11yServer,
 	hostUrl,
 	waitReady,
@@ -183,16 +184,25 @@ async function checkCase(c, browser, base) {
 export async function runKeyboardChecks() {
 	ensureVisualBundles();
 	mkdirSync(join(A11Y, 'out'), { recursive: true });
-	const chromium = await loadChromium();
+	const browsers = a11yBrowsersFromEnv();
 	const server = await startA11yServer();
-	const browser = await chromium.launch({ headless: true });
 	const results = [];
 	try {
-		for (const c of readyCases()) {
-			results.push(await checkCase(c, browser, server.url));
+		for (const browserName of browsers) {
+			const type = await loadBrowserType(browserName);
+			const browser = await type.launch({ headless: true });
+			try {
+				for (const c of readyCases()) {
+					const r = await checkCase(c, browser, server.url);
+					r.browser = browserName;
+					r.summary = `[${browserName}] ${r.summary}`;
+					results.push(r);
+				}
+			} finally {
+				await browser.close();
+			}
 		}
 	} finally {
-		await browser.close();
 		await server.close();
 	}
 	writeFileSync(join(A11Y, 'out/keyboard.json'), JSON.stringify(results, null, 2));
@@ -201,7 +211,10 @@ export async function runKeyboardChecks() {
 	return {
 		ok,
 		results,
-		summary: [`keyboard: ${ok ? 'PASS' : 'FAIL'} (${results.filter((r) => r.ok).length}/${results.length})`, ...lines].join('\n'),
+		summary: [
+			`keyboard: ${ok ? 'PASS' : 'FAIL'} (${results.filter((r) => r.ok).length}/${results.length}; browsers=${browsers.join(',')})`,
+			...lines,
+		].join('\n'),
 	};
 }
 

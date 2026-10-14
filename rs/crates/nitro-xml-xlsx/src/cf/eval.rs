@@ -372,17 +372,23 @@ pub fn cf_at(
                 let lo = data_lo.min(0.0);
                 let hi = data_hi.max(0.0);
                 let (start, fraction) = data_bar_geometry(n, lo, hi);
-                let css = resolve_rgb(color, theme, indexed);
+                let positive = resolve_rgb(color, theme, indexed);
+                // x14 defaults: negativeFill/Border #FF0000 when not same-as-positive (NewStyle).
+                let (css, border) = if n < 0.0 {
+                    ("#FF0000".to_string(), "#FF0000".to_string())
+                } else {
+                    (positive.clone(), positive)
+                };
                 result.data_bar = Some(DataBarView {
                     fraction,
                     start: Some(start),
                     axis: None,
-                    color: css.clone(),
+                    color: css,
                     negative: if n < 0.0 { Some(true) } else { None },
                     gradient: None,
                     direction: None,
-                    // x14 `border="1"` defaults borderColor to the fill (NewStyle E2:E17).
-                    border_color: Some(css),
+                    // x14 `border="1"` (NewStyle E2:E17).
+                    border_color: Some(border),
                 });
                 if !*show_value {
                     result.hide_value = true;

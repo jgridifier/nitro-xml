@@ -5,8 +5,8 @@
 
 use nitro_xml_opc::chart::parse_chart_space_xml;
 use nitro_xml_render::chart::{
-    probe_chart_space_measures, render_chart_space_svg, ChartSvgOptions, ChartThemeFonts,
-    RenderChartSpaceOptions, THEME_SLOTS,
+    render_chart_space_svg_probing, ChartSvgOptions, ChartThemeFonts, RenderChartSpaceOptions,
+    THEME_SLOTS,
 };
 use nitro_xml_render::command_buffer::CommandBuffer;
 use nitro_xml_render::measure::MeasureBatch;
@@ -150,38 +150,26 @@ pub fn paint<I: StringIntern>(
                 let parsed = parse_chart_space_xml(chart_xml);
                 let width = box_.w.max(1) as u32;
                 let height = box_.h.max(1) as u32;
-                // Queue canvas measureText probes (same document order as the SVG writer).
-                {
+                // Probe via shared MeasureBatch cache (cell painters also use this batch; do not
+                // consume sequential widths which mix cell and chart requests).
+                let svg = {
                     let mut intern_fn = |s: &str| intern.intern(s);
-                    probe_chart_space_measures(
+                    render_chart_space_svg_probing(
                         &parsed.chart_space,
-                        width,
-                        height,
+                        &RenderChartSpaceOptions {
+                            width,
+                            height,
+                            svg: ChartSvgOptions {
+                                theme_colors: theme_colors.clone(),
+                                theme_fonts: theme_fonts.clone(),
+                                picture_id_prefix: format!("xg-chart-{index}"),
+                                ..Default::default()
+                            },
+                        },
                         measures,
                         &mut intern_fn,
-                    );
-                }
-                let widths = if measures.widths.is_empty() {
-                    Vec::new()
-                } else {
-                    let w = measures.widths.clone();
-                    measures.widths.clear();
-                    w
+                    )
                 };
-                let svg = render_chart_space_svg(
-                    &parsed.chart_space,
-                    &RenderChartSpaceOptions {
-                        width,
-                        height,
-                        svg: ChartSvgOptions {
-                            measure_widths: widths,
-                            theme_colors: theme_colors.clone(),
-                            theme_fonts: theme_fonts.clone(),
-                            picture_id_prefix: format!("xg-chart-{index}"),
-                            ..Default::default()
-                        },
-                    },
-                );
                 buf.set_inner_markup(id, intern.intern(&svg));
             }
         }

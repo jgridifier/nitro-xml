@@ -94,26 +94,46 @@ pub fn probe_chart_space_measures(
     batch: &mut MeasureBatch,
     intern: &mut dyn FnMut(&str) -> u32,
 ) {
-    let measure = render::ChartSvgMeasureOptions::probing(batch, intern);
-    let _ = render::render_chart_space_svg(
+    let _ = render_chart_space_svg_probing(
         space,
-        &mut render::RenderChartSpaceOptions {
+        &RenderChartSpaceOptions {
             width,
             height,
-            measure,
-            theme_colors: None,
-            theme_fonts: ChartThemeFonts {
-                major: None,
-                minor: None,
-            },
-            chart_images: HashMap::new(),
-            picture_id_prefix: "chart".to_string(),
-            bar3d_extrusion: false,
-            picture_fills: false,
-            color_palette: None,
-            docx_chart_chrome: false,
+            svg: ChartSvgOptions::default(),
         },
+        batch,
+        intern,
     );
+}
+
+/// Render chart SVG while probing `batch` (uses cached widths when present; queues misses).
+///
+/// Prefer this over [`render_chart_space_svg`] when the host shares a [`MeasureBatch`] with
+/// other painters (xlsx cells): sequential `measure_widths` would be polluted by non-chart
+/// requests, while the cache is keyed by `(font, text)`.
+pub fn render_chart_space_svg_probing(
+    space: &ChartSpace,
+    options: &RenderChartSpaceOptions,
+    batch: &mut MeasureBatch,
+    intern: &mut dyn FnMut(&str) -> u32,
+) -> String {
+    let measure = render::ChartSvgMeasureOptions::probing(batch, intern);
+    render::render_chart_space_svg(
+        space,
+        &mut render::RenderChartSpaceOptions {
+            width: options.width,
+            height: options.height,
+            measure,
+            theme_colors: options.svg.theme_colors.clone(),
+            theme_fonts: options.svg.theme_fonts.clone(),
+            chart_images: options.svg.chart_images.clone(),
+            picture_id_prefix: options.svg.picture_id_prefix.clone(),
+            bar3d_extrusion: options.svg.bar3d_extrusion,
+            picture_fills: options.svg.picture_fills,
+            color_palette: options.svg.color_palette,
+            docx_chart_chrome: options.svg.docx_chart_chrome,
+        },
+    )
 }
 
 /// Encodes chart SVG into `buffer` as one `SetInnerMarkup` handoff; interns markup into `strings`.

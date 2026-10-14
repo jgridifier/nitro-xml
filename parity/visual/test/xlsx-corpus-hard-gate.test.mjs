@@ -22,6 +22,7 @@ test('hard xlsx corpus cases fail the gate on mismatch; soft stay informational'
 	expect(HARD_FIXTURES.has('fixtures/real/xlsx/poi-46535.xlsx')).toBe(true);
 	expect(HARD_FIXTURES.has('fixtures/real/xlsx/poi-ExcelWithAttachments.xlsm')).toBe(true);
 	expect(HARD_FIXTURES.has('fixtures/real/xlsx/poi-49156.xlsx')).toBe(true);
+	expect(HARD_FIXTURES.has('fixtures/real/xlsx/poi-62629_target.xlsm')).toBe(true);
 	expect(HARD_FIXTURES.has('fixtures/real/xlsx/usgov-fhwa-2022-vm1.xlsx')).toBe(true);
 	for (const c of hard) {
 		expect(hardFailForMismatch(c, false)).toBe(true);

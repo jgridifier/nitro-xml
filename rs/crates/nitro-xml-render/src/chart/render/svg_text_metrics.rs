@@ -55,6 +55,11 @@ impl ChartSvgMeasureOptions<'_> {
                     let font = css_font(attrs);
                     let font_id = intern(&font);
                     let text_id = intern(content);
+                    if let Some(w) = batch.cached_width(font_id, text_id) {
+                        if w.is_finite() && w >= 0.0 {
+                            return Some(w);
+                        }
+                    }
                     let size = attrs.size.unwrap_or(10.0) as f32;
                     batch.push(font_id, size, text_id);
                 }

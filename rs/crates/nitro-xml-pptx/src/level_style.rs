@@ -41,6 +41,14 @@ pub struct PlaceholderTextLevelStyle {
     pub indent_px: Option<f64>,
     /// `a:lvlNpPr/@algn` or `a:defPPr/@algn` from txStyles / lstStyle.
     pub paragraph_align: Option<TextAlignCss>,
+    /// `a:lnSpc/a:spcPct` multiplier (0.9 for val 90000), not yet stacked on 1.2.
+    pub line_spacing_multiplier: Option<f64>,
+    /// `a:lnSpc/a:spcPts` in points.
+    pub line_spacing_exact_pt: Option<f64>,
+    /// `a:spcBef` in CSS px when resolved.
+    pub paragraph_spacing_before_px: Option<f64>,
+    /// `a:spcAft` in CSS px when resolved.
+    pub paragraph_spacing_after_px: Option<f64>,
 }
 
 pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle {
@@ -71,6 +79,8 @@ pub fn parse_level_style_from_ppr(p_pr: &Element) -> Option<PlaceholderTextLevel
     style.paragraph_align = attr(p_pr, "algn").and_then(parse_paragraph_align);
     apply_paragraph_margin_attrs(&mut style, p_pr);
     apply_def_rpr(&mut style, p_pr);
+    let basis_font = style.font_size_px;
+    apply_paragraph_spacing_attrs(&mut style, p_pr, basis_font);
     if level_style_has_payload(&style) {
         Some(style)
     } else {
@@ -92,6 +102,73 @@ fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
         || style.margin_left_px.is_some()
         || style.indent_px.is_some()
         || style.paragraph_align.is_some()
+        || style.line_spacing_multiplier.is_some()
+        || style.line_spacing_exact_pt.is_some()
+        || style.paragraph_spacing_before_px.is_some()
+        || style.paragraph_spacing_after_px.is_some()
+}
+
+fn apply_paragraph_spacing_attrs(
+    style: &mut PlaceholderTextLevelStyle,
+    p_pr: &Element,
+    basis_font_size_px: Option<f64>,
+) {
+    if let Some(ln) = child_local(p_pr, "lnSpc", ns::A) {
+        if let Some(exact) = parse_line_spacing_exact_pt(ln) {
+            style.line_spacing_exact_pt = Some(exact);
+        } else if let Some(mult) = parse_line_spacing_multiplier(ln) {
+            style.line_spacing_multiplier = Some(mult);
+        }
+    }
+    if let Some(bef) = child_local(p_pr, "spcBef", ns::A) {
+        style.paragraph_spacing_before_px = parse_spacing_px(bef, basis_font_size_px);
+    }
+    if let Some(aft) = child_local(p_pr, "spcAft", ns::A) {
+        style.paragraph_spacing_after_px = parse_spacing_px(aft, basis_font_size_px);
+    }
+}
+
+fn parse_ooxml_percent(raw: &str) -> Option<f64> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Some(stripped) = trimmed.strip_suffix('%') {
+        return stripped.parse::<f64>().ok().map(|n| n / 100.0);
+    }
+    trimmed.parse::<f64>().ok().map(|n| n / 100_000.0)
+}
+
+fn parse_line_spacing_multiplier(ln_spc: &Element) -> Option<f64> {
+    let spc_pct = child_local(ln_spc, "spcPct", ns::A)?;
+    let raw = attr(spc_pct, "val")?;
+    let mult = parse_ooxml_percent(raw)?;
+    Some(mult.clamp(0.1, 5.0))
+}
+
+fn parse_line_spacing_exact_pt(ln_spc: &Element) -> Option<f64> {
+    let spc_pts = child_local(ln_spc, "spcPts", ns::A)?;
+    let raw = attr(spc_pts, "val")?.parse::<i64>().ok()?;
+    if raw > 0 {
+        Some(raw as f64 / 100.0)
+    } else {
+        None
+    }
+}
+
+fn parse_spacing_px(node: &Element, basis_font_size_px: Option<f64>) -> Option<f64> {
+    if let Some(spc_pts) = child_local(node, "spcPts", ns::A) {
+        let raw = attr(spc_pts, "val")?.parse::<i64>().ok()?;
+        if raw > 0 {
+            return Some(raw as f64 * 96.0 / 72.0 / 100.0);
+        }
+    }
+    if let Some(spc_pct) = child_local(node, "spcPct", ns::A) {
+        let fraction = parse_ooxml_percent(attr(spc_pct, "val")?)?;
+        let basis = basis_font_size_px.filter(|b| *b > 0.0)?;
+        return Some(fraction * basis * 1.2);
+    }
+    None
 }
 
 fn apply_paragraph_margin_attrs(style: &mut PlaceholderTextLevelStyle, p_pr: &Element) {
@@ -246,6 +323,16 @@ fn merge_level_style(
         margin_left_px: over.margin_left_px.or(base.margin_left_px),
         indent_px: over.indent_px.or(base.indent_px),
         paragraph_align: over.paragraph_align.or(base.paragraph_align),
+        line_spacing_multiplier: over
+            .line_spacing_multiplier
+            .or(base.line_spacing_multiplier),
+        line_spacing_exact_pt: over.line_spacing_exact_pt.or(base.line_spacing_exact_pt),
+        paragraph_spacing_before_px: over
+            .paragraph_spacing_before_px
+            .or(base.paragraph_spacing_before_px),
+        paragraph_spacing_after_px: over
+            .paragraph_spacing_after_px
+            .or(base.paragraph_spacing_after_px),
     }
 }
 

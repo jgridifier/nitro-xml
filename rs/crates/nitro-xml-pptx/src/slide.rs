@@ -19,8 +19,9 @@ use serde_json::{json, Value};
 use crate::inheritance::{
     attr, child_local, child_path, children_local, extract_placeholder_info,
     find_placeholder_in_sp_tree, find_singleton_placeholder_in_sp_tree,
-    is_header_footer_placeholder, merge_elements, merge_placeholder_context, sp_pr_of_placeholder,
-    tx_body_of_placeholder, PlaceholderInfo, PlaceholderNode,
+    is_header_footer_placeholder, merge_elements, merge_placeholder_context,
+    parse_optional_bool_attr, sp_pr_of_placeholder, tx_body_of_placeholder, PlaceholderInfo,
+    PlaceholderNode,
 };
 use crate::level_style::{
     extract_lst_style_from_tx_body, level_style_for, merge_level_styles,
@@ -2363,19 +2364,47 @@ fn shape_paint_extras(
             effective_levels.as_ref(),
             inherited_tx,
         ));
-        let list_ctx =
-            effective_levels
-                .as_ref()
-                .map(|levels| crate::text_layout::TextPaintListStyleCtx {
-                    own_tx_body: own_tx,
-                    inherited_tx_body: inherited_tx,
-                    is_body_placeholder: is_body_ph,
-                    effective_level_styles: Some(levels),
-                    presentation_level_styles: ctx.presentation_level_styles,
-                    font_scheme: ctx.font_scheme,
-                });
+        let body_pr = child_local(tx, "bodyPr", ns::A)
+            .or_else(|| inherited_tx.and_then(|t| child_local(t, "bodyPr", ns::A)));
+        let space_first_last = body_pr
+            .and_then(|bp| parse_optional_bool_attr(attr(bp, "spcFirstLastPara")))
+            == Some(true);
+        let compat_line_spacing =
+            body_pr.and_then(|bp| parse_optional_bool_attr(attr(bp, "compatLnSpc"))) == Some(true);
+        let line_spacing_reduction = body_pr
+            .and_then(|bp| child_local(bp, "normAutofit", ns::A))
+            .and_then(|n| attr(n, "lnSpcReduction"))
+            .and_then(|s| s.parse::<f64>().ok())
+            .filter(|v| *v > 0.0)
+            .map(|v| v / 100_000.0);
+        let inherits_hf_text = ph_info
+            .map(|p| is_header_footer_placeholder(p.type_.as_deref()))
+            .unwrap_or(false)
+            && !text_body_has_content(own_tx)
+            && text_body_has_content(inherited_tx);
+        let inherited_field_type = if inherits_hf_text {
+            ph_info.and_then(|ph| {
+                crate::inheritance::inherited_placeholder_field_type(ph.type_.as_deref())
+                    .map(|s| s.to_owned())
+            })
+        } else {
+            None
+        };
+        let list_ctx = crate::text_layout::TextPaintListStyleCtx {
+            own_tx_body: own_tx,
+            inherited_tx_body: inherited_tx,
+            is_body_placeholder: is_body_ph,
+            effective_level_styles: effective_levels.as_ref(),
+            presentation_level_styles: ctx.presentation_level_styles,
+            font_scheme: ctx.font_scheme,
+            space_first_last,
+            compat_line_spacing,
+            line_spacing_reduction,
+            inherited_field_type,
+            placeholder_type: ph_info.and_then(|ph| ph.type_.clone()),
+        };
         let mut paragraphs =
-            crate::text_layout::parse_text_paint_paragraphs_with_list_styles(tx, list_ctx.as_ref());
+            crate::text_layout::parse_text_paint_paragraphs_with_list_styles(tx, Some(&list_ctx));
         if let Some(levels) = effective_levels.as_ref() {
             for para in &mut paragraphs {
                 if para.level_text_color.is_some() {

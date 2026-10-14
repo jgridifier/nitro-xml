@@ -85,6 +85,10 @@ pub fn scale_norm_autofit_font_size_px(
 pub const DEFAULT_BODY_INSET_LR_PX: f64 = 91440.0 / 9525.0;
 pub const DEFAULT_BODY_INSET_TB_PX: f64 = 45720.0 / 9525.0;
 
+/// PowerPoint single-spacing pitch as a unitless CSS multiplier (COM-measured).
+pub const DEFAULT_LINE_HEIGHT: f64 = 1.2;
+const PT_TO_PX: f64 = 96.0 / 72.0;
+
 /// Vertical anchor from `a:bodyPr/@anchor`, mapped like upstream `TextStyle.vAlign`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextBodyVAlign {
@@ -339,6 +343,8 @@ pub struct TextPaintRun {
     pub rtl: Option<bool>,
     pub underline: bool,
     pub ruby: Option<TextPaintRuby>,
+    /// `a:fld/@type` or inherited header/footer field tag (paint substitution).
+    pub field_type: Option<String>,
 }
 
 /// Paragraph-level BiDi + alignment for painters (upstream `RenderParagraph` subset).
@@ -358,6 +364,12 @@ pub struct TextPaintParagraph {
     pub level_font_italic: Option<bool>,
     pub level_text_color: Option<String>,
     pub list_level: i8,
+    /// CSS `line-height` (unitless multiplier or `"Npx"`).
+    pub line_height_css: Option<String>,
+    /// Trailing gap after the paragraph (`spcBef` + `spcAft` combined).
+    pub margin_bottom_px: Option<f64>,
+    /// Exact line spacing: runs use `line-height: 0` inside the paragraph strut.
+    pub run_line_height_zero: bool,
 }
 
 /// Master/layout `txStyles` + `lstStyle` cascade for list paint (#27).
@@ -368,6 +380,12 @@ pub struct TextPaintListStyleCtx<'a> {
     pub effective_level_styles: Option<&'a crate::level_style::LevelStylesMap>,
     pub presentation_level_styles: Option<&'a crate::level_style::LevelStylesMap>,
     pub font_scheme: Option<&'a crate::theme::ThemeFontScheme>,
+    pub space_first_last: bool,
+    pub compat_line_spacing: bool,
+    pub line_spacing_reduction: Option<f64>,
+    /// Stamp on plain runs when header/footer placeholders inherit literal text.
+    pub inherited_field_type: Option<String>,
+    pub placeholder_type: Option<String>,
 }
 
 /// Walk `p:txBody` paragraphs for multi-`p` / per-run BiDi painting (#27).
@@ -390,10 +408,12 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
     };
 
     let paras = children_local(tx_body, "p", ns::A);
+    let para_count = paras.len();
     let mut auto_seq = AutoNumberSequence::default();
     paras
         .iter()
-        .map(|p| {
+        .enumerate()
+        .map(|(para_index, p)| {
             let p_pr = child_local(p, "pPr", ns::A);
             let mut align = p_pr
                 .and_then(|pp| attr(pp, "algn"))
@@ -409,7 +429,8 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
             }
             let rtl = p_pr.and_then(|pp| parse_optional_bool_attr(attr(pp, "rtl")));
             let tab_stops = p_pr.map(parse_tab_stops).unwrap_or_default();
-            let runs = collect_paint_runs(p);
+            let inherited_field = list_styles.and_then(|c| c.inherited_field_type.as_deref());
+            let runs = collect_paint_runs(p, inherited_field);
             let para_level = paragraph_level(p) as i8;
             let level_run_style = list_styles
                 .and_then(|ctx| {
@@ -471,6 +492,15 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 (None, None, None)
             };
 
+            let spacing = resolve_paint_paragraph_spacing(
+                p_pr,
+                list_styles,
+                para_level,
+                level_run_style.font_size_px,
+                para_index,
+                para_count,
+            );
+
             TextPaintParagraph {
                 runs,
                 align,
@@ -485,12 +515,238 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 level_font_italic: level_run_style.font_italic,
                 level_text_color: level_run_style.text_color_hex,
                 list_level: para_level,
+                line_height_css: spacing.line_height_css,
+                margin_bottom_px: spacing.margin_bottom_px,
+                run_line_height_zero: spacing.run_line_height_zero,
             }
         })
         .collect()
 }
 
-fn collect_paint_runs(p: &Element) -> Vec<TextPaintRun> {
+struct ParagraphPaintSpacing {
+    line_height_css: Option<String>,
+    margin_bottom_px: Option<f64>,
+    run_line_height_zero: bool,
+}
+
+fn resolve_paint_paragraph_spacing(
+    p_pr: Option<&Element>,
+    list_styles: Option<&TextPaintListStyleCtx<'_>>,
+    para_level: i8,
+    _para_font_size_px: Option<f64>,
+    para_index: usize,
+    para_count: usize,
+) -> ParagraphPaintSpacing {
+    let ph_type = list_styles.and_then(|c| c.placeholder_type.as_deref());
+    let is_hf_ph = ph_type.is_some_and(|t| crate::inheritance::is_header_footer_placeholder(Some(t)));
+    let is_title_ph = ph_type.is_some_and(|t| {
+        matches!(
+            t.trim().to_ascii_lowercase().as_str(),
+            "title" | "ctrtitle"
+        )
+    });
+    let cascade_line = is_hf_ph || is_title_ph;
+    let cascade_margin = is_hf_ph;
+    let body_level = list_styles.and_then(|ctx| {
+        ctx.effective_level_styles
+            .and_then(|m| crate::level_style::level_style_for(m, 0))
+    });
+    let level_style = list_styles.and_then(|ctx| {
+        ctx.effective_level_styles
+            .and_then(|m| crate::level_style::level_style_for(m, para_level))
+    });
+    let own = p_pr.map(paragraph_spacing_from_p_pr);
+    let level = level_style.map(level_spacing_from_style);
+    let body = body_level.map(level_spacing_from_style);
+
+    let space_first_last = list_styles.is_some_and(|c| c.space_first_last);
+    let compat = list_styles.is_some_and(|c| c.compat_line_spacing);
+    let reduction = list_styles.and_then(|c| c.line_spacing_reduction);
+
+    let is_first = para_index == 0;
+    let is_last = para_index + 1 == para_count;
+
+    let before = if cascade_margin {
+        pick_spacing(
+            own.as_ref().and_then(|o| o.before_px),
+            level.as_ref().and_then(|l| l.before_px),
+            body.as_ref().and_then(|b| b.before_px),
+        )
+    } else {
+        own.as_ref().and_then(|o| o.before_px).unwrap_or(0.0)
+    };
+    let after = if cascade_margin {
+        pick_spacing(
+            own.as_ref().and_then(|o| o.after_px),
+            level.as_ref().and_then(|l| l.after_px),
+            body.as_ref().and_then(|b| b.after_px),
+        )
+    } else {
+        own.as_ref().and_then(|o| o.after_px).unwrap_or(0.0)
+    };
+    let effective_before = if before > 0.0 && (!is_first || space_first_last) {
+        before
+    } else {
+        0.0
+    };
+    let effective_after = if after > 0.0 && (!is_last || space_first_last) {
+        after
+    } else {
+        0.0
+    };
+    let margin_bottom_px = {
+        let combined = effective_before + effective_after;
+        if combined > 0.0 {
+            Some(combined)
+        } else {
+            None
+        }
+    };
+
+    let has_own_ln = own
+        .as_ref()
+        .is_some_and(|o| o.line_exact_pt.is_some() || o.line_mult.is_some());
+    let line_exact = if has_own_ln {
+        own.as_ref().and_then(|o| o.line_exact_pt)
+    } else if cascade_line {
+        level
+            .as_ref()
+            .and_then(|l| l.line_exact_pt)
+            .or_else(|| body.as_ref().and_then(|b| b.line_exact_pt))
+    } else {
+        None
+    };
+    let line_mult = if has_own_ln {
+        own.as_ref().and_then(|o| o.line_mult)
+    } else if cascade_line {
+        level
+            .as_ref()
+            .and_then(|l| l.line_mult)
+            .or_else(|| body.as_ref().and_then(|b| b.line_mult))
+    } else {
+        None
+    };
+
+    let (line_height_css, run_line_height_zero) =
+        if let Some(exact_pt) = line_exact.filter(|v| *v > 0.0) {
+            let px = exact_pt * PT_TO_PX;
+            (
+                Some(format!(
+                    "{}px",
+                    px.to_string().trim_end_matches('0').trim_end_matches('.')
+                )),
+                true,
+            )
+        } else if let Some(mult) = line_mult.filter(|m| *m > 0.0) {
+            let proportional = if compat {
+                mult
+            } else {
+                mult * DEFAULT_LINE_HEIGHT
+            };
+            let adjusted = reduction
+                .filter(|r| *r > 0.0 && *r < 1.0)
+                .map(|r| proportional * (1.0 - r))
+                .unwrap_or(proportional);
+            (Some(format_spacing_multiplier(adjusted)), false)
+        } else {
+            (None, false)
+        };
+
+    ParagraphPaintSpacing {
+        line_height_css,
+        margin_bottom_px,
+        run_line_height_zero,
+    }
+}
+
+fn format_spacing_multiplier(v: f64) -> String {
+    format!("{:.6}", v)
+        .trim_end_matches('0')
+        .trim_end_matches('.')
+        .to_owned()
+}
+
+fn pick_spacing(own: Option<f64>, level: Option<f64>, body: Option<f64>) -> f64 {
+    own.or(level).or(body).unwrap_or(0.0)
+}
+
+struct SpacingTriplet {
+    line_mult: Option<f64>,
+    line_exact_pt: Option<f64>,
+    before_px: Option<f64>,
+    after_px: Option<f64>,
+}
+
+fn level_spacing_from_style(
+    style: &crate::level_style::PlaceholderTextLevelStyle,
+) -> SpacingTriplet {
+    SpacingTriplet {
+        line_mult: style.line_spacing_multiplier,
+        line_exact_pt: style.line_spacing_exact_pt,
+        before_px: style.paragraph_spacing_before_px,
+        after_px: style.paragraph_spacing_after_px,
+    }
+}
+
+fn paragraph_spacing_from_p_pr(p_pr: &Element) -> SpacingTriplet {
+    let basis = child_local(p_pr, "defRPr", ns::A)
+        .and_then(|d| attr(d, "sz"))
+        .and_then(|s| s.parse::<f64>().ok())
+        .map(|sz| sz / 100.0 * PT_TO_PX);
+    let mut out = SpacingTriplet {
+        line_mult: None,
+        line_exact_pt: None,
+        before_px: None,
+        after_px: None,
+    };
+    if let Some(ln) = child_local(p_pr, "lnSpc", ns::A) {
+        if let Some(spc_pts) = child_local(ln, "spcPts", ns::A) {
+            let raw = attr(spc_pts, "val").and_then(|s| s.parse::<i64>().ok());
+            if let Some(raw) = raw.filter(|r| *r > 0) {
+                out.line_exact_pt = Some(raw as f64 / 100.0);
+            }
+        } else if let Some(spc_pct) = child_local(ln, "spcPct", ns::A) {
+            if let Some(raw) = attr(spc_pct, "val") {
+                out.line_mult = parse_ooxml_percent_local(raw).map(|m| m.clamp(0.1, 5.0));
+            }
+        }
+    }
+    if let Some(bef) = child_local(p_pr, "spcBef", ns::A) {
+        out.before_px = spacing_px_from_node(bef, basis);
+    }
+    if let Some(aft) = child_local(p_pr, "spcAft", ns::A) {
+        out.after_px = spacing_px_from_node(aft, basis);
+    }
+    out
+}
+
+fn parse_ooxml_percent_local(raw: &str) -> Option<f64> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Some(stripped) = trimmed.strip_suffix('%') {
+        return stripped.parse::<f64>().ok().map(|n| n / 100.0);
+    }
+    trimmed.parse::<f64>().ok().map(|n| n / 100_000.0)
+}
+
+fn spacing_px_from_node(node: &Element, basis_font_size_px: Option<f64>) -> Option<f64> {
+    if let Some(spc_pts) = child_local(node, "spcPts", ns::A) {
+        let raw = attr(spc_pts, "val").and_then(|s| s.parse::<i64>().ok())?;
+        if raw > 0 {
+            return Some(raw as f64 * PT_TO_PX / 100.0);
+        }
+    }
+    if let Some(spc_pct) = child_local(node, "spcPct", ns::A) {
+        let fraction = parse_ooxml_percent_local(attr(spc_pct, "val")?)?;
+        let basis = basis_font_size_px.filter(|b| *b > 0.0)?;
+        return Some(fraction * basis * DEFAULT_LINE_HEIGHT);
+    }
+    None
+}
+
+fn collect_paint_runs(p: &Element, inherited_field_type: Option<&str>) -> Vec<TextPaintRun> {
     let mut runs = Vec::new();
     for child in &p.children {
         if let Node::Element(el) = child {
@@ -513,11 +769,19 @@ fn collect_paint_runs(p: &Element) -> Vec<TextPaintRun> {
                 } else {
                     None
                 };
+                let field_type = if el.local == "fld" {
+                    attr(el, "type").map(|s| s.to_owned())
+                } else if inherited_field_type.is_some() && !text.is_empty() {
+                    inherited_field_type.map(|s| s.to_owned())
+                } else {
+                    None
+                };
                 runs.push(TextPaintRun {
                     text,
                     rtl,
                     underline,
                     ruby,
+                    field_type,
                 });
             }
         }

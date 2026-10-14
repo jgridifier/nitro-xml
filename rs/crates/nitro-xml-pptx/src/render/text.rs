@@ -324,6 +324,12 @@ fn paint_rich_paragraphs<I: StringIntern>(
             set_style(ctx, para, "direction", "ltr");
             set_style(ctx, para, "unicode-bidi", "embed");
         }
+        if let Some(lh) = &para_model.line_height_css {
+            set_style(ctx, para, "line-height", lh);
+        }
+        if let Some(mb) = para_model.margin_bottom_px {
+            set_style(ctx, para, "margin-bottom", &format!("{}px", format_px(mb)));
+        }
         if let Some(marker) = &para_model.bullet_marker {
             paint_bullet_marker(
                 ctx,
@@ -345,6 +351,7 @@ fn paint_rich_paragraphs<I: StringIntern>(
                 &para_paint,
                 para_size,
                 &para_stack,
+                para_model.run_line_height_zero,
             );
         }
     }
@@ -382,6 +389,7 @@ fn append_paint_run<I: StringIntern>(
     paint: &TextBodyPaint<'_>,
     size: f64,
     stack: &str,
+    run_line_height_zero: bool,
 ) {
     if !tab_stops.is_empty() && run_model.text.contains('\t') {
         if tab_stops.len() == 1 && tab_stops[0].align == crate::text_layout::TextTabAlign::Left {
@@ -420,6 +428,9 @@ fn append_paint_run<I: StringIntern>(
             set_style(ctx, base, "font-family", VISUAL_HOST_RUN_FONT_STACK);
         }
         paint_run_typography(ctx, base, paint, size, stack);
+        if run_line_height_zero {
+            set_style(ctx, base, "line-height", "0");
+        }
         if run_model.underline {
             apply_run_underline(ctx, base);
         }
@@ -452,6 +463,7 @@ fn append_paint_run<I: StringIntern>(
                     paint,
                     size,
                     stack,
+                    run_line_height_zero,
                 );
             }
             para
@@ -465,6 +477,7 @@ fn append_paint_run<I: StringIntern>(
                 paint,
                 size,
                 stack,
+                run_line_height_zero,
             )
         }
     } else {
@@ -477,6 +490,7 @@ fn append_paint_run<I: StringIntern>(
             paint,
             size,
             stack,
+            run_line_height_zero,
         )
     };
     let _ = host;
@@ -527,6 +541,7 @@ fn paint_run_text_span<I: StringIntern>(
     paint: &TextBodyPaint<'_>,
     size: f64,
     stack: &str,
+    run_line_height_zero: bool,
 ) -> u32 {
     let run = create_child(ctx, para, "span");
     set_text_content(ctx, run, text);
@@ -535,6 +550,9 @@ fn paint_run_text_span<I: StringIntern>(
         set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
     }
     paint_run_typography(ctx, run, paint, size, stack);
+    if run_line_height_zero {
+        set_style(ctx, run, "line-height", "0");
+    }
     if run_model.underline {
         apply_run_underline(ctx, run);
     }
@@ -709,6 +727,7 @@ fn paint_tabbed_run<I: StringIntern>(
 }
 
 /// One `<p class="pptxv-para">` per body (upstream `renderTextBlock`).
+#[allow(dead_code)]
 fn append_paragraph_text<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     block: u32,

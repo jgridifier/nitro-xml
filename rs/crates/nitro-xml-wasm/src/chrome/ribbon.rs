@@ -512,7 +512,13 @@ fn caret_button() -> String {
     )
 }
 
-fn cmd_button(chrome: &EditorChrome, id: &str, pressed: bool, large: bool, show_label: bool) -> String {
+fn cmd_button(
+    chrome: &EditorChrome,
+    id: &str,
+    pressed: bool,
+    large: bool,
+    show_label: bool,
+) -> String {
     let label = chrome.commands.label(id).unwrap_or(id);
     let title = chrome
         .commands

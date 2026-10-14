@@ -163,9 +163,13 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/outer_shadow.rs` | `render/visual-effects.ts`, `PptxShapeEffectStyleExtractor.ts` @ e66aaec | Parse `a:outerShdw` → CSS `box-shadow` (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/prst_geom.rs` | `render/shape-geometry-cascade.ts`, `core/geometry/shape-geometry.ts`, `geometry/preset-clip-paths-core.ts` @ e66aaec | Preset geometry CSS: ellipse `50%`, roundRect radius, arrow clip-paths (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/text.rs` | `dom/elements/text-block.ts`, `render/text-body-layout.ts`, `render/text-run-style.ts` @ e66aaec | P3 text body; `bodyPr` anchor + `pPr` align via flex; first-run `font-family` / bold / `-webkit-text-stroke` (#27). |
+| `rs/crates/nitro-xml-pptx/src/east_asian_breaks.rs` | `render/text-east-asian-breaks.ts` @ e66aaec | Hanging punctuation + `eaLnBrk="0"` break opportunities for CJK paint (#27). |
+| `rs/crates/nitro-xml-pptx/src/paragraph_trailing_space.rs` | `render/paragraph-trailing-space.ts` @ e66aaec | Trim trailing spaces on right/center-aligned paragraphs before paint (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/shape_autofit_resize.rs` | `src/ui/src/pptx/render/shape-autofit-resize.ts` @ e66aaec | `a:spAutoFit` shape height from post-apply `ScrollHeight` layout readback (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/font_substitution.rs` | `src/core/pptx/core/utils/font-substitution.ts` @ e66aaec | CSS `font-family` stacks via `getSubstituteFontFamily` (subset map + default sans chain) (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/field_substitution.rs` | `src/ui/src/pptx/render/text-field-substitution.ts`, `field-context.ts` @ e66aaec | `a:fld` slidenum/slidetitle/header/footer substitution at paint (#27). |
 | `rs/crates/nitro-xml-pptx/src/text_layout.rs` | `text-body-properties-parser.ts`, `text-body-layout.ts` @ e66aaec | Parse `a:bodyPr/@anchor`, insets, paragraph `algn` for paint. |
+| `rs/crates/nitro-xml-pptx/src/unicode_script.rs` | `unicode-script-detection.ts` @ e66aaec | Per-script font segmentation for run paint (#27). |
 | `rs/crates/nitro-xml-pptx/src/text_body_rect.rs` | `text-body-rect.ts` @ e66aaec | Preset/custGeom text rectangle as extra padding on the text body. |
 | `rs/crates/nitro-xml-pptx/src/verified_text_rect_presets.rs` | `verified-text-rect-presets.ts` @ e66aaec | COM-verified preset allowlist for geometry text rectangles. |
 | `rs/crates/nitro-xml-pptx/src/render/smartart.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | P11 calls S2 cached-drawing SVG at the element box, with the slide theme scheme (#27). |
@@ -176,6 +180,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/render/ole.rs` | `dom/elements/ole.ts` @ e66aaec | P15 OLE preview `<img>` when `previewImageData` resolved; otherwise the `[OLE]` stub (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/group.rs` | `dom/elements/group.ts` @ e66aaec | P6 group (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/connector.rs` | `dom/elements/connector.ts` @ e66aaec | P7 connector SVG stub (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/connector_geometry.rs` | `src/core/pptx/core/geometry/connector-geometry.ts`, `connector-preset-geometry.ts` @ e66aaec | Bent/curved connector SVG paths via DrawingML preset eval (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/connector_markers.rs` | `src/ui/src/pptx/render/connector-markers.ts` @ e66aaec | Connector headEnd/tailEnd SVG `<marker>` defs (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/table.rs` | `dom/elements/table.ts` @ e66aaec | P8 HTML table: colgroup percentages, skip `hMerge`/`vMerge`, cell text, fill, and border (#27). |
 | `rs/crates/nitro-xml-docx/src/body.rs` | `src/core/docx/parse.ts`, `block-parser.ts`, `document-parts.ts` @ e66aaec | `read_package`, block container parse, document parts orchestration; no save path. |
 | `rs/crates/nitro-xml-docx/src/run.rs` | `src/core/docx/block-parser.ts` (`parseRun`) @ e66aaec | Run parse for body/HF/notes. |

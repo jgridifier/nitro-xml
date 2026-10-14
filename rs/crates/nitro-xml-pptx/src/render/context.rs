@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use nitro_xml_render::measure::{LayoutReadBatch, LayoutReadKind, MeasureBatch};
 use nitro_xml_render::CommandBuffer;
 
+use super::field_substitution::FieldSubstitutionContext;
 use super::shape_autofit_resize::{LayoutReadRecord, SpAutofitSlideState};
 use super::view_ir::ViewIrCollector;
 use crate::text_layout::TextAutoFitMode;
@@ -26,6 +27,7 @@ pub struct PaintContext<'a, I> {
     /// Theme scheme (`accent1` → `#156082`) for SmartArt `a:schemeClr`.
     pub scheme: &'a BTreeMap<String, String>,
     pub slide_index: usize,
+    pub field_ctx: FieldSubstitutionContext,
     pub sp_autofit: &'a mut SpAutofitSlideState,
     pub(crate) layout_read_records: Vec<LayoutReadRecord>,
     next_id: u32,
@@ -44,6 +46,7 @@ impl<'a, I> PaintContext<'a, I> {
         canvas_h: f64,
         scheme: &'a BTreeMap<String, String>,
         slide_index: usize,
+        field_ctx: FieldSubstitutionContext,
         sp_autofit: &'a mut SpAutofitSlideState,
     ) -> Self {
         Self {
@@ -57,6 +60,7 @@ impl<'a, I> PaintContext<'a, I> {
             canvas_h,
             scheme,
             slide_index,
+            field_ctx,
             sp_autofit,
             layout_read_records: Vec::new(),
             next_id: 2,

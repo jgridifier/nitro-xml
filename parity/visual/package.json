@@ -10,6 +10,7 @@
     "test": "bun test test/"
   },
   "dependencies": {
+    "emf-converter": "4.11.2",
     "pdfjs-dist": "^4.8.69",
     "pixelmatch": "^5.3.0",
     "playwright": "^1.48.0",

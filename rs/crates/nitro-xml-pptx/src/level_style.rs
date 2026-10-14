@@ -4,10 +4,14 @@
 
 use std::collections::BTreeMap;
 
-use nitro_xml_opc::drawingml::{parse_drawing_color_in, resolve_drawing_color, DrawingColor};
+use nitro_xml_opc::drawingml::{
+    emu_to_pixels, parse_drawing_color_in, resolve_drawing_color, DrawingColor,
+};
 use nitro_xml_opc::xml::{ns, Element};
 
 use crate::inheritance::{attr, child_local, children_local};
+use crate::text_layout::{parse_paragraph_align, TextAlignCss};
+use crate::theme::ThemeFontScheme;
 
 pub type LevelStylesMap = BTreeMap<i8, PlaceholderTextLevelStyle>;
 
@@ -16,6 +20,12 @@ pub struct PlaceholderTextLevelStyle {
     pub bullet_char: Option<String>,
     pub bullet_auto_num_type: Option<String>,
     pub bullet_auto_num_start_at: u32,
+    /// `a:buFont/@typeface` when the level declares a bullet font.
+    pub bullet_font_family: Option<String>,
+    /// Resolved `#RRGGBB` when `a:buClr` does not need a theme.
+    pub bullet_color_hex: Option<String>,
+    /// Scheme colour from `a:buClr` for resolve against the slide colour map.
+    pub bullet_color: Option<DrawingColor>,
     pub bullet_none: bool,
     /// Resolved `#RRGGBB` when `a:defRPr/a:solidFill` does not need a theme.
     pub text_color_hex: Option<String>,
@@ -25,8 +35,30 @@ pub struct PlaceholderTextLevelStyle {
     pub font_size_px: Option<f64>,
     /// `a:lvlNpPr/@eaLnBrk` or `a:defPPr/@eaLnBrk` from presentation `defaultTextStyle`.
     pub ea_line_break: Option<bool>,
+    pub hanging_punctuation: Option<bool>,
+    pub latin_line_break: Option<bool>,
     /// `a:defRPr/a:latin/@typeface` (may be a theme token such as `+mn-lt`).
     pub default_latin_typeface: Option<String>,
+    /// `a:defRPr/@b` when authored (`1` / `0`).
+    pub font_bold: Option<bool>,
+    /// `a:defRPr/@i` when authored.
+    pub font_italic: Option<bool>,
+    /// `a:defRPr/@kern` hundredths of a point (kerning threshold, not a boolean).
+    pub font_kern_hundredths: Option<i32>,
+    /// `a:pPr/@marL` in CSS px.
+    pub margin_left_px: Option<f64>,
+    /// `a:pPr/@indent` in CSS px (may be negative for hanging indents).
+    pub indent_px: Option<f64>,
+    /// `a:lvlNpPr/@algn` or `a:defPPr/@algn` from txStyles / lstStyle.
+    pub paragraph_align: Option<TextAlignCss>,
+    /// `a:lnSpc/a:spcPct` multiplier (0.9 for val 90000), not yet stacked on 1.2.
+    pub line_spacing_multiplier: Option<f64>,
+    /// `a:lnSpc/a:spcPts` in points.
+    pub line_spacing_exact_pt: Option<f64>,
+    /// `a:spcBef` in CSS px when resolved.
+    pub paragraph_spacing_before_px: Option<f64>,
+    /// `a:spcAft` in CSS px when resolved.
+    pub paragraph_spacing_after_px: Option<f64>,
 }
 
 pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle {
@@ -46,6 +78,22 @@ pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle 
             .filter(|v| *v > 0);
         style.bullet_auto_num_start_at = start.unwrap_or(1);
     }
+    if let Some(bu_font) = child_local(p_pr, "buFont", ns::A) {
+        style.bullet_font_family = attr(bu_font, "typeface").map(str::to_owned);
+    }
+    if let Some(bu_clr) = child_local(p_pr, "buClr", ns::A) {
+        if let Some(color) = parse_drawing_color_in(Some(bu_clr)) {
+            if let Some(resolved) = resolve_drawing_color(&color, None, None) {
+                if resolved.alpha >= 0.999 {
+                    style.bullet_color_hex = Some(resolved.hex);
+                } else {
+                    style.bullet_color = Some(color);
+                }
+            } else {
+                style.bullet_color = Some(color);
+            }
+        }
+    }
     style
 }
 
@@ -54,7 +102,17 @@ pub fn parse_level_style_from_ppr(p_pr: &Element) -> Option<PlaceholderTextLevel
     if let Some(v) = attr(p_pr, "eaLnBrk") {
         style.ea_line_break = Some(matches!(v, "1" | "true" | "on"));
     }
+    if let Some(v) = attr(p_pr, "hangingPunct") {
+        style.hanging_punctuation = Some(matches!(v, "1" | "true" | "on"));
+    }
+    if let Some(v) = attr(p_pr, "latinLnBrk") {
+        style.latin_line_break = Some(matches!(v, "1" | "true" | "on"));
+    }
+    style.paragraph_align = attr(p_pr, "algn").and_then(parse_paragraph_align);
+    apply_paragraph_margin_attrs(&mut style, p_pr);
     apply_def_rpr(&mut style, p_pr);
+    let basis_font = style.font_size_px;
+    apply_paragraph_spacing_attrs(&mut style, p_pr, basis_font);
     if level_style_has_payload(&style) {
         Some(style)
     } else {
@@ -70,7 +128,96 @@ fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
         || style.text_color.is_some()
         || style.font_size_px.is_some()
         || style.ea_line_break.is_some()
+        || style.hanging_punctuation.is_some()
+        || style.latin_line_break.is_some()
         || style.default_latin_typeface.is_some()
+        || style.font_bold.is_some()
+        || style.font_italic.is_some()
+        || style.font_kern_hundredths.is_some()
+        || style.margin_left_px.is_some()
+        || style.indent_px.is_some()
+        || style.paragraph_align.is_some()
+        || style.line_spacing_multiplier.is_some()
+        || style.line_spacing_exact_pt.is_some()
+        || style.paragraph_spacing_before_px.is_some()
+        || style.paragraph_spacing_after_px.is_some()
+        || style.bullet_font_family.is_some()
+        || style.bullet_color_hex.is_some()
+        || style.bullet_color.is_some()
+}
+
+fn apply_paragraph_spacing_attrs(
+    style: &mut PlaceholderTextLevelStyle,
+    p_pr: &Element,
+    basis_font_size_px: Option<f64>,
+) {
+    if let Some(ln) = child_local(p_pr, "lnSpc", ns::A) {
+        if let Some(exact) = parse_line_spacing_exact_pt(ln) {
+            style.line_spacing_exact_pt = Some(exact);
+        } else if let Some(mult) = parse_line_spacing_multiplier(ln) {
+            style.line_spacing_multiplier = Some(mult);
+        }
+    }
+    if let Some(bef) = child_local(p_pr, "spcBef", ns::A) {
+        style.paragraph_spacing_before_px = parse_spacing_px(bef, basis_font_size_px);
+    }
+    if let Some(aft) = child_local(p_pr, "spcAft", ns::A) {
+        style.paragraph_spacing_after_px = parse_spacing_px(aft, basis_font_size_px);
+    }
+}
+
+fn parse_ooxml_percent(raw: &str) -> Option<f64> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Some(stripped) = trimmed.strip_suffix('%') {
+        return stripped.parse::<f64>().ok().map(|n| n / 100.0);
+    }
+    trimmed.parse::<f64>().ok().map(|n| n / 100_000.0)
+}
+
+fn parse_line_spacing_multiplier(ln_spc: &Element) -> Option<f64> {
+    let spc_pct = child_local(ln_spc, "spcPct", ns::A)?;
+    let raw = attr(spc_pct, "val")?;
+    let mult = parse_ooxml_percent(raw)?;
+    Some(mult.clamp(0.1, 5.0))
+}
+
+fn parse_line_spacing_exact_pt(ln_spc: &Element) -> Option<f64> {
+    let spc_pts = child_local(ln_spc, "spcPts", ns::A)?;
+    let raw = attr(spc_pts, "val")?.parse::<i64>().ok()?;
+    if raw > 0 {
+        Some(raw as f64 / 100.0)
+    } else {
+        None
+    }
+}
+
+fn parse_spacing_px(node: &Element, basis_font_size_px: Option<f64>) -> Option<f64> {
+    if let Some(spc_pts) = child_local(node, "spcPts", ns::A) {
+        let raw = attr(spc_pts, "val")?.parse::<i64>().ok()?;
+        if raw > 0 {
+            return Some(raw as f64 * 96.0 / 72.0 / 100.0);
+        }
+    }
+    if let Some(spc_pct) = child_local(node, "spcPct", ns::A) {
+        let fraction = parse_ooxml_percent(attr(spc_pct, "val")?)?;
+        let basis = basis_font_size_px.filter(|b| *b > 0.0)?;
+        return Some(fraction * basis * 1.2);
+    }
+    None
+}
+
+fn apply_paragraph_margin_attrs(style: &mut PlaceholderTextLevelStyle, p_pr: &Element) {
+    style.margin_left_px = emu_attr_to_px(p_pr, "marL");
+    style.indent_px = emu_attr_to_px(p_pr, "indent");
+}
+
+fn emu_attr_to_px(el: &Element, local: &str) -> Option<f64> {
+    attr(el, local)
+        .and_then(|s| s.parse::<i64>().ok())
+        .map(emu_to_pixels)
 }
 
 /// `a:defRPr` solid fill and `sz` on `a:lvlNpPr` / `a:defPPr`.
@@ -87,6 +234,17 @@ fn apply_def_rpr(style: &mut PlaceholderTextLevelStyle, p_pr: &Element) {
         }
     }
     style.font_size_px = sz_attr_to_px(def);
+    if let Some(b) = attr(def, "b") {
+        style.font_bold = Some(matches!(b, "1" | "true" | "on"));
+    }
+    if let Some(i) = attr(def, "i") {
+        style.font_italic = Some(matches!(i, "1" | "true" | "on"));
+    }
+    if let Some(kern) = attr(def, "kern") {
+        if let Ok(v) = kern.parse::<i32>() {
+            style.font_kern_hundredths = Some(v);
+        }
+    }
     let Some(fill) = child_local(def, "solidFill", ns::A) else {
         return;
     };
@@ -187,6 +345,21 @@ fn merge_level_style(
         } else {
             base.bullet_none
         },
+        bullet_font_family: if over_has_bullet {
+            over.bullet_font_family.clone()
+        } else {
+            base.bullet_font_family.clone()
+        },
+        bullet_color_hex: if over_has_bullet {
+            over.bullet_color_hex.clone()
+        } else {
+            base.bullet_color_hex.clone()
+        },
+        bullet_color: if over_has_bullet {
+            over.bullet_color.clone()
+        } else {
+            base.bullet_color.clone()
+        },
         text_color_hex: if over_has_color {
             over.text_color_hex.clone()
         } else {
@@ -199,10 +372,28 @@ fn merge_level_style(
         },
         font_size_px: over.font_size_px.or(base.font_size_px),
         ea_line_break: over.ea_line_break.or(base.ea_line_break),
+        hanging_punctuation: over.hanging_punctuation.or(base.hanging_punctuation),
+        latin_line_break: over.latin_line_break.or(base.latin_line_break),
         default_latin_typeface: over
             .default_latin_typeface
             .clone()
             .or_else(|| base.default_latin_typeface.clone()),
+        font_bold: over.font_bold.or(base.font_bold),
+        font_italic: over.font_italic.or(base.font_italic),
+        font_kern_hundredths: over.font_kern_hundredths.or(base.font_kern_hundredths),
+        margin_left_px: over.margin_left_px.or(base.margin_left_px),
+        indent_px: over.indent_px.or(base.indent_px),
+        paragraph_align: over.paragraph_align.or(base.paragraph_align),
+        line_spacing_multiplier: over
+            .line_spacing_multiplier
+            .or(base.line_spacing_multiplier),
+        line_spacing_exact_pt: over.line_spacing_exact_pt.or(base.line_spacing_exact_pt),
+        paragraph_spacing_before_px: over
+            .paragraph_spacing_before_px
+            .or(base.paragraph_spacing_before_px),
+        paragraph_spacing_after_px: over
+            .paragraph_spacing_after_px
+            .or(base.paragraph_spacing_after_px),
     }
 }
 
@@ -225,6 +416,58 @@ pub fn presentation_default_ea_line_break(styles: Option<&LevelStylesMap>) -> bo
 
 pub fn level_style_for(map: &LevelStylesMap, level: i8) -> Option<&PlaceholderTextLevelStyle> {
     map.get(&level).or_else(|| map.get(&-1))
+}
+
+/// Resolved bullet marker colour from `a:buClr` on a list level.
+pub fn level_style_bullet_color(
+    style: &PlaceholderTextLevelStyle,
+    theme: &dyn nitro_xml_opc::drawingml::DrawingColorTheme,
+) -> Option<String> {
+    if let Some(hex) = &style.bullet_color_hex {
+        return Some(hex.clone());
+    }
+    style
+        .bullet_color
+        .as_ref()
+        .and_then(|color| resolve_drawing_color(color, Some(theme), None))
+        .map(|r| r.hex)
+}
+
+/// Run-level defaults from merged placeholder / txStyle levels (paint only).
+#[derive(Debug, Clone, Default)]
+pub struct ParagraphLevelRunStyle {
+    pub font_size_px: Option<f64>,
+    pub font_family: Option<String>,
+    pub font_bold: Option<bool>,
+    pub font_italic: Option<bool>,
+    pub font_kern_hundredths: Option<i32>,
+    pub text_color_hex: Option<String>,
+}
+
+pub fn paragraph_level_run_style(
+    map: &LevelStylesMap,
+    level: i8,
+    font_scheme: Option<&ThemeFontScheme>,
+) -> ParagraphLevelRunStyle {
+    let Some(style) = level_style_for(map, level) else {
+        return ParagraphLevelRunStyle::default();
+    };
+    ParagraphLevelRunStyle {
+        font_size_px: style.font_size_px,
+        font_family: style.default_latin_typeface.as_deref().and_then(|face| {
+            crate::theme::resolve_theme_typeface(
+                face,
+                font_scheme,
+                crate::theme::ThemeTypefaceScript::Latin,
+            )
+        }),
+        // Absent `b`/`i` on a txStyle `defRPr` is normal weight / upright for that level,
+        // not inheritance from the shape's first-run fallback (#27 master-text-styles).
+        font_bold: Some(style.font_bold.unwrap_or(false)),
+        font_italic: Some(style.font_italic.unwrap_or(false)),
+        font_kern_hundredths: style.font_kern_hundredths,
+        text_color_hex: style.text_color_hex.clone(),
+    }
 }
 
 /// Walk `p:txStyles` on a slide master.
@@ -304,5 +547,71 @@ fn collect_ph_defaults(sp_tree: &Element, out: &mut BTreeMap<String, LevelStyles
     }
     for grp in children_local(sp_tree, "grpSp", ns::P) {
         collect_ph_defaults(grp, out);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nitro_xml_opc::xml::parse_xml_str;
+
+    // Catches: layout `lvl1pPr` that only overrides `sz` dropping the master's `defRPr` colour.
+    #[test]
+    fn merge_level_style_keeps_master_color_when_override_only_sets_size() {
+        let master = parse_level_style_from_ppr(
+            &parse_xml_str(
+                r#"<a:lvl1pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <a:defRPr sz="4400"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:defRPr>
+                </a:lvl1pPr>"#,
+            )
+            .unwrap()
+            .root,
+        )
+        .unwrap();
+        let layout = parse_level_style_from_ppr(
+            &parse_xml_str(
+                r#"<a:lvl1pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <a:defRPr sz="6000"/>
+                </a:lvl1pPr>"#,
+            )
+            .unwrap()
+            .root,
+        )
+        .unwrap();
+        let merged = merge_level_style(&master, &layout);
+        assert_eq!(merged.text_color_hex.as_deref(), Some("#FFFFFF"));
+        assert!((merged.font_size_px.unwrap() - 80.0).abs() < 0.05);
+    }
+
+    // Catches: master `marL`/`indent`/`buChar` lost when layout level only tweaks alignment.
+    #[test]
+    fn merge_level_style_keeps_master_bullet_and_margins() {
+        let master = parse_level_style_from_ppr(
+            &parse_xml_str(
+                r#"<a:lvl2pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+ marL="914400" indent="-342900">
+                  <a:buChar char="•"/>
+                </a:lvl2pPr>"#,
+            )
+            .unwrap()
+            .root,
+        )
+        .unwrap();
+        let layout = parse_level_style_from_ppr(
+            &parse_xml_str(
+                r#"<a:lvl2pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" algn="l"/>"#,
+            )
+            .unwrap()
+            .root,
+        );
+        let layout = layout.unwrap();
+        assert_eq!(
+            layout.paragraph_align,
+            Some(crate::text_layout::TextAlignCss::Left)
+        );
+        let merged = merge_level_style(&master, &layout);
+        assert_eq!(merged.bullet_char.as_deref(), Some("•"));
+        assert!((merged.margin_left_px.unwrap() - 96.0).abs() < 0.05);
+        assert!((merged.indent_px.unwrap() + 36.0).abs() < 0.05);
     }
 }

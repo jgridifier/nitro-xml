@@ -140,3 +140,69 @@ fn font_group(
 pub fn is_presentation_theme_path(path: &str) -> bool {
     path.starts_with("ppt/theme/") && !path.contains("themeOverride") && path.ends_with(".xml")
 }
+
+/// Resolve `a:latin` / `a:ea` theme tokens (`+mn-lt`, `+mj-ea`, …) to a concrete face name.
+pub fn resolve_theme_typeface(
+    typeface: &str,
+    font_scheme: Option<&ThemeFontScheme>,
+    _script: ThemeTypefaceScript,
+) -> Option<String> {
+    let t = typeface.trim();
+    if t.is_empty() {
+        return None;
+    }
+    let lower = t.to_ascii_lowercase();
+    if lower.starts_with('+') {
+        let scheme = font_scheme?;
+        return match lower.as_str() {
+            "+mn-lt" => theme_font_latin(scheme, "minor"),
+            "+mj-lt" => theme_font_latin(scheme, "major"),
+            "+mn-ea" => theme_font_east_asia(scheme, "minor"),
+            "+mj-ea" => theme_font_east_asia(scheme, "major"),
+            "+mn-cs" => theme_font_complex(scheme, "minor"),
+            "+mj-cs" => theme_font_complex(scheme, "major"),
+            _ => None,
+        };
+    }
+    Some(t.to_owned())
+}
+
+#[derive(Clone, Copy)]
+#[allow(dead_code)]
+pub enum ThemeTypefaceScript {
+    Latin,
+    EastAsia,
+    ComplexScript,
+}
+
+fn theme_font_latin(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
+    theme_font_field(scheme, idx, |f| f.latin.as_deref())
+}
+
+fn theme_font_east_asia(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
+    theme_font_field(scheme, idx, |f| {
+        f.east_asia.as_deref().or(f.latin.as_deref())
+    })
+}
+
+fn theme_font_complex(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
+    theme_font_field(scheme, idx, |f| {
+        f.complex_script.as_deref().or(f.latin.as_deref())
+    })
+}
+
+fn theme_font_field(
+    scheme: &ThemeFontScheme,
+    idx: &str,
+    pick: fn(&ThemeFonts) -> Option<&str>,
+) -> Option<String> {
+    let fonts = match idx {
+        "major" => scheme.major_font.as_ref(),
+        "minor" => scheme.minor_font.as_ref(),
+        _ => None,
+    }?;
+    pick(fonts)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+}

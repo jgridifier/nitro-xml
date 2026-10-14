@@ -6,11 +6,14 @@ mod chart;
 mod chart3d;
 mod comments;
 mod connector;
+mod connector_geometry;
+mod connector_markers;
 mod content_part;
 mod context;
 mod dispatch;
 mod dom;
 mod equation;
+mod field_substitution;
 mod font_substitution;
 mod group;
 mod ink;
@@ -29,6 +32,7 @@ mod slideshow;
 mod smartart;
 mod smartart3d;
 mod stage;
+mod stroke_dash;
 mod svg_export;
 mod table;
 mod text;
@@ -39,6 +43,7 @@ mod zoom;
 
 pub use chart3d::paint as paint_chart3d;
 pub use context::StringIntern;
+pub use field_substitution::FieldSubstitutionContext;
 pub use print::print_slide_html;
 pub use raster_export::export_slide_png;
 pub use selection::{contains_id, copy_text, hit_top_level, top_level_ids};
@@ -117,6 +122,7 @@ pub fn paint_slide_frame<I: StringIntern>(
     let records = {
         let slide = pres.slide(viewport.slide_index)?;
         let scheme = slide.scheme_colors.clone();
+        let field_ctx = field_substitution::build_field_context(slide_index, slide);
         let slide_autofit = sp_autofit.slide_mut(slide_index);
         let mut ctx = context::PaintContext::new(
             buffer,
@@ -129,6 +135,7 @@ pub fn paint_slide_frame<I: StringIntern>(
             canvas_h,
             &scheme,
             slide_index,
+            field_ctx,
             slide_autofit,
         );
         stage::paint_slide_stage(&mut ctx, slide, &viewport.selected_ids);
@@ -198,10 +205,14 @@ mod tests {
             stroke_color: None,
             stroke_width_px: None,
             stroke_line_align: None,
+            stroke_dash: None,
+            connector_start_arrow: None,
+            connector_end_arrow: None,
             text_color: None,
             font_size_px: None,
             font_family: None,
             font_bold: false,
+            font_italic: false,
             text_stroke_width_px: None,
             text_stroke_color: None,
             text_body_layout: None,
@@ -223,6 +234,9 @@ mod tests {
             image_rel_owner: None,
             ole_spid: None,
             is_media: false,
+            media_rel_id: None,
+            media_src: None,
+            media_type: None,
             image_src: None,
             seq: 0,
             box_shadow: None,

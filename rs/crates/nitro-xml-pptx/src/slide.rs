@@ -19,12 +19,13 @@ use serde_json::{json, Value};
 use crate::inheritance::{
     attr, child_local, child_path, children_local, extract_placeholder_info,
     find_placeholder_in_sp_tree, find_singleton_placeholder_in_sp_tree,
-    is_header_footer_placeholder, merge_elements, merge_placeholder_context, sp_pr_of_placeholder,
-    tx_body_of_placeholder, PlaceholderInfo, PlaceholderNode,
+    is_header_footer_placeholder, merge_elements, merge_placeholder_context,
+    parse_optional_bool_attr, sp_pr_of_placeholder, tx_body_of_placeholder, PlaceholderInfo,
+    PlaceholderNode,
 };
 use crate::level_style::{
-    level_style_for, presentation_default_ea_line_break, LevelStylesMap, MasterTxStyles,
-    PlaceholderTextLevelStyle,
+    extract_lst_style_from_tx_body, level_style_for, merge_level_styles,
+    presentation_default_ea_line_break, LevelStylesMap, MasterTxStyles, PlaceholderTextLevelStyle,
 };
 use crate::placeholder_defaults::PlaceholderDefaultsCache;
 use crate::table::{parse_table_model, table_row_count};
@@ -106,6 +107,15 @@ pub struct DumpElement {
     /// `a:ln/@algn` (`in` / `ctr`); omitted means centred (`ctr`). Paint only.
     #[serde(skip)]
     pub stroke_line_align: Option<String>,
+    /// `a:ln/a:prstDash/@val` (paint only).
+    #[serde(skip)]
+    pub stroke_dash: Option<String>,
+    /// `a:headEnd/@type` on connector line (paint only).
+    #[serde(skip)]
+    pub connector_start_arrow: Option<String>,
+    /// `a:tailEnd/@type` on connector line (paint only).
+    #[serde(skip)]
+    pub connector_end_arrow: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -115,6 +125,8 @@ pub struct DumpElement {
     pub font_family: Option<String>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub font_bold: bool,
+    #[serde(skip)]
+    pub font_italic: bool,
     /// `a:rPr/a:ln/@w` in CSS px (paint only).
     #[serde(skip)]
     pub text_stroke_width_px: Option<f64>,
@@ -172,6 +184,15 @@ pub struct DumpElement {
     /// Video/audio picture: the poster still paints, but the issue-24 dump reports `media`.
     #[serde(skip)]
     pub is_media: bool,
+    /// `a:videoFile` / `p:video` relationship id (paint only).
+    #[serde(skip)]
+    pub media_rel_id: Option<String>,
+    /// Resolved `data:` URL for [`Self::media_rel_id`].
+    #[serde(skip)]
+    pub media_src: Option<String>,
+    /// `video` or `audio` when [`Self::is_media`].
+    #[serde(skip)]
+    pub media_type: Option<String>,
     /// `data:` URL for the resolved blip (img `src` / CSS background). Not in the issue-24 dump.
     #[serde(skip)]
     pub image_src: Option<String>,
@@ -550,6 +571,64 @@ fn picture_is_media(pic: &Element) -> bool {
     drawing_nvpr_has_media(nv_pr)
 }
 
+fn media_reference_from_nv_pr(nv_pr: &Element) -> Option<(String, String)> {
+    for child in &nv_pr.children {
+        let Node::Element(el) = child else {
+            continue;
+        };
+        let ns_uri = el.ns.as_deref();
+        let local = el.local.as_str();
+        let media_type = if ns_uri == Some(ns::P) && (local == "video" || local == "audio") {
+            local.to_owned()
+        } else if ns_uri == Some(ns::A)
+            && matches!(
+                local,
+                "videoFile" | "audioFile" | "wavAudioFile" | "quickTimeFile" | "audioCd"
+            )
+        {
+            if matches!(local, "videoFile" | "quickTimeFile") {
+                "video".to_owned()
+            } else {
+                "audio".to_owned()
+            }
+        } else {
+            continue;
+        };
+        let rel_id = relationship_id_from_element(el);
+        if let Some(id) = rel_id {
+            return Some((id, media_type));
+        }
+    }
+    if nv_pr_has_p14_media(nv_pr) {
+        let ext_lst = child_local(nv_pr, "extLst", ns::P)?;
+        for ext in children_local(ext_lst, "ext", ns::P) {
+            for child in &ext.children {
+                let Node::Element(el) = child else {
+                    continue;
+                };
+                if el.local == "media" {
+                    if let Some(id) = relationship_id_from_element(el) {
+                        return Some((id, "video".to_owned()));
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn relationship_id_from_element(el: &Element) -> Option<String> {
+    for a in &el.attrs {
+        if (a.local == "embed" || a.local == "link")
+            && (a.ns.is_none() || a.ns.as_deref() == Some(ns::R))
+            && !a.value.is_empty()
+        {
+            return Some(a.value.clone());
+        }
+    }
+    None
+}
+
 fn drawing_nvpr_has_media(nv_pr: Option<&Element>) -> bool {
     let Some(nv_pr) = nv_pr else {
         return false;
@@ -788,7 +867,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         "shape"
     };
     let c_nv_pr = child_path(shape, &[("nvSpPr", ns::P), ("cNvPr", ns::P)]);
-    let extras = shape_paint_extras(
+    let mut extras = shape_paint_extras(
         shape,
         effective_sp_pr.as_ref(),
         inherited.as_ref().map(|p| &p.element),
@@ -797,6 +876,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         ctx,
         rot,
     );
+    apply_norm_autofit_to_extras(&mut extras, own_tx, inh_tx, h);
     build_dump(
         type_,
         id,
@@ -952,6 +1032,12 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
         image_rel_id: blip_embed_id(pic),
         ..PaintExtras::default()
     };
+    if let Some(nv) = nv_pr {
+        if let Some((rel_id, media_type)) = media_reference_from_nv_pr(nv) {
+            extras.media_rel_id = Some(rel_id);
+            extras.media_type = Some(media_type);
+        }
+    }
     extras.box_shadow = crate::outer_shadow::box_shadow_from_sp_pr(&effective_sp_pr, &theme, rot);
     extras.effect_filter = crate::outer_shadow::effect_filter_from_sp_pr(&effective_sp_pr, &theme);
     build_dump(
@@ -1728,10 +1814,14 @@ fn build_dump(
         stroke_color: extras.stroke_color,
         stroke_width_px: extras.stroke_width_px,
         stroke_line_align: extras.stroke_line_align,
+        stroke_dash: extras.stroke_dash,
+        connector_start_arrow: extras.connector_start_arrow,
+        connector_end_arrow: extras.connector_end_arrow,
         text_color: extras.text_color,
         font_size_px: extras.font_size_px,
         font_family: extras.font_family,
         font_bold: extras.font_bold,
+        font_italic: extras.font_italic,
         text_stroke_width_px: extras.text_stroke_width_px,
         text_stroke_color: extras.text_stroke_color,
         text_body_layout: extras.text_body_layout,
@@ -1753,6 +1843,9 @@ fn build_dump(
         image_rel_owner: extras.image_rel_owner,
         ole_spid: extras.ole_spid,
         is_media: false,
+        media_rel_id: extras.media_rel_id,
+        media_src: None,
+        media_type: extras.media_type,
         image_src: None,
         seq: 0,
         box_shadow: extras.box_shadow,
@@ -2029,10 +2122,16 @@ struct PaintExtras {
     stroke_color: Option<String>,
     stroke_width_px: Option<f64>,
     stroke_line_align: Option<String>,
+    stroke_dash: Option<String>,
+    connector_start_arrow: Option<String>,
+    connector_end_arrow: Option<String>,
+    media_rel_id: Option<String>,
+    media_type: Option<String>,
     text_color: Option<String>,
     font_size_px: Option<f64>,
     font_family: Option<String>,
     font_bold: bool,
+    font_italic: bool,
     text_stroke_width_px: Option<f64>,
     text_stroke_color: Option<String>,
     text_body_layout: Option<crate::text_layout::TextBodyLayout>,
@@ -2289,6 +2388,8 @@ fn shape_paint_extras(
         if let Some(algn) = attr(ln, "algn") {
             extras.stroke_line_align = Some(algn.to_owned());
         }
+        extras.connector_start_arrow = parse_line_end_arrow(ln, "headEnd");
+        extras.connector_end_arrow = parse_line_end_arrow(ln, "tailEnd");
         if let Some(line) = parse_drawing_line(Some(ln)) {
             if let Some(width) = line.width_emu {
                 if width > 0 {
@@ -2297,6 +2398,9 @@ fn shape_paint_extras(
             }
             if let Some(DrawingFill::Solid { color }) = line.fill {
                 extras.stroke_color = css_color(&color, theme, false);
+            }
+            if let Some(dash) = line.dash {
+                extras.stroke_dash = Some(dash);
             }
         }
     }
@@ -2310,10 +2414,18 @@ fn shape_paint_extras(
         );
     }
     if let Some(tx) = tx_body {
-        let fallback = ph_info.and_then(|ph| {
-            let styles = ctx.effective_level_styles(ph);
-            level_style_for(&styles, 0).cloned()
-        });
+        let own_tx = child_local(shape, "txBody", ns::P);
+        let inherited_tx = inherited_shape.and_then(|s| child_local(s, "txBody", ns::P));
+        let mut effective_levels = ph_info.map(|ph| ctx.effective_level_styles(ph));
+        let lst_levels = extract_lst_style_from_tx_body(tx);
+        if !lst_levels.is_empty() {
+            let base = effective_levels.unwrap_or_default();
+            effective_levels = Some(merge_level_styles(&base, &lst_levels));
+        }
+        let is_body_ph = ph_info.is_some_and(crate::text::placeholder_is_body_type);
+        let fallback = effective_levels
+            .as_ref()
+            .and_then(|styles| level_style_for(styles, 0).cloned());
         let paint = first_run_text_paint(
             tx,
             theme,
@@ -2322,7 +2434,6 @@ fn shape_paint_extras(
                 inherited_shape,
                 font_scheme: ctx.font_scheme,
                 level_fallback: fallback.as_ref(),
-                is_placeholder: ph_info.is_some(),
                 presentation_level_styles: ctx.presentation_level_styles,
                 master_tx_styles: ctx.master_tx_styles,
             },
@@ -2331,13 +2442,79 @@ fn shape_paint_extras(
         extras.font_size_px = paint.size;
         extras.font_family = paint.font_family;
         extras.font_bold = paint.bold;
+        extras.font_italic = paint.italic;
         extras.text_stroke_width_px = paint.stroke_width_px;
         extras.text_stroke_color = paint.stroke_color;
-        extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
-        extras.text_paint_paragraphs = Some(crate::text_layout::parse_text_paint_paragraphs(tx));
+        extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout_with_levels(
+            tx,
+            effective_levels.as_ref(),
+            inherited_tx,
+        ));
+        let body_pr = child_local(tx, "bodyPr", ns::A)
+            .or_else(|| inherited_tx.and_then(|t| child_local(t, "bodyPr", ns::A)));
+        let space_first_last = body_pr
+            .and_then(|bp| parse_optional_bool_attr(attr(bp, "spcFirstLastPara")))
+            == Some(true);
+        let compat_line_spacing =
+            body_pr.and_then(|bp| parse_optional_bool_attr(attr(bp, "compatLnSpc"))) == Some(true);
+        let line_spacing_reduction = body_pr
+            .and_then(|bp| child_local(bp, "normAutofit", ns::A))
+            .and_then(|n| attr(n, "lnSpcReduction"))
+            .and_then(|s| s.parse::<f64>().ok())
+            .filter(|v| *v > 0.0)
+            .map(|v| v / 100_000.0);
+        let inherits_hf_text = ph_info
+            .map(|p| is_header_footer_placeholder(p.type_.as_deref()))
+            .unwrap_or(false)
+            && !text_body_has_content(own_tx)
+            && text_body_has_content(inherited_tx);
+        let inherited_field_type = if inherits_hf_text {
+            ph_info.and_then(|ph| {
+                crate::inheritance::inherited_placeholder_field_type(ph.type_.as_deref())
+                    .map(|s| s.to_owned())
+            })
+        } else {
+            None
+        };
+        let auto_fit_mode = crate::text_layout::parse_body_autofit_cascade(tx, inherited_tx);
+        let list_ctx = crate::text_layout::TextPaintListStyleCtx {
+            own_tx_body: own_tx,
+            inherited_tx_body: inherited_tx,
+            is_body_placeholder: is_body_ph,
+            effective_level_styles: effective_levels.as_ref(),
+            presentation_level_styles: ctx.presentation_level_styles,
+            font_scheme: ctx.font_scheme,
+            space_first_last,
+            compat_line_spacing,
+            line_spacing_reduction,
+            inherited_field_type,
+            placeholder_type: ph_info.and_then(|ph| ph.type_.clone()),
+        };
+        let mut paragraphs =
+            crate::text_layout::parse_text_paint_paragraphs_with_list_styles(tx, Some(&list_ctx));
+        if let Some(levels) = effective_levels.as_ref() {
+            for para in &mut paragraphs {
+                if para.level_text_color.is_some() {
+                    continue;
+                }
+                if let Some(style) = level_style_for(levels, para.list_level) {
+                    para.level_text_color = level_style_text_color(style, theme);
+                }
+            }
+            for para in &mut paragraphs {
+                if para.bullet_text_color.is_some() {
+                    continue;
+                }
+                if let Some(style) = level_style_for(levels, para.list_level) {
+                    para.bullet_text_color =
+                        crate::level_style::level_style_bullet_color(style, &theme);
+                }
+            }
+        }
+        extras.text_paint_paragraphs = Some(paragraphs);
         extras.presentation_kinsoku =
             presentation_default_ea_line_break(ctx.presentation_level_styles);
-        extras.auto_fit_mode = crate::text_layout::parse_body_autofit(tx);
+        extras.auto_fit_mode = auto_fit_mode;
         extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }
     if let Some(sp_pr) = effective_sp_pr {
@@ -2625,6 +2802,7 @@ struct FirstRunTextPaint {
     size: Option<f64>,
     font_family: Option<String>,
     bold: bool,
+    italic: bool,
     stroke_width_px: Option<f64>,
     stroke_color: Option<String>,
 }
@@ -2634,9 +2812,70 @@ struct FirstRunTextPaintCtx<'a> {
     inherited_shape: Option<&'a Element>,
     font_scheme: Option<&'a ThemeFontScheme>,
     level_fallback: Option<&'a PlaceholderTextLevelStyle>,
-    is_placeholder: bool,
     presentation_level_styles: Option<&'a LevelStylesMap>,
     master_tx_styles: Option<&'a MasterTxStyles>,
+}
+
+fn apply_norm_autofit_to_extras(
+    extras: &mut PaintExtras,
+    own_tx: Option<&Element>,
+    inherited_tx: Option<&Element>,
+    box_height_px: f64,
+) {
+    use crate::text_layout::{
+        norm_autofit_font_scale_multiplier, scale_font_size_for_autofit,
+        scale_norm_autofit_font_size_px, TextAutoFitMode,
+    };
+    if extras.auto_fit_mode != Some(TextAutoFitMode::Normal) {
+        return;
+    }
+    let Some(sz) = extras.font_size_px else {
+        return;
+    };
+    let para_count = extras
+        .text_paint_paragraphs
+        .as_ref()
+        .map(|p| p.len())
+        .unwrap_or(1);
+    let inset_tb = extras
+        .text_body_layout
+        .as_ref()
+        .map(|l| l.inset_top_px + l.inset_bottom_px)
+        .unwrap_or(0.0);
+    let font_scale_mult =
+        own_tx.and_then(|own| norm_autofit_font_scale_multiplier(own, inherited_tx));
+    let scale_px = |font_px: f64| {
+        if let Some(mult) = font_scale_mult {
+            scale_font_size_for_autofit(font_px, mult)
+        } else {
+            scale_norm_autofit_font_size_px(font_px, box_height_px, inset_tb, para_count)
+        }
+    };
+    extras.font_size_px = Some(scale_px(sz));
+    if let Some(paras) = &mut extras.text_paint_paragraphs {
+        for para in paras.iter_mut() {
+            if let Some(level_sz) = para.level_font_size_px {
+                para.level_font_size_px = Some(scale_px(level_sz));
+            }
+            if let Some(sz) = para.empty_line_font_size_px {
+                para.empty_line_font_size_px = Some(scale_px(sz));
+            }
+            for run in &mut para.runs {
+                if let Some(sz) = run.run_font_size_px {
+                    run.run_font_size_px = Some(scale_px(sz));
+                }
+            }
+        }
+    }
+}
+
+fn parse_line_end_arrow(ln: &Element, local: &str) -> Option<String> {
+    let end = child_local(ln, local, ns::A)?;
+    let ty = attr(end, "type")?.trim().to_ascii_lowercase();
+    if ty.is_empty() || ty == "none" {
+        return None;
+    }
+    Some(ty)
 }
 
 fn first_run_text_paint(
@@ -2648,6 +2887,7 @@ fn first_run_text_paint(
     let mut size = None;
     let mut font_family = None;
     let mut bold = false;
+    let mut italic = false;
     let mut stroke_width_px = None;
     let mut stroke_color = None;
     for para in children_local(tx, "p", ns::A) {
@@ -2668,6 +2908,9 @@ fn first_run_text_paint(
             }
             if !bold {
                 bold = def.map(rpr_bold).unwrap_or(false);
+            }
+            if !italic {
+                italic = def.map(rpr_italic).unwrap_or(false);
             }
             if stroke_width_px.is_none() {
                 if let Some(def) = def {
@@ -2704,6 +2947,11 @@ fn first_run_text_paint(
                 .map(rpr_bold)
                 .unwrap_or_else(|| def.map(rpr_bold).unwrap_or(false));
         }
+        if !italic {
+            italic = rpr
+                .map(rpr_italic)
+                .unwrap_or_else(|| def.map(rpr_italic).unwrap_or(false));
+        }
         if stroke_width_px.is_none() {
             let stroke_rpr = rpr.or(def);
             if let Some(r) = stroke_rpr {
@@ -2714,19 +2962,33 @@ fn first_run_text_paint(
         }
         break;
     }
+    if color.is_none() {
+        color = font_ref_text_color(ctx.shape, ctx.inherited_shape, theme);
+    }
+    if let Some(style) = ctx.level_fallback {
+        if color.is_none() {
+            color = level_style_text_color(style, theme);
+        }
+        if size.is_none() {
+            size = style.font_size_px;
+        }
+        if font_family.is_none() {
+            if let Some(face) = style.default_latin_typeface.as_deref() {
+                font_family = resolve_theme_latin_typeface(face, ctx.font_scheme);
+            }
+        }
+        if !bold {
+            bold = style.font_bold.unwrap_or(false);
+        }
+        if !italic {
+            italic = style.font_italic.unwrap_or(false);
+        }
+    }
     if font_family.is_none() {
         font_family =
             presentation_default_latin_typeface(ctx.presentation_level_styles, ctx.font_scheme);
     }
-    if let Some(style) = ctx.level_fallback {
-        // Colour from master/layout level styles; leave size to the host CSS
-        // fallback until placeholder autofit/align lands (layout sz alone
-        // over-enlarges titles and worsens visual median).
-        if color.is_none() {
-            color = level_style_text_color(style, theme);
-        }
-    }
-    if size.is_none() && !ctx.is_placeholder {
+    if size.is_none() {
         size =
             non_placeholder_font_size_fallback(ctx.presentation_level_styles, ctx.master_tx_styles);
     }
@@ -2735,6 +2997,7 @@ fn first_run_text_paint(
         size,
         font_family,
         bold,
+        italic,
         stroke_width_px,
         stroke_color,
     }
@@ -2760,9 +3023,21 @@ fn resolve_run_font_family(
     inherited_shape: Option<&Element>,
     font_scheme: Option<&ThemeFontScheme>,
 ) -> Option<String> {
+    use crate::theme::{resolve_theme_typeface, ThemeTypefaceScript};
     if let Some(r) = rpr {
         if let Some(face) = latin_typeface(r) {
-            return Some(face);
+            if let Some(resolved) =
+                resolve_theme_typeface(&face, font_scheme, ThemeTypefaceScript::Latin)
+            {
+                return Some(resolved);
+            }
+        }
+        if let Some(ea) = child_local(r, "ea", ns::A).and_then(|el| attr(el, "typeface")) {
+            if let Some(resolved) =
+                resolve_theme_typeface(ea, font_scheme, ThemeTypefaceScript::EastAsia)
+            {
+                return Some(resolved);
+            }
         }
     }
     font_ref_family(shape, inherited_shape, font_scheme)
@@ -2780,6 +3055,10 @@ fn rpr_bold(rpr: &Element) -> bool {
     matches!(attr(rpr, "b"), Some("1") | Some("true") | Some("on"))
 }
 
+fn rpr_italic(rpr: &Element) -> bool {
+    matches!(attr(rpr, "i"), Some("1") | Some("true") | Some("on"))
+}
+
 fn rpr_text_stroke(rpr: &Element, theme: SchemeTheme<'_>) -> (Option<f64>, Option<String>) {
     let Some(ln) = child_local(rpr, "ln", ns::A) else {
         return (None, None);
@@ -2794,6 +3073,16 @@ fn rpr_text_stroke(rpr: &Element, theme: SchemeTheme<'_>) -> (Option<f64>, Optio
         _ => None,
     };
     (width, color)
+}
+
+fn font_ref_text_color(
+    shape: &Element,
+    inherited_shape: Option<&Element>,
+    theme: SchemeTheme<'_>,
+) -> Option<String> {
+    let ref_el = style_ref_node(shape, inherited_shape, "fontRef")?;
+    let color = parse_drawing_color_in(Some(ref_el))?;
+    css_color(&color, theme, false)
 }
 
 fn font_ref_family(
@@ -3131,7 +3420,7 @@ mod tests {
                 <p:titleStyle>
                   <a:lvl1pPr>
                     <a:buNone/>
-                    <a:defRPr sz="4400"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:defRPr>
+                    <a:defRPr sz="4400" b="1" kern="1200"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:defRPr>
                   </a:lvl1pPr>
                 </p:titleStyle>
               </p:txStyles>
@@ -3173,7 +3462,95 @@ mod tests {
         };
         let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
         assert_eq!(el.text_color.as_deref(), Some("#FFFFFF"));
-        assert!(el.font_size_px.is_none());
+        assert!((el.font_size_px.unwrap() - 60.0 * 96.0 / 72.0).abs() < 0.05);
+        assert!(el.font_bold);
+        let para = el.text_paint_paragraphs.as_ref().unwrap().first().unwrap();
+        assert_eq!(para.level_font_kern_hundredths, Some(1200));
+        assert_eq!(para.level_font_bold, Some(true));
+    }
+
+    // Catches: body placeholder `bodyStyle` defRPr sz left at 24px host default instead of master 28pt.
+    #[test]
+    fn body_placeholder_applies_merged_tx_style_font_size() {
+        let master = parse_xml_str(
+            r#"<p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:txStyles>
+                <p:bodyStyle>
+                  <a:lvl1pPr><a:defRPr sz="2800"/></a:lvl1pPr>
+                </p:bodyStyle>
+              </p:txStyles>
+            </p:sldMaster>"#,
+        )
+        .unwrap();
+        let styles = crate::level_style::parse_master_tx_styles(&master.root);
+        let shape = parse_xml_str(
+            r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:nvSpPr><p:cNvPr id="3" name="Content"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:p><a:r><a:rPr lang="en-US"/><a:t>Body</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>"#,
+        )
+        .unwrap();
+        let colors = theme();
+        let ctx = ParseCtx {
+            master_tx_styles: Some(&styles),
+            ..ctx(&colors)
+        };
+        let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
+        assert!((el.font_size_px.unwrap() - 28.0 * 96.0 / 72.0).abs() < 0.05);
+    }
+
+    // Catches: `p:defaultTextStyle` +mn-lt winning over merged `bodyStyle` Verdana on placeholders.
+    #[test]
+    fn body_placeholder_applies_merged_tx_style_typeface() {
+        let master = parse_xml_str(
+            r#"<p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:txStyles>
+                <p:bodyStyle>
+                  <a:lvl1pPr><a:defRPr sz="2600"><a:latin typeface="Verdana"/></a:defRPr></a:lvl1pPr>
+                </p:bodyStyle>
+              </p:txStyles>
+            </p:sldMaster>"#,
+        )
+        .unwrap();
+        let styles = crate::level_style::parse_master_tx_styles(&master.root);
+        let shape = parse_xml_str(
+            r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:nvSpPr><p:cNvPr id="3" name="Content"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:p><a:r><a:rPr lang="en-US"/><a:t>Body</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>"#,
+        )
+        .unwrap();
+        let pres_default = crate::level_style::parse_tx_style_category(
+            &parse_xml_str(
+                r#"<p:defaultTextStyle xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <a:lvl1pPr><a:defRPr><a:latin typeface="+mn-lt"/></a:defRPr></a:lvl1pPr>
+                </p:defaultTextStyle>"#,
+            )
+            .unwrap()
+            .root,
+        );
+        let colors = theme();
+        let ctx = ParseCtx {
+            master_tx_styles: Some(&styles),
+            presentation_level_styles: Some(&pres_default),
+            ..ctx(&colors)
+        };
+        let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
+        assert_eq!(el.font_family.as_deref(), Some("Verdana"));
     }
 
     // Catches: c:chart graphic frames dumped as otherKinds instead of chart elements.
@@ -3426,6 +3803,157 @@ mod tests {
             "metal gradient overlay, got {overlay}"
         );
         assert!(el.box_shadow.is_some(), "outer shadow from effectLst");
+    }
+
+    // Catches: title-slide ctrTitle using master 44pt instead of layout 60pt / missing bold+kern from txStyle.
+    #[test]
+    fn upstream_title_slide_ctr_title_tx_style() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/1abd9b12cb19_master-layout-inheritance-fills.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let title = slide
+            .elements
+            .iter()
+            .find(|e| {
+                e.text
+                    .as_deref()
+                    .is_some_and(|t| t.contains("Master & Layout"))
+            })
+            .expect("title");
+        let sz60 = 60.0 * 96.0 / 72.0;
+        let para = title
+            .text_paint_paragraphs
+            .as_ref()
+            .unwrap()
+            .first()
+            .unwrap();
+        assert!(
+            (para.level_font_size_px.unwrap() - sz60).abs() < 0.5,
+            "level sz {:?}",
+            para.level_font_size_px
+        );
+        assert_eq!(para.level_font_bold, Some(true));
+        assert_eq!(para.level_font_kern_hundredths, Some(1200));
+        assert!(title.font_bold);
+        assert_eq!(
+            title.font_family.as_deref(),
+            Some("Aptos Display"),
+            "title uses theme major latin"
+        );
+        let layout = title.text_body_layout.as_ref().expect("layout");
+        assert_eq!(layout.v_align, crate::text_layout::TextBodyVAlign::Bottom);
+        assert_eq!(
+            para.line_height_css.as_deref(),
+            Some("1.08"),
+            "titleStyle lnSpc 0.9 × default 1.2"
+        );
+    }
+
+    // Catches: CJK line-breaking fixture red runs losing `a:rPr/a:solidFill` at parse time.
+    #[test]
+    fn upstream_cjk_line_breaking_run_solid_fill_parsed() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/e3dab827b836_cjk-line-breaking.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let shape = slide
+            .elements
+            .iter()
+            .find(|e| {
+                e.text
+                    .as_deref()
+                    .map(|t| t.contains("まみむめ"))
+                    .unwrap_or(false)
+            })
+            .expect("shape");
+        let paras = shape.text_paint_paragraphs.as_ref().expect("paras");
+        let red = paras[0]
+            .runs
+            .iter()
+            .find(|r| r.text.contains('」'))
+            .and_then(|r| r.run_text_color.as_deref());
+        assert_eq!(red, Some("#C00000"));
+    }
+
+    // Catches: CJK hanging-punct paragraphs losing per-paragraph `eastAsianBreaks` at parse time.
+    #[test]
+    fn upstream_cjk_line_breaking_hanging_punct_parsed() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/e3dab827b836_cjk-line-breaking.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let hang = slide
+            .elements
+            .iter()
+            .find(|e| e.text.as_deref().map(|t| t.contains('あ')).unwrap_or(false))
+            .expect("hang shape");
+        let paras = hang.text_paint_paragraphs.as_ref().expect("paras");
+        let opts = paras[0]
+            .east_asian_breaks
+            .expect("hangingPunct=1 paragraph options");
+        assert!(opts.hanging_punctuation);
+        assert!(!opts.break_anywhere);
+    }
+
+    // Catches: body lvl2 inheriting titleStyle lvl1 italic via shape-level first-run fallback.
+    #[test]
+    fn upstream_master_text_styles_body_level_two_not_italic() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/4647c93fad68_master-text-styles.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let body = slide
+            .elements
+            .iter()
+            .find(|e| e.placeholder_type.as_deref() == Some("body"))
+            .expect("body");
+        let paras = body.text_paint_paragraphs.as_ref().expect("paras");
+        assert_eq!(paras[0].level_font_italic, Some(true));
+        assert_eq!(paras[1].level_font_italic, Some(false));
+        assert_eq!(
+            paras[0].bullet_marker.as_deref(),
+            Some("•"),
+            "bodyStyle lvl1 bullet"
+        );
+    }
+
+    // Catches: modify-password body placeholder losing layout font size (GDI drift vs TS).
+    #[test]
+    fn modify_password_body_placeholder_font_size() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/6fbe45df1cb3_modify-password.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let body = slide
+            .elements
+            .iter()
+            .find(|e| e.name.as_deref() == Some("Text Placeholder 2"))
+            .expect("body placeholder");
+        let paras = body.text_paint_paragraphs.as_ref().expect("paras");
+        assert_eq!(paras.len(), 1);
+        assert!(body.font_size_px.unwrap() > 0.0);
+        assert!(paras[0].runs[0].run_font_family.is_some() || body.font_family.is_some());
     }
 
     // Catches: keyframes Profil effectRef idx=2 metal never gets inset specular so the green button stays flat.
@@ -3786,6 +4314,27 @@ mod tests {
         };
         let el = parse_shape(&doc.root, "s".into(), &parse_ctx, false).unwrap();
         assert_eq!(el.font_family.as_deref(), Some("Corbel"));
+    }
+
+    // Catches: p:style fontRef lt1 ignored so accent buttons render black-on-teal instead of white.
+    #[test]
+    fn font_ref_scheme_clr_resolves_text_color() {
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="2" name="Btn"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+          <p:style><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></p:style>
+          <p:txBody>
+            <a:bodyPr/>
+            <a:p><a:r><a:rPr lang="en-US"/><a:t>BM1</a:t></a:r></a:p>
+          </p:txBody>
+        </p:sp>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el = parse_shape(&doc.root, "s".into(), &ctx(&colors), false).unwrap();
+        assert_eq!(el.text_color.as_deref(), Some("#FFFFFF"));
     }
 
     // Catches: VML / blip deep searches recursing once per nesting level and overflowing the WASM

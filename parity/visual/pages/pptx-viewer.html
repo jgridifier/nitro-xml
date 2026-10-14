@@ -117,7 +117,7 @@
       injectStyle(
         shadow,
         await (await fetch('/fonts/visual-fonts.css')).text() +
-          `\n:host,.dom,[data-pptx-element]{font-family:"Liberation Sans",Arial,sans-serif}`,
+          `\n:host,.dom,[data-pptx-element],.dom *{font-family:"Liberation Sans",Arial,sans-serif!important}`,
         'font-pin',
       );
       await waitFonts();
@@ -170,10 +170,30 @@
         }
       }
       if (!painted) throw new Error('nitro-pptx: no slide DOM paint');
-      // spAutoFit: layout read-back runs on the tick after apply (#27).
-      for (let c = 0; c < 12; c++) {
+      // spAutoFit + GDI/hang-space: drain batched measureText before capture (#27).
+      for (let c = 0; c < 48; c++) {
         if (el.document) await el.document.tick();
         await waitFrames(1);
+        if ((el.document?.measureCount | 0) === 0 && c >= 11) break;
+      }
+      // EMF/WMF: loader converts `nitro-metafile:` src asynchronously (#27).
+      for (let c = 0; c < 40; c++) {
+        const pending = shadow?.querySelector('img[src^="nitro-metafile:"]');
+        if (!pending) break;
+        if (el.document) await el.document.tick();
+        await waitFrames(2);
+      }
+      // Native `<video>` / `<audio controls>`: let metadata paint transport before capture (#27).
+      for (let c = 0; c < 24; c++) {
+        const media = shadow?.querySelectorAll('video,audio');
+        if (!media?.length) break;
+        let settled = true;
+        for (const v of media) {
+          if (v.readyState < 1) settled = false;
+        }
+        if (settled && c >= 4) break;
+        if (el.document) await el.document.tick();
+        await waitFrames(2);
       }
       await waitFonts();
       await waitFrames(3);
@@ -222,7 +242,7 @@
         injectStyle(
           document.head,
           await (await fetch('/fonts/visual-fonts.css')).text() +
-            `\n#ts-wrap,#ts-wrap *{font-family:"Liberation Sans",Arial,sans-serif}`,
+            `\n#ts-wrap,#ts-wrap *{font-family:"Liberation Sans",Arial,sans-serif!important}`,
           'font-pin-ts',
         );
         await waitFrames(3);

@@ -116,6 +116,15 @@ pub fn is_header_footer_placeholder(type_: Option<&str>) -> bool {
         .is_some_and(|t| HEADER_FOOTER_TYPES.contains(&t.as_str()))
 }
 
+/// Field type for inherited header/footer literal text (`ftr` → `footer`, `hdr` → `header`).
+pub fn inherited_placeholder_field_type(type_: Option<&str>) -> Option<&'static str> {
+    match type_.map(|t| t.trim().to_ascii_lowercase()) {
+        Some(t) if t == "ftr" => Some("footer"),
+        Some(t) if t == "hdr" => Some("header"),
+        _ => None,
+    }
+}
+
 /// Deep-merge `override` onto `base` for placeholder inheritance (layout over master).
 pub fn merge_elements(
     base: Option<&Element>,

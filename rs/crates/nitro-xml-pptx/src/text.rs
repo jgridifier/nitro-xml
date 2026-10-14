@@ -3,6 +3,7 @@
 // PptxHandlerRuntimeShapeParagraphContentParsing.ts, PptxHandlerRuntimeBulletParsing.ts and
 // ruby-element-parsing.ts; changes in PROVENANCE.md.
 
+use nitro_xml_opc::drawingml::emu_to_pixels;
 use nitro_xml_opc::xml::{ns, Element, Node};
 
 use crate::auto_number::{
@@ -21,13 +22,21 @@ pub struct TextExtractContext<'a> {
     pub presentation_level_styles: Option<&'a LevelStylesMap>,
 }
 
-struct BulletInfo {
-    none: bool,
-    char: Option<String>,
-    auto_num_type: Option<String>,
-    auto_num_start_at: u32,
+pub(crate) struct BulletInfo {
+    pub(crate) none: bool,
+    pub(crate) char: Option<String>,
+    pub(crate) auto_num_type: Option<String>,
+    pub(crate) auto_num_start_at: u32,
     picture: bool,
 }
+
+/// Hanging-indent layout in px (upstream `resolveParagraphIndent`).
+pub(crate) struct ParagraphIndentLayout {
+    pub margin_left_px: Option<f64>,
+    pub text_indent_px: Option<f64>,
+}
+
+const INDENT_PX_PER_LEVEL: f64 = 18.0;
 
 pub fn extract_element_text(ctx: &TextExtractContext<'_>, tx_body: &Element) -> String {
     let paras = children_local(tx_body, "p", ns::A);
@@ -293,7 +302,7 @@ fn process_field(field: &Element, parts: &mut Vec<String>) {
 }
 
 #[allow(clippy::single_match)]
-fn paragraph_has_renderable_content(p: &Element) -> bool {
+pub(crate) fn paragraph_has_renderable_content(p: &Element) -> bool {
     let mut stack: Vec<&Element> = vec![p];
     while let Some(el) = stack.pop() {
         for child in &el.children {
@@ -327,7 +336,7 @@ fn paragraph_has_renderable_content(p: &Element) -> bool {
     false
 }
 
-fn paragraph_level(p: &Element) -> i32 {
+pub(crate) fn paragraph_level(p: &Element) -> i32 {
     let p_pr = child_local(p, "pPr", ns::A);
     let lvl = p_pr
         .and_then(|pp| attr(pp, "lvl"))
@@ -335,7 +344,7 @@ fn paragraph_level(p: &Element) -> i32 {
     lvl.unwrap_or(0)
 }
 
-fn resolve_paragraph_bullet_info(
+pub(crate) fn resolve_paragraph_bullet_info(
     paragraph: &Element,
     tx_body: Option<&Element>,
     inherited_tx_body: Option<&Element>,
@@ -394,15 +403,120 @@ fn resolve_paragraph_bullet_info(
         }
     }
 
+    // Body/obj placeholders inherit list bullets from txStyle; title/subtitle do not.
+    if !is_body_placeholder {
+        return None;
+    }
     let mut fallback = effective_level_styles.and_then(|map| {
         level_style_for(map, (normalized_level - 1) as i8).or_else(|| level_style_for(map, -1))
     });
-    if fallback.is_none() && is_body_placeholder {
+    if fallback.is_none() {
         fallback = presentation_level_styles.and_then(|map| {
             level_style_for(map, (normalized_level - 1) as i8).or_else(|| level_style_for(map, -1))
         });
     }
     fallback.and_then(bullet_info_from_level_style)
+}
+
+pub(crate) fn resolve_paragraph_indent_layout(
+    paragraph: &Element,
+    tx_body: Option<&Element>,
+    inherited_tx_body: Option<&Element>,
+    is_body_placeholder: bool,
+    effective_level_styles: Option<&LevelStylesMap>,
+    presentation_level_styles: Option<&LevelStylesMap>,
+    has_bullet: bool,
+) -> ParagraphIndentLayout {
+    let level = paragraph_level(paragraph);
+    let normalized_level = (level + 1).clamp(1, 9);
+    let level_key = format!("lvl{normalized_level}pPr");
+
+    let p_pr = child_local(paragraph, "pPr", ns::A);
+    let inherited_level_props = inherited_tx_body
+        .and_then(|tb| child_local(tb, "lstStyle", ns::A))
+        .and_then(|ls| child_local(ls, &level_key, ns::A));
+    let body_level_props = tx_body
+        .and_then(|tb| child_local(tb, "lstStyle", ns::A))
+        .and_then(|ls| child_local(ls, &level_key, ns::A));
+    let default_body_props = tx_body
+        .and_then(|tb| child_local(tb, "lstStyle", ns::A))
+        .and_then(|ls| child_local(ls, "defPPr", ns::A));
+    let inherited_default_body_props = inherited_tx_body
+        .and_then(|tb| child_local(tb, "lstStyle", ns::A))
+        .and_then(|ls| child_local(ls, "defPPr", ns::A));
+
+    let candidates = [
+        p_pr,
+        body_level_props,
+        inherited_level_props,
+        default_body_props,
+        inherited_default_body_props,
+    ];
+
+    let mut margin_left = None;
+    let mut indent = None;
+    for candidate in candidates.into_iter().flatten() {
+        let (ml, ind) = paragraph_margin_attrs(candidate);
+        if margin_left.is_none() {
+            margin_left = ml;
+        }
+        if indent.is_none() {
+            indent = ind;
+        }
+        if margin_left.is_some() && indent.is_some() {
+            break;
+        }
+    }
+
+    let mut level_style = effective_level_styles.and_then(|map| {
+        level_style_for(map, (normalized_level - 1) as i8).or_else(|| level_style_for(map, -1))
+    });
+    if level_style.is_none() && is_body_placeholder {
+        level_style = presentation_level_styles.and_then(|map| {
+            level_style_for(map, (normalized_level - 1) as i8).or_else(|| level_style_for(map, -1))
+        });
+    }
+    if let Some(style) = level_style {
+        if is_body_placeholder || has_bullet {
+            if margin_left.is_none() {
+                margin_left = style.margin_left_px;
+            }
+            if indent.is_none() {
+                indent = style.indent_px;
+            }
+        }
+    }
+
+    if margin_left.is_none() && indent.is_none() && level > 0 {
+        margin_left = Some(level as f64 * INDENT_PX_PER_LEVEL);
+    }
+
+    let margin_left_px = margin_left.filter(|v| *v != 0.0);
+    let text_indent_px = indent.and_then(|ind| {
+        if ind == 0.0 {
+            return None;
+        }
+        if ind >= 0.0 || margin_left_px.is_some() || has_bullet {
+            Some(ind)
+        } else {
+            None
+        }
+    });
+
+    ParagraphIndentLayout {
+        margin_left_px,
+        text_indent_px,
+    }
+}
+
+fn paragraph_margin_attrs(p_pr: &Element) -> (Option<f64>, Option<f64>) {
+    let mar_l = attr(p_pr, "marL")
+        .and_then(|s| s.parse::<i64>().ok())
+        .map(emu_to_pixels);
+    let indent = attr(p_pr, "indent")
+        .and_then(|s| s.parse::<i64>().ok())
+        .map(emu_to_pixels);
+    (mar_l, indent)
 }
 
 fn has_bullet_marker(props: &Element) -> bool {

@@ -136,6 +136,7 @@ fn paint_plain_text_runs<I: StringIntern>(
             size,
             &metric_stack,
             paint.font_bold,
+            paint.font_italic,
         );
     }
 }
@@ -552,6 +553,7 @@ fn append_paint_run<I: StringIntern>(
                 size,
                 paint.font_family,
                 paint.font_bold,
+                paint.font_italic,
             );
         }
         let open_rp = create_child(ctx, ruby_el, "rp");
@@ -617,8 +619,8 @@ fn append_paint_run<I: StringIntern>(
     let _ = host;
 }
 
-fn uses_per_piece_gdi_metric(_paint: &TextBodyPaint<'_>, text: &str) -> bool {
-    !text.is_empty()
+fn uses_per_piece_gdi_metric(paint: &TextBodyPaint<'_>, text: &str) -> bool {
+    paint.font_family.is_some() && should_apply_gdi_metric(text)
 }
 
 fn is_metric_break_boundary(previous: char, next: char) -> bool {
@@ -746,7 +748,16 @@ fn paint_run_text_span<I: StringIntern>(
         }
         if let Some(ws) = piece.word_spacing_px {
             if let Some(glyph) = piece.hang_glyph {
-                apply_hang_space_word_spacing(ctx, run, glyph, size, stack, paint.font_bold, ws);
+                apply_hang_space_word_spacing(
+                    ctx,
+                    run,
+                    glyph,
+                    size,
+                    stack,
+                    paint.font_bold,
+                    paint.font_italic,
+                    ws,
+                );
             } else {
                 set_style(ctx, run, "word-spacing", &format_layout_px(ws));
             }
@@ -800,6 +811,7 @@ fn paint_run_span_styles<I: StringIntern>(
             size,
             paint.font_family,
             paint.font_bold,
+            paint.font_italic,
         );
     }
 }
@@ -895,6 +907,7 @@ fn paint_css_tab_run<I: StringIntern>(
             size,
             paint.font_family,
             paint.font_bold,
+            paint.font_italic,
         );
     }
 }
@@ -916,7 +929,7 @@ fn paint_tabbed_run<I: StringIntern>(
     set_style(ctx, line_host, "display", "inline-block");
     set_style(ctx, line_host, "white-space", "nowrap");
     apply_run_rtl(ctx, line_host, run_model.rtl, paragraph_rtl);
-    let canvas_font = canvas_measure_font(stack, size, paint.font_bold);
+    let canvas_font = canvas_measure_font(stack, size, paint.font_bold, paint.font_italic);
     let font_id = ctx.intern.intern(&canvas_font);
     let measure = |text: &str| -> f64 {
         if text.is_empty() {
@@ -971,6 +984,7 @@ fn paint_tabbed_run<I: StringIntern>(
                 size,
                 paint.font_family,
                 paint.font_bold,
+                paint.font_italic,
             );
         }
     }
@@ -1033,12 +1047,15 @@ fn apply_paragraph_kinsoku_line_break<I: StringIntern>(
     }
 }
 
-fn canvas_measure_font(family_stack: &str, size_px: f64, bold: bool) -> String {
-    if bold {
-        format!("bold {}px {}", format_px(size_px), family_stack)
-    } else {
-        format!("{}px {}", format_px(size_px), family_stack)
+fn canvas_measure_font(family_stack: &str, size_px: f64, bold: bool, italic: bool) -> String {
+    let mut prefix = String::new();
+    if italic {
+        prefix.push_str("italic ");
     }
+    if bold {
+        prefix.push_str("bold ");
+    }
+    format!("{}{}px {}", prefix, format_px(size_px), family_stack)
 }
 
 fn apply_gdi_metric_letter_spacing<I: StringIntern>(
@@ -1048,6 +1065,7 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
     size_px: f64,
     font_family: Option<&str>,
     bold: bool,
+    italic: bool,
 ) {
     if text.is_empty() || font_family.is_none() {
         return;
@@ -1060,9 +1078,11 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
         size_px,
         VISUAL_HOST_RUN_FONT_STACK,
         bold,
+        italic,
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply_hang_space_word_spacing<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     run: u32,
@@ -1070,10 +1090,11 @@ fn apply_hang_space_word_spacing<I: StringIntern>(
     size_px: f64,
     stack: &str,
     bold: bool,
+    italic: bool,
     fallback_px: f64,
 ) {
     let glyph_s = glyph.to_string();
-    let canvas_font = canvas_measure_font(stack, size_px, bold);
+    let canvas_font = canvas_measure_font(stack, size_px, bold, italic);
     let font_id = ctx.intern.intern(&canvas_font);
     // Distinct intern key so width/GDI caches for the same glyph are not reused.
     let hang_key = ctx.intern.intern(&format!("pptx-hang-space:{glyph_s}"));
@@ -1094,11 +1115,12 @@ fn apply_gdi_metric_letter_spacing_with_stack<I: StringIntern>(
     size_px: f64,
     stack: &str,
     bold: bool,
+    italic: bool,
 ) {
     if text.is_empty() {
         return;
     }
-    let canvas_font = canvas_measure_font(stack, size_px, bold);
+    let canvas_font = canvas_measure_font(stack, size_px, bold, italic);
     let font_id = ctx.intern.intern(&canvas_font);
     let text_id = ctx.intern.intern(text);
     if let Some(tracking) = ctx.measure.cached_width(font_id, text_id) {

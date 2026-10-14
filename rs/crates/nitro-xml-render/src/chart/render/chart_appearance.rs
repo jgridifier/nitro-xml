@@ -156,6 +156,22 @@ pub fn overlay_chart_space_sp_pr(
     overlay_shape_part(appearance, "chartArea", space.sp_pr.as_ref(), resolve);
 }
 
+/// `c:plotArea/c:spPr` plot-area chrome (fill + outline).
+///
+/// Catches: xlsx charts missing the black plot border (poi-dataValidationTableRange print).
+pub fn overlay_plot_area_sp_pr(
+    appearance: &mut ChartAppearance,
+    space: &ChartSpace,
+    resolve: &dyn Fn(&DrawingColor) -> Option<String>,
+) {
+    overlay_shape_part(
+        appearance,
+        "plotArea",
+        space.plot_area.sp_pr.as_ref(),
+        resolve,
+    );
+}
+
 /// Axis `c:spPr` and value-axis major gridlines (`readChartFormatting` direct entries).
 pub fn overlay_authored_axis_sp_pr(
     appearance: &mut ChartAppearance,
@@ -271,5 +287,40 @@ mod tests {
             .and_then(|e| e.line_color.as_deref())
             .expect("valAx majorGridlines colour");
         assert!(grid.starts_with('#'), "major gridline colour: {grid}");
+    }
+
+    #[test]
+    fn overlay_chart_and_plot_area_borders_from_sp_pr() {
+        // Catches: xlsx path skipped chartSpace/plotArea spPr so DV print missed black 1pt borders.
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/real/xlsx/poi-dataValidationTableRange.xlsx");
+        let bytes = std::fs::read(&path).unwrap();
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+        let mut xml = String::new();
+        {
+            let mut chart = archive.by_name("xl/charts/chart1.xml").unwrap();
+            std::io::Read::read_to_string(&mut chart, &mut xml).unwrap();
+        }
+        let parsed = parse_chart_space_xml(&xml);
+        let theme = crate::chart::render::theme_palette::chart_theme_palette(None, None, None);
+        let scheme = chart_color_scheme(&theme);
+        let resolve = |color: &nitro_xml_opc::drawingml::DrawingColor| {
+            let resolve_opts = ResolveOptions {
+                transform_order: TransformOrder::Document,
+                hsl_rounding: HslRounding::HalfDown,
+            };
+            drawing_color_css(
+                resolve_drawing_color(color, Some(&scheme), Some(resolve_opts)).as_ref(),
+            )
+        };
+        let mut appearance = ChartAppearance::default();
+        overlay_chart_space_sp_pr(&mut appearance, &parsed.chart_space, &resolve);
+        overlay_plot_area_sp_pr(&mut appearance, &parsed.chart_space, &resolve);
+        let chart_area = appearance.get("chartArea").expect("chartArea");
+        assert_eq!(chart_area.line_color.as_deref(), Some("#000000"));
+        assert!((chart_area.line_width.unwrap_or(0.0) - 1.0).abs() < 1e-9);
+        let plot = appearance.get("plotArea").expect("plotArea");
+        assert_eq!(plot.line_color.as_deref(), Some("#000000"));
+        assert!((plot.line_width.unwrap_or(0.0) - 1.0).abs() < 1e-9);
     }
 }

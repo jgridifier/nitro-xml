@@ -34,6 +34,7 @@ export const HARD_FIXTURES = new Set([
 	'fixtures/real/xlsx/poi-ConditionalFormattingSamples.xlsx',
 	'fixtures/real/xlsx/poi-NewStyleConditionalFormattings.xlsx',
 	'fixtures/real/xlsx/poi-DataTableCities.xlsx',
+	'fixtures/real/xlsx/poi-dataValidationTableRange.xlsx',
 	'fixtures/real/xlsx/poi-DateFormatTests.xlsx',
 	'fixtures/real/xlsx/poi-57893-many-merges.xlsx',
 	'fixtures/real/xlsx/poi-61652.xlsx',

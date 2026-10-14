@@ -10,6 +10,7 @@ use super::built_in_text_style::{
 };
 use super::chart_appearance::{
     overlay_authored_axis_sp_pr, overlay_authored_tx_pr_appearance, overlay_chart_space_sp_pr,
+    overlay_plot_area_sp_pr,
 };
 use super::chart_colors::chart_color_scheme;
 use super::chart_picture_fill::resolve_chart_picture_fills;
@@ -125,14 +126,14 @@ pub fn render_chart_space_svg(
         };
         drawing_color_css(resolve_drawing_color(color, Some(&scheme), Some(resolve_opts)).as_ref())
     };
-    if options.docx_chart_chrome {
-        if let Some(appearance) = view.appearance.as_mut() {
-            overlay_authored_tx_pr_appearance(appearance, space, &resolve);
-            overlay_authored_axis_sp_pr(appearance, space, &resolve);
-            overlay_chart_space_sp_pr(appearance, space, &resolve);
-        }
-    } else if options.bar3d_extrusion {
-        if let Some(appearance) = view.appearance.as_mut() {
+    // Upstream `readChartFormatting` always merges direct c:spPr on chartSpace /
+    // plotArea (black 1pt borders on poi-dataValidationTableRange). Apply for every
+    // space render path — not only docx_chart_chrome.
+    {
+        let appearance = view.appearance.get_or_insert_with(Default::default);
+        overlay_chart_space_sp_pr(appearance, space, &resolve);
+        overlay_plot_area_sp_pr(appearance, space, &resolve);
+        if options.docx_chart_chrome || options.bar3d_extrusion {
             overlay_authored_tx_pr_appearance(appearance, space, &resolve);
             overlay_authored_axis_sp_pr(appearance, space, &resolve);
         }

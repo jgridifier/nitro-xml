@@ -5,6 +5,7 @@
 //! Ported modules carry Apache-2.0 headers; see `PROVENANCE.md`.
 
 mod auto_number;
+mod east_asian_breaks;
 pub mod edit;
 pub mod editor;
 mod inheritance;
@@ -21,6 +22,7 @@ mod text;
 mod text_body_rect;
 mod text_layout;
 mod theme;
+mod unicode_script;
 mod verified_text_rect_presets;
 mod visual_3d_bevel;
 mod visual_3d_materials;

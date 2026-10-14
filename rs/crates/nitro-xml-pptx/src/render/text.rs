@@ -9,11 +9,13 @@ use super::dom::{create_child, position_box, set_attr, set_style, set_text_conte
 use super::field_substitution;
 use super::font_substitution::substitute_font_family_stack;
 use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
+use crate::east_asian_breaks::{split_east_asian_breaks, EastAsianBreakOptions};
 use crate::slide::DumpElement;
 use crate::text_body_rect::{resolve_text_body_rect_padding, TextBodyRectPadding};
 use crate::text_layout::{
-    compute_tabbed_line_layout, resolve_css_text_align, TextAlignCss, TextBodyLayout,
-    TextBodyVAlign, TextPaintParagraph, TextPaintRuby, TextPaintRun, TextPaintTabStop,
+    compute_body_tab_size_px, compute_tabbed_line_layout, resolve_css_text_align, TextAlignCss,
+    TextBodyLayout, TextBodyVAlign, TextPaintParagraph, TextPaintRuby, TextPaintRun,
+    TextPaintTabStop,
 };
 
 /// Loader `fillMeasureWidths` sentinel: returns GDI letter-spacing px/char (upstream `text-metric-tracking`).
@@ -219,6 +221,9 @@ pub fn paint_text_body<I: StringIntern>(
                 set_style(ctx, block, "direction", "rtl");
                 set_style(ctx, block, "unicode-bidi", "plaintext");
             }
+            if let Some(tab_px) = compute_body_tab_size_px(paragraphs) {
+                set_style(ctx, block, "tab-size", &format_layout_px(tab_px));
+            }
             paint_rich_paragraphs(ctx, block, paragraphs, &paint, size, &stack);
         } else if !text.trim().is_empty() {
             paint_plain_text_runs(ctx, block, text, &paint, size, &stack);
@@ -372,10 +377,16 @@ fn paint_rich_paragraphs<I: StringIntern>(
             }
             create_child(ctx, para, "br");
         } else {
-            for run_model in &para_model.runs {
+            for (run_idx, run_model) in para_model.runs.iter().enumerate() {
                 let (run_paint, run_size) =
                     merge_run_level_paint(&para_paint, run_model, para_size);
                 let run_stack = substitute_font_family_stack(run_paint.font_family);
+                let following =
+                    crate::east_asian_breaks::following_run_char(&para_model.runs, run_idx);
+                let east_asian = crate::east_asian_breaks::east_asian_breaks_for_run(
+                    para_model.east_asian_breaks,
+                    run_model.run_lang.as_deref(),
+                );
                 append_paint_run(
                     ctx,
                     para,
@@ -387,6 +398,8 @@ fn paint_rich_paragraphs<I: StringIntern>(
                     run_size,
                     &run_stack,
                     para_model.run_line_height_zero,
+                    east_asian,
+                    following,
                 );
             }
         }
@@ -457,6 +470,8 @@ fn append_paint_run<I: StringIntern>(
     size: f64,
     stack: &str,
     run_line_height_zero: bool,
+    east_asian: Option<EastAsianBreakOptions>,
+    following: Option<char>,
 ) {
     let display_text = display_run_text(ctx, run_model);
     if !tab_stops.is_empty() && display_text.contains('\t') {
@@ -524,17 +539,24 @@ fn append_paint_run<I: StringIntern>(
     } else if uses_per_piece_gdi_metric(paint, &display_text) {
         let pieces = split_run_for_metric_pieces(&display_text);
         if pieces.len() > 1 {
-            for piece in pieces {
+            for (piece_idx, piece) in pieces.iter().enumerate() {
+                let piece_following = if piece_idx + 1 < pieces.len() {
+                    pieces[piece_idx + 1].chars().next().or(following)
+                } else {
+                    following
+                };
                 paint_run_text_span(
                     ctx,
                     para,
-                    &piece,
+                    piece,
                     run_model,
                     paragraph_rtl,
                     paint,
                     size,
                     stack,
                     run_line_height_zero,
+                    east_asian,
+                    piece_following,
                 );
             }
             para
@@ -549,6 +571,8 @@ fn append_paint_run<I: StringIntern>(
                 size,
                 stack,
                 run_line_height_zero,
+                east_asian,
+                following,
             )
         }
     } else {
@@ -562,6 +586,8 @@ fn append_paint_run<I: StringIntern>(
             size,
             stack,
             run_line_height_zero,
+            east_asian,
+            following,
         )
     };
     let _ = host;
@@ -613,9 +639,118 @@ fn paint_run_text_span<I: StringIntern>(
     size: f64,
     stack: &str,
     run_line_height_zero: bool,
+    east_asian: Option<EastAsianBreakOptions>,
+    following: Option<char>,
 ) -> u32 {
-    let run = create_child(ctx, para, "span");
-    set_text_content(ctx, run, text);
+    if let Some(script_fonts) = &run_model.script_fonts {
+        let script_runs = crate::unicode_script::segment_by_script(text);
+        let needs_split = script_runs.len() > 1
+            || script_runs.iter().any(|seg| {
+                crate::unicode_script::resolve_font_for_script(seg.script, script_fonts)
+                    != script_fonts.latin
+            });
+        if needs_split {
+            let mut last = para;
+            for (idx, seg) in script_runs.iter().enumerate() {
+                let face = crate::unicode_script::resolve_font_for_script(seg.script, script_fonts);
+                let seg_paint = TextBodyPaint {
+                    text_color: paint.text_color,
+                    font_size_px: paint.font_size_px,
+                    font_family: face.as_deref().or(paint.font_family),
+                    font_bold: paint.font_bold,
+                    font_italic: paint.font_italic,
+                    font_kern_hundredths: paint.font_kern_hundredths,
+                    text_stroke_width_px: paint.text_stroke_width_px,
+                    text_stroke_color: paint.text_stroke_color,
+                    layout: paint.layout,
+                    paragraphs: paint.paragraphs,
+                    text_shadow: paint.text_shadow,
+                    geom_rect_padding: paint.geom_rect_padding,
+                    presentation_kinsoku: paint.presentation_kinsoku,
+                };
+                let seg_stack = substitute_font_family_stack(seg_paint.font_family);
+                let seg_following = if idx + 1 < script_runs.len() {
+                    script_runs[idx + 1].text.chars().next()
+                } else {
+                    following
+                };
+                last = paint_run_text_span(
+                    ctx,
+                    para,
+                    &seg.text,
+                    run_model,
+                    paragraph_rtl,
+                    &seg_paint,
+                    size,
+                    &seg_stack,
+                    run_line_height_zero,
+                    east_asian,
+                    seg_following,
+                );
+            }
+            return last;
+        }
+    }
+    let ea_ref = east_asian.as_ref();
+    let pieces = split_east_asian_breaks(text, ea_ref, size, following);
+    let single_plain = pieces.len() == 1
+        && !pieces[0].inline_block_zero_width
+        && pieces[0].word_spacing_px.is_none();
+    if single_plain {
+        let run = create_child(ctx, para, "span");
+        set_text_content(ctx, run, &pieces[0].text);
+        paint_run_span_styles(
+            ctx,
+            run,
+            run_model,
+            paragraph_rtl,
+            paint,
+            size,
+            stack,
+            run_line_height_zero,
+            &pieces[0].text,
+        );
+        return run;
+    }
+    let mut last = para;
+    for piece in pieces {
+        let run = create_child(ctx, para, "span");
+        set_text_content(ctx, run, &piece.text);
+        if piece.inline_block_zero_width {
+            set_style(ctx, run, "display", "inline-block");
+            set_style(ctx, run, "inline-size", "0px");
+        }
+        if let Some(ws) = piece.word_spacing_px {
+            set_style(ctx, run, "word-spacing", &format_layout_px(ws));
+        }
+        paint_run_span_styles(
+            ctx,
+            run,
+            run_model,
+            paragraph_rtl,
+            paint,
+            size,
+            stack,
+            run_line_height_zero,
+            &piece.text,
+        );
+        last = run;
+    }
+    last
+}
+
+#[allow(clippy::too_many_arguments)]
+fn paint_run_span_styles<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    run: u32,
+    run_model: &TextPaintRun,
+    paragraph_rtl: Option<bool>,
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+    run_line_height_zero: bool,
+    metric_text: &str,
+) {
     apply_run_rtl(ctx, run, run_model.rtl, paragraph_rtl);
     if paint.font_family.is_some() {
         set_style(ctx, run, "font-family", stack);
@@ -629,8 +764,14 @@ fn paint_run_text_span<I: StringIntern>(
     if run_model.underline {
         apply_run_underline(ctx, run);
     }
-    apply_gdi_metric_letter_spacing(ctx, run, text, size, paint.font_family, paint.font_bold);
-    run
+    apply_gdi_metric_letter_spacing(
+        ctx,
+        run,
+        metric_text,
+        size,
+        paint.font_family,
+        paint.font_bold,
+    );
 }
 
 fn apply_run_rtl<I: StringIntern>(
@@ -945,9 +1086,9 @@ fn apply_text_body_layout<I: StringIntern>(
         );
         set_style(ctx, block, "column-fill", "auto");
         let align_content = match layout.v_align {
-            TextBodyVAlign::Top => "flex-start",
+            TextBodyVAlign::Top => "start",
             TextBodyVAlign::Middle => "center",
-            TextBodyVAlign::Bottom => "flex-end",
+            TextBodyVAlign::Bottom => "end",
         };
         set_style(ctx, block, "align-content", align_content);
     } else {
@@ -958,11 +1099,18 @@ fn apply_text_body_layout<I: StringIntern>(
         };
         set_style(ctx, block, "justify-content", justify);
     }
-    if layout.anchor_center {
-        set_style(ctx, block, "align-items", "center");
+    if layout.anchor_center && layout.column_count <= 1 {
+        set_style(ctx, block, "width", "fit-content");
+        set_style(ctx, block, "max-width", "100%");
+        set_style(ctx, block, "margin-left", "auto");
+        set_style(ctx, block, "margin-right", "auto");
     }
     if layout.overflow_clip {
         set_style(ctx, block, "overflow", "hidden");
+    }
+    if layout.wrap_none && !layout.overflow_clip {
+        set_style(ctx, block, "white-space", "nowrap");
+        set_style(ctx, block, "overflow", "visible");
     }
     if let Some(deg) = layout.body_rotation_deg.filter(|d| *d != 0.0) {
         set_style(
@@ -971,7 +1119,7 @@ fn apply_text_body_layout<I: StringIntern>(
             "transform",
             &format!("rotate({}deg)", format_px(deg)),
         );
-        set_style(ctx, block, "transform-origin", "center center");
+        set_style(ctx, block, "transform-origin", "center");
     }
     if !per_paragraph_align {
         if let Some(align) = layout.text_align {

@@ -29,6 +29,8 @@ pub struct PlaceholderTextLevelStyle {
     pub font_size_px: Option<f64>,
     /// `a:lvlNpPr/@eaLnBrk` or `a:defPPr/@eaLnBrk` from presentation `defaultTextStyle`.
     pub ea_line_break: Option<bool>,
+    pub hanging_punctuation: Option<bool>,
+    pub latin_line_break: Option<bool>,
     /// `a:defRPr/a:latin/@typeface` (may be a theme token such as `+mn-lt`).
     pub default_latin_typeface: Option<String>,
     /// `a:defRPr/@b` when authored (`1` / `0`).
@@ -78,6 +80,12 @@ pub fn parse_level_style_from_ppr(p_pr: &Element) -> Option<PlaceholderTextLevel
     if let Some(v) = attr(p_pr, "eaLnBrk") {
         style.ea_line_break = Some(matches!(v, "1" | "true" | "on"));
     }
+    if let Some(v) = attr(p_pr, "hangingPunct") {
+        style.hanging_punctuation = Some(matches!(v, "1" | "true" | "on"));
+    }
+    if let Some(v) = attr(p_pr, "latinLnBrk") {
+        style.latin_line_break = Some(matches!(v, "1" | "true" | "on"));
+    }
     style.paragraph_align = attr(p_pr, "algn").and_then(parse_paragraph_align);
     apply_paragraph_margin_attrs(&mut style, p_pr);
     apply_def_rpr(&mut style, p_pr);
@@ -98,6 +106,8 @@ fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
         || style.text_color.is_some()
         || style.font_size_px.is_some()
         || style.ea_line_break.is_some()
+        || style.hanging_punctuation.is_some()
+        || style.latin_line_break.is_some()
         || style.default_latin_typeface.is_some()
         || style.font_bold.is_some()
         || style.font_italic.is_some()
@@ -322,6 +332,8 @@ fn merge_level_style(
         },
         font_size_px: over.font_size_px.or(base.font_size_px),
         ea_line_break: over.ea_line_break.or(base.ea_line_break),
+        hanging_punctuation: over.hanging_punctuation.or(base.hanging_punctuation),
+        latin_line_break: over.latin_line_break.or(base.latin_line_break),
         default_latin_typeface: over
             .default_latin_typeface
             .clone()

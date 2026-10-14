@@ -2762,6 +2762,14 @@ fn apply_norm_autofit_to_extras(
             if let Some(level_sz) = para.level_font_size_px {
                 para.level_font_size_px = Some((level_sz * ratio).max(6.0));
             }
+            if let Some(sz) = para.empty_line_font_size_px {
+                para.empty_line_font_size_px = Some((sz * ratio).max(6.0));
+            }
+            for run in &mut para.runs {
+                if let Some(sz) = run.run_font_size_px {
+                    run.run_font_size_px = Some((sz * ratio).max(6.0));
+                }
+            }
         }
     }
 }
@@ -3726,6 +3734,30 @@ mod tests {
         );
     }
 
+    // Catches: CJK hanging-punct paragraphs losing per-paragraph `eastAsianBreaks` at parse time.
+    #[test]
+    fn upstream_cjk_line_breaking_hanging_punct_parsed() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/e3dab827b836_cjk-line-breaking.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let hang = slide
+            .elements
+            .iter()
+            .find(|e| e.text.as_deref().map(|t| t.contains('あ')).unwrap_or(false))
+            .expect("hang shape");
+        let paras = hang.text_paint_paragraphs.as_ref().expect("paras");
+        let opts = paras[0]
+            .east_asian_breaks
+            .expect("hangingPunct=1 paragraph options");
+        assert!(opts.hanging_punctuation);
+        assert!(!opts.break_anywhere);
+    }
+
     // Catches: body lvl2 inheriting titleStyle lvl1 italic via shape-level first-run fallback.
     #[test]
     fn upstream_master_text_styles_body_level_two_not_italic() {
@@ -3745,6 +3777,11 @@ mod tests {
         let paras = body.text_paint_paragraphs.as_ref().expect("paras");
         assert_eq!(paras[0].level_font_italic, Some(true));
         assert_eq!(paras[1].level_font_italic, Some(false));
+        assert_eq!(
+            paras[0].bullet_marker.as_deref(),
+            Some("•"),
+            "bodyStyle lvl1 bullet"
+        );
     }
 
     // Catches: keyframes Profil effectRef idx=2 metal never gets inset specular so the green button stays flat.

@@ -6,6 +6,7 @@ use nitro_xml_opc::drawingml::{emu_to_pixels, parse_drawing_text_body, DrawingTe
 use nitro_xml_opc::xml::{ns, Element};
 
 use crate::inheritance::{attr, child_local, children_local, parse_optional_bool_attr};
+use crate::unicode_script::ScriptFontSet;
 use nitro_xml_opc::xml::Node;
 
 /// `a:bodyPr` autofit mode (upstream `TextStyle.autoFitMode`).
@@ -117,6 +118,8 @@ pub struct TextBodyLayout {
     pub overflow_clip: bool,
     /// `a:bodyPr/@rot` in degrees (clockwise, same as CSS).
     pub body_rotation_deg: Option<f64>,
+    /// `a:bodyPr/@wrap="none"` — single line, no wrap (upstream `textWrap === 'none'`).
+    pub wrap_none: bool,
 }
 
 impl Default for TextBodyLayout {
@@ -133,6 +136,7 @@ impl Default for TextBodyLayout {
             anchor_center: false,
             overflow_clip: false,
             body_rotation_deg: None,
+            wrap_none: false,
         }
     }
 }
@@ -241,7 +245,7 @@ pub fn parse_text_body_layout_with_levels(
 
     let body_pr = child_local(tx_body, "bodyPr", ns::A)
         .or_else(|| inherited_tx_body.and_then(|tx| child_local(tx, "bodyPr", ns::A)));
-    let (column_count, column_gap_px, anchor_center, overflow_clip, body_rotation_deg) =
+    let (column_count, column_gap_px, anchor_center, overflow_clip, body_rotation_deg, wrap_none) =
         parse_body_pr_layout_flags(body_pr);
 
     TextBodyLayout {
@@ -256,12 +260,15 @@ pub fn parse_text_body_layout_with_levels(
         anchor_center,
         overflow_clip,
         body_rotation_deg,
+        wrap_none,
     }
 }
 
-fn parse_body_pr_layout_flags(body_pr: Option<&Element>) -> (u8, f64, bool, bool, Option<f64>) {
+fn parse_body_pr_layout_flags(
+    body_pr: Option<&Element>,
+) -> (u8, f64, bool, bool, Option<f64>, bool) {
     let Some(bp) = body_pr else {
-        return (1, 0.0, false, false, None);
+        return (1, 0.0, false, false, None, false);
     };
     let column_count = attr(bp, "numCol")
         .and_then(|s| s.parse::<u8>().ok())
@@ -279,12 +286,14 @@ fn parse_body_pr_layout_flags(body_pr: Option<&Element>) -> (u8, f64, bool, bool
         .and_then(|s| s.parse::<f64>().ok())
         .filter(|v| *v != 0.0)
         .map(|emu| emu / 60_000.0);
+    let wrap_none = attr(bp, "wrap").map(|w| w.eq_ignore_ascii_case("none")) == Some(true);
     (
         column_count,
         column_gap_px,
         anchor_center,
         overflow_clip,
         body_rotation_deg,
+        wrap_none,
     )
 }
 
@@ -363,6 +372,9 @@ pub struct TextPaintRun {
     pub run_font_size_px: Option<f64>,
     pub run_font_bold: Option<bool>,
     pub run_font_italic: Option<bool>,
+    pub run_lang: Option<String>,
+    /// Per-script typefaces when `a:ea` / `a:cs` / `a:sym` differ from `a:latin` (paint only).
+    pub script_fonts: Option<ScriptFontSet>,
 }
 
 /// Paragraph-level BiDi + alignment for painters (upstream `RenderParagraph` subset).
@@ -393,6 +405,8 @@ pub struct TextPaintParagraph {
     pub run_line_height_zero: bool,
     /// `a:endParaRPr/@sz` for blank paragraphs (line box height).
     pub empty_line_font_size_px: Option<f64>,
+    /// Per-paragraph `@hangingPunct` / `@eaLnBrk="0"` paint (upstream `eastAsianBreaks`).
+    pub east_asian_breaks: Option<crate::east_asian_breaks::EastAsianBreakOptions>,
 }
 
 /// Master/layout `txStyles` + `lstStyle` cascade for list paint (#27).
@@ -437,13 +451,14 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
         .iter()
         .enumerate()
         .map(|(para_index, p)| {
+            let para_level = paragraph_level(p) as i8;
             let p_pr = child_local(p, "pPr", ns::A);
             let mut align = p_pr
                 .and_then(|pp| attr(pp, "algn"))
                 .and_then(parse_paragraph_align);
             if align.is_none() {
                 if let Some(ctx) = list_styles {
-                    let level = paragraph_level(p) as i8;
+                    let level = para_level;
                     align = ctx
                         .effective_level_styles
                         .and_then(|map| crate::level_style::level_style_for(map, level))
@@ -457,10 +472,33 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 .and_then(|s| s.parse::<i64>().ok())
                 .filter(|v| *v > 0)
                 .map(emu_to_pixels);
+            let para_level = paragraph_level(p) as i8;
+            let east_asian_breaks = p_pr
+                .and_then(|pp| {
+                    crate::east_asian_breaks::resolve_east_asian_break_options(
+                        parse_optional_bool_attr(attr(pp, "hangingPunct")),
+                        parse_optional_bool_attr(attr(pp, "eaLnBrk")),
+                        parse_optional_bool_attr(attr(pp, "latinLnBrk")),
+                    )
+                })
+                .or_else(|| {
+                    list_styles.and_then(|ctx| {
+                        ctx.effective_level_styles
+                            .and_then(|map| {
+                                crate::level_style::level_style_for(map, para_level)
+                            })
+                            .and_then(|style| {
+                                crate::east_asian_breaks::resolve_east_asian_break_options(
+                                    style.hanging_punctuation,
+                                    style.ea_line_break,
+                                    style.latin_line_break,
+                                )
+                            })
+                    })
+                });
             let inherited_field = list_styles.and_then(|c| c.inherited_field_type.as_deref());
             let font_scheme = list_styles.and_then(|c| c.font_scheme);
             let runs = collect_paint_runs(p, inherited_field, font_scheme);
-            let para_level = paragraph_level(p) as i8;
             let level_run_style = list_styles
                 .and_then(|ctx| {
                     ctx.effective_level_styles.map(|map| {
@@ -555,6 +593,7 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 margin_bottom_px: spacing.margin_bottom_px,
                 run_line_height_zero: spacing.run_line_height_zero,
                 empty_line_font_size_px,
+                east_asian_breaks,
             }
         })
         .collect()
@@ -812,19 +851,28 @@ fn collect_paint_runs(
                 } else {
                     None
                 };
-                let (run_font_family, run_font_size_px, run_font_bold, run_font_italic) = r_pr
+                let resolved = r_pr
                     .map(|rp| resolve_run_paint_style(rp, font_scheme, &text))
-                    .unwrap_or((None, None, None, None));
+                    .unwrap_or(ResolvedRunPaint {
+                        font_family: None,
+                        font_size_px: None,
+                        font_bold: None,
+                        font_italic: None,
+                        script_fonts: None,
+                    });
+                let run_lang = r_pr.and_then(|rp| attr(rp, "lang")).map(|s| s.to_string());
                 runs.push(TextPaintRun {
                     text,
                     rtl,
                     underline,
                     ruby,
                     field_type,
-                    run_font_family,
-                    run_font_size_px,
-                    run_font_bold,
-                    run_font_italic,
+                    run_font_family: resolved.font_family,
+                    run_font_size_px: resolved.font_size_px,
+                    run_font_bold: resolved.font_bold,
+                    run_font_italic: resolved.font_italic,
+                    run_lang,
+                    script_fonts: resolved.script_fonts,
                 });
             }
         }
@@ -832,11 +880,20 @@ fn collect_paint_runs(
     runs
 }
 
+#[derive(Debug, Clone)]
+struct ResolvedRunPaint {
+    font_family: Option<String>,
+    font_size_px: Option<f64>,
+    font_bold: Option<bool>,
+    font_italic: Option<bool>,
+    script_fonts: Option<ScriptFontSet>,
+}
+
 fn resolve_run_paint_style(
     rpr: &Element,
     font_scheme: Option<&crate::theme::ThemeFontScheme>,
     text: &str,
-) -> (Option<String>, Option<f64>, Option<bool>, Option<bool>) {
+) -> ResolvedRunPaint {
     let font_size_px = attr(rpr, "sz")
         .and_then(|s| s.parse::<f64>().ok())
         .filter(|sz| *sz > 0.0)
@@ -844,7 +901,53 @@ fn resolve_run_paint_style(
     let font_bold = attr(rpr, "b").map(|b| matches!(b, "1" | "true" | "on"));
     let font_italic = attr(rpr, "i").map(|i| matches!(i, "1" | "true" | "on"));
     let font_family = resolve_run_font_family_for_paint(rpr, font_scheme, text);
-    (font_family, font_size_px, font_bold, font_italic)
+    let script_fonts = resolve_run_script_font_set(rpr, font_scheme, font_family.as_deref());
+    ResolvedRunPaint {
+        font_family,
+        font_size_px,
+        font_bold,
+        font_italic,
+        script_fonts,
+    }
+}
+
+fn resolve_typeface_on_rpr(
+    rpr: &Element,
+    tag: &str,
+    font_scheme: Option<&crate::theme::ThemeFontScheme>,
+    script: crate::theme::ThemeTypefaceScript,
+) -> Option<String> {
+    use crate::theme::resolve_theme_typeface;
+    child_local(rpr, tag, ns::A)
+        .and_then(|el| attr(el, "typeface"))
+        .and_then(|f| resolve_theme_typeface(f, font_scheme, script))
+}
+
+fn resolve_run_script_font_set(
+    rpr: &Element,
+    font_scheme: Option<&crate::theme::ThemeFontScheme>,
+    latin_base: Option<&str>,
+) -> Option<ScriptFontSet> {
+    use crate::theme::ThemeTypefaceScript;
+    use crate::unicode_script::{has_distinct_script_fonts, ScriptFontSet};
+    let latin = latin_base
+        .map(str::to_owned)
+        .or_else(|| resolve_typeface_on_rpr(rpr, "latin", font_scheme, ThemeTypefaceScript::Latin));
+    let east_asia = resolve_typeface_on_rpr(rpr, "ea", font_scheme, ThemeTypefaceScript::EastAsia);
+    let complex_script =
+        resolve_typeface_on_rpr(rpr, "cs", font_scheme, ThemeTypefaceScript::ComplexScript);
+    let symbol = resolve_typeface_on_rpr(rpr, "sym", font_scheme, ThemeTypefaceScript::Latin);
+    let set = ScriptFontSet {
+        latin,
+        east_asia,
+        complex_script,
+        symbol,
+    };
+    if has_distinct_script_fonts(&set) {
+        Some(set)
+    } else {
+        None
+    }
 }
 
 fn resolve_run_font_family_for_paint(
@@ -873,6 +976,49 @@ fn resolve_run_font_family_for_paint(
             }
         });
     face.and_then(|f| resolve_theme_typeface(f, font_scheme, pick_script))
+}
+
+/// CSS `tab-size` for the text body (upstream `computeTabSize`).
+pub fn compute_body_tab_size_px(paragraphs: &[TextPaintParagraph]) -> Option<f64> {
+    let mut best: Option<f64> = None;
+    for para in paragraphs {
+        let from_default = para.default_tab_size_px.filter(|v| *v > 0.0);
+        let candidate = if para.tab_stops.is_empty() {
+            from_default
+        } else if para.tab_stops.len() == 1 {
+            let pos = para.tab_stops[0].position_px;
+            if pos > 0.0 {
+                Some(pos)
+            } else {
+                from_default
+            }
+        } else {
+            let mut positions: Vec<f64> = para
+                .tab_stops
+                .iter()
+                .map(|t| t.position_px)
+                .filter(|p| *p > 0.0)
+                .collect();
+            positions.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            if positions.len() >= 2 {
+                let total = positions.windows(2).map(|w| w[1] - w[0]).sum::<f64>();
+                let avg = total / (positions.len() - 1) as f64;
+                if avg > 0.0 {
+                    Some(avg)
+                } else {
+                    from_default
+                }
+            } else if let Some(p) = positions.first() {
+                Some(*p)
+            } else {
+                from_default
+            }
+        };
+        if candidate.is_some() {
+            best = candidate;
+        }
+    }
+    best
 }
 
 fn text_has_east_asian(text: &str) -> bool {

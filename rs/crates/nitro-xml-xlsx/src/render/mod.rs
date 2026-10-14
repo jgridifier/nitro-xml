@@ -3,6 +3,7 @@
 
 mod cells;
 mod cond_format;
+mod drawings;
 mod geometry;
 mod grid;
 mod gridlines;
@@ -90,6 +91,7 @@ pub fn paint_grid_frame<I: StringIntern>(
         viewport,
         hints,
     );
+    drawings::paint(buf, intern, measures, sheet, &metrics);
     selection::paint(buf, intern, sheet, &metrics, viewport);
     headers::paint(buf, intern, sheet, &metrics, viewport);
     cond_format::paint(buf);

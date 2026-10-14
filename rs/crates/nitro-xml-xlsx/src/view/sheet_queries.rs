@@ -130,6 +130,7 @@ mod tests {
             hyperlinks: vec![],
             ext_lst: vec![],
             sparkline_groups: vec![],
+            drawings: Vec::new(),
             dimension: None,
         };
         let index = CellIndex::build(&sheet);

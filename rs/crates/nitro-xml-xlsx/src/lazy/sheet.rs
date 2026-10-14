@@ -15,6 +15,7 @@ use nitro_xml_opc::xml::parse_xml_str;
 use crate::address::{parse_address, parse_range, MAX_COL, MAX_ROW};
 use crate::cells::CellStore;
 use crate::comments::load_comment_addresses;
+use crate::drawing::load_sheet_drawings;
 use crate::hyperlinks::read_hyperlinks;
 use crate::model::{ActiveWorksheet, CellAddress, CellRange, RowInfo, SheetState};
 use crate::sheet_data::{read_sheet_data_xml, store_to_dump_cells, CellContext};
@@ -159,6 +160,7 @@ fn empty_sheet(req: &SheetRequest<'_>) -> ActiveWorksheet {
         hyperlinks: Vec::new(),
         ext_lst: Vec::new(),
         sparkline_groups: Vec::new(),
+        drawings: Vec::new(),
         dimension: Some(grid_extent(None, 0, 0, false)),
     }
 }
@@ -275,6 +277,12 @@ fn worksheet_from_shell(
         .unwrap_or_default();
     let comment_addresses = load_comment_addresses(pkg, req.part_name);
     let hyperlinks = read_hyperlinks(pkg, req.part_name, by_name.get("hyperlinks").copied());
+    let mut warn = |m: String| {
+        if !_warnings.iter().any(|w| w == &m) {
+            _warnings.push(m);
+        }
+    };
+    let drawings = load_sheet_drawings(pkg, req.part_name, root, &mut warn);
     ActiveWorksheet {
         name: req.name.to_owned(),
         sheet_id: req.sheet_id,
@@ -293,6 +301,7 @@ fn worksheet_from_shell(
         hyperlinks,
         ext_lst,
         sparkline_groups,
+        drawings,
         dimension: None,
     }
 }

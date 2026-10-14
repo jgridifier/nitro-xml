@@ -865,6 +865,56 @@ impl DumpCell {
     }
 }
 
+/// Cell marker inside a spreadsheet drawing anchor (EMUs for offsets).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DrawingMarker {
+    pub row: u32,
+    pub col: u32,
+    pub row_offset: i64,
+    pub col_offset: i64,
+}
+
+/// Two-cell / one-cell / absolute drawing anchor (plane geometry via `anchor_to_pixel_box`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DrawingAnchor {
+    pub from: DrawingMarker,
+    pub to: Option<DrawingMarker>,
+    /// Extent in EMUs (`cx`, `cy`) for one-cell / absolute anchors.
+    pub ext: Option<(i64, i64)>,
+}
+
+/// Sheet drawing for the live grid (`#150` soft pixel / drawings layer).
+#[derive(Debug, Clone, PartialEq)]
+pub enum DrawingObject {
+    Unsupported {
+        anchor: DrawingAnchor,
+        description: String,
+    },
+    Chart {
+        anchor: DrawingAnchor,
+        part_name: String,
+        name: Option<String>,
+        chart_xml: String,
+    },
+    Image {
+        anchor: DrawingAnchor,
+        part_name: String,
+        content_type: String,
+        name: Option<String>,
+        description: Option<String>,
+    },
+}
+
+impl DrawingObject {
+    pub fn anchor(&self) -> &DrawingAnchor {
+        match self {
+            DrawingObject::Unsupported { anchor, .. }
+            | DrawingObject::Chart { anchor, .. }
+            | DrawingObject::Image { anchor, .. } => anchor,
+        }
+    }
+}
+
 /// List / custom validation rule ranges (view-IR only; not in Stage-16 worksheet JSON).
 #[derive(Debug, Clone, PartialEq)]
 pub struct DataValidation {
@@ -938,6 +988,8 @@ pub struct ActiveWorksheet {
     /// Preserved `extLst` XML fragments (sparklines and other extensions).
     pub ext_lst: Vec<String>,
     pub sparkline_groups: Vec<SparklineGroup>,
+    /// Pictures / charts / unsupported shapes from the worksheet drawing part.
+    pub drawings: Vec<DrawingObject>,
     /// Full grid extent for metrics. `None` on the full-fidelity load path (extent comes from
     /// stored cells). The lazy first view sets this from `<dimension>` or the streamed row
     /// prefix plus a stub so the grid does not collapse to the loaded window. Omitted from

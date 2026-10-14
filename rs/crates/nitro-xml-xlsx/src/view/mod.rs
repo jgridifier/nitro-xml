@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! Grid layout and CellItem view-IR (#18).
 
+pub mod anchors;
 pub mod axis_metrics;
 pub mod cell_items;
 pub mod cell_paint;

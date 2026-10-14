@@ -119,6 +119,7 @@ fn empty_worksheet(name: String, sheet_id: u32) -> ActiveWorksheet {
         hyperlinks: Vec::new(),
         ext_lst: Vec::new(),
         sparkline_groups: Vec::new(),
+        drawings: Vec::new(),
         dimension: None,
     }
 }

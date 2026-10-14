@@ -504,6 +504,7 @@ pub(crate) fn stub_worksheet(stub: &SheetStub) -> crate::model::ActiveWorksheet 
         hyperlinks: Vec::new(),
         ext_lst: Vec::new(),
         sparkline_groups: Vec::new(),
+        drawings: Vec::new(),
         dimension: None,
     }
 }

@@ -18,6 +18,7 @@ use crate::sheet_data::{
     read_sheet_data_element, read_sheet_data_xml, store_to_dump_cells, CellContext,
 };
 use crate::sheet_data_source::split_sheet_data;
+use crate::drawing::load_sheet_drawings;
 use crate::sheet_props::{read_columns, read_data_validations, read_sheet_format, read_sheet_view};
 use crate::sparklines::{extract_ext_lst, read_sparkline_groups_from_ext};
 use crate::xml_util::{att, elements, x_children};
@@ -122,6 +123,8 @@ pub fn parse_worksheet(
     let data_validations = read_data_validations(by_name.get("dataValidations").copied());
     let comment_addresses = load_comment_addresses(pkg, part_name);
     let hyperlinks = read_hyperlinks(pkg, part_name, by_name.get("hyperlinks").copied());
+    let mut warn = |m: String| push_warn(&mut ctx.warnings, m);
+    let drawings = load_sheet_drawings(pkg, part_name, Some(root), &mut warn);
     ActiveWorksheet {
         name: name.to_owned(),
         sheet_id,
@@ -140,6 +143,7 @@ pub fn parse_worksheet(
         hyperlinks,
         ext_lst,
         sparkline_groups,
+        drawings,
         dimension: None,
     }
 }
@@ -170,6 +174,7 @@ fn empty_worksheet(
         hyperlinks: Vec::new(),
         ext_lst: Vec::new(),
         sparkline_groups: Vec::new(),
+        drawings: Vec::new(),
         dimension: None,
     }
 }

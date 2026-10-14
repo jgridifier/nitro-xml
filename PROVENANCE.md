@@ -210,6 +210,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/write/inline.rs` | `src/core/docx/write-inline.ts` (`collectInlineSlots`) @ e66aaec | Plain `w:r` slot collection subset. |
 | `rs/crates/nitro-xml-docx/src/write/xml_escape.rs` | `src/core/xlsx/write/xml-out.ts` @ e66aaec | `_xHHHH_` text escapes shared with xlsx writer. |
 | `rs/crates/nitro-xml-xlsx/src/sheet_access.rs` | `src/core/xlsx/cells.ts` @ e66aaec | `getCell` / `usedRange` / `mergeAt` over `ActiveWorksheet` `DumpCell` vec + `CellIndex`. |
+| `rs/crates/nitro-xml-xlsx/src/drawing.rs` | `src/core/xlsx/read/drawing.ts` @ e66aaec | Spreadsheet drawing part (`xdr:wsDr`) → `DrawingObject` list (image/chart/unsupported); SmartArt deferred. |
+| `rs/crates/nitro-xml-xlsx/src/view/anchors.rs` | `src/core/xlsx/layout/anchors.ts` @ e66aaec | Two-cell / one-cell / absolute anchors → plane pixel boxes at metrics zoom. |
 | `rs/crates/nitro-xml-xlsx/src/view/units.rs` | `src/core/xlsx/layout/units.ts` @ e66aaec | Column/row pixel conversions; Rust `f64`/`i32` types. |
 | `rs/crates/nitro-xml-xlsx/src/view/axis_metrics.rs` | `src/core/xlsx/layout/axis-metrics.ts` @ e66aaec | Sparse axis metrics; same prefix-sum algorithm. |
 | `rs/crates/nitro-xml-xlsx/src/view/metrics.rs` | `src/core/xlsx/layout/metrics.ts` @ e66aaec | `createGridMetrics` over `ActiveWorksheet`. `dimension`, when set, extends `last_row` / `last_col` so a viewport-sized cell list does not shrink the grid. |
@@ -226,6 +228,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/view/number_fit.rs` | `src/core/xlsx/ui/grid/number-fit.ts` @ e66aaec | `fitNumber` via `format_value` width option. |
 | `rs/crates/nitro-xml-xlsx/src/view/css_font_family.rs` | `src/core/text/css-font-family.ts` @ e66aaec | Font fallback stacks for measure/CSS. |
 | `parity/visual/xlsx-grid-css.js` | `src/ui/src/xlsx/grid/styles.ts` (`GRID_CSS`) @ e66aaec | Visual-gate stylesheet for `<nitro-xlsx>` host (#150); not shipped in the loader. |
+| `rs/crates/nitro-xml-xlsx/src/render/drawings.rs` | `src/ui/src/xlsx/grid/drawings.ts` @ e66aaec | `.xg-drawings` layer: unsupported placeholders + chart SVG; image object-URL paint deferred to loader. |
 | `rs/crates/nitro-xml-xlsx/src/render/grid.rs` | `src/ui/src/xlsx/grid/grid-view.ts`, `grid-a11y.ts` @ e66aaec | Frame shell + `role=grid`/aria counts/live region (#42); full quadrants TODO(#19). |
 | `rs/crates/nitro-xml-xlsx/src/render/cells.rs` | `src/ui/src/xlsx/grid/cell-layer.ts` @ e66aaec | Cell DOM command buffer (`paintCell` parity). |
 | `rs/crates/nitro-xml-xlsx/src/render/cond_format.rs` | `src/core/xlsx/ui/grid/icon-sets.ts`, cell-layer data bars @ e66aaec | CF paint stub; formula rules TODO. |

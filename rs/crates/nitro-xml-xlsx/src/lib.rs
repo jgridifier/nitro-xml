@@ -11,6 +11,7 @@ pub mod cells;
 pub mod comments;
 pub mod dates;
 pub mod display_text;
+pub mod drawing;
 pub mod edit;
 pub mod editor;
 pub mod engine_api;

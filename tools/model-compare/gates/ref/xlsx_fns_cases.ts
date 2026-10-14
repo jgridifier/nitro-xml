@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Sweep cases for Math & Trig, Statistical (#73), Logical, Text,
 // Information, and Date & Time (#74), and Lookup & Reference, Financial,
-// and Engineering (#75).
+// Engineering, and Database (#75).
 // Sources: FUNCTION_CATALOG, plus inputs from
 // upstream/src/core/xlsx/formula/functions/functions.test.ts,
 // hypothesis-tests.test.ts, distributions-f.test.ts, bonds.test.ts,
@@ -31,6 +31,7 @@ const FAMILIES = new Set([
 	'Lookup & Reference',
 	'Financial',
 	'Engineering',
+	'Database',
 ]);
 
 /** Constants shared by range cases. No formula cells, so RAND's seed stays put. */
@@ -555,6 +556,55 @@ const OVERRIDES: Record<string, string> = {
 	'ERF.PRECISE': 'ERF.PRECISE(1)',
 	ERFC: 'ERFC(1)',
 	'ERFC.PRECISE': 'ERFC.PRECISE(1)',
+	DAVERAGE: 'DAVERAGE(A10:E16,"Yield",A1:B2)',
+	DCOUNT: 'DCOUNT(A10:E16,"Age",A1:B2)',
+	DCOUNTA: 'DCOUNTA(A10:E16,"Tree",A1:A2)',
+	DGET: 'DGET(A10:E16,"Yield",A1:B2)',
+	DMAX: 'DMAX(A10:E16,"Profit",A1:A3)',
+	DMIN: 'DMIN(A10:E16,"Profit",A1:A3)',
+	DPRODUCT: 'DPRODUCT(A10:E16,"Yield",A1:A2)',
+	DSTDEV: 'DSTDEV(A10:E16,"Yield",A1:A2)',
+	DSTDEVP: 'DSTDEVP(A10:E16,"Yield",A1:A2)',
+	DSUM: 'DSUM(A10:E16,"Profit",A1:A2)',
+	DVAR: 'DVAR(A10:E16,"Yield",A1:A2)',
+	DVARP: 'DVARP(A10:E16,"Yield",A1:A2)',
+};
+
+/** Microsoft's orchard layout (database.test.ts), plus a criteria block in A1:B3. */
+function orchard(criteria: Record<string, unknown> = {}): Record<string, unknown> {
+	const rows = [
+		['Tree', 'Height', 'Age', 'Yield', 'Profit'],
+		['Apple', 18, 20, 14, 105],
+		['Pear', 12, 12, 10, 96],
+		['Cherry', 13, 14, 9, 105],
+		['Apple', 14, 15, 10, 75],
+		['Pear', 9, 8, 8, 76.8],
+		['Apple', 8, 9, 6, 45],
+	];
+	const cols = 'ABCDE';
+	const cells: Record<string, unknown> = {};
+	rows.forEach((row, i) => row.forEach((value, c) => (cells[`${cols[c]}${i + 10}`] = value)));
+	return { ...cells, ...criteria };
+}
+
+const APPLE = orchard({ A1: 'Tree', A2: 'Apple' });
+const TALL_APPLE = orchard({ A1: 'Tree', B1: 'Height', A2: 'Apple', B2: '>10' });
+const APPLE_OR_PEAR = orchard({ A1: 'Tree', A2: 'Apple', A3: 'Pear' });
+const ONE_PEAR = orchard({ A1: 'Tree', B1: 'Height', A2: 'Pear', B2: '<10' });
+
+const OVERRIDE_CELLS: Record<string, Record<string, unknown>> = {
+	DAVERAGE: TALL_APPLE,
+	DCOUNT: TALL_APPLE,
+	DCOUNTA: APPLE,
+	DGET: ONE_PEAR,
+	DMAX: APPLE_OR_PEAR,
+	DMIN: APPLE_OR_PEAR,
+	DPRODUCT: APPLE,
+	DSTDEV: APPLE,
+	DSTDEVP: APPLE,
+	DSUM: APPLE,
+	DVAR: APPLE,
+	DVARP: APPLE,
 };
 
 function autoFormula(name: string, minArgs: number): string {
@@ -576,7 +626,7 @@ function sweepCases(): Case[] {
 		const volatile = info.name === 'RAND' || info.name === 'RANDBETWEEN' || info.name === 'RANDARRAY';
 		const item: Case = {
 			formula,
-			cells: volatile ? {} : GRID,
+			cells: volatile ? {} : (OVERRIDE_CELLS[info.name] ?? GRID),
 			source: OVERRIDES[info.name] ? SRC : `FUNCTION_CATALOG minArgs ${info.category}`,
 			kind: 'sweep',
 		};
@@ -729,6 +779,77 @@ function sweepCases(): Case[] {
 		{ formula: 'CONVERT(1,"KG","g")', cells: GRID, source: 'convert.test.ts', kind: 'sweep' },
 		{ formula: 'CONVERT(1,"M","m")', cells: GRID, source: 'convert.test.ts', kind: 'sweep' },
 		{ formula: 'ERF(-1,1)', cells: GRID, source: 'distributions.ts', kind: 'sweep' },
+		{ formula: 'DSUM(A10:E16,5,A1:A2)', cells: APPLE, source: 'database.ts column number', kind: 'sweep' },
+		{ formula: 'DSUM(A10:E16,"Profit",A1:A3)', cells: APPLE_OR_PEAR, source: 'database.ts OR criteria', kind: 'sweep' },
+		{ formula: 'DCOUNT(A10:E16,"Tree",A1:A2)', cells: APPLE, source: 'database.ts DCOUNT ignores text', kind: 'sweep' },
+		{
+			formula: 'DGET(A10:E16,"Yield",A1:A2)',
+			cells: orchard({ A1: 'Tree', A2: 'Plum' }),
+			source: 'database.ts DGET none',
+			kind: 'sweep',
+		},
+		{ formula: 'DGET(A10:E16,"Yield",A1:A2)', cells: APPLE, source: 'database.ts DGET many', kind: 'sweep' },
+		{
+			formula: 'DCOUNT(A10:E16,"Height",A1:B2)',
+			cells: orchard({ A1: 'Tree', A2: '', B1: 'Height', B2: '>=12' }),
+			source: 'database.ts blank criteria cell',
+			kind: 'sweep',
+		},
+		{ formula: 'DSUM(A10:E16,"Nope",A1:A2)', cells: APPLE, source: 'database.ts bad field', kind: 'sweep' },
+		{ formula: 'DSUM(A10:E16,9,A1:A2)', cells: APPLE, source: 'database.ts bad field index', kind: 'sweep' },
+		{
+			formula: 'DSUM(A10:E16,"Profit",A1:A2)',
+			cells: orchard({ A1: 'Nope', A2: 'x' }),
+			source: 'database.ts unknown criteria column',
+			kind: 'sweep',
+		},
+		{
+			formula: 'DAVERAGE(A10:E16,"Yield",A1:A2)',
+			cells: orchard({ A1: 'Tree', A2: 'Plum' }),
+			source: 'database.ts no rows',
+			kind: 'sweep',
+		},
+		{
+			formula: 'DMAX(A10:E16,"Profit",A1:A2)',
+			cells: orchard({ A1: 'Tree', A2: 'Plum' }),
+			source: 'database.ts empty max is 0',
+			kind: 'sweep',
+		},
+		{
+			formula: 'DMIN(A10:E16,"Profit",A1:A2)',
+			cells: orchard({ A1: 'Tree', A2: 'Plum' }),
+			source: 'database.ts empty min is 0',
+			kind: 'sweep',
+		},
+		{
+			formula: 'DPRODUCT(A10:E16,"Yield",A1:A2)',
+			cells: orchard({ A1: 'Tree', A2: 'Plum' }),
+			source: 'database.ts empty product is 0',
+			kind: 'sweep',
+		},
+		{ formula: 'DSUM(A10:E16,5.9,A1:A2)', cells: APPLE, source: 'database.ts field truncates toward zero', kind: 'sweep' },
+		{ formula: 'DSUM(A10:E16,"5",A1:A2)', cells: APPLE, source: 'database.ts text field is a label', kind: 'sweep' },
+		{ formula: 'DSUM(A10:E16,"profit",A1:A2)', cells: APPLE, source: 'database.ts field label case', kind: 'sweep' },
+		{
+			formula: 'DCOUNT(A10:E16,"Height",A1:A2)',
+			cells: orchard({ A1: 'Tree', A2: null }),
+			source: 'database.ts blank criteria row matches all',
+			kind: 'sweep',
+		},
+		{ formula: 'DSUM(A10:E16,"Profit",A1:A1)', cells: APPLE, source: 'database.ts criteria needs a record row', kind: 'sweep' },
+		{ formula: 'DSTDEV(A10:E16,"Yield",A1:B2)', cells: ONE_PEAR, source: 'database.ts sample stdev of one value', kind: 'sweep' },
+		{
+			formula: 'DSUM(A10:E16,"Profit",A1:A2)',
+			cells: { ...APPLE, E11: { error: '#DIV/0!' } },
+			source: 'database.ts error in a matched number',
+			kind: 'sweep',
+		},
+		{
+			formula: 'DCOUNTA(A10:E16,"Profit",A1:A2)',
+			cells: { ...APPLE, E11: { error: '#DIV/0!' } },
+			source: 'database.ts DCOUNTA counts an error',
+			kind: 'sweep',
+		},
 	];
 	const dateEdges: Case[] = [
 		{ formula: 'DATE(1900,2,29)', cells: GRID, source: 'date-calc.ts leap day', kind: 'sweep' },

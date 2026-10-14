@@ -5,6 +5,9 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
+import { repoRoot } from '../corpus.ts';
 import { upstreamDir } from '../paths.ts';
 
 /** Element kinds the Rust port is expected to cover (extend as #24/#25 land). */
@@ -47,6 +50,27 @@ function pickElement(el: Record<string, unknown>): Record<string, unknown> {
 	delete out.rawXml;
 	delete out.rawTiming;
 	return out;
+}
+
+/** Stage-6 shell dump (zoom / slide tabs / find / copy / diagnostics). */
+export function dumpPptxShellOracle(fixturePath: string): {
+	ok: boolean;
+	json: unknown;
+} {
+	const root = repoRoot();
+	const script = join(root, 'tools/model-compare/gates/ref/pptx_shell_ref.ts');
+	const r = spawnSync('bun', [script, fixturePath], {
+		encoding: 'utf8',
+		env: { ...process.env, UPSTREAM_DIR: upstreamDir(root) },
+		maxBuffer: 64 * 1024 * 1024,
+	});
+	let json: unknown = null;
+	try {
+		json = JSON.parse((r.stdout || '').trim() || 'null');
+	} catch {
+		json = { error: 'oracle_parse', status: r.status };
+	}
+	return { ok: r.status === 0, json };
 }
 
 export async function dumpPptxViewIr(fixturePath: string): Promise<unknown> {

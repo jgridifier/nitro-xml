@@ -2045,11 +2045,6 @@ mod tests {
         );
     }
 
-
-
-
-
-
     // Catches: master titleStyle defRPr/@kern never becoming CSS font-kerning on ctrTitle runs.
     #[test]
     fn bug62513_title_level_kern_paints_font_kerning() {

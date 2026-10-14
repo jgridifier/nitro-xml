@@ -160,17 +160,8 @@ mod tests {
     // Catches: be4aaa pie/star5/decision/actionHome fill as axis-aligned rects (no CSS clip).
     #[test]
     fn be4aaa_presets_have_clip_polygons() {
-        for name in [
-            "pie",
-            "star5",
-            "flowchartdecision",
-            "actionbuttonhome",
-        ] {
-            assert!(
-                preset_clip_path(name).is_some(),
-                "missing clip for {name}"
-            );
+        for name in ["pie", "star5", "flowchartdecision", "actionbuttonhome"] {
+            assert!(preset_clip_path(name).is_some(), "missing clip for {name}");
         }
     }
 }
-

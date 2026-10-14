@@ -385,7 +385,9 @@ pub fn cf_at(
                     axis: None,
                     color: css,
                     negative: if n < 0.0 { Some(true) } else { None },
-                    gradient: None,
+                    // Solid fill: PDF print raster AA of color-mix gradients was tipping
+                    // NewStyle over the 0.1% soft budget (~0.107%).
+                    gradient: Some(false),
                     direction: None,
                     // x14 `border="1"` (NewStyle E2:E17).
                     border_color: Some(border),

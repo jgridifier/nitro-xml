@@ -23,6 +23,10 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             set_style(ctx, id, "transform", &format!("rotate({}deg)", rot));
         }
     }
+    // Theme `effectRef` outerShdw (test_slides straight arrow).
+    if let Some(shadow) = el.box_shadow.as_deref() {
+        set_style(ctx, id, "filter", &format!("drop-shadow({shadow})"));
+    }
     let stroke = el.stroke_color.as_deref().unwrap_or("#333333");
     let stroke_width = el.stroke_width_px.unwrap_or(1.5);
     let w_view = el.width.max(1.0).round() as i64;

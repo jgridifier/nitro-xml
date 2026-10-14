@@ -54,7 +54,7 @@ async function shot(browser, base, c, side, dpr) {
 			throw new Error(`host not ready: ${body || page.title()}`);
 		}
 		if (side === 'rust') {
-			for (let c = 0; c < 16; c++) {
+			for (let c = 0; c < 32; c++) {
 				await page.evaluate(async () => {
 					const el = document.getElementById('stage')?.querySelector('nitro-pptx');
 					if (el?.document) await el.document.tick();

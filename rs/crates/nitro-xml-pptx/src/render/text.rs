@@ -259,7 +259,7 @@ fn paint_run_typography<I: StringIntern>(
     if paint.font_family.is_some() {
         set_style(ctx, run, "font-family", stack);
     }
-    set_style(ctx, run, "font-size", &format!("{}px", format_px(size)));
+    set_style(ctx, run, "font-size", &format_layout_px(size));
     set_style(
         ctx,
         run,
@@ -328,7 +328,6 @@ fn paint_rich_paragraphs<I: StringIntern>(
             geom_rect_padding: paint.geom_rect_padding,
             presentation_kinsoku: paint.presentation_kinsoku,
         };
-        let para_stack = substitute_font_family_stack(para_paint.font_family);
         let para_rtl = para_model.rtl.or(body_rtl);
         let is_rtl = para_rtl == Some(true);
         let css_align = resolve_css_text_align(para_model.align.or(body_align), is_rtl);
@@ -376,18 +375,26 @@ fn paint_rich_paragraphs<I: StringIntern>(
             paint.presentation_kinsoku,
         );
         if let Some(marker) = &para_model.bullet_marker {
+            let bullet_typo = para_model
+                .runs
+                .first()
+                .map(|r| merge_run_level_paint(&para_paint, r, para_size));
+            let (bullet_paint, bullet_size) = match &bullet_typo {
+                Some((p, s)) => (p, *s),
+                None => (&para_paint, para_size),
+            };
             let bullet_stack = if let Some(face) = para_model.bullet_font_family.as_deref() {
                 substitute_font_family_stack(Some(face))
             } else {
-                para_stack.clone()
+                substitute_font_family_stack(bullet_paint.font_family)
             };
             paint_bullet_marker(
                 ctx,
                 para,
                 marker,
                 para_model.text_indent_px,
-                &para_paint,
-                para_size,
+                bullet_paint,
+                bullet_size,
                 &bullet_stack,
             );
         }

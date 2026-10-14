@@ -170,12 +170,11 @@
         }
       }
       if (!painted) throw new Error('nitro-pptx: no slide DOM paint');
-      // spAutoFit + GDI/hang-space: converge batched measureText before capture (#27).
+      // spAutoFit + GDI/hang-space: drain batched measureText before capture (#27).
       for (let c = 0; c < 48; c++) {
         if (el.document) await el.document.tick();
         await waitFrames(1);
-        const pending = el.document?.measureCount | 0;
-        if (pending === 0 && c >= 8) break;
+        if ((el.document?.measureCount | 0) === 0 && c >= 11) break;
       }
       // EMF/WMF: loader converts `nitro-metafile:` src asynchronously (#27).
       for (let c = 0; c < 40; c++) {

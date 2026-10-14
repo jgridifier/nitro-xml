@@ -126,13 +126,15 @@ pub fn render_chart_space_svg(
         };
         drawing_color_css(resolve_drawing_color(color, Some(&scheme), Some(resolve_opts)).as_ref())
     };
-    // Upstream `readChartFormatting` always merges direct c:spPr on chartSpace /
-    // plotArea (black 1pt borders on poi-dataValidationTableRange). Apply for every
-    // space render path — not only docx_chart_chrome.
-    {
+    // Live xlsx (`use_space_style`) and docx chrome merge authored c:spPr (chart /
+    // plot borders on poi-dataValidationTableRange). Bare S1 oracle dumps must stay
+    // style-102 only so `chart_render_svg` matches upstream `renderChartSpaceSvg`.
+    if options.docx_chart_chrome || options.use_space_style || options.bar3d_extrusion {
         let appearance = view.appearance.get_or_insert_with(Default::default);
-        overlay_chart_space_sp_pr(appearance, space, &resolve);
-        overlay_plot_area_sp_pr(appearance, space, &resolve);
+        if options.docx_chart_chrome || options.use_space_style {
+            overlay_chart_space_sp_pr(appearance, space, &resolve);
+            overlay_plot_area_sp_pr(appearance, space, &resolve);
+        }
         if options.docx_chart_chrome || options.bar3d_extrusion {
             overlay_authored_tx_pr_appearance(appearance, space, &resolve);
             overlay_authored_axis_sp_pr(appearance, space, &resolve);

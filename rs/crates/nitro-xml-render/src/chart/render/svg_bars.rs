@@ -75,12 +75,9 @@ pub fn bars(
             } else {
                 (center + offset, a.min(b), bar_size, (b - a).abs())
             };
-            // Skip zero-extent bars. Live cell blanks resolve to null (no bar); chart
-            // numCache often stores explicit 0 for the same blanks (poi-dataValidation
-            // Selected series). Painting w=0 rects shifts nothing useful and drifts pixels.
-            if rw <= 0.0 || rh <= 0.0 {
-                continue;
-            }
+            // Keep zero-extent rects: upstream S1 `rect()` emits width/height 0 for
+            // explicit numCache zeros (parity chart gate). Live blanks stay null via
+            // the `None => continue` arm above.
             let geom = Rect {
                 x: rx,
                 y: ry,

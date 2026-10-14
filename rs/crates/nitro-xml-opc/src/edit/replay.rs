@@ -129,7 +129,6 @@ fn scopes_for(op: &Op) -> Vec<EditScope> {
         | Op::ReorderSlide { .. }
         | Op::SetNotesText { .. }
         | Op::SetShapeRunStyle { .. }
-        Op::SetShapeRunStyle { .. }
         | Op::SetShapeParagraphAlign { .. }
         | Op::SetShapeBullets { .. }
         | Op::SetShapeAutofit { .. }

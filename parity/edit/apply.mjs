@@ -60,6 +60,26 @@ function toArrayBuffer(u8) {
 	return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
 }
 
+/**
+ * `rebuildTableXmlFromData` mints a new `a16:colId` with `Math.random`.
+ * Seed each save so two applies of `insertSlideTableColumn` stay byte-stable.
+ * @template T
+ * @param {() => Promise<T>} fn
+ * @returns {Promise<T>}
+ */
+export async function withStableRandom(fn) {
+	const prev = Math.random;
+	let s = 0x85a11ce;
+	Math.random = () => {
+		s = (Math.imul(1664525, s) + 1013904223) >>> 0;
+		return s / 4294967296;
+	};
+	try {
+		return await fn();
+	} finally {
+		Math.random = prev;
+	}
+}
 function emptyDocxCell(id) {
 	return {
 		paragraphs: [{ type: 'paragraph', id, runs: [{ text: '' }] }],
@@ -773,10 +793,12 @@ export async function applyAndSave(bytes, script) {
 		const handler = new PptxHandler();
 		const data = await handler.load(toArrayBuffer(bytes));
 		const slides = applyPptxOps(data.slides, script.ops, mut);
-		return await handler.save(slides, {
-			headerFooter: data.headerFooter,
-			tableStyles: data.tableStyleMap,
-		});
+		return await withStableRandom(() =>
+			handler.save(slides, {
+				headerFooter: data.headerFooter,
+				tableStyles: data.tableStyleMap,
+			}),
+		);
 	}
 
 	throw new Error(`unsupported format ${format}`);

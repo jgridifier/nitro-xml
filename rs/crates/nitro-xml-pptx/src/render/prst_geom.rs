@@ -3,6 +3,8 @@
 // src/core/pptx/core/geometry/shape-geometry.ts, src/core/geometry/preset-clip-paths-core.ts;
 // changes listed in PROVENANCE.md.
 
+use nitro_xml_opc::drawingml::evaluate_preset_shape;
+
 use super::context::{PaintContext, StringIntern};
 use super::dom::set_style;
 
@@ -76,6 +78,20 @@ fn format_radius_px(v: f64) -> String {
         let s = format!("{v:.2}");
         format!("{}px", s.trim_end_matches('0').trim_end_matches('.'))
     }
+}
+
+/// Centred stroke overlay path from the OOXML preset evaluator (upstream `outlinePathData`).
+pub fn preset_stroke_outline_path(shape_type: &str, width: f64, height: f64) -> Option<String> {
+    if !width.is_finite() || !height.is_finite() || width <= 0.0 || height <= 0.0 {
+        return None;
+    }
+    let normalized = shape_type.to_ascii_lowercase();
+    if normalized == "rect" || normalized == "line" {
+        return None;
+    }
+    evaluate_preset_shape(shape_type, width, height, None)
+        .map(|eval| eval.svg_path)
+        .filter(|path| !path.is_empty())
 }
 
 /// Static percentage polygons from upstream `preset-clip-paths-core.ts` (subset for poi-keyframes + common nav).

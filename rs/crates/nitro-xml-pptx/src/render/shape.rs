@@ -3,7 +3,7 @@
 
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_inner_markup_stub, set_style};
-use super::prst_geom::apply_preset_geometry;
+use super::prst_geom::{apply_preset_geometry, preset_stroke_outline_path};
 use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
 use super::text::{paint_text_body, TextBodyPaint};
 use crate::slide::DumpElement;
@@ -56,7 +56,15 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
                     &format!("{}px solid {color}", format_px(width)),
                 );
             } else {
-                paint_centered_stroke_overlay(ctx, id, el.width, painted_h, color, width);
+                paint_centered_stroke_overlay(
+                    ctx,
+                    id,
+                    el.width,
+                    painted_h,
+                    color,
+                    width,
+                    el.shape_type.as_deref(),
+                );
             }
         }
     }
@@ -137,6 +145,7 @@ fn paint_centered_stroke_overlay<I: StringIntern>(
     height: f64,
     color: &str,
     stroke_width: f64,
+    shape_type: Option<&str>,
 ) {
     if width < 1.0 || height < 1.0 {
         return;
@@ -144,7 +153,9 @@ fn paint_centered_stroke_overlay<I: StringIntern>(
     let w = format_px(width);
     let h = format_px(height);
     let sw = format_px(stroke_width);
-    let d = format!("M 0 0 L {w} 0 L {w} {h} L 0 {h} Z");
+    let d = shape_type
+        .and_then(|st| preset_stroke_outline_path(st, width, height))
+        .unwrap_or_else(|| format!("M 0 0 L {w} 0 L {w} {h} L 0 {h} Z"));
     let svg = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"pptx-vanilla-gradient-outline\" aria-hidden=\"true\" viewBox=\"0 0 {w} {h}\" preserveAspectRatio=\"none\" style=\"{STROKE_OUTLINE_SVG_STYLE}\"><path d=\"{d}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"{sw}\"/></svg>"
     );

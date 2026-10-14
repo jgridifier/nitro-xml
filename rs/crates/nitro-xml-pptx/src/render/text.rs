@@ -99,14 +99,50 @@ fn paint_plain_text_runs<I: StringIntern>(
     stack: &str,
 ) {
     let para_align = paint.layout.and_then(|l| l.text_align);
-    let (_para, run) = append_paragraph_text(ctx, block, text, para_align, None);
-    if paint.font_family.is_none() {
-        set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+    let para = open_paragraph(ctx, block, para_align, None);
+    let metric_stack = if paint.font_family.is_some() {
+        substitute_font_family_stack(paint.font_family)
+    } else {
+        VISUAL_HOST_RUN_FONT_STACK.to_owned()
+    };
+    for piece in split_run_for_metric_pieces(text) {
+        let run = create_child(ctx, para, "span");
+        set_text_content(ctx, run, &piece);
+        if paint.font_family.is_none() {
+            set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+        }
+        paint_run_typography(ctx, run, paint, size, stack);
+        apply_gdi_metric_letter_spacing_with_stack(
+            ctx,
+            run,
+            &piece,
+            size,
+            &metric_stack,
+            paint.font_bold,
+        );
     }
-    paint_run_typography(ctx, run, paint, size, stack);
-    if paint.font_family.is_some() {
-        apply_gdi_metric_letter_spacing(ctx, run, text, size, paint.font_family, paint.font_bold);
+}
+
+fn open_paragraph<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    block: u32,
+    text_align: Option<TextAlignCss>,
+    paragraph_rtl: Option<bool>,
+) -> u32 {
+    let para = create_child(ctx, block, "p");
+    set_attr(ctx, para, "class", "pptxv-para");
+    set_style(ctx, para, "margin", "0");
+    if let Some(align) = text_align {
+        set_style(ctx, para, "text-align", align.as_css());
     }
+    if let Some(rtl) = paragraph_rtl {
+        set_style(ctx, para, "direction", if rtl { "rtl" } else { "ltr" });
+        set_style(ctx, para, "unicode-bidi", "embed");
+    } else {
+        set_style(ctx, para, "direction", "ltr");
+        set_style(ctx, para, "unicode-bidi", "embed");
+    }
+    para
 }
 
 pub fn paint_text_body<I: StringIntern>(
@@ -230,7 +266,7 @@ fn paint_rich_paragraphs<I: StringIntern>(
     paragraphs: &[TextPaintParagraph],
     paint: &TextBodyPaint<'_>,
     size: f64,
-    stack: &str,
+    _stack: &str,
 ) {
     let body_align = paint.layout.and_then(|l| l.text_align);
     // Paragraphs without `a:pPr/@rtl` inherit the shape's resolved direction
@@ -239,10 +275,7 @@ fn paint_rich_paragraphs<I: StringIntern>(
     for para_model in paragraphs {
         let para_size = para_model.level_font_size_px.unwrap_or(size);
         let para_paint = TextBodyPaint {
-            text_color: para_model
-                .level_text_color
-                .as_deref()
-                .or(paint.text_color),
+            text_color: para_model.level_text_color.as_deref().or(paint.text_color),
             font_size_px: Some(para_size),
             font_family: para_model
                 .level_font_family
@@ -406,30 +439,119 @@ fn append_paint_run<I: StringIntern>(
         let close_rp = create_child(ctx, ruby_el, "rp");
         set_text_content(ctx, close_rp, ")");
         ruby_el
-    } else {
-        let run = create_child(ctx, para, "span");
-        set_text_content(ctx, run, &run_model.text);
-        apply_run_rtl(ctx, run, run_model.rtl, paragraph_rtl);
-        if paint.font_family.is_none() {
-            set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
-        }
-        paint_run_typography(ctx, run, paint, size, stack);
-        if run_model.underline {
-            apply_run_underline(ctx, run);
-        }
-        if paint.font_family.is_some() {
-            apply_gdi_metric_letter_spacing(
+    } else if uses_per_piece_gdi_metric(paint, &run_model.text) {
+        let pieces = split_run_for_metric_pieces(&run_model.text);
+        if pieces.len() > 1 {
+            for piece in pieces {
+                paint_run_text_span(
+                    ctx,
+                    para,
+                    &piece,
+                    run_model,
+                    paragraph_rtl,
+                    paint,
+                    size,
+                    stack,
+                );
+            }
+            para
+        } else {
+            paint_run_text_span(
                 ctx,
-                run,
+                para,
                 &run_model.text,
+                run_model,
+                paragraph_rtl,
+                paint,
                 size,
-                paint.font_family,
-                paint.font_bold,
-            );
+                stack,
+            )
         }
-        run
+    } else {
+        paint_run_text_span(
+            ctx,
+            para,
+            &run_model.text,
+            run_model,
+            paragraph_rtl,
+            paint,
+            size,
+            stack,
+        )
     };
     let _ = host;
+}
+
+fn uses_per_piece_gdi_metric(_paint: &TextBodyPaint<'_>, text: &str) -> bool {
+    !text.is_empty()
+}
+
+fn is_metric_break_boundary(previous: char, next: char) -> bool {
+    let previous_space = previous.is_whitespace();
+    let next_space = next.is_whitespace();
+    if previous_space != next_space {
+        return true;
+    }
+    previous == '-' && next != '-' && !next_space
+}
+
+fn split_run_for_metric_pieces(text: &str) -> Vec<String> {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() < 2 {
+        return vec![text.to_owned()];
+    }
+    let mut pieces: Vec<String> = Vec::new();
+    let mut current = chars[0].to_string();
+    for i in 1..chars.len() {
+        if is_metric_break_boundary(chars[i - 1], chars[i]) {
+            pieces.push(current);
+            current = String::new();
+        }
+        current.push(chars[i]);
+    }
+    pieces.push(current);
+    if pieces.len() == 1 {
+        vec![text.to_owned()]
+    } else {
+        pieces
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn paint_run_text_span<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    para: u32,
+    text: &str,
+    run_model: &TextPaintRun,
+    paragraph_rtl: Option<bool>,
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+) -> u32 {
+    let run = create_child(ctx, para, "span");
+    set_text_content(ctx, run, text);
+    apply_run_rtl(ctx, run, run_model.rtl, paragraph_rtl);
+    if paint.font_family.is_none() {
+        set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+    }
+    paint_run_typography(ctx, run, paint, size, stack);
+    if run_model.underline {
+        apply_run_underline(ctx, run);
+    }
+    let metric_stack = if paint.font_family.is_some() {
+        substitute_font_family_stack(paint.font_family)
+    } else {
+        VISUAL_HOST_RUN_FONT_STACK.to_owned()
+    };
+    apply_gdi_metric_letter_spacing_with_stack(
+        ctx,
+        run,
+        text,
+        size,
+        &metric_stack,
+        paint.font_bold,
+    );
+    run
 }
 
 fn apply_run_rtl<I: StringIntern>(
@@ -638,11 +760,25 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
     font_family: Option<&str>,
     bold: bool,
 ) {
-    if text.is_empty() {
+    if text.is_empty() || font_family.is_none() {
         return;
     }
     let stack = substitute_font_family_stack(font_family);
-    let canvas_font = canvas_measure_font(&stack, size_px, bold);
+    apply_gdi_metric_letter_spacing_with_stack(ctx, para, text, size_px, &stack, bold);
+}
+
+fn apply_gdi_metric_letter_spacing_with_stack<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    para: u32,
+    text: &str,
+    size_px: f64,
+    stack: &str,
+    bold: bool,
+) {
+    if text.is_empty() {
+        return;
+    }
+    let canvas_font = canvas_measure_font(stack, size_px, bold);
     let font_id = ctx.intern.intern(&canvas_font);
     let text_id = ctx.intern.intern(text);
     if let Some(tracking) = ctx.measure.cached_width(font_id, text_id) {

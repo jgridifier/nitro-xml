@@ -214,9 +214,12 @@ pub fn split_east_asian_breaks(
 }
 
 pub fn following_run_char(runs: &[crate::text_layout::TextPaintRun], index: usize) -> Option<char> {
-    runs[(index + 1)..]
-        .iter()
-        .find_map(|run| run.text.trim_start().chars().next())
+    runs[(index + 1)..].iter().find_map(|run| {
+        if run.equation_mathml.is_some() {
+            return None;
+        }
+        run.text.trim_start().chars().next()
+    })
 }
 
 #[cfg(test)]

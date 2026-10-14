@@ -5,7 +5,9 @@
 use nitro_xml_render::measure::LayoutReadKind;
 
 use super::context::{PaintContext, StringIntern};
-use super::dom::{create_child, position_box, set_attr, set_style, set_text_content};
+use super::dom::{
+    create_child, position_box, set_attr, set_inner_markup_stub, set_style, set_text_content,
+};
 use super::field_substitution;
 use super::font_substitution::substitute_font_family_stack;
 use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
@@ -223,7 +225,10 @@ pub fn paint_text_body<I: StringIntern>(
     if let Some(color) = paint.text_color {
         set_style(ctx, block, "color", color);
     }
-    set_style(ctx, block, "overflow", "visible");
+    // Upstream `buildTextBlockStyle`: default visible overflow, but `vertOverflow` clip wins.
+    if !paint.layout.is_some_and(|l| l.overflow_clip) {
+        set_style(ctx, block, "overflow", "visible");
+    }
     set_style(ctx, block, "text-spacing-trim", "space-all");
     if let Some(paragraphs) = paint.paragraphs.filter(|p| !p.is_empty()) {
         if paragraphs_have_paintable_runs(paragraphs) {
@@ -505,6 +510,35 @@ fn append_paint_run<I: StringIntern>(
     east_asian: Option<EastAsianBreakOptions>,
     following: Option<char>,
 ) {
+    if let Some(mathml) = &run_model.equation_mathml {
+        paint_inline_equation_run(
+            ctx,
+            para,
+            run_model,
+            paragraph_rtl,
+            paint,
+            size,
+            stack,
+            run_line_height_zero,
+            mathml,
+        );
+        return;
+    }
+    if run_model.hyperlink_click {
+        paint_hyperlink_run(
+            ctx,
+            para,
+            run_model,
+            paragraph_rtl,
+            paint,
+            size,
+            stack,
+            run_line_height_zero,
+            east_asian,
+            following,
+        );
+        return;
+    }
     let display_text = display_run_text(ctx, run_model);
     if !tab_stops.is_empty() && display_text.contains('\t') {
         if tab_stops.len() == 1 && tab_stops[0].align == crate::text_layout::TextTabAlign::Left {
@@ -860,6 +894,121 @@ fn apply_run_underline<I: StringIntern>(ctx: &mut PaintContext<'_, I>, run: u32)
     set_style(ctx, run, "text-decoration-style", "solid");
     set_style(ctx, run, "text-decoration-thickness", "1px");
     set_style(ctx, run, "text-decoration-skip-ink", "none");
+}
+
+const HYPERLINK_COLOR: &str = "#0563C1";
+
+#[allow(clippy::too_many_arguments)]
+fn paint_inline_equation_run<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    para: u32,
+    run_model: &TextPaintRun,
+    paragraph_rtl: Option<bool>,
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+    run_line_height_zero: bool,
+    mathml: &str,
+) {
+    let host = create_child(ctx, para, "span");
+    set_attr(ctx, host, "class", "pptxv-inline-equation");
+    apply_run_rtl(ctx, host, run_model.rtl, paragraph_rtl);
+    paint_run_typography(ctx, host, paint, size, stack);
+    if run_line_height_zero {
+        set_style(ctx, host, "line-height", "0");
+    }
+    let math = create_child(ctx, host, "span");
+    set_attr(ctx, math, "class", "pptxv-equation-math");
+    set_style(ctx, math, "display", "inline-block");
+    set_style(ctx, math, "vertical-align", "middle");
+    set_style(
+        ctx,
+        math,
+        "font-family",
+        "'Cambria Math', 'STIX Two Math', serif",
+    );
+    set_style(ctx, math, "font-size", &format_layout_px(size));
+    set_inner_markup_stub(ctx, math, mathml);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn paint_hyperlink_run<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    para: u32,
+    run_model: &TextPaintRun,
+    paragraph_rtl: Option<bool>,
+    paint: &TextBodyPaint<'_>,
+    size: f64,
+    stack: &str,
+    run_line_height_zero: bool,
+    east_asian: Option<EastAsianBreakOptions>,
+    following: Option<char>,
+) {
+    let link = create_child(ctx, para, "a");
+    set_attr(ctx, link, "class", "pptxv-link");
+    set_attr(ctx, link, "role", "link");
+    set_attr(ctx, link, "data-pptx-hyperlink", "true");
+    set_attr(ctx, link, "target", "_blank");
+    set_attr(ctx, link, "rel", "noopener noreferrer");
+    if let Some(tip) = &run_model.hyperlink_tooltip {
+        set_attr(ctx, link, "title", tip);
+    }
+    set_style(ctx, link, "cursor", "pointer");
+    set_style(ctx, link, "color", HYPERLINK_COLOR);
+    apply_run_underline(ctx, link);
+    apply_run_rtl(ctx, link, run_model.rtl, paragraph_rtl);
+    if paint.font_family.is_none() {
+        set_style(ctx, link, "font-family", VISUAL_HOST_RUN_FONT_STACK);
+    } else {
+        set_style(ctx, link, "font-family", stack);
+    }
+    paint_run_typography(ctx, link, paint, size, stack);
+    if run_line_height_zero {
+        set_style(ctx, link, "line-height", "0");
+    }
+    let display_text = display_run_text(ctx, run_model);
+    if east_asian.is_some() {
+        paint_run_text_span(
+            ctx,
+            link,
+            &display_text,
+            run_model,
+            paragraph_rtl,
+            paint,
+            size,
+            stack,
+            run_line_height_zero,
+            east_asian,
+            following,
+        );
+    } else if uses_per_piece_gdi_metric(paint, &display_text) {
+        for piece in split_run_for_metric_pieces(&display_text) {
+            let run = create_child(ctx, link, "span");
+            set_text_content(ctx, run, &piece);
+            apply_gdi_metric_letter_spacing_with_stack(
+                ctx,
+                run,
+                &piece,
+                size,
+                VISUAL_HOST_RUN_FONT_STACK,
+                paint.font_bold,
+                paint.font_italic,
+            );
+        }
+    } else {
+        set_text_content(ctx, link, &display_text);
+        if should_apply_gdi_metric(&display_text) {
+            apply_gdi_metric_letter_spacing(
+                ctx,
+                link,
+                &display_text,
+                size,
+                paint.font_family,
+                paint.font_bold,
+                paint.font_italic,
+            );
+        }
+    }
 }
 
 fn paint_ruby_annotation<I: StringIntern>(

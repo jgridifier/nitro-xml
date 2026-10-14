@@ -22,6 +22,7 @@ fn paint_media_video<I: StringIntern>(
 ) {
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
+    set_attr(ctx, id, "class", "pptxv-element pptxv-media");
     set_attr(ctx, id, "data-pptx-element", "true");
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "media");
@@ -29,6 +30,7 @@ fn paint_media_video<I: StringIntern>(
         set_style(ctx, id, "box-shadow", shadow);
     }
     let video = create_child(ctx, id, "video");
+    set_attr(ctx, video, "class", "pptxv-media-video");
     set_style(ctx, video, "width", "100%");
     set_style(ctx, video, "height", "100%");
     set_style(ctx, video, "object-fit", "contain");

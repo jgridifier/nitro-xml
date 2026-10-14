@@ -11,6 +11,7 @@ pub mod editor;
 mod inheritance;
 mod ink;
 mod inkml;
+mod inline_equation;
 mod level_style;
 mod outer_shadow;
 mod placeholder_defaults;

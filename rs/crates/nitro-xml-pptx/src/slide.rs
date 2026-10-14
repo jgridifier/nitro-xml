@@ -2814,7 +2814,8 @@ fn apply_norm_autofit_to_extras(
     box_height_px: f64,
 ) {
     use crate::text_layout::{
-        norm_autofit_font_scale_multiplier, scale_norm_autofit_font_size_px, TextAutoFitMode,
+        norm_autofit_font_scale_multiplier, scale_font_size_for_autofit,
+        scale_norm_autofit_font_size_px, TextAutoFitMode,
     };
     if extras.auto_fit_mode != Some(TextAutoFitMode::Normal) {
         return;
@@ -2832,28 +2833,27 @@ fn apply_norm_autofit_to_extras(
         .as_ref()
         .map(|l| l.inset_top_px + l.inset_bottom_px)
         .unwrap_or(0.0);
-    let scaled = if let Some(own) = own_tx {
-        if let Some(mult) = norm_autofit_font_scale_multiplier(own, inherited_tx) {
-            (sz * mult).max(6.0)
+    let font_scale_mult =
+        own_tx.and_then(|own| norm_autofit_font_scale_multiplier(own, inherited_tx));
+    let scale_px = |font_px: f64| {
+        if let Some(mult) = font_scale_mult {
+            scale_font_size_for_autofit(font_px, mult)
         } else {
-            scale_norm_autofit_font_size_px(sz, box_height_px, inset_tb, para_count)
+            scale_norm_autofit_font_size_px(font_px, box_height_px, inset_tb, para_count)
         }
-    } else {
-        sz
     };
-    let ratio = scaled / sz;
-    extras.font_size_px = Some(scaled);
+    extras.font_size_px = Some(scale_px(sz));
     if let Some(paras) = &mut extras.text_paint_paragraphs {
         for para in paras.iter_mut() {
             if let Some(level_sz) = para.level_font_size_px {
-                para.level_font_size_px = Some((level_sz * ratio).max(6.0));
+                para.level_font_size_px = Some(scale_px(level_sz));
             }
             if let Some(sz) = para.empty_line_font_size_px {
-                para.empty_line_font_size_px = Some((sz * ratio).max(6.0));
+                para.empty_line_font_size_px = Some(scale_px(sz));
             }
             for run in &mut para.runs {
                 if let Some(sz) = run.run_font_size_px {
-                    run.run_font_size_px = Some((sz * ratio).max(6.0));
+                    run.run_font_size_px = Some(scale_px(sz));
                 }
             }
         }

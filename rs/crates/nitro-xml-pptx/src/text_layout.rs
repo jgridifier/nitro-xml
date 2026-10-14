@@ -65,6 +65,18 @@ pub fn norm_autofit_font_scale_multiplier(
     Some(raw / 100_000.0)
 }
 
+/// Apply `normAutofit` `fontScale` rounded to the nearest whole point (upstream `scaleFontSizeForAutoFit`).
+pub fn scale_font_size_for_autofit(font_size_px: f64, font_scale: f64) -> f64 {
+    if font_scale == 1.0 || !font_scale.is_finite() {
+        return font_size_px;
+    }
+    // Scale in centi-points so 28×0.625 stays 17.5pt (not 17.499…) before whole-pt round.
+    let pt_centi = (font_size_px * (72.0 / 96.0) * 100.0).round() as i64;
+    let scaled_centi = (pt_centi as f64 * font_scale).round() as i64;
+    let scaled_pt = ((scaled_centi as f64) / 100.0).round();
+    (scaled_pt * PT_TO_PX).max(6.0)
+}
+
 /// Estimate `normAutofit` shrink when no authored `fontScale` (whole-point rounding).
 pub fn scale_norm_autofit_font_size_px(
     font_size_px: f64,
@@ -375,6 +387,11 @@ pub struct TextPaintRun {
     pub run_lang: Option<String>,
     /// Per-script typefaces when `a:ea` / `a:cs` / `a:sym` differ from `a:latin` (paint only).
     pub script_fonts: Option<ScriptFontSet>,
+    /// Inline `m:oMath` rendered as MathML (upstream `runEquationMathMl`).
+    pub equation_mathml: Option<String>,
+    /// `a:rPr/a:hlinkClick` — paint as themed hyperlink styling.
+    pub hyperlink_click: bool,
+    pub hyperlink_tooltip: Option<String>,
 }
 
 /// Paragraph-level BiDi + alignment for painters (upstream `RenderParagraph` subset).
@@ -834,6 +851,28 @@ fn collect_paint_runs(
     let mut runs = Vec::new();
     for child in &p.children {
         if let Node::Element(el) = child {
+            if el.ns.as_deref() == Some(ns::M) && matches!(el.local.as_str(), "oMath" | "oMathPara")
+            {
+                if let Some(mathml) = crate::inline_equation::simple_omml_to_mathml(el) {
+                    runs.push(TextPaintRun {
+                        text: String::new(),
+                        rtl: None,
+                        underline: false,
+                        ruby: None,
+                        field_type: None,
+                        run_font_family: None,
+                        run_font_size_px: None,
+                        run_font_bold: None,
+                        run_font_italic: None,
+                        run_lang: None,
+                        script_fonts: None,
+                        equation_mathml: Some(mathml),
+                        hyperlink_click: false,
+                        hyperlink_tooltip: None,
+                    });
+                }
+                continue;
+            }
             if el.ns.as_deref() != Some(ns::A) {
                 continue;
             }
@@ -848,6 +887,13 @@ fn collect_paint_runs(
                 let r_pr = child_local(el, "rPr", ns::A);
                 let rtl = r_pr.and_then(|rp| parse_optional_bool_attr(attr(rp, "rtl")));
                 let underline = r_pr.map(rpr_has_underline).unwrap_or(false);
+                let hyperlink_click = r_pr
+                    .map(|rp| child_local(rp, "hlinkClick", ns::A).is_some())
+                    .unwrap_or(false);
+                let hyperlink_tooltip = r_pr.and_then(|rp| {
+                    child_local(rp, "hlinkClick", ns::A)
+                        .and_then(|h| attr(h, "tooltip").map(|s| s.to_string()))
+                });
                 let ruby = if el.local == "r" {
                     parse_run_ruby(el)
                 } else {
@@ -873,7 +919,7 @@ fn collect_paint_runs(
                 runs.push(TextPaintRun {
                     text,
                     rtl,
-                    underline,
+                    underline: underline || hyperlink_click,
                     ruby,
                     field_type,
                     run_font_family: resolved.font_family,
@@ -882,6 +928,9 @@ fn collect_paint_runs(
                     run_font_italic: resolved.font_italic,
                     run_lang,
                     script_fonts: resolved.script_fonts,
+                    equation_mathml: None,
+                    hyperlink_click,
+                    hyperlink_tooltip,
                 });
             }
         }
@@ -1267,6 +1316,16 @@ mod tests {
         )
         .unwrap();
         assert_eq!(parse_body_autofit(&doc.root), Some(TextAutoFitMode::Shrink));
+    }
+
+    // Catches: normAutofit fontScale leaving fractional pt sizes (28pt×62.5% must be 18pt not 17.5pt).
+    #[test]
+    fn norm_autofit_font_scale_rounds_to_whole_point() {
+        let px_28 = 28.0 * PT_TO_PX;
+        let scaled = scale_font_size_for_autofit(px_28, 0.625);
+        assert!((scaled - 18.0 * PT_TO_PX).abs() < 0.01);
+        let scaled_40 = scale_font_size_for_autofit(px_28, 0.4);
+        assert!((scaled_40 - 11.0 * PT_TO_PX).abs() < 0.01);
     }
 
     // Catches: ruby runs flattened to `p.text_content()` so annotation duplicates base text in paint.

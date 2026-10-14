@@ -240,6 +240,7 @@ pub struct TextPaintListStyleCtx<'a> {
 }
 
 /// Walk `p:txBody` paragraphs for multi-`p` / per-run BiDi painting (#27).
+#[allow(dead_code)]
 pub fn parse_text_paint_paragraphs(tx_body: &Element) -> Vec<TextPaintParagraph> {
     parse_text_paint_paragraphs_with_list_styles(tx_body, None)
 }
@@ -295,8 +296,8 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                             marker = Some(ch.clone());
                         } else if let Some(scheme) = auto_num_scheme.as_ref() {
                             let start = info.auto_num_start_at;
-                            let ord = next_auto_number(&mut auto_seq, level, &scheme, start);
-                            marker = Some(format_auto_number_bullet(&scheme, ord));
+                            let ord = next_auto_number(&mut auto_seq, level, scheme, start);
+                            marker = Some(format_auto_number_bullet(scheme, ord));
                         }
                     }
                 }

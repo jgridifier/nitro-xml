@@ -1,0 +1,10 @@
+{
+  "id": "pptx-table-delete-col",
+  "format": "pptx",
+  "fixture": "upstream-e0dce36d2088",
+  "description": "Delete column 1, then the last remaining column is a no-op",
+  "ops": [
+    { "op": "deleteSlideTableColumn", "slideIndex": 0, "elementIndex": 1, "col": 1 },
+    { "op": "deleteSlideTableColumn", "slideIndex": 0, "elementIndex": 1, "col": 0 }
+  ]
+}

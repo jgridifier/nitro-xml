@@ -219,6 +219,7 @@ mod tests {
             text_paint_paragraphs: None,
             presentation_kinsoku: false,
             auto_fit_mode: None,
+            editor_text: None,
             chart_r_id: None,
             chart_xml: None,
             chart_part_path: None,

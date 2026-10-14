@@ -1,0 +1,15 @@
+{
+  "id": "pptx-table-insert-col",
+  "format": "pptx",
+  "fixture": "upstream-e0dce36d2088",
+  "description": "Insert a table column to the right of column 0",
+  "ops": [
+    {
+      "op": "insertSlideTableColumn",
+      "slideIndex": 0,
+      "elementIndex": 1,
+      "col": 0,
+      "position": "right"
+    }
+  ]
+}

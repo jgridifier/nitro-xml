@@ -1,0 +1,16 @@
+{
+  "id": "pptx-cell-text-negative",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "setSlideCellText on a non-table shape is rejected",
+  "ops": [
+    {
+      "op": "setSlideCellText",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "row": 0,
+      "col": 0,
+      "text": "nope"
+    }
+  ]
+}

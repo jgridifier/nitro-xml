@@ -55,6 +55,15 @@ pub const SCHEMA_OP_IDS: &[&str] = &[
     "duplicateSlide",
     "reorderSlide",
     "setNotesText",
+    "setShapeRunStyle",
+    "setShapeParagraphAlign",
+    "setShapeBullets",
+    "setShapeAutofit",
+    "setSlideCellText",
+    "insertSlideTableRow",
+    "deleteSlideTableRow",
+    "insertSlideTableColumn",
+    "deleteSlideTableColumn",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -379,6 +388,112 @@ pub enum Op {
         slide_index: u32,
         text: String,
     },
+    #[serde(rename = "setShapeRunStyle")]
+    SetShapeRunStyle {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        #[serde(rename = "paragraphIndex")]
+        paragraph_index: u32,
+        #[serde(rename = "runIndex")]
+        run_index: u32,
+        #[serde(default)]
+        #[serde(flatten)]
+        rest: Map<String, Value>,
+    },
+    #[serde(rename = "setShapeParagraphAlign")]
+    SetShapeParagraphAlign {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        #[serde(rename = "paragraphIndex")]
+        paragraph_index: u32,
+        align: String,
+    },
+    #[serde(rename = "setShapeBullets")]
+    SetShapeBullets {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        kind: String,
+        #[serde(default, rename = "startParagraph")]
+        start_paragraph: Option<u32>,
+        #[serde(default, rename = "endParagraph")]
+        end_paragraph: Option<u32>,
+    },
+    #[serde(rename = "setShapeAutofit")]
+    SetShapeAutofit {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        mode: String,
+    },
+    #[serde(rename = "setSlideCellText")]
+    SetSlideCellText {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        row: u32,
+        col: u32,
+        text: String,
+    },
+    #[serde(rename = "insertSlideTableRow")]
+    InsertSlideTableRow {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        row: u32,
+        position: String,
+    },
+    #[serde(rename = "deleteSlideTableRow")]
+    DeleteSlideTableRow {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        row: u32,
+    },
+    #[serde(rename = "insertSlideTableColumn")]
+    InsertSlideTableColumn {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        col: u32,
+        position: String,
+    },
+    #[serde(rename = "deleteSlideTableColumn")]
+    DeleteSlideTableColumn {
+        #[serde(rename = "slideIndex")]
+        slide_index: u32,
+        #[serde(default, rename = "elementIndex")]
+        element_index: Option<u32>,
+        #[serde(default, rename = "elementId")]
+        element_id: Option<String>,
+        col: u32,
+    },
 }
 
 impl Op {
@@ -432,6 +547,15 @@ impl Op {
             Self::DuplicateSlide { .. } => "duplicateSlide",
             Self::ReorderSlide { .. } => "reorderSlide",
             Self::SetNotesText { .. } => "setNotesText",
+            Self::SetShapeRunStyle { .. } => "setShapeRunStyle",
+            Self::SetShapeParagraphAlign { .. } => "setShapeParagraphAlign",
+            Self::SetShapeBullets { .. } => "setShapeBullets",
+            Self::SetShapeAutofit { .. } => "setShapeAutofit",
+            Self::SetSlideCellText { .. } => "setSlideCellText",
+            Self::InsertSlideTableRow { .. } => "insertSlideTableRow",
+            Self::DeleteSlideTableRow { .. } => "deleteSlideTableRow",
+            Self::InsertSlideTableColumn { .. } => "insertSlideTableColumn",
+            Self::DeleteSlideTableColumn { .. } => "deleteSlideTableColumn",
         }
     }
 

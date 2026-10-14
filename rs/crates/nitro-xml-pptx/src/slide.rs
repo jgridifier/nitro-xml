@@ -144,6 +144,9 @@ pub struct DumpElement {
     /// `a:spAutoFit` / `a:normAutofit` / `a:noAutofit` from `a:bodyPr` (paint only).
     #[serde(skip)]
     pub auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
+    /// Authored runs, bullets and autofit for the edit host (not in the issue-24 dump).
+    #[serde(skip)]
+    pub editor_text: Option<crate::edit::text::EditorText>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chart_r_id: Option<String>,
     /// Chart part XML. Not part of the issue-24 dump.
@@ -877,7 +880,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         rot,
     );
     apply_norm_autofit_to_extras(&mut extras, own_tx, inh_tx, h);
-    build_dump(
+    let mut el = build_dump(
         type_,
         id,
         c_nv_pr,
@@ -904,7 +907,11 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         None,
         in_group,
         extras,
-    )
+    )?;
+    if let Some(tx) = tx_body {
+        el.editor_text = Some(crate::edit::text::parse_editor_text(tx));
+    }
+    Some(el)
 }
 
 fn parse_shape_with_image_fill(
@@ -1828,6 +1835,7 @@ fn build_dump(
         text_paint_paragraphs: extras.text_paint_paragraphs,
         presentation_kinsoku: extras.presentation_kinsoku,
         auto_fit_mode: extras.auto_fit_mode,
+        editor_text: None,
         chart_r_id: extras.chart_r_id,
         chart_xml: None,
         chart_part_path: None,

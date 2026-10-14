@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: MIT
-//! PowerPoint shape and slide edits on the shared command registry (#84, #86).
+//! PowerPoint shape, slide, text and table edits on the shared command registry (#84, #85, #86).
 //! Undo/redo uses the shared [`EditHistory`] (#64).
 
 pub mod host;
 pub mod shapes;
 pub mod slides;
+pub mod table;
+pub mod text;
 
 pub use host::PptxHost;
 pub use shapes::register_shape_commands;
 pub use slides::register_slide_commands;
+pub use table::register_table_commands;
+pub use text::register_text_commands;
 
 use nitro_xml_opc::edit::{
     parse_edit_script, replay_script, CommandRegistry, EditError, EditHistory, EditScript,
@@ -41,6 +45,8 @@ pub fn replay_pptx_session(
     let mut registry = CommandRegistry::with_schema_stubs();
     register_shape_commands(&mut registry);
     register_slide_commands(&mut registry);
+    register_text_commands(&mut registry);
+    register_table_commands(&mut registry);
     let mut session = EditSession::new(host, EditHistory::new());
     let mut report = replay_script(&script, &registry, &mut session);
     report.history_commits = session.history.committed().len();
@@ -60,6 +66,8 @@ pub fn undo_parity_checkpoints(bytes: &[u8], script_json: &str) -> Result<Vec<Va
     let mut registry = CommandRegistry::with_schema_stubs();
     register_shape_commands(&mut registry);
     register_slide_commands(&mut registry);
+    register_text_commands(&mut registry);
+    register_table_commands(&mut registry);
     let mut session = EditSession::new(host, EditHistory::new());
 
     let mut checkpoints = Vec::new();
@@ -146,6 +154,23 @@ mod tests {
             format!("{home}/.bun/bin/bun")
         })
     }
+
+    /// Run/paragraph/bullet/autofit scripts (#85).
+    const PPTX_TEXT_SCRIPTS: &[&str] = &[
+        "pptx-run-bold",
+        "pptx-para-align",
+        "pptx-bullets",
+        "pptx-autofit",
+    ];
+
+    /// Cell text and row/column structure (#85). Names do not overlap docx table ops.
+    const PPTX_TABLE_SCRIPTS: &[&str] = &[
+        "pptx-table-cell-text",
+        "pptx-table-insert-row",
+        "pptx-table-delete-row",
+        "pptx-table-insert-col",
+        "pptx-table-delete-col",
+    ];
 
     fn pptx_script_paths() -> Vec<PathBuf> {
         let mut paths: Vec<PathBuf> = fs::read_dir(edits_pptx())
@@ -244,6 +269,10 @@ mod tests {
             });
             let (report, rust_snap) = replay_shape_script(&bytes, &script_json)
                 .unwrap_or_else(|e| panic!("{id} replay: {e}"));
+            if id.contains("negative") {
+                assert_ne!(report.status, "ok", "{id} must be rejected: {report:?}");
+                continue;
+            }
             assert_eq!(report.status, "ok", "{id} report={report:?}");
             ok += 1;
 
@@ -259,9 +288,26 @@ mod tests {
                 ts_ok += 1;
             }
         }
-        assert_eq!(ok, paths.len(), "every pptx script must replay");
+        let positive = paths
+            .iter()
+            .filter(|p| {
+                !p.file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .contains("negative")
+            })
+            .count();
+        assert_eq!(ok, positive, "every non-negative pptx script must replay");
+        for id in PPTX_TEXT_SCRIPTS.iter().chain(PPTX_TABLE_SCRIPTS.iter()) {
+            assert!(
+                paths
+                    .iter()
+                    .any(|p| p.file_stem().and_then(|s| s.to_str()) == Some(*id)),
+                "missing corpus script {id}"
+            );
+        }
         if ts_attempts > 0 {
-            assert_eq!(ts_ok, paths.len(), "pptx TS model match");
+            assert_eq!(ts_ok, positive, "pptx TS model match");
         }
     }
 
@@ -276,6 +322,9 @@ mod tests {
             let script_json = fs::read_to_string(path).unwrap();
             let script: Value = serde_json::from_str(&script_json).unwrap();
             let id = script["id"].as_str().unwrap_or("?");
+            if id.contains("negative") {
+                continue;
+            }
             let fixture_id = script["fixture"].as_str().unwrap();
             let fixture = fixture_path(fixture_id);
             let bytes = fs::read(&fixture).unwrap();
@@ -341,16 +390,22 @@ mod tests {
             }
             ts_ok += 1;
         }
-        assert_eq!(local_ok, paths.len(), "pptx local undo-parity");
+        let positive = paths
+            .iter()
+            .filter(|p| {
+                !p.file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .contains("negative")
+            })
+            .count();
+        assert_eq!(local_ok, positive, "pptx local undo-parity");
         if ts_attempts > 0 {
             assert_eq!(
-                ts_ok,
-                paths.len(),
-                "pptx TS undo-parity expected {}/{} (got {ts_ok}/{ts_attempts})",
-                paths.len(),
-                paths.len()
+                ts_ok, positive,
+                "pptx TS undo-parity expected {positive}/{positive} (got {ts_ok}/{ts_attempts})"
             );
-            eprintln!("pptx undo-parity: {ts_ok}/{}", paths.len());
+            eprintln!("pptx undo-parity: {ts_ok}/{positive}");
         } else {
             eprintln!(
                 "pptx undo-parity: {local_ok}/{} (local undo/redo only; no bun oracle)",
@@ -379,6 +434,27 @@ mod tests {
         assert_eq!(snap["slides"].as_array().map(|a| a.len()), Some(1));
         assert_eq!(snap["thumbnails"].as_array().map(|a| a.len()), Some(1));
         assert_eq!(snap["slides"][0]["notes"], "Speaker notes");
+    }
+
+    #[test]
+    fn catches_set_slide_cell_text_on_shape_rejected() {
+        // Catches: setSlideCellText on a non-table shape no-ops and later paints as a cell edit.
+        let script = r#"{"id":"pptx-cell-text-negative","format":"pptx","fixture":"gen-pptx-slides-10","ops":[{"op":"setSlideCellText","slideIndex":0,"elementIndex":0,"row":0,"col":0,"text":"nope"}]}"#;
+        let bytes = fs::read(fixture_path("gen-pptx-slides-10")).expect("fixture");
+        let (report, snap) = replay_shape_script(&bytes, script).expect("replay");
+        assert_ne!(report.status, "ok", "{report:?}");
+        assert_eq!(report.history_commits, 0, "{report:?}");
+        let detail = report
+            .ops
+            .first()
+            .and_then(|op| op.detail.as_deref())
+            .unwrap_or("");
+        assert!(
+            detail.contains("not a table"),
+            "rejection detail must say the shape is not a table: {report:?}"
+        );
+        let text = snap["slides"][0]["elements"][0]["text"].as_str();
+        assert_eq!(text, Some("Slide 1"));
     }
 
     #[test]

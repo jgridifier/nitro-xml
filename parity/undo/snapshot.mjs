@@ -137,10 +137,82 @@ export function snapshotDocx(model) {
  * thumbnail rail (slide order + id; preview bytes stay null).
  * @param {any[]} slides
  */
+function projectBullet(info) {
+	if (!info) return null;
+	/** @type {Record<string, unknown>} */
+	const out = {};
+	if (info.char) out.char = info.char;
+	if (info.autoNumType) out.autoNumType = info.autoNumType;
+	if (info.autoNumType) {
+		if (info.autoNumStartAt != null) out.autoNumStartAt = info.autoNumStartAt;
+		if (info.paragraphIndex != null) out.paragraphIndex = info.paragraphIndex;
+	}
+	if (info.none) out.none = true;
+	return Object.keys(out).length ? out : null;
+}
+
+function projectSegment(seg) {
+	const style = seg.style || {};
+	/** @type {Record<string, unknown>} */
+	const out = {
+		text: seg.text ?? '',
+		bold: !!(seg.bold ?? style.bold),
+		italic: !!(seg.italic ?? style.italic),
+		fontSize: seg.fontSize ?? style.fontSize ?? null,
+		color: seg.color ?? style.color ?? null,
+	};
+	if (seg.underline ?? style.underline) out.underline = true;
+	const align = seg.align ?? seg.paragraphProperties?.align;
+	if (align) out.align = align;
+	const bullet = projectBullet(seg.bulletInfo);
+	if (bullet) out.bulletInfo = bullet;
+	return out;
+}
+
+function projectTextStyle(ts) {
+	if (!ts) return null;
+	/** @type {Record<string, unknown>} */
+	const out = {
+		bold: !!ts.bold,
+		italic: !!ts.italic,
+		fontSize: ts.fontSize ?? null,
+		color: ts.color ?? null,
+	};
+	if (ts.autoFit !== undefined) out.autoFit = !!ts.autoFit;
+	if (ts.autoFitMode) out.autoFitMode = ts.autoFitMode;
+	return out;
+}
+
+function projectTableCell(cell) {
+	/** @type {Record<string, unknown>} */
+	const out = { text: cell.text ?? '' };
+	if ((cell.gridSpan ?? 1) > 1) out.gridSpan = cell.gridSpan;
+	if ((cell.rowSpan ?? 1) > 1) out.rowSpan = cell.rowSpan;
+	if (cell.hMerge) out.hMerge = true;
+	if (cell.vMerge) out.vMerge = true;
+	return out;
+}
+
+function projectTable(table) {
+	if (!table) return null;
+	return {
+		columnWidths: table.columnWidths || [],
+		rows: (table.rows || []).map((row) => {
+			/** @type {Record<string, unknown>} */
+			const out = {
+				cells: (row.cells || []).map(projectTableCell),
+			};
+			if (row.height) out.height = row.height;
+			return out;
+		}),
+	};
+}
+
 function projectPptxElement(el) {
 	const style = el.shapeStyle || {};
 	const hasChildren = el.type === 'group' || Array.isArray(el.children);
-	return {
+	/** @type {Record<string, unknown>} */
+	const out = {
 		id: el.id,
 		x: el.x ?? 0,
 		y: el.y ?? 0,
@@ -148,27 +220,17 @@ function projectPptxElement(el) {
 		height: el.height ?? 0,
 		rotation: el.rotation ?? 0,
 		text: el.text ?? null,
-		textStyle: el.textStyle
-			? {
-					bold: !!el.textStyle.bold,
-					italic: !!el.textStyle.italic,
-					fontSize: el.textStyle.fontSize ?? null,
-					color: el.textStyle.color ?? null,
-				}
-			: null,
-		textSegments: (el.textSegments || []).map((seg) => ({
-			text: seg.text ?? '',
-			bold: !!seg.bold,
-			italic: !!seg.italic,
-			fontSize: seg.fontSize ?? null,
-			color: seg.color ?? null,
-		})),
+		textStyle: projectTextStyle(el.textStyle),
+		textSegments: (el.textSegments || []).map(projectSegment),
 		fillColor: el.fillColor ?? style.fillColor ?? null,
 		fillMode: el.fillMode ?? style.fillMode ?? null,
 		strokeColor: el.strokeColor ?? style.strokeColor ?? null,
 		strokeWidth: el.strokeWidth ?? style.strokeWidth ?? null,
 		children: hasChildren ? (el.children || []).map(projectPptxElement) : null,
 	};
+	const table = projectTable(el.tableData);
+	if (table) out.tableData = table;
+	return out;
 }
 
 export function snapshotPptx(slides) {

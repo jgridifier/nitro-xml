@@ -60,6 +60,26 @@ function toArrayBuffer(u8) {
 	return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
 }
 
+/**
+ * `rebuildTableXmlFromData` mints a new `a16:colId` with `Math.random`.
+ * Seed each save so two applies of `insertSlideTableColumn` stay byte-stable.
+ * @template T
+ * @param {() => Promise<T>} fn
+ * @returns {Promise<T>}
+ */
+export async function withStableRandom(fn) {
+	const prev = Math.random;
+	let s = 0x85a11ce;
+	Math.random = () => {
+		s = (Math.imul(1664525, s) + 1013904223) >>> 0;
+		return s / 4294967296;
+	};
+	try {
+		return await fn();
+	} finally {
+		Math.random = prev;
+	}
+}
 function emptyDocxCell(id) {
 	return {
 		paragraphs: [{ type: 'paragraph', id, runs: [{ text: '' }] }],
@@ -313,6 +333,20 @@ function reassignPptxElementIds(el, prefix) {
 	return next;
 }
 
+function isParagraphSeparator(seg) {
+	return Boolean(seg.isParagraphBreak) || (seg.text === '\n' && !seg.isLineBreak);
+}
+
+function contentRunIndexes(segments) {
+	/** @type {number[][]} */
+	const paras = [[]];
+	segments.forEach((seg, i) => {
+		if (isParagraphSeparator(seg)) paras.push([]);
+		else paras[paras.length - 1].push(i);
+	});
+	return paras;
+}
+
 function resolvePptxElement(slides, op) {
 	const slide = slides[op.slideIndex];
 	if (!slide) throw new Error(`slide ${op.slideIndex} missing`);
@@ -549,6 +583,115 @@ export function applyPptxOps(slides, ops, mut) {
 				cur = next;
 				break;
 			}
+case 'setShapeRunStyle': {
+				const el = resolvePptxElement(cur, op);
+				if (el.type !== 'text' && el.type !== 'shape' && el.type !== 'connector') {
+					throw new Error('setShapeRunStyle: element has no text');
+				}
+				const segments = el.textSegments?.length
+					? el.textSegments.map((s) => ({ ...s, style: { ...(s.style || {}) } }))
+					: [{ text: el.text ?? '', style: { ...(el.textStyle || {}) } }];
+				const paras = contentRunIndexes(segments);
+				const para = paras[op.paragraphIndex];
+				if (!para) throw new Error(`setShapeRunStyle paragraph ${op.paragraphIndex} missing`);
+				const segIdx = para[op.runIndex];
+				if (segIdx == null) throw new Error(`setShapeRunStyle run ${op.runIndex} missing`);
+				/** @type {Record<string, unknown>} */
+				const updates = {};
+				if (op.bold !== undefined) updates.bold = op.bold;
+				if (op.italic !== undefined) updates.italic = op.italic;
+				if (op.underline !== undefined) updates.underline = op.underline;
+				if (op.fontSize !== undefined) updates.fontSize = op.fontSize;
+				if (op.color !== undefined) updates.color = op.color;
+				const end = (segments[segIdx].text ?? '').length;
+				const selection = {
+					startSegIdx: segIdx,
+					startOffset: 0,
+					endSegIdx: segIdx,
+					endOffset: end,
+				};
+				const { patch } = mut.applyTextStyleUpdate(el, updates, selection, segments);
+				cur = updateElement(cur, op.slideIndex, el.id, patch);
+				break;
+			}
+case 'setShapeParagraphAlign': {
+				const el = resolvePptxElement(cur, op);
+				if (el.type !== 'text' && el.type !== 'shape' && el.type !== 'connector') {
+					throw new Error('setShapeParagraphAlign: element has no text');
+				}
+				const segments = (el.textSegments?.length ? el.textSegments : [{ text: el.text ?? '', style: {} }]).map(
+					(s) => ({
+						...s,
+						style: { ...(s.style || {}) },
+						...(s.paragraphProperties
+							? { paragraphProperties: { ...s.paragraphProperties } }
+							: {}),
+					}),
+				);
+				const paras = contentRunIndexes(segments);
+				const para = paras[op.paragraphIndex];
+				if (!para || para[0] == null) {
+					throw new Error(`setShapeParagraphAlign paragraph ${op.paragraphIndex} missing`);
+				}
+				const seg = segments[para[0]];
+				seg.paragraphProperties = { ...(seg.paragraphProperties || {}), align: op.align };
+				cur = updateElement(cur, op.slideIndex, el.id, { textSegments: segments });
+				break;
+			}
+case 'setShapeBullets': {
+				const el = resolvePptxElement(cur, op);
+				const range =
+					op.startParagraph != null && op.endParagraph != null
+						? { startParagraph: op.startParagraph, endParagraph: op.endParagraph }
+						: undefined;
+				const patch = mut.setElementBullets(el, op.kind, range);
+				if (patch.textSegments || patch.textStyle) {
+					cur = updateElement(cur, op.slideIndex, el.id, patch);
+				}
+				break;
+			}
+case 'setShapeAutofit': {
+				const el = resolvePptxElement(cur, op);
+				cur = updateElement(cur, op.slideIndex, el.id, mut.autoFitModePatch(el, op.mode));
+				break;
+			}
+case 'setSlideCellText': {
+				const el = resolvePptxElement(cur, op);
+				if (el.type !== 'table' || !el.tableData) {
+					throw new Error('setSlideCellText rejected: not a table');
+				}
+				const next = mut.setCellText(el, op.row, op.col, op.text);
+				cur = updateElement(cur, op.slideIndex, el.id, { tableData: next.tableData });
+				break;
+			}
+case 'insertSlideTableRow': {
+				const el = resolvePptxElement(cur, op);
+				if (!el.tableData) throw new Error('element is not a table');
+				const tableData = mut.insertTableRow(el.tableData, op.row, op.position);
+				cur = updateElement(cur, op.slideIndex, el.id, { tableData });
+				break;
+			}
+case 'deleteSlideTableRow': {
+				const el = resolvePptxElement(cur, op);
+				if (!el.tableData) throw new Error('element is not a table');
+				const tableData = mut.deleteTableRow(el.tableData, op.row);
+				cur = updateElement(cur, op.slideIndex, el.id, { tableData });
+				break;
+			}
+case 'insertSlideTableColumn': {
+				const el = resolvePptxElement(cur, op);
+				if (!el.tableData) throw new Error('element is not a table');
+				const tableData = mut.insertTableColumn(el.tableData, op.col, op.position);
+				cur = updateElement(cur, op.slideIndex, el.id, { tableData });
+				break;
+			}
+case 'deleteSlideTableColumn': {
+				const el = resolvePptxElement(cur, op);
+				if (!el.tableData) throw new Error('element is not a table');
+				const tableData = mut.deleteTableColumn(el.tableData, op.col);
+				cur = updateElement(cur, op.slideIndex, el.id, { tableData });
+				break;
+			}
 			default:
 				throw new Error(`unsupported pptx op: ${op.op}`);
 		}
@@ -569,6 +712,13 @@ export async function loadPptxMutators() {
 		`${up}/src/core/pptx/core/utils/group-ops.ts`
 	);
 	const { cloneElement, cloneSlide } = await import(`${up}/src/core/pptx/core/utils/clone-utils.ts`);
+	const { setElementBullets } = await import(`${up}/src/core/pptx/editor/render/bullet-toggle.ts`);
+	const { autoFitModePatch } = await import(`${up}/src/ui/src/pptx/render/text-advanced.ts`);
+	const { applyTextStyleUpdate } = await import(`${up}/src/ui/src/pptx/render/text-style-update.ts`);
+	const { setCellText } = await import(`${up}/src/core/pptx/editor/render/table-cell-edit.ts`);
+	const { insertTableRow, deleteTableRow, insertTableColumn, deleteTableColumn } = await import(
+		`${up}/src/core/pptx/editor/render/table-layout.ts`
+	);
 	return {
 		updateElement,
 		patchElementGeometry,
@@ -584,6 +734,14 @@ export async function loadPptxMutators() {
 		ungroupElements,
 		cloneElement,
 		cloneSlide,
+		setElementBullets,
+		autoFitModePatch,
+		applyTextStyleUpdate,
+		setCellText,
+		insertTableRow,
+		deleteTableRow,
+		insertTableColumn,
+		deleteTableColumn,
 	};
 }
 
@@ -635,10 +793,12 @@ export async function applyAndSave(bytes, script) {
 		const handler = new PptxHandler();
 		const data = await handler.load(toArrayBuffer(bytes));
 		const slides = applyPptxOps(data.slides, script.ops, mut);
-		return await handler.save(slides, {
-			headerFooter: data.headerFooter,
-			tableStyles: data.tableStyleMap,
-		});
+		return await withStableRandom(() =>
+			handler.save(slides, {
+				headerFooter: data.headerFooter,
+				tableStyles: data.tableStyleMap,
+			}),
+		);
 	}
 
 	throw new Error(`unsupported format ${format}`);

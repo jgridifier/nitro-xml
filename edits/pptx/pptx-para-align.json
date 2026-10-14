@@ -1,0 +1,15 @@
+{
+  "id": "pptx-para-align",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Center the first paragraph of slide 0",
+  "ops": [
+    {
+      "op": "setShapeParagraphAlign",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "paragraphIndex": 0,
+      "align": "center"
+    }
+  ]
+}

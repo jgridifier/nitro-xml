@@ -1,0 +1,15 @@
+{
+  "id": "pptx-table-insert-row",
+  "format": "pptx",
+  "fixture": "upstream-e0dce36d2088",
+  "description": "Insert a table row below row 0",
+  "ops": [
+    {
+      "op": "insertSlideTableRow",
+      "slideIndex": 0,
+      "elementIndex": 1,
+      "row": 0,
+      "position": "below"
+    }
+  ]
+}

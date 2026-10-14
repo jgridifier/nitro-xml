@@ -1,0 +1,14 @@
+{
+  "id": "pptx-bullets",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Turn slide 0 text into a character bullet",
+  "ops": [
+    {
+      "op": "setShapeBullets",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "kind": "bullet"
+    }
+  ]
+}

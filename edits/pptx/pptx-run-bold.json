@@ -1,0 +1,16 @@
+{
+  "id": "pptx-run-bold",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Bold the first run of slide 0",
+  "ops": [
+    {
+      "op": "setShapeRunStyle",
+      "slideIndex": 0,
+      "elementIndex": 0,
+      "paragraphIndex": 0,
+      "runIndex": 0,
+      "bold": true
+    }
+  ]
+}

@@ -110,6 +110,21 @@ pub struct DumpElement {
     /// `a:ln/a:prstDash/@val` (paint only).
     #[serde(skip)]
     pub stroke_dash: Option<String>,
+    /// `solid` / `gradient` / `pattern` for `a:ln` fills (paint only).
+    #[serde(skip)]
+    pub stroke_fill_mode: Option<String>,
+    /// `a:ln/a:pattFill/@prst` (paint only).
+    #[serde(skip)]
+    pub stroke_pattern_preset: Option<String>,
+    /// Pattern background colour (paint only); foreground is [`Self::stroke_color`].
+    #[serde(skip)]
+    pub stroke_pattern_bg: Option<String>,
+    /// OOXML `a:lin/@ang` degrees for a gradient outline (paint only).
+    #[serde(skip)]
+    pub stroke_gradient_angle: Option<f64>,
+    /// Gradient outline stops as `(percent 0–100, #RRGGBB)` (paint only).
+    #[serde(skip)]
+    pub stroke_gradient_stops: Option<Vec<(f64, String)>>,
     /// `a:headEnd/@type` on connector line (paint only).
     #[serde(skip)]
     pub connector_start_arrow: Option<String>,
@@ -1815,6 +1830,11 @@ fn build_dump(
         stroke_width_px: extras.stroke_width_px,
         stroke_line_align: extras.stroke_line_align,
         stroke_dash: extras.stroke_dash,
+        stroke_fill_mode: extras.stroke_fill_mode,
+        stroke_pattern_preset: extras.stroke_pattern_preset,
+        stroke_pattern_bg: extras.stroke_pattern_bg,
+        stroke_gradient_angle: extras.stroke_gradient_angle,
+        stroke_gradient_stops: extras.stroke_gradient_stops,
         connector_start_arrow: extras.connector_start_arrow,
         connector_end_arrow: extras.connector_end_arrow,
         text_color: extras.text_color,
@@ -2123,6 +2143,11 @@ struct PaintExtras {
     stroke_width_px: Option<f64>,
     stroke_line_align: Option<String>,
     stroke_dash: Option<String>,
+    stroke_fill_mode: Option<String>,
+    stroke_pattern_preset: Option<String>,
+    stroke_pattern_bg: Option<String>,
+    stroke_gradient_angle: Option<f64>,
+    stroke_gradient_stops: Option<Vec<(f64, String)>>,
     connector_start_arrow: Option<String>,
     connector_end_arrow: Option<String>,
     media_rel_id: Option<String>,
@@ -2396,8 +2421,47 @@ fn shape_paint_extras(
                     extras.stroke_width_px = Some(emu_to_pixels(width));
                 }
             }
-            if let Some(DrawingFill::Solid { color }) = line.fill {
-                extras.stroke_color = css_color(&color, theme, false);
+            match line.fill {
+                Some(DrawingFill::Solid { color }) => {
+                    extras.stroke_fill_mode = Some("solid".to_owned());
+                    extras.stroke_color = css_color(&color, theme, false);
+                }
+                Some(DrawingFill::Pattern {
+                    preset,
+                    foreground,
+                    background,
+                }) => {
+                    extras.stroke_fill_mode = Some("pattern".to_owned());
+                    extras.stroke_pattern_preset = Some(preset);
+                    extras.stroke_color = foreground
+                        .as_ref()
+                        .and_then(|c| css_color(c, theme, false))
+                        .or_else(|| Some("#000000".to_owned()));
+                    extras.stroke_pattern_bg = background
+                        .as_ref()
+                        .and_then(|c| css_color(c, theme, false))
+                        .or_else(|| Some("#FFFFFF".to_owned()));
+                }
+                Some(DrawingFill::Gradient { angle, stops, .. }) => {
+                    extras.stroke_fill_mode = Some("gradient".to_owned());
+                    extras.stroke_gradient_angle = Some(angle.unwrap_or(0.0));
+                    let mut out = Vec::new();
+                    for stop in stops {
+                        if let Some(color) = css_color(&stop.color, theme, false) {
+                            out.push((stop.position, color));
+                        }
+                    }
+                    if let Some((_, first)) = out.first() {
+                        extras.stroke_color = Some(first.clone());
+                    }
+                    if !out.is_empty() {
+                        extras.stroke_gradient_stops = Some(out);
+                    }
+                }
+                Some(DrawingFill::None) => {
+                    extras.stroke_fill_mode = Some("none".to_owned());
+                }
+                Some(_) | None => {}
             }
             if let Some(dash) = line.dash {
                 extras.stroke_dash = Some(dash);
@@ -4346,5 +4410,45 @@ mod tests {
         assert!(find_local_deep(&root, "missing").is_none());
         assert!(deep_blip_embed(&root).is_none());
         assert!(vml_shape_image_rel(&root, "nope").is_none());
+    }
+
+    #[test]
+    fn catches_pattern_and_gradient_line_fills_not_dropped() {
+        // Catches: a:ln/a:pattFill and a:ln/a:gradFill leave stroke unset so outlines disappear.
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/f3a23e347a28_pattern-outline.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let by_name: std::collections::BTreeMap<_, _> = slide
+            .elements
+            .iter()
+            .filter_map(|e| e.name.as_deref().map(|n| (n.to_owned(), e)))
+            .collect();
+        let solid = by_name.get("solid-outline").expect("solid");
+        assert_eq!(solid.stroke_color.as_deref(), Some("#00B050"));
+        assert!(solid.stroke_width_px.unwrap_or(0.0) > 0.0);
+        let pat = by_name.get("pattern-dkDnDiag").expect("pattern");
+        eprintln!(
+            "pattern: stroke={:?} width={:?} fill={:?} mode={:?}",
+            pat.stroke_color, pat.stroke_width_px, pat.fill_color, pat.fill_mode
+        );
+        assert!(
+            pat.stroke_width_px.unwrap_or(0.0) > 0.0,
+            "pattern stroke width should parse from a:ln/@w"
+        );
+        assert_eq!(pat.stroke_fill_mode.as_deref(), Some("pattern"));
+        assert_eq!(pat.stroke_pattern_preset.as_deref(), Some("dkDnDiag"));
+        assert_eq!(pat.stroke_color.as_deref(), Some("#1F4E79"));
+        assert_eq!(pat.stroke_pattern_bg.as_deref(), Some("#FFF2CC"));
+        let grad = by_name.get("gradient-outline").expect("grad");
+        assert_eq!(grad.stroke_fill_mode.as_deref(), Some("gradient"));
+        let stops = grad.stroke_gradient_stops.as_ref().expect("stops");
+        assert!(stops.len() >= 2, "{stops:?}");
+        assert_eq!(stops[0].1, "#FF0000");
+        assert_eq!(stops[1].1, "#0000FF");
     }
 }

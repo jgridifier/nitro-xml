@@ -3,6 +3,7 @@
 
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_inner_markup_stub, set_style};
+use super::pattern_tile::get_pattern_tile;
 use super::prst_geom::{apply_preset_geometry, preset_stroke_outline_path};
 use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
 use super::stroke_dash::{css_border_dash_style, svg_stroke_dasharray};
@@ -46,29 +47,28 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         set_attr(ctx, id, "data-shape-type", st);
         apply_preset_geometry(ctx, id, st, el.width, painted_h);
     }
-    if let Some(color) = &el.stroke_color {
-        let width = el.stroke_width_px.unwrap_or(1.0).max(0.0);
-        if width > 0.0 {
-            if stroke_uses_css_border(el.stroke_line_align.as_deref()) {
-                let style = css_border_dash_style(el.stroke_dash.as_deref());
-                set_style(
-                    ctx,
-                    id,
-                    "border",
-                    &format!("{}px {} {color}", format_px(width), style),
-                );
-            } else {
-                paint_centered_stroke_overlay(
-                    ctx,
-                    id,
-                    el.width,
-                    painted_h,
-                    color,
-                    width,
-                    el.shape_type.as_deref(),
-                    el.stroke_dash.as_deref(),
-                );
-            }
+    let stroke_width = el.stroke_width_px.unwrap_or(1.0).max(0.0);
+    let wants_paint_server = matches!(
+        el.stroke_fill_mode.as_deref(),
+        Some("pattern") | Some("gradient")
+    );
+    if stroke_width > 0.0
+        && (el.stroke_color.is_some() || wants_paint_server)
+        && !matches!(el.stroke_fill_mode.as_deref(), Some("none"))
+    {
+        let color = el.stroke_color.as_deref().unwrap_or("#000000");
+        // CSS border cannot express pattern/gradient lines — always SVG overlay
+        // (matches upstream `stroke-outline.ts`).
+        if !wants_paint_server && stroke_uses_css_border(el.stroke_line_align.as_deref()) {
+            let style = css_border_dash_style(el.stroke_dash.as_deref());
+            set_style(
+                ctx,
+                id,
+                "border",
+                &format!("{}px {} {color}", format_px(stroke_width), style),
+            );
+        } else {
+            paint_centered_stroke_overlay(ctx, id, el, painted_h, color, stroke_width);
         }
     }
     if let Some(shadow) =
@@ -141,31 +141,51 @@ fn stroke_uses_css_border(align: Option<&str>) -> bool {
 const STROKE_OUTLINE_SVG_STYLE: &str =
     "position:absolute;inset:0;width:100%;height:100%;min-width:1px;min-height:1px;overflow:visible;pointer-events:none";
 
-#[allow(clippy::too_many_arguments)]
 fn paint_centered_stroke_overlay<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     parent: u32,
-    width: f64,
+    el: &DumpElement,
     height: f64,
     color: &str,
     stroke_width: f64,
-    shape_type: Option<&str>,
-    stroke_dash: Option<&str>,
 ) {
+    let width = el.width;
     if width < 1.0 || height < 1.0 {
         return;
     }
     let w = format_px(width);
     let h = format_px(height);
     let sw = format_px(stroke_width);
-    let d = shape_type
+    let d = el
+        .shape_type
+        .as_deref()
         .and_then(|st| preset_stroke_outline_path(st, width, height))
         .unwrap_or_else(|| format!("M 0 0 L {w} 0 L {w} {h} L 0 {h} Z"));
-    let dash_attr = svg_stroke_dasharray(stroke_dash, stroke_width)
+    let dash_attr = svg_stroke_dasharray(el.stroke_dash.as_deref(), stroke_width)
         .map(|da| format!(" stroke-dasharray=\"{da}\""))
         .unwrap_or_default();
+    let paint_id = svg_paint_id(&el.id);
+    let (defs, stroke_attr) = stroke_paint_server(el, color, &paint_id);
+    let defs_block = if defs.is_empty() {
+        String::new()
+    } else {
+        format!("<defs>{defs}</defs>")
+    };
     let svg = format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"pptx-vanilla-gradient-outline\" aria-hidden=\"true\" viewBox=\"0 0 {w} {h}\" preserveAspectRatio=\"none\" style=\"{STROKE_OUTLINE_SVG_STYLE}\"><path d=\"{d}\" fill=\"none\" stroke=\"{color}\" stroke-width=\"{sw}\"{dash_attr}/></svg>"
+        concat!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"pptx-vanilla-gradient-outline\" ",
+            "aria-hidden=\"true\" viewBox=\"0 0 {w} {h}\" preserveAspectRatio=\"none\" ",
+            "style=\"{style}\">{defs_block}",
+            "<path d=\"{d}\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"{sw}\"{dash}/></svg>"
+        ),
+        w = w,
+        h = h,
+        style = STROKE_OUTLINE_SVG_STYLE,
+        defs_block = defs_block,
+        d = d,
+        stroke = stroke_attr,
+        sw = sw,
+        dash = dash_attr,
     );
     let overlay = create_child(ctx, parent, "div");
     set_attr(ctx, overlay, "aria-hidden", "true");
@@ -178,6 +198,92 @@ fn paint_centered_stroke_overlay<I: StringIntern>(
     set_style(ctx, overlay, "overflow", "visible");
     set_style(ctx, overlay, "pointer-events", "none");
     set_inner_markup_stub(ctx, overlay, &svg);
+}
+
+fn svg_paint_id(element_id: &str) -> String {
+    let seed: String = element_id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    format!("pptx-strokepat-{seed}")
+}
+
+/// `(defs_inner_markup, stroke_attribute_value)`.
+fn stroke_paint_server(el: &DumpElement, color: &str, paint_id: &str) -> (String, String) {
+    match el.stroke_fill_mode.as_deref() {
+        Some("pattern") => {
+            let preset = el.stroke_pattern_preset.as_deref().unwrap_or("");
+            let bg = el.stroke_pattern_bg.as_deref().unwrap_or("#FFFFFF");
+            if let Some(tile) = get_pattern_tile(preset, color, bg) {
+                let markup = format!(
+                    r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}">{}</svg>"#,
+                    tile.w, tile.h, tile.inner
+                );
+                // Keep URI encoding minimal and stable (TS uses encodeURIComponent).
+                let href = format!("data:image/svg+xml,{}", urlencoding_minimal(&markup));
+                let defs = format!(
+                    r#"<pattern id="{paint_id}" patternUnits="userSpaceOnUse" width="{tw}" height="{th}"><image href="{href}" width="{tw}" height="{th}"/></pattern>"#,
+                    tw = tile.w,
+                    th = tile.h,
+                );
+                return (defs, format!("url(#{paint_id})"));
+            }
+            (String::new(), color.to_owned())
+        }
+        Some("gradient") => {
+            if let Some(stops) = el.stroke_gradient_stops.as_ref().filter(|s| s.len() >= 2) {
+                let angle = el.stroke_gradient_angle.unwrap_or(0.0);
+                let (x1, y1, x2, y2) = linear_gradient_endpoints(angle);
+                let mut stop_markup = String::new();
+                for (pos, stop_color) in stops {
+                    let offset = (*pos / 100.0).clamp(0.0, 1.0);
+                    stop_markup.push_str(&format!(
+                        r#"<stop offset="{offset}" stop-color="{stop_color}"/>"#
+                    ));
+                }
+                let defs = format!(
+                    r#"<linearGradient id="{paint_id}" gradientUnits="objectBoundingBox" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}">{stop_markup}</linearGradient>"#
+                );
+                return (defs, format!("url(#{paint_id})"));
+            }
+            (String::new(), color.to_owned())
+        }
+        _ => (String::new(), color.to_owned()),
+    }
+}
+
+/// OOXML `a:lin/@ang` → objectBoundingBox endpoints (upstream `linearEndpoints`).
+fn linear_gradient_endpoints(angle_degrees: f64) -> (f64, f64, f64, f64) {
+    let radians = angle_degrees.to_radians();
+    let dx = radians.cos();
+    let dy = radians.sin();
+    let span = (dx.abs() + dy.abs()) / 2.0;
+    let round4 = |v: f64| (v * 10000.0).round() / 10000.0;
+    (
+        round4(0.5 - dx * span),
+        round4(0.5 - dy * span),
+        round4(0.5 + dx * span),
+        round4(0.5 + dy * span),
+    )
+}
+
+fn urlencoding_minimal(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 16);
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char);
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -237,6 +343,11 @@ mod tests {
             stroke_width_px: Some(2.0),
             stroke_line_align,
             stroke_dash: None,
+            stroke_fill_mode: None,
+            stroke_pattern_preset: None,
+            stroke_pattern_bg: None,
+            stroke_gradient_angle: None,
+            stroke_gradient_stops: None,
             connector_start_arrow: None,
             connector_end_arrow: None,
             text_color: None,
@@ -342,6 +453,51 @@ mod tests {
                 .any(|s| s.contains("pptx-vanilla-gradient-outline")),
             "inset stroke must not emit SVG overlay, got {:?}",
             intern.0
+        );
+    }
+
+    #[test]
+    fn catches_pattern_stroke_overlay_uses_svg_pattern_paint_server() {
+        // Catches: a:ln/a:pattFill flattened to solid strokeColor so hatching disappears.
+        let mut el = shape_el(None);
+        el.id = "pattern-dkDnDiag".to_owned();
+        el.shape_type = Some("rect".to_owned());
+        el.stroke_fill_mode = Some("pattern".to_owned());
+        el.stroke_pattern_preset = Some("dkDnDiag".to_owned());
+        el.stroke_pattern_bg = Some("#FFF2CC".to_owned());
+        el.stroke_color = Some("#1F4E79".to_owned());
+        el.stroke_width_px = Some(8.0);
+        let intern = paint_shape(&el);
+        let joined = intern.0.join("\n");
+        assert!(
+            joined.contains("<pattern") && joined.contains("url(#pptx-strokepat-"),
+            "expected SVG pattern paint server, got {joined}"
+        );
+        assert!(
+            joined.contains("#FFF2CC") || joined.contains("%23FFF2CC"),
+            "pattern bg must appear in tile/data URI, got {joined}"
+        );
+    }
+
+    #[test]
+    fn catches_gradient_stroke_overlay_uses_svg_linear_gradient() {
+        // Catches: a:ln/a:gradFill flattened to first-stop solid so two-tone outlines disappear.
+        let mut el = shape_el(None);
+        el.id = "gradient-outline".to_owned();
+        el.shape_type = Some("rect".to_owned());
+        el.stroke_fill_mode = Some("gradient".to_owned());
+        el.stroke_gradient_angle = Some(0.0);
+        el.stroke_gradient_stops = Some(vec![
+            (0.0, "#FF0000".to_owned()),
+            (100.0, "#0000FF".to_owned()),
+        ]);
+        el.stroke_color = Some("#FF0000".to_owned());
+        el.stroke_width_px = Some(8.0);
+        let intern = paint_shape(&el);
+        let joined = intern.0.join("\n");
+        assert!(
+            joined.contains("<linearGradient") && joined.contains("#0000FF"),
+            "expected SVG linearGradient with both stops, got {joined}"
         );
     }
 }

@@ -5,7 +5,7 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | File | Upstream source @ e66aaec | Changes |
 |------|---------------------------|---------|
 | `src/presentation.rs` | `PptxHandlerRuntimeLoadSession.ts`, `LoadPipeline.ts`, `SlideMasters.ts` | Presentation open over `Package`, lazy slides, master/layout/theme chain, issue-24 dump. |
-| `src/slide.rs` | `SpTreeParsing.ts`, `ShapeParsing.ts`, `PictureParsing.ts`, `GroupParsing.ts`, `PptxHandlerRuntimeBackgroundParsing.ts` | Ported element kinds; background chain; shape fill/stroke; chart/SmartArt frames. |
+| `src/slide.rs` | `SpTreeParsing.ts`, `ShapeParsing.ts`, `PictureParsing.ts`, `GroupParsing.ts`, `PptxHandlerRuntimeBackgroundParsing.ts` | Ported element kinds; background chain; shape fill/stroke; chart/SmartArt frames. Parse `a:ln` `pattFill`/`gradFill` into paint-only stroke fields (#27). |
 | `src/inheritance.rs` | `merge-xml-objects.ts`, `PlaceholderLookup.ts`, `placeholder-style-family.ts` | Placeholder match + layout-over-master merge. |
 | `src/theme.rs` | `ThemeLoading.ts` | Colour/font scheme via `nitro_xml_opc::drawingml` (#25). |
 | `src/text.rs` | `PptxHandlerRuntimeShapeParagraphContentParsing.ts`, `BulletParsing.ts`, `ruby-element-parsing.ts` | Flat `element.text` parity: bullets, fields, math, breaks, ruby. |
@@ -14,7 +14,8 @@ Rows are also recorded in the repo-root `PROVENANCE.md` (licence check).
 | `src/placeholder_defaults.rs` | `PlaceholderLookup.ts`, `PlaceholderDefaults.ts` | Effective placeholder level-style cascade for bullets. |
 | `src/table.rs` | `PptxGraphicFrameParser.ts` | Table row count on graphic-frame dump elements. |
 | `src/render/stage.rs` | `dom/slide-stage.ts`, `render/slide-background.ts` | P1 stage; solid/linear background (#27). |
-| `src/render/shape.rs` | `dom/elements/text-shape.ts` | P2 fill, stroke, `box-shadow` from outerShdw (#27). |
+| `src/render/shape.rs` | `dom/elements/text-shape.ts`, `render/stroke-outline.ts`, `render/svg-stroke-pattern-paint.ts`, `render/svg-gradient-paint.ts` | P2 fill, stroke, `box-shadow` from outerShdw (#27). SVG pattern/gradient `a:ln` paint servers (#27). |
+| `src/render/pattern_tile.rs` | `render/fill-style.ts` (`getPatternTile`) | OOXML `a:pattFill` tile markup for SVG pattern stroke paint (#27). |
 | `src/outer_shadow.rs` | `render/visual-effects.ts`, `PptxShapeEffectStyleExtractor.ts`, `render/text-effects.ts` | Parse `a:outerShdw` → CSS `box-shadow` / `text-shadow`; `a:glow` → CSS `filter: drop-shadow` (#27). |
 | `src/visual_3d_materials.rs` | `render/visual-3d-materials.ts`, `render/visual-3d.ts` | Metal+bevel legacy brightness compensation until SVG bevel lighting (#27). |
 | `src/render/prst_geom.rs` | `render/shape-geometry-cascade.ts`, `core/geometry/shape-geometry.ts`, `geometry/preset-clip-paths-core.ts` | `a:prstGeom` border-radius and clip-path for ellipse, roundRect, arrows (#27). |

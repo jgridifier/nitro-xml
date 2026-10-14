@@ -20,6 +20,7 @@ mod ink;
 mod media;
 mod model3d;
 mod ole;
+mod pattern_tile;
 mod picture;
 mod placeholder;
 mod print;
@@ -206,6 +207,11 @@ mod tests {
             stroke_width_px: None,
             stroke_line_align: None,
             stroke_dash: None,
+            stroke_fill_mode: None,
+            stroke_pattern_preset: None,
+            stroke_pattern_bg: None,
+            stroke_gradient_angle: None,
+            stroke_gradient_stops: None,
             connector_start_arrow: None,
             connector_end_arrow: None,
             text_color: None,

@@ -3913,6 +3913,28 @@ mod tests {
         );
     }
 
+    // Catches: modify-password body placeholder losing layout font size (GDI drift vs TS).
+    #[test]
+    fn modify_password_body_placeholder_font_size() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/6fbe45df1cb3_modify-password.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let body = slide
+            .elements
+            .iter()
+            .find(|e| e.name.as_deref() == Some("Text Placeholder 2"))
+            .expect("body placeholder");
+        let paras = body.text_paint_paragraphs.as_ref().expect("paras");
+        assert_eq!(paras.len(), 1);
+        assert!(body.font_size_px.unwrap() > 0.0);
+        assert!(paras[0].runs[0].run_font_family.is_some() || body.font_family.is_some());
+    }
+
     // Catches: keyframes Profil effectRef idx=2 metal never gets inset specular so the green button stays flat.
     #[test]
     fn keyframes_profil_effectref_metal_material() {

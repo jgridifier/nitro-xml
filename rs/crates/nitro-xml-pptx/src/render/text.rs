@@ -125,7 +125,7 @@ fn paint_plain_text_runs<I: StringIntern>(
     let para = open_paragraph(ctx, block, para_align, None);
     let metric_stack = VISUAL_HOST_RUN_FONT_STACK.to_owned();
     let pieces = split_run_for_metric_pieces(text);
-    let emit_gdi = pieces.len() > 1;
+    let emit_gdi = !paint.layout.is_some_and(|l| l.wrap_none) && pieces.len() > 1;
     for piece in pieces {
         let run = create_child(ctx, para, "span");
         set_text_content(ctx, run, &piece);
@@ -177,13 +177,24 @@ pub fn paint_text_body<I: StringIntern>(
 ) -> u32 {
     let block = create_child(ctx, parent, "div");
     set_attr(ctx, block, "class", "pptxv-text");
-    set_style(ctx, block, "white-space", "pre-wrap");
-    if paint.presentation_kinsoku {
+    let wrap_none = paint.layout.is_some_and(|l| l.wrap_none);
+    set_style(
+        ctx,
+        block,
+        "white-space",
+        if wrap_none { "nowrap" } else { "pre-wrap" },
+    );
+    if !wrap_none {
+        if paint.presentation_kinsoku {
+            set_style(ctx, block, "line-break", "strict");
+            set_style(ctx, block, "word-break", "normal");
+            set_style(ctx, block, "overflow-wrap", "break-word");
+        } else {
+            set_style(ctx, block, "word-break", "break-word");
+        }
+    } else if paint.presentation_kinsoku {
         set_style(ctx, block, "line-break", "strict");
         set_style(ctx, block, "word-break", "normal");
-        set_style(ctx, block, "overflow-wrap", "break-word");
-    } else {
-        set_style(ctx, block, "word-break", "break-word");
     }
     if paint.layout.is_some() {
         // Upstream text bodies use content-box (default): `width: 100%` is the
@@ -317,6 +328,8 @@ fn paint_rich_paragraphs<I: StringIntern>(
     let body_rtl = paragraphs.iter().find_map(|p| p.rtl);
     for para_model in paragraphs {
         let para_size = para_model.level_font_size_px.unwrap_or(size);
+        let paragraph_content_size =
+            crate::text_layout::paragraph_strut_font_size_px(para_model, size).unwrap_or(para_size);
         let para_paint = TextBodyPaint {
             text_color: para_model.level_text_color.as_deref().or(paint.text_color),
             font_size_px: Some(para_size),
@@ -341,6 +354,14 @@ fn paint_rich_paragraphs<I: StringIntern>(
         let para = create_child(ctx, block, "p");
         set_attr(ctx, para, "class", "pptxv-para");
         set_style(ctx, para, "margin", "0");
+        if let Some(strut_px) = crate::text_layout::paragraph_strut_font_size_px(para_model, size) {
+            set_style(
+                ctx,
+                para,
+                "font-size",
+                &format!("{}px", format_px(strut_px)),
+            );
+        }
         if let Some(margin_left) = para_model.margin_left_px {
             set_style(
                 ctx,
@@ -440,6 +461,7 @@ fn paint_rich_paragraphs<I: StringIntern>(
                     para_model.default_tab_size_px.unwrap_or(0.0),
                     &run_paint,
                     run_size,
+                    paragraph_content_size,
                     &run_stack,
                     para_model.run_line_height_zero,
                     east_asian,
@@ -512,6 +534,7 @@ fn append_paint_run<I: StringIntern>(
     default_tab_px: f64,
     paint: &TextBodyPaint<'_>,
     size: f64,
+    paragraph_strut_size: f64,
     stack: &str,
     run_line_height_zero: bool,
     east_asian: Option<EastAsianBreakOptions>,
@@ -524,7 +547,7 @@ fn append_paint_run<I: StringIntern>(
             run_model,
             paragraph_rtl,
             paint,
-            size,
+            paragraph_strut_size,
             stack,
             run_line_height_zero,
             mathml,
@@ -593,9 +616,7 @@ fn append_paint_run<I: StringIntern>(
         if run_model.underline {
             apply_run_underline(ctx, base);
         }
-        if paint.font_family.is_some()
-            && should_emit_gdi_tracking_for_run(&display_text, run_model.underline)
-        {
+        if should_emit_gdi_tracking_for_run(&display_text, run_model.underline) {
             apply_gdi_metric_letter_spacing(
                 ctx,
                 base,
@@ -673,6 +694,9 @@ fn append_paint_run<I: StringIntern>(
 }
 
 fn uses_per_piece_gdi_metric(paint: &TextBodyPaint<'_>, text: &str) -> bool {
+    if paint.layout.is_some_and(|l| l.wrap_none) {
+        return false;
+    }
     paint.font_family.is_some() && should_apply_gdi_metric(text)
 }
 
@@ -722,8 +746,9 @@ fn paint_run_text_span<I: StringIntern>(
     following: Option<char>,
     gdi_run_was_split: bool,
 ) -> u32 {
-    let emit_gdi_tracking =
-        gdi_run_was_split || should_emit_gdi_tracking_for_run(text, run_model.underline);
+    let wrap_none = paint.layout.is_some_and(|l| l.wrap_none);
+    let emit_gdi_tracking = !wrap_none
+        && (gdi_run_was_split || should_emit_gdi_tracking_for_run(text, run_model.underline));
     if let Some(script_fonts) = &run_model.script_fonts {
         let script_runs = crate::unicode_script::segment_by_script(text);
         let needs_split = script_runs.len() > 1
@@ -874,7 +899,7 @@ fn paint_run_span_styles<I: StringIntern>(
     if run_model.underline {
         apply_run_underline(ctx, run);
     }
-    if emit_gdi_tracking && paint.font_family.is_some() {
+    if emit_gdi_tracking {
         apply_gdi_metric_letter_spacing(
             ctx,
             run,
@@ -992,8 +1017,6 @@ fn paint_hyperlink_run<I: StringIntern>(
         set_attr(ctx, link, "title", tip);
     }
     set_style(ctx, link, "cursor", "pointer");
-    set_style(ctx, link, "color", HYPERLINK_COLOR);
-    apply_run_underline(ctx, link);
     apply_run_rtl(ctx, link, run_model.rtl, paragraph_rtl);
     if paint.font_family.is_none() {
         set_style(ctx, link, "font-family", VISUAL_HOST_RUN_FONT_STACK);
@@ -1001,6 +1024,8 @@ fn paint_hyperlink_run<I: StringIntern>(
         set_style(ctx, link, "font-family", stack);
     }
     paint_run_typography(ctx, link, paint, size, stack);
+    set_style(ctx, link, "color", HYPERLINK_COLOR);
+    apply_run_underline(ctx, link);
     if run_line_height_zero {
         set_style(ctx, link, "line-height", "0");
     }
@@ -1065,9 +1090,7 @@ fn paint_css_tab_run<I: StringIntern>(
     if run_model.underline {
         apply_run_underline(ctx, run);
     }
-    if paint.font_family.is_some()
-        && should_emit_gdi_tracking_for_run(display_text, run_model.underline)
-    {
+    if should_emit_gdi_tracking_for_run(display_text, run_model.underline) {
         apply_gdi_metric_letter_spacing(
             ctx,
             run,
@@ -1144,9 +1167,7 @@ fn paint_tabbed_run<I: StringIntern>(
         if run_model.underline {
             apply_run_underline(ctx, piece);
         }
-        if paint.font_family.is_some()
-            && should_emit_gdi_tracking_for_run(text, run_model.underline)
-        {
+        if should_emit_gdi_tracking_for_run(text, run_model.underline) {
             apply_gdi_metric_letter_spacing(
                 ctx,
                 piece,
@@ -1237,11 +1258,11 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
     para: u32,
     text: &str,
     size_px: f64,
-    font_family: Option<&str>,
+    _font_family: Option<&str>,
     bold: bool,
     italic: bool,
 ) {
-    if text.is_empty() || font_family.is_none() {
+    if text.is_empty() {
         return;
     }
     // Visual host pins painted glyphs to Liberation; GDI tracking must measure the same face.
@@ -1629,6 +1650,51 @@ mod tests {
                 .iter()
                 .any(|s| s == "\"Informal Roman\", sans-serif"),
             "font-family stack, got {:?}",
+            intern.0
+        );
+    }
+
+    #[test]
+    fn wrap_none_body_skips_gdi_metric_queue() {
+        // Catches: wrap="none" long lines still getting per-word GDI tracking and drifting vs TS at DPR1.
+        use crate::text_layout::{TextBodyLayout, TextBodyVAlign};
+        let layout = TextBodyLayout {
+            v_align: TextBodyVAlign::Top,
+            text_align: None,
+            inset_top_px: 0.0,
+            inset_bottom_px: 0.0,
+            inset_left_px: 0.0,
+            inset_right_px: 0.0,
+            column_count: 1,
+            column_gap_px: 0.0,
+            anchor_center: false,
+            overflow_clip: false,
+            body_rotation_deg: None,
+            wrap_none: true,
+        };
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(16.0),
+            font_family: Some("Arial"),
+            font_bold: false,
+            font_italic: false,
+            font_kern_hundredths: None,
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: Some(&layout),
+            paragraphs: None,
+            text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
+        });
+        assert!(
+            intern.0.iter().any(|s| s == "nowrap"),
+            "white-space nowrap, got {:?}",
+            intern.0
+        );
+        assert!(
+            !intern.0.iter().any(|s| s.contains("letter-spacing")),
+            "wrap none must not queue GDI, got {:?}",
             intern.0
         );
     }

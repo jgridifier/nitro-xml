@@ -1058,6 +1058,34 @@ fn resolve_run_font_family_for_paint(
     face.and_then(|f| resolve_theme_typeface(f, font_scheme, pick_script))
 }
 
+/// Paragraph strut size in px (upstream `resolveParagraphStrutFontSize`).
+///
+/// When a paragraph's runs are smaller than the shape body default, the `<p>`
+/// element needs an explicit `font-size` so line boxes match PowerPoint.
+pub fn paragraph_strut_font_size_px(
+    para: &TextPaintParagraph,
+    body_font_size_px: f64,
+) -> Option<f64> {
+    let mut smallest: Option<f64> = None;
+    for run in &para.runs {
+        if run.equation_mathml.is_some() {
+            continue;
+        }
+        let sz = run
+            .run_font_size_px
+            .or(para.level_font_size_px)
+            .filter(|s| s.is_finite() && *s > 0.0);
+        if let Some(sz) = sz {
+            smallest = Some(smallest.map(|m| m.min(sz)).unwrap_or(sz));
+        }
+    }
+    let smallest = smallest?;
+    if (smallest - body_font_size_px).abs() < 0.01 {
+        return None;
+    }
+    Some(smallest)
+}
+
 /// CSS `tab-size` for the text body (upstream `computeTabSize`).
 pub fn compute_body_tab_size_px(paragraphs: &[TextPaintParagraph]) -> Option<f64> {
     let mut best: Option<f64> = None;

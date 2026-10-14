@@ -12,6 +12,8 @@
       overflow: hidden;
       background: #fff;
       font-family: "Liberation Sans", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
     /* ShellViewerElement needs flex column so .v can flex:1 when .chrome is hidden. */
     #stage nitro-pptx {
@@ -26,6 +28,8 @@
       overflow: hidden;
       background: #fff;
       font-family: "Liberation Sans", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
     @media print {
       html, body, #stage { background: #fff; }
@@ -114,10 +118,13 @@
         v.style.minHeight = '0';
         v.style.height = '100%';
       }
+      // Pin Latin defaults without !important on every descendant so authored
+      // CJK faces (黑体 / Microsoft YaHei → Droid alias) can win (bug64693).
       injectStyle(
         shadow,
         await (await fetch('/fonts/visual-fonts.css')).text() +
-          `\n:host,.dom,[data-pptx-element],.dom *{font-family:"Liberation Sans",Arial,sans-serif!important}`,
+          `\n:host,.dom{font-family:"Liberation Sans",Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}` +
+          `\n.dom [data-pptx-element]{font-family:"Liberation Sans",Arial,sans-serif}`,
         'font-pin',
       );
       await waitFonts();
@@ -242,7 +249,8 @@
         injectStyle(
           document.head,
           await (await fetch('/fonts/visual-fonts.css')).text() +
-            `\n#ts-wrap,#ts-wrap *{font-family:"Liberation Sans",Arial,sans-serif!important}`,
+            `\n#ts-wrap{font-family:"Liberation Sans",Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}` +
+            `\n#ts-wrap .pptxv-element{font-family:"Liberation Sans",Arial,sans-serif}`,
           'font-pin-ts',
         );
         await waitFrames(3);

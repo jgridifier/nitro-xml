@@ -61,7 +61,7 @@ fn paint_preview<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElemen
         ctx,
         badge,
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" class=\"pptxv-ole-badge\">\
-<rect x=\"2\" y=\"2\" width=\"20\" height=\"20\" rx=\"3\" fill=\"#4b5563\"/>\
+<rect x=\"2\" y=\"2\" width=\"20\" height=\"20\" rx=\"3\" fill=\"#666666\"/>\
 <text x=\"12\" y=\"16\" text-anchor=\"middle\" fill=\"white\" font-size=\"10\" font-weight=\"bold\" font-family=\"Liberation Sans, Arial, sans-serif\">OLE</text>\
 </svg>",
     );

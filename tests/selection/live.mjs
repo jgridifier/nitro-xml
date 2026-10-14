@@ -17,9 +17,39 @@ const VISUAL = join(ROOT, 'parity/visual');
 const OUT = join(ROOT, 'tests/selection/out');
 const CARET_TOLERANCE_PX = 1;
 
-async function loadChromium() {
-	const mod = await import(pathToFileURL(join(VISUAL, 'node_modules/playwright/index.mjs')).href);
-	return mod.chromium;
+/** @type {readonly ['chromium','webkit','firefox']} */
+const SELECTION_BROWSER_NAMES = ['chromium', 'webkit', 'firefox'];
+
+/** Default all three (#29 cross-browser AC). Override with `SELECTION_BROWSERS=chromium`. */
+function selectionBrowsersFromEnv() {
+	const raw = (process.env.SELECTION_BROWSERS || SELECTION_BROWSER_NAMES.join(','))
+		.split(',')
+		.map((s) => s.trim().toLowerCase())
+		.filter(Boolean);
+	const out = [];
+	for (const name of raw) {
+		if (!SELECTION_BROWSER_NAMES.includes(/** @type {*} */ (name))) {
+			throw new Error(
+				`selection: unknown browser ${name} (want ${SELECTION_BROWSER_NAMES.join('|')})`,
+			);
+		}
+		if (!out.includes(name)) out.push(name);
+	}
+	return out.length ? out : [...SELECTION_BROWSER_NAMES];
+}
+
+async function loadPlaywright() {
+	return import(pathToFileURL(join(VISUAL, 'node_modules/playwright/index.mjs')).href);
+}
+
+/**
+ * @param {'chromium'|'webkit'|'firefox'} name
+ */
+async function loadBrowserType(name) {
+	const mod = await loadPlaywright();
+	const t = mod[name];
+	if (!t) throw new Error(`selection: playwright has no engine ${name}`);
+	return t;
 }
 
 function viewerPage(format) {
@@ -625,12 +655,15 @@ async function runActions(page, side, format, actions, fixtureRel) {
 					});
 					copy = fromDom || (await rustCopy(page));
 				} else if (format === 'pptx') {
-					// Prefer in-shadow text selection (text-select cases); else shell copy.
+					// Prefer in-shadow text selection; WebKit often clears shadow
+					// selection before copy, so fall back to dataset.textCopy from
+					// text-select before dumping the whole shape via shell copy.
 					const fromDom = await page.evaluate(() => {
 						const root = document.querySelector('nitro-pptx')?.shadowRoot;
 						const sel = root?.getSelection?.() || document.getSelection();
 						const t = sel?.toString() || '';
-						return t;
+						if (t) return t;
+						return document.getElementById('stage')?.dataset.textCopy || '';
 					});
 					copy = fromDom || (await rustCopy(page));
 				} else {
@@ -685,7 +718,7 @@ async function runActions(page, side, format, actions, fixtureRel) {
 	}
 	const state = await readState(page, side, format);
 	if (copy) state.copy = copy;
-	else if (format === 'pptx' && side === 'ts' && state.textCopy) state.copy = state.textCopy;
+	else if (format === 'pptx' && state.textCopy) state.copy = state.textCopy;
 	else if (format === 'docx' && side === 'ts' && state.textCopy && !state.copy) state.copy = state.textCopy;
 	else if (format === 'docx' && side === 'rust' && state.textCopy && !state.copy) state.copy = state.textCopy;
 	if (lastSelection) state.selection = state.selection || lastSelection;
@@ -721,106 +754,121 @@ async function oracleCopy(fixtureRel, selectionRef) {
  * @returns {Promise<{ ok: boolean, rows: object[], summary: string }>}
  */
 export async function runLiveChecks() {
-	const cases = readyCases().filter((c) => c.live);
+	const only = (process.env.SELECTION_ONLY || '')
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean);
+	let cases = readyCases().filter((c) => c.live);
+	if (only.length) cases = cases.filter((c) => only.includes(c.id));
 	const rows = [];
 	if (cases.length === 0) {
 		return { ok: true, rows, summary: 'selection live: PASS (0 cases)' };
 	}
 
 	mkdirSync(OUT, { recursive: true });
-	const chromium = await loadChromium();
+	const browsers = selectionBrowsersFromEnv();
 	const server = await startVisualServer({ root: VISUAL });
-	const browser = await chromium.launch({ headless: true });
 	let failed = 0;
 
 	try {
-		for (const c of cases) {
-			const want = new Set(c.compare || ['selection', 'highlight', 'caret']);
-			const ctx = await browser.newContext({
-				viewport: { width: (c.width || 800) + 40, height: (c.height || 480) + 40 },
-				deviceScaleFactor: 1,
-			});
+		for (const browserName of browsers) {
+			const type = await loadBrowserType(browserName);
+			const browser = await type.launch({ headless: true });
 			try {
-				// One side at a time avoids shared-worker prewarm races under #156.
-				const tsPage = await openViewer(ctx, server, c, 'ts');
-				const ts = await runActions(tsPage, 'ts', c.format, c.actions || [], c.fixture);
-				await tsPage.close();
+				for (const c of cases) {
+					const want = new Set(c.compare || ['selection', 'highlight', 'caret']);
+					const ctx = await browser.newContext({
+						viewport: { width: (c.width || 800) + 40, height: (c.height || 480) + 40 },
+						deviceScaleFactor: 1,
+					});
+					try {
+						// One side at a time avoids shared-worker prewarm races under #156.
+						const tsPage = await openViewer(ctx, server, c, 'ts');
+						const ts = await runActions(tsPage, 'ts', c.format, c.actions || [], c.fixture);
+						await tsPage.close();
 
-				const rustPage = await openViewer(ctx, server, c, 'rust');
-				const rust = await runActions(
-					rustPage,
-					'rust',
-					c.format,
-					c.actions || [],
-					c.fixture,
-				);
+						const rustPage = await openViewer(ctx, server, c, 'rust');
+						const rust = await runActions(
+							rustPage,
+							'rust',
+							c.format,
+							c.actions || [],
+							c.fixture,
+						);
 
-				const selOk = !want.has('selection') || rust.selection === ts.selection;
-				const hlOk =
-					!want.has('highlight') ||
-					rectsWithin(rust.highlight, ts.highlight, CARET_TOLERANCE_PX);
-				const caretOk =
-					!want.has('caret') || rectsWithin(rust.caret, ts.caret, CARET_TOLERANCE_PX);
-				const copyOk =
-					!want.has('copy') ||
-					normalizeCopy(rust.copy, c.format) === normalizeCopy(ts.copy, c.format);
-				const ok = selOk && hlOk && caretOk && copyOk;
-				if (!ok) failed++;
-				rows.push({
-					case: c.id,
-					format: c.format,
-					kind: 'live',
-					ok,
-					selOk,
-					hlOk,
-					caretOk,
-					copyOk,
-					rust: {
-						selection: rust.selection,
-						copy: normalizeCopy(rust.copy, c.format).slice(0, 120),
-						highlight: rust.highlight,
-						caret: rust.caret,
-					},
-					ts: {
-						selection: ts.selection,
-						copy: normalizeCopy(ts.copy, c.format).slice(0, 120),
-						highlight: ts.highlight,
-						caret: ts.caret,
-					},
-				});
-				writeFileSync(
-					join(OUT, `${c.id}.json`),
-					JSON.stringify({ rust, ts, ok }, null, 2),
-				);
-			} catch (e) {
-				failed++;
-				rows.push({
-					case: c.id,
-					format: c.format,
-					kind: 'live',
-					ok: false,
-					error: String(e && e.stack ? e.stack : e).slice(0, 400),
-					selOk: false,
-					hlOk: false,
-					caretOk: false,
-					copyOk: false,
-					rust: {},
-					ts: {},
-				});
+						const selOk = !want.has('selection') || rust.selection === ts.selection;
+						const hlOk =
+							!want.has('highlight') ||
+							rectsWithin(rust.highlight, ts.highlight, CARET_TOLERANCE_PX);
+						const caretOk =
+							!want.has('caret') ||
+							rectsWithin(rust.caret, ts.caret, CARET_TOLERANCE_PX);
+						const copyOk =
+							!want.has('copy') ||
+							normalizeCopy(rust.copy, c.format) === normalizeCopy(ts.copy, c.format);
+						const ok = selOk && hlOk && caretOk && copyOk;
+						if (!ok) failed++;
+						rows.push({
+							case: c.id,
+							browser: browserName,
+							format: c.format,
+							kind: 'live',
+							ok,
+							selOk,
+							hlOk,
+							caretOk,
+							copyOk,
+							rust: {
+								selection: rust.selection,
+								copy: normalizeCopy(rust.copy, c.format).slice(0, 120),
+								highlight: rust.highlight,
+								caret: rust.caret,
+							},
+							ts: {
+								selection: ts.selection,
+								copy: normalizeCopy(ts.copy, c.format).slice(0, 120),
+								highlight: ts.highlight,
+								caret: ts.caret,
+							},
+						});
+						writeFileSync(
+							join(OUT, `${c.id}-${browserName}.json`),
+							JSON.stringify({ browser: browserName, rust, ts, ok }, null, 2),
+						);
+					} catch (e) {
+						failed++;
+						rows.push({
+							case: c.id,
+							browser: browserName,
+							format: c.format,
+							kind: 'live',
+							ok: false,
+							error: String(e && e.stack ? e.stack : e).slice(0, 400),
+							selOk: false,
+							hlOk: false,
+							caretOk: false,
+							copyOk: false,
+							rust: {},
+							ts: {},
+						});
+					} finally {
+						await ctx.close();
+					}
+				}
 			} finally {
-				await ctx.close();
+				await browser.close();
 			}
 		}
 	} finally {
-		await browser.close();
 		await server.close();
 	}
 
 	const summary = [
-		`selection live: ${failed === 0 ? 'PASS' : 'FAIL'} (${rows.filter((r) => r.ok).length}/${rows.length}) ±${CARET_TOLERANCE_PX}px`,
+		`selection live: ${failed === 0 ? 'PASS' : 'FAIL'} (${rows.filter((r) => r.ok).length}/${rows.length}) ±${CARET_TOLERANCE_PX}px browsers=${browsers.join(',')}`,
 		...rows.map((r) => {
 			const tag = r.ok ? 'OK' : 'FAIL';
-			if (r.error) return `  ${tag} ${r.case} ERROR ${r.error.split('\n')[0]}`;
+			const br = r.browser ? `[${r.browser}] ` : '';
+			if (r.error) return `  ${tag} ${br}${r.case} ERROR ${r.error.split('\n')[0]}`;
 			const detail = [
 				r.selOk ? '' : 'selection',
 				r.hlOk ? '' : 'highlight',
@@ -829,7 +877,7 @@ export async function runLiveChecks() {
 			]
 				.filter(Boolean)
 				.join(',') || 'match';
-			return `  ${tag} ${r.case} ${detail} rustSel=${JSON.stringify(r.rust.selection)} tsSel=${JSON.stringify(r.ts.selection)}`;
+			return `  ${tag} ${br}${r.case} ${detail} rustSel=${JSON.stringify(r.rust.selection)} tsSel=${JSON.stringify(r.ts.selection)}`;
 		}),
 	].join('\n');
 	return { ok: failed === 0, rows, summary };

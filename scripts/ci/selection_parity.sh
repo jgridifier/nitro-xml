@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Selection and caret parity (#43): scripted selections copy the same text as
 # the TS reference; caret/highlight rectangles within 1 CSS px (job: selection-parity).
+# Live cases run on Chromium, WebKit and Firefox (#29 cross-browser AC).
 #
 # Definition of done for #43: this script no longer prints NOT IMPLEMENTED.
 # Ask Jared (or the Chief of Staff's gh login) to add the `selection-parity`
@@ -9,6 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
+export SELECTION_BROWSERS="${SELECTION_BROWSERS:-chromium,webkit,firefox}"
 
 # shellcheck source=versions.env
 . scripts/ci/versions.env
@@ -40,8 +42,9 @@ bash scripts/build-wasm.sh
 
 echo "selection: installing visual host deps (Playwright from #45)"
 ( cd parity/visual && bun install )
-( cd parity/visual && bunx playwright install --with-deps chromium ) \
-  || ( cd parity/visual && bunx playwright install chromium )
+( cd parity/visual && bunx playwright install --with-deps chromium webkit firefox ) \
+  || ( cd parity/visual && bunx playwright install chromium webkit firefox )
+echo "selection: browsers=${SELECTION_BROWSERS}"
 
 echo "selection: preparing upstream viewer bundles (xlsx-editor + pptx-slide)"
 ( cd parity/visual && bun prepare.mjs )

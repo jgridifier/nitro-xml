@@ -255,11 +255,18 @@ fn merge_dxf(acc: Option<DifferentialStyle>, next: &DifferentialStyle) -> Differ
     let Some(mut out) = acc else {
         return next.clone();
     };
-    if next.font.is_some() {
-        // Prefer earlier (higher priority) font; only fill missing pieces from later rules.
-        if out.font.is_none() {
-            out.font = next.font.clone();
-        }
+    // Earlier (higher priority) wins on conflicts; later rules fill missing font bits
+    // (Compare-to-totals: red from <=0.2*F plus double-underline from >=0.3*F when F is blank).
+    if let Some(next_font) = next.font.as_ref() {
+        out.font = Some(match out.font.take() {
+            Some(prev) => {
+                let mut merged = next_font.clone();
+                // Overlay earlier fields onto the later base so earlier wins.
+                merged = crate::view::style_view::merge_font(&merged, Some(&prev));
+                merged
+            }
+            None => next_font.clone(),
+        });
     }
     if out.fill.is_none() && next.fill.is_some() {
         out.fill = next.fill.clone();

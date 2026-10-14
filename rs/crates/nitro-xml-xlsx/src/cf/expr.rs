@@ -3,7 +3,7 @@
 // (literal / relative-ref expression path used by CF samples); changes listed in PROVENANCE.md.
 //! Minimal CF expression evaluator for soft-corpus formulas (no full calc engine).
 
-use crate::address::{column_index, parse_address};
+use crate::address::column_index;
 use crate::model::{ActiveWorksheet, DumpCellValue};
 use crate::sheet_access::{get_cell, CellIndex};
 
@@ -112,6 +112,8 @@ fn cell_number_value(
         Some(DumpCellValue::NumberRaw(s)) => s.trim().parse::<f64>().ok().filter(|n| n.is_finite()),
         Some(DumpCellValue::Bool(b)) => Some(if *b { 1.0 } else { 0.0 }),
         Some(DumpCellValue::String(s)) => s.trim().parse::<f64>().ok().filter(|n| n.is_finite()),
+        // Excel formula blanks → 0 (Compare-to-totals empty cells still enter B4<=$F4*0.2).
+        Some(DumpCellValue::Null) | None => Some(0.0),
         _ => None,
     }
 }
@@ -219,41 +221,200 @@ pub fn eval_cf_expression(
             .all(|part| eval_cf_expression(sheet, index, part, anchor_row, anchor_col, row, col));
     }
 
-    // $H$4="MONEY" / $E9<>""
-    if let Some((left, right)) = split_cmp(text, "<>") {
-        if right.trim() == "\"\"" {
-            if let Some(r) = parse_ref(left) {
-                if let Some((rr, cc)) = relocate(r, d_row, d_col) {
-                    return !cell_text(sheet, index, rr, cc).is_empty();
+    // MONTH(A3)=MONTH(TODAY())
+    if let Some((left, right)) = split_cmp(text, "=") {
+        if let (Some(a), Some(b)) = (
+            month_of(sheet, index, left, d_row, d_col),
+            month_of(sheet, index, right, d_row, d_col),
+        ) {
+            return a == b;
+        }
+    }
+
+    // Numeric comparisons: B4<=$F4*0.2, D3<500, B4>=$F4*0.3
+    for op in ["<=", ">=", "<>", "<", ">", "="] {
+        if let Some((left, right)) = split_cmp(text, op) {
+            if op == "<>" && right.trim() == "\"\"" {
+                if let Some(r) = parse_ref(left) {
+                    if let Some((rr, cc)) = relocate(r, d_row, d_col) {
+                        return !cell_text(sheet, index, rr, cc).is_empty();
+                    }
+                }
+                return false;
+            }
+            if op == "=" {
+                if let Some(lit) = unquote(right) {
+                    return eq_cell_string(sheet, index, left, &lit, d_row, d_col).unwrap_or(false);
+                }
+                // C3=C3 (cell vs cell text/number)
+                if let (Some(l), Some(r)) = (
+                    eval_side_text(sheet, index, left, d_row, d_col),
+                    eval_side_text(sheet, index, right, d_row, d_col),
+                ) {
+                    return l.eq_ignore_ascii_case(&r);
                 }
             }
-        }
-        return false;
-    }
-    if let Some((left, right)) = split_cmp(text, "=") {
-        if let Some(lit) = unquote(right) {
-            return eq_cell_string(sheet, index, left, &lit, d_row, d_col).unwrap_or(false);
-        }
-        // bare TRUE/FALSE or number equality against cell
-        if let Some(addr) = parse_address(left.trim()) {
-            let (rr, cc) = if left.contains('$') {
-                // parse_ref for abs flags
-                if let Some(r) = parse_ref(left) {
-                    relocate(r, d_row, d_col).unwrap_or((addr.row, addr.col))
-                } else {
-                    (addr.row, addr.col)
-                }
-            } else if let Some(r) = parse_ref(left) {
-                relocate(r, d_row, d_col).unwrap_or((addr.row, addr.col))
+            if let (Some(l), Some(r)) = (
+                eval_num_side(sheet, index, left, d_row, d_col),
+                eval_num_side(sheet, index, right, d_row, d_col),
+            ) {
+                return match op {
+                    "<=" => l <= r,
+                    ">=" => l >= r,
+                    "<" => l < r,
+                    ">" => l > r,
+                    "=" => l == r,
+                    "<>" => l != r,
+                    _ => false,
+                };
+            }
+            if op == "=" || op == "<>" {
+                // fall through only for string-ish equals already handled
             } else {
-                (addr.row, addr.col)
-            };
-            let cell = cell_text(sheet, index, rr, cc);
-            return cell.eq_ignore_ascii_case(right.trim());
+                return false;
+            }
+        }
+    }
+
+    // Bare cell truthiness: `$H3` (Customers2).
+    if let Some(r) = parse_ref(text) {
+        if let Some((rr, cc)) = relocate(r, d_row, d_col) {
+            return cell_truthy(sheet, index, rr, cc);
         }
     }
 
     false
+}
+
+fn eval_num_side(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    expr: &str,
+    d_row: i32,
+    d_col: i32,
+) -> Option<f64> {
+    let expr = expr.trim();
+    if let Some((a, b)) = split_cmp(expr, "*") {
+        let left = eval_num_atom(sheet, index, a, d_row, d_col)?;
+        let right = eval_num_atom(sheet, index, b, d_row, d_col)?;
+        return Some(left * right);
+    }
+    eval_num_atom(sheet, index, expr, d_row, d_col)
+}
+
+fn eval_num_atom(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    expr: &str,
+    d_row: i32,
+    d_col: i32,
+) -> Option<f64> {
+    let expr = expr.trim();
+    if let Ok(n) = expr.parse::<f64>() {
+        if n.is_finite() {
+            return Some(n);
+        }
+    }
+    let r = parse_ref(expr)?;
+    let (row, col) = relocate(r, d_row, d_col)?;
+    cell_number_value(sheet, index, row, col)
+}
+
+fn eval_side_text(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    expr: &str,
+    d_row: i32,
+    d_col: i32,
+) -> Option<String> {
+    let expr = expr.trim();
+    if let Some(lit) = unquote(expr) {
+        return Some(lit);
+    }
+    let r = parse_ref(expr)?;
+    let (row, col) = relocate(r, d_row, d_col)?;
+    Some(cell_text(sheet, index, row, col))
+}
+
+fn cell_truthy(sheet: &ActiveWorksheet, index: &CellIndex, row: u32, col: u32) -> bool {
+    match get_cell(sheet, index, row, col).map(|c| &c.value) {
+        Some(DumpCellValue::Bool(b)) => *b,
+        Some(DumpCellValue::Number(n)) => *n != 0.0,
+        Some(DumpCellValue::NumberRaw(s)) => s.trim().parse::<f64>().ok().is_some_and(|n| n != 0.0),
+        _ => false,
+    }
+}
+
+/// Excel month 1–12 from `MONTH(ref)` / `MONTH(TODAY())`, or None when not a month form.
+fn month_of(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    expr: &str,
+    d_row: i32,
+    d_col: i32,
+) -> Option<u32> {
+    let upper = expr.trim().to_ascii_uppercase();
+    if upper == "MONTH(TODAY())" {
+        // Match the host clock; Products3 soft/view-IR only lights October rows when run in October.
+        let now = chrono_lite_month();
+        return Some(now);
+    }
+    let inner = upper.strip_prefix("MONTH(")?.strip_suffix(')')?.trim();
+    // Preserve original casing for the ref inside MONTH(...)
+    let raw = expr.trim();
+    let start = raw.find('(')? + 1;
+    let end = raw.rfind(')')?;
+    let pref = raw[start..end].trim();
+    let _ = inner;
+    let r = parse_ref(pref)?;
+    let (row, col) = relocate(r, d_row, d_col)?;
+    let serial = cell_number_value(sheet, index, row, col)?;
+    excel_month(serial)
+}
+
+fn excel_month(serial: f64) -> Option<u32> {
+    // Excel 1900 date system (serial 1 = 1900-01-01), including the fictitious 1900-02-29.
+    if !serial.is_finite() || serial < 1.0 {
+        return None;
+    }
+    let mut rem = serial.floor() as i64;
+    let mut y = 1900i32;
+    while y <= 2200 {
+        let leap = y == 1900 || (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0));
+        let dim = [
+            31,
+            if leap { 29 } else { 28 },
+            31,
+            30,
+            31,
+            30,
+            31,
+            31,
+            30,
+            31,
+            30,
+            31,
+        ];
+        for (m, &d) in dim.iter().enumerate() {
+            if rem <= d as i64 {
+                return Some((m + 1) as u32);
+            }
+            rem -= d as i64;
+        }
+        y += 1;
+    }
+    None
+}
+
+fn chrono_lite_month() -> u32 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let days = (secs / 86400) as i64;
+    // Unix epoch → Excel serial (date1904=false): 25569 = 1970-01-01.
+    excel_month((days + 25569) as f64).unwrap_or(1)
 }
 
 fn regex_mod_row(text: &str) -> Option<(&str, u32, bool, u32)> {
@@ -407,7 +568,8 @@ mod tests {
         let index = CellIndex::build(&sheet);
         assert_eq!(eval_cf_formula_number(&sheet, &index, "$T$5"), Some(20.0));
         assert_eq!(eval_cf_formula_number(&sheet, &index, "33"), Some(33.0));
-        assert_eq!(eval_cf_formula_number(&sheet, &index, "U9"), None);
+        // Missing cells are 0 in Excel formulas (not None).
+        assert_eq!(eval_cf_formula_number(&sheet, &index, "U9"), Some(0.0));
     }
 
     #[test]

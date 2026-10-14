@@ -12,6 +12,51 @@ use crate::xml_util::{a_first, att, children_ns, elements, first_ns, rel_attr};
 
 const ANCHOR_PARTS: &[&str] = &["from", "to", "ext", "pos", "clientData"];
 
+/// Office 2011 chart style relationship (not in the ECMA OPC rel-types list).
+const CHART_STYLE_REL: &str = "http://schemas.microsoft.com/office/2011/relationships/chartStyle";
+
+#[derive(Debug, Clone, Copy, Default)]
+struct ChartStyleFonts {
+    axis_pt: Option<f64>,
+    legend_pt: Option<f64>,
+    title_pt: Option<f64>,
+}
+
+fn chart_style_fonts(pkg: &mut Package, chart_part: &str) -> ChartStyleFonts {
+    let Some(style_part) = pkg
+        .target_of_type(chart_part, CHART_STYLE_REL)
+        .ok()
+        .flatten()
+    else {
+        return ChartStyleFonts::default();
+    };
+    let Some(xml) = pkg.text(&style_part).ok().flatten() else {
+        return ChartStyleFonts::default();
+    };
+    let Ok(doc) = parse_xml_str(xml) else {
+        return ChartStyleFonts::default();
+    };
+    let mut out = ChartStyleFonts::default();
+    for node in elements(&doc.root) {
+        let pt = elements(node)
+            .find(|e| e.local == "defRPr")
+            .and_then(|e| att(Some(e), "sz"))
+            .and_then(|s| s.parse::<f64>().ok())
+            .map(|sz| sz / 100.0);
+        match node.local.as_str() {
+            "valueAxis" | "categoryAxis" => {
+                if out.axis_pt.is_none() {
+                    out.axis_pt = pt;
+                }
+            }
+            "legend" => out.legend_pt = pt,
+            "title" => out.title_pt = pt,
+            _ => {}
+        }
+    }
+    out
+}
+
 fn base64_encode(data: &[u8]) -> String {
     const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
@@ -207,11 +252,15 @@ pub fn parse_drawing(
             if let Some(target) = target {
                 match pkg.text(&target).map(|t| t.map(|s| s.to_owned())) {
                     Ok(Some(chart_xml)) => {
+                        let fonts = chart_style_fonts(pkg, &target);
                         out.push(DrawingObject::Chart {
                             anchor,
                             part_name: target,
                             name,
                             chart_xml,
+                            axis_font_size_pt: fonts.axis_pt,
+                            legend_font_size_pt: fonts.legend_pt,
+                            title_font_size_pt: fonts.title_pt,
                         });
                     }
                     _ => {

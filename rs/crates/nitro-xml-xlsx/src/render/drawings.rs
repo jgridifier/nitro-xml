@@ -141,7 +141,12 @@ pub fn paint<I: StringIntern>(
                 }
             }
             DrawingObject::Chart {
-                chart_xml, name, ..
+                chart_xml,
+                name,
+                axis_font_size_pt,
+                legend_font_size_pt,
+                title_font_size_pt,
+                ..
             } => {
                 set_attr(buf, intern, id, "class", "xg-obj xg-chart");
                 set_attr(buf, intern, id, "role", "img");
@@ -163,6 +168,10 @@ pub fn paint<I: StringIntern>(
                                 theme_colors: theme_colors.clone(),
                                 theme_fonts: theme_fonts.clone(),
                                 picture_id_prefix: format!("xg-chart-{index}"),
+                                use_space_style: true,
+                                axis_font_size_pt: *axis_font_size_pt,
+                                legend_font_size_pt: *legend_font_size_pt,
+                                title_font_size_pt: *title_font_size_pt,
                                 ..Default::default()
                             },
                         },

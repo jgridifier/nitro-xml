@@ -895,6 +895,10 @@ pub enum DrawingObject {
         part_name: String,
         name: Option<String>,
         chart_xml: String,
+        /// Axis label size (pt) from the chart `style1.xml` part when present.
+        axis_font_size_pt: Option<f64>,
+        legend_font_size_pt: Option<f64>,
+        title_font_size_pt: Option<f64>,
     },
     Image {
         anchor: DrawingAnchor,

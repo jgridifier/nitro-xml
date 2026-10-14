@@ -125,8 +125,11 @@ impl XlsxState {
 
     /// Scroll so `(row, col)` is fully visible (upstream `GridView.reveal` / `scrollToReveal`).
     pub fn scroll_to_cell(&mut self, row: u32, col: u32) {
-        let Some((metrics, header, frozen_rows, frozen_cols)) =
-            self.sheets.get(self.active).and_then(|s| s.as_ref()).map(|sheet| {
+        let Some((metrics, header, frozen_rows, frozen_cols)) = self
+            .sheets
+            .get(self.active)
+            .and_then(|s| s.as_ref())
+            .map(|sheet| {
                 let metrics = grid_metrics(sheet, self.zoom_pct);
                 let header = header_sizes(sheet, &metrics, metrics.last_row);
                 let (frozen_rows, frozen_cols) = sheet

@@ -174,6 +174,7 @@ impl FirstView {
             xf_map: &self.workbook.xf_map,
             date1904: self.workbook.date1904,
             palette: self.workbook.palette.as_deref(),
+            dxfs: &self.workbook.dxfs,
             dynamic_cells: &self.dynamic_cells,
             strings_part: self.strings_part.as_deref(),
             name: &name,
@@ -291,9 +292,7 @@ mod tests {
             },
         )
         .expect("first view");
-        let lazy_sheet = lazy
-            .sheet(full.active_sheet as usize)
-            .expect("lazy sheet");
+        let lazy_sheet = lazy.sheet(full.active_sheet as usize).expect("lazy sheet");
         let full_m = create_grid_metrics(&full_sheet, GridMetricsOptions::default());
         let lazy_m = create_grid_metrics(lazy_sheet, GridMetricsOptions::default());
         // A91 is topLeftCell; row tops through that cell must match the full load.

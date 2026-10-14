@@ -4,5 +4,5 @@
 
 use nitro_xml_render::command_buffer::CommandBuffer;
 
-/// Conditional-format visuals (X3). CF formula rules need calc engine — TODO(#18).
+/// Data-bar / colour-scale pass (icon sets paint in `cells`). Formula rules TODO(#18).
 pub fn paint(_buf: &mut CommandBuffer) {}

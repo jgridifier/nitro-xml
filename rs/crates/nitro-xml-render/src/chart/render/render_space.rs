@@ -106,7 +106,10 @@ pub fn render_chart_space_svg(
             }
         }
         if let Some(pt) = options.legend_font_size_pt {
-            appearance.entry("legend".to_string()).or_default().font_size = Some(pt);
+            appearance
+                .entry("legend".to_string())
+                .or_default()
+                .font_size = Some(pt);
         }
         if let Some(pt) = options.title_font_size_pt {
             appearance.entry("title".to_string()).or_default().font_size = Some(pt);

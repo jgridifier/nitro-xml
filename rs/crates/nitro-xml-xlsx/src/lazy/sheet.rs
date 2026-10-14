@@ -14,10 +14,13 @@ use nitro_xml_opc::xml::parse_xml_str;
 
 use crate::address::{parse_address, parse_range, MAX_COL, MAX_ROW};
 use crate::cells::CellStore;
+use crate::cf::read_conditional_formats;
 use crate::comments::load_comment_addresses;
 use crate::drawing::load_sheet_drawings;
 use crate::hyperlinks::read_hyperlinks;
-use crate::model::{ActiveWorksheet, CellAddress, CellRange, RowInfo, SheetState};
+use crate::model::{
+    ActiveWorksheet, CellAddress, CellRange, DifferentialStyle, RowInfo, SheetState,
+};
 use crate::sheet_data::{read_sheet_data_xml, store_to_dump_cells, CellContext};
 use crate::sheet_props::{
     read_columns, read_data_validations, read_row_info, read_sheet_format, read_sheet_view,
@@ -40,6 +43,7 @@ pub(crate) struct SheetRequest<'a> {
     pub xf_map: &'a [u32],
     pub date1904: bool,
     pub palette: Option<&'a [String]>,
+    pub dxfs: &'a [DifferentialStyle],
     pub dynamic_cells: &'a HashSet<u32>,
     pub strings_part: Option<&'a str>,
     pub name: &'a str,
@@ -161,6 +165,7 @@ fn empty_sheet(req: &SheetRequest<'_>) -> ActiveWorksheet {
         ext_lst: Vec::new(),
         sparkline_groups: Vec::new(),
         drawings: Vec::new(),
+        conditional_formats: Vec::new(),
         dimension: Some(grid_extent(None, 0, 0, false)),
     }
 }
@@ -283,6 +288,14 @@ fn worksheet_from_shell(
         }
     };
     let drawings = load_sheet_drawings(pkg, req.part_name, root, &mut warn);
+    let cf_blocks: Vec<_> = root
+        .map(|r| {
+            elements(r)
+                .filter(|e| e.local == "conditionalFormatting")
+                .collect()
+        })
+        .unwrap_or_default();
+    let conditional_formats = read_conditional_formats(&cf_blocks, req.dxfs, &mut warn);
     ActiveWorksheet {
         name: req.name.to_owned(),
         sheet_id: req.sheet_id,
@@ -302,6 +315,7 @@ fn worksheet_from_shell(
         ext_lst,
         sparkline_groups,
         drawings,
+        conditional_formats,
         dimension: None,
     }
 }

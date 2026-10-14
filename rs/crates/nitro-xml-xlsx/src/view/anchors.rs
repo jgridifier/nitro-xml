@@ -21,7 +21,14 @@ pub struct PixelBox {
     pub h: i32,
 }
 
-fn marker_point(metrics: &GridMetrics, row: u32, col: u32, row_off: i64, col_off: i64, f: f64) -> (f64, f64) {
+fn marker_point(
+    metrics: &GridMetrics,
+    row: u32,
+    col: u32,
+    row_off: i64,
+    col_off: i64,
+    f: f64,
+) -> (f64, f64) {
     (
         metrics.col_left(col) as f64 + (col_off as f64 / EMU_PER_PIXEL as f64) * f,
         metrics.row_top(row) as f64 + (row_off as f64 / EMU_PER_PIXEL as f64) * f,
@@ -40,14 +47,7 @@ pub fn anchor_to_pixel_box(anchor: &DrawingAnchor, metrics: &GridMetrics) -> Pix
         f,
     );
     if let Some(to) = &anchor.to {
-        let (tx, ty) = marker_point(
-            metrics,
-            to.row,
-            to.col,
-            to.row_offset,
-            to.col_offset,
-            f,
-        );
+        let (tx, ty) = marker_point(metrics, to.row, to.col, to.row_offset, to.col_offset, f);
         PixelBox {
             x: fx.round() as i32,
             y: fy.round() as i32,
@@ -55,7 +55,9 @@ pub fn anchor_to_pixel_box(anchor: &DrawingAnchor, metrics: &GridMetrics) -> Pix
             h: ((ty - fy).round() as i32).max(MIN_TWO_CELL_PIXELS),
         }
     } else {
-        let (cx, cy) = anchor.ext.unwrap_or((DEFAULT_ANCHOR_EXTENT_EMU, DEFAULT_ANCHOR_EXTENT_EMU));
+        let (cx, cy) = anchor
+            .ext
+            .unwrap_or((DEFAULT_ANCHOR_EXTENT_EMU, DEFAULT_ANCHOR_EXTENT_EMU));
         PixelBox {
             x: fx.round() as i32,
             y: fy.round() as i32,
@@ -68,10 +70,10 @@ pub fn anchor_to_pixel_box(anchor: &DrawingAnchor, metrics: &GridMetrics) -> Pix
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::ActiveWorksheet;
     use crate::model::DrawingMarker;
     use crate::sheet_props::default_sheet_view;
     use crate::view::metrics::{create_grid_metrics, GridMetricsOptions};
-    use crate::model::ActiveWorksheet;
     use std::collections::BTreeMap;
 
     fn sheet() -> ActiveWorksheet {
@@ -94,6 +96,7 @@ mod tests {
             ext_lst: Vec::new(),
             sparkline_groups: Vec::new(),
             drawings: Vec::new(),
+            conditional_formats: Vec::new(),
             dimension: None,
         }
     }

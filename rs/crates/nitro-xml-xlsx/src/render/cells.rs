@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use nitro_xml_render::command_buffer::CommandBuffer;
 use nitro_xml_render::measure::MeasureBatch;
 
+use crate::cf::icon_svg;
 use crate::editor::mark_stale_class;
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
@@ -28,6 +29,7 @@ const TEXT_BASE: u32 = 10_000;
 const BORDER_BASE: u32 = 20_000;
 const COMMENT_BASE: u32 = 30_000;
 const ERROR_BASE: u32 = 40_000;
+const ICON_BASE: u32 = 50_000;
 const STALE_BASE: u32 = 60_000;
 const EDITOR_BOX: u32 = 70_000;
 const EDITOR_BEFORE: u32 = 70_001;
@@ -113,6 +115,15 @@ fn paint_one_cell<I: StringIntern>(
         );
     }
 
+    if let Some(icon) = &item.view.icon {
+        let icon_id = ICON_BASE + n as u32;
+        let size = (16.0 * (zoom / 100.0)).round().max(1.0) as u32;
+        let markup = icon_svg(&icon.set, icon.index, size);
+        buf.create_element(icon_id, div, cell_id);
+        set_attr(buf, intern, icon_id, "class", "xg-ic");
+        buf.set_inner_markup(icon_id, intern.intern(&markup));
+    }
+
     if !item.text.is_empty() {
         let text_id = TEXT_BASE + n as u32;
         buf.create_element(text_id, div, cell_id);
@@ -141,6 +152,15 @@ fn paint_one_cell<I: StringIntern>(
             "width",
             &format!("{}px", item.text_width),
         );
+        if item.view.icon.is_some() && item.view.h_align != "right" {
+            set_style(
+                buf,
+                intern,
+                text_id,
+                "paddingLeft",
+                &format!("{}px", 20.0 * (zoom / 100.0)),
+            );
+        }
         set_style(
             buf,
             intern,

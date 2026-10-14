@@ -469,6 +469,7 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
                 xf_map: shell.workbook.xf_map.clone(),
                 date1904: shell.workbook.date1904,
                 palette: shell.workbook.palette.clone(),
+                dxfs: shell.workbook.dxfs.clone(),
                 dynamic_cells: shell.dynamic_cells.clone(),
                 warnings: Vec::new(),
             };
@@ -505,6 +506,7 @@ pub(crate) fn stub_worksheet(stub: &SheetStub) -> crate::model::ActiveWorksheet 
         ext_lst: Vec::new(),
         sparkline_groups: Vec::new(),
         drawings: Vec::new(),
+        conditional_formats: Vec::new(),
         dimension: None,
     }
 }
@@ -555,6 +557,7 @@ pub fn parse_all_worksheets(
                 xf_map: workbook.xf_map.clone(),
                 date1904: workbook.date1904,
                 palette: workbook.palette.clone(),
+                dxfs: workbook.dxfs.clone(),
                 dynamic_cells: dynamic_cells.clone(),
                 warnings: Vec::new(),
             };
@@ -607,6 +610,7 @@ pub fn parse_worksheet_at(
         xf_map: workbook.xf_map.clone(),
         date1904: workbook.date1904,
         palette: workbook.palette.clone(),
+        dxfs: workbook.dxfs.clone(),
         dynamic_cells,
         warnings: Vec::new(),
     };

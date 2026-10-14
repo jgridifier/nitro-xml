@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/layout/cell-view.ts; changes listed in PROVENANCE.md.
 
+use crate::cf::cf_icon_at;
 use crate::model::{ActiveWorksheet, DumpCellValue, WorkbookSlice};
 use crate::numfmt::{format_value, FormatOptions};
 use crate::sheet_access::{
@@ -160,7 +161,11 @@ pub fn cell_view(
     } else {
         None
     };
-    let shown = if let Some(ft) = &formula_text {
+    let cf_icon = cf_icon_at(sheet, index, row, col);
+    let hide_value = cf_icon.as_ref().is_some_and(|i| i.hide_value);
+    let shown = if hide_value {
+        (String::new(), None)
+    } else if let Some(ft) = &formula_text {
         (ft.clone(), None)
     } else {
         let (t, c) = display_text(&value, &style.num_fmt, workbook, sheet);
@@ -230,7 +235,7 @@ pub fn cell_view(
         is_number,
         overflow,
         data_bar: None,
-        icon: None,
+        icon: cf_icon.map(Into::into),
         has_comment: sheet
             .comment_addresses
             .iter()
@@ -269,21 +274,23 @@ pub fn cell_view(
         }
     }
 
-    if let Some(c) = cell {
-        if let Some(rt) = &c.rich_text {
-            if matches!(value, DumpCellValue::String(_)) {
-                view.rich = Some(
-                    rt.iter()
-                        .map(|run| RichRun {
-                            text: run.text.clone(),
-                            font: font_view(
-                                &merge_font(&font, run.font.as_ref()),
-                                &workbook.theme,
-                                &indexed,
-                            ),
-                        })
-                        .collect(),
-                );
+    if !hide_value {
+        if let Some(c) = cell {
+            if let Some(rt) = &c.rich_text {
+                if matches!(value, DumpCellValue::String(_)) {
+                    view.rich = Some(
+                        rt.iter()
+                            .map(|run| RichRun {
+                                text: run.text.clone(),
+                                font: font_view(
+                                    &merge_font(&font, run.font.as_ref()),
+                                    &workbook.theme,
+                                    &indexed,
+                                ),
+                            })
+                            .collect(),
+                    );
+                }
             }
         }
     }

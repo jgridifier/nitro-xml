@@ -865,6 +865,48 @@ impl DumpCell {
     }
 }
 
+/// Value threshold for colour scales, data bars and icon sets (`cfvo`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct CfvoThreshold {
+    pub kind: String,
+    pub value: Option<String>,
+    pub gte: Option<bool>,
+}
+
+/// One conditional-format rule (`cfRule`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConditionalRule {
+    CellIs {
+        operator: String,
+        formulas: Vec<String>,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    IconSet {
+        icon_set: String,
+        thresholds: Vec<CfvoThreshold>,
+        priority: i32,
+        stop_if_true: bool,
+        reverse: bool,
+        show_value: bool,
+    },
+    /// Unsupported / not yet painted rule types kept for future ports.
+    Other {
+        kind: String,
+        priority: i32,
+        stop_if_true: bool,
+        style: DifferentialStyle,
+    },
+}
+
+/// One `conditionalFormatting` block.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionalFormat {
+    pub ranges: Vec<CellRange>,
+    pub rules: Vec<ConditionalRule>,
+}
+
 /// Cell marker inside a spreadsheet drawing anchor (EMUs for offsets).
 #[derive(Debug, Clone, PartialEq)]
 pub struct DrawingMarker {
@@ -996,6 +1038,8 @@ pub struct ActiveWorksheet {
     pub sparkline_groups: Vec<SparklineGroup>,
     /// Pictures / charts / unsupported shapes from the worksheet drawing part.
     pub drawings: Vec<DrawingObject>,
+    /// Conditional formatting blocks (`conditionalFormatting`).
+    pub conditional_formats: Vec<ConditionalFormat>,
     /// Full grid extent for metrics. `None` on the full-fidelity load path (extent comes from
     /// stored cells). The lazy first view sets this from `<dimension>` or the streamed row
     /// prefix plus a stub so the grid does not collapse to the loaded window. Omitted from

@@ -231,7 +231,11 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/render/drawings.rs` | `src/ui/src/xlsx/grid/drawings.ts` @ e66aaec | `.xg-drawings` layer: unsupported placeholders + chart SVG; image object-URL paint deferred to loader. |
 | `rs/crates/nitro-xml-xlsx/src/render/grid.rs` | `src/ui/src/xlsx/grid/grid-view.ts`, `grid-a11y.ts` @ e66aaec | Frame shell + `role=grid`/aria counts/live region (#42); full quadrants TODO(#19). |
 | `rs/crates/nitro-xml-xlsx/src/render/cells.rs` | `src/ui/src/xlsx/grid/cell-layer.ts` @ e66aaec | Cell DOM command buffer (`paintCell` parity). |
-| `rs/crates/nitro-xml-xlsx/src/render/cond_format.rs` | `src/core/xlsx/ui/grid/icon-sets.ts`, cell-layer data bars @ e66aaec | CF paint stub; formula rules TODO. |
+| `rs/crates/nitro-xml-xlsx/src/cf/mod.rs` | `src/core/xlsx/read/conditional.ts`, `layout/cf-evaluator.ts`, `ui/grid/icon-sets.ts` @ e66aaec | Module root for CF read/eval/icon SVG (#150 soft). |
+| `rs/crates/nitro-xml-xlsx/src/cf/read.rs` | `src/core/xlsx/read/conditional.ts` @ e66aaec | `cellIs` + `iconSet` (+ Other stub); colour scales/data bars deferred. |
+| `rs/crates/nitro-xml-xlsx/src/cf/eval.rs` | `src/core/xlsx/layout/cf-evaluator.ts`, `cf-helpers.ts`, `cf-values.ts` @ e66aaec | Icon-set index + `cellIs` stopIfTrue gate; dxf merge / formula CF deferred. |
+| `rs/crates/nitro-xml-xlsx/src/cf/icon_sets.rs` | `src/core/xlsx/ui/grid/icon-sets.ts` @ e66aaec | SVG bodies for built-in icon sets. |
+| `rs/crates/nitro-xml-xlsx/src/render/cond_format.rs` | `src/core/xlsx/ui/grid/icon-sets.ts`, cell-layer data bars @ e66aaec | Data-bar/colour-scale paint stub; icons paint in `cells`. |
 | `rs/crates/nitro-xml-xlsx/src/render/gridlines.rs` | `src/ui/src/xlsx/grid/gridlines.ts` @ e66aaec | Per-row/column 1px gridline DOM nodes. |
 | `rs/crates/nitro-xml-xlsx/src/render/headers.rs` | `src/ui/src/xlsx/grid/headers.ts`, `pane-chrome.ts` @ e66aaec | Row/column header + corner DOM; `role=rowheader|columnheader` (#42). |
 | `rs/crates/nitro-xml-xlsx/src/render/geometry.rs` | `src/core/xlsx/ui/grid/geometry.ts` @ e66aaec | Header sizes plus `colAtX` / `rowAtY` / `hit` / `clampedHit` / `scrollToReveal`. |

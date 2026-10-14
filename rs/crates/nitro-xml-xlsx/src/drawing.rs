@@ -223,11 +223,10 @@ pub fn parse_drawing(
                     .content_type(&target)
                     .unwrap_or("application/octet-stream")
                     .to_owned();
-                let data_url = pkg
-                    .read(&target)
-                    .ok()
-                    .flatten()
-                    .map(|bytes| format!("data:{content_type};base64,{}", base64_encode(&bytes)));
+                let data_url =
+                    pkg.read(&target).ok().flatten().map(|bytes| {
+                        format!("data:{content_type};base64,{}", base64_encode(&bytes))
+                    });
                 out.push(DrawingObject::Image {
                     anchor,
                     part_name: target,

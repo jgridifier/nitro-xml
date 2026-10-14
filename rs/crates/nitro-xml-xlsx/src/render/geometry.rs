@@ -146,6 +146,7 @@ pub fn hit(g: &HitInput<'_>, x: i32, y: i32) -> Hit {
 
 /// Scroll offsets that bring a cell fully into the scrolling pane.
 /// Upstream `scrollToReveal`.
+#[allow(clippy::too_many_arguments)]
 pub fn scroll_to_reveal(
     metrics: &GridMetrics,
     scroll_x: i32,
@@ -230,6 +231,7 @@ mod tests {
             ext_lst: Vec::new(),
             sparkline_groups: Vec::new(),
             drawings: Vec::new(),
+            conditional_formats: Vec::new(),
             dimension: None,
         }
     }

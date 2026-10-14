@@ -886,7 +886,22 @@ impl<'a> Presentation<'a> {
     fn image_data_url_for_rel(&mut self, owner: &str, rel_id: &str) -> Option<String> {
         let path = self.resolve_rel_target(owner, rel_id).ok().flatten()?;
         let bytes = self.package.read(&path).ok().flatten()?;
-        image_data_url(&bytes, &path)
+        if let Some(url) = image_data_url(&bytes, &path) {
+            return Some(url);
+        }
+        let ext = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+        if ext == "emf" || ext == "wmf" {
+            let base = path.rsplit_once('.').map(|(b, _)| b).unwrap_or(&path);
+            for alt in ["png", "jpg", "jpeg", "gif"] {
+                let alt_path = format!("{base}.{alt}");
+                if let Some(alt_bytes) = self.package.read(&alt_path).ok().flatten() {
+                    if let Some(url) = image_data_url(&alt_bytes, &alt_path) {
+                        return Some(url);
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn attach_chart_image_urls(&mut self, el: &mut DumpElement) {
@@ -1272,8 +1287,16 @@ fn resolve_slide_layout_order(
     ordered
 }
 
-/// Package image bytes as a browser `data:` URL. EMF/WMF stay unresolved (metafile S3).
+/// Package image bytes as a browser `data:` URL.
+/// EMF/WMF use `nitro-metafile:` so the loader can rasterize via `emf-converter` (S3).
 pub(crate) fn image_data_url(bytes: &[u8], part_name: &str) -> Option<String> {
+    let ext = part_name.rsplit('.').next()?.to_ascii_lowercase();
+    if ext == "emf" || ext == "wmf" {
+        return Some(format!(
+            "nitro-metafile:{ext};base64,{}",
+            base64_encode(bytes)
+        ));
+    }
     let mime = image_mime(part_name)?;
     Some(format!("data:{mime};base64,{}", base64_encode(bytes)))
 }

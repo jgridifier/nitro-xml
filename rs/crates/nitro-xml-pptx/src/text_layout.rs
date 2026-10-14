@@ -538,14 +538,9 @@ fn resolve_paint_paragraph_spacing(
     para_count: usize,
 ) -> ParagraphPaintSpacing {
     let ph_type = list_styles.and_then(|c| c.placeholder_type.as_deref());
-    let is_hf_ph = ph_type.is_some_and(|t| crate::inheritance::is_header_footer_placeholder(Some(t)));
-    let is_title_ph = ph_type.is_some_and(|t| {
-        matches!(
-            t.trim().to_ascii_lowercase().as_str(),
-            "title" | "ctrtitle"
-        )
-    });
-    let cascade_line = is_hf_ph || is_title_ph;
+    let is_hf_ph =
+        ph_type.is_some_and(|t| crate::inheritance::is_header_footer_placeholder(Some(t)));
+    let cascade_line = list_styles.and_then(|c| c.effective_level_styles).is_some();
     let cascade_margin = is_hf_ph;
     let body_level = list_styles.and_then(|ctx| {
         ctx.effective_level_styles
@@ -1049,6 +1044,42 @@ mod tests {
         assert_eq!(paras[1].tab_stops.len(), 1);
         assert!((paras[1].tab_stops[0].position_px - 288.0).abs() < 0.1);
         assert!(paras[1].runs[0].text.contains('\t'));
+    }
+
+    // Catches: subtitle/body placeholders skip txStyle lnSpc so line-height stays 1.2 not 0.9×1.2.
+    #[test]
+    fn placeholder_subtitle_inherits_tx_style_line_spacing() {
+        use crate::level_style::{LevelStylesMap, PlaceholderTextLevelStyle};
+        let mut map = LevelStylesMap::new();
+        map.insert(
+            0,
+            PlaceholderTextLevelStyle {
+                line_spacing_multiplier: Some(0.9),
+                ..PlaceholderTextLevelStyle::default()
+            },
+        );
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr/>
+              <a:p><a:r><a:rPr lang="en-US"/><a:t>Subtitle line</a:t></a:r></a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let ctx = TextPaintListStyleCtx {
+            own_tx_body: Some(&doc.root),
+            inherited_tx_body: None,
+            is_body_placeholder: false,
+            effective_level_styles: Some(&map),
+            presentation_level_styles: None,
+            font_scheme: None,
+            space_first_last: false,
+            compat_line_spacing: false,
+            line_spacing_reduction: None,
+            inherited_field_type: None,
+            placeholder_type: Some("subTitle".to_owned()),
+        };
+        let paras = parse_text_paint_paragraphs_with_list_styles(&doc.root, Some(&ctx));
+        assert_eq!(paras[0].line_height_css.as_deref(), Some("1.08"));
     }
 
     // Catches: slide-number/date `a:fld` runs dropped from paint paragraphs so hf chrome is blank.

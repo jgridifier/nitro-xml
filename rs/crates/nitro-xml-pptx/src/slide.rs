@@ -2390,8 +2390,7 @@ fn shape_paint_extras(
         } else {
             None
         };
-        let auto_fit_mode =
-            crate::text_layout::parse_body_autofit_cascade(tx, inherited_tx);
+        let auto_fit_mode = crate::text_layout::parse_body_autofit_cascade(tx, inherited_tx);
         let list_ctx = crate::text_layout::TextPaintListStyleCtx {
             own_tx_body: own_tx,
             inherited_tx_body: inherited_tx,

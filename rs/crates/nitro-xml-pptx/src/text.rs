@@ -403,10 +403,14 @@ pub(crate) fn resolve_paragraph_bullet_info(
         }
     }
 
+    // Body/obj placeholders inherit list bullets from txStyle; title/subtitle do not.
+    if !is_body_placeholder {
+        return None;
+    }
     let mut fallback = effective_level_styles.and_then(|map| {
         level_style_for(map, (normalized_level - 1) as i8).or_else(|| level_style_for(map, -1))
     });
-    if fallback.is_none() && is_body_placeholder {
+    if fallback.is_none() {
         fallback = presentation_level_styles.and_then(|map| {
             level_style_for(map, (normalized_level - 1) as i8).or_else(|| level_style_for(map, -1))
         });
@@ -473,11 +477,13 @@ pub(crate) fn resolve_paragraph_indent_layout(
         });
     }
     if let Some(style) = level_style {
-        if margin_left.is_none() {
-            margin_left = style.margin_left_px;
-        }
-        if indent.is_none() {
-            indent = style.indent_px;
+        if is_body_placeholder || has_bullet {
+            if margin_left.is_none() {
+                margin_left = style.margin_left_px;
+            }
+            if indent.is_none() {
+                indent = style.indent_px;
+            }
         }
     }
 

@@ -175,6 +175,13 @@
         if (el.document) await el.document.tick();
         await waitFrames(1);
       }
+      // EMF/WMF: loader converts `nitro-metafile:` src asynchronously (#27).
+      for (let c = 0; c < 40; c++) {
+        const pending = shadow?.querySelector('img[src^="nitro-metafile:"]');
+        if (!pending) break;
+        if (el.document) await el.document.tick();
+        await waitFrames(2);
+      }
       await waitFonts();
       await waitFrames(3);
     }

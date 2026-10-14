@@ -39,6 +39,9 @@
     "./loader/element.js",
     "./loader/index.js"
   ],
+  "dependencies": {
+    "emf-converter": "4.11.2"
+  },
   "scripts": {
     "build": "bash ../../scripts/build-wasm.sh",
     "test:loader": "node --test loader/test/*.mjs"

@@ -11,6 +11,10 @@ use crate::slide::DumpElement;
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
+    // Upstream connector.ts: zero-height `cxnSp` wrappers stay overflow-visible so
+    // the absolute SVG stroke (max(dim,1)) is not clipped away.
+    set_style(ctx, id, "overflow", "visible");
+    set_style(ctx, id, "pointer-events", "none");
     set_attr(ctx, id, "data-pptx-element", "true");
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "connector");
@@ -21,8 +25,8 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     }
     let stroke = el.stroke_color.as_deref().unwrap_or("#333333");
     let stroke_width = el.stroke_width_px.unwrap_or(1.5);
-    let w_view = el.width.max(1.0).round();
-    let h_view = el.height.max(1.0).round();
+    let w_view = el.width.max(1.0).round() as i64;
+    let h_view = el.height.max(1.0).round() as i64;
     let geom = connector_stroke_geometry(
         el.shape_type.as_deref(),
         el.width,
@@ -66,9 +70,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     let stroke_markup = attach_markers(&geom.markup, start_id.as_deref(), end_id.as_deref());
     inner.push_str(&stroke_markup);
     let svg = format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 {} {}\" style=\"overflow:visible;display:block\">{}</svg>",
-        w_view,
-        h_view,
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w_view}\" height=\"{h_view}\" viewBox=\"0 0 {w_view} {h_view}\" style=\"overflow:visible;display:block\">{}</svg>",
         inner
     );
     set_inner_markup_stub(ctx, id, &svg);

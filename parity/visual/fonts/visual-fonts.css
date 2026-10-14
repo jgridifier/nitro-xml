@@ -107,3 +107,89 @@
   font-weight: 700;
   src: url("/out/fonts/LiberationSans-BoldItalic.ttf") format("truetype");
 }
+/* Faces that canvas measureText / authored stacks resolve independently of the
+ * DOM `!important` Liberation pin (pptx soft-band: Verdana, DejaVu, …). */
+@font-face {
+  font-family: Verdana;
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: Verdana;
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: Verdana;
+  font-style: italic;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Italic.ttf") format("truetype");
+}
+@font-face {
+  font-family: Verdana;
+  font-style: italic;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-BoldItalic.ttf") format("truetype");
+}
+@font-face {
+  font-family: "DejaVu Sans";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "DejaVu Sans";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Lucida Grande";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Arial Black";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Arial Black";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Informal Roman";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Script MT Bold";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Script MT Bold";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: Helvetica;
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/LiberationSans-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: Helvetica;
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
+}

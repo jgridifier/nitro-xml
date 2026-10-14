@@ -28,11 +28,12 @@ fn paint_grid<I: StringIntern>(ctx: &mut PaintContext<'_, I>, parent: u32, data:
     set_style(ctx, table, "height", "100%");
     set_style(ctx, table, "border-collapse", "collapse");
     set_style(ctx, table, "table-layout", "fixed");
+    // Match shape text paint / visual Liberation pin (test_slides soft band).
     set_style(
         ctx,
         table,
         "font-family",
-        "\"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif",
+        "\"Liberation Sans\", Arial, sans-serif",
     );
     set_style(ctx, table, "color", "#111827");
     append_colgroup(ctx, table, &data.column_widths);

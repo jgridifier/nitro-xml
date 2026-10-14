@@ -128,6 +128,14 @@ fn preset_clip_path(normalized: &str) -> Option<&'static str> {
         ),
         "parallelogram" => Some("polygon(20% 0%, 100% 0%, 80% 100%, 0% 100%)"),
         "trapezoid" => Some("polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)"),
+        // Upstream preset-clip-paths-core / -extended (be4aaa soft band).
+        "pie" => Some("polygon(50% 50%, 50% 0%, 100% 0%, 100% 100%, 50% 100%)"),
+        "piewedge" => Some("polygon(100% 0%, 100% 100%, 0% 100%, 0% 55%, 55% 0%)"),
+        "star5" => Some(
+            "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
+        ),
+        "flowchartdecision" => Some("polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"),
+        "actionbuttonhome" => Some("inset(0 round 6px)"),
         _ => None,
     }
 }
@@ -148,4 +156,21 @@ mod tests {
     fn striped_right_arrow_has_clip_polygon() {
         assert!(preset_clip_path("stripedrightarrow").is_some());
     }
+
+    // Catches: be4aaa pie/star5/decision/actionHome fill as axis-aligned rects (no CSS clip).
+    #[test]
+    fn be4aaa_presets_have_clip_polygons() {
+        for name in [
+            "pie",
+            "star5",
+            "flowchartdecision",
+            "actionbuttonhome",
+        ] {
+            assert!(
+                preset_clip_path(name).is_some(),
+                "missing clip for {name}"
+            );
+        }
+    }
 }
+

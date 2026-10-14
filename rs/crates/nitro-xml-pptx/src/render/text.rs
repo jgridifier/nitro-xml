@@ -1306,17 +1306,16 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
     if text.is_empty() {
         return;
     }
-    let measure_stack = if _paint.font_family.is_some() {
-        painted_stack
-    } else {
-        VISUAL_HOST_RUN_FONT_STACK
-    };
+    // Visual host pins painted glyphs to Liberation (`!important`); canvas
+    // `measureText` ignores that CSS pin, so GDI tracking must use the same
+    // Liberation stack or letter-spacing drifts vs the oracle (txt-font-typeface).
+    let _ = (painted_stack, _paint);
     apply_gdi_metric_letter_spacing_with_stack(
         ctx,
         para,
         text,
         size_px,
-        measure_stack,
+        VISUAL_HOST_RUN_FONT_STACK,
         bold,
         italic,
     );

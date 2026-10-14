@@ -886,7 +886,9 @@ mod tests {
         assert!(html.contains("class=\"ribbon-stack\""));
         assert!(html.contains("data-label=\"Font\""));
         // Catches: Excel default bottom valign must press Bottom Align on open.
-        assert!(html.contains("data-g=\"home.align-bottom\" aria-label=\"Bottom Align\" aria-pressed=\"true\""));
+        assert!(html.contains(
+            "data-g=\"home.align-bottom\" aria-label=\"Bottom Align\" aria-pressed=\"true\""
+        ));
     }
 
     #[test]

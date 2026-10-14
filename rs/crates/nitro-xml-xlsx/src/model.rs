@@ -902,6 +902,16 @@ pub enum ConditionalRule {
         priority: i32,
         stop_if_true: bool,
         show_value: bool,
+        /// Legacy / x14 length percents (Excel defaults 10 / 90 when unset).
+        min_length: f64,
+        max_length: f64,
+        /// x14 `border="1"` (classic bars omit borders).
+        border: bool,
+        /// x14 cfvo `autoMin` / `autoMax` (forces the scale through 0).
+        auto_min: bool,
+        auto_max: bool,
+        /// Linked x14 cfRule id when present.
+        extension_id: Option<String>,
     },
     IconSet {
         icon_set: String,

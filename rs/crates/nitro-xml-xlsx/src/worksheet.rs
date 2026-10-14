@@ -130,8 +130,9 @@ pub fn parse_worksheet(
     let hyperlinks = read_hyperlinks(pkg, part_name, by_name.get("hyperlinks").copied());
     let mut warn = |m: String| push_warn(&mut ctx.warnings, m);
     let drawings = load_sheet_drawings(pkg, part_name, Some(root), &mut warn);
-    let conditional_formats =
+    let mut conditional_formats =
         read_conditional_formats(&cf_blocks, &ctx.dxfs, ctx.palette.as_deref(), &mut warn);
+    crate::cf::link_data_bar_extensions(&mut conditional_formats, &ext_lst);
     ActiveWorksheet {
         name: name.to_owned(),
         sheet_id,

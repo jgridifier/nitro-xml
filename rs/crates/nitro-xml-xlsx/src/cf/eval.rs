@@ -180,35 +180,74 @@ fn resolve_rgb(color: &Color, theme: &ThemePalette, indexed: &[&str]) -> String 
 }
 
 /// `(start, fraction, axis_fraction)`.
-fn data_bar_geometry(value: f64, low: f64, high: f64) -> (f64, f64, Option<f64>) {
-    // Upstream automatic axis + default minLength/maxLength (0 / 1).
-    let lo = low.min(0.0);
-    let hi = high.max(0.0);
-    if lo >= 0.0 {
-        let fraction = if hi > lo {
+struct DataBarGeomOpts {
+    /// `none` for classic bars; `automatic` when an x14 extension is linked.
+    axis_none: bool,
+    auto_min: bool,
+    auto_max: bool,
+    min_length: f64,
+    max_length: f64,
+}
+
+fn data_bar_geometry(
+    value: f64,
+    low: f64,
+    high: f64,
+    opts: DataBarGeomOpts,
+) -> (f64, f64, Option<f64>) {
+    // Port of upstream data-bar-geometry.ts.
+    let lo = if opts.auto_min { low.min(0.0) } else { low };
+    let hi = if opts.auto_max { high.max(0.0) } else { high };
+    let minimum = opts.min_length;
+    let delta = opts.max_length - minimum;
+    let interpolate =
+        |ratio: f64, offset: f64| (offset + ratio.clamp(0.0, 1.0) * delta).clamp(0.0, 1.0);
+    if opts.axis_none {
+        let ratio = if hi > lo {
             ((value - lo) / (hi - lo)).clamp(0.0, 1.0)
         } else {
             0.5
         };
+        return (0.0, interpolate(ratio, minimum), None);
+    }
+    if lo == 0.0 && hi == 0.0 {
+        return (0.5, minimum / 2.0, Some(0.5));
+    }
+    if lo >= 0.0 {
+        let offset = if lo == 0.0 { minimum / 2.0 } else { minimum };
+        let fraction = if hi > lo {
+            interpolate((value - lo) / (hi - lo), offset)
+        } else {
+            interpolate(0.5, minimum)
+        };
         return (0.0, fraction, None);
     }
     if hi <= 0.0 {
+        let offset = if hi == 0.0 { minimum / 2.0 } else { minimum };
         let fraction = if hi > lo {
-            ((hi - value) / (hi - lo)).clamp(0.0, 1.0)
+            interpolate((hi - value) / (hi - lo), offset)
         } else {
-            0.5
+            interpolate(0.5, minimum)
         };
-        let axis = 1.0;
-        return ((axis - fraction).max(0.0), fraction, None);
+        let axis = if hi == 0.0 {
+            (1.0 + opts.max_length - minimum) / 2.0
+        } else {
+            opts.max_length
+        };
+        return (
+            (axis - fraction).max(0.0),
+            fraction,
+            if axis > 0.0 && axis < 1.0 {
+                Some(axis)
+            } else {
+                None
+            },
+        );
     }
-    let axis = (-lo) / (hi - lo);
+    let axis = (1.0 - opts.max_length + minimum) / 2.0 + (-lo / (hi - lo)) * delta;
     let bounded = value.clamp(lo, hi);
-    let fraction = (bounded.abs() / (hi - lo)).clamp(0.0, 1.0);
-    let start = if bounded < 0.0 {
-        (axis - fraction).max(0.0)
-    } else {
-        axis
-    };
+    let fraction = interpolate(bounded.abs() / (hi - lo), minimum / 2.0);
+    let start = if bounded < 0.0 { axis - fraction } else { axis };
     (start, fraction, Some(axis))
 }
 
@@ -478,6 +517,12 @@ pub fn cf_at(
                 max,
                 color,
                 show_value,
+                min_length,
+                max_length,
+                border,
+                auto_min,
+                auto_max,
+                extension_id,
                 ..
             } => {
                 if result.data_bar.is_some() {
@@ -487,21 +532,29 @@ pub fn cf_at(
                     continue;
                 };
                 let nums = range_numbers(sheet, index, format);
-                // Match x14 autoMin/autoMax + automatic axis defaults used by Excel 2010+ samples.
                 let data_lo = threshold_value(sheet, index, min, &nums);
                 let data_hi = threshold_value(sheet, index, max, &nums);
-                let lo = data_lo.min(0.0);
-                let hi = data_hi.max(0.0);
-                let (start, fraction, axis_frac) = data_bar_geometry(n, lo, hi);
+                // Upstream: axis is `none` without x14; `automatic` when an extension is linked.
+                let has_x14 = extension_id.is_some();
+                let (start, fraction, axis_frac) = data_bar_geometry(
+                    n,
+                    data_lo,
+                    data_hi,
+                    DataBarGeomOpts {
+                        axis_none: !has_x14,
+                        auto_min: *auto_min,
+                        auto_max: *auto_max,
+                        min_length: (*min_length / 100.0).clamp(0.0, 1.0),
+                        max_length: (*max_length / 100.0).clamp(0.0, 1.0),
+                    },
+                );
                 let positive = resolve_rgb(color, theme, indexed);
-                // x14 defaults: negativeFill/Border #FF0000 when not same-as-positive (NewStyle).
-                let (css, border) = if n < 0.0 {
+                // x14: negativeFill/Border #FF0000 when not same-as-positive (NewStyle).
+                let (css, border_css) = if n < 0.0 && has_x14 {
                     ("#FF0000".to_string(), "#FF0000".to_string())
                 } else {
-                    (positive.clone(), positive)
+                    (positive.clone(), positive.clone())
                 };
-                // Upstream: `rtl !== geometry.reverse ? 'rightToLeft' : 'leftToRight'`
-                // with LTR sheet + negative values → reverse → rightToLeft.
                 let direction = if n < 0.0 {
                     "rightToLeft"
                 } else {
@@ -513,11 +566,9 @@ pub fn cf_at(
                     axis: axis_frac.map(|f| (f, "#000000".into())),
                     color: css,
                     negative: if n < 0.0 { Some(true) } else { None },
-                    // Upstream dataBarAppearance default gradient true.
                     gradient: Some(true),
                     direction: Some(direction.into()),
-                    // x14 `border="1"` (NewStyle E2:E17).
-                    border_color: Some(border),
+                    border_color: if *border { Some(border_css) } else { None },
                 });
                 if !*show_value {
                     result.hide_value = true;

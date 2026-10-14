@@ -2,12 +2,12 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/read/conditional.ts;
 // changes listed in PROVENANCE.md.
 
-use nitro_xml_opc::xml::Element;
+use nitro_xml_opc::xml::{parse_xml_str, Element, Node};
 
 use crate::model::{CfvoThreshold, Color, ConditionalFormat, ConditionalRule, DifferentialStyle};
 use crate::sheet_props::parse_sqref;
 use crate::style_parts::parse_color;
-use crate::xml_util::{att, bool_attr, num_attr, x_children, x_first};
+use crate::xml_util::{att, bool_attr, elements, num_attr, x_children, x_first};
 
 fn formulas_of(rule: &Element) -> Vec<String> {
     x_children(rule, "formula")
@@ -118,6 +118,29 @@ fn read_rule(
                 indexed: None,
                 auto: None,
             });
+            // Classic `minLength`/`maxLength` on the 2006 dataBar; else Excel defaults 10/90.
+            let min_length = num_attr(bar, "minLength").unwrap_or(10.0);
+            let max_length = num_attr(bar, "maxLength").unwrap_or(90.0);
+            let extension_id = x_first(Some(rule), "extLst").and_then(|lst| {
+                // `<x14:id>{GUID}</x14:id>` under the B025F937 ext uri.
+                fn find_id(el: &Element) -> Option<String> {
+                    if el.local == "id" {
+                        let t = el.text_content().trim().to_string();
+                        if !t.is_empty() {
+                            return Some(t);
+                        }
+                    }
+                    for child in &el.children {
+                        if let Node::Element(e) = child {
+                            if let Some(id) = find_id(e) {
+                                return Some(id);
+                            }
+                        }
+                    }
+                    None
+                }
+                find_id(lst)
+            });
             Some(ConditionalRule::DataBar {
                 min,
                 max,
@@ -125,6 +148,12 @@ fn read_rule(
                 priority,
                 stop_if_true,
                 show_value: bool_attr(bar, "showValue") != Some(false),
+                min_length,
+                max_length,
+                border: false,
+                auto_min: false,
+                auto_max: false,
+                extension_id,
             })
         }
         "iconSet" => {
@@ -212,4 +241,88 @@ pub fn read_conditional_formats(
         }
     }
     out
+}
+
+/// Apply linked x14 dataBar settings (`minLength`/`maxLength`/`border`/`autoMin`/`autoMax`).
+///
+/// Port of upstream `readConditionalExtensions` for the fields the paint path needs.
+pub fn link_data_bar_extensions(formats: &mut [ConditionalFormat], ext_lst: &[String]) {
+    if ext_lst.is_empty() {
+        return;
+    }
+    let mut by_id: std::collections::HashMap<String, (f64, f64, bool, bool, bool)> =
+        std::collections::HashMap::new();
+    for xml in ext_lst {
+        // extLst fragments are not always a single rooted document; wrap for the parser.
+        let wrapped = if xml.trim_start().starts_with("<?xml") {
+            xml.clone()
+        } else {
+            format!(
+                r#"<root xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main">{xml}</root>"#
+            )
+        };
+        let Ok(doc) = parse_xml_str(&wrapped) else {
+            continue;
+        };
+        fn walk(
+            el: &Element,
+            out: &mut std::collections::HashMap<String, (f64, f64, bool, bool, bool)>,
+        ) {
+            if el.local == "cfRule" && att(Some(el), "type") == Some("dataBar") {
+                if let Some(id) = att(Some(el), "id") {
+                    let bar = elements(el).find(|c| c.local == "dataBar");
+                    let min_length = num_attr(bar, "minLength").unwrap_or(10.0);
+                    let max_length = num_attr(bar, "maxLength").unwrap_or(90.0);
+                    let border = bool_attr(bar, "border") == Some(true);
+                    let mut auto_min = false;
+                    let mut auto_max = false;
+                    if let Some(bar) = bar {
+                        let cfvos: Vec<_> = elements(bar).filter(|c| c.local == "cfvo").collect();
+                        if cfvos.first().and_then(|c| att(Some(c), "type")) == Some("autoMin") {
+                            auto_min = true;
+                        }
+                        if cfvos.get(1).and_then(|c| att(Some(c), "type")) == Some("autoMax") {
+                            auto_max = true;
+                        }
+                    }
+                    out.insert(
+                        id.to_string(),
+                        (min_length, max_length, border, auto_min, auto_max),
+                    );
+                }
+            }
+            for child in elements(el) {
+                walk(child, out);
+            }
+        }
+        walk(&doc.root, &mut by_id);
+    }
+    if by_id.is_empty() {
+        return;
+    }
+    for format in formats.iter_mut() {
+        for rule in format.rules.iter_mut() {
+            if let ConditionalRule::DataBar {
+                min_length,
+                max_length,
+                border,
+                auto_min,
+                auto_max,
+                extension_id,
+                ..
+            } = rule
+            {
+                let Some(id) = extension_id.as_deref() else {
+                    continue;
+                };
+                if let Some((mn, mx, b, amin, amax)) = by_id.get(id) {
+                    *min_length = *mn;
+                    *max_length = *mx;
+                    *border = *b;
+                    *auto_min = *amin;
+                    *auto_max = *amax;
+                }
+            }
+        }
+    }
 }

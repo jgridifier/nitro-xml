@@ -295,8 +295,9 @@ fn worksheet_from_shell(
                 .collect()
         })
         .unwrap_or_default();
-    let conditional_formats =
+    let mut conditional_formats =
         read_conditional_formats(&cf_blocks, req.dxfs, req.palette, &mut warn);
+    crate::cf::link_data_bar_extensions(&mut conditional_formats, &ext_lst);
     ActiveWorksheet {
         name: req.name.to_owned(),
         sheet_id: req.sheet_id,

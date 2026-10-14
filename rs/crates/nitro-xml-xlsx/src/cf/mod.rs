@@ -11,4 +11,4 @@ mod read;
 
 pub use eval::{cf_at, cf_icon_at, CfApplied, CfIcon};
 pub use icon_sets::{icon_body, icon_svg};
-pub use read::read_conditional_formats;
+pub use read::{link_data_bar_extensions, read_conditional_formats};

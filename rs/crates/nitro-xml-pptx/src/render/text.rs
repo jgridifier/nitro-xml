@@ -237,6 +237,28 @@ fn paint_rich_paragraphs<I: StringIntern>(
     // (upstream element `textStyle.rtl`, often from earlier paragraphs in the body).
     let body_rtl = paragraphs.iter().find_map(|p| p.rtl);
     for para_model in paragraphs {
+        let para_size = para_model.level_font_size_px.unwrap_or(size);
+        let para_paint = TextBodyPaint {
+            text_color: para_model
+                .level_text_color
+                .as_deref()
+                .or(paint.text_color),
+            font_size_px: Some(para_size),
+            font_family: para_model
+                .level_font_family
+                .as_deref()
+                .or(paint.font_family),
+            font_bold: para_model.level_font_bold.unwrap_or(paint.font_bold),
+            font_italic: para_model.level_font_italic.unwrap_or(paint.font_italic),
+            text_stroke_width_px: paint.text_stroke_width_px,
+            text_stroke_color: paint.text_stroke_color,
+            layout: paint.layout,
+            paragraphs: paint.paragraphs,
+            text_shadow: paint.text_shadow,
+            geom_rect_padding: paint.geom_rect_padding,
+            presentation_kinsoku: paint.presentation_kinsoku,
+        };
+        let para_stack = substitute_font_family_stack(para_paint.font_family);
         let para_rtl = para_model.rtl.or(body_rtl);
         let is_rtl = para_rtl == Some(true);
         let css_align = resolve_css_text_align(para_model.align.or(body_align), is_rtl);
@@ -275,9 +297,9 @@ fn paint_rich_paragraphs<I: StringIntern>(
                 para,
                 marker,
                 para_model.text_indent_px,
-                paint,
-                size,
-                stack,
+                &para_paint,
+                para_size,
+                &para_stack,
             );
         }
         for run_model in &para_model.runs {
@@ -287,9 +309,9 @@ fn paint_rich_paragraphs<I: StringIntern>(
                 run_model,
                 para_rtl,
                 &para_model.tab_stops,
-                paint,
-                size,
-                stack,
+                &para_paint,
+                para_size,
+                &para_stack,
             );
         }
     }

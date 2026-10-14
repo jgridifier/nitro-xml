@@ -21,6 +21,9 @@ pub struct ThemeFonts {
     pub east_asia: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub complex_script: Option<String>,
+    /// Per-script faces from `<a:font script="Hans|Hant|Jpan|…">` (upstream `byScript`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub scripts: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -92,11 +95,13 @@ fn theme_from_drawing(drawing: DrawingTheme) -> Theme {
         drawing.font_scheme.major.latin.clone(),
         drawing.font_scheme.major.east_asia.clone(),
         drawing.font_scheme.major.complex_script.clone(),
+        drawing.font_scheme.major.scripts.clone(),
     );
     let minor = font_group(
         drawing.font_scheme.minor.latin.clone(),
         drawing.font_scheme.minor.east_asia.clone(),
         drawing.font_scheme.minor.complex_script.clone(),
+        drawing.font_scheme.minor.scripts.clone(),
     );
     let font_scheme = if major.is_some() || minor.is_some() {
         Some(ThemeFontScheme {
@@ -118,21 +123,27 @@ fn font_group(
     latin: Option<String>,
     east_asia: Option<String>,
     complex_script: Option<String>,
+    scripts: impl IntoIterator<Item = (String, String)>,
 ) -> Option<ThemeFonts> {
     let latin = latin.filter(|s| !s.is_empty());
-    let east_asia = east_asia
-        .filter(|s| !s.is_empty())
-        .or_else(|| latin.clone());
+    // Keep empty `a:ea` as None so `+mn-ea` can fall through to theme script
+    // faces (Hans/…) instead of collapsing to latin Arial.
+    let east_asia = east_asia.filter(|s| !s.is_empty());
     let complex_script = complex_script
         .filter(|s| !s.is_empty())
         .or_else(|| latin.clone());
-    if latin.is_none() && east_asia.is_none() && complex_script.is_none() {
+    let scripts: BTreeMap<String, String> = scripts
+        .into_iter()
+        .filter(|(k, v)| !k.is_empty() && !v.is_empty())
+        .collect();
+    if latin.is_none() && east_asia.is_none() && complex_script.is_none() && scripts.is_empty() {
         None
     } else {
         Some(ThemeFonts {
             latin,
             east_asia,
             complex_script,
+            scripts,
         })
     }
 }
@@ -181,8 +192,24 @@ fn theme_font_latin(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
 
 fn theme_font_east_asia(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
     theme_font_field(scheme, idx, |f| {
-        f.east_asia.as_deref().or(f.latin.as_deref())
+        f.east_asia
+            .as_deref()
+            .or_else(|| theme_script_east_asia(f))
+            .or(f.latin.as_deref())
     })
+}
+
+/// Prefer common CJK script overrides when `a:ea` is an empty placeholder.
+fn theme_script_east_asia(fonts: &ThemeFonts) -> Option<&str> {
+    for key in ["Hans", "Hant", "Jpan", "Hang"] {
+        if let Some(face) = fonts.scripts.get(key) {
+            let face = face.trim();
+            if !face.is_empty() {
+                return Some(face);
+            }
+        }
+    }
+    None
 }
 
 fn theme_font_complex(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
@@ -205,4 +232,61 @@ fn theme_font_field(
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_owned)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_theme_part, resolve_theme_typeface, ThemeTypefaceScript};
+    use nitro_xml_opc::xml::parse_xml_str;
+
+    // Catches: +mn-ea with empty a:ea collapsing to latin Arial instead of theme Hans script face.
+    #[test]
+    fn mn_ea_prefers_hans_script_when_ea_typeface_empty() {
+        let doc = parse_xml_str(
+            r#"<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:themeElements>
+                <a:clrScheme name="x"><a:dk1><a:srgbClr val="000000"/></a:dk1>
+                  <a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>
+                  <a:dk2><a:srgbClr val="000000"/></a:dk2>
+                  <a:lt2><a:srgbClr val="FFFFFF"/></a:lt2>
+                  <a:accent1><a:srgbClr val="000000"/></a:accent1>
+                  <a:accent2><a:srgbClr val="000000"/></a:accent2>
+                  <a:accent3><a:srgbClr val="000000"/></a:accent3>
+                  <a:accent4><a:srgbClr val="000000"/></a:accent4>
+                  <a:accent5><a:srgbClr val="000000"/></a:accent5>
+                  <a:accent6><a:srgbClr val="000000"/></a:accent6>
+                  <a:hlink><a:srgbClr val="000000"/></a:hlink>
+                  <a:folHlink><a:srgbClr val="000000"/></a:folHlink>
+                </a:clrScheme>
+                <a:fontScheme name="x">
+                  <a:majorFont>
+                    <a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/>
+                    <a:font script="Hans" typeface="黑体"/>
+                  </a:majorFont>
+                  <a:minorFont>
+                    <a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/>
+                    <a:font script="Hans" typeface="黑体"/>
+                  </a:minorFont>
+                </a:fontScheme>
+                <a:fmtScheme name="x"/>
+              </a:themeElements>
+            </a:theme>"#,
+        )
+        .unwrap();
+        let theme = parse_theme_part(&doc.root);
+        let scheme = theme.font_scheme.as_ref();
+        assert_eq!(
+            resolve_theme_typeface("+mn-ea", scheme, ThemeTypefaceScript::EastAsia).as_deref(),
+            Some("黑体")
+        );
+        assert_eq!(
+            resolve_theme_typeface("+mj-ea", scheme, ThemeTypefaceScript::EastAsia).as_deref(),
+            Some("黑体")
+        );
+        // Latin token still resolves to Arial.
+        assert_eq!(
+            resolve_theme_typeface("+mn-lt", scheme, ThemeTypefaceScript::Latin).as_deref(),
+            Some("Arial")
+        );
+    }
 }

@@ -757,6 +757,10 @@ fn resolve_paint_paragraph_spacing(
                 .map(|r| proportional * (1.0 - r))
                 .unwrap_or(proportional);
             (Some(format_spacing_multiplier(adjusted)), false)
+        } else if compat {
+            // Upstream `proportionalLineHeight`: compatLnSpc + no spcPct → 1
+            // (legacy metrics), not the block DEFAULT_LINE_HEIGHT 1.2.
+            (Some("1".into()), false)
         } else {
             (None, false)
         };
@@ -1540,6 +1544,33 @@ mod tests {
         };
         let paras = parse_text_paint_paragraphs_with_list_styles(&doc.root, Some(&ctx));
         assert_eq!(paras[0].line_height_css.as_deref(), Some("1.08"));
+    }
+
+    // Catches: compatLnSpc bodies keeping DEFAULT 1.2 instead of legacy 1.0.
+    #[test]
+    fn compat_ln_spc_without_spc_pct_uses_line_height_one() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr compatLnSpc="1"/>
+              <a:p><a:r><a:rPr lang="en-US"/><a:t>Title</a:t></a:r></a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let ctx = TextPaintListStyleCtx {
+            own_tx_body: Some(&doc.root),
+            inherited_tx_body: None,
+            is_body_placeholder: false,
+            effective_level_styles: None,
+            presentation_level_styles: None,
+            font_scheme: None,
+            space_first_last: false,
+            compat_line_spacing: true,
+            line_spacing_reduction: None,
+            inherited_field_type: None,
+            placeholder_type: Some("title".to_owned()),
+        };
+        let paras = parse_text_paint_paragraphs_with_list_styles(&doc.root, Some(&ctx));
+        assert_eq!(paras[0].line_height_css.as_deref(), Some("1"));
     }
 
     // Catches: slide-number/date `a:fld` runs dropped from paint paragraphs so hf chrome is blank.

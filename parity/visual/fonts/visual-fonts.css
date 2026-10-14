@@ -193,3 +193,34 @@
   font-weight: 700;
   src: url("/out/fonts/LiberationSans-Bold.ttf") format("truetype");
 }
+/* CJK soft-band pin (bug64693): theme Hans 黑体 / authored YaHei → Droid Sans Fallback. */
+@font-face {
+  font-family: "Droid Sans Fallback";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/DroidSansFallbackFull.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Microsoft YaHei";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/DroidSansFallbackFull.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Microsoft YaHei";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/out/fonts/DroidSansFallbackFull.ttf") format("truetype");
+}
+@font-face {
+  font-family: "黑体";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/DroidSansFallbackFull.ttf") format("truetype");
+}
+@font-face {
+  font-family: "微軟正黑體";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/out/fonts/DroidSansFallbackFull.ttf") format("truetype");
+}

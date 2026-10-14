@@ -21,6 +21,12 @@ const PINNED_FONTS = [
 	'LiberationSans-BoldItalic.ttf',
 ];
 
+/** CJK fallback pin for pptx soft-band decks (bug64693 YaHei / 黑体). */
+const PINNED_CJK_FONT = {
+	src: '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',
+	dest: 'DroidSansFallbackFull.ttf',
+};
+
 function preparePinnedFonts() {
 	const destDir = join(VISUAL, 'out/fonts');
 	mkdirSync(destDir, { recursive: true });
@@ -32,6 +38,10 @@ function preparePinnedFonts() {
 			throw new Error(`visual fonts: missing ${src} (install fonts-liberation)`);
 		}
 		if (!existsSync(dest)) copyFileSync(src, dest);
+	}
+	const cjkDest = join(destDir, PINNED_CJK_FONT.dest);
+	if (existsSync(PINNED_CJK_FONT.src) && !existsSync(cjkDest)) {
+		copyFileSync(PINNED_CJK_FONT.src, cjkDest);
 	}
 	// CSS2-compatible mirror for #121 fontSource. Served at /out/fonts/css2
 	// (query string ignored); every requested family maps to Liberation Sans files.

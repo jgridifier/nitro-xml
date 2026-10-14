@@ -4300,6 +4300,7 @@ mod tests {
                 latin: Some("Corbel".to_owned()),
                 east_asia: None,
                 complex_script: None,
+                scripts: Default::default(),
             }),
         }
     }

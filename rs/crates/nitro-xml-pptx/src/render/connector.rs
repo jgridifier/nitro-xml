@@ -97,7 +97,18 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     set_inner_markup_stub(ctx, id, &svg);
     let text = el.text.as_deref().unwrap_or("");
     if !text.trim().is_empty() {
-        paint_text_body(ctx, id, text, TextBodyPaint::from_element(el));
+        // Upstream `appendConnectorLabel`: vertically centre the label on the stroke.
+        let label = create_child(ctx, id, "div");
+        set_attr(ctx, label, "class", "pptxv-connector-label");
+        set_style(ctx, label, "position", "absolute");
+        set_style(ctx, label, "left", "10%");
+        set_style(ctx, label, "top", "50%");
+        set_style(ctx, label, "width", "80%");
+        set_style(ctx, label, "height", "auto");
+        set_style(ctx, label, "transform", "translateY(-50%)");
+        set_style(ctx, label, "text-align", "center");
+        set_style(ctx, label, "pointer-events", "none");
+        paint_text_body(ctx, label, text, TextBodyPaint::from_element(el));
     }
     ctx.view_ir.push_painted("connector", el, None);
 }

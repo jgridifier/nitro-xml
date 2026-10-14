@@ -2390,6 +2390,8 @@ fn shape_paint_extras(
         } else {
             None
         };
+        let auto_fit_mode =
+            crate::text_layout::parse_body_autofit_cascade(tx, inherited_tx);
         let list_ctx = crate::text_layout::TextPaintListStyleCtx {
             own_tx_body: own_tx,
             inherited_tx_body: inherited_tx,
@@ -2418,7 +2420,7 @@ fn shape_paint_extras(
         extras.text_paint_paragraphs = Some(paragraphs);
         extras.presentation_kinsoku =
             presentation_default_ea_line_break(ctx.presentation_level_styles);
-        extras.auto_fit_mode = crate::text_layout::parse_body_autofit_cascade(tx, inherited_tx);
+        extras.auto_fit_mode = auto_fit_mode;
         extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }
     if let Some(sp_pr) = effective_sp_pr {

@@ -414,12 +414,17 @@ fn paint_rich_paragraphs<I: StringIntern>(
             }
             create_child(ctx, para, "br");
         } else {
-            for (run_idx, run_model) in para_model.runs.iter().enumerate() {
+            let trimmed_runs = crate::paragraph_trailing_space::trim_paragraph_trailing_runs(
+                &para_model.runs,
+                css_align,
+                para_rtl,
+            );
+            for (run_idx, run_model) in trimmed_runs.iter().enumerate() {
                 let (run_paint, run_size) =
                     merge_run_level_paint(&para_paint, run_model, para_size);
                 let run_stack = substitute_font_family_stack(run_paint.font_family);
                 let following =
-                    crate::east_asian_breaks::following_run_char(&para_model.runs, run_idx);
+                    crate::east_asian_breaks::following_run_char(&trimmed_runs, run_idx);
                 let east_asian = crate::east_asian_breaks::east_asian_breaks_for_run(
                     para_model.east_asian_breaks,
                     run_model.run_lang.as_deref(),
@@ -451,7 +456,7 @@ fn merge_run_level_paint<'a>(
     let size = run.run_font_size_px.unwrap_or(para_size);
     (
         TextBodyPaint {
-            text_color: base.text_color,
+            text_color: run.run_text_color.as_deref().or(base.text_color),
             font_size_px: Some(size),
             font_family: run.run_font_family.as_deref().or(base.font_family),
             font_bold: run.run_font_bold.unwrap_or(base.font_bold),
@@ -775,6 +780,7 @@ fn paint_run_text_span<I: StringIntern>(
             size,
             stack,
             run_line_height_zero,
+            east_asian,
             &pieces[0].text,
         );
         return run;
@@ -812,6 +818,7 @@ fn paint_run_text_span<I: StringIntern>(
             size,
             stack,
             run_line_height_zero,
+            east_asian,
             &piece.text,
         );
         last = run;
@@ -829,6 +836,7 @@ fn paint_run_span_styles<I: StringIntern>(
     size: f64,
     stack: &str,
     run_line_height_zero: bool,
+    east_asian: Option<EastAsianBreakOptions>,
     metric_text: &str,
 ) {
     apply_run_rtl(ctx, run, run_model.rtl, paragraph_rtl);
@@ -840,6 +848,14 @@ fn paint_run_span_styles<I: StringIntern>(
     paint_run_typography(ctx, run, paint, size, stack);
     if run_line_height_zero {
         set_style(ctx, run, "line-height", "0");
+    }
+    if crate::east_asian_breaks::is_korean_language(run_model.run_lang.as_deref()) {
+        let wb = if east_asian.is_some_and(|o| o.latin_line_break) {
+            "normal"
+        } else {
+            "keep-all"
+        };
+        set_style(ctx, run, "word-break", wb);
     }
     if run_model.underline {
         apply_run_underline(ctx, run);
@@ -1191,6 +1207,10 @@ fn apply_paragraph_kinsoku_line_break<I: StringIntern>(
     east_asian: Option<EastAsianBreakOptions>,
     presentation_kinsoku: bool,
 ) {
+    if east_asian.is_some_and(|o| o.latin_line_break) {
+        set_style(ctx, para, "word-break", "break-all");
+        set_style(ctx, para, "overflow-wrap", "break-word");
+    }
     if east_asian.is_some_and(|o| o.break_anywhere) {
         // Upstream `getKinsokuLineBreakStyles` only sets overflow-wrap here; ZWSP carries breaks.
         set_style(ctx, para, "overflow-wrap", "break-word");

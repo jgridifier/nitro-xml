@@ -84,7 +84,7 @@ pub fn east_asian_breaks_for_run(
     })
 }
 
-fn is_korean_language(language: Option<&str>) -> bool {
+pub fn is_korean_language(language: Option<&str>) -> bool {
     let Some(lang) = language else {
         return false;
     };

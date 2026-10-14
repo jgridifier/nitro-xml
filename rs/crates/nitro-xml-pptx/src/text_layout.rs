@@ -385,6 +385,8 @@ pub struct TextPaintRun {
     pub run_font_bold: Option<bool>,
     pub run_font_italic: Option<bool>,
     pub run_lang: Option<String>,
+    /// `a:rPr/a:solidFill` resolved to `#RRGGBB` when opaque (paint only).
+    pub run_text_color: Option<String>,
     /// Per-script typefaces when `a:ea` / `a:cs` / `a:sym` differ from `a:latin` (paint only).
     pub script_fonts: Option<ScriptFontSet>,
     /// Inline `m:oMath` rendered as MathML (upstream `runEquationMathMl`).
@@ -865,6 +867,7 @@ fn collect_paint_runs(
                         run_font_bold: None,
                         run_font_italic: None,
                         run_lang: None,
+                        run_text_color: None,
                         script_fonts: None,
                         equation_mathml: Some(mathml),
                         hyperlink_click: false,
@@ -916,6 +919,7 @@ fn collect_paint_runs(
                         script_fonts: None,
                     });
                 let run_lang = r_pr.and_then(|rp| attr(rp, "lang")).map(|s| s.to_string());
+                let run_text_color = r_pr.and_then(parse_run_solid_fill_hex);
                 runs.push(TextPaintRun {
                     text,
                     rtl,
@@ -927,6 +931,7 @@ fn collect_paint_runs(
                     run_font_bold: resolved.font_bold,
                     run_font_italic: resolved.font_italic,
                     run_lang,
+                    run_text_color,
                     script_fonts: resolved.script_fonts,
                     equation_mathml: None,
                     hyperlink_click,
@@ -945,6 +950,19 @@ struct ResolvedRunPaint {
     font_bold: Option<bool>,
     font_italic: Option<bool>,
     script_fonts: Option<ScriptFontSet>,
+}
+
+fn parse_run_solid_fill_hex(rpr: &Element) -> Option<String> {
+    let solid = child_local(rpr, "solidFill", ns::A)?;
+    let srgb = child_local(solid, "srgbClr", ns::A)?;
+    let val = attr(srgb, "val")?.trim();
+    if val.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "#{}",
+        val.trim_start_matches('#').to_ascii_uppercase()
+    ))
 }
 
 fn resolve_run_paint_style(

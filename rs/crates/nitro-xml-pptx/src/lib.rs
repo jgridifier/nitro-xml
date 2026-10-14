@@ -14,6 +14,7 @@ mod inkml;
 mod inline_equation;
 mod level_style;
 mod outer_shadow;
+mod paragraph_trailing_space;
 mod placeholder_defaults;
 mod presentation;
 mod slide;

@@ -3820,6 +3820,36 @@ mod tests {
         );
     }
 
+    // Catches: CJK line-breaking fixture red runs losing `a:rPr/a:solidFill` at parse time.
+    #[test]
+    fn upstream_cjk_line_breaking_run_solid_fill_parsed() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/e3dab827b836_cjk-line-breaking.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let shape = slide
+            .elements
+            .iter()
+            .find(|e| {
+                e.text
+                    .as_deref()
+                    .map(|t| t.contains("まみむめ"))
+                    .unwrap_or(false)
+            })
+            .expect("shape");
+        let paras = shape.text_paint_paragraphs.as_ref().expect("paras");
+        let red = paras[0]
+            .runs
+            .iter()
+            .find(|r| r.text.contains('」'))
+            .and_then(|r| r.run_text_color.as_deref());
+        assert_eq!(red, Some("#C00000"));
+    }
+
     // Catches: CJK hanging-punct paragraphs losing per-paragraph `eastAsianBreaks` at parse time.
     #[test]
     fn upstream_cjk_line_breaking_hanging_punct_parsed() {

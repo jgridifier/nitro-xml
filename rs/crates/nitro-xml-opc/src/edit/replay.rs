@@ -123,6 +123,11 @@ fn scopes_for(op: &Op) -> Vec<EditScope> {
         | Op::ReplyToComment { .. }
         | Op::ResolveComment { .. }
         | Op::DeleteComment { .. } => vec![EditScope::Workbook],
+        Op::AddSlide { .. }
+        | Op::DeleteSlide { .. }
+        | Op::DuplicateSlide { .. }
+        | Op::ReorderSlide { .. }
+        | Op::SetNotesText { .. } => vec![EditScope::Workbook],
     }
 }
 
@@ -149,7 +154,11 @@ fn kind_for(op: &Op) -> ChangeKind {
         | Op::BringToFront { .. }
         | Op::SendToBack { .. }
         | Op::GroupShapes { .. }
-        | Op::UngroupShapes { .. } => ChangeKind::Structure,
+        | Op::UngroupShapes { .. }
+        | Op::AddSlide { .. }
+        | Op::DeleteSlide { .. }
+        | Op::DuplicateSlide { .. }
+        | Op::ReorderSlide { .. } => ChangeKind::Structure,
         Op::SetShapeFill { .. } | Op::SetShapeLine { .. } | Op::SetShapeTextStyle { .. } => {
             ChangeKind::Format
         }
@@ -368,7 +377,7 @@ mod tests {
                 n += 1;
             }
         }
-        assert_eq!(n, 86, "expected 86 edit scripts");
+        assert_eq!(n, 91, "expected 91 edit scripts");
     }
 
     #[test]

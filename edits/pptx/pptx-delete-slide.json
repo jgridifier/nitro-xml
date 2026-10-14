@@ -1,0 +1,9 @@
+{
+  "id": "pptx-delete-slide",
+  "format": "pptx",
+  "fixture": "gen-pptx-slides-10",
+  "description": "Delete a middle slide and keep the rest in order",
+  "ops": [
+    { "op": "deleteSlide", "index": 1 }
+  ]
+}

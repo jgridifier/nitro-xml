@@ -177,13 +177,16 @@ mod tests {
     fn stub_editor() -> PptxEditor {
         let host = PptxHost {
             slides: vec![EditableSlide {
+                id: "ppt/slides/slide1.xml".into(),
                 path: "ppt/slides/slide1.xml".into(),
+                notes: None,
                 elements: vec![{
                     let mut el = EditableElement::blank("el-a", "shape");
                     el.shape_type = Some("rect".into());
                     el.set_box(10.0, 20.0, 100.0, 50.0, 0.0);
                     el
                 }],
+                source_slide_id: None,
             }],
             dirty_parts: Default::default(),
         };

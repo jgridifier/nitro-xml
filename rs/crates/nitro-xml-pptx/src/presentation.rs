@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/pptx/core/core/runtime/PptxHandlerRuntimeLoadSession.ts,
-// PptxHandlerRuntimeLoadPipeline.ts and PptxHandlerRuntimeSlideMasters.ts; chart/SmartArt part
+// PptxHandlerRuntimeLoadPipeline.ts, PptxHandlerRuntimeSlideMasters.ts,
+// PptxHandlerRuntimeSlideUtils.ts (`extractSlideNotes`) and
+// src/core/pptx/core/core/runtime/notes-body-shapes.ts; chart/SmartArt part
 // resolution (data-part diagramDrawing, else the owner slide/layout/master) and VML OLE preview
 // rels for #27; changes in PROVENANCE.md.
 
@@ -70,6 +72,99 @@ fn notes_slide_has_printable_content(notes: &Element) -> bool {
     false
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NotesShapeRole {
+    Body,
+    Field,
+    Other,
+}
+
+/// `notesShapeRole`: body (including a bare `<p:ph>`), notes-page fields, or other.
+fn notes_shape_role(shape: &Element) -> NotesShapeRole {
+    let Some(ph) = child_path(shape, &[("nvSpPr", ns::P), ("nvPr", ns::P), ("ph", ns::P)]) else {
+        return NotesShapeRole::Other;
+    };
+    let ty = attr(ph, "type").unwrap_or("").trim().to_ascii_lowercase();
+    if ty.is_empty() || ty == "body" {
+        return NotesShapeRole::Body;
+    }
+    if matches!(ty.as_str(), "sldimg" | "sldnum" | "dt" | "hdr" | "ftr") {
+        NotesShapeRole::Field
+    } else {
+        NotesShapeRole::Other
+    }
+}
+
+/// `selectNotesBodyShapes` + `extractTextFromTxBody`, joined the way `extractSlideNotes` does.
+fn speaker_notes_text(notes: &Element) -> Option<String> {
+    let sp_tree =
+        child_local(notes, "cSld", ns::P).and_then(|c| child_local(c, "spTree", ns::P))?;
+    let shapes = children_local(sp_tree, "sp", ns::P);
+    let body: Vec<&Element> = shapes
+        .iter()
+        .copied()
+        .filter(|sp| notes_shape_role(sp) == NotesShapeRole::Body)
+        .collect();
+    let chosen: Vec<&Element> = if body.is_empty() {
+        shapes
+            .iter()
+            .copied()
+            .filter(|sp| notes_shape_role(sp) == NotesShapeRole::Other)
+            .collect()
+    } else {
+        body
+    };
+    let mut chunks = Vec::new();
+    for shape in chosen {
+        let Some(tx) = child_local(shape, "txBody", ns::P) else {
+            continue;
+        };
+        let text = notes_tx_body_text(tx);
+        if !text.is_empty() {
+            chunks.push(text);
+        }
+    }
+    let merged = chunks.join("\n").trim().to_owned();
+    if merged.is_empty() {
+        None
+    } else {
+        Some(merged)
+    }
+}
+
+/// Paragraph text from a notes `p:txBody` (`extractTextFromTxBody`): runs, fields, breaks.
+fn notes_tx_body_text(tx_body: &Element) -> String {
+    let paras = children_local(tx_body, "p", ns::A);
+    if paras.is_empty() {
+        return tx_body.text_content().trim().to_owned();
+    }
+    let mut chunks = Vec::new();
+    for (index, para) in paras.iter().enumerate() {
+        let mut run = String::new();
+        for child in children_local(para, "r", ns::A) {
+            if let Some(t) = child_local(child, "t", ns::A) {
+                run.push_str(&t.text_content());
+            }
+        }
+        for child in children_local(para, "fld", ns::A) {
+            if let Some(t) = child_local(child, "t", ns::A) {
+                run.push_str(&t.text_content());
+            }
+        }
+        if let Some(t) = child_local(para, "t", ns::A) {
+            run.push_str(&t.text_content());
+        }
+        for _ in children_local(para, "br", ns::A) {
+            run.push('\n');
+        }
+        chunks.push(run);
+        if index + 1 < paras.len() {
+            chunks.push("\n".to_owned());
+        }
+    }
+    chunks.join("").trim().to_owned()
+}
+
 fn missing_part(name: impl Into<String>) -> Error {
     OpcError::MissingPart { name: name.into() }
 }
@@ -100,6 +195,8 @@ pub struct Slide {
     pub master_path: Option<String>,
     pub show_master_shapes: Option<bool>,
     pub has_notes: bool,
+    /// Speaker-notes body text (`slide.notes`). Empty notes stay `None`.
+    pub notes_text: Option<String>,
     pub elements: Vec<DumpElement>,
     /// Kinds not parsed as elements (paint bands). Chart and SmartArt are elements.
     pub other_kinds: Vec<String>,
@@ -599,6 +696,7 @@ impl<'a> Presentation<'a> {
             slide_parsed
         };
         let has_notes = self.slide_has_notes(&path)?;
+        let notes_text = self.slide_notes_text(&path)?;
         let (background_color, background_gradient, background_image) = self.slide_background(
             sld,
             &path,
@@ -612,6 +710,7 @@ impl<'a> Presentation<'a> {
             master_path,
             show_master_shapes,
             has_notes,
+            notes_text,
             elements: parsed.elements,
             other_kinds: parsed.other_kinds,
             other_kind_seq: parsed.other_kind_seq,
@@ -1115,6 +1214,31 @@ impl<'a> Presentation<'a> {
             }
         }
         Ok(false)
+    }
+
+    /// Speaker notes text, matching `extractSlideNotes`: body placeholders, else
+    /// non-placeholder shapes. Slide-number / date / header / footer fields are skipped.
+    fn slide_notes_text(&mut self, slide_path: &str) -> Result<Option<String>, Error> {
+        let note_rels: Vec<Relationship> = {
+            let rels = self.package.rels(slide_path)?;
+            rels.values().cloned().collect()
+        };
+        for rel in &note_rels {
+            if rel.type_ != rel_types::NOTES_SLIDE {
+                continue;
+            }
+            let Some(notes_path) = self.package.target(slide_path, rel) else {
+                continue;
+            };
+            let Some(xml) = self.package.text(&notes_path)? else {
+                continue;
+            };
+            let doc = parse_xml_str(xml)?;
+            if let Some(notes) = part_root(&doc.root, "notes") {
+                return Ok(speaker_notes_text(notes));
+            }
+        }
+        Ok(None)
     }
 
     fn find_layout_for_slide(&mut self, slide_path: &str) -> Result<Option<String>, Error> {

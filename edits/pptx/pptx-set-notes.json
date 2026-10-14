@@ -1,0 +1,13 @@
+{
+  "id": "pptx-set-notes",
+  "format": "pptx",
+  "fixture": "gen-pptx-notes-print",
+  "description": "Replace speaker notes text on slide 0",
+  "ops": [
+    {
+      "op": "setNotesText",
+      "slideIndex": 0,
+      "text": "Updated speaker notes"
+    }
+  ]
+}

@@ -330,7 +330,9 @@ mod tests {
     fn stub_session() -> EditSession<PptxHost, EditHistory> {
         let host = PptxHost {
             slides: vec![EditableSlide {
+                id: "ppt/slides/slide1.xml".into(),
                 path: "ppt/slides/slide1.xml".into(),
+                notes: None,
                 elements: vec![
                     {
                         let mut el = EditableElement::blank("el-a", "shape");
@@ -345,6 +347,7 @@ mod tests {
                         el
                     },
                 ],
+                source_slide_id: None,
             }],
             dirty_parts: Default::default(),
         };

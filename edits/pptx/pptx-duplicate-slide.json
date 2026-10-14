@@ -1,0 +1,9 @@
+{
+  "id": "pptx-duplicate-slide",
+  "format": "pptx",
+  "fixture": "gen-pptx-notes-print",
+  "description": "Duplicate slide 0, copying speaker notes and rewriting element ids",
+  "ops": [
+    { "op": "duplicateSlide", "index": 0 }
+  ]
+}

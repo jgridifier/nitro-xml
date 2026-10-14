@@ -298,6 +298,21 @@ export function applyDocxOps(model, ops) {
 	for (const op of ops) applyDocxOp(model, op);
 }
 
+function renumberPptxSlides(slides) {
+	return slides.map((slide, i) =>
+		slide.slideNumber === i + 1 ? slide : { ...slide, slideNumber: i + 1 },
+	);
+}
+
+/** Deterministic stand-in for `makeSlideId` so Rust and a second save agree. */
+function reassignPptxElementIds(el, prefix) {
+	const next = { ...el, id: `${prefix}${el.id}` };
+	if (Array.isArray(el.children) && el.children.length) {
+		next.children = el.children.map((child) => reassignPptxElementIds(child, prefix));
+	}
+	return next;
+}
+
 function resolvePptxElement(slides, op) {
 	const slide = slides[op.slideIndex];
 	if (!slide) throw new Error(`slide ${op.slideIndex} missing`);
@@ -336,6 +351,7 @@ export function applyPptxOps(slides, ops, mut) {
 		groupElements,
 		ungroupElements,
 		cloneElement,
+		cloneSlide,
 	} = mut;
 	let cur = slides;
 	for (const op of ops) {
@@ -458,6 +474,81 @@ export function applyPptxOps(slides, ops, mut) {
 				cur = updateElement(cur, op.slideIndex, el.id, { shapeStyle });
 				break;
 			}
+			case 'addSlide': {
+				// Blank slide shape matches `createBlankSlide`; the id is deterministic.
+				const len = cur.length;
+				const at = op.at == null ? len : Math.max(0, Math.min(op.at, len));
+				const slide = {
+					id: `added-slide-${len}`,
+					rId: '',
+					slideNumber: at + 1,
+					elements: [],
+				};
+				const next = cur.slice();
+				next.splice(at, 0, slide);
+				cur = renumberPptxSlides(next);
+				break;
+			}
+			case 'deleteSlide': {
+				const index = op.index;
+				if (cur.length <= 1) throw new Error('cannot delete the last slide');
+				if (index == null || index < 0 || index >= cur.length) {
+					throw new Error(`slide index ${index} out of range`);
+				}
+				cur = renumberPptxSlides(cur.filter((_, i) => i !== index));
+				break;
+			}
+			case 'duplicateSlide': {
+				const index = op.index;
+				if (index == null || index < 0 || index >= cur.length) {
+					throw new Error(`slide index ${index} out of range`);
+				}
+				const source = cur[index];
+				const copy = cloneSlide(source);
+				const len = cur.length;
+				const sourceId = source.id;
+				copy.sourceSlideId = String(sourceId).startsWith('ppt/slides/')
+					? sourceId
+					: (source.sourceSlideId ?? sourceId);
+				copy.id = `dup-slide-${len}`;
+				copy.rId = '';
+				copy.elements = (copy.elements || []).map((el) =>
+					reassignPptxElementIds(el, `dup-${len}-`),
+				);
+				const next = cur.slice();
+				next.splice(index + 1, 0, copy);
+				cur = renumberPptxSlides(next);
+				break;
+			}
+			case 'reorderSlide': {
+				const from = op.from;
+				const to = op.to;
+				if (
+					from == null ||
+					to == null ||
+					from < 0 ||
+					to < 0 ||
+					from >= cur.length ||
+					to >= cur.length
+				) {
+					throw new Error('slide index out of range');
+				}
+				if (from === to) break;
+				const next = cur.slice();
+				const [moved] = next.splice(from, 1);
+				next.splice(to, 0, moved);
+				cur = renumberPptxSlides(next);
+				break;
+			}
+			case 'setNotesText': {
+				const slide = cur[op.slideIndex];
+				if (!slide) throw new Error(`slide ${op.slideIndex} missing`);
+				const next = cur.slice();
+				// Drop stale segments so the plain string wins on save.
+				next[op.slideIndex] = { ...slide, notes: op.text, notesSegments: undefined };
+				cur = next;
+				break;
+			}
 			default:
 				throw new Error(`unsupported pptx op: ${op.op}`);
 		}
@@ -477,7 +568,7 @@ export async function loadPptxMutators() {
 	const { groupElements, ungroupElements } = await import(
 		`${up}/src/core/pptx/core/utils/group-ops.ts`
 	);
-	const { cloneElement } = await import(`${up}/src/core/pptx/core/utils/clone-utils.ts`);
+	const { cloneElement, cloneSlide } = await import(`${up}/src/core/pptx/core/utils/clone-utils.ts`);
 	return {
 		updateElement,
 		patchElementGeometry,
@@ -492,6 +583,7 @@ export async function loadPptxMutators() {
 		groupElements,
 		ungroupElements,
 		cloneElement,
+		cloneSlide,
 	};
 }
 

@@ -2347,7 +2347,6 @@ fn shape_paint_extras(
                 inherited_shape,
                 font_scheme: ctx.font_scheme,
                 level_fallback: fallback.as_ref(),
-                is_placeholder: ph_info.is_some(),
                 presentation_level_styles: ctx.presentation_level_styles,
                 master_tx_styles: ctx.master_tx_styles,
             },
@@ -2373,10 +2372,21 @@ fn shape_paint_extras(
                     is_body_placeholder: is_body_ph,
                     effective_level_styles: Some(levels),
                     presentation_level_styles: ctx.presentation_level_styles,
+                    font_scheme: ctx.font_scheme,
                 });
-        extras.text_paint_paragraphs = Some(
-            crate::text_layout::parse_text_paint_paragraphs_with_list_styles(tx, list_ctx.as_ref()),
-        );
+        let mut paragraphs =
+            crate::text_layout::parse_text_paint_paragraphs_with_list_styles(tx, list_ctx.as_ref());
+        if let Some(levels) = effective_levels.as_ref() {
+            for para in &mut paragraphs {
+                if para.level_text_color.is_some() {
+                    continue;
+                }
+                if let Some(style) = level_style_for(levels, para.list_level) {
+                    para.level_text_color = level_style_text_color(style, theme);
+                }
+            }
+        }
+        extras.text_paint_paragraphs = Some(paragraphs);
         extras.presentation_kinsoku =
             presentation_default_ea_line_break(ctx.presentation_level_styles);
         extras.auto_fit_mode = crate::text_layout::parse_body_autofit_cascade(tx, inherited_tx);
@@ -2677,7 +2687,6 @@ struct FirstRunTextPaintCtx<'a> {
     inherited_shape: Option<&'a Element>,
     font_scheme: Option<&'a ThemeFontScheme>,
     level_fallback: Option<&'a PlaceholderTextLevelStyle>,
-    is_placeholder: bool,
     presentation_level_styles: Option<&'a LevelStylesMap>,
     master_tx_styles: Option<&'a MasterTxStyles>,
 }
@@ -2812,10 +2821,6 @@ fn first_run_text_paint(
         }
         break;
     }
-    if font_family.is_none() {
-        font_family =
-            presentation_default_latin_typeface(ctx.presentation_level_styles, ctx.font_scheme);
-    }
     if let Some(style) = ctx.level_fallback {
         if color.is_none() {
             color = level_style_text_color(style, theme);
@@ -2835,7 +2840,11 @@ fn first_run_text_paint(
             italic = style.font_italic.unwrap_or(false);
         }
     }
-    if size.is_none() && !ctx.is_placeholder {
+    if font_family.is_none() {
+        font_family =
+            presentation_default_latin_typeface(ctx.presentation_level_styles, ctx.font_scheme);
+    }
+    if size.is_none() {
         size =
             non_placeholder_font_size_fallback(ctx.presentation_level_styles, ctx.master_tx_styles);
     }
@@ -3325,6 +3334,53 @@ mod tests {
         };
         let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
         assert!((el.font_size_px.unwrap() - 28.0 * 96.0 / 72.0).abs() < 0.05);
+    }
+
+    // Catches: `p:defaultTextStyle` +mn-lt winning over merged `bodyStyle` Verdana on placeholders.
+    #[test]
+    fn body_placeholder_applies_merged_tx_style_typeface() {
+        let master = parse_xml_str(
+            r#"<p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:txStyles>
+                <p:bodyStyle>
+                  <a:lvl1pPr><a:defRPr sz="2600"><a:latin typeface="Verdana"/></a:defRPr></a:lvl1pPr>
+                </p:bodyStyle>
+              </p:txStyles>
+            </p:sldMaster>"#,
+        )
+        .unwrap();
+        let styles = crate::level_style::parse_master_tx_styles(&master.root);
+        let shape = parse_xml_str(
+            r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:nvSpPr><p:cNvPr id="3" name="Content"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:p><a:r><a:rPr lang="en-US"/><a:t>Body</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>"#,
+        )
+        .unwrap();
+        let pres_default = crate::level_style::parse_tx_style_category(
+            &parse_xml_str(
+                r#"<p:defaultTextStyle xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <a:lvl1pPr><a:defRPr><a:latin typeface="+mn-lt"/></a:defRPr></a:lvl1pPr>
+                </p:defaultTextStyle>"#,
+            )
+            .unwrap()
+            .root,
+        );
+        let colors = theme();
+        let ctx = ParseCtx {
+            master_tx_styles: Some(&styles),
+            presentation_level_styles: Some(&pres_default),
+            ..ctx(&colors)
+        };
+        let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
+        assert_eq!(el.font_family.as_deref(), Some("Verdana"));
     }
 
     // Catches: c:chart graphic frames dumped as otherKinds instead of chart elements.

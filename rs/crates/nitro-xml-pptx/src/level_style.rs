@@ -11,6 +11,7 @@ use nitro_xml_opc::xml::{ns, Element};
 
 use crate::inheritance::{attr, child_local, children_local};
 use crate::text_layout::{parse_paragraph_align, TextAlignCss};
+use crate::theme::ThemeFontScheme;
 
 pub type LevelStylesMap = BTreeMap<i8, PlaceholderTextLevelStyle>;
 
@@ -267,6 +268,70 @@ pub fn presentation_default_ea_line_break(styles: Option<&LevelStylesMap>) -> bo
 
 pub fn level_style_for(map: &LevelStylesMap, level: i8) -> Option<&PlaceholderTextLevelStyle> {
     map.get(&level).or_else(|| map.get(&-1))
+}
+
+/// Run-level defaults from merged placeholder / txStyle levels (paint only).
+#[derive(Debug, Clone, Default)]
+pub struct ParagraphLevelRunStyle {
+    pub font_size_px: Option<f64>,
+    pub font_family: Option<String>,
+    pub font_bold: Option<bool>,
+    pub font_italic: Option<bool>,
+    pub text_color_hex: Option<String>,
+}
+
+pub fn paragraph_level_run_style(
+    map: &LevelStylesMap,
+    level: i8,
+    font_scheme: Option<&ThemeFontScheme>,
+) -> ParagraphLevelRunStyle {
+    let Some(style) = level_style_for(map, level) else {
+        return ParagraphLevelRunStyle::default();
+    };
+    ParagraphLevelRunStyle {
+        font_size_px: style.font_size_px,
+        font_family: style
+            .default_latin_typeface
+            .as_deref()
+            .and_then(|face| resolve_theme_latin_typeface(face, font_scheme)),
+        font_bold: style.font_bold,
+        font_italic: style.font_italic,
+        text_color_hex: style.text_color_hex.clone(),
+    }
+}
+
+fn resolve_theme_latin_typeface(
+    typeface: &str,
+    font_scheme: Option<&ThemeFontScheme>,
+) -> Option<String> {
+    let t = typeface.trim();
+    if t.is_empty() {
+        return None;
+    }
+    if t.eq_ignore_ascii_case("+mn-lt") {
+        return font_scheme.and_then(|s| theme_font_latin(s, "minor"));
+    }
+    if t.eq_ignore_ascii_case("+mj-lt") {
+        return font_scheme.and_then(|s| theme_font_latin(s, "major"));
+    }
+    if t.starts_with('+') {
+        return None;
+    }
+    Some(t.to_owned())
+}
+
+fn theme_font_latin(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
+    let fonts = match idx {
+        "major" => scheme.major_font.as_ref(),
+        "minor" => scheme.minor_font.as_ref(),
+        _ => None,
+    }?;
+    fonts
+        .latin
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
 }
 
 /// Walk `p:txStyles` on a slide master.

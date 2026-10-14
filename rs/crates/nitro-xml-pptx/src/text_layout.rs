@@ -352,6 +352,12 @@ pub struct TextPaintParagraph {
     pub bullet_marker: Option<String>,
     pub margin_left_px: Option<f64>,
     pub text_indent_px: Option<f64>,
+    pub level_font_size_px: Option<f64>,
+    pub level_font_family: Option<String>,
+    pub level_font_bold: Option<bool>,
+    pub level_font_italic: Option<bool>,
+    pub level_text_color: Option<String>,
+    pub list_level: i8,
 }
 
 /// Master/layout `txStyles` + `lstStyle` cascade for list paint (#27).
@@ -361,6 +367,7 @@ pub struct TextPaintListStyleCtx<'a> {
     pub is_body_placeholder: bool,
     pub effective_level_styles: Option<&'a crate::level_style::LevelStylesMap>,
     pub presentation_level_styles: Option<&'a crate::level_style::LevelStylesMap>,
+    pub font_scheme: Option<&'a crate::theme::ThemeFontScheme>,
 }
 
 /// Walk `p:txBody` paragraphs for multi-`p` / per-run BiDi painting (#27).
@@ -403,6 +410,18 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
             let rtl = p_pr.and_then(|pp| parse_optional_bool_attr(attr(pp, "rtl")));
             let tab_stops = p_pr.map(parse_tab_stops).unwrap_or_default();
             let runs = collect_paint_runs(p);
+            let para_level = paragraph_level(p) as i8;
+            let level_run_style = list_styles
+                .and_then(|ctx| {
+                    ctx.effective_level_styles.map(|map| {
+                        crate::level_style::paragraph_level_run_style(
+                            map,
+                            para_level,
+                            ctx.font_scheme,
+                        )
+                    })
+                })
+                .unwrap_or_default();
 
             let (bullet_marker, margin_left_px, text_indent_px) = if let Some(ctx) = list_styles {
                 let has_renderable = paragraph_has_renderable_content(p);
@@ -460,6 +479,12 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 bullet_marker,
                 margin_left_px,
                 text_indent_px,
+                level_font_size_px: level_run_style.font_size_px,
+                level_font_family: level_run_style.font_family,
+                level_font_bold: level_run_style.font_bold,
+                level_font_italic: level_run_style.font_italic,
+                level_text_color: level_run_style.text_color_hex,
+                list_level: para_level,
             }
         })
         .collect()

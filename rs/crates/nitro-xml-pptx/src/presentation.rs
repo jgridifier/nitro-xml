@@ -1909,6 +1909,18 @@ mod tests {
         intern.0.join("\n")
     }
 
+    // Catches: CJK-only runs with a:ea ≠ a:latin re-entering paint_run_text_span forever
+    // (shell dump / open of poi-with_japanese.pptx stack-overflowed).
+    #[test]
+    fn paint_with_japanese_does_not_stack_overflow() {
+        let painted = paint_fixture("real/pptx/poi-with_japanese.pptx", 0);
+        assert!(
+            painted.contains("Here is a text box") || painted.contains("pptxv-text"),
+            "expected painted text host for with_japanese, got {} chars",
+            painted.len()
+        );
+    }
+
     fn cached_drawing(labels: &[&str]) -> String {
         let mut body = String::from(
             r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

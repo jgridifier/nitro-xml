@@ -780,6 +780,8 @@ fn paint_run_text_span<I: StringIntern>(
     let wrap_none = paint.layout.is_some_and(|l| l.wrap_none);
     let emit_gdi_tracking =
         !wrap_none && should_emit_gdi_tracking_for_run(text, run_model.underline);
+    // Catches: CJK-only runs with a:ea ≠ a:latin re-entering paint_run_text_span forever
+    // (needs_split stayed true because script_fonts was never cleared on the recursive call).
     if let Some(script_fonts) = &run_model.script_fonts {
         let script_runs = crate::unicode_script::segment_by_script(text);
         let needs_split = script_runs.len() > 1
@@ -788,6 +790,8 @@ fn paint_run_text_span<I: StringIntern>(
                     != script_fonts.latin
             });
         if needs_split {
+            let mut seg_model = run_model.clone();
+            seg_model.script_fonts = None;
             let mut last = para;
             for (idx, seg) in script_runs.iter().enumerate() {
                 let face = crate::unicode_script::resolve_font_for_script(seg.script, script_fonts);
@@ -817,7 +821,7 @@ fn paint_run_text_span<I: StringIntern>(
                     ctx,
                     para,
                     &seg.text,
-                    run_model,
+                    &seg_model,
                     paragraph_rtl,
                     &seg_paint,
                     size,

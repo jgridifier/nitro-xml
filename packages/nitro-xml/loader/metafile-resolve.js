@@ -13,12 +13,7 @@ export function scheduleMetafileAttr(el, v) {
   void Promise.resolve(cvt || import("emf-converter").then((x) => (cvt = x.convertMetafileToDataUrl)))
     .then((fn) => fn(u.buffer))
     .then((url) => {
-      if (!url || !el.isConnected) return;
-      el.setAttribute("src", url);
-      const bg = `url(${url})`;
-      if (el.style) el.style.backgroundImage = bg;
-      const par = el.parentElement;
-      if (par?.style) par.style.backgroundImage = bg;
+      if (url && el.isConnected) el.src = url;
     })
     .catch(() => {})
     .finally(() => pend.delete(el));

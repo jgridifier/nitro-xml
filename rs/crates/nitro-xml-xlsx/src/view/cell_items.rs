@@ -6,6 +6,7 @@ use crate::sheet_access::CellIndex;
 use crate::view::cell_paint::{css_font, hashes, repeat_to_fill};
 use crate::view::cell_view::{cell_view, CellViewOptions};
 use crate::view::metrics::GridMetrics;
+use crate::view::number_fit::fit_number;
 use crate::view::sheet_queries::overflow_extent;
 use crate::view::text_measure::TextMeasure;
 use crate::view::types::{CellItem, CellView};
@@ -31,6 +32,9 @@ pub struct BuildInput<'a> {
     pub rows: &'a [u32],
     pub cols: &'a [u32],
     pub has_formula: &'a dyn Fn(u32, u32) -> bool,
+    /// Live grid only (upstream `grid-view.ts`); view-IR dumps omit this so FakeTextMeasure
+    /// stays differential-clean against the TS oracle dump path.
+    pub enable_number_fit: bool,
 }
 
 fn text_width_of(
@@ -114,7 +118,24 @@ fn make_item(
     }
     if item.view.is_number && measured > inner && item.view.rich.is_none() {
         let font = css_font(&item.view.font, input.zoom);
-        item.text = hashes(inner, measure.measure("#", &font));
+        // Catches: General numbers that still fit after Excel-style decimal drop must not
+        // become `###` (poi-WithChartSheet D8/D10/D12 live paint vs TS).
+        if input.enable_number_fit {
+            let measure_ptr: *mut dyn TextMeasure = measure;
+            let measure_fn = |text: &str| unsafe { (*measure_ptr).measure(text, &font) };
+            item.text = fit_number(
+                input.workbook,
+                input.sheet,
+                input.index,
+                row,
+                col,
+                inner,
+                &measure_fn,
+            )
+            .unwrap_or_else(|| hashes(inner, measure.measure("#", &font)));
+        } else {
+            item.text = hashes(inner, measure.measure("#", &font));
+        }
         return item;
     }
     if item.view.overflow && merge.is_none() && measured > inner {

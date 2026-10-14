@@ -387,6 +387,8 @@ pub fn paint<I: StringIntern>(
             rows: &rows,
             cols: &cols,
             has_formula: &has_formula,
+            // Match upstream grid-view.ts `fitNumber` injection for live paint only.
+            enable_number_fit: true,
         };
         build_items(&input, &mut canvas_measure)
     };

@@ -21,7 +21,11 @@ pub fn icon_path(name: &str) -> Option<&'static str> {
         "fontShrink" => Some("M2 16 6.5 4 11 16M3.6 12h5.8M12.5 5.5h5"),
         "fontColor" => Some("M5 13 10 3l5 10M7 9h6M3 17h14"),
         "fillColor" => Some("M4 9l5-5 6 6-5 5zM9 4 7 2M15 10l1.5 3a1.5 1.5 0 1 1-3 0zM3 17h14"),
-        "borders" => Some("M3 3h14v14H3zM3 10h14M10 3v14"),
+        // Upstream Home ribbon faces `xl-borderBottom` (not All Borders).
+        "borders" | "borderBottom" => {
+            Some("M3 17h14M3 3h.1M7 3h.1M11 3h.1M15 3h.1M3 7h.1M3 11h.1M17 7h.1M17 11h.1M17 3h.1")
+        }
+        "borderMore" => Some("M3 3h14v14H3zM3 10h14M10 3v14M13 13l4 4"),
         "alignTop" => Some("M3 3h14M7 6h6M7 9h6M10 9v6"),
         "alignMiddle" => Some("M3 10h14M7 5h6M7 15h6M10 2v4M10 14v4"),
         "alignBottom" => Some("M3 17h14M7 14h6M7 11h6M10 11V5"),
@@ -68,7 +72,8 @@ pub fn command_icon(command: &str) -> Option<&'static str> {
         "home.italic" => icon_path("italic"),
         "home.underline" | "home.underline-double" => icon_path("underline"),
         "home.strikethrough" => icon_path("strike"),
-        "home.borders" | "home.borders-more" => icon_path("borders"),
+        "home.borders" => icon_path("borderBottom"),
+        "home.borders-more" => icon_path("borderMore"),
         "home.fill-color" => icon_path("fillColor"),
         "home.font-color" => icon_path("fontColor"),
         "home.align-top" => icon_path("alignTop"),

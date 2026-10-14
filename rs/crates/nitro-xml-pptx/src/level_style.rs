@@ -22,6 +22,10 @@ pub struct PlaceholderTextLevelStyle {
     pub bullet_auto_num_start_at: u32,
     /// `a:buFont/@typeface` when the level declares a bullet font.
     pub bullet_font_family: Option<String>,
+    /// Resolved `#RRGGBB` when `a:buClr` does not need a theme.
+    pub bullet_color_hex: Option<String>,
+    /// Scheme colour from `a:buClr` for resolve against the slide colour map.
+    pub bullet_color: Option<DrawingColor>,
     pub bullet_none: bool,
     /// Resolved `#RRGGBB` when `a:defRPr/a:solidFill` does not need a theme.
     pub text_color_hex: Option<String>,
@@ -77,6 +81,19 @@ pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle 
     if let Some(bu_font) = child_local(p_pr, "buFont", ns::A) {
         style.bullet_font_family = attr(bu_font, "typeface").map(str::to_owned);
     }
+    if let Some(bu_clr) = child_local(p_pr, "buClr", ns::A) {
+        if let Some(color) = parse_drawing_color_in(Some(bu_clr)) {
+            if let Some(resolved) = resolve_drawing_color(&color, None, None) {
+                if resolved.alpha >= 0.999 {
+                    style.bullet_color_hex = Some(resolved.hex);
+                } else {
+                    style.bullet_color = Some(color);
+                }
+            } else {
+                style.bullet_color = Some(color);
+            }
+        }
+    }
     style
 }
 
@@ -125,6 +142,8 @@ fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
         || style.paragraph_spacing_before_px.is_some()
         || style.paragraph_spacing_after_px.is_some()
         || style.bullet_font_family.is_some()
+        || style.bullet_color_hex.is_some()
+        || style.bullet_color.is_some()
 }
 
 fn apply_paragraph_spacing_attrs(
@@ -331,6 +350,16 @@ fn merge_level_style(
         } else {
             base.bullet_font_family.clone()
         },
+        bullet_color_hex: if over_has_bullet {
+            over.bullet_color_hex.clone()
+        } else {
+            base.bullet_color_hex.clone()
+        },
+        bullet_color: if over_has_bullet {
+            over.bullet_color.clone()
+        } else {
+            base.bullet_color.clone()
+        },
         text_color_hex: if over_has_color {
             over.text_color_hex.clone()
         } else {
@@ -389,6 +418,21 @@ pub fn level_style_for(map: &LevelStylesMap, level: i8) -> Option<&PlaceholderTe
     map.get(&level).or_else(|| map.get(&-1))
 }
 
+/// Resolved bullet marker colour from `a:buClr` on a list level.
+pub fn level_style_bullet_color(
+    style: &PlaceholderTextLevelStyle,
+    theme: &dyn nitro_xml_opc::drawingml::DrawingColorTheme,
+) -> Option<String> {
+    if let Some(hex) = &style.bullet_color_hex {
+        return Some(hex.clone());
+    }
+    style
+        .bullet_color
+        .as_ref()
+        .and_then(|color| resolve_drawing_color(color, Some(theme), None))
+        .map(|r| r.hex)
+}
+
 /// Run-level defaults from merged placeholder / txStyle levels (paint only).
 #[derive(Debug, Clone, Default)]
 pub struct ParagraphLevelRunStyle {
@@ -410,10 +454,13 @@ pub fn paragraph_level_run_style(
     };
     ParagraphLevelRunStyle {
         font_size_px: style.font_size_px,
-        font_family: style
-            .default_latin_typeface
-            .as_deref()
-            .and_then(|face| resolve_theme_latin_typeface(face, font_scheme)),
+        font_family: style.default_latin_typeface.as_deref().and_then(|face| {
+            crate::theme::resolve_theme_typeface(
+                face,
+                font_scheme,
+                crate::theme::ThemeTypefaceScript::Latin,
+            )
+        }),
         // Absent `b`/`i` on a txStyle `defRPr` is normal weight / upright for that level,
         // not inheritance from the shape's first-run fallback (#27 master-text-styles).
         font_bold: Some(style.font_bold.unwrap_or(false)),
@@ -421,40 +468,6 @@ pub fn paragraph_level_run_style(
         font_kern_hundredths: style.font_kern_hundredths,
         text_color_hex: style.text_color_hex.clone(),
     }
-}
-
-fn resolve_theme_latin_typeface(
-    typeface: &str,
-    font_scheme: Option<&ThemeFontScheme>,
-) -> Option<String> {
-    let t = typeface.trim();
-    if t.is_empty() {
-        return None;
-    }
-    if t.eq_ignore_ascii_case("+mn-lt") {
-        return font_scheme.and_then(|s| theme_font_latin(s, "minor"));
-    }
-    if t.eq_ignore_ascii_case("+mj-lt") {
-        return font_scheme.and_then(|s| theme_font_latin(s, "major"));
-    }
-    if t.starts_with('+') {
-        return None;
-    }
-    Some(t.to_owned())
-}
-
-fn theme_font_latin(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
-    let fonts = match idx {
-        "major" => scheme.major_font.as_ref(),
-        "minor" => scheme.minor_font.as_ref(),
-        _ => None,
-    }?;
-    fonts
-        .latin
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
 }
 
 /// Walk `p:txStyles` on a slide master.

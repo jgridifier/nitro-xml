@@ -443,6 +443,7 @@ fn paint_rich_paragraphs<I: StringIntern>(
                 bullet_paint,
                 bullet_size,
                 &bullet_stack,
+                para_model.bullet_text_color.as_deref(),
             );
         }
         if para_model.runs.is_empty() {
@@ -522,6 +523,7 @@ fn display_run_text<I: StringIntern>(ctx: &PaintContext<'_, I>, run: &TextPaintR
     field_substitution::substitute_field_text(&run.text, run.field_type.as_deref(), &ctx.field_ctx)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn paint_bullet_marker<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     para: u32,
@@ -530,6 +532,7 @@ fn paint_bullet_marker<I: StringIntern>(
     paint: &TextBodyPaint<'_>,
     size: f64,
     stack: &str,
+    bullet_color: Option<&str>,
 ) {
     let bullet = create_child(ctx, para, "span");
     set_attr(ctx, bullet, "data-pptx-bullet-marker", "");
@@ -542,6 +545,9 @@ fn paint_bullet_marker<I: StringIntern>(
     }
     set_text_content(ctx, bullet, marker);
     paint_run_typography(ctx, bullet, paint, size, stack);
+    if let Some(color) = bullet_color {
+        set_style(ctx, bullet, "color", color);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -560,6 +566,10 @@ fn append_paint_run<I: StringIntern>(
     east_asian: Option<EastAsianBreakOptions>,
     following: Option<char>,
 ) {
+    if run_model.line_break {
+        create_child(ctx, para, "br");
+        return;
+    }
     if let Some(mathml) = &run_model.equation_mathml {
         paint_inline_equation_run(
             ctx,

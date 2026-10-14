@@ -59,6 +59,36 @@ fn substitutes() -> &'static [(&'static str, Substitute)] {
             },
         ),
         (
+            "arial black",
+            Substitute {
+                fallbacks: &["Liberation Sans", "Arimo", "Helvetica", "sans-serif"],
+            },
+        ),
+        (
+            "verdana",
+            Substitute {
+                fallbacks: &["DejaVu Sans", "Bitstream Vera Sans", "sans-serif"],
+            },
+        ),
+        (
+            "lucida grande",
+            Substitute {
+                fallbacks: &["Liberation Sans", "sans-serif"],
+            },
+        ),
+        (
+            "hiragino sans gb w3",
+            Substitute {
+                fallbacks: &["Liberation Sans", "Arial", "sans-serif"],
+            },
+        ),
+        (
+            "microsoft yahei",
+            Substitute {
+                fallbacks: &["Liberation Sans", "Arial", "sans-serif"],
+            },
+        ),
+        (
             "helvetica",
             Substitute {
                 fallbacks: &["Liberation Sans", "Arimo", "Arial", "sans-serif"],
@@ -104,7 +134,7 @@ fn substitutes() -> &'static [(&'static str, Substitute)] {
         (
             "corbel",
             Substitute {
-                fallbacks: &["sans-serif"],
+                fallbacks: &["Liberation Sans", "Lucida Grande", "sans-serif"],
             },
         ),
     ]

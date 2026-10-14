@@ -2501,6 +2501,15 @@ fn shape_paint_extras(
                     para.level_text_color = level_style_text_color(style, theme);
                 }
             }
+            for para in &mut paragraphs {
+                if para.bullet_text_color.is_some() {
+                    continue;
+                }
+                if let Some(style) = level_style_for(levels, para.list_level) {
+                    para.bullet_text_color =
+                        crate::level_style::level_style_bullet_color(style, &theme);
+                }
+            }
         }
         extras.text_paint_paragraphs = Some(paragraphs);
         extras.presentation_kinsoku =
@@ -3014,9 +3023,21 @@ fn resolve_run_font_family(
     inherited_shape: Option<&Element>,
     font_scheme: Option<&ThemeFontScheme>,
 ) -> Option<String> {
+    use crate::theme::{resolve_theme_typeface, ThemeTypefaceScript};
     if let Some(r) = rpr {
         if let Some(face) = latin_typeface(r) {
-            return Some(face);
+            if let Some(resolved) =
+                resolve_theme_typeface(&face, font_scheme, ThemeTypefaceScript::Latin)
+            {
+                return Some(resolved);
+            }
+        }
+        if let Some(ea) = child_local(r, "ea", ns::A).and_then(|el| attr(el, "typeface")) {
+            if let Some(resolved) =
+                resolve_theme_typeface(ea, font_scheme, ThemeTypefaceScript::EastAsia)
+            {
+                return Some(resolved);
+            }
         }
     }
     font_ref_family(shape, inherited_shape, font_scheme)

@@ -392,6 +392,8 @@ pub struct TextPaintRun {
     /// `a:rPr/a:hlinkClick` — paint as themed hyperlink styling.
     pub hyperlink_click: bool,
     pub hyperlink_tooltip: Option<String>,
+    /// Soft line break from `a:br` (paint as `<br>`, not a text run).
+    pub line_break: bool,
 }
 
 /// Paragraph-level BiDi + alignment for painters (upstream `RenderParagraph` subset).
@@ -426,6 +428,8 @@ pub struct TextPaintParagraph {
     pub east_asian_breaks: Option<crate::east_asian_breaks::EastAsianBreakOptions>,
     /// `a:buFont` from the paragraph's list level (marker typeface).
     pub bullet_font_family: Option<String>,
+    /// `a:buClr` from the paragraph's list level (marker colour).
+    pub bullet_text_color: Option<String>,
 }
 
 /// Master/layout `txStyles` + `lstStyle` cascade for list paint (#27).
@@ -531,7 +535,14 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
             let bullet_font_family = list_styles.and_then(|ctx| {
                 ctx.effective_level_styles
                     .and_then(|map| crate::level_style::level_style_for(map, para_level))
-                    .and_then(|s| s.bullet_font_family.clone())
+                    .and_then(|s| s.bullet_font_family.as_deref())
+                    .and_then(|face| {
+                        crate::theme::resolve_theme_typeface(
+                            face,
+                            list_styles.and_then(|c| c.font_scheme),
+                            crate::theme::ThemeTypefaceScript::Latin,
+                        )
+                    })
             });
 
             let (bullet_marker, margin_left_px, text_indent_px) = if let Some(ctx) = list_styles {
@@ -618,6 +629,7 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 empty_line_font_size_px,
                 east_asian_breaks,
                 bullet_font_family,
+                bullet_text_color: None,
             }
         })
         .collect()
@@ -871,11 +883,45 @@ fn collect_paint_runs(
                         equation_mathml: Some(mathml),
                         hyperlink_click: false,
                         hyperlink_tooltip: None,
+                        line_break: false,
                     });
                 }
                 continue;
             }
             if el.ns.as_deref() != Some(ns::A) {
+                continue;
+            }
+            if el.local == "br" {
+                let r_pr = child_local(el, "rPr", ns::A);
+                let resolved = r_pr
+                    .map(|rp| resolve_run_paint_style(rp, font_scheme, "\n"))
+                    .unwrap_or(ResolvedRunPaint {
+                        font_family: None,
+                        font_size_px: None,
+                        font_bold: None,
+                        font_italic: None,
+                        font_kern_hundredths: None,
+                        script_fonts: None,
+                    });
+                runs.push(TextPaintRun {
+                    text: String::new(),
+                    rtl: r_pr.and_then(|rp| parse_optional_bool_attr(attr(rp, "rtl"))),
+                    underline: false,
+                    ruby: None,
+                    field_type: None,
+                    run_font_family: resolved.font_family,
+                    run_font_size_px: resolved.font_size_px,
+                    run_font_bold: resolved.font_bold,
+                    run_font_italic: resolved.font_italic,
+                    run_font_kern_hundredths: resolved.font_kern_hundredths,
+                    run_lang: r_pr.and_then(|rp| attr(rp, "lang")).map(|s| s.to_string()),
+                    run_text_color: None,
+                    script_fonts: resolved.script_fonts,
+                    equation_mathml: None,
+                    hyperlink_click: false,
+                    hyperlink_tooltip: None,
+                    line_break: true,
+                });
                 continue;
             }
             let text = if el.local == "r" {
@@ -937,6 +983,7 @@ fn collect_paint_runs(
                     equation_mathml: None,
                     hyperlink_click,
                     hyperlink_tooltip,
+                    line_break: false,
                 });
             }
         }
@@ -1509,6 +1556,24 @@ mod tests {
         assert_eq!(paras.len(), 1);
         assert_eq!(paras[0].runs.len(), 1);
         assert_eq!(paras[0].runs[0].text, "1");
+    }
+
+    // Catches: `a:br` between runs collapsed so multi-line Arial Black text paints on one line.
+    #[test]
+    fn a_br_soft_break_becomes_line_break_run() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr/><a:p>
+                <a:r><a:rPr><a:latin typeface="Arial Black"/></a:rPr><a:t>line one</a:t></a:r>
+                <a:br><a:rPr><a:latin typeface="Arial Black"/></a:rPr></a:br>
+                <a:r><a:rPr><a:latin typeface="Arial Black"/></a:rPr><a:t>line two</a:t></a:r>
+              </a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let paras = parse_text_paint_paragraphs(&doc.root);
+        assert_eq!(paras[0].runs.len(), 3);
+        assert!(paras[0].runs[1].line_break);
     }
 
     // Catches: `a:pPr/@rtl` paragraphs painted as one LTR `<p>` so Arabic/Hebrew slides miss the gate.

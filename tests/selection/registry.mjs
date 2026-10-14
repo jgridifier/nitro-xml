@@ -279,7 +279,9 @@ export const SELECTION_CASES = [
 		allowList: 'P27',
 		todo: 'SVG export deferred (painter code P27, not GitHub #27).',
 	},
-	// --- docx ---
+	// --- docx (Print Layout click + line select/copy; caret CSS rects for RTL
+	//     lines still diverge between shadow DOM and TS — compare caret via LTR
+	//     once a latin fixture is wired; highlight already proves line geometry.) ---
 	{
 		id: 'docx-text-span',
 		format: 'docx',
@@ -289,7 +291,18 @@ export const SELECTION_CASES = [
 		height: 600,
 		live: true,
 		actions: [{ op: 'click', ref: 'p0' }, { op: 'copy' }],
-		compare: ['copy'],
+		compare: ['selection', 'copy', 'highlight'],
+	},
+	{
+		id: 'docx-text-span-p1',
+		format: 'docx',
+		ready: true,
+		fixture: 'fixtures/bidi/arabic-hebrew-paragraphs.docx',
+		width: 800,
+		height: 600,
+		live: true,
+		actions: [{ op: 'click', ref: 'p1' }, { op: 'copy' }],
+		compare: ['selection', 'copy', 'highlight'],
 	},
 ];
 

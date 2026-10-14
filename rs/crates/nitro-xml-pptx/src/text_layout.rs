@@ -290,19 +290,13 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 let level = paragraph_level(p);
                 let mut marker = None;
                 if let Some(ref info) = bullet {
-                    if !info.none {
-                        let show = has_renderable || auto_num_scheme.is_none();
-                        if show {
-                            if let Some(ch) = &info.char {
-                                marker = Some(ch.clone());
-                            } else if let Some(scheme) = auto_num_scheme.as_ref() {
-                                if has_renderable {
-                                    let start = info.auto_num_start_at;
-                                    let ord =
-                                        next_auto_number(&mut auto_seq, level, &scheme, start);
-                                    marker = Some(format_auto_number_bullet(&scheme, ord));
-                                }
-                            }
+                    if !info.none && has_renderable {
+                        if let Some(ch) = &info.char {
+                            marker = Some(ch.clone());
+                        } else if let Some(scheme) = auto_num_scheme.as_ref() {
+                            let start = info.auto_num_start_at;
+                            let ord = next_auto_number(&mut auto_seq, level, &scheme, start);
+                            marker = Some(format_auto_number_bullet(&scheme, ord));
                         }
                     }
                 }

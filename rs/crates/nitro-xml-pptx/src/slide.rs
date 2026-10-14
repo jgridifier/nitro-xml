@@ -2330,6 +2330,9 @@ fn shape_paint_extras(
                 font_scheme: ctx.font_scheme,
                 level_fallback: fallback.as_ref(),
                 is_placeholder: ph_info.is_some(),
+                placeholder_is_title_family: ph_info
+                    .and_then(|ph| ph.type_.as_deref())
+                    .is_some_and(|t| placeholder_is_title_family(Some(t))),
                 presentation_level_styles: ctx.presentation_level_styles,
                 master_tx_styles: ctx.master_tx_styles,
             },
@@ -2656,8 +2659,15 @@ struct FirstRunTextPaintCtx<'a> {
     font_scheme: Option<&'a ThemeFontScheme>,
     level_fallback: Option<&'a PlaceholderTextLevelStyle>,
     is_placeholder: bool,
+    /// Title-style placeholders keep host/default sizing until autofit matches upstream.
+    placeholder_is_title_family: bool,
     presentation_level_styles: Option<&'a LevelStylesMap>,
     master_tx_styles: Option<&'a MasterTxStyles>,
+}
+
+fn placeholder_is_title_family(type_: Option<&str>) -> bool {
+    let t = type_.map(|s| s.trim().to_ascii_lowercase());
+    matches!(t.as_deref(), Some("title") | Some("ctrtitle") | Some("subtitle"))
 }
 
 fn first_run_text_paint(
@@ -2752,7 +2762,7 @@ fn first_run_text_paint(
         if color.is_none() {
             color = level_style_text_color(style, theme);
         }
-        if size.is_none() {
+        if size.is_none() && !ctx.placeholder_is_title_family {
             size = style.font_size_px;
         }
         if font_family.is_none() {
@@ -3219,7 +3229,44 @@ mod tests {
         };
         let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
         assert_eq!(el.text_color.as_deref(), Some("#FFFFFF"));
-        assert!((el.font_size_px.unwrap() - 80.0).abs() < 0.05);
+        assert!(el.font_size_px.is_none());
+    }
+
+    // Catches: body placeholder `bodyStyle` defRPr sz left at 24px host default instead of master 28pt.
+    #[test]
+    fn body_placeholder_applies_merged_tx_style_font_size() {
+        let master = parse_xml_str(
+            r#"<p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:txStyles>
+                <p:bodyStyle>
+                  <a:lvl1pPr><a:defRPr sz="2800"/></a:lvl1pPr>
+                </p:bodyStyle>
+              </p:txStyles>
+            </p:sldMaster>"#,
+        )
+        .unwrap();
+        let styles = crate::level_style::parse_master_tx_styles(&master.root);
+        let shape = parse_xml_str(
+            r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:nvSpPr><p:cNvPr id="3" name="Content"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>
+              <p:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+              </p:spPr>
+              <p:txBody>
+                <a:bodyPr/>
+                <a:p><a:r><a:rPr lang="en-US"/><a:t>Body</a:t></a:r></a:p>
+              </p:txBody>
+            </p:sp>"#,
+        )
+        .unwrap();
+        let colors = theme();
+        let ctx = ParseCtx {
+            master_tx_styles: Some(&styles),
+            ..ctx(&colors)
+        };
+        let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
+        assert!((el.font_size_px.unwrap() - 28.0 * 96.0 / 72.0).abs() < 0.05);
     }
 
     // Catches: c:chart graphic frames dumped as otherKinds instead of chart elements.

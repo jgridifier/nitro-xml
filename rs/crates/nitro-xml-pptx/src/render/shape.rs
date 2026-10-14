@@ -288,6 +288,7 @@ mod tests {
             540.0,
             &scheme,
             0,
+            crate::render::FieldSubstitutionContext::default(),
             slide_autofit,
         );
         paint(&mut ctx, el, 1);

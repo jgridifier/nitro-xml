@@ -115,6 +115,8 @@ pub struct TextBodyLayout {
     pub anchor_center: bool,
     /// `vertOverflow` / `horzOverflow` clip (upstream `resolveTextOverflowClip`).
     pub overflow_clip: bool,
+    /// `a:bodyPr/@rot` in degrees (clockwise, same as CSS).
+    pub body_rotation_deg: Option<f64>,
 }
 
 impl Default for TextBodyLayout {
@@ -130,6 +132,7 @@ impl Default for TextBodyLayout {
             column_gap_px: 0.0,
             anchor_center: false,
             overflow_clip: false,
+            body_rotation_deg: None,
         }
     }
 }
@@ -238,7 +241,7 @@ pub fn parse_text_body_layout_with_levels(
 
     let body_pr = child_local(tx_body, "bodyPr", ns::A)
         .or_else(|| inherited_tx_body.and_then(|tx| child_local(tx, "bodyPr", ns::A)));
-    let (column_count, column_gap_px, anchor_center, overflow_clip) =
+    let (column_count, column_gap_px, anchor_center, overflow_clip, body_rotation_deg) =
         parse_body_pr_layout_flags(body_pr);
 
     TextBodyLayout {
@@ -252,12 +255,13 @@ pub fn parse_text_body_layout_with_levels(
         column_gap_px,
         anchor_center,
         overflow_clip,
+        body_rotation_deg,
     }
 }
 
-fn parse_body_pr_layout_flags(body_pr: Option<&Element>) -> (u8, f64, bool, bool) {
+fn parse_body_pr_layout_flags(body_pr: Option<&Element>) -> (u8, f64, bool, bool, Option<f64>) {
     let Some(bp) = body_pr else {
-        return (1, 0.0, false, false);
+        return (1, 0.0, false, false, None);
     };
     let column_count = attr(bp, "numCol")
         .and_then(|s| s.parse::<u8>().ok())
@@ -271,7 +275,17 @@ fn parse_body_pr_layout_flags(body_pr: Option<&Element>) -> (u8, f64, bool, bool
     let vert = attr(bp, "vertOverflow");
     let horz = attr(bp, "horzOverflow");
     let overflow_clip = vert == Some("clip") || vert == Some("ellipsis") || horz == Some("clip");
-    (column_count, column_gap_px, anchor_center, overflow_clip)
+    let body_rotation_deg = attr(bp, "rot")
+        .and_then(|s| s.parse::<f64>().ok())
+        .filter(|v| *v != 0.0)
+        .map(|emu| emu / 60_000.0);
+    (
+        column_count,
+        column_gap_px,
+        anchor_center,
+        overflow_clip,
+        body_rotation_deg,
+    )
 }
 
 fn resolve_first_paragraph_align(
@@ -345,6 +359,10 @@ pub struct TextPaintRun {
     pub ruby: Option<TextPaintRuby>,
     /// `a:fld/@type` or inherited header/footer field tag (paint substitution).
     pub field_type: Option<String>,
+    pub run_font_family: Option<String>,
+    pub run_font_size_px: Option<f64>,
+    pub run_font_bold: Option<bool>,
+    pub run_font_italic: Option<bool>,
 }
 
 /// Paragraph-level BiDi + alignment for painters (upstream `RenderParagraph` subset).
@@ -354,6 +372,8 @@ pub struct TextPaintParagraph {
     pub align: Option<TextAlignCss>,
     pub rtl: Option<bool>,
     pub tab_stops: Vec<TextPaintTabStop>,
+    /// `a:pPr/@defTabSz` in CSS px.
+    pub default_tab_size_px: Option<f64>,
     /// Bullet glyph or formatted auto-number marker (paint only).
     pub bullet_marker: Option<String>,
     pub margin_left_px: Option<f64>,
@@ -371,6 +391,8 @@ pub struct TextPaintParagraph {
     pub margin_bottom_px: Option<f64>,
     /// Exact line spacing: runs use `line-height: 0` inside the paragraph strut.
     pub run_line_height_zero: bool,
+    /// `a:endParaRPr/@sz` for blank paragraphs (line box height).
+    pub empty_line_font_size_px: Option<f64>,
 }
 
 /// Master/layout `txStyles` + `lstStyle` cascade for list paint (#27).
@@ -430,8 +452,14 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
             }
             let rtl = p_pr.and_then(|pp| parse_optional_bool_attr(attr(pp, "rtl")));
             let tab_stops = p_pr.map(parse_tab_stops).unwrap_or_default();
+            let default_tab_size_px = p_pr
+                .and_then(|pp| attr(pp, "defTabSz"))
+                .and_then(|s| s.parse::<i64>().ok())
+                .filter(|v| *v > 0)
+                .map(emu_to_pixels);
             let inherited_field = list_styles.and_then(|c| c.inherited_field_type.as_deref());
-            let runs = collect_paint_runs(p, inherited_field);
+            let font_scheme = list_styles.and_then(|c| c.font_scheme);
+            let runs = collect_paint_runs(p, inherited_field, font_scheme);
             let para_level = paragraph_level(p) as i8;
             let level_run_style = list_styles
                 .and_then(|ctx| {
@@ -501,12 +529,18 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 para_index,
                 para_count,
             );
+            let empty_line_font_size_px = child_local(p, "endParaRPr", ns::A)
+                .and_then(|rpr| attr(rpr, "sz"))
+                .and_then(|s| s.parse::<f64>().ok())
+                .filter(|sz| *sz > 0.0)
+                .map(|sz| sz / 100.0 * 96.0 / 72.0);
 
             TextPaintParagraph {
                 runs,
                 align,
                 rtl,
                 tab_stops,
+                default_tab_size_px,
                 bullet_marker,
                 margin_left_px,
                 text_indent_px,
@@ -520,6 +554,7 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 line_height_css: spacing.line_height_css,
                 margin_bottom_px: spacing.margin_bottom_px,
                 run_line_height_zero: spacing.run_line_height_zero,
+                empty_line_font_size_px,
             }
         })
         .collect()
@@ -743,7 +778,11 @@ fn spacing_px_from_node(node: &Element, basis_font_size_px: Option<f64>) -> Opti
     None
 }
 
-fn collect_paint_runs(p: &Element, inherited_field_type: Option<&str>) -> Vec<TextPaintRun> {
+fn collect_paint_runs(
+    p: &Element,
+    inherited_field_type: Option<&str>,
+    font_scheme: Option<&crate::theme::ThemeFontScheme>,
+) -> Vec<TextPaintRun> {
     let mut runs = Vec::new();
     for child in &p.children {
         if let Node::Element(el) = child {
@@ -773,17 +812,77 @@ fn collect_paint_runs(p: &Element, inherited_field_type: Option<&str>) -> Vec<Te
                 } else {
                     None
                 };
+                let (run_font_family, run_font_size_px, run_font_bold, run_font_italic) = r_pr
+                    .map(|rp| resolve_run_paint_style(rp, font_scheme, &text))
+                    .unwrap_or((None, None, None, None));
                 runs.push(TextPaintRun {
                     text,
                     rtl,
                     underline,
                     ruby,
                     field_type,
+                    run_font_family,
+                    run_font_size_px,
+                    run_font_bold,
+                    run_font_italic,
                 });
             }
         }
     }
     runs
+}
+
+fn resolve_run_paint_style(
+    rpr: &Element,
+    font_scheme: Option<&crate::theme::ThemeFontScheme>,
+    text: &str,
+) -> (Option<String>, Option<f64>, Option<bool>, Option<bool>) {
+    let font_size_px = attr(rpr, "sz")
+        .and_then(|s| s.parse::<f64>().ok())
+        .filter(|sz| *sz > 0.0)
+        .map(|sz| sz / 100.0 * 96.0 / 72.0);
+    let font_bold = attr(rpr, "b").map(|b| matches!(b, "1" | "true" | "on"));
+    let font_italic = attr(rpr, "i").map(|i| matches!(i, "1" | "true" | "on"));
+    let font_family = resolve_run_font_family_for_paint(rpr, font_scheme, text);
+    (font_family, font_size_px, font_bold, font_italic)
+}
+
+fn resolve_run_font_family_for_paint(
+    rpr: &Element,
+    font_scheme: Option<&crate::theme::ThemeFontScheme>,
+    text: &str,
+) -> Option<String> {
+    use crate::theme::{resolve_theme_typeface, ThemeTypefaceScript};
+    let pick_script = if text_has_east_asian(text) {
+        ThemeTypefaceScript::EastAsia
+    } else {
+        ThemeTypefaceScript::Latin
+    };
+    let tag = if text_has_east_asian(text) {
+        "ea"
+    } else {
+        "latin"
+    };
+    let face = child_local(rpr, tag, ns::A)
+        .and_then(|el| attr(el, "typeface"))
+        .or_else(|| {
+            if tag == "ea" {
+                None
+            } else {
+                child_local(rpr, "latin", ns::A).and_then(|el| attr(el, "typeface"))
+            }
+        });
+    face.and_then(|f| resolve_theme_typeface(f, font_scheme, pick_script))
+}
+
+fn text_has_east_asian(text: &str) -> bool {
+    text.chars().any(|c| {
+        let u = c as u32;
+        (0x4E00..=0x9FFF).contains(&u)
+            || (0x3400..=0x4DBF).contains(&u)
+            || (0x3040..=0x30FF).contains(&u)
+            || (0xAC00..=0xD7AF).contains(&u)
+    })
 }
 
 fn field_text_content(fld: &Element) -> Option<String> {

@@ -165,6 +165,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/render/text.rs` | `dom/elements/text-block.ts`, `render/text-body-layout.ts`, `render/text-run-style.ts` @ e66aaec | P3 text body; `bodyPr` anchor + `pPr` align via flex; first-run `font-family` / bold / `-webkit-text-stroke` (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/shape_autofit_resize.rs` | `src/ui/src/pptx/render/shape-autofit-resize.ts` @ e66aaec | `a:spAutoFit` shape height from post-apply `ScrollHeight` layout readback (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/font_substitution.rs` | `src/core/pptx/core/utils/font-substitution.ts` @ e66aaec | CSS `font-family` stacks via `getSubstituteFontFamily` (subset map + default sans chain) (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/field_substitution.rs` | `src/ui/src/pptx/render/text-field-substitution.ts`, `field-context.ts` @ e66aaec | `a:fld` slidenum/slidetitle/header/footer substitution at paint (#27). |
 | `rs/crates/nitro-xml-pptx/src/text_layout.rs` | `text-body-properties-parser.ts`, `text-body-layout.ts` @ e66aaec | Parse `a:bodyPr/@anchor`, insets, paragraph `algn` for paint. |
 | `rs/crates/nitro-xml-pptx/src/text_body_rect.rs` | `text-body-rect.ts` @ e66aaec | Preset/custGeom text rectangle as extra padding on the text body. |
 | `rs/crates/nitro-xml-pptx/src/verified_text_rect_presets.rs` | `verified-text-rect-presets.ts` @ e66aaec | COM-verified preset allowlist for geometry text rectangles. |

@@ -6,6 +6,7 @@ use nitro_xml_render::measure::LayoutReadKind;
 
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_style, set_text_content};
+use super::field_substitution;
 use super::font_substitution::substitute_font_family_stack;
 use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
 use crate::slide::DumpElement;
@@ -360,20 +361,66 @@ fn paint_rich_paragraphs<I: StringIntern>(
                 &para_stack,
             );
         }
-        for run_model in &para_model.runs {
-            append_paint_run(
-                ctx,
-                para,
-                run_model,
-                para_rtl,
-                &para_model.tab_stops,
-                &para_paint,
-                para_size,
-                &para_stack,
-                para_model.run_line_height_zero,
-            );
+        if para_model.runs.is_empty() {
+            if let Some(empty_size) = para_model.empty_line_font_size_px {
+                set_style(
+                    ctx,
+                    para,
+                    "font-size",
+                    &format!("{}px", format_px(empty_size)),
+                );
+            }
+            create_child(ctx, para, "br");
+        } else {
+            for run_model in &para_model.runs {
+                let (run_paint, run_size) =
+                    merge_run_level_paint(&para_paint, run_model, para_size);
+                let run_stack = substitute_font_family_stack(run_paint.font_family);
+                append_paint_run(
+                    ctx,
+                    para,
+                    run_model,
+                    para_rtl,
+                    &para_model.tab_stops,
+                    para_model.default_tab_size_px.unwrap_or(0.0),
+                    &run_paint,
+                    run_size,
+                    &run_stack,
+                    para_model.run_line_height_zero,
+                );
+            }
         }
     }
+}
+
+fn merge_run_level_paint<'a>(
+    base: &'a TextBodyPaint<'a>,
+    run: &'a TextPaintRun,
+    para_size: f64,
+) -> (TextBodyPaint<'a>, f64) {
+    let size = run.run_font_size_px.unwrap_or(para_size);
+    (
+        TextBodyPaint {
+            text_color: base.text_color,
+            font_size_px: Some(size),
+            font_family: run.run_font_family.as_deref().or(base.font_family),
+            font_bold: run.run_font_bold.unwrap_or(base.font_bold),
+            font_italic: run.run_font_italic.unwrap_or(base.font_italic),
+            font_kern_hundredths: base.font_kern_hundredths,
+            text_stroke_width_px: base.text_stroke_width_px,
+            text_stroke_color: base.text_stroke_color,
+            layout: base.layout,
+            paragraphs: base.paragraphs,
+            text_shadow: base.text_shadow,
+            geom_rect_padding: base.geom_rect_padding,
+            presentation_kinsoku: base.presentation_kinsoku,
+        },
+        size,
+    )
+}
+
+fn display_run_text<I: StringIntern>(ctx: &PaintContext<'_, I>, run: &TextPaintRun) -> String {
+    field_substitution::substitute_field_text(&run.text, run.field_type.as_deref(), &ctx.field_ctx)
 }
 
 fn paint_bullet_marker<I: StringIntern>(
@@ -405,17 +452,20 @@ fn append_paint_run<I: StringIntern>(
     run_model: &TextPaintRun,
     paragraph_rtl: Option<bool>,
     tab_stops: &[TextPaintTabStop],
+    default_tab_px: f64,
     paint: &TextBodyPaint<'_>,
     size: f64,
     stack: &str,
     run_line_height_zero: bool,
 ) {
-    if !tab_stops.is_empty() && run_model.text.contains('\t') {
+    let display_text = display_run_text(ctx, run_model);
+    if !tab_stops.is_empty() && display_text.contains('\t') {
         if tab_stops.len() == 1 && tab_stops[0].align == crate::text_layout::TextTabAlign::Left {
             paint_css_tab_run(
                 ctx,
                 para,
                 run_model,
+                &display_text,
                 paragraph_rtl,
                 tab_stops[0].position_px,
                 paint,
@@ -427,8 +477,10 @@ fn append_paint_run<I: StringIntern>(
                 ctx,
                 para,
                 run_model,
+                &display_text,
                 paragraph_rtl,
                 tab_stops,
+                default_tab_px,
                 paint,
                 size,
                 stack,
@@ -442,7 +494,7 @@ fn append_paint_run<I: StringIntern>(
         set_style(ctx, ruby_el, "ruby-align", "center");
         apply_run_rtl(ctx, ruby_el, run_model.rtl, paragraph_rtl);
         let base = create_child(ctx, ruby_el, "span");
-        set_text_content(ctx, base, &run_model.text);
+        set_text_content(ctx, base, &display_text);
         if paint.font_family.is_none() {
             set_style(ctx, base, "font-family", VISUAL_HOST_RUN_FONT_STACK);
         }
@@ -457,7 +509,7 @@ fn append_paint_run<I: StringIntern>(
             apply_gdi_metric_letter_spacing(
                 ctx,
                 base,
-                &run_model.text,
+                &display_text,
                 size,
                 paint.font_family,
                 paint.font_bold,
@@ -469,8 +521,8 @@ fn append_paint_run<I: StringIntern>(
         let close_rp = create_child(ctx, ruby_el, "rp");
         set_text_content(ctx, close_rp, ")");
         ruby_el
-    } else if uses_per_piece_gdi_metric(paint, &run_model.text) {
-        let pieces = split_run_for_metric_pieces(&run_model.text);
+    } else if uses_per_piece_gdi_metric(paint, &display_text) {
+        let pieces = split_run_for_metric_pieces(&display_text);
         if pieces.len() > 1 {
             for piece in pieces {
                 paint_run_text_span(
@@ -490,7 +542,7 @@ fn append_paint_run<I: StringIntern>(
             paint_run_text_span(
                 ctx,
                 para,
-                &run_model.text,
+                &display_text,
                 run_model,
                 paragraph_rtl,
                 paint,
@@ -503,7 +555,7 @@ fn append_paint_run<I: StringIntern>(
         paint_run_text_span(
             ctx,
             para,
-            &run_model.text,
+            &display_text,
             run_model,
             paragraph_rtl,
             paint,
@@ -565,7 +617,9 @@ fn paint_run_text_span<I: StringIntern>(
     let run = create_child(ctx, para, "span");
     set_text_content(ctx, run, text);
     apply_run_rtl(ctx, run, run_model.rtl, paragraph_rtl);
-    if paint.font_family.is_none() {
+    if paint.font_family.is_some() {
+        set_style(ctx, run, "font-family", stack);
+    } else {
         set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
     }
     paint_run_typography(ctx, run, paint, size, stack);
@@ -628,6 +682,7 @@ fn paint_css_tab_run<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     para: u32,
     run_model: &TextPaintRun,
+    display_text: &str,
     paragraph_rtl: Option<bool>,
     tab_px: f64,
     paint: &TextBodyPaint<'_>,
@@ -635,7 +690,7 @@ fn paint_css_tab_run<I: StringIntern>(
     stack: &str,
 ) {
     let run = create_child(ctx, para, "span");
-    set_text_content(ctx, run, &run_model.text);
+    set_text_content(ctx, run, display_text);
     apply_run_rtl(ctx, run, run_model.rtl, paragraph_rtl);
     set_style(ctx, run, "white-space", "pre");
     set_style(ctx, run, "tab-size", &format_layout_px(tab_px));
@@ -650,7 +705,7 @@ fn paint_css_tab_run<I: StringIntern>(
         apply_gdi_metric_letter_spacing(
             ctx,
             run,
-            &run_model.text,
+            display_text,
             size,
             paint.font_family,
             paint.font_bold,
@@ -663,8 +718,10 @@ fn paint_tabbed_run<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     para: u32,
     run_model: &TextPaintRun,
+    display_text: &str,
     paragraph_rtl: Option<bool>,
     tab_stops: &[TextPaintTabStop],
+    default_tab_px: f64,
     paint: &TextBodyPaint<'_>,
     size: f64,
     stack: &str,
@@ -697,8 +754,8 @@ fn paint_tabbed_run<I: StringIntern>(
         ctx.measure.push(font_id, size as f32, width_key);
         text.len() as f64 * size * 0.5
     };
-    let segments: Vec<&str> = run_model.text.split('\t').collect();
-    let pieces = compute_tabbed_line_layout(&segments, tab_stops, measure, 0.0);
+    let segments: Vec<&str> = display_text.split('\t').collect();
+    let pieces = compute_tabbed_line_layout(&segments, tab_stops, measure, default_tab_px);
     for (i, (text, leader_width)) in pieces.iter().enumerate() {
         if i > 0 && *leader_width > 0.5 {
             let leader = create_child(ctx, line_host, "span");
@@ -907,6 +964,15 @@ fn apply_text_body_layout<I: StringIntern>(
     if layout.overflow_clip {
         set_style(ctx, block, "overflow", "hidden");
     }
+    if let Some(deg) = layout.body_rotation_deg.filter(|d| *d != 0.0) {
+        set_style(
+            ctx,
+            block,
+            "transform",
+            &format!("rotate({}deg)", format_px(deg)),
+        );
+        set_style(ctx, block, "transform-origin", "center center");
+    }
     if !per_paragraph_align {
         if let Some(align) = layout.text_align {
             set_style(ctx, block, "text-align", align.as_css());
@@ -971,6 +1037,7 @@ mod tests {
 
     use super::super::context::{PaintContext, StringIntern};
     use super::super::view_ir::ViewIrCollector;
+    use super::super::FieldSubstitutionContext;
     use crate::text_body_rect::TextBodyRectPadding;
 
     use super::{paint_text_body, TextBodyPaint};
@@ -1014,6 +1081,7 @@ mod tests {
             540.0,
             &scheme,
             0,
+            FieldSubstitutionContext::default(),
             slide_autofit,
         );
         paint_text_body(&mut ctx, 1, "Hi", paint);

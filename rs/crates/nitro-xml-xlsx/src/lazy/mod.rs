@@ -229,7 +229,8 @@ mod tests {
     use crate::model::DumpCellValue;
     use crate::sheet_access::CellIndex;
     use crate::view::cell_view::{cell_view, CellViewOptions};
-    use crate::workbook::{load_workbook, parse_all_worksheets};
+    use crate::view::metrics::{create_grid_metrics, GridMetricsOptions};
+    use crate::workbook::{load_workbook, parse_all_worksheets, parse_worksheet_at};
 
     fn cell_texts(
         book: &WorkbookSlice,
@@ -269,6 +270,35 @@ mod tests {
         let left = cell_texts(&full, full_sheet, rect);
         let right = cell_texts(lazy.workbook(), lazy_sheet, rect);
         assert_eq!(left, right);
+    }
+
+    // Catches: lazy first-view dropping row `ht` below the cell window so topLeft reveal scrolls short.
+    #[test]
+    fn lazy_keeps_row_heights_below_viewport() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/real/xlsx/poi-45540_classic_Footer.xlsx");
+        let bytes = std::fs::read(&path).expect("fixture");
+        let full = load_workbook(&bytes).expect("full");
+        let full_sheet =
+            parse_worksheet_at(&bytes, &full, full.active_sheet as usize).expect("full sheet");
+        let lazy = open_first_view(
+            &bytes,
+            ViewportRect {
+                r0: 0,
+                c0: 0,
+                r1: 36,
+                c1: 14,
+            },
+        )
+        .expect("first view");
+        let lazy_sheet = lazy
+            .sheet(full.active_sheet as usize)
+            .expect("lazy sheet");
+        let full_m = create_grid_metrics(&full_sheet, GridMetricsOptions::default());
+        let lazy_m = create_grid_metrics(lazy_sheet, GridMetricsOptions::default());
+        // A91 is topLeftCell; row tops through that cell must match the full load.
+        assert_eq!(lazy_m.row_top(90), full_m.row_top(90));
+        assert_eq!(lazy_m.row_height(90), full_m.row_height(90));
     }
 
     // Catches: Apache POI 56644 (real corpus) lazy first-view must paint Customer row like full load.

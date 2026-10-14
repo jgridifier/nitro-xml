@@ -112,13 +112,13 @@ pub(crate) fn load_sheet_window(
         push_warn(warnings, w);
     }
 
+    // Keep every height/hidden override from the stream. Truncating to the cell
+    // window drops `ht` below the fold and skews `topLeftCell` reveal scroll
+    // (e.g. poi-45540_classic_Footer A91 was 4px short of upstream).
     let mut row_info = capture.row_info;
     for (k, v) in parsed_info {
-        if k <= req.view.r1 {
-            row_info.insert(k, v);
-        }
+        row_info.insert(k, v);
     }
-    row_info.retain(|k, _| *k <= req.view.r1);
 
     let shell = shell_document(&capture.prefix, &capture.tail, capture.truncated);
     let mut sheet = worksheet_from_shell(pkg, req, &shell, warnings);
@@ -559,6 +559,10 @@ impl SheetParser {
                         self.capture.max_row = self.capture.max_row.max(row0);
                         self.capture.saw_row = true;
                         note_cols(xml, &mut self.capture.max_col);
+                        // Sparse height/hidden flags still feed grid metrics when scrolled.
+                        if let Some(info) = row_info_from_xml(xml, &self.xf_map) {
+                            self.capture.row_info.insert(row0, info);
+                        }
                         self.last_row = Some(row0);
                         self.row_fallback = row0.saturating_add(1);
                         self.text = self.text[end..].to_owned();
@@ -576,10 +580,8 @@ impl SheetParser {
         note_cols(&xml, &mut self.capture.max_col);
         self.last_row = Some(row0);
         self.row_fallback = row0.saturating_add(1);
-        if row0 <= self.view.r1 {
-            if let Some(info) = row_info_from_xml(&xml, &self.xf_map) {
-                self.capture.row_info.insert(row0, info);
-            }
+        if let Some(info) = row_info_from_xml(&xml, &self.xf_map) {
+            self.capture.row_info.insert(row0, info);
         }
         let kept = KeptRow { row: row0, xml };
         if self.freeze_applied {

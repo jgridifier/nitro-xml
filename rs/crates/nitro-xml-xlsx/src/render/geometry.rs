@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/ui/grid/geometry.ts
-// (headerW/H, colAtX, rowAtY, hit, clampedHit);
+// (headerW/H, colAtX, rowAtY, hit, clampedHit, scrollToReveal);
 // changes listed in PROVENANCE.md.
 
 use crate::model::ActiveWorksheet;
@@ -144,9 +144,104 @@ pub fn hit(g: &HitInput<'_>, x: i32, y: i32) -> Hit {
     }
 }
 
+/// Scroll offsets that bring a cell fully into the scrolling pane.
+/// Upstream `scrollToReveal`.
+pub fn scroll_to_reveal(
+    metrics: &GridMetrics,
+    scroll_x: i32,
+    scroll_y: i32,
+    width: i32,
+    height: i32,
+    header_w: i32,
+    header_h: i32,
+    frozen_rows: u32,
+    frozen_cols: u32,
+    row: u32,
+    col: u32,
+) -> (i32, i32) {
+    let mut left = scroll_x.max(0);
+    let mut top = scroll_y.max(0);
+    let frozen_w = if frozen_cols > 0 {
+        metrics.col_left(frozen_cols)
+    } else {
+        0
+    };
+    let frozen_h = if frozen_rows > 0 {
+        metrics.row_top(frozen_rows)
+    } else {
+        0
+    };
+    let cells_w = (width - header_w).max(0);
+    let cells_h = (height - header_h).max(0);
+    if col >= frozen_cols {
+        let x = metrics.col_left(col) - frozen_w;
+        let w = metrics.col_width(col);
+        let view_w = (cells_w - frozen_w).max(0);
+        if x < left {
+            left = x;
+        } else if x + w > left + view_w {
+            left = x.min(x + w - view_w);
+        }
+    }
+    if row >= frozen_rows {
+        let y = metrics.row_top(row) - frozen_h;
+        let h = metrics.row_height(row);
+        let view_h = (cells_h - frozen_h).max(0);
+        if y < top {
+            top = y;
+        } else if y + h > top + view_h {
+            top = y.min(y + h - view_h);
+        }
+    }
+    (left.max(0), top.max(0))
+}
+
 /// Drag hit clamped into the cell area. Upstream `clampedHit`.
 pub fn clamped_hit(g: &HitInput<'_>, x: i32, y: i32) -> (u32, u32) {
     let cx = x.max(g.header_w + 1).min(g.width - 2);
     let cy = y.max(g.header_h + 1).min(g.height - 2);
     (row_at_y(g, cy), col_at_x(g, cx))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::scroll_to_reveal;
+    use crate::model::ActiveWorksheet;
+    use crate::sheet_props::default_sheet_view;
+    use crate::view::metrics::{create_grid_metrics, GridMetricsOptions};
+
+    fn blank_sheet() -> ActiveWorksheet {
+        ActiveWorksheet {
+            name: "S".into(),
+            sheet_id: 1,
+            state: crate::model::SheetState::Visible,
+            part_name: None,
+            default_row_height: 15.0,
+            default_col_width: None,
+            format: None,
+            view: default_sheet_view(),
+            columns: Vec::new(),
+            merges: Vec::new(),
+            row_info: std::collections::BTreeMap::new(),
+            cells: Vec::new(),
+            data_validations: Vec::new(),
+            comment_addresses: Vec::new(),
+            hyperlinks: Vec::new(),
+            ext_lst: Vec::new(),
+            sparkline_groups: Vec::new(),
+            drawings: Vec::new(),
+            dimension: None,
+        }
+    }
+
+    #[test]
+    fn scroll_to_reveal_brings_far_cell_into_view() {
+        // Catches: sheetView topLeftCell left at scroll 0 so mid-sheet opens blank vs upstream reveal.
+        let metrics = create_grid_metrics(&blank_sheet(), GridMetricsOptions::default());
+        let (left, top) = scroll_to_reveal(&metrics, 0, 0, 330, 220, 30, 20, 0, 0, 40, 10);
+        assert!(top > 0, "expected vertical scroll, got {top}");
+        assert!(left > 0, "expected horizontal scroll, got {left}");
+        let (z_left, z_top) = scroll_to_reveal(&metrics, 0, 0, 330, 220, 30, 20, 0, 0, 0, 0);
+        assert_eq!((z_left, z_top), (0, 0));
+    }
 }

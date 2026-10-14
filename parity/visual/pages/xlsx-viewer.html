@@ -264,6 +264,24 @@
         if (grid && grid.childElementCount > 0) break;
       }
       hideShellChrome(root);
+      // Load-time reveal(topLeft) ran while ribbon/tabs still laid out, so scrollTop was
+      // computed against a shorter grid. Re-reveal with the full stage (matches rust).
+      await waitFrames(2);
+      try {
+        const core = el.core;
+        const sheet = core?.workbook?.sheets?.[core.activeSheet];
+        const top = sheet?.view?.topLeft;
+        if (top && core?.ctx?.grid) {
+          const scroller = root.querySelector('.xg-scroller');
+          if (scroller) {
+            scroller.scrollTop = 0;
+            scroller.scrollLeft = 0;
+          }
+          core.ctx.grid()?.scrollTo(top);
+        }
+      } catch {
+        /* ignore — older bundles without core */
+      }
       await waitFrames(3);
     }
 

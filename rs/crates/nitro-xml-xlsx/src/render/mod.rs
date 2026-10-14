@@ -13,7 +13,9 @@ mod selection;
 mod selection_ops;
 mod viewport;
 
-pub use geometry::{clamped_hit, col_at_x, header_sizes, hit, row_at_y, Hit, HitArea, HitInput};
+pub use geometry::{
+    clamped_hit, col_at_x, header_sizes, hit, row_at_y, scroll_to_reveal, Hit, HitArea, HitInput,
+};
 pub use navigate::{arrow_origin, navigate_arrow, Arrow};
 pub use selection_ops::{
     all_range, current_region, current_region_or_all, extend_selection, moving_end, select_cell,

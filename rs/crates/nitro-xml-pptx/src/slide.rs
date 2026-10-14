@@ -4432,10 +4432,6 @@ mod tests {
         assert_eq!(solid.stroke_color.as_deref(), Some("#00B050"));
         assert!(solid.stroke_width_px.unwrap_or(0.0) > 0.0);
         let pat = by_name.get("pattern-dkDnDiag").expect("pattern");
-        eprintln!(
-            "pattern: stroke={:?} width={:?} fill={:?} mode={:?}",
-            pat.stroke_color, pat.stroke_width_px, pat.fill_color, pat.fill_mode
-        );
         assert!(
             pat.stroke_width_px.unwrap_or(0.0) > 0.0,
             "pattern stroke width should parse from a:ln/@w"

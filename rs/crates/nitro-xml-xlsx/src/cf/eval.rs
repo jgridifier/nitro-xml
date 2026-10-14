@@ -366,18 +366,23 @@ pub fn cf_at(
                     continue;
                 };
                 let nums = range_numbers(sheet, index, format);
-                let lo = threshold_value(min, &nums);
-                let hi = threshold_value(max, &nums);
+                // Match x14 autoMin/autoMax + automatic axis defaults used by Excel 2010+ samples.
+                let data_lo = threshold_value(min, &nums);
+                let data_hi = threshold_value(max, &nums);
+                let lo = data_lo.min(0.0);
+                let hi = data_hi.max(0.0);
                 let (start, fraction) = data_bar_geometry(n, lo, hi);
+                let css = resolve_rgb(color, theme, indexed);
                 result.data_bar = Some(DataBarView {
                     fraction,
                     start: Some(start),
                     axis: None,
-                    color: resolve_rgb(color, theme, indexed),
+                    color: css.clone(),
                     negative: if n < 0.0 { Some(true) } else { None },
                     gradient: None,
                     direction: None,
-                    border_color: None,
+                    // x14 `border="1"` defaults borderColor to the fill (NewStyle E2:E17).
+                    border_color: Some(css),
                 });
                 if !*show_value {
                     result.hide_value = true;

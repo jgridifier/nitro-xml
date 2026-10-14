@@ -131,3 +131,17 @@ fn catches_over_max_depth_worksheet_opens_or_rejects_without_panic() {
         let _ = crate::parse_all_worksheets(&bytes, &wb);
     }
 }
+
+#[test]
+fn catches_poi_46535_zoom_scale_and_hidden_gridlines() {
+    // Catches: poi-46535 zoomScale=85 / showGridLines=0 dropped so live grid paints at 100%.
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../fixtures/real/xlsx/poi-46535.xlsx"
+    );
+    let bytes = std::fs::read(path).expect("fixture");
+    let wb = crate::load_workbook(&bytes).expect("load");
+    let ws = crate::parse_worksheet_at(&bytes, &wb, 0).expect("ws");
+    assert!((ws.view.zoom - 85.0).abs() < 0.01);
+    assert!(!ws.view.show_grid_lines);
+}

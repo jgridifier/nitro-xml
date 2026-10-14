@@ -273,6 +273,8 @@ impl Handle {
                     .unwrap_or_default(),
                 state.active as u32,
             );
+            // Seed shell zoom from sheet zoomScale (upstream grid-view.ts).
+            self.shell.set_zoom(state.active_view_zoom());
             state.set_zoom_pct(self.shell.zoom_pct);
             if let Some(r) = state.selection_ref_now() {
                 self.shell.selection_ref = r;
@@ -612,6 +614,11 @@ impl Handle {
                 xlsx.scroll_to_cell(row, col);
             }
             result.reopen_paint = true;
+        }
+        if matches!(action, ShellAction::Sheet(_)) {
+            if let Some(xlsx) = self.xlsx.as_ref() {
+                self.shell.set_zoom(xlsx.active_view_zoom());
+            }
         }
         if let Some(xlsx) = self.xlsx.as_mut() {
             xlsx.set_zoom_pct(self.shell.zoom_pct);

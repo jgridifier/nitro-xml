@@ -75,6 +75,17 @@ impl XlsxState {
         self.zoom_pct = Some(zoom_pct);
     }
 
+    /// Active sheet `zoomScale` (percent). Used to seed shell zoom on open/sheet switch
+    /// so live paint matches upstream (`sheet.view.zoom` when no override).
+    pub fn active_view_zoom(&self) -> f64 {
+        self.sheets
+            .get(self.active)
+            .and_then(|s| s.as_ref())
+            .map(|s| s.view.zoom)
+            .filter(|z| z.is_finite() && *z > 0.0)
+            .unwrap_or(100.0)
+    }
+
     /// Apply an A1 selection ref to the active sheet view (paints `.xg-outline`).
     /// Returns the normalized ref string (`A1` / `A1:B2`) for shell UI parity.
     pub fn apply_selection_ref(&mut self, range_ref: &str) -> Result<String, String> {

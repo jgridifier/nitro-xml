@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-/** Batched measureText. sizePx -1/−2 = lineHeight/ascent; -3 = pptx GDI track (px/char). */
+/** Batched measureText. sizePx -1/−2 = lineHeight/ascent; -3 = pptx GDI track; -4 = hang-punct word-spacing. */
 export function fillMeasureWidths(ctx, n, fontAt, sizeAt, textAt) {
   const widths = new Float64Array(n);
   if (!ctx) return widths;
@@ -29,6 +29,19 @@ export function fillMeasureWidths(ctx, n, fontAt, sizeAt, textAt) {
       const nat = ctx.measureText(text).width,
         lim = 1 / 12;
       widths[i] = nat > 0 ? Math.min(lim, Math.max(-lim, (ppt / 6 - nat) / ch.length)) : 0;
+      continue;
+    }
+    if (sz === -4) {
+      const ch = text.startsWith("pptx-hang-space:")
+        ? text.slice("pptx-hang-space:".length)
+        : text;
+      if (!ch) {
+        widths[i] = 0;
+        continue;
+      }
+      const glyph = ctx.measureText(ch).width;
+      const space = ctx.measureText(" ").width;
+      widths[i] = Math.round((glyph - space) * 1000) / 1000;
       continue;
     }
     const m = ctx.measureText(sz < 0 ? "Mg" : text),

@@ -407,6 +407,8 @@ pub struct TextPaintParagraph {
     pub empty_line_font_size_px: Option<f64>,
     /// Per-paragraph `@hangingPunct` / `@eaLnBrk="0"` paint (upstream `eastAsianBreaks`).
     pub east_asian_breaks: Option<crate::east_asian_breaks::EastAsianBreakOptions>,
+    /// `a:buFont` from the paragraph's list level (marker typeface).
+    pub bullet_font_family: Option<String>,
 }
 
 /// Master/layout `txStyles` + `lstStyle` cascade for list paint (#27).
@@ -509,6 +511,12 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 })
                 .unwrap_or_default();
 
+            let bullet_font_family = list_styles.and_then(|ctx| {
+                ctx.effective_level_styles
+                    .and_then(|map| crate::level_style::level_style_for(map, para_level))
+                    .and_then(|s| s.bullet_font_family.clone())
+            });
+
             let (bullet_marker, margin_left_px, text_indent_px) = if let Some(ctx) = list_styles {
                 let has_renderable = paragraph_has_renderable_content(p);
                 let bullet = resolve_paragraph_bullet_info(
@@ -592,6 +600,7 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 run_line_height_zero: spacing.run_line_height_zero,
                 empty_line_font_size_px,
                 east_asian_breaks,
+                bullet_font_family,
             }
         })
         .collect()
@@ -635,24 +644,26 @@ fn resolve_paint_paragraph_spacing(
     let is_first = para_index == 0;
     let is_last = para_index + 1 == para_count;
 
-    let before = if cascade_margin {
-        pick_spacing(
-            own.as_ref().and_then(|o| o.before_px),
-            level.as_ref().and_then(|l| l.before_px),
-            body.as_ref().and_then(|b| b.before_px),
-        )
+    let body_before = if cascade_margin {
+        body.as_ref().and_then(|b| b.before_px)
     } else {
-        own.as_ref().and_then(|o| o.before_px).unwrap_or(0.0)
+        None
     };
-    let after = if cascade_margin {
-        pick_spacing(
-            own.as_ref().and_then(|o| o.after_px),
-            level.as_ref().and_then(|l| l.after_px),
-            body.as_ref().and_then(|b| b.after_px),
-        )
+    let body_after = if cascade_margin {
+        body.as_ref().and_then(|b| b.after_px)
     } else {
-        own.as_ref().and_then(|o| o.after_px).unwrap_or(0.0)
+        None
     };
+    let before = pick_spacing(
+        own.as_ref().and_then(|o| o.before_px),
+        level.as_ref().and_then(|l| l.before_px),
+        body_before,
+    );
+    let after = pick_spacing(
+        own.as_ref().and_then(|o| o.after_px),
+        level.as_ref().and_then(|l| l.after_px),
+        body_after,
+    );
     let effective_before = if before > 0.0 && (!is_first || space_first_last) {
         before
     } else {

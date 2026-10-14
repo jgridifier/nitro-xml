@@ -53,6 +53,15 @@ async function shot(browser, base, c, side, dpr) {
 			);
 			throw new Error(`host not ready: ${body || page.title()}`);
 		}
+		if (side === 'rust') {
+			for (let c = 0; c < 16; c++) {
+				await page.evaluate(async () => {
+					const el = document.getElementById('stage')?.querySelector('nitro-pptx');
+					if (el?.document) await el.document.tick();
+				});
+				await page.waitForTimeout(50);
+			}
+		}
 		return await page.locator('#stage').screenshot({ type: 'png' });
 	} finally {
 		await context.close();

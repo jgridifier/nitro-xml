@@ -20,6 +20,7 @@ use crate::text_layout::{
 
 /// Loader `fillMeasureWidths` sentinel: returns GDI letter-spacing px/char (upstream `text-metric-tracking`).
 const SIZE_PPTX_METRIC_TRACKING: f32 = -3.0;
+const SIZE_PPTX_HANG_SPACE: f32 = -4.0;
 /// Visual host pins run glyphs to Liberation (`#ts-wrap *` / shadow font-pin); block keeps `DEFAULT_FONT_FAMILY`.
 const VISUAL_HOST_RUN_FONT_STACK: &str = "\"Liberation Sans\", Arial, sans-serif";
 
@@ -171,7 +172,9 @@ pub fn paint_text_body<I: StringIntern>(
     set_attr(ctx, block, "class", "pptxv-text");
     set_style(ctx, block, "white-space", "pre-wrap");
     if paint.presentation_kinsoku {
-        apply_presentation_kinsoku_line_break(ctx, block);
+        set_style(ctx, block, "line-break", "strict");
+        set_style(ctx, block, "word-break", "normal");
+        set_style(ctx, block, "overflow-wrap", "break-word");
     } else {
         set_style(ctx, block, "word-break", "break-word");
     }
@@ -188,6 +191,11 @@ pub fn paint_text_body<I: StringIntern>(
         }
     }
     let per_paragraph_align = paint.paragraphs.is_some_and(|paras| !paras.is_empty());
+    let italic_body = paint.font_italic
+        || paint
+            .paragraphs
+            .is_some_and(|paras| paras.iter().any(|p| p.level_font_italic == Some(true)));
+    let italic_inset_slop = if italic_body { 1.0 } else { 0.0 };
     if let Some(layout) = paint.layout {
         apply_text_body_layout(
             ctx,
@@ -195,6 +203,7 @@ pub fn paint_text_body<I: StringIntern>(
             layout,
             paint.geom_rect_padding,
             per_paragraph_align,
+            italic_inset_slop,
         );
     } else if paint.geom_rect_padding != TextBodyRectPadding::default() {
         apply_geom_rect_padding_only(ctx, block, paint.geom_rect_padding);
@@ -226,9 +235,11 @@ pub fn paint_text_body<I: StringIntern>(
             }
             paint_rich_paragraphs(ctx, block, paragraphs, &paint, size, &stack);
         } else if !text.trim().is_empty() {
+            apply_plain_body_kinsoku(ctx, block, &paint);
             paint_plain_text_runs(ctx, block, text, &paint, size, &stack);
         }
     } else {
+        apply_plain_body_kinsoku(ctx, block, &paint);
         paint_plain_text_runs(ctx, block, text, &paint, size, &stack);
     }
     if let Some(shadow) = paint.text_shadow {
@@ -341,6 +352,8 @@ fn paint_rich_paragraphs<I: StringIntern>(
         }
         if let Some(align) = css_align {
             set_style(ctx, para, "text-align", align.as_css());
+        } else {
+            set_style(ctx, para, "text-align", "left");
         }
         if let Some(rtl) = para_rtl {
             set_style(ctx, para, "direction", if rtl { "rtl" } else { "ltr" });
@@ -355,7 +368,18 @@ fn paint_rich_paragraphs<I: StringIntern>(
         if let Some(mb) = para_model.margin_bottom_px {
             set_style(ctx, para, "margin-bottom", &format!("{}px", format_px(mb)));
         }
+        apply_paragraph_kinsoku_line_break(
+            ctx,
+            para,
+            para_model.east_asian_breaks,
+            paint.presentation_kinsoku,
+        );
         if let Some(marker) = &para_model.bullet_marker {
+            let bullet_stack = if let Some(face) = para_model.bullet_font_family.as_deref() {
+                substitute_font_family_stack(Some(face))
+            } else {
+                para_stack.clone()
+            };
             paint_bullet_marker(
                 ctx,
                 para,
@@ -363,7 +387,7 @@ fn paint_rich_paragraphs<I: StringIntern>(
                 para_model.text_indent_px,
                 &para_paint,
                 para_size,
-                &para_stack,
+                &bullet_stack,
             );
         }
         if para_model.runs.is_empty() {
@@ -721,7 +745,11 @@ fn paint_run_text_span<I: StringIntern>(
             set_style(ctx, run, "inline-size", "0px");
         }
         if let Some(ws) = piece.word_spacing_px {
-            set_style(ctx, run, "word-spacing", &format_layout_px(ws));
+            if let Some(glyph) = piece.hang_glyph {
+                apply_hang_space_word_spacing(ctx, run, glyph, size, stack, paint.font_bold, ws);
+            } else {
+                set_style(ctx, run, "word-spacing", &format_layout_px(ws));
+            }
         }
         paint_run_span_styles(
             ctx,
@@ -764,14 +792,31 @@ fn paint_run_span_styles<I: StringIntern>(
     if run_model.underline {
         apply_run_underline(ctx, run);
     }
-    apply_gdi_metric_letter_spacing(
-        ctx,
-        run,
-        metric_text,
-        size,
-        paint.font_family,
-        paint.font_bold,
-    );
+    if should_apply_gdi_metric(metric_text) {
+        apply_gdi_metric_letter_spacing(
+            ctx,
+            run,
+            metric_text,
+            size,
+            paint.font_family,
+            paint.font_bold,
+        );
+    }
+}
+
+fn should_apply_gdi_metric(text: &str) -> bool {
+    let mut chars = 0u32;
+    let mut east_asian = 0u32;
+    for ch in text.chars() {
+        if ch.is_whitespace() || ch == '\u{200B}' || ch == '\u{2060}' {
+            continue;
+        }
+        chars += 1;
+        if crate::east_asian_breaks::is_east_asian_char(ch) {
+            east_asian += 1;
+        }
+    }
+    chars > 0 && east_asian * 2 < chars
 }
 
 fn apply_run_rtl<I: StringIntern>(
@@ -958,14 +1003,34 @@ fn append_paragraph_text<I: StringIntern>(
     (para, run)
 }
 
-/// `p:defaultTextStyle` with `eaLnBrk="1"` mapped like upstream `getKinsokuLineBreakStyles`.
-fn apply_presentation_kinsoku_line_break<I: StringIntern>(
+fn apply_plain_body_kinsoku<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
-    node: u32,
+    block: u32,
+    paint: &TextBodyPaint<'_>,
 ) {
-    set_style(ctx, node, "line-break", "strict");
-    set_style(ctx, node, "word-break", "normal");
-    set_style(ctx, node, "overflow-wrap", "break-word");
+    if paint.presentation_kinsoku {
+        set_style(ctx, block, "line-break", "strict");
+        set_style(ctx, block, "word-break", "normal");
+    }
+}
+
+/// Per-paragraph kinsoku CSS (upstream `getKinsokuLineBreakStyles`).
+fn apply_paragraph_kinsoku_line_break<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    para: u32,
+    east_asian: Option<EastAsianBreakOptions>,
+    presentation_kinsoku: bool,
+) {
+    if east_asian.is_some_and(|o| o.break_anywhere) {
+        // Upstream `getKinsokuLineBreakStyles` only sets overflow-wrap here; ZWSP carries breaks.
+        set_style(ctx, para, "overflow-wrap", "break-word");
+        return;
+    }
+    if east_asian.is_some() || presentation_kinsoku {
+        set_style(ctx, para, "line-break", "strict");
+        set_style(ctx, para, "word-break", "normal");
+        set_style(ctx, para, "overflow-wrap", "break-word");
+    }
 }
 
 fn canvas_measure_font(family_stack: &str, size_px: f64, bold: bool) -> String {
@@ -996,6 +1061,30 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
         VISUAL_HOST_RUN_FONT_STACK,
         bold,
     );
+}
+
+fn apply_hang_space_word_spacing<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    run: u32,
+    glyph: char,
+    size_px: f64,
+    stack: &str,
+    bold: bool,
+    fallback_px: f64,
+) {
+    let glyph_s = glyph.to_string();
+    let canvas_font = canvas_measure_font(stack, size_px, bold);
+    let font_id = ctx.intern.intern(&canvas_font);
+    // Distinct intern key so width/GDI caches for the same glyph are not reused.
+    let hang_key = ctx.intern.intern(&format!("pptx-hang-space:{glyph_s}"));
+    if let Some(ws) = ctx.measure.cached_width(font_id, hang_key) {
+        if ws.abs() > 1e-9 {
+            set_style(ctx, run, "word-spacing", &format_layout_px(ws));
+        }
+        return;
+    }
+    set_style(ctx, run, "word-spacing", &format_layout_px(fallback_px));
+    ctx.measure.push(font_id, SIZE_PPTX_HANG_SPACE, hang_key);
 }
 
 fn apply_gdi_metric_letter_spacing_with_stack<I: StringIntern>(
@@ -1074,6 +1163,7 @@ fn apply_text_body_layout<I: StringIntern>(
     layout: &TextBodyLayout,
     rect: TextBodyRectPadding,
     per_paragraph_align: bool,
+    italic_inset_slop: f64,
 ) {
     if layout.column_count > 1 {
         set_style(ctx, block, "display", "block");
@@ -1131,13 +1221,19 @@ fn apply_text_body_layout<I: StringIntern>(
         ctx,
         block,
         "padding-top",
-        &format!("{}px", format_px(layout.inset_top_px + rect.top)),
+        &format!(
+            "{}px",
+            format_px(layout.inset_top_px + rect.top + italic_inset_slop)
+        ),
     );
     set_style(
         ctx,
         block,
         "padding-bottom",
-        &format!("{}px", format_px(layout.inset_bottom_px + rect.bottom)),
+        &format!(
+            "{}px",
+            format_px(layout.inset_bottom_px + rect.bottom + italic_inset_slop)
+        ),
     );
     set_style(
         ctx,

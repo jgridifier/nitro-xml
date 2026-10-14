@@ -20,6 +20,8 @@ pub struct PlaceholderTextLevelStyle {
     pub bullet_char: Option<String>,
     pub bullet_auto_num_type: Option<String>,
     pub bullet_auto_num_start_at: u32,
+    /// `a:buFont/@typeface` when the level declares a bullet font.
+    pub bullet_font_family: Option<String>,
     pub bullet_none: bool,
     /// Resolved `#RRGGBB` when `a:defRPr/a:solidFill` does not need a theme.
     pub text_color_hex: Option<String>,
@@ -72,6 +74,9 @@ pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle 
             .filter(|v| *v > 0);
         style.bullet_auto_num_start_at = start.unwrap_or(1);
     }
+    if let Some(bu_font) = child_local(p_pr, "buFont", ns::A) {
+        style.bullet_font_family = attr(bu_font, "typeface").map(str::to_owned);
+    }
     style
 }
 
@@ -119,6 +124,7 @@ fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
         || style.line_spacing_exact_pt.is_some()
         || style.paragraph_spacing_before_px.is_some()
         || style.paragraph_spacing_after_px.is_some()
+        || style.bullet_font_family.is_some()
 }
 
 fn apply_paragraph_spacing_attrs(
@@ -319,6 +325,11 @@ fn merge_level_style(
             over.bullet_none
         } else {
             base.bullet_none
+        },
+        bullet_font_family: if over_has_bullet {
+            over.bullet_font_family.clone()
+        } else {
+            base.bullet_font_family.clone()
         },
         text_color_hex: if over_has_color {
             over.text_color_hex.clone()

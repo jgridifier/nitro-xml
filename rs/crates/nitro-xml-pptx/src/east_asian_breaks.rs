@@ -16,6 +16,8 @@ pub struct EastAsianPiece {
     pub text: String,
     pub inline_block_zero_width: bool,
     pub word_spacing_px: Option<f64>,
+    /// Hanging-punctuation glyph whose advance the following space piece carries.
+    pub hang_glyph: Option<char>,
 }
 
 const WORD_JOINER: char = '\u{2060}';
@@ -145,6 +147,7 @@ pub fn split_east_asian_breaks(
             text: text.to_owned(),
             inline_block_zero_width: false,
             word_spacing_px: None,
+            hang_glyph: None,
         }];
     }
     let options = options.unwrap();
@@ -158,6 +161,7 @@ pub fn split_east_asian_breaks(
                 text: buf.clone(),
                 inline_block_zero_width: false,
                 word_spacing_px: None,
+                hang_glyph: None,
             });
             buf.clear();
         }
@@ -181,11 +185,13 @@ pub fn split_east_asian_breaks(
                 text: ch.to_string(),
                 inline_block_zero_width: true,
                 word_spacing_px: None,
+                hang_glyph: None,
             });
             pieces.push(EastAsianPiece {
                 text: " ".to_owned(),
                 inline_block_zero_width: false,
                 word_spacing_px: Some(hang_space_word_spacing(ch, font_size_px)),
+                hang_glyph: Some(ch),
             });
             continue;
         }
@@ -200,6 +206,7 @@ pub fn split_east_asian_breaks(
             text: text.to_owned(),
             inline_block_zero_width: false,
             word_spacing_px: None,
+            hang_glyph: None,
         }]
     } else {
         pieces

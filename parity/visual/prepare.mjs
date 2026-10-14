@@ -35,7 +35,20 @@ function preparePinnedFonts() {
 	}
 	// CSS2-compatible mirror for #121 fontSource. Served at /out/fonts/css2
 	// (query string ignored); every requested family maps to Liberation Sans files.
-	const faces = ['Calibri', 'Carlito', 'Segoe UI', 'Arial', 'Liberation Sans', 'Helvetica'];
+	const faces = [
+		'Calibri',
+		'Carlito',
+		'Segoe UI',
+		'Arial',
+		'Liberation Sans',
+		'Helvetica',
+		'Verdana',
+		'DejaVu Sans',
+		'Lucida Grande',
+		'Arial Black',
+		'Informal Roman',
+		'Script MT Bold',
+	];
 	const css2 = [
 		'/* SPDX-License-Identifier: MIT — visual-gate local font mirror (#150) */',
 		...PINNED_FONTS.flatMap((file) => {

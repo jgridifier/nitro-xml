@@ -8,10 +8,13 @@ use super::placeholder;
 use crate::slide::DumpElement;
 
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
-    if el.image_src.is_some() {
-        paint_preview(ctx, el, parent);
-    } else {
-        placeholder::paint_typed_stub(ctx, "ole", el, parent, "[OLE]");
+    // Upstream only paints a bitmap preview when `previewImageData` is a real
+    // raster URL. EMF/WMF arrive as `nitro-metafile:` (loader S3) and TS leaves
+    // them as the typed placeholder — matching that avoids a blank/garbled poster
+    // (poi-bug64693 soft band).
+    match el.image_src.as_deref() {
+        Some(src) if !src.starts_with("nitro-metafile:") => paint_preview(ctx, el, parent),
+        _ => placeholder::paint_typed_stub(ctx, "ole", el, parent, "[OLE]"),
     }
 }
 

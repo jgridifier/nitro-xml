@@ -357,7 +357,10 @@ fn paint_rich_paragraphs<I: StringIntern>(
                 .or(paint.font_family),
             font_bold: para_model.level_font_bold.unwrap_or(paint.font_bold),
             font_italic: para_model.level_font_italic.unwrap_or(paint.font_italic),
-            font_kern_hundredths: paint.font_kern_hundredths,
+            // Master/layout `defRPr/@kern` (bug62513 titleStyle kern="1200").
+            font_kern_hundredths: para_model
+                .level_font_kern_hundredths
+                .or(paint.font_kern_hundredths),
             text_stroke_width_px: paint.text_stroke_width_px,
             text_stroke_color: paint.text_stroke_color,
             layout: paint.layout,
@@ -1306,17 +1309,16 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
     if text.is_empty() {
         return;
     }
-    let measure_stack = if _paint.font_family.is_some() {
-        painted_stack
-    } else {
-        VISUAL_HOST_RUN_FONT_STACK
-    };
+    // Visual host pins painted glyphs to Liberation (`!important`); canvas
+    // `measureText` ignores that CSS pin, so GDI tracking must use the same
+    // Liberation stack or letter-spacing drifts vs the oracle (txt-font-typeface).
+    let _ = (painted_stack, _paint);
     apply_gdi_metric_letter_spacing_with_stack(
         ctx,
         para,
         text,
         size_px,
-        measure_stack,
+        VISUAL_HOST_RUN_FONT_STACK,
         bold,
         italic,
     );

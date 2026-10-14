@@ -2045,6 +2045,30 @@ mod tests {
         );
     }
 
+    // Catches: master titleStyle defRPr/@kern never becoming CSS font-kerning on ctrTitle runs.
+    #[test]
+    fn bug62513_title_level_kern_paints_font_kerning() {
+        let path = format!(
+            "{}/../../../fixtures/real/pptx/poi-bug62513.pptx",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let bytes = std::fs::read(&path).unwrap();
+        let mut opened = Presentation::open(&bytes).unwrap();
+        let slide = opened.slide(0).unwrap();
+        let el = slide
+            .elements
+            .iter()
+            .find(|e| e.text.as_deref().unwrap_or("").contains("CNIA"))
+            .unwrap();
+        let para = &el.text_paint_paragraphs.as_ref().unwrap()[0];
+        assert_eq!(para.level_font_kern_hundredths, Some(1200));
+        let painted = paint_fixture("real/pptx/poi-bug62513.pptx", 0);
+        assert!(
+            painted.contains("font-kerning") && painted.contains("normal"),
+            "expected font-kerning:normal from titleStyle kern=1200"
+        );
+    }
+
     fn cached_drawing(labels: &[&str]) -> String {
         let mut body = String::from(
             r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

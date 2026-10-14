@@ -380,7 +380,6 @@ mod tests {
         assert_eq!(n, 91, "expected 91 edit scripts");
     }
 
-
     #[test]
     fn catches_replay_without_handlers_is_unsupported_not_ok() {
         // Catches: empty/stub handlers must not mark a script as passed (gate b false green).

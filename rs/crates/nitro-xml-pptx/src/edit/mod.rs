@@ -457,7 +457,7 @@ mod tests {
         assert_eq!(text, Some("Slide 1"));
     }
 
-#[test]
+    #[test]
     fn catches_pptx_delete_missing_element_rejected() {
         // Catches: deleteShape with an unknown elementId silently no-ops and drops the shape later.
         let script = r#"{"id":"pptx-delete-missing","format":"pptx","fixture":"gen-pptx-slides-10","ops":[{"op":"deleteShape","slideIndex":0,"elementId":"does-not-exist"}]}"#;

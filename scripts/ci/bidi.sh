@@ -15,6 +15,24 @@ ROOT=$PWD
 . scripts/ci/versions.env
 export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
 
+# Cap rustc parallelism on hosted runners: full-workspace release + wasm-pack
+# LTO has OOMed / disconnected the bidi job (runner lost communication ~46m)
+# while the suite itself stays green locally in a few minutes.
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
+
+# timeout(1) when available — apt under `playwright install --with-deps` can
+# hang indefinitely on a contended dpkg lock, which never reaches the `||`
+# browser-only fallback.
+run_with_timeout() {
+  local secs=$1
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --signal=TERM --kill-after=30s "$secs" "$@"
+  else
+    "$@"
+  fi
+}
+
 if ! command -v bun >/dev/null 2>&1; then
   curl -fsSL https://bun.sh/install | bash
   export PATH="$HOME/.bun/bin:$PATH"
@@ -43,14 +61,22 @@ bash scripts/build-wasm.sh
 
 echo "bidi: installing visual host deps (Playwright from #45)"
 ( cd parity/visual && bun install )
-( cd parity/visual && bunx playwright install --with-deps chromium ) \
-  || ( cd parity/visual && bunx playwright install chromium )
+# Prefer browser-only install first (fast, no apt). System deps only if needed.
+if ! ( cd parity/visual && run_with_timeout 300 bunx playwright install chromium ); then
+  echo "bidi: chromium install failed; retrying with --with-deps (10m cap)" >&2
+  ( cd parity/visual && run_with_timeout 600 bunx playwright install --with-deps chromium ) \
+    || ( cd parity/visual && run_with_timeout 300 bunx playwright install chromium )
+fi
 
 echo "bidi: running logical-order copy + visual checks"
 set +e
-( cd tests/bidi && bun ./run.mjs )
+run_with_timeout 1200 bash -c 'cd tests/bidi && bun ./run.mjs'
 rc=$?
 set -e
+if [ "$rc" -eq 124 ]; then
+  echo "bidi: FAIL (viewer checks timed out after 20m)" >&2
+  exit 1
+fi
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f tests/bidi/out/gate-summary.txt ]; then
   {
@@ -68,9 +94,13 @@ fi
 
 echo "bidi: running editing-surface checks (#57)"
 set +e
-( cd tests/bidi/edit && bun ./run.mjs )
+run_with_timeout 600 bash -c 'cd tests/bidi/edit && bun ./run.mjs'
 edit_rc=$?
 set -e
+if [ "$edit_rc" -eq 124 ]; then
+  echo "bidi: edit FAIL (timed out after 10m)" >&2
+  exit 1
+fi
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f tests/bidi/edit/out/gate-summary.txt ]; then
   {

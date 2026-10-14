@@ -318,6 +318,12 @@ pub fn parse_bool_attr(value: Option<&str>) -> bool {
     )
 }
 
+/// OOXML boolean attribute (`1`/`true`/`0`/`false`); absent when unset.
+pub fn parse_optional_bool_attr(value: Option<&str>) -> Option<bool> {
+    let trimmed = value.map(str::trim).filter(|s| !s.is_empty());
+    trimmed.map(|s| parse_bool_attr(Some(s)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

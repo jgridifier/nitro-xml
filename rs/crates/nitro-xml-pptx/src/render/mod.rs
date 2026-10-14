@@ -197,6 +197,7 @@ mod tests {
             fill_mode: None,
             stroke_color: None,
             stroke_width_px: None,
+            stroke_line_align: None,
             text_color: None,
             font_size_px: None,
             font_family: None,
@@ -204,6 +205,8 @@ mod tests {
             text_stroke_width_px: None,
             text_stroke_color: None,
             text_body_layout: None,
+            text_paint_paragraphs: None,
+            presentation_kinsoku: false,
             auto_fit_mode: None,
             chart_r_id: None,
             chart_xml: None,
@@ -215,6 +218,7 @@ mod tests {
             smartart_cs_r_id: None,
             smartart_drawing_path: None,
             smartart_drawing_xml: None,
+            smartart_data_xml: None,
             image_rel_id: None,
             image_rel_owner: None,
             ole_spid: None,
@@ -226,6 +230,8 @@ mod tests {
             material_overlay: None,
             text_shadow: None,
             effect_filter: None,
+            ink_data: None,
+            content_part_ink_rel_id: None,
         };
         let mut c = ViewIrCollector::default();
         c.push_painted("element", &el, None);

@@ -25,6 +25,9 @@ const IN_TREE = new Set([
 	'smartArt',
 	'ole',
 	'media',
+	// Painted ink strokes (#27): aink graphicFrame + InkML contentPart.
+	'ink',
+	'contentPart',
 ]);
 
 function foldAscii(s: string): string {

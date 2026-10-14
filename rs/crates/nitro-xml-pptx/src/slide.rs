@@ -23,7 +23,8 @@ use crate::inheritance::{
     tx_body_of_placeholder, PlaceholderInfo, PlaceholderNode,
 };
 use crate::level_style::{
-    level_style_for, LevelStylesMap, MasterTxStyles, PlaceholderTextLevelStyle,
+    level_style_for, presentation_default_ea_line_break, LevelStylesMap, MasterTxStyles,
+    PlaceholderTextLevelStyle,
 };
 use crate::placeholder_defaults::PlaceholderDefaultsCache;
 use crate::table::{parse_table_model, table_row_count};
@@ -102,6 +103,9 @@ pub struct DumpElement {
     pub stroke_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stroke_width_px: Option<f64>,
+    /// `a:ln/@algn` (`in` / `ctr`); omitted means centred (`ctr`). Paint only.
+    #[serde(skip)]
+    pub stroke_line_align: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -119,6 +123,12 @@ pub struct DumpElement {
     /// Parsed `p:txBody` anchor / alignment for painters (not in JSON dump).
     #[serde(skip)]
     pub text_body_layout: Option<crate::text_layout::TextBodyLayout>,
+    /// Per-paragraph BiDi + runs for painters (not in JSON dump).
+    #[serde(skip)]
+    pub text_paint_paragraphs: Option<Vec<crate::text_layout::TextPaintParagraph>>,
+    /// Strict kinsoku CSS when the deck defines `p:defaultTextStyle/@eaLnBrk` (paint only).
+    #[serde(skip)]
+    pub presentation_kinsoku: bool,
     /// `a:spAutoFit` / `a:normAutofit` / `a:noAutofit` from `a:bodyPr` (paint only).
     #[serde(skip)]
     pub auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
@@ -146,6 +156,9 @@ pub struct DumpElement {
     /// Diagram drawing part XML (`dsp:drawing`). Not part of the issue-24 dump.
     #[serde(skip)]
     pub smartart_drawing_xml: Option<String>,
+    /// Diagram data part XML (`dgm:dataModel`) for presentation label colours.
+    #[serde(skip)]
+    pub smartart_data_xml: Option<String>,
     /// `r:embed` on a picture or shape blip fill, or an OLE preview relationship.
     /// Resolved to [`Self::image_src`].
     #[serde(skip)]
@@ -180,6 +193,12 @@ pub struct DumpElement {
     /// CSS `filter` from `a:effectLst/a:glow` (and legacy metal+bevel compensation). Not in the issue-24 dump.
     #[serde(skip)]
     pub effect_filter: Option<String>,
+    /// Draw-tab / `aink` ink strokes (paint only).
+    #[serde(skip)]
+    pub ink_data: Option<crate::ink::InkData>,
+    /// `p:contentPart/@r:id` → InkML part (resolved in presentation load).
+    #[serde(skip)]
+    pub content_part_ink_rel_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -517,7 +536,11 @@ fn parse_sp_tree_child(
             ctx,
         )
         .map(SpTreeParseOutcome::Element),
-        "contentPart" => Some(SpTreeParseOutcome::Other("contentPart".to_owned())),
+        "contentPart" => parse_content_part(
+            node,
+            sp_tree_child_id(id_prefix, "contentPart", entry.index_in_type, options),
+        )
+        .map(SpTreeParseOutcome::Element),
         _ => None,
     }
 }
@@ -991,6 +1014,69 @@ fn parse_connector(cxn: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElem
     )
 }
 
+fn child_any_local<'a>(parent: &'a Element, local: &str) -> Option<&'a Element> {
+    parent.children.iter().find_map(|n| match n {
+        Node::Element(e) if e.local == local => Some(e),
+        _ => None,
+    })
+}
+
+fn relationship_id_attr(el: &Element) -> Option<String> {
+    el.attrs
+        .iter()
+        .find(|a| a.local == "id" && a.ns.as_deref() == Some(ns::R))
+        .map(|a| a.value.clone())
+        .filter(|s| !s.is_empty())
+}
+
+fn parse_content_part(node: &Element, id: String) -> Option<DumpElement> {
+    let xfrm = child_any_local(node, "xfrm");
+    let (x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v) = xfrm_to_box(xfrm);
+    let width = if w > 0.0 { w } else { 120.0 };
+    let height = if h > 0.0 { h } else { 80.0 };
+    let w_emu = if w_emu > 0 {
+        w_emu
+    } else {
+        (width * EMU_PER_PX as f64).round() as i64
+    };
+    let h_emu = if h_emu > 0 {
+        h_emu
+    } else {
+        (height * EMU_PER_PX as f64).round() as i64
+    };
+    let nv_pr = child_any_local(node, "nvContentPartPr");
+    let c_nv_pr = nv_pr.and_then(|nv| child_any_local(nv, "cNvPr"));
+    let ink_rel = relationship_id_attr(node);
+    let extras = PaintExtras {
+        content_part_ink_rel_id: ink_rel,
+        ..PaintExtras::default()
+    };
+    build_dump(
+        "contentPart",
+        id,
+        c_nv_pr,
+        None,
+        x,
+        y,
+        width,
+        height,
+        x_emu,
+        y_emu,
+        w_emu,
+        h_emu,
+        rot,
+        flip_h,
+        flip_v,
+        None,
+        None,
+        None,
+        None,
+        None,
+        false,
+        extras,
+    )
+}
+
 struct GroupTransform {
     parent_x: f64,
     parent_y: f64,
@@ -1189,6 +1275,17 @@ fn parse_graphic_frame(frame: &Element, id: String, ctx: &ParseCtx) -> Option<Du
         };
         return build_dump(
             "smartArt", id, c_nv_pr, ph_info, x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h,
+            flip_v, None, None, None, None, None, false, extras,
+        );
+    }
+    if crate::ink::graphic_data_is_ink(graphic) {
+        let ink_data = crate::ink::decode_aink_from_graphic_data(graphic);
+        let extras = PaintExtras {
+            ink_data,
+            ..PaintExtras::default()
+        };
+        return build_dump(
+            "ink", id, c_nv_pr, ph_info, x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h,
             flip_v, None, None, None, None, None, false, extras,
         );
     }
@@ -1630,6 +1727,7 @@ fn build_dump(
         fill_mode: extras.fill_mode,
         stroke_color: extras.stroke_color,
         stroke_width_px: extras.stroke_width_px,
+        stroke_line_align: extras.stroke_line_align,
         text_color: extras.text_color,
         font_size_px: extras.font_size_px,
         font_family: extras.font_family,
@@ -1637,6 +1735,8 @@ fn build_dump(
         text_stroke_width_px: extras.text_stroke_width_px,
         text_stroke_color: extras.text_stroke_color,
         text_body_layout: extras.text_body_layout,
+        text_paint_paragraphs: extras.text_paint_paragraphs,
+        presentation_kinsoku: extras.presentation_kinsoku,
         auto_fit_mode: extras.auto_fit_mode,
         chart_r_id: extras.chart_r_id,
         chart_xml: None,
@@ -1648,6 +1748,7 @@ fn build_dump(
         smartart_cs_r_id: extras.smartart_cs_r_id,
         smartart_drawing_path: None,
         smartart_drawing_xml: None,
+        smartart_data_xml: None,
         image_rel_id: extras.image_rel_id,
         image_rel_owner: extras.image_rel_owner,
         ole_spid: extras.ole_spid,
@@ -1659,6 +1760,8 @@ fn build_dump(
         material_overlay: extras.material_overlay,
         text_shadow: extras.text_shadow,
         effect_filter: extras.effect_filter,
+        ink_data: extras.ink_data,
+        content_part_ink_rel_id: extras.content_part_ink_rel_id,
     })
 }
 
@@ -1925,6 +2028,7 @@ struct PaintExtras {
     fill_mode: Option<String>,
     stroke_color: Option<String>,
     stroke_width_px: Option<f64>,
+    stroke_line_align: Option<String>,
     text_color: Option<String>,
     font_size_px: Option<f64>,
     font_family: Option<String>,
@@ -1932,6 +2036,8 @@ struct PaintExtras {
     text_stroke_width_px: Option<f64>,
     text_stroke_color: Option<String>,
     text_body_layout: Option<crate::text_layout::TextBodyLayout>,
+    text_paint_paragraphs: Option<Vec<crate::text_layout::TextPaintParagraph>>,
+    presentation_kinsoku: bool,
     auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
     chart_r_id: Option<String>,
     smartart_dm_r_id: Option<String>,
@@ -1946,6 +2052,8 @@ struct PaintExtras {
     material_overlay: Option<String>,
     text_shadow: Option<String>,
     effect_filter: Option<String>,
+    ink_data: Option<crate::ink::InkData>,
+    content_part_ink_rel_id: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -2178,6 +2286,9 @@ fn shape_paint_extras(
         if child_local(ln, "noFill", ns::A).is_some() {
             ln_blocks_ref = true;
         }
+        if let Some(algn) = attr(ln, "algn") {
+            extras.stroke_line_align = Some(algn.to_owned());
+        }
         if let Some(line) = parse_drawing_line(Some(ln)) {
             if let Some(width) = line.width_emu {
                 if width > 0 {
@@ -2223,6 +2334,9 @@ fn shape_paint_extras(
         extras.text_stroke_width_px = paint.stroke_width_px;
         extras.text_stroke_color = paint.stroke_color;
         extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
+        extras.text_paint_paragraphs = Some(crate::text_layout::parse_text_paint_paragraphs(tx));
+        extras.presentation_kinsoku =
+            presentation_default_ea_line_break(ctx.presentation_level_styles);
         extras.auto_fit_mode = crate::text_layout::parse_body_autofit(tx);
         extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }
@@ -2600,6 +2714,10 @@ fn first_run_text_paint(
         }
         break;
     }
+    if font_family.is_none() {
+        font_family =
+            presentation_default_latin_typeface(ctx.presentation_level_styles, ctx.font_scheme);
+    }
     if let Some(style) = ctx.level_fallback {
         // Colour from master/layout level styles; leave size to the host CSS
         // fallback until placeholder autofit/align lands (layout sz alone
@@ -2690,6 +2808,44 @@ fn font_ref_family(
         return None;
     }
     theme_font_latin(scheme, idx)
+}
+
+fn presentation_default_latin_typeface(
+    styles: Option<&LevelStylesMap>,
+    font_scheme: Option<&ThemeFontScheme>,
+) -> Option<String> {
+    let styles = styles?;
+    for key in [0i8, -1i8] {
+        if let Some(face) = styles
+            .get(&key)
+            .and_then(|s| s.default_latin_typeface.as_deref())
+        {
+            if let Some(resolved) = resolve_theme_latin_typeface(face, font_scheme) {
+                return Some(resolved);
+            }
+        }
+    }
+    None
+}
+
+fn resolve_theme_latin_typeface(
+    typeface: &str,
+    font_scheme: Option<&ThemeFontScheme>,
+) -> Option<String> {
+    let t = typeface.trim();
+    if t.is_empty() {
+        return None;
+    }
+    if t.eq_ignore_ascii_case("+mn-lt") {
+        return font_scheme.and_then(|s| theme_font_latin(s, "minor"));
+    }
+    if t.eq_ignore_ascii_case("+mj-lt") {
+        return font_scheme.and_then(|s| theme_font_latin(s, "major"));
+    }
+    if t.starts_with('+') {
+        return None;
+    }
+    Some(t.to_owned())
 }
 
 fn theme_font_latin(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {

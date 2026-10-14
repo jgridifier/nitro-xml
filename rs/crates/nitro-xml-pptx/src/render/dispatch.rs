@@ -3,8 +3,10 @@
 
 use super::chart;
 use super::connector;
+use super::content_part;
 use super::context::{PaintContext, StringIntern};
 use super::group;
+use super::ink;
 use super::ole;
 use super::picture;
 use super::placeholder;
@@ -31,7 +33,8 @@ pub fn paint_element<I: StringIntern>(
         "video" | "audio" => placeholder::paint_typed_stub(ctx, &el.type_, el, parent, "[media]"),
         "ole" => ole::paint(ctx, el, parent),
         "model3d" => placeholder::paint_typed_stub(ctx, "model3d", el, parent, "[3D Model]"),
-        "ink" => placeholder::paint_typed_stub(ctx, "ink", el, parent, "[Ink]"),
+        "ink" => ink::paint(ctx, el, parent),
+        "contentPart" => content_part::paint(ctx, el, parent),
         _ => placeholder::paint_unknown_element(ctx, el, parent),
     }
 }

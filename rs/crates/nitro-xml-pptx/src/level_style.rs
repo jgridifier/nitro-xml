@@ -23,6 +23,10 @@ pub struct PlaceholderTextLevelStyle {
     pub text_color: Option<DrawingColor>,
     /// `a:defRPr/@sz` in CSS px (hundredths of a point, same scale as `sz_to_px`).
     pub font_size_px: Option<f64>,
+    /// `a:lvlNpPr/@eaLnBrk` or `a:defPPr/@eaLnBrk` from presentation `defaultTextStyle`.
+    pub ea_line_break: Option<bool>,
+    /// `a:defRPr/a:latin/@typeface` (may be a theme token such as `+mn-lt`).
+    pub default_latin_typeface: Option<String>,
 }
 
 pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle {
@@ -47,6 +51,9 @@ pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle 
 
 pub fn parse_level_style_from_ppr(p_pr: &Element) -> Option<PlaceholderTextLevelStyle> {
     let mut style = parse_level_bullet_from_ppr(p_pr);
+    if let Some(v) = attr(p_pr, "eaLnBrk") {
+        style.ea_line_break = Some(matches!(v, "1" | "true" | "on"));
+    }
     apply_def_rpr(&mut style, p_pr);
     if level_style_has_payload(&style) {
         Some(style)
@@ -62,6 +69,8 @@ fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
         || style.text_color_hex.is_some()
         || style.text_color.is_some()
         || style.font_size_px.is_some()
+        || style.ea_line_break.is_some()
+        || style.default_latin_typeface.is_some()
 }
 
 /// `a:defRPr` solid fill and `sz` on `a:lvlNpPr` / `a:defPPr`.
@@ -69,6 +78,14 @@ fn apply_def_rpr(style: &mut PlaceholderTextLevelStyle, p_pr: &Element) {
     let Some(def) = child_local(p_pr, "defRPr", ns::A) else {
         return;
     };
+    if let Some(latin) = child_local(def, "latin", ns::A) {
+        if let Some(tf) = attr(latin, "typeface") {
+            let trimmed = tf.trim();
+            if !trimmed.is_empty() {
+                style.default_latin_typeface = Some(trimmed.to_owned());
+            }
+        }
+    }
     style.font_size_px = sz_attr_to_px(def);
     let Some(fill) = child_local(def, "solidFill", ns::A) else {
         return;
@@ -181,7 +198,29 @@ fn merge_level_style(
             base.text_color.clone()
         },
         font_size_px: over.font_size_px.or(base.font_size_px),
+        ea_line_break: over.ea_line_break.or(base.ea_line_break),
+        default_latin_typeface: over
+            .default_latin_typeface
+            .clone()
+            .or_else(|| base.default_latin_typeface.clone()),
     }
+}
+
+/// True when the deck's `p:defaultTextStyle` enables East Asian line breaks (`eaLnBrk="1"`).
+pub fn presentation_default_ea_line_break(styles: Option<&LevelStylesMap>) -> bool {
+    let Some(styles) = styles else {
+        return false;
+    };
+    for key in [0i8, -1i8] {
+        if styles
+            .get(&key)
+            .and_then(|s| s.ea_line_break)
+            .is_some_and(|v| v)
+        {
+            return true;
+        }
+    }
+    false
 }
 
 pub fn level_style_for(map: &LevelStylesMap, level: i8) -> Option<&PlaceholderTextLevelStyle> {

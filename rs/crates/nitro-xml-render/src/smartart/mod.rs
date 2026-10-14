@@ -11,7 +11,10 @@
 //! frames are still dropped. Used by pptx; xlsx/docx can call the same entry.
 
 mod circular_arrow;
+mod pres_point_styles;
 mod text_wrap_estimate;
+
+pub use pres_point_styles::{pres_styles_by_model_id, PresStyleMeta};
 
 use text_wrap_estimate::{drawing_text_base_line_height_ratio, wrap_text_by_estimated_width};
 
@@ -76,11 +79,22 @@ pub fn smartart_svg_with_scheme(
     height: f64,
     scheme: Option<&BTreeMap<String, String>>,
 ) -> String {
+    smartart_svg_with_scheme_and_pres(drawing_xml, width, height, scheme, None)
+}
+
+/// Like [`smartart_svg_with_scheme`], with optional diagram data for `node1` label colours.
+pub fn smartart_svg_with_scheme_and_pres(
+    drawing_xml: Option<&str>,
+    width: f64,
+    height: f64,
+    scheme: Option<&BTreeMap<String, String>>,
+    pres_styles: Option<&BTreeMap<String, PresStyleMeta>>,
+) -> String {
     let w = width.max(1.0).round();
     let h = height.max(1.0).round();
     if let Some(xml) = drawing_xml {
         if let Ok(doc) = parse_xml_str(xml) {
-            let mut shapes = collect_shapes(&doc.root, scheme);
+            let mut shapes = collect_shapes(&doc.root, scheme, pres_styles);
             shapes.retain(keep_shape);
             if !shapes.is_empty() {
                 return shapes_svg(&shapes, w, h);
@@ -102,7 +116,7 @@ pub fn smartart_draw_args(
     let Ok(doc) = parse_xml_str(xml) else {
         return Vec::new();
     };
-    let mut shapes = collect_shapes(&doc.root, scheme);
+    let mut shapes = collect_shapes(&doc.root, scheme, None);
     shapes.retain(keep_shape);
     shapes
         .into_iter()
@@ -200,6 +214,7 @@ struct TextParagraph {
 }
 
 struct SpBox {
+    model_id: Option<String>,
     x: f64,
     y: f64,
     w: f64,
@@ -561,38 +576,51 @@ fn spacing_pct_from_p_pr(p_pr: &Element, local: &str) -> Option<f64> {
 }
 
 fn append_shape_text(body: &mut String, shape: &SpBox, stroke: f64, origin_x: f64, origin_y: f64) {
-    let (text_cx, _, _, base_font) = text_layout_metrics(shape, stroke);
+    let lines = layout_shape_text(shape, stroke);
+    if lines.is_empty() {
+        return;
+    }
+    let (text_cx, _, _, _) = text_layout_metrics(shape, stroke);
     let text_cx = text_cx - origin_x;
-    for line in layout_shape_text(shape, stroke) {
+    let label_font = shape_label_font(shape, stroke);
+    // TS `appendSvgTextLines` does not set font-kerning on cached drawing labels.
+    body.push_str(&format!(
+        "<text x=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">",
+        svg_user_coord(text_cx),
+        svg_user_coord(label_font),
+        escape(&shape.font_color),
+    ));
+    for line in lines {
         let line_y = line.y - origin_y;
         if line.spans.len() == 1 {
-            let (text, font) = &line.spans[0];
+            let (text, _) = &line.spans[0];
             body.push_str(&format!(
-                "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">{}</text>",
+                "<tspan x=\"{}\" y=\"{}\">{}</tspan>",
                 svg_user_coord(text_cx),
                 svg_user_coord(line_y),
-                svg_user_coord(*font),
-                escape(&shape.font_color),
                 escape(text),
             ));
             continue;
         }
-        body.push_str(&format!(
-            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" dominant-baseline=\"central\" font-size=\"{}\" fill=\"{}\">",
-            svg_user_coord(text_cx),
-            svg_user_coord(line_y),
-            svg_user_coord(base_font),
-            escape(&shape.font_color),
-        ));
-        for (text, font) in &line.spans {
-            body.push_str(&format!(
-                "<tspan font-size=\"{}\">{}</tspan>",
-                svg_user_coord(*font),
-                escape(text),
-            ));
+        for (i, (text, font)) in line.spans.iter().enumerate() {
+            if i == 0 {
+                body.push_str(&format!(
+                    "<tspan x=\"{}\" y=\"{}\" font-size=\"{}\">{}</tspan>",
+                    svg_user_coord(text_cx),
+                    svg_user_coord(line_y),
+                    svg_user_coord(*font),
+                    escape(text),
+                ));
+            } else {
+                body.push_str(&format!(
+                    "<tspan font-size=\"{}\">{}</tspan>",
+                    svg_user_coord(*font),
+                    escape(text),
+                ));
+            }
         }
-        body.push_str("</text>");
     }
+    body.push_str("</text>");
 }
 
 fn num(v: f64) -> String {
@@ -624,9 +652,14 @@ fn escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn collect_shapes(root: &Element, scheme: Option<&BTreeMap<String, String>>) -> Vec<SpBox> {
+fn collect_shapes(
+    root: &Element,
+    scheme: Option<&BTreeMap<String, String>>,
+    pres_styles: Option<&BTreeMap<String, PresStyleMeta>>,
+) -> Vec<SpBox> {
     let mut out = Vec::new();
     walk_shapes(root, scheme, &mut out);
+    apply_pres_style_label_text_colors(&mut out, pres_styles, scheme);
     resolve_label_font_colors(&mut out);
     out
 }
@@ -700,7 +733,9 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
     let kind =
         smartart_custgeom_paint_kind(&geom_name, &paragraphs, no_fill, stroke_width, w, h, kind);
 
+    let model_id = attr_str(sp, "modelId").map(str::to_owned);
     Some(SpBox {
+        model_id,
         x,
         y,
         w,
@@ -801,6 +836,41 @@ fn label_color_for_shape(shapes: &[SpBox], index: usize) -> String {
     basis
         .map(|b| contrast_text_color(&b))
         .unwrap_or_else(|| "#1a1a1a".to_owned())
+}
+
+fn apply_pres_style_label_text_colors(
+    shapes: &mut [SpBox],
+    pres: Option<&BTreeMap<String, PresStyleMeta>>,
+    scheme: Option<&BTreeMap<String, String>>,
+) {
+    if pres.is_none() {
+        return;
+    }
+    let pres = pres.unwrap();
+    let dk1 = scheme
+        .and_then(|m| m.get("dk1").or_else(|| m.get("tx1")))
+        .map(|s| s.as_str())
+        .unwrap_or("#000000");
+    let lt1 = scheme
+        .and_then(|m| m.get("lt1").or_else(|| m.get("bg1")))
+        .map(|s| s.as_str())
+        .unwrap_or("#FFFFFF");
+    for shape in shapes {
+        let Some(model_id) = shape.model_id.as_deref() else {
+            continue;
+        };
+        let Some(meta) = pres.get(model_id) else {
+            continue;
+        };
+        if meta.style_label == "node1" && meta.style_count == 3 {
+            shape.font_color = if meta.style_index == 1 {
+                lt1.to_owned()
+            } else {
+                dk1.to_owned()
+            };
+            shape.label_font_from_ref = true;
+        }
+    }
 }
 
 fn resolve_label_font_colors(shapes: &mut [SpBox]) {
@@ -1104,6 +1174,7 @@ fn text_frame_of(sp: &Element) -> Option<TextFrameGeom> {
     let tx_xfrm = child_any(sp, "txXfrm")?;
     let off = child_any(tx_xfrm, "off")?;
     let ext = child_any(tx_xfrm, "ext")?;
+    // TS drawingTextEmuAttribute: float EMU/9525 (shape boxes alone use round).
     let x = emu_attr_px(off, "x")?;
     let y = emu_attr_px(off, "y")?;
     let w = emu_attr_px(ext, "cx")?;
@@ -1257,7 +1328,8 @@ mod tests {
     use nitro_xml_opc::xml::parse_xml_str;
 
     use super::{
-        collect_shapes, collect_text, smartart_draw_args, smartart_svg, smartart_svg_with_scheme,
+        collect_shapes, collect_text, pres_styles_by_model_id, smartart_draw_args, smartart_svg,
+        smartart_svg_with_scheme, smartart_svg_with_scheme_and_pres,
     };
 
     // Catches: a cached dsp:sp drawing collapsed to the labelled SmartArt stub.
@@ -1542,6 +1614,45 @@ mod tests {
         assert!(svg.contains("width=\"200\""), "{svg}");
     }
 
+    // Catches: SmartArt labels emitted as one <text> per wrapped line so Chromium recenters each line independently vs TS appendSvgTextLines tspans.
+    #[test]
+    fn label_lines_use_single_text_with_positioned_tspans() {
+        let xml = r#"<dsp:drawing xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <dsp:spTree>
+            <dsp:sp>
+              <dsp:spPr>
+                <a:xfrm><a:off x="0" y="0"/><a:ext cx="2000000" cy="800000"/></a:xfrm>
+                <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                <a:solidFill><a:srgbClr val="156082"/></a:solidFill>
+              </dsp:spPr>
+              <dsp:txBody>
+                <a:p><a:r><a:rPr sz="2400" kern="1200"/><a:t>Alpha</a:t></a:r></a:p>
+                <a:p><a:r><a:rPr sz="2400" kern="1200"/><a:t>Gamma</a:t></a:r></a:p>
+              </dsp:txBody>
+            </dsp:sp>
+          </dsp:spTree>
+        </dsp:drawing>"#;
+        let svg = smartart_svg(Some(xml), 300.0, 120.0);
+        assert_eq!(
+            svg.matches("<text ").count(),
+            1,
+            "one text block per shape: {svg}"
+        );
+        assert_eq!(
+            svg.matches("<tspan ").count(),
+            2,
+            "one tspan per line: {svg}"
+        );
+        assert!(
+            !svg.contains("font-kerning"),
+            "cached drawing labels omit kerning like TS appendSvgTextLines: {svg}"
+        );
+        assert!(
+            svg.contains("x=\"105\"") && svg.contains("<tspan x=\"105\""),
+            "tspan repeats parent anchor x: {svg}"
+        );
+    }
+
     // Catches: chevron labels centred on shape box and wrapped at 0.82×w instead of dsp:txXfrm minus bodyPr insets.
     #[test]
     fn tx_xfrm_and_body_insets_drive_text_wrap_and_center() {
@@ -1635,7 +1746,7 @@ mod tests {
         </dsp:drawing>"#;
         let svg = smartart_svg(Some(xml), 400.0, 200.0);
         let ys: Vec<f64> = svg
-            .split("<text ")
+            .split("<tspan ")
             .skip(1)
             .filter_map(|chunk| {
                 chunk
@@ -1645,7 +1756,7 @@ mod tests {
                     .and_then(|y| y.parse().ok())
             })
             .collect();
-        assert_eq!(ys.len(), 2, "expected two label lines: {svg}");
+        assert_eq!(ys.len(), 2, "expected two label tspans: {svg}");
         let font_px = 24.0 * (96.0 / 72.0);
         // TS uses first-paragraph lnSpc/spcAft for every line in the shape label block.
         let expected_gap = font_px * (1.2 * 0.5 + 0.1);
@@ -1696,7 +1807,7 @@ mod tests {
     fn deep_nesting_shape_walk_does_not_overflow_stack() {
         let xml = format!("{}{}", "<a>".repeat(4096), "</a>".repeat(4096));
         let root = parse_xml_str(&xml).expect("parses").root;
-        let shapes = collect_shapes(&root, None);
+        let shapes = collect_shapes(&root, None, None);
         assert!(shapes.is_empty());
         let mut parts = Vec::new();
         collect_text(&root, &mut parts);
@@ -1771,5 +1882,73 @@ mod tests {
         scheme.insert("lt1".to_owned(), "#FFFFFF".to_owned());
         let args = smartart_draw_args(Some(xml), Some(&scheme));
         assert_eq!(args[0].font_color, "#FFFFFF", "{:?}", args);
+    }
+
+    // Catches: accent-process hier5 viewBox drift rescales cached drawing vs TS computeDrawingViewBox.
+    #[test]
+    fn accent_process_hier5_viewbox_matches_ts_bounds() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/21343018c511_accent-process--hier5.pptx"
+        );
+        let bytes = std::fs::read(path).expect("fixture");
+        let mut zip = nitro_xml_opc::zip::ZipPackage::open(&bytes).expect("zip");
+        let xml = String::from_utf8(
+            zip.read("ppt/diagrams/drawing1.xml")
+                .expect("drawing")
+                .expect("bytes"),
+        )
+        .expect("utf8");
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        scheme.insert("lt1".to_owned(), "#FFFFFF".to_owned());
+        let svg = smartart_svg_with_scheme(Some(&xml), 800.0, 400.0, Some(&scheme));
+        assert!(
+            svg.contains("viewBox=\"0 0 866 263\""),
+            "expected TS diagram bounds 866×263: {svg}"
+        );
+    }
+
+    // Catches: accent-process outer node1 columns painted lt1 white instead of dk1 black (TS oracle).
+    #[test]
+    fn accent_process_hier5_node1_outer_columns_use_dk1_labels() {
+        let base = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/21343018c511_accent-process--hier5.pptx"
+        );
+        let bytes = std::fs::read(base).expect("fixture");
+        let mut zip = nitro_xml_opc::zip::ZipPackage::open(&bytes).expect("zip");
+        let drawing = String::from_utf8(
+            zip.read("ppt/diagrams/drawing1.xml")
+                .expect("drawing")
+                .expect("bytes"),
+        )
+        .expect("utf8");
+        let data = String::from_utf8(
+            zip.read("ppt/diagrams/data1.xml")
+                .expect("data")
+                .expect("bytes"),
+        )
+        .expect("utf8");
+        let pres = pres_styles_by_model_id(&data);
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        scheme.insert("dk1".to_owned(), "#000000".to_owned());
+        scheme.insert("lt1".to_owned(), "#FFFFFF".to_owned());
+        let svg = smartart_svg_with_scheme_and_pres(
+            Some(&drawing),
+            800.0,
+            400.0,
+            Some(&scheme),
+            Some(&pres),
+        );
+        assert!(
+            svg.contains(">Node One</tspan>") && svg.contains("fill=\"#000000\""),
+            "outer column labels should be dk1: {svg}"
+        );
+        assert!(
+            svg.contains(">Node</tspan><tspan") && svg.contains("fill=\"#FFFFFF\""),
+            "centre column keeps lt1: {svg}"
+        );
     }
 }

@@ -212,11 +212,6 @@ pub fn paint_text_body<I: StringIntern>(
         }
     }
     let size = paint.font_size_px.unwrap_or(24.0).max(1.0);
-    let block_line_height = paint
-        .paragraphs
-        .and_then(|ps| ps.first())
-        .and_then(|p| p.line_height_css.as_deref())
-        .unwrap_or("1.2");
     let per_paragraph_align = paint.paragraphs.is_some_and(|paras| !paras.is_empty());
     let italic_body = paint.font_italic
         || paint
@@ -238,7 +233,8 @@ pub fn paint_text_body<I: StringIntern>(
                 let pad_bottom =
                     layout.inset_bottom_px + paint.geom_rect_padding.bottom + italic_inset_slop;
                 let content_h = box_h - pad_top - pad_bottom;
-                let line_h_px = line_height_to_px(size, Some(block_line_height));
+                // Clip estimate uses the block's line height (upstream `buildTextBlockStyle`), not per-paragraph `lnSpc`.
+                let line_h_px = line_height_to_px(size, Some("1.2"));
                 if let Some(clip) =
                     resolve_vert_overflow_clip_lines(content_h, pad_bottom, line_h_px)
                 {
@@ -252,7 +248,7 @@ pub fn paint_text_body<I: StringIntern>(
     let stack = substitute_font_family_stack(paint.font_family);
     set_style(ctx, block, "font-family", &stack);
     set_style(ctx, block, "font-size", &format!("{}px", format_px(size)));
-    set_style(ctx, block, "line-height", block_line_height);
+    set_style(ctx, block, "line-height", "1.2");
     if paint.font_bold {
         set_style(ctx, block, "font-weight", "700");
     }
@@ -646,6 +642,7 @@ fn append_paint_run<I: StringIntern>(
                 base,
                 &display_text,
                 size,
+                paint,
                 stack,
                 paint.font_bold,
                 paint.font_italic,
@@ -678,7 +675,7 @@ fn append_paint_run<I: StringIntern>(
                     run_line_height_zero,
                     east_asian,
                     piece_following,
-                    true,
+                    false,
                 );
             }
             para
@@ -818,7 +815,7 @@ fn paint_run_text_span<I: StringIntern>(
                     run_line_height_zero,
                     east_asian,
                     seg_following,
-                    emit_gdi_tracking,
+                    false,
                 );
             }
             return last;
@@ -930,6 +927,7 @@ fn paint_run_span_styles<I: StringIntern>(
             run,
             metric_text,
             size,
+            paint,
             stack,
             paint.font_bold,
             paint.font_italic,
@@ -1121,6 +1119,7 @@ fn paint_css_tab_run<I: StringIntern>(
             run,
             display_text,
             size,
+            paint,
             stack,
             paint.font_bold,
             paint.font_italic,
@@ -1198,6 +1197,7 @@ fn paint_tabbed_run<I: StringIntern>(
                 piece,
                 text,
                 size,
+                paint,
                 stack,
                 paint.font_bold,
                 paint.font_italic,
@@ -1278,19 +1278,34 @@ fn canvas_measure_font(family_stack: &str, size_px: f64, bold: bool, italic: boo
     format!("{}{}px {}", prefix, format_px(size_px), family_stack)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply_gdi_metric_letter_spacing<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     para: u32,
     text: &str,
     size_px: f64,
-    stack: &str,
+    _paint: &TextBodyPaint<'_>,
+    painted_stack: &str,
     bold: bool,
     italic: bool,
 ) {
     if text.is_empty() {
         return;
     }
-    apply_gdi_metric_letter_spacing_with_stack(ctx, para, text, size_px, stack, bold, italic);
+    let measure_stack = if _paint.font_family.is_some() {
+        painted_stack
+    } else {
+        VISUAL_HOST_RUN_FONT_STACK
+    };
+    apply_gdi_metric_letter_spacing_with_stack(
+        ctx,
+        para,
+        text,
+        size_px,
+        measure_stack,
+        bold,
+        italic,
+    );
 }
 
 #[allow(clippy::too_many_arguments)]

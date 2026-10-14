@@ -883,6 +883,26 @@ pub enum ConditionalRule {
         priority: i32,
         stop_if_true: bool,
     },
+    Expression {
+        formula: String,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    ColorScale {
+        thresholds: Vec<CfvoThreshold>,
+        colors: Vec<Color>,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    DataBar {
+        min: CfvoThreshold,
+        max: CfvoThreshold,
+        color: Color,
+        priority: i32,
+        stop_if_true: bool,
+        show_value: bool,
+    },
     IconSet {
         icon_set: String,
         thresholds: Vec<CfvoThreshold>,

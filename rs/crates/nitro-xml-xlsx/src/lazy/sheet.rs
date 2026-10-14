@@ -295,7 +295,8 @@ fn worksheet_from_shell(
                 .collect()
         })
         .unwrap_or_default();
-    let conditional_formats = read_conditional_formats(&cf_blocks, req.dxfs, &mut warn);
+    let conditional_formats =
+        read_conditional_formats(&cf_blocks, req.dxfs, req.palette, &mut warn);
     ActiveWorksheet {
         name: req.name.to_owned(),
         sheet_id: req.sheet_id,

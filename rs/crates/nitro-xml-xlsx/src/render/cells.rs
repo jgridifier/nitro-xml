@@ -30,6 +30,7 @@ const BORDER_BASE: u32 = 20_000;
 const COMMENT_BASE: u32 = 30_000;
 const ERROR_BASE: u32 = 40_000;
 const ICON_BASE: u32 = 50_000;
+const DATA_BAR_BASE: u32 = 55_000;
 const STALE_BASE: u32 = 60_000;
 const EDITOR_BOX: u32 = 70_000;
 const EDITOR_BEFORE: u32 = 70_001;
@@ -113,6 +114,52 @@ fn paint_one_cell<I: StringIntern>(
             "backgroundColor",
             "var(--xve-sheet-bg, #fff)",
         );
+    }
+
+    if let Some(bar) = &item.view.data_bar {
+        let bar_id = DATA_BAR_BASE + n as u32;
+        buf.create_element(bar_id, div, cell_id);
+        set_attr(buf, intern, bar_id, "class", "xg-db");
+        let width = (bar.fraction.clamp(0.0, 1.0) * (item.w as f64 - 4.0)).max(0.0);
+        set_style(buf, intern, bar_id, "width", &format!("{}px", width));
+        let rtl = bar.direction.as_deref() == Some("rightToLeft");
+        if let Some(start) = bar.start {
+            set_style(
+                buf,
+                intern,
+                bar_id,
+                "left",
+                &format!("{}px", 2.0 + start * (item.w as f64 - 4.0)),
+            );
+            set_style(buf, intern, bar_id, "right", "auto");
+        } else if rtl {
+            set_style(buf, intern, bar_id, "left", "auto");
+            set_style(buf, intern, bar_id, "right", "2px");
+        } else {
+            set_style(buf, intern, bar_id, "left", "2px");
+            set_style(buf, intern, bar_id, "right", "auto");
+        }
+        let bg = if bar.gradient == Some(false) {
+            bar.color.clone()
+        } else {
+            let deg = if rtl { 270 } else { 90 };
+            format!(
+                "linear-gradient({deg}deg, {}, color-mix(in srgb, {} 15%, #fff))",
+                bar.color, bar.color
+            )
+        };
+        set_style(buf, intern, bar_id, "background", &bg);
+        if let Some(border) = &bar.border_color {
+            set_style(
+                buf,
+                intern,
+                bar_id,
+                "border",
+                &format!("1px solid {border}"),
+            );
+        } else {
+            set_style(buf, intern, bar_id, "border", "none");
+        }
     }
 
     if let Some(icon) = &item.view.icon {

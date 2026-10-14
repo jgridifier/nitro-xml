@@ -1,17 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/layout/cf-evaluator.ts,
-// cf-helpers.ts, cf-values.ts (cellIs + iconSet path); changes listed in PROVENANCE.md.
+// cf-helpers.ts, cf-values.ts, data-bar-geometry.ts (cellIs/iconSet/colorScale/dataBar/
+// expression path); changes listed in PROVENANCE.md.
 
+use crate::cf::expr::eval_cf_expression;
 use crate::model::{
-    ActiveWorksheet, CfvoThreshold, ConditionalFormat, ConditionalRule, DumpCellValue,
+    ActiveWorksheet, CfvoThreshold, Color, ConditionalFormat, ConditionalRule, DifferentialStyle,
+    DumpCellValue, ThemePalette,
 };
 use crate::sheet_access::{get_cell, range_contains, CellIndex};
-use crate::view::types::IconView;
+use crate::view::colors::{mix_colors, resolve_color};
+use crate::view::types::{DataBarView, IconView};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CfIcon {
     pub set: String,
     pub index: u32,
+    pub hide_value: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CfApplied {
+    pub icon: Option<CfIcon>,
+    pub color_scale: Option<String>,
+    pub data_bar: Option<DataBarView>,
+    pub style: Option<DifferentialStyle>,
     pub hide_value: bool,
 }
 
@@ -125,13 +138,118 @@ fn threshold_value(t: &CfvoThreshold, nums: &[f64]) -> f64 {
     }
 }
 
-/// Icon for `(row, col)` when an icon-set rule applies after higher-priority stopIfTrue rules.
-pub fn cf_icon_at(
+fn scale_color(value: f64, cuts: &[f64], colors: &[String]) -> Option<String> {
+    if cuts.is_empty() || cuts.len() != colors.len() {
+        return None;
+    }
+    if value <= cuts[0] {
+        return Some(colors[0].clone());
+    }
+    let last = cuts.len() - 1;
+    if value >= cuts[last] {
+        return Some(colors[last].clone());
+    }
+    for i in 0..last {
+        let lo = cuts[i];
+        let hi = cuts[i + 1];
+        if value >= lo && value <= hi {
+            let a = &colors[i];
+            let b = colors.get(i + 1).unwrap_or(a);
+            return Some(if hi > lo {
+                mix_colors(a, b, (value - lo) / (hi - lo), true)
+            } else {
+                b.clone()
+            });
+        }
+    }
+    Some(colors[last].clone())
+}
+
+fn resolve_rgb(color: &Color, theme: &ThemePalette, indexed: &[&str]) -> String {
+    resolve_color(Some(color), theme, Some("#638EC6"), indexed).unwrap_or_else(|| "#638EC6".into())
+}
+
+fn data_bar_geometry(value: f64, low: f64, high: f64) -> (f64, f64) {
+    // Upstream automatic axis + default minLength/maxLength (0 / 1).
+    let lo = low.min(0.0);
+    let hi = high.max(0.0);
+    if lo >= 0.0 {
+        let fraction = if hi > lo {
+            ((value - lo) / (hi - lo)).clamp(0.0, 1.0)
+        } else {
+            0.5
+        };
+        return (0.0, fraction);
+    }
+    if hi <= 0.0 {
+        let fraction = if hi > lo {
+            ((hi - value) / (hi - lo)).clamp(0.0, 1.0)
+        } else {
+            0.5
+        };
+        let axis = 1.0;
+        return ((axis - fraction).max(0.0), fraction);
+    }
+    let axis = (-lo) / (hi - lo);
+    let bounded = value.clamp(lo, hi);
+    let fraction = (bounded.abs() / (hi - lo)).clamp(0.0, 1.0);
+    let start = if bounded < 0.0 {
+        (axis - fraction).max(0.0)
+    } else {
+        axis
+    };
+    (start, fraction)
+}
+
+fn merge_dxf(acc: Option<DifferentialStyle>, next: &DifferentialStyle) -> DifferentialStyle {
+    let Some(mut out) = acc else {
+        return next.clone();
+    };
+    if next.font.is_some() {
+        // Prefer earlier (higher priority) font; only fill missing pieces from later rules.
+        if out.font.is_none() {
+            out.font = next.font.clone();
+        }
+    }
+    if out.fill.is_none() && next.fill.is_some() {
+        out.fill = next.fill.clone();
+    }
+    if out.border.is_none() && next.border.is_some() {
+        out.border = next.border.clone();
+    }
+    if out.num_fmt.is_none() && next.num_fmt.is_some() {
+        out.num_fmt = next.num_fmt.clone();
+    }
+    out
+}
+
+fn style_nonempty(style: &DifferentialStyle) -> bool {
+    style.font.is_some()
+        || style.fill.is_some()
+        || style.border.is_some()
+        || style.num_fmt.is_some()
+}
+
+fn rule_priority(rule: &ConditionalRule) -> i32 {
+    match rule {
+        ConditionalRule::CellIs { priority, .. }
+        | ConditionalRule::Expression { priority, .. }
+        | ConditionalRule::ColorScale { priority, .. }
+        | ConditionalRule::DataBar { priority, .. }
+        | ConditionalRule::IconSet { priority, .. }
+        | ConditionalRule::Other { priority, .. } => *priority,
+    }
+}
+
+/// Full CF application for `(row, col)`.
+pub fn cf_at(
     sheet: &ActiveWorksheet,
     index: &CellIndex,
     row: u32,
     col: u32,
-) -> Option<CfIcon> {
+    theme: &ThemePalette,
+    indexed: &[&str],
+) -> Option<CfApplied> {
     if sheet.conditional_formats.is_empty() {
         return None;
     }
@@ -144,32 +262,26 @@ pub fn cf_icon_at(
         }
     }
     entries.sort_by(|a, b| {
-        let pa = match a.1 {
-            ConditionalRule::CellIs { priority, .. }
-            | ConditionalRule::IconSet { priority, .. }
-            | ConditionalRule::Other { priority, .. } => *priority,
-        };
-        let pb = match b.1 {
-            ConditionalRule::CellIs { priority, .. }
-            | ConditionalRule::IconSet { priority, .. }
-            | ConditionalRule::Other { priority, .. } => *priority,
-        };
-        pa.cmp(&pb).then(a.2.cmp(&b.2))
+        rule_priority(a.1)
+            .cmp(&rule_priority(b.1))
+            .then(a.2.cmp(&b.2))
     });
 
     let cell = get_cell(sheet, index, row, col);
     let value = cell.map(|c| &c.value);
     let number = value.and_then(cell_number);
-    let mut icon: Option<CfIcon> = None;
+    let mut result = CfApplied::default();
+    let mut any = false;
 
     for (format, rule, _) in entries {
         if !format.ranges.iter().any(|r| range_contains(r, row, col)) {
             continue;
         }
-        match rule {
+        let matched = match rule {
             ConditionalRule::CellIs {
                 operator,
                 formulas,
+                style,
                 stop_if_true,
                 ..
             } => {
@@ -184,10 +296,94 @@ pub fn cf_icon_at(
                 if !test_operator(operator, n, a, b) {
                     continue;
                 }
-                // Matching non-graphic stopIfTrue stops lower-priority rules (including icon sets).
-                if *stop_if_true {
-                    return icon;
+                if style_nonempty(style) {
+                    result.style = Some(merge_dxf(result.style.take(), style));
                 }
+                any = true;
+                if *stop_if_true {
+                    break;
+                }
+                true
+            }
+            ConditionalRule::Expression {
+                formula,
+                style,
+                stop_if_true,
+                ..
+            } => {
+                let anchor = format
+                    .ranges
+                    .first()
+                    .map(|r| (r.start.row, r.start.col))
+                    .unwrap_or((row, col));
+                if !eval_cf_expression(sheet, index, formula, anchor.0, anchor.1, row, col) {
+                    continue;
+                }
+                if style_nonempty(style) {
+                    result.style = Some(merge_dxf(result.style.take(), style));
+                }
+                any = true;
+                if *stop_if_true {
+                    break;
+                }
+                true
+            }
+            ConditionalRule::ColorScale {
+                thresholds, colors, ..
+            } => {
+                if result.color_scale.is_some() {
+                    continue;
+                }
+                let Some(n) = number else {
+                    continue;
+                };
+                let nums = range_numbers(sheet, index, format);
+                let cuts: Vec<f64> = thresholds
+                    .iter()
+                    .map(|t| threshold_value(t, &nums))
+                    .collect();
+                let css: Vec<String> = colors
+                    .iter()
+                    .map(|c| resolve_rgb(c, theme, indexed))
+                    .collect();
+                if let Some(c) = scale_color(n, &cuts, &css) {
+                    result.color_scale = Some(c);
+                    any = true;
+                }
+                true
+            }
+            ConditionalRule::DataBar {
+                min,
+                max,
+                color,
+                show_value,
+                ..
+            } => {
+                if result.data_bar.is_some() {
+                    continue;
+                }
+                let Some(n) = number else {
+                    continue;
+                };
+                let nums = range_numbers(sheet, index, format);
+                let lo = threshold_value(min, &nums);
+                let hi = threshold_value(max, &nums);
+                let (start, fraction) = data_bar_geometry(n, lo, hi);
+                result.data_bar = Some(DataBarView {
+                    fraction,
+                    start: Some(start),
+                    axis: None,
+                    color: resolve_rgb(color, theme, indexed),
+                    negative: if n < 0.0 { Some(true) } else { None },
+                    gradient: None,
+                    direction: None,
+                    border_color: None,
+                });
+                if !*show_value {
+                    result.hide_value = true;
+                }
+                any = true;
+                true
             }
             ConditionalRule::IconSet {
                 icon_set,
@@ -196,7 +392,7 @@ pub fn cf_icon_at(
                 show_value,
                 ..
             } => {
-                if icon.is_some() {
+                if result.icon.is_some() {
                     continue;
                 }
                 let Some(n) = number else {
@@ -211,19 +407,46 @@ pub fn cf_icon_at(
                 if *reverse && !thresholds.is_empty() {
                     idx = thresholds.len() - 1 - idx;
                 }
-                icon = Some(CfIcon {
+                result.icon = Some(CfIcon {
                     set: icon_set.clone(),
                     index: idx as u32,
                     hide_value: !*show_value,
                 });
+                if !*show_value {
+                    result.hide_value = true;
+                }
+                any = true;
+                true
             }
             ConditionalRule::Other { stop_if_true, .. } => {
-                // Unsupported rules do not match; stopIfTrue cannot fire.
                 let _ = stop_if_true;
+                false
+            }
+        };
+        let _ = matched;
+    }
+
+    if any {
+        if let Some(icon) = &result.icon {
+            if icon.hide_value {
+                result.hide_value = true;
             }
         }
+        Some(result)
+    } else {
+        None
     }
-    icon
+}
+
+/// Icon for `(row, col)` when an icon-set rule applies after higher-priority stopIfTrue rules.
+pub fn cf_icon_at(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    row: u32,
+    col: u32,
+) -> Option<CfIcon> {
+    let theme = crate::workbook::default_theme();
+    cf_at(sheet, index, row, col, &theme, &[]).and_then(|a| a.icon)
 }
 
 impl From<CfIcon> for IconView {
@@ -298,7 +521,7 @@ mod tests {
                     ConditionalRule::CellIs {
                         operator: "greaterThanOrEqual".into(),
                         formulas: vec!["900000".into()],
-                        style: crate::model::DifferentialStyle {
+                        style: DifferentialStyle {
                             font: None,
                             fill: None,
                             border: None,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/layout/cell-view.ts; changes listed in PROVENANCE.md.
 
-use crate::cf::cf_icon_at;
+use crate::cf::cf_at;
 use crate::model::{ActiveWorksheet, DumpCellValue, WorkbookSlice};
 use crate::numfmt::{format_value, FormatOptions};
 use crate::sheet_access::{
@@ -10,7 +10,7 @@ use crate::sheet_access::{
 use crate::styles::style_at;
 use crate::view::sparkline_data::sparkline_view_at;
 use crate::view::style_view::{borders_view, fill_view, font_view, merge_font};
-use crate::view::types::{CellView, RichRun};
+use crate::view::types::{CellView, FillView, RichRun};
 use crate::view::units::INDENT_PX_PER_LEVEL;
 
 pub fn effective_style_id(sheet: &ActiveWorksheet, index: &CellIndex, row: u32, col: u32) -> u32 {
@@ -161,8 +161,8 @@ pub fn cell_view(
     } else {
         None
     };
-    let cf_icon = cf_icon_at(sheet, index, row, col);
-    let hide_value = cf_icon.as_ref().is_some_and(|i| i.hide_value);
+    let cf = cf_at(sheet, index, row, col, &workbook.theme, &indexed);
+    let hide_value = cf.as_ref().is_some_and(|c| c.hide_value);
     let shown = if hide_value {
         (String::new(), None)
     } else if let Some(ft) = &formula_text {
@@ -171,7 +171,16 @@ pub fn cell_view(
         let (t, c) = display_text(&value, &style.num_fmt, workbook, sheet);
         (t, c)
     };
-    let mut font_view_resolved = font_view(&font, &workbook.theme, &indexed);
+    let font_for_view = if let Some(cf) = &cf {
+        if let Some(dxf) = &cf.style {
+            merge_font(&font, dxf.font.as_ref())
+        } else {
+            font.clone()
+        }
+    } else {
+        font.clone()
+    };
+    let mut font_view_resolved = font_view(&font_for_view, &workbook.theme, &indexed);
     if let Some(c) = shown.1 {
         font_view_resolved.color = c;
     }
@@ -201,7 +210,18 @@ pub fn cell_view(
         0.0
     };
 
-    let fill = fill_view(Some(&style.fill), &workbook.theme, false, &indexed);
+    let mut fill = fill_view(Some(&style.fill), &workbook.theme, false, &indexed);
+    if let Some(cf) = &cf {
+        if let Some(scale) = &cf.color_scale {
+            fill = Some(FillView::Background {
+                background: scale.clone(),
+            });
+        } else if let Some(dxf) = &cf.style {
+            if let Some(cf_fill) = fill_view(dxf.fill.as_ref(), &workbook.theme, true, &indexed) {
+                fill = Some(cf_fill);
+            }
+        }
+    }
 
     let is_number = matches!(
         value,
@@ -234,8 +254,8 @@ pub fn cell_view(
         vertical_text: vertical,
         is_number,
         overflow,
-        data_bar: None,
-        icon: cf_icon.map(Into::into),
+        data_bar: cf.as_ref().and_then(|c| c.data_bar.clone()),
+        icon: cf.as_ref().and_then(|c| c.icon.clone().map(Into::into)),
         has_comment: sheet
             .comment_addresses
             .iter()
@@ -283,7 +303,7 @@ pub fn cell_view(
                             .map(|run| RichRun {
                                 text: run.text.clone(),
                                 font: font_view(
-                                    &merge_font(&font, run.font.as_ref()),
+                                    &merge_font(&font_for_view, run.font.as_ref()),
                                     &workbook.theme,
                                     &indexed,
                                 ),

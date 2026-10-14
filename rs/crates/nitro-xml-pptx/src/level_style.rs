@@ -35,6 +35,8 @@ pub struct PlaceholderTextLevelStyle {
     pub font_bold: Option<bool>,
     /// `a:defRPr/@i` when authored.
     pub font_italic: Option<bool>,
+    /// `a:defRPr/@kern` hundredths of a point (kerning threshold, not a boolean).
+    pub font_kern_hundredths: Option<i32>,
     /// `a:pPr/@marL` in CSS px.
     pub margin_left_px: Option<f64>,
     /// `a:pPr/@indent` in CSS px (may be negative for hanging indents).
@@ -99,6 +101,7 @@ fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
         || style.default_latin_typeface.is_some()
         || style.font_bold.is_some()
         || style.font_italic.is_some()
+        || style.font_kern_hundredths.is_some()
         || style.margin_left_px.is_some()
         || style.indent_px.is_some()
         || style.paragraph_align.is_some()
@@ -201,6 +204,11 @@ fn apply_def_rpr(style: &mut PlaceholderTextLevelStyle, p_pr: &Element) {
     }
     if let Some(i) = attr(def, "i") {
         style.font_italic = Some(matches!(i, "1" | "true" | "on"));
+    }
+    if let Some(kern) = attr(def, "kern") {
+        if let Ok(v) = kern.parse::<i32>() {
+            style.font_kern_hundredths = Some(v);
+        }
     }
     let Some(fill) = child_local(def, "solidFill", ns::A) else {
         return;
@@ -320,6 +328,7 @@ fn merge_level_style(
             .or_else(|| base.default_latin_typeface.clone()),
         font_bold: over.font_bold.or(base.font_bold),
         font_italic: over.font_italic.or(base.font_italic),
+        font_kern_hundredths: over.font_kern_hundredths.or(base.font_kern_hundredths),
         margin_left_px: over.margin_left_px.or(base.margin_left_px),
         indent_px: over.indent_px.or(base.indent_px),
         paragraph_align: over.paragraph_align.or(base.paragraph_align),
@@ -364,6 +373,7 @@ pub struct ParagraphLevelRunStyle {
     pub font_family: Option<String>,
     pub font_bold: Option<bool>,
     pub font_italic: Option<bool>,
+    pub font_kern_hundredths: Option<i32>,
     pub text_color_hex: Option<String>,
 }
 
@@ -383,6 +393,7 @@ pub fn paragraph_level_run_style(
             .and_then(|face| resolve_theme_latin_typeface(face, font_scheme)),
         font_bold: style.font_bold,
         font_italic: style.font_italic,
+        font_kern_hundredths: style.font_kern_hundredths,
         text_color_hex: style.text_color_hex.clone(),
     }
 }

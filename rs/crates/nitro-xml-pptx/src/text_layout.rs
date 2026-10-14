@@ -362,6 +362,7 @@ pub struct TextPaintParagraph {
     pub level_font_family: Option<String>,
     pub level_font_bold: Option<bool>,
     pub level_font_italic: Option<bool>,
+    pub level_font_kern_hundredths: Option<i32>,
     pub level_text_color: Option<String>,
     pub list_level: i8,
     /// CSS `line-height` (unitless multiplier or `"Npx"`).
@@ -513,6 +514,7 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 level_font_family: level_run_style.font_family,
                 level_font_bold: level_run_style.font_bold,
                 level_font_italic: level_run_style.font_italic,
+                level_font_kern_hundredths: level_run_style.font_kern_hundredths,
                 level_text_color: level_run_style.text_color_hex,
                 list_level: para_level,
                 line_height_css: spacing.line_height_css,

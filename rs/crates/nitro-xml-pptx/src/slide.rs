@@ -2755,7 +2755,15 @@ fn apply_norm_autofit_to_extras(
     } else {
         sz
     };
+    let ratio = scaled / sz;
     extras.font_size_px = Some(scaled);
+    if let Some(paras) = &mut extras.text_paint_paragraphs {
+        for para in paras.iter_mut() {
+            if let Some(level_sz) = para.level_font_size_px {
+                para.level_font_size_px = Some((level_sz * ratio).max(6.0));
+            }
+        }
+    }
 }
 
 fn parse_line_end_arrow(ln: &Element, local: &str) -> Option<String> {
@@ -3284,7 +3292,7 @@ mod tests {
                 <p:titleStyle>
                   <a:lvl1pPr>
                     <a:buNone/>
-                    <a:defRPr sz="4400"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:defRPr>
+                    <a:defRPr sz="4400" b="1" kern="1200"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:defRPr>
                   </a:lvl1pPr>
                 </p:titleStyle>
               </p:txStyles>
@@ -3327,6 +3335,10 @@ mod tests {
         let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
         assert_eq!(el.text_color.as_deref(), Some("#FFFFFF"));
         assert!((el.font_size_px.unwrap() - 60.0 * 96.0 / 72.0).abs() < 0.05);
+        assert!(el.font_bold);
+        let para = el.text_paint_paragraphs.as_ref().unwrap().first().unwrap();
+        assert_eq!(para.level_font_kern_hundredths, Some(1200));
+        assert_eq!(para.level_font_bold, Some(true));
     }
 
     // Catches: body placeholder `bodyStyle` defRPr sz left at 24px host default instead of master 28pt.
@@ -3663,6 +3675,55 @@ mod tests {
             "metal gradient overlay, got {overlay}"
         );
         assert!(el.box_shadow.is_some(), "outer shadow from effectLst");
+    }
+
+    // Catches: title-slide ctrTitle using master 44pt instead of layout 60pt / missing bold+kern from txStyle.
+    #[test]
+    fn upstream_title_slide_ctr_title_tx_style() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/1abd9b12cb19_master-layout-inheritance-fills.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let title = slide
+            .elements
+            .iter()
+            .find(|e| {
+                e.text
+                    .as_deref()
+                    .is_some_and(|t| t.contains("Master & Layout"))
+            })
+            .expect("title");
+        let sz60 = 60.0 * 96.0 / 72.0;
+        let para = title
+            .text_paint_paragraphs
+            .as_ref()
+            .unwrap()
+            .first()
+            .unwrap();
+        assert!(
+            (para.level_font_size_px.unwrap() - sz60).abs() < 0.5,
+            "level sz {:?}",
+            para.level_font_size_px
+        );
+        assert_eq!(para.level_font_bold, Some(true));
+        assert_eq!(para.level_font_kern_hundredths, Some(1200));
+        assert!(title.font_bold);
+        assert_eq!(
+            title.font_family.as_deref(),
+            Some("Aptos Display"),
+            "title uses theme major latin"
+        );
+        let layout = title.text_body_layout.as_ref().expect("layout");
+        assert_eq!(layout.v_align, crate::text_layout::TextBodyVAlign::Bottom);
+        assert_eq!(
+            para.line_height_css.as_deref(),
+            Some("1.08"),
+            "titleStyle lnSpc 0.9 × default 1.2"
+        );
     }
 
     // Catches: keyframes Profil effectRef idx=2 metal never gets inset specular so the green button stays flat.

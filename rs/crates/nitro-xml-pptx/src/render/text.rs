@@ -27,6 +27,8 @@ pub struct TextBodyPaint<'a> {
     pub font_family: Option<&'a str>,
     pub font_bold: bool,
     pub font_italic: bool,
+    /// `a:rPr/@kern` or merged `defRPr/@kern` (hundredths of a point threshold).
+    pub font_kern_hundredths: Option<i32>,
     pub text_stroke_width_px: Option<f64>,
     pub text_stroke_color: Option<&'a str>,
     pub layout: Option<&'a TextBodyLayout>,
@@ -57,7 +59,22 @@ impl<'a> TextBodyPaint<'a> {
                 None,
             ),
             presentation_kinsoku: el.presentation_kinsoku,
+            font_kern_hundredths: None,
         }
+    }
+}
+
+/// Ported from upstream `resolveFontKerning` (text-run-style.ts).
+fn resolve_font_kerning(kern_hundredths: Option<i32>, font_size_px: f64) -> Option<&'static str> {
+    let kern = kern_hundredths?;
+    if kern == 0 {
+        return Some("none");
+    }
+    let font_size_pt = font_size_px * (72.0 / 96.0);
+    if font_size_pt >= kern as f64 / 100.0 {
+        Some("normal")
+    } else {
+        Some("none")
     }
 }
 
@@ -100,11 +117,7 @@ fn paint_plain_text_runs<I: StringIntern>(
 ) {
     let para_align = paint.layout.and_then(|l| l.text_align);
     let para = open_paragraph(ctx, block, para_align, None);
-    let metric_stack = if paint.font_family.is_some() {
-        substitute_font_family_stack(paint.font_family)
-    } else {
-        VISUAL_HOST_RUN_FONT_STACK.to_owned()
-    };
+    let metric_stack = VISUAL_HOST_RUN_FONT_STACK.to_owned();
     for piece in split_run_for_metric_pieces(text) {
         let run = create_child(ctx, para, "span");
         set_text_content(ctx, run, &piece);
@@ -248,6 +261,9 @@ fn paint_run_typography<I: StringIntern>(
     if let Some(color) = paint.text_color {
         set_style(ctx, run, "color", color);
     }
+    if let Some(kern) = resolve_font_kerning(paint.font_kern_hundredths, size) {
+        set_style(ctx, run, "font-kerning", kern);
+    }
     if let Some(width) = paint.text_stroke_width_px.filter(|w| *w > 0.0) {
         let stroke_color = paint.text_stroke_color.unwrap_or("currentColor");
         set_style(
@@ -283,6 +299,9 @@ fn paint_rich_paragraphs<I: StringIntern>(
                 .or(paint.font_family),
             font_bold: para_model.level_font_bold.unwrap_or(paint.font_bold),
             font_italic: para_model.level_font_italic.unwrap_or(paint.font_italic),
+            font_kern_hundredths: para_model
+                .level_font_kern_hundredths
+                .or(paint.font_kern_hundredths),
             text_stroke_width_px: paint.text_stroke_width_px,
             text_stroke_color: paint.text_stroke_color,
             layout: paint.layout,
@@ -556,19 +575,7 @@ fn paint_run_text_span<I: StringIntern>(
     if run_model.underline {
         apply_run_underline(ctx, run);
     }
-    let metric_stack = if paint.font_family.is_some() {
-        substitute_font_family_stack(paint.font_family)
-    } else {
-        VISUAL_HOST_RUN_FONT_STACK.to_owned()
-    };
-    apply_gdi_metric_letter_spacing_with_stack(
-        ctx,
-        run,
-        text,
-        size,
-        &metric_stack,
-        paint.font_bold,
-    );
+    apply_gdi_metric_letter_spacing(ctx, run, text, size, paint.font_family, paint.font_bold);
     run
 }
 
@@ -776,14 +783,21 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
     para: u32,
     text: &str,
     size_px: f64,
-    font_family: Option<&str>,
+    _font_family: Option<&str>,
     bold: bool,
 ) {
-    if text.is_empty() || font_family.is_none() {
+    if text.is_empty() {
         return;
     }
-    let stack = substitute_font_family_stack(font_family);
-    apply_gdi_metric_letter_spacing_with_stack(ctx, para, text, size_px, &stack, bold);
+    // Visual host pins painted glyphs to Liberation; GDI tracking must measure the same face.
+    apply_gdi_metric_letter_spacing_with_stack(
+        ctx,
+        para,
+        text,
+        size_px,
+        VISUAL_HOST_RUN_FONT_STACK,
+        bold,
+    );
 }
 
 fn apply_gdi_metric_letter_spacing_with_stack<I: StringIntern>(
@@ -1015,6 +1029,7 @@ mod tests {
             font_family: None,
             font_bold: false,
             font_italic: false,
+            font_kern_hundredths: None,
             text_stroke_width_px: Some(2.0),
             text_stroke_color: None,
             layout: None,
@@ -1040,6 +1055,7 @@ mod tests {
             font_family: None,
             font_bold: false,
             font_italic: false,
+            font_kern_hundredths: None,
             text_stroke_width_px: Some(3.31),
             text_stroke_color: Some("#000000"),
             layout: None,
@@ -1064,6 +1080,7 @@ mod tests {
             font_family: None,
             font_bold: false,
             font_italic: false,
+            font_kern_hundredths: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -1088,6 +1105,7 @@ mod tests {
             font_family: Some("Informal Roman"),
             font_bold: false,
             font_italic: false,
+            font_kern_hundredths: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -1115,6 +1133,7 @@ mod tests {
             font_family: None,
             font_bold: false,
             font_italic: false,
+            font_kern_hundredths: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -1163,6 +1182,7 @@ mod tests {
             font_family: None,
             font_bold: false,
             font_italic: false,
+            font_kern_hundredths: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -1185,6 +1205,7 @@ mod tests {
             font_family: None,
             font_bold: false,
             font_italic: false,
+            font_kern_hundredths: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -1202,8 +1223,7 @@ mod tests {
         // Catches: measure batch queued for pptx text but letter-spacing never applied on paint.
         let mut measure = MeasureBatch::default();
         let mut intern = Intern(Vec::new());
-        let stack = super::super::font_substitution::substitute_font_family_stack(Some("Arial"));
-        let canvas_font = format!("24px {}", stack);
+        let canvas_font = format!("24px {}", super::VISUAL_HOST_RUN_FONT_STACK);
         let font_id = intern.intern(&canvas_font);
         let text_id = intern.intern("Hi");
         measure.cache.insert((font_id, text_id), -0.02);
@@ -1214,6 +1234,7 @@ mod tests {
                 font_family: Some("Arial"),
                 font_bold: false,
                 font_italic: false,
+                font_kern_hundredths: None,
                 text_stroke_width_px: None,
                 text_stroke_color: None,
                 layout: None,
@@ -1259,6 +1280,7 @@ mod tests {
             font_family: None,
             font_bold: false,
             font_italic: false,
+            font_kern_hundredths: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: Some(&layout),
@@ -1293,6 +1315,7 @@ mod tests {
             font_family: None,
             font_bold: false,
             font_italic: false,
+            font_kern_hundredths: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: Some(&layout),
@@ -1327,6 +1350,7 @@ mod tests {
             font_family: None,
             font_bold: false,
             font_italic: false,
+            font_kern_hundredths: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,

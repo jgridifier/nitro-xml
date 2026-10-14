@@ -117,7 +117,7 @@
       injectStyle(
         shadow,
         await (await fetch('/fonts/visual-fonts.css')).text() +
-          `\n:host,.dom,[data-pptx-element]{font-family:"Liberation Sans",Arial,sans-serif}`,
+          `\n:host,.dom,[data-pptx-element],.dom *{font-family:"Liberation Sans",Arial,sans-serif!important}`,
         'font-pin',
       );
       await waitFonts();

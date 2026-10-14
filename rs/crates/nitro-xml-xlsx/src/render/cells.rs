@@ -10,7 +10,7 @@ use crate::editor::mark_stale_class;
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
 use crate::render::geometry::header_sizes;
-use crate::render::grid::{CELLS_ID, OVERLAY_ID};
+use crate::render::grid::{CELLS_ID, CELLS_TOP_ID, OVERLAY_ID};
 use crate::render::viewport::{paint_indices, visible_cells_for_host};
 use crate::render::{EditorPaintHints, GridPaintViewport};
 use crate::sheet_access::CellIndex;
@@ -68,12 +68,13 @@ fn paint_one_cell<I: StringIntern>(
     item: &CellItem,
     zoom: f64,
     stale: bool,
+    parent: u32,
 ) {
     let cell_id = CELL_BASE + n as u32;
     // Plane-relative coords; scroll is on `.xg-plane` translate3d (upstream cell-layer.ts).
     let left = item.x;
     let top = item.y;
-    buf.create_element(cell_id, div, CELLS_ID);
+    buf.create_element(cell_id, div, parent);
     let mut cell_class = String::from("xg-c");
     if item.overflowing {
         cell_class.push_str(" xg-c-over");
@@ -397,13 +398,30 @@ pub fn paint<I: StringIntern>(
     // Upstream CellViewCache returns null for isBlankView — no DOM node.
     // View-IR keeps blanks (oracle view() never null); only the painter skips.
     let stale: HashSet<(u32, u32)> = hints.stale.iter().copied().collect();
+    let frozen_rows = viewport.frozen_rows;
     let mut n = 0usize;
     for item in &items {
         let is_stale = stale.contains(&(item.row, item.col));
         if !item.merged && is_blank_view(&item.view) && !is_stale {
             continue;
         }
-        paint_one_cell(buf, intern, div, span, n, item, metrics.zoom, is_stale);
+        // Frozen rows live in `xg-q-top`; scrolling rows in `xg-q-main` (grid-view.ts).
+        let parent = if frozen_rows > 0 && item.row < frozen_rows {
+            CELLS_TOP_ID
+        } else {
+            CELLS_ID
+        };
+        paint_one_cell(
+            buf,
+            intern,
+            div,
+            span,
+            n,
+            item,
+            metrics.zoom,
+            is_stale,
+            parent,
+        );
         n += 1;
     }
     paint_edit_overlay(buf, intern, metrics, hints);

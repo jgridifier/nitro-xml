@@ -336,13 +336,21 @@ mod tests {
 
     #[test]
     fn catches_paint_selection_defaults_to_a1_when_view_has_none() {
-        // Catches: grid chrome without sheetView/selection must match upstream initialSelection (A1).
+        // Catches: default paint selection must stay A1:A1 (not merge-expanded), else headers
+        // mark every column in A1:J1 and the outline/active chrome drifts vs TS (poi-no_drawing).
         let sheet = sheet_with_merge();
         assert!(sheet.view.selection.is_none());
         let sel = paint_selection(&sheet);
         assert_eq!(sel.active, CellAddress { row: 0, col: 0 });
-        assert_eq!(sel.ranges[0].end, CellAddress { row: 0, col: 0 });
+        assert_eq!(
+            sel.ranges,
+            vec![CellRange {
+                start: CellAddress { row: 0, col: 0 },
+                end: CellAddress { row: 0, col: 0 },
+            }]
+        );
         assert_eq!(col_selected(&sel, 0), "part");
+        assert_eq!(col_selected(&sel, 1), "none");
         assert_eq!(row_selected(&sel, 0), "part");
         // Catches: A1:B2 merge must not expand open selection (would mark col B / row 2 headers).
         assert_eq!(col_selected(&sel, 1), "none");

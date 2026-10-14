@@ -12,6 +12,33 @@ use crate::xml_util::{a_first, att, children_ns, elements, first_ns, rel_attr};
 
 const ANCHOR_PARTS: &[&str] = &["from", "to", "ext", "pos", "clientData"];
 
+fn base64_encode(data: &[u8]) -> String {
+    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    let (chunks, rest) = data.as_chunks::<3>();
+    for chunk in chunks {
+        let n = ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8) | chunk[2] as u32;
+        out.push(TABLE[((n >> 18) & 63) as usize] as char);
+        out.push(TABLE[((n >> 12) & 63) as usize] as char);
+        out.push(TABLE[((n >> 6) & 63) as usize] as char);
+        out.push(TABLE[(n & 63) as usize] as char);
+    }
+    if rest.len() == 1 {
+        let n = (rest[0] as u32) << 16;
+        out.push(TABLE[((n >> 18) & 63) as usize] as char);
+        out.push(TABLE[((n >> 12) & 63) as usize] as char);
+        out.push('=');
+        out.push('=');
+    } else if rest.len() == 2 {
+        let n = ((rest[0] as u32) << 16) | ((rest[1] as u32) << 8);
+        out.push(TABLE[((n >> 18) & 63) as usize] as char);
+        out.push(TABLE[((n >> 12) & 63) as usize] as char);
+        out.push(TABLE[((n >> 6) & 63) as usize] as char);
+        out.push('=');
+    }
+    out
+}
+
 fn xdr_first<'a>(parent: Option<&'a Element>, local: &str) -> Option<&'a Element> {
     parent.and_then(|p| first_ns(p, local, ns::XDR))
 }
@@ -151,12 +178,18 @@ pub fn parse_drawing(
                     .content_type(&target)
                     .unwrap_or("application/octet-stream")
                     .to_owned();
+                let data_url = pkg
+                    .read(&target)
+                    .ok()
+                    .flatten()
+                    .map(|bytes| format!("data:{content_type};base64,{}", base64_encode(&bytes)));
                 out.push(DrawingObject::Image {
                     anchor,
                     part_name: target,
                     content_type,
                     name,
                     description: att(c_nv, "descr").map(|s| s.to_owned()),
+                    data_url,
                 });
             } else {
                 out.push(unsupported(anchor, "linked picture"));

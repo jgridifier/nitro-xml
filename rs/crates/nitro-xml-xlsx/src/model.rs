@@ -902,6 +902,8 @@ pub enum DrawingObject {
         content_type: String,
         name: Option<String>,
         description: Option<String>,
+        /// `data:` URL for the picture part (embedded at load so the painter can emit `<img>`).
+        data_url: Option<String>,
     },
 }
 

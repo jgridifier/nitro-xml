@@ -391,8 +391,10 @@ pub fn paragraph_level_run_style(
             .default_latin_typeface
             .as_deref()
             .and_then(|face| resolve_theme_latin_typeface(face, font_scheme)),
-        font_bold: style.font_bold,
-        font_italic: style.font_italic,
+        // Absent `b`/`i` on a txStyle `defRPr` is normal weight / upright for that level,
+        // not inheritance from the shape's first-run fallback (#27 master-text-styles).
+        font_bold: Some(style.font_bold.unwrap_or(false)),
+        font_italic: Some(style.font_italic.unwrap_or(false)),
         font_kern_hundredths: style.font_kern_hundredths,
         text_color_hex: style.text_color_hex.clone(),
     }

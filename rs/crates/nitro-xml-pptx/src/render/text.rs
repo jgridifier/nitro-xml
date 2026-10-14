@@ -783,10 +783,10 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
     para: u32,
     text: &str,
     size_px: f64,
-    _font_family: Option<&str>,
+    font_family: Option<&str>,
     bold: bool,
 ) {
-    if text.is_empty() {
+    if text.is_empty() || font_family.is_none() {
         return;
     }
     // Visual host pins painted glyphs to Liberation; GDI tracking must measure the same face.

@@ -3726,6 +3726,27 @@ mod tests {
         );
     }
 
+    // Catches: body lvl2 inheriting titleStyle lvl1 italic via shape-level first-run fallback.
+    #[test]
+    fn upstream_master_text_styles_body_level_two_not_italic() {
+        use crate::presentation::Presentation;
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/4647c93fad68_master-text-styles.pptx"
+        ))
+        .expect("fixture");
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let slide = opened.slide(0).expect("slide0");
+        let body = slide
+            .elements
+            .iter()
+            .find(|e| e.placeholder_type.as_deref() == Some("body"))
+            .expect("body");
+        let paras = body.text_paint_paragraphs.as_ref().expect("paras");
+        assert_eq!(paras[0].level_font_italic, Some(true));
+        assert_eq!(paras[1].level_font_italic, Some(false));
+    }
+
     // Catches: keyframes Profil effectRef idx=2 metal never gets inset specular so the green button stays flat.
     #[test]
     fn keyframes_profil_effectref_metal_material() {

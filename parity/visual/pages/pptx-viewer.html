@@ -229,7 +229,7 @@
         injectStyle(
           document.head,
           await (await fetch('/fonts/visual-fonts.css')).text() +
-            `\n#ts-wrap,#ts-wrap *{font-family:"Liberation Sans",Arial,sans-serif}`,
+            `\n#ts-wrap,#ts-wrap *{font-family:"Liberation Sans",Arial,sans-serif!important}`,
           'font-pin-ts',
         );
         await waitFrames(3);

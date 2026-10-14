@@ -62,6 +62,7 @@ pub(crate) struct TableStyleFill {
 pub(crate) struct TableStyleText {
     pub scheme_color: Option<String>,
     pub color: Option<String>,
+    pub bold: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -188,12 +189,14 @@ fn parse_section_text(tc_tx: &Element) -> Option<TableStyleText> {
         .and_then(|c| attr(c, "val"))
         .filter(|s| !s.is_empty())
         .map(srgb_to_hex);
-    if scheme_color.is_none() && color.is_none() {
+    let bold = matches!(attr(tc_tx, "b"), Some("1") | Some("true") | Some("on"));
+    if scheme_color.is_none() && color.is_none() && !bold {
         return None;
     }
     Some(TableStyleText {
         scheme_color,
         color,
+        bold,
     })
 }
 

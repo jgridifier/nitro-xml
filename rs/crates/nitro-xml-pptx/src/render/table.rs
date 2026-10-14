@@ -78,6 +78,9 @@ fn paint_grid<I: StringIntern>(ctx: &mut PaintContext<'_, I>, parent: u32, data:
             if let Some(color) = &cell.text_color {
                 set_style(ctx, td, "color", color);
             }
+            if cell.font_bold {
+                set_style(ctx, td, "font-weight", "700");
+            }
             let border = cell.border.as_deref().unwrap_or("1px solid #999999");
             set_style(ctx, td, "border", border);
             let span = create_child(ctx, td, "span");

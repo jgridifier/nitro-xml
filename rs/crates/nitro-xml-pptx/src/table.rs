@@ -41,6 +41,8 @@ pub(crate) struct TableCell {
     pub text: String,
     pub fill: Option<String>,
     pub text_color: Option<String>,
+    /// Header / style `tcTxStyle/@b` (Medium Style 2 firstRow is bold).
+    pub font_bold: bool,
     /// Full CSS border (`1px solid #FFFFFF`) when the cell or table style sets one.
     pub border: Option<String>,
     pub grid_span: u32,
@@ -143,8 +145,8 @@ fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> Ta
     let explicit = tc_pr
         .and_then(|p| child_local(p, "solidFill", ns::A))
         .and_then(|fill| solid_css(fill, theme));
-    let (style_fill, style_text, style_border) = if no_fill {
-        (None, None, None)
+    let (style_fill, style_text, style_border, style_bold) = if no_fill {
+        (None, None, None, false)
     } else if let Some(entry) = place.package_entry {
         let band = TableBandFlags {
             first_row: place.flags.first_row,
@@ -157,7 +159,7 @@ fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> Ta
             colors: theme.colors,
             map: theme.map,
         };
-        resolve_package_cell_style(
+        let (fill, text, border) = resolve_package_cell_style(
             entry,
             &band,
             place.row_index,
@@ -165,18 +167,28 @@ fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> Ta
             place.row_count,
             place.col_count,
             &table_theme,
-        )
+        );
+        let bold = resolve_package_cell_bold(
+            entry,
+            &band,
+            place.row_index,
+            place.col_index,
+            place.row_count,
+            place.col_count,
+        );
+        (fill, text, border, bold)
     } else if place.styled_builtin {
-        style_layers(
+        let (fill, text, border, bold) = style_layers(
             theme,
             place.flags,
             place.row_index,
             place.col_index,
             place.row_count,
             place.col_count,
-        )
+        );
+        (fill, text, border, bold)
     } else {
-        (None, None, None)
+        (None, None, None, false)
     };
     let fill = if no_fill {
         None
@@ -190,6 +202,7 @@ fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> Ta
         text: cell_text(cell),
         fill,
         text_color: style_text,
+        font_bold: style_bold,
         border,
         grid_span: span_attr(attr(cell, "gridSpan")),
         row_span: span_attr(attr(cell, "rowSpan")),
@@ -224,9 +237,9 @@ fn style_layers(
     col_index: usize,
     row_count: usize,
     col_count: usize,
-) -> (Option<String>, Option<String>, Option<String>) {
+) -> (Option<String>, Option<String>, Option<String>, bool) {
     let Some(accent) = theme.scheme("accent1") else {
-        return (None, None, None);
+        return (None, None, None, false);
     };
     let mut fill = tint_srgb(&accent, 0.2);
     let mut text = theme.scheme("dk1");
@@ -251,10 +264,75 @@ fn style_layers(
     if at_right || at_left || at_bottom || at_top {
         fill = Some(accent);
     }
+    let mut bold = false;
     if at_top {
         text = Some("#FFFFFF".to_owned());
+        // Upstream Medium Style 2 firstRow text is bold.
+        bold = true;
     }
-    (fill, text, border)
+    (fill, text, border, bold)
+}
+
+fn resolve_package_cell_bold(
+    entry: &crate::table_style::TableStyleEntry,
+    flags: &TableBandFlags,
+    row_index: usize,
+    col_index: usize,
+    row_count: usize,
+    col_count: usize,
+) -> bool {
+    let at_top = flags.first_row && row_index == 0;
+    let at_bottom = flags.last_row && row_index + 1 == row_count;
+    let at_left = flags.first_col && col_index == 0;
+    let at_right = flags.last_col && col_index + 1 == col_count;
+    let mut bold = entry.whole_tbl.text.as_ref().is_some_and(|t| t.bold);
+    let band_start_row = usize::from(flags.first_row);
+    let band_end_row = if flags.last_row {
+        row_count.saturating_sub(1)
+    } else {
+        row_count
+    };
+    if flags.band_row && row_index >= band_start_row && row_index < band_end_row {
+        let band_index = row_index - band_start_row;
+        let part = if band_index.is_multiple_of(2) {
+            &entry.band1_h
+        } else {
+            &entry.band2_h
+        };
+        if let Some(t) = part.text.as_ref() {
+            bold = t.bold;
+        }
+    }
+    let mut apply = |part: &crate::table_style::TableStylePart| {
+        if let Some(t) = part.text.as_ref() {
+            bold = t.bold;
+        }
+    };
+    if at_right {
+        apply(&entry.last_col);
+    }
+    if at_left {
+        apply(&entry.first_col);
+    }
+    if at_bottom {
+        apply(&entry.last_row);
+    }
+    if at_bottom && at_right {
+        apply(&entry.se_cell);
+    }
+    if at_bottom && at_left {
+        apply(&entry.sw_cell);
+    }
+    if at_top {
+        apply(&entry.first_row);
+    }
+    if at_top && at_right {
+        apply(&entry.ne_cell);
+    }
+    if at_top && at_left {
+        apply(&entry.nw_cell);
+    }
+    bold
 }
 
 fn column_widths(grid: Option<&Element>) -> Vec<f64> {

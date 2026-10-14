@@ -89,6 +89,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'upstream-b2b71a866c2e',
 	'upstream-b6c7dfcf4428',
 	'upstream-bd16f101c6d5',
+	'upstream-be4aaa835c68',
 	'upstream-d173badb4435',
 	'upstream-d34691128d6a',
 	'upstream-d38cba8bfc42',

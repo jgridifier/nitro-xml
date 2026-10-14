@@ -24,13 +24,17 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         }
     }
     let stroke = el.stroke_color.as_deref().unwrap_or("#333333");
-    let stroke_width = el.stroke_width_px.unwrap_or(1.5);
-    let w_view = el.width.max(1.0).round() as i64;
-    let h_view = el.height.max(1.0).round() as i64;
+    // Upstream connector.ts defaults strokeWidth to 2 when unset.
+    let stroke_width = el.stroke_width_px.unwrap_or(2.0);
+    // Upstream: `Math.max(element.width/height, 1)` for the SVG viewBox.
+    let w_geom = el.width.max(1.0);
+    let h_geom = el.height.max(1.0);
+    let w_view = w_geom.round() as i64;
+    let h_view = h_geom.round() as i64;
     let geom = connector_stroke_geometry(
         el.shape_type.as_deref(),
-        el.width,
-        el.height,
+        w_geom,
+        h_geom,
         el.flip_horizontal,
         el.flip_vertical,
         stroke,

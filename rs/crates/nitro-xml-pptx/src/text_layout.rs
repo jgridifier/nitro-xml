@@ -484,9 +484,7 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 .or_else(|| {
                     list_styles.and_then(|ctx| {
                         ctx.effective_level_styles
-                            .and_then(|map| {
-                                crate::level_style::level_style_for(map, para_level)
-                            })
+                            .and_then(|map| crate::level_style::level_style_for(map, para_level))
                             .and_then(|style| {
                                 crate::east_asian_breaks::resolve_east_asian_break_options(
                                     style.hanging_punctuation,

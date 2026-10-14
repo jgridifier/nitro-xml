@@ -168,6 +168,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/render/font_substitution.rs` | `src/core/pptx/core/utils/font-substitution.ts` @ e66aaec | CSS `font-family` stacks via `getSubstituteFontFamily` (subset map + default sans chain) (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/field_substitution.rs` | `src/ui/src/pptx/render/text-field-substitution.ts`, `field-context.ts` @ e66aaec | `a:fld` slidenum/slidetitle/header/footer substitution at paint (#27). |
 | `rs/crates/nitro-xml-pptx/src/text_layout.rs` | `text-body-properties-parser.ts`, `text-body-layout.ts` @ e66aaec | Parse `a:bodyPr/@anchor`, insets, paragraph `algn` for paint. |
+| `rs/crates/nitro-xml-pptx/src/unicode_script.rs` | `unicode-script-detection.ts` @ e66aaec | Per-script font segmentation for run paint (#27). |
 | `rs/crates/nitro-xml-pptx/src/text_body_rect.rs` | `text-body-rect.ts` @ e66aaec | Preset/custGeom text rectangle as extra padding on the text body. |
 | `rs/crates/nitro-xml-pptx/src/verified_text_rect_presets.rs` | `verified-text-rect-presets.ts` @ e66aaec | COM-verified preset allowlist for geometry text rectangles. |
 | `rs/crates/nitro-xml-pptx/src/render/smartart.rs` | `src/ui/src/pptx/dom/elements/smartart-svg.ts` @ e66aaec | P11 calls S2 cached-drawing SVG at the element box, with the slide theme scheme (#27). |

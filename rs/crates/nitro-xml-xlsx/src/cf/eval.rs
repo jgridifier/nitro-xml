@@ -370,4 +370,37 @@ mod tests {
         assert_eq!(west.set, "3TrafficLights1");
         assert_eq!(west.index, 1);
     }
+
+    #[test]
+    fn lazy_first_view_has_cf_icons() {
+        // Catches: lazy shell drops conditionalFormatting so the viewer paints no .xg-ic.
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/xlsx/poi-ConditionalFormattingSamples.xlsx"
+        ))
+        .expect("fixture");
+        let first = crate::open_first_view(
+            &bytes,
+            crate::ViewportRect {
+                r0: 0,
+                c0: 0,
+                r1: 30,
+                c1: 12,
+            },
+        )
+        .expect("first view");
+        let active = first.workbook().active_sheet as usize;
+        let sheet = first.sheet(active).expect("active sheet");
+        assert!(
+            !sheet.conditional_formats.is_empty(),
+            "cf empty: cells={} name={}",
+            sheet.cells.len(),
+            sheet.name
+        );
+        let index = crate::sheet_access::CellIndex::build(sheet);
+        assert!(
+            crate::cf::cf_icon_at(sheet, &index, 4, 1).is_some(),
+            "west should have icon"
+        );
+    }
 }

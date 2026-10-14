@@ -165,16 +165,9 @@ fn paint_one_cell<I: StringIntern>(
     if let Some(icon) = &item.view.icon {
         let icon_id = ICON_BASE + n as u32;
         let size = (16.0 * (zoom / 100.0)).round().max(1.0) as u32;
-        let markup = icon_svg(&icon.set, icon.index, size);
+        // Empty host div; loader adopts the root <svg class="xg-ic"> (apply.js).
         buf.create_element(icon_id, div, cell_id);
-        set_attr(buf, intern, icon_id, "class", "xg-ic");
-        // Collapse the wrapper to the SVG box (inline SVG baseline would be ~21px tall).
-        set_style(buf, intern, icon_id, "width", &format!("{size}px"));
-        set_style(buf, intern, icon_id, "height", &format!("{size}px"));
-        set_style(buf, intern, icon_id, "lineHeight", "0");
-        set_style(buf, intern, icon_id, "overflow", "hidden");
-        set_style(buf, intern, icon_id, "display", "block");
-        buf.set_inner_markup(icon_id, intern.intern(&markup));
+        buf.set_inner_markup(icon_id, intern.intern(&icon_svg(&icon.set, icon.index, size)));
     }
 
     if !item.text.is_empty() {

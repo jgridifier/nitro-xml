@@ -11,7 +11,7 @@ const BLACK: &str = "#404040";
 
 fn svg(body: &str, size: u32) -> String {
     format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 16 16\" aria-hidden=\"true\">{body}</svg>"
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 16 16\" class=\"xg-ic\" aria-hidden=\"true\">{body}</svg>"
     )
 }
 

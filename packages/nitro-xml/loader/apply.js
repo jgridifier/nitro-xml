@@ -171,9 +171,20 @@ i += 8;
 const parent = parentId === 0 ? root : nodes.get(parentId);
 const markup = target.resolve(markupId);
 if (parent && markup && typeof document !== "undefined") {
+// Full <svg> documents (CF icons, charts): parse as HTML so the root
+// <svg> keeps attributes (class/width/viewBox). Fragment bodies still
+// go through an SVG template so path/circle land in the SVG namespace.
+const trimmed = String(markup).trimStart();
+if (trimmed.startsWith("<svg")) {
+const tpl = document.createElement("template");
+tpl.innerHTML = trimmed;
+const node = tpl.content.firstElementChild;
+if (node) parent.appendChild(node);
+} else {
 const tpl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 tpl.innerHTML = markup;
 while (tpl.firstChild) parent.appendChild(tpl.firstChild);
+}
 }
 ops++;
 break;

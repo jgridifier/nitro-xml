@@ -2953,6 +2953,9 @@ fn first_run_text_paint(
         }
         break;
     }
+    if color.is_none() {
+        color = font_ref_text_color(ctx.shape, ctx.inherited_shape, theme);
+    }
     if let Some(style) = ctx.level_fallback {
         if color.is_none() {
             color = level_style_text_color(style, theme);
@@ -3049,6 +3052,16 @@ fn rpr_text_stroke(rpr: &Element, theme: SchemeTheme<'_>) -> (Option<f64>, Optio
         _ => None,
     };
     (width, color)
+}
+
+fn font_ref_text_color(
+    shape: &Element,
+    inherited_shape: Option<&Element>,
+    theme: SchemeTheme<'_>,
+) -> Option<String> {
+    let ref_el = style_ref_node(shape, inherited_shape, "fontRef")?;
+    let color = parse_drawing_color_in(Some(ref_el))?;
+    css_color(&color, theme, false)
 }
 
 fn font_ref_family(
@@ -4258,6 +4271,27 @@ mod tests {
         };
         let el = parse_shape(&doc.root, "s".into(), &parse_ctx, false).unwrap();
         assert_eq!(el.font_family.as_deref(), Some("Corbel"));
+    }
+
+    // Catches: p:style fontRef lt1 ignored so accent buttons render black-on-teal instead of white.
+    #[test]
+    fn font_ref_scheme_clr_resolves_text_color() {
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+          <p:nvSpPr><p:cNvPr id="2" name="Btn"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm>
+            <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          </p:spPr>
+          <p:style><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></p:style>
+          <p:txBody>
+            <a:bodyPr/>
+            <a:p><a:r><a:rPr lang="en-US"/><a:t>BM1</a:t></a:r></a:p>
+          </p:txBody>
+        </p:sp>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el = parse_shape(&doc.root, "s".into(), &ctx(&colors), false).unwrap();
+        assert_eq!(el.text_color.as_deref(), Some("#FFFFFF"));
     }
 
     // Catches: VML / blip deep searches recursing once per nesting level and overflowing the WASM

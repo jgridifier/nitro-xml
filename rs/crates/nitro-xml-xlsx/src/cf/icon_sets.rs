@@ -201,9 +201,14 @@ fn body(set: &str, index: usize) -> String {
     }
 }
 
+/// Inner SVG body (no outer `<svg>` wrapper) for one icon of a set.
+pub fn icon_body(set: &str, index: u32) -> String {
+    body(set, index as usize)
+}
+
 /// SVG markup for one icon of a set.
 pub fn icon_svg(set: &str, index: u32, size: u32) -> String {
-    svg(&body(set, index as usize), size)
+    svg(&icon_body(set, index), size)
 }
 
 #[cfg(test)]

@@ -151,4 +151,12 @@ mod tests {
         assert_eq!(pad.top, 0.0);
         assert_eq!(pad.bottom, 0.0);
     }
+
+    // Catches: homePlate preset insets only the right edge (ECMA `r=ir`, l/t/b on box).
+    #[test]
+    fn homeplate_insets_right_only() {
+        let pad = resolve_text_body_rect_padding(Some("homePlate"), 260.0, 160.0, None);
+        assert!(pad.left < 0.5 && pad.top < 0.5 && pad.bottom < 0.5);
+        assert!(pad.right > 20.0);
+    }
 }

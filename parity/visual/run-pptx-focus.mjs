@@ -54,12 +54,20 @@ async function shot(browser, base, c, side, dpr) {
 			throw new Error(`host not ready: ${body || page.title()}`);
 		}
 		if (side === 'rust') {
-			for (let c = 0; c < 32; c++) {
+			for (let c = 0; c < 90; c++) {
 				await page.evaluate(async () => {
 					const el = document.getElementById('stage')?.querySelector('nitro-pptx');
 					if (el?.document) await el.document.tick();
 				});
-				await page.waitForTimeout(50);
+				await page.waitForTimeout(20);
+				if (c >= 11) {
+					const mc = await page.evaluate(
+						() =>
+							document.getElementById('stage')?.querySelector('nitro-pptx')?.document
+								?.measureCount | 0,
+					);
+					if (mc === 0) break;
+				}
 			}
 		}
 		return await page.locator('#stage').screenshot({ type: 'png' });

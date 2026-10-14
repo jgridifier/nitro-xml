@@ -106,6 +106,12 @@ pub struct DumpElement {
     /// `a:ln/@algn` (`in` / `ctr`); omitted means centred (`ctr`). Paint only.
     #[serde(skip)]
     pub stroke_line_align: Option<String>,
+    /// `a:headEnd/@type` on connector line (paint only).
+    #[serde(skip)]
+    pub connector_start_arrow: Option<String>,
+    /// `a:tailEnd/@type` on connector line (paint only).
+    #[serde(skip)]
+    pub connector_end_arrow: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -790,7 +796,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         "shape"
     };
     let c_nv_pr = child_path(shape, &[("nvSpPr", ns::P), ("cNvPr", ns::P)]);
-    let extras = shape_paint_extras(
+    let mut extras = shape_paint_extras(
         shape,
         effective_sp_pr.as_ref(),
         inherited.as_ref().map(|p| &p.element),
@@ -799,6 +805,7 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
         ctx,
         rot,
     );
+    apply_norm_autofit_to_extras(&mut extras, own_tx, inh_tx, h);
     build_dump(
         type_,
         id,
@@ -1730,6 +1737,8 @@ fn build_dump(
         stroke_color: extras.stroke_color,
         stroke_width_px: extras.stroke_width_px,
         stroke_line_align: extras.stroke_line_align,
+        connector_start_arrow: extras.connector_start_arrow,
+        connector_end_arrow: extras.connector_end_arrow,
         text_color: extras.text_color,
         font_size_px: extras.font_size_px,
         font_family: extras.font_family,
@@ -2032,6 +2041,8 @@ struct PaintExtras {
     stroke_color: Option<String>,
     stroke_width_px: Option<f64>,
     stroke_line_align: Option<String>,
+    connector_start_arrow: Option<String>,
+    connector_end_arrow: Option<String>,
     text_color: Option<String>,
     font_size_px: Option<f64>,
     font_family: Option<String>,
@@ -2293,6 +2304,8 @@ fn shape_paint_extras(
         if let Some(algn) = attr(ln, "algn") {
             extras.stroke_line_align = Some(algn.to_owned());
         }
+        extras.connector_start_arrow = parse_line_end_arrow(ln, "headEnd");
+        extras.connector_end_arrow = parse_line_end_arrow(ln, "tailEnd");
         if let Some(line) = parse_drawing_line(Some(ln)) {
             if let Some(width) = line.width_emu {
                 if width > 0 {
@@ -2330,9 +2343,6 @@ fn shape_paint_extras(
                 font_scheme: ctx.font_scheme,
                 level_fallback: fallback.as_ref(),
                 is_placeholder: ph_info.is_some(),
-                placeholder_is_title_family: ph_info
-                    .and_then(|ph| ph.type_.as_deref())
-                    .is_some_and(|t| placeholder_is_title_family(Some(t))),
                 presentation_level_styles: ctx.presentation_level_styles,
                 master_tx_styles: ctx.master_tx_styles,
             },
@@ -2344,7 +2354,11 @@ fn shape_paint_extras(
         extras.font_italic = paint.italic;
         extras.text_stroke_width_px = paint.stroke_width_px;
         extras.text_stroke_color = paint.stroke_color;
-        extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout(tx));
+        extras.text_body_layout = Some(crate::text_layout::parse_text_body_layout_with_levels(
+            tx,
+            effective_levels.as_ref(),
+            inherited_tx,
+        ));
         let list_ctx =
             effective_levels
                 .as_ref()
@@ -2360,7 +2374,7 @@ fn shape_paint_extras(
         );
         extras.presentation_kinsoku =
             presentation_default_ea_line_break(ctx.presentation_level_styles);
-        extras.auto_fit_mode = crate::text_layout::parse_body_autofit(tx);
+        extras.auto_fit_mode = crate::text_layout::parse_body_autofit_cascade(tx, inherited_tx);
         extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }
     if let Some(sp_pr) = effective_sp_pr {
@@ -2659,15 +2673,54 @@ struct FirstRunTextPaintCtx<'a> {
     font_scheme: Option<&'a ThemeFontScheme>,
     level_fallback: Option<&'a PlaceholderTextLevelStyle>,
     is_placeholder: bool,
-    /// Title-style placeholders keep host/default sizing until autofit matches upstream.
-    placeholder_is_title_family: bool,
     presentation_level_styles: Option<&'a LevelStylesMap>,
     master_tx_styles: Option<&'a MasterTxStyles>,
 }
 
-fn placeholder_is_title_family(type_: Option<&str>) -> bool {
-    let t = type_.map(|s| s.trim().to_ascii_lowercase());
-    matches!(t.as_deref(), Some("title") | Some("ctrtitle") | Some("subtitle"))
+fn apply_norm_autofit_to_extras(
+    extras: &mut PaintExtras,
+    own_tx: Option<&Element>,
+    inherited_tx: Option<&Element>,
+    box_height_px: f64,
+) {
+    use crate::text_layout::{
+        norm_autofit_font_scale_multiplier, scale_norm_autofit_font_size_px, TextAutoFitMode,
+    };
+    if extras.auto_fit_mode != Some(TextAutoFitMode::Normal) {
+        return;
+    }
+    let Some(sz) = extras.font_size_px else {
+        return;
+    };
+    let para_count = extras
+        .text_paint_paragraphs
+        .as_ref()
+        .map(|p| p.len())
+        .unwrap_or(1);
+    let inset_tb = extras
+        .text_body_layout
+        .as_ref()
+        .map(|l| l.inset_top_px + l.inset_bottom_px)
+        .unwrap_or(0.0);
+    let scaled = if let Some(own) = own_tx {
+        if let Some(mult) = norm_autofit_font_scale_multiplier(own, inherited_tx) {
+            (sz * mult).max(6.0)
+        } else {
+            scale_norm_autofit_font_size_px(sz, box_height_px, inset_tb, para_count)
+        }
+    } else {
+        sz
+    };
+    extras.font_size_px = Some(scaled);
+}
+
+fn parse_line_end_arrow(ln: &Element, local: &str) -> Option<String> {
+    let end = child_local(ln, local, ns::A)?;
+    let ty = attr(end, "type")?.trim().to_ascii_lowercase();
+    if ty.is_empty() || ty == "none" {
+        return None;
+    }
+    Some(ty)
 }
 
 fn first_run_text_paint(
@@ -2762,7 +2815,7 @@ fn first_run_text_paint(
         if color.is_none() {
             color = level_style_text_color(style, theme);
         }
-        if size.is_none() && !ctx.placeholder_is_title_family {
+        if size.is_none() {
             size = style.font_size_px;
         }
         if font_family.is_none() {
@@ -3229,7 +3282,7 @@ mod tests {
         };
         let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
         assert_eq!(el.text_color.as_deref(), Some("#FFFFFF"));
-        assert!(el.font_size_px.is_none());
+        assert!((el.font_size_px.unwrap() - 60.0 * 96.0 / 72.0).abs() < 0.05);
     }
 
     // Catches: body placeholder `bodyStyle` defRPr sz left at 24px host default instead of master 28pt.

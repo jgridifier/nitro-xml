@@ -217,6 +217,8 @@ mod tests {
             stroke_color: Some("#4472C4".to_owned()),
             stroke_width_px: Some(2.0),
             stroke_line_align,
+            connector_start_arrow: None,
+            connector_end_arrow: None,
             text_color: None,
             font_size_px: None,
             font_family: None,

@@ -7,6 +7,7 @@ mod chart3d;
 mod comments;
 mod connector;
 mod connector_geometry;
+mod connector_markers;
 mod content_part;
 mod context;
 mod dispatch;
@@ -199,6 +200,8 @@ mod tests {
             stroke_color: None,
             stroke_width_px: None,
             stroke_line_align: None,
+            connector_start_arrow: None,
+            connector_end_arrow: None,
             text_color: None,
             font_size_px: None,
             font_family: None,

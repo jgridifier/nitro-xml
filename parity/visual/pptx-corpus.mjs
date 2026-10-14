@@ -38,6 +38,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'gen-pptx-slides-50-c',
 	'gen-pptx-zoom',
 	'real-pptx-poi-51187',
+	'real-pptx-poi-SimpleMacro',
 	'real-pptx-poi-EmbeddedAudio',
 	'real-pptx-poi-bug59273',
 	'real-pptx-python-pptx-act-props',

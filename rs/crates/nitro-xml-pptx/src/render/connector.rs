@@ -2,6 +2,7 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/ui/src/pptx/dom/elements/connector.ts; changes in PROVENANCE.md.
 
 use super::connector_geometry::connector_stroke_geometry;
+use super::connector_markers::{attach_markers, build_marker_def};
 use super::context::{PaintContext, StringIntern};
 use super::dom::{create_child, position_box, set_attr, set_inner_markup_stub, set_style};
 use super::text::{paint_text_body, TextBodyPaint};
@@ -31,11 +32,43 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         stroke,
         stroke_width,
     );
+    let marker_seed = el
+        .id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let start_id = el
+        .connector_start_arrow
+        .as_deref()
+        .map(|_| format!("{}-start", marker_seed));
+    let end_id = el
+        .connector_end_arrow
+        .as_deref()
+        .map(|_| format!("{}-end", marker_seed));
+    let mut inner = String::new();
+    if start_id.is_some() || end_id.is_some() {
+        inner.push_str("<defs>");
+        if let (Some(id), Some(ty)) = (start_id.as_deref(), el.connector_start_arrow.as_deref()) {
+            inner.push_str(&build_marker_def(id, ty, stroke));
+        }
+        if let (Some(id), Some(ty)) = (end_id.as_deref(), el.connector_end_arrow.as_deref()) {
+            inner.push_str(&build_marker_def(id, ty, stroke));
+        }
+        inner.push_str("</defs>");
+    }
+    let stroke_markup = attach_markers(&geom.markup, start_id.as_deref(), end_id.as_deref());
+    inner.push_str(&stroke_markup);
     let svg = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 {} {}\" style=\"overflow:visible;display:block\">{}</svg>",
         w_view,
         h_view,
-        geom.markup
+        inner
     );
     set_inner_markup_stub(ctx, id, &svg);
     let text = el.text.as_deref().unwrap_or("");

@@ -34,6 +34,53 @@ pub fn parse_body_autofit(tx_body: &Element) -> Option<TextAutoFitMode> {
     None
 }
 
+/// Own `a:bodyPr` autofit, else inherited placeholder `txBody` (layout ← master).
+pub fn parse_body_autofit_cascade(
+    own_tx_body: &Element,
+    inherited_tx_body: Option<&Element>,
+) -> Option<TextAutoFitMode> {
+    parse_body_autofit(own_tx_body).or_else(|| inherited_tx_body.and_then(parse_body_autofit))
+}
+
+fn effective_body_pr<'a>(
+    own_tx_body: &'a Element,
+    inherited_tx_body: Option<&'a Element>,
+) -> Option<&'a Element> {
+    child_local(own_tx_body, "bodyPr", ns::A)
+        .or_else(|| inherited_tx_body.and_then(|tx| child_local(tx, "bodyPr", ns::A)))
+}
+
+/// `a:normAutofit/@fontScale` when PowerPoint stored a shrink percentage (1.0 = 100%).
+pub fn norm_autofit_font_scale_multiplier(
+    own_tx_body: &Element,
+    inherited_tx_body: Option<&Element>,
+) -> Option<f64> {
+    let body_pr = effective_body_pr(own_tx_body, inherited_tx_body)?;
+    let norm = child_local(body_pr, "normAutofit", ns::A)?;
+    let raw = attr(norm, "fontScale")?.parse::<f64>().ok()?;
+    if raw <= 0.0 {
+        return None;
+    }
+    Some(raw / 100_000.0)
+}
+
+/// Estimate `normAutofit` shrink when no authored `fontScale` (whole-point rounding).
+pub fn scale_norm_autofit_font_size_px(
+    font_size_px: f64,
+    box_height_px: f64,
+    inset_top_bottom_px: f64,
+    paragraph_count: usize,
+) -> f64 {
+    let inner = (box_height_px - inset_top_bottom_px).max(1.0);
+    let lines = paragraph_count.max(1) as f64;
+    let needed = lines * font_size_px * 1.2;
+    if needed <= inner + 0.5 {
+        return font_size_px;
+    }
+    let scaled_pt = (font_size_px * (72.0 / 96.0) * inner / needed).round();
+    (scaled_pt * 96.0 / 72.0).max(6.0)
+}
+
 /// Default `a:bodyPr` text insets at 96 DPI (91440×45720 EMU), matching upstream constants.
 pub const DEFAULT_BODY_INSET_LR_PX: f64 = 91440.0 / 9525.0;
 pub const DEFAULT_BODY_INSET_TB_PX: f64 = 45720.0 / 9525.0;
@@ -107,11 +154,23 @@ pub fn parse_paragraph_align(value: &str) -> Option<TextAlignCss> {
     }
 }
 
+#[allow(dead_code)]
 pub fn parse_text_body_layout(tx_body: &Element) -> TextBodyLayout {
+    parse_text_body_layout_with_levels(tx_body, None, None)
+}
+
+/// Like [`parse_text_body_layout`] but falls back to merged placeholder `algn`.
+pub fn parse_text_body_layout_with_levels(
+    tx_body: &Element,
+    effective_levels: Option<&crate::level_style::LevelStylesMap>,
+    inherited_tx_body: Option<&Element>,
+) -> TextBodyLayout {
     let parsed = parse_drawing_text_body(Some(tx_body));
+    let inherited_parsed = inherited_tx_body.and_then(|tx| parse_drawing_text_body(Some(tx)));
     let v_align = parsed
         .as_ref()
         .and_then(|b| b.anchor.as_deref())
+        .or_else(|| inherited_parsed.as_ref().and_then(|b| b.anchor.as_deref()))
         .and_then(parse_body_anchor)
         .unwrap_or(TextBodyVAlign::Top);
 
@@ -119,7 +178,15 @@ pub fn parse_text_body_layout(tx_body: &Element) -> TextBodyLayout {
     let mut inset_bottom = DEFAULT_BODY_INSET_TB_PX;
     let mut inset_left = DEFAULT_BODY_INSET_LR_PX;
     let mut inset_right = DEFAULT_BODY_INSET_LR_PX;
-    if let Some(insets) = parsed.as_ref().and_then(|b| b.insets_emu.as_ref()) {
+    let insets = parsed
+        .as_ref()
+        .and_then(|b| b.insets_emu.as_ref())
+        .or_else(|| {
+            inherited_parsed
+                .as_ref()
+                .and_then(|b| b.insets_emu.as_ref())
+        });
+    if let Some(insets) = insets {
         if let Some(v) = insets.top {
             inset_top = emu_to_pixels(v);
         }
@@ -134,7 +201,11 @@ pub fn parse_text_body_layout(tx_body: &Element) -> TextBodyLayout {
         }
     }
 
-    let text_align = resolve_first_paragraph_align(tx_body, parsed.as_ref());
+    let text_align = resolve_first_paragraph_align(tx_body, parsed.as_ref()).or_else(|| {
+        effective_levels.and_then(|map| {
+            crate::level_style::level_style_for(map, 0).and_then(|s| s.paragraph_align)
+        })
+    });
 
     TextBodyLayout {
         v_align,
@@ -264,9 +335,18 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
         .iter()
         .map(|p| {
             let p_pr = child_local(p, "pPr", ns::A);
-            let align = p_pr
+            let mut align = p_pr
                 .and_then(|pp| attr(pp, "algn"))
                 .and_then(parse_paragraph_align);
+            if align.is_none() {
+                if let Some(ctx) = list_styles {
+                    let level = paragraph_level(p) as i8;
+                    align = ctx
+                        .effective_level_styles
+                        .and_then(|map| crate::level_style::level_style_for(map, level))
+                        .and_then(|s| s.paragraph_align);
+                }
+            }
             let rtl = p_pr.and_then(|pp| parse_optional_bool_attr(attr(pp, "rtl")));
             let tab_stops = p_pr.map(parse_tab_stops).unwrap_or_default();
             let runs = collect_paint_runs(p);

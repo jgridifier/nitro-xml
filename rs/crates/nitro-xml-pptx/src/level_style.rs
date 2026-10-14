@@ -10,6 +10,7 @@ use nitro_xml_opc::drawingml::{
 use nitro_xml_opc::xml::{ns, Element};
 
 use crate::inheritance::{attr, child_local, children_local};
+use crate::text_layout::{parse_paragraph_align, TextAlignCss};
 
 pub type LevelStylesMap = BTreeMap<i8, PlaceholderTextLevelStyle>;
 
@@ -37,6 +38,8 @@ pub struct PlaceholderTextLevelStyle {
     pub margin_left_px: Option<f64>,
     /// `a:pPr/@indent` in CSS px (may be negative for hanging indents).
     pub indent_px: Option<f64>,
+    /// `a:lvlNpPr/@algn` or `a:defPPr/@algn` from txStyles / lstStyle.
+    pub paragraph_align: Option<TextAlignCss>,
 }
 
 pub fn parse_level_bullet_from_ppr(p_pr: &Element) -> PlaceholderTextLevelStyle {
@@ -64,6 +67,7 @@ pub fn parse_level_style_from_ppr(p_pr: &Element) -> Option<PlaceholderTextLevel
     if let Some(v) = attr(p_pr, "eaLnBrk") {
         style.ea_line_break = Some(matches!(v, "1" | "true" | "on"));
     }
+    style.paragraph_align = attr(p_pr, "algn").and_then(parse_paragraph_align);
     apply_paragraph_margin_attrs(&mut style, p_pr);
     apply_def_rpr(&mut style, p_pr);
     if level_style_has_payload(&style) {
@@ -86,6 +90,7 @@ fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
         || style.font_italic.is_some()
         || style.margin_left_px.is_some()
         || style.indent_px.is_some()
+        || style.paragraph_align.is_some()
 }
 
 fn apply_paragraph_margin_attrs(style: &mut PlaceholderTextLevelStyle, p_pr: &Element) {
@@ -239,6 +244,7 @@ fn merge_level_style(
         font_italic: over.font_italic.or(base.font_italic),
         margin_left_px: over.margin_left_px.or(base.margin_left_px),
         indent_px: over.indent_px.or(base.indent_px),
+        paragraph_align: over.paragraph_align.or(base.paragraph_align),
     }
 }
 
@@ -397,8 +403,12 @@ mod tests {
             .unwrap()
             .root,
         );
-        assert!(layout.is_none());
-        let merged = merge_level_style(&master, &PlaceholderTextLevelStyle::default());
+        let layout = layout.unwrap();
+        assert_eq!(
+            layout.paragraph_align,
+            Some(crate::text_layout::TextAlignCss::Left)
+        );
+        let merged = merge_level_style(&master, &layout);
         assert_eq!(merged.bullet_char.as_deref(), Some("•"));
         assert!((merged.margin_left_px.unwrap() - 96.0).abs() < 0.05);
         assert!((merged.indent_px.unwrap() + 36.0).abs() < 0.05);

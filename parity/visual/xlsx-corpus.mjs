@@ -24,6 +24,7 @@ const STATIC_HARD = 'fixtures/real/xlsx/poi-45544.xlsx';
 export const HARD_FIXTURES = new Set([
 	'fixtures/real/xlsx/poi-46535.xlsx',
 	'fixtures/real/xlsx/poi-47813.xlsx',
+	'fixtures/real/xlsx/poi-49156.xlsx',
 	'fixtures/real/xlsx/poi-50096.xlsx',
 	'fixtures/real/xlsx/poi-56644.xlsx',
 	'fixtures/real/xlsx/poi-57181.xlsm',
@@ -42,6 +43,7 @@ export const HARD_FIXTURES = new Set([
 	'fixtures/real/xlsx/python-pptx-shp-embedded-xlsx.xlsx',
 	'fixtures/real/xlsx/usgov-census-NST-EST2024-POP.xlsx',
 	'fixtures/real/xlsx/usgov-eia-MER-T01.01.xlsx',
+	'fixtures/real/xlsx/usgov-fhwa-2022-vm1.xlsx',
 ]);
 
 function listXlsxFiles() {

@@ -2528,27 +2528,20 @@ fn shape_paint_extras(
             effective_levels.as_ref(),
             inherited_tx,
         ));
-        // Own `<a:bodyPr/>` is often an empty placeholder; attr-level fields like
-        // `compatLnSpc` live on the inherited master/layout bodyPr (upstream
-        // treats an attribute-less own bodyPr as absent for those flags).
-        let own_body_pr = child_local(tx, "bodyPr", ns::A);
-        let inherited_body_pr = inherited_tx.and_then(|t| child_local(t, "bodyPr", ns::A));
-        let space_first_last = own_body_pr
+        // Upstream picks `txBody.bodyPr || inheritedTxBody.bodyPr` as a whole: an own
+        // `<a:bodyPr/>` parses to a falsy empty string, so only an attribute-less,
+        // child-less own bodyPr defers to the inherited one (all flags below).
+        let own_body_pr = child_local(tx, "bodyPr", ns::A)
+            .filter(|bp| !bp.attrs.is_empty() || !bp.children.is_empty());
+        let body_pr =
+            own_body_pr.or_else(|| inherited_tx.and_then(|t| child_local(t, "bodyPr", ns::A)));
+        let space_first_last = body_pr
             .and_then(|bp| parse_optional_bool_attr(attr(bp, "spcFirstLastPara")))
-            .or_else(|| {
-                inherited_body_pr
-                    .and_then(|bp| parse_optional_bool_attr(attr(bp, "spcFirstLastPara")))
-            })
             == Some(true);
-        let compat_line_spacing = own_body_pr
-            .and_then(|bp| parse_optional_bool_attr(attr(bp, "compatLnSpc")))
-            .or_else(|| {
-                inherited_body_pr.and_then(|bp| parse_optional_bool_attr(attr(bp, "compatLnSpc")))
-            })
-            == Some(true);
-        let line_spacing_reduction = own_body_pr
+        let compat_line_spacing =
+            body_pr.and_then(|bp| parse_optional_bool_attr(attr(bp, "compatLnSpc"))) == Some(true);
+        let line_spacing_reduction = body_pr
             .and_then(|bp| child_local(bp, "normAutofit", ns::A))
-            .or_else(|| inherited_body_pr.and_then(|bp| child_local(bp, "normAutofit", ns::A)))
             .and_then(|n| attr(n, "lnSpcReduction"))
             .and_then(|s| s.parse::<f64>().ok())
             .filter(|v| *v > 0.0)

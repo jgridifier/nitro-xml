@@ -42,6 +42,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'real-pptx-poi-EmbeddedAudio',
 	'real-pptx-poi-SimpleMacro',
 	'real-pptx-poi-bug59273',
+	'real-pptx-poi-bug62513',
 	'real-pptx-python-pptx-act-props',
 	'real-pptx-python-pptx-shp-movie-props',
 	'real-pptx-python-pptx-txt-font-typeface',

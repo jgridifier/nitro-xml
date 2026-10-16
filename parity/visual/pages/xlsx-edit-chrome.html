@@ -4,57 +4,285 @@
 <head>
   <meta charset="utf-8" />
   <title>xlsx edit chrome visual</title>
+  <link rel="stylesheet" href="/fonts/visual-fonts.css" />
   <style>
-    html, body { margin: 0; background: #fff; }
-    #stage { width: 960px; height: 120px; overflow: hidden; }
-    nitro-xlsx { display: block; width: 100%; height: 100%; }
-    xlsx-editor { display: block; width: 100%; height: 100%; --xve-title-bar-display: none; }
+    html, body { margin: 0; padding: 0; background: #fff; }
+    #stage {
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+      font-family: "Liberation Sans", Arial, sans-serif;
+    }
+    #capture {
+      display: block;
+      overflow: hidden;
+      background: #fff;
+    }
+    #stage nitro-xlsx,
+    #stage xlsx-editor {
+      display: block;
+      width: 100%;
+      --xve-title-bar-display: none;
+    }
+    /* Pin upstream light theme tokens on both hosts (defaults.ts). */
+    #stage nitro-xlsx,
+    #stage xlsx-editor {
+      --xve-primary: #217346;
+      --xve-foreground: #444444;
+      --xve-muted-foreground: #666666;
+      --xve-border: #e1e1e1;
+      --xve-card: #ffffff;
+      --xve-background: #f5f5f5;
+      --xve-sheet-bg: #ffffff;
+      --xl: #217346;
+      --ink: #444444;
+      --muted: #666666;
+      --line: #e1e1e1;
+      --surface: #ffffff;
+      --chrome: #f5f5f5;
+      --accent-soft: rgb(33 115 70 / 0.12);
+    }
   </style>
 </head>
 <body>
-  <div id="stage" data-ready="0"></div>
+  <div id="stage" data-ready="0">
+    <div id="capture" data-visual-target="ribbon"></div>
+  </div>
   <script type="module">
     const params = new URLSearchParams(location.search);
     const side = params.get('side');
+    const id = params.get('id');
     const fixture = params.get('fixture');
+    const width = Number(params.get('width') || 960);
+    const height = Number(params.get('height') || 132);
     const stage = document.getElementById('stage');
+    const capture = document.getElementById('capture');
+    stage.style.width = `${width}px`;
+    stage.style.height = `${height}px`;
+    capture.style.width = `${width}px`;
+    capture.style.height = `${height}px`;
+
+    function waitFrames(n = 2) {
+      return new Promise((resolve) => {
+        let left = n;
+        const step = () => {
+          left -= 1;
+          if (left <= 0) resolve();
+          else requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+    }
+
+    async function waitFonts() {
+      if (document.fonts?.ready) await document.fonts.ready;
+      try {
+        await Promise.all([
+          document.fonts.load('12px "Liberation Sans"'),
+          document.fonts.load('bold 12px "Liberation Sans"'),
+          document.fonts.load('12px "Segoe UI"'),
+          document.fonts.load('12px Calibri'),
+        ]);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    function injectStyle(root, cssText, key) {
+      if (!root) return;
+      let el = root.querySelector(`style[data-visual="${key}"]`);
+      if (!el) {
+        el = document.createElement('style');
+        el.dataset.visual = key;
+        root.appendChild(el);
+      }
+      el.textContent = cssText;
+    }
+
+    function applyLightTheme(host) {
+      if (!host?.style) return;
+      const t = {
+        '--xve-header-bg': '#f5f5f5',
+        '--xve-header-fg': '#444444',
+        '--xve-header-active-bg': '#d3e9dc',
+        '--xve-selection': 'rgb(33 115 70 / 0.12)',
+        '--xve-selection-border': '#217346',
+        '--xve-sheet-bg': '#ffffff',
+        '--xve-grid-line': '#e1e1e1',
+      };
+      for (const [k, v] of Object.entries(t)) host.style.setProperty(k, v);
+    }
+
+    /** Home ribbon panel only (skip File/tab strip — heights differ until #53 tab chrome). */
+    function isolateRibbon(root, rust) {
+      if (!root) return null;
+      const panel =
+        root.querySelector('.ribbon-panel[data-tab="home"]') ||
+        root.querySelector('.ribbon-panel[data-ribbon-tab="home"]') ||
+        root.querySelector('.ribbon-panel');
+      if (!panel) return null;
+      for (const sel of rust
+        ? [
+            '.xfb',
+            '.toolbar',
+            '[part="sheet-tabs"]',
+            '.find',
+            '.diag',
+            '.xve-formula-row',
+            '.xve-workspace',
+            '.xve-tabs-row',
+            '.xve-status',
+            '.v',
+            '.msg',
+          ]
+        : [
+            '.xve-title-bar',
+            '.xve-formula-row',
+            '.xve-workspace',
+            '.xve-tabs-row',
+            '.xve-status',
+            'office-ui-title-bar',
+            'office-ui-status-bar',
+            'office-ui-ribbon',
+          ]) {
+        root.querySelectorAll(sel).forEach((n) => {
+          if (panel.contains(n)) return;
+          n.style.display = 'none';
+        });
+      }
+      panel.style.display = '';
+      panel.style.visibility = 'visible';
+      return panel;
+    }
+
+    /** Clone panel inside `.xve-ribbon` so host CSS selectors still match. */
+    function mountRibbonClone(panel, widthPx, root) {
+      capture.replaceChildren();
+      if (root) {
+        for (const st of root.querySelectorAll('style')) {
+          capture.appendChild(st.cloneNode(true));
+        }
+      }
+      const wrap = document.createElement('div');
+      wrap.className = 'xve-ribbon';
+      wrap.style.width = `${widthPx}px`;
+      wrap.style.overflow = 'hidden';
+      wrap.style.background = '#fff';
+      const host = root?.host || root?.querySelector?.('xlsx-editor, nitro-xlsx') || null;
+      const csSrc = host || panel;
+      const cs = getComputedStyle(csSrc);
+      for (const prop of [
+        '--xl',
+        '--ink',
+        '--muted',
+        '--line',
+        '--surface',
+        '--chrome',
+        '--accent-soft',
+        '--xve-primary',
+        '--xve-foreground',
+        '--xve-muted-foreground',
+        '--xve-border',
+        '--xve-card',
+        '--xve-background',
+        '--xve-header-bg',
+        '--xve-header-fg',
+      ]) {
+        const v = cs.getPropertyValue(prop);
+        if (v) wrap.style.setProperty(prop, v.trim());
+      }
+      // Rust embeds skin <style> inside .xve-ribbon; keep it when cloning the panel's parent.
+      const rustRibbon = panel.closest('.xve-ribbon');
+      if (rustRibbon) {
+        for (const st of rustRibbon.querySelectorAll(':scope > style')) {
+          wrap.appendChild(st.cloneNode(true));
+        }
+      }
+      wrap.appendChild(panel.cloneNode(true));
+      capture.appendChild(wrap);
+    }
 
     async function mountRust() {
-      const { defineNitroXlsx, initCore, loadEditorModule } = await import('/repo/packages/nitro-xml/loader/index.js');
-      await initCore();
+      const { defineNitroXlsx, initCore, loadEditorModule } = await import(
+        '/repo/packages/nitro-xml/loader/index.js'
+      );
+      const fontMirror = new URL('/out/fonts/css2', location.origin).href;
+      await initCore({ fontSource: fontMirror });
       await loadEditorModule();
       defineNitroXlsx();
       const el = document.createElement('nitro-xlsx');
       el.setAttribute('readonly', 'false');
+      applyLightTheme(el);
+      el.style.position = 'absolute';
+      el.style.left = '-10000px';
+      el.style.width = `${width}px`;
+      el.style.height = '800px';
       stage.appendChild(el);
-      const res = await fetch(fixture);
-      const bytes = await res.arrayBuffer();
-      await el.loadBuffer(bytes, 'book.xlsx');
-      await el.shellAction('ui');
-      window.__visualHost = el.shadowRoot?.querySelector('.rb') || el;
+      await el.loadUrl(fixture);
+      const shadow = el.shadowRoot;
+      injectStyle(
+        shadow,
+        await (await fetch('/fonts/visual-fonts.css')).text() +
+          `\n:host,.rb,.xve-ribbon,button{font-family:"Segoe UI","Liberation Sans",Arial,sans-serif!important}`,
+        'font-pin',
+      );
+      for (let i = 0; i < 40; i++) {
+        await waitFrames(2);
+        if (el.document) await el.document.tick();
+        if (shadow?.querySelector('.rb, .xve-ribbon')) break;
+      }
+      await waitFonts();
+      const ribbon = isolateRibbon(shadow, true);
+      if (!ribbon) throw new Error('nitro-xlsx: no ribbon');
+      mountRibbonClone(ribbon, width, shadow);
     }
 
     async function mountTs() {
       const { defineXlsxEditor } = await import('/out/bundles/xlsx-editor.js');
       defineXlsxEditor();
       const el = document.createElement('xlsx-editor');
+      el.setAttribute('read-only', 'false');
+      el.setAttribute('show-toolbar', 'true');
       el.setAttribute('show-formula-bar', 'false');
+      el.setAttribute('file-name', fixture.split('/').pop() || 'book.xlsx');
+      applyLightTheme(el);
+      el.style.position = 'absolute';
+      el.style.left = '-10000px';
+      el.style.width = `${width}px`;
+      el.style.height = '800px';
       stage.appendChild(el);
       const res = await fetch(fixture);
-      await el.load(new Uint8Array(await res.arrayBuffer()), 'book.xlsx');
-      const ribbon = el.shadowRoot?.querySelector('.xve-ribbon');
-      window.__visualHost = ribbon || el;
+      if (!res.ok) throw new Error(`fixture fetch ${res.status}`);
+      await el.load(new Uint8Array(await res.arrayBuffer()), el.fileName);
+      const root = el.shadowRoot || el;
+      injectStyle(
+        root,
+        await (await fetch('/fonts/visual-fonts.css')).text() +
+          `\n:host,.xve-ribbon,button{font-family:"Segoe UI","Liberation Sans",Arial,sans-serif!important}`,
+        'font-pin',
+      );
+      for (let i = 0; i < 80; i++) {
+        await waitFrames(1);
+        if (root.querySelector('.xve-ribbon .ribbon-panel')) break;
+      }
+      await waitFonts();
+      const ribbon = isolateRibbon(root, false);
+      if (!ribbon) throw new Error('xlsx-editor: no ribbon');
+      mountRibbonClone(ribbon, width, root);
     }
 
     try {
       if (!fixture) throw new Error('missing fixture');
+      await waitFonts();
       if (side === 'rust') await mountRust();
       else if (side === 'ts') await mountTs();
-      else throw new Error('side?');
+      else throw new Error(`unknown side ${side}`);
       stage.dataset.ready = '1';
+      document.title = `ready:${id}:${side}`;
     } catch (e) {
       stage.dataset.ready = 'err';
-      stage.textContent = String(e);
+      capture.textContent = String(e && e.stack ? e.stack : e);
+      document.title = `error:${e}`;
     }
   </script>
 </body>

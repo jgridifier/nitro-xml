@@ -1,0 +1,227 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>docx edit chrome visual</title>
+  <link rel="stylesheet" href="/fonts/visual-fonts.css" />
+  <style>
+    html, body { margin: 0; padding: 0; background: #fff; }
+    #stage {
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+      font-family: "Liberation Sans", Arial, sans-serif;
+    }
+    #capture {
+      display: block;
+      overflow: hidden;
+      background: #fff;
+    }
+    #stage nitro-docx,
+    #stage docx-editor {
+      display: block;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage" data-ready="0">
+    <div id="capture" data-visual-target="ribbon"></div>
+  </div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const side = params.get('side');
+    const id = params.get('id');
+    const fixture = params.get('fixture');
+    const width = Number(params.get('width') || 960);
+    const height = Number(params.get('height') || 132);
+    const stage = document.getElementById('stage');
+    const capture = document.getElementById('capture');
+    stage.style.width = `${width}px`;
+    stage.style.height = `${height}px`;
+    capture.style.width = `${width}px`;
+    capture.style.height = `${height}px`;
+
+    function waitFrames(n = 2) {
+      return new Promise((resolve) => {
+        let left = n;
+        const step = () => {
+          left -= 1;
+          if (left <= 0) resolve();
+          else requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+    }
+
+    async function waitFonts() {
+      if (document.fonts?.ready) await document.fonts.ready;
+      try {
+        await Promise.all([
+          document.fonts.load('12px "Liberation Sans"'),
+          document.fonts.load('bold 12px "Liberation Sans"'),
+          document.fonts.load('12px "Segoe UI"'),
+          document.fonts.load('12px Calibri'),
+        ]);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    function injectStyle(root, cssText, key) {
+      if (!root) return;
+      let el = root.querySelector(`style[data-visual="${key}"]`);
+      if (!el) {
+        el = document.createElement('style');
+        el.dataset.visual = key;
+        root.appendChild(el);
+      }
+      el.textContent = cssText;
+    }
+
+    /** Hide everything except the ribbon strip we pixelmatch. */
+    function isolateRibbon(root, rust) {
+      if (!root) return null;
+      const ribbon =
+        root.querySelector('.ribbon-panel[data-tab="home"]') ||
+        root.querySelector('.dve-ribbon .ribbon-panel') ||
+        root.querySelector('.dve-ribbon') ||
+        root.querySelector('.ribbon-panel') ||
+        (rust ? root.querySelector('.xve-ribbon, .rb') : null);
+      if (!ribbon) return null;
+      for (const sel of rust
+        ? [
+            '.xfb',
+            '.toolbar',
+            '[part="sheet-tabs"]',
+            '.find',
+            '.diag',
+            '.xve-formula-row',
+            '.xve-workspace',
+            '.xve-tabs-row',
+            '.xve-status',
+            '.v',
+            '.msg',
+            '.dve-status',
+            '.dve-workspace',
+          ]
+        : [
+            '.dve-title-bar',
+            '.dve-status',
+            '.dve-workspace',
+            '.dve-nav',
+            'office-ui-title-bar',
+            'office-ui-status-bar',
+            '.ProseMirror',
+            '[contenteditable]',
+          ]) {
+        root.querySelectorAll(sel).forEach((n) => {
+          if (ribbon.contains(n)) return;
+          n.style.display = 'none';
+        });
+      }
+      ribbon.style.display = '';
+      ribbon.style.visibility = 'visible';
+      return ribbon;
+    }
+
+    /** Clone ribbon + host styles (shadow stylesheets do not follow cloneNode alone). */
+    function mountRibbonClone(ribbon, widthPx, root) {
+      capture.replaceChildren();
+      if (root) {
+        for (const st of root.querySelectorAll('style')) {
+          capture.appendChild(st.cloneNode(true));
+        }
+      }
+      const box = document.createElement('div');
+      box.className = 'dve-ribbon-capture';
+      box.style.width = `${widthPx}px`;
+      box.style.overflow = 'hidden';
+      box.style.background = '#fff';
+      const clone = ribbon.cloneNode(true);
+      box.appendChild(clone);
+      capture.appendChild(box);
+    }
+
+    async function mountRust() {
+      const { defineNitroDocx, initCore, loadEditorModule } = await import(
+        '/repo/packages/nitro-xml/loader/index.js'
+      );
+      const fontMirror = new URL('/out/fonts/css2', location.origin).href;
+      await initCore({ fontSource: fontMirror });
+      await loadEditorModule();
+      defineNitroDocx();
+      const el = document.createElement('nitro-docx');
+      el.setAttribute('readonly', 'false');
+      el.style.position = 'absolute';
+      el.style.left = '-10000px';
+      el.style.width = `${width}px`;
+      el.style.height = '800px';
+      stage.appendChild(el);
+      await el.loadUrl(fixture);
+      const shadow = el.shadowRoot;
+      injectStyle(
+        shadow,
+        (await (await fetch('/fonts/visual-fonts.css')).text()) +
+          `\n:host,.rb,.xve-ribbon,.dve-ribbon,button{font-family:"Segoe UI","Liberation Sans",Arial,sans-serif!important}`,
+        'font-pin',
+      );
+      for (let i = 0; i < 40; i++) {
+        await waitFrames(2);
+        if (el.document) await el.document.tick();
+        if (shadow?.querySelector('.rb, .xve-ribbon, .ribbon-panel, .dve-ribbon')) break;
+      }
+      await waitFonts();
+      const ribbon = isolateRibbon(shadow, true);
+      if (!ribbon) throw new Error('nitro-docx: no ribbon');
+      mountRibbonClone(ribbon, width, shadow);
+    }
+
+    async function mountTs() {
+      const { defineDocxEditor } = await import('/out/bundles/docx-editor.js');
+      defineDocxEditor();
+      const el = document.createElement('docx-editor');
+      // Boolean attribute: omit for editable (presence ⇒ readOnly).
+      el.setAttribute('file-name', fixture.split('/').pop() || 'doc.docx');
+      el.style.position = 'absolute';
+      el.style.left = '-10000px';
+      el.style.width = `${width}px`;
+      el.style.height = '800px';
+      stage.appendChild(el);
+      const res = await fetch(fixture);
+      if (!res.ok) throw new Error(`fixture fetch ${res.status}`);
+      await el.load(new Uint8Array(await res.arrayBuffer()));
+      const root = el.shadowRoot || el;
+      injectStyle(
+        root,
+        (await (await fetch('/fonts/visual-fonts.css')).text()) +
+          `\n:host,.dve-ribbon,button{font-family:"Segoe UI","Liberation Sans",Arial,sans-serif!important}`,
+        'font-pin',
+      );
+      for (let i = 0; i < 80; i++) {
+        await waitFrames(1);
+        if (root.querySelector('.dve-ribbon .ribbon-panel, .ribbon-panel')) break;
+      }
+      await waitFonts();
+      const ribbon = isolateRibbon(root, false);
+      if (!ribbon) throw new Error('docx-editor: no ribbon');
+      mountRibbonClone(ribbon, width, root);
+    }
+
+    try {
+      if (!fixture) throw new Error('missing fixture');
+      await waitFonts();
+      if (side === 'rust') await mountRust();
+      else if (side === 'ts') await mountTs();
+      else throw new Error(`unknown side ${side}`);
+      stage.dataset.ready = '1';
+      document.title = `ready:${id}:${side}`;
+    } catch (e) {
+      stage.dataset.ready = 'err';
+      capture.textContent = String(e && e.stack ? e.stack : e);
+      document.title = `error:${e}`;
+    }
+  </script>
+</body>
+</html>

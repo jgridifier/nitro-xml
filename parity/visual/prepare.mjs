@@ -215,6 +215,44 @@ function prepareXlsxViewer(c) {
 	// Fixture is served live via /repo/; no IR payload.
 }
 
+function prepareXlsxEditChrome(c) {
+	const file = join(ROOT, c.fixture);
+	if (!existsSync(file)) throw new Error(`missing fixture ${c.fixture}`);
+	prepareXlsxViewerBundle();
+}
+
+function prepareDocxEditorBundle() {
+	ensureUpstreamBuilt();
+	const bundleDir = join(VISUAL, 'out/bundles');
+	mkdirSync(bundleDir, { recursive: true });
+	const entry = join(VISUAL, 'hosts/docx-editor-entry.mjs');
+	const outFile = join(bundleDir, 'docx-editor.js');
+	if (existsSync(outFile)) {
+		const entryStat = spawnSync('stat', ['-c', '%Y', entry], { encoding: 'utf8' });
+		const outStat = spawnSync('stat', ['-c', '%Y', outFile], { encoding: 'utf8' });
+		if (
+			entryStat.status === 0 &&
+			outStat.status === 0 &&
+			Number(outStat.stdout.trim()) >= Number(entryStat.stdout.trim())
+		) {
+			return;
+		}
+	}
+	console.log('visual prepare: bundling upstream docx-editor for browser host');
+	const r = spawnSync(
+		'bun',
+		['build', entry, '--outfile', outFile, '--format', 'esm', '--target', 'browser'],
+		{ cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+	);
+	if (r.status !== 0) throw new Error(`docx-editor bundle: ${r.stderr || r.stdout}`);
+}
+
+function prepareDocxEditChrome(c) {
+	const file = join(ROOT, c.fixture);
+	if (!existsSync(file)) throw new Error(`missing fixture ${c.fixture}`);
+	prepareDocxEditorBundle();
+}
+
 function preparePptxSlideBundle() {
 	ensureUpstreamBuilt();
 	const bundleDir = join(VISUAL, 'out/bundles');
@@ -297,11 +335,13 @@ export async function prepareAll() {
 	preparePinnedFonts();
 	let pptxBundleDone = false;
 	let docxBundleDone = false;
+	let docxEditorBundleDone = false;
 	for (const c of readyCases()) {
 		if (c.kind === 'chart-svg') prepareChart(c);
 		else if (c.kind === 'xlsx-view-ir') await prepareXlsxViewIr(c);
 		else if (c.kind === 'docx-layout-ir') await prepareDocxLayoutIr(c);
 		else if (c.kind === 'xlsx-viewer') prepareXlsxViewer(c);
+		else if (c.kind === 'xlsx-edit-chrome') prepareXlsxEditChrome(c);
 		else if (c.kind === 'pptx-viewer') {
 			if (!pptxBundleDone) {
 				preparePptxSlideBundle();
@@ -314,6 +354,12 @@ export async function prepareAll() {
 				docxBundleDone = true;
 			}
 			prepareDocxViewer(c);
+		} else if (c.kind === 'docx-edit-chrome') {
+			if (!docxEditorBundleDone) {
+				prepareDocxEditorBundle();
+				docxEditorBundleDone = true;
+			}
+			prepareDocxEditChrome(c);
 		} else throw new Error(`prepare: unknown kind for ${c.id}`);
 		console.log(`visual prepare: ${c.id}`);
 	}

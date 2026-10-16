@@ -37,6 +37,16 @@ function hostUrl(base, c, side) {
 		});
 		return `${base}/pages/xlsx-viewer.html?${q}`;
 	}
+	if (c.kind === 'xlsx-edit-chrome') {
+		const q = new URLSearchParams({
+			side,
+			id: c.id,
+			fixture: `/repo/${c.fixture}`,
+			width: String(c.width || 960),
+			height: String(c.height || 120),
+		});
+		return `${base}/pages/xlsx-edit-chrome.html?${q}`;
+	}
 	if (c.kind === 'pptx-viewer') {
 		const q = new URLSearchParams({
 			side,
@@ -58,6 +68,16 @@ function hostUrl(base, c, side) {
 		});
 		return `${base}/pages/docx-viewer.html?${q}`;
 	}
+	if (c.kind === 'docx-edit-chrome') {
+		const q = new URLSearchParams({
+			side,
+			id: c.id,
+			fixture: `/repo/${c.fixture}`,
+			width: String(c.width || 960),
+			height: String(c.height || 120),
+		});
+		return `${base}/pages/docx-edit-chrome.html?${q}`;
+	}
 	const q = new URLSearchParams({
 		kind: c.kind,
 		side,
@@ -69,10 +89,21 @@ function hostUrl(base, c, side) {
 }
 
 function readyTimeoutMs(c) {
-	if (c.kind === 'xlsx-viewer' || c.kind === 'pptx-viewer' || c.kind === 'docx-viewer') {
+	if (
+		c.kind === 'xlsx-viewer' ||
+		c.kind === 'pptx-viewer' ||
+		c.kind === 'docx-viewer' ||
+		c.kind === 'xlsx-edit-chrome' ||
+		c.kind === 'docx-edit-chrome'
+	) {
 		return 90_000;
 	}
 	return 30_000;
+}
+
+function shotSelector(c) {
+	if (c.kind === 'xlsx-edit-chrome' || c.kind === 'docx-edit-chrome') return '#capture';
+	return '#stage';
 }
 
 function recordRow(rows, c, row) {
@@ -104,7 +135,7 @@ async function screenshotSide(browser, base, c, side, dpr) {
 		const page = await context.newPage();
 		await page.goto(hostUrl(base, c, side), { waitUntil: 'networkidle' });
 		await waitReady(page, readyTimeoutMs(c));
-		return await page.locator('#stage').screenshot({ type: 'png' });
+		return await page.locator(shotSelector(c)).screenshot({ type: 'png' });
 	} finally {
 		await context.close();
 	}

@@ -7,6 +7,7 @@ mod dialog;
 mod focus;
 mod menu;
 mod ribbon;
+mod ribbon_icons;
 mod shortcuts;
 
 pub use commands::ChromeCommands;

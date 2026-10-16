@@ -10,6 +10,7 @@ function hardFailForMismatch(c, ok) {
 }
 
 test('hard xlsx corpus cases fail the gate on mismatch; soft stay informational', () => {
+	// Catches: hard-row regressions being ignored, even after every real fixture is hardened.
 	const corpus = xlsxVisualCorpus();
 	expect(corpus.length).toBeGreaterThan(0);
 	expect(corpus.every((c) => c.fixture !== 'fixtures/real/xlsx/poi-45544.xlsx')).toBe(true);
@@ -35,7 +36,16 @@ test('hard xlsx corpus cases fail the gate on mismatch; soft stay informational'
 		expect(hardFailForMismatch(c, true)).toBe(false);
 	}
 
-	const soft = corpus.find((c) => c.informational);
-	expect(soft).toBeDefined();
-	expect(hardFailForMismatch(soft, false)).toBe(false);
+	// Negative control: exercise corpus classification with one real fixture unlisted.
+	const fixture = hard[0].fixture;
+	HARD_FIXTURES.delete(fixture);
+	try {
+		const soft = xlsxVisualCorpus().find((c) => c.fixture === fixture);
+		expect(soft).toBeDefined();
+		expect(soft.informational).toBe(true);
+		expect(hardFailForMismatch(soft, false)).toBe(false);
+	} finally {
+		HARD_FIXTURES.add(fixture);
+	}
+	expect(xlsxVisualCorpus().find((c) => c.fixture === fixture).informational).toBe(false);
 });

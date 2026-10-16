@@ -688,7 +688,7 @@ fn append_paint_run<I: StringIntern>(
                     run_line_height_zero,
                     east_asian,
                     piece_following,
-                    false,
+                    true,
                 );
             }
             para
@@ -778,11 +778,17 @@ fn paint_run_text_span<I: StringIntern>(
     run_line_height_zero: bool,
     east_asian: Option<EastAsianBreakOptions>,
     following: Option<char>,
-    _gdi_run_was_split: bool,
+    gdi_run_was_split: bool,
 ) -> u32 {
     let wrap_none = paint.layout.is_some_and(|l| l.wrap_none);
-    let emit_gdi_tracking =
-        !wrap_none && should_emit_gdi_tracking_for_run(text, run_model.underline);
+    // Upstream `splitStyledRun`: each metric piece carries its own tracking, even when the
+    // piece is a single word (the one-piece skip only applies to an unsplit run).
+    let emit_gdi_tracking = !wrap_none
+        && if gdi_run_was_split {
+            should_apply_gdi_metric(text)
+        } else {
+            should_emit_gdi_tracking_for_run(text, run_model.underline)
+        };
     // Catches: CJK-only runs with a:ea ≠ a:latin re-entering paint_run_text_span forever
     // (needs_split stayed true because script_fonts was never cleared on the recursive call).
     if let Some(script_fonts) = &run_model.script_fonts {

@@ -104,6 +104,9 @@
       const fontMirror = new URL('/out/fonts/css2', location.origin).href;
       await initCore({ fontSource: fontMirror });
       defineNitroPptx();
+      // Metric tracking is measured on the first tick; load the pinned faces first (TS
+      // measures after its DOM already triggered them).
+      await waitFonts();
       const el = document.createElement('nitro-pptx');
       el.setAttribute('readonly', '');
       el.style.width = '100%';

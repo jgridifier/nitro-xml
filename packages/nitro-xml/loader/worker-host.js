@@ -231,8 +231,8 @@ layoutReqs.props,
 );
 }
 _measureCtx() {
-if (this._canvas && this._canvas.getContext) return this._canvas.getContext("2d");
-if (typeof document === "undefined") return null;
+if (typeof document === "undefined")
+return this._canvas && this._canvas.getContext ? this._canvas.getContext("2d") : null;
 if (!this._measureCanvas) {
 this._measureCanvas = document.createElement("canvas");
 this._measureCanvas.width = 1;

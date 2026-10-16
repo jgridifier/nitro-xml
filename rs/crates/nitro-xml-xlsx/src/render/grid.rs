@@ -24,6 +24,12 @@ pub const CELLS_ID: u32 = 13;
 pub const OVERLAY_ID: u32 = 14;
 const FREEZE_H_ID: u32 = 15;
 const FREEZE_V_ID: u32 = 16;
+/// Frozen-rows quadrant (`xg-q-top`) and its plane/layers (upstream grid-view.ts).
+pub const Q_TOP_ID: u32 = 20;
+pub const PLANE_TOP_ID: u32 = 21;
+pub const LINES_TOP_ID: u32 = 22;
+pub const CELLS_TOP_ID: u32 = 23;
+pub const OVERLAY_TOP_ID: u32 = 24;
 
 fn set_style<I: StringIntern>(
     buf: &mut CommandBuffer,
@@ -120,14 +126,50 @@ pub fn paint_frame<I: StringIntern>(
     let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let cells_w = (viewport.width - sizes.w).max(0);
     let cells_h = (viewport.height - sizes.h).max(0);
+    let frozen_h = if viewport.frozen_rows > 0 {
+        metrics.row_top(viewport.frozen_rows).min(cells_h)
+    } else {
+        0
+    };
+    let main_top = sizes.h + frozen_h;
+    let main_h = (cells_h - frozen_h).max(0);
 
-    // Main quadrant at the header inset; plane scrolls via translate3d (will-change in CSS).
+    // Frozen-rows quadrant (upstream `xg-q-top`); plane does not scroll vertically.
+    if frozen_h > 0 {
+        buf.create_element(Q_TOP_ID, div, ROOT_ID);
+        set_attr(buf, intern, Q_TOP_ID, "class", "xg-q xg-q-top");
+        place(buf, intern, Q_TOP_ID, sizes.w, sizes.h, cells_w, frozen_h);
+
+        buf.create_element(PLANE_TOP_ID, div, Q_TOP_ID);
+        set_attr(buf, intern, PLANE_TOP_ID, "class", "xg-plane");
+        set_style(
+            buf,
+            intern,
+            PLANE_TOP_ID,
+            "transform",
+            &format!("translate3d({}px,0px,0)", -viewport.scroll_x),
+        );
+        buf.create_element(LINES_TOP_ID, div, PLANE_TOP_ID);
+        set_attr(buf, intern, LINES_TOP_ID, "class", "xg-lines");
+        buf.create_element(CELLS_TOP_ID, div, PLANE_TOP_ID);
+        set_attr(buf, intern, CELLS_TOP_ID, "class", "xg-cells");
+        buf.create_element(OVERLAY_TOP_ID, div, PLANE_TOP_ID);
+        set_attr(buf, intern, OVERLAY_TOP_ID, "class", "xg-overlay");
+    }
+
+    // Main (scrolling) quadrant below the freeze band.
     buf.create_element(Q_MAIN_ID, div, ROOT_ID);
     set_attr(buf, intern, Q_MAIN_ID, "class", "xg-q xg-q-main");
-    place(buf, intern, Q_MAIN_ID, sizes.w, sizes.h, cells_w, cells_h);
+    place(buf, intern, Q_MAIN_ID, sizes.w, main_top, cells_w, main_h);
 
     buf.create_element(PLANE_ID, div, Q_MAIN_ID);
     set_attr(buf, intern, PLANE_ID, "class", "xg-plane");
+    // Upstream geometry.origin('main'): ox = frozenW+scrollLeft, oy = frozenH+scrollTop.
+    let frozen_w = if viewport.frozen_cols > 0 {
+        metrics.col_left(viewport.frozen_cols)
+    } else {
+        0
+    };
     set_style(
         buf,
         intern,
@@ -135,7 +177,8 @@ pub fn paint_frame<I: StringIntern>(
         "transform",
         &format!(
             "translate3d({}px,{}px,0)",
-            -viewport.scroll_x, -viewport.scroll_y
+            -(frozen_w + viewport.scroll_x),
+            -(frozen_h + viewport.scroll_y)
         ),
     );
 
@@ -148,7 +191,7 @@ pub fn paint_frame<I: StringIntern>(
 
     // pane-chrome.ts freeze dividers (view space, not plane).
     if viewport.frozen_rows > 0 {
-        let frozen_h = metrics.row_top(viewport.frozen_rows);
+        let frozen_h_full = metrics.row_top(viewport.frozen_rows);
         buf.create_element(FREEZE_H_ID, div, ROOT_ID);
         set_attr(buf, intern, FREEZE_H_ID, "class", "xg-freeze-h");
         place(
@@ -156,7 +199,7 @@ pub fn paint_frame<I: StringIntern>(
             intern,
             FREEZE_H_ID,
             0,
-            sizes.h + frozen_h - 1,
+            sizes.h + frozen_h_full - 1,
             viewport.width,
             1,
         );

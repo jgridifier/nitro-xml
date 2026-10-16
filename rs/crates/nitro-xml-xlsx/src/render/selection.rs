@@ -5,8 +5,10 @@ use nitro_xml_render::command_buffer::CommandBuffer;
 
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, CellRange};
-use crate::render::grid::OVERLAY_ID;
+use crate::render::geometry::header_sizes;
+use crate::render::grid::{OVERLAY_ID, OVERLAY_TOP_ID};
 use crate::render::selection_ops::paint_selection;
+use crate::render::viewport::visible_cells_for_host;
 use crate::render::GridPaintViewport;
 use crate::sheet_access::merge_at;
 use crate::view::metrics::GridMetrics;
@@ -43,6 +45,7 @@ fn place_box<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
     id: u32,
+    parent: u32,
     class: &str,
     left: i32,
     top: i32,
@@ -51,7 +54,7 @@ fn place_box<I: StringIntern>(
 ) {
     let div = intern.intern("div");
     // Plane-relative (upstream selection-layer.ts); `.xg-overlay` is under `.xg-plane`.
-    buf.create_element(id, div, OVERLAY_ID);
+    buf.create_element(id, div, parent);
     set_attr(buf, intern, id, "class", class);
     set_style(buf, intern, id, "left", &format!("{}px", left));
     set_style(buf, intern, id, "top", &format!("{}px", top));
@@ -59,12 +62,19 @@ fn place_box<I: StringIntern>(
     set_style(buf, intern, id, "height", &format!("{}px", height));
 }
 
-/// Plane-relative box for a cell range (no header offset; plane scrolls with content).
-fn range_box(metrics: &GridMetrics, range: &CellRange) -> (i32, i32, i32, i32) {
+/// Plane-relative box clipped to the painted extent (upstream `rectOf` / maxRow / maxCol).
+fn range_box(
+    metrics: &GridMetrics,
+    range: &CellRange,
+    max_row: u32,
+    max_col: u32,
+) -> (i32, i32, i32, i32) {
+    let end_row = range.end.row.min(max_row);
+    let end_col = range.end.col.min(max_col);
     let x = metrics.col_left(range.start.col);
     let y = metrics.row_top(range.start.row);
-    let w = metrics.col_left(range.end.col + 1) - x;
-    let h = metrics.row_top(range.end.row + 1) - y;
+    let w = metrics.col_left(end_col + 1) - x;
+    let h = metrics.row_top(end_row + 1) - y;
     (x - 1, y - 1, w + 1, h + 1)
 }
 
@@ -79,7 +89,23 @@ pub fn paint<I: StringIntern>(
     metrics: &GridMetrics,
     viewport: &GridPaintViewport,
 ) {
-    let _ = viewport;
+    let sizes = header_sizes(sheet, metrics, metrics.last_row);
+    let vis = visible_cells_for_host(metrics, viewport, sizes.w, sizes.h);
+    let max_row = vis
+        .rows
+        .last()
+        .copied()
+        .max(vis.frozen_rows.last().copied())
+        .unwrap_or(0)
+        .saturating_add(1);
+    let max_col = vis
+        .cols
+        .last()
+        .copied()
+        .max(vis.frozen_cols.last().copied())
+        .unwrap_or(0)
+        .saturating_add(1);
+
     let selection = paint_selection(sheet);
 
     let active = selection.active;
@@ -90,27 +116,66 @@ pub fn paint<I: StringIntern>(
             end: active,
         });
 
-    // Upstream selection-layer.ts: outline wraps the sole selected range; when
-    // that range is one cell but the active cell sits in a merge, the outline
-    // grows to `activeRange` (merge-sized). `.xg-active` marks the active cell
-    // only when the selection is larger than one cell.
+    // Upstream selection-layer.ts: outline wraps the sole selected range; when that range is a
+    // single cell, the outline is the merge-sized active range. `.xg-active` is hidden for a
+    // one-cell selection (even when the active cell is merged).
     let last = selection
         .ranges
         .last()
         .cloned()
         .unwrap_or(active_range.clone());
     let single = selection.ranges.len() == 1;
-    if single {
-        let outline_range = if is_single_cell(&last) {
-            &active_range
+    let (outline_box, active_box) = if single {
+        let outline = if is_single_cell(&last) {
+            range_box(metrics, &active_range, max_row, max_col)
         } else {
-            &last
+            range_box(metrics, &last, max_row, max_col)
         };
-        let (left, top, w, h) = range_box(metrics, outline_range);
-        place_box(buf, intern, OUTLINE_ID, "xg-outline", left, top, w, h);
+        let active = if !is_single_cell(&last) {
+            Some(range_box(metrics, &active_range, max_row, max_col))
+        } else {
+            None
+        };
+        (Some(outline), active)
+    } else {
+        (
+            None,
+            Some(range_box(metrics, &active_range, max_row, max_col)),
+        )
+    };
+
+    // Upstream paints the overlay in every visible quadrant; each clips its part.
+    let mut parents = vec![OVERLAY_ID];
+    if viewport.frozen_rows > 0 {
+        parents.push(OVERLAY_TOP_ID);
     }
-    if !single || !is_single_cell(&last) {
-        let (left, top, w, h) = range_box(metrics, &active_range);
-        place_box(buf, intern, ACTIVE_ID, "xg-active", left, top, w, h);
+    for (qi, parent) in parents.into_iter().enumerate() {
+        let id_off = (qi as u32) * 10;
+        if let Some((left, top, w, h)) = outline_box {
+            place_box(
+                buf,
+                intern,
+                OUTLINE_ID + id_off,
+                parent,
+                "xg-outline",
+                left,
+                top,
+                w,
+                h,
+            );
+        }
+        if let Some((left, top, w, h)) = active_box {
+            place_box(
+                buf,
+                intern,
+                ACTIVE_ID + id_off,
+                parent,
+                "xg-active",
+                left,
+                top,
+                w,
+                h,
+            );
+        }
     }
 }

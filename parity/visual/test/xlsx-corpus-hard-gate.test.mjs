@@ -16,7 +16,8 @@ test('hard xlsx corpus cases fail the gate on mismatch; soft stay informational'
 
 	const hard = corpus.filter((c) => !c.informational);
 	expect(hard.length).toBe(HARD_FIXTURES.size);
-	expect(HARD_FIXTURES.has('fixtures/real/xlsx/poi-WithChartSheet.xlsx')).toBe(false);
+	expect(HARD_FIXTURES.has('fixtures/real/xlsx/poi-WithChartSheet.xlsx')).toBe(true);
+	expect(HARD_FIXTURES.has('fixtures/real/xlsx/poi-no_drawing_patriarch.xlsx')).toBe(true);
 	for (const c of hard) {
 		expect(hardFailForMismatch(c, false)).toBe(true);
 		expect(hardFailForMismatch(c, true)).toBe(false);

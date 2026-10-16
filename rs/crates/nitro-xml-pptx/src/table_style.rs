@@ -84,6 +84,30 @@ pub(crate) struct TableStyleBorder {
     pub dash: Option<String>,
 }
 
+/// One resolved CSS border shorthand per cell edge (upstream `CellBorderCss`).
+#[derive(Debug, Clone, Default)]
+pub(crate) struct CellBorders {
+    pub top: Option<String>,
+    pub bottom: Option<String>,
+    pub left: Option<String>,
+    pub right: Option<String>,
+}
+
+impl CellBorders {
+    pub(crate) fn uniform(css: String) -> Self {
+        Self {
+            top: Some(css.clone()),
+            bottom: Some(css.clone()),
+            left: Some(css.clone()),
+            right: Some(css),
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.top.is_none() && self.bottom.is_none() && self.left.is_none() && self.right.is_none()
+    }
+}
+
 pub(crate) fn normalize_table_style_guid(guid: &str) -> String {
     let trimmed = guid.trim().to_uppercase();
     if trimmed.starts_with('{') {
@@ -291,7 +315,7 @@ fn parse_border_side(side: Option<&Element>) -> Option<TableStyleBorder> {
         .and_then(|s| s.parse::<i64>().ok())
         .filter(|w| *w > 0)
     {
-        border.width_px = (w as f64 / EMU_PER_PIXEL as f64).max(1.0);
+        border.width_px = (w as f64 / EMU_PER_PIXEL as f64).round().max(1.0);
         has = true;
     }
     if let Some(solid) = child_local(ln, "solidFill", ns::A) {
@@ -355,7 +379,7 @@ pub(crate) fn resolve_package_cell_style(
     row_count: usize,
     col_count: usize,
     theme: &TableTheme<'_>,
-) -> (Option<String>, Option<String>, Option<String>) {
+) -> (Option<String>, Option<String>, CellBorders) {
     let mut fill: Option<String> = None;
     let mut text: Option<String> = None;
 
@@ -499,67 +523,44 @@ fn resolve_cell_border_css(
     row_count: usize,
     col_count: usize,
     theme: &TableTheme<'_>,
-) -> Option<String> {
+) -> CellBorders {
     let layers = collect_border_layers(entry, flags, row_index, col_index, row_count, col_count);
-    if layers.is_empty() {
-        return None;
+    // Upstream `resolveCellBorderCss`: per edge, the highest-precedence layer that defines it wins;
+    // outer region edges use top/bottom/left/right, interior edges insideH/insideV.
+    let pick = |edge: for<'l> fn(&'l BorderLayer<'_>) -> Option<&'l TableStyleBorder>| {
+        layers
+            .iter()
+            .filter_map(edge)
+            .next_back()
+            .and_then(|b| border_to_css(b, theme))
+    };
+    CellBorders {
+        top: pick(|l| edge_of(l.region_top, &l.borders.top, &l.borders.inside_h)),
+        bottom: pick(|l| edge_of(l.region_bottom, &l.borders.bottom, &l.borders.inside_h)),
+        left: pick(|l| edge_of(l.region_left, &l.borders.left, &l.borders.inside_v)),
+        right: pick(|l| edge_of(l.region_right, &l.borders.right, &l.borders.inside_v)),
     }
-    let region_top = row_index == 0;
-    let region_bottom = row_index + 1 == row_count;
-    let region_left = col_index == 0;
-    let region_right = col_index + 1 == col_count;
-
-    let mut top_winner: Option<&TableStyleBorder> = None;
-    let mut bottom_winner: Option<&TableStyleBorder> = None;
-    let mut left_winner: Option<&TableStyleBorder> = None;
-    let mut right_winner: Option<&TableStyleBorder> = None;
-
-    for borders in &layers {
-        let top = if region_top {
-            borders.top.as_ref().or(borders.inside_h.as_ref())
-        } else {
-            borders.inside_h.as_ref()
-        };
-        if top.is_some() {
-            top_winner = top;
-        }
-        let bottom = if region_bottom {
-            borders.bottom.as_ref().or(borders.inside_h.as_ref())
-        } else {
-            borders.inside_h.as_ref()
-        };
-        if bottom.is_some() {
-            bottom_winner = bottom;
-        }
-        let left = if region_left {
-            borders.left.as_ref().or(borders.inside_v.as_ref())
-        } else {
-            borders.inside_v.as_ref()
-        };
-        if left.is_some() {
-            left_winner = left;
-        }
-        let right = if region_right {
-            borders.right.as_ref().or(borders.inside_v.as_ref())
-        } else {
-            borders.inside_v.as_ref()
-        };
-        if right.is_some() {
-            right_winner = right;
-        }
-    }
-
-    let border = top_winner
-        .or(bottom_winner)
-        .or(left_winner)
-        .or(right_winner)?;
-    border_to_css(border, theme)
 }
 
-fn push_border_layer<'a>(out: &mut Vec<&'a TableStyleBorders>, part: &'a TableStylePart) {
-    if let Some(b) = part.borders.as_ref() {
-        out.push(b);
+fn edge_of<'a>(
+    region_edge: bool,
+    outer: &'a Option<TableStyleBorder>,
+    inside: &'a Option<TableStyleBorder>,
+) -> Option<&'a TableStyleBorder> {
+    if region_edge {
+        outer.as_ref().or(inside.as_ref())
+    } else {
+        inside.as_ref()
     }
+}
+
+/// One applicable table-style section with its region-edge flags (upstream `SectionLayer`).
+struct BorderLayer<'a> {
+    borders: &'a TableStyleBorders,
+    region_top: bool,
+    region_bottom: bool,
+    region_left: bool,
+    region_right: bool,
 }
 
 fn collect_border_layers<'a>(
@@ -569,10 +570,25 @@ fn collect_border_layers<'a>(
     col_index: usize,
     row_count: usize,
     col_count: usize,
-) -> Vec<&'a TableStyleBorders> {
-    let mut out: Vec<&'a TableStyleBorders> = Vec::new();
+) -> Vec<BorderLayer<'a>> {
+    let is_top = row_index == 0;
+    let is_bottom = row_index + 1 == row_count;
+    let is_left = col_index == 0;
+    let is_right = col_index + 1 == col_count;
+    let mut out: Vec<BorderLayer<'a>> = Vec::new();
+    let mut push = |part: &'a TableStylePart, rt: bool, rb: bool, rl: bool, rr: bool| {
+        if let Some(borders) = part.borders.as_ref() {
+            out.push(BorderLayer {
+                borders,
+                region_top: rt,
+                region_bottom: rb,
+                region_left: rl,
+                region_right: rr,
+            });
+        }
+    };
 
-    push_border_layer(&mut out, &entry.whole_tbl);
+    push(&entry.whole_tbl, is_top, is_bottom, is_left, is_right);
 
     let band_start_row = usize::from(flags.first_row);
     let band_end_row = if flags.last_row {
@@ -582,48 +598,49 @@ fn collect_border_layers<'a>(
     };
     if flags.band_row && row_index >= band_start_row && row_index < band_end_row {
         let band_index = row_index - band_start_row;
-        if band_index.is_multiple_of(2) {
-            push_border_layer(&mut out, &entry.band1_h);
+        let part = if band_index.is_multiple_of(2) {
+            &entry.band1_h
         } else {
-            push_border_layer(&mut out, &entry.band2_h);
-        }
+            &entry.band2_h
+        };
+        push(part, true, true, is_left, is_right);
     }
 
-    let at_top = flags.first_row && row_index == 0;
-    let at_bottom = flags.last_row && row_index + 1 == row_count;
-    let at_left = flags.first_col && col_index == 0;
-    let at_right = flags.last_col && col_index + 1 == col_count;
+    let at_top = flags.first_row && is_top;
+    let at_bottom = flags.last_row && is_bottom;
+    let at_left = flags.first_col && is_left;
+    let at_right = flags.last_col && is_right;
 
     if at_right {
-        push_border_layer(&mut out, &entry.last_col);
+        push(&entry.last_col, is_top, is_bottom, true, true);
     }
     if at_left {
-        push_border_layer(&mut out, &entry.first_col);
+        push(&entry.first_col, is_top, is_bottom, true, true);
     }
     if at_bottom {
-        push_border_layer(&mut out, &entry.last_row);
+        push(&entry.last_row, true, true, is_left, is_right);
     }
     if at_bottom && at_right {
-        push_border_layer(&mut out, &entry.se_cell);
+        push(&entry.se_cell, true, true, true, true);
     }
     if at_bottom && at_left {
-        push_border_layer(&mut out, &entry.sw_cell);
+        push(&entry.sw_cell, true, true, true, true);
     }
     if at_top {
-        push_border_layer(&mut out, &entry.first_row);
+        push(&entry.first_row, true, true, is_left, is_right);
     }
     if at_top && at_right {
-        push_border_layer(&mut out, &entry.ne_cell);
+        push(&entry.ne_cell, true, true, true, true);
     }
     if at_top && at_left {
-        push_border_layer(&mut out, &entry.nw_cell);
+        push(&entry.nw_cell, true, true, true, true);
     }
     out
 }
 
 fn border_to_css(border: &TableStyleBorder, theme: &TableTheme<'_>) -> Option<String> {
     if border.no_fill {
-        return None;
+        return Some("none".to_owned());
     }
     let color = border
         .color
@@ -637,7 +654,7 @@ fn border_to_css(border: &TableStyleBorder, theme: &TableTheme<'_>) -> Option<St
         .unwrap_or_else(|| "#000000".to_owned());
     let width = border.width_px.max(1.0);
     let style = ooxml_dash_to_css(border.dash.as_deref());
-    Some(format!("{width:.0}px {style} {color}"))
+    Some(format!("{width}px {style} {color}"))
 }
 
 fn ooxml_dash_to_css(dash: Option<&str>) -> &'static str {
@@ -694,7 +711,7 @@ mod tests {
             resolve_package_cell_style(entry, &flags, 1, 1, 4, 4, &table_theme);
         assert_eq!(fill.as_deref(), Some("#CFD7E7"));
         assert_eq!(text.as_deref(), Some("#000000"));
-        assert!(border.as_ref().is_some_and(|b| b.contains("solid")));
+        assert!(border.top.as_ref().is_some_and(|b| b.contains("solid")));
         let (header_fill, header_text, _) =
             resolve_package_cell_style(entry, &flags, 0, 0, 4, 4, &table_theme);
         assert_eq!(header_fill.as_deref(), Some("#4472C4"));

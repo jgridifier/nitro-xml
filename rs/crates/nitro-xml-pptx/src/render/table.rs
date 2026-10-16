@@ -13,6 +13,14 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     set_attr(ctx, id, "data-pptx-element", "true");
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "table");
+    // Upstream `elementContainerHeightStyle`: `a:tr/@h` is a minimum, so the frame grows with its rows.
+    set_style(ctx, id, "height", "auto");
+    set_style(
+        ctx,
+        id,
+        "min-height",
+        &format!("{}px", el.height.max(0.0).round()),
+    );
     set_style(ctx, id, "overflow", "hidden");
     if let Some(data) = &el.table_data {
         paint_grid(ctx, id, data);
@@ -81,8 +89,21 @@ fn paint_grid<I: StringIntern>(ctx: &mut PaintContext<'_, I>, parent: u32, data:
             if cell.font_bold {
                 set_style(ctx, td, "font-weight", "700");
             }
-            let border = cell.border.as_deref().unwrap_or("1px solid #999999");
-            set_style(ctx, td, "border", border);
+            if cell.border.is_empty() {
+                set_style(ctx, td, "border", "1px solid #999999");
+            } else {
+                let sides = [
+                    ("border-top", &cell.border.top),
+                    ("border-bottom", &cell.border.bottom),
+                    ("border-left", &cell.border.left),
+                    ("border-right", &cell.border.right),
+                ];
+                for (prop, css) in sides {
+                    if let Some(css) = css {
+                        set_style(ctx, td, prop, css);
+                    }
+                }
+            }
             let span = create_child(ctx, td, "span");
             let text = if cell.text.is_empty() {
                 " "

@@ -273,10 +273,9 @@ pub fn paint_text_body<I: StringIntern>(
                 set_style(ctx, block, "tab-size", &format_layout_px(tab_px));
             }
             paint_rich_paragraphs(ctx, block, paragraphs, &paint, size, &stack);
-        } else if !text.trim().is_empty() {
-            apply_plain_body_kinsoku(ctx, block, &paint);
-            paint_plain_text_runs(ctx, block, text, &paint, size, &stack);
         }
+        // Upstream `renderTextShapeElement`: segments exist but none carry a run or bullet
+        // (empty paragraph) paints nothing; `element.text` is only the no-segments fallback.
     } else {
         apply_plain_body_kinsoku(ctx, block, &paint);
         paint_plain_text_runs(ctx, block, text, &paint, size, &stack);

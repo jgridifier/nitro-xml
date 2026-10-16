@@ -45,6 +45,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'real-pptx-poi-bug62513',
 	'real-pptx-python-pptx-act-props',
 	'real-pptx-python-pptx-shp-movie-props',
+	'real-pptx-python-pptx-test_slides',
 	'real-pptx-python-pptx-txt-font-typeface',
 	'upstream-091abf411e47',
 	'upstream-0c4571a8c30e',

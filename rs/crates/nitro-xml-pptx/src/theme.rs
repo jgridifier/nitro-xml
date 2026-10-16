@@ -21,8 +21,12 @@ pub struct ThemeFonts {
     pub east_asia: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub complex_script: Option<String>,
-    /// Per-script faces from `<a:font script="Hans|Hant|Jpan|…">` (upstream `byScript`).
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    /// Non-empty `a:ea` only; `east_asia` above keeps upstream's latin fallback for the model dump.
+    #[serde(skip)]
+    pub east_asia_explicit: Option<String>,
+    /// Per-script faces from `<a:font script="Hans|Hant|Jpan|…">` (upstream `byScript`);
+    /// not part of the model dump.
+    #[serde(skip)]
     pub scripts: BTreeMap<String, String>,
 }
 
@@ -126,9 +130,10 @@ fn font_group(
     scripts: impl IntoIterator<Item = (String, String)>,
 ) -> Option<ThemeFonts> {
     let latin = latin.filter(|s| !s.is_empty());
-    // Keep empty `a:ea` as None so `+mn-ea` can fall through to theme script
-    // faces (Hans/…) instead of collapsing to latin Arial.
-    let east_asia = east_asia.filter(|s| !s.is_empty());
+    // Empty `a:ea` stays model-visible as latin (upstream), but `+mn-ea` may fall
+    // through to theme script faces (Hans/…) via `east_asia_explicit`.
+    let east_asia_explicit = east_asia.filter(|s| !s.is_empty());
+    let east_asia = east_asia_explicit.clone().or_else(|| latin.clone());
     let complex_script = complex_script
         .filter(|s| !s.is_empty())
         .or_else(|| latin.clone());
@@ -142,6 +147,7 @@ fn font_group(
         Some(ThemeFonts {
             latin,
             east_asia,
+            east_asia_explicit,
             complex_script,
             scripts,
         })
@@ -192,9 +198,10 @@ fn theme_font_latin(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
 
 fn theme_font_east_asia(scheme: &ThemeFontScheme, idx: &str) -> Option<String> {
     theme_font_field(scheme, idx, |f| {
-        f.east_asia
+        f.east_asia_explicit
             .as_deref()
             .or_else(|| theme_script_east_asia(f))
+            .or(f.east_asia.as_deref())
             .or(f.latin.as_deref())
     })
 }

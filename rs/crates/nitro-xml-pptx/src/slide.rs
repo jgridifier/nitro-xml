@@ -4317,6 +4317,7 @@ mod tests {
             minor_font: Some(crate::theme::ThemeFonts {
                 latin: Some("Corbel".to_owned()),
                 east_asia: None,
+                east_asia_explicit: None,
                 complex_script: None,
                 scripts: Default::default(),
             }),

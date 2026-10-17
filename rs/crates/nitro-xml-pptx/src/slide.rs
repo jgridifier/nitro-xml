@@ -1452,7 +1452,7 @@ fn find_local_deep<'a>(el: &'a Element, local: &str) -> Option<&'a Element> {
     None
 }
 
-/// `a:blip/@r:embed` anywhere under `el` (OLE `p:pic` preview).
+/// `a:blip/@r:embed` (or SVG `svgBlip` embed) anywhere under `el` (OLE `p:pic` preview).
 fn deep_blip_embed(el: &Element) -> Option<String> {
     let mut stack: Vec<&Element> = vec![el];
     while let Some(node) = stack.pop() {
@@ -1462,7 +1462,8 @@ fn deep_blip_embed(el: &Element) -> Option<String> {
                 .iter()
                 .find(|a| a.local == "embed" && (a.ns.is_none() || a.ns.as_deref() == Some(ns::R)))
                 .map(|a| a.value.clone())
-                .filter(|id| !id.is_empty());
+                .filter(|id| !id.is_empty())
+                .or_else(|| svg_blip_embed_id(node));
             if embed.is_some() {
                 return embed;
             }
@@ -2684,6 +2685,36 @@ fn blip_embed_id(parent: &Element) -> Option<String> {
         .find(|a| a.local == "embed" && (a.ns.is_none() || a.ns.as_deref() == Some(ns::R)))
         .map(|a| a.value.clone())
         .filter(|id| !id.is_empty())
+        // SVG-only pictures store the relationship on `asvg:svgBlip` / `a16:svgBlip`
+        // (upstream `extractSvgBlipRelId`), not on `a:blip/@r:embed`.
+        .or_else(|| svg_blip_embed_id(blip))
+}
+
+/// `asvg:svgBlip` / `a16:svgBlip` `@r:embed` (or `@r:link`) under `a:blip`.
+fn svg_blip_embed_id(blip: &Element) -> Option<String> {
+    let mut stack: Vec<&Element> = vec![blip];
+    while let Some(node) = stack.pop() {
+        if node.local == "svgBlip" {
+            let embed = node
+                .attrs
+                .iter()
+                .find(|a| {
+                    (a.local == "embed" || a.local == "link")
+                        && (a.ns.is_none() || a.ns.as_deref() == Some(ns::R))
+                })
+                .map(|a| a.value.clone())
+                .filter(|id| !id.is_empty());
+            if embed.is_some() {
+                return embed;
+            }
+        }
+        for child in node.children.iter().rev() {
+            if let Node::Element(c) = child {
+                stack.push(c);
+            }
+        }
+    }
+    None
 }
 
 fn style_ref_node<'a>(
@@ -4240,6 +4271,20 @@ mod tests {
         let el = parse_picture(&doc.root, "p".into(), &ctx(&colors)).unwrap();
         assert_eq!(el.image_rel_id.as_deref(), Some("rId3"));
         assert!(el.image_src.is_none());
+    }
+
+    // Catches: SVG-only `asvg:svgBlip` pictures with no `a:blip/@r:embed` left without an image rel.
+    #[test]
+    fn picture_records_svg_blip_embed_when_blip_has_no_r_embed() {
+        let xml = r#"<p:pic xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main">
+          <p:nvPicPr><p:cNvPr id="13" name="pic-img.svg"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+          <p:blipFill><a:blip><a:extLst><a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}"><asvg:svgBlip r:embed="rId7"/></a:ext></a:extLst></a:blip><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+          <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+        </p:pic>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el = parse_picture(&doc.root, "p".into(), &ctx(&colors)).unwrap();
+        assert_eq!(el.image_rel_id.as_deref(), Some("rId7"));
     }
 
     // Catches: bgRef idx 1002 flattened to the ref colour instead of the background gradient.

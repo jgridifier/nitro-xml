@@ -45,6 +45,8 @@ pub struct PlaceholderTextLevelStyle {
     pub font_italic: Option<bool>,
     /// `a:defRPr/@kern` hundredths of a point (kerning threshold, not a boolean).
     pub font_kern_hundredths: Option<i32>,
+    /// `a:defRPr/@cap`: `all` / `small` / `none` (upstream `textCaps`).
+    pub text_caps: Option<&'static str>,
     /// `a:pPr/@marL` in CSS px.
     pub margin_left_px: Option<f64>,
     /// `a:pPr/@indent` in CSS px (may be negative for hanging indents).
@@ -134,6 +136,7 @@ fn level_style_has_payload(style: &PlaceholderTextLevelStyle) -> bool {
         || style.font_bold.is_some()
         || style.font_italic.is_some()
         || style.font_kern_hundredths.is_some()
+        || style.text_caps.is_some()
         || style.margin_left_px.is_some()
         || style.indent_px.is_some()
         || style.paragraph_align.is_some()
@@ -245,6 +248,7 @@ fn apply_def_rpr(style: &mut PlaceholderTextLevelStyle, p_pr: &Element) {
             style.font_kern_hundredths = Some(v);
         }
     }
+    style.text_caps = parse_text_caps(attr(def, "cap"));
     let Some(fill) = child_local(def, "solidFill", ns::A) else {
         return;
     };
@@ -381,6 +385,7 @@ fn merge_level_style(
         font_bold: over.font_bold.or(base.font_bold),
         font_italic: over.font_italic.or(base.font_italic),
         font_kern_hundredths: over.font_kern_hundredths.or(base.font_kern_hundredths),
+        text_caps: over.text_caps.or(base.text_caps),
         margin_left_px: over.margin_left_px.or(base.margin_left_px),
         indent_px: over.indent_px.or(base.indent_px),
         paragraph_align: over.paragraph_align.or(base.paragraph_align),
@@ -433,6 +438,16 @@ pub fn level_style_bullet_color(
         .map(|r| r.hex)
 }
 
+/// `@cap` token (`all`, `small`, `none`; anything else inherits).
+pub(crate) fn parse_text_caps(cap: Option<&str>) -> Option<&'static str> {
+    match cap?.to_ascii_lowercase().as_str() {
+        "all" => Some("all"),
+        "small" => Some("small"),
+        "none" => Some("none"),
+        _ => None,
+    }
+}
+
 /// Run-level defaults from merged placeholder / txStyle levels (paint only).
 #[derive(Debug, Clone, Default)]
 pub struct ParagraphLevelRunStyle {
@@ -441,6 +456,8 @@ pub struct ParagraphLevelRunStyle {
     pub font_bold: Option<bool>,
     pub font_italic: Option<bool>,
     pub font_kern_hundredths: Option<i32>,
+    /// `a:defRPr/@cap`: `all` / `small` / `none` (upstream `textCaps`).
+    pub text_caps: Option<&'static str>,
     pub text_color_hex: Option<String>,
 }
 
@@ -466,6 +483,7 @@ pub fn paragraph_level_run_style(
         font_bold: Some(style.font_bold.unwrap_or(false)),
         font_italic: Some(style.font_italic.unwrap_or(false)),
         font_kern_hundredths: style.font_kern_hundredths,
+        text_caps: style.text_caps,
         text_color_hex: style.text_color_hex.clone(),
     }
 }
@@ -581,6 +599,24 @@ mod tests {
         let merged = merge_level_style(&master, &layout);
         assert_eq!(merged.text_color_hex.as_deref(), Some("#FFFFFF"));
         assert!((merged.font_size_px.unwrap() - 80.0).abs() < 0.05);
+    }
+
+    // Catches: master `defRPr/@cap="all"` lost when the layout level only sets `sz`; bogus tokens must not enable caps.
+    #[test]
+    fn text_caps_inherits_from_master_and_rejects_unknown_tokens() {
+        let lvl = |attrs: &str| {
+            parse_level_style_from_ppr(
+                &parse_xml_str(&format!(
+                    r#"<a:lvl1pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:defRPr {attrs}/></a:lvl1pPr>"#
+                ))
+                .unwrap()
+                .root,
+            )
+            .unwrap()
+        };
+        let merged = merge_level_style(&lvl(r#"cap="all""#), &lvl(r#"sz="6000""#));
+        assert_eq!(merged.text_caps, Some("all"));
+        assert_eq!(lvl(r#"sz="6000" cap="bogus""#).text_caps, None);
     }
 
     // Catches: master `marL`/`indent`/`buChar` lost when layout level only tweaks alignment.

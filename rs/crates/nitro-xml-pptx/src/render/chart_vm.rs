@@ -159,9 +159,38 @@ struct Range {
     max: f64,
     span: f64,
     unit: Option<f64>,
+    reverse: bool,
 }
 fn value_y(v: f64, r: &Range, top: f64, bottom: f64) -> f64 {
-    bottom - (v - r.min) / r.span * (bottom - top)
+    let ratio = (v - r.min) / r.span;
+    if r.reverse {
+        top + ratio * (bottom - top)
+    } else {
+        bottom - ratio * (bottom - top)
+    }
+}
+
+/// `withAxisBounds` (chart-axis-range.ts), linear axes only.
+fn with_axis_bounds(auto: Range, axis: &ChartAxis) -> Range {
+    let valid = |v: Option<f64>| v.filter(|x| x.is_finite());
+    let (vmin, vmax) = (valid(axis.scaling.min), valid(axis.scaling.max));
+    let min = vmin.unwrap_or(auto.min);
+    let mut max = vmax.unwrap_or(auto.max);
+    let unit = if vmin.is_none() && vmax.is_none() {
+        auto.unit
+    } else {
+        None
+    };
+    if max <= min {
+        max = min + 1.0;
+    }
+    Range {
+        min,
+        max,
+        span: (max - min).max(f64::EPSILON),
+        unit,
+        reverse: axis.scaling.orientation.as_deref() == Some("maxMin"),
+    }
 }
 
 fn n(v: f64) -> String {
@@ -269,12 +298,12 @@ fn val_tick(placement: Option<&str>, len: f64) -> Option<(f64, f64)> {
 }
 
 /// Category-axis tick (`tickLine`, bottom axis): offsets from the axis y.
-fn cat_tick(placement: Option<&str>, len: f64) -> Option<(f64, f64)> {
+fn cat_tick(placement: Option<&str>, len: f64, top: bool) -> Option<(f64, f64)> {
     match placement {
         None | Some("none") => None,
         Some("cross") => Some((-len, len)),
-        Some("in") => Some((0.0, -len)),
-        _ => Some((0.0, len)),
+        Some("in") => Some((0.0, if top { len } else { -len })),
+        _ => Some((0.0, if top { -len } else { len })),
     }
 }
 
@@ -314,17 +343,14 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
     if pa.axes.len() != 2
         || cat_ax.deleted == Some(true)
         || val_ax.deleted == Some(true)
-        || cat_ax.position.as_deref() == Some("t")
         || val_ax.position.as_deref() == Some("r")
         || cat_ax.scaling.orientation.as_deref() == Some("maxMin")
-        || val_ax.scaling.orientation.as_deref() == Some("maxMin")
         || val_ax.scaling.log_base.is_some()
         || val_ax.display_units.is_some()
         || val_ax
             .number_format
             .as_ref()
             .is_some_and(|f| !f.format_code.eq_ignore_ascii_case("general"))
-        || val_ax.minor_gridlines
         || val_ax
             .minor_tick_mark
             .as_deref()
@@ -345,8 +371,6 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
         })
         || val_ax.major_unit.is_some()
         || val_ax.minor_unit.is_some()
-        || val_ax.scaling.min.is_some()
-        || val_ax.scaling.max.is_some()
         || val_ax.tick_label_position.as_deref() == Some("none")
         || cat_ax.tick_label_position.as_deref() == Some("none")
         || cat_ax.label_align.as_deref().is_some_and(|a| a != "ctr")
@@ -444,6 +468,7 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
     // computePlotLayout
     let (wf, hf) = (w.max(1) as f64, h.max(1) as f64);
     let offset = 4.0 + 8.0 * (cat_ax.label_offset.unwrap_or(100.0) / 100.0);
+    let cat_top = cat_ax.position.as_deref() == Some("t");
     let widest_label = categories
         .iter()
         .map(|c| estimate_text_width(c, DEFAULT_TEXT_PX))
@@ -456,6 +481,10 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
         right: wf - 8.0,
         bottom: hf - (24f64).max(offset + cat_px * 1.2),
     };
+    if cat_top {
+        l.bottom = hf - 8.0;
+        l.top += (24f64).max(offset + cat_px * 1.2);
+    }
     let legend = space.legend.as_ref();
     let legend_pos = legend
         .and_then(|x| x.position.clone())
@@ -488,6 +517,7 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
             max: 1.0,
             span: 1.0,
             unit: None,
+            reverse: false,
         }
     } else {
         let lo = all.iter().cloned().fold(f64::INFINITY, f64::min);
@@ -503,8 +533,10 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
             max: b.max,
             span: (b.max - b.min).max(f64::EPSILON),
             unit: Some(b.major_unit),
+            reverse: false,
         }
     };
+    let range = with_axis_bounds(range, val_ax);
 
     let palette = style_palette(space.style, theme_accents(&theme.scheme));
     let mut o = String::new();
@@ -587,7 +619,11 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
                 &mut o,
                 &Text {
                     x,
-                    y: axis_y + offset + 0.8 * cat_px,
+                    y: if cat_top {
+                        axis_y - offset - 0.2 * cat_px
+                    } else {
+                        axis_y + offset + 0.8 * cat_px
+                    },
                     text: c,
                     anchor: "middle",
                     size: cat_px,
@@ -644,7 +680,7 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
             }
         }
         // Category tick marks
-        if let Some((a, b)) = cat_tick(cat_ax.major_tick_mark.as_deref(), 4.0) {
+        if let Some((a, b)) = cat_tick(cat_ax.major_tick_mark.as_deref(), 4.0, cat_top) {
             for i in 0..cat_count {
                 let x = l.left + group_w * (i as f64 + 0.5);
                 push_line(&mut o, x, axis_y + a, x, axis_y + b, AXIS_LABEL_COLOR);
@@ -652,7 +688,14 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
         }
     } else {
         // buildHorizontalBarViewModel: categories down the left, values along the bottom.
-        let x_of = |v: f64| l.left + (v - range.min) / range.span * (l.right - l.left);
+        let x_of = |v: f64| {
+            let ratio = (v - range.min) / range.span;
+            if range.reverse {
+                l.right - ratio * (l.right - l.left)
+            } else {
+                l.left + ratio * (l.right - l.left)
+            }
+        };
         let unit = range.unit.filter(|u| u.is_finite() && *u > 0.0);
         let ticks: Vec<f64> = match unit {
             Some(u)

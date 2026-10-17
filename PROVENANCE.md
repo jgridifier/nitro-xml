@@ -211,6 +211,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/write/inline.rs` | `src/core/docx/write-inline.ts` (`collectInlineSlots`) @ e66aaec | Plain `w:r` slot collection subset. |
 | `rs/crates/nitro-xml-docx/src/write/xml_escape.rs` | `src/core/xlsx/write/xml-out.ts` @ e66aaec | `_xHHHH_` text escapes shared with xlsx writer. |
 | `rs/crates/nitro-xml-xlsx/src/sheet_access.rs` | `src/core/xlsx/cells.ts` @ e66aaec | `getCell` / `usedRange` / `mergeAt` over `ActiveWorksheet` `DumpCell` vec + `CellIndex`. |
+| `rs/crates/nitro-xml-xlsx/src/drawing.rs` | `src/core/xlsx/read/drawing.ts` @ e66aaec | Spreadsheet drawing part (`xdr:wsDr`) → `DrawingObject` list (image/chart/unsupported); SmartArt deferred. |
+| `rs/crates/nitro-xml-xlsx/src/view/anchors.rs` | `src/core/xlsx/layout/anchors.ts` @ e66aaec | Two-cell / one-cell / absolute anchors → plane pixel boxes at metrics zoom. |
 | `rs/crates/nitro-xml-xlsx/src/view/units.rs` | `src/core/xlsx/layout/units.ts` @ e66aaec | Column/row pixel conversions; Rust `f64`/`i32` types. |
 | `rs/crates/nitro-xml-xlsx/src/view/axis_metrics.rs` | `src/core/xlsx/layout/axis-metrics.ts` @ e66aaec | Sparse axis metrics; same prefix-sum algorithm. |
 | `rs/crates/nitro-xml-xlsx/src/view/metrics.rs` | `src/core/xlsx/layout/metrics.ts` @ e66aaec | `createGridMetrics` over `ActiveWorksheet`. `dimension`, when set, extends `last_row` / `last_col` so a viewport-sized cell list does not shrink the grid. |
@@ -227,12 +229,18 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/view/number_fit.rs` | `src/core/xlsx/ui/grid/number-fit.ts` @ e66aaec | `fitNumber` via `format_value` width option. |
 | `rs/crates/nitro-xml-xlsx/src/view/css_font_family.rs` | `src/core/text/css-font-family.ts` @ e66aaec | Font fallback stacks for measure/CSS. |
 | `parity/visual/xlsx-grid-css.js` | `src/ui/src/xlsx/grid/styles.ts` (`GRID_CSS`) @ e66aaec | Visual-gate stylesheet for `<nitro-xlsx>` host (#150); not shipped in the loader. |
+| `rs/crates/nitro-xml-xlsx/src/render/drawings.rs` | `src/ui/src/xlsx/grid/drawings.ts` @ e66aaec | `.xg-drawings` layer: unsupported placeholders + chart SVG; image object-URL paint deferred to loader. |
 | `rs/crates/nitro-xml-xlsx/src/render/grid.rs` | `src/ui/src/xlsx/grid/grid-view.ts`, `grid-a11y.ts` @ e66aaec | Frame shell + `role=grid`/aria counts/live region (#42); full quadrants TODO(#19). |
 | `rs/crates/nitro-xml-xlsx/src/render/cells.rs` | `src/ui/src/xlsx/grid/cell-layer.ts` @ e66aaec | Cell DOM command buffer (`paintCell` parity). |
-| `rs/crates/nitro-xml-xlsx/src/render/cond_format.rs` | `src/core/xlsx/ui/grid/icon-sets.ts`, cell-layer data bars @ e66aaec | CF paint stub; formula rules TODO. |
+| `rs/crates/nitro-xml-xlsx/src/cf/mod.rs` | `src/core/xlsx/read/conditional.ts`, `layout/cf-evaluator.ts`, `ui/grid/icon-sets.ts` @ e66aaec | Module root for CF read/eval/icon SVG (#150 soft). |
+| `rs/crates/nitro-xml-xlsx/src/cf/read.rs` | `src/core/xlsx/read/conditional.ts` @ e66aaec | `cellIs` / `expression` / `colorScale` / `dataBar` / `iconSet` (+ Other stub). |
+| `rs/crates/nitro-xml-xlsx/src/cf/eval.rs` | `src/core/xlsx/layout/cf-evaluator.ts`, `cf-helpers.ts`, `cf-values.ts`, `data-bar-geometry.ts` @ e66aaec | Icon/colour-scale/data-bar + `cellIs` stopIfTrue + dxf merge; full formula CF deferred. |
+| `rs/crates/nitro-xml-xlsx/src/cf/expr.rs` | `src/core/xlsx/layout/cf-evaluator.ts` (literal / relative-ref path) @ e66aaec | Minimal CF expression eval for soft-corpus formulas (`MOD(ROW…)`, `$H$4="…"`, `OR`, `<>""`). |
+| `rs/crates/nitro-xml-xlsx/src/cf/icon_sets.rs` | `src/core/xlsx/ui/grid/icon-sets.ts` @ e66aaec | SVG bodies for built-in icon sets. |
+| `rs/crates/nitro-xml-xlsx/src/render/cond_format.rs` | `src/core/xlsx/ui/grid/icon-sets.ts`, cell-layer data bars @ e66aaec | Data-bar/colour-scale paint stub; icons paint in `cells`. |
 | `rs/crates/nitro-xml-xlsx/src/render/gridlines.rs` | `src/ui/src/xlsx/grid/gridlines.ts` @ e66aaec | Per-row/column 1px gridline DOM nodes. |
 | `rs/crates/nitro-xml-xlsx/src/render/headers.rs` | `src/ui/src/xlsx/grid/headers.ts`, `pane-chrome.ts` @ e66aaec | Row/column header + corner DOM; `role=rowheader|columnheader` (#42). |
-| `rs/crates/nitro-xml-xlsx/src/render/geometry.rs` | `src/core/xlsx/ui/grid/geometry.ts` @ e66aaec | Header sizes plus `colAtX` / `rowAtY` / `hit` / `clampedHit`. |
+| `rs/crates/nitro-xml-xlsx/src/render/geometry.rs` | `src/core/xlsx/ui/grid/geometry.ts` @ e66aaec | Header sizes plus `colAtX` / `rowAtY` / `hit` / `clampedHit` / `scrollToReveal`. |
 | `rs/crates/nitro-xml-xlsx/src/render/viewport.rs` | `src/core/xlsx/layout/viewport.ts` @ e66aaec | `visibleCells` for grid paint culling. |
 | `rs/crates/nitro-xml-xlsx/src/render/selection.rs` | `src/ui/src/xlsx/grid/selection-layer.ts` @ e66aaec | Selection overlay: range outline + active cell (shades/handle deferred). |
 | `rs/crates/nitro-xml-xlsx/src/render/selection_ops.rs` | `src/core/xlsx/ui/grid/selection-ops.ts`, `src/core/xlsx/ui/selection.ts` (`rangeRef`), `src/ui/src/xlsx/grid/grid-commands.ts` (`currentRegionOrAll`), `src/core/xlsx/edit/filter.ts` (`currentRegion`) @ e66aaec | Merge expansion, select/extend, A1 selection refs, current region. Header state kept. |
@@ -351,8 +359,9 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/render/print/line_numbers.rs` | `src/ui/src/docx/print-line-numbers.ts` @ e66aaec | Line-number labels. |
 | `rs/crates/nitro-xml-docx/src/render/print/options.rs` | `src/ui/src/docx/print-layout.ts` (`PrintLayoutOptions`) @ e66aaec | Painter inputs besides `LayoutResult`. |
 | `rs/crates/nitro-xml-wasm/src/chrome/shortcuts.rs` | `src/ui/src/xlsx/keyboard.ts` @ e66aaec | Rust `SHORTCUTS` table and `matches_keys` / `find_shortcut` / `format_keys`; platform flag passed in (no `navigator` in unit tests). |
-| `rs/crates/nitro-xml-wasm/src/chrome/ribbon.rs` | `src/ui/src/xlsx/ribbon/tabs/home.ts`, `home-groups.ts` @ e66aaec | Declarative Home tab groups as static HTML; galleries/menus stubbed (TODO #54). Icon/large/combo markup for edit-chrome pixel parity (#150). |
-| `rs/crates/nitro-xml-wasm/src/chrome/ribbon_icons.rs` | `src/core/xlsx/ui/ribbon/icon-paths.ts`, `commands/icons.ts` @ e66aaec | Stroke SVG path table + `ribbon_icon_svg` for Home controls (#150). |
+| `rs/crates/nitro-xml-wasm/src/chrome/ribbon.rs` | `src/ui/src/xlsx/ribbon/tabs/home.ts`, `home-groups.ts`, `ribbon.ts` (`layoutSmall`) @ e66aaec | Declarative Home tab groups as static HTML; galleries/menus stubbed (TODO #54). `layoutSmall` stacks + dialog launchers + `data-label` for edit-chrome pixel parity (#150). |
+| `parity/visual/ribbon-overflow.mjs` | `src/ui/src/ribbon/overflow.ts` @ e66aaec | Fold-only panel fit for edit-chrome visual host (loader budget; product ResizeObserver attach deferred). |
+| `rs/crates/nitro-xml-wasm/src/chrome/ribbon_icons.rs` | `src/core/xlsx/ui/commands/icons.ts` (`SHEET_ICONS`), `ribbon/icon-paths.ts` (caret/launcher) @ e66aaec | 20×20 sheet glyphs (stroke 1.5) + 24×24 caret/launcher for Home edit-chrome parity (#150). |
 | `rs/crates/nitro-xml-wasm/src/chrome/ribbon_skin.css` | `src/ui/src/xlsx/theme/ribbon.css` @ e66aaec | Embedded Home ribbon skin for WASM chrome HTML (#150). |
 | `rs/crates/nitro-xml-wasm/src/text/clipboard.rs` | `src/core/xlsx/edit/clipboard-text.ts`, `clipboard-html.ts` (`escapeHtml`) @ e66aaec | TSV quote/parse/toTsv and `escape_html` / plain HTML table for the single-line text surface (#55); styled multi-cell `toHtml` remains `TODO(#69)`. |
 | `rs/crates/nitro-xml-wasm/src/chrome/focus.rs` | `src/ui/src/dialog/focus.ts`, Tab trap in `dialog/dialog.ts` @ e66aaec | Focus trap index math + restore stack for modal dialogs/menus (#54). |

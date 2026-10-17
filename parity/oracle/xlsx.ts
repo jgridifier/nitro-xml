@@ -100,12 +100,18 @@ export async function dumpXlsxViewIr(fixturePath: string): Promise<unknown> {
 	const up = upstreamDir();
 	const { loadXlsx } = await import(`${up}/src/core/xlsx/read/load.ts`);
 	const { cellView } = await import(`${up}/src/core/xlsx/layout/cell-view.ts`);
+	const { createConditionalFormatEvaluator } = await import(
+		`${up}/src/core/xlsx/layout/cf-evaluator.ts`
+	);
+	const { createCalcEngine } = await import(`${up}/src/core/xlsx/formula/engine.ts`);
 	const { createGridMetrics } = await import(`${up}/src/core/xlsx/layout/metrics.ts`);
 	const { buildItems } = await import(`${up}/src/core/xlsx/ui/grid/cell-items.ts`);
 	const { usedRange } = await import(`${up}/src/core/xlsx/cells.ts`);
 
 	const bytes = readFileSync(fixturePath);
 	const workbook = await loadXlsx(bytes);
+	// Match live view-cache.ts: CF evaluator + calc so dxf numFmt/fill match the grid.
+	const calc = createCalcEngine(workbook);
 
 	const sheets = workbook.sheets.map((sheet: any, sheetIndex: number) => {
 		const metrics = createGridMetrics(sheet);
@@ -114,13 +120,19 @@ export async function dumpXlsxViewIr(fixturePath: string): Promise<unknown> {
 		const lastCol = Math.min(metrics.lastCol, used ? used.end.col + 2 : 20, 60);
 		const rows = Array.from({ length: lastRow + 1 }, (_, i) => i);
 		const cols = Array.from({ length: lastCol + 1 }, (_, i) => i);
+		const cf =
+			sheet.conditionalFormats?.length > 0
+				? createConditionalFormatEvaluator(workbook, sheetIndex, (formula, at) =>
+						calc.evaluate(formula, at),
+					)
+				: undefined;
 		const items = buildItems({
 			sheet,
 			metrics,
 			zoom: metrics.zoom / 100,
 			rows,
 			cols,
-			view: (r: number, c: number) => cellView(workbook, sheetIndex, r, c),
+			view: (r: number, c: number) => cellView(workbook, sheetIndex, r, c, cf),
 			measure: fakeXlsxMeasure,
 			hasFormula: (r: number, c: number) => {
 				const row = sheet.rows instanceof Map ? sheet.rows.get(r) : undefined;

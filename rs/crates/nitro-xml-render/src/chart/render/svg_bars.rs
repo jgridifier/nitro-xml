@@ -75,6 +75,9 @@ pub fn bars(
             } else {
                 (center + offset, a.min(b), bar_size, (b - a).abs())
             };
+            // Keep zero-extent rects: upstream S1 `rect()` emits width/height 0 for
+            // explicit numCache zeros (parity chart gate). Live blanks stay null via
+            // the `None => continue` arm above.
             let geom = Rect {
                 x: rx,
                 y: ry,

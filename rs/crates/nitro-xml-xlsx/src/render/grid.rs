@@ -22,6 +22,8 @@ pub const PLANE_ID: u32 = 11;
 pub const LINES_ID: u32 = 12;
 pub const CELLS_ID: u32 = 13;
 pub const OVERLAY_ID: u32 = 14;
+/// Drawings layer on the main plane (upstream `xg-drawings`).
+pub const DRAWINGS_ID: u32 = 17;
 const FREEZE_H_ID: u32 = 15;
 const FREEZE_V_ID: u32 = 16;
 /// Frozen-rows quadrant (`xg-q-top`) and its plane/layers (upstream grid-view.ts).

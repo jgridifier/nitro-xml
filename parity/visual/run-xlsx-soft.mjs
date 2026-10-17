@@ -29,88 +29,113 @@ function hostUrl(base, c, side) {
 }
 
 async function shot(browser, base, c, side, dpr) {
-	const context = await browser.newContext({
-		viewport: { width: c.width || 800, height: c.height || 480 },
-		deviceScaleFactor: dpr,
-	});
-	try {
-		const page = await context.newPage();
-		await page.goto(hostUrl(base, c, side), { waitUntil: 'networkidle', timeout: 180_000 });
-		await page.waitForFunction(
-			() => {
-				const el = document.getElementById('stage');
-				return el && (el.dataset.ready === '1' || el.dataset.ready === 'err');
-			},
-			null,
-			{ timeout: 180_000 },
-		);
-		const ready = await page.evaluate(() => document.getElementById('stage')?.dataset.ready);
-		if (ready !== '1') {
-			const body = await page.evaluate(() =>
-				document.getElementById('stage')?.textContent?.slice(0, 400),
-			);
-			throw new Error(`host not ready: ${body || page.title()}`);
-		}
-		return await page.locator('#stage').screenshot({ type: 'png' });
-	} finally {
-		await context.close();
-	}
-}
-
-async function printRaster(browser, base, c, side) {
-	const context = await browser.newContext({
-		viewport: { width: c.width || 800, height: c.height || 480 },
-		deviceScaleFactor: 1,
-	});
-	try {
-		const page = await context.newPage();
-		await page.goto(hostUrl(base, c, side), { waitUntil: 'networkidle', timeout: 180_000 });
-		await page.waitForFunction(
-			() => {
-				const el = document.getElementById('stage');
-				return el && (el.dataset.ready === '1' || el.dataset.ready === 'err');
-			},
-			null,
-			{ timeout: 180_000 },
-		);
-		const ready = await page.evaluate(() => document.getElementById('stage')?.dataset.ready);
-		if (ready !== '1') throw new Error('print host not ready');
-		await page.emulateMedia({ media: 'print' });
-		const pdf = await page.pdf({
-			width: `${c.width || 800}px`,
-			height: `${c.height || 480}px`,
-			printBackground: true,
-			margin: { top: '0', right: '0', bottom: '0', left: '0' },
-		});
-		const pdfRel = `/out/pdfs/soft-${c.id}-${side}.pdf`;
-		writeFileSync(join(OUT, 'pdfs', `soft-${c.id}-${side}.pdf`), pdf);
-		await context.close();
-
-		const ctx2 = await browser.newContext({
-			viewport: { width: 1200, height: 900 },
-			deviceScaleFactor: 1,
+	const maxAttempts = 4;
+	let lastErr;
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		const context = await browser.newContext({
+			viewport: { width: c.width || 800, height: c.height || 480 },
+			deviceScaleFactor: dpr,
 		});
 		try {
-			const p2 = await ctx2.newPage();
-			await p2.goto(`${base}/pages/pdf-raster.html?src=${encodeURIComponent(pdfRel)}`, {
-				waitUntil: 'networkidle',
-			});
-			await p2.waitForFunction(
+			const page = await context.newPage();
+			await page.goto(hostUrl(base, c, side), { waitUntil: 'networkidle', timeout: 180_000 });
+			await page.waitForFunction(
 				() => {
-					const el = document.getElementById('c');
+					const el = document.getElementById('stage');
 					return el && (el.dataset.ready === '1' || el.dataset.ready === 'err');
 				},
 				null,
-				{ timeout: 60_000 },
+				{ timeout: 180_000 },
 			);
-			return await p2.locator('#c').screenshot({ type: 'png' });
-		} finally {
-			await ctx2.close();
+			const ready = await page.evaluate(() => document.getElementById('stage')?.dataset.ready);
+			if (ready !== '1') {
+				const body = await page.evaluate(() =>
+					document.getElementById('stage')?.textContent?.slice(0, 400),
+				);
+				throw new Error(`host not ready: ${body || page.title()}`);
+			}
+			const png = await page.locator('#stage').screenshot({ type: 'png' });
+			await context.close();
+			return png;
+		} catch (e) {
+			await context.close().catch(() => {});
+			lastErr = e;
+			const msg = String(e && e.message ? e.message : e);
+			// Measure-batch race (tests/a11y/keyboard.mjs): retry, do not fail soft on flake.
+			if (attempt < maxAttempts && /expected \d+ widths, got \d+/.test(msg)) continue;
+			throw e;
 		}
-	} catch (e) {
-		await context.close().catch(() => {});
-		throw e;
 	}
+	throw lastErr;
+}
+
+async function printRaster(browser, base, c, side) {
+	const maxAttempts = 4;
+	let lastErr;
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		const context = await browser.newContext({
+			viewport: { width: c.width || 800, height: c.height || 480 },
+			deviceScaleFactor: 1,
+		});
+		try {
+			const page = await context.newPage();
+			await page.goto(hostUrl(base, c, side), { waitUntil: 'networkidle', timeout: 180_000 });
+			await page.waitForFunction(
+				() => {
+					const el = document.getElementById('stage');
+					return el && (el.dataset.ready === '1' || el.dataset.ready === 'err');
+				},
+				null,
+				{ timeout: 180_000 },
+			);
+			const ready = await page.evaluate(() => document.getElementById('stage')?.dataset.ready);
+			if (ready !== '1') {
+				const body = await page.evaluate(() =>
+					document.getElementById('stage')?.textContent?.slice(0, 400),
+				);
+				throw new Error(`print host not ready: ${body || page.title()}`);
+			}
+			await page.emulateMedia({ media: 'print' });
+			const pdf = await page.pdf({
+				width: `${c.width || 800}px`,
+				height: `${c.height || 480}px`,
+				printBackground: true,
+				margin: { top: '0', right: '0', bottom: '0', left: '0' },
+			});
+			const pdfRel = `/out/pdfs/soft-${c.id}-${side}.pdf`;
+			writeFileSync(join(OUT, 'pdfs', `soft-${c.id}-${side}.pdf`), pdf);
+			await context.close();
+
+			const ctx2 = await browser.newContext({
+				viewport: { width: 1200, height: 900 },
+				deviceScaleFactor: 1,
+			});
+			try {
+				const p2 = await ctx2.newPage();
+				await p2.goto(`${base}/pages/pdf-raster.html?src=${encodeURIComponent(pdfRel)}`, {
+					waitUntil: 'networkidle',
+				});
+				await p2.waitForFunction(
+					() => {
+						const el = document.getElementById('c');
+						return el && (el.dataset.ready === '1' || el.dataset.ready === 'err');
+					},
+					null,
+					{ timeout: 60_000 },
+				);
+				return await p2.locator('#c').screenshot({ type: 'png' });
+			} finally {
+				await ctx2.close();
+			}
+		} catch (e) {
+			await context.close().catch(() => {});
+			lastErr = e;
+			const msg = String(e && e.message ? e.message : e);
+			if (attempt < maxAttempts && /expected \d+ widths, got \d+/.test(msg)) continue;
+			throw e;
+		}
+	}
+	throw lastErr;
 }
 
 const corpus = readyCases().filter(

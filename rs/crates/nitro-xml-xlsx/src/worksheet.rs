@@ -10,10 +10,12 @@ use nitro_xml_opc::xml::Element;
 
 use crate::address::parse_range;
 use crate::cells::CellStore;
+use crate::cf::read_conditional_formats;
 use crate::comments::load_comment_addresses;
+use crate::drawing::load_sheet_drawings;
 use crate::hyperlinks::read_hyperlinks;
 use crate::metadata::parse_dynamic_array_metadata;
-use crate::model::{ActiveWorksheet, SharedString};
+use crate::model::{ActiveWorksheet, DifferentialStyle, SharedString};
 use crate::sheet_data::{
     read_sheet_data_element, read_sheet_data_xml, store_to_dump_cells, CellContext,
 };
@@ -27,6 +29,7 @@ pub struct WorksheetContext {
     pub xf_map: Vec<u32>,
     pub date1904: bool,
     pub palette: Option<Vec<String>>,
+    pub dxfs: Vec<DifferentialStyle>,
     pub dynamic_cells: HashSet<u32>,
     pub warnings: Vec<String>,
 }
@@ -79,8 +82,11 @@ pub fn parse_worksheet(
     };
     let root = &doc.root;
     let mut by_name: HashMap<String, &Element> = HashMap::new();
+    let mut cf_blocks: Vec<&Element> = Vec::new();
     for node in elements(root) {
-        if !by_name.contains_key(&node.local) {
+        if node.local == "conditionalFormatting" {
+            cf_blocks.push(node);
+        } else if !by_name.contains_key(&node.local) {
             by_name.insert(node.local.clone(), node);
         }
     }
@@ -122,6 +128,11 @@ pub fn parse_worksheet(
     let data_validations = read_data_validations(by_name.get("dataValidations").copied());
     let comment_addresses = load_comment_addresses(pkg, part_name);
     let hyperlinks = read_hyperlinks(pkg, part_name, by_name.get("hyperlinks").copied());
+    let mut warn = |m: String| push_warn(&mut ctx.warnings, m);
+    let drawings = load_sheet_drawings(pkg, part_name, Some(root), &mut warn);
+    let mut conditional_formats =
+        read_conditional_formats(&cf_blocks, &ctx.dxfs, ctx.palette.as_deref(), &mut warn);
+    crate::cf::link_data_bar_extensions(&mut conditional_formats, &ext_lst);
     ActiveWorksheet {
         name: name.to_owned(),
         sheet_id,
@@ -140,6 +151,8 @@ pub fn parse_worksheet(
         hyperlinks,
         ext_lst,
         sparkline_groups,
+        drawings,
+        conditional_formats,
         dimension: None,
     }
 }
@@ -170,6 +183,8 @@ fn empty_worksheet(
         hyperlinks: Vec::new(),
         ext_lst: Vec::new(),
         sparkline_groups: Vec::new(),
+        drawings: Vec::new(),
+        conditional_formats: Vec::new(),
         dimension: None,
     }
 }

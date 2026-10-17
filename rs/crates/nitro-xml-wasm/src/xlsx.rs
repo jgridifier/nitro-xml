@@ -8,7 +8,8 @@ use nitro_xml_xlsx::model::ActiveWorksheet;
 use nitro_xml_xlsx::model::{CellAddress, CellRange, SheetSelection};
 use nitro_xml_xlsx::render::{
     all_range, arrow_origin, clamped_hit, current_region_or_all, extend_selection, header_sizes,
-    hit, moving_end, navigate_arrow, select_cell, selection_ref, Arrow, HitArea, HitInput,
+    hit, moving_end, navigate_arrow, scroll_to_reveal, select_cell, selection_ref, Arrow, HitArea,
+    HitInput,
 };
 use nitro_xml_xlsx::render::{EditOverlay, EditorPaintHints};
 use nitro_xml_xlsx::view::metrics::{create_grid_metrics, GridMetrics, GridMetricsOptions};
@@ -38,6 +39,9 @@ pub struct XlsxState {
     lazy: Option<FirstView>,
     /// Live edit session when the document is not read-only (#69).
     pub edit: Option<EditorSession>,
+    /// Re-apply `topLeftCell` after the host's first real `Resize` (open uses a default
+    /// 800×600 until the visual/loader reports the stage size).
+    pending_view_scroll: bool,
 }
 
 impl XlsxState {
@@ -66,6 +70,8 @@ impl XlsxState {
                 drag: None,
                 lazy: Some(first),
                 edit: None,
+                // Apply after the host Resize so reveal uses the real stage size.
+                pending_view_scroll: true,
             },
             warnings,
         ))
@@ -73,6 +79,17 @@ impl XlsxState {
 
     pub fn set_zoom_pct(&mut self, zoom_pct: f64) {
         self.zoom_pct = Some(zoom_pct);
+    }
+
+    /// Active sheet `zoomScale` (percent). Used to seed shell zoom on open/sheet switch
+    /// so live paint matches upstream (`sheet.view.zoom` when no override).
+    pub fn active_view_zoom(&self) -> f64 {
+        self.sheets
+            .get(self.active)
+            .and_then(|s| s.as_ref())
+            .map(|s| s.view.zoom)
+            .filter(|z| z.is_finite() && *z > 0.0)
+            .unwrap_or(100.0)
     }
 
     /// Apply an A1 selection ref to the active sheet view (paints `.xg-outline`).
@@ -106,14 +123,58 @@ impl XlsxState {
             .map(selection_ref)
     }
 
-    /// Rough scroll so `(row, col)` is near the top-left of the scrollable area.
+    /// Scroll so `(row, col)` is fully visible (upstream `GridView.reveal` / `scrollToReveal`).
     pub fn scroll_to_cell(&mut self, row: u32, col: u32) {
-        // Approximate default metrics (scaled by zoom later in paint).
-        let zoom = self.zoom_pct.unwrap_or(100.0) / 100.0;
-        let col_w = (64.0 * zoom).round().max(1.0) as i32;
-        let row_h = (20.0 * zoom).round().max(1.0) as i32;
-        self.scroll_x = (col as i32).saturating_mul(col_w).max(0);
-        self.scroll_y = (row as i32).saturating_mul(row_h).max(0);
+        let Some((metrics, header, frozen_rows, frozen_cols)) = self
+            .sheets
+            .get(self.active)
+            .and_then(|s| s.as_ref())
+            .map(|sheet| {
+                let metrics = grid_metrics(sheet, self.zoom_pct);
+                let header = header_sizes(sheet, &metrics, metrics.last_row);
+                let (frozen_rows, frozen_cols) = sheet
+                    .view
+                    .freeze
+                    .as_ref()
+                    .map(|f| (f.rows, f.cols))
+                    .unwrap_or((0, 0));
+                (metrics, header, frozen_rows, frozen_cols)
+            })
+        else {
+            self.scroll_x = 0;
+            self.scroll_y = 0;
+            return;
+        };
+        let (sx, sy) = scroll_to_reveal(
+            &metrics,
+            self.scroll_x,
+            self.scroll_y,
+            self.viewport_w,
+            self.viewport_h,
+            header.w,
+            header.h,
+            frozen_rows,
+            frozen_cols,
+            row,
+            col,
+        );
+        self.scroll_x = sx;
+        self.scroll_y = sy;
+    }
+
+    /// Apply `sheetView/@topLeftCell` like upstream `grid/index.ts` on workbook/sheet show:
+    /// reset scroll to origin, then `reveal(topLeft)`.
+    pub fn apply_saved_top_left(&mut self) {
+        self.scroll_x = 0;
+        self.scroll_y = 0;
+        let top = self
+            .sheets
+            .get(self.active)
+            .and_then(|s| s.as_ref())
+            .and_then(|s| s.view.top_left);
+        if let Some(addr) = top {
+            self.scroll_to_cell(addr.row, addr.col);
+        }
     }
 
     fn ensure_sheet_parsed(&mut self, bytes: &[u8], index: usize) -> Result<(), String> {
@@ -224,6 +285,9 @@ impl XlsxState {
         self.ensure_sheet_parsed(bytes, index)?;
         self.active = index;
         self.workbook.active_sheet = index as u32;
+        // Upstream resets scroll then reveal(topLeft) on sheet change.
+        self.apply_saved_top_left();
+        self.pending_view_scroll = false;
         Ok(())
     }
 
@@ -318,6 +382,10 @@ impl XlsxState {
             Event::Resize { width, height, .. } => {
                 self.viewport_w = (*width).max(1.0) as i32;
                 self.viewport_h = (*height).max(1.0) as i32;
+                if self.pending_view_scroll {
+                    self.apply_saved_top_left();
+                    self.pending_view_scroll = false;
+                }
                 None
             }
             Event::Wheel { dx, dy, .. } => {

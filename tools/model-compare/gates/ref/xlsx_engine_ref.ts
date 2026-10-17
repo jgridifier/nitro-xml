@@ -6,20 +6,35 @@ const up = process.env.UPSTREAM_DIR!;
 const { hyperlinkPolicy } = await import(`${up}/src/core/opc/safe-href.ts`);
 const { loadXlsx } = await import(`${up}/src/core/xlsx/read/load.ts`);
 const { cellView } = await import(`${up}/src/core/xlsx/layout/cell-view.ts`);
+const { createConditionalFormatEvaluator } = await import(
+	`${up}/src/core/xlsx/layout/cf-evaluator.ts`
+);
+const { createCalcEngine } = await import(`${up}/src/core/xlsx/formula/engine.ts`);
 const { parseRange } = await import(`${up}/src/core/xlsx/address.ts`);
 
-function displayed(workbook: any, sheetIndex: number, row: number, col: number): string {
-	return cellView(workbook, sheetIndex, row, col).text;
+function displayed(
+	workbook: any,
+	sheetIndex: number,
+	row: number,
+	col: number,
+	cf: ReturnType<typeof createConditionalFormatEvaluator> | undefined,
+): string {
+	return cellView(workbook, sheetIndex, row, col, cf).text;
 }
 
-function cellTextTsv(workbook: any, sheetIndex: number, rangeRef: string): string {
+function cellTextTsv(
+	workbook: any,
+	sheetIndex: number,
+	rangeRef: string,
+	cf: ReturnType<typeof createConditionalFormatEvaluator> | undefined,
+): string {
 	const range = parseRange(rangeRef);
 	if (!range) return '';
 	const lines: string[] = [];
 	for (let row = range.start.row; row <= range.end.row; row++) {
 		const cols: string[] = [];
 		for (let col = range.start.col; col <= range.end.col; col++) {
-			cols.push(displayed(workbook, sheetIndex, row, col));
+			cols.push(displayed(workbook, sheetIndex, row, col, cf));
 		}
 		lines.push(cols.join('\t'));
 	}
@@ -53,18 +68,23 @@ function hyperlinksJson(workbook: any, sheetIndex: number) {
 	return out;
 }
 
-function searchSample(workbook: any, query: string) {
+function searchSample(
+	workbook: any,
+	query: string,
+	cfFor: (sheetIndex: number) => ReturnType<typeof createConditionalFormatEvaluator> | undefined,
+) {
 	const q = query.toLowerCase();
 	const matches: unknown[] = [];
 	for (let sheetIndex = 0; sheetIndex < workbook.sheets.length; sheetIndex++) {
 		const sheet = workbook.sheets[sheetIndex];
 		if (!sheet || sheet.state !== 'visible') continue;
+		const cf = cfFor(sheetIndex);
 		const rows: Map<number, Map<number, unknown>> =
 			sheet.rows instanceof Map ? sheet.rows : new Map();
 		for (const [row, cols] of rows) {
 			if (!(cols instanceof Map)) continue;
 			for (const col of cols.keys()) {
-				const text = displayed(workbook, sheetIndex, row, col);
+				const text = displayed(workbook, sheetIndex, row, col, cf);
 				if (!text.toLowerCase().includes(q)) continue;
 				matches.push({ sheet: sheetIndex, row, col, text });
 			}
@@ -77,6 +97,20 @@ function searchSample(workbook: any, query: string) {
 async function dump(file: string) {
 	const bytes = new Uint8Array(readFileSync(file));
 	const workbook = await loadXlsx(bytes);
+	const calc = createCalcEngine(workbook);
+	const cfCache = new Map<number, ReturnType<typeof createConditionalFormatEvaluator> | undefined>();
+	const cfFor = (sheetIndex: number) => {
+		if (cfCache.has(sheetIndex)) return cfCache.get(sheetIndex);
+		const sheet = workbook.sheets[sheetIndex];
+		const cf =
+			sheet?.conditionalFormats?.length > 0
+				? createConditionalFormatEvaluator(workbook, sheetIndex, (formula, at) =>
+						calc.evaluate(formula, at),
+					)
+				: undefined;
+		cfCache.set(sheetIndex, cf);
+		return cf;
+	};
 	const sheets = workbook.sheets
 		.map((s: any, index: number) => ({
 			index,
@@ -90,9 +124,9 @@ async function dump(file: string) {
 		format: 'xlsx',
 		sheets,
 		activeSheet: active,
-		cellTextSample: cellTextTsv(workbook, active, 'A1:E20'),
+		cellTextSample: cellTextTsv(workbook, active, 'A1:E20', cfFor(active)),
 		hyperlinks: hyperlinksJson(workbook, active),
-		searchSample: searchSample(workbook, 'a'),
+		searchSample: searchSample(workbook, 'a', cfFor),
 	};
 }
 

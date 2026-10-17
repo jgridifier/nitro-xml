@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/layout/cell-view.ts; changes listed in PROVENANCE.md.
 
+use crate::cf::cf_at;
 use crate::model::{ActiveWorksheet, DumpCellValue, WorkbookSlice};
 use crate::numfmt::{format_value, FormatOptions};
 use crate::sheet_access::{
@@ -8,8 +9,8 @@ use crate::sheet_access::{
 };
 use crate::styles::style_at;
 use crate::view::sparkline_data::sparkline_view_at;
-use crate::view::style_view::{borders_view, fill_view, font_view, merge_font};
-use crate::view::types::{CellView, RichRun};
+use crate::view::style_view::{borders_view, fill_view, font_view, merge_border, merge_font};
+use crate::view::types::{CellView, FillView, RichRun};
 use crate::view::units::INDENT_PX_PER_LEVEL;
 
 pub fn effective_style_id(sheet: &ActiveWorksheet, index: &CellIndex, row: u32, col: u32) -> u32 {
@@ -160,13 +161,33 @@ pub fn cell_view(
     } else {
         None
     };
-    let shown = if let Some(ft) = &formula_text {
+    let cf = cf_at(sheet, index, row, col, &workbook.theme, &indexed);
+    let hide_value = cf.as_ref().is_some_and(|c| c.hide_value);
+    let shown = if hide_value {
+        (String::new(), None)
+    } else if let Some(ft) = &formula_text {
         (ft.clone(), None)
     } else {
-        let (t, c) = display_text(&value, &style.num_fmt, workbook, sheet);
+        // Upstream cell-view.ts: `dxf?.numFmt ?? style.numFmt` (CF can override e.g. #,##0 → #,##0.0).
+        let fmt = cf
+            .as_ref()
+            .and_then(|c| c.style.as_ref())
+            .and_then(|s| s.num_fmt.as_deref())
+            .filter(|s| !s.is_empty())
+            .unwrap_or(style.num_fmt.as_str());
+        let (t, c) = display_text(&value, fmt, workbook, sheet);
         (t, c)
     };
-    let mut font_view_resolved = font_view(&font, &workbook.theme, &indexed);
+    let font_for_view = if let Some(cf) = &cf {
+        if let Some(dxf) = &cf.style {
+            merge_font(&font, dxf.font.as_ref())
+        } else {
+            font.clone()
+        }
+    } else {
+        font.clone()
+    };
+    let mut font_view_resolved = font_view(&font_for_view, &workbook.theme, &indexed);
     if let Some(c) = shown.1 {
         font_view_resolved.color = c;
     }
@@ -196,7 +217,18 @@ pub fn cell_view(
         0.0
     };
 
-    let fill = fill_view(Some(&style.fill), &workbook.theme, false, &indexed);
+    let mut fill = fill_view(Some(&style.fill), &workbook.theme, false, &indexed);
+    if let Some(cf) = &cf {
+        if let Some(scale) = &cf.color_scale {
+            fill = Some(FillView::Background {
+                background: scale.clone(),
+            });
+        } else if let Some(dxf) = &cf.style {
+            if let Some(cf_fill) = fill_view(dxf.fill.as_ref(), &workbook.theme, true, &indexed) {
+                fill = Some(cf_fill);
+            }
+        }
+    }
 
     let is_number = matches!(
         value,
@@ -211,12 +243,18 @@ pub fn cell_view(
         && h_align != "fill"
         && !sheet.merges.iter().any(|m| range_contains(m, row, col));
 
+    // Upstream: `bordersView(mergeBorder(style.border, dxf?.border), …)`.
+    let border_for_view = if let Some(dxf) = cf.as_ref().and_then(|c| c.style.as_ref()) {
+        merge_border(&style.border, dxf.border.as_ref())
+    } else {
+        style.border.clone()
+    };
     let mut view = CellView {
         text: shown.0,
         title: None,
         font: font_view_resolved,
         fill,
-        borders: borders_view(&style.border, &workbook.theme, &indexed),
+        borders: borders_view(&border_for_view, &workbook.theme, &indexed),
         h_align,
         v_align: alignment
             .and_then(|a| a.vertical.as_deref())
@@ -229,8 +267,8 @@ pub fn cell_view(
         vertical_text: vertical,
         is_number,
         overflow,
-        data_bar: None,
-        icon: None,
+        data_bar: cf.as_ref().and_then(|c| c.data_bar.clone()),
+        icon: cf.as_ref().and_then(|c| c.icon.clone().map(Into::into)),
         has_comment: sheet
             .comment_addresses
             .iter()
@@ -269,21 +307,23 @@ pub fn cell_view(
         }
     }
 
-    if let Some(c) = cell {
-        if let Some(rt) = &c.rich_text {
-            if matches!(value, DumpCellValue::String(_)) {
-                view.rich = Some(
-                    rt.iter()
-                        .map(|run| RichRun {
-                            text: run.text.clone(),
-                            font: font_view(
-                                &merge_font(&font, run.font.as_ref()),
-                                &workbook.theme,
-                                &indexed,
-                            ),
-                        })
-                        .collect(),
-                );
+    if !hide_value {
+        if let Some(c) = cell {
+            if let Some(rt) = &c.rich_text {
+                if matches!(value, DumpCellValue::String(_)) {
+                    view.rich = Some(
+                        rt.iter()
+                            .map(|run| RichRun {
+                                text: run.text.clone(),
+                                font: font_view(
+                                    &merge_font(&font_for_view, run.font.as_ref()),
+                                    &workbook.theme,
+                                    &indexed,
+                                ),
+                            })
+                            .collect(),
+                    );
+                }
             }
         }
     }
@@ -299,4 +339,117 @@ pub fn is_blank_view(view: &CellView) -> bool {
         && view.icon.is_none()
         && !view.has_comment
         && view.sparkline.is_none()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{
+        CellAddress, CellRange, ConditionalFormat, ConditionalRule, DifferentialStyle, DumpCell,
+        SheetState,
+    };
+    use crate::sheet_props::default_sheet_view;
+    use crate::workbook::{default_cell_style, default_theme};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn cf_dxf_num_fmt_overrides_cell_style() {
+        // Catches: CF dxf numFmt (e.g. #,##0.0 when H4=DEC) ignored so Value paints 71 vs TS 70.5.
+        let mut style = default_cell_style();
+        style.num_fmt = "#,##0".into();
+        let workbook = WorkbookSlice {
+            format: "xlsx".into(),
+            date1904: false,
+            active_sheet: 0,
+            sheets: vec![],
+            defined_names: vec![],
+            theme: default_theme(),
+            styles: vec![default_cell_style(), style],
+            named_styles: vec![],
+            xf_map: vec![0, 1],
+            palette: None,
+            dxfs: vec![],
+            shared_strings: vec![],
+            warnings: vec![],
+            full_calc_on_load: None,
+            structure_locked: None,
+            calc_mode: None,
+            iterate: None,
+            workbook_password_hash: None,
+            workbook_modern_hash: None,
+            active_worksheet: None,
+        };
+        let sheet = ActiveWorksheet {
+            name: "t".into(),
+            sheet_id: 1,
+            state: SheetState::Visible,
+            part_name: None,
+            default_row_height: 15.0,
+            default_col_width: None,
+            format: None,
+            view: default_sheet_view(),
+            columns: vec![],
+            merges: vec![],
+            row_info: BTreeMap::new(),
+            cells: vec![
+                DumpCell {
+                    row: 3,
+                    col: 7,
+                    value: DumpCellValue::String("DEC".into()),
+                    type_tag: None,
+                    formula: None,
+                    style_id: None,
+                    rich_text: None,
+                    array_range: None,
+                    legacy_formula: None,
+                    dynamic_array: None,
+                    spill_anchor: None,
+                    cell_metadata: None,
+                    value_metadata: None,
+                },
+                DumpCell {
+                    row: 8,
+                    col: 2,
+                    value: DumpCellValue::Number(70.5234),
+                    type_tag: None,
+                    formula: None,
+                    style_id: Some(1),
+                    rich_text: None,
+                    array_range: None,
+                    legacy_formula: None,
+                    dynamic_array: None,
+                    spill_anchor: None,
+                    cell_metadata: None,
+                    value_metadata: None,
+                },
+            ],
+            data_validations: vec![],
+            comment_addresses: vec![],
+            hyperlinks: vec![],
+            ext_lst: vec![],
+            sparkline_groups: vec![],
+            drawings: vec![],
+            conditional_formats: vec![ConditionalFormat {
+                ranges: vec![CellRange {
+                    start: CellAddress { row: 8, col: 2 },
+                    end: CellAddress { row: 8, col: 2 },
+                }],
+                rules: vec![ConditionalRule::Expression {
+                    formula: "OR($H$4=\"DEC\",$H$4=\"PERC\")".into(),
+                    style: DifferentialStyle {
+                        font: None,
+                        fill: None,
+                        border: None,
+                        num_fmt: Some("#,##0.0".into()),
+                    },
+                    priority: 2,
+                    stop_if_true: false,
+                }],
+            }],
+            dimension: None,
+        };
+        let index = CellIndex::build(&sheet);
+        let view = cell_view(&workbook, &sheet, &index, 8, 2, CellViewOptions::default());
+        assert_eq!(view.text, "70.5");
+    }
 }

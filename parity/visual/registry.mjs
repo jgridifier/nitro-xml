@@ -73,12 +73,11 @@ const STATIC_CASES = [
 		ready: true,
 		fixture: 'fixtures/real/xlsx/poi-45544.xlsx',
 		width: 960,
-		height: 120,
+		height: 132,
 		rust: true,
 		threshold: 0.001,
 		skipPrint: true,
-		// Informational until ribbon/formula-bar chrome ≤0.1% vs upstream (#150 follow-up).
-		informational: true,
+		// Hard: Home ribbon panel ≤0.1% vs upstream (#150 follow-up).
 	},
 	{
 		id: 'docx-edit-chrome-bidi',

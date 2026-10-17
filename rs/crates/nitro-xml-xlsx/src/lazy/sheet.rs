@@ -14,9 +14,13 @@ use nitro_xml_opc::xml::parse_xml_str;
 
 use crate::address::{parse_address, parse_range, MAX_COL, MAX_ROW};
 use crate::cells::CellStore;
+use crate::cf::read_conditional_formats;
 use crate::comments::load_comment_addresses;
+use crate::drawing::load_sheet_drawings;
 use crate::hyperlinks::read_hyperlinks;
-use crate::model::{ActiveWorksheet, CellAddress, CellRange, RowInfo, SheetState};
+use crate::model::{
+    ActiveWorksheet, CellAddress, CellRange, DifferentialStyle, RowInfo, SheetState,
+};
 use crate::sheet_data::{read_sheet_data_xml, store_to_dump_cells, CellContext};
 use crate::sheet_props::{
     read_columns, read_data_validations, read_row_info, read_sheet_format, read_sheet_view,
@@ -39,6 +43,7 @@ pub(crate) struct SheetRequest<'a> {
     pub xf_map: &'a [u32],
     pub date1904: bool,
     pub palette: Option<&'a [String]>,
+    pub dxfs: &'a [DifferentialStyle],
     pub dynamic_cells: &'a HashSet<u32>,
     pub strings_part: Option<&'a str>,
     pub name: &'a str,
@@ -111,13 +116,13 @@ pub(crate) fn load_sheet_window(
         push_warn(warnings, w);
     }
 
+    // Keep every height/hidden override from the stream. Truncating to the cell
+    // window drops `ht` below the fold and skews `topLeftCell` reveal scroll
+    // (e.g. poi-45540_classic_Footer A91 was 4px short of upstream).
     let mut row_info = capture.row_info;
     for (k, v) in parsed_info {
-        if k <= req.view.r1 {
-            row_info.insert(k, v);
-        }
+        row_info.insert(k, v);
     }
-    row_info.retain(|k, _| *k <= req.view.r1);
 
     let shell = shell_document(&capture.prefix, &capture.tail, capture.truncated);
     let mut sheet = worksheet_from_shell(pkg, req, &shell, warnings);
@@ -159,6 +164,8 @@ fn empty_sheet(req: &SheetRequest<'_>) -> ActiveWorksheet {
         hyperlinks: Vec::new(),
         ext_lst: Vec::new(),
         sparkline_groups: Vec::new(),
+        drawings: Vec::new(),
+        conditional_formats: Vec::new(),
         dimension: Some(grid_extent(None, 0, 0, false)),
     }
 }
@@ -275,6 +282,22 @@ fn worksheet_from_shell(
         .unwrap_or_default();
     let comment_addresses = load_comment_addresses(pkg, req.part_name);
     let hyperlinks = read_hyperlinks(pkg, req.part_name, by_name.get("hyperlinks").copied());
+    let mut warn = |m: String| {
+        if !_warnings.iter().any(|w| w == &m) {
+            _warnings.push(m);
+        }
+    };
+    let drawings = load_sheet_drawings(pkg, req.part_name, root, &mut warn);
+    let cf_blocks: Vec<_> = root
+        .map(|r| {
+            elements(r)
+                .filter(|e| e.local == "conditionalFormatting")
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut conditional_formats =
+        read_conditional_formats(&cf_blocks, req.dxfs, req.palette, &mut warn);
+    crate::cf::link_data_bar_extensions(&mut conditional_formats, &ext_lst);
     ActiveWorksheet {
         name: req.name.to_owned(),
         sheet_id: req.sheet_id,
@@ -293,6 +316,8 @@ fn worksheet_from_shell(
         hyperlinks,
         ext_lst,
         sparkline_groups,
+        drawings,
+        conditional_formats,
         dimension: None,
     }
 }
@@ -550,6 +575,10 @@ impl SheetParser {
                         self.capture.max_row = self.capture.max_row.max(row0);
                         self.capture.saw_row = true;
                         note_cols(xml, &mut self.capture.max_col);
+                        // Sparse height/hidden flags still feed grid metrics when scrolled.
+                        if let Some(info) = row_info_from_xml(xml, &self.xf_map) {
+                            self.capture.row_info.insert(row0, info);
+                        }
                         self.last_row = Some(row0);
                         self.row_fallback = row0.saturating_add(1);
                         self.text = self.text[end..].to_owned();
@@ -567,10 +596,8 @@ impl SheetParser {
         note_cols(&xml, &mut self.capture.max_col);
         self.last_row = Some(row0);
         self.row_fallback = row0.saturating_add(1);
-        if row0 <= self.view.r1 {
-            if let Some(info) = row_info_from_xml(&xml, &self.xf_map) {
-                self.capture.row_info.insert(row0, info);
-            }
+        if let Some(info) = row_info_from_xml(&xml, &self.xf_map) {
+            self.capture.row_info.insert(row0, info);
         }
         let kept = KeptRow { row: row0, xml };
         if self.freeze_applied {

@@ -298,9 +298,10 @@ impl ChromeCommands {
         self.registry.is_enabled(id)
     }
 
-    pub fn is_checked(&self, _id: &str) -> bool {
-        // Stub chrome: toggles default false until #66 wires cell state.
-        false
+    pub fn is_checked(&self, id: &str) -> bool {
+        // Catches: Excel default vertical align is bottom — open chrome must press
+        // Bottom Align (poi-45544 edit-chrome) until #66 wires live cell state.
+        id == "home.align-bottom"
     }
 
     pub fn dispatch(&mut self, id: &str, host: &mut dyn Any) -> Result<(), EditError> {

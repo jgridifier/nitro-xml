@@ -22,13 +22,24 @@ const STATIC_HARD = 'fixtures/real/xlsx/poi-45544.xlsx';
  * Visual runner launches Chromium with `--disable-lcd-text` (same as docx).
  */
 export const HARD_FIXTURES = new Set([
+	'fixtures/real/xlsx/poi-45540_classic_Footer.xlsx',
+	'fixtures/real/xlsx/poi-45540_classic_Header.xlsx',
+	'fixtures/real/xlsx/poi-46535.xlsx',
 	'fixtures/real/xlsx/poi-47813.xlsx',
+	'fixtures/real/xlsx/poi-49156.xlsx',
 	'fixtures/real/xlsx/poi-50096.xlsx',
 	'fixtures/real/xlsx/poi-56644.xlsx',
+	'fixtures/real/xlsx/poi-57181.xlsm',
+	'fixtures/real/xlsx/poi-62629_target.xlsm',
+	'fixtures/real/xlsx/poi-ConditionalFormattingSamples.xlsx',
+	'fixtures/real/xlsx/poi-NewStyleConditionalFormattings.xlsx',
+	'fixtures/real/xlsx/poi-DataTableCities.xlsx',
+	'fixtures/real/xlsx/poi-dataValidationTableRange.xlsx',
 	'fixtures/real/xlsx/poi-DateFormatTests.xlsx',
 	'fixtures/real/xlsx/poi-57893-many-merges.xlsx',
 	'fixtures/real/xlsx/poi-61652.xlsx',
 	'fixtures/real/xlsx/poi-ExcelPivotTableSample.xlsx',
+	'fixtures/real/xlsx/poi-ExcelWithAttachments.xlsm',
 	'fixtures/real/xlsx/poi-FormulaEvalTestData_Copy.xlsx',
 	'fixtures/real/xlsx/poi-StructuredRefs-lots-with-lookups.xlsx',
 	'fixtures/real/xlsx/poi-WithChartSheet.xlsx',
@@ -39,6 +50,7 @@ export const HARD_FIXTURES = new Set([
 	'fixtures/real/xlsx/python-pptx-shp-embedded-xlsx.xlsx',
 	'fixtures/real/xlsx/usgov-census-NST-EST2024-POP.xlsx',
 	'fixtures/real/xlsx/usgov-eia-MER-T01.01.xlsx',
+	'fixtures/real/xlsx/usgov-fhwa-2022-vm1.xlsx',
 ]);
 
 function listXlsxFiles() {

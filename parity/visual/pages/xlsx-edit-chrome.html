@@ -200,6 +200,7 @@
       }
       wrap.appendChild(panel.cloneNode(true));
       capture.appendChild(wrap);
+      return wrap;
     }
 
     async function mountRust() {
@@ -234,7 +235,24 @@
       await waitFonts();
       const ribbon = isolateRibbon(shadow, true);
       if (!ribbon) throw new Error('nitro-xlsx: no ribbon');
-      mountRibbonClone(ribbon, width, shadow);
+      // Ensure overflow fold ran (ResizeObserver can race offscreen host).
+      const { refitRibbon } = await import('/repo/parity/visual/ribbon-overflow.mjs');
+      const root = ribbon.closest('.xve-ribbon, .rb') || ribbon;
+      refitRibbon(root);
+      await waitFrames(2);
+      const wrap = mountRibbonClone(ribbon, width, shadow);
+      // Refit the capture clone at the measured 960px width (after layout).
+      if (wrap) {
+        await waitFrames(2);
+        refitRibbon(wrap);
+        await waitFrames(2);
+        // Negative control: collapsed groups must keep an overflow button.
+        for (const g of wrap.querySelectorAll('.ribbon-group[data-collapsed]')) {
+          if (!g.querySelector(':scope > .ribbon-overflow-button')) {
+            throw new Error(`collapsed ${g.dataset.label} missing overflow button`);
+          }
+        }
+      }
     }
 
     async function mountTs() {

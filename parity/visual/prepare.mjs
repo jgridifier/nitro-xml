@@ -3,7 +3,14 @@
  * Build per-case payloads for the visual host (TS oracle + Rust where ready).
  */
 
-import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from 'node:fs';
+import {
+	mkdirSync,
+	writeFileSync,
+	existsSync,
+	readFileSync,
+	copyFileSync,
+	unlinkSync,
+} from 'node:fs';
 import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +19,32 @@ import { readyCases } from './registry.mjs';
 const VISUAL = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(VISUAL, '../..');
 const OUT = join(VISUAL, 'out/payloads');
+
+/**
+ * Excel chart series formulas often use `[0]!name` for a defined name in the
+ * same workbook. Upstream calc treats any book prefix as external and returns
+ * `#NAME?`, which blocks chartSummaryView's cache fallback and leaves the
+ * soft viewer oracle empty (poi-dataValidationTableRange, #150). Strip the
+ * self-workbook marker in the disposable submodule copy before bundling.
+ */
+function patchUpstreamChartSelfBookRefs() {
+	const target = join(ROOT, 'upstream/src/core/xlsx/layout/ref-evaluator.ts');
+	if (!existsSync(target)) {
+		throw new Error(`visual prepare: missing ${target}`);
+	}
+	const src = readFileSync(target, 'utf8');
+	// Idempotent: look for the self-workbook strip already present in the TS source.
+	if (src.includes(".replace(/^\\[0]!/, '')")) {
+		return false;
+	}
+	const from = "const text = ref.trim().replace(/^=/, '');";
+	const to = "const text = ref.trim().replace(/^=/, '').replace(/^\\[0]!/, '');";
+	if (!src.includes(from)) {
+		throw new Error('visual prepare: ref-evaluator self-book patch anchor not found');
+	}
+	writeFileSync(target, src.replace(from, to));
+	return true;
+}
 
 /** Liberation Sans faces used as the pinned visual-gate font family (#150). */
 const PINNED_FONTS = [
@@ -179,6 +212,15 @@ function prepareXlsxViewerBundle() {
 	mkdirSync(bundleDir, { recursive: true });
 	const entry = join(VISUAL, 'hosts/xlsx-editor-entry.mjs');
 	const outFile = join(bundleDir, 'xlsx-editor.js');
+	const stamp = join(bundleDir, '.chart-self-book-v1');
+	const patched = patchUpstreamChartSelfBookRefs();
+	if (patched || !existsSync(stamp)) {
+		try {
+			unlinkSync(outFile);
+		} catch {
+			/* missing is fine */
+		}
+	}
 	// Re-bundle when missing or entry newer than bundle.
 	if (existsSync(outFile)) {
 		const entryStat = spawnSync('stat', ['-c', '%Y', entry], { encoding: 'utf8' });
@@ -188,6 +230,7 @@ function prepareXlsxViewerBundle() {
 			outStat.status === 0 &&
 			Number(outStat.stdout.trim()) >= Number(entryStat.stdout.trim())
 		) {
+			writeFileSync(stamp, '1\n');
 			return;
 		}
 	}
@@ -198,6 +241,7 @@ function prepareXlsxViewerBundle() {
 		{ cwd: ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
 	);
 	if (r.status !== 0) throw new Error(`xlsx-editor bundle: ${r.stderr || r.stdout}`);
+	writeFileSync(stamp, '1\n');
 }
 
 async function prepareDocxLayoutIr(c) {

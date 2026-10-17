@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use nitro_xml_render::command_buffer::CommandBuffer;
 use nitro_xml_render::measure::MeasureBatch;
 
+use crate::cf::icon_body;
 use crate::editor::mark_stale_class;
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
@@ -28,6 +29,9 @@ const TEXT_BASE: u32 = 10_000;
 const BORDER_BASE: u32 = 20_000;
 const COMMENT_BASE: u32 = 30_000;
 const ERROR_BASE: u32 = 40_000;
+const ICON_BASE: u32 = 50_000;
+const DATA_BAR_BASE: u32 = 55_000;
+const DATA_BAR_AXIS_BASE: u32 = 56_000;
 const STALE_BASE: u32 = 60_000;
 const EDITOR_BOX: u32 = 70_000;
 const EDITOR_BEFORE: u32 = 70_001;
@@ -113,6 +117,89 @@ fn paint_one_cell<I: StringIntern>(
         );
     }
 
+    if let Some(bar) = &item.view.data_bar {
+        let bar_id = DATA_BAR_BASE + n as u32;
+        buf.create_element(bar_id, div, cell_id);
+        set_attr(buf, intern, bar_id, "class", "xg-db");
+        let width = (bar.fraction.clamp(0.0, 1.0) * (item.w as f64 - 4.0)).max(0.0);
+        set_style(buf, intern, bar_id, "width", &format!("{}px", width));
+        let rtl = bar.direction.as_deref() == Some("rightToLeft");
+        if let Some(start) = bar.start {
+            set_style(
+                buf,
+                intern,
+                bar_id,
+                "left",
+                &format!("{}px", 2.0 + start * (item.w as f64 - 4.0)),
+            );
+            set_style(buf, intern, bar_id, "right", "auto");
+        } else if rtl {
+            set_style(buf, intern, bar_id, "left", "auto");
+            set_style(buf, intern, bar_id, "right", "2px");
+        } else {
+            set_style(buf, intern, bar_id, "left", "2px");
+            set_style(buf, intern, bar_id, "right", "auto");
+        }
+        let bg = if bar.gradient == Some(false) {
+            bar.color.clone()
+        } else {
+            let deg = if rtl { 270 } else { 90 };
+            format!(
+                "linear-gradient({deg}deg, {}, color-mix(in srgb, {} 15%, #fff))",
+                bar.color, bar.color
+            )
+        };
+        set_style(buf, intern, bar_id, "background", &bg);
+        if let Some(border) = &bar.border_color {
+            set_style(
+                buf,
+                intern,
+                bar_id,
+                "border",
+                &format!("1px solid {border}"),
+            );
+        } else {
+            set_style(buf, intern, bar_id, "border", "none");
+        }
+        if let Some((frac, axis_color)) = &bar.axis {
+            let axis_id = DATA_BAR_AXIS_BASE + n as u32;
+            buf.create_element(axis_id, div, cell_id);
+            set_attr(buf, intern, axis_id, "class", "xg-db-axis");
+            set_style(buf, intern, axis_id, "position", "absolute");
+            set_style(buf, intern, axis_id, "top", "1px");
+            set_style(buf, intern, axis_id, "bottom", "1px");
+            set_style(
+                buf,
+                intern,
+                axis_id,
+                "left",
+                &format!("{}px", 2.0 + *frac * (item.w as f64 - 4.0)),
+            );
+            set_style(
+                buf,
+                intern,
+                axis_id,
+                "borderLeft",
+                &format!("1px dashed {axis_color}"),
+            );
+        }
+    }
+
+    if let Some(icon) = &item.view.icon {
+        let icon_id = ICON_BASE + n as u32;
+        let size = (16.0 * (zoom / 100.0)).round().max(1.0) as u32;
+        // SVG host (createElementNS via loader) + path body — keeps loader SetInnerMarkup
+        // as fragment-only so the JS brotli budget stays ≤17 KB.
+        let svg = intern.intern("svg");
+        buf.create_element(icon_id, svg, cell_id);
+        set_attr(buf, intern, icon_id, "class", "xg-ic");
+        set_attr(buf, intern, icon_id, "width", &size.to_string());
+        set_attr(buf, intern, icon_id, "height", &size.to_string());
+        set_attr(buf, intern, icon_id, "viewBox", "0 0 16 16");
+        set_attr(buf, intern, icon_id, "aria-hidden", "true");
+        buf.set_inner_markup(icon_id, intern.intern(&icon_body(&icon.set, icon.index)));
+    }
+
     if !item.text.is_empty() {
         let text_id = TEXT_BASE + n as u32;
         buf.create_element(text_id, div, cell_id);
@@ -141,6 +228,15 @@ fn paint_one_cell<I: StringIntern>(
             "width",
             &format!("{}px", item.text_width),
         );
+        if item.view.icon.is_some() && item.view.h_align != "right" {
+            set_style(
+                buf,
+                intern,
+                text_id,
+                "paddingLeft",
+                &format!("{}px", 20.0 * (zoom / 100.0)),
+            );
+        }
         set_style(
             buf,
             intern,

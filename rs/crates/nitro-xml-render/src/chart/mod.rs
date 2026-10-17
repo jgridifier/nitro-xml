@@ -38,6 +38,14 @@ pub struct ChartSvgOptions {
     pub picture_fills: bool,
     /// Apply `c:txPr` / chart-space `spPr` from the part (docx print); off for bare S1 oracle dumps.
     pub docx_chart_chrome: bool,
+    /// When set, use `c14:style` / `c:style` from the chart space (xlsx live grid / docx print).
+    pub use_space_style: bool,
+    /// Override axis label size in points from the chart `style1.xml` part (xlsx).
+    pub axis_font_size_pt: Option<f64>,
+    /// Override legend label size in points from the chart style part.
+    pub legend_font_size_pt: Option<f64>,
+    /// Override title size in points from the chart style part.
+    pub title_font_size_pt: Option<f64>,
 }
 
 impl Default for ChartSvgOptions {
@@ -55,6 +63,10 @@ impl Default for ChartSvgOptions {
             bar3d_extrusion: false,
             picture_fills: false,
             docx_chart_chrome: false,
+            use_space_style: false,
+            axis_font_size_pt: None,
+            legend_font_size_pt: None,
+            title_font_size_pt: None,
         }
     }
 }
@@ -82,6 +94,10 @@ pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOpti
             picture_fills: options.svg.picture_fills,
             color_palette: options.svg.color_palette,
             docx_chart_chrome: options.svg.docx_chart_chrome,
+            use_space_style: options.svg.use_space_style,
+            axis_font_size_pt: options.svg.axis_font_size_pt,
+            legend_font_size_pt: options.svg.legend_font_size_pt,
+            title_font_size_pt: options.svg.title_font_size_pt,
         },
     )
 }
@@ -94,26 +110,50 @@ pub fn probe_chart_space_measures(
     batch: &mut MeasureBatch,
     intern: &mut dyn FnMut(&str) -> u32,
 ) {
-    let measure = render::ChartSvgMeasureOptions::probing(batch, intern);
-    let _ = render::render_chart_space_svg(
+    let _ = render_chart_space_svg_probing(
         space,
-        &mut render::RenderChartSpaceOptions {
+        &RenderChartSpaceOptions {
             width,
             height,
-            measure,
-            theme_colors: None,
-            theme_fonts: ChartThemeFonts {
-                major: None,
-                minor: None,
-            },
-            chart_images: HashMap::new(),
-            picture_id_prefix: "chart".to_string(),
-            bar3d_extrusion: false,
-            picture_fills: false,
-            color_palette: None,
-            docx_chart_chrome: false,
+            svg: ChartSvgOptions::default(),
         },
+        batch,
+        intern,
     );
+}
+
+/// Render chart SVG while probing `batch` (uses cached widths when present; queues misses).
+///
+/// Prefer this over [`render_chart_space_svg`] when the host shares a [`MeasureBatch`] with
+/// other painters (xlsx cells): sequential `measure_widths` would be polluted by non-chart
+/// requests, while the cache is keyed by `(font, text)`.
+pub fn render_chart_space_svg_probing(
+    space: &ChartSpace,
+    options: &RenderChartSpaceOptions,
+    batch: &mut MeasureBatch,
+    intern: &mut dyn FnMut(&str) -> u32,
+) -> String {
+    let measure = render::ChartSvgMeasureOptions::probing(batch, intern);
+    render::render_chart_space_svg(
+        space,
+        &mut render::RenderChartSpaceOptions {
+            width: options.width,
+            height: options.height,
+            measure,
+            theme_colors: options.svg.theme_colors.clone(),
+            theme_fonts: options.svg.theme_fonts.clone(),
+            chart_images: options.svg.chart_images.clone(),
+            picture_id_prefix: options.svg.picture_id_prefix.clone(),
+            bar3d_extrusion: options.svg.bar3d_extrusion,
+            picture_fills: options.svg.picture_fills,
+            color_palette: options.svg.color_palette,
+            docx_chart_chrome: options.svg.docx_chart_chrome,
+            use_space_style: options.svg.use_space_style,
+            axis_font_size_pt: options.svg.axis_font_size_pt,
+            legend_font_size_pt: options.svg.legend_font_size_pt,
+            title_font_size_pt: options.svg.title_font_size_pt,
+        },
+    )
 }
 
 /// Encodes chart SVG into `buffer` as one `SetInnerMarkup` handoff; interns markup into `strings`.
@@ -148,6 +188,10 @@ pub fn paint_chart_space(
                 picture_fills: options.svg.picture_fills,
                 color_palette: options.svg.color_palette,
                 docx_chart_chrome: options.svg.docx_chart_chrome,
+                use_space_style: options.svg.use_space_style,
+                axis_font_size_pt: options.svg.axis_font_size_pt,
+                legend_font_size_pt: options.svg.legend_font_size_pt,
+                title_font_size_pt: options.svg.title_font_size_pt,
             },
         },
     );

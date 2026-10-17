@@ -490,9 +490,118 @@ fn control_is_large(c: &Control) -> bool {
             c.command,
             Some("home.paste") | Some("cells.insert-split") | Some("cells.delete-split")
         ),
-        ControlKind::Menu | ControlKind::Gallery => c.label.is_some(),
+        // Upstream: Orientation/Fill/Clear are small; CF/Format/Sort/Find are large.
+        ControlKind::Menu => matches!(
+            c.label,
+            Some("Conditional Formatting")
+                | Some("Format")
+                | Some("Sort & Filter")
+                | Some("Find & Select")
+        ),
+        // format-as-table / cell-styles galleries are large (upstream default size).
+        ControlKind::Gallery => true,
         _ => false,
     }
+}
+
+/// Upstream `isSmall`: small buttons/toggles/splits/menus, plus color/select.
+fn control_is_small(c: &Control) -> bool {
+    match c.kind {
+        ControlKind::Button | ControlKind::Toggle | ControlKind::Split | ControlKind::Menu => {
+            !control_is_large(c)
+        }
+        ControlKind::Color | ControlKind::Select => true,
+        ControlKind::Separator | ControlKind::Stack | ControlKind::Gallery => false,
+    }
+}
+
+/// Upstream `layoutSmall`: separators break rows; leading select gets its own row; else columns of 3.
+fn layout_small(chrome: &EditorChrome, run: &[&Control], out: &mut String) {
+    if run.is_empty() {
+        return;
+    }
+    let has_sep = run.iter().any(|c| matches!(c.kind, ControlKind::Separator));
+    let lead_select = matches!(run[0].kind, ControlKind::Select)
+        && run.iter().any(|c| !matches!(c.kind, ControlKind::Select));
+
+    if has_sep || lead_select {
+        let mut lines: Vec<Vec<&Control>> = vec![Vec::new()];
+        if has_sep {
+            for c in run {
+                if matches!(c.kind, ControlKind::Separator) {
+                    lines.push(Vec::new());
+                } else {
+                    lines.last_mut().unwrap().push(*c);
+                }
+            }
+        } else {
+            let lead = run
+                .iter()
+                .position(|c| !matches!(c.kind, ControlKind::Select))
+                .unwrap_or(run.len());
+            lines = vec![run[..lead].to_vec(), run[lead..].to_vec()];
+        }
+        out.push_str("<div class=\"ribbon-stack\">");
+        for line in lines.into_iter().filter(|l| !l.is_empty()) {
+            out.push_str("<div class=\"ribbon-stack\">");
+            for c in line {
+                render_control(chrome, c, out);
+            }
+            out.push_str("</div>");
+        }
+        out.push_str("</div>");
+        return;
+    }
+
+    for chunk in run.chunks(3) {
+        out.push_str("<div class=\"ribbon-stack\">");
+        for c in chunk {
+            render_control(chrome, c, out);
+        }
+        out.push_str("</div>");
+    }
+}
+
+fn render_group(chrome: &EditorChrome, group: &Group, out: &mut String) {
+    out.push_str("<div class=\"ribbon-group\" data-label=\"");
+    out.push_str(&esc(group.label));
+    out.push_str("\" data-caption=\"");
+    out.push_str(&esc(group.label));
+    out.push_str("\" role=\"group\" aria-label=\"");
+    out.push_str(&esc(group.label));
+    out.push_str("\">");
+    let mut run: Vec<&Control> = Vec::new();
+    for c in group.controls {
+        if control_is_small(c) || matches!(c.kind, ControlKind::Separator) {
+            run.push(c);
+            continue;
+        }
+        if !run.is_empty() {
+            layout_small(chrome, &run, out);
+            run.clear();
+        }
+        render_control(chrome, c, out);
+    }
+    if !run.is_empty() {
+        layout_small(chrome, &run, out);
+    }
+    // Dialog launchers (upstream Font / Alignment / Number).
+    let launcher = match group.label {
+        "Font" => Some(("home.font-settings", "Font Settings")),
+        "Alignment" => Some(("home.alignment-settings", "Format Cell Alignment")),
+        "Number" => Some(("home.number-settings", "Number Format Settings")),
+        _ => None,
+    };
+    if let Some((id, label)) = launcher {
+        let path = icon_path("launcher").unwrap_or("M14 4v6h6M10 14H4v6");
+        out.push_str(&format!(
+            "<button type=\"button\" class=\"ribbon-launcher\" data-a=\"cmd\" data-g=\"{}\" aria-label=\"{}\" data-launcher=\"\">{}</button>",
+            esc(id),
+            esc(label),
+            ribbon_icon_svg(path, 10, "launcher"),
+        ));
+    }
+    out.push_str("</div>");
 }
 
 fn icon_markup(command: &str, label: &str, large: bool) -> String {
@@ -515,20 +624,21 @@ fn caret_button() -> String {
 fn cmd_button(
     chrome: &EditorChrome,
     id: &str,
-    pressed: bool,
+    pressed: Option<bool>,
     large: bool,
     show_label: bool,
 ) -> String {
     let label = chrome.commands.label(id).unwrap_or(id);
+    // Upstream titles: "Paste (Ctrl+V)" when a shortcut exists.
     let title = chrome
         .commands
         .shortcut_display(id)
-        .map(|s| format!(" title=\"{}\"", esc(&s)))
-        .unwrap_or_default();
-    let pressed_attr = if pressed {
-        " aria-pressed=\"true\""
-    } else {
-        " aria-pressed=\"false\""
+        .map(|s| format!(" title=\"{} ({})\"", esc(label), esc(&s)))
+        .unwrap_or_else(|| format!(" title=\"{}\"", esc(label)));
+    let pressed_attr = match pressed {
+        Some(true) => " aria-pressed=\"true\"",
+        Some(false) => " aria-pressed=\"false\"",
+        None => "",
     };
     let disabled = if chrome.is_enabled(id) {
         ""
@@ -537,8 +647,10 @@ fn cmd_button(
     };
     let cls = if large {
         "ribbon-large"
-    } else {
+    } else if show_label {
         "ribbon-small ribbon-labelled"
+    } else {
+        "ribbon-small"
     };
     let mut body = icon_markup(id, label, large);
     if show_label && (large || !icon_markup(id, label, large).is_empty()) {
@@ -594,18 +706,20 @@ fn render_control(chrome: &EditorChrome, c: &Control, out: &mut String) {
             if let Some(id) = c.command {
                 // Home icon buttons are glyph-only (aria-label carries the name), matching upstream.
                 let show_label = command_icon(id).is_none();
-                out.push_str(&cmd_button(chrome, id, false, false, show_label));
+                out.push_str(&cmd_button(chrome, id, None, false, show_label));
             }
         }
         ControlKind::Color => {
             if let Some(id) = c.command {
                 let lbl = c.label.unwrap_or("Color");
                 let bar = if id == "home.font-color" {
-                    // Upstream default font-color swatch (theme accent red), not workbook green.
-                    " style=\"--bar:#c00000\""
+                    // Upstream default swatches (commands/colors.ts): pure red / yellow.
+                    " style=\"--bar:#FF0000\""
                 } else {
-                    " style=\"--bar:#ffc000\""
+                    " style=\"--bar:#FFFF00\""
                 };
+                // Upstream color control is a split: swatch button + caret (Fill/Font Color options).
+                out.push_str("<span class=\"ribbon-split\">");
                 out.push_str(&format!(
                     "<button type=\"button\" class=\"ribbon-small ribbon-color\" data-a=\"cmd\" data-g=\"{}\" aria-label=\"{}\"{}>{}</button>",
                     esc(id),
@@ -613,6 +727,12 @@ fn render_control(chrome: &EditorChrome, c: &Control, out: &mut String) {
                     bar,
                     icon_markup(id, lbl, false),
                 ));
+                out.push_str(&format!(
+                    "<button type=\"button\" class=\"ribbon-caret\" aria-label=\"{} options\" aria-haspopup=\"menu\">{}</button>",
+                    esc(lbl),
+                    ribbon_icon_svg(icon_path("caret").unwrap_or("M7 10l5 5 5-5"), 10, "caret"),
+                ));
+                out.push_str("</span>");
             }
         }
         ControlKind::Select => {
@@ -629,7 +749,7 @@ fn render_control(chrome: &EditorChrome, c: &Control, out: &mut String) {
         }
         ControlKind::Toggle => {
             if let Some(id) = c.command {
-                let pressed = chrome.is_checked(id);
+                let pressed = Some(chrome.is_checked(id));
                 out.push_str(&cmd_button(chrome, id, pressed, false, false));
             }
         }
@@ -641,10 +761,26 @@ fn render_control(chrome: &EditorChrome, c: &Control, out: &mut String) {
                 } else {
                     "ribbon-split"
                 };
-                out.push_str(&format!("<span class=\"{}\">", split_cls));
-                out.push_str(&cmd_button(chrome, id, chrome.is_checked(id), large, large));
-                out.push_str(&caret_button());
-                out.push_str("</span>");
+                // Upstream uses <div class="ribbon-split">; large caption lives on the caret.
+                out.push_str(&format!("<div class=\"{}\">", split_cls));
+                // Only toggles carry aria-pressed; split mains (Paste/Borders/…) omit it.
+                out.push_str(&cmd_button(chrome, id, None, large, false));
+                let label = chrome.commands.label(id).unwrap_or(id);
+                let caret_path = icon_path("caret").unwrap_or("M7 10l5 5 5-5");
+                if large {
+                    out.push_str(&format!(
+                        "<button type=\"button\" class=\"ribbon-caret\" aria-label=\"{lbl} options\" title=\"{lbl} options\" aria-haspopup=\"true\"><span class=\"ribbon-caption\">{lbl}</span>{icon}</button>",
+                        lbl = esc(label),
+                        icon = ribbon_icon_svg(caret_path, 12, "caret"),
+                    ));
+                } else {
+                    out.push_str(&format!(
+                        "<button type=\"button\" class=\"ribbon-caret\" aria-label=\"{lbl} options\" title=\"{lbl} options\" aria-haspopup=\"true\">{icon}</button>",
+                        lbl = esc(label),
+                        icon = ribbon_icon_svg(caret_path, 10, "caret"),
+                    ));
+                }
+                out.push_str("</div>");
                 if !c.menu.is_empty() {
                     out.push_str("<span class=\"rb-menu-stub\" hidden>");
                     for entry in c.menu {
@@ -660,10 +796,11 @@ fn render_control(chrome: &EditorChrome, c: &Control, out: &mut String) {
                 .or(c.command.and_then(|id| chrome.commands.label(id)))
                 .unwrap_or("Menu");
             let large = control_is_large(c);
+            // Upstream `renderMenu`: ribbon-menu-button + trailing caret (12px).
             let cls = if large {
-                "ribbon-large"
+                "ribbon-large ribbon-menu-button"
             } else {
-                "ribbon-small ribbon-labelled"
+                "ribbon-small ribbon-labelled ribbon-menu-button"
             };
             let cmd_attr = c
                 .command
@@ -673,13 +810,15 @@ fn render_control(chrome: &EditorChrome, c: &Control, out: &mut String) {
                 .or_else(|| c.command.and_then(command_icon))
                 .map(|p| ribbon_icon_svg(p, if large { 28 } else { 16 }, lbl))
                 .unwrap_or_default();
+            let caret = ribbon_icon_svg(icon_path("caret").unwrap_or("M7 10l5 5 5-5"), 12, "caret");
             out.push_str(&format!(
-                "<button type=\"button\" class=\"{cls}\" data-a=\"cmd\"{cmd} aria-label=\"{lbl}\" aria-haspopup=\"menu\">{icon}<span>{text}</span></button>",
+                "<button type=\"button\" class=\"{cls}\" data-a=\"cmd\"{cmd} aria-label=\"{lbl}\" aria-haspopup=\"true\" aria-expanded=\"false\">{icon}<span>{text}</span>{caret}</button>",
                 cls = cls,
                 cmd = cmd_attr,
                 lbl = esc(lbl),
                 icon = icon,
                 text = esc(lbl),
+                caret = caret,
             ));
             if !c.menu.is_empty() {
                 out.push_str("<span class=\"rb-menu-stub\" hidden>");
@@ -714,15 +853,7 @@ pub fn ribbon_html(chrome: &EditorChrome) -> String {
     }
     let mut groups = String::new();
     for g in HOME_GROUPS {
-        groups.push_str("<div class=\"ribbon-group\" data-caption=\"");
-        groups.push_str(&esc(g.label));
-        groups.push_str("\" role=\"group\" aria-label=\"");
-        groups.push_str(&esc(g.label));
-        groups.push_str("\">");
-        for c in g.controls {
-            render_control(chrome, c, &mut groups);
-        }
-        groups.push_str("</div>");
+        render_group(chrome, g, &mut groups);
     }
     let tab = esc(chrome.active_tab());
     format!(
@@ -751,6 +882,13 @@ mod tests {
         assert!(html.contains("role=\"toolbar\""));
         assert!(html.contains("aria-label=\"Ribbon\""));
         assert!(html.contains("role=\"tablist\""));
+        // Catches: Font/Alignment must use layoutSmall stacks (else edit-chrome ~3.5% drift).
+        assert!(html.contains("class=\"ribbon-stack\""));
+        assert!(html.contains("data-label=\"Font\""));
+        // Catches: Excel default bottom valign must press Bottom Align on open.
+        assert!(html.contains(
+            "data-g=\"home.align-bottom\" aria-label=\"Bottom Align\" aria-pressed=\"true\""
+        ));
     }
 
     #[test]

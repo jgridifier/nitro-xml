@@ -865,6 +865,164 @@ impl DumpCell {
     }
 }
 
+/// Value threshold for colour scales, data bars and icon sets (`cfvo`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct CfvoThreshold {
+    pub kind: String,
+    pub value: Option<String>,
+    pub gte: Option<bool>,
+}
+
+/// One conditional-format rule (`cfRule`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConditionalRule {
+    CellIs {
+        operator: String,
+        formulas: Vec<String>,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    Expression {
+        formula: String,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    ColorScale {
+        thresholds: Vec<CfvoThreshold>,
+        colors: Vec<Color>,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    DataBar {
+        min: CfvoThreshold,
+        max: CfvoThreshold,
+        color: Color,
+        priority: i32,
+        stop_if_true: bool,
+        show_value: bool,
+        /// Legacy / x14 length percents (Excel defaults 10 / 90 when unset).
+        min_length: f64,
+        max_length: f64,
+        /// x14 `border="1"` (classic bars omit borders).
+        border: bool,
+        /// x14 cfvo `autoMin` / `autoMax` (forces the scale through 0).
+        auto_min: bool,
+        auto_max: bool,
+        /// Linked x14 cfRule id when present.
+        extension_id: Option<String>,
+    },
+    IconSet {
+        icon_set: String,
+        thresholds: Vec<CfvoThreshold>,
+        priority: i32,
+        stop_if_true: bool,
+        reverse: bool,
+        show_value: bool,
+    },
+    /// Text predicate rules (`containsText` / `notContainsText` / `beginsWith` / `endsWith`).
+    Text {
+        kind: String,
+        text: String,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    Top10 {
+        rank: f64,
+        percent: bool,
+        bottom: bool,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    AboveAverage {
+        below: bool,
+        equal_average: bool,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    /// `duplicateValues` / `uniqueValues`.
+    UniqueDup {
+        duplicate: bool,
+        style: DifferentialStyle,
+        priority: i32,
+        stop_if_true: bool,
+    },
+    /// Unsupported / not yet painted rule types kept for future ports.
+    Other {
+        kind: String,
+        priority: i32,
+        stop_if_true: bool,
+        style: DifferentialStyle,
+    },
+}
+
+/// One `conditionalFormatting` block.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionalFormat {
+    pub ranges: Vec<CellRange>,
+    pub rules: Vec<ConditionalRule>,
+}
+
+/// Cell marker inside a spreadsheet drawing anchor (EMUs for offsets).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DrawingMarker {
+    pub row: u32,
+    pub col: u32,
+    pub row_offset: i64,
+    pub col_offset: i64,
+}
+
+/// Two-cell / one-cell / absolute drawing anchor (plane geometry via `anchor_to_pixel_box`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DrawingAnchor {
+    pub from: DrawingMarker,
+    pub to: Option<DrawingMarker>,
+    /// Extent in EMUs (`cx`, `cy`) for one-cell / absolute anchors.
+    pub ext: Option<(i64, i64)>,
+}
+
+/// Sheet drawing for the live grid (`#150` soft pixel / drawings layer).
+#[derive(Debug, Clone, PartialEq)]
+pub enum DrawingObject {
+    Unsupported {
+        anchor: DrawingAnchor,
+        description: String,
+    },
+    Chart {
+        anchor: DrawingAnchor,
+        part_name: String,
+        name: Option<String>,
+        chart_xml: String,
+        /// Axis label size (pt) from the chart `style1.xml` part when present.
+        axis_font_size_pt: Option<f64>,
+        legend_font_size_pt: Option<f64>,
+        title_font_size_pt: Option<f64>,
+    },
+    Image {
+        anchor: DrawingAnchor,
+        part_name: String,
+        content_type: String,
+        name: Option<String>,
+        description: Option<String>,
+        /// `data:` URL for the picture part (embedded at load so the painter can emit `<img>`).
+        data_url: Option<String>,
+    },
+}
+
+impl DrawingObject {
+    pub fn anchor(&self) -> &DrawingAnchor {
+        match self {
+            DrawingObject::Unsupported { anchor, .. }
+            | DrawingObject::Chart { anchor, .. }
+            | DrawingObject::Image { anchor, .. } => anchor,
+        }
+    }
+}
+
 /// List / custom validation rule ranges (view-IR only; not in Stage-16 worksheet JSON).
 #[derive(Debug, Clone, PartialEq)]
 pub struct DataValidation {
@@ -938,6 +1096,10 @@ pub struct ActiveWorksheet {
     /// Preserved `extLst` XML fragments (sparklines and other extensions).
     pub ext_lst: Vec<String>,
     pub sparkline_groups: Vec<SparklineGroup>,
+    /// Pictures / charts / unsupported shapes from the worksheet drawing part.
+    pub drawings: Vec<DrawingObject>,
+    /// Conditional formatting blocks (`conditionalFormatting`).
+    pub conditional_formats: Vec<ConditionalFormat>,
     /// Full grid extent for metrics. `None` on the full-fidelity load path (extent comes from
     /// stored cells). The lazy first view sets this from `<dimension>` or the streamed row
     /// prefix plus a stub so the grid does not collapse to the loaded window. Omitted from

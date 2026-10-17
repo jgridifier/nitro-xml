@@ -10,6 +10,7 @@ use super::built_in_text_style::{
 };
 use super::chart_appearance::{
     overlay_authored_axis_sp_pr, overlay_authored_tx_pr_appearance, overlay_chart_space_sp_pr,
+    overlay_plot_area_sp_pr,
 };
 use super::chart_colors::chart_color_scheme;
 use super::chart_picture_fill::resolve_chart_picture_fills;
@@ -57,6 +58,11 @@ pub struct RenderChartSpaceOptions<'a> {
     pub picture_fills: bool,
     pub color_palette: Option<i32>,
     pub docx_chart_chrome: bool,
+    /// Prefer `c14:style` / `c:style` from the chart space over the S1 default (102).
+    pub use_space_style: bool,
+    pub axis_font_size_pt: Option<f64>,
+    pub legend_font_size_pt: Option<f64>,
+    pub title_font_size_pt: Option<f64>,
 }
 
 pub fn chart_space_kind(space: &ChartSpace) -> (Option<ChartSummaryType>, bool) {
@@ -84,12 +90,32 @@ pub fn render_chart_space_svg(
         options.theme_fonts.major.as_deref(),
         options.theme_fonts.minor.as_deref(),
     );
-    let built_in_style = if options.docx_chart_chrome {
+    let built_in_style = if options.docx_chart_chrome || options.use_space_style {
         effective_built_in_chart_style_from_space(space.style, space.c14_style)
     } else {
         effective_built_in_chart_style()
     };
     let mut view = chart_summary_view(&summary, &theme, built_in_style);
+    if options.axis_font_size_pt.is_some()
+        || options.legend_font_size_pt.is_some()
+        || options.title_font_size_pt.is_some()
+    {
+        let appearance = view.appearance.get_or_insert_with(Default::default);
+        if let Some(pt) = options.axis_font_size_pt {
+            for part in ["valueAxis", "categoryAxis"] {
+                appearance.entry(part.to_string()).or_default().font_size = Some(pt);
+            }
+        }
+        if let Some(pt) = options.legend_font_size_pt {
+            appearance
+                .entry("legend".to_string())
+                .or_default()
+                .font_size = Some(pt);
+        }
+        if let Some(pt) = options.title_font_size_pt {
+            appearance.entry("title".to_string()).or_default().font_size = Some(pt);
+        }
+    }
     view.view3_d = space.view3_d.clone();
     view.bar3d_extrusion = options.bar3d_extrusion;
     let scheme = chart_color_scheme(&theme);
@@ -100,14 +126,16 @@ pub fn render_chart_space_svg(
         };
         drawing_color_css(resolve_drawing_color(color, Some(&scheme), Some(resolve_opts)).as_ref())
     };
-    if options.docx_chart_chrome {
-        if let Some(appearance) = view.appearance.as_mut() {
-            overlay_authored_tx_pr_appearance(appearance, space, &resolve);
-            overlay_authored_axis_sp_pr(appearance, space, &resolve);
+    // Live xlsx (`use_space_style`) and docx chrome merge authored c:spPr (chart /
+    // plot borders on poi-dataValidationTableRange). Bare S1 oracle dumps must stay
+    // style-102 only so `chart_render_svg` matches upstream `renderChartSpaceSvg`.
+    if options.docx_chart_chrome || options.use_space_style || options.bar3d_extrusion {
+        let appearance = view.appearance.get_or_insert_with(Default::default);
+        if options.docx_chart_chrome || options.use_space_style {
             overlay_chart_space_sp_pr(appearance, space, &resolve);
+            overlay_plot_area_sp_pr(appearance, space, &resolve);
         }
-    } else if options.bar3d_extrusion {
-        if let Some(appearance) = view.appearance.as_mut() {
+        if options.docx_chart_chrome || options.bar3d_extrusion {
             overlay_authored_tx_pr_appearance(appearance, space, &resolve);
             overlay_authored_axis_sp_pr(appearance, space, &resolve);
         }

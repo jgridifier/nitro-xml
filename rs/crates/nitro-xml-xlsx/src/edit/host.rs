@@ -83,6 +83,8 @@ impl XlsxHost {
                         hyperlinks: Vec::new(),
                         ext_lst: Vec::new(),
                         sparkline_groups: Vec::new(),
+                        drawings: Vec::new(),
+                        conditional_formats: Vec::new(),
                         dimension: None,
                     }
                 })
@@ -432,6 +434,8 @@ impl XlsxHost {
                     hyperlinks: Vec::new(),
                     ext_lst: Vec::new(),
                     sparkline_groups: Vec::new(),
+                    drawings: Vec::new(),
+                    conditional_formats: Vec::new(),
                     dimension: None,
                 }
             };

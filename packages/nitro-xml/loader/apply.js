@@ -98,7 +98,7 @@ const parentId = view.getUint32(i + 8, true);
 i += 12;
 if (typeof document !== "undefined") {
 const tagName = target.resolve(tagId) || "div";
-const el = document.createElement(tagName);
+const el = tagName==="svg"?document.createElementNS("http://www.w3.org/2000/svg",tagName):document.createElement(tagName);
 nodes.set(id, el);
 const parent = parentId === 0 ? root : nodes.get(parentId);
 if (parent) parent.appendChild(el);

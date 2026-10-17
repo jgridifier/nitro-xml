@@ -55,6 +55,11 @@ impl ChartSvgMeasureOptions<'_> {
                     let font = css_font(attrs);
                     let font_id = intern(&font);
                     let text_id = intern(content);
+                    if let Some(w) = batch.cached_width(font_id, text_id) {
+                        if w.is_finite() && w >= 0.0 {
+                            return Some(w);
+                        }
+                    }
                     let size = attrs.size.unwrap_or(10.0) as f32;
                     batch.push(font_id, size, text_id);
                 }
@@ -116,9 +121,41 @@ pub fn fit_chart_text(
     format!("{}…", chars.iter().take(low).collect::<String>())
 }
 
+/// Sentinel text ids so ascent / line-height probes do not collide with width cache
+/// keys (MeasureBatch caches by `(font_id, text_id)` only; size is not part of the key).
+const FONT_ASCENT_PROBE: &str = "\u{0001}nitro-chart-font-ascent";
+const FONT_LH_PROBE: &str = "\u{0001}nitro-chart-font-lh";
+
+/// Host `measureFont` via MeasureBatch sizePx −2 (ascent) / −1 (line height).
+///
+/// Catches: rich chart title line spacing falling back to `size` / `size*0.4+4`
+/// when metrics are stubbed (poi-dataValidationTableRange wrapped title band).
 pub fn chart_font_metrics(
-    _attrs: &TextAttrs,
-    _options: &ChartSvgMeasureOptions<'_>,
+    attrs: &TextAttrs,
+    options: &mut ChartSvgMeasureOptions<'_>,
 ) -> Option<(f64, f64)> {
-    None
+    if !options.probing {
+        return None;
+    }
+    let batch = options.probe_batch.as_deref_mut()?;
+    let intern = options.probe_intern.as_mut()?;
+    let font = css_font(attrs);
+    let font_id = intern(&font);
+    let ascent_id = intern(FONT_ASCENT_PROBE);
+    let lh_id = intern(FONT_LH_PROBE);
+    let ascent = batch.cached_width(font_id, ascent_id);
+    let line_height = batch.cached_width(font_id, lh_id);
+    match (ascent, line_height) {
+        (Some(a), Some(lh))
+            if a.is_finite() && lh.is_finite() && a >= 0.0 && lh >= a && a + (lh - a) > 0.0 =>
+        {
+            Some((a, lh - a))
+        }
+        _ => {
+            // Loader: sizePx -2 → fontBoundingBoxAscent; -1 → ascent+descent.
+            batch.push(font_id, -2.0, ascent_id);
+            batch.push(font_id, -1.0, lh_id);
+            None
+        }
+    }
 }

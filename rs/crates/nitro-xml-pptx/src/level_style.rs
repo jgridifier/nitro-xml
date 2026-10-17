@@ -196,10 +196,10 @@ fn parse_line_spacing_exact_pt(ln_spc: &Element) -> Option<f64> {
 
 fn parse_spacing_px(node: &Element, basis_font_size_px: Option<f64>) -> Option<f64> {
     if let Some(spc_pts) = child_local(node, "spcPts", ns::A) {
+        // Upstream `parseParagraphSpacingPx`: any finite `spcPts` (including 0) wins and
+        // overrides inherited spacing, so an authored `spcBef 0` must not fall through.
         let raw = attr(spc_pts, "val")?.parse::<i64>().ok()?;
-        if raw > 0 {
-            return Some(raw as f64 * 96.0 / 72.0 / 100.0);
-        }
+        return Some(raw as f64 * 96.0 / 72.0 / 100.0);
     }
     if let Some(spc_pct) = child_local(node, "spcPct", ns::A) {
         let fraction = parse_ooxml_percent(attr(spc_pct, "val")?)?;

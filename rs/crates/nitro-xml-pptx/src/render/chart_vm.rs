@@ -174,6 +174,44 @@ fn esc(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+fn tooltip(series: &str, cat: &str, val: f64) -> String {
+    let label = [series, cat]
+        .iter()
+        .filter(|p| !p.is_empty())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if label.is_empty() {
+        fmt_axis(val)
+    } else {
+        format!("{label}: {}", fmt_axis(val))
+    }
+}
+
+/// `estimateTextWidth` (text-wrap-estimate.ts).
+fn estimate_text_width(text: &str, size: f64) -> f64 {
+    text.chars()
+        .map(|c| {
+            let r = if ('\u{300}'..='\u{36f}').contains(&c) {
+                0.0
+            } else if c.is_whitespace() {
+                0.33
+            } else if matches!(c as u32, 0x3400..=0x9fff | 0x3040..=0x30ff | 0xac00..=0xd7af | 0x1f300..=0x1faff) {
+                1.0
+            } else if c.is_ascii_uppercase() {
+                0.65
+            } else if c.is_ascii_lowercase() || c.is_ascii_digit() {
+                0.55
+            } else if ",.;:!?()[]{}'\"`-_/\\".contains(c) {
+                0.35
+            } else {
+                0.6
+            };
+            r * size
+        })
+        .sum()
+}
+
 fn fmt_axis(v: f64) -> String {
     if v.abs() >= 1_000_000.0 {
         format!("{:.1}M", v / 1_000_000.0)
@@ -257,9 +295,9 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
         return None;
     }
     let g = &pa.groups[0];
+    let horizontal = g.bar_direction.as_deref() == Some("bar");
     if g.kind != ChartGroupKind::Bar
         || g.is3_d
-        || g.bar_direction.as_deref() == Some("bar")
         || !matches!(g.grouping.as_deref(), None | Some("clustered"))
         || g.vary_colors == Some(true)
         || g.data_labels.as_ref().is_some_and(|d| {
@@ -406,10 +444,14 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
     // computePlotLayout
     let (wf, hf) = (w.max(1) as f64, h.max(1) as f64);
     let offset = 4.0 + 8.0 * (cat_ax.label_offset.unwrap_or(100.0) / 100.0);
+    let widest_label = categories
+        .iter()
+        .map(|c| estimate_text_width(c, DEFAULT_TEXT_PX))
+        .fold(0.0, f64::max);
     let mut l = Layout {
         w: wf,
         h: hf,
-        left: 48.0,
+        left: 8.0 + (if horizontal { widest_label + 4.0 } else { 0.0 }).max(40.0),
         top: 8.0,
         right: wf - 8.0,
         bottom: hf - (24f64).max(offset + cat_px * 1.2),
@@ -433,7 +475,7 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
         }
     }
     let auto_ph = (l.bottom - l.top).max(1.0);
-    let ph = auto_ph;
+    let ph = if horizontal { l.pw() } else { auto_ph };
 
     // Value range
     let all: Vec<f64> = series
@@ -472,134 +514,239 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
         n(l.w), n(l.h)
     );
 
-    // Value axis (buildPrimaryAxis / buildGridlinesAndLabels)
-    let show_grid = val_ax.major_gridlines;
-    let ticks: Vec<f64> = match range.unit {
-        Some(u) if u > 0.0 => {
-            let tol = 1f64.max(range.min.abs()).max(range.max.abs()) * 1e-12;
-            let first = ((range.min - tol) / u).ceil() as i64;
-            let last = ((range.max + tol) / u).floor() as i64;
-            (first..=last).map(|i| i as f64 * u).collect()
+    if !horizontal {
+        // Value axis (buildPrimaryAxis / buildGridlinesAndLabels)
+        let show_grid = val_ax.major_gridlines;
+        let ticks: Vec<f64> = match range.unit {
+            Some(u) if u > 0.0 => {
+                let tol = 1f64.max(range.min.abs()).max(range.max.abs()) * 1e-12;
+                let first = ((range.min - tol) / u).ceil() as i64;
+                let last = ((range.max + tol) / u).floor() as i64;
+                (first..=last).map(|i| i as f64 * u).collect()
+            }
+            _ => (0..=5)
+                .map(|i| range.min + range.span / 5.0 * i as f64)
+                .collect(),
+        };
+        let mut labels = String::new();
+        let val_fam = family_css(&val_style.family);
+        let val_fill = val_style
+            .color
+            .clone()
+            .unwrap_or_else(|| AXIS_LABEL_COLOR.into());
+        let major_tick = val_ax.major_tick_mark.as_deref();
+        for v in &ticks {
+            let y = value_y(*v, &range, l.top, l.bottom);
+            if show_grid {
+                push_line(&mut o, l.left, y, l.right, y, GRIDLINE_COLOR);
+            }
+            if let Some((a, b)) = val_tick(major_tick, 4.0) {
+                push_line(&mut o, l.left + a, y, l.left + b, y, AXIS_LABEL_COLOR);
+            }
+            push_text(
+                &mut labels,
+                &Text {
+                    x: l.left - 4.0,
+                    y,
+                    text: &fmt_axis(*v),
+                    anchor: "end",
+                    size: val_px,
+                    fill: &val_fill,
+                    bold: val_style.bold,
+                    family: &val_fam,
+                    baseline: Some("central"),
+                },
+            );
         }
-        _ => (0..=5)
-            .map(|i| range.min + range.span / 5.0 * i as f64)
-            .collect(),
-    };
-    let mut labels = String::new();
-    let val_fam = family_css(&val_style.family);
-    let val_fill = val_style
-        .color
-        .clone()
-        .unwrap_or_else(|| AXIS_LABEL_COLOR.into());
-    let major_tick = val_ax.major_tick_mark.as_deref();
-    for v in &ticks {
-        let y = value_y(*v, &range, l.top, l.bottom);
-        if show_grid {
-            push_line(&mut o, l.left, y, l.right, y, GRIDLINE_COLOR);
+        o.push_str(&labels);
+        if range.min < 0.0 && range.max > 0.0 {
+            let y = value_y(0.0, &range, l.top, l.bottom);
+            push_line(&mut o, l.left, y, l.right, y, "#94a3b8");
         }
-        if let Some((a, b)) = val_tick(major_tick, 4.0) {
-            push_line(&mut o, l.left + a, y, l.left + b, y, AXIS_LABEL_COLOR);
-        }
-        push_text(
-            &mut labels,
-            &Text {
-                x: l.left - 4.0,
-                y,
-                text: &fmt_axis(*v),
-                anchor: "end",
-                size: val_px,
-                fill: &val_fill,
-                bold: val_style.bold,
-                family: &val_fam,
-                baseline: Some("central"),
-            },
-        );
-    }
-    o.push_str(&labels);
-    if range.min < 0.0 && range.max > 0.0 {
-        let y = value_y(0.0, &range, l.top, l.bottom);
-        push_line(&mut o, l.left, y, l.right, y, "#94a3b8");
-    }
 
-    // Category labels (buildMultiLevelCategoryLabels) at the zero crossing
-    let axis_y = if val_ax.crosses_at.is_some() || val_ax.crosses.as_deref() == Some("autoZero") {
-        value_y(0f64.clamp(range.min, range.max), &range, l.top, l.bottom)
-    } else {
-        l.bottom
-    };
-    let cat_count = categories.len().max(1);
-    let group_w = l.pw() / cat_count as f64;
-    let cat_fam = family_css(&cat_style.family);
-    let cat_fill = cat_style
-        .color
-        .clone()
-        .unwrap_or_else(|| AXIS_LABEL_COLOR.into());
-    for (i, c) in categories.iter().enumerate() {
-        if c.is_empty() {
-            continue;
+        // Category labels (buildMultiLevelCategoryLabels) at the zero crossing
+        let axis_y = if val_ax.crosses_at.is_some() || val_ax.crosses.as_deref() == Some("autoZero")
+        {
+            value_y(0f64.clamp(range.min, range.max), &range, l.top, l.bottom)
+        } else {
+            l.bottom
+        };
+        let cat_count = categories.len().max(1);
+        let group_w = l.pw() / cat_count as f64;
+        let cat_fam = family_css(&cat_style.family);
+        let cat_fill = cat_style
+            .color
+            .clone()
+            .unwrap_or_else(|| AXIS_LABEL_COLOR.into());
+        for (i, c) in categories.iter().enumerate() {
+            if c.is_empty() {
+                continue;
+            }
+            let x = l.left + group_w * (i as f64 + 0.5);
+            push_text(
+                &mut o,
+                &Text {
+                    x,
+                    y: axis_y + offset + 0.8 * cat_px,
+                    text: c,
+                    anchor: "middle",
+                    size: cat_px,
+                    fill: &cat_fill,
+                    bold: cat_style.bold,
+                    family: &cat_fam,
+                    baseline: None,
+                },
+            );
         }
-        let x = l.left + group_w * (i as f64 + 0.5);
-        push_text(
-            &mut o,
-            &Text {
-                x,
-                y: axis_y + offset + 0.8 * cat_px,
-                text: c,
-                anchor: "middle",
-                size: cat_px,
-                fill: &cat_fill,
-                bold: cat_style.bold,
-                family: &cat_fam,
-                baseline: None,
-            },
-        );
-    }
 
-    // Bars (clustered)
-    let gap = g.gap_width.unwrap_or(150.0) as i32;
-    let overlap = g.overlap.unwrap_or(0.0) as i32;
-    let geo =
-        nitro_xml_render::chart::clustered_bar_geometry(group_w, series.len().max(1), gap, overlap);
-    let offs = (group_w - geo.cluster_width) / 2.0;
-    for ci in 0..cat_count {
-        for (si, s) in series.iter().enumerate() {
-            let val = s.values.get(ci).copied().unwrap_or(0.0);
-            let x = l.left + group_w * ci as f64 + offs + geo.step * si as f64;
-            let zero_y = value_y(0.0, &range, l.top, l.bottom);
-            let vy = value_y(val, &range, l.top, l.bottom);
-            let base = s
-                .color
-                .clone()
-                .unwrap_or_else(|| palette[si % palette.len()].clone());
-            let fill = if val < 0.0 && s.invert {
-                tint(&base, 0.5)
-            } else {
-                base
-            };
-            let cat = categories.get(ci).map(String::as_str).unwrap_or("");
-            let tip = [s.name.as_str(), cat]
-                .iter()
-                .filter(|p| !p.is_empty())
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ");
-            let tip = if tip.is_empty() {
-                fmt_axis(val)
-            } else {
-                format!("{tip}: {}", fmt_axis(val))
-            };
-            let _ = write!(
+        // Bars (clustered)
+        let gap = g.gap_width.unwrap_or(150.0) as i32;
+        let overlap = g.overlap.unwrap_or(0.0) as i32;
+        let geo = nitro_xml_render::chart::clustered_bar_geometry(
+            group_w,
+            series.len().max(1),
+            gap,
+            overlap,
+        );
+        let offs = (group_w - geo.cluster_width) / 2.0;
+        for ci in 0..cat_count {
+            for (si, s) in series.iter().enumerate() {
+                let val = s.values.get(ci).copied().unwrap_or(0.0);
+                let x = l.left + group_w * ci as f64 + offs + geo.step * si as f64;
+                let zero_y = value_y(0.0, &range, l.top, l.bottom);
+                let vy = value_y(val, &range, l.top, l.bottom);
+                let base = s
+                    .color
+                    .clone()
+                    .unwrap_or_else(|| palette[si % palette.len()].clone());
+                let fill = if val < 0.0 && s.invert {
+                    tint(&base, 0.5)
+                } else {
+                    base
+                };
+                let cat = categories.get(ci).map(String::as_str).unwrap_or("");
+                let tip = [s.name.as_str(), cat]
+                    .iter()
+                    .filter(|p| !p.is_empty())
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let tip = if tip.is_empty() {
+                    fmt_axis(val)
+                } else {
+                    format!("{tip}: {}", fmt_axis(val))
+                };
+                let _ = write!(
                 o,
                 "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" rx=\"1\" opacity=\"1\" data-chart-part=\"dataPoint\" data-chart-series=\"{si}\" data-chart-point=\"{ci}\"><title>{}</title></rect>",
                 n(x), n(zero_y.min(vy)), n(geo.single_bar_width), n((zero_y - vy).abs().max(1.0)), fill, esc(&tip)
             );
+            }
         }
-    }
-    // Category tick marks
-    if let Some((a, b)) = cat_tick(cat_ax.major_tick_mark.as_deref(), 4.0) {
-        for i in 0..cat_count {
-            let x = l.left + group_w * (i as f64 + 0.5);
-            push_line(&mut o, x, axis_y + a, x, axis_y + b, AXIS_LABEL_COLOR);
+        // Category tick marks
+        if let Some((a, b)) = cat_tick(cat_ax.major_tick_mark.as_deref(), 4.0) {
+            for i in 0..cat_count {
+                let x = l.left + group_w * (i as f64 + 0.5);
+                push_line(&mut o, x, axis_y + a, x, axis_y + b, AXIS_LABEL_COLOR);
+            }
+        }
+    } else {
+        // buildHorizontalBarViewModel: categories down the left, values along the bottom.
+        let x_of = |v: f64| l.left + (v - range.min) / range.span * (l.right - l.left);
+        let unit = range.unit.filter(|u| u.is_finite() && *u > 0.0);
+        let ticks: Vec<f64> = match unit {
+            Some(u)
+                if ((range.max - range.min) / u).round() >= 1.0
+                    && ((range.max - range.min) / u).round() <= 100.0 =>
+            {
+                let steps = ((range.max - range.min) / u).round() as usize;
+                (0..=steps).map(|i| range.min + u * i as f64).collect()
+            }
+            _ => (0..=5)
+                .map(|i| range.min + range.span / 5.0 * i as f64)
+                .collect(),
+        };
+        let none: Option<String> = None;
+        if val_ax.major_gridlines {
+            for v in &ticks {
+                let x = x_of(*v);
+                push_line(&mut o, x, l.top, x, l.bottom, GRIDLINE_COLOR);
+            }
+        }
+        for v in &ticks {
+            push_text(
+                &mut o,
+                &Text {
+                    x: x_of(*v),
+                    y: l.bottom + 12.0,
+                    text: &fmt_axis(*v),
+                    anchor: "middle",
+                    size: DEFAULT_TEXT_PX,
+                    fill: AXIS_LABEL_COLOR,
+                    bold: None,
+                    family: &none,
+                    baseline: None,
+                },
+            );
+        }
+        if range.min < 0.0 && range.max > 0.0 {
+            let x = x_of(0.0);
+            push_line(&mut o, x, l.top, x, l.bottom, "#94a3b8");
+        }
+        let cat_count = categories.len().max(1);
+        let band = (l.bottom - l.top).max(1.0) / cat_count as f64;
+        for (i, c) in categories.iter().enumerate() {
+            push_text(
+                &mut o,
+                &Text {
+                    x: l.left - 4.0,
+                    y: l.top + band * (i as f64 + 0.5),
+                    text: c,
+                    anchor: "end",
+                    size: DEFAULT_TEXT_PX,
+                    fill: AXIS_LABEL_COLOR,
+                    bold: None,
+                    family: &none,
+                    baseline: Some("central"),
+                },
+            );
+        }
+        let gap = g.gap_width.unwrap_or(150.0) as i32;
+        let overlap = g.overlap.unwrap_or(0.0) as i32;
+        let geo = nitro_xml_render::chart::clustered_bar_geometry(
+            band,
+            series.len().max(1),
+            gap,
+            overlap,
+        );
+        let offs = (band - geo.cluster_width) / 2.0;
+        let zero_x = x_of(0.0);
+        for ci in 0..cat_count {
+            for (si, s) in series.iter().enumerate() {
+                let val = s.values.get(ci).copied().unwrap_or(0.0);
+                let vx = x_of(val);
+                let base = s
+                    .color
+                    .clone()
+                    .unwrap_or_else(|| palette[si % palette.len()].clone());
+                let fill = if val < 0.0 && s.invert {
+                    tint(&base, 0.5)
+                } else {
+                    base
+                };
+                let cat = categories.get(ci).map(String::as_str).unwrap_or("");
+                let tip = tooltip(&s.name, cat, val);
+                let _ = write!(
+                    o,
+                    "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" rx=\"1\" opacity=\"1\" data-chart-part=\"dataPoint\" data-chart-series=\"{si}\" data-chart-point=\"{ci}\"><title>{}</title></rect>",
+                    n(zero_x.min(vx)),
+                    n(l.top + band * ci as f64 + offs + geo.step * si as f64),
+                    n((vx - zero_x).abs().max(1.0)),
+                    n(geo.single_bar_width),
+                    fill,
+                    esc(&tip)
+                );
+            }
         }
     }
 

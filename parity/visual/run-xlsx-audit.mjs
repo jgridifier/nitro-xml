@@ -16,7 +16,7 @@ const cases = VISUAL_CASES.filter((c) => c.ready &&
 	(c.format === 'xlsx' || (c.kind === 'chart-svg' && /\.(xlsx|xlsm|xltx|xltm)$/i.test(c.fixture || ''))));
 process.env.VISUAL_ONLY = cases.map((c) => c.id).join(',');
 for (const c of cases) c.skipPrint = false;
-const result = await runVisualGate();
+const result = await runVisualGate({ continueOnHostError: true });
 let complete = true;
 const table = cases.map((c) => {
 	const rows = result.rows.filter((r) => r.case === c.id);

@@ -210,7 +210,7 @@ async function rasterizePdf(browser, base, pdfRelUrl, dpr = 1) {
 /**
  * @returns {Promise<{ ok: boolean, rows: object[], summary: string }>}
  */
-export async function runVisualGate() {
+export async function runVisualGate({ continueOnHostError = false } = {}) {
 	mkdirSync(SHOTS, { recursive: true });
 	mkdirSync(DIFFS, { recursive: true });
 	mkdirSync(PDFS, { recursive: true });
@@ -290,7 +290,7 @@ export async function runVisualGate() {
 					threshold: thr,
 				});
 			} catch (err) {
-				if (c.informational) failed += recordHostError(rows, c, 'ts-vs-ts', 1, err);
+				if (c.informational || continueOnHostError) failed += recordHostError(rows, c, 'ts-vs-ts', 1, err);
 				else throw err;
 			}
 		}
@@ -325,7 +325,7 @@ export async function runVisualGate() {
 						reason: cmp.reason,
 					});
 				} catch (err) {
-					if (c.informational) failed += recordHostError(rows, c, 'ts-vs-rust', dpr, err);
+					if (c.informational || continueOnHostError) failed += recordHostError(rows, c, 'ts-vs-rust', dpr, err);
 					else throw err;
 				}
 			}
@@ -364,7 +364,7 @@ export async function runVisualGate() {
 				});
 			} catch (err) {
 				// Informational host timeouts must not abort remaining cases (poi-bug65649).
-				if (c.informational) failed += recordHostError(rows, c, 'ts-vs-rust-print-pdf', 1, err);
+				if (c.informational || continueOnHostError) failed += recordHostError(rows, c, 'ts-vs-rust-print-pdf', 1, err);
 				else throw err;
 			}
 		}

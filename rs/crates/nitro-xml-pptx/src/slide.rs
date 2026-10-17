@@ -173,6 +173,9 @@ pub struct DumpElement {
     /// Resolved `data:` URLs for chart `a:blipFill` relationship ids.
     #[serde(skip)]
     pub chart_image_urls: Option<std::collections::HashMap<String, String>>,
+    /// Theme minor latin face for chart text (`+mn-lt`).
+    #[serde(skip)]
+    pub chart_minor_font: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub smartart_dm_r_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1866,6 +1869,7 @@ fn build_dump(
         chart_xml: None,
         chart_part_path: None,
         chart_image_urls: None,
+        chart_minor_font: None,
         smartart_dm_r_id: extras.smartart_dm_r_id,
         smartart_lo_r_id: extras.smartart_lo_r_id,
         smartart_qs_r_id: extras.smartart_qs_r_id,

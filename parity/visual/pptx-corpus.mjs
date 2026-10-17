@@ -50,6 +50,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'real-pptx-python-pptx-act-props',
 	'real-pptx-python-pptx-cht-axis-props',
 	'real-pptx-python-pptx-cht-category-access',
+	'real-pptx-python-pptx-cht-chart-props',
 	'real-pptx-python-pptx-cht-charts',
 	'real-pptx-python-pptx-cht-datalabels',
 	'real-pptx-python-pptx-cht-series',

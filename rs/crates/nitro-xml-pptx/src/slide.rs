@@ -2494,7 +2494,12 @@ fn shape_paint_extras(
     if let Some(tx) = tx_body {
         let own_tx = child_local(shape, "txBody", ns::P);
         let inherited_tx = inherited_shape.and_then(|s| child_local(s, "txBody", ns::P));
-        let mut effective_levels = ph_info.map(|ph| ctx.effective_level_styles(ph));
+        // Upstream `effectiveLevelStyles = phDefaults?.levelStyles ?? presentationDefaultTextStyle`:
+        // non-placeholder shapes still inherit `p:defaultTextStyle` (algn, bold, size).
+        let mut effective_levels = match ph_info {
+            Some(ph) => Some(ctx.effective_level_styles(ph)),
+            None => ctx.presentation_level_styles.cloned(),
+        };
         let lst_levels = extract_lst_style_from_tx_body(tx);
         if !lst_levels.is_empty() {
             let base = effective_levels.unwrap_or_default();
@@ -2575,9 +2580,17 @@ fn shape_paint_extras(
         };
         let mut paragraphs =
             crate::text_layout::parse_text_paint_paragraphs_with_list_styles(tx, Some(&list_ctx));
+        // Shape colour (first run, then `p:style/fontRef`) outranks the presentation-wide
+        // `defaultTextStyle` colour on non-placeholders (upstream seeds fontRef above it).
+        let presentation_levels_only = ph_info.is_none() && lst_levels.is_empty();
+        if presentation_levels_only {
+            for para in &mut paragraphs {
+                para.level_text_color = None;
+            }
+        }
         if let Some(levels) = effective_levels.as_ref() {
             for para in &mut paragraphs {
-                if para.level_text_color.is_some() {
+                if para.level_text_color.is_some() || presentation_levels_only {
                     continue;
                 }
                 if let Some(style) = level_style_for(levels, para.list_level) {
@@ -3634,6 +3647,44 @@ mod tests {
         };
         let el = parse_shape(&shape.root, "s".into(), &ctx, false).unwrap();
         assert_eq!(el.font_family.as_deref(), Some("Verdana"));
+    }
+
+    // Catches: non-placeholder text boxes ignoring `p:defaultTextStyle` (algn="ctr" / b="1" lost, poi-45541 header decks).
+    #[test]
+    fn non_placeholder_inherits_presentation_default_text_style() {
+        let shape = |ph: &str| {
+            parse_xml_str(&format!(
+                r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <p:nvSpPr><p:cNvPr id="3" name="Box"/><p:cNvSpPr/><p:nvPr>{ph}</p:nvPr></p:nvSpPr>
+              <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="952500" cy="952500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+              <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US"/><a:t>Hi</a:t></a:r></a:p></p:txBody>
+            </p:sp>"#
+            ))
+            .unwrap()
+        };
+        let pres_default = crate::level_style::parse_tx_style_category(
+            &parse_xml_str(
+                r#"<p:defaultTextStyle xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <a:lvl1pPr algn="ctr"><a:defRPr b="1"/></a:lvl1pPr>
+                </p:defaultTextStyle>"#,
+            )
+            .unwrap()
+            .root,
+        );
+        let colors = theme();
+        let ctx = ParseCtx {
+            presentation_level_styles: Some(&pres_default),
+            ..ctx(&colors)
+        };
+        let el = parse_shape(&shape("").root, "s".into(), &ctx, false).unwrap();
+        let para = el.text_paint_paragraphs.as_ref().unwrap().first().unwrap();
+        assert_eq!(para.align, Some(crate::text_layout::TextAlignCss::Center));
+        assert_eq!(para.level_font_bold, Some(true));
+        // Negative control: without a presentation default nothing is inherited.
+        let ctx = self::tests::ctx(&colors);
+        let el = parse_shape(&shape("").root, "s".into(), &ctx, false).unwrap();
+        let para = el.text_paint_paragraphs.as_ref().unwrap().first().unwrap();
+        assert!(para.align.is_none());
     }
 
     // Catches: c:chart graphic frames dumped as otherKinds instead of chart elements.

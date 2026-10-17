@@ -220,6 +220,9 @@ pub struct DumpElement {
     /// `a:srcRect` crop (l, t, r, b) and `a:stretch/a:fillRect` (l, t, r, b) as fractions.
     #[serde(skip)]
     pub image_fit: Option<[f64; 8]>,
+    /// `a:blipFill/a:tile` (tx/ty in px, sx/sy fractions, flip, algn).
+    #[serde(skip)]
+    pub image_tile: Option<ImageTile>,
     /// Document order of this element among emitted spTree children (dump merge).
     #[serde(skip)]
     pub seq: u32,
@@ -1059,6 +1062,7 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
     let mut extras = PaintExtras {
         image_rel_id: blip_embed_id(pic),
         image_fit: blip_fit_insets(pic),
+        image_tile: blip_tile(pic),
         ..PaintExtras::default()
     };
     if let Some(nv) = nv_pr {
@@ -1890,6 +1894,7 @@ fn build_dump(
         media_type: extras.media_type,
         image_src: None,
         image_fit: extras.image_fit,
+        image_tile: extras.image_tile,
         seq: 0,
         box_shadow: extras.box_shadow,
         material_box_shadow: extras.material_box_shadow,
@@ -2157,8 +2162,32 @@ pub fn issue24_dump_parts(
     (dumped, kinds)
 }
 
+/// `a:blipFill/a:tile` attributes of a picture (upstream `tileOffsetX`, `tileScaleX`, ...).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ImageTile {
+    pub offset_x: Option<f64>,
+    pub offset_y: Option<f64>,
+    pub scale_x: Option<f64>,
+    pub scale_y: Option<f64>,
+    pub flip: Option<String>,
+    pub align: Option<String>,
+}
+
+impl ImageTile {
+    /// `isImageTiled` (image-tiling.ts): a bare `<a:tile/>` is not tiled.
+    pub fn is_tiled(&self) -> bool {
+        self.offset_x.is_some()
+            || self.offset_y.is_some()
+            || self.scale_x.is_some()
+            || self.scale_y.is_some()
+            || self.flip.as_deref().is_some_and(|f| f != "none")
+            || self.align.is_some()
+    }
+}
+
 #[derive(Default)]
 struct PaintExtras {
+    image_tile: Option<ImageTile>,
     fill_color: Option<String>,
     fill_gradient: Option<String>,
     fill_mode: Option<String>,
@@ -2673,6 +2702,28 @@ fn blip_fit_insets(parent: &Element) -> Option<[f64; 8]> {
         frac(rect, "b"),
     ];
     v.iter().any(|x| x.abs() > 0.0001).then_some(v)
+}
+
+fn blip_tile(parent: &Element) -> Option<ImageTile> {
+    let fill = child_local(parent, "blipFill", ns::P)
+        .or_else(|| child_local(parent, "blipFill", ns::A))?;
+    let tile = child_local(fill, "tile", ns::A)?;
+    let attr = |name: &str| {
+        tile.attrs
+            .iter()
+            .find(|a| a.local == name)
+            .map(|a| a.value.trim().to_string())
+    };
+    let int = |name: &str| attr(name).and_then(|v| v.parse::<i64>().ok());
+    let t = ImageTile {
+        offset_x: int("tx").map(|v| v as f64 / 9525.0),
+        offset_y: int("ty").map(|v| v as f64 / 9525.0),
+        scale_x: int("sx").map(|v| v as f64 / 100_000.0),
+        scale_y: int("sy").map(|v| v as f64 / 100_000.0),
+        flip: attr("flip").filter(|f| matches!(f.as_str(), "x" | "y" | "xy" | "none")),
+        align: attr("algn").filter(|a| !a.is_empty()),
+    };
+    t.is_tiled().then_some(t)
 }
 
 fn blip_embed_id(parent: &Element) -> Option<String> {

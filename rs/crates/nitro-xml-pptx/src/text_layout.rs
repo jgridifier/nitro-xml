@@ -382,6 +382,8 @@ pub struct TextPaintRun {
     pub run_font_italic: Option<bool>,
     /// `a:rPr/@kern` only (not `a:defRPr`); matches upstream run `style.kerning`.
     pub run_font_kern_hundredths: Option<i32>,
+    /// `a:rPr/@cap` (`all` / `small` / `none`).
+    pub run_text_caps: Option<&'static str>,
     pub run_lang: Option<String>,
     /// `a:rPr/a:solidFill` resolved to `#RRGGBB` when opaque (paint only).
     pub run_text_color: Option<String>,
@@ -414,6 +416,7 @@ pub struct TextPaintParagraph {
     pub level_font_bold: Option<bool>,
     pub level_font_italic: Option<bool>,
     pub level_font_kern_hundredths: Option<i32>,
+    pub level_text_caps: Option<&'static str>,
     pub level_text_color: Option<String>,
     pub list_level: i8,
     /// CSS `line-height` (unitless multiplier or `"Npx"`).
@@ -621,6 +624,7 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 level_font_bold: level_run_style.font_bold,
                 level_font_italic: level_run_style.font_italic,
                 level_font_kern_hundredths: level_run_style.font_kern_hundredths,
+                level_text_caps: level_run_style.text_caps,
                 level_text_color: level_run_style.text_color_hex,
                 list_level: para_level,
                 line_height_css: spacing.line_height_css,
@@ -879,6 +883,7 @@ fn collect_paint_runs(
                         run_font_bold: None,
                         run_font_italic: None,
                         run_font_kern_hundredths: None,
+                        run_text_caps: None,
                         run_lang: None,
                         run_text_color: None,
                         script_fonts: None,
@@ -903,6 +908,7 @@ fn collect_paint_runs(
                         font_bold: None,
                         font_italic: None,
                         font_kern_hundredths: None,
+                        text_caps: None,
                         script_fonts: None,
                     });
                 runs.push(TextPaintRun {
@@ -916,6 +922,7 @@ fn collect_paint_runs(
                     run_font_bold: resolved.font_bold,
                     run_font_italic: resolved.font_italic,
                     run_font_kern_hundredths: resolved.font_kern_hundredths,
+                    run_text_caps: resolved.text_caps,
                     run_lang: r_pr.and_then(|rp| attr(rp, "lang")).map(|s| s.to_string()),
                     run_text_color: None,
                     script_fonts: resolved.script_fonts,
@@ -964,6 +971,7 @@ fn collect_paint_runs(
                         font_bold: None,
                         font_italic: None,
                         font_kern_hundredths: None,
+                        text_caps: None,
                         script_fonts: None,
                     });
                 let run_lang = r_pr.and_then(|rp| attr(rp, "lang")).map(|s| s.to_string());
@@ -979,6 +987,7 @@ fn collect_paint_runs(
                     run_font_bold: resolved.font_bold,
                     run_font_italic: resolved.font_italic,
                     run_font_kern_hundredths: resolved.font_kern_hundredths,
+                    run_text_caps: resolved.text_caps,
                     run_lang,
                     run_text_color,
                     script_fonts: resolved.script_fonts,
@@ -1000,6 +1009,7 @@ struct ResolvedRunPaint {
     font_bold: Option<bool>,
     font_italic: Option<bool>,
     font_kern_hundredths: Option<i32>,
+    text_caps: Option<&'static str>,
     script_fonts: Option<ScriptFontSet>,
 }
 
@@ -1036,6 +1046,7 @@ fn resolve_run_paint_style(
         font_bold,
         font_italic,
         font_kern_hundredths,
+        text_caps: crate::level_style::parse_text_caps(attr(rpr, "cap")),
         script_fonts,
     }
 }

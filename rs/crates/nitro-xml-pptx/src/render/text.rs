@@ -35,6 +35,8 @@ pub struct TextBodyPaint<'a> {
     pub font_italic: bool,
     /// `a:rPr/@kern` or merged `defRPr/@kern` (hundredths of a point threshold).
     pub font_kern_hundredths: Option<i32>,
+    /// `a:rPr/@cap` or merged `defRPr/@cap` (`all` / `small` / `none`).
+    pub text_caps: Option<&'static str>,
     pub text_stroke_width_px: Option<f64>,
     pub text_stroke_color: Option<&'a str>,
     pub layout: Option<&'a TextBodyLayout>,
@@ -68,6 +70,7 @@ impl<'a> TextBodyPaint<'a> {
             ),
             presentation_kinsoku: el.presentation_kinsoku,
             font_kern_hundredths: None,
+            text_caps: None,
             body_box_height_px: Some(el.height.max(0.0)),
         }
     }
@@ -319,6 +322,11 @@ fn paint_run_typography<I: StringIntern>(
     if let Some(kern) = resolve_font_kerning(paint.font_kern_hundredths, size) {
         set_style(ctx, run, "font-kerning", kern);
     }
+    match paint.text_caps {
+        Some("all") => set_style(ctx, run, "text-transform", "uppercase"),
+        Some("small") => set_style(ctx, run, "font-variant-caps", "small-caps"),
+        _ => {}
+    }
     if let Some(width) = paint.text_stroke_width_px.filter(|w| *w > 0.0) {
         let stroke_color = paint.text_stroke_color.unwrap_or("currentColor");
         set_style(
@@ -360,6 +368,7 @@ fn paint_rich_paragraphs<I: StringIntern>(
             font_kern_hundredths: para_model
                 .level_font_kern_hundredths
                 .or(paint.font_kern_hundredths),
+            text_caps: para_model.level_text_caps.or(paint.text_caps),
             text_stroke_width_px: paint.text_stroke_width_px,
             text_stroke_color: paint.text_stroke_color,
             layout: paint.layout,
@@ -508,6 +517,7 @@ fn merge_run_level_paint<'a>(
             font_bold: run.run_font_bold.unwrap_or(base.font_bold),
             font_italic: run.run_font_italic.unwrap_or(base.font_italic),
             font_kern_hundredths: run.run_font_kern_hundredths.or(base.font_kern_hundredths),
+            text_caps: run.run_text_caps.or(base.text_caps),
             text_stroke_width_px: base.text_stroke_width_px,
             text_stroke_color: base.text_stroke_color,
             layout: base.layout,
@@ -810,6 +820,7 @@ fn paint_run_text_span<I: StringIntern>(
                     font_bold: paint.font_bold,
                     font_italic: paint.font_italic,
                     font_kern_hundredths: paint.font_kern_hundredths,
+                    text_caps: paint.text_caps,
                     text_stroke_width_px: paint.text_stroke_width_px,
                     text_stroke_color: paint.text_stroke_color,
                     layout: paint.layout,
@@ -1609,6 +1620,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: Some(2.0),
             text_stroke_color: None,
             layout: None,
@@ -1636,6 +1648,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: Some(3.31),
             text_stroke_color: Some("#000000"),
             layout: None,
@@ -1662,6 +1675,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -1688,6 +1702,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -1732,6 +1747,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: Some(&layout),
@@ -1763,6 +1779,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -1813,6 +1830,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -1837,6 +1855,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,
@@ -1867,6 +1886,7 @@ mod tests {
                 font_bold: false,
                 font_italic: false,
                 font_kern_hundredths: None,
+                text_caps: None,
                 text_stroke_width_px: None,
                 text_stroke_color: None,
                 layout: None,
@@ -1915,6 +1935,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: Some(&layout),
@@ -1951,6 +1972,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: Some(&layout),
@@ -1987,6 +2009,7 @@ mod tests {
             font_bold: false,
             font_italic: false,
             font_kern_hundredths: None,
+            text_caps: None,
             text_stroke_width_px: None,
             text_stroke_color: None,
             layout: None,

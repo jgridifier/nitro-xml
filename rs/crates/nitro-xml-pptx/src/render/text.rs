@@ -958,11 +958,10 @@ fn paint_run_span_styles<I: StringIntern>(
 }
 
 /// Upstream `splitStyledRun`: skip per-run GDI tracking when the run is one metric piece.
-fn should_emit_gdi_tracking_for_run(text: &str, underline: bool) -> bool {
-    if !should_apply_gdi_metric(text) {
-        return false;
-    }
-    underline || split_run_for_metric_pieces(text).len() > 1
+/// Upstream `splitStyledRun` keeps the whole-run `resolveMetricTrackingPx` letter-spacing on a
+/// one-piece run, so every non-CJK run is tracked, not only multi-piece ones.
+fn should_emit_gdi_tracking_for_run(text: &str, _underline: bool) -> bool {
+    should_apply_gdi_metric(text)
 }
 
 fn should_apply_gdi_metric(text: &str) -> bool {
@@ -1314,16 +1313,14 @@ fn apply_gdi_metric_letter_spacing<I: StringIntern>(
     if text.is_empty() {
         return;
     }
-    // Visual host pins painted glyphs to Liberation (`!important`); canvas
-    // `measureText` ignores that CSS pin, so GDI tracking must use the same
-    // Liberation stack or letter-spacing drifts vs the oracle (txt-font-typeface).
-    let _ = (painted_stack, _paint);
+    // Upstream `resolveMetricTrackingPx` measures the run's own resolved font family.
+    let _ = _paint;
     apply_gdi_metric_letter_spacing_with_stack(
         ctx,
         para,
         text,
         size_px,
-        VISUAL_HOST_RUN_FONT_STACK,
+        painted_stack,
         bold,
         italic,
     );
@@ -1704,7 +1701,7 @@ mod tests {
             intern
                 .0
                 .iter()
-                .any(|s| s == "\"Informal Roman\", sans-serif"),
+                .any(|s| s == "\"Informal Roman\", \"Informal\", sans-serif"),
             "font-family stack, got {:?}",
             intern.0
         );

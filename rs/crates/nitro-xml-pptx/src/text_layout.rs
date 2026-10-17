@@ -847,9 +847,7 @@ fn parse_ooxml_percent_local(raw: &str) -> Option<f64> {
 fn spacing_px_from_node(node: &Element, basis_font_size_px: Option<f64>) -> Option<f64> {
     if let Some(spc_pts) = child_local(node, "spcPts", ns::A) {
         let raw = attr(spc_pts, "val").and_then(|s| s.parse::<i64>().ok())?;
-        if raw > 0 {
-            return Some(raw as f64 * PT_TO_PX / 100.0);
-        }
+        return Some(raw as f64 * PT_TO_PX / 100.0);
     }
     if let Some(spc_pct) = child_local(node, "spcPct", ns::A) {
         let fraction = parse_ooxml_percent_local(attr(spc_pct, "val")?)?;

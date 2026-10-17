@@ -99,24 +99,68 @@ fn paint_image<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement,
         paint_tile(ctx, el, tile, src, id);
         return;
     }
+
+    // Apply container transform (rotate, flip) to frame
+    if let Some(transform) = get_container_transform(el) {
+        set_style(ctx, id, "transform", &transform);
+    }
+
+    // Picture shape geometry (custGeom pathData, or prstGeom) clips the frame —
+    // never the `<img>` (upstream `resolveShapeGeometry` / `getResolvedShapeClipPath`).
+    if let (Some(path_data), Some(path_width), Some(path_height)) =
+        (el.path_data.as_deref(), el.path_width, el.path_height)
+    {
+        if let Some(clip_path) =
+            build_custom_geometry_clip_path(path_data, path_width, path_height, el.width, el.height)
+        {
+            set_style(ctx, id, "clip-path", &clip_path);
+            set_style(ctx, id, "overflow", "hidden");
+        }
+    } else if let Some(st) = el.shape_type.as_deref() {
+        if !st.eq_ignore_ascii_case("rect") && !st.eq_ignore_ascii_case("custom") {
+            super::prst_geom::apply_preset_geometry(ctx, id, st, el.width, el.height);
+        }
+    }
+
     let img = create_child(ctx, id, "img");
     set_attr(ctx, img, "alt", el.name.as_deref().unwrap_or(""));
     set_style(ctx, img, "width", "100%");
     set_style(ctx, img, "height", "100%");
+    set_style(ctx, img, "display", "block");
     if let Some(shadow) = el.box_shadow.as_deref() {
         set_style(ctx, id, "box-shadow", shadow);
     }
     if let Some(src) = el.image_src.as_deref() {
         set_attr(ctx, img, "src", src);
         set_style(ctx, img, "object-fit", "fill");
-        if let Some(fit) = el.image_fit {
+        let has_fit = el.image_fit.is_some();
+        if has_fit {
             // getImageFitStyle: the crop/placement is an `<img>` transform inside a clipping frame.
             set_style(ctx, id, "overflow", "hidden");
             set_style(ctx, img, "position", "absolute");
             set_style(ctx, img, "max-width", "none");
             set_style(ctx, img, "max-height", "none");
             set_style(ctx, img, "transform-origin", "top left");
-            set_style(ctx, img, "transform", &image_fit_transform(&fit));
+            set_style(
+                ctx,
+                img,
+                "transform",
+                &image_fit_transform(&el.image_fit.unwrap()),
+            );
+        } else if let Some(counter) =
+            super::image_fill_counter_transform::get_image_fill_counter_transform(
+                el.fill_image_rot_with_shape,
+                el.flip_horizontal,
+                el.flip_vertical,
+                el.rotation,
+                false,
+            )
+        {
+            // `a:blipFill/@rotWithShape="0"`: counter-transform on `<img>` only.
+            // Do not also paint a flipped CSS background on the frame (upstream
+            // uses the `<img>` path exclusively here).
+            set_style(ctx, img, "transform", &counter);
+            set_style(ctx, img, "transform-origin", "center");
         } else {
             let url = format!("url({src})");
             set_style(ctx, id, "background-image", &url);
@@ -134,6 +178,119 @@ fn paint_image<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement,
     ctx.push_layout_read(img, LayoutReadKind::NaturalWidth, 0, None);
     // EMF/WMF → TODO metafile S3 (`nitro_xml_render::metafile`).
     ctx.view_ir.push_painted("image", el, None);
+}
+
+/// Build container transform (rotate, scaleX, scaleY) from element's transforms.
+fn get_container_transform(el: &DumpElement) -> Option<String> {
+    let mut parts = Vec::new();
+    if let Some(rot) = el.rotation {
+        parts.push(format!("rotate({}deg)", rot));
+    }
+    if el.flip_horizontal {
+        parts.push("scaleX(-1)".to_string());
+    }
+    if el.flip_vertical {
+        parts.push("scaleY(-1)".to_string());
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(" "))
+    }
+}
+
+/// Port of upstream `buildCustomGeometryClipPath` (shape-geometry.ts): rescale
+/// path-space coords into the element border-box, then wrap as CSS `path('…')`.
+fn build_custom_geometry_clip_path(
+    path_data: &str,
+    path_width: f64,
+    path_height: f64,
+    elem_width: f64,
+    elem_height: f64,
+) -> Option<String> {
+    if path_data.is_empty()
+        || !path_width.is_finite()
+        || !path_height.is_finite()
+        || path_width <= 0.0
+        || path_height <= 0.0
+        || !elem_width.is_finite()
+        || !elem_height.is_finite()
+        || elem_width <= 0.0
+        || elem_height <= 0.0
+    {
+        return None;
+    }
+    let sx = elem_width / path_width;
+    let sy = elem_height / path_height;
+    let round = |n: f64| -> String {
+        let r = (n * 100.0).round() / 100.0;
+        if r == 0.0 {
+            "0".to_owned()
+        } else {
+            let s = format!("{r}");
+            s
+        }
+    };
+    // Tokenize like upstream: command letter + following payload.
+    let mut tokens = Vec::new();
+    let mut cur = String::new();
+    for ch in path_data.chars() {
+        if "MLCQZAHVmlcqzahv".contains(ch) {
+            if !cur.is_empty() {
+                tokens.push(cur);
+            }
+            cur = ch.to_string();
+        } else {
+            cur.push(ch);
+        }
+    }
+    if !cur.is_empty() {
+        tokens.push(cur);
+    }
+    let mut out = Vec::new();
+    for token in tokens {
+        let Some(cmd) = token.chars().next() else {
+            continue;
+        };
+        let upper = cmd.to_ascii_uppercase();
+        if upper == 'Z' {
+            out.push("Z".to_owned());
+            continue;
+        }
+        let nums: Vec<f64> = token[cmd.len_utf8()..]
+            .split(|c: char| c.is_whitespace() || c == ',')
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| s.parse().ok())
+            .collect();
+        if upper == 'A' {
+            let mut parts = Vec::new();
+            let mut i = 0;
+            while i + 6 < nums.len() {
+                parts.push(round(nums[i] * sx));
+                parts.push(round(nums[i + 1] * sy));
+                parts.push(format!("{}", nums[i + 2]));
+                parts.push(format!("{}", nums[i + 3]));
+                parts.push(format!("{}", nums[i + 4]));
+                parts.push(round(nums[i + 5] * sx));
+                parts.push(round(nums[i + 6] * sy));
+                i += 7;
+            }
+            out.push(format!("A {}", parts.join(" ")));
+            continue;
+        }
+        let scaled: Vec<String> = nums
+            .iter()
+            .enumerate()
+            .map(|(i, n)| round(n * if i % 2 == 0 { sx } else { sy }))
+            .collect();
+        out.push(format!("{upper} {}", scaled.join(" ")));
+    }
+    if out.is_empty() {
+        return None;
+    }
+    let joined = out.join(" ");
+    let escaped = joined.replace('\\', "\\\\").replace('\'', "\\'");
+    Some(format!("path('{escaped}')"))
 }
 
 /// `renderImageElement` tiling branch: a repeating background layer (`getImageTilingStyle`).
@@ -309,7 +466,7 @@ fn image_fit_transform(f: &[f64; 8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::image_fit_transform;
+    use super::{build_custom_geometry_clip_path, image_fit_transform};
 
     // Catches: `a:srcRect` ignored so a cropped placeholder picture shows the whole source stretched.
     #[test]
@@ -317,5 +474,21 @@ mod tests {
         let t = image_fit_transform(&[0.0, 0.23715, 0.0, 0.23715, 0.0, 0.0, 0.0, 0.0]);
         assert_eq!(t, "translate(0%, -45.11%) scale(1, 1.902226)");
         assert_eq!(image_fit_transform(&[0.0; 8]), "");
+    }
+
+    // Catches: custGeom path-space clip used raw (400×200) so trapezoid image-fills
+    // paint as full rectangles instead of silhouettes (c55ed898215f).
+    #[test]
+    fn custom_geometry_clip_scales_path_space_into_element_box() {
+        let clip = build_custom_geometry_clip_path(
+            "M 100 0 L 300 0 L 400 200 L 0 200 Z",
+            400.0,
+            200.0,
+            280.0,
+            140.0,
+        )
+        .expect("clip");
+        assert_eq!(clip, "path('M 70 0 L 210 0 L 280 140 L 0 140 Z')");
+        assert!(build_custom_geometry_clip_path("M 0 0 Z", 0.0, 100.0, 10.0, 10.0).is_none());
     }
 }

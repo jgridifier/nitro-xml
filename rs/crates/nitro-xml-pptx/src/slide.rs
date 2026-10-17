@@ -266,6 +266,18 @@ pub struct DumpElement {
     /// `p:contentPart/@r:id` → InkML part (resolved in presentation load).
     #[serde(skip)]
     pub content_part_ink_rel_id: Option<String>,
+    /// SVG `d` attribute for custom geometry (paint only): path-space coords, unscaled.
+    #[serde(skip)]
+    pub path_data: Option<String>,
+    /// Width of custom path in path-space coordinates (paint only).
+    #[serde(skip)]
+    pub path_width: Option<f64>,
+    /// Height of custom path in path-space coordinates (paint only).
+    #[serde(skip)]
+    pub path_height: Option<f64>,
+    /// `a:blipFill/@rotWithShape`: None=unset/default true, Some(false) when=0, Some(true) when=1 (paint only).
+    #[serde(skip)]
+    pub fill_image_rot_with_shape: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -962,6 +974,64 @@ fn parse_shape(shape: &Element, id: String, ctx: &ParseCtx, in_group: bool) -> O
     Some(el)
 }
 
+/// Convert a DrawingPathCommand to SVG `d` format components (unscaled, path-space coords).
+fn drawing_path_command_to_svg(
+    cmd: &nitro_xml_opc::drawingml::DrawingPathCommand,
+) -> Option<String> {
+    use nitro_xml_opc::drawingml::DrawingPathCommand as DPC;
+    match cmd {
+        DPC::M { x, y } => Some(format!("M {} {}", *x as i64, *y as i64)),
+        DPC::L { x, y } => Some(format!("L {} {}", *x as i64, *y as i64)),
+        DPC::C {
+            x1,
+            y1,
+            x2,
+            y2,
+            x,
+            y,
+        } => Some(format!(
+            "C {} {} {} {} {} {}",
+            *x1 as i64, *y1 as i64, *x2 as i64, *y2 as i64, *x as i64, *y as i64
+        )),
+        DPC::Q { x1, y1, x, y } => Some(format!(
+            "Q {} {} {} {}",
+            *x1 as i64, *y1 as i64, *x as i64, *y as i64
+        )),
+        DPC::A { .. } => None,
+        DPC::Z => Some("Z".to_string()),
+    }
+}
+
+/// Serialize first DrawingPath to SVG `d` attribute (unscaled, path-space coords).
+fn drawing_path_to_svg_d(path: &nitro_xml_opc::drawingml::DrawingPath) -> Option<String> {
+    let mut parts = Vec::new();
+    for cmd in &path.commands {
+        let s = drawing_path_command_to_svg(cmd)?;
+        parts.push(s);
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(" "))
+    }
+}
+
+/// Parse `a:blipFill/@rotWithShape` or `p:blipFill/@rotWithShape`.
+/// Returns None if unset (defaults to true), Some(false) if "0", Some(true) if "1".
+fn parse_blip_fill_rot_with_shape(blip_fill: Option<&Element>) -> Option<bool> {
+    blip_fill.and_then(|bf| {
+        if let Some(s) = attr(bf, "rotWithShape") {
+            match s {
+                "0" => Some(false),
+                "1" => Some(true),
+                _ => Some(true),
+            }
+        } else {
+            None
+        }
+    })
+}
+
 fn parse_shape_with_image_fill(
     shape: &Element,
     id: String,
@@ -1019,6 +1089,30 @@ fn parse_shape_with_image_fill(
     };
     let shape_type = geometry_name(effective_sp_pr.as_ref());
     let c_nv_pr = child_path(shape, &[("nvSpPr", ns::P), ("cNvPr", ns::P)]);
+
+    // Parse custom geometry and rotWithShape for image fills
+    let geom = parse_drawing_geometry(effective_sp_pr.as_ref());
+    let path_data = geom
+        .paths
+        .as_ref()
+        .and_then(|paths| paths.first())
+        .and_then(drawing_path_to_svg_d);
+    let path_width = geom
+        .paths
+        .as_ref()
+        .and_then(|paths| paths.first())
+        .and_then(|p| p.width);
+    let path_height = geom
+        .paths
+        .as_ref()
+        .and_then(|paths| paths.first())
+        .and_then(|p| p.height);
+
+    let blip_fill = effective_sp_pr
+        .as_ref()
+        .and_then(|sp| child_local(sp, "blipFill", ns::A));
+    let fill_image_rot_with_shape = parse_blip_fill_rot_with_shape(blip_fill);
+
     build_dump(
         "picture",
         id,
@@ -1046,6 +1140,11 @@ fn parse_shape_with_image_fill(
                 .as_ref()
                 .and_then(blip_embed_id)
                 .or_else(|| sp_pr.and_then(blip_embed_id)),
+            fill_mode: Some("image".into()),
+            path_data,
+            path_width,
+            path_height,
+            fill_image_rot_with_shape,
             ..PaintExtras::default()
         },
     )
@@ -1911,6 +2010,10 @@ fn build_dump(
         scene_3d_camera_rot_z: extras.scene_3d_camera_rot_z,
         ink_data: extras.ink_data,
         content_part_ink_rel_id: extras.content_part_ink_rel_id,
+        path_data: extras.path_data,
+        path_width: extras.path_width,
+        path_height: extras.path_height,
+        fill_image_rot_with_shape: extras.fill_image_rot_with_shape,
     })
 }
 
@@ -2247,6 +2350,10 @@ struct PaintExtras {
     scene_3d_camera_rot_z: Option<i32>,
     ink_data: Option<crate::ink::InkData>,
     content_part_ink_rel_id: Option<String>,
+    path_data: Option<String>,
+    path_width: Option<f64>,
+    path_height: Option<f64>,
+    fill_image_rot_with_shape: Option<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -4690,5 +4797,44 @@ mod tests {
         assert!(stops.len() >= 2, "{stops:?}");
         assert_eq!(stops[0].1, "#FF0000");
         assert_eq!(stops[1].1, "#0000FF");
+    }
+
+    // Catches: shape blipFill with custGeom + rotWithShape=0 dropped so paint cannot clip/counter-flip.
+    #[test]
+    fn parse_image_fill_shape_trapezoid_with_rot_with_shape_false() {
+        let xml = r#"<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <p:nvSpPr><p:cNvPr id="2" name="Trapezoid"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+          <p:spPr>
+            <a:xfrm flipV="1"><a:off x="508000" y="508000"/><a:ext cx="3556000" cy="1778000"/></a:xfrm>
+            <a:custGeom>
+              <a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="0" b="0"/>
+              <a:pathLst>
+                <a:path w="400" h="200">
+                  <a:moveTo><a:pt x="100" y="0"/></a:moveTo>
+                  <a:lnTo><a:pt x="300" y="0"/></a:lnTo>
+                  <a:lnTo><a:pt x="400" y="200"/></a:lnTo>
+                  <a:lnTo><a:pt x="0" y="200"/></a:lnTo>
+                  <a:close/>
+                </a:path>
+              </a:pathLst>
+            </a:custGeom>
+            <a:blipFill rotWithShape="0"><a:blip r:embed="rId2"/><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill>
+            <a:ln><a:noFill/></a:ln>
+          </p:spPr>
+        </p:sp>"#;
+        let doc = parse_xml_str(xml).unwrap();
+        let colors = theme();
+        let el =
+            parse_shape_with_image_fill(&doc.root, "pic1".into(), &ctx(&colors), false).unwrap();
+        assert_eq!(el.type_, "picture");
+        assert!(el.flip_vertical);
+        assert_eq!(
+            el.path_data.as_deref(),
+            Some("M 100 0 L 300 0 L 400 200 L 0 200 Z")
+        );
+        assert_eq!(el.path_width, Some(400.0));
+        assert_eq!(el.path_height, Some(200.0));
+        assert_eq!(el.fill_image_rot_with_shape, Some(false));
+        assert_eq!(el.fill_mode.as_deref(), Some("image"));
     }
 }

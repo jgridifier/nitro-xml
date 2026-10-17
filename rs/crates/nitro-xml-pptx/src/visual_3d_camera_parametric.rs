@@ -114,8 +114,8 @@ pub fn sixty_thousandths_deg_to_rad(value: Option<i32>) -> f64 {
 mod tests {
     use super::*;
 
+    // Catches: empty a:rot still foreshortens the shape (non-identity matrix) under orthographicFront.
     #[test]
-    // Catches: parametric homography is identity when all angles are zero
     fn test_parametric_identity() {
         let params = ParametricCameraParams {
             lat_rad: 0.0,
@@ -131,8 +131,8 @@ mod tests {
             .all(|(a, b)| (a - b).abs() < 1e-10));
     }
 
+    // Catches: a:rot/@lon treated as degrees instead of 1/60000ths so a 25° yaw barely moves.
     #[test]
-    // Catches: sixty_thousandths_deg_to_rad converts correctly
     fn test_sixty_thousandths_deg_to_rad() {
         let rad = sixty_thousandths_deg_to_rad(Some(60000)); // 1 degree
         assert!((rad - std::f64::consts::PI / 180.0).abs() < 1e-10);
@@ -142,5 +142,29 @@ mod tests {
 
         let rad = sixty_thousandths_deg_to_rad(None);
         assert_eq!(rad, 0.0);
+    }
+
+    // Catches: explicit yaw (lon only) left as a flat axis-aligned square (332cb tile).
+    #[test]
+    fn test_yaw_only_foreshortens_x() {
+        let lon = sixty_thousandths_deg_to_rad(Some(1_500_000)); // 25°
+        let h = compute_parametric_camera_homography(ParametricCameraParams {
+            lat_rad: 0.0,
+            lon_rad: lon,
+            rev_rad: 0.0,
+            fov_rad: 0.0,
+        });
+        // Top-right corner of the unit square must land near (cos(25°), 0).
+        let p10 = crate::visual_3d_camera_homography_math::apply_homography(
+            &h,
+            crate::visual_3d_camera_homography_math::Point2 { x: 1.0, y: 0.0 },
+        );
+        let expected_x = lon.cos();
+        // Destination is relative to top-left: x≈0.5+0.5*cos(lon) after local→dest.
+        assert!(
+            (p10.x - (0.5 + 0.5 * expected_x)).abs() < 1e-6,
+            "yaw foreshortening missing: p10={p10:?}"
+        );
+        assert!((p10.y - 0.0).abs() < 1e-6, "yaw must not skew y: p10={p10:?}");
     }
 }

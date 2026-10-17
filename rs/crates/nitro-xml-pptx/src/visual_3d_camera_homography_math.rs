@@ -75,8 +75,8 @@ pub fn apply_homography(h: &Homography3, p: Point2) -> Point2 {
 mod tests {
     use super::*;
 
+    // Catches: flat orthographicFront (no rot) still emits a skewed matrix3d from a bad solver.
     #[test]
-    // Catches: identity homography on identity corners
     fn test_identity_homography() {
         let h = unit_square_to_quad_homography(
             Point2 { x: 0.0, y: 0.0 },
@@ -91,8 +91,8 @@ mod tests {
             .all(|(a, b)| (a - b).abs() < 1e-10));
     }
 
+    // Catches: unit-square→quad solver mapping the wrong corner so yaw/combined poses shear the wrong way.
     #[test]
-    // Catches: homography applies to all four corners correctly
     fn test_homography_corners() {
         let d00 = Point2 { x: 0.1, y: 0.2 };
         let d10 = Point2 { x: 1.1, y: 0.3 };

@@ -50,8 +50,8 @@ pub fn homography_to_matrix3d(h_unit: &Homography3, width: f64, height: f64) -> 
 mod tests {
     use super::*;
 
+    // Catches: flat camera still ships a perspective()/rotateX stack instead of identity matrix3d.
     #[test]
-    // Catches: identity homography produces identity matrix3d
     fn test_identity_matrix3d() {
         let h_identity: Homography3 = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
         let result = homography_to_matrix3d(&h_identity, 100.0, 100.0);

@@ -202,6 +202,10 @@ pub struct DumpElement {
     /// `p:oleObj/@spid`, matched to a `v:shape/@id` in the slide's VML drawing.
     #[serde(skip)]
     pub ole_spid: Option<String>,
+    /// `p:oleObj/@progId` / `@name` / `@classid` (upstream `oleProgId` / `oleName` / `oleClsId`).
+    pub ole_prog_id: Option<String>,
+    pub ole_name: Option<String>,
+    pub ole_cls_id: Option<String>,
     /// Video/audio picture: the poster still paints, but the issue-24 dump reports `media`.
     #[serde(skip)]
     pub is_media: bool,
@@ -334,9 +338,14 @@ pub fn unwrap_alternate_content_deep(root: &mut Element) {
             Node::Element(el)
                 if el.ns.as_deref() == Some(ns::MC) && el.local == "AlternateContent" =>
             {
-                let branch = children_local(el, "Choice", ns::MC)
+                // Upstream `findOleObjNode` prefers the `mc:Fallback` `p:oleObj` (it carries the
+                // `p:pic` preview; the Choice only has a VML copy).
+                let ole_fallback = children_local(el, "Fallback", ns::MC)
                     .into_iter()
                     .next()
+                    .filter(|f| find_local_deep(f, "oleObj").is_some());
+                let branch = ole_fallback
+                    .or_else(|| children_local(el, "Choice", ns::MC).into_iter().next())
                     .or_else(|| children_local(el, "Fallback", ns::MC).into_iter().next());
                 branch.map(|b| b.children.clone())
             }
@@ -1296,6 +1305,12 @@ fn parse_graphic_frame(frame: &Element, id: String, ctx: &ParseCtx) -> Option<Du
         let (x, y, w, h, x_emu, y_emu, w_emu, h_emu, rot, flip_h, flip_v) = xfrm_to_box(xfrm);
         let ole = find_local_deep(graphic, "oleObj");
         let spid = ole.and_then(|o| attr(o, "spid")).map(str::to_owned);
+        let ole_attr = |name: &str| {
+            ole.and_then(|o| attr(o, name))
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(str::to_owned)
+        };
         // Modern `p:pic/a:blip` or an inline `v:imagedata` (slide-relative).
         // A separate vmlDrawing part is attached later by spid.
         let image_rel_id = deep_blip_embed(graphic).or_else(|| first_imagedata_rel(graphic));
@@ -1324,6 +1339,9 @@ fn parse_graphic_frame(frame: &Element, id: String, ctx: &ParseCtx) -> Option<Du
             PaintExtras {
                 image_rel_id,
                 ole_spid: spid,
+                ole_prog_id: ole_attr("progId"),
+                ole_name: ole_attr("name"),
+                ole_cls_id: ole_attr("classid"),
                 ..PaintExtras::default()
             },
         );
@@ -1504,40 +1522,6 @@ fn imagedata_rel_attr(el: &Element) -> Option<String> {
         .find(|a| a.local.eq_ignore_ascii_case("relid"))
         .map(|a| a.value.clone())
         .filter(|id| !id.is_empty())
-}
-
-/// Relationship id of `v:shape/@id == spid` → `v:imagedata`.
-pub(crate) fn vml_shape_image_rel(root: &Element, spid: &str) -> Option<String> {
-    let mut stack: Vec<&Element> = vec![root];
-    while let Some(el) = stack.pop() {
-        let is_shape = el.local == "shape" && (el.ns.as_deref() == Some(ns::V) || el.ns.is_none());
-        if is_shape && attr(el, "id") == Some(spid) {
-            return first_imagedata_rel(el);
-        }
-        for child in el.children.iter().rev() {
-            if let Node::Element(c) = child {
-                stack.push(c);
-            }
-        }
-    }
-    None
-}
-
-/// Fill an OLE element's preview rel from a loaded `vmlDrawing` part.
-pub(crate) fn assign_vml_ole_preview(el: &mut DumpElement, vml_path: &str, vml_root: &Element) {
-    if el.type_ == "ole" && el.image_rel_id.is_none() {
-        if let Some(spid) = el.ole_spid.clone() {
-            if let Some(rel) = vml_shape_image_rel(vml_root, &spid) {
-                el.image_rel_id = Some(rel);
-                el.image_rel_owner = Some(vml_path.to_owned());
-            }
-        }
-    }
-    if let Some(children) = &mut el.children {
-        for child in children {
-            assign_vml_ole_preview(child, vml_path, vml_root);
-        }
-    }
 }
 
 fn chart_rel_id(g: &Element) -> Option<String> {
@@ -1880,6 +1864,9 @@ fn build_dump(
         image_rel_id: extras.image_rel_id,
         image_rel_owner: extras.image_rel_owner,
         ole_spid: extras.ole_spid,
+        ole_prog_id: extras.ole_prog_id,
+        ole_name: extras.ole_name,
+        ole_cls_id: extras.ole_cls_id,
         is_media: false,
         media_rel_id: extras.media_rel_id,
         media_src: None,
@@ -2189,6 +2176,9 @@ struct PaintExtras {
     image_rel_id: Option<String>,
     image_rel_owner: Option<String>,
     ole_spid: Option<String>,
+    ole_prog_id: Option<String>,
+    ole_name: Option<String>,
+    ole_cls_id: Option<String>,
     box_shadow: Option<String>,
     material_box_shadow: Option<String>,
     material_overlay: Option<String>,
@@ -4264,48 +4254,42 @@ mod tests {
     }
 
     #[test]
-    fn ole_frame_takes_vml_preview_rel() {
-        // Catches: OLE graphicFrame stays Other(ole) so VML preview image never paints.
-        let xml = r#"<p:spTree xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+    fn ole_frame_prefers_fallback_pic_preview() {
+        // Catches: `mc:AlternateContent` hoisting the VML-only Choice, dropping the Fallback `p:pic` preview and OLE metadata.
+        let xml = r#"<p:spTree xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
           <p:graphicFrame>
-            <p:nvGraphicFramePr><p:cNvPr id="584709" name="Object 5"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+            <p:nvGraphicFramePr><p:cNvPr id="4" name="Object 3"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
             <p:xfrm><a:off x="4038600" y="3733800"/><a:ext cx="1066800" cy="1295400"/></p:xfrm>
             <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/presentationml/2006/ole">
-              <p:oleObj spid="_x0000_s584709" name="Photo Editor Photo" r:id="rId4"><p:embed/></p:oleObj>
+              <mc:AlternateContent>
+                <mc:Choice Requires="v"><p:oleObj spid="_x0000_s1033" name="Pkg" r:id="rId3" progId="Package"><p:embed/></p:oleObj></mc:Choice>
+                <mc:Fallback><p:oleObj name="Pkg" r:id="rId3" progId="Package"><p:embed/><p:pic><p:blipFill><a:blip r:embed="rId4"/></p:blipFill></p:pic></p:oleObj></mc:Fallback>
+              </mc:AlternateContent>
             </a:graphicData></a:graphic>
           </p:graphicFrame>
         </p:spTree>"#;
-        let vml = r#"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
-          <v:shape id="_x0000_s584709"><v:imagedata o:relid="rId1" o:title=""/></v:shape>
-        </xml>"#;
-        let doc = parse_xml_str(xml).unwrap();
+        let mut doc = parse_xml_str(xml).unwrap();
+        unwrap_alternate_content_deep(&mut doc.root);
         let colors = theme();
-        let mut parsed = parse_sp_tree(
+        let parsed = parse_sp_tree(
             &doc.root,
             Some(xml),
             "",
             &ctx(&colors),
             &SpTreeOptions::default(),
         );
-        assert!(parsed.other_kinds.iter().all(|k| k != "ole"));
-        let vml_doc = parse_xml_str(vml).unwrap();
-        for el in &mut parsed.elements {
-            assign_vml_ole_preview(el, "ppt/drawings/vmlDrawing1.vml", &vml_doc.root);
-        }
         let ole = parsed
             .elements
             .iter()
             .find(|el| el.type_ == "ole")
             .expect("ole element");
-        assert_eq!(ole.ole_spid.as_deref(), Some("_x0000_s584709"));
-        assert_eq!(ole.image_rel_id.as_deref(), Some("rId1"));
-        assert_eq!(
-            ole.image_rel_owner.as_deref(),
-            Some("ppt/drawings/vmlDrawing1.vml")
-        );
-        assert!(ole.width > 0.0 && ole.height > 0.0);
-        let (_, kinds) = issue24_dump_parts(&parsed.elements, &parsed.other_kind_seq);
-        assert_eq!(kinds, vec!["ole".to_owned()]);
+        assert_eq!(ole.image_rel_id.as_deref(), Some("rId4"));
+        assert_eq!(ole.ole_prog_id.as_deref(), Some("Package"));
+        assert_eq!(ole.ole_name.as_deref(), Some("Pkg"));
+        // Negative control: a Choice-only wrapper (no Fallback oleObj) still unwraps to the Choice.
+        let mut doc = parse_xml_str(&xml.replace("<mc:Fallback>", "<mc:Fallback><x/>").replace("<p:oleObj name=\"Pkg\" r:id=\"rId3\" progId=\"Package\"><p:embed/><p:pic><p:blipFill><a:blip r:embed=\"rId4\"/></p:blipFill></p:pic></p:oleObj>", "")).unwrap();
+        unwrap_alternate_content_deep(&mut doc.root);
+        assert!(find_local_deep(&doc.root, "pic").is_none());
     }
 
     fn corbel_minor_scheme() -> crate::theme::ThemeFontScheme {
@@ -4434,7 +4418,6 @@ mod tests {
         let root = parse_xml_str(&xml).expect("parses").root;
         assert!(find_local_deep(&root, "missing").is_none());
         assert!(deep_blip_embed(&root).is_none());
-        assert!(vml_shape_image_rel(&root, "nope").is_none());
     }
 
     #[test]

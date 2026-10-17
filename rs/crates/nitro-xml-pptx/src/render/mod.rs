@@ -4,6 +4,7 @@
 mod activex;
 mod chart;
 mod chart3d;
+mod chart_vm;
 mod comments;
 mod connector;
 mod connector_geometry;
@@ -230,6 +231,7 @@ mod tests {
             chart_xml: None,
             chart_part_path: None,
             chart_image_urls: None,
+            chart_minor_font: None,
             smartart_dm_r_id: None,
             smartart_lo_r_id: None,
             smartart_qs_r_id: None,

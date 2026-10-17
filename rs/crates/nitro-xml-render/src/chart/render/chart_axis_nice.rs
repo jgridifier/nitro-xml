@@ -48,9 +48,9 @@ pub fn nice_axis_step(value: f64) -> f64 {
 fn snap(value: f64, unit: f64, up: bool) -> f64 {
     let scaled = value / unit;
     let rounded = if up {
-        scaled.ceil() - 1e-9
+        (scaled - 1e-9).ceil()
     } else {
-        scaled.floor() + 1e-9
+        (scaled + 1e-9).floor()
     };
     rounded * unit
 }
@@ -160,6 +160,19 @@ mod tests {
     };
 
     // Catches: deck chart1 global min 1.8 / max 5 must nice to 0..6 like TS, not 0..5.
+    // Catches: snap() subtracting the 1e-9 guard after ceil, so an exact multiple (max 6) came out as 5.999999999.
+    #[test]
+    fn snap_returns_exact_multiples() {
+        let b = nice_value_axis_bounds(
+            1.8,
+            5.0,
+            axis_target_intervals(351.856),
+            VALUE_AXIS_HEADROOM,
+        );
+        assert_eq!(b.max, 6.0);
+        assert_eq!(b.major_unit * 6.0, 6.0);
+    }
+
     #[test]
     fn three_d_charts_value_axis_nices_to_six() {
         let bounds = nice_value_axis_bounds(

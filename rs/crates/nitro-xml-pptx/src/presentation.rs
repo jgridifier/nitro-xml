@@ -1474,8 +1474,8 @@ fn tiff_to_png(bytes: &[u8]) -> Option<Vec<u8>> {
     let rgba = match (color, decoded) {
         (ColorType::RGB(8), DecodingResult::U8(buf)) => {
             let mut out = Vec::with_capacity(buf.len() / 3 * 4);
-            for chunk in buf.chunks_exact(3) {
-                out.extend_from_slice(&[chunk[0], chunk[1], chunk[2], 255]);
+            for &[r, g, b] in buf.as_chunks::<3>().0 {
+                out.extend_from_slice(&[r, g, b, 255]);
             }
             out
         }
@@ -1489,8 +1489,8 @@ fn tiff_to_png(bytes: &[u8]) -> Option<Vec<u8>> {
         }
         (ColorType::GrayA(8), DecodingResult::U8(buf)) => {
             let mut out = Vec::with_capacity(buf.len() / 2 * 4);
-            for chunk in buf.chunks_exact(2) {
-                out.extend_from_slice(&[chunk[0], chunk[0], chunk[0], chunk[1]]);
+            for &[g, a] in buf.as_chunks::<2>().0 {
+                out.extend_from_slice(&[g, g, g, a]);
             }
             out
         }
@@ -1705,7 +1705,9 @@ mod tests {
             "expected PNG data URL, got {}",
             &url[..url.len().min(40)]
         );
-        assert!(tiff_to_png(&tiff).unwrap().starts_with(&[0x89, b'P', b'N', b'G']));
+        assert!(tiff_to_png(&tiff)
+            .unwrap()
+            .starts_with(&[0x89, b'P', b'N', b'G']));
     }
 
     // Catches: blip r:embed left as a grey frame / empty stage instead of a data URL.

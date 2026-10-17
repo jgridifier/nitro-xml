@@ -209,6 +209,12 @@
         });
       }
       await waitFonts();
+      // Use the element's serialized RAF path: direct document.tick() can
+      // overlap its ResizeObserver tick and replace an in-flight measure batch.
+      const paint = async () => {
+        el._tick();
+        while (el._raf) await waitFrames(1);
+      };
       let painted = false;
       for (let i = 0; i < 60; i++) {
         await waitFrames(2);
@@ -216,7 +222,7 @@
         if (msg && !msg.hidden && msg.textContent) {
           throw new Error(`nitro-xlsx: ${msg.textContent}`);
         }
-        if (el.document) await el.document.tick();
+        if (el.document) await paint();
         const dom = shadow?.querySelector('.dom');
         if (dom && dom.childElementCount > 0) {
           painted = true;
@@ -225,7 +231,7 @@
       }
       if (!painted) throw new Error('nitro-xlsx: no grid paint');
       for (let i = 0; i < 6; i++) {
-        if (el.document) await el.document.tick();
+        if (el.document) await paint();
         await waitFrames(1);
       }
       hideShellChrome(shadow);

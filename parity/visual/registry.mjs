@@ -64,7 +64,7 @@ const STATIC_CASES = [
 		width: 375,
 		height: 667,
 		rust: true,
-		skipPrint: true,
+		// Hard at DPR1/2 and print: all three measured 0% (#150 follow-up).
 	},
 	{
 		id: 'xlsx-edit-chrome-poi-45544',

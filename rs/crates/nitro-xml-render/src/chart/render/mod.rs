@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/chart/render/ (S1); changes listed in PROVENANCE.md.
 
-mod bar_cluster_geometry;
+pub mod bar_cluster_geometry;
 mod built_in_text_style;
 mod chart_3d_depth;
 mod chart_appearance;
 mod chart_auto_title;
-mod chart_axis_nice;
+pub mod chart_axis_nice;
 mod chart_colors;
 mod chart_palette_shade;
 mod chart_picture_fill;

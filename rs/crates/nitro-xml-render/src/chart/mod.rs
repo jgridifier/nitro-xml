@@ -16,6 +16,10 @@ use crate::command_buffer::StringTable;
 use crate::measure::MeasureBatch;
 use crate::CommandBuffer;
 
+pub use render::bar_cluster_geometry::clustered_bar_geometry;
+pub use render::chart_axis_nice::{
+    axis_target_intervals, nice_value_axis_bounds, VALUE_AXIS_HEADROOM,
+};
 pub use render::chart_blip_rel_ids;
 pub use render::theme_palette::{DEFAULT_THEME_COLORS, THEME_SLOTS};
 pub use render::{chart_space_kind, ChartSvgMeasureOptions, ChartThemeFonts, DRAWN_CHART_TYPES};

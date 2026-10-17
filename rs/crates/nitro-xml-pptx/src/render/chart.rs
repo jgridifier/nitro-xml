@@ -45,6 +45,8 @@ pub fn paint_pptx_chart_xml(
     picture_id_prefix: &str,
     chart_images: std::collections::HashMap<String, String>,
     theme_colors: Option<Vec<String>>,
+    minor_font: Option<String>,
+    scheme: &BTreeMap<String, String>,
     mut intern: impl FnMut(&str) -> u32,
 ) -> ChartSpace {
     let parsed = parse_chart_space_xml(xml);
@@ -56,6 +58,16 @@ pub fn paint_pptx_chart_xml(
         format!(
             "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\" role=\"img\"><text>chartex (TODO #28)</text></svg>"
         )
+    } else if let Some(svg) = super::chart_vm::render(
+        &parsed.chart_space,
+        width,
+        height,
+        &super::chart_vm::VmTheme {
+            scheme: scheme.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            minor_latin: minor_font,
+        },
+    ) {
+        svg
     } else {
         render_chart_space_svg(
             &parsed.chart_space,
@@ -104,6 +116,8 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             &el.id,
             chart_images,
             theme_colors,
+            el.chart_minor_font.clone(),
+            ctx.scheme,
             |s| intern.intern(s),
         );
     } else {

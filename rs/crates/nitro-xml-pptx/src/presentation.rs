@@ -1049,6 +1049,13 @@ impl<'a> Presentation<'a> {
                 }
             }
             if el.chart_xml.is_some() {
+                el.chart_minor_font = self
+                    .theme
+                    .as_ref()
+                    .and_then(|t| t.font_scheme.as_ref())
+                    .and_then(|f| f.minor_font.as_ref())
+                    .and_then(|m| m.latin.clone())
+                    .filter(|f| !f.is_empty());
                 self.attach_chart_image_urls(el);
             }
             if el.smartart_drawing_xml.is_none() || el.smartart_data_xml.is_none() {

@@ -247,6 +247,7 @@ mod tests {
             media_src: None,
             media_type: None,
             image_src: None,
+            image_fit: None,
             seq: 0,
             box_shadow: None,
             material_box_shadow: None,

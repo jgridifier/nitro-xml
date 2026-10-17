@@ -217,6 +217,9 @@ pub struct DumpElement {
     /// `data:` URL for the resolved blip (img `src` / CSS background). Not in the issue-24 dump.
     #[serde(skip)]
     pub image_src: Option<String>,
+    /// `a:srcRect` crop (l, t, r, b) and `a:stretch/a:fillRect` (l, t, r, b) as fractions.
+    #[serde(skip)]
+    pub image_fit: Option<[f64; 8]>,
     /// Document order of this element among emitted spTree children (dump merge).
     #[serde(skip)]
     pub seq: u32,
@@ -1055,6 +1058,7 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
     };
     let mut extras = PaintExtras {
         image_rel_id: blip_embed_id(pic),
+        image_fit: blip_fit_insets(pic),
         ..PaintExtras::default()
     };
     if let Some(nv) = nv_pr {
@@ -1885,6 +1889,7 @@ fn build_dump(
         media_src: None,
         media_type: extras.media_type,
         image_src: None,
+        image_fit: extras.image_fit,
         seq: 0,
         box_shadow: extras.box_shadow,
         material_box_shadow: extras.material_box_shadow,
@@ -2187,6 +2192,7 @@ struct PaintExtras {
     smartart_qs_r_id: Option<String>,
     smartart_cs_r_id: Option<String>,
     image_rel_id: Option<String>,
+    image_fit: Option<[f64; 8]>,
     image_rel_owner: Option<String>,
     ole_spid: Option<String>,
     box_shadow: Option<String>,
@@ -2628,6 +2634,32 @@ struct ResolvedFill {
     mode: String,
     color: Option<String>,
     gradient: Option<String>,
+}
+
+/// `a:srcRect` crop then `a:stretch/a:fillRect` insets (thousandths of a percent to fractions).
+fn blip_fit_insets(parent: &Element) -> Option<[f64; 8]> {
+    let fill = child_local(parent, "blipFill", ns::P)
+        .or_else(|| child_local(parent, "blipFill", ns::A))?;
+    let frac = |el: Option<&Element>, name: &str| -> f64 {
+        el.and_then(|e| e.attrs.iter().find(|a| a.local == name))
+            .and_then(|a| a.value.trim().parse::<f64>().ok())
+            .map(|v| v.clamp(-1_000_000.0, 1_000_000.0) / 100_000.0)
+            .unwrap_or(0.0)
+    };
+    let src = child_local(fill, "srcRect", ns::A);
+    let rect =
+        child_local(fill, "stretch", ns::A).and_then(|st| child_local(st, "fillRect", ns::A));
+    let v = [
+        frac(src, "l"),
+        frac(src, "t"),
+        frac(src, "r"),
+        frac(src, "b"),
+        frac(rect, "l"),
+        frac(rect, "t"),
+        frac(rect, "r"),
+        frac(rect, "b"),
+    ];
+    v.iter().any(|x| x.abs() > 0.0001).then_some(v)
 }
 
 fn blip_embed_id(parent: &Element) -> Option<String> {

@@ -11,12 +11,11 @@ test('xlsx 0.1% threshold rejects just-over and accepts just-under', () => {
 	expect(mismatchRatio(1000, total)).toBeCloseTo(0.001);
 });
 
-test('docx keeps the 0.5% page bound; pptx hard cases use the 0.1% slide bound', () => {
-	// Catches: pptx harden (#27) accidentally left on the old 0.5% slide limit,
-	// or docx tightened to the xlsx/pptx 0.1% viewport bound.
-	expect(THRESHOLDS.docx).toBe(0.005);
-	expect(THRESHOLDS.pptx).toBe(0.001);
-	expect(withinThreshold(5, 1000, 'docx')).toBe(true);
-	expect(withinThreshold(1, 1000, 'pptx')).toBe(true); // exactly 0.1%
-	expect(withinThreshold(2, 1000, 'pptx')).toBe(false);
+test('pptx slide budget is 0.5% while xlsx stays at 0.1%', () => {
+	// Catches: the pptx-only relaxation (Jared, Oct 16 2026) leaking into xlsx, or pptx
+	// left on 0.1% (which makes the tile guard pointless).
+	expect(THRESHOLDS.pptx).toBe(0.005);
+	expect(withinThreshold(5, 1000, 'pptx')).toBe(true); // exactly 0.5%
+	expect(withinThreshold(6, 1000, 'pptx')).toBe(false);
+	expect(withinThreshold(2, 1000, 'xlsx')).toBe(false);
 });

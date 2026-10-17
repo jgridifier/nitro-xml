@@ -8,7 +8,7 @@ import { pptxVisualCorpus } from './pptx-corpus.mjs';
 import { startVisualServer } from './server.mjs';
 import { prepareAll } from './prepare.mjs';
 import { comparePngBuffers } from './compare.mjs';
-import { THRESHOLDS } from './thresholds.mjs';
+import { THRESHOLDS, PPTX_TILE_GUARD } from './thresholds.mjs';
 
 const VISUAL = dirname(fileURLToPath(import.meta.url));
 const OUT = join(VISUAL, 'out');
@@ -91,7 +91,7 @@ const rows = [];
 
 for (const c of cases) {
 	const manifestId = c.id.replace(/^pptx-/, '');
-	const row = { id: manifestId, dpr1: null, dpr2: null, pass: false, err: null };
+	const row = { id: manifestId, dpr1: null, dpr2: null, tile1: null, tile2: null, pass: false, err: null };
 	try {
 		for (const dpr of [1, 2]) {
 			const ts = await shot(browser, server.url, c, 'ts', dpr);
@@ -103,11 +103,16 @@ for (const c of cases) {
 			const cmp = comparePngBuffers(ts, rust, {
 				format: 'pptx',
 				threshold: thr,
+				dpr,
+				tileGuard: PPTX_TILE_GUARD,
 				diffPath: join(OUT, 'diffs', `${c.id}-focus-dpr${dpr}.png`),
 			});
+			// Percent units (0.0014 means 0.0014%, not 0.14%).
 			row[`dpr${dpr}`] = cmp.ratio * 100;
+			row[`tile${dpr}`] = cmp.worstTile * 100;
+			row[`ok${dpr}`] = cmp.ok;
 		}
-		row.pass = row.dpr1 <= thr * 100 && row.dpr2 <= thr * 100;
+		row.pass = row.ok1 && row.ok2;
 	} catch (e) {
 		row.err = String(e && e.message ? e.message : e).slice(0, 240);
 	}

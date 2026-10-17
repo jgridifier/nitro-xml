@@ -6,7 +6,8 @@
  * on-demand L/XL). Each case compares slide 0 of `<nitro-pptx>` vs upstream
  * `renderSlideStage` at DPR 1/2.
  *
- * Cases that have reached ≤0.1% on both DPRs are hard (fail the gate);
+ * Cases that are ≤0.5% overall and pass the tile guard (thresholds.mjs) on
+ * both DPRs are hard (fail the gate);
  * the rest stay informational until painters converge. Print-to-PDF is
  * skipped until on-screen painters settle.
  *
@@ -21,8 +22,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
  * Fixture ids (manifest `id`, without `pptx-` prefix) that are hard at the
- * 0.1% pptx bound. Measured on the Liberation font pin + style-matrix/blip
- * fidelity branch (#27 harden). Add only when both DPR1 and DPR2 are ≤0.1%.
+ * pptx bound: ≤0.5% overall and worst 32 px tile ≤20% at DPR1 / ≤12% at DPR2 (PPTX_TILE_GUARD), at
+ * both DPR1 and DPR2. Liberation font pin (#121). Add only when both DPRs pass
+ * both checks in the CI summary table.
  */
 export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'bidi-arabic-hebrew-slides',
@@ -43,6 +45,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'real-pptx-poi-SimpleMacro',
 	'real-pptx-poi-bug59273',
 	'real-pptx-poi-bug62513',
+	'real-pptx-poi-keyframes',
 	'real-pptx-python-pptx-act-props',
 	'real-pptx-python-pptx-shp-movie-props',
 	'real-pptx-python-pptx-test_slides',

@@ -5,12 +5,13 @@ import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { mismatchRatio, withinThreshold, THRESHOLDS } from './thresholds.mjs';
+import { mismatchRatio, withinThreshold, THRESHOLDS, worstTile, tileLimit } from './thresholds.mjs';
 
 /**
  * @param {Buffer} aPng
  * @param {Buffer} bPng
- * @param {{ format: string, diffPath?: string }} opts
+ * @param {{ format: string, diffPath?: string, threshold?: number, dpr?: number,
+ *   tileGuard?: { tile: number, stride: number, maxRatio: number, maxRatioByDpr?: Record<number, number> } }} opts
  */
 function writeDiffPng(diffPath, png) {
 	if (!diffPath) return;
@@ -62,5 +63,25 @@ export function comparePngBuffers(aPng, bPng, opts) {
 	if (mismatched > 0) {
 		writeDiffPng(opts.diffPath, diff);
 	}
-	return { ok, mismatched, total, ratio, width, height };
+	const out = { ok, mismatched, total, ratio, width, height };
+	if (opts.tileGuard) {
+		// pixelmatch paints counted mismatches pure red (AA pixels are yellow, the rest gray).
+		const mask = new Uint8Array(total);
+		if (mismatched > 0) {
+			const d = diff.data;
+			for (let i = 0, p = 0; p < total; p++, i += 4) {
+				mask[p] = d[i] === 255 && d[i + 1] === 0 && d[i + 2] === 0 ? 1 : 0;
+			}
+		}
+		const w = worstTile(mask, width, height, opts.dpr ?? 1, opts.tileGuard);
+		out.worstTile = w.ratio;
+		out.worstTileAt = [w.x, w.y];
+		const lim = tileLimit(opts.tileGuard, opts.dpr ?? 1);
+		out.tileLimit = lim;
+		if (w.ratio > lim) {
+			out.ok = false;
+			out.reason = `tile guard: ${(w.ratio * 100).toFixed(1)}% of ${opts.tileGuard.tile}px tile at (${w.x},${w.y}) > ${(lim * 100).toFixed(0)}%`;
+		}
+	}
+	return out;
 }

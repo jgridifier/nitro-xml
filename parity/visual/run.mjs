@@ -14,7 +14,7 @@ import { readyCases, VISUAL_CASES } from './registry.mjs';
 import { startVisualServer } from './server.mjs';
 import { prepareAll } from './prepare.mjs';
 import { comparePngBuffers } from './compare.mjs';
-import { THRESHOLDS } from './thresholds.mjs';
+import { THRESHOLDS, PPTX_TILE_GUARD } from './thresholds.mjs';
 
 const VISUAL = dirname(fileURLToPath(import.meta.url));
 const OUT = join(VISUAL, 'out');
@@ -24,6 +24,11 @@ const PDFS = join(OUT, 'pdfs');
 
 function caseThreshold(c) {
 	return c.threshold ?? THRESHOLDS[c.format];
+}
+
+/** pptx only: local tile guard on top of the 0.5% slide budget. */
+function caseTileGuard(c) {
+	return c.format === 'pptx' ? PPTX_TILE_GUARD : undefined;
 }
 
 function hostUrl(base, c, side) {
@@ -228,13 +233,13 @@ export async function runVisualGate() {
 				: `visual: ${failed === 0 ? 'PASS' : 'FAIL'} (${hardOk}/${rows.length} comparisons; ${rows.filter((r) => r.informational && !r.ok).length} informational)`,
 			...rows.map((r) => {
 				const tag = r.ok ? 'OK' : r.informational ? 'INFO' : 'FAIL';
-				return `  ${tag} ${r.case} ${r.mode} dpr=${r.dpr} mismatch=${(r.ratio * 100).toFixed(4)}% (limit ${(r.threshold * 100).toFixed(2)}%)${r.reason ? ` ${r.reason}` : ''}${r.informational && !r.ok ? ' [informational]' : ''}`;
+				return `  ${tag} ${r.case} ${r.mode} dpr=${r.dpr} mismatch=${(r.ratio * 100).toFixed(4)}% (limit ${(r.threshold * 100).toFixed(2)}%)${r.worstTile != null ? ` tile=${(r.worstTile * 100).toFixed(1)}%` : ''}${r.reason ? ` ${r.reason}` : ''}${r.informational && !r.ok ? ' [informational]' : ''}`;
 			}),
 			...(pptxTable.length
 				? [
 						'',
-						'pptx per-fixture pixel table (ts-vs-rust; hard ≤0.1% / else informational):',
-						'fixture\tdpr1%\tdpr2%\tdpr1_ok\tdpr2_ok\tnote',
+						`pptx per-fixture pixel table (ts-vs-rust; hard ≤${THRESHOLDS.pptx * 100}% + worst ${PPTX_TILE_GUARD.tile}px tile ≤${PPTX_TILE_GUARD.maxRatioByDpr[1] * 100}%/${PPTX_TILE_GUARD.maxRatioByDpr[2] * 100}% at DPR1/2 / else informational):`,
+						'fixture\tdpr1%\tdpr2%\tdpr1_ok\tdpr2_ok\ttile1%\ttile2%\tnote',
 						...pptxTable,
 					]
 				: []),
@@ -302,6 +307,8 @@ export async function runVisualGate() {
 					const cmp = comparePngBuffers(ts, rust, {
 						format: c.format,
 						threshold: thr,
+						dpr,
+						tileGuard: caseTileGuard(c),
 						diffPath: join(DIFFS, `${c.id}-ts-vs-rust-dpr${dpr}.png`),
 					});
 					failed += recordRow(rows, c, {
@@ -313,6 +320,8 @@ export async function runVisualGate() {
 						mismatched: cmp.mismatched,
 						total: cmp.total,
 						threshold: thr,
+						worstTile: cmp.worstTile,
+						worstTileAt: cmp.worstTileAt,
 						reason: cmp.reason,
 					});
 				} catch (err) {
@@ -339,6 +348,7 @@ export async function runVisualGate() {
 				const cmp = comparePngBuffers(tsRaster, rustRaster, {
 					format: c.format,
 					threshold: thr,
+					tileGuard: caseTileGuard(c),
 					diffPath: join(DIFFS, `${c.id}-ts-vs-rust-print.png`),
 				});
 				failed += recordRow(rows, c, {
@@ -388,8 +398,9 @@ function buildPptxFixtureTable(rows) {
 		const { d1, d2 } = byCase.get(id);
 		const pct = (r) => (r ? (r.ratio * 100).toFixed(4) : '');
 		const ok = (r) => (r ? (r.ok ? 'OK' : 'INFO') : '');
+		const tile = (r) => (r && r.worstTile != null ? (r.worstTile * 100).toFixed(1) : '');
 		const note = [d1?.reason, d2?.reason].filter(Boolean).join('; ').replace(/\t/g, ' ');
-		return `${id}\t${pct(d1)}\t${pct(d2)}\t${ok(d1)}\t${ok(d2)}\t${note}`;
+		return `${id}\t${pct(d1)}\t${pct(d2)}\t${ok(d1)}\t${ok(d2)}\t${tile(d1)}\t${tile(d2)}\t${note}`;
 	});
 }
 

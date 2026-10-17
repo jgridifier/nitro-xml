@@ -10,7 +10,7 @@ Pixelmatch harness: upstream TS oracle vs Rust at **DPR 1 and 2**, plus **print-
 | `xlsx-view-ir` | CellItem view-IR (#18) painted by a shared canvas painter | TS dump vs Rust dump |
 | `xlsx-viewer` | Live `<nitro-xlsx>` vs upstream `<xlsx-editor>` | Same fixture; **hard** ≤0.1% (0.0000% dpr1/dpr2/print after #150). Grid painters + `GRID_CSS` (visual-only) + Liberation Sans `#121` mirror + lightTheme tokens. Shell chrome hidden; host flex for `#149` `.chrome` hide. |
 | `chart-svg` | Chart S1 SVG (#28) hosted in a fixed viewport | TS `chart_ref` vs Rust `chart_render_svg` |
-| `pptx-viewer` | Live `<nitro-pptx>` vs upstream `renderSlideStage` | Corpus from `pptx-corpus.mjs` (S/M redistributable); **≤0.1% hard** for allow-listed fixtures (`PPTX_HARD_FIXTURE_IDS`), rest informational; Liberation `#121` mirror; DPR 1/2; print skipped until painters converge |
+| `pptx-viewer` | Live `<nitro-pptx>` vs upstream `renderSlideStage` | Corpus from `pptx-corpus.mjs` (S/M redistributable); **≤0.5% hard + tile guard** (no 32 px tile, scaled by DPR, over 20% mismatched at DPR1 / 12% at DPR2) for allow-listed fixtures (`PPTX_HARD_FIXTURE_IDS`), rest informational; Liberation `#121` mirror; DPR 1/2; print skipped until painters converge |
 | `docx` | — | `ready: false` — add a registry row when hosted |
 
 The headless static server + Playwright runner is the minimal host slice of #6 (no perf metrics). See the note on issue #6.

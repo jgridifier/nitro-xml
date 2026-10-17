@@ -1016,20 +1016,17 @@ fn drawing_path_to_svg_d(path: &nitro_xml_opc::drawingml::DrawingPath) -> Option
     }
 }
 
-/// Parse `a:blipFill/@rotWithShape` or `p:blipFill/@rotWithShape`.
-/// Returns None if unset (defaults to true), Some(false) if "0", Some(true) if "1".
+/// Parse `a:blipFill/@rotWithShape` (upstream `PptxShapeStyleExtractor`).
+/// Returns `None` if unset (schema default true), `Some(false)` for `0`/`false`,
+/// `Some(true)` for `1`/`true`.
 fn parse_blip_fill_rot_with_shape(blip_fill: Option<&Element>) -> Option<bool> {
-    blip_fill.and_then(|bf| {
-        if let Some(s) = attr(bf, "rotWithShape") {
-            match s {
-                "0" => Some(false),
-                "1" => Some(true),
-                _ => Some(true),
-            }
-        } else {
-            None
-        }
-    })
+    let raw = blip_fill.and_then(|bf| attr(bf, "rotWithShape"))?;
+    let token = raw.trim().to_ascii_lowercase();
+    match token.as_str() {
+        "1" | "true" => Some(true),
+        "0" | "false" => Some(false),
+        _ => None,
+    }
 }
 
 fn parse_shape_with_image_fill(

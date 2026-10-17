@@ -330,6 +330,8 @@ mod tests {
             hyperlinks: vec![],
             ext_lst: vec![],
             sparkline_groups: vec![],
+            drawings: Vec::new(),
+            conditional_formats: Vec::new(),
             dimension: None,
         }
     }

@@ -44,10 +44,27 @@ pub fn apply_preset_geometry<I: StringIntern>(
         return;
     }
 
+    // Upstream `getShapeClipPathFromPreset`: evaluator SVG path → `path('…')`
+    // (stripedRightArrow needs multi-subpath; static % polygons fill solid).
+    if let Some(clip) = evaluator_path_clip(shape_type, width, height) {
+        set_style(ctx, id, "clip-path", &clip);
+        set_style(ctx, id, "overflow", "hidden");
+        return;
+    }
+
     if let Some(clip) = preset_clip_path(&normalized) {
         set_style(ctx, id, "clip-path", clip);
         set_style(ctx, id, "overflow", "hidden");
     }
+}
+
+/// CSS `clip-path: path('…')` from the ECMA preset evaluator (upstream
+/// `getShapeClipPathFromPreset`).
+fn evaluator_path_clip(shape_type: &str, width: f64, height: f64) -> Option<String> {
+    let d = preset_stroke_outline_path(shape_type, width, height)?;
+    // Escape like upstream: backslashes first, then single quotes.
+    let escaped = d.replace('\\', "\\\\").replace('\'', "\\'");
+    Some(format!("path('{escaped}')"))
 }
 
 fn is_round_rect_family(normalized: &str) -> bool {
@@ -94,7 +111,8 @@ pub fn preset_stroke_outline_path(shape_type: &str, width: f64, height: f64) -> 
         .filter(|path| !path.is_empty())
 }
 
-/// Static percentage polygons from upstream `preset-clip-paths-core.ts` (subset for poi-keyframes + common nav).
+/// Static percentage polygons from upstream `preset-clip-paths-core.ts` (fallback
+/// when the evaluator has no path — e.g. actionButtonHome inset).
 fn preset_clip_path(normalized: &str) -> Option<&'static str> {
     match normalized {
         "rightarrow" | "rtarrow" => {
@@ -120,15 +138,12 @@ fn preset_clip_path(normalized: &str) -> Option<&'static str> {
         "triangle" => Some("polygon(50% 0%, 100% 100%, 0% 100%)"),
         "diamond" => Some("polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"),
         "pentagon" => Some("polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)"),
-        "hexagon" => {
-            Some("polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)")
-        }
+        "hexagon" => Some("polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)"),
         "octagon" => Some(
             "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
         ),
         "parallelogram" => Some("polygon(20% 0%, 100% 0%, 80% 100%, 0% 100%)"),
         "trapezoid" => Some("polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)"),
-        // Upstream preset-clip-paths-core / -extended (be4aaa soft band).
         "pie" => Some("polygon(50% 50%, 50% 0%, 100% 0%, 100% 100%, 50% 100%)"),
         "piewedge" => Some("polygon(100% 0%, 100% 100%, 0% 100%, 0% 55%, 55% 0%)"),
         "star5" => Some(
@@ -142,7 +157,9 @@ fn preset_clip_path(normalized: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::{preset_clip_path, round_rect_radius_px};
+    use super::{
+        evaluator_path_clip, preset_clip_path, preset_stroke_outline_path, round_rect_radius_px,
+    };
 
     // Catches: roundRect menu buttons painted square when default OOXML adj radius is skipped.
     #[test]
@@ -157,11 +174,30 @@ mod tests {
         assert!(preset_clip_path("stripedrightarrow").is_some());
     }
 
+    // Catches: stripedRightArrow fill as solid polygon instead of evaluator multi-subpath path() clip.
+    #[test]
+    fn striped_arrow_evaluator_path_clip_has_multiple_subpaths() {
+        let d = preset_stroke_outline_path("stripedRightArrow", 330.0, 88.0).expect("path");
+        assert!(
+            d.matches('M').count() >= 3,
+            "expected stripe subpaths, got {d}"
+        );
+        let clip = evaluator_path_clip("stripedRightArrow", 330.0, 88.0).expect("clip");
+        assert!(
+            clip.starts_with("path('") && clip.ends_with("')"),
+            "got {clip}"
+        );
+    }
+
     // Catches: be4aaa pie/star5/decision/actionHome fill as axis-aligned rects (no CSS clip).
     #[test]
     fn be4aaa_presets_have_clip_polygons() {
         for name in ["pie", "star5", "flowchartdecision", "actionbuttonhome"] {
-            assert!(preset_clip_path(name).is_some(), "missing clip for {name}");
+            assert!(
+                evaluator_path_clip(name, 260.0, 160.0).is_some()
+                    || preset_clip_path(name).is_some(),
+                "missing clip for {name}"
+            );
         }
     }
 }

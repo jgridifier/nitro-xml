@@ -6,19 +6,16 @@
 use std::collections::BTreeMap;
 
 use nitro_xml_opc::drawingml::{
-    emu_to_pixels, hex_to_rgb_channels, parse_drawing_color_in, resolve_drawing_color,
-    theme_color_slot_for, DrawingColorTheme, ThemeColorMap,
+    emu_to_pixels, parse_drawing_color_in, resolve_drawing_color, theme_color_slot_for,
+    DrawingColorTheme, ThemeColorMap,
 };
 use nitro_xml_opc::xml::{ns, Element, Node};
 
 use crate::inheritance::{attr, child_local, children_local};
 use crate::table_style::{
-    normalize_table_style_guid, resolve_package_cell_style, TableBandFlags, TableStyleMap,
-    TableTheme,
+    normalize_table_style_guid, resolve_package_cell_style, CellBorders, TableBandFlags,
+    TableStyleMap, TableTheme,
 };
-
-/// PowerPoint's default inserted-table style: Medium Style 2 - Accent 1.
-const MEDIUM_STYLE_2_ACCENT_1: &str = "5C22544A-7EE6-4342-B048-85BDC9FD1C3A";
 
 /// Parsed `a:tbl` for the painter. Skipped in the issue-24 dump.
 #[derive(Debug, Clone)]
@@ -26,6 +23,8 @@ pub(crate) struct TableData {
     /// Column widths as fractions of the grid (sum to 1).
     pub column_widths: Vec<f64>,
     pub rows: Vec<TableRow>,
+    /// Master `p:otherStyle` lvl1 `defRPr/@sz` in points (upstream `defaultCellFontSize`).
+    pub default_cell_font_size_pt: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -39,8 +38,10 @@ pub(crate) struct TableCell {
     pub text: String,
     pub fill: Option<String>,
     pub text_color: Option<String>,
-    /// Full CSS border (`1px solid #FFFFFF`) when the cell or table style sets one.
-    pub border: Option<String>,
+    /// Header / style `tcTxStyle/@b` (Medium Style 2 firstRow is bold).
+    pub font_bold: bool,
+    /// CSS border shorthands per edge (`1px solid #FFFFFF`) from the cell or its table style.
+    pub border: crate::table_style::CellBorders,
     pub grid_span: u32,
     pub row_span: u32,
     pub h_merge: bool,
@@ -56,6 +57,7 @@ pub(crate) fn parse_table_model(
     theme_colors: Option<&BTreeMap<String, String>>,
     color_map: Option<&ThemeColorMap>,
     table_style_map: Option<&TableStyleMap>,
+    default_cell_font_size_pt: Option<f64>,
 ) -> TableData {
     let fallback = crate::theme::default_scheme_color_map();
     let colors = theme_colors.unwrap_or(&fallback);
@@ -68,11 +70,12 @@ pub(crate) fn parse_table_model(
     let tbl_pr = child_local(table, "tblPr", ns::A);
     let style_id = table_style_id(tbl_pr);
     let flags = band_flags(tbl_pr);
-    let package_entry = style_id
-        .as_deref()
-        .and_then(|id| table_style_map.and_then(|m| lookup_table_style(m, id)));
-    let styled_builtin =
-        style_id.as_deref().is_some_and(is_medium_style_2_accent1) && package_entry.is_none();
+    // A deck's own `tableStyles.xml` entry wins; otherwise the built-in gallery catalogue.
+    let package_entry = style_id.as_deref().and_then(|id| {
+        table_style_map
+            .and_then(|m| lookup_table_style(m, id))
+            .or_else(|| crate::table_style_builtins::builtin_table_style(id))
+    });
     let xml_rows = children_local(table, "tr", ns::A);
     let row_count = xml_rows.len();
     let col_count = column_widths.len();
@@ -93,7 +96,6 @@ pub(crate) fn parse_table_model(
                         &theme,
                         CellPlace {
                             package_entry,
-                            styled_builtin,
                             flags: &flags,
                             row_index,
                             col_index,
@@ -108,12 +110,12 @@ pub(crate) fn parse_table_model(
     TableData {
         column_widths,
         rows,
+        default_cell_font_size_pt,
     }
 }
 
 struct CellPlace<'a> {
     package_entry: Option<&'a crate::table_style::TableStyleEntry>,
-    styled_builtin: bool,
     flags: &'a BandFlags,
     row_index: usize,
     col_index: usize,
@@ -139,8 +141,8 @@ fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> Ta
     let explicit = tc_pr
         .and_then(|p| child_local(p, "solidFill", ns::A))
         .and_then(|fill| solid_css(fill, theme));
-    let (style_fill, style_text, style_border) = if no_fill {
-        (None, None, None)
+    let (style_fill, style_text, style_border, style_bold) = if no_fill {
+        (None, None, CellBorders::default(), false)
     } else if let Some(entry) = place.package_entry {
         let band = TableBandFlags {
             first_row: place.flags.first_row,
@@ -153,7 +155,7 @@ fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> Ta
             colors: theme.colors,
             map: theme.map,
         };
-        resolve_package_cell_style(
+        let (fill, text, border) = resolve_package_cell_style(
             entry,
             &band,
             place.row_index,
@@ -161,31 +163,33 @@ fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> Ta
             place.row_count,
             place.col_count,
             &table_theme,
-        )
-    } else if place.styled_builtin {
-        style_layers(
-            theme,
-            place.flags,
+        );
+        let bold = resolve_package_cell_bold(
+            entry,
+            &band,
             place.row_index,
             place.col_index,
             place.row_count,
             place.col_count,
-        )
+        );
+        (fill, text, border, bold)
     } else {
-        (None, None, None)
+        (None, None, CellBorders::default(), false)
     };
     let fill = if no_fill {
         None
     } else {
         explicit.or(style_fill)
     };
-    let border = cell_border_color(tc_pr, theme)
-        .map(|color| format!("1px solid {color}"))
-        .or(style_border);
+    let border = match cell_border_color(tc_pr, theme) {
+        Some(color) => CellBorders::uniform(format!("1px solid {color}")),
+        None => style_border,
+    };
     TableCell {
         text: cell_text(cell),
         fill,
         text_color: style_text,
+        font_bold: style_bold,
         border,
         grid_span: span_attr(attr(cell, "gridSpan")),
         row_span: span_attr(attr(cell, "rowSpan")),
@@ -212,45 +216,66 @@ fn band_flags(tbl_pr: Option<&Element>) -> BandFlags {
     }
 }
 
-/// Medium Style 2 - Accent 1 layers (whole table, then bands, then emphasis).
-fn style_layers(
-    theme: &SchemeMap<'_>,
-    flags: &BandFlags,
+fn resolve_package_cell_bold(
+    entry: &crate::table_style::TableStyleEntry,
+    flags: &TableBandFlags,
     row_index: usize,
     col_index: usize,
     row_count: usize,
     col_count: usize,
-) -> (Option<String>, Option<String>, Option<String>) {
-    let Some(accent) = theme.scheme("accent1") else {
-        return (None, None, None);
-    };
-    let mut fill = tint_srgb(&accent, 0.2);
-    let mut text = theme.scheme("dk1");
-    let border = theme
-        .scheme("lt1")
-        .map(|color| format!("1px solid {color}"));
-    if flags.band_row {
-        let start = usize::from(flags.first_row);
-        let end = if flags.last_row {
-            row_count.saturating_sub(1)
-        } else {
-            row_count
-        };
-        if row_index >= start && row_index < end && (row_index - start).is_multiple_of(2) {
-            fill = tint_srgb(&accent, 0.4).or(fill);
-        }
-    }
+) -> bool {
     let at_top = flags.first_row && row_index == 0;
     let at_bottom = flags.last_row && row_index + 1 == row_count;
     let at_left = flags.first_col && col_index == 0;
     let at_right = flags.last_col && col_index + 1 == col_count;
-    if at_right || at_left || at_bottom || at_top {
-        fill = Some(accent);
+    let mut bold = entry.whole_tbl.text.as_ref().is_some_and(|t| t.bold);
+    let band_start_row = usize::from(flags.first_row);
+    let band_end_row = if flags.last_row {
+        row_count.saturating_sub(1)
+    } else {
+        row_count
+    };
+    if flags.band_row && row_index >= band_start_row && row_index < band_end_row {
+        let band_index = row_index - band_start_row;
+        let part = if band_index.is_multiple_of(2) {
+            &entry.band1_h
+        } else {
+            &entry.band2_h
+        };
+        if let Some(t) = part.text.as_ref() {
+            bold = t.bold;
+        }
+    }
+    let mut apply = |part: &crate::table_style::TableStylePart| {
+        if let Some(t) = part.text.as_ref() {
+            bold = t.bold;
+        }
+    };
+    if at_right {
+        apply(&entry.last_col);
+    }
+    if at_left {
+        apply(&entry.first_col);
+    }
+    if at_bottom {
+        apply(&entry.last_row);
+    }
+    if at_bottom && at_right {
+        apply(&entry.se_cell);
+    }
+    if at_bottom && at_left {
+        apply(&entry.sw_cell);
     }
     if at_top {
-        text = Some("#FFFFFF".to_owned());
+        apply(&entry.first_row);
     }
-    (fill, text, border)
+    if at_top && at_right {
+        apply(&entry.ne_cell);
+    }
+    if at_top && at_left {
+        apply(&entry.nw_cell);
+    }
+    bold
 }
 
 fn column_widths(grid: Option<&Element>) -> Vec<f64> {
@@ -289,11 +314,6 @@ fn table_style_id(tbl_pr: Option<&Element>) -> Option<String> {
     attr(tbl_pr, "tblStyle")
         .filter(|s| !s.is_empty())
         .map(str::to_owned)
-}
-
-fn is_medium_style_2_accent1(id: &str) -> bool {
-    let trimmed = id.trim().trim_matches(|c| c == '{' || c == '}');
-    trimmed.eq_ignore_ascii_case(MEDIUM_STYLE_2_ACCENT_1)
 }
 
 fn cell_text(cell: &Element) -> String {
@@ -365,17 +385,6 @@ fn on_off(value: Option<&str>) -> bool {
         value.map(str::trim).map(|s| s.to_ascii_lowercase()),
         Some(ref v) if v == "1" || v == "true" || v == "on"
     )
-}
-
-/// Table-style tint: sRGB mix toward white (`tint` 20000 → 20% of the colour).
-fn tint_srgb(hex: &str, tint_factor: f64) -> Option<String> {
-    let (r, g, b) = hex_to_rgb_channels(hex)?;
-    let ch = |c: f64| {
-        (255.0 - (255.0 - c) * tint_factor)
-            .round()
-            .clamp(0.0, 255.0) as u8
-    };
-    Some(format!("#{:02X}{:02X}{:02X}", ch(r), ch(g), ch(b)))
 }
 
 struct SchemeMap<'a> {

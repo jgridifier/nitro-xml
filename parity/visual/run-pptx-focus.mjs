@@ -96,6 +96,10 @@ for (const c of cases) {
 		for (const dpr of [1, 2]) {
 			const ts = await shot(browser, server.url, c, 'ts', dpr);
 			const rust = await shot(browser, server.url, c, 'rust', dpr);
+			if (process.env.FOCUS_SAVE) {
+				writeFileSync(join(OUT, `${c.id}-ts-dpr${dpr}.png`), ts);
+				writeFileSync(join(OUT, `${c.id}-rust-dpr${dpr}.png`), rust);
+			}
 			const cmp = comparePngBuffers(ts, rust, {
 				format: 'pptx',
 				threshold: thr,

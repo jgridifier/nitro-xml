@@ -20,6 +20,7 @@ mod presentation;
 mod slide;
 mod table;
 mod table_style;
+mod table_style_builtins;
 mod text;
 mod text_body_rect;
 mod text_layout;

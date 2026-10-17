@@ -134,10 +134,9 @@ const taken = h.takeLayoutReqs();
 this._pendingLayoutReqs = packLayoutReqs(taken[0], taken[1], taken[2]);
 }
 _ensureMeasureCtx() {
-if (this._canvas && this._canvas.getContext) {
-return this._canvas.getContext("2d");
+if (typeof document === "undefined") {
+return this._canvas && this._canvas.getContext ? this._canvas.getContext("2d") : null;
 }
-if (typeof document === "undefined") return null;
 if (!this._measureCtx) {
 const c = document.createElement("canvas");
 c.width = 1;

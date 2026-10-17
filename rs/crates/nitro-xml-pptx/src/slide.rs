@@ -1354,11 +1354,17 @@ fn parse_graphic_frame(frame: &Element, id: String, ctx: &ParseCtx) -> Option<Du
             false,
             PaintExtras::default(),
         )?;
+        let default_cell_font_size_pt = ctx
+            .master_tx_styles
+            .and_then(|tx| level_style_for(&tx.other_style, 0))
+            .and_then(|s| s.font_size_px)
+            .map(|px| px * 72.0 / 96.0);
         el.table_data = Some(parse_table_model(
             table,
             ctx.theme_colors,
             ctx.color_map,
             ctx.table_style_map,
+            default_cell_font_size_pt,
         ));
         return Some(el);
     }
@@ -2522,8 +2528,13 @@ fn shape_paint_extras(
             effective_levels.as_ref(),
             inherited_tx,
         ));
-        let body_pr = child_local(tx, "bodyPr", ns::A)
-            .or_else(|| inherited_tx.and_then(|t| child_local(t, "bodyPr", ns::A)));
+        // Upstream picks `txBody.bodyPr || inheritedTxBody.bodyPr` as a whole: an own
+        // `<a:bodyPr/>` parses to a falsy empty string, so only an attribute-less,
+        // child-less own bodyPr defers to the inherited one (all flags below).
+        let own_body_pr = child_local(tx, "bodyPr", ns::A)
+            .filter(|bp| !bp.attrs.is_empty() || !bp.children.is_empty());
+        let body_pr =
+            own_body_pr.or_else(|| inherited_tx.and_then(|t| child_local(t, "bodyPr", ns::A)));
         let space_first_last = body_pr
             .and_then(|bp| parse_optional_bool_attr(attr(bp, "spcFirstLastPara")))
             == Some(true);
@@ -4299,7 +4310,9 @@ mod tests {
             minor_font: Some(crate::theme::ThemeFonts {
                 latin: Some("Corbel".to_owned()),
                 east_asia: None,
+                east_asia_explicit: None,
                 complex_script: None,
+                scripts: Default::default(),
             }),
         }
     }

@@ -170,6 +170,192 @@ fn value_y(v: f64, r: &Range, top: f64, bottom: f64) -> f64 {
     }
 }
 
+/// Raw cache point text by index (`ptCount` slots, missing points empty).
+fn cache_texts(src: Option<&nitro_xml_opc::chart::ChartDataSource>) -> Vec<String> {
+    let Some(cache) = src.and_then(|s| s.cache.as_ref().or_else(|| s.levels.as_ref()?.first()))
+    else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = Vec::new();
+    for (i, p) in cache.points.iter().enumerate() {
+        let idx = p.index.unwrap_or(i as i64).max(0) as usize;
+        if out.len() <= idx {
+            out.resize(idx + 1, String::new());
+        }
+        out[idx] = p.value.clone();
+    }
+    out
+}
+
+/// Plain-title subset: no authored run/title formatting, layout or overlay.
+fn title_supported(space: &ChartSpace) -> bool {
+    let Some(t) = &space.title else { return true };
+    let plain = |p: &nitro_xml_opc::drawingml::DrawingTextRunProperties| {
+        p.size_pt.is_none()
+            && p.bold.is_none()
+            && p.italic.is_none()
+            && p.color.is_none()
+            && p.typeface.is_none()
+    };
+    let rich_plain = t.tx.as_ref().and_then(|x| x.rich.as_ref()).is_none_or(|r| {
+        r.body.paragraphs.iter().all(|p| {
+            p.default_properties.as_ref().is_none_or(plain)
+                && p.runs.iter().all(|r| {
+                    r.size_pt.is_none()
+                        && r.bold.is_none()
+                        && r.italic.is_none()
+                        && r.color.is_none()
+                        && r.typeface.is_none()
+                })
+        })
+    });
+    rich_plain
+        && t.tx_pr.is_none()
+        && t.sp_pr.is_none()
+        && t.overlay != Some(true)
+        && t.layout
+            .as_ref()
+            .is_none_or(|l| l.manual.x.is_none() && l.manual.y.is_none())
+        && title_text(space).is_some()
+}
+
+fn title_text(space: &ChartSpace) -> Option<String> {
+    let t = space.title.as_ref()?;
+    t.text
+        .clone()
+        .or_else(|| {
+            t.tx.as_ref().and_then(|x| {
+                x.text
+                    .clone()
+                    .or_else(|| x.rich.as_ref().map(|r| r.body.text.clone()))
+            })
+        })
+        .filter(|s| !s.is_empty())
+}
+
+/// `buildRadarViewModel` primitives and labels (flat radar, no data labels).
+fn radar_body(
+    o: &mut String,
+    g: &nitro_xml_opc::chart::ChartPlotGroup,
+    series: &[Series],
+    categories: &[String],
+    l: &Layout,
+    palette: &[String],
+) {
+    let cx = l.left + l.pw() / 2.0;
+    let ph = (l.bottom - l.top).max(1.0);
+    let cy = l.top + ph / 2.0;
+    let radius = (l.pw().min(ph) / 2.0 - 4.0).max(1.0);
+    let cat_count = categories.len().max(1);
+    let max_val = series
+        .iter()
+        .flat_map(|s| s.values.iter().map(|v| v.abs()))
+        .fold(1.0, f64::max);
+    let angle = |i: usize| {
+        std::f64::consts::PI * 2.0 * i as f64 / cat_count as f64 - std::f64::consts::PI / 2.0
+    };
+    let none: Option<String> = None;
+    // Perimeter labels come before the primitives in the DOM projector.
+    for i in 0..cat_count {
+        let a = angle(i);
+        push_text(
+            o,
+            &Text {
+                x: cx + (radius + 10.0) * a.cos(),
+                y: cy + (radius + 10.0) * a.sin(),
+                text: categories.get(i).map(String::as_str).unwrap_or(""),
+                anchor: "middle",
+                size: DEFAULT_TEXT_PX,
+                fill: "#64748b",
+                bold: None,
+                family: &none,
+                baseline: Some("central"),
+            },
+        );
+    }
+    for r in 1..=4 {
+        let rr = radius * r as f64 / 4.0;
+        let pts: Vec<String> = (0..cat_count)
+            .map(|i| {
+                format!(
+                    "{:.2},{:.2}",
+                    cx + rr * angle(i).cos(),
+                    cy + rr * angle(i).sin()
+                )
+            })
+            .collect();
+        let _ = write!(
+            o,
+            "<polygon points=\"{}\" fill=\"none\" stroke=\"#cbd5e1\" stroke-width=\"0.5\" opacity=\"1\"{}></polygon>",
+            pts.join(" "),
+            if r < 4 { " stroke-dasharray=\"3 2\"" } else { "" }
+        );
+    }
+    for i in 0..cat_count {
+        let a = angle(i);
+        let _ = write!(
+            o,
+            "<line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"#94a3b8\" stroke-width=\"0.5\" opacity=\"1\"></line>",
+            n(cx),
+            n(cy),
+            n(cx + radius * a.cos()),
+            n(cy + radius * a.sin())
+        );
+    }
+    let style = g.radar_style.as_deref().unwrap_or("marker");
+    for (si, s) in series.iter().enumerate() {
+        let c = s
+            .color
+            .clone()
+            .unwrap_or_else(|| palette[si % palette.len()].clone());
+        let pts: Vec<(f64, f64)> = s
+            .values
+            .iter()
+            .take(cat_count)
+            .enumerate()
+            .map(|(i, v)| {
+                let r = v.abs() / max_val * radius;
+                (cx + r * angle(i).cos(), cy + r * angle(i).sin())
+            })
+            .collect();
+        if pts.is_empty() {
+            continue;
+        }
+        let ps: Vec<String> = pts
+            .iter()
+            .map(|p| format!("{:.2},{:.2}", p.0, p.1))
+            .collect();
+        let (fill, opacity) = match style {
+            "standard" => ("none".to_string(), 1.0),
+            "filled" => (c.clone(), 0.6),
+            _ => (c.clone(), 0.2),
+        };
+        let _ = write!(
+            o,
+            "<polygon points=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.5\" opacity=\"{}\" data-chart-part=\"series\" data-chart-series=\"{si}\">{}</polygon>",
+            ps.join(" "),
+            fill,
+            c,
+            n(opacity),
+            if s.name.is_empty() { String::new() } else { format!("<title>{}</title>", esc(&s.name)) }
+        );
+        if style == "marker" {
+            for (vi, p) in pts.iter().enumerate() {
+                let cat = categories.get(vi).map(String::as_str).unwrap_or("");
+                let tip = tooltip(&s.name, cat, s.values.get(vi).copied().unwrap_or(0.0));
+                let _ = write!(
+                    o,
+                    "<circle cx=\"{}\" cy=\"{}\" r=\"3\" fill=\"{}\" opacity=\"1\" data-chart-part=\"dataPoint\" data-chart-series=\"{si}\" data-chart-point=\"{vi}\"><title>{}</title></circle>",
+                    n(p.0),
+                    n(p.1),
+                    c,
+                    esc(&tip)
+                );
+            }
+        }
+    }
+}
+
 /// `withAxisBounds` (chart-axis-range.ts), linear axes only.
 fn with_axis_bounds(auto: Range, axis: &ChartAxis) -> Range {
     let valid = |v: Option<f64>| v.filter(|x| x.is_finite());
@@ -317,15 +503,19 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
             .is_some_and(|l| l.manual.x.is_some() || l.manual.width.is_some())
         || pa.data_table.is_some()
         || pa.sp_pr.is_some()
-        || space.sp_pr.is_some()
-        || space.title.is_some()
+        || space
+            .sp_pr
+            .as_ref()
+            .is_some_and(|p| p.fill.is_some() || p.effects_xml.is_some())
+        || !title_supported(space)
         || space.rounded_corners == Some(true)
     {
         return None;
     }
     let g = &pa.groups[0];
     let horizontal = g.bar_direction.as_deref() == Some("bar");
-    if g.kind != ChartGroupKind::Bar
+    let is_radar = g.kind == ChartGroupKind::Radar;
+    if !(is_radar || g.kind == ChartGroupKind::Bar)
         || g.is3_d
         || !matches!(g.grouping.as_deref(), None | Some("clustered"))
         || g.vary_colors == Some(true)
@@ -341,39 +531,41 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
     let cat_ax: &ChartAxis = pa.axes.iter().find(|a| a.kind == "cat")?;
     let val_ax: &ChartAxis = pa.axes.iter().find(|a| a.kind == "val")?;
     if pa.axes.len() != 2
-        || cat_ax.deleted == Some(true)
-        || val_ax.deleted == Some(true)
-        || val_ax.position.as_deref() == Some("r")
-        || cat_ax.scaling.orientation.as_deref() == Some("maxMin")
-        || val_ax.scaling.log_base.is_some()
-        || val_ax.display_units.is_some()
-        || val_ax
-            .number_format
-            .as_ref()
-            .is_some_and(|f| !f.format_code.eq_ignore_ascii_case("general"))
-        || val_ax
-            .minor_tick_mark
-            .as_deref()
-            .is_some_and(|m| m != "none")
-        || cat_ax
-            .minor_tick_mark
-            .as_deref()
-            .is_some_and(|m| m != "none")
-        || [cat_ax, val_ax].iter().any(|a| {
-            a.sp_pr.is_some()
-                || a.major_gridlines_sp_pr.is_some()
-                || a.title.is_some()
-                || a.crosses_at.is_some()
-                || a.tick_label_skip.is_some()
-                || a.tick_mark_skip.is_some()
-                || matches!(a.tick_label_position.as_deref(), Some("high") | Some("low"))
-                || matches!(a.crosses.as_deref(), Some("max") | Some("min"))
-        })
-        || val_ax.major_unit.is_some()
-        || val_ax.minor_unit.is_some()
-        || val_ax.tick_label_position.as_deref() == Some("none")
-        || cat_ax.tick_label_position.as_deref() == Some("none")
-        || cat_ax.label_align.as_deref().is_some_and(|a| a != "ctr")
+        || (!is_radar
+            && (false
+                || cat_ax.deleted == Some(true)
+                || val_ax.deleted == Some(true)
+                || val_ax.position.as_deref() == Some("r")
+                || cat_ax.scaling.orientation.as_deref() == Some("maxMin")
+                || val_ax.scaling.log_base.is_some()
+                || val_ax.display_units.is_some()
+                || val_ax
+                    .number_format
+                    .as_ref()
+                    .is_some_and(|f| !f.format_code.eq_ignore_ascii_case("general"))
+                || val_ax
+                    .minor_tick_mark
+                    .as_deref()
+                    .is_some_and(|m| m != "none")
+                || cat_ax
+                    .minor_tick_mark
+                    .as_deref()
+                    .is_some_and(|m| m != "none")
+                || [cat_ax, val_ax].iter().any(|a| {
+                    a.sp_pr.is_some()
+                        || a.major_gridlines_sp_pr.is_some()
+                        || a.title.is_some()
+                        || a.crosses_at.is_some()
+                        || a.tick_label_skip.is_some()
+                        || a.tick_mark_skip.is_some()
+                        || matches!(a.tick_label_position.as_deref(), Some("high") | Some("low"))
+                        || matches!(a.crosses.as_deref(), Some("max") | Some("min"))
+                })
+                || val_ax.major_unit.is_some()
+                || val_ax.minor_unit.is_some()
+                || val_ax.tick_label_position.as_deref() == Some("none")
+                || cat_ax.tick_label_position.as_deref() == Some("none")
+                || cat_ax.label_align.as_deref().is_some_and(|a| a != "ctr")))
     {
         return None;
     }
@@ -407,15 +599,9 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
         let vals = nitro_xml_opc::chart::chart_source_values(s.values.as_ref());
         let values: Vec<f64> = vals.iter().map(|v| v.as_f64().unwrap_or(0.0)).collect();
         let cats = nitro_xml_opc::chart::chart_source_values(s.categories.as_ref());
+        let _ = cats;
         if categories.is_empty() {
-            categories = cats
-                .iter()
-                .map(|v| match v {
-                    serde_json::Value::String(t) => t.clone(),
-                    serde_json::Value::Number(x) => x.to_string(),
-                    _ => String::new(),
-                })
-                .collect();
+            categories = cache_texts(s.categories.as_ref());
         }
         let name =
             s.tx.as_ref()
@@ -476,14 +662,29 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
     let mut l = Layout {
         w: wf,
         h: hf,
-        left: 8.0 + (if horizontal { widest_label + 4.0 } else { 0.0 }).max(40.0),
+        left: if is_radar {
+            8.0
+        } else {
+            8.0 + (if horizontal { widest_label + 4.0 } else { 0.0 }).max(40.0)
+        },
         top: 8.0,
         right: wf - 8.0,
-        bottom: hf - (24f64).max(offset + cat_px * 1.2),
+        bottom: if is_radar {
+            hf - 8.0
+        } else {
+            hf - (24f64).max(offset + cat_px * 1.2)
+        },
     };
     if cat_top {
         l.bottom = hf - 8.0;
         l.top += (24f64).max(offset + cat_px * 1.2);
+    }
+    // Title band (chartTitleBand at the 12px default title size).
+    const TITLE_PX: f64 = 12.0;
+    let title_baseline = 10.8 * PX_PER_PT + TITLE_PX * 0.95;
+    let title = title_text(space);
+    if space.title.is_some() {
+        l.top += title_baseline + TITLE_PX * 0.25 + 3.6 * PX_PER_PT;
     }
     let legend = space.legend.as_ref();
     let legend_pos = legend
@@ -546,7 +747,28 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
         n(l.w), n(l.h)
     );
 
-    if !horizontal {
+    if let Some(t) = &title {
+        let fam = family_css(&chart_style.family);
+        let _ = write!(
+            o,
+            "<text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-size=\"{}\" font-weight=\"600\"",
+            n(l.w / 2.0),
+            n(title_baseline),
+            n(TITLE_PX)
+        );
+        if let Some(f) = &fam {
+            let _ = write!(o, " font-family=\"{}\"", esc(f));
+        }
+        let _ = write!(
+            o,
+            " fill=\"#1e293b\" data-chart-part=\"title\">{}</text>",
+            esc(t)
+        );
+    }
+
+    if is_radar {
+        radar_body(&mut o, g, &series, &categories, &l, &palette);
+    } else if !horizontal {
         // Value axis (buildPrimaryAxis / buildGridlinesAndLabels)
         let show_grid = val_ax.major_gridlines;
         let ticks: Vec<f64> = match range.unit {

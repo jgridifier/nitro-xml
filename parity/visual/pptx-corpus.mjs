@@ -48,6 +48,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'real-pptx-poi-keyframes',
 	'real-pptx-poi-bug64693',
 	'real-pptx-python-pptx-act-props',
+	'real-pptx-python-pptx-ph-populated-placeholders',
 	'real-pptx-python-pptx-cht-axis-props',
 	'real-pptx-python-pptx-cht-category-access',
 	'real-pptx-python-pptx-cht-chart-props',

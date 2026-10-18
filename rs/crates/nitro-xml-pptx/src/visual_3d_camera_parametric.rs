@@ -23,10 +23,7 @@
 ///    closed-form solver used in the homography table.
 ///
 /// COM validation (27-point lat x lon x rev grid, 2026-09) found the exact closed form:
-/// ```
-/// x = X * cos(lon)
-/// y = Y * cos(lat) - X * sin(lat) * sin(lon)
-/// ```
+/// `x = X * cos(lon)`, `y = Y * cos(lat) - X * sin(lat) * sin(lon)`.
 /// Across all 27 grid cells: average max-corner error 0.61%, median well under 1%,
 /// worst at 2.10% (all `rev=25deg` angles, noise from antialiasing, not systematic).
 use super::visual_3d_camera_homography_math::{

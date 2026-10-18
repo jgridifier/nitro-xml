@@ -10,7 +10,7 @@ mod oracle_svg;
 
 use std::collections::HashMap;
 
-use nitro_xml_opc::chart::ChartSpace;
+use nitro_xml_opc::chart::{ChartSpace, ChartUserShape};
 
 use crate::command_buffer::StringTable;
 use crate::measure::MeasureBatch;
@@ -22,7 +22,10 @@ pub use render::chart_axis_nice::{
 };
 pub use render::chart_blip_rel_ids;
 pub use render::theme_palette::{DEFAULT_THEME_COLORS, THEME_SLOTS};
-pub use render::{chart_space_kind, ChartSvgMeasureOptions, ChartThemeFonts, DRAWN_CHART_TYPES};
+pub use render::{
+    build_chart_user_shape_overlay_svg, chart_space_kind, ChartSvgMeasureOptions, ChartThemeFonts,
+    DRAWN_CHART_TYPES,
+};
 
 pub struct ChartSvgOptions {
     /// Prior-frame `measureText` widths consumed in document order by the painter.
@@ -50,6 +53,8 @@ pub struct ChartSvgOptions {
     pub legend_font_size_pt: Option<f64>,
     /// Override title size in points from the chart style part.
     pub title_font_size_pt: Option<f64>,
+    /// Parsed `c:userShapes` overlay (pptx); painted above the plot area.
+    pub user_shapes: Option<Vec<ChartUserShape>>,
 }
 
 impl Default for ChartSvgOptions {
@@ -71,6 +76,7 @@ impl Default for ChartSvgOptions {
             axis_font_size_pt: None,
             legend_font_size_pt: None,
             title_font_size_pt: None,
+            user_shapes: None,
         }
     }
 }
@@ -102,6 +108,7 @@ pub fn render_chart_space_svg(space: &ChartSpace, options: &RenderChartSpaceOpti
             axis_font_size_pt: options.svg.axis_font_size_pt,
             legend_font_size_pt: options.svg.legend_font_size_pt,
             title_font_size_pt: options.svg.title_font_size_pt,
+            user_shapes: options.svg.user_shapes.clone(),
         },
     )
 }
@@ -156,6 +163,7 @@ pub fn render_chart_space_svg_probing(
             axis_font_size_pt: options.svg.axis_font_size_pt,
             legend_font_size_pt: options.svg.legend_font_size_pt,
             title_font_size_pt: options.svg.title_font_size_pt,
+            user_shapes: options.svg.user_shapes.clone(),
         },
     )
 }
@@ -196,6 +204,7 @@ pub fn paint_chart_space(
                 axis_font_size_pt: options.svg.axis_font_size_pt,
                 legend_font_size_pt: options.svg.legend_font_size_pt,
                 title_font_size_pt: options.svg.title_font_size_pt,
+                user_shapes: options.svg.user_shapes.clone(),
             },
         },
     );

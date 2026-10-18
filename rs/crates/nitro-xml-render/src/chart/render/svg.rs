@@ -5,6 +5,7 @@ use super::chart_auto_title::resolve_p9_chart_title_text;
 use super::chart_plot_layout::{
     chart_title_baseline_y, chart_title_reserve_px, compute_plot_layout, DEFAULT_CHART_TEXT_PX,
 };
+use super::chart_user_shape_overlay::build_chart_user_shape_overlay_svg;
 use super::chart_view::ChartViewModel;
 use super::summary::ChartSummaryType;
 use super::svg_appearance::{chart_area_rect, chart_gradient_paint, chart_text_attributes};
@@ -16,6 +17,7 @@ use super::svg_text_metrics::{
 };
 use super::svg_title_text::chart_rich_title_svg;
 use super::svg_util::{esc, n, text, Rect, TextAttrs};
+use nitro_xml_opc::chart::ChartUserShape;
 
 /// Upstream `DEFAULT_TITLE_TEXT_PX` / `DEFAULT_TITLE_FILL` for auto titles
 /// (`chart-title-style.ts`) — not built-in style 102's 18pt.
@@ -38,6 +40,7 @@ pub fn render_chart_svg(
     width: u32,
     height: u32,
     measure: &mut ChartSvgMeasureOptions<'_>,
+    user_shapes: Option<&[ChartUserShape]>,
 ) -> String {
     let p9_bar3d = model.is3_d
         && model.bar3d_extrusion
@@ -209,6 +212,13 @@ pub fn render_chart_svg(
             _ => cartesian_svg(&model, area, &mut picture_defs, plot_layout),
         };
         out.push(body);
+        if let Some(shapes) = user_shapes {
+            out.push(build_chart_user_shape_overlay_svg(
+                Some(shapes),
+                width,
+                height,
+            ));
+        }
     }
     if legend.foreground {
         out.push(legend_markup);

@@ -451,6 +451,7 @@ mod tests {
             chart_part_path: None,
             chart_image_urls: None,
             chart_minor_font: None,
+            chart_user_shapes: None,
             smartart_dm_r_id: None,
             smartart_lo_r_id: None,
             smartart_qs_r_id: None,

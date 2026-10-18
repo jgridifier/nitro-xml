@@ -494,7 +494,13 @@ fn cat_tick(placement: Option<&str>, len: f64, top: bool) -> Option<(f64, f64)> 
 }
 
 /// Render the chart, or `None` when it uses a feature this port does not cover yet.
-pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<String> {
+pub fn render(
+    space: &ChartSpace,
+    w: u32,
+    h: u32,
+    theme: &VmTheme,
+    user_shapes: Option<&[nitro_xml_opc::chart::ChartUserShape]>,
+) -> Option<String> {
     let pa = &space.plot_area;
     if pa.groups.len() != 1
         || pa
@@ -1073,6 +1079,11 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
             );
             o.push_str("</g>");
         }
+    }
+    if let Some(shapes) = user_shapes {
+        o.push_str(
+            &nitro_xml_render::chart::build_chart_user_shape_overlay_svg(Some(shapes), w, h),
+        );
     }
     o.push_str("</svg>");
     let _ = THEME_SLOTS;

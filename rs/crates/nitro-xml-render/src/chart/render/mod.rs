@@ -15,6 +15,7 @@ mod chart_plot_layout;
 mod chart_scale;
 mod chart_spacing;
 mod chart_title_text;
+mod chart_user_shape_overlay;
 mod chart_value_axis;
 mod chart_view;
 mod color_palettes;
@@ -47,6 +48,7 @@ pub mod theme_palette;
 mod wrap_styled_runs;
 
 pub use chart_picture_fill::chart_blip_rel_ids;
+pub use chart_user_shape_overlay::build_chart_user_shape_overlay_svg;
 pub use render_space::{
     chart_space_kind, render_chart_space_svg, ChartThemeFonts, RenderChartSpaceOptions,
     DRAWN_CHART_TYPES,

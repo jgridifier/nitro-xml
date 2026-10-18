@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use nitro_xml_opc::chart::ChartSpace;
+use nitro_xml_opc::chart::{ChartSpace, ChartUserShape};
 
 use super::built_in_text_style::{
     effective_built_in_chart_style, effective_built_in_chart_style_from_space,
@@ -64,6 +64,7 @@ pub struct RenderChartSpaceOptions<'a> {
     pub axis_font_size_pt: Option<f64>,
     pub legend_font_size_pt: Option<f64>,
     pub title_font_size_pt: Option<f64>,
+    pub user_shapes: Option<Vec<ChartUserShape>>,
 }
 
 pub fn chart_space_kind(space: &ChartSpace) -> (Option<ChartSummaryType>, bool) {
@@ -184,5 +185,11 @@ pub fn render_chart_space_svg(
                 chart_title_text(&summary, title, title_appearance.as_ref(), &resolve);
         }
     }
-    render_chart_svg(&view, options.width, options.height, &mut options.measure)
+    render_chart_svg(
+        &view,
+        options.width,
+        options.height,
+        &mut options.measure,
+        options.user_shapes.as_deref(),
+    )
 }

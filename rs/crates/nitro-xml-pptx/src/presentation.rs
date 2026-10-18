@@ -25,7 +25,9 @@ use crate::slide::{
 };
 use crate::table_style::{parse_table_style_list, TableStyleMap};
 use crate::theme::{default_scheme_color_map, is_presentation_theme_path, parse_theme_part, Theme};
-use nitro_xml_opc::chart::parse_chart_space_xml;
+use nitro_xml_opc::chart::{
+    is_chart_user_shapes_rel, parse_chart_space_xml, parse_chart_user_shapes_drawing_xml,
+};
 use nitro_xml_opc::drawingml::{parse_theme_color_map, ThemeColorMap, ThemeFormatScheme};
 use nitro_xml_render::chart::chart_blip_rel_ids;
 
@@ -969,6 +971,43 @@ impl<'a> Presentation<'a> {
         None
     }
 
+    fn attach_chart_user_shapes(&mut self, el: &mut DumpElement) {
+        if el.chart_user_shapes.is_some() {
+            return;
+        }
+        let part = match el.chart_part_path.as_deref() {
+            Some(p) => p.to_owned(),
+            None => return,
+        };
+        let chart_xml = match el.chart_xml.as_deref() {
+            Some(x) => x.to_owned(),
+            None => return,
+        };
+        let rel_id = parse_chart_space_xml(&chart_xml)
+            .chart_space
+            .user_shapes_rel_id
+            .clone();
+        let scheme: HashMap<String, String> = self.theme_colors_owned().into_iter().collect();
+        let rel = {
+            let rels = match self.package.rels(&part) {
+                Ok(r) => r,
+                Err(_) => return,
+            };
+            rel_id
+                .filter(|id| !id.is_empty())
+                .and_then(|id| rels.get(&id))
+                .or_else(|| rels.values().find(|r| is_chart_user_shapes_rel(&r.type_)))
+                .cloned()
+        };
+        let drawing_path = rel.and_then(|r| self.package.target(&part, &r));
+        let drawing_xml = drawing_path.and_then(|p| self.package.text(&p).ok().flatten());
+        let drawing_xml = match drawing_xml {
+            Some(x) => x,
+            None => return,
+        };
+        el.chart_user_shapes = parse_chart_user_shapes_drawing_xml(drawing_xml, Some(&scheme));
+    }
+
     fn attach_chart_image_urls(&mut self, el: &mut DumpElement) {
         if el.chart_image_urls.is_some() {
             return;
@@ -1012,6 +1051,7 @@ impl<'a> Presentation<'a> {
                     .and_then(|m| m.latin.clone())
                     .filter(|f| !f.is_empty());
                 self.attach_chart_image_urls(el);
+                self.attach_chart_user_shapes(el);
             }
             if el.smartart_drawing_xml.is_none() || el.smartart_data_xml.is_none() {
                 if let Some(dm) = el.smartart_dm_r_id.clone() {
@@ -2158,5 +2198,74 @@ mod tests {
 
     fn is_lt1_yellow(paint: &str) -> bool {
         paint.contains("FFFF00") || paint.contains("255, 255, 0")
+    }
+
+    // Catches: chart userShapes drawing part not attached during slide load so overlay never paints.
+    #[test]
+    fn chart_user_shapes_loaded_from_fixture() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/a0806b09c73d_chart-user-shape-group.pptx"
+        );
+        let bytes = std::fs::read(path).expect("fixture");
+        let mut pres = Presentation::open(&bytes).expect("open");
+        pres.ensure_all_slides().expect("slides");
+        let slide = pres.slide(0).expect("slide0");
+        let chart = slide
+            .elements
+            .iter()
+            .find(|e| e.type_ == "chart")
+            .expect("chart element");
+        let shapes = chart
+            .chart_user_shapes
+            .as_ref()
+            .expect("chart_user_shapes attached");
+        assert!(!shapes.is_empty(), "expected overlay shapes");
+        assert!(
+            shapes.iter().any(|s| s.kind == "grpSp"),
+            "fixture grouped anchor"
+        );
+    }
+
+    // Catches: chart user-shape overlay SVG not injected before setInnerMarkup so labels never reach the DOM.
+    #[test]
+    fn chart_user_shapes_paint_into_svg() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/a0806b09c73d_chart-user-shape-group.pptx"
+        );
+        let bytes = std::fs::read(path).expect("fixture");
+        let mut pres = Presentation::open(&bytes).expect("open");
+        let mut commands = CommandBuffer::new();
+        let mut intern = Rec(Vec::new());
+        let mut measures = MeasureBatch::new();
+        let mut outlines = OutlineBatch::new();
+        let mut layout_reads = LayoutReadBatch::new();
+        let mut autofit = crate::render::SpAutofitPaintState::default();
+        let viewport = SlidePaintViewport {
+            slide_index: 0,
+            scale: 1.0,
+            viewport_w: 1280,
+            viewport_h: 720,
+            selected_ids: Vec::new(),
+        };
+        paint_slide_frame(
+            &mut commands,
+            &mut intern,
+            &mut measures,
+            &mut outlines,
+            &mut layout_reads,
+            &mut pres,
+            &mut autofit,
+            &viewport,
+        )
+        .expect("paint");
+        let joined = intern.0.join("");
+        let alpha_idx = joined.find("Alpha").expect("overlay label Alpha");
+        let snippet = &joined[alpha_idx.saturating_sub(200)..(alpha_idx + 200).min(joined.len())];
+        assert!(
+            joined.contains("polygon") || joined.contains("<rect"),
+            "overlay shape geometry near Alpha: {snippet}"
+        );
     }
 }

@@ -12,8 +12,13 @@ mod parse_series;
 mod parse_space;
 mod parse_text;
 mod parse_util;
+mod user_shapes;
 mod xml_serialize;
 
 pub use data_cache::{chart_cache_values, chart_source_values};
 pub use model::*;
 pub use parse_space::{parse_chart_space_element, parse_chart_space_xml};
+pub use user_shapes::{
+    flatten_chart_user_shapes, is_chart_user_shapes_rel, parse_chart_user_shapes_drawing_xml,
+    ChartUserShape, ChartUserShapeParagraph, ChartUserShapesChartBox, FlattenedChartUserShape,
+};

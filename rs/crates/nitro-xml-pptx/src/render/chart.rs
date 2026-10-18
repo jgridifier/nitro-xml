@@ -47,9 +47,11 @@ pub fn paint_pptx_chart_xml(
     theme_colors: Option<Vec<String>>,
     minor_font: Option<String>,
     scheme: &BTreeMap<String, String>,
+    user_shapes: Option<&[nitro_xml_opc::chart::ChartUserShape]>,
     mut intern: impl FnMut(&str) -> u32,
 ) -> ChartSpace {
     let parsed = parse_chart_space_xml(xml);
+    let user_shapes_owned = user_shapes.map(|s| s.to_vec());
     let svg = if parsed
         .issues
         .iter()
@@ -66,6 +68,7 @@ pub fn paint_pptx_chart_xml(
             scheme: scheme.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
             minor_latin: minor_font,
         },
+        user_shapes,
     ) {
         svg
     } else {
@@ -81,6 +84,7 @@ pub fn paint_pptx_chart_xml(
                     theme_colors,
                     bar3d_extrusion: true,
                     picture_fills: true,
+                    user_shapes: user_shapes_owned,
                     ..Default::default()
                 },
             },
@@ -118,6 +122,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             theme_colors,
             el.chart_minor_font.clone(),
             ctx.scheme,
+            el.chart_user_shapes.as_deref(),
             |s| intern.intern(s),
         );
     } else {

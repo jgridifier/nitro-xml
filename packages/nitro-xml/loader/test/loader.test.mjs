@@ -14,6 +14,9 @@ import {
   isSupportedExtension,
   ACCEPT,
   SUPPORTED_EXTENSIONS,
+  PACKAGE_TOO_LARGE_MESSAGE,
+  PACKAGE_LIMIT_CODES,
+  viewerOpenErrorMessage,
 } from "../formats.js";
 
 /** Test-only encoders (mirrors Rust CommandBuffer writers; not shipped). */
@@ -54,6 +57,16 @@ describe("formats allow-list", () => {
     assert.equal(isSupportedExtension("tpl.dotm"), true);
     for (const ext of SUPPORTED_EXTENSIONS) {
       assert.ok(ACCEPT.includes(`.${ext}`), `ACCEPT missing .${ext}`);
+    }
+  });
+
+  it("maps package size-limit codes to PACKAGE_TOO_LARGE_MESSAGE", () => {
+    // Catches: viewer showing raw ZipError text for total_too_large / compression_ratio (#30).
+    for (const code of PACKAGE_LIMIT_CODES) {
+      assert.equal(
+        viewerOpenErrorMessage({ code, message: "detail" }),
+        PACKAGE_TOO_LARGE_MESSAGE,
+      );
     }
   });
 });

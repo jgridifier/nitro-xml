@@ -96,6 +96,40 @@ impl OoxmlError {
     }
 }
 
+/// Map package-open `Display` text (from `OpcError` / `ZipError` via `to_string()`) to a stable
+/// machine code. Size-limit kinds stay distinct so the loader can show a graceful memory message
+/// instead of a generic `open_failed` / crash.
+pub(crate) fn classify_open_error(message: &str) -> &'static str {
+    let m = message.to_ascii_lowercase();
+    if m.contains("uncompressed content limit") {
+        "total_too_large"
+    } else if m.contains("compressed input limit") {
+        "input_too_large"
+    } else if m.contains("part limit") {
+        "too_many_parts"
+    } else if m.contains("uncompressed part size limit") {
+        "part_too_large"
+    } else if m.contains("compression-ratio limit") || m.contains("zip-bomb") {
+        "compression_ratio"
+    } else if m.contains("does not inflate to its declared size") {
+        "size_mismatch"
+    } else if m.starts_with("unsupported format") {
+        "unsupported_format"
+    } else if m.starts_with("missing package part") {
+        "missing_part"
+    } else if m.starts_with("not a valid zip") {
+        "invalid_archive"
+    } else {
+        "open_failed"
+    }
+}
+
+fn js_open_err(message: impl Into<String>) -> JsValue {
+    let message = message.into();
+    let code = classify_open_error(&message);
+    JsValue::from(OoxmlError::with_code(code, message))
+}
+
 /// Non-fatal diagnostic. Same shape as [`OoxmlError`]; collected on the handle.
 #[wasm_bindgen]
 #[derive(Clone, Debug)]
@@ -251,8 +285,7 @@ impl Handle {
     pub fn open_document(&mut self, name: &str) -> Result<(), JsValue> {
         if is_xlsx_extension(name) {
             let t0 = now_ms();
-            let (mut state, warnings) = XlsxState::open(&self.bytes)
-                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            let (mut state, warnings) = XlsxState::open(&self.bytes).map_err(js_open_err)?;
             self.shell = ShellState::default();
             self.shell.format = FormatKind::Xlsx;
             self.shell.diagnostics.clear_runtime();
@@ -295,8 +328,7 @@ impl Handle {
         }
         if is_pptx_extension(name) {
             let t0 = now_ms();
-            let mut state = PptxState::open(&self.bytes)
-                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            let mut state = PptxState::open(&self.bytes).map_err(js_open_err)?;
             self.shell = ShellState::default();
             self.shell.format = FormatKind::Pptx;
             self.shell.diagnostics.clear_runtime();
@@ -335,8 +367,7 @@ impl Handle {
         }
         if is_docx_extension(name) {
             let t0 = now_ms();
-            let state = DocxState::open(&self.bytes)
-                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            let state = DocxState::open(&self.bytes).map_err(js_open_err)?;
             self.shell = ShellState::default();
             self.shell.format = FormatKind::Docx;
             self.shell.diagnostics.clear_runtime();

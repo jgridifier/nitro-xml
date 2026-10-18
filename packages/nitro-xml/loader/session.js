@@ -26,7 +26,9 @@ applyFontSourceToHandle(handle, opts.fontSource);
 if (opts.name) {
 try {
 handle.openDocument(opts.name);
-} catch {
+} catch (e) {
+try { handle.free(); } catch {}
+throw e;
 }
 }
 return new DocumentSession(handle, {

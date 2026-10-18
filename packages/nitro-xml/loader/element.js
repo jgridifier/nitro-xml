@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-/** Shared viewer host + `<nitro-xml>` (#19/#29). Docx/pptx extend this. */
 import {
   UNSUPPORTED_BROWSER_MESSAGE as UB,
   UNSUPPORTED_FORMAT_MESSAGE as UF,
+  viewerOpenErrorMessage as openMsg,
   isSupportedExtension as ok,
   ACCEPT,
 } from "./formats.js";
@@ -67,14 +67,14 @@ export class ViewerElement extends HTMLElement {
     this._clr();
     this._surf();
     this._d && this._d.dispose();
-    // Assign _d after open (#27).
     const ro = this._readonly !== false;
     const d = new WD({ canvas: this._c, root: this._r, name: n });
     d.onChrome = (h) => {
       if (this._ch && h) this._ch.innerHTML = h;
     };
     if (!ro) await loadEditorModule();
-    await d.open(b, n, { readonly: ro });
+    try { await d.open(b, n, { readonly: ro }); }
+    catch (e) { this._fail(e); throw e; }
     this._d = d;
     await this._ao();
     this._tick();
@@ -257,17 +257,10 @@ export class ViewerElement extends HTMLElement {
     }
   }
   _showViewerError(e) {
-    this._show(
-      e && e.code == "unsupported_browser"
-        ? UB
-        : e && e.code == "unsupported_format"
-          ? UF
-          : (e && e.message) || String(e),
-    );
+    this._show(openMsg(e));
   }
 }
 
-/** Shared Stage-6 shell chrome binder for xlsx/pptx (#29). Apply `h` + forward only. */
 export class ShellViewerElement extends ViewerElement {
   constructor() {
     super();
@@ -378,7 +371,6 @@ export class ShellViewerElement extends ViewerElement {
     this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: !0 }));
     return this._downloadBytes(bytes, name);
   }
-  /** Apply Rust chrome + side effects. Short keys: `h` html, `c` copy, `p` hyperlink. */
   async shellAction(op, arg = "") {
     if (!this._d) return null;
     const r = await this._d.shellAction(op, arg);

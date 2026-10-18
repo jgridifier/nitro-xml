@@ -33,3 +33,13 @@ export function extensionOf(nameOrExt) {
 export function isSupportedExtension(nameOrExt) {
   return SUPPORTED_EXTENSIONS.includes(extensionOf(nameOrExt));
 }
+
+export const PACKAGE_TOO_LARGE_MESSAGE = "Package too large.";
+export const PACKAGE_LIMIT_CODES = "total_too_large,input_too_large,part_too_large,too_many_parts,compression_ratio".split(",");
+export function viewerOpenErrorMessage(err) {
+  const c = err && err.code;
+  if (c === "unsupported_browser") return UNSUPPORTED_BROWSER_MESSAGE;
+  if (c === "unsupported_format") return UNSUPPORTED_FORMAT_MESSAGE;
+  if (c && PACKAGE_LIMIT_CODES.includes(c)) return PACKAGE_TOO_LARGE_MESSAGE;
+  return (err && err.message) || String(err);
+}

@@ -188,15 +188,16 @@ impl OutlineBatch {
     }
 
     /// Store results from the loader. Each result is either `null` (no outline) or a [`GlyphContours`].
-    pub fn set_results(
-        &mut self,
-        results: Vec<Option<GlyphContours>>,
-    ) -> Result<(), String> {
+    pub fn set_results(&mut self, results: Vec<Option<GlyphContours>>) -> Result<(), String> {
         if self.awaiting == 0 {
             return Ok(());
         }
         if results.len() != self.awaiting {
-            return Err(format!("expected {} outlines, got {}", self.awaiting, results.len()));
+            return Err(format!(
+                "expected {} outlines, got {}",
+                self.awaiting,
+                results.len()
+            ));
         }
         for ((&font_id, &char_id), result) in self
             .inflight_font
@@ -216,11 +217,7 @@ impl OutlineBatch {
     }
 
     /// Get cached contours for a (font_id, char_id) pair, if available.
-    pub fn cached_contours(
-        &self,
-        font_id: u32,
-        char_id: u32,
-    ) -> Option<GlyphContours> {
+    pub fn cached_contours(&self, font_id: u32, char_id: u32) -> Option<GlyphContours> {
         self.cache.get(&(font_id, char_id)).cloned()
     }
 }

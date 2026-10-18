@@ -6,8 +6,17 @@ export function fillMeasureWidths(ctx, n, fontAt, sizeAt, textAt) {
   for (let i = 0; i < n; i++) {
     const f = fontAt(i) || "sans-serif",
       sz = sizeAt(i),
-      text = textAt(i) || "";
+      raw = textAt(i) || "",
+      env = raw.startsWith("envw:"),
+      text = env ? raw.slice(5) : raw;
     ctx.font = /\d+(\.\d+)?px/.test(f) ? f : `${sz < 0 ? 12 : sz}px ${f}`;
+    if (env) {
+      // WordArt envelope advances (pptx text.rs `envelope_glyph_advances`): kerned prefix widths.
+      ctx.fontKerning = "normal";
+      widths[i] = ctx.measureText(text).width;
+      ctx.fontKerning = "auto";
+      continue;
+    }
     if (sz === -3) {
       if (!text) {
         widths[i] = 0;

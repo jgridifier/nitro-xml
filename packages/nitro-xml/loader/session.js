@@ -27,10 +27,7 @@ if (opts.name) {
 try {
 handle.openDocument(opts.name);
 } catch (e) {
-try {
-handle.free();
-} catch {
-}
+try { handle.free(); } catch {}
 throw e;
 }
 }

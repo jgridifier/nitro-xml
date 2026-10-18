@@ -7,8 +7,6 @@ import { isSupportedExtension } from "./formats.js";
 import { applyFontSourceToHandle } from "./font-source.js";
 let handle = null;
 let glue = null;
-// Serialize handlers: defineTag prewarm + open can arrive while initCore is
-// still awaiting; overlapping async onmessage races leave handle unset (#42).
 let chain = Promise.resolve();
 self.onmessage = (ev) => {
 const msg = ev.data || {};
@@ -44,10 +42,7 @@ if (msg.name) {
 try {
 handle.openDocument(msg.name);
 } catch (e) {
-try {
-handle.free();
-} catch {
-}
+try { handle.free(); } catch {}
 handle = null;
 throw e;
 }

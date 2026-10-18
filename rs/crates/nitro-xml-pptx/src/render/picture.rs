@@ -151,45 +151,13 @@ fn paint_tile<I: StringIntern>(
     let sx = tile.scale_x.map_or(100.0, |v| v * 100.0);
     let sy = tile.scale_y.map_or(100.0, |v| v * 100.0);
     let native = native_image_size(src);
-    let flip = tile.flip.as_deref().filter(|f| *f != "none");
-    let (image, size) = if let (Some(flip), true) = (flip, src.starts_with("data:")) {
-        let (cols, rows) = (
-            if flip.contains('x') { 2.0 } else { 1.0 },
-            if flip.contains('y') { 2.0 } else { 1.0 },
-        );
-        let (fx, fy) = (cols > 1.0, rows > 1.0);
-        let mut images = String::new();
-        for cy in 0..rows as u32 {
-            for cx in 0..cols as u32 {
-                let (mx, my) = (fx && cx % 2 == 1, fy && cy % 2 == 1);
-                images.push_str(&format!(
-                    "<image href=\"{}\" x=\"0\" y=\"0\" width=\"1\" height=\"1\" preserveAspectRatio=\"none\" transform=\"translate({},{}) scale({},{})\"/>",
-                    src.replace('&', "&amp;").replace('"', "&quot;").replace('<', "&lt;"),
-                    cx + u32::from(mx),
-                    cy + u32::from(my),
-                    if mx { -1 } else { 1 },
-                    if my { -1 } else { 1 }
-                ));
-            }
-        }
-        let svg = format!(
-            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {cols} {rows}\" width=\"{cols}\" height=\"{rows}\">{images}</svg>"
-        );
-        let size = match native {
-            Some((w, h)) => format!("{}px {}px", w * sx * cols / 100.0, h * sy * rows / 100.0),
-            None => format!("{}% {}%", sx * cols, sy * rows),
-        };
-        (
-            format!("url(\"data:image/svg+xml,{}\")", uri_encode(&svg)),
-            size,
-        )
-    } else {
-        let size = match native {
-            Some((w, h)) => format!("{}px {}px", w * sx / 100.0, h * sy / 100.0),
-            None => format!("{sx}% {sy}%"),
-        };
-        (format!("url({src})"), size)
+    // Upstream mirrors a `flip` tile only for `data:` sources; the viewer hands the renderer
+    // `blob:` URLs, so a flipped tile paints as a plain repeat there and the oracle does too.
+    let size = match native {
+        Some((w, h)) => format!("{}px {}px", w * sx / 100.0, h * sy / 100.0),
+        None => format!("{sx}% {sy}%"),
     };
+    let image = format!("url({src})");
     let (ax, ay) = match tile.align.as_deref() {
         Some("t") => (50.0, 0.0),
         Some("tr") => (100.0, 0.0),
@@ -231,19 +199,6 @@ fn paint_tile<I: StringIntern>(
         set_style(ctx, layer, "filter", filter);
     }
     ctx.view_ir.push_painted("image", el, None);
-}
-
-/// `encodeURIComponent`.
-fn uri_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
-            out.push(b as char);
-        } else {
-            out.push_str(&format!("%{b:02X}"));
-        }
-    }
-    out
 }
 
 /// Pixel size of a base64 PNG / GIF / JPEG `data:` URL (what `probeNativeImageSize` reads).

@@ -17,6 +17,8 @@ use nitro_xml_render::chart::THEME_SLOTS;
 
 use super::font_substitution::substitute_font_family_stack;
 
+#[path = "chart_vm_line.rs"]
+mod line;
 #[path = "chart_vm_pie.rs"]
 mod pie;
 
@@ -510,7 +512,7 @@ struct LegendStyle {
 fn push_legend(
     o: &mut String,
     style: &LegendStyle,
-    entries: &[(String, String)],
+    entries: &[(String, String, Option<String>)],
     (lx, ly, vertical): (f64, f64, bool),
 ) {
     let leg = &style.text;
@@ -524,7 +526,7 @@ fn push_legend(
     let fill = leg.color.clone().unwrap_or_else(|| "#475569".into());
     let fam = family_css(&leg.family);
     let cnt = entries.len() as f64;
-    for (i, (color, label)) in entries.iter().enumerate() {
+    for (i, (color, label, swatch)) in entries.iter().enumerate() {
         let (x, y) = if vertical {
             (lx, ly + i as f64 * 14.0)
         } else {
@@ -532,8 +534,17 @@ fn push_legend(
         };
         let _ = write!(
             o,
-            "<g class=\"pptxv-chart-legend-item\" transform=\"translate({x:.1},{y:.1})\"><rect x=\"0\" y=\"-7\" width=\"10\" height=\"10\" rx=\"2\" fill=\"{color}\"></rect>"
+            "<g class=\"pptxv-chart-legend-item\" transform=\"translate({x:.1},{y:.1})\">"
         );
+        match swatch {
+            Some(markup) => o.push_str(markup),
+            None => {
+                let _ = write!(
+                    o,
+                    "<rect x=\"0\" y=\"-7\" width=\"10\" height=\"10\" rx=\"2\" fill=\"{color}\"></rect>"
+                );
+            }
+        }
         push_text(
             o,
             &Text {
@@ -592,9 +603,18 @@ pub fn render(
     let g = &pa.groups[0];
     let horizontal = g.bar_direction.as_deref() == Some("bar");
     let is_radar = g.kind == ChartGroupKind::Radar;
-    if !(is_radar || g.kind == ChartGroupKind::Bar)
+    let is_line = g.kind == ChartGroupKind::Line;
+    let stacked = is_line && g.grouping.as_deref() == Some("stacked");
+    if !(is_radar || is_line || g.kind == ChartGroupKind::Bar)
         || g.is3_d
-        || !matches!(g.grouping.as_deref(), None | Some("clustered"))
+        || !(if is_line {
+            matches!(
+                g.grouping.as_deref(),
+                None | Some("standard") | Some("stacked")
+            )
+        } else {
+            matches!(g.grouping.as_deref(), None | Some("clustered"))
+        })
         || g.vary_colors == Some(true)
         || g.data_labels.as_ref().is_some_and(|d| {
             d.options.show_value == Some(true)
@@ -646,6 +666,16 @@ pub fn render(
     {
         return None;
     }
+    if is_line
+        && (space.style.is_some()
+            || [cat_ax, val_ax].iter().any(|a| {
+                a.major_tick_mark.as_deref().is_some_and(|m| m != "none")
+                    || a.scaling.min.is_some()
+                    || a.scaling.max.is_some()
+            }))
+    {
+        return None;
+    }
     if space.legend.as_ref().is_some_and(|l| {
         !l.entries.is_empty() || l.layout.as_ref().is_some_and(|x| x.manual.x.is_some())
     }) {
@@ -653,13 +683,22 @@ pub fn render(
     }
 
     let mut series = Vec::new();
+    let mut line_series: Vec<line::LineSeries> = Vec::new();
     let mut categories: Vec<String> = Vec::new();
     for (i, s) in g.series.iter().enumerate() {
-        if !s.data_points.is_empty() || s.data_labels.is_some() || s.picture_options.is_some() {
+        let ls = if is_line {
+            Some(line::parse_series(s, i, &theme.scheme)?)
+        } else {
+            None
+        };
+        if !is_line
+            && (!s.data_points.is_empty() || s.data_labels.is_some() || s.picture_options.is_some())
+        {
             return None;
         }
         let mut picture = None;
         let color = match s.sp_pr.as_ref().and_then(|p| p.fill.as_ref()) {
+            _ if ls.is_some() => ls.as_ref().and_then(|l| l.color.clone()),
             None => None,
             Some(DrawingFill::Solid { color }) => Some(
                 resolve_drawing_color(color, Some(&theme.scheme), None)
@@ -673,15 +712,20 @@ pub fn render(
             Some(_) => return None,
         };
         // `a:ln/a:noFill` draws nothing, as an absent line does.
-        if s.sp_pr.as_ref().is_some_and(|p| {
-            p.effects_xml.is_some()
-                || p.line.as_ref().is_some_and(|ln| {
-                    ln.width_emu.is_some() || !matches!(ln.fill, None | Some(DrawingFill::None))
-                })
-        }) {
+        if !is_line
+            && s.sp_pr.as_ref().is_some_and(|p| {
+                p.effects_xml.is_some()
+                    || p.line.as_ref().is_some_and(|ln| {
+                        ln.width_emu.is_some() || !matches!(ln.fill, None | Some(DrawingFill::None))
+                    })
+            })
+        {
             return None;
         }
         let vals = nitro_xml_opc::chart::chart_source_values(s.values.as_ref());
+        if is_line && vals.iter().any(|v| v.as_f64().is_none()) {
+            return None;
+        }
         let values: Vec<f64> = vals.iter().map(|v| v.as_f64().unwrap_or(0.0)).collect();
         let cats = nitro_xml_opc::chart::chart_source_values(s.categories.as_ref());
         let _ = cats;
@@ -706,6 +750,9 @@ pub fn render(
             picture,
             invert: s.invert_if_negative == Some(true),
         });
+        if let Some(l) = ls {
+            line_series.push(l);
+        }
     }
     if series.is_empty() {
         return None;
@@ -817,10 +864,34 @@ pub fn render(
     }
 
     // Value range
-    let all: Vec<f64> = series
-        .iter()
-        .flat_map(|s| s.values.iter().copied())
-        .collect();
+    let line_cat_count = categories.len().max(1);
+    let stacked_cum = stacked.then(|| {
+        let vals: Vec<Vec<f64>> = series.iter().map(|s| s.values.clone()).collect();
+        line::stacked_cumulative(&vals, line_cat_count)
+    });
+    let all: Vec<f64> = if stacked {
+        // computeStackedValueRange: per-category positive / negative totals, anchored at zero.
+        let (mut hi, mut lo) = (0.0f64, 0.0f64);
+        for ci in 0..line_cat_count {
+            let (mut p, mut ng) = (0.0, 0.0);
+            for s in &series {
+                let v = s.values.get(ci).copied().unwrap_or(0.0);
+                if v >= 0.0 {
+                    p += v;
+                } else {
+                    ng += v;
+                }
+            }
+            hi = hi.max(p);
+            lo = lo.min(ng);
+        }
+        vec![lo, hi]
+    } else {
+        series
+            .iter()
+            .flat_map(|s| s.values.iter().copied())
+            .collect()
+    };
     let range = if all.is_empty() {
         Range {
             min: 0.0,
@@ -952,7 +1023,11 @@ pub fn render(
             if c.is_empty() {
                 continue;
             }
-            let x = l.left + group_w * (i as f64 + 0.5);
+            let x = if is_line {
+                l.left + l.pw() * i as f64 / (cat_count.max(2) - 1) as f64
+            } else {
+                l.left + group_w * (i as f64 + 0.5)
+            };
             push_text(
                 &mut o,
                 &Text {
@@ -973,6 +1048,41 @@ pub fn render(
             );
         }
 
+        // Lines (buildLines): each series at its own (or running-sum) heights.
+        if is_line {
+            let esc_fn = |t: &str| esc(t);
+            for (si, (s, ls)) in series.iter().zip(&line_series).enumerate() {
+                let plot_vals = stacked_cum
+                    .as_ref()
+                    .map(|c| c[si].clone())
+                    .unwrap_or_else(|| s.values.clone());
+                let n_pts = line_cat_count;
+                let xs: Vec<f64> = (0..plot_vals.len())
+                    .map(|i| l.left + l.pw() * i as f64 / (n_pts.max(2) - 1) as f64)
+                    .collect();
+                let ys: Vec<f64> = plot_vals
+                    .iter()
+                    .map(|v| value_y(*v, &range, l.top, l.bottom))
+                    .collect();
+                let color = s
+                    .color
+                    .clone()
+                    .unwrap_or_else(|| palette[si % palette.len()].clone());
+                line::series_markup(
+                    &mut o,
+                    ls,
+                    si,
+                    &color,
+                    &s.name,
+                    &categories,
+                    &s.values,
+                    &xs,
+                    &ys,
+                    &esc_fn,
+                    &fmt_axis,
+                );
+            }
+        }
         // Bars (clustered)
         let gap = g.gap_width.unwrap_or(150.0) as i32;
         let overlap = g.overlap.unwrap_or(0.0) as i32;
@@ -983,7 +1093,7 @@ pub fn render(
             overlap,
         );
         let offs = (group_w - geo.cluster_width) / 2.0;
-        for ci in 0..cat_count {
+        for ci in 0..(if is_line { 0 } else { cat_count }) {
             for (si, s) in series.iter().enumerate() {
                 let val = s.values.get(ci).copied().unwrap_or(0.0);
                 let x = l.left + group_w * ci as f64 + offs + geo.step * si as f64;
@@ -1162,7 +1272,7 @@ pub fn render(
             't' => (l.w / 2.0, 28.0, false),
             _ => (l.w / 2.0, l.h - 8.0, false),
         };
-        let entries: Vec<(String, String)> = series
+        let entries: Vec<(String, String, Option<String>)> = series
             .iter()
             .enumerate()
             .map(|(i, s)| {
@@ -1170,7 +1280,8 @@ pub fn render(
                     .color
                     .clone()
                     .unwrap_or_else(|| palette[i % palette.len()].clone());
-                (color, s.name.clone())
+                let swatch = line_series.get(i).map(|ls| line::legend_swatch(ls, &color));
+                (color, s.name.clone(), swatch)
             })
             .collect();
         let leg_rpr = legend.and_then(|x| def_rpr(x.tx_pr.as_ref(), &theme.scheme));

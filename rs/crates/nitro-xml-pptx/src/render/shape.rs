@@ -493,7 +493,6 @@ mod tests {
     fn paint_shape(el: &DumpElement) -> Intern {
         let mut buffer = CommandBuffer::new();
         let mut intern = Intern(Vec::new());
-        let mut measure = MeasureBatch::default();
         let mut layout_reads = LayoutReadBatch::default();
         let mut view_ir = ViewIrCollector::default();
         let scheme = BTreeMap::new();

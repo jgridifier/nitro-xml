@@ -2,7 +2,7 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/ui/src/pptx/dom/elements/text-block.ts,
 // src/ui/src/pptx/render/text-effects.ts; changes in PROVENANCE.md.
 
-use nitro_xml_render::measure::{LayoutReadKind, MeasureBatch, OutlineBatch};
+use nitro_xml_render::measure::LayoutReadKind;
 
 use super::context::{PaintContext, StringIntern};
 use super::dom::{
@@ -2005,7 +2005,7 @@ mod tests {
 
     fn paint_with_measure(
         paint: TextBodyPaint<'_>,
-        mut measure: MeasureBatch,
+        _measure: MeasureBatch,
         intern_seed: Option<Intern>,
         text: &str,
     ) -> Intern {

@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use nitro_xml_render::measure::{LayoutReadBatch, LayoutReadKind, MeasureBatch};
+use nitro_xml_render::measure::{LayoutReadBatch, LayoutReadKind, MeasureBatch, OutlineBatch};
 use nitro_xml_render::CommandBuffer;
 
 use super::field_substitution::FieldSubstitutionContext;
@@ -19,6 +19,7 @@ pub struct PaintContext<'a, I> {
     pub buffer: &'a mut CommandBuffer,
     pub intern: &'a mut I,
     pub measure: &'a mut MeasureBatch,
+    pub outlines: &'a mut OutlineBatch,
     pub layout_reads: &'a mut LayoutReadBatch,
     pub view_ir: &'a mut ViewIrCollector,
     pub scale: f64,
@@ -39,6 +40,7 @@ impl<'a, I> PaintContext<'a, I> {
         buffer: &'a mut CommandBuffer,
         intern: &'a mut I,
         measure: &'a mut MeasureBatch,
+        outlines: &'a mut OutlineBatch,
         layout_reads: &'a mut LayoutReadBatch,
         view_ir: &'a mut ViewIrCollector,
         scale: f64,
@@ -53,6 +55,7 @@ impl<'a, I> PaintContext<'a, I> {
             buffer,
             intern,
             measure,
+            outlines,
             layout_reads,
             view_ir,
             scale,

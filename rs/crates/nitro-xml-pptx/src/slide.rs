@@ -165,6 +165,15 @@ pub struct DumpElement {
     /// `a:spAutoFit` / `a:normAutofit` / `a:noAutofit` from `a:bodyPr` (paint only).
     #[serde(skip)]
     pub auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
+    /// `a:bodyPr/a:prstTxWarp/@prst` (WordArt preset, paint only).
+    #[serde(skip)]
+    pub text_warp_preset: Option<String>,
+    /// `a:bodyPr/a:prstTxWarp/a:avLst/a:gd[@name="adj"]/@fmla` (primary adjustment, paint only).
+    #[serde(skip)]
+    pub text_warp_adj: Option<i32>,
+    /// `a:bodyPr/a:prstTxWarp/a:avLst/a:gd[@name="adj2"]/@fmla` (secondary adjustment, paint only).
+    #[serde(skip)]
+    pub text_warp_adj2: Option<i32>,
     /// Authored runs, bullets and autofit for the edit host (not in the issue-24 dump).
     #[serde(skip)]
     pub editor_text: Option<crate::edit::text::EditorText>,
@@ -1973,6 +1982,9 @@ fn build_dump(
         presentation_kinsoku: extras.presentation_kinsoku,
         compat_line_spacing: extras.compat_line_spacing,
         auto_fit_mode: extras.auto_fit_mode,
+        text_warp_preset: extras.text_warp_preset,
+        text_warp_adj: extras.text_warp_adj,
+        text_warp_adj2: extras.text_warp_adj2,
         editor_text: None,
         chart_r_id: extras.chart_r_id,
         chart_xml: None,
@@ -2329,6 +2341,9 @@ struct PaintExtras {
     presentation_kinsoku: bool,
     compat_line_spacing: bool,
     auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
+    text_warp_preset: Option<String>,
+    text_warp_adj: Option<i32>,
+    text_warp_adj2: Option<i32>,
     chart_r_id: Option<String>,
     smartart_dm_r_id: Option<String>,
     smartart_lo_r_id: Option<String>,
@@ -2779,6 +2794,40 @@ fn shape_paint_extras(
             presentation_default_ea_line_break(ctx.presentation_level_styles);
         extras.compat_line_spacing = compat_line_spacing;
         extras.auto_fit_mode = auto_fit_mode;
+
+        // Parse text warp preset from a:bodyPr/a:prstTxWarp
+        if let Some(body_pr_el) = body_pr {
+            if let Some(prst_tx_warp) = child_local(body_pr_el, "prstTxWarp", ns::A) {
+                if let Some(prst) = attr(prst_tx_warp, "prst") {
+                    let prst_str = prst.trim();
+                    if !prst_str.is_empty() && prst_str != "textNoShape" && prst_str != "textPlain"
+                    {
+                        extras.text_warp_preset = Some(prst_str.to_owned());
+                    }
+                }
+                // Parse adjustment values from a:avLst/a:gd
+                if let Some(av_lst) = child_local(prst_tx_warp, "avLst", ns::A) {
+                    let gd_nodes: Vec<_> = children_local(av_lst, "gd", ns::A);
+                    for gd in gd_nodes {
+                        if let Some(name) = attr(gd, "name") {
+                            if let Some(fmla) = attr(gd, "fmla") {
+                                // Parse formula "val <number>"
+                                if let Some(val_str) = fmla.trim().strip_prefix("val") {
+                                    if let Ok(val) = val_str.trim().parse::<i32>() {
+                                        if name == "adj" {
+                                            extras.text_warp_adj = Some(val);
+                                        } else if name == "adj2" {
+                                            extras.text_warp_adj2 = Some(val);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }
     if let Some(sp_pr) = effective_sp_pr {

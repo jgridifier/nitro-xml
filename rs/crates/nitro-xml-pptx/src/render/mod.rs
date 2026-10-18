@@ -43,6 +43,11 @@ mod text;
 mod three_host;
 mod view_ir;
 mod wordart;
+mod wordart_envelope_affine;
+mod wordart_envelope_curves;
+mod wordart_envelope_map;
+mod wordart_preset_definitions;
+mod wordart_preset_sampler;
 mod zoom;
 
 pub use chart3d::paint as paint_chart3d;
@@ -230,6 +235,9 @@ mod tests {
             presentation_kinsoku: false,
             compat_line_spacing: false,
             auto_fit_mode: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             editor_text: None,
             chart_r_id: None,
             chart_xml: None,

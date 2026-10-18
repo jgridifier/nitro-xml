@@ -165,6 +165,9 @@ mod tests {
             (p10.x - (0.5 + 0.5 * expected_x)).abs() < 1e-6,
             "yaw foreshortening missing: p10={p10:?}"
         );
-        assert!((p10.y - 0.0).abs() < 1e-6, "yaw must not skew y: p10={p10:?}");
+        assert!(
+            (p10.y - 0.0).abs() < 1e-6,
+            "yaw must not skew y: p10={p10:?}"
+        );
     }
 }

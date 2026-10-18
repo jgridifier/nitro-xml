@@ -21,5 +21,5 @@ pub mod smartart;
 pub use command_buffer::{opcode, CommandBuffer, StringTable};
 pub use measure::{
     LayoutReadBatch, LayoutReadError, LayoutReadKind, MeasureBatch, MeasureError,
-    LAYOUT_RESULT_LANES,
+    OutlineBatch, LAYOUT_RESULT_LANES,
 };

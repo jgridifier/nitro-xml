@@ -46,6 +46,7 @@ mod wordart;
 mod wordart_envelope_affine;
 mod wordart_envelope_curves;
 mod wordart_envelope_map;
+mod wordart_envelope_outline_warp;
 mod wordart_preset_definitions;
 mod wordart_preset_sampler;
 mod zoom;

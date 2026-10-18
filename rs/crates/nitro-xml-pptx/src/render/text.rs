@@ -47,6 +47,8 @@ pub struct TextBodyPaint<'a> {
     pub presentation_kinsoku: bool,
     /// Shape box height for `vertOverflow` line-boundary clip-path.
     pub body_box_height_px: Option<f64>,
+    /// `a:bodyPr/@compatLnSpc` — use legacy (97-2003) line-spacing algorithm (line-height 1 instead of 1.2).
+    pub compat_line_spacing: bool,
 }
 
 impl<'a> TextBodyPaint<'a> {
@@ -72,6 +74,7 @@ impl<'a> TextBodyPaint<'a> {
             font_kern_hundredths: None,
             text_caps: None,
             body_box_height_px: Some(el.height.max(0.0)),
+            compat_line_spacing: el.compat_line_spacing,
         }
     }
 }
@@ -251,7 +254,8 @@ pub fn paint_text_body<I: StringIntern>(
     let stack = substitute_font_family_stack(paint.font_family);
     set_style(ctx, block, "font-family", &stack);
     set_style(ctx, block, "font-size", &format!("{}px", format_px(size)));
-    set_style(ctx, block, "line-height", "1.2");
+    // Upstream `buildTextBlockStyle`: compatLnSpc uses legacy 1.0 line-spacing, else 1.2.
+    set_style(ctx, block, "line-height", if paint.compat_line_spacing { "1" } else { "1.2" });
     if paint.font_bold {
         set_style(ctx, block, "font-weight", "700");
     }
@@ -394,6 +398,7 @@ fn paint_rich_paragraphs<I: StringIntern>(
             geom_rect_padding: paint.geom_rect_padding,
             presentation_kinsoku: paint.presentation_kinsoku,
             body_box_height_px: paint.body_box_height_px,
+            compat_line_spacing: paint.compat_line_spacing,
         };
         let para_rtl = para_model.rtl.or(body_rtl);
         let is_rtl = para_rtl == Some(true);
@@ -543,6 +548,7 @@ fn merge_run_level_paint<'a>(
             geom_rect_padding: base.geom_rect_padding,
             presentation_kinsoku: base.presentation_kinsoku,
             body_box_height_px: base.body_box_height_px,
+            compat_line_spacing: base.compat_line_spacing,
         },
         size,
     )
@@ -846,6 +852,7 @@ fn paint_run_text_span<I: StringIntern>(
                     geom_rect_padding: paint.geom_rect_padding,
                     presentation_kinsoku: paint.presentation_kinsoku,
                     body_box_height_px: paint.body_box_height_px,
+                    compat_line_spacing: paint.compat_line_spacing,
                 };
                 let seg_stack = substitute_font_family_stack(seg_paint.font_family);
                 let seg_following = if idx + 1 < script_runs.len() {
@@ -1646,6 +1653,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "2px currentColor"),
@@ -1674,6 +1682,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "3.31px #000000"),
@@ -1701,6 +1710,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "1.2"),
@@ -1728,6 +1738,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(
             intern
@@ -1773,6 +1784,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "nowrap"),
@@ -1805,6 +1817,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: true,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "overflow-wrap"),
@@ -1856,6 +1869,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(intern.0.iter().any(|s| s == "span"));
         assert!(intern.0.iter().any(|s| s == "font-weight"));
@@ -1881,6 +1895,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(intern.0.iter().any(|s| s == "pptxv-para"));
         assert!(intern.0.iter().any(|s| s == "p"));
@@ -1912,6 +1927,7 @@ mod tests {
                 geom_rect_padding: TextBodyRectPadding::default(),
                 presentation_kinsoku: false,
                 body_box_height_px: None,
+            compat_line_spacing: false,
             },
             measure,
             Some(intern),
@@ -1961,6 +1977,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(
             !intern.0.iter().any(|s| s == "border-box"),
@@ -1998,6 +2015,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "9.6px"),
@@ -2035,6 +2053,7 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            compat_line_spacing: false,
         });
         assert!(
             intern.0.iter().any(|s| s == "24px"),

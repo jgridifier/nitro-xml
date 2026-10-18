@@ -44,6 +44,7 @@ pub(crate) struct TableCell {
     pub border: crate::table_style::CellBorders,
     pub grid_span: u32,
     pub row_span: u32,
+    pub rich: crate::table_cell_text::CellRich,
     pub h_merge: bool,
     pub v_merge: bool,
 }
@@ -94,6 +95,7 @@ pub(crate) fn parse_table_model(
                     parse_cell(
                         cell,
                         &theme,
+                        default_cell_font_size_pt,
                         CellPlace {
                             package_entry,
                             flags: &flags,
@@ -135,7 +137,12 @@ fn lookup_table_style<'a>(
     map.get(&normalize_table_style_guid(bare))
 }
 
-fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> TableCell {
+fn parse_cell(
+    cell: &Element,
+    theme: &SchemeMap<'_>,
+    default_cell_font_size_pt: Option<f64>,
+    place: CellPlace<'_>,
+) -> TableCell {
     let tc_pr = child_local(cell, "tcPr", ns::A);
     let no_fill = tc_pr.is_some_and(|p| child_local(p, "noFill", ns::A).is_some());
     let explicit = tc_pr
@@ -193,6 +200,9 @@ fn parse_cell(cell: &Element, theme: &SchemeMap<'_>, place: CellPlace<'_>) -> Ta
         border,
         grid_span: span_attr(attr(cell, "gridSpan")),
         row_span: span_attr(attr(cell, "rowSpan")),
+        rich: crate::table_cell_text::parse_cell_rich(cell, default_cell_font_size_pt, &|fill| {
+            solid_css(fill, theme)
+        }),
         h_merge: on_off(attr(cell, "hMerge")),
         v_merge: on_off(attr(cell, "vMerge")),
     }

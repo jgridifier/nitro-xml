@@ -19,6 +19,7 @@ mod placeholder_defaults;
 mod presentation;
 mod slide;
 mod table;
+mod table_cell_text;
 mod table_style;
 mod table_style_builtins;
 mod text;

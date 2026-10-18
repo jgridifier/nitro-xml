@@ -104,6 +104,76 @@ fn paint_grid<I: StringIntern>(ctx: &mut PaintContext<'_, I>, parent: u32, data:
                     }
                 }
             }
+            apply_cell_style(ctx, td, &cell.rich.style);
+            append_cell_text(ctx, td, cell);
+        }
+    }
+}
+
+/// `cellStyleToCss` for the text-derived cell style (laid over the table-style band).
+fn apply_cell_style<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    td: u32,
+    style: &crate::table_cell_text::CellTextStyle,
+) {
+    if let Some(f) = &style.font_family {
+        set_style(ctx, td, "font-family", f);
+    }
+    if let Some(pt) = style.font_size.filter(|p| *p != 0.0) {
+        set_style(ctx, td, "font-size", &format!("{pt}pt"));
+    }
+    if style.bold {
+        set_style(ctx, td, "font-weight", "bold");
+    }
+    if style.italic {
+        set_style(ctx, td, "font-style", "italic");
+    }
+    if style.underline {
+        set_style(ctx, td, "text-decoration-line", "underline");
+    }
+    if let Some(c) = &style.color {
+        set_style(ctx, td, "color", c);
+    }
+    if let Some(a) = style.align {
+        set_style(ctx, td, "text-align", a);
+    }
+    if let Some(v) = style.v_align {
+        set_style(ctx, td, "vertical-align", v);
+    }
+    for (prop, v) in [
+        ("padding-left", style.padding[0]),
+        ("padding-top", style.padding[1]),
+        ("padding-right", style.padding[2]),
+        ("padding-bottom", style.padding[3]),
+    ] {
+        if let Some(v) = v {
+            set_style(ctx, td, prop, &format!("{v}px"));
+        }
+    }
+}
+
+/// `appendCellText`: paragraph blocks, then plain runs, then the flattened text.
+fn append_cell_text<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    td: u32,
+    cell: &crate::table::TableCell,
+) {
+    if let Some(blocks) = crate::table_cell_text::paragraph_blocks(&cell.rich, &cell.text) {
+        for block in blocks {
+            let div = create_child(ctx, td, "div");
+            set_attr(ctx, div, "class", "pptxv-table-para");
+            set_style(ctx, div, "display", "block");
+            for (k, v) in &block.css {
+                set_style(ctx, div, k, v);
+            }
+            for run in &block.runs {
+                append_run(ctx, div, run, block.exact_spacing);
+            }
+        }
+        return;
+    }
+    match cell.rich.runs.as_ref().filter(|r| !r.is_empty()) {
+        None => {
             let span = create_child(ctx, td, "span");
             let text = if cell.text.is_empty() {
                 " "
@@ -112,7 +182,38 @@ fn paint_grid<I: StringIntern>(ctx: &mut PaintContext<'_, I>, parent: u32, data:
             };
             set_text_content(ctx, span, text);
         }
+        Some(runs) => {
+            for run in runs {
+                if run.is_paragraph_break {
+                    let div = create_child(ctx, td, "div");
+                    set_attr(ctx, div, "class", "pptxv-table-para-break");
+                    set_style(ctx, div, "display", "block");
+                    set_style(ctx, div, "height", "0");
+                } else {
+                    append_run(ctx, td, run, false);
+                }
+            }
+        }
     }
+}
+
+fn append_run<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    parent: u32,
+    run: &crate::table_cell_text::CellRun,
+    exact_spacing: bool,
+) {
+    if run.is_line_break {
+        create_child(ctx, parent, "br");
+        return;
+    }
+    let span = create_child(ctx, parent, "span");
+    set_attr(ctx, span, "class", "pptxv-table-run");
+    set_style(ctx, span, "position", "relative");
+    for (k, v) in crate::table_cell_text::run_css(run, exact_spacing) {
+        set_style(ctx, span, k, &v);
+    }
+    set_text_content(ctx, span, &run.text);
 }
 
 fn append_colgroup<I: StringIntern>(ctx: &mut PaintContext<'_, I>, table: u32, widths: &[f64]) {

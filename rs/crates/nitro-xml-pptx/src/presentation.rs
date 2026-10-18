@@ -1386,6 +1386,9 @@ fn resolve_slide_layout_order(
 
 /// Package image bytes as a browser `data:` URL.
 /// EMF/WMF use `nitro-metafile:` so the loader can rasterize via `emf-converter` (S3).
+/// TIFF is decoded to PNG (Chromium cannot paint `image/tiff` in `<img>` — upstream
+/// `decodeTiffToPngBlob`). SVG gets `preserveAspectRatio="none"` (upstream
+/// `forceSvgStretchFill`) so stretch/`fillRect` matches raster object-fit.
 pub(crate) fn image_data_url(bytes: &[u8], part_name: &str) -> Option<String> {
     let ext = part_name.rsplit('.').next()?.to_ascii_lowercase();
     if ext == "emf" || ext == "wmf" {
@@ -1394,8 +1397,132 @@ pub(crate) fn image_data_url(bytes: &[u8], part_name: &str) -> Option<String> {
             base64_encode(bytes)
         ));
     }
+    if ext == "tif" || ext == "tiff" {
+        let png = tiff_to_png(bytes)?;
+        return Some(format!("data:image/png;base64,{}", base64_encode(&png)));
+    }
+    if ext == "svg" {
+        let text = std::str::from_utf8(bytes).ok()?;
+        let stretched = force_svg_stretch_fill(text);
+        return Some(format!(
+            "data:image/svg+xml;base64,{}",
+            base64_encode(stretched.as_bytes())
+        ));
+    }
     let mime = image_mime(part_name)?;
     Some(format!("data:{mime};base64,{}", base64_encode(bytes)))
+}
+
+/// Decode the first TIFF page to PNG (upstream `decodeTiffToPngBlob` / `utif`).
+fn tiff_to_png(bytes: &[u8]) -> Option<Vec<u8>> {
+    use std::io::Cursor;
+    use tiff::decoder::{Decoder, DecodingResult};
+    use tiff::ColorType;
+
+    let mut decoder = Decoder::new(Cursor::new(bytes)).ok()?;
+    let (width, height) = decoder.dimensions().ok()?;
+    if width == 0 || height == 0 {
+        return None;
+    }
+    let color = decoder.colortype().ok()?;
+    let decoded = decoder.read_image().ok()?;
+    let rgba = match (color, decoded) {
+        (ColorType::RGB(8), DecodingResult::U8(buf)) => {
+            let mut out = Vec::with_capacity(buf.len() / 3 * 4);
+            for &[r, g, b] in buf.as_chunks::<3>().0 {
+                out.extend_from_slice(&[r, g, b, 255]);
+            }
+            out
+        }
+        (ColorType::RGBA(8), DecodingResult::U8(buf)) => buf,
+        (ColorType::Gray(8), DecodingResult::U8(buf)) => {
+            let mut out = Vec::with_capacity(buf.len() * 4);
+            for g in buf {
+                out.extend_from_slice(&[g, g, g, 255]);
+            }
+            out
+        }
+        (ColorType::GrayA(8), DecodingResult::U8(buf)) => {
+            let mut out = Vec::with_capacity(buf.len() / 2 * 4);
+            for &[g, a] in buf.as_chunks::<2>().0 {
+                out.extend_from_slice(&[g, g, g, a]);
+            }
+            out
+        }
+        _ => return None,
+    };
+    if rgba.len() != (width as usize) * (height as usize) * 4 {
+        return None;
+    }
+    let mut png_bytes = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut png_bytes, width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().ok()?;
+        writer.write_image_data(&rgba).ok()?;
+    }
+    Some(png_bytes)
+}
+
+/// Upstream `forceSvgStretchFill`: set root `preserveAspectRatio="none"`.
+fn force_svg_stretch_fill(svg_text: &str) -> String {
+    let lower = svg_text.to_ascii_lowercase();
+    let Some(start) = lower.find("<svg") else {
+        return svg_text.to_owned();
+    };
+    let after_tag = start + 4;
+    let Some(gt_rel) = svg_text[after_tag..].find('>') else {
+        return svg_text.to_owned();
+    };
+    let gt = after_tag + gt_rel;
+    let attrs = &svg_text[after_tag..gt];
+    let attrs_lower = attrs.to_ascii_lowercase();
+    let next_attrs = if let Some(p) = attrs_lower.find("preserveaspectratio") {
+        let tail = &attrs[p..];
+        // Match `\spreserveAspectRatio\s*=\s*("..."|'...')` replacement.
+        let Some(eq) = tail.find('=') else {
+            return format!(
+                "{}{} preserveAspectRatio=\"none\"{}",
+                &svg_text[..after_tag],
+                attrs,
+                &svg_text[gt..]
+            );
+        };
+        let value = tail[eq + 1..].trim_start();
+        let (quote, close) = if let Some(rest) = value.strip_prefix('"') {
+            ('"', rest.find('"'))
+        } else if let Some(rest) = value.strip_prefix('\'') {
+            ('\'', rest.find('\''))
+        } else {
+            return format!(
+                "{}{} preserveAspectRatio=\"none\"{}",
+                &svg_text[..after_tag],
+                attrs,
+                &svg_text[gt..]
+            );
+        };
+        let Some(close) = close else {
+            return svg_text.to_owned();
+        };
+        let trimmed = tail[eq + 1..].len() - value.len();
+        let value_end = p + eq + 1 + trimmed + 1 + close + 1;
+        format!(
+            "{}preserveAspectRatio={}none{}{}",
+            &attrs[..p],
+            quote,
+            quote,
+            &attrs[value_end..]
+        )
+    } else {
+        format!("{attrs} preserveAspectRatio=\"none\"")
+    };
+    format!(
+        "{}{}>{}",
+        &svg_text[..after_tag],
+        next_attrs,
+        &svg_text[gt + 1..]
+    )
 }
 
 fn image_mime(part_name: &str) -> Option<&'static str> {
@@ -1491,6 +1618,51 @@ mod tests {
         }
         zip.finish().unwrap();
         cursor.into_inner()
+    }
+
+    // Catches: SVG data URL missing preserveAspectRatio=none so stretch/fillRect letterboxes.
+    #[test]
+    fn svg_data_url_forces_preserve_aspect_ratio_none() {
+        let svg = br#"<?xml version="1.0"?><svg width="10" height="10" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10" fill="red"/></svg>"#;
+        let url = image_data_url(svg, "ppt/media/image6.svg").unwrap();
+        assert!(url.starts_with("data:image/svg+xml;base64,"));
+        let b64 = url.rsplit_once(',').unwrap().1;
+        // Decode just enough to confirm the attribute landed (ASCII subset of base64).
+        let stretched = force_svg_stretch_fill(std::str::from_utf8(svg).unwrap());
+        assert!(stretched.contains("preserveAspectRatio=\"none\""));
+        assert!(force_svg_stretch_fill(
+            "<svg preserveAspectRatio=\"xMidYMid meet\" xmlns=\"http://www.w3.org/2000/svg\"/>"
+        )
+        .contains("preserveAspectRatio=\"none\""));
+        let _ = b64;
+    }
+
+    // Catches: TIFF picture parts served as image/tiff so Chromium paints an empty broken-image tile.
+    #[test]
+    fn tiff_picture_becomes_png_data_url() {
+        let tiff = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/upstream/pptx/3a09e4b3e925_picture-formats.pptx"
+        ))
+        .ok()
+        .and_then(|pkg| {
+            use std::io::Cursor;
+            let mut zip = zip::ZipArchive::new(Cursor::new(pkg)).ok()?;
+            let mut file = zip.by_name("ppt/media/image3.tif").ok()?;
+            let mut bytes = Vec::new();
+            std::io::Read::read_to_end(&mut file, &mut bytes).ok()?;
+            Some(bytes)
+        })
+        .expect("fixture TIFF");
+        let url = image_data_url(&tiff, "ppt/media/image3.tif").unwrap();
+        assert!(
+            url.starts_with("data:image/png;base64,"),
+            "expected PNG data URL, got {}",
+            &url[..url.len().min(40)]
+        );
+        assert!(tiff_to_png(&tiff)
+            .unwrap()
+            .starts_with(&[0x89, b'P', b'N', b'G']));
     }
 
     // Catches: blip r:embed left as a grey frame / empty stage instead of a data URL.

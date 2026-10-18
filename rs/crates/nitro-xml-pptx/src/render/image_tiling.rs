@@ -174,14 +174,152 @@ fn escape_svg_attr(s: &str) -> String {
         .replace('>', "&gt;")
 }
 
-/// Encode SVG data for a `data:` URI.
+/// Encode SVG data for a `data:` URI (upstream `encodeURIComponent`).
 fn encode_svg_data(svg: &str) -> String {
-    svg.chars()
-        .map(|c| match c {
-            '=' | '&' | '"' | '\'' | '<' | '>' => format!("%{:02X}", c as u8),
-            _ => c.to_string(),
-        })
-        .collect()
+    let mut out = String::with_capacity(svg.len() * 3);
+    for b in svg.bytes() {
+        match b {
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'_'
+            | b'.'
+            | b'!'
+            | b'~'
+            | b'*'
+            | b'\''
+            | b'('
+            | b')' => out.push(b as char),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+/// Sync native pixel size from an embeddable `data:` image URL (PNG IHDR /
+/// JPEG SOF). Used so `a:tile/@sx|@sy` can be absolute pixels per ECMA-376
+/// without waiting for a NaturalWidth layout round-trip.
+pub fn native_size_from_data_url(src: &str) -> Option<(f64, f64)> {
+    let payload = src.strip_prefix("data:")?;
+    let (meta, data) = payload.split_once(',')?;
+    let bytes = if meta.contains(";base64") {
+        base64_decode(data)?
+    } else {
+        // Rare non-base64 data URLs — skip.
+        return None;
+    };
+    if meta.starts_with("image/png") {
+        return png_size(&bytes);
+    }
+    if meta.starts_with("image/jpeg") || meta.starts_with("image/jpg") {
+        return jpeg_size(&bytes);
+    }
+    None
+}
+
+fn png_size(bytes: &[u8]) -> Option<(f64, f64)> {
+    // Signature (8) + IHDR length (4) + type (4) + width/height (8).
+    if bytes.len() < 24 || &bytes[0..8] != b"\x89PNG\r\n\x1a\n" {
+        return None;
+    }
+    if &bytes[12..16] != b"IHDR" {
+        return None;
+    }
+    let w = u32::from_be_bytes(bytes[16..20].try_into().ok()?);
+    let h = u32::from_be_bytes(bytes[20..24].try_into().ok()?);
+    if w == 0 || h == 0 {
+        return None;
+    }
+    Some((f64::from(w), f64::from(h)))
+}
+
+fn jpeg_size(bytes: &[u8]) -> Option<(f64, f64)> {
+    if bytes.len() < 4 || bytes[0] != 0xff || bytes[1] != 0xd8 {
+        return None;
+    }
+    let mut i = 2usize;
+    while i + 9 < bytes.len() {
+        if bytes[i] != 0xff {
+            return None;
+        }
+        while i < bytes.len() && bytes[i] == 0xff {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            return None;
+        }
+        let marker = bytes[i];
+        i += 1;
+        if marker == 0xd9 || marker == 0xda {
+            return None;
+        }
+        if i + 1 >= bytes.len() {
+            return None;
+        }
+        let seglen = u16::from_be_bytes([bytes[i], bytes[i + 1]]) as usize;
+        if seglen < 2 || i + seglen > bytes.len() {
+            return None;
+        }
+        // SOF0..SOF3 (baseline/progressive) carry height/width.
+        if (0xc0..=0xc3).contains(&marker) && seglen >= 7 {
+            let h = u16::from_be_bytes([bytes[i + 3], bytes[i + 4]]);
+            let w = u16::from_be_bytes([bytes[i + 5], bytes[i + 6]]);
+            if w > 0 && h > 0 {
+                return Some((f64::from(w), f64::from(h)));
+            }
+        }
+        i += seglen;
+    }
+    None
+}
+
+fn base64_decode(data: &str) -> Option<Vec<u8>> {
+    // Minimal decoder for data-URL payloads (no whitespace required in our fixtures).
+    fn val(c: u8) -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+    let clean: Vec<u8> = data
+        .bytes()
+        .filter(|b| !b.is_ascii_whitespace() && *b != b'=')
+        .collect();
+    if clean.is_empty() {
+        return Some(Vec::new());
+    }
+    let mut out = Vec::with_capacity(clean.len() * 3 / 4);
+    let mut i = 0;
+    while i + 3 < clean.len() {
+        let a = val(clean[i])?;
+        let b = val(clean[i + 1])?;
+        let c = val(clean[i + 2])?;
+        let d = val(clean[i + 3])?;
+        out.push((a << 2) | (b >> 4));
+        out.push((b << 4) | (c >> 2));
+        out.push((c << 6) | d);
+        i += 4;
+    }
+    let rem = clean.len() - i;
+    if rem == 2 {
+        let a = val(clean[i])?;
+        let b = val(clean[i + 1])?;
+        out.push((a << 2) | (b >> 4));
+    } else if rem == 3 {
+        let a = val(clean[i])?;
+        let b = val(clean[i + 1])?;
+        let c = val(clean[i + 2])?;
+        out.push((a << 2) | (b >> 4));
+        out.push((b << 4) | (c >> 2));
+    } else if rem != 0 {
+        return None;
+    }
+    Some(out)
 }
 
 /// CSS styles for a tiled image, or `None` when the element is not tiled.
@@ -331,5 +469,39 @@ mod tests {
             ),
             None
         );
+    }
+
+    // Catches: tile @sx/@sy sized against the container because PNG IHDR was
+    // never read from the data URL (b332 tiles paint at 25% of the box ≈ 25px
+    // instead of 25% of 16px = 4px).
+    #[test]
+    fn native_size_from_16x16_png_data_url() {
+        // 1×1 PNG is too small a signal; use a real 16×16 IHDR prefix via a
+        // minimal valid PNG (IHDR only + IEND).
+        let png: &[u8] = &[
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // sig
+            0x00, 0x00, 0x00, 0x0d, // IHDR len
+            0x49, 0x48, 0x44, 0x52, // IHDR
+            0x00, 0x00, 0x00, 0x10, // w=16
+            0x00, 0x00, 0x00, 0x10, // h=16
+            0x08, 0x02, 0x00, 0x00, 0x00, // bit/color/etc
+            0x00, 0x00, 0x00, 0x00, // crc (ignored)
+        ];
+        let b64 = {
+            const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+            let mut s = String::new();
+            let mut i = 0;
+            while i + 2 < png.len() {
+                let n = ((png[i] as u32) << 16) | ((png[i + 1] as u32) << 8) | png[i + 2] as u32;
+                s.push(T[((n >> 18) & 63) as usize] as char);
+                s.push(T[((n >> 12) & 63) as usize] as char);
+                s.push(T[((n >> 6) & 63) as usize] as char);
+                s.push(T[(n & 63) as usize] as char);
+                i += 3;
+            }
+            s
+        };
+        let url = format!("data:image/png;base64,{b64}");
+        assert_eq!(native_size_from_data_url(&url), Some((16.0, 16.0)));
     }
 }

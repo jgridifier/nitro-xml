@@ -112,8 +112,13 @@ fn paint_image<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement,
             el.tile_flip.as_deref(),
             el.tile_alignment.as_deref(),
         ) {
-            // Tiled background: render as a div with background-image
-            // NaturalWidth read-back happens below to provide native dimensions for scaling
+            // Upstream paints tiling on an inner `.pptxv-image-tile` div, not the
+            // frame. Prefer sync native size from the data URL so @sx/@sy use the
+            // bitmap's own pixels (ECMA-376), matching `probeNativeImageSize`.
+            let (native_width, native_height) = match image_tiling::native_size_from_data_url(src) {
+                Some((w, h)) => (Some(w), Some(h)),
+                None => (None, None),
+            };
             let tile_config = image_tiling::TileConfig {
                 scale_x: el.tile_scale_x,
                 scale_y: el.tile_scale_y,
@@ -121,20 +126,26 @@ fn paint_image<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement,
                 offset_y: el.tile_offset_y,
                 flip: el.tile_flip.clone(),
                 alignment: el.tile_alignment.clone(),
-                native_width: None,
-                native_height: None,
+                native_width,
+                native_height,
             };
+            let tile = create_child(ctx, id, "div");
+            set_attr(ctx, tile, "class", "pptxv-image-tile");
             if let Some(styles) = image_tiling::get_image_tiling_style(Some(src), &tile_config) {
                 for (key, value) in styles {
-                    set_style(ctx, id, key, &value);
+                    set_style(ctx, tile, key, &value);
                 }
             } else {
-                // Fallback to stretched if tiling style generation failed
-                set_style(ctx, id, "background-image", &format!("url({src})"));
-                set_style(ctx, id, "background-size", "100% 100%");
-                set_style(ctx, id, "background-repeat", "no-repeat");
+                set_style(ctx, tile, "background-image", &format!("url({src})"));
+                set_style(ctx, tile, "background-size", "100% 100%");
+                set_style(ctx, tile, "background-repeat", "no-repeat");
+                set_style(ctx, tile, "width", "100%");
+                set_style(ctx, tile, "height", "100%");
             }
-            // Create a hidden img to trigger NaturalWidth read-back
+            if let Some(filter) = el.effect_filter.as_deref() {
+                set_style(ctx, tile, "filter", filter);
+            }
+            // Keep NaturalWidth read-back for hosts that restyle later.
             let img = create_child(ctx, id, "img");
             set_attr(ctx, img, "alt", el.name.as_deref().unwrap_or(""));
             set_attr(ctx, img, "src", src);

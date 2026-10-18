@@ -3,8 +3,7 @@
 
 use super::chart_auto_title::resolve_p9_chart_title_text;
 use super::chart_plot_layout::{
-    chart_title_baseline_y, chart_title_reserve_px, compute_plot_layout, CHART_PX_PER_PT,
-    DEFAULT_CHART_TEXT_PX,
+    chart_title_baseline_y, chart_title_reserve_px, compute_plot_layout, DEFAULT_CHART_TEXT_PX,
 };
 use super::chart_view::ChartViewModel;
 use super::summary::ChartSummaryType;
@@ -17,6 +16,22 @@ use super::svg_text_metrics::{
 };
 use super::svg_title_text::chart_rich_title_svg;
 use super::svg_util::{esc, n, text, Rect, TextAttrs};
+
+/// Upstream `DEFAULT_TITLE_TEXT_PX` / `DEFAULT_TITLE_FILL` for auto titles
+/// (`chart-title-style.ts`) — not built-in style 102's 18pt.
+const AUTO_TITLE_TEXT_PX: f64 = 12.0;
+const AUTO_TITLE_FILL: &str = "#1e293b";
+const AUTO_TITLE_WEIGHT: &str = "600";
+
+fn p9_title_paint_attrs(model: &ChartViewModel) -> TextAttrs {
+    let mut attrs = chart_text_attributes(model, "title", AUTO_TITLE_TEXT_PX);
+    if model.auto_title {
+        attrs.size = Some(AUTO_TITLE_TEXT_PX);
+        attrs.fill = Some(AUTO_TITLE_FILL.to_string());
+        attrs.weight = Some(AUTO_TITLE_WEIGHT);
+    }
+    attrs
+}
 
 pub fn render_chart_svg(
     model: &ChartViewModel,
@@ -86,8 +101,14 @@ pub fn render_chart_svg(
             area.h -= rich.height;
         }
     } else if let Some(title) = &model.title {
-        let attrs = chart_text_attributes(&model, "title", 14.0);
-        let size = attrs.size.unwrap_or(14.0);
+        let attrs = if p9_bar3d {
+            p9_title_paint_attrs(&model)
+        } else {
+            chart_text_attributes(&model, "title", 14.0)
+        };
+        let size = attrs
+            .size
+            .unwrap_or(if p9_bar3d { AUTO_TITLE_TEXT_PX } else { 14.0 });
         let label = fit_chart_text(title, w - 16.0, &attrs, measure);
         let title_width = (w - 16.0).min(chart_text_width(&label, &attrs, measure) + 8.0);
         let title_height = if let Some((a, d)) = chart_font_metrics(&attrs, measure) {
@@ -145,8 +166,8 @@ pub fn render_chart_svg(
         return out.join("");
     }
     let plot_layout = if p9_bar3d {
-        let title_attrs = chart_text_attributes(&model, "title", 14.0);
-        let title_px = title_attrs.size.unwrap_or(14.0 * CHART_PX_PER_PT);
+        let title_attrs = p9_title_paint_attrs(&model);
+        let title_px = title_attrs.size.unwrap_or(AUTO_TITLE_TEXT_PX);
         let cat_attrs = chart_text_attributes(&model, "categoryAxis", 10.0);
         let cat_px = cat_attrs.size.unwrap_or(DEFAULT_CHART_TEXT_PX);
         Some(compute_plot_layout(

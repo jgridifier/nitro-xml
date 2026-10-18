@@ -294,6 +294,7 @@ dependencies = [
 name = "nitro-xml-render"
 version = "0.0.0"
 dependencies = [
+ "flate2",
  "nitro-xml-opc",
  "serde",
  "serde_json",

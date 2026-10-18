@@ -76,6 +76,8 @@ pub struct ChartSummary {
     pub title: Option<String>,
     /// `c:title` is present and `c:autoTitleDeleted` is not true, even when no title text is resolved.
     pub title_placeholder: bool,
+    /// Synthesized auto title (no `c:title`, single named series) — viewer default 12px title style.
+    pub auto_title: bool,
     pub series: Vec<ChartSummarySeries>,
     pub show_legend: bool,
     pub legend_position: Option<String>,

@@ -279,6 +279,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-render/src/chart/render/chart_plot_layout.rs` | `src/ui/src/pptx/render/chart-view-model-layout.ts`, `chart-title-band.ts`, `chart-legend-placement.ts` @ e66aaec | P9 plot inset bands for `bar3D` extrusion (#27). |
 | `rs/crates/nitro-xml-render/src/chart/render/svg_bars.rs` | `src/core/chart/render/chart-svg-bars.ts` @ e66aaec | Bar series; `bar3D` extrusion faces + picture pattern fills (#27). |
 | `rs/crates/nitro-xml-render/src/chart/render/chart_3d_depth.rs` | `src/ui/src/pptx/render/chart-3d-depth.ts` @ e66aaec | Oblique `bar3D` top/side extrusion from `c:view3D` (#27). |
+| `rs/crates/nitro-xml-render/src/chart/render/chart_bar3d_face_picture.rs` | `src/ui/src/pptx/render/chart-bar3d-face-picture.ts` @ e66aaec | `bar3D` untargeted extrusion face picture sampling; first-pixel colour (#27). |
+| `rs/crates/nitro-xml-render/src/chart/render/png_first_pixel.rs` | `src/core/pptx/core/utils/image-first-pixel-png.ts` @ e66aaec | Synchronous PNG pixel (0,0) decode (no DOM) for `bar3D` untargeted face picture fallback; zlib-inflates IDAT via `flate2` (#27). |
 | `rs/crates/nitro-xml-render/src/chart/render/chart_picture_fill.rs` | `src/ui/src/pptx/render/chart-datapoint-picture-fills.ts`, `chart-picture-pattern-def.ts` @ e66aaec | `c:dPt`/`c:ser` blip picture fills as SVG patterns (#27). |
 | `rs/crates/nitro-xml-render/src/chart/render/chart_palette_shade.rs` | `src/ui/src/pptx/render/chart-style-palette.ts` (`shade`, `tint`) @ e66aaec | 3D bar extrusion face lighten/darken (#27). |
 | `rs/crates/nitro-xml-render/src/chart/render/svg_radial.rs` | `src/core/chart/render/chart-svg-radial.ts` @ e66aaec | Pie/doughnut/radar. |

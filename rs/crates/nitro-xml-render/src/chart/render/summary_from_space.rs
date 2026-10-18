@@ -194,6 +194,9 @@ pub fn chart_summary_from_space(chart_space: &ChartSpace) -> ChartSummary {
             }
         }
     }
+    // withAutoTitle (UI / P9 path only) lives in `apply_with_auto_title` — do not
+    // synthesize here or the S1 `chart_render_svg` oracle diverges from upstream
+    // `renderChartSpaceSvg` (no auto title on bare chart XML dumps).
     if chart_space.title.is_some() && chart_space.auto_title_deleted != Some(true) {
         summary.title_placeholder = true;
         if let Some(title) = &chart_space.title {

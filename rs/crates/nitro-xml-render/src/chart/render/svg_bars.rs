@@ -104,6 +104,9 @@ pub fn bars(
                     h: rh,
                     fill: color.clone(),
                     series_index: si,
+                    picture_url: picture.map(|p| p.image_url.clone()),
+                    apply_to_side: picture.is_none() || picture.is_some_and(|p| p.apply_side),
+                    apply_to_end: picture.is_none() || picture.is_some_and(|p| p.apply_end),
                 });
             }
             front_markup.push(format!(

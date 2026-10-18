@@ -12,6 +12,7 @@ use super::chart_appearance::{
     overlay_authored_axis_sp_pr, overlay_authored_tx_pr_appearance, overlay_chart_space_sp_pr,
     overlay_plot_area_sp_pr,
 };
+use super::chart_auto_title::apply_with_auto_title;
 use super::chart_colors::chart_color_scheme;
 use super::chart_picture_fill::resolve_chart_picture_fills;
 use super::chart_title_text::chart_title_text;
@@ -118,6 +119,10 @@ pub fn render_chart_space_svg(
     }
     view.view3_d = space.view3_d.clone();
     view.bar3d_extrusion = options.bar3d_extrusion;
+    // UI-layer withAutoTitle (chart-auto-title.ts) — only when P9 bar3d is on.
+    if options.bar3d_extrusion {
+        apply_with_auto_title(&mut view, space.auto_title_deleted);
+    }
     let scheme = chart_color_scheme(&theme);
     let resolve = |color: &nitro_xml_opc::drawingml::DrawingColor| {
         let resolve_opts = ResolveOptions {

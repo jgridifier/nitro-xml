@@ -4,7 +4,6 @@ import { isSupportedExtension } from "./formats.js";
 import { applyCommandBuffer } from "./apply.js";
 import { createEventCoalescer } from "./events.js";
 import { flushMeasureBatch } from "./measure.js";
-import { flushOutlineBatch } from "./glyph-outline.js";
 import { applyFontSourceToHandle } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
 const registry =
@@ -71,11 +70,9 @@ return this._handle;
 get name() {
 return this._name;
 }
-/** Pending canvas measure probes (for settle loops). */
 get measureCount() {
 return this._disposed ? 0 : this._handle.measureCount | 0;
 }
-/** Pending glyph-outline probes (for settle loops). */
 get outlineCount() {
 return this._disposed ? 0 : this._handle.outlineCount | 0;
 }
@@ -85,30 +82,34 @@ this._events.push(ev);
 shellAction(op, arg = "") {
 return this._disposed ? null : JSON.parse(this._handle.shellAction(op || "ui", arg || ""));
 }
-tick(opts = {}) {
-  if (this._disposed) return { measured: 0, outlined: 0, ops: 0, layoutReads: 0 };
-  if (opts.canvas !== undefined) this._canvas = opts.canvas;
-  if (opts.root !== undefined) this._root = opts.root;
-  const layoutReads = this._flushPendingLayout();
-  const ctx = this._ensureMeasureCtx();
-  const handle = this._measureHandle(ctx);
-  const measured = flushMeasureBatch(handle, ctx);
-  const outlined = flushOutlineBatch(this._handle, ctx);
-  this._handle.prepareFrame();
-  const commands = this._handle.takeFrameCommands();
-  const drawCtx = this._canvas && this._canvas.getContext
-    ? this._canvas.getContext("2d")
-    : null;
-  const { ops, error } = applyCommandBuffer(commands, {
-    canvas: drawCtx,
-    root: this._root,
-    resolve: (id) => this._handle.resolve(id),
-    images: this._images,
-    nodes: this._nodes,
-  });
-  this._takeLayoutAfterApply();
-  this._events.flushNow();
-  return { measured, outlined, ops, layoutReads, error };
+async tick(opts = {}) {
+if (this._disposed) return { measured: 0, outlined: 0, ops: 0, layoutReads: 0 };
+if (opts.canvas !== undefined) this._canvas = opts.canvas;
+if (opts.root !== undefined) this._root = opts.root;
+const layoutReads = this._flushPendingLayout();
+const ctx = this._ensureMeasureCtx();
+const handle = this._measureHandle(ctx);
+const measured = flushMeasureBatch(handle, ctx);
+let outlined = 0;
+if ((this._handle.outlineCount | 0) > 0) {
+const { flushOutlineBatch } = await import("./lazy/glyph-outline.js");
+outlined = flushOutlineBatch(this._handle, ctx);
+}
+this._handle.prepareFrame();
+const commands = this._handle.takeFrameCommands();
+const drawCtx = this._canvas && this._canvas.getContext
+? this._canvas.getContext("2d")
+: null;
+const { ops, error } = applyCommandBuffer(commands, {
+canvas: drawCtx,
+root: this._root,
+resolve: (id) => this._handle.resolve(id),
+images: this._images,
+nodes: this._nodes,
+});
+this._takeLayoutAfterApply();
+this._events.flushNow();
+return { measured, outlined, ops, layoutReads, error };
 }
 dispose() {
 if (this._disposed) return;
@@ -161,14 +162,9 @@ return {
 get measureCount() {
 return h.measureCount;
 },
-get outlineCount() {
-return h.outlineCount;
-},
 resolve: (id) => h.resolve(id),
 setMeasureResults: (widths) => h.setMeasureResults(widths),
 takeMeasureReqs: () => h.takeMeasureReqs(),
-takeOutlineReqs: () => h.takeOutlineReqs(),
-setOutlineResults: (contours) => h.setOutlineResults(contours),
 _ctx: ctx,
 };
 }

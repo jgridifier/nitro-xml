@@ -48,7 +48,9 @@ function walk(d) {
   for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
     const p = path.join(d, ent.name);
     if (ent.isDirectory()) {
-      if (ent.name === 'test') continue;
+      // test/: unit tests. lazy/: dynamic-import chunks (WordArt glyph-outline)
+      // loaded only when a frame queues OutlineBatch — not on the first-load path.
+      if (ent.name === 'test' || ent.name === 'lazy') continue;
       walk(p);
     } else if (ent.name.endsWith('.js')) files.push(p);
   }

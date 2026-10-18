@@ -76,12 +76,10 @@ const t = handle.takeMeasureReqs();
 measureReqs = { fonts: t[0], sizes: t[1], texts: t[2] };
 measureCount = measureReqs.fonts.length;
 }
-let outlineReqs = null;
-let outlineCount = 0;
+let outlineReqs = null, outlineCount = 0, outlineMod = null;
 if ((handle.outlineCount | 0) > 0) {
-const t = handle.takeOutlineReqs();
-outlineReqs = { fonts: t[0], chars: t[1], sizes: t[2] };
-outlineCount = outlineReqs.fonts.length;
+outlineMod = await import("./lazy/outline-worker.js");
+({ outlineReqs, outlineCount } = outlineMod.takeOutlineFrame(handle));
 }
 const exported = handle.exportStrings();
 const strings = {};
@@ -108,13 +106,7 @@ measureReqs.sizes.buffer,
 measureReqs.texts.buffer,
 );
 }
-if (outlineReqs) {
-transfer.push(
-outlineReqs.fonts.buffer,
-outlineReqs.chars.buffer,
-outlineReqs.sizes.buffer,
-);
-}
+if (outlineReqs) outlineMod.transferOutlineBuffers(outlineReqs, transfer);
 if (layoutReqs) {
 transfer.push(
 layoutReqs.nodes.buffer,
@@ -147,16 +139,8 @@ break;
 }
 case "outline-results": {
 if (!handle) throw new Error("no document");
-// Rebuild a dense Array of length N so wasm length matches awaiting
-// (structured-clone edge cases / sparse arrays have bitten before).
-const raw = msg.contours;
-const n = (msg.count | 0) || (raw && raw.length) || 0;
-const packed = new Array(n);
-for (let i = 0; i < n; i++) {
-packed[i] = raw ? raw[i] : null;
-}
-handle.setOutlineResults(packed);
-self.postMessage({ type: "outline-acked", count: n });
+const ow = await import("./lazy/outline-worker.js");
+self.postMessage({ type: "outline-acked", count: ow.applyOutlineResults(handle, msg) });
 break;
 }
 case "layout-results": {

@@ -904,11 +904,15 @@ impl Handle {
         })
     }
 
-    /// Take pending outline requests for the loader (clears the queue).
-    ///
-    /// Returns a JS array `[Uint32Array fonts, Uint32Array chars, Float32Array sizes]`.
-    /// The loader computes glyph outlines (canvas rasterization + contour tracing) and
-    /// calls [`setOutlineResults`].
+    /// Pending outline probe count (WordArt). Kept so the host can dynamic-import
+    /// the outline chunk only when `outlineCount > 0` (#27).
+    #[wasm_bindgen(getter, js_name = outlineCount)]
+    pub fn outline_count(&self) -> usize {
+        self.outlines.len()
+    }
+
+    /// Take pending outline requests (clears the queue).
+    /// Returns `[Uint32Array fonts, Uint32Array chars, Float32Array sizes]`.
     #[wasm_bindgen(js_name = takeOutlineReqs)]
     pub fn take_outline_reqs(&mut self) -> Array {
         let (fonts, chars, sizes) = self.outlines.take_requests();
@@ -919,73 +923,63 @@ impl Handle {
         out
     }
 
-    /// Loader writes glyph outlines back (array of contour arrays or null per request).
-    /// Each outline result is either null (no outline) or a Vec<Vec<(f64, f64)>> (contours).
+    /// Packed contour results from `loader/lazy/glyph-outline.js` (no Reflect in glue).
+    /// Per request: `ring_count`, then per ring `point_count` + `(x,y)` pairs; `0` = none.
     #[wasm_bindgen(js_name = setOutlineResults)]
-    pub fn set_outline_results(&mut self, results: js_sys::Array) -> Result<(), JsValue> {
+    pub fn set_outline_results(&mut self, packed: &[f64]) -> Result<(), JsValue> {
         use nitro_xml_render::GlyphContours;
 
-        let mut parsed: Vec<Option<GlyphContours>> = Vec::new();
-        for i in 0..results.length() {
-            let item = results.get(i);
-            if item.is_null() || item.is_undefined() {
+        let awaiting = self.outlines.awaiting();
+        let mut parsed: Vec<Option<GlyphContours>> = Vec::with_capacity(awaiting);
+        let mut i = 0usize;
+        for _ in 0..awaiting {
+            if i >= packed.len() {
+                return Err(JsValue::from(OoxmlError::with_code(
+                    "outline_len_mismatch",
+                    "packed outline buffer truncated",
+                )));
+            }
+            let ring_count = packed[i] as usize;
+            i += 1;
+            if ring_count == 0 {
                 parsed.push(None);
-            } else {
-                // Parse nested array: Array<Array<{x, y}>>
-                if let Ok(contours_array) = item.dyn_into::<js_sys::Array>() {
-                    let mut contours = Vec::new();
-                    for j in 0..contours_array.length() {
-                        let ring_item = contours_array.get(j);
-                        if let Ok(ring_array) = ring_item.dyn_into::<js_sys::Array>() {
-                            let mut ring = Vec::new();
-                            for k in 0..ring_array.length() {
-                                let pt_item = ring_array.get(k);
-                                // Try to access x and y properties from object
-                                if let (Ok(x_val), Ok(y_val)) = (
-                                    js_sys::Reflect::get(&pt_item, &"x".into()),
-                                    js_sys::Reflect::get(&pt_item, &"y".into()),
-                                ) {
-                                    if let (Some(x), Some(y)) = (x_val.as_f64(), y_val.as_f64()) {
-                                        ring.push((x, y));
-                                    }
-                                }
-                            }
-                            if !ring.is_empty() {
-                                contours.push(ring);
-                            }
-                        }
-                    }
-                    if !contours.is_empty() {
-                        parsed.push(Some(contours));
-                    } else {
-                        parsed.push(None);
-                    }
-                } else {
-                    parsed.push(None);
+                continue;
+            }
+            let mut contours: GlyphContours = Vec::with_capacity(ring_count);
+            for _ in 0..ring_count {
+                if i >= packed.len() {
+                    return Err(JsValue::from(OoxmlError::with_code(
+                        "outline_len_mismatch",
+                        "packed outline buffer truncated",
+                    )));
+                }
+                let point_count = packed[i] as usize;
+                i += 1;
+                let need = point_count.saturating_mul(2);
+                if i + need > packed.len() {
+                    return Err(JsValue::from(OoxmlError::with_code(
+                        "outline_len_mismatch",
+                        "packed outline buffer truncated",
+                    )));
+                }
+                let mut ring = Vec::with_capacity(point_count);
+                for _ in 0..point_count {
+                    ring.push((packed[i], packed[i + 1]));
+                    i += 2;
+                }
+                if !ring.is_empty() {
+                    contours.push(ring);
                 }
             }
+            parsed.push(if contours.is_empty() {
+                None
+            } else {
+                Some(contours)
+            });
         }
         self.outlines
             .set_results(parsed)
             .map_err(|e| JsValue::from(OoxmlError::with_code("outline_len_mismatch", e)))
-    }
-
-    /// Queue an outline probe for a glyph (font_id, char_id, size_px).
-    #[wasm_bindgen(js_name = pushOutlineReq)]
-    pub fn push_outline_req(
-        &mut self,
-        font_id: u32,
-        char_id: u32,
-        size_px: f32,
-    ) -> Result<(), JsValue> {
-        self.outlines.push(font_id, char_id, size_px);
-        Ok(())
-    }
-
-    /// Number of pending outline requests not yet taken.
-    #[wasm_bindgen(getter, js_name = outlineCount)]
-    pub fn outline_count(&self) -> usize {
-        self.outlines.len()
     }
 
     /// Queue a post-apply layout read-back (answered on the next frame after apply).

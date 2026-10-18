@@ -352,32 +352,64 @@ export function resetGlyphTraceCache() {
 }
 
 /**
- * Flush outline batch from WASM to the host. Called from session.js on each tick.
- * Takes pending outline requests and calls fillOutlineContours, then returns results to Rust.
+ * Pack contour arrays into the flat f64 buffer `Handle.setOutlineResults` expects.
+ * Per request: ring_count, then per ring point_count + (x,y)*point_count. Empty → [0].
+ */
+export function packOutlineContours(contours) {
+  const out = [];
+  for (let i = 0; i < contours.length; i++) {
+    const rings = contours[i];
+    if (!rings || !rings.length) {
+      out.push(0);
+      continue;
+    }
+    out.push(rings.length);
+    for (let r = 0; r < rings.length; r++) {
+      const ring = rings[r] || [];
+      out.push(ring.length);
+      for (let p = 0; p < ring.length; p++) {
+        const pt = ring[p];
+        out.push(pt && pt.x !== undefined ? pt.x : pt[0], pt && pt.y !== undefined ? pt.y : pt[1]);
+      }
+    }
+  }
+  return Float64Array.from(out);
+}
+
+/**
+ * Flush outline batch from WASM to the host (DocumentSession path).
+ * Loaded only when `outlineCount > 0` via dynamic `import()`.
  */
 export function flushOutlineBatch(handle, ctx) {
   const n = handle.outlineCount | 0;
   if (n === 0) return 0;
-  
   const t = typeof handle.takeOutlineReqs === "function" ? handle.takeOutlineReqs() : null;
-  const soa = !!(t && t.length === 3 && t[0] && t[0].length === n);
-  
-  if (!soa || !t) {
-    return 0;
-  }
-
-  // t[0] = fonts, t[1] = chars, t[2] = sizes
+  if (!(t && t[0] && t[0].length === n)) return 0;
   const contours = fillOutlineContours(
     ctx,
     n,
-    (i) => handle.resolve(soa ? t[1][i] : t[i].charId),
-    (i) => handle.resolve(soa ? t[0][i] : t[i].fontId),
-    (i) => soa ? t[2][i] : t[i].sizePx,
+    (i) => handle.resolve(t[1][i]),
+    (i) => handle.resolve(t[0][i]),
+    (i) => t[2][i],
   );
+  handle.setOutlineResults(packOutlineContours(contours));
+  return n;
+}
 
-  // Convert contours to a format we can pass to WASM
-  // For now, we'll just return the count; the actual outline data 
-  // needs to be handled via a different mechanism (TBD).
-  handle.setOutlineResults(contours);
+/**
+ * Answer a WorkerDocument outline batch (viewer path).
+ * `post(n, packed)` should post `outline-results` and await `outline-acked`.
+ */
+export async function answerWorkerOutlines(ctx, outlineReqs, outlineCount, strings, post) {
+  const fontsLen = outlineReqs.fonts?.length | 0;
+  const n = Math.min(outlineCount | 0, fontsLen || outlineCount | 0);
+  const contours = fillOutlineContours(
+    ctx,
+    n,
+    (i) => (strings && strings[outlineReqs.chars[i]]) || "",
+    (i) => (strings && strings[outlineReqs.fonts[i]]) || "sans-serif",
+    (i) => outlineReqs.sizes[i],
+  );
+  await post(n, packOutlineContours(contours));
   return n;
 }

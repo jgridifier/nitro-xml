@@ -31,14 +31,16 @@ if [ -n "$FEATURES" ]; then EXTRA=(-- --features "$FEATURES"); fi
 "$WP" build "$ROOT/rs/crates/nitro-xml-wasm" $PROFILE --target web --no-pack --out-dir "$PKG/pkg" --out-name nitro_xml_wasm "${EXTRA[@]}"
 rm -f "$PKG/pkg/.gitignore"
 cp "$ROOT/LICENSE" "$ROOT/LICENSE-THIRD-PARTY" "$ROOT/NOTICE" "$PKG/"
-# Strip JSDoc/block comments from generated glue so they do not inflate the
-# loader+glue brotli budget (#132 method; ≥0.5 KB headroom for docx/editor).
+# Strip JSDoc/block comments and leading indentation from generated glue so they
+# do not inflate the loader+glue brotli budget (#132 method; headroom for
+# WordArt outline exports and docx/editor). Indentation is insignificant in JS.
 node - "$PKG/pkg/nitro_xml_wasm.js" <<'STRIP'
 const fs = require("fs");
 const path = process.argv[2];
 let s = fs.readFileSync(path, "utf8");
 s = s.replace(/\/\*\*?[\s\S]*?\*\//g, "");
 s = s.replace(/^[ \t]*\/\/.*$/gm, "");
+s = s.replace(/^[ \t]+/gm, "");
 s = s.replace(/\n{2,}/g, "\n");
 fs.writeFileSync(path, s);
 STRIP

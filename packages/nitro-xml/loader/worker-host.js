@@ -7,7 +7,6 @@ import { unsupportedFormatError } from "./bootstrap.js";
 import { getDefaultFontSource } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
 import { fillMeasureWidths } from "./measure.js";
-import { fillOutlineContours } from "./glyph-outline.js";
 export class WorkerDocument {
 constructor(opts = {}) {
 this._canvas = opts.canvas || null;
@@ -30,15 +29,12 @@ this._worker.postMessage({ type: "events", bytes }, [bytes.buffer]);
 this._measureCanvas = null;
 this._pendingLayoutReqs = null;
 this._strings = null;
-/** Pending measure/outline counts from the last take-frame (for settle loops). */
 this._measureCount = 0;
 this._outlineCount = 0;
 }
-/** Last-frame pending measure count (0 after host answered or none queued). */
 get measureCount() {
 return this._measureCount | 0;
 }
-/** Last-frame pending outline count (0 after host answered or none queued). */
 get outlineCount() {
 return this._outlineCount | 0;
 }
@@ -157,91 +153,16 @@ const msg = await this._request("sa", () => this._worker.postMessage({ type: "sa
 try { return JSON.parse(msg.result); } catch { return { ui: null }; }
 }
 async tick() {
-// Serialize ticks — overlapping take-frame/outline-results races
-// mismatch OutlineBatch.awaiting (expected N, got 2N).
 const prev = this._tickLock || Promise.resolve();
 let release;
-this._tickLock = new Promise((r) => {
-release = r;
-});
+this._tickLock = new Promise((r) => { release = r; });
 await prev;
 try {
-return await this._tickBody();
+const { tickBody } = await import("./lazy/worker-host-tick.js");
+return await tickBody(this);
 } finally {
 release();
 }
-}
-async _tickBody() {
-this._events.flushNow();
-const layoutReads = await this._flushPendingLayout();
-const frame = await this._request("frame", () => {
-this._worker.postMessage({ type: "take-frame" });
-});
-const {
-commands,
-measureReqs,
-measureCount,
-outlineReqs,
-outlineCount,
-layoutReqs,
-layoutCount,
-strings,
-} = frame;
-this._strings = strings || this._strings;
-// Keep last-frame pending counts until the *next* take-frame reports 0 so
-// settle loops run one more tick and prepareFrame can consume the cache.
-this._measureCount = measureCount | 0;
-this._outlineCount = outlineCount | 0;
-if (measureCount > 0 && measureReqs) {
-const ctx = this._measureCtx();
-const widths = fillMeasureWidths(
-ctx,
-measureCount,
-(i) => (strings && strings[measureReqs.fonts[i]]) || "sans-serif",
-(i) => measureReqs.sizes[i],
-(i) => (strings && strings[measureReqs.texts[i]]) || "",
-);
-await this._request("measure-acked", () => {
-this._worker.postMessage({ type: "measure-results", widths }, [widths.buffer]);
-});
-}
-if (outlineCount > 0 && outlineReqs) {
-const ctx = this._measureCtx();
-const fontsLen = outlineReqs.fonts?.length | 0;
-const n = Math.min(outlineCount | 0, fontsLen || outlineCount | 0);
-const contours = fillOutlineContours(
-ctx,
-n,
-(i) => (strings && strings[outlineReqs.chars[i]]) || "",
-(i) => (strings && strings[outlineReqs.fonts[i]]) || "sans-serif",
-(i) => outlineReqs.sizes[i],
-);
-await this._request("outline-acked", () => {
-this._worker.postMessage({
-type: "outline-results",
-count: n,
-contours,
-});
-});
-}
-const drawCtx =
-this._canvas && this._canvas.getContext ? this._canvas.getContext("2d") : null;
-const resolve = (id) => (strings && strings[id]) || "";
-if (frame.h && this.onChrome) this.onChrome(frame.h);
-const result = applyCommandBuffer(commands, {
-canvas: drawCtx,
-root: this._root,
-resolve,
-images: this._images,
-nodes: this._nodes,
-});
-this._queueLayout(layoutReqs, layoutCount || 0);
-return {
-...result,
-measured: measureCount || 0,
-outlined: outlineCount || 0,
-layoutReads,
-};
 }
 dispose() {
 this._events.flushNow();

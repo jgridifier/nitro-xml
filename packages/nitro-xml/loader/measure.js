@@ -11,7 +11,7 @@ export function fillMeasureWidths(ctx, n, fontAt, sizeAt, textAt) {
       text = env ? raw.slice(5) : raw;
     ctx.font = /\d+(\.\d+)?px/.test(f) ? f : `${sz < 0 ? 12 : sz}px ${f}`;
     if (env) {
-      // WordArt envelope advances (pptx text.rs `envelope_glyph_advances`): kerned prefix widths.
+      // WordArt envelope advances: kerned prefix widths (pptx text.rs).
       ctx.fontKerning = "normal";
       widths[i] = ctx.measureText(text).width;
       ctx.fontKerning = "auto";

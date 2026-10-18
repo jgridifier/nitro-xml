@@ -345,10 +345,10 @@ pub(super) fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Opt
             ),
             _ => (svg_w / 2.0, svg_h - 8.0, false),
         };
-        let entries: Vec<(String, String)> = categories
+        let entries: Vec<(String, String, Option<String>)> = categories
             .iter()
             .enumerate()
-            .map(|(i, c)| (palette[i % palette.len()].clone(), c.clone()))
+            .map(|(i, c)| (palette[i % palette.len()].clone(), c.clone(), None))
             .collect();
         let leg_rpr = def_rpr(legend.tx_pr.as_ref(), &theme.scheme);
         push_legend(

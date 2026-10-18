@@ -9,7 +9,8 @@ test('pptx visual corpus keeps skipPrint and hard-flips only the allow-listed fi
 	try {
 		expect(PPTX_HARD_FIXTURE_IDS.size).toBeGreaterThan(0);
 		const cases = pptxVisualCorpus();
-		expect(cases.length).toBeGreaterThan(PPTX_HARD_FIXTURE_IDS.size);
+		// Every fixture may be hard (no informational rows left), so equality is allowed.
+		expect(cases.length).toBeGreaterThanOrEqual(PPTX_HARD_FIXTURE_IDS.size);
 		let hard = 0;
 		let info = 0;
 		for (const c of cases) {
@@ -29,7 +30,7 @@ test('pptx visual corpus keeps skipPrint and hard-flips only the allow-listed fi
 			}
 		}
 		expect(hard).toBe(PPTX_HARD_FIXTURE_IDS.size);
-		expect(info).toBeGreaterThan(0);
+		expect(hard + info).toBe(cases.length);
 	} finally {
 		if (prev === undefined) delete process.env.VISUAL_PPTX_MAX;
 		else process.env.VISUAL_PPTX_MAX = prev;

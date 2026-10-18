@@ -7,6 +7,7 @@ import { unsupportedFormatError } from "./bootstrap.js";
 import { getDefaultFontSource } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
 import { fillMeasureWidths } from "./measure.js";
+import { fillOutlineContours } from "./glyph-outline.js";
 export class WorkerDocument {
 constructor(opts = {}) {
 this._canvas = opts.canvas || null;
@@ -29,6 +30,17 @@ this._worker.postMessage({ type: "events", bytes }, [bytes.buffer]);
 this._measureCanvas = null;
 this._pendingLayoutReqs = null;
 this._strings = null;
+/** Pending measure/outline counts from the last take-frame (for settle loops). */
+this._measureCount = 0;
+this._outlineCount = 0;
+}
+/** Last-frame pending measure count (0 after host answered or none queued). */
+get measureCount() {
+return this._measureCount | 0;
+}
+/** Last-frame pending outline count (0 after host answered or none queued). */
+get outlineCount() {
+return this._outlineCount | 0;
 }
 _newWorker(prewarm) {
 const url = this._workerUrl || new URL("./worker.js", import.meta.url);
@@ -154,11 +166,17 @@ const {
 commands,
 measureReqs,
 measureCount,
+outlineReqs,
+outlineCount,
 layoutReqs,
 layoutCount,
 strings,
 } = frame;
 this._strings = strings || this._strings;
+// Keep last-frame pending counts until the *next* take-frame reports 0 so
+// settle loops run one more tick and prepareFrame can consume the cache.
+this._measureCount = measureCount | 0;
+this._outlineCount = outlineCount | 0;
 if (measureCount > 0 && measureReqs) {
 const ctx = this._measureCtx();
 const widths = fillMeasureWidths(
@@ -170,6 +188,19 @@ measureCount,
 );
 await this._request("measure-acked", () => {
 this._worker.postMessage({ type: "measure-results", widths }, [widths.buffer]);
+});
+}
+if (outlineCount > 0 && outlineReqs) {
+const ctx = this._measureCtx();
+const contours = fillOutlineContours(
+ctx,
+outlineCount,
+(i) => (strings && strings[outlineReqs.chars[i]]) || "",
+(i) => (strings && strings[outlineReqs.fonts[i]]) || "sans-serif",
+(i) => outlineReqs.sizes[i],
+);
+await this._request("outline-acked", () => {
+this._worker.postMessage({ type: "outline-results", contours });
 });
 }
 const drawCtx =
@@ -184,7 +215,12 @@ images: this._images,
 nodes: this._nodes,
 });
 this._queueLayout(layoutReqs, layoutCount || 0);
-return { ...result, measured: measureCount || 0, layoutReads };
+return {
+...result,
+measured: measureCount || 0,
+outlined: outlineCount || 0,
+layoutReads,
+};
 }
 dispose() {
 this._events.flushNow();

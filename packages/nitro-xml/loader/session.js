@@ -71,6 +71,14 @@ return this._handle;
 get name() {
 return this._name;
 }
+/** Pending canvas measure probes (for settle loops). */
+get measureCount() {
+return this._disposed ? 0 : this._handle.measureCount | 0;
+}
+/** Pending glyph-outline probes (for settle loops). */
+get outlineCount() {
+return this._disposed ? 0 : this._handle.outlineCount | 0;
+}
 pushEvent(ev) {
 this._events.push(ev);
 }
@@ -153,9 +161,14 @@ return {
 get measureCount() {
 return h.measureCount;
 },
+get outlineCount() {
+return h.outlineCount;
+},
 resolve: (id) => h.resolve(id),
 setMeasureResults: (widths) => h.setMeasureResults(widths),
 takeMeasureReqs: () => h.takeMeasureReqs(),
+takeOutlineReqs: () => h.takeOutlineReqs(),
+setOutlineResults: (contours) => h.setOutlineResults(contours),
 _ctx: ctx,
 };
 }

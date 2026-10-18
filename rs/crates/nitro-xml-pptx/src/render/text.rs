@@ -1511,9 +1511,20 @@ fn apply_run_rtl<I: StringIntern>(
 }
 
 fn apply_run_underline<I: StringIntern>(ctx: &mut PaintContext<'_, I>, run: u32) {
+    apply_run_underline_with_thickness(ctx, run, true);
+}
+
+/// Plain underlines carry `1px`; a hyperlink underline keeps the browser's font-scaled default.
+fn apply_run_underline_with_thickness<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    run: u32,
+    fixed_thickness: bool,
+) {
     set_style(ctx, run, "text-decoration-line", "underline");
     set_style(ctx, run, "text-decoration-style", "solid");
-    set_style(ctx, run, "text-decoration-thickness", "1px");
+    if fixed_thickness {
+        set_style(ctx, run, "text-decoration-thickness", "1px");
+    }
     set_style(ctx, run, "text-decoration-skip-ink", "none");
 }
 
@@ -1582,8 +1593,14 @@ fn paint_hyperlink_run<I: StringIntern>(
         set_style(ctx, link, "font-family", stack);
     }
     paint_run_typography(ctx, link, paint, size, stack);
-    set_style(ctx, link, "color", HYPERLINK_COLOR);
-    apply_run_underline(ctx, link);
+    // Upstream: the resolved run colour wins; `hlink` colour only when the cascade gave none.
+    set_style(
+        ctx,
+        link,
+        "color",
+        paint.text_color.unwrap_or(HYPERLINK_COLOR),
+    );
+    apply_run_underline_with_thickness(ctx, link, false);
     if run_line_height_zero {
         set_style(ctx, link, "line-height", "0");
     }

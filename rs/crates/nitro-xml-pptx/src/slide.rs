@@ -207,6 +207,9 @@ pub struct DumpElement {
     /// Diagram data part XML (`dgm:dataModel`) for presentation label colours.
     #[serde(skip)]
     pub smartart_data_xml: Option<String>,
+    /// Diagram quick-style part XML (`dgm:styleDef`) for effect intensity / drop shadow.
+    #[serde(skip)]
+    pub smartart_qs_xml: Option<String>,
     /// `r:embed` on a picture or shape blip fill, or an OLE preview relationship.
     /// Resolved to [`Self::image_src`].
     #[serde(skip)]
@@ -1998,6 +2001,7 @@ fn build_dump(
         smartart_drawing_path: None,
         smartart_drawing_xml: None,
         smartart_data_xml: None,
+        smartart_qs_xml: None,
         image_rel_id: extras.image_rel_id,
         image_rel_owner: extras.image_rel_owner,
         ole_spid: extras.ole_spid,

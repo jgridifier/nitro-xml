@@ -257,6 +257,7 @@ mod tests {
             smartart_drawing_path: None,
             smartart_drawing_xml: None,
             smartart_data_xml: None,
+            smartart_qs_xml: None,
             image_rel_id: None,
             image_rel_owner: None,
             ole_spid: None,

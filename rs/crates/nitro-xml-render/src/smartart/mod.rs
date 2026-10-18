@@ -11,10 +11,19 @@
 //! frames are still dropped. Used by pptx; xlsx/docx can call the same entry.
 
 mod circular_arrow;
+mod effect_intensity;
 mod pres_point_styles;
+mod style_helpers;
 mod text_wrap_estimate;
 
+pub use effect_intensity::{
+    data_style_from_effect_intensity, resolve_smart_art_effect_intensity_from_qs_xml,
+    SmartArtEffectIntensity,
+};
 pub use pres_point_styles::{pres_styles_by_model_id, PresStyleMeta};
+pub use style_helpers::{
+    diagram_style_from_data_style, style_shadow, style_stroke, DiagramStyleIntensity,
+};
 
 use text_wrap_estimate::{drawing_text_base_line_height_ratio, wrap_text_by_estimated_width};
 
@@ -90,14 +99,31 @@ pub fn smartart_svg_with_scheme_and_pres(
     scheme: Option<&BTreeMap<String, String>>,
     pres_styles: Option<&BTreeMap<String, PresStyleMeta>>,
 ) -> String {
+    smartart_svg_with_scheme_pres_and_qs(drawing_xml, width, height, scheme, pres_styles, None)
+}
+
+/// Like [`smartart_svg_with_scheme_and_pres`], resolving quick-style effect intensity for drop shadows.
+pub fn smartart_svg_with_scheme_pres_and_qs(
+    drawing_xml: Option<&str>,
+    width: f64,
+    height: f64,
+    scheme: Option<&BTreeMap<String, String>>,
+    pres_styles: Option<&BTreeMap<String, PresStyleMeta>>,
+    quick_style_xml: Option<&str>,
+) -> String {
     let w = width.max(1.0).round();
     let h = height.max(1.0).round();
+    let data_style = quick_style_xml
+        .and_then(resolve_smart_art_effect_intensity_from_qs_xml)
+        .and_then(|i| data_style_from_effect_intensity(Some(i)));
+    let diagram_style = diagram_style_from_data_style(data_style);
+    let shadow_filter = style_shadow(diagram_style);
     if let Some(xml) = drawing_xml {
         if let Ok(doc) = parse_xml_str(xml) {
             let mut shapes = collect_shapes(&doc.root, scheme, pres_styles);
             shapes.retain(keep_shape);
             if !shapes.is_empty() {
-                return shapes_svg(&shapes, w, h);
+                return shapes_svg(&shapes, w, h, diagram_style, shadow_filter);
             }
         }
     }
@@ -326,7 +352,13 @@ fn build_gradient_defs(defs_body: &mut String, gradient: &Gradient) {
     defs_body.push_str("</linearGradient>");
 }
 
-fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
+fn shapes_svg(
+    shapes: &[SpBox],
+    _w: f64,
+    _h: f64,
+    diagram_style: DiagramStyleIntensity,
+    shadow_filter: Option<&str>,
+) -> String {
     let mut min_x = f64::INFINITY;
     let mut min_y = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
@@ -355,11 +387,14 @@ fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
             build_gradient_defs(&mut defs_body, grad);
         }
     }
+    let style_sw = style_stroke(diagram_style);
     let mut body = String::new();
     for shape in shapes {
         let paint_body = shape.fill != "none" || shape.stroke != "none";
         let stroke_w = if shape.stroke_width > 0.0 {
             shape.stroke_width
+        } else if style_sw > 0.0 {
+            style_sw
         } else {
             default_stroke
         };
@@ -381,6 +416,15 @@ fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
             .as_ref()
             .map(|t| format!(" transform=\"{}\"", escape(t)))
             .unwrap_or_default();
+
+        let group_open = if let Some(filter) = shadow_filter {
+            format!("<g style=\"filter:{}\">", escape(filter))
+        } else {
+            String::new()
+        };
+        if !group_open.is_empty() {
+            body.push_str(&group_open);
+        }
 
         if paint_body {
             match &shape.kind {
@@ -435,6 +479,9 @@ fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
                 origin_x,
                 origin_y,
             );
+        }
+        if !group_open.is_empty() {
+            body.push_str("</g>");
         }
     }
     format!(

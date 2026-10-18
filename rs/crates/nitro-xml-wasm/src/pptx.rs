@@ -135,6 +135,7 @@ impl PptxState {
         strings: &mut StringTable,
         commands: &mut nitro_xml_render::CommandBuffer,
         measures: &mut nitro_xml_render::measure::MeasureBatch,
+        outlines: &mut nitro_xml_render::measure::OutlineBatch,
         layout_reads: &mut nitro_xml_render::LayoutReadBatch,
     ) {
         let viewport = self.viewport();
@@ -142,6 +143,7 @@ impl PptxState {
             commands,
             strings,
             measures,
+            outlines,
             layout_reads,
             &mut self.pres,
             &mut self.sp_autofit,
@@ -333,6 +335,7 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
             &mut handle.strings,
             &mut handle.commands,
             &mut handle.measures,
+            &mut handle.outlines,
             &mut handle.layout_reads,
         );
     }

@@ -65,7 +65,9 @@ pub fn paint_pptx_chart_xml(
         &super::chart_vm::VmTheme {
             scheme: scheme.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
             minor_latin: minor_font,
+            picture_id_prefix: picture_id_prefix.to_string(),
         },
+        &chart_images,
     ) {
         svg
     } else {

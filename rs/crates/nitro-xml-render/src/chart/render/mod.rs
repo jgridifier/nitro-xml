@@ -25,7 +25,7 @@ mod gradient_coincident_stops;
 mod gradient_definition;
 mod gradient_markup;
 mod gradient_stop_edit;
-mod manual_layout_resolve;
+pub mod manual_layout_resolve;
 mod png_first_pixel;
 mod render_space;
 mod sigma_gradient_stops;

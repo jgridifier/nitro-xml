@@ -49,6 +49,12 @@ pub struct TextBodyPaint<'a> {
     pub body_box_height_px: Option<f64>,
     /// `a:bodyPr/@compatLnSpc` — use legacy (97-2003) line-spacing algorithm (line-height 1 instead of 1.2).
     pub compat_line_spacing: bool,
+    /// `a:bodyPr/a:prstTxWarp/@prst` (WordArt preset, paint only).
+    pub text_warp_preset: Option<&'a str>,
+    /// `a:bodyPr/a:prstTxWarp/a:avLst/a:gd[@name="adj"]` adjustment value.
+    pub text_warp_adj: Option<i32>,
+    /// `a:bodyPr/a:prstTxWarp/a:avLst/a:gd[@name="adj2"]` adjustment value.
+    pub text_warp_adj2: Option<i32>,
 }
 
 impl<'a> TextBodyPaint<'a> {
@@ -75,6 +81,9 @@ impl<'a> TextBodyPaint<'a> {
             text_caps: None,
             body_box_height_px: Some(el.height.max(0.0)),
             compat_line_spacing: el.compat_line_spacing,
+            text_warp_preset: el.text_warp_preset.as_deref(),
+            text_warp_adj: el.text_warp_adj,
+            text_warp_adj2: el.text_warp_adj2,
         }
     }
 }
@@ -104,6 +113,26 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "text");
     let text = el.text.as_deref().unwrap_or("");
+
+    // Dispatch: if text warp preset is present and supported, render via SVG textPath.
+    if let Some(preset) = el.text_warp_preset.as_deref() {
+        if super::wordart::should_use_svg_warp(preset) {
+            let block = paint_warped_text_body(ctx, id, text, el);
+            queue_sp_autofit_scroll_height(
+                ctx.layout_reads,
+                &mut ctx.layout_read_records,
+                &el.id,
+                el.auto_fit_mode,
+                block,
+                painted_h,
+            );
+            let font_size_prop = ctx.intern.intern("font-size");
+            ctx.push_layout_read(block, LayoutReadKind::ComputedStyle, font_size_prop, None);
+            ctx.view_ir.push_painted("text", el, None);
+            return;
+        }
+    }
+
     let block = paint_text_body(ctx, id, text, TextBodyPaint::from_element(el));
     queue_sp_autofit_scroll_height(
         ctx.layout_reads,
@@ -179,6 +208,421 @@ fn open_paragraph<I: StringIntern>(
         set_style(ctx, para, "unicode-bidi", "embed");
     }
     para
+}
+
+/// PowerPoint single-spaced envelope line pitch (upstream `LINE_PITCH_EM`).
+const ENVELOPE_LINE_PITCH_EM: f64 = 1.2;
+/// Cap-height estimate above baseline without ink metrics (`FALLBACK_CAP_HEIGHT_EM`).
+const ENVELOPE_CAP_HEIGHT_EM: f64 = 0.72;
+
+/// Measure per-glyph advances via MeasureBatch (canvas `measureText`), matching
+/// upstream `measureGlyphAdvances`: a glyph starts at its prefix width minus its
+/// lone width, so pair kerning moves the glyph it applies to. Falls back to
+/// `0.55em` until the host replies on the next paint pass.
+fn envelope_glyph_advances<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    text: &str,
+    canvas_font: &str,
+    size: f64,
+) -> Vec<f64> {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.is_empty() {
+        return Vec::new();
+    }
+    let font_id = ctx.intern.intern(canvas_font);
+    let estimate = size * 0.55;
+    let mut pending = false;
+    let mut width = |ctx: &mut PaintContext<'_, I>, s: &str| -> f64 {
+        let key = ctx.intern.intern(&format!("envw:{s}"));
+        if let Some(cached) = ctx.measure.cached_width(font_id, key) {
+            cached
+        } else {
+            ctx.measure.push(font_id, size as f32, key);
+            pending = true;
+            0.0
+        }
+    };
+    let mut prefix = String::new();
+    let mut starts = Vec::with_capacity(chars.len());
+    for ch in &chars {
+        prefix.push(*ch);
+        let w_prefix = width(ctx, &prefix);
+        let w_char = width(ctx, &ch.to_string());
+        starts.push(w_prefix - w_char);
+    }
+    let total = width(ctx, &prefix);
+    if pending {
+        return vec![estimate; chars.len()];
+    }
+    (0..starts.len())
+        .map(|i| {
+            let next = starts.get(i + 1).copied().unwrap_or(total);
+            (next - starts[i]).max(0.0)
+        })
+        .collect()
+}
+
+/// One glyph placed in the unwarped envelope block (upstream `EnvelopeBlockGlyph`).
+struct EnvelopeGlyph {
+    ch: char,
+    x: f64,
+    baseline: f64,
+    advance: f64,
+    outline: Option<Vec<Vec<super::wordart::OutlinePoint>>>,
+    ink: Option<super::wordart_envelope_map::EnvelopeBlockBox>,
+}
+
+/// Paint WordArt glyph-envelope warp via per-glyph SVG <text> elements.
+/// 1:1 with upstream `buildGlyphEnvelopeBlock` + React `EnvelopeGlyph` (affine
+/// fallback; outline warp deferred — needs font outline host).
+#[allow(clippy::too_many_arguments)]
+fn paint_warped_text_envelope<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    block: u32,
+    text: &str,
+    preset: &str,
+    w: f64,
+    h: f64,
+    adj1: Option<i32>,
+    adj2: Option<i32>,
+    size: f64,
+    stack: &str,
+    color: &str,
+    weight: &str,
+    style: &str,
+    bold: bool,
+    italic: bool,
+) -> u32 {
+    let paragraphs: Vec<&str> = if text.is_empty() {
+        vec![""]
+    } else {
+        text.split('\n').collect()
+    };
+    let canvas_font = canvas_measure_font(stack, size, bold, italic);
+
+    // Per-line advances + widths (upstream layoutEnvelopeBlock).
+    let line_advances: Vec<Vec<f64>> = paragraphs
+        .iter()
+        .map(|p| envelope_glyph_advances(ctx, p, &canvas_font, size))
+        .collect();
+    let line_widths: Vec<f64> = line_advances
+        .iter()
+        .map(|a| a.iter().sum::<f64>())
+        .collect();
+    let block_width = line_widths.iter().copied().fold(0.0_f64, f64::max);
+    if block_width <= 0.0 {
+        set_text_content(ctx, block, text);
+        return block;
+    }
+
+    // Stack baselines at 1.2em pitch (single size per block, so the
+    // `BASELINE_FRACTION` blend reduces to `1.2 * size`).
+    let cap = size * ENVELOPE_CAP_HEIGHT_EM;
+    let font_id = ctx.intern.intern(&canvas_font);
+    let mut lines: Vec<Vec<EnvelopeGlyph>> = Vec::with_capacity(paragraphs.len());
+    let mut block_box = super::wordart_envelope_map::EnvelopeBlockBox {
+        left: f64::INFINITY,
+        top: f64::INFINITY,
+        right: f64::NEG_INFINITY,
+        bottom: f64::NEG_INFINITY,
+    };
+    let mut has_ink = false;
+    for (para_idx, para) in paragraphs.iter().enumerate() {
+        let advances = &line_advances[para_idx];
+        let baseline = para_idx as f64 * ENVELOPE_LINE_PITCH_EM * size;
+        let mut x = (block_width - line_widths[para_idx]) / 2.0;
+        let mut glyphs = Vec::new();
+        for (idx, ch) in para.chars().enumerate() {
+            let advance = advances.get(idx).copied().unwrap_or(size * 0.55);
+            let mut glyph = EnvelopeGlyph {
+                ch,
+                x,
+                baseline,
+                advance,
+                outline: None,
+                ink: None,
+            };
+            if ch.is_whitespace() {
+                block_box.left = block_box.left.min(x);
+                block_box.right = block_box.right.max(x + advance);
+            } else {
+                let char_id = ctx.intern.intern(&ch.to_string());
+                match ctx.outlines.cached_contours(font_id, char_id) {
+                    Some(em) if em.iter().any(|ring| !ring.is_empty()) => {
+                        glyph.outline = Some(
+                            em.iter()
+                                .map(|ring| {
+                                    ring.iter()
+                                        .map(|(ex, ey)| super::wordart::OutlinePoint {
+                                            x: x + ex * size,
+                                            y: baseline + ey * size,
+                                        })
+                                        .collect()
+                                })
+                                .collect(),
+                        );
+                    }
+                    Some(_) => {}
+                    None => ctx.outlines.push(font_id, char_id, size as f32),
+                }
+                let ink = match &glyph.outline {
+                    Some(contours) => {
+                        let mut b = super::wordart_envelope_map::EnvelopeBlockBox {
+                            left: f64::INFINITY,
+                            top: f64::INFINITY,
+                            right: f64::NEG_INFINITY,
+                            bottom: f64::NEG_INFINITY,
+                        };
+                        for p in contours.iter().flatten() {
+                            b.left = b.left.min(p.x);
+                            b.right = b.right.max(p.x);
+                            b.top = b.top.min(p.y);
+                            b.bottom = b.bottom.max(p.y);
+                        }
+                        b
+                    }
+                    None => super::wordart_envelope_map::EnvelopeBlockBox {
+                        left: x,
+                        top: baseline - cap,
+                        right: x + advance,
+                        bottom: baseline,
+                    },
+                };
+                has_ink = true;
+                block_box.left = block_box.left.min(ink.left);
+                block_box.right = block_box.right.max(ink.right);
+                block_box.top = block_box.top.min(ink.top);
+                block_box.bottom = block_box.bottom.max(ink.bottom);
+                glyph.ink = Some(ink);
+            }
+            glyphs.push(glyph);
+            x += advance;
+        }
+        lines.push(glyphs);
+    }
+    if !has_ink || !block_box.left.is_finite() {
+        set_text_content(ctx, block, text);
+        return block;
+    }
+
+    let warp = match super::wordart::create_envelope_warp(preset, w, h, adj1, adj2, block_box) {
+        Some(warp) => warp,
+        None => {
+            set_text_content(ctx, block, text);
+            return block;
+        }
+    };
+
+    let mut svg_content = String::new();
+    let safe_id = block.to_string();
+    let escaped_stack = xml_escape_attr(stack);
+    let max_segment = ((block_box.right - block_box.left) / 240.0).max(1e-3);
+
+    for (para_idx, glyphs) in lines.iter().enumerate() {
+        for (idx, g) in glyphs.iter().enumerate() {
+            let ch = g.ch;
+            if ch.is_whitespace() {
+                continue;
+            }
+            let x = g.x;
+            let y_baseline = g.baseline;
+            let path_d = g.outline.as_ref().and_then(|contours| {
+                super::wordart::build_warped_glyph_outline_path_d(contours, &*warp, max_segment)
+            });
+            if let Some(path_d) = path_d {
+                svg_content.push_str(&format!(r#"<path d="{path_d}" fill="{color}" />"#));
+                continue;
+            }
+
+            let glyph_box = match g.ink {
+                Some(ink) => super::wordart_envelope_affine::GlyphFitBox {
+                    x0: ink.left,
+                    x1: ink.right,
+                    y0: ink.top,
+                    y1: ink.bottom,
+                },
+                None => super::wordart_envelope_affine::GlyphFitBox {
+                    x0: x,
+                    x1: x + g.advance.max(1e-3),
+                    y0: y_baseline - cap,
+                    y1: y_baseline,
+                },
+            };
+            let fit = super::wordart::fit_glyph_envelope_affine(&*warp, glyph_box, h);
+            let glyph_str = xml_escape_text(&ch.to_string());
+
+            if let Some(slices) = &fit.slices {
+                for (slice_idx, slice) in slices.iter().enumerate() {
+                    let clip_id = format!("{safe_id}-clip-{para_idx}-{idx}-{slice_idx}");
+                    svg_content.push_str(&format!(
+                        r#"<defs><clipPath id="{clip_id}" clipPathUnits="userSpaceOnUse"><rect x="{x0}" y="-100000" width="{ww}" height="200000"/></clipPath></defs>"#,
+                        clip_id = clip_id,
+                        x0 = slice.clip_x0,
+                        ww = (slice.clip_x1 - slice.clip_x0).max(0.0),
+                    ));
+                    svg_content.push_str(&format!(
+                        r#"<text fill="{color}" font-family="{stack}" font-size="{size}" font-weight="{weight}" font-style="{style}" x="{gx}" y="{gy}" transform="{xf}" clip-path="url(#{clip_id})">{glyph}</text>"#,
+                        color = color,
+                        stack = escaped_stack,
+                        size = size,
+                        weight = weight,
+                        style = style,
+                        gx = x,
+                        gy = y_baseline,
+                        xf = slice.transform,
+                        clip_id = clip_id,
+                        glyph = glyph_str,
+                    ));
+                }
+            } else {
+                svg_content.push_str(&format!(
+                    r#"<text fill="{color}" font-family="{stack}" font-size="{size}" font-weight="{weight}" font-style="{style}" x="{gx}" y="{gy}" transform="{xf}">{glyph}</text>"#,
+                    color = color,
+                    stack = escaped_stack,
+                    size = size,
+                    weight = weight,
+                    style = style,
+                    gx = x,
+                    gy = y_baseline,
+                    xf = fit.transform,
+                    glyph = glyph_str,
+                ));
+            }
+        }
+    }
+
+    let markup = format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" preserveAspectRatio="none" aria-hidden="true" class="pptxv-wordart" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">{svg_content}</svg>"#
+    );
+    set_inner_markup_stub(ctx, block, &markup);
+    block
+}
+
+/// Paint WordArt warp. Path presets use SVG `<textPath>` via SetInnerMarkup
+/// (loader only createElementNS's the root `<svg>` tag). Envelope presets use
+/// per-glyph affine transforms for accurate envelope mapping.
+fn paint_warped_text_body<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    parent: u32,
+    text: &str,
+    el: &DumpElement,
+) -> u32 {
+    let block = create_child(ctx, parent, "div");
+    set_attr(ctx, block, "class", "pptxv-text pptxv-wordart");
+    set_style(ctx, block, "width", "100%");
+    set_style(ctx, block, "height", "100%");
+    set_style(ctx, block, "overflow", "visible");
+    set_style(ctx, block, "position", "relative");
+
+    let preset = el.text_warp_preset.as_deref().unwrap_or("");
+    let size = el.font_size_px.unwrap_or(24.0).max(1.0);
+    let stack = substitute_font_family_stack(el.font_family.as_deref());
+    let color = el.text_color.as_deref().unwrap_or("#000000");
+    let weight = if el.font_bold { "bold" } else { "normal" };
+    let style = if el.font_italic { "italic" } else { "normal" };
+
+    // Envelope family: per-glyph envelope warp via SVG <text> elements
+    if super::wordart::has_glyph_envelope(preset) {
+        return paint_warped_text_envelope(
+            ctx,
+            block,
+            text,
+            preset,
+            el.width.max(1.0),
+            el.height.max(1.0),
+            el.text_warp_adj,
+            el.text_warp_adj2,
+            size,
+            &stack,
+            color,
+            weight,
+            style,
+            el.font_bold,
+            el.font_italic,
+        );
+    }
+
+    // Path family: SVG textPath markup (upstream `renderPathWarp`).
+    let w = el.width.max(1.0);
+    let h = el.height.max(1.0);
+    let lines: Vec<&str> = if text.is_empty() {
+        vec![""]
+    } else {
+        text.split('\n').collect()
+    };
+    let line_count = lines.len().max(1);
+    let safe_id = el
+        .id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let mut defs = String::new();
+    let mut texts = String::new();
+    for (index, line) in lines.iter().enumerate() {
+        let path_id = format!("{safe_id}-warp-{index}");
+        let d = super::wordart::build_warp_path(
+            preset,
+            w,
+            h,
+            index,
+            line_count,
+            el.text_warp_adj,
+            el.text_warp_adj2,
+        )
+        .unwrap_or_else(|| {
+            let y = h
+                * (0.2
+                    + (if line_count <= 1 {
+                        0.5
+                    } else {
+                        index as f64 / (line_count as f64 - 1.0)
+                    }) * 0.6);
+            format!("M 0,{y} L {w},{y}")
+        });
+        let escaped_d = xml_escape_attr(&d);
+        let escaped_line = xml_escape_text(line);
+        // font-family stacks contain CSS quotes (`"Arial", ...`); must be
+        // attribute-escaped or SVG innerHTML splits the attribute (TS uses
+        // &quot; via React). Same for fill if a theme colour ever has `&`.
+        let escaped_stack = xml_escape_attr(&stack);
+        let escaped_color = xml_escape_attr(color);
+        defs.push_str(&format!(r#"<path id="{path_id}" d="{escaped_d}"></path>"#));
+        let href = format!("#{path_id}");
+        texts.push_str(&format!(
+            r#"<text fill="{color}" font-family="{stack}" font-size="{size}" font-weight="{weight}" font-style="{style}"><textPath href="{href}" startOffset="50%" text-anchor="middle">{escaped_line}</textPath></text>"#,
+            color = escaped_color,
+            stack = escaped_stack,
+            size = size,
+            weight = weight,
+            style = style,
+            href = href,
+            escaped_line = escaped_line,
+        ));
+    }
+    let markup = format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" preserveAspectRatio="none" aria-hidden="true" class="pptxv-wordart" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible"><defs>{defs}</defs>{texts}</svg>"#
+    );
+    set_inner_markup_stub(ctx, block, &markup);
+    block
+}
+
+fn xml_escape_attr(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn xml_escape_text(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 pub fn paint_text_body<I: StringIntern>(
@@ -411,6 +855,9 @@ fn paint_rich_paragraphs<I: StringIntern>(
             presentation_kinsoku: paint.presentation_kinsoku,
             body_box_height_px: paint.body_box_height_px,
             compat_line_spacing: paint.compat_line_spacing,
+            text_warp_preset: paint.text_warp_preset,
+            text_warp_adj: paint.text_warp_adj,
+            text_warp_adj2: paint.text_warp_adj2,
         };
         let para_rtl = para_model.rtl.or(body_rtl);
         let is_rtl = para_rtl == Some(true);
@@ -567,6 +1014,9 @@ fn merge_run_level_paint<'a>(
             presentation_kinsoku: base.presentation_kinsoku,
             body_box_height_px: base.body_box_height_px,
             compat_line_spacing: base.compat_line_spacing,
+            text_warp_preset: base.text_warp_preset,
+            text_warp_adj: base.text_warp_adj,
+            text_warp_adj2: base.text_warp_adj2,
         },
         scaled_size,
     )
@@ -876,6 +1326,9 @@ fn paint_run_text_span<I: StringIntern>(
                     presentation_kinsoku: paint.presentation_kinsoku,
                     body_box_height_px: paint.body_box_height_px,
                     compat_line_spacing: paint.compat_line_spacing,
+                    text_warp_preset: paint.text_warp_preset,
+                    text_warp_adj: paint.text_warp_adj,
+                    text_warp_adj2: paint.text_warp_adj2,
                 };
                 let seg_stack = substitute_font_family_stack(seg_paint.font_family);
                 let seg_following = if idx + 1 < script_runs.len() {
@@ -1603,7 +2056,7 @@ fn format_px(v: f64) -> String {
 mod tests {
     use std::collections::BTreeMap;
 
-    use nitro_xml_render::measure::{LayoutReadBatch, MeasureBatch};
+    use nitro_xml_render::measure::{LayoutReadBatch, MeasureBatch, OutlineBatch};
     use nitro_xml_render::CommandBuffer;
 
     use super::super::context::{PaintContext, StringIntern};
@@ -1635,8 +2088,10 @@ mod tests {
         intern_seed: Option<Intern>,
         text: &str,
     ) -> Intern {
+        // Keep the caller's MeasureBatch (tests seed GDI tracking cache entries).
         let mut buffer = CommandBuffer::new();
         let mut intern = intern_seed.unwrap_or_else(|| Intern(Vec::new()));
+        let mut outlines = OutlineBatch::default();
         let mut layout_reads = LayoutReadBatch::default();
         let mut view_ir = ViewIrCollector::default();
         let scheme = BTreeMap::new();
@@ -1646,6 +2101,7 @@ mod tests {
             &mut buffer,
             &mut intern,
             &mut measure,
+            &mut outlines,
             &mut layout_reads,
             &mut view_ir,
             1.0,
@@ -1679,6 +2135,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1708,6 +2167,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1736,6 +2198,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1764,6 +2229,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1810,6 +2278,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1843,6 +2314,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: true,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1895,6 +2369,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(intern.0.iter().any(|s| s == "span"));
@@ -1921,6 +2398,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(intern.0.iter().any(|s| s == "pptxv-para"));
@@ -1953,6 +2433,9 @@ mod tests {
                 geom_rect_padding: TextBodyRectPadding::default(),
                 presentation_kinsoku: false,
                 body_box_height_px: None,
+                text_warp_preset: None,
+                text_warp_adj: None,
+                text_warp_adj2: None,
                 compat_line_spacing: false,
             },
             measure,
@@ -2003,6 +2486,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -2041,6 +2527,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -2079,6 +2568,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(

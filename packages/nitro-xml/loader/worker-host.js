@@ -29,6 +29,14 @@ this._worker.postMessage({ type: "events", bytes }, [bytes.buffer]);
 this._measureCanvas = null;
 this._pendingLayoutReqs = null;
 this._strings = null;
+this._measureCount = 0;
+this._outlineCount = 0;
+}
+get measureCount() {
+return this._measureCount | 0;
+}
+get outlineCount() {
+return this._outlineCount | 0;
 }
 _newWorker(prewarm) {
 const url = this._workerUrl || new URL("./worker.js", import.meta.url);
@@ -145,46 +153,16 @@ const msg = await this._request("sa", () => this._worker.postMessage({ type: "sa
 try { return JSON.parse(msg.result); } catch { return { ui: null }; }
 }
 async tick() {
-this._events.flushNow();
-const layoutReads = await this._flushPendingLayout();
-const frame = await this._request("frame", () => {
-this._worker.postMessage({ type: "take-frame" });
-});
-const {
-commands,
-measureReqs,
-measureCount,
-layoutReqs,
-layoutCount,
-strings,
-} = frame;
-this._strings = strings || this._strings;
-if (measureCount > 0 && measureReqs) {
-const ctx = this._measureCtx();
-const widths = fillMeasureWidths(
-ctx,
-measureCount,
-(i) => (strings && strings[measureReqs.fonts[i]]) || "sans-serif",
-(i) => measureReqs.sizes[i],
-(i) => (strings && strings[measureReqs.texts[i]]) || "",
-);
-await this._request("measure-acked", () => {
-this._worker.postMessage({ type: "measure-results", widths }, [widths.buffer]);
-});
+const prev = this._tickLock || Promise.resolve();
+let release;
+this._tickLock = new Promise((r) => { release = r; });
+await prev;
+try {
+const { tickBody } = await import("./lazy/worker-host-tick.js");
+return await tickBody(this);
+} finally {
+release();
 }
-const drawCtx =
-this._canvas && this._canvas.getContext ? this._canvas.getContext("2d") : null;
-const resolve = (id) => (strings && strings[id]) || "";
-if (frame.h && this.onChrome) this.onChrome(frame.h);
-const result = applyCommandBuffer(commands, {
-canvas: drawCtx,
-root: this._root,
-resolve,
-images: this._images,
-nodes: this._nodes,
-});
-this._queueLayout(layoutReqs, layoutCount || 0);
-return { ...result, measured: measureCount || 0, layoutReads };
 }
 dispose() {
 this._events.flushNow();

@@ -70,20 +70,31 @@ return this._handle;
 get name() {
 return this._name;
 }
+get measureCount() {
+return this._disposed ? 0 : this._handle.measureCount | 0;
+}
+get outlineCount() {
+return this._disposed ? 0 : this._handle.outlineCount | 0;
+}
 pushEvent(ev) {
 this._events.push(ev);
 }
 shellAction(op, arg = "") {
 return this._disposed ? null : JSON.parse(this._handle.shellAction(op || "ui", arg || ""));
 }
-tick(opts = {}) {
-if (this._disposed) return { measured: 0, ops: 0, layoutReads: 0 };
+async tick(opts = {}) {
+if (this._disposed) return { measured: 0, outlined: 0, ops: 0, layoutReads: 0 };
 if (opts.canvas !== undefined) this._canvas = opts.canvas;
 if (opts.root !== undefined) this._root = opts.root;
 const layoutReads = this._flushPendingLayout();
 const ctx = this._ensureMeasureCtx();
 const handle = this._measureHandle(ctx);
 const measured = flushMeasureBatch(handle, ctx);
+let outlined = 0;
+if ((this._handle.outlineCount | 0) > 0) {
+const { flushOutlineBatch } = await import("./lazy/glyph-outline.js");
+outlined = flushOutlineBatch(this._handle, ctx);
+}
 this._handle.prepareFrame();
 const commands = this._handle.takeFrameCommands();
 const drawCtx = this._canvas && this._canvas.getContext
@@ -98,7 +109,7 @@ nodes: this._nodes,
 });
 this._takeLayoutAfterApply();
 this._events.flushNow();
-return { measured, ops, layoutReads, error };
+return { measured, outlined, ops, layoutReads, error };
 }
 dispose() {
 if (this._disposed) return;

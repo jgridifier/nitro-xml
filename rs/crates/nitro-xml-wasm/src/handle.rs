@@ -44,7 +44,9 @@ fn process_frame(handle: &mut Handle) {
 }
 use js_sys::{Array, Function, JsString};
 use nitro_xml::opc::fonts::{resolve_webfont_plan, FontSource, FONT_SUBSTITUTION_CODE};
-use nitro_xml_render::{CommandBuffer, LayoutReadBatch, LayoutReadKind, MeasureBatch};
+use nitro_xml_render::{
+    CommandBuffer, LayoutReadBatch, LayoutReadKind, MeasureBatch, OutlineBatch,
+};
 use wasm_bindgen::prelude::*;
 
 /// Typed engine error surfaced to JS. Stable `code` strings are the machine API;
@@ -148,6 +150,7 @@ pub struct Handle {
     pub(crate) strings: StringTable,
     pub(crate) commands: CommandBuffer,
     pub(crate) measures: MeasureBatch,
+    pub(crate) outlines: OutlineBatch,
     pub(crate) layout_reads: LayoutReadBatch,
     pub(crate) events: EventQueue,
     pub(crate) xlsx: Option<XlsxState>,
@@ -174,6 +177,7 @@ impl Handle {
             strings,
             commands: CommandBuffer::new(),
             measures: MeasureBatch::new(),
+            outlines: OutlineBatch::new(),
             layout_reads: LayoutReadBatch::new(),
             events: EventQueue::new(),
             xlsx: None,
@@ -898,6 +902,84 @@ impl Handle {
         self.measures.set_results(widths).map_err(|e| {
             JsValue::from(OoxmlError::with_code("measure_len_mismatch", e.to_string()))
         })
+    }
+
+    /// Pending outline probe count (WordArt). Kept so the host can dynamic-import
+    /// the outline chunk only when `outlineCount > 0` (#27).
+    #[wasm_bindgen(getter, js_name = outlineCount)]
+    pub fn outline_count(&self) -> usize {
+        self.outlines.len()
+    }
+
+    /// Take pending outline requests (clears the queue).
+    /// Returns `[Uint32Array fonts, Uint32Array chars, Float32Array sizes]`.
+    #[wasm_bindgen(js_name = takeOutlineReqs)]
+    pub fn take_outline_reqs(&mut self) -> Array {
+        let (fonts, chars, sizes) = self.outlines.take_requests();
+        let out = Array::new();
+        out.push(&js_sys::Uint32Array::from(fonts.as_slice()).into());
+        out.push(&js_sys::Uint32Array::from(chars.as_slice()).into());
+        out.push(&js_sys::Float32Array::from(sizes.as_slice()).into());
+        out
+    }
+
+    /// Packed contour results from `loader/lazy/glyph-outline.js` (no Reflect in glue).
+    /// Per request: `ring_count`, then per ring `point_count` + `(x,y)` pairs; `0` = none.
+    #[wasm_bindgen(js_name = setOutlineResults)]
+    pub fn set_outline_results(&mut self, packed: &[f64]) -> Result<(), JsValue> {
+        use nitro_xml_render::GlyphContours;
+
+        let awaiting = self.outlines.awaiting();
+        let mut parsed: Vec<Option<GlyphContours>> = Vec::with_capacity(awaiting);
+        let mut i = 0usize;
+        for _ in 0..awaiting {
+            if i >= packed.len() {
+                return Err(JsValue::from(OoxmlError::with_code(
+                    "outline_len_mismatch",
+                    "packed outline buffer truncated",
+                )));
+            }
+            let ring_count = packed[i] as usize;
+            i += 1;
+            if ring_count == 0 {
+                parsed.push(None);
+                continue;
+            }
+            let mut contours: GlyphContours = Vec::with_capacity(ring_count);
+            for _ in 0..ring_count {
+                if i >= packed.len() {
+                    return Err(JsValue::from(OoxmlError::with_code(
+                        "outline_len_mismatch",
+                        "packed outline buffer truncated",
+                    )));
+                }
+                let point_count = packed[i] as usize;
+                i += 1;
+                let need = point_count.saturating_mul(2);
+                if i + need > packed.len() {
+                    return Err(JsValue::from(OoxmlError::with_code(
+                        "outline_len_mismatch",
+                        "packed outline buffer truncated",
+                    )));
+                }
+                let mut ring = Vec::with_capacity(point_count);
+                for _ in 0..point_count {
+                    ring.push((packed[i], packed[i + 1]));
+                    i += 2;
+                }
+                if !ring.is_empty() {
+                    contours.push(ring);
+                }
+            }
+            parsed.push(if contours.is_empty() {
+                None
+            } else {
+                Some(contours)
+            });
+        }
+        self.outlines
+            .set_results(parsed)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("outline_len_mismatch", e)))
     }
 
     /// Queue a post-apply layout read-back (answered on the next frame after apply).

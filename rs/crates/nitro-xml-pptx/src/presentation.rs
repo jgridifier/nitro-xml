@@ -1590,7 +1590,7 @@ fn base64_encode(data: &[u8]) -> String {
 mod tests {
     use super::*;
     use crate::render::{paint_slide_frame, SlidePaintViewport, StringIntern};
-    use nitro_xml_render::measure::MeasureBatch;
+    use nitro_xml_render::measure::{MeasureBatch, OutlineBatch};
     use nitro_xml_render::smartart::{smartart_svg, smartart_svg_with_scheme};
     use nitro_xml_render::{CommandBuffer, LayoutReadBatch};
 
@@ -1738,12 +1738,14 @@ mod tests {
         let mut intern = Rec(Vec::new());
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
+        let mut outline = OutlineBatch::default();
         let mut reads = LayoutReadBatch::default();
         let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
+            &mut outline,
             &mut reads,
             &mut opened,
             &mut sp_autofit,
@@ -1887,12 +1889,14 @@ mod tests {
         let mut intern = Rec(Vec::new());
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
+        let mut outline = OutlineBatch::default();
         let mut reads = LayoutReadBatch::default();
         let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
+            &mut outline,
             &mut reads,
             &mut opened,
             &mut sp_autofit,
@@ -2040,12 +2044,14 @@ mod tests {
         let mut intern = Rec(Vec::new());
         let mut buffer = CommandBuffer::new();
         let mut measure = MeasureBatch::default();
+        let mut outline = OutlineBatch::default();
         let mut reads = LayoutReadBatch::default();
         let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         paint_slide_frame(
             &mut buffer,
             &mut intern,
             &mut measure,
+            &mut outline,
             &mut reads,
             &mut opened,
             &mut sp_autofit,

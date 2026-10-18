@@ -369,7 +369,7 @@ fn build_3d_camera_transform(el: &DumpElement) -> Option<String> {
 mod tests {
     use std::collections::BTreeMap;
 
-    use nitro_xml_render::measure::{LayoutReadBatch, MeasureBatch};
+    use nitro_xml_render::measure::{LayoutReadBatch, MeasureBatch, OutlineBatch};
     use nitro_xml_render::CommandBuffer;
 
     use super::super::context::{PaintContext, StringIntern};
@@ -442,6 +442,9 @@ mod tests {
             presentation_kinsoku: false,
             compat_line_spacing: false,
             auto_fit_mode: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             editor_text: None,
             chart_r_id: None,
             chart_xml: None,
@@ -490,16 +493,18 @@ mod tests {
     fn paint_shape(el: &DumpElement) -> Intern {
         let mut buffer = CommandBuffer::new();
         let mut intern = Intern(Vec::new());
-        let mut measure = MeasureBatch::default();
         let mut layout_reads = LayoutReadBatch::default();
         let mut view_ir = ViewIrCollector::default();
         let scheme = BTreeMap::new();
         let mut sp_autofit = crate::render::SpAutofitPaintState::default();
         let slide_autofit = sp_autofit.slide_mut(0);
+        let mut measure = MeasureBatch::default();
+        let mut outlines = OutlineBatch::default();
         let mut ctx = PaintContext::new(
             &mut buffer,
             &mut intern,
             &mut measure,
+            &mut outlines,
             &mut layout_reads,
             &mut view_ir,
             1.0,

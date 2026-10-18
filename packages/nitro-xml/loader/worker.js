@@ -76,6 +76,11 @@ const t = handle.takeMeasureReqs();
 measureReqs = { fonts: t[0], sizes: t[1], texts: t[2] };
 measureCount = measureReqs.fonts.length;
 }
+let outlineReqs = null, outlineCount = 0, outlineMod = null;
+if ((handle.outlineCount | 0) > 0) {
+outlineMod = await import("./lazy/outline-worker.js");
+({ outlineReqs, outlineCount } = outlineMod.takeOutlineFrame(handle));
+}
 const exported = handle.exportStrings();
 const strings = {};
 for (let i = 0; i < exported.length; i++) {
@@ -101,6 +106,7 @@ measureReqs.sizes.buffer,
 measureReqs.texts.buffer,
 );
 }
+if (outlineReqs) outlineMod.transferOutlineBuffers(outlineReqs, transfer);
 if (layoutReqs) {
 transfer.push(
 layoutReqs.nodes.buffer,
@@ -115,6 +121,8 @@ h: chromeHtml,
 commands,
 measureReqs,
 measureCount,
+outlineReqs,
+outlineCount,
 layoutReqs,
 layoutCount,
 strings,
@@ -127,6 +135,12 @@ case "measure-results": {
 if (!handle) throw new Error("no document");
 handle.setMeasureResults(msg.widths);
 self.postMessage({ type: "measure-acked", count: msg.widths.length });
+break;
+}
+case "outline-results": {
+if (!handle) throw new Error("no document");
+const ow = await import("./lazy/outline-worker.js");
+self.postMessage({ type: "outline-acked", count: ow.applyOutlineResults(handle, msg) });
 break;
 }
 case "layout-results": {

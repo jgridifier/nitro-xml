@@ -43,6 +43,12 @@ mod text;
 mod three_host;
 mod view_ir;
 mod wordart;
+mod wordart_envelope_affine;
+mod wordart_envelope_curves;
+mod wordart_envelope_map;
+mod wordart_envelope_outline_warp;
+mod wordart_preset_definitions;
+mod wordart_preset_sampler;
 mod zoom;
 
 pub use chart3d::paint as paint_chart3d;
@@ -56,7 +62,7 @@ pub use svg_export::export_slide_svg;
 pub use three_host::is_available as webgl_host_available;
 pub use view_ir::{dump_pptx_view_ir, dump_pptx_view_ir_string, ViewIrCollector, ViewIrNode};
 
-use nitro_xml_render::measure::MeasureBatch;
+use nitro_xml_render::measure::{MeasureBatch, OutlineBatch};
 use nitro_xml_render::{CommandBuffer, LayoutReadBatch};
 
 use crate::presentation::Presentation;
@@ -101,6 +107,7 @@ pub fn paint_slide_frame<I: StringIntern>(
     buffer: &mut CommandBuffer,
     intern: &mut I,
     measure: &mut MeasureBatch,
+    outlines: &mut OutlineBatch,
     layout_reads: &mut LayoutReadBatch,
     pres: &mut Presentation,
     sp_autofit: &mut SpAutofitState,
@@ -121,6 +128,7 @@ pub fn paint_slide_frame<I: StringIntern>(
     buffer.begin();
     // Fresh per-frame queues (awaiting replies from a prior take stay intact).
     measure.clear_pending();
+    outlines.clear_pending();
     layout_reads.clear_pending();
     let mut view_ir = ViewIrCollector::default();
     let records = {
@@ -132,6 +140,7 @@ pub fn paint_slide_frame<I: StringIntern>(
             buffer,
             intern,
             measure,
+            outlines,
             layout_reads,
             &mut view_ir,
             scale,
@@ -153,6 +162,7 @@ pub fn open_and_paint_slide_frame<I: StringIntern>(
     bytes: &[u8],
     intern: &mut I,
     measure: &mut MeasureBatch,
+    outlines: &mut OutlineBatch,
     layout_reads: &mut LayoutReadBatch,
     viewport: &SlidePaintViewport,
 ) -> Result<(CommandBuffer, Vec<ViewIrNode>), crate::presentation::Error> {
@@ -163,6 +173,7 @@ pub fn open_and_paint_slide_frame<I: StringIntern>(
         &mut buffer,
         intern,
         measure,
+        outlines,
         layout_reads,
         &mut pres,
         &mut sp_autofit,
@@ -230,6 +241,9 @@ mod tests {
             presentation_kinsoku: false,
             compat_line_spacing: false,
             auto_fit_mode: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             editor_text: None,
             chart_r_id: None,
             chart_xml: None,

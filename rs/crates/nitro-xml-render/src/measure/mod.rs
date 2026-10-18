@@ -118,6 +118,110 @@ impl MeasureBatch {
     }
 }
 
+/// Contour representation: Vec of rings, each ring is Vec of (x, y) points in em units.
+pub type GlyphContours = Vec<Vec<(f64, f64)>>;
+
+/// Batched glyph-outline requests for WordArt envelope warping.
+///
+/// Requests are **taken** when the frame leaves wasm. The loader computes
+/// glyph outlines via canvas rasterization and contour tracing (`loader/glyph-outline.js`),
+/// then calls [`OutlineBatch::set_results`]. Contours are cached by `(font_id, char_id)`.
+#[derive(Debug, Default)]
+pub struct OutlineBatch {
+    /// String-table id of the canvas font string (e.g. "bold 48px Arial").
+    pub font_id: Vec<u32>,
+    /// String-table id of the character (e.g. "A").
+    pub char_id: Vec<u32>,
+    /// Font size in pixels for tracing.
+    pub size_px: Vec<f32>,
+    /// Cached contours per request (outer Vec is per-request, inner is per-contour).
+    pub contours: Vec<Option<GlyphContours>>,
+    /// Last resolved contours keyed by `(font_id, char_id)` for the next paint pass.
+    pub cache: std::collections::HashMap<(u32, u32), GlyphContours>,
+    /// Requests taken and awaiting a reply (0 when idle).
+    awaiting: usize,
+    /// Font/char ids for the in-flight take (cache keys on [`Self::set_results`]).
+    inflight_font: Vec<u32>,
+    inflight_char: Vec<u32>,
+}
+
+impl OutlineBatch {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn len(&self) -> usize {
+        self.font_id.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.font_id.is_empty()
+    }
+
+    pub fn awaiting(&self) -> usize {
+        self.awaiting
+    }
+
+    /// Queue an outline probe for the given canvas font and character.
+    pub fn push(&mut self, font_id: u32, char_id: u32, size_px: f32) {
+        self.font_id.push(font_id);
+        self.char_id.push(char_id);
+        self.size_px.push(size_px);
+    }
+
+    /// Drop queued (not yet taken) requests. Does not touch awaiting outlines.
+    pub fn clear_pending(&mut self) {
+        self.font_id.clear();
+        self.char_id.clear();
+        self.size_px.clear();
+    }
+
+    /// Move pending requests out for the loader; record how many replies are due.
+    pub fn take_requests(&mut self) -> (Vec<u32>, Vec<u32>, Vec<f32>) {
+        let font_id = std::mem::take(&mut self.font_id);
+        let char_id = std::mem::take(&mut self.char_id);
+        let size_px = std::mem::take(&mut self.size_px);
+        self.awaiting = font_id.len();
+        self.inflight_font = font_id.clone();
+        self.inflight_char = char_id.clone();
+        (font_id, char_id, size_px)
+    }
+
+    /// Store results from the loader. Each result is either `null` (no outline) or a [`GlyphContours`].
+    pub fn set_results(&mut self, results: Vec<Option<GlyphContours>>) -> Result<(), String> {
+        if self.awaiting == 0 {
+            return Ok(());
+        }
+        if results.len() != self.awaiting {
+            return Err(format!(
+                "expected {} outlines, got {}",
+                self.awaiting,
+                results.len()
+            ));
+        }
+        for ((&font_id, &char_id), result) in self
+            .inflight_font
+            .iter()
+            .zip(&self.inflight_char)
+            .zip(&results)
+        {
+            if let Some(contours) = result {
+                self.cache.insert((font_id, char_id), contours.clone());
+            }
+        }
+        self.contours = results;
+        self.awaiting = 0;
+        self.inflight_font.clear();
+        self.inflight_char.clear();
+        Ok(())
+    }
+
+    /// Get cached contours for a (font_id, char_id) pair, if available.
+    pub fn cached_contours(&self, font_id: u32, char_id: u32) -> Option<GlyphContours> {
+        self.cache.get(&(font_id, char_id)).cloned()
+    }
+}
+
 /// Post-apply layout read-back kinds (loader README / `docs/boundary.md`).
 ///
 /// Requests are keyed by command-buffer node id. The loader answers the whole

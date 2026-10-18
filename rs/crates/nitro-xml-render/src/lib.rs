@@ -20,6 +20,6 @@ pub mod smartart;
 
 pub use command_buffer::{opcode, CommandBuffer, StringTable};
 pub use measure::{
-    LayoutReadBatch, LayoutReadError, LayoutReadKind, MeasureBatch, MeasureError,
-    LAYOUT_RESULT_LANES,
+    GlyphContours, LayoutReadBatch, LayoutReadError, LayoutReadKind, MeasureBatch, MeasureError,
+    OutlineBatch, LAYOUT_RESULT_LANES,
 };

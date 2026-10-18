@@ -1776,4 +1776,43 @@ mod tests {
         assert!(paras[1].runs.is_empty());
         assert_eq!(paras[2].runs[0].text, "Line 2");
     }
+
+    // Catches: a:rPr/@baseline=30000 not mapped to superscript (poi-with_japanese "superscript" run).
+    #[test]
+    fn baseline_positive_is_super() {
+        assert_eq!(resolve_baseline_shift(Some(30_000)), Some("super"));
+        assert_eq!(resolve_baseline_shift(Some(1)), Some("super"));
+    }
+
+    // Catches: a:rPr/@baseline=-30000 not mapped to subscript (poi-with_japanese "subscript" run).
+    #[test]
+    fn baseline_negative_is_sub() {
+        assert_eq!(resolve_baseline_shift(Some(-30_000)), Some("sub"));
+        assert_eq!(resolve_baseline_shift(Some(-1)), Some("sub"));
+    }
+
+    // Catches: missing/zero baseline spuriously applying vertical-align.
+    #[test]
+    fn baseline_zero_or_absent_is_none() {
+        assert_eq!(resolve_baseline_shift(Some(0)), None);
+        assert_eq!(resolve_baseline_shift(None), None);
+    }
+
+    // Catches: baseline attribute not flowing onto TextPaintRun (paint never sees super/sub).
+    #[test]
+    fn baseline_attr_parsed_onto_paint_run() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr/>
+              <a:p>
+                <a:r><a:rPr lang="en-US" sz="1100" baseline="30000"/><a:t>up</a:t></a:r>
+                <a:r><a:rPr lang="en-US" sz="1100" baseline="-30000"/><a:t>down</a:t></a:r>
+              </a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let paras = parse_text_paint_paragraphs(&doc.root);
+        assert_eq!(paras[0].runs[0].baseline_shift, Some("super"));
+        assert_eq!(paras[0].runs[1].baseline_shift, Some("sub"));
+    }
 }

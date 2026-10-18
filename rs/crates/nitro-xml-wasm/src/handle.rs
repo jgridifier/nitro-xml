@@ -924,16 +924,44 @@ impl Handle {
         &mut self,
         results: js_sys::Array,
     ) -> Result<(), JsValue> {
-        let mut parsed = Vec::new();
+        use nitro_xml_render::GlyphContours;
+        
+        let mut parsed: Vec<Option<GlyphContours>> = Vec::new();
         for i in 0..results.length() {
             let item = results.get(i);
             if item.is_null() || item.is_undefined() {
                 parsed.push(None);
             } else {
-                // For now, accept but don't parse the nested array structure.
-                // The loader will send us a serialization (TBD format).
-                // For MVP, we'll just mark it as having been received.
-                parsed.push(None);
+                // Parse nested array: Array<Array<[x, y]>>
+                if let Ok(contours_array) = js_sys::Array::from(&item).dyn_into::<js_sys::Array>() {
+                    let mut contours = Vec::new();
+                    for j in 0..contours_array.length() {
+                        let ring_item = contours_array.get(j);
+                        if let Ok(ring_array) = js_sys::Array::from(&ring_item).dyn_into::<js_sys::Array>() {
+                            let mut ring = Vec::new();
+                            for k in 0..ring_array.length() {
+                                let pt_item = ring_array.get(k);
+                                if let Ok(pt_array) = js_sys::Array::from(&pt_item).dyn_into::<js_sys::Array>() {
+                                    if pt_array.length() >= 2 {
+                                        let x = pt_array.get(0).as_f64().unwrap_or(0.0);
+                                        let y = pt_array.get(1).as_f64().unwrap_or(0.0);
+                                        ring.push((x, y));
+                                    }
+                                }
+                            }
+                            if !ring.is_empty() {
+                                contours.push(ring);
+                            }
+                        }
+                    }
+                    if !contours.is_empty() {
+                        parsed.push(Some(contours));
+                    } else {
+                        parsed.push(None);
+                    }
+                } else {
+                    parsed.push(None);
+                }
             }
         }
         self.outlines.set_results(parsed).map_err(|e| {

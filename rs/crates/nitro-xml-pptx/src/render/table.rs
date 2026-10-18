@@ -156,7 +156,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::PathBuf;
 
-    use nitro_xml_render::measure::{LayoutReadBatch, MeasureBatch};
+    use nitro_xml_render::measure::{LayoutReadBatch, MeasureBatch, OutlineBatch};
     use nitro_xml_render::CommandBuffer;
 
     use super::super::context::{PaintContext, StringIntern};
@@ -219,6 +219,7 @@ mod tests {
         let mut buffer = CommandBuffer::new();
         let mut intern = Intern(Vec::new());
         let mut measure = MeasureBatch::default();
+        let mut outlines = OutlineBatch::default();
         let mut layout_reads = LayoutReadBatch::default();
         let mut view_ir = ViewIrCollector::default();
         let scheme = BTreeMap::new();
@@ -228,6 +229,7 @@ mod tests {
             &mut buffer,
             &mut intern,
             &mut measure,
+            &mut outlines,
             &mut layout_reads,
             &mut view_ir,
             1.0,

@@ -2,7 +2,7 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/ui/src/pptx/dom/elements/text-block.ts,
 // src/ui/src/pptx/render/text-effects.ts; changes in PROVENANCE.md.
 
-use nitro_xml_render::measure::LayoutReadKind;
+use nitro_xml_render::measure::{LayoutReadKind, MeasureBatch, OutlineBatch};
 
 use super::context::{PaintContext, StringIntern};
 use super::dom::{
@@ -1965,7 +1965,7 @@ fn format_px(v: f64) -> String {
 mod tests {
     use std::collections::BTreeMap;
 
-    use nitro_xml_render::measure::{LayoutReadBatch, MeasureBatch};
+    use nitro_xml_render::measure::{LayoutReadBatch, MeasureBatch, OutlineBatch};
     use nitro_xml_render::CommandBuffer;
 
     use super::super::context::{PaintContext, StringIntern};
@@ -1999,6 +1999,8 @@ mod tests {
     ) -> Intern {
         let mut buffer = CommandBuffer::new();
         let mut intern = intern_seed.unwrap_or_else(|| Intern(Vec::new()));
+        let mut measure = MeasureBatch::default();
+        let mut outlines = OutlineBatch::default();
         let mut layout_reads = LayoutReadBatch::default();
         let mut view_ir = ViewIrCollector::default();
         let scheme = BTreeMap::new();
@@ -2008,6 +2010,7 @@ mod tests {
             &mut buffer,
             &mut intern,
             &mut measure,
+            &mut outlines,
             &mut layout_reads,
             &mut view_ir,
             1.0,

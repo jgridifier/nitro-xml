@@ -2072,13 +2072,13 @@ mod tests {
 
     fn paint_with_measure(
         paint: TextBodyPaint<'_>,
-        _measure: MeasureBatch,
+        mut measure: MeasureBatch,
         intern_seed: Option<Intern>,
         text: &str,
     ) -> Intern {
+        // Keep the caller's MeasureBatch (tests seed GDI tracking cache entries).
         let mut buffer = CommandBuffer::new();
         let mut intern = intern_seed.unwrap_or_else(|| Intern(Vec::new()));
-        let mut measure = MeasureBatch::default();
         let mut outlines = OutlineBatch::default();
         let mut layout_reads = LayoutReadBatch::default();
         let mut view_ir = ViewIrCollector::default();

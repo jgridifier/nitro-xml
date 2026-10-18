@@ -76,6 +76,13 @@ const t = handle.takeMeasureReqs();
 measureReqs = { fonts: t[0], sizes: t[1], texts: t[2] };
 measureCount = measureReqs.fonts.length;
 }
+let outlineReqs = null;
+let outlineCount = 0;
+if ((handle.outlineCount | 0) > 0) {
+const t = handle.takeOutlineReqs();
+outlineReqs = { fonts: t[0], chars: t[1], sizes: t[2] };
+outlineCount = outlineReqs.fonts.length;
+}
 const exported = handle.exportStrings();
 const strings = {};
 for (let i = 0; i < exported.length; i++) {
@@ -101,6 +108,13 @@ measureReqs.sizes.buffer,
 measureReqs.texts.buffer,
 );
 }
+if (outlineReqs) {
+transfer.push(
+outlineReqs.fonts.buffer,
+outlineReqs.chars.buffer,
+outlineReqs.sizes.buffer,
+);
+}
 if (layoutReqs) {
 transfer.push(
 layoutReqs.nodes.buffer,
@@ -115,6 +129,8 @@ h: chromeHtml,
 commands,
 measureReqs,
 measureCount,
+outlineReqs,
+outlineCount,
 layoutReqs,
 layoutCount,
 strings,
@@ -127,6 +143,12 @@ case "measure-results": {
 if (!handle) throw new Error("no document");
 handle.setMeasureResults(msg.widths);
 self.postMessage({ type: "measure-acked", count: msg.widths.length });
+break;
+}
+case "outline-results": {
+if (!handle) throw new Error("no document");
+handle.setOutlineResults(msg.contours);
+self.postMessage({ type: "outline-acked", count: (msg.contours && msg.contours.length) || 0 });
 break;
 }
 case "layout-results": {

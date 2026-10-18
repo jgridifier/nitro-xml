@@ -229,23 +229,41 @@ function contourRaster(values, w, h, level) {
 }
 
 /**
- * Trace a single glyph at the given font.
- * Returns { contours: [[{x,y},...], ...] } or null if tracing fails.
+ * Rewrite a CSS canvas font string to use TRACE_SIZE_PX (upstream always
+ * traces at 512px, then scales em contours by the real font size).
  */
-function traceGlyph(char, canvasFont, fontSizePx) {
+function fontAtTraceSize(canvasFont) {
+  // Match "italic bold 42.67px Family" / "bold 12px Family" / "12px Family"
+  const m = String(canvasFont).match(
+    /^((?:italic\s+)?(?:bold\s+|normal\s+)?)(\d+(?:\.\d+)?)px(\s+.+)$/i,
+  );
+  if (m) {
+    return `${m[1]}${TRACE_SIZE_PX}px${m[3]}`;
+  }
+  return `${TRACE_SIZE_PX}px ${canvasFont}`;
+}
+
+/**
+ * Trace a single glyph at TRACE_SIZE_PX. Returns contours in em units
+ * (origin at baseline / left advance edge), or null if tracing fails.
+ */
+function traceGlyph(char, canvasFont, _fontSizePx) {
   const ctx = getTraceContext();
   if (!ctx || !traceCanvas) return null;
 
-  ctx.font = canvasFont;
+  // Always rasterise at TRACE_SIZE_PX so /TRACE_SIZE_PX yields true em units
+  // (upstream text-warp-glyph-trace.ts).
+  const css = fontAtTraceSize(canvasFont);
+  ctx.font = css;
   const m = ctx.measureText(char);
   const left = Math.floor(-(m.actualBoundingBoxLeft ?? TRACE_SIZE_PX)) - PAD;
   const right = Math.ceil(m.actualBoundingBoxRight ?? TRACE_SIZE_PX * 2) + PAD;
   const top = Math.floor(-(m.actualBoundingBoxAscent ?? TRACE_SIZE_PX * 1.2)) - PAD;
   const bottom = Math.ceil(m.actualBoundingBoxDescent ?? TRACE_SIZE_PX * 0.5) + PAD;
-  
+
   const w = right - left;
   const h = bottom - top;
-  
+
   if (!(w > 0 && h > 0 && w < TRACE_SIZE_PX * 8 && h < TRACE_SIZE_PX * 8)) {
     return null;
   }
@@ -253,7 +271,7 @@ function traceGlyph(char, canvasFont, fontSizePx) {
   traceCanvas.width = w;
   traceCanvas.height = h;
   ctx.clearRect(0, 0, w, h);
-  ctx.font = canvasFont;
+  ctx.font = css;
   ctx.fillStyle = "#000";
   ctx.textBaseline = "alphabetic";
   ctx.fillText(char, -left, -top);
@@ -269,7 +287,7 @@ function traceGlyph(char, canvasFont, fontSizePx) {
     simplify(contour, SIMPLIFY_PX).map((p) => ({
       x: (p.x + 0.5 + left) / TRACE_SIZE_PX,
       y: (p.y + 0.5 + top) / TRACE_SIZE_PX,
-    }))
+    })),
   );
 
   return { contours: contours.filter((c) => c.length >= 3) };
@@ -297,15 +315,20 @@ export function fillOutlineContours(ctx, n, charAt, fontAt, fontSizePxAt) {
   for (let i = 0; i < n; i++) {
     const char = charAt(i) || "";
     const canvasFont = fontAt(i) || "sans-serif";
-    const fontSizePx = fontSizePxAt(i) || 12;
-
-    const key = `${canvasFont}|${char}`;
+    // Trace always at TRACE_SIZE_PX; cache by face+char (size-independent).
+    const traceFont = fontAtTraceSize(canvasFont);
+    const key = `${traceFont}|${char}`;
     let traced = traceCache.get(key);
 
     if (traced === undefined) {
-      traced = traceGlyph(char, canvasFont, fontSizePx);
-      // Cache only if font is ready or tracing failed
-      if (traced === null || (typeof document !== "undefined" && document.fonts && document.fonts.check)) {
+      traced = traceGlyph(char, canvasFont, fontSizePxAt(i) || 12);
+      const fonts = typeof document !== "undefined" ? document.fonts : undefined;
+      if (
+        traced === null ||
+        !fonts ||
+        typeof fonts.check !== "function" ||
+        fonts.check(traceFont, char)
+      ) {
         traceCache.set(key, traced);
       }
     }

@@ -18,6 +18,7 @@ mod equation;
 mod field_substitution;
 mod font_substitution;
 mod group;
+mod image_fill_counter_transform;
 mod ink;
 mod media;
 mod model3d;
@@ -266,6 +267,10 @@ mod tests {
             scene_3d_camera_rot_z: None,
             ink_data: None,
             content_part_ink_rel_id: None,
+            path_data: None,
+            path_width: None,
+            path_height: None,
+            fill_image_rot_with_shape: None,
         };
         let mut c = ViewIrCollector::default();
         c.push_painted("element", &el, None);

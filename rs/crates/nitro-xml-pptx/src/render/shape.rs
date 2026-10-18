@@ -479,6 +479,10 @@ mod tests {
             scene_3d_camera_rot_z: None,
             ink_data: None,
             content_part_ink_rel_id: None,
+            path_data: None,
+            path_width: None,
+            path_height: None,
+            fill_image_rot_with_shape: None,
         }
     }
 

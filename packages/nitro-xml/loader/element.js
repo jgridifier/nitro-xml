@@ -3,6 +3,7 @@
 import {
   UNSUPPORTED_BROWSER_MESSAGE as UB,
   UNSUPPORTED_FORMAT_MESSAGE as UF,
+  viewerOpenErrorMessage as openMsg,
   isSupportedExtension as ok,
   ACCEPT,
 } from "./formats.js";
@@ -257,13 +258,7 @@ export class ViewerElement extends HTMLElement {
     }
   }
   _showViewerError(e) {
-    this._show(
-      e && e.code == "unsupported_browser"
-        ? UB
-        : e && e.code == "unsupported_format"
-          ? UF
-          : (e && e.message) || String(e),
-    );
+    this._show(openMsg(e));
   }
 }
 

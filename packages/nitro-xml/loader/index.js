@@ -4,6 +4,9 @@ export {
   SUPPORTED_EXTENSIONS,
   UNSUPPORTED_BROWSER_MESSAGE,
   UNSUPPORTED_FORMAT_MESSAGE,
+  PACKAGE_TOO_LARGE_MESSAGE,
+  PACKAGE_LIMIT_CODES,
+  viewerOpenErrorMessage,
   extensionOf,
   isSupportedExtension,
 } from "./formats.js";

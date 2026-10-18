@@ -529,6 +529,26 @@ mod tests {
         bytes
     }
 
+    // Catches: two parts whose declared sizes sum past MAX_UNCOMPRESSED_BYTES being accepted
+    // (zip-bomb via aggregate total, each part under MAX_PART_BYTES). Ratio guard is off so this
+    // asserts the absolute package ceiling, not the per-part compression-ratio path.
+    #[test]
+    fn declared_total_uncompressed_rejected_at_open() {
+        // 160 MiB + 160 MiB = 320 MiB > 300 MiB package ceiling; each under the 200 MiB part cap.
+        let per = (160 * 1024 * 1024) as u32;
+        assert!((per as u64) < MAX_PART_BYTES);
+        assert!((per as u64) * 2 > MAX_UNCOMPRESSED_BYTES);
+        let bytes = stored_zip(&[("a.bin", b"x", per), ("b.bin", b"y", per)]);
+        let limits = ZipLimits {
+            max_compression_ratio: 0,
+            ..ZipLimits::default()
+        };
+        assert!(matches!(
+            ZipPackage::open_with_limits(&bytes, limits),
+            Err(ZipError::TotalTooLarge)
+        ));
+    }
+
     // Catches: a large deflate entry declaring uncompressed >> compressed * MAX_COMPRESSION_RATIO
     // (above the size floor) slipping past absolute size caps.
     #[test]

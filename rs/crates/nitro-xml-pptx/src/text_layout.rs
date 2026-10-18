@@ -643,8 +643,10 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
     // Blank paragraphs AFTER the last content are dropped: load and edit-remap paths both
     // leave a trailing separator behind, and honouring those would grow every text body
     // (and shift anything vertically centred in height=0+anchor=ctr) for markup never drawn.
+    // Upstream `hasContent`: runs with text (empty `<a:r>/<a:t>` alone do not count —
+    // poi-with_japanese Rectangle 3 trailing blanks carry empty runs + endParaRPr).
     let has_content = |p: &TextPaintParagraph| -> bool {
-        !p.runs.is_empty() || p.bullet_marker.is_some()
+        p.runs.iter().any(|r| !r.text.is_empty()) || p.bullet_marker.is_some()
     };
 
     let mut last_content_idx = None;
@@ -1683,20 +1685,20 @@ mod tests {
         );
     }
 
-    // Catches: trailing empty a:p after last content still painted under height=0+anchor=ctr (poi-with_japanese Rectangle 3).
+    // Catches: trailing empty a:p with empty <a:r>/<a:t> still painted under height=0+anchor=ctr (poi-with_japanese Rectangle 3).
     #[test]
     fn trailing_empty_paragraphs_trimmed() {
         let doc = parse_xml_str(
             r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
               <a:bodyPr/>
               <a:p><a:r><a:rPr lang="en-US"/><a:t>Content</a:t></a:r></a:p>
-              <a:p/>
-              <a:p/>
+              <a:p><a:r><a:rPr lang="en-US" sz="1000"/><a:t></a:t></a:r><a:endParaRPr sz="1000"/></a:p>
+              <a:p><a:r><a:rPr lang="en-US" sz="1800"/><a:t></a:t></a:r><a:endParaRPr sz="1800"/></a:p>
             </p:txBody>"#,
         )
         .unwrap();
         let paras = parse_text_paint_paragraphs(&doc.root);
-        assert_eq!(paras.len(), 1, "Trailing empty paragraphs should be trimmed");
+        assert_eq!(paras.len(), 1, "Trailing empty-run paragraphs should be trimmed");
         assert_eq!(paras[0].runs[0].text, "Content");
     }
 

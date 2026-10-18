@@ -248,6 +248,18 @@ pub struct DumpElement {
     /// CSS `filter` from `a:effectLst/a:glow` (and legacy metal+bevel compensation). Not in the issue-24 dump.
     #[serde(skip)]
     pub effect_filter: Option<String>,
+    /// `a:scene3d/a:camera/@prst` (paint only).
+    #[serde(skip)]
+    pub scene_3d_camera_preset: Option<String>,
+    /// `a:scene3d/a:camera/a:rot/@lat` in 1/60000ths of degrees (paint only).
+    #[serde(skip)]
+    pub scene_3d_camera_rot_x: Option<i32>,
+    /// `a:scene3d/a:camera/a:rot/@lon` in 1/60000ths of degrees (paint only).
+    #[serde(skip)]
+    pub scene_3d_camera_rot_y: Option<i32>,
+    /// `a:scene3d/a:camera/a:rot/@rev` in 1/60000ths of degrees (paint only).
+    #[serde(skip)]
+    pub scene_3d_camera_rot_z: Option<i32>,
     /// Draw-tab / `aink` ink strokes (paint only).
     #[serde(skip)]
     pub ink_data: Option<crate::ink::InkData>,
@@ -1893,6 +1905,10 @@ fn build_dump(
         material_overlay: extras.material_overlay,
         text_shadow: extras.text_shadow,
         effect_filter: extras.effect_filter,
+        scene_3d_camera_preset: extras.scene_3d_camera_preset,
+        scene_3d_camera_rot_x: extras.scene_3d_camera_rot_x,
+        scene_3d_camera_rot_y: extras.scene_3d_camera_rot_y,
+        scene_3d_camera_rot_z: extras.scene_3d_camera_rot_z,
         ink_data: extras.ink_data,
         content_part_ink_rel_id: extras.content_part_ink_rel_id,
     })
@@ -2225,6 +2241,10 @@ struct PaintExtras {
     material_overlay: Option<String>,
     text_shadow: Option<String>,
     effect_filter: Option<String>,
+    scene_3d_camera_preset: Option<String>,
+    scene_3d_camera_rot_x: Option<i32>,
+    scene_3d_camera_rot_y: Option<i32>,
+    scene_3d_camera_rot_z: Option<i32>,
     ink_data: Option<crate::ink::InkData>,
     content_part_ink_rel_id: Option<String>,
 }
@@ -2667,6 +2687,35 @@ fn shape_paint_extras(
             rotation_deg,
             &mut extras,
         );
+    }
+    // Parse scene3d camera override if present
+    if let Some(sp_pr) = effective_sp_pr {
+        if let Some(scene_3d) = child_local(sp_pr, "scene3d", ns::A) {
+            if let Some(camera) = child_local(scene_3d, "camera", ns::A) {
+                // Camera preset
+                if let Some(prst) = attr(camera, "prst") {
+                    extras.scene_3d_camera_preset = Some(prst.to_owned());
+                }
+                // Explicit override: a:rot with lat/lon/rev
+                if let Some(rot) = child_local(camera, "rot", ns::A) {
+                    if let Some(lat_str) = attr(rot, "lat") {
+                        if let Ok(lat) = lat_str.parse::<i32>() {
+                            extras.scene_3d_camera_rot_x = Some(lat);
+                        }
+                    }
+                    if let Some(lon_str) = attr(rot, "lon") {
+                        if let Ok(lon) = lon_str.parse::<i32>() {
+                            extras.scene_3d_camera_rot_y = Some(lon);
+                        }
+                    }
+                    if let Some(rev_str) = attr(rot, "rev") {
+                        if let Ok(rev) = rev_str.parse::<i32>() {
+                            extras.scene_3d_camera_rot_z = Some(rev);
+                        }
+                    }
+                }
+            }
+        }
     }
     extras
 }

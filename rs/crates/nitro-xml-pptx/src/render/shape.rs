@@ -89,6 +89,17 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             set_style(ctx, id, "transform", &format!("rotate({}deg)", rot));
         }
     }
+    // Apply 3D camera transform if present with explicit rotation override
+    if el.scene_3d_camera_rot_x.is_some()
+        || el.scene_3d_camera_rot_y.is_some()
+        || el.scene_3d_camera_rot_z.is_some()
+    {
+        let matrix3d = build_3d_camera_transform(el);
+        if let Some(transform) = matrix3d {
+            set_style(ctx, id, "transform", &transform);
+            set_style(ctx, id, "transform-origin", "0 0");
+        }
+    }
     let text = el.text.as_deref().unwrap_or("");
     if !text.trim().is_empty() {
         let block = paint_text_body(ctx, id, text, TextBodyPaint::from_element(el));
@@ -323,6 +334,37 @@ fn urlencoding_minimal(s: &str) -> String {
     out
 }
 
+/// Build a matrix3d transform string for 3D camera with explicit rotation override.
+fn build_3d_camera_transform(el: &DumpElement) -> Option<String> {
+    use crate::visual_3d_camera_homography::homography_to_matrix3d;
+    use crate::visual_3d_camera_parametric::{
+        compute_parametric_camera_homography, sixty_thousandths_deg_to_rad, ParametricCameraParams,
+    };
+
+    // Only apply if we have explicit rotation overrides
+    if el.scene_3d_camera_rot_x.is_none()
+        && el.scene_3d_camera_rot_y.is_none()
+        && el.scene_3d_camera_rot_z.is_none()
+    {
+        return None;
+    }
+
+    let lat_rad = sixty_thousandths_deg_to_rad(el.scene_3d_camera_rot_x);
+    let lon_rad = sixty_thousandths_deg_to_rad(el.scene_3d_camera_rot_y);
+    let rev_rad = sixty_thousandths_deg_to_rad(el.scene_3d_camera_rot_z);
+
+    let params = ParametricCameraParams {
+        lat_rad,
+        lon_rad,
+        rev_rad,
+        fov_rad: 0.0, // Not used in orthographic parametric model
+    };
+
+    let h_unit = compute_parametric_camera_homography(params);
+    let matrix3d = homography_to_matrix3d(&h_unit, el.width, el.height);
+    Some(matrix3d)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -431,6 +473,10 @@ mod tests {
             material_overlay: None,
             text_shadow: None,
             effect_filter: None,
+            scene_3d_camera_preset: None,
+            scene_3d_camera_rot_x: None,
+            scene_3d_camera_rot_y: None,
+            scene_3d_camera_rot_z: None,
             ink_data: None,
             content_part_ink_rel_id: None,
         }

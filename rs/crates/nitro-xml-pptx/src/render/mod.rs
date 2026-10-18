@@ -260,6 +260,10 @@ mod tests {
             material_overlay: None,
             text_shadow: None,
             effect_filter: None,
+            scene_3d_camera_preset: None,
+            scene_3d_camera_rot_x: None,
+            scene_3d_camera_rot_y: None,
+            scene_3d_camera_rot_z: None,
             ink_data: None,
             content_part_ink_rel_id: None,
         };

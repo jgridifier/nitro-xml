@@ -28,6 +28,9 @@ mod theme;
 mod unicode_script;
 mod verified_text_rect_presets;
 mod visual_3d_bevel;
+mod visual_3d_camera_homography;
+mod visual_3d_camera_homography_math;
+mod visual_3d_camera_parametric;
 mod visual_3d_materials;
 pub mod write;
 

@@ -502,7 +502,8 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
             .as_ref()
             .is_some_and(|l| l.manual.x.is_some() || l.manual.width.is_some())
         || pa.data_table.is_some()
-        || pa.sp_pr.is_some()
+        // The DOM projector paints no plot-area border or fill rect, only the chart area.
+        || pa.sp_pr.as_ref().is_some_and(|p| p.fill.is_some())
         || space
             .sp_pr
             .as_ref()
@@ -561,7 +562,7 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
                         || matches!(a.tick_label_position.as_deref(), Some("high") | Some("low"))
                         || matches!(a.crosses.as_deref(), Some("max") | Some("min"))
                 })
-                || val_ax.major_unit.is_some()
+                || (horizontal && val_ax.major_unit.is_some())
                 || val_ax.minor_unit.is_some()
                 || val_ax.tick_label_position.as_deref() == Some("none")
                 || cat_ax.tick_label_position.as_deref() == Some("none")
@@ -771,7 +772,12 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
     } else if !horizontal {
         // Value axis (buildPrimaryAxis / buildGridlinesAndLabels)
         let show_grid = val_ax.major_gridlines;
-        let ticks: Vec<f64> = match range.unit {
+        // An authored `c:majorUnit` steps the ticks (generateAxisTicks); the range stays automatic.
+        let tick_unit = val_ax
+            .major_unit
+            .filter(|u| u.is_finite() && *u > 0.0)
+            .or(range.unit);
+        let ticks: Vec<f64> = match tick_unit {
             Some(u) if u > 0.0 => {
                 let tol = 1f64.max(range.min.abs()).max(range.max.abs()) * 1e-12;
                 let first = ((range.min - tol) / u).ceil() as i64;

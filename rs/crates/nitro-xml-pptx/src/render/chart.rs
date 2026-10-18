@@ -46,6 +46,7 @@ pub fn paint_pptx_chart_xml(
     chart_images: std::collections::HashMap<String, String>,
     theme_colors: Option<Vec<String>>,
     minor_font: Option<String>,
+    user_shapes_xml: Option<&str>,
     scheme: &BTreeMap<String, String>,
     mut intern: impl FnMut(&str) -> u32,
 ) -> ChartSpace {
@@ -68,6 +69,7 @@ pub fn paint_pptx_chart_xml(
             picture_id_prefix: picture_id_prefix.to_string(),
         },
         &chart_images,
+        user_shapes_xml,
     ) {
         svg
     } else {
@@ -119,6 +121,7 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
             chart_images,
             theme_colors,
             el.chart_minor_font.clone(),
+            el.chart_user_shapes_xml.as_deref(),
             ctx.scheme,
             |s| intern.intern(s),
         );

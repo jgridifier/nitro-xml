@@ -559,6 +559,7 @@ pub fn render(
     h: u32,
     theme: &VmTheme,
     images: &HashMap<String, String>,
+    user_shapes_xml: Option<&str>,
 ) -> Option<String> {
     let pa = &space.plot_area;
     if pa
@@ -567,6 +568,9 @@ pub fn render(
         .is_some_and(|g| matches!(g.kind, ChartGroupKind::Pie | ChartGroupKind::Doughnut))
     {
         return pie::render(space, w, h, theme);
+    }
+    if space.user_shapes_rel_id.is_some() && user_shapes_xml.is_none() {
+        return None;
     }
     if pa.groups.len() != 1
         || pa.data_table.is_some()
@@ -707,7 +711,7 @@ pub fn render(
         return None;
     }
     // withAutoTitle: a lone named series gets an automatic title (not ported).
-    if series.len() == 1 && space.auto_title_deleted != Some(true) {
+    if series.len() == 1 && space.title.is_none() && space.auto_title_deleted != Some(true) {
         return None;
     }
     let longest = series.iter().map(|s| s.values.len()).max().unwrap_or(0);
@@ -1141,6 +1145,15 @@ pub fn render(
         }
     }
 
+    // `c:userShapes` drawing overlay (layered after the marks, before the legend).
+    if let Some(xml) = user_shapes_xml {
+        o.push_str(&super::chart_user_shapes::overlay_svg(
+            xml,
+            l.w,
+            l.h,
+            &theme.scheme,
+        ));
+    }
     // Legend (buildLegend + computeChartLegendLayout)
     if legend.is_some() {
         let (lx, ly, vertical) = match side {

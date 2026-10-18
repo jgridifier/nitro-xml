@@ -969,6 +969,16 @@ impl<'a> Presentation<'a> {
         None
     }
 
+    fn attach_chart_user_shapes(&mut self, el: &mut DumpElement) {
+        let (Some(xml), Some(part)) = (el.chart_xml.as_deref(), el.chart_part_path.clone()) else {
+            return;
+        };
+        let parsed = parse_chart_space_xml(xml);
+        if let Some(rid) = parsed.chart_space.user_shapes_rel_id.as_deref() {
+            el.chart_user_shapes_xml = self.part_xml_by_rel(&part, rid);
+        }
+    }
+
     fn attach_chart_image_urls(&mut self, el: &mut DumpElement) {
         if el.chart_image_urls.is_some() {
             return;
@@ -1012,6 +1022,7 @@ impl<'a> Presentation<'a> {
                     .and_then(|m| m.latin.clone())
                     .filter(|f| !f.is_empty());
                 self.attach_chart_image_urls(el);
+                self.attach_chart_user_shapes(el);
             }
             if el.smartart_drawing_xml.is_none() || el.smartart_data_xml.is_none() {
                 if let Some(dm) = el.smartart_dm_r_id.clone() {

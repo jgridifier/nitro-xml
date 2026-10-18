@@ -191,6 +191,9 @@ pub struct DumpElement {
     /// Theme minor latin face for chart text (`+mn-lt`).
     #[serde(skip)]
     pub chart_minor_font: Option<String>,
+    /// Chart `c:userShapes` drawing part XML (not in the issue-24 dump).
+    #[serde(skip)]
+    pub chart_user_shapes_xml: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub smartart_dm_r_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1994,6 +1997,7 @@ fn build_dump(
         chart_part_path: None,
         chart_image_urls: None,
         chart_minor_font: None,
+        chart_user_shapes_xml: None,
         smartart_dm_r_id: extras.smartart_dm_r_id,
         smartart_lo_r_id: extras.smartart_lo_r_id,
         smartart_qs_r_id: extras.smartart_qs_r_id,

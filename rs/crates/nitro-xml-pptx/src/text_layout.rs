@@ -689,7 +689,7 @@ fn resolve_paint_paragraph_spacing(
     };
     let before = pick_spacing(
         own.as_ref().and_then(|o| o.before_px),
-        level.as_ref().and_then(|l| l.before_px),
+        body.as_ref().and_then(|b| b.before_px),
         body_before,
     );
     let after = pick_spacing(

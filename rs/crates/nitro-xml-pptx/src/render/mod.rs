@@ -228,6 +228,7 @@ mod tests {
             text_body_layout: None,
             text_paint_paragraphs: None,
             presentation_kinsoku: false,
+            compat_line_spacing: false,
             auto_fit_mode: None,
             editor_text: None,
             chart_r_id: None,

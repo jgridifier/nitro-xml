@@ -159,6 +159,9 @@ pub struct DumpElement {
     /// Strict kinsoku CSS when the deck defines `p:defaultTextStyle/@eaLnBrk` (paint only).
     #[serde(skip)]
     pub presentation_kinsoku: bool,
+    /// `a:bodyPr/@compatLnSpc` — use legacy (97-2003) line-spacing algorithm (paint only).
+    #[serde(skip)]
+    pub compat_line_spacing: bool,
     /// `a:spAutoFit` / `a:normAutofit` / `a:noAutofit` from `a:bodyPr` (paint only).
     #[serde(skip)]
     pub auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
@@ -1968,6 +1971,7 @@ fn build_dump(
         text_body_layout: extras.text_body_layout,
         text_paint_paragraphs: extras.text_paint_paragraphs,
         presentation_kinsoku: extras.presentation_kinsoku,
+        compat_line_spacing: extras.compat_line_spacing,
         auto_fit_mode: extras.auto_fit_mode,
         editor_text: None,
         chart_r_id: extras.chart_r_id,
@@ -2323,6 +2327,7 @@ struct PaintExtras {
     text_body_layout: Option<crate::text_layout::TextBodyLayout>,
     text_paint_paragraphs: Option<Vec<crate::text_layout::TextPaintParagraph>>,
     presentation_kinsoku: bool,
+    compat_line_spacing: bool,
     auto_fit_mode: Option<crate::text_layout::TextAutoFitMode>,
     chart_r_id: Option<String>,
     smartart_dm_r_id: Option<String>,
@@ -2772,6 +2777,7 @@ fn shape_paint_extras(
         extras.text_paint_paragraphs = Some(paragraphs);
         extras.presentation_kinsoku =
             presentation_default_ea_line_break(ctx.presentation_level_styles);
+        extras.compat_line_spacing = compat_line_spacing;
         extras.auto_fit_mode = auto_fit_mode;
         extras.text_shadow = first_run_text_shadow(tx, theme, rotation_deg);
     }

@@ -49,6 +49,8 @@ fn merge(base: &TextStyle, over: &TextStyle) -> TextStyle {
 
 /// Theme inputs the chart needs beyond the chart part.
 pub struct VmTheme {
+    /// Unique prefix for SVG pattern ids (the slide element id).
+    pub picture_id_prefix: String,
     pub scheme: HashMap<String, String>,
     pub minor_latin: Option<String>,
 }
@@ -141,6 +143,8 @@ struct Series {
     name: String,
     values: Vec<f64>,
     color: Option<String>,
+    /// `a:blipFill` series fill: (image URL, `a:alphaModFix` opacity).
+    picture: Option<(String, Option<f64>)>,
     invert: bool,
 }
 
@@ -549,7 +553,13 @@ fn push_legend(
 }
 
 /// Render the chart, or `None` when it uses a feature this port does not cover yet.
-pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<String> {
+pub fn render(
+    space: &ChartSpace,
+    w: u32,
+    h: u32,
+    theme: &VmTheme,
+    images: &HashMap<String, String>,
+) -> Option<String> {
     let pa = &space.plot_area;
     if pa
         .groups
@@ -559,17 +569,17 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
         return pie::render(space, w, h, theme);
     }
     if pa.groups.len() != 1
-        || pa
-            .layout
-            .as_ref()
-            .is_some_and(|l| l.manual.x.is_some() || l.manual.width.is_some())
         || pa.data_table.is_some()
         // The DOM projector paints no plot-area border or fill rect, only the chart area.
-        || pa.sp_pr.as_ref().is_some_and(|p| p.fill.is_some())
+        || pa.sp_pr
+            .as_ref()
+            .is_some_and(|p| !matches!(p.fill, None | Some(DrawingFill::None)))
         || space
             .sp_pr
             .as_ref()
-            .is_some_and(|p| p.fill.is_some() || p.effects_xml.is_some())
+            .is_some_and(|p| {
+                !matches!(p.fill, None | Some(DrawingFill::None)) || p.effects_xml.is_some()
+            })
         || !title_supported(space)
         || space.rounded_corners == Some(true)
     {
@@ -644,6 +654,7 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
         if !s.data_points.is_empty() || s.data_labels.is_some() || s.picture_options.is_some() {
             return None;
         }
+        let mut picture = None;
         let color = match s.sp_pr.as_ref().and_then(|p| p.fill.as_ref()) {
             None => None,
             Some(DrawingFill::Solid { color }) => Some(
@@ -651,12 +662,19 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
                     .filter(|r| r.alpha == 1.0)?
                     .hex,
             ),
+            Some(DrawingFill::Picture { rel_id, opacity }) => {
+                picture = Some((images.get(rel_id.as_deref()?)?.clone(), *opacity));
+                None
+            }
             Some(_) => return None,
         };
-        if s.sp_pr
-            .as_ref()
-            .is_some_and(|p| p.line.is_some() || p.effects_xml.is_some())
-        {
+        // `a:ln/a:noFill` draws nothing, as an absent line does.
+        if s.sp_pr.as_ref().is_some_and(|p| {
+            p.effects_xml.is_some()
+                || p.line.as_ref().is_some_and(|ln| {
+                    ln.width_emu.is_some() || !matches!(ln.fill, None | Some(DrawingFill::None))
+                })
+        }) {
             return None;
         }
         let vals = nitro_xml_opc::chart::chart_source_values(s.values.as_ref());
@@ -681,6 +699,7 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
             name,
             values,
             color,
+            picture,
             invert: s.invert_if_negative == Some(true),
         });
     }
@@ -769,6 +788,29 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
     }
     let auto_ph = (l.bottom - l.top).max(1.0);
     let ph = if horizontal { l.pw() } else { auto_ph };
+    // `c:plotArea/c:layout/c:manualLayout`: an `outer` target keeps the axis bands inside it.
+    if let (false, Some(pl)) = (is_radar, pa.layout.as_ref()) {
+        if let Some(r) = nitro_xml_render::chart::resolve_manual_layout_rect(
+            Some(&pl.manual),
+            wf,
+            hf,
+            nitro_xml_render::chart::ChartLayoutRect {
+                x: l.left,
+                y: l.top,
+                width: l.right - l.left,
+                height: l.bottom - l.top,
+            },
+        ) {
+            l.left = r.x;
+            l.top = r.y;
+            l.right = r.x + r.width;
+            l.bottom = r.y + r.height;
+            if pl.manual.layout_target.as_deref() != Some("inner") {
+                l.left += (if horizontal { widest_label + 4.0 } else { 0.0 }).max(40.0);
+                l.bottom -= (24f64).max(offset + cat_px * 1.2) - 8.0;
+            }
+        }
+    }
 
     // Value range
     let all: Vec<f64> = series
@@ -804,11 +846,13 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
 
     let palette = style_palette(space.style, theme_accents(&theme.scheme));
     let mut o = String::new();
+    let mut defs = String::new();
     let _ = write!(
         o,
         "<svg class=\"pptxv-chart-svg\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {} {}\" preserveAspectRatio=\"none\" style=\"width: 100%; height: 100%; display: block;\">",
         n(l.w), n(l.h)
     );
+    let defs_at = o.len();
 
     if let Some(t) = &title {
         let fam = family_css(&chart_style.family);
@@ -962,10 +1006,24 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
                 } else {
                     format!("{tip}: {}", fmt_axis(val))
                 };
+                let (ry, rh) = (zero_y.min(vy), (zero_y - vy).abs().max(1.0));
+                let (fill, opacity) = match &s.picture {
+                    Some((href, alpha)) => {
+                        // buildPictureFillPatternDef: a stretch pattern over the mark's own box.
+                        let id = format!("{}-chart-dpt-pic-{si}-{ci}", theme.picture_id_prefix);
+                        let _ = write!(
+                            defs,
+                            "<pattern id=\"{id}\" patternUnits=\"userSpaceOnUse\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"><image href=\"{}\" x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" preserveAspectRatio=\"none\"></image></pattern>",
+                            n(x), n(ry), n(geo.single_bar_width), n(rh), esc(href), n(geo.single_bar_width), n(rh)
+                        );
+                        (format!("url(#{id})"), alpha.unwrap_or(1.0))
+                    }
+                    None => (fill, 1.0),
+                };
                 let _ = write!(
                 o,
-                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" rx=\"1\" opacity=\"1\" data-chart-part=\"dataPoint\" data-chart-series=\"{si}\" data-chart-point=\"{ci}\"><title>{}</title></rect>",
-                n(x), n(zero_y.min(vy)), n(geo.single_bar_width), n((zero_y - vy).abs().max(1.0)), fill, esc(&tip)
+                "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" rx=\"1\" opacity=\"{}\" data-chart-part=\"dataPoint\" data-chart-series=\"{si}\" data-chart-point=\"{ci}\"><title>{}</title></rect>",
+                n(x), n(ry), n(geo.single_bar_width), n(rh), fill, n(opacity), esc(&tip)
             );
             }
         }
@@ -1111,6 +1169,9 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
             &entries,
             (lx, ly, vertical),
         );
+    }
+    if !defs.is_empty() {
+        o.insert_str(defs_at, &format!("<defs>{defs}</defs>"));
     }
     o.push_str("</svg>");
     let _ = THEME_SLOTS;

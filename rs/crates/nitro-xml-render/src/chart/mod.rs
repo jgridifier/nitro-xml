@@ -21,6 +21,7 @@ pub use render::chart_axis_nice::{
     axis_target_intervals, nice_value_axis_bounds, VALUE_AXIS_HEADROOM,
 };
 pub use render::chart_blip_rel_ids;
+pub use render::manual_layout_resolve::{resolve_manual_layout_rect, ChartLayoutRect};
 pub use render::theme_palette::{DEFAULT_THEME_COLORS, THEME_SLOTS};
 pub use render::{chart_space_kind, ChartSvgMeasureOptions, ChartThemeFonts, DRAWN_CHART_TYPES};
 

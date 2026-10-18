@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/pptx/core/utils/image-first-pixel-png.ts; changes listed in PROVENANCE.md.
 //! Synchronous, DOM-free PNG first-pixel (0,0) decoder for bar3D untargeted
-//! extrusion faces. Minimal implementation for 8-bit RGB support.
+//! extrusion faces. Inflates IDAT (zlib) then reads the first scanline filter +
+//! pixel samples — matching upstream `zlibInflate` + filter-0 reconstruction.
 
-#[derive(Clone, Copy, Debug)]
+use flate2::read::ZlibDecoder;
+use std::io::Read;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rgba {
     pub r: u8,
     pub g: u8,
@@ -11,119 +15,193 @@ pub struct Rgba {
     pub a: u8,
 }
 
-/// Minimal PNG first-pixel decoder. Returns None for unsupported formats.
-/// For this fixture: 8-bit RGB/RGBA PNGs only.
-pub fn decode_png_first_pixel(bytes: &[u8]) -> Option<Rgba> {
-    if bytes.len() < 24 {
-        return None;
+fn channels_for_color_type(color_type: u8) -> Option<usize> {
+    match color_type {
+        0 => Some(1), // grayscale
+        2 => Some(3), // truecolor
+        3 => Some(1), // indexed
+        4 => Some(2), // grayscale + alpha
+        6 => Some(4), // truecolor + alpha
+        _ => None,
     }
-
-    // Check PNG signature
-    if &bytes[0..8] != b"\x89PNG\r\n\x1a\n" {
-        return None;
-    }
-
-    // Read IHDR chunk (should be at offset 8)
-    let ihdr_len = u32::from_be_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
-    if ihdr_len != 13 {
-        return None;
-    }
-    if &bytes[12..16] != b"IHDR" {
-        return None;
-    }
-
-    let width = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
-    let height = u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
-    let bit_depth = bytes[24];
-    let color_type = bytes[25];
-
-    if width == 0 || height == 0 {
-        return None;
-    }
-
-    // Support 8-bit RGB (type 2) and RGBA (type 6) only
-    if bit_depth != 8 || (color_type != 2 && color_type != 6) {
-        return None;
-    }
-
-    let has_alpha = color_type == 6;
-    let channels = if has_alpha { 4 } else { 3 };
-
-    // Find IDAT chunk
-    let mut offset = 29; // Skip IHDR chunk
-
-    while offset + 8 <= bytes.len() {
-        let chunk_len = u32::from_be_bytes([bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]]) as usize;
-        let chunk_type = &bytes[offset + 4..offset + 8];
-
-        if chunk_type == b"IDAT" {
-            // For a minimal case: try to read unfiltered pixel data
-            // Real implementation would decompress IDAT, but for test fixtures
-            // with specific simple PNGs, we can handle basic cases
-            if chunk_len >= (1 + channels) {
-                let idat_start = offset + 8;
-                // Try to extract pixel data (filter type + RGB/RGBA)
-                // This is a pragmatic approach for the bar3D fixture
-                if let Some(pixel) = try_extract_pixel(&bytes[idat_start..], has_alpha) {
-                    return Some(pixel);
-                }
-            }
-            return None;
-        } else if chunk_type == b"IEND" {
-            break;
-        }
-
-        offset = offset + 8 + chunk_len + 4; // Skip to next chunk
-    }
-
-    None
 }
 
-/// Try to extract first pixel from IDAT data.
-/// For test fixture: simple uncompressed or minimally-compressed case.
-fn try_extract_pixel(idat_data: &[u8], has_alpha: bool) -> Option<Rgba> {
-    if idat_data.is_empty() {
+/// Decode pixel (0,0) from a PNG byte buffer. Returns None for unsupported formats.
+pub fn decode_png_first_pixel(bytes: &[u8]) -> Option<Rgba> {
+    if bytes.len() < 24 || &bytes[0..8] != b"\x89PNG\r\n\x1a\n" {
         return None;
     }
 
-    let channels = if has_alpha { 4 } else { 3 };
-    
-    // For the fixture: IDAT contains zlib-compressed data
-    // Try a very simple case: if first few bytes happen to be readable
-    // Otherwise, this will return None and we fall back to the base color
-    
-    // Minimum: zlib header (2) + filter byte (1) + pixel (channels)
-    if idat_data.len() < (2 + 1 + channels) {
-        return None;
-    }
+    let mut offset = 8usize;
+    let mut width = 0u32;
+    let mut height = 0u32;
+    let mut bit_depth = 0u8;
+    let mut color_type = 0u8;
+    let mut palette: Option<Vec<u8>> = None;
+    let mut transparency: Option<Vec<u8>> = None;
+    let mut idat: Vec<u8> = Vec::new();
 
-    // Skip zlib header (CMF + FLG bytes)
-    let filter_type = idat_data[2];
-    
-    if filter_type == 0 {
-        // No filtering: pixel data is directly after filter type
-        let pixel_start = 3;
-        if idat_data.len() >= pixel_start + channels {
-            return Some(Rgba {
-                r: idat_data[pixel_start],
-                g: idat_data[pixel_start + 1],
-                b: idat_data[pixel_start + 2],
-                a: if has_alpha { idat_data[pixel_start + 3] } else { 255 },
-            });
+    while offset + 8 <= bytes.len() {
+        let chunk_len = u32::from_be_bytes([
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
+        ]) as usize;
+        if offset + 12 + chunk_len > bytes.len() {
+            return None;
         }
+        let chunk_type = &bytes[offset + 4..offset + 8];
+        let data = &bytes[offset + 8..offset + 8 + chunk_len];
+        match chunk_type {
+            b"IHDR" if chunk_len >= 13 => {
+                width = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+                height = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
+                bit_depth = data[8];
+                color_type = data[9];
+            }
+            b"PLTE" => palette = Some(data.to_vec()),
+            b"tRNS" => transparency = Some(data.to_vec()),
+            b"IDAT" => idat.extend_from_slice(data),
+            b"IEND" => break,
+            _ => {}
+        }
+        offset += 12 + chunk_len;
     }
 
-    None
+    if width == 0 || height == 0 || bit_depth != 8 {
+        return None;
+    }
+    let channels = channels_for_color_type(color_type)?;
+    if idat.is_empty() {
+        return None;
+    }
+
+    let mut decoder = ZlibDecoder::new(idat.as_slice());
+    // filter byte + first pixel samples are enough (row-0 left/up predictors are 0).
+    let need = 1 + channels;
+    let mut raw = vec![0u8; need];
+    decoder.read_exact(&mut raw).ok()?;
+    // Filter type is ignored: for (0,0) every PNG filter reconstructs to the raw samples.
+    let samples = &raw[1..];
+
+    match color_type {
+        2 => Some(Rgba {
+            r: samples[0],
+            g: samples[1],
+            b: samples[2],
+            a: 255,
+        }),
+        6 => Some(Rgba {
+            r: samples[0],
+            g: samples[1],
+            b: samples[2],
+            a: samples[3],
+        }),
+        0 => Some(Rgba {
+            r: samples[0],
+            g: samples[0],
+            b: samples[0],
+            a: 255,
+        }),
+        4 => Some(Rgba {
+            r: samples[0],
+            g: samples[0],
+            b: samples[0],
+            a: samples[1],
+        }),
+        3 => {
+            let pal = palette.as_ref()?;
+            let idx = samples[0] as usize;
+            if idx * 3 + 2 >= pal.len() {
+                return None;
+            }
+            let a = transparency
+                .as_ref()
+                .and_then(|t| t.get(idx).copied())
+                .unwrap_or(255);
+            Some(Rgba {
+                r: pal[idx * 3],
+                g: pal[idx * 3 + 1],
+                b: pal[idx * 3 + 2],
+                a,
+            })
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use flate2::write::ZlibEncoder;
+    use flate2::Compression;
+    use std::io::Write;
 
+    fn crc32(data: &[u8]) -> u32 {
+        // Minimal CRC for test PNG construction (IEEE).
+        let mut crc: u32 = 0xffff_ffff;
+        for &b in data {
+            crc ^= u32::from(b);
+            for _ in 0..8 {
+                let mask = if crc & 1 != 0 { 0xedb8_8320 } else { 0 };
+                crc = (crc >> 1) ^ mask;
+            }
+        }
+        !crc
+    }
+
+    fn chunk(ty: &[u8; 4], data: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+        out.extend_from_slice(ty);
+        out.extend_from_slice(data);
+        let mut crc_data = Vec::new();
+        crc_data.extend_from_slice(ty);
+        crc_data.extend_from_slice(data);
+        out.extend_from_slice(&crc32(&crc_data).to_be_bytes());
+        out
+    }
+
+    fn tiny_rgba_png(r: u8, g: u8, b: u8, a: u8) -> Vec<u8> {
+        // 1x1 RGBA, filter None
+        let raw = vec![0, r, g, b, a];
+        let mut enc = ZlibEncoder::new(Vec::new(), Compression::fast());
+        enc.write_all(&raw).unwrap();
+        let idat = enc.finish().unwrap();
+
+        let mut png = Vec::new();
+        png.extend_from_slice(b"\x89PNG\r\n\x1a\n");
+        let mut ihdr = Vec::new();
+        ihdr.extend_from_slice(&1u32.to_be_bytes()); // w
+        ihdr.extend_from_slice(&1u32.to_be_bytes()); // h
+        ihdr.extend_from_slice(&[8, 6, 0, 0, 0]); // bit depth, RGBA, compression, filter, interlace
+        png.extend(chunk(b"IHDR", &ihdr));
+        png.extend(chunk(b"IDAT", &idat));
+        png.extend(chunk(b"IEND", &[]));
+        png
+    }
+
+    // Catches: PNG decoder rejects non-PNG data.
     #[test]
-    // Catches: PNG decoder rejects non-PNG data
     fn decode_rejects_non_png() {
-        let not_png = b"NOTPNG!!";
-        assert!(decode_png_first_pixel(not_png).is_none());
+        assert!(decode_png_first_pixel(b"NOTPNG!!").is_none());
+    }
+
+    // Catches: zlib-compressed IDAT not inflated → bar3D face falls back to accent blue
+    // instead of sampled green (f8f44b2075eb 2x2 picture fill).
+    #[test]
+    fn decode_zlib_idat_first_pixel_green() {
+        let png = tiny_rgba_png(0, 255, 0, 255);
+        let px = decode_png_first_pixel(&png).expect("decode");
+        assert_eq!(
+            px,
+            Rgba {
+                r: 0,
+                g: 255,
+                b: 0,
+                a: 255
+            }
+        );
     }
 }

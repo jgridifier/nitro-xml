@@ -35,6 +35,7 @@ mod tests {
             grouping: "clustered".to_string(),
             title: title.map(str::to_string),
             title_placeholder,
+            auto_title: false,
             show_legend: true,
             legend_position: "b".to_string(),
             categories: vec!["A".to_string()],

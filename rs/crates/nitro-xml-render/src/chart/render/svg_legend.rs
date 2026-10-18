@@ -104,8 +104,14 @@ fn p9_legend_text_attrs() -> TextAttrs {
 }
 
 fn p9_plot_top(model: &ChartViewModel) -> f64 {
-    let title_attrs = chart_text_attributes(model, "title", 14.0);
-    let title_px = title_attrs.size.unwrap_or(14.0 * CHART_PX_PER_PT);
+    // Match svg.rs auto-title defaults (12px), not built-in style 18pt.
+    let title_px = if model.auto_title {
+        12.0
+    } else {
+        chart_text_attributes(model, "title", 14.0)
+            .size
+            .unwrap_or(14.0 * CHART_PX_PER_PT)
+    };
     let has_title = model.title.is_some() || model.title_placeholder;
     8.0 + chart_title_reserve_px(has_title, title_px)
 }

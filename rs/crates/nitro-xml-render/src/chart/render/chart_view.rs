@@ -44,6 +44,8 @@ pub struct ChartViewModel {
     pub grouping: String,
     pub title: Option<String>,
     pub title_placeholder: bool,
+    /// Synthesized auto title — use viewer `DEFAULT_TITLE_TEXT_PX` (12), not built-in style 18pt.
+    pub auto_title: bool,
     pub show_legend: bool,
     pub legend_position: String,
     pub categories: Vec<String>,
@@ -250,6 +252,7 @@ pub fn chart_summary_view(
         grouping,
         title: chart.title.clone(),
         title_placeholder: chart.title_placeholder,
+        auto_title: chart.auto_title,
         show_legend: chart.show_legend,
         legend_position: chart
             .legend_position

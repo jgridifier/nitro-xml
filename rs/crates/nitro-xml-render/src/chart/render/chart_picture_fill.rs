@@ -217,18 +217,21 @@ pub fn build_pattern_def(
     } else {
         tile_height_px.unwrap_or(rect.h)
     };
+    // Upstream `renderPatternDef`: preserveAspectRatio lives on `<image>`, not `<pattern>`.
     let preserve = if stretch { "none" } else { "xMidYMid slice" };
     format!(
-        "<pattern id=\"{}\" patternUnits=\"userSpaceOnUse\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" preserveAspectRatio=\"{}\"><image href=\"{}\" x=\"0\" y=\"0\" width=\"{}\" height=\"{}\"/></pattern>",
+        "<pattern id=\"{}\" patternUnits=\"userSpaceOnUse\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\">\
+         <image href=\"{}\" x=\"0\" y=\"0\" width=\"{}\" height=\"{}\" preserveAspectRatio=\"{}\"/>\
+         </pattern>",
         esc(id),
         n(rect.x),
         n(rect.y),
         n(rect.w.max(0.0)),
         n(height.max(0.0)),
-        preserve,
         esc(href),
         n(rect.w.max(0.0)),
-        n(height.max(0.0))
+        n(height.max(0.0)),
+        preserve,
     )
 }
 
@@ -271,4 +274,39 @@ pub fn fill_for_bar_face(
         ));
     }
     format!("url(#{})", id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Catches: stretch PAR on <pattern> instead of <image> letterboxes 2x2 PNG (f8f44b2075eb).
+    #[test]
+    fn stretch_preserve_aspect_ratio_is_on_image() {
+        let def = build_pattern_def(
+            "p",
+            "data:image/png;base64,xx",
+            PictureFormat::Stretch,
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 10.0,
+                h: 100.0,
+            },
+            None,
+        );
+        assert!(
+            def.contains("<image ") && def.contains("preserveAspectRatio=\"none\""),
+            "PAR must be on image: {def}"
+        );
+        assert!(
+            !def.contains("<pattern ")
+                || !def
+                    .split("<image")
+                    .next()
+                    .unwrap()
+                    .contains("preserveAspectRatio"),
+            "PAR must not be on pattern: {def}"
+        );
+    }
 }

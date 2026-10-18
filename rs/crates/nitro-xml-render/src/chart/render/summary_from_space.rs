@@ -217,6 +217,7 @@ pub fn chart_summary_from_space(chart_space: &ChartSpace) -> ChartSummary {
         }
     } else if should_auto_title {
         summary.title_placeholder = true;
+        summary.auto_title = true;
         if let Some(name) = &summary.series[0].name {
             summary.title = Some(name.clone());
         }

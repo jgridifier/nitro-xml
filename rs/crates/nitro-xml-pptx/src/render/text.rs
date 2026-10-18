@@ -351,6 +351,7 @@ fn paint_warped_text_envelope<I: StringIntern>(
     let mut svg_content = String::new();
     let safe_id = block.to_string();
     let escaped_stack = xml_escape_attr(stack);
+    let max_segment = (block_width / 240.0).max(1e-3);
 
     for (para_idx, para) in paragraphs.iter().enumerate() {
         let advances = &line_advances[para_idx];
@@ -364,6 +365,42 @@ fn paint_warped_text_envelope<I: StringIntern>(
                 x += adv;
                 continue;
             }
+
+            let font_id = ctx.intern.intern(&canvas_font);
+            let char_id = ctx.intern.intern(&ch.to_string());
+
+            // Try to use cached outline if available
+            if let Some(em_contours) = ctx.outlines.cached_contours(font_id, char_id) {
+                // Scale contours from em units to layout coordinates
+                let mut layout_contours: Vec<Vec<super::wordart::OutlinePoint>> = Vec::new();
+                for em_ring in &em_contours {
+                    let mut layout_ring = Vec::new();
+                    for (em_x, em_y) in em_ring {
+                        layout_ring.push(super::wordart::OutlinePoint {
+                            x: x + em_x * size,
+                            y: y_baseline + em_y * size,
+                        });
+                    }
+                    layout_contours.push(layout_ring);
+                }
+
+                // Build warped path
+                if let Some(path_d) =
+                    super::wordart::build_warped_glyph_outline_path_d(&layout_contours, &*warp, max_segment)
+                {
+                    svg_content.push_str(&format!(
+                        r#"<path d="{}" fill="{}" />"#,
+                        path_d, color
+                    ));
+                    x += adv;
+                    continue;
+                }
+            }
+
+            // Outline not available or warp failed: fall back to affine transform
+            // and queue outline probe for next frame
+            ctx.outlines.push(font_id, char_id, size as f32);
+
             let glyph_box = super::wordart_envelope_affine::GlyphFitBox {
                 x0: x,
                 x1: x + adv,

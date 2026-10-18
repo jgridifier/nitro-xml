@@ -210,7 +210,223 @@ fn open_paragraph<I: StringIntern>(
     para
 }
 
-/// Paint text with WordArt text warp via SVG <textPath>.
+/// PowerPoint single-spaced envelope line pitch (upstream `LINE_PITCH_EM`).
+const ENVELOPE_LINE_PITCH_EM: f64 = 1.2;
+/// Cap-height estimate above baseline without ink metrics (`FALLBACK_CAP_HEIGHT_EM`).
+const ENVELOPE_CAP_HEIGHT_EM: f64 = 0.72;
+
+/// Measure per-glyph advances via MeasureBatch (canvas `measureText`), matching
+/// upstream `measureGlyphAdvances` kerning via prefix widths. Falls back to
+/// `0.55em` until the host replies on the next paint pass.
+fn envelope_glyph_advances<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    text: &str,
+    canvas_font: &str,
+    size: f64,
+) -> Vec<f64> {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.is_empty() {
+        return Vec::new();
+    }
+    let font_id = ctx.intern.intern(canvas_font);
+    let estimate = size * 0.55;
+    let mut prefix = String::new();
+    let mut prefix_widths = Vec::with_capacity(chars.len());
+    for ch in &chars {
+        prefix.push(*ch);
+        let key = ctx.intern.intern(&format!("envw:{prefix}"));
+        let w = if let Some(cached) = ctx.measure.cached_width(font_id, key) {
+            cached
+        } else {
+            ctx.measure.push(font_id, size as f32, key);
+            estimate * prefix.chars().count() as f64
+        };
+        prefix_widths.push(w);
+    }
+    let mut advances = Vec::with_capacity(chars.len());
+    let mut prev = 0.0;
+    for w in prefix_widths {
+        advances.push((w - prev).max(0.0));
+        prev = w;
+    }
+    advances
+}
+
+/// Paint WordArt glyph-envelope warp via per-glyph SVG <text> elements.
+/// 1:1 with upstream `buildGlyphEnvelopeBlock` + React `EnvelopeGlyph` (affine
+/// fallback; outline warp deferred — needs font outline host).
+#[allow(clippy::too_many_arguments)]
+fn paint_warped_text_envelope<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    block: u32,
+    text: &str,
+    preset: &str,
+    w: f64,
+    h: f64,
+    adj1: Option<i32>,
+    adj2: Option<i32>,
+    size: f64,
+    stack: &str,
+    color: &str,
+    weight: &str,
+    style: &str,
+    bold: bool,
+    italic: bool,
+) -> u32 {
+    let paragraphs: Vec<&str> = if text.is_empty() {
+        vec![""]
+    } else {
+        text.split('\n').collect()
+    };
+    let canvas_font = canvas_measure_font(stack, size, bold, italic);
+
+    // Per-line advances + widths (upstream layoutEnvelopeBlock).
+    let line_advances: Vec<Vec<f64>> = paragraphs
+        .iter()
+        .map(|p| envelope_glyph_advances(ctx, p, &canvas_font, size))
+        .collect();
+    let line_widths: Vec<f64> = line_advances
+        .iter()
+        .map(|a| a.iter().sum::<f64>())
+        .collect();
+    let block_width = line_widths.iter().copied().fold(0.0_f64, f64::max);
+    if block_width <= 0.0 {
+        set_text_content(ctx, block, text);
+        return block;
+    }
+
+    // Stack baselines at 1.2em pitch; ink box = union of glyph ink.
+    let mut baselines = Vec::with_capacity(paragraphs.len());
+    let mut baseline = 0.0;
+    for (i, _) in paragraphs.iter().enumerate() {
+        if i > 0 {
+            baseline += ENVELOPE_LINE_PITCH_EM * size;
+        }
+        baselines.push(baseline);
+    }
+    let cap = size * ENVELOPE_CAP_HEIGHT_EM;
+    let mut box_left = f64::INFINITY;
+    let mut box_right = f64::NEG_INFINITY;
+    let mut box_top = f64::INFINITY;
+    let mut box_bottom = f64::NEG_INFINITY;
+    let mut has_ink = false;
+    for (para_idx, para) in paragraphs.iter().enumerate() {
+        let advances = &line_advances[para_idx];
+        let line_w = line_widths[para_idx];
+        let x0 = (block_width - line_w) / 2.0; // center within block
+        let y = baselines[para_idx];
+        let mut x = x0;
+        for (idx, ch) in para.chars().enumerate() {
+            let adv = advances.get(idx).copied().unwrap_or(size * 0.55);
+            if !ch.is_whitespace() {
+                has_ink = true;
+                box_left = box_left.min(x);
+                box_right = box_right.max(x + adv);
+                box_top = box_top.min(y - cap);
+                box_bottom = box_bottom.max(y);
+            } else {
+                box_left = box_left.min(x);
+                box_right = box_right.max(x + adv);
+            }
+            x += adv;
+        }
+    }
+    if !has_ink || !box_left.is_finite() {
+        set_text_content(ctx, block, text);
+        return block;
+    }
+
+    let block_box = super::wordart_envelope_map::EnvelopeBlockBox {
+        left: box_left,
+        top: box_top,
+        right: box_right,
+        bottom: box_bottom,
+    };
+
+    let warp = match super::wordart::create_envelope_warp(preset, w, h, adj1, adj2, block_box) {
+        Some(warp) => warp,
+        None => {
+            set_text_content(ctx, block, text);
+            return block;
+        }
+    };
+
+    let mut svg_content = String::new();
+    let safe_id = block.to_string();
+    let escaped_stack = xml_escape_attr(stack);
+
+    for (para_idx, para) in paragraphs.iter().enumerate() {
+        let advances = &line_advances[para_idx];
+        let line_w = line_widths[para_idx];
+        let x0 = (block_width - line_w) / 2.0;
+        let y_baseline = baselines[para_idx];
+        let mut x = x0;
+        for (idx, ch) in para.chars().enumerate() {
+            let adv = advances.get(idx).copied().unwrap_or(size * 0.55).max(1e-3);
+            if ch.is_whitespace() {
+                x += adv;
+                continue;
+            }
+            let glyph_box = super::wordart_envelope_affine::GlyphFitBox {
+                x0: x,
+                x1: x + adv,
+                y0: y_baseline - cap,
+                y1: y_baseline,
+            };
+            let fit = super::wordart::fit_glyph_envelope_affine(&*warp, glyph_box, h);
+            let glyph_str = xml_escape_text(&ch.to_string());
+
+            if let Some(slices) = &fit.slices {
+                for (slice_idx, slice) in slices.iter().enumerate() {
+                    let clip_id = format!("{safe_id}-clip-{para_idx}-{idx}-{slice_idx}");
+                    svg_content.push_str(&format!(
+                        r#"<defs><clipPath id="{clip_id}" clipPathUnits="userSpaceOnUse"><rect x="{x0}" y="-100000" width="{ww}" height="200000"/></clipPath></defs>"#,
+                        clip_id = clip_id,
+                        x0 = slice.clip_x0,
+                        ww = (slice.clip_x1 - slice.clip_x0).max(0.0),
+                    ));
+                    svg_content.push_str(&format!(
+                        r#"<text fill="{color}" font-family="{stack}" font-size="{size}" font-weight="{weight}" font-style="{style}" x="{gx}" y="{gy}" transform="{xf}" clip-path="url(#{clip_id})">{glyph}</text>"#,
+                        color = color,
+                        stack = escaped_stack,
+                        size = size,
+                        weight = weight,
+                        style = style,
+                        gx = x,
+                        gy = y_baseline,
+                        xf = slice.transform,
+                        clip_id = clip_id,
+                        glyph = glyph_str,
+                    ));
+                }
+            } else {
+                svg_content.push_str(&format!(
+                    r#"<text fill="{color}" font-family="{stack}" font-size="{size}" font-weight="{weight}" font-style="{style}" x="{gx}" y="{gy}" transform="{xf}">{glyph}</text>"#,
+                    color = color,
+                    stack = escaped_stack,
+                    size = size,
+                    weight = weight,
+                    style = style,
+                    gx = x,
+                    gy = y_baseline,
+                    xf = fit.transform,
+                    glyph = glyph_str,
+                ));
+            }
+            x += adv;
+        }
+    }
+
+    let markup = format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" preserveAspectRatio="none" aria-hidden="true" class="pptxv-wordart" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">{svg_content}</svg>"#
+    );
+    set_inner_markup_stub(ctx, block, &markup);
+    block
+}
+
+/// Paint WordArt warp. Path presets use SVG `<textPath>` via SetInnerMarkup
+/// (loader only createElementNS's the root `<svg>` tag). Envelope presets use
+/// per-glyph affine transforms for accurate envelope mapping.
 fn paint_warped_text_body<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     parent: u32,
@@ -218,155 +434,116 @@ fn paint_warped_text_body<I: StringIntern>(
     el: &DumpElement,
 ) -> u32 {
     let block = create_child(ctx, parent, "div");
-    set_attr(ctx, block, "class", "pptxv-text");
-
-    // Basic styling (copied from paint_text_body)
-    set_style(ctx, block, "white-space", "pre-wrap");
+    set_attr(ctx, block, "class", "pptxv-text pptxv-wordart");
+    set_style(ctx, block, "width", "100%");
+    set_style(ctx, block, "height", "100%");
     set_style(ctx, block, "overflow", "visible");
-    set_style(ctx, block, "text-spacing-trim", "space-all");
+    set_style(ctx, block, "position", "relative");
 
-    if let Some(layout) = el.text_body_layout.as_ref() {
-        set_style(ctx, block, "width", "100%");
-        set_style(ctx, block, "height", "100%");
-        if layout.column_count > 1 {
-            set_style(ctx, block, "display", "block");
-        } else {
-            set_style(ctx, block, "display", "flex");
-            set_style(ctx, block, "flex-direction", "column");
-        }
-    }
-
+    let preset = el.text_warp_preset.as_deref().unwrap_or("");
     let size = el.font_size_px.unwrap_or(24.0).max(1.0);
     let stack = substitute_font_family_stack(el.font_family.as_deref());
-    set_style(ctx, block, "font-family", &stack);
-    set_style(ctx, block, "font-size", &format!("{}px", format_px(size)));
-    set_style(ctx, block, "line-height", "1.2");
+    let color = el.text_color.as_deref().unwrap_or("#000000");
+    let weight = if el.font_bold { "bold" } else { "normal" };
+    let style = if el.font_italic { "italic" } else { "normal" };
 
-    if el.font_bold {
-        set_style(ctx, block, "font-weight", "700");
-    }
-    if el.font_italic {
-        set_style(ctx, block, "font-style", "italic");
-    }
-    if let Some(color) = el.text_color.as_deref() {
-        set_style(ctx, block, "color", color);
-    }
-
-    // Create SVG container with textPath warp
-    let svg = create_child(ctx, block, "svg");
-    set_attr(
-        ctx,
-        svg,
-        "viewBox",
-        &format!("0 0 {} {}", el.width, el.height),
-    );
-    set_attr(ctx, svg, "preserveAspectRatio", "none");
-    set_style(ctx, svg, "width", "100%");
-    set_style(ctx, svg, "height", "100%");
-    set_style(ctx, svg, "display", "block");
-
-    let defs = create_child(ctx, svg, "defs");
-
-    // For single-line text, render one baseline path
-    let path_id = format!("warp-path-{}", el.id);
-    let path_el = create_child(ctx, defs, "path");
-    set_attr(ctx, path_el, "id", &path_id);
-    set_attr(ctx, path_el, "d", "M 0,50 L 100,50");
-    set_attr(ctx, path_el, "fill", "none");
-
-    if let Some(preset) = el.text_warp_preset.as_deref() {
-        if let Some(path_d) = super::wordart::build_warp_path(
+    // Envelope family: per-glyph envelope warp via SVG <text> elements
+    if super::wordart::has_glyph_envelope(preset) {
+        return paint_warped_text_envelope(
+            ctx,
+            block,
+            text,
             preset,
-            el.width,
-            el.height,
-            0,
-            1,
+            el.width.max(1.0),
+            el.height.max(1.0),
             el.text_warp_adj,
             el.text_warp_adj2,
-        ) {
-            set_attr(ctx, path_el, "d", &path_d);
-        }
+            size,
+            &stack,
+            color,
+            weight,
+            style,
+            el.font_bold,
+            el.font_italic,
+        );
     }
 
-    let text_path_el = create_child(ctx, svg, "text");
-    set_attr(ctx, text_path_el, "x", "0");
-    set_attr(ctx, text_path_el, "y", "0");
-    set_style(ctx, text_path_el, "font-family", &stack);
-    set_style(
-        ctx,
-        text_path_el,
-        "font-size",
-        &format!("{}px", format_px(size)),
+    // Path family: SVG textPath markup (upstream `renderPathWarp`).
+    let w = el.width.max(1.0);
+    let h = el.height.max(1.0);
+    let lines: Vec<&str> = if text.is_empty() {
+        vec![""]
+    } else {
+        text.split('\n').collect()
+    };
+    let line_count = lines.len().max(1);
+    let safe_id = el
+        .id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let mut defs = String::new();
+    let mut texts = String::new();
+    for (index, line) in lines.iter().enumerate() {
+        let path_id = format!("{safe_id}-warp-{index}");
+        let d = super::wordart::build_warp_path(
+            preset,
+            w,
+            h,
+            index,
+            line_count,
+            el.text_warp_adj,
+            el.text_warp_adj2,
+        )
+        .unwrap_or_else(|| {
+            let y = h
+                * (0.2
+                    + (if line_count <= 1 {
+                        0.5
+                    } else {
+                        index as f64 / (line_count as f64 - 1.0)
+                    }) * 0.6);
+            format!("M 0,{y} L {w},{y}")
+        });
+        let escaped_d = xml_escape_attr(&d);
+        let escaped_line = xml_escape_text(line);
+        defs.push_str(&format!(r#"<path id="{path_id}" d="{escaped_d}"></path>"#));
+        let href = format!("#{path_id}");
+        texts.push_str(&format!(
+            r#"<text fill="{color}" font-family="{stack}" font-size="{size}" font-weight="{weight}" font-style="{style}"><textPath href="{href}" startOffset="50%" text-anchor="middle">{escaped_line}</textPath></text>"#,
+            color = color,
+            stack = stack,
+            size = size,
+            weight = weight,
+            style = style,
+            href = href,
+            escaped_line = escaped_line,
+        ));
+    }
+    let markup = format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" preserveAspectRatio="none" aria-hidden="true" class="pptxv-wordart" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible"><defs>{defs}</defs>{texts}</svg>"#
     );
-    if el.font_bold {
-        set_style(ctx, text_path_el, "font-weight", "700");
-    }
-    if el.font_italic {
-        set_style(ctx, text_path_el, "font-style", "italic");
-    }
-    if let Some(color) = el.text_color.as_deref() {
-        set_style(ctx, text_path_el, "fill", color);
-    }
-
-    let tspan = create_child(ctx, text_path_el, "tspan");
-    let text_path_ref = create_child(ctx, tspan, "textPath");
-    set_attr(ctx, text_path_ref, "href", &format!("#{}", path_id));
-    set_attr(ctx, text_path_ref, "startOffset", "0%");
-    set_attr(ctx, text_path_ref, "text-anchor", "start");
-    set_text_content(ctx, text_path_ref, text);
-
+    set_inner_markup_stub(ctx, block, &markup);
     block
 }
 
-/// Paint text with WordArt text warp via SVG <path> envelope (multi-line).
-#[allow(dead_code)]
-fn paint_warped_text_envelope<I: StringIntern>(
-    ctx: &mut PaintContext<'_, I>,
-    parent: u32,
-    text: &str,
-    el: &DumpElement,
-) -> u32 {
-    let block = create_child(ctx, parent, "div");
-    set_attr(ctx, block, "class", "pptxv-text");
+fn xml_escape_attr(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
 
-    // Basic styling
-    set_style(ctx, block, "white-space", "pre-wrap");
-    set_style(ctx, block, "overflow", "visible");
-    set_style(ctx, block, "text-spacing-trim", "space-all");
-
-    if let Some(layout) = el.text_body_layout.as_ref() {
-        set_style(ctx, block, "width", "100%");
-        set_style(ctx, block, "height", "100%");
-        if layout.column_count > 1 {
-            set_style(ctx, block, "display", "block");
-        } else {
-            set_style(ctx, block, "display", "flex");
-            set_style(ctx, block, "flex-direction", "column");
-        }
-    }
-
-    let size = el.font_size_px.unwrap_or(24.0).max(1.0);
-    let stack = substitute_font_family_stack(el.font_family.as_deref());
-    set_style(ctx, block, "font-family", &stack);
-    set_style(ctx, block, "font-size", &format!("{}px", format_px(size)));
-    set_style(ctx, block, "line-height", "1.2");
-
-    if el.font_bold {
-        set_style(ctx, block, "font-weight", "700");
-    }
-    if el.font_italic {
-        set_style(ctx, block, "font-style", "italic");
-    }
-    if let Some(color) = el.text_color.as_deref() {
-        set_style(ctx, block, "color", color);
-    }
-
-    // For now, fall back to plain text rendering (envelope warping will be added in next phase)
-    let para = open_paragraph(ctx, block, None, None);
-    let span = create_child(ctx, para, "span");
-    set_text_content(ctx, span, text);
-
-    block
+fn xml_escape_text(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 pub fn paint_text_body<I: StringIntern>(

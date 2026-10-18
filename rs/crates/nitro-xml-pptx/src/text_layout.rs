@@ -396,6 +396,8 @@ pub struct TextPaintRun {
     pub hyperlink_tooltip: Option<String>,
     /// Soft line break from `a:br` (paint as `<br>`, not a text run).
     pub line_break: bool,
+    /// `a:rPr/@baseline` super/subscript shift ('super' or 'sub', or None).
+    pub baseline_shift: Option<&'static str>,
 }
 
 /// Paragraph-level BiDi + alignment for painters (upstream `RenderParagraph` subset).
@@ -918,6 +920,7 @@ fn collect_paint_runs(
                         hyperlink_click: false,
                         hyperlink_tooltip: None,
                         line_break: false,
+                        baseline_shift: None,
                     });
                 }
                 continue;
@@ -937,6 +940,7 @@ fn collect_paint_runs(
                         font_kern_hundredths: None,
                         text_caps: None,
                         script_fonts: None,
+                        baseline_hundredths: None,
                     });
                 runs.push(TextPaintRun {
                     text: String::new(),
@@ -957,6 +961,7 @@ fn collect_paint_runs(
                     hyperlink_click: false,
                     hyperlink_tooltip: None,
                     line_break: true,
+                    baseline_shift: resolve_baseline_shift(resolved.baseline_hundredths),
                 });
                 continue;
             }
@@ -1000,6 +1005,7 @@ fn collect_paint_runs(
                         font_kern_hundredths: None,
                         text_caps: None,
                         script_fonts: None,
+                        baseline_hundredths: None,
                     });
                 let run_lang = r_pr.and_then(|rp| attr(rp, "lang")).map(|s| s.to_string());
                 let run_text_color = r_pr.and_then(parse_run_solid_fill_hex);
@@ -1022,6 +1028,7 @@ fn collect_paint_runs(
                     hyperlink_click,
                     hyperlink_tooltip,
                     line_break: false,
+                    baseline_shift: resolve_baseline_shift(resolved.baseline_hundredths),
                 });
             }
         }
@@ -1038,6 +1045,8 @@ struct ResolvedRunPaint {
     font_kern_hundredths: Option<i32>,
     text_caps: Option<&'static str>,
     script_fonts: Option<ScriptFontSet>,
+    /// `a:rPr/@baseline` in hundredths of a percent (positive = super, negative = sub).
+    baseline_hundredths: Option<i32>,
 }
 
 fn parse_run_solid_fill_hex(rpr: &Element) -> Option<String> {
@@ -1057,6 +1066,22 @@ fn parse_run_solid_fill_hex(rpr: &Element) -> Option<String> {
     ))
 }
 
+/// Ported from upstream `segmentStyleToCss` (text-run-style.ts).
+/// Converts `a:rPr/@baseline` (hundredths of percent) to vertical-align keyword.
+/// Positive baseline (>0) = superscript; negative (<0) = subscript.
+fn resolve_baseline_shift(baseline_hundredths: Option<i32>) -> Option<&'static str> {
+    let baseline = baseline_hundredths?;
+    if baseline != 0 {
+        if baseline > 0 {
+            Some("super")
+        } else {
+            Some("sub")
+        }
+    } else {
+        None
+    }
+}
+
 fn resolve_run_paint_style(
     rpr: &Element,
     font_scheme: Option<&crate::theme::ThemeFontScheme>,
@@ -1069,6 +1094,7 @@ fn resolve_run_paint_style(
     let font_bold = attr(rpr, "b").map(|b| matches!(b, "1" | "true" | "on"));
     let font_italic = attr(rpr, "i").map(|i| matches!(i, "1" | "true" | "on"));
     let font_kern_hundredths = attr(rpr, "kern").and_then(|k| k.parse::<i32>().ok());
+    let baseline_hundredths = attr(rpr, "baseline").and_then(|b| b.parse::<i32>().ok());
     let font_family = resolve_run_font_family_for_paint(rpr, font_scheme, text);
     let script_fonts = resolve_run_script_font_set(rpr, font_scheme, font_family.as_deref());
     ResolvedRunPaint {
@@ -1079,6 +1105,7 @@ fn resolve_run_paint_style(
         font_kern_hundredths,
         text_caps: crate::level_style::parse_text_caps(attr(rpr, "cap")),
         script_fonts,
+        baseline_hundredths,
     }
 }
 
@@ -1748,5 +1775,44 @@ mod tests {
         assert_eq!(paras[0].runs[0].text, "Line 1");
         assert!(paras[1].runs.is_empty());
         assert_eq!(paras[2].runs[0].text, "Line 2");
+    }
+
+    // Catches: a:rPr/@baseline=30000 not mapped to superscript (poi-with_japanese "superscript" run).
+    #[test]
+    fn baseline_positive_is_super() {
+        assert_eq!(resolve_baseline_shift(Some(30_000)), Some("super"));
+        assert_eq!(resolve_baseline_shift(Some(1)), Some("super"));
+    }
+
+    // Catches: a:rPr/@baseline=-30000 not mapped to subscript (poi-with_japanese "subscript" run).
+    #[test]
+    fn baseline_negative_is_sub() {
+        assert_eq!(resolve_baseline_shift(Some(-30_000)), Some("sub"));
+        assert_eq!(resolve_baseline_shift(Some(-1)), Some("sub"));
+    }
+
+    // Catches: missing/zero baseline spuriously applying vertical-align.
+    #[test]
+    fn baseline_zero_or_absent_is_none() {
+        assert_eq!(resolve_baseline_shift(Some(0)), None);
+        assert_eq!(resolve_baseline_shift(None), None);
+    }
+
+    // Catches: baseline attribute not flowing onto TextPaintRun (paint never sees super/sub).
+    #[test]
+    fn baseline_attr_parsed_onto_paint_run() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr/>
+              <a:p>
+                <a:r><a:rPr lang="en-US" sz="1100" baseline="30000"/><a:t>up</a:t></a:r>
+                <a:r><a:rPr lang="en-US" sz="1100" baseline="-30000"/><a:t>down</a:t></a:r>
+              </a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let paras = parse_text_paint_paragraphs(&doc.root);
+        assert_eq!(paras[0].runs[0].baseline_shift, Some("super"));
+        assert_eq!(paras[0].runs[1].baseline_shift, Some("sub"));
     }
 }

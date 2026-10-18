@@ -2072,4 +2072,41 @@ mod tests {
             "gradient stops not properly formatted: {svg}"
         );
     }
+
+    // Catches: python-pptx-shp-shapes fixture gradFill shapes falling back to gray instead of gradients.
+    #[test]
+    fn shp_shapes_fixture_has_gradients() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/pptx/python-pptx-shp-shapes.pptx"
+        );
+        let bytes = std::fs::read(path).expect("fixture");
+        let mut zip = nitro_xml_opc::zip::ZipPackage::open(&bytes).expect("zip");
+        let xml = String::from_utf8(
+            zip.read("ppt/diagrams/drawing1.xml")
+                .expect("drawing")
+                .expect("bytes"),
+        )
+        .expect("utf8");
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        scheme.insert("lt1".to_owned(), "#FFFFFF".to_owned());
+        let svg = smartart_svg_with_scheme(Some(&xml), 800.0, 400.0, Some(&scheme));
+        assert!(
+            svg.contains("<linearGradient"),
+            "no gradient defs in python-pptx-shp-shapes: {svg}"
+        );
+        // Should have multiple gradients (one per gradFill shape)
+        let grad_count = svg.matches("<linearGradient id=\"grad-").count();
+        assert!(
+            grad_count >= 5,
+            "expected at least 5 gradients, got {}: {svg}",
+            grad_count
+        );
+        // Should not fall back to solid gray color
+        assert!(
+            !svg.contains("#D6DCE4"),
+            "using fallback gray instead of gradients: {svg}"
+        );
+    }
 }

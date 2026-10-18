@@ -213,6 +213,20 @@ struct TextParagraph {
     space_after_ratio: Option<f64>,
 }
 
+#[derive(Clone)]
+struct GradientStop {
+    offset_pct: f64,
+    color: String,
+    opacity: Option<f64>,
+}
+
+#[derive(Clone)]
+struct Gradient {
+    id: String,
+    stops: Vec<GradientStop>,
+    angle_degrees: f64,
+}
+
 struct SpBox {
     model_id: Option<String>,
     x: f64,
@@ -221,6 +235,7 @@ struct SpBox {
     h: f64,
     fill: String,
     fill_opacity: Option<f64>,
+    gradient: Option<Gradient>,
     stroke: String,
     stroke_width: f64,
     paragraphs: Vec<TextParagraph>,
@@ -287,6 +302,30 @@ fn diagram_shape_bounds(shape: &SpBox) -> (f64, f64, f64, f64) {
     )
 }
 
+fn build_gradient_defs(defs_body: &mut String, gradient: &Gradient) {
+    defs_body.push_str(&format!(
+        "<linearGradient id=\"{}\" x1=\"{}%\" y1=\"{}%\" x2=\"{}%\" y2=\"{}%\">",
+        escape(&gradient.id),
+        num(50.0 + 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).cos()),
+        num(50.0 + 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).sin()),
+        num(50.0 - 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).cos()),
+        num(50.0 - 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).sin()),
+    ));
+    for stop in &gradient.stops {
+        let opacity_attr = match stop.opacity {
+            Some(o) if o < 0.999 => format!(" stop-opacity=\"{}\"", num(o.clamp(0.0, 1.0))),
+            _ => String::new(),
+        };
+        defs_body.push_str(&format!(
+            "<stop offset=\"{}%\" stop-color=\"{}\"{}/>",
+            num(stop.offset_pct),
+            escape(&stop.color),
+            opacity_attr
+        ));
+    }
+    defs_body.push_str("</linearGradient>");
+}
+
 fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
     let mut min_x = f64::INFINITY;
     let mut min_y = f64::INFINITY;
@@ -310,6 +349,12 @@ fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
     let vw = (max_x - min_x).max(1.0);
     let vh = (max_y - min_y).max(1.0);
     let default_stroke = (vw.max(vh) / 200.0).max(1.0);
+    let mut defs_body = String::new();
+    for shape in shapes {
+        if let Some(ref grad) = shape.gradient {
+            build_gradient_defs(&mut defs_body, grad);
+        }
+    }
     let mut body = String::new();
     for shape in shapes {
         let paint_body = shape.fill != "none" || shape.stroke != "none";
@@ -393,7 +438,7 @@ fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
         }
     }
     format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {} {}\" preserveAspectRatio=\"xMidYMid meet\" style=\"width:100%;height:100%;pointer-events:none;display:block\" role=\"img\">{body}</svg>",
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {} {}\" preserveAspectRatio=\"xMidYMid meet\" style=\"width:100%;height:100%;pointer-events:none;display:block\" role=\"img\"><defs>{defs_body}</defs>{body}</svg>",
         svg_user_coord(vw),
         svg_user_coord(vh),
     )
@@ -669,7 +714,7 @@ fn walk_shapes(el: &Element, scheme: Option<&BTreeMap<String, String>>, out: &mu
     let mut stack: Vec<&Element> = vec![el];
     while let Some(node) = stack.pop() {
         if node.local == "sp" || node.local == "pic" {
-            if let Some(box_) = sp_box(node, scheme, node.local == "pic") {
+            if let Some(box_) = sp_box(node, scheme, node.local == "pic", out.len()) {
                 out.push(box_);
             }
             continue;
@@ -682,7 +727,12 @@ fn walk_shapes(el: &Element, scheme: Option<&BTreeMap<String, String>>, out: &mu
     }
 }
 
-fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool) -> Option<SpBox> {
+fn sp_box(
+    sp: &Element,
+    scheme: Option<&BTreeMap<String, String>>,
+    is_pic: bool,
+    shape_index: usize,
+) -> Option<SpBox> {
     let sp_pr = child_any(sp, "spPr")?;
     let xfrm = child_any(sp_pr, "xfrm")?;
     let off = child_any(xfrm, "off")?;
@@ -696,8 +746,18 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         return None;
     }
     let no_fill = child_any(sp_pr, "noFill").is_some();
+    let gradient = extract_gradient(sp_pr, scheme, shape_index);
     let (fill, fill_opacity) = if no_fill {
         ("none".to_owned(), None)
+    } else if let Some(ref grad) = gradient {
+        // Use gradient reference as fill; fallback color is mid-stop
+        let _fallback_color = if !grad.stops.is_empty() {
+            let mid_idx = grad.stops.len() / 2;
+            grad.stops[mid_idx].color.clone()
+        } else {
+            "#D6DCE4".to_owned()
+        };
+        (format!("url(#{grad_id})", grad_id = grad.id), None)
     } else {
         let fill = solid_hex(sp_pr, scheme).unwrap_or_else(|| "#D6DCE4".to_owned());
         (fill, solid_fill_alpha(sp_pr))
@@ -742,6 +802,7 @@ fn sp_box(sp: &Element, scheme: Option<&BTreeMap<String, String>>, is_pic: bool)
         h,
         fill,
         fill_opacity,
+        gradient,
         stroke,
         stroke_width,
         paragraphs,
@@ -1131,6 +1192,62 @@ fn stroke_of(sp_pr: &Element, scheme: Option<&BTreeMap<String, String>>) -> (Str
     let width = attr_f64(ln, "w").unwrap_or(0.0);
     let color = solid_hex(ln, scheme).unwrap_or_else(|| "#666666".to_owned());
     (color, width)
+}
+
+fn extract_gradient_stops(
+    grad_fill: &Element,
+    scheme: Option<&BTreeMap<String, String>>,
+) -> Option<Vec<GradientStop>> {
+    let gs_lst = child_any(grad_fill, "gsLst")?;
+    let mut stops = Vec::new();
+    for child in &gs_lst.children {
+        let Node::Element(gs) = child else {
+            continue;
+        };
+        if gs.local != "gs" {
+            continue;
+        }
+        let pos = attr_f64(gs, "pos")?;
+        let offset_pct = (pos / 1000.0).clamp(0.0, 100.0);
+        if let Some(color_str) = solid_hex_from_color_child(gs, scheme) {
+            let opacity = solid_fill_alpha(gs);
+            stops.push(GradientStop {
+                offset_pct,
+                color: color_str,
+                opacity,
+            });
+        }
+    }
+    if stops.is_empty() {
+        None
+    } else {
+        Some(stops)
+    }
+}
+
+fn extract_gradient_angle(grad_fill: &Element) -> f64 {
+    if let Some(lin) = child_any(grad_fill, "lin") {
+        if let Some(ang) = attr_f64(lin, "ang") {
+            return ang / 60_000.0;
+        }
+    }
+    0.0
+}
+
+fn extract_gradient(
+    sp_pr: &Element,
+    scheme: Option<&BTreeMap<String, String>>,
+    shape_index: usize,
+) -> Option<Gradient> {
+    let grad_fill = child_any(sp_pr, "gradFill")?;
+    let stops = extract_gradient_stops(grad_fill, scheme)?;
+    let angle_degrees = extract_gradient_angle(grad_fill);
+    let id = format!("grad-{}", shape_index);
+    Some(Gradient {
+        id,
+        stops,
+        angle_degrees,
+    })
 }
 
 fn solid_hex(container: &Element, scheme: Option<&BTreeMap<String, String>>) -> Option<String> {

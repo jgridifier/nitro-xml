@@ -3,6 +3,9 @@
 
 use nitro_xml_opc::chart::ChartView3D;
 
+use super::chart_bar3d_face_picture::{
+    resolve_untargeted_bar_face_fill, sample_first_pixel_from_data_url,
+};
 use super::chart_palette_shade::{shade_hex, tint_hex};
 use super::svg_util::{esc, n};
 
@@ -72,6 +75,9 @@ pub struct BarRect {
     pub h: f64,
     pub fill: String,
     pub series_index: usize,
+    pub picture_url: Option<String>,
+    pub apply_to_side: bool,
+    pub apply_to_end: bool,
 }
 
 fn bar_extrusion_polygons(rect: &BarRect, depth: DepthVector) -> Vec<String> {
@@ -81,8 +87,27 @@ fn bar_extrusion_polygons(rect: &BarRect, depth: DepthVector) -> Vec<String> {
     let h = rect.h;
     let dx = depth.dx;
     let dy = depth.dy;
-    let side_fill = shade_hex(&rect.fill, 0.25);
-    let top_fill = tint_hex(&rect.fill, 0.22);
+
+    let sampled_color = if !rect.apply_to_side || !rect.apply_to_end {
+        rect.picture_url
+            .as_ref()
+            .and_then(|url| sample_first_pixel_from_data_url(url))
+    } else {
+        None
+    };
+
+    let side_fill = if rect.apply_to_side {
+        shade_hex(&rect.fill, 0.25)
+    } else {
+        resolve_untargeted_bar_face_fill("side", &rect.fill, sampled_color.clone())
+    };
+
+    let top_fill = if rect.apply_to_end {
+        tint_hex(&rect.fill, 0.22)
+    } else {
+        resolve_untargeted_bar_face_fill("end", &rect.fill, sampled_color)
+    };
+
     let top = format!(
         "<polygon points=\"{},{} {},{} {},{} {},{}\" fill=\"{}\" stroke=\"none\"/>",
         n(x),
@@ -155,6 +180,9 @@ mod tests {
                 h: 10.0,
                 fill: "#000".to_string(),
                 series_index: 0,
+                picture_url: None,
+                apply_to_side: true,
+                apply_to_end: true,
             },
             BarRect {
                 x: 20.0,
@@ -163,6 +191,9 @@ mod tests {
                 h: 10.0,
                 fill: "#000".to_string(),
                 series_index: 2,
+                picture_url: None,
+                apply_to_side: true,
+                apply_to_end: true,
             },
         ];
         assert_eq!(unique_series_indexes(&bars).len(), 2);

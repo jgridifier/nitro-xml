@@ -194,6 +194,16 @@ pub fn chart_summary_from_space(chart_space: &ChartSpace) -> ChartSummary {
             }
         }
     }
+    // withAutoTitle: a single named series gets an automatic title (hasTitle on the style).
+    let should_auto_title = chart_space.title.is_none()
+        && chart_space.auto_title_deleted != Some(true)
+        && summary.series.len() == 1
+        && summary
+            .series
+            .first()
+            .and_then(|s| s.name.as_ref())
+            .is_some();
+
     if chart_space.title.is_some() && chart_space.auto_title_deleted != Some(true) {
         summary.title_placeholder = true;
         if let Some(title) = &chart_space.title {
@@ -204,6 +214,11 @@ pub fn chart_summary_from_space(chart_space: &ChartSpace) -> ChartSummary {
                     summary.title = Some(name.clone());
                 }
             }
+        }
+    } else if should_auto_title {
+        summary.title_placeholder = true;
+        if let Some(name) = &summary.series[0].name {
+            summary.title = Some(name.clone());
         }
     }
     if let Some(legend) = &chart_space.legend {

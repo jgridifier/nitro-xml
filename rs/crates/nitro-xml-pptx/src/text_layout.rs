@@ -1014,6 +1014,10 @@ struct ResolvedRunPaint {
 }
 
 fn parse_run_solid_fill_hex(rpr: &Element) -> Option<String> {
+    // Hollow text / outline-only: a:noFill explicitly disables fill (upstream hollowTextFillStyle).
+    if child_local(rpr, "noFill", ns::A).is_some() {
+        return Some("transparent".to_string());
+    }
     let solid = child_local(rpr, "solidFill", ns::A)?;
     let srgb = child_local(solid, "srgbClr", ns::A)?;
     let val = attr(srgb, "val")?.trim();
@@ -1634,5 +1638,24 @@ mod tests {
         assert_eq!(paras[0].align, Some(TextAlignCss::Right));
         assert_eq!(paras[1].runs.len(), 2);
         assert_eq!(paras[1].rtl, None);
+    }
+
+    // Catches: a:rPr/a:noFill must not leave solid inherited fill.
+    #[test]
+    fn hollow_text_no_fill_overrides_inherited_color() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr/>
+              <a:p><a:r><a:rPr lang="en-US"><a:noFill/><a:ln w="19050"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:ln></a:rPr><a:t>Hollow</a:t></a:r></a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let paras = parse_text_paint_paragraphs(&doc.root);
+        assert_eq!(paras.len(), 1);
+        assert_eq!(paras[0].runs.len(), 1);
+        assert_eq!(
+            paras[0].runs[0].run_text_color,
+            Some("transparent".to_string())
+        );
     }
 }

@@ -318,6 +318,12 @@ fn paint_run_typography<I: StringIntern>(
     );
     if let Some(color) = paint.text_color {
         set_style(ctx, run, "color", color);
+        // Upstream `hollowTextFillStyle`: `a:rPr/a:noFill` clears the glyph
+        // interior via `-webkit-text-fill-color` (Chromium fills from that, not
+        // `color`). Keep `color: transparent` as the non-webkit fallback.
+        if color.eq_ignore_ascii_case("transparent") {
+            set_style(ctx, run, "-webkit-text-fill-color", "transparent");
+        }
     }
     if let Some(kern) = resolve_font_kerning(paint.font_kern_hundredths, size) {
         set_style(ctx, run, "font-kerning", kern);
@@ -328,7 +334,18 @@ fn paint_run_typography<I: StringIntern>(
         _ => {}
     }
     if let Some(width) = paint.text_stroke_width_px.filter(|w| *w > 0.0) {
-        let stroke_color = paint.text_stroke_color.unwrap_or("currentColor");
+        // When fill is transparent, pin stroke away from currentColor so the
+        // outline survives (upstream hollowTextFillStyle).
+        let stroke_color = paint.text_stroke_color.unwrap_or_else(|| {
+            if paint
+                .text_color
+                .is_some_and(|c| c.eq_ignore_ascii_case("transparent"))
+            {
+                "#000000"
+            } else {
+                "currentColor"
+            }
+        });
         set_style(
             ctx,
             run,

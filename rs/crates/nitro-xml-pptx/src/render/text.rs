@@ -49,6 +49,12 @@ pub struct TextBodyPaint<'a> {
     pub body_box_height_px: Option<f64>,
     /// `a:bodyPr/@compatLnSpc` — use legacy (97-2003) line-spacing algorithm (line-height 1 instead of 1.2).
     pub compat_line_spacing: bool,
+    /// `a:bodyPr/a:prstTxWarp/@prst` (WordArt preset, paint only).
+    pub text_warp_preset: Option<&'a str>,
+    /// `a:bodyPr/a:prstTxWarp/a:avLst/a:gd[@name="adj"]` adjustment value.
+    pub text_warp_adj: Option<i32>,
+    /// `a:bodyPr/a:prstTxWarp/a:avLst/a:gd[@name="adj2"]` adjustment value.
+    pub text_warp_adj2: Option<i32>,
 }
 
 impl<'a> TextBodyPaint<'a> {
@@ -75,6 +81,9 @@ impl<'a> TextBodyPaint<'a> {
             text_caps: None,
             body_box_height_px: Some(el.height.max(0.0)),
             compat_line_spacing: el.compat_line_spacing,
+            text_warp_preset: el.text_warp_preset.as_deref(),
+            text_warp_adj: el.text_warp_adj,
+            text_warp_adj2: el.text_warp_adj2,
         }
     }
 }
@@ -104,6 +113,26 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "text");
     let text = el.text.as_deref().unwrap_or("");
+
+    // Dispatch: if text warp preset is present and supported, render via SVG textPath.
+    if let Some(preset) = el.text_warp_preset.as_deref() {
+        if super::wordart::should_use_svg_warp(preset) {
+            let block = paint_warped_text_body(ctx, id, text, el);
+            queue_sp_autofit_scroll_height(
+                ctx.layout_reads,
+                &mut ctx.layout_read_records,
+                &el.id,
+                el.auto_fit_mode,
+                block,
+                painted_h,
+            );
+            let font_size_prop = ctx.intern.intern("font-size");
+            ctx.push_layout_read(block, LayoutReadKind::ComputedStyle, font_size_prop, None);
+            ctx.view_ir.push_painted("text", el, None);
+            return;
+        }
+    }
+
     let block = paint_text_body(ctx, id, text, TextBodyPaint::from_element(el));
     queue_sp_autofit_scroll_height(
         ctx.layout_reads,
@@ -179,6 +208,165 @@ fn open_paragraph<I: StringIntern>(
         set_style(ctx, para, "unicode-bidi", "embed");
     }
     para
+}
+
+/// Paint text with WordArt text warp via SVG <textPath>.
+fn paint_warped_text_body<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    parent: u32,
+    text: &str,
+    el: &DumpElement,
+) -> u32 {
+    let block = create_child(ctx, parent, "div");
+    set_attr(ctx, block, "class", "pptxv-text");
+
+    // Basic styling (copied from paint_text_body)
+    set_style(ctx, block, "white-space", "pre-wrap");
+    set_style(ctx, block, "overflow", "visible");
+    set_style(ctx, block, "text-spacing-trim", "space-all");
+
+    if let Some(layout) = el.text_body_layout.as_ref() {
+        set_style(ctx, block, "width", "100%");
+        set_style(ctx, block, "height", "100%");
+        if layout.column_count > 1 {
+            set_style(ctx, block, "display", "block");
+        } else {
+            set_style(ctx, block, "display", "flex");
+            set_style(ctx, block, "flex-direction", "column");
+        }
+    }
+
+    let size = el.font_size_px.unwrap_or(24.0).max(1.0);
+    let stack = substitute_font_family_stack(el.font_family.as_deref());
+    set_style(ctx, block, "font-family", &stack);
+    set_style(ctx, block, "font-size", &format!("{}px", format_px(size)));
+    set_style(ctx, block, "line-height", "1.2");
+
+    if el.font_bold {
+        set_style(ctx, block, "font-weight", "700");
+    }
+    if el.font_italic {
+        set_style(ctx, block, "font-style", "italic");
+    }
+    if let Some(color) = el.text_color.as_deref() {
+        set_style(ctx, block, "color", color);
+    }
+
+    // Create SVG container with textPath warp
+    let svg = create_child(ctx, block, "svg");
+    set_attr(
+        ctx,
+        svg,
+        "viewBox",
+        &format!("0 0 {} {}", el.width, el.height),
+    );
+    set_attr(ctx, svg, "preserveAspectRatio", "none");
+    set_style(ctx, svg, "width", "100%");
+    set_style(ctx, svg, "height", "100%");
+    set_style(ctx, svg, "display", "block");
+
+    let defs = create_child(ctx, svg, "defs");
+
+    // For single-line text, render one baseline path
+    let path_id = format!("warp-path-{}", el.id);
+    let path_el = create_child(ctx, defs, "path");
+    set_attr(ctx, path_el, "id", &path_id);
+    set_attr(ctx, path_el, "d", "M 0,50 L 100,50");
+    set_attr(ctx, path_el, "fill", "none");
+
+    if let Some(preset) = el.text_warp_preset.as_deref() {
+        if let Some(path_d) = super::wordart::build_warp_path(
+            preset,
+            el.width,
+            el.height,
+            0,
+            1,
+            el.text_warp_adj,
+            el.text_warp_adj2,
+        ) {
+            set_attr(ctx, path_el, "d", &path_d);
+        }
+    }
+
+    let text_path_el = create_child(ctx, svg, "text");
+    set_attr(ctx, text_path_el, "x", "0");
+    set_attr(ctx, text_path_el, "y", "0");
+    set_style(ctx, text_path_el, "font-family", &stack);
+    set_style(
+        ctx,
+        text_path_el,
+        "font-size",
+        &format!("{}px", format_px(size)),
+    );
+    if el.font_bold {
+        set_style(ctx, text_path_el, "font-weight", "700");
+    }
+    if el.font_italic {
+        set_style(ctx, text_path_el, "font-style", "italic");
+    }
+    if let Some(color) = el.text_color.as_deref() {
+        set_style(ctx, text_path_el, "fill", color);
+    }
+
+    let tspan = create_child(ctx, text_path_el, "tspan");
+    let text_path_ref = create_child(ctx, tspan, "textPath");
+    set_attr(ctx, text_path_ref, "href", &format!("#{}", path_id));
+    set_attr(ctx, text_path_ref, "startOffset", "0%");
+    set_attr(ctx, text_path_ref, "text-anchor", "start");
+    set_text_content(ctx, text_path_ref, text);
+
+    block
+}
+
+/// Paint text with WordArt text warp via SVG <path> envelope (multi-line).
+#[allow(dead_code)]
+fn paint_warped_text_envelope<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    parent: u32,
+    text: &str,
+    el: &DumpElement,
+) -> u32 {
+    let block = create_child(ctx, parent, "div");
+    set_attr(ctx, block, "class", "pptxv-text");
+
+    // Basic styling
+    set_style(ctx, block, "white-space", "pre-wrap");
+    set_style(ctx, block, "overflow", "visible");
+    set_style(ctx, block, "text-spacing-trim", "space-all");
+
+    if let Some(layout) = el.text_body_layout.as_ref() {
+        set_style(ctx, block, "width", "100%");
+        set_style(ctx, block, "height", "100%");
+        if layout.column_count > 1 {
+            set_style(ctx, block, "display", "block");
+        } else {
+            set_style(ctx, block, "display", "flex");
+            set_style(ctx, block, "flex-direction", "column");
+        }
+    }
+
+    let size = el.font_size_px.unwrap_or(24.0).max(1.0);
+    let stack = substitute_font_family_stack(el.font_family.as_deref());
+    set_style(ctx, block, "font-family", &stack);
+    set_style(ctx, block, "font-size", &format!("{}px", format_px(size)));
+    set_style(ctx, block, "line-height", "1.2");
+
+    if el.font_bold {
+        set_style(ctx, block, "font-weight", "700");
+    }
+    if el.font_italic {
+        set_style(ctx, block, "font-style", "italic");
+    }
+    if let Some(color) = el.text_color.as_deref() {
+        set_style(ctx, block, "color", color);
+    }
+
+    // For now, fall back to plain text rendering (envelope warping will be added in next phase)
+    let para = open_paragraph(ctx, block, None, None);
+    let span = create_child(ctx, para, "span");
+    set_text_content(ctx, span, text);
+
+    block
 }
 
 pub fn paint_text_body<I: StringIntern>(
@@ -411,6 +599,9 @@ fn paint_rich_paragraphs<I: StringIntern>(
             presentation_kinsoku: paint.presentation_kinsoku,
             body_box_height_px: paint.body_box_height_px,
             compat_line_spacing: paint.compat_line_spacing,
+            text_warp_preset: paint.text_warp_preset,
+            text_warp_adj: paint.text_warp_adj,
+            text_warp_adj2: paint.text_warp_adj2,
         };
         let para_rtl = para_model.rtl.or(body_rtl);
         let is_rtl = para_rtl == Some(true);
@@ -567,6 +758,9 @@ fn merge_run_level_paint<'a>(
             presentation_kinsoku: base.presentation_kinsoku,
             body_box_height_px: base.body_box_height_px,
             compat_line_spacing: base.compat_line_spacing,
+            text_warp_preset: base.text_warp_preset,
+            text_warp_adj: base.text_warp_adj,
+            text_warp_adj2: base.text_warp_adj2,
         },
         scaled_size,
     )
@@ -876,6 +1070,9 @@ fn paint_run_text_span<I: StringIntern>(
                     presentation_kinsoku: paint.presentation_kinsoku,
                     body_box_height_px: paint.body_box_height_px,
                     compat_line_spacing: paint.compat_line_spacing,
+                    text_warp_preset: paint.text_warp_preset,
+                    text_warp_adj: paint.text_warp_adj,
+                    text_warp_adj2: paint.text_warp_adj2,
                 };
                 let seg_stack = substitute_font_family_stack(seg_paint.font_family);
                 let seg_following = if idx + 1 < script_runs.len() {
@@ -1679,6 +1876,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1708,6 +1908,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1736,6 +1939,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1764,6 +1970,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1810,6 +2019,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1843,6 +2055,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: true,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -1895,6 +2110,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(intern.0.iter().any(|s| s == "span"));
@@ -1921,6 +2139,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(intern.0.iter().any(|s| s == "pptxv-para"));
@@ -1953,6 +2174,9 @@ mod tests {
                 geom_rect_padding: TextBodyRectPadding::default(),
                 presentation_kinsoku: false,
                 body_box_height_px: None,
+                text_warp_preset: None,
+                text_warp_adj: None,
+                text_warp_adj2: None,
                 compat_line_spacing: false,
             },
             measure,
@@ -2003,6 +2227,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -2041,6 +2268,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(
@@ -2079,6 +2309,9 @@ mod tests {
             geom_rect_padding: TextBodyRectPadding::default(),
             presentation_kinsoku: false,
             body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
             compat_line_spacing: false,
         });
         assert!(

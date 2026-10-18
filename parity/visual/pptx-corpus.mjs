@@ -64,6 +64,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'real-pptx-python-pptx-shp-access-chart',
 	'real-pptx-python-pptx-shp-common-props',
 	'real-pptx-python-pptx-shp-movie-props',
+	'real-pptx-python-pptx-shp-shapes',
 	'real-pptx-python-pptx-test_slides',
 	'real-pptx-python-pptx-txt-font-typeface',
 	'upstream-091abf411e47',

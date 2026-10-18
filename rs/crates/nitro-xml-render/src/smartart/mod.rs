@@ -329,13 +329,18 @@ fn diagram_shape_bounds(shape: &SpBox) -> (f64, f64, f64, f64) {
 }
 
 fn build_gradient_defs(defs_body: &mut String, gradient: &Gradient) {
+    // Match upstream `resolveDrawingShapeGradient` (smartart-drawing-gradient.ts):
+    // dx = cos(rad)/2, dy = sin(rad)/2 → x1 = (0.5-dx)*100%, etc.
+    let radians = gradient.angle_degrees * std::f64::consts::PI / 180.0;
+    let dx = radians.cos() / 2.0;
+    let dy = radians.sin() / 2.0;
     defs_body.push_str(&format!(
         "<linearGradient id=\"{}\" x1=\"{}%\" y1=\"{}%\" x2=\"{}%\" y2=\"{}%\">",
         escape(&gradient.id),
-        num(50.0 + 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).cos()),
-        num(50.0 + 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).sin()),
-        num(50.0 - 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).cos()),
-        num(50.0 - 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).sin()),
+        num((0.5 - dx) * 100.0),
+        num((0.5 - dy) * 100.0),
+        num((0.5 + dx) * 100.0),
+        num((0.5 + dy) * 100.0),
     ));
     for stop in &gradient.stops {
         let opacity_attr = match stop.opacity {
@@ -1273,6 +1278,11 @@ fn extract_gradient_stops(
     if stops.is_empty() {
         None
     } else {
+        stops.sort_by(|a, b| {
+            a.offset_pct
+                .partial_cmp(&b.offset_pct)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         Some(stops)
     }
 }
@@ -2077,6 +2087,10 @@ mod tests {
         assert!(
             svg.contains("<linearGradient"),
             "gradient defs not emitted: {svg}"
+        );
+        assert!(
+            svg.contains("x1=\"50%\" y1=\"0%\" x2=\"50%\" y2=\"100%\""),
+            "90° lin ang must match TS resolveDrawingShapeGradient axis: {svg}"
         );
         assert!(
             svg.contains("url(#grad-0)"),

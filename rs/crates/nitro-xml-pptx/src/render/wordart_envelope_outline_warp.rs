@@ -3,7 +3,7 @@
 //! Per-point glyph-outline warping for WordArt envelope presets.
 //!
 //! Given traced glyph contours (from the host), flatten each contour into
-//! segments short enough for accurate warping (no longer than `MAX_SEGMENT`),
+//! segments short enough for accurate warping (no longer than `max_segment`),
 //! then map each point through the envelope warp to produce the final SVG
 //! path `d` string for rendering as a filled path.
 
@@ -12,10 +12,6 @@ use crate::render::wordart_envelope_map::EnvelopeWarp;
 #[allow(dead_code)]
 /// Sub-segments per Bezier curve when flattening (upstream CURVE_STEPS).
 const CURVE_STEPS: usize = 8;
-
-#[allow(dead_code)]
-/// Maximum segment length (layout units) when flattening contours.
-pub const MAX_SEGMENT: f64 = 0.1;
 
 /// A 2D point in outline space.
 #[derive(Clone, Copy, Debug)]
@@ -88,14 +84,14 @@ fn format_coord(n: f64) -> String {
 }
 
 /// Build the warped SVG path `d` for one glyph's outline.
-/// Every contour is flattened (pieces no longer than `MAX_SEGMENT`) and each
+/// Every contour is flattened (pieces no longer than `max_segment`) and each
 /// point mapped through `warp`. Returns `None` for an empty outline.
-#[allow(dead_code)]
 pub fn build_warped_glyph_outline_path_d(
     contours: &[Vec<OutlinePoint>],
     warp: &dyn EnvelopeWarp,
+    max_segment: f64,
 ) -> Option<String> {
-    let flattened = flatten_outline(contours, MAX_SEGMENT);
+    let flattened = flatten_outline(contours, max_segment);
 
     if flattened.is_empty() {
         return None;

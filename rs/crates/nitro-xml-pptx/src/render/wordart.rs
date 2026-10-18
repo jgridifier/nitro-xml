@@ -9,6 +9,8 @@ pub use super::wordart_envelope_affine::fit_glyph_envelope_affine;
 pub use super::wordart_envelope_curves::has_glyph_envelope;
 #[allow(unused_imports)]
 pub use super::wordart_envelope_map::create_envelope_warp;
+#[allow(unused_imports)]
+pub use super::wordart_envelope_outline_warp::{build_warped_glyph_outline_path_d, OutlinePoint};
 
 /// Clamp adjustment factor to 0..4 range.
 fn clamp4(n: f64) -> f64 {

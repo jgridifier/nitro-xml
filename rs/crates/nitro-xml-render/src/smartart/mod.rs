@@ -118,9 +118,13 @@ pub fn smartart_svg_with_scheme_pres_and_qs(
         .and_then(|i| data_style_from_effect_intensity(Some(i)));
     let diagram_style = diagram_style_from_data_style(data_style);
     let shadow_filter = style_shadow(diagram_style);
+    // Intense/moderate quick styles: keep authored fontRef (shp-shapes). Subtle/flat:
+    // allow the node1×3 dk1/lt1 column heuristic (accent-process hier5 / 213430).
+    let prefer_authored_font_ref = shadow_filter.is_some();
     if let Some(xml) = drawing_xml {
         if let Ok(doc) = parse_xml_str(xml) {
-            let mut shapes = collect_shapes(&doc.root, scheme, pres_styles);
+            let mut shapes =
+                collect_shapes(&doc.root, scheme, pres_styles, prefer_authored_font_ref);
             shapes.retain(keep_shape);
             if !shapes.is_empty() {
                 return shapes_svg(&shapes, w, h, diagram_style, shadow_filter);
@@ -142,7 +146,7 @@ pub fn smartart_draw_args(
     let Ok(doc) = parse_xml_str(xml) else {
         return Vec::new();
     };
-    let mut shapes = collect_shapes(&doc.root, scheme, None);
+    let mut shapes = collect_shapes(&doc.root, scheme, None, false);
     shapes.retain(keep_shape);
     shapes
         .into_iter()
@@ -753,10 +757,11 @@ fn collect_shapes(
     root: &Element,
     scheme: Option<&BTreeMap<String, String>>,
     pres_styles: Option<&BTreeMap<String, PresStyleMeta>>,
+    prefer_authored_font_ref: bool,
 ) -> Vec<SpBox> {
     let mut out = Vec::new();
     walk_shapes(root, scheme, &mut out);
-    apply_pres_style_label_text_colors(&mut out, pres_styles, scheme);
+    apply_pres_style_label_text_colors(&mut out, pres_styles, scheme, prefer_authored_font_ref);
     resolve_label_font_colors(&mut out);
     out
 }
@@ -955,6 +960,7 @@ fn apply_pres_style_label_text_colors(
     shapes: &mut [SpBox],
     pres: Option<&BTreeMap<String, PresStyleMeta>>,
     scheme: Option<&BTreeMap<String, String>>,
+    prefer_authored_font_ref: bool,
 ) {
     if pres.is_none() {
         return;
@@ -969,9 +975,9 @@ fn apply_pres_style_label_text_colors(
         .map(|s| s.as_str())
         .unwrap_or("#FFFFFF");
     for shape in shapes {
-        // Authored `dsp:style/a:fontRef` wins (TS `shape.fontColor ?? drawingShapeLabelColor`).
-        // Overwriting lt1 with dk1 for outer node1 columns made shp-shapes labels black.
-        if shape.label_font_from_ref {
+        // Intense/moderate: keep authored fontRef (shp-shapes white on dark gradFill).
+        // Subtle: node1×3 column heuristic still matches TS oracle (213430 black outers).
+        if prefer_authored_font_ref && shape.label_font_from_ref {
             continue;
         }
         let Some(model_id) = shape.model_id.as_deref() else {
@@ -1986,7 +1992,7 @@ mod tests {
     fn deep_nesting_shape_walk_does_not_overflow_stack() {
         let xml = format!("{}{}", "<a>".repeat(4096), "</a>".repeat(4096));
         let root = parse_xml_str(&xml).expect("parses").root;
-        let shapes = collect_shapes(&root, None, None);
+        let shapes = collect_shapes(&root, None, None, false);
         assert!(shapes.is_empty());
         let mut parts = Vec::new();
         collect_text(&root, &mut parts);

@@ -118,6 +118,9 @@ impl MeasureBatch {
     }
 }
 
+/// Contour representation: Vec of rings, each ring is Vec of (x, y) points in em units.
+pub type GlyphContours = Vec<Vec<(f64, f64)>>;
+
 /// Batched glyph-outline requests for WordArt envelope warping.
 ///
 /// Requests are **taken** when the frame leaves wasm. The loader computes
@@ -131,8 +134,8 @@ pub struct OutlineBatch {
     pub char_id: Vec<u32>,
     /// Font size in pixels for tracing.
     pub size_px: Vec<f32>,
-    /// Cached contours: Vec<Vec<(x, y)>>. Outer Vec is per-request, inner Vecs are per-contour.
-    pub contours: Vec<Option<Vec<Vec<(f64, f64)>>>>,
+    /// Cached contours per request (outer Vec is per-request, inner is per-contour).
+    pub contours: Vec<Option<GlyphContours>>,
     /// Requests taken and awaiting a reply (0 when idle).
     awaiting: usize,
     /// Font/char ids for the in-flight take (cache keys on [`Self::set_results`]).
@@ -182,11 +185,10 @@ impl OutlineBatch {
         (font_id, char_id, size_px)
     }
 
-    /// Store results from the loader. Each result is either `null` (no outline) or a Vec of contours.
-    /// A contour is a Vec of (x, y) tuples in em units.
+    /// Store results from the loader. Each result is either `null` (no outline) or a [`GlyphContours`].
     pub fn set_results(
         &mut self,
-        results: Vec<Option<Vec<Vec<(f64, f64)>>>>,
+        results: Vec<Option<GlyphContours>>,
     ) -> Result<(), String> {
         if self.awaiting == 0 {
             return Ok(());
@@ -206,7 +208,7 @@ impl OutlineBatch {
         &self,
         font_id: u32,
         char_id: u32,
-    ) -> Option<Vec<Vec<(f64, f64)>>> {
+    ) -> Option<GlyphContours> {
         for (i, (f, c)) in self.inflight_font.iter().zip(&self.inflight_char).enumerate() {
             if *f == font_id && *c == char_id {
                 return self.contours.get(i).and_then(|opt| opt.clone());

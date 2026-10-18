@@ -45,6 +45,12 @@ pub struct SpAutofitSlideState {
 
 impl SpAutofitSlideState {
     pub fn painted_height(&self, element_id: &str, authored_height: f64) -> f64 {
+        // Do not apply viewer-time autofit growth when authored height is 0 (cy=0).
+        // Matches upstream TS oracle (renderSlideStage), which keeps authored height 0px
+        // and allows overflow rather than growing the shape at view time.
+        if authored_height <= 0.0 {
+            return authored_height;
+        }
         self.height_overrides
             .get(element_id)
             .copied()
@@ -101,6 +107,11 @@ pub fn queue_sp_autofit_scroll_height(
     if auto_fit_mode != Some(TextAutoFitMode::Shrink) {
         return;
     }
+    // Do not queue layout reads for shapes with authored height 0 (cy=0).
+    // Matches upstream TS oracle, which keeps authored height and allows overflow.
+    if current_height_px <= 0.0 {
+        return;
+    }
     layout_reads.push(text_block_node_id, LayoutReadKind::ScrollHeight, 0);
     records.push(LayoutReadRecord {
         autofit: Some((
@@ -142,12 +153,20 @@ mod tests {
         );
     }
 
-    // Catches: sub-pixel scrollHeight noise dirtying paint every frame.
+    // Catches: spAutoFit with cy=0 spuriously grows text to fit instead of overflowing
+    // from authored 0 height (matches TS oracle renderSlideStage).
     #[test]
-    fn compute_height_ignores_sub_pixel_epsilon() {
-        assert_eq!(
-            compute_auto_fit_shape_height_px(Some(TextAutoFitMode::Shrink), 100.4, 100.0),
-            None
-        );
+    fn painted_height_skips_override_when_authored_height_zero() {
+        let state = SpAutofitSlideState {
+            height_overrides: [("elem1".to_string(), 150.0)].into_iter().collect(),
+            last_read_records: vec![],
+        };
+        // With authored_height 0, override should be ignored
+        assert_eq!(state.painted_height("elem1", 0.0), 0.0);
+        // With positive authored_height, override applies
+        assert_eq!(state.painted_height("elem1", 100.0), 150.0);
+        // Non-existent element returns authored_height as-is
+        assert_eq!(state.painted_height("elem2", 0.0), 0.0);
+        assert_eq!(state.painted_height("elem2", 100.0), 100.0);
     }
 }

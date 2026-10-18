@@ -964,6 +964,11 @@ fn apply_pres_style_label_text_colors(
         .map(|s| s.as_str())
         .unwrap_or("#FFFFFF");
     for shape in shapes {
+        // Authored `dsp:style/a:fontRef` wins (TS `shape.fontColor ?? drawingShapeLabelColor`).
+        // Overwriting lt1 with dk1 for outer node1 columns made shp-shapes labels black.
+        if shape.label_font_from_ref {
+            continue;
+        }
         let Some(model_id) = shape.model_id.as_deref() else {
             continue;
         };
@@ -1492,7 +1497,8 @@ mod tests {
     use nitro_xml_opc::xml::parse_xml_str;
 
     use super::{
-        collect_shapes, collect_text, smartart_draw_args, smartart_svg, smartart_svg_with_scheme,
+        collect_shapes, collect_text, pres_styles_by_model_id, smartart_draw_args, smartart_svg,
+        smartart_svg_with_scheme, smartart_svg_with_scheme_pres_and_qs,
     };
 
     // Catches: a cached dsp:sp drawing collapsed to the labelled SmartArt stub.
@@ -2154,6 +2160,59 @@ mod tests {
         assert!(
             !svg.contains("#D6DCE4"),
             "using fallback gray instead of gradients: {svg}"
+        );
+    }
+
+    // Catches: shp-shapes SmartArt labels painted black despite fontRef lt1 (TS white).
+    #[test]
+    fn shp_shapes_labels_use_font_ref_lt1_white() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/pptx/python-pptx-shp-shapes.pptx"
+        );
+        let bytes = std::fs::read(path).expect("fixture");
+        let mut zip = nitro_xml_opc::zip::ZipPackage::open(&bytes).expect("zip");
+        let drawing = String::from_utf8(
+            zip.read("ppt/diagrams/drawing1.xml")
+                .expect("drawing")
+                .expect("bytes"),
+        )
+        .expect("utf8");
+        let data = String::from_utf8(
+            zip.read("ppt/diagrams/data1.xml")
+                .expect("data")
+                .expect("bytes"),
+        )
+        .expect("utf8");
+        let qs = String::from_utf8(
+            zip.read("ppt/diagrams/quickStyle1.xml")
+                .expect("qs")
+                .expect("bytes"),
+        )
+        .expect("utf8");
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        scheme.insert("lt1".to_owned(), "#FFFFFF".to_owned());
+        scheme.insert("dk1".to_owned(), "#000000".to_owned());
+        let pres = pres_styles_by_model_id(&data);
+        let svg = smartart_svg_with_scheme_pres_and_qs(
+            Some(&drawing),
+            800.0,
+            400.0,
+            Some(&scheme),
+            Some(&pres),
+            Some(&qs),
+        );
+        for chunk in svg.split("<text ").skip(1) {
+            let end = chunk.find('>').unwrap_or(0);
+            let attrs = &chunk[..end];
+            let content_end = chunk.find("</text>").unwrap_or(chunk.len());
+            let content = &chunk[end + 1..content_end];
+            println!("TEXT attrs={attrs} content={content:?}");
+        }
+        assert!(
+            svg.contains("fill=\"#FFFFFF\"") || svg.contains("fill=\"#ffffff\""),
+            "expected white label fill: {svg}"
         );
     }
 }

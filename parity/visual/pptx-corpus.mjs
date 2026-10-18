@@ -68,6 +68,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'real-pptx-python-pptx-test_slides',
 	'real-pptx-python-pptx-txt-font-typeface',
 	'upstream-091abf411e47',
+	'upstream-a0806b09c73d',
 	'upstream-098b900e8f10',
 	'upstream-80e6e30ea597',
 	'upstream-b2aa81e78d15',

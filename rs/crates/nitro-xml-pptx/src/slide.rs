@@ -2558,6 +2558,18 @@ fn shape_paint_extras(
             Some(ph) => Some(ctx.effective_level_styles(ph)),
             None => ctx.presentation_level_styles.cloned(),
         };
+        // Upstream reads the inherited (layout over master) `a:lstStyle` levels beneath the
+        // shape's own: header/footer placeholders whose idx differs per part (10/2) only
+        // reach the master's size/alignment this way.
+        if ph_info.is_some() {
+            if let Some(inh) = inherited_tx {
+                let inherited_levels = extract_lst_style_from_tx_body(inh);
+                if !inherited_levels.is_empty() {
+                    let base = effective_levels.unwrap_or_default();
+                    effective_levels = Some(merge_level_styles(&base, &inherited_levels));
+                }
+            }
+        }
         let lst_levels = extract_lst_style_from_tx_body(tx);
         if !lst_levels.is_empty() {
             let base = effective_levels.unwrap_or_default();

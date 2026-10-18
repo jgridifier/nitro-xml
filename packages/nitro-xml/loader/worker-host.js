@@ -157,6 +157,21 @@ const msg = await this._request("sa", () => this._worker.postMessage({ type: "sa
 try { return JSON.parse(msg.result); } catch { return { ui: null }; }
 }
 async tick() {
+// Serialize ticks — overlapping take-frame/outline-results races
+// mismatch OutlineBatch.awaiting (expected N, got 2N).
+const prev = this._tickLock || Promise.resolve();
+let release;
+this._tickLock = new Promise((r) => {
+release = r;
+});
+await prev;
+try {
+return await this._tickBody();
+} finally {
+release();
+}
+}
+async _tickBody() {
 this._events.flushNow();
 const layoutReads = await this._flushPendingLayout();
 const frame = await this._request("frame", () => {
@@ -192,15 +207,21 @@ this._worker.postMessage({ type: "measure-results", widths }, [widths.buffer]);
 }
 if (outlineCount > 0 && outlineReqs) {
 const ctx = this._measureCtx();
+const fontsLen = outlineReqs.fonts?.length | 0;
+const n = Math.min(outlineCount | 0, fontsLen || outlineCount | 0);
 const contours = fillOutlineContours(
 ctx,
-outlineCount,
+n,
 (i) => (strings && strings[outlineReqs.chars[i]]) || "",
 (i) => (strings && strings[outlineReqs.fonts[i]]) || "sans-serif",
 (i) => outlineReqs.sizes[i],
 );
 await this._request("outline-acked", () => {
-this._worker.postMessage({ type: "outline-results", contours });
+this._worker.postMessage({
+type: "outline-results",
+count: n,
+contours,
+});
 });
 }
 const drawCtx =

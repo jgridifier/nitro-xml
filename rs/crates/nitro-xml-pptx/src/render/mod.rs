@@ -128,6 +128,7 @@ pub fn paint_slide_frame<I: StringIntern>(
     buffer.begin();
     // Fresh per-frame queues (awaiting replies from a prior take stay intact).
     measure.clear_pending();
+    outlines.clear_pending();
     layout_reads.clear_pending();
     let mut view_ir = ViewIrCollector::default();
     let records = {

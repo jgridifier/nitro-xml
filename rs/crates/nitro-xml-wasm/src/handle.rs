@@ -44,7 +44,9 @@ fn process_frame(handle: &mut Handle) {
 }
 use js_sys::{Array, Function, JsString};
 use nitro_xml::opc::fonts::{resolve_webfont_plan, FontSource, FONT_SUBSTITUTION_CODE};
-use nitro_xml_render::{CommandBuffer, LayoutReadBatch, LayoutReadKind, MeasureBatch, OutlineBatch};
+use nitro_xml_render::{
+    CommandBuffer, LayoutReadBatch, LayoutReadKind, MeasureBatch, OutlineBatch,
+};
 use wasm_bindgen::prelude::*;
 
 /// Typed engine error surfaced to JS. Stable `code` strings are the machine API;
@@ -920,12 +922,9 @@ impl Handle {
     /// Loader writes glyph outlines back (array of contour arrays or null per request).
     /// Each outline result is either null (no outline) or a Vec<Vec<(f64, f64)>> (contours).
     #[wasm_bindgen(js_name = setOutlineResults)]
-    pub fn set_outline_results(
-        &mut self,
-        results: js_sys::Array,
-    ) -> Result<(), JsValue> {
+    pub fn set_outline_results(&mut self, results: js_sys::Array) -> Result<(), JsValue> {
         use nitro_xml_render::GlyphContours;
-        
+
         let mut parsed: Vec<Option<GlyphContours>> = Vec::new();
         for i in 0..results.length() {
             let item = results.get(i);
@@ -966,9 +965,9 @@ impl Handle {
                 }
             }
         }
-        self.outlines.set_results(parsed).map_err(|e| {
-            JsValue::from(OoxmlError::with_code("outline_len_mismatch", e))
-        })
+        self.outlines
+            .set_results(parsed)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("outline_len_mismatch", e)))
     }
 
     /// Queue an outline probe for a glyph (font_id, char_id, size_px).

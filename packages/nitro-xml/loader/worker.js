@@ -147,8 +147,16 @@ break;
 }
 case "outline-results": {
 if (!handle) throw new Error("no document");
-handle.setOutlineResults(msg.contours);
-self.postMessage({ type: "outline-acked", count: (msg.contours && msg.contours.length) || 0 });
+// Rebuild a dense Array of length N so wasm length matches awaiting
+// (structured-clone edge cases / sparse arrays have bitten before).
+const raw = msg.contours;
+const n = (msg.count | 0) || (raw && raw.length) || 0;
+const packed = new Array(n);
+for (let i = 0; i < n; i++) {
+packed[i] = raw ? raw[i] : null;
+}
+handle.setOutlineResults(packed);
+self.postMessage({ type: "outline-acked", count: n });
 break;
 }
 case "layout-results": {

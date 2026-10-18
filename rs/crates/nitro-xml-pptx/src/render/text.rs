@@ -216,7 +216,8 @@ const ENVELOPE_LINE_PITCH_EM: f64 = 1.2;
 const ENVELOPE_CAP_HEIGHT_EM: f64 = 0.72;
 
 /// Measure per-glyph advances via MeasureBatch (canvas `measureText`), matching
-/// upstream `measureGlyphAdvances` kerning via prefix widths. Falls back to
+/// upstream `measureGlyphAdvances`: a glyph starts at its prefix width minus its
+/// lone width, so pair kerning moves the glyph it applies to. Falls back to
 /// `0.55em` until the host replies on the next paint pass.
 fn envelope_glyph_advances<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
@@ -230,26 +231,45 @@ fn envelope_glyph_advances<I: StringIntern>(
     }
     let font_id = ctx.intern.intern(canvas_font);
     let estimate = size * 0.55;
-    let mut prefix = String::new();
-    let mut prefix_widths = Vec::with_capacity(chars.len());
-    for ch in &chars {
-        prefix.push(*ch);
-        let key = ctx.intern.intern(&format!("envw:{prefix}"));
-        let w = if let Some(cached) = ctx.measure.cached_width(font_id, key) {
+    let mut pending = false;
+    let mut width = |ctx: &mut PaintContext<'_, I>, s: &str| -> f64 {
+        let key = ctx.intern.intern(&format!("envw:{s}"));
+        if let Some(cached) = ctx.measure.cached_width(font_id, key) {
             cached
         } else {
             ctx.measure.push(font_id, size as f32, key);
-            estimate * prefix.chars().count() as f64
-        };
-        prefix_widths.push(w);
+            pending = true;
+            0.0
+        }
+    };
+    let mut prefix = String::new();
+    let mut starts = Vec::with_capacity(chars.len());
+    for ch in &chars {
+        prefix.push(*ch);
+        let w_prefix = width(ctx, &prefix);
+        let w_char = width(ctx, &ch.to_string());
+        starts.push(w_prefix - w_char);
     }
-    let mut advances = Vec::with_capacity(chars.len());
-    let mut prev = 0.0;
-    for w in prefix_widths {
-        advances.push((w - prev).max(0.0));
-        prev = w;
+    let total = width(ctx, &prefix);
+    if pending {
+        return vec![estimate; chars.len()];
     }
-    advances
+    (0..starts.len())
+        .map(|i| {
+            let next = starts.get(i + 1).copied().unwrap_or(total);
+            (next - starts[i]).max(0.0)
+        })
+        .collect()
+}
+
+/// One glyph placed in the unwarped envelope block (upstream `EnvelopeBlockGlyph`).
+struct EnvelopeGlyph {
+    ch: char,
+    x: f64,
+    baseline: f64,
+    advance: f64,
+    outline: Option<Vec<Vec<super::wordart::OutlinePoint>>>,
+    ink: Option<super::wordart_envelope_map::EnvelopeBlockBox>,
 }
 
 /// Paint WordArt glyph-envelope warp via per-glyph SVG <text> elements.
@@ -295,53 +315,95 @@ fn paint_warped_text_envelope<I: StringIntern>(
         return block;
     }
 
-    // Stack baselines at 1.2em pitch; ink box = union of glyph ink.
-    let mut baselines = Vec::with_capacity(paragraphs.len());
-    let mut baseline = 0.0;
-    for (i, _) in paragraphs.iter().enumerate() {
-        if i > 0 {
-            baseline += ENVELOPE_LINE_PITCH_EM * size;
-        }
-        baselines.push(baseline);
-    }
+    // Stack baselines at 1.2em pitch (single size per block, so the
+    // `BASELINE_FRACTION` blend reduces to `1.2 * size`).
     let cap = size * ENVELOPE_CAP_HEIGHT_EM;
-    let mut box_left = f64::INFINITY;
-    let mut box_right = f64::NEG_INFINITY;
-    let mut box_top = f64::INFINITY;
-    let mut box_bottom = f64::NEG_INFINITY;
+    let font_id = ctx.intern.intern(&canvas_font);
+    let mut lines: Vec<Vec<EnvelopeGlyph>> = Vec::with_capacity(paragraphs.len());
+    let mut block_box = super::wordart_envelope_map::EnvelopeBlockBox {
+        left: f64::INFINITY,
+        top: f64::INFINITY,
+        right: f64::NEG_INFINITY,
+        bottom: f64::NEG_INFINITY,
+    };
     let mut has_ink = false;
     for (para_idx, para) in paragraphs.iter().enumerate() {
         let advances = &line_advances[para_idx];
-        let line_w = line_widths[para_idx];
-        let x0 = (block_width - line_w) / 2.0; // center within block
-        let y = baselines[para_idx];
-        let mut x = x0;
+        let baseline = para_idx as f64 * ENVELOPE_LINE_PITCH_EM * size;
+        let mut x = (block_width - line_widths[para_idx]) / 2.0;
+        let mut glyphs = Vec::new();
         for (idx, ch) in para.chars().enumerate() {
-            let adv = advances.get(idx).copied().unwrap_or(size * 0.55);
-            if !ch.is_whitespace() {
-                has_ink = true;
-                box_left = box_left.min(x);
-                box_right = box_right.max(x + adv);
-                box_top = box_top.min(y - cap);
-                box_bottom = box_bottom.max(y);
+            let advance = advances.get(idx).copied().unwrap_or(size * 0.55);
+            let mut glyph = EnvelopeGlyph {
+                ch,
+                x,
+                baseline,
+                advance,
+                outline: None,
+                ink: None,
+            };
+            if ch.is_whitespace() {
+                block_box.left = block_box.left.min(x);
+                block_box.right = block_box.right.max(x + advance);
             } else {
-                box_left = box_left.min(x);
-                box_right = box_right.max(x + adv);
+                let char_id = ctx.intern.intern(&ch.to_string());
+                match ctx.outlines.cached_contours(font_id, char_id) {
+                    Some(em) if em.iter().any(|ring| !ring.is_empty()) => {
+                        glyph.outline = Some(
+                            em.iter()
+                                .map(|ring| {
+                                    ring.iter()
+                                        .map(|(ex, ey)| super::wordart::OutlinePoint {
+                                            x: x + ex * size,
+                                            y: baseline + ey * size,
+                                        })
+                                        .collect()
+                                })
+                                .collect(),
+                        );
+                    }
+                    Some(_) => {}
+                    None => ctx.outlines.push(font_id, char_id, size as f32),
+                }
+                let ink = match &glyph.outline {
+                    Some(contours) => {
+                        let mut b = super::wordart_envelope_map::EnvelopeBlockBox {
+                            left: f64::INFINITY,
+                            top: f64::INFINITY,
+                            right: f64::NEG_INFINITY,
+                            bottom: f64::NEG_INFINITY,
+                        };
+                        for p in contours.iter().flatten() {
+                            b.left = b.left.min(p.x);
+                            b.right = b.right.max(p.x);
+                            b.top = b.top.min(p.y);
+                            b.bottom = b.bottom.max(p.y);
+                        }
+                        b
+                    }
+                    None => super::wordart_envelope_map::EnvelopeBlockBox {
+                        left: x,
+                        top: baseline - cap,
+                        right: x + advance,
+                        bottom: baseline,
+                    },
+                };
+                has_ink = true;
+                block_box.left = block_box.left.min(ink.left);
+                block_box.right = block_box.right.max(ink.right);
+                block_box.top = block_box.top.min(ink.top);
+                block_box.bottom = block_box.bottom.max(ink.bottom);
+                glyph.ink = Some(ink);
             }
-            x += adv;
+            glyphs.push(glyph);
+            x += advance;
         }
+        lines.push(glyphs);
     }
-    if !has_ink || !box_left.is_finite() {
+    if !has_ink || !block_box.left.is_finite() {
         set_text_content(ctx, block, text);
         return block;
     }
-
-    let block_box = super::wordart_envelope_map::EnvelopeBlockBox {
-        left: box_left,
-        top: box_top,
-        right: box_right,
-        bottom: box_bottom,
-    };
 
     let warp = match super::wordart::create_envelope_warp(preset, w, h, adj1, adj2, block_box) {
         Some(warp) => warp,
@@ -354,61 +416,37 @@ fn paint_warped_text_envelope<I: StringIntern>(
     let mut svg_content = String::new();
     let safe_id = block.to_string();
     let escaped_stack = xml_escape_attr(stack);
-    let max_segment = (block_width / 240.0).max(1e-3);
+    let max_segment = ((block_box.right - block_box.left) / 240.0).max(1e-3);
 
-    for (para_idx, para) in paragraphs.iter().enumerate() {
-        let advances = &line_advances[para_idx];
-        let line_w = line_widths[para_idx];
-        let x0 = (block_width - line_w) / 2.0;
-        let y_baseline = baselines[para_idx];
-        let mut x = x0;
-        for (idx, ch) in para.chars().enumerate() {
-            let adv = advances.get(idx).copied().unwrap_or(size * 0.55).max(1e-3);
+    for (para_idx, glyphs) in lines.iter().enumerate() {
+        for (idx, g) in glyphs.iter().enumerate() {
+            let ch = g.ch;
             if ch.is_whitespace() {
-                x += adv;
+                continue;
+            }
+            let x = g.x;
+            let y_baseline = g.baseline;
+            let path_d = g.outline.as_ref().and_then(|contours| {
+                super::wordart::build_warped_glyph_outline_path_d(contours, &*warp, max_segment)
+            });
+            if let Some(path_d) = path_d {
+                svg_content.push_str(&format!(r#"<path d="{path_d}" fill="{color}" />"#));
                 continue;
             }
 
-            let font_id = ctx.intern.intern(&canvas_font);
-            let char_id = ctx.intern.intern(&ch.to_string());
-
-            // Try to use cached outline if available
-            if let Some(em_contours) = ctx.outlines.cached_contours(font_id, char_id) {
-                // Scale contours from em units to layout coordinates
-                let mut layout_contours: Vec<Vec<super::wordart::OutlinePoint>> = Vec::new();
-                for em_ring in &em_contours {
-                    let mut layout_ring = Vec::new();
-                    for (em_x, em_y) in em_ring {
-                        layout_ring.push(super::wordart::OutlinePoint {
-                            x: x + em_x * size,
-                            y: y_baseline + em_y * size,
-                        });
-                    }
-                    layout_contours.push(layout_ring);
-                }
-
-                // Build warped path
-                if let Some(path_d) =
-                    super::wordart::build_warped_glyph_outline_path_d(&layout_contours, &*warp, max_segment)
-                {
-                    svg_content.push_str(&format!(
-                        r#"<path d="{}" fill="{}" />"#,
-                        path_d, color
-                    ));
-                    x += adv;
-                    continue;
-                }
-            }
-
-            // Outline not available or warp failed: fall back to affine transform
-            // and queue outline probe for next frame
-            ctx.outlines.push(font_id, char_id, size as f32);
-
-            let glyph_box = super::wordart_envelope_affine::GlyphFitBox {
-                x0: x,
-                x1: x + adv,
-                y0: y_baseline - cap,
-                y1: y_baseline,
+            let glyph_box = match g.ink {
+                Some(ink) => super::wordart_envelope_affine::GlyphFitBox {
+                    x0: ink.left,
+                    x1: ink.right,
+                    y0: ink.top,
+                    y1: ink.bottom,
+                },
+                None => super::wordart_envelope_affine::GlyphFitBox {
+                    x0: x,
+                    x1: x + g.advance.max(1e-3),
+                    y0: y_baseline - cap,
+                    y1: y_baseline,
+                },
             };
             let fit = super::wordart::fit_glyph_envelope_affine(&*warp, glyph_box, h);
             let glyph_str = xml_escape_text(&ch.to_string());
@@ -450,7 +488,6 @@ fn paint_warped_text_envelope<I: StringIntern>(
                     glyph = glyph_str,
                 ));
             }
-            x += adv;
         }
     }
 
@@ -550,12 +587,17 @@ fn paint_warped_text_body<I: StringIntern>(
         });
         let escaped_d = xml_escape_attr(&d);
         let escaped_line = xml_escape_text(line);
+        // font-family stacks contain CSS quotes (`"Arial", ...`); must be
+        // attribute-escaped or SVG innerHTML splits the attribute (TS uses
+        // &quot; via React). Same for fill if a theme colour ever has `&`.
+        let escaped_stack = xml_escape_attr(&stack);
+        let escaped_color = xml_escape_attr(color);
         defs.push_str(&format!(r#"<path id="{path_id}" d="{escaped_d}"></path>"#));
         let href = format!("#{path_id}");
         texts.push_str(&format!(
             r#"<text fill="{color}" font-family="{stack}" font-size="{size}" font-weight="{weight}" font-style="{style}"><textPath href="{href}" startOffset="50%" text-anchor="middle">{escaped_line}</textPath></text>"#,
-            color = color,
-            stack = stack,
+            color = escaped_color,
+            stack = escaped_stack,
             size = size,
             weight = weight,
             style = style,

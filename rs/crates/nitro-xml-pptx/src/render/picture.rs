@@ -90,44 +90,96 @@ fn paint_media_audio<I: StringIntern>(
 }
 
 fn paint_image<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
+    use crate::render::image_tiling;
+
     let id = create_child(ctx, parent, "div");
     position_box(ctx, id, el.x, el.y, el.width, el.height);
     set_attr(ctx, id, "data-pptx-element", "true");
     set_attr(ctx, id, "data-element-id", &el.id);
     set_attr(ctx, id, "data-pptx-kind", "image");
-    let img = create_child(ctx, id, "img");
-    set_attr(ctx, img, "alt", el.name.as_deref().unwrap_or(""));
-    set_style(ctx, img, "width", "100%");
-    set_style(ctx, img, "height", "100%");
+
     if let Some(shadow) = el.box_shadow.as_deref() {
         set_style(ctx, id, "box-shadow", shadow);
     }
+
     if let Some(src) = el.image_src.as_deref() {
-        set_attr(ctx, img, "src", src);
-        set_style(ctx, img, "object-fit", "fill");
-        if let Some(fit) = el.image_fit {
-            // getImageFitStyle: the crop/placement is an `<img>` transform inside a clipping frame.
-            set_style(ctx, id, "overflow", "hidden");
-            set_style(ctx, img, "position", "absolute");
-            set_style(ctx, img, "max-width", "none");
-            set_style(ctx, img, "max-height", "none");
-            set_style(ctx, img, "transform-origin", "top left");
-            set_style(ctx, img, "transform", &image_fit_transform(&fit));
+        // Check if this image is tiled
+        if image_tiling::is_image_tiled(
+            el.tile_scale_x,
+            el.tile_scale_y,
+            el.tile_offset_x,
+            el.tile_offset_y,
+            el.tile_flip.as_deref(),
+            el.tile_alignment.as_deref(),
+        ) {
+            // Tiled background: render as a div with background-image
+            // NaturalWidth read-back happens below to provide native dimensions for scaling
+            let tile_config = image_tiling::TileConfig {
+                scale_x: el.tile_scale_x,
+                scale_y: el.tile_scale_y,
+                offset_x: el.tile_offset_x,
+                offset_y: el.tile_offset_y,
+                flip: el.tile_flip.clone(),
+                alignment: el.tile_alignment.clone(),
+                native_width: None,
+                native_height: None,
+            };
+            if let Some(styles) = image_tiling::get_image_tiling_style(Some(src), &tile_config) {
+                for (key, value) in styles {
+                    set_style(ctx, id, key, &value);
+                }
+            } else {
+                // Fallback to stretched if tiling style generation failed
+                set_style(ctx, id, "background-image", &format!("url({src})"));
+                set_style(ctx, id, "background-size", "100% 100%");
+                set_style(ctx, id, "background-repeat", "no-repeat");
+            }
+            // Create a hidden img to trigger NaturalWidth read-back
+            let img = create_child(ctx, id, "img");
+            set_attr(ctx, img, "alt", el.name.as_deref().unwrap_or(""));
+            set_attr(ctx, img, "src", src);
+            set_style(ctx, img, "display", "none");
+            ctx.push_layout_read(img, LayoutReadKind::NaturalWidth, 0, None);
         } else {
-            let url = format!("url({src})");
-            set_style(ctx, id, "background-image", &url);
-            set_style(ctx, id, "background-size", "100% 100%");
-            set_style(ctx, id, "background-repeat", "no-repeat");
-        }
-        if let Some(filter) = el.effect_filter.as_deref() {
-            set_style(ctx, img, "filter", filter);
+            // Non-tiled image: standard painted or stretched rendering
+            let img = create_child(ctx, id, "img");
+            set_attr(ctx, img, "alt", el.name.as_deref().unwrap_or(""));
+            set_style(ctx, img, "width", "100%");
+            set_style(ctx, img, "height", "100%");
+            set_attr(ctx, img, "src", src);
+            set_style(ctx, img, "object-fit", "fill");
+
+            if let Some(fit) = el.image_fit {
+                // getImageFitStyle: the crop/placement is an `<img>` transform inside a clipping frame.
+                set_style(ctx, id, "overflow", "hidden");
+                set_style(ctx, img, "position", "absolute");
+                set_style(ctx, img, "max-width", "none");
+                set_style(ctx, img, "max-height", "none");
+                set_style(ctx, img, "transform-origin", "top left");
+                set_style(ctx, img, "transform", &image_fit_transform(&fit));
+            } else {
+                let url = format!("url({src})");
+                set_style(ctx, id, "background-image", &url);
+                set_style(ctx, id, "background-size", "100% 100%");
+                set_style(ctx, id, "background-repeat", "no-repeat");
+            }
+
+            if let Some(filter) = el.effect_filter.as_deref() {
+                set_style(ctx, img, "filter", filter);
+            }
+
+            ctx.push_layout_read(img, LayoutReadKind::NaturalWidth, 0, None);
         }
     } else {
+        // No image source: placeholder
+        let img = create_child(ctx, id, "img");
+        set_attr(ctx, img, "alt", el.name.as_deref().unwrap_or(""));
+        set_style(ctx, img, "width", "100%");
+        set_style(ctx, img, "height", "100%");
         set_style(ctx, img, "object-fit", "contain");
         set_style(ctx, id, "background", "#e8e8e8");
     }
-    // P5 a:tile sx/sy uses intrinsic pixels via NaturalWidth read-back (#127).
-    ctx.push_layout_read(img, LayoutReadKind::NaturalWidth, 0, None);
+
     // EMF/WMF → TODO metafile S3 (`nitro_xml_render::metafile`).
     ctx.view_ir.push_painted("image", el, None);
 }

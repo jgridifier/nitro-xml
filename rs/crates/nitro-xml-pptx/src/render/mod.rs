@@ -17,6 +17,7 @@ mod equation;
 mod field_substitution;
 mod font_substitution;
 mod group;
+mod image_tiling;
 mod ink;
 mod media;
 mod model3d;
@@ -248,6 +249,12 @@ mod tests {
             media_type: None,
             image_src: None,
             image_fit: None,
+            tile_offset_x: None,
+            tile_offset_y: None,
+            tile_scale_x: None,
+            tile_scale_y: None,
+            tile_flip: None,
+            tile_alignment: None,
             seq: 0,
             box_shadow: None,
             material_box_shadow: None,

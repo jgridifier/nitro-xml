@@ -393,6 +393,12 @@ mod tests {
             effect_filter: None,
             ink_data: None,
             content_part_ink_rel_id: None,
+            tile_offset_x: None,
+            tile_offset_y: None,
+            tile_scale_x: None,
+            tile_scale_y: None,
+            tile_flip: None,
+            tile_alignment: None,
         }
     }
 

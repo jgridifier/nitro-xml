@@ -220,6 +220,24 @@ pub struct DumpElement {
     /// `a:srcRect` crop (l, t, r, b) and `a:stretch/a:fillRect` (l, t, r, b) as fractions.
     #[serde(skip)]
     pub image_fit: Option<[f64; 8]>,
+    /// `a:blipFill/a:tile/@tx/@ty` offset in CSS pixels (paint only).
+    #[serde(skip)]
+    pub tile_offset_x: Option<f64>,
+    /// `a:blipFill/a:tile/@tx/@ty` offset in CSS pixels (paint only).
+    #[serde(skip)]
+    pub tile_offset_y: Option<f64>,
+    /// `a:blipFill/a:tile/@sx/@sy` scale as percentage (100 = 100%, paint only).
+    #[serde(skip)]
+    pub tile_scale_x: Option<f64>,
+    /// `a:blipFill/a:tile/@sx/@sy` scale as percentage (100 = 100%, paint only).
+    #[serde(skip)]
+    pub tile_scale_y: Option<f64>,
+    /// `a:blipFill/a:tile/@flip` mirror mode (`none`/`x`/`y`/`xy`, paint only).
+    #[serde(skip)]
+    pub tile_flip: Option<String>,
+    /// `a:blipFill/a:tile/@algn` alignment anchor (paint only).
+    #[serde(skip)]
+    pub tile_alignment: Option<String>,
     /// Document order of this element among emitted spTree children (dump merge).
     #[serde(skip)]
     pub seq: u32,
@@ -1056,9 +1074,16 @@ fn parse_picture(pic: &Element, id: String, ctx: &ParseCtx) -> Option<DumpElemen
         colors: ctx.theme_colors.unwrap_or(&fallback),
         map: ctx.color_map,
     };
+    let tile_props = blip_tile_props(pic);
     let mut extras = PaintExtras {
         image_rel_id: blip_embed_id(pic),
         image_fit: blip_fit_insets(pic),
+        tile_offset_x: tile_props.offset_x,
+        tile_offset_y: tile_props.offset_y,
+        tile_scale_x: tile_props.scale_x,
+        tile_scale_y: tile_props.scale_y,
+        tile_flip: tile_props.flip,
+        tile_alignment: tile_props.alignment,
         ..PaintExtras::default()
     };
     if let Some(nv) = nv_pr {
@@ -1890,6 +1915,12 @@ fn build_dump(
         media_type: extras.media_type,
         image_src: None,
         image_fit: extras.image_fit,
+        tile_offset_x: extras.tile_offset_x,
+        tile_offset_y: extras.tile_offset_y,
+        tile_scale_x: extras.tile_scale_x,
+        tile_scale_y: extras.tile_scale_y,
+        tile_flip: extras.tile_flip,
+        tile_alignment: extras.tile_alignment,
         seq: 0,
         box_shadow: extras.box_shadow,
         material_box_shadow: extras.material_box_shadow,
@@ -2193,6 +2224,12 @@ struct PaintExtras {
     smartart_cs_r_id: Option<String>,
     image_rel_id: Option<String>,
     image_fit: Option<[f64; 8]>,
+    tile_offset_x: Option<f64>,
+    tile_offset_y: Option<f64>,
+    tile_scale_x: Option<f64>,
+    tile_scale_y: Option<f64>,
+    tile_flip: Option<String>,
+    tile_alignment: Option<String>,
     image_rel_owner: Option<String>,
     ole_spid: Option<String>,
     box_shadow: Option<String>,
@@ -2417,6 +2454,16 @@ fn shape_paint_extras(
         }
         Some(DrawingFill::Picture { rel_id, .. }) => {
             extras.image_rel_id = rel_id;
+            // Parse tile props from shape's blipFill
+            if let Some(sp_pr) = effective_sp_pr {
+                let tile_props = blip_tile_props(sp_pr);
+                extras.tile_offset_x = tile_props.offset_x;
+                extras.tile_offset_y = tile_props.offset_y;
+                extras.tile_scale_x = tile_props.scale_x;
+                extras.tile_scale_y = tile_props.scale_y;
+                extras.tile_flip = tile_props.flip;
+                extras.tile_alignment = tile_props.alignment;
+            }
         }
         Some(_) | None => {}
     }
@@ -2673,6 +2720,67 @@ fn blip_fit_insets(parent: &Element) -> Option<[f64; 8]> {
         frac(rect, "b"),
     ];
     v.iter().any(|x| x.abs() > 0.0001).then_some(v)
+}
+
+struct TileProps {
+    offset_x: Option<f64>,
+    offset_y: Option<f64>,
+    scale_x: Option<f64>,
+    scale_y: Option<f64>,
+    flip: Option<String>,
+    alignment: Option<String>,
+}
+
+fn blip_tile_props(parent: &Element) -> TileProps {
+    let fill =
+        child_local(parent, "blipFill", ns::P).or_else(|| child_local(parent, "blipFill", ns::A));
+    let tile = fill.and_then(|f| child_local(f, "tile", ns::A));
+
+    let mut props = TileProps {
+        offset_x: None,
+        offset_y: None,
+        scale_x: None,
+        scale_y: None,
+        flip: None,
+        alignment: None,
+    };
+
+    if let Some(t) = tile {
+        if let Some(tx_attr) = attr(t, "tx") {
+            if let Ok(tx_emu) = tx_attr.parse::<i64>() {
+                props.offset_x = Some(emu_to_px_f64(tx_emu));
+            }
+        }
+        if let Some(ty_attr) = attr(t, "ty") {
+            if let Ok(ty_emu) = ty_attr.parse::<i64>() {
+                props.offset_y = Some(emu_to_px_f64(ty_emu));
+            }
+        }
+        if let Some(sx_attr) = attr(t, "sx") {
+            if let Ok(sx_raw) = sx_attr.parse::<i64>() {
+                props.scale_x = Some(sx_raw as f64 / 100000.0 * 100.0);
+            }
+        }
+        if let Some(sy_attr) = attr(t, "sy") {
+            if let Ok(sy_raw) = sy_attr.parse::<i64>() {
+                props.scale_y = Some(sy_raw as f64 / 100000.0 * 100.0);
+            }
+        }
+        if let Some(flip_attr) = attr(t, "flip") {
+            let flip_str = flip_attr.trim();
+            if flip_str == "x" || flip_str == "y" || flip_str == "xy" || flip_str == "none" {
+                props.flip = Some(flip_str.to_string());
+            }
+        }
+        if let Some(algn_attr) = attr(t, "algn") {
+            let algn_str = algn_attr.trim();
+            if !algn_str.is_empty() {
+                props.alignment = Some(algn_str.to_string());
+            }
+        }
+    }
+
+    props
 }
 
 fn blip_embed_id(parent: &Element) -> Option<String> {

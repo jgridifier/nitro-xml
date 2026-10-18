@@ -66,7 +66,12 @@ async function shot(browser, base, c, side, dpr) {
 							document.getElementById('stage')?.querySelector('nitro-pptx')?.document
 								?.measureCount | 0,
 					);
-					if (mc === 0) break;
+					const oc = await page.evaluate(
+						() =>
+							document.getElementById('stage')?.querySelector('nitro-pptx')?.document
+								?.outlineCount | 0,
+					);
+					if (mc === 0 && oc === 0) break;
 				}
 			}
 		}

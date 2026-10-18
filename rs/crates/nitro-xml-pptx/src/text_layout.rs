@@ -643,10 +643,11 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
     // Blank paragraphs AFTER the last content are dropped: load and edit-remap paths both
     // leave a trailing separator behind, and honouring those would grow every text body
     // (and shift anything vertically centred in height=0+anchor=ctr) for markup never drawn.
-    // Upstream `hasContent`: runs with text (empty `<a:r>/<a:t>` alone do not count —
-    // poi-with_japanese Rectangle 3 trailing blanks carry empty runs + endParaRPr).
+    // Upstream `hasContent`: `runs.length > 0` after `buildParagraphRuns` drops empty
+    // text but keeps `a:br` as a `'\n'` run. Match that: empty `<a:t/>` alone does
+    // not count; line_break runs do (poi-with_japanese Rectangle 3 p22/p27/p28).
     let has_content = |p: &TextPaintParagraph| -> bool {
-        p.runs.iter().any(|r| !r.text.is_empty()) || p.bullet_marker.is_some()
+        p.runs.iter().any(|r| !r.text.is_empty() || r.line_break) || p.bullet_marker.is_some()
     };
 
     let mut last_content_idx = None;
@@ -1685,7 +1686,7 @@ mod tests {
         );
     }
 
-    // Catches: trailing empty a:p with empty <a:r>/<a:t> still painted under height=0+anchor=ctr (poi-with_japanese Rectangle 3).
+    // Catches: trailing a:p with only empty <a:t/> (no a:br) still painted under height=0+anchor=ctr.
     #[test]
     fn trailing_empty_paragraphs_trimmed() {
         let doc = parse_xml_str(
@@ -1698,8 +1699,32 @@ mod tests {
         )
         .unwrap();
         let paras = parse_text_paint_paragraphs(&doc.root);
-        assert_eq!(paras.len(), 1, "Trailing empty-run paragraphs should be trimmed");
+        assert_eq!(
+            paras.len(),
+            1,
+            "Trailing empty-run paragraphs should be trimmed"
+        );
         assert_eq!(paras[0].runs[0].text, "Content");
+    }
+
+    // Catches: a:br blank lines dropped by hasContent (poi-with_japanese Rectangle 3 p27/p28).
+    #[test]
+    fn trailing_soft_break_paragraphs_kept() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr/>
+              <a:p><a:r><a:rPr lang="en-US"/><a:t>Content</a:t></a:r></a:p>
+              <a:p><a:r><a:t></a:t></a:r><a:br><a:rPr sz="1100"/></a:br><a:endParaRPr sz="1100"/></a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let paras = parse_text_paint_paragraphs(&doc.root);
+        assert_eq!(
+            paras.len(),
+            2,
+            "Trailing a:br paragraphs must survive like TS hasContent"
+        );
+        assert!(paras[1].runs.iter().any(|r| r.line_break));
     }
 
     // Catches: interior empty paragraphs kept between content (real vertical spacing).
@@ -1715,7 +1740,11 @@ mod tests {
         )
         .unwrap();
         let paras = parse_text_paint_paragraphs(&doc.root);
-        assert_eq!(paras.len(), 3, "Interior empty paragraphs should be preserved");
+        assert_eq!(
+            paras.len(),
+            3,
+            "Interior empty paragraphs should be preserved"
+        );
         assert_eq!(paras[0].runs[0].text, "Line 1");
         assert!(paras[1].runs.is_empty());
         assert_eq!(paras[2].runs[0].text, "Line 2");

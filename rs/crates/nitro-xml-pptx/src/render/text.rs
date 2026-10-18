@@ -255,7 +255,16 @@ pub fn paint_text_body<I: StringIntern>(
     set_style(ctx, block, "font-family", &stack);
     set_style(ctx, block, "font-size", &format!("{}px", format_px(size)));
     // Upstream `buildTextBlockStyle`: compatLnSpc uses legacy 1.0 line-spacing, else 1.2.
-    set_style(ctx, block, "line-height", if paint.compat_line_spacing { "1" } else { "1.2" });
+    set_style(
+        ctx,
+        block,
+        "line-height",
+        if paint.compat_line_spacing {
+            "1"
+        } else {
+            "1.2"
+        },
+    );
     if paint.font_bold {
         set_style(ctx, block, "font-weight", "700");
     }
@@ -619,6 +628,12 @@ fn append_paint_run<I: StringIntern>(
         );
         return;
     }
+    let display_text = display_run_text(ctx, run_model);
+    // Upstream `buildParagraphRuns`: `if (!text) continue` — empty `<a:t/>` is not
+    // painted (poi-with_japanese Rectangle 3 blank lines keep only the `a:br`).
+    if display_text.is_empty() {
+        return;
+    }
     if run_model.hyperlink_click {
         paint_hyperlink_run(
             ctx,
@@ -634,7 +649,6 @@ fn append_paint_run<I: StringIntern>(
         );
         return;
     }
-    let display_text = display_run_text(ctx, run_model);
     if !tab_stops.is_empty() && display_text.contains('\t') {
         if tab_stops.len() == 1 && tab_stops[0].align == crate::text_layout::TextTabAlign::Left {
             paint_css_tab_run(
@@ -1927,7 +1941,7 @@ mod tests {
                 geom_rect_padding: TextBodyRectPadding::default(),
                 presentation_kinsoku: false,
                 body_box_height_px: None,
-            compat_line_spacing: false,
+                compat_line_spacing: false,
             },
             measure,
             Some(intern),

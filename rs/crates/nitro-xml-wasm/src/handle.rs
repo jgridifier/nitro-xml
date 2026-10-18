@@ -44,7 +44,7 @@ fn process_frame(handle: &mut Handle) {
 }
 use js_sys::{Array, Function, JsString};
 use nitro_xml::opc::fonts::{resolve_webfont_plan, FontSource, FONT_SUBSTITUTION_CODE};
-use nitro_xml_render::{CommandBuffer, LayoutReadBatch, LayoutReadKind, MeasureBatch};
+use nitro_xml_render::{CommandBuffer, LayoutReadBatch, LayoutReadKind, MeasureBatch, OutlineBatch};
 use wasm_bindgen::prelude::*;
 
 /// Typed engine error surfaced to JS. Stable `code` strings are the machine API;
@@ -148,6 +148,7 @@ pub struct Handle {
     pub(crate) strings: StringTable,
     pub(crate) commands: CommandBuffer,
     pub(crate) measures: MeasureBatch,
+    pub(crate) outlines: OutlineBatch,
     pub(crate) layout_reads: LayoutReadBatch,
     pub(crate) events: EventQueue,
     pub(crate) xlsx: Option<XlsxState>,
@@ -174,6 +175,7 @@ impl Handle {
             strings,
             commands: CommandBuffer::new(),
             measures: MeasureBatch::new(),
+            outlines: OutlineBatch::new(),
             layout_reads: LayoutReadBatch::new(),
             events: EventQueue::new(),
             xlsx: None,
@@ -898,6 +900,63 @@ impl Handle {
         self.measures.set_results(widths).map_err(|e| {
             JsValue::from(OoxmlError::with_code("measure_len_mismatch", e.to_string()))
         })
+    }
+
+    /// Take pending outline requests for the loader (clears the queue).
+    ///
+    /// Returns a JS array `[Uint32Array fonts, Uint32Array chars, Float32Array sizes]`.
+    /// The loader computes glyph outlines (canvas rasterization + contour tracing) and
+    /// calls [`setOutlineResults`].
+    #[wasm_bindgen(js_name = takeOutlineReqs)]
+    pub fn take_outline_reqs(&mut self) -> Array {
+        let (fonts, chars, sizes) = self.outlines.take_requests();
+        let out = Array::new();
+        out.push(&js_sys::Uint32Array::from(fonts.as_slice()).into());
+        out.push(&js_sys::Uint32Array::from(chars.as_slice()).into());
+        out.push(&js_sys::Float32Array::from(sizes.as_slice()).into());
+        out
+    }
+
+    /// Loader writes glyph outlines back (array of contour arrays or null per request).
+    /// Each outline result is either null (no outline) or a Vec<Vec<(f64, f64)>> (contours).
+    #[wasm_bindgen(js_name = setOutlineResults)]
+    pub fn set_outline_results(
+        &mut self,
+        results: js_sys::Array,
+    ) -> Result<(), JsValue> {
+        let mut parsed = Vec::new();
+        for i in 0..results.length() {
+            let item = results.get(i);
+            if item.is_null() || item.is_undefined() {
+                parsed.push(None);
+            } else {
+                // For now, accept but don't parse the nested array structure.
+                // The loader will send us a serialization (TBD format).
+                // For MVP, we'll just mark it as having been received.
+                parsed.push(None);
+            }
+        }
+        self.outlines.set_results(parsed).map_err(|e| {
+            JsValue::from(OoxmlError::with_code("outline_len_mismatch", e))
+        })
+    }
+
+    /// Queue an outline probe for a glyph (font_id, char_id, size_px).
+    #[wasm_bindgen(js_name = pushOutlineReq)]
+    pub fn push_outline_req(
+        &mut self,
+        font_id: u32,
+        char_id: u32,
+        size_px: f32,
+    ) -> Result<(), JsValue> {
+        self.outlines.push(font_id, char_id, size_px);
+        Ok(())
+    }
+
+    /// Number of pending outline requests not yet taken.
+    #[wasm_bindgen(getter, js_name = outlineCount)]
+    pub fn outline_count(&self) -> usize {
+        self.outlines.len()
     }
 
     /// Queue a post-apply layout read-back (answered on the next frame after apply).

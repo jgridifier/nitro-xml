@@ -93,6 +93,9 @@ fn resolve_font_kerning(kern_hundredths: Option<i32>, font_size_px: f64) -> Opti
     }
 }
 
+/// Super/subscript glyphs render at ~65% of the run font size (upstream BASELINE_FONT_SCALE).
+const BASELINE_FONT_SCALE: f64 = 0.65;
+
 pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, parent: u32) {
     let painted_h = ctx.sp_autofit.painted_height(&el.id, el.height);
     let id = create_child(ctx, parent, "div");
@@ -540,10 +543,16 @@ fn merge_run_level_paint<'a>(
     para_size: f64,
 ) -> (TextBodyPaint<'a>, f64) {
     let size = run.run_font_size_px.unwrap_or(para_size);
+    // Apply super/subscript font-size scale (upstream BASELINE_FONT_SCALE).
+    let scaled_size = if run.baseline_shift.is_some() {
+        size * BASELINE_FONT_SCALE
+    } else {
+        size
+    };
     (
         TextBodyPaint {
             text_color: run.run_text_color.as_deref().or(base.text_color),
-            font_size_px: Some(size),
+            font_size_px: Some(scaled_size),
             font_family: run.run_font_family.as_deref().or(base.font_family),
             font_bold: run.run_font_bold.unwrap_or(base.font_bold),
             font_italic: run.run_font_italic.unwrap_or(base.font_italic),
@@ -559,7 +568,7 @@ fn merge_run_level_paint<'a>(
             body_box_height_px: base.body_box_height_px,
             compat_line_spacing: base.compat_line_spacing,
         },
-        size,
+        scaled_size,
     )
 }
 
@@ -978,6 +987,9 @@ fn paint_run_span_styles<I: StringIntern>(
         set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
     }
     paint_run_typography(ctx, run, paint, size, stack);
+    if let Some(shift) = run_model.baseline_shift {
+        set_style(ctx, run, "vertical-align", shift);
+    }
     if run_line_height_zero {
         set_style(ctx, run, "line-height", "0");
     }

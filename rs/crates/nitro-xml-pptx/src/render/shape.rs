@@ -6,7 +6,7 @@ use super::dom::{create_child, position_box, set_attr, set_inner_markup_stub, se
 use super::pattern_tile::get_pattern_tile;
 use super::prst_geom::{apply_preset_geometry, preset_stroke_outline_path};
 use super::shape_autofit_resize::queue_sp_autofit_scroll_height;
-use super::stroke_dash::{css_border_dash_style, svg_stroke_dasharray};
+use super::stroke_dash::{css_border_compound_style, svg_stroke_dasharray};
 use super::text::{paint_text_body, TextBodyPaint};
 use crate::slide::DumpElement;
 
@@ -62,7 +62,10 @@ pub fn paint<I: StringIntern>(ctx: &mut PaintContext<'_, I>, el: &DumpElement, p
         // CSS border cannot express pattern/gradient lines — always SVG overlay
         // (matches upstream `stroke-outline.ts`).
         if !wants_paint_server && stroke_uses_css_border(el.stroke_line_align.as_deref()) {
-            let style = css_border_dash_style(el.stroke_dash.as_deref());
+            let style = css_border_compound_style(
+                el.stroke_compound_line.as_deref(),
+                el.stroke_dash.as_deref(),
+            );
             set_style(
                 ctx,
                 id,
@@ -157,12 +160,22 @@ fn paint_centered_stroke_overlay<I: StringIntern>(
     }
     let w = format_px(width);
     let h = format_px(height);
-    let sw = format_px(stroke_width);
     let d = el
         .shape_type
         .as_deref()
         .and_then(|st| preset_stroke_outline_path(st, width, height))
         .unwrap_or_else(|| format!("M 0 0 L {w} 0 L {w} {h} L 0 {h} Z"));
+
+    // Compound line support: get offsets and widths for each strand
+    let offsets = super::compound_line::get_compound_line_offsets(
+        el.stroke_compound_line.as_deref(),
+        stroke_width,
+    );
+    let widths = super::compound_line::get_compound_line_widths(
+        el.stroke_compound_line.as_deref(),
+        stroke_width,
+    );
+
     let dash_attr = svg_stroke_dasharray(el.stroke_dash.as_deref(), stroke_width)
         .map(|da| format!(" stroke-dasharray=\"{da}\""))
         .unwrap_or_default();
@@ -173,21 +186,43 @@ fn paint_centered_stroke_overlay<I: StringIntern>(
     } else {
         format!("<defs>{defs}</defs>")
     };
+
+    // Emit one <path> per compound strand
+    let mut paths = String::new();
+    for (i, (&offset, &width)) in offsets.iter().zip(widths.iter()).enumerate() {
+        let sw = format_px(width);
+        let transform = if offset.abs() > 0.01 {
+            format!(" style=\"transform: translate(0, {offset}px)\"")
+        } else {
+            String::new()
+        };
+        let dash_for_strand = if i > 0 && !dash_attr.is_empty() {
+            // Only apply dasharray to first strand to avoid double-dashing compound lines
+            String::new()
+        } else {
+            dash_attr.clone()
+        };
+        paths.push_str(&format!(
+            "<path d=\"{d}\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"{sw}\"{dash}{transform}/>",
+            d = d,
+            stroke = stroke_attr,
+            sw = sw,
+            dash = dash_for_strand,
+            transform = transform,
+        ));
+    }
+
     let svg = format!(
         concat!(
             "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"pptx-vanilla-gradient-outline\" ",
             "aria-hidden=\"true\" viewBox=\"0 0 {w} {h}\" preserveAspectRatio=\"none\" ",
-            "style=\"{style}\">{defs_block}",
-            "<path d=\"{d}\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"{sw}\"{dash}/></svg>"
+            "style=\"{style}\">{defs_block}{paths}</svg>"
         ),
         w = w,
         h = h,
         style = STROKE_OUTLINE_SVG_STYLE,
         defs_block = defs_block,
-        d = d,
-        stroke = stroke_attr,
-        sw = sw,
-        dash = dash_attr,
+        paths = paths,
     );
     let overlay = create_child(ctx, parent, "div");
     set_attr(ctx, overlay, "aria-hidden", "true");
@@ -344,6 +379,7 @@ mod tests {
             stroke_color: Some("#4472C4".to_owned()),
             stroke_width_px: Some(2.0),
             stroke_line_align,
+            stroke_compound_line: None,
             stroke_dash: None,
             stroke_fill_mode: None,
             stroke_pattern_preset: None,

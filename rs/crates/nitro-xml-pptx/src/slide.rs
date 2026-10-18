@@ -107,6 +107,9 @@ pub struct DumpElement {
     /// `a:ln/@algn` (`in` / `ctr`); omitted means centred (`ctr`). Paint only.
     #[serde(skip)]
     pub stroke_line_align: Option<String>,
+    /// `a:ln/@cmpd` (sng|dbl|thickThin|thinThick|tri) for compound strokes (paint only).
+    #[serde(skip)]
+    pub stroke_compound_line: Option<String>,
     /// `a:ln/a:prstDash/@val` (paint only).
     #[serde(skip)]
     pub stroke_dash: Option<String>,
@@ -1834,6 +1837,7 @@ fn build_dump(
         stroke_color: extras.stroke_color,
         stroke_width_px: extras.stroke_width_px,
         stroke_line_align: extras.stroke_line_align,
+        stroke_compound_line: extras.stroke_compound_line,
         stroke_dash: extras.stroke_dash,
         stroke_fill_mode: extras.stroke_fill_mode,
         stroke_pattern_preset: extras.stroke_pattern_preset,
@@ -2153,6 +2157,7 @@ struct PaintExtras {
     stroke_color: Option<String>,
     stroke_width_px: Option<f64>,
     stroke_line_align: Option<String>,
+    stroke_compound_line: Option<String>,
     stroke_dash: Option<String>,
     stroke_fill_mode: Option<String>,
     stroke_pattern_preset: Option<String>,
@@ -2427,6 +2432,9 @@ fn shape_paint_extras(
         }
         if let Some(algn) = attr(ln, "algn") {
             extras.stroke_line_align = Some(algn.to_owned());
+        }
+        if let Some(cmpd) = attr(ln, "cmpd") {
+            extras.stroke_compound_line = Some(cmpd.to_owned());
         }
         extras.connector_start_arrow = parse_line_end_arrow(ln, "headEnd");
         extras.connector_end_arrow = parse_line_end_arrow(ln, "tailEnd");

@@ -6,6 +6,7 @@ mod chart;
 mod chart3d;
 mod chart_vm;
 mod comments;
+mod compound_line;
 mod connector;
 mod connector_geometry;
 mod connector_markers;
@@ -207,6 +208,7 @@ mod tests {
             stroke_color: None,
             stroke_width_px: None,
             stroke_line_align: None,
+            stroke_compound_line: None,
             stroke_dash: None,
             stroke_fill_mode: None,
             stroke_pattern_preset: None,

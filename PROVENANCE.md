@@ -391,4 +391,5 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-pptx/src/edit/table.rs` | `src/core/pptx/editor/render/table-layout.ts`, `table-cell-edit.ts` @ e66aaec | Slide table cell text and row/column insert/delete (#85). |
 
 | `rs/crates/nitro-xml-pptx/src/render/pattern_tile.rs` | `src/ui/src/pptx/render/fill-style.ts` (`getPatternTile`) @ e66aaec | OOXML `a:pattFill` tile markup for SVG pattern stroke paint (#27). |
+| `rs/crates/nitro-xml-pptx/src/render/compound_line.rs` | `src/ui/src/pptx/render/connector-style.ts` (`getCompoundLineOffsets`, `getCompoundLineWidths`) @ e66aaec | OOXML `a:ln/@cmpd` (sng|dbl|thickThin|thinThick|tri) offsets and strand widths for multi-path compound stroke rendering (#27). |
 | `rs/crates/nitro-xml-pptx/src/render/chart_vm.rs` | `src/ui/src/pptx/render/chart-cartesian*.ts`, `chart-view-model-layout.ts`, `chart-axis-render.ts`, `chart-category-axis.ts`, `chart-legend-*.ts`, `chart-style-palette.ts`, `chart-view-model-dom.ts` @ e66aaec | pptx chart view-model engine, flat clustered-column subset (#27). Unported features return `None` and fall back to the S1 painter. |

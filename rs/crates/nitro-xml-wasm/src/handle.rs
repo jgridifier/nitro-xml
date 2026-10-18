@@ -932,19 +932,21 @@ impl Handle {
             if item.is_null() || item.is_undefined() {
                 parsed.push(None);
             } else {
-                // Parse nested array: Array<Array<[x, y]>>
-                if let Ok(contours_array) = js_sys::Array::from(&item).dyn_into::<js_sys::Array>() {
+                // Parse nested array: Array<Array<{x, y}>>
+                if let Ok(contours_array) = item.dyn_into::<js_sys::Array>() {
                     let mut contours = Vec::new();
                     for j in 0..contours_array.length() {
                         let ring_item = contours_array.get(j);
-                        if let Ok(ring_array) = js_sys::Array::from(&ring_item).dyn_into::<js_sys::Array>() {
+                        if let Ok(ring_array) = ring_item.dyn_into::<js_sys::Array>() {
                             let mut ring = Vec::new();
                             for k in 0..ring_array.length() {
                                 let pt_item = ring_array.get(k);
-                                if let Ok(pt_array) = js_sys::Array::from(&pt_item).dyn_into::<js_sys::Array>() {
-                                    if pt_array.length() >= 2 {
-                                        let x = pt_array.get(0).as_f64().unwrap_or(0.0);
-                                        let y = pt_array.get(1).as_f64().unwrap_or(0.0);
+                                // Try to access x and y properties from object
+                                if let (Ok(x_val), Ok(y_val)) = (
+                                    js_sys::Reflect::get(&pt_item, &"x".into()),
+                                    js_sys::Reflect::get(&pt_item, &"y".into()),
+                                ) {
+                                    if let (Some(x), Some(y)) = (x_val.as_f64(), y_val.as_f64()) {
                                         ring.push((x, y));
                                     }
                                 }

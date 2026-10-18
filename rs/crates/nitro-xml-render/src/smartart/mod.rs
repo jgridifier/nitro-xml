@@ -11,10 +11,19 @@
 //! frames are still dropped. Used by pptx; xlsx/docx can call the same entry.
 
 mod circular_arrow;
+mod effect_intensity;
 mod pres_point_styles;
+mod style_helpers;
 mod text_wrap_estimate;
 
+pub use effect_intensity::{
+    data_style_from_effect_intensity, resolve_smart_art_effect_intensity_from_qs_xml,
+    SmartArtEffectIntensity,
+};
 pub use pres_point_styles::{pres_styles_by_model_id, PresStyleMeta};
+pub use style_helpers::{
+    diagram_style_from_data_style, style_shadow, style_stroke, DiagramStyleIntensity,
+};
 
 use text_wrap_estimate::{drawing_text_base_line_height_ratio, wrap_text_by_estimated_width};
 
@@ -90,14 +99,35 @@ pub fn smartart_svg_with_scheme_and_pres(
     scheme: Option<&BTreeMap<String, String>>,
     pres_styles: Option<&BTreeMap<String, PresStyleMeta>>,
 ) -> String {
+    smartart_svg_with_scheme_pres_and_qs(drawing_xml, width, height, scheme, pres_styles, None)
+}
+
+/// Like [`smartart_svg_with_scheme_and_pres`], resolving quick-style effect intensity for drop shadows.
+pub fn smartart_svg_with_scheme_pres_and_qs(
+    drawing_xml: Option<&str>,
+    width: f64,
+    height: f64,
+    scheme: Option<&BTreeMap<String, String>>,
+    pres_styles: Option<&BTreeMap<String, PresStyleMeta>>,
+    quick_style_xml: Option<&str>,
+) -> String {
     let w = width.max(1.0).round();
     let h = height.max(1.0).round();
+    let data_style = quick_style_xml
+        .and_then(resolve_smart_art_effect_intensity_from_qs_xml)
+        .and_then(|i| data_style_from_effect_intensity(Some(i)));
+    let diagram_style = diagram_style_from_data_style(data_style);
+    let shadow_filter = style_shadow(diagram_style);
+    // Intense/moderate quick styles: keep authored fontRef (shp-shapes). Subtle/flat:
+    // allow the node1×3 dk1/lt1 column heuristic (accent-process hier5 / 213430).
+    let prefer_authored_font_ref = shadow_filter.is_some();
     if let Some(xml) = drawing_xml {
         if let Ok(doc) = parse_xml_str(xml) {
-            let mut shapes = collect_shapes(&doc.root, scheme, pres_styles);
+            let mut shapes =
+                collect_shapes(&doc.root, scheme, pres_styles, prefer_authored_font_ref);
             shapes.retain(keep_shape);
             if !shapes.is_empty() {
-                return shapes_svg(&shapes, w, h);
+                return shapes_svg(&shapes, w, h, diagram_style, shadow_filter);
             }
         }
     }
@@ -116,7 +146,7 @@ pub fn smartart_draw_args(
     let Ok(doc) = parse_xml_str(xml) else {
         return Vec::new();
     };
-    let mut shapes = collect_shapes(&doc.root, scheme, None);
+    let mut shapes = collect_shapes(&doc.root, scheme, None, false);
     shapes.retain(keep_shape);
     shapes
         .into_iter()
@@ -303,13 +333,18 @@ fn diagram_shape_bounds(shape: &SpBox) -> (f64, f64, f64, f64) {
 }
 
 fn build_gradient_defs(defs_body: &mut String, gradient: &Gradient) {
+    // Match upstream `resolveDrawingShapeGradient` (smartart-drawing-gradient.ts):
+    // dx = cos(rad)/2, dy = sin(rad)/2 → x1 = (0.5-dx)*100%, etc.
+    let radians = gradient.angle_degrees * std::f64::consts::PI / 180.0;
+    let dx = radians.cos() / 2.0;
+    let dy = radians.sin() / 2.0;
     defs_body.push_str(&format!(
         "<linearGradient id=\"{}\" x1=\"{}%\" y1=\"{}%\" x2=\"{}%\" y2=\"{}%\">",
         escape(&gradient.id),
-        num(50.0 + 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).cos()),
-        num(50.0 + 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).sin()),
-        num(50.0 - 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).cos()),
-        num(50.0 - 50.0 * (gradient.angle_degrees * std::f64::consts::PI / 180.0).sin()),
+        num((0.5 - dx) * 100.0),
+        num((0.5 - dy) * 100.0),
+        num((0.5 + dx) * 100.0),
+        num((0.5 + dy) * 100.0),
     ));
     for stop in &gradient.stops {
         let opacity_attr = match stop.opacity {
@@ -326,7 +361,13 @@ fn build_gradient_defs(defs_body: &mut String, gradient: &Gradient) {
     defs_body.push_str("</linearGradient>");
 }
 
-fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
+fn shapes_svg(
+    shapes: &[SpBox],
+    _w: f64,
+    _h: f64,
+    diagram_style: DiagramStyleIntensity,
+    shadow_filter: Option<&str>,
+) -> String {
     let mut min_x = f64::INFINITY;
     let mut min_y = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
@@ -355,11 +396,14 @@ fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
             build_gradient_defs(&mut defs_body, grad);
         }
     }
+    let style_sw = style_stroke(diagram_style);
     let mut body = String::new();
     for shape in shapes {
         let paint_body = shape.fill != "none" || shape.stroke != "none";
         let stroke_w = if shape.stroke_width > 0.0 {
             shape.stroke_width
+        } else if style_sw > 0.0 {
+            style_sw
         } else {
             default_stroke
         };
@@ -381,6 +425,15 @@ fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
             .as_ref()
             .map(|t| format!(" transform=\"{}\"", escape(t)))
             .unwrap_or_default();
+
+        let group_open = if let Some(filter) = shadow_filter {
+            format!("<g style=\"filter:{}\">", escape(filter))
+        } else {
+            String::new()
+        };
+        if !group_open.is_empty() {
+            body.push_str(&group_open);
+        }
 
         if paint_body {
             match &shape.kind {
@@ -435,6 +488,9 @@ fn shapes_svg(shapes: &[SpBox], _w: f64, _h: f64) -> String {
                 origin_x,
                 origin_y,
             );
+        }
+        if !group_open.is_empty() {
+            body.push_str("</g>");
         }
     }
     format!(
@@ -701,10 +757,11 @@ fn collect_shapes(
     root: &Element,
     scheme: Option<&BTreeMap<String, String>>,
     pres_styles: Option<&BTreeMap<String, PresStyleMeta>>,
+    prefer_authored_font_ref: bool,
 ) -> Vec<SpBox> {
     let mut out = Vec::new();
     walk_shapes(root, scheme, &mut out);
-    apply_pres_style_label_text_colors(&mut out, pres_styles, scheme);
+    apply_pres_style_label_text_colors(&mut out, pres_styles, scheme, prefer_authored_font_ref);
     resolve_label_font_colors(&mut out);
     out
 }
@@ -903,6 +960,7 @@ fn apply_pres_style_label_text_colors(
     shapes: &mut [SpBox],
     pres: Option<&BTreeMap<String, PresStyleMeta>>,
     scheme: Option<&BTreeMap<String, String>>,
+    prefer_authored_font_ref: bool,
 ) {
     if pres.is_none() {
         return;
@@ -917,6 +975,11 @@ fn apply_pres_style_label_text_colors(
         .map(|s| s.as_str())
         .unwrap_or("#FFFFFF");
     for shape in shapes {
+        // Intense/moderate: keep authored fontRef (shp-shapes white on dark gradFill).
+        // Subtle: node1×3 column heuristic still matches TS oracle (213430 black outers).
+        if prefer_authored_font_ref && shape.label_font_from_ref {
+            continue;
+        }
         let Some(model_id) = shape.model_id.as_deref() else {
             continue;
         };
@@ -1221,6 +1284,11 @@ fn extract_gradient_stops(
     if stops.is_empty() {
         None
     } else {
+        stops.sort_by(|a, b| {
+            a.offset_pct
+                .partial_cmp(&b.offset_pct)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         Some(stops)
     }
 }
@@ -1445,7 +1513,8 @@ mod tests {
     use nitro_xml_opc::xml::parse_xml_str;
 
     use super::{
-        collect_shapes, collect_text, smartart_draw_args, smartart_svg, smartart_svg_with_scheme,
+        collect_shapes, collect_text, pres_styles_by_model_id, smartart_draw_args, smartart_svg,
+        smartart_svg_with_scheme, smartart_svg_with_scheme_pres_and_qs,
     };
 
     // Catches: a cached dsp:sp drawing collapsed to the labelled SmartArt stub.
@@ -1923,7 +1992,7 @@ mod tests {
     fn deep_nesting_shape_walk_does_not_overflow_stack() {
         let xml = format!("{}{}", "<a>".repeat(4096), "</a>".repeat(4096));
         let root = parse_xml_str(&xml).expect("parses").root;
-        let shapes = collect_shapes(&root, None, None);
+        let shapes = collect_shapes(&root, None, None, false);
         assert!(shapes.is_empty());
         let mut parts = Vec::new();
         collect_text(&root, &mut parts);
@@ -2026,6 +2095,10 @@ mod tests {
             "gradient defs not emitted: {svg}"
         );
         assert!(
+            svg.contains("x1=\"50%\" y1=\"0%\" x2=\"50%\" y2=\"100%\""),
+            "90° lin ang must match TS resolveDrawingShapeGradient axis: {svg}"
+        );
+        assert!(
             svg.contains("url(#grad-0)"),
             "gradient reference not used in shape fill: {svg}"
         );
@@ -2107,6 +2180,59 @@ mod tests {
         assert!(
             !svg.contains("#D6DCE4"),
             "using fallback gray instead of gradients: {svg}"
+        );
+    }
+
+    // Catches: shp-shapes SmartArt labels painted black despite fontRef lt1 (TS white).
+    #[test]
+    fn shp_shapes_labels_use_font_ref_lt1_white() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/pptx/python-pptx-shp-shapes.pptx"
+        );
+        let bytes = std::fs::read(path).expect("fixture");
+        let mut zip = nitro_xml_opc::zip::ZipPackage::open(&bytes).expect("zip");
+        let drawing = String::from_utf8(
+            zip.read("ppt/diagrams/drawing1.xml")
+                .expect("drawing")
+                .expect("bytes"),
+        )
+        .expect("utf8");
+        let data = String::from_utf8(
+            zip.read("ppt/diagrams/data1.xml")
+                .expect("data")
+                .expect("bytes"),
+        )
+        .expect("utf8");
+        let qs = String::from_utf8(
+            zip.read("ppt/diagrams/quickStyle1.xml")
+                .expect("qs")
+                .expect("bytes"),
+        )
+        .expect("utf8");
+        let mut scheme = BTreeMap::new();
+        scheme.insert("accent1".to_owned(), "#156082".to_owned());
+        scheme.insert("lt1".to_owned(), "#FFFFFF".to_owned());
+        scheme.insert("dk1".to_owned(), "#000000".to_owned());
+        let pres = pres_styles_by_model_id(&data);
+        let svg = smartart_svg_with_scheme_pres_and_qs(
+            Some(&drawing),
+            800.0,
+            400.0,
+            Some(&scheme),
+            Some(&pres),
+            Some(&qs),
+        );
+        for chunk in svg.split("<text ").skip(1) {
+            let end = chunk.find('>').unwrap_or(0);
+            let attrs = &chunk[..end];
+            let content_end = chunk.find("</text>").unwrap_or(chunk.len());
+            let content = &chunk[end + 1..content_end];
+            println!("TEXT attrs={attrs} content={content:?}");
+        }
+        assert!(
+            svg.contains("fill=\"#FFFFFF\"") || svg.contains("fill=\"#ffffff\""),
+            "expected white label fill: {svg}"
         );
     }
 }

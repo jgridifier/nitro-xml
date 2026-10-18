@@ -4,8 +4,9 @@
 // chart-axis-render.ts, chart-category-axis.ts, chart-legend-build.ts, chart-legend-layout.ts,
 // chart-style-palette.ts and chart-view-model-dom.ts (clustered column subset);
 // changes listed in PROVENANCE.md.
-//! pptx chart view-model engine (flat clustered columns). `render` returns `None` for any chart
-//! feature not yet ported so the caller falls back to the S1 SVG painter.
+//! pptx chart view-model engine (flat clustered columns, radar; pie / doughnut in
+//! `chart_vm_pie.rs`). `render` returns `None` for any chart feature not yet ported so the
+//! caller falls back to the S1 SVG painter.
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -15,6 +16,9 @@ use nitro_xml_opc::drawingml::{resolve_drawing_color, DrawingFill};
 use nitro_xml_render::chart::THEME_SLOTS;
 
 use super::font_substitution::substitute_font_family_stack;
+
+#[path = "chart_vm_pie.rs"]
+mod pie;
 
 const PX_PER_PT: f64 = 4.0 / 3.0;
 const DEFAULT_TEXT_PX: f64 = 10.0 * PX_PER_PT;
@@ -493,9 +497,67 @@ fn cat_tick(placement: Option<&str>, len: f64, top: bool) -> Option<(f64, f64)> 
     }
 }
 
+/// Legend text style after the chart-wide / legend `txPr` cascade.
+struct LegendStyle {
+    text: TextStyle,
+}
+
+/// `computeChartLegendLayout` + `appendChartLegendSvg`: swatch and label per `(color, label)` entry.
+fn push_legend(
+    o: &mut String,
+    style: &LegendStyle,
+    entries: &[(String, String)],
+    (lx, ly, vertical): (f64, f64, bool),
+) {
+    let leg = &style.text;
+    let have_style =
+        leg.size_pt.is_some() || leg.color.is_some() || leg.family.is_some() || leg.bold.is_some();
+    let size = if have_style {
+        leg.size_pt.map(|p| p * PX_PER_PT).unwrap_or(9.0)
+    } else {
+        9.0
+    };
+    let fill = leg.color.clone().unwrap_or_else(|| "#475569".into());
+    let fam = family_css(&leg.family);
+    let cnt = entries.len() as f64;
+    for (i, (color, label)) in entries.iter().enumerate() {
+        let (x, y) = if vertical {
+            (lx, ly + i as f64 * 14.0)
+        } else {
+            (lx - cnt * 80.0 / 2.0 + i as f64 * 80.0, ly)
+        };
+        let _ = write!(
+            o,
+            "<g class=\"pptxv-chart-legend-item\" transform=\"translate({x:.1},{y:.1})\"><rect x=\"0\" y=\"-7\" width=\"10\" height=\"10\" rx=\"2\" fill=\"{color}\"></rect>"
+        );
+        push_text(
+            o,
+            &Text {
+                x: 13.0,
+                y: 3.0,
+                text: label,
+                anchor: "start",
+                size,
+                fill: &fill,
+                bold: leg.bold,
+                family: &fam,
+                baseline: None,
+            },
+        );
+        o.push_str("</g>");
+    }
+}
+
 /// Render the chart, or `None` when it uses a feature this port does not cover yet.
 pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<String> {
     let pa = &space.plot_area;
+    if pa
+        .groups
+        .first()
+        .is_some_and(|g| matches!(g.kind, ChartGroupKind::Pie | ChartGroupKind::Doughnut))
+    {
+        return pie::render(space, w, h, theme);
+    }
     if pa.groups.len() != 1
         || pa
             .layout
@@ -1029,50 +1091,26 @@ pub fn render(space: &ChartSpace, w: u32, h: u32, theme: &VmTheme) -> Option<Str
             't' => (l.w / 2.0, 28.0, false),
             _ => (l.w / 2.0, l.h - 8.0, false),
         };
+        let entries: Vec<(String, String)> = series
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                let color = s
+                    .color
+                    .clone()
+                    .unwrap_or_else(|| palette[i % palette.len()].clone());
+                (color, s.name.clone())
+            })
+            .collect();
         let leg_rpr = legend.and_then(|x| def_rpr(x.tx_pr.as_ref(), &theme.scheme));
-        let leg = merge(&chart_style, &leg_rpr.or(space_rpr).unwrap_or_default());
-        let have_style = leg.size_pt.is_some()
-            || leg.color.is_some()
-            || leg.family.is_some()
-            || leg.bold.is_some();
-        let size = if have_style {
-            leg.size_pt.map(|p| p * PX_PER_PT).unwrap_or(9.0)
-        } else {
-            9.0
-        };
-        let fill = leg.color.clone().unwrap_or_else(|| "#475569".into());
-        let fam = family_css(&leg.family);
-        let cnt = series.len() as f64;
-        for (i, s) in series.iter().enumerate() {
-            let (x, y) = if vertical {
-                (lx, ly + i as f64 * 14.0)
-            } else {
-                (lx - cnt * 80.0 / 2.0 + i as f64 * 80.0, ly)
-            };
-            let color = s
-                .color
-                .clone()
-                .unwrap_or_else(|| palette[i % palette.len()].clone());
-            let _ = write!(
-                o,
-                "<g class=\"pptxv-chart-legend-item\" transform=\"translate({x:.1},{y:.1})\"><rect x=\"0\" y=\"-7\" width=\"10\" height=\"10\" rx=\"2\" fill=\"{color}\"></rect>"
-            );
-            push_text(
-                &mut o,
-                &Text {
-                    x: 13.0,
-                    y: 3.0,
-                    text: &s.name,
-                    anchor: "start",
-                    size,
-                    fill: &fill,
-                    bold: leg.bold,
-                    family: &fam,
-                    baseline: None,
-                },
-            );
-            o.push_str("</g>");
-        }
+        push_legend(
+            &mut o,
+            &LegendStyle {
+                text: merge(&chart_style, &leg_rpr.or(space_rpr).unwrap_or_default()),
+            },
+            &entries,
+            (lx, ly, vertical),
+        );
     }
     o.push_str("</svg>");
     let _ = THEME_SLOTS;

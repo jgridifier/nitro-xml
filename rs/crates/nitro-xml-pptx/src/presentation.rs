@@ -1027,6 +1027,11 @@ impl<'a> Presentation<'a> {
                     }
                 }
             }
+            if el.smartart_qs_xml.is_none() {
+                if let Some(qs) = el.smartart_qs_r_id.clone() {
+                    el.smartart_qs_xml = self.part_xml_by_rel(owner, &qs);
+                }
+            }
             if let Some(children) = el.children.clone() {
                 let mut children = children;
                 self.attach_graphic_payloads(owner, &mut children);

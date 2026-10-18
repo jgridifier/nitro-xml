@@ -473,7 +473,7 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
     let paras = children_local(tx_body, "p", ns::A);
     let para_count = paras.len();
     let mut auto_seq = AutoNumberSequence::default();
-    paras
+    let mut paras_result = paras
         .iter()
         .enumerate()
         .map(|(para_index, p)| {
@@ -636,7 +636,31 @@ pub fn parse_text_paint_paragraphs_with_list_styles(
                 bullet_text_color: None,
             }
         })
-        .collect()
+        .collect::<Vec<_>>();
+
+    // Trim trailing empty paragraphs (ported from upstream buildParagraphs).
+    // An authored blank line between two paragraphs is real vertical spacing and must survive.
+    // Blank paragraphs AFTER the last content are dropped: load and edit-remap paths both
+    // leave a trailing separator behind, and honouring those would grow every text body
+    // (and shift anything vertically centred in height=0+anchor=ctr) for markup never drawn.
+    let has_content = |p: &TextPaintParagraph| -> bool {
+        !p.runs.is_empty() || p.bullet_marker.is_some()
+    };
+
+    let mut last_content_idx = None;
+    for (i, p) in paras_result.iter().enumerate() {
+        if has_content(p) {
+            last_content_idx = Some(i);
+        }
+    }
+
+    if let Some(idx) = last_content_idx {
+        paras_result.truncate(idx + 1);
+    } else {
+        paras_result.clear();
+    }
+
+    paras_result
 }
 
 struct ParagraphPaintSpacing {
@@ -1657,5 +1681,41 @@ mod tests {
             paras[0].runs[0].run_text_color,
             Some("transparent".to_string())
         );
+    }
+
+    // Catches: trailing empty a:p after last content still painted under height=0+anchor=ctr (poi-with_japanese Rectangle 3).
+    #[test]
+    fn trailing_empty_paragraphs_trimmed() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr/>
+              <a:p><a:r><a:rPr lang="en-US"/><a:t>Content</a:t></a:r></a:p>
+              <a:p/>
+              <a:p/>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let paras = parse_text_paint_paragraphs(&doc.root);
+        assert_eq!(paras.len(), 1, "Trailing empty paragraphs should be trimmed");
+        assert_eq!(paras[0].runs[0].text, "Content");
+    }
+
+    // Catches: interior empty paragraphs kept between content (real vertical spacing).
+    #[test]
+    fn interior_empty_paragraphs_preserved() {
+        let doc = parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              <a:bodyPr/>
+              <a:p><a:r><a:rPr lang="en-US"/><a:t>Line 1</a:t></a:r></a:p>
+              <a:p/>
+              <a:p><a:r><a:rPr lang="en-US"/><a:t>Line 2</a:t></a:r></a:p>
+            </p:txBody>"#,
+        )
+        .unwrap();
+        let paras = parse_text_paint_paragraphs(&doc.root);
+        assert_eq!(paras.len(), 3, "Interior empty paragraphs should be preserved");
+        assert_eq!(paras[0].runs[0].text, "Line 1");
+        assert!(paras[1].runs.is_empty());
+        assert_eq!(paras[2].runs[0].text, "Line 2");
     }
 }

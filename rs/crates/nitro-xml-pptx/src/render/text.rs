@@ -667,9 +667,12 @@ pub fn paint_text_body<I: StringIntern>(
     let size = paint.font_size_px.unwrap_or(24.0).max(1.0);
     let per_paragraph_align = paint.paragraphs.is_some_and(|paras| !paras.is_empty());
     let italic_body = paint.font_italic
-        || paint
-            .paragraphs
-            .is_some_and(|paras| paras.iter().any(|p| p.level_font_italic == Some(true)));
+        || paint.paragraphs.is_some_and(|paras| {
+            paras.iter().any(|p| {
+                p.level_font_italic == Some(true)
+                    || p.runs.iter().any(|r| r.run_font_italic == Some(true))
+            })
+        });
     let italic_inset_slop = if italic_body { 1.0 } else { 0.0 };
     if let Some(layout) = paint.layout {
         apply_text_body_layout(

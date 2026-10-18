@@ -45,6 +45,7 @@ export const PPTX_HARD_FIXTURE_IDS = new Set([
 	'real-pptx-poi-45545_Comment',
 	'real-pptx-poi-51187',
 	'real-pptx-poi-EmbeddedAudio',
+	'real-pptx-poi-PPTWithAttachments',
 	'real-pptx-poi-SimpleMacro',
 	'real-pptx-poi-60810',
 	'real-pptx-poi-bug59273',

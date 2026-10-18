@@ -75,7 +75,13 @@ export class ViewerElement extends HTMLElement {
       if (this._ch && h) this._ch.innerHTML = h;
     };
     if (!ro) await loadEditorModule();
-    await d.open(b, n, { readonly: ro });
+    try {
+      await d.open(b, n, { readonly: ro });
+    } catch (e) {
+      // Size-limit / open failures: show PACKAGE_TOO_LARGE_MESSAGE (or other) in the UI.
+      this._fail(e);
+      throw e;
+    }
     this._d = d;
     await this._ao();
     this._tick();

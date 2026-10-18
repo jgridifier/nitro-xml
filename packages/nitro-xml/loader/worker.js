@@ -43,7 +43,13 @@ applyFontSourceToHandle(handle, undefined);
 if (msg.name) {
 try {
 handle.openDocument(msg.name);
+} catch (e) {
+try {
+handle.free();
 } catch {
+}
+handle = null;
+throw e;
 }
 }
 if (msg.readonly === false) {

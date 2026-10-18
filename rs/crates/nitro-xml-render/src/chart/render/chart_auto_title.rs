@@ -6,6 +6,23 @@ use super::chart_view::ChartViewModel;
 /// PowerPoint's placeholder for an auto title on a multi-series chart.
 pub const CHART_AUTO_TITLE: &str = "Chart Title";
 
+/// Upstream `withAutoTitle` — UI / P9 only (`bar3d_extrusion`), never on S1 oracle dumps.
+///
+/// A classic chart with no `c:title` still gets `hasTitle` when it plots exactly one
+/// named series and `c:autoTitleDeleted` is not set.
+pub fn apply_with_auto_title(view: &mut ChartViewModel, auto_title_deleted: Option<bool>) {
+    if view.title_placeholder
+        || view.title.is_some()
+        || auto_title_deleted == Some(true)
+        || view.series.len() != 1
+        || view.series[0].name.is_empty()
+    {
+        return;
+    }
+    view.title_placeholder = true;
+    view.auto_title = true;
+}
+
 /// Title text to draw on the pptx bar3D extrusion path (matches upstream `resolveChartTitleText`).
 pub fn resolve_p9_chart_title_text(model: &ChartViewModel) -> Option<String> {
     if !model.title_placeholder {
@@ -88,5 +105,34 @@ mod tests {
     fn resolve_p9_without_placeholder_returns_none() {
         let model = bare_model(false, None, 3);
         assert_eq!(resolve_p9_chart_title_text(&model), None);
+    }
+
+    // Catches: withAutoTitle must arm title_placeholder+auto_title for a lone named series
+    // (f8f44 no-c:title) without writing the series name into title (resolve_p9 does that).
+    #[test]
+    fn apply_with_auto_title_arms_single_named_series() {
+        let mut model = bare_model(false, None, 1);
+        apply_with_auto_title(&mut model, None);
+        assert!(model.title_placeholder);
+        assert!(model.auto_title);
+        assert!(model.title.is_none());
+        assert_eq!(
+            resolve_p9_chart_title_text(&model).as_deref(),
+            Some("Series 1")
+        );
+    }
+
+    // Catches: withAutoTitle must not fire when autoTitleDeleted or multi-series (S1 stays clean).
+    #[test]
+    fn apply_with_auto_title_skips_deleted_and_multi_series() {
+        let mut deleted = bare_model(false, None, 1);
+        apply_with_auto_title(&mut deleted, Some(true));
+        assert!(!deleted.title_placeholder);
+        assert!(!deleted.auto_title);
+
+        let mut multi = bare_model(false, None, 2);
+        apply_with_auto_title(&mut multi, None);
+        assert!(!multi.title_placeholder);
+        assert!(!multi.auto_title);
     }
 }

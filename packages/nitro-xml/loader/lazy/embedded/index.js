@@ -3,7 +3,7 @@
 // mode="embedded"; excluded from the first-load budget with the rest of loader/lazy/.
 // Calls only the existing host.shellAction(op, arg); enabled/pressed state is mirrored
 // from the (hidden) Rust chrome, which stays the single source of truth.
-import { ICONS } from "./icons.js";
+import { ICONS } from "../ribbon/icons.js";
 import { MANIFEST } from "./manifest.js";
 import { CSS } from "./style.js";
 

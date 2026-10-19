@@ -6,30 +6,64 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Nitro XML · live demos</title>
   <link rel="stylesheet" href="./styles.css" />
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("nitro-theme"); } catch (e) {}
+      if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
 </head>
-<body>
-  <header class="top">
-    <h1>Nitro XML · live demos</h1>
+<body class="home">
+  <header class="hd">
+    <a class="brand" href="../index.html"><span class="mark" aria-hidden="true">N</span>Nitro XML</a>
     <span class="grow"></span>
-    <a href="https://github.com/jgridifier/nitro-xml">Repo</a>
     <a href="../index.html">Plan</a>
+    <a href="https://github.com/jgridifier/nitro-xml">GitHub</a>
+    <button type="button" id="theme" class="ico" aria-label="Toggle dark theme" title="Toggle light / dark theme">◐</button>
   </header>
-  <main class="cards">
+  <main>
     <h1>Open Office files in the browser</h1>
-    <p>
-      WASM viewer for Excel, Word and PowerPoint — normal chrome or
-      <a href="../embedded-mode.md">embedded mode</a>.
-      Each page loads a small sample; use <strong>Open local file</strong> to try your own
-      (nothing is uploaded). Toggle Normal / Embedded on the same file.
+    <p class="lead">
+      A Rust and WebAssembly viewer for Word, Excel and PowerPoint files. Every demo opens a
+      sample straight away, or drop in your own: the file is processed entirely in your browser and
+      never uploaded.
     </p>
-    <div class="grid">
-      <a class="card" href="./xlsx-full.html"><strong>xlsx · normal</strong><span>Full viewer chrome</span></a>
-      <a class="card" href="./xlsx-embedded.html"><strong>xlsx · embedded</strong><span>Compact toolbar</span></a>
-      <a class="card" href="./docx-full.html"><strong>docx · normal</strong><span>Full viewer chrome</span></a>
-      <a class="card" href="./docx-embedded.html"><strong>docx · embedded</strong><span>Compact toolbar</span></a>
-      <a class="card" href="./pptx-full.html"><strong>pptx · normal</strong><span>Full viewer chrome</span></a>
-      <a class="card" href="./pptx-embedded.html"><strong>pptx · embedded</strong><span>Compact toolbar</span></a>
+    <div class="apps">
+      <section class="app" style="--acc:#185abd" aria-labelledby="w">
+        <span class="tile" aria-hidden="true">W</span>
+        <h2 id="w">Word</h2><p class="cap">.docx documents</p>
+        <div class="go"><a class="pri" href="./docx-full.html">Full ribbon</a><a href="./docx-embedded.html">Embedded</a></div>
+      </section>
+      <section class="app" style="--acc:#107c41" aria-labelledby="x">
+        <span class="tile" aria-hidden="true">X</span>
+        <h2 id="x">Excel</h2><p class="cap">.xlsx workbooks</p>
+        <div class="go"><a class="pri" href="./xlsx-full.html">Full ribbon</a><a href="./xlsx-embedded.html">Embedded</a></div>
+      </section>
+      <section class="app" style="--acc:#c43e1c" aria-labelledby="p">
+        <span class="tile" aria-hidden="true">P</span>
+        <h2 id="p">PowerPoint</h2><p class="cap">.pptx presentations</p>
+        <div class="go"><a class="pri" href="./pptx-full.html">Full ribbon</a><a href="./pptx-embedded.html">Embedded</a></div>
+      </section>
     </div>
+    <p class="note">
+      <b>Full</b> is the complete viewer frame: title bar, ribbon, panes and status bar.
+      <b>Embedded</b> is the single-row toolbar a host app gets from
+      <code>&lt;nitro-docx mode="embedded"&gt;</code>
+      (<a href="../embedded-mode.md">design note</a>). You can switch between them on any demo page.
+    </p>
   </main>
+  <footer class="ft"><span id="stamp">Nitro XML demos</span></footer>
+  <script type="module">
+    const t = document.documentElement;
+    document.getElementById("theme").addEventListener("click", () => {
+      t.dataset.theme = t.dataset.theme === "dark" ? "light" : "dark";
+      try { localStorage.setItem("nitro-theme", t.dataset.theme); } catch (e) {}
+    });
+    fetch("./build.json").then((r) => r.ok && r.json()).then((b) => {
+      if (b) document.getElementById("stamp").textContent = `Nitro XML · build ${b.sha} · ${b.date}`;
+    }).catch(() => {});
+  </script>
 </body>
 </html>

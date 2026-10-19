@@ -4,7 +4,7 @@
 Status: proposal (Stream F). Slide show stays deferred (#122); nothing here builds it.
 
 ## Goal
-Host apps that embed `<nitro-xlsx>`, `<nitro-docx>` or `<nitro-pptx>` want one small, familiar toolbar, not the full viewer chrome. Embedded mode replaces the chrome with a single compact bar that looks and behaves like the PowerPoint Home ribbon (icon above label, grouped, group names underneath at wide widths). **Default mode does not change**: same DOM, same pixels, same events. Embedded is opt-in.
+Host apps that embed `<nitro-xlsx>`, `<nitro-docx>` or `<nitro-pptx>` want one small, familiar toolbar, not the full viewer chrome. Embedded mode replaces the chrome with a single compact bar styled like Office's *simplified ribbon*: one 40 px row of icon-only buttons (labels in tooltips), thin group dividers, and a More menu (group names appear inside it). See [ux-revision.md](ux-revision.md). **Default mode does not change**: same DOM, same pixels, same events. Embedded is opt-in.
 
 ## API
 | Surface | Form |
@@ -54,8 +54,8 @@ Editable: File (Save, Undo, Redo) · Clipboard (Copy) · Font (Bold, Italic, Und
 Left out because they are not reachable today: Cut/Paste (unmapped stubs), insert/delete rows and columns (`insertRows` etc. are not registered on the WASM edit session; the ribbon ids are unmapped), number-format dropdown, borders, fills, merge. Toggle buttons carry no pressed state: the Rust chrome has no live cell-style state yet (`is_checked` is a stub), and a pressed look that lies is worse than none.
 
 ## Narrow widths (container query on the host, not the viewport)
-1. ≥ 720 px: icon + label, group captions.
-2. 480-720 px: labels hidden (icon only, tooltips remain), captions hidden.
+1. ≥ 720 px: icon-only buttons, regular spacing.
+2. 480-720 px: tighter spacing.
 3. < 480 px: groups are moved, from the right, into a "More" overflow menu (`aria-haspopup`, `aria-expanded`, roving focus inside, Escape returns focus). Always visible: first group and View.
 
 ## Out of scope

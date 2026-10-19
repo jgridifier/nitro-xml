@@ -3,12 +3,11 @@
 //!
 //! The shell (views, columns, format, dimension) is split off the front of the part. `<sheetData>`
 //! rows are visited in order; cell records are kept for the viewport plus slop (and frozen panes).
-//! When row numbers are monotonic past the window:
-//! - If a trustworthy `<dimension ref>` was in the prefix, inflate **stops** (O(viewport)) and the
-//!   used extent comes from that ref — no full-sheet `SkipRows` walk.
-//! - Otherwise remaining rows are skipped (no cell keep) so the post-`sheetData` tail — merges,
-//!   conditional formatting, etc. — and used-range extents are still captured without storing every
-//!   cell.
+//! When row numbers are monotonic past the window and `<dimension>` is trustworthy:
+//! - **Early stop** (`allow_early_stop`): inflate stops at the viewport (O(viewport) first open).
+//! - **SeekTail** (`allow_early_stop = false` with dimension): byte-scan to `</sheetData>` without
+//!   row/cell tokenizing so merges / CF / DV land — used by [`super::FirstView::ensure_sheet_complete`].
+//! Without a trustworthy dimension, `SkipRows` walks remaining rows for extents and sparse heights.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -52,8 +51,10 @@ pub(crate) struct SheetRequest<'a> {
     pub name: &'a str,
     pub sheet_id: u32,
     pub state: SheetState,
-    /// When true (default), a trustworthy `<dimension>` may stop inflate at the viewport.
-    /// Set false to force SkipRows so post-`sheetData` merges / CF land (selection parity).
+    /// When true (default), a trustworthy `<dimension>` stops inflate at the viewport.
+    /// When false with a trustworthy dimension, byte-seek to `</sheetData>` (SeekTail) so the
+    /// post-sheetData shell lands without SkipRows tokenizing. When dimension is missing/wrong,
+    /// false still uses SkipRows.
     pub allow_early_stop: bool,
 }
 
@@ -239,7 +240,7 @@ fn dimension_ref(shell_xml: &str) -> Option<CellRange> {
     att(Some(node), "ref").and_then(parse_range)
 }
 
-/// Whether `<dimension>` is safe to trust for an early inflate stop (no SkipRows walk).
+/// Whether `<dimension>` is safe to trust for a byte-level seek past the viewport (no SkipRows).
 fn dimension_trustworthy(
     dimension: Option<&CellRange>,
     view: &ViewportRect,
@@ -423,6 +424,9 @@ enum Phase {
     Rows,
     /// Past the viewport: discard row XML but keep scanning for extents + `</sheetData>`.
     SkipRows,
+    /// Past the viewport with a trustworthy `<dimension>`: discard bytes until `</sheetData>`
+    /// without parsing `<row>` / `<c>` (still captures the post-sheetData tail).
+    SeekTail,
     Tail,
 }
 
@@ -502,7 +506,7 @@ impl SheetParser {
                 // Cells may still be window-only; extents + merges came from a full sheetData scan.
                 self.capture.truncated = false;
             }
-            Phase::Rows | Phase::SkipRows => {
+            Phase::Rows | Phase::SkipRows | Phase::SeekTail => {
                 if let Some(at) = find_sheet_data_close(&self.text) {
                     self.capture.tail = self.text[at..].to_owned();
                     self.capture.truncated = false;
@@ -598,22 +602,23 @@ impl SheetParser {
                         }
                         let limit = self.view.r1.saturating_add(ROW_SLOP);
                         if self.monotonic && row0 > limit {
-                            if self.allow_early_stop
-                                && dimension_trustworthy(
-                                    self.dimension.as_ref(),
-                                    &self.view,
-                                    &self.capture,
-                                )
-                            {
-                                // O(viewport): stop inflate; used extent comes from `<dimension>`.
-                                // Caller may later force SkipRows (`allow_early_stop=false`) to
-                                // pick up mergeCells / CF after sheetData for selection.
+                            let dim_ok = dimension_trustworthy(
+                                self.dimension.as_ref(),
+                                &self.view,
+                                &self.capture,
+                            );
+                            if dim_ok && self.allow_early_stop {
+                                // O(viewport) first open; caller SeekTails via ensure_sheet_complete.
                                 self.stop = true;
                                 self.capture.truncated = true;
                                 return;
                             }
-                            // Keep inflating: skip row bodies so merges/CF after sheetData land,
-                            // and so used-range extents stay accurate when `<dimension>` is absent.
+                            if dim_ok {
+                                // Complete shell without tokenizing every remaining row.
+                                self.phase = Phase::SeekTail;
+                                continue;
+                            }
+                            // No trustworthy dimension: SkipRows for extents + sparse row heights.
                             self.phase = Phase::SkipRows;
                             continue;
                         }
@@ -645,6 +650,25 @@ impl SheetParser {
                         self.text = self.text[end..].to_owned();
                     }
                 },
+                Phase::SeekTail => {
+                    if let Some(at) = find_sheet_data_close(&self.text) {
+                        self.capture.tail = self.text[at..].to_owned();
+                        self.text.clear();
+                        self.phase = Phase::Tail;
+                        self.capture.truncated = false;
+                    } else {
+                        // Keep a suffix so a close tag split across inflate chunks is still found.
+                        const KEEP: usize = 64;
+                        if self.text.len() > KEEP {
+                            let mut drop_to = self.text.len() - KEEP;
+                            while drop_to > 0 && !self.text.is_char_boundary(drop_to) {
+                                drop_to -= 1;
+                            }
+                            self.text.drain(..drop_to);
+                        }
+                        return;
+                    }
+                }
                 Phase::Tail => return,
             }
         }

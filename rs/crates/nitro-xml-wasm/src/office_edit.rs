@@ -36,6 +36,47 @@ pub fn command_ribbon(aria: &str, items: &[RibbonItem]) -> String {
     )
 }
 
+pub(crate) fn is_text_key(key: &str) -> bool {
+    matches!(key, "Backspace" | "Delete") || is_printable(key)
+}
+
+fn is_printable(key: &str) -> bool {
+    let mut chars = key.chars();
+    match (chars.next(), chars.next()) {
+        (Some(c), None) => !c.is_control(),
+        _ => false,
+    }
+}
+
+/// Insert or delete one character. `offset` is a byte index. `None` means the key is a no-op.
+pub(crate) fn edit_plain(text: &str, offset: usize, key: &str) -> Option<String> {
+    let mut chars: Vec<char> = text.chars().collect();
+    let mut byte_off = offset.min(text.len());
+    while byte_off > 0 && !text.is_char_boundary(byte_off) {
+        byte_off -= 1;
+    }
+    let char_idx = text[..byte_off].chars().count();
+    match key {
+        "Backspace" => {
+            if char_idx == 0 {
+                return None;
+            }
+            chars.remove(char_idx - 1);
+        }
+        "Delete" => {
+            if char_idx >= chars.len() {
+                return None;
+            }
+            chars.remove(char_idx);
+        }
+        _ if is_printable(key) => {
+            chars.insert(char_idx, key.chars().next()?);
+        }
+        _ => return None,
+    }
+    Some(chars.into_iter().collect())
+}
+
 fn esc(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
@@ -152,6 +193,90 @@ mod tests {
             .blocks[block]["runs"][0];
         assert_eq!(run["bold"], true, "reopened document lost bold: {run}");
         h.apply_edit(r#"{"command":"edit.undo"}"#).expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
+    }
+
+    #[test]
+    fn catches_pptx_underline_align_and_typing_missing_after_reopen() {
+        // Catches: underline, center, and a typed character never reaching the saved slide XML.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.shell_action("cmd", "home.underline").expect("underline");
+        h.shell_action("cmd", "home.align-center").expect("align");
+        let typed = h
+            .editor_key("Ω", false, false, false, false, false)
+            .expect("type");
+        assert!(typed.contains("\"handled\":true"), "{typed}");
+        let saved = h.save_document().expect("save");
+        assert_ne!(saved, PPTX);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen");
+        let el = again
+            .session
+            .host
+            .slides
+            .iter()
+            .flat_map(|s| s.elements.iter())
+            .find(|e| e.text_segments.iter().any(|s| s.text.contains('Ω')))
+            .expect("typed character missing after reopen");
+        assert!(
+            el.text_segments.iter().any(|s| s.underline),
+            "underline missing after reopen"
+        );
+        assert!(
+            el.text_segments
+                .iter()
+                .any(|s| s.align.as_deref() == Some("center")),
+            "center align missing after reopen"
+        );
+        h.apply_edit(r#"{"command":"edit.undo"}"#)
+            .expect("undo type");
+        h.apply_edit(r#"{"command":"edit.undo"}"#)
+            .expect("undo align");
+        h.apply_edit(r#"{"command":"edit.undo"}"#)
+            .expect("undo underline");
+        assert_eq!(h.save_document().expect("undone"), PPTX);
+    }
+
+    #[test]
+    fn catches_docx_align_and_typing_missing_after_reopen() {
+        // Catches: paragraph align and a typed character never reaching word/document.xml.
+        let mut h = open_editable(DOCX, "pages.docx");
+        h.shell_action("cmd", "home.align-center").expect("align");
+        h.shell_action("cmd", "home.underline").expect("underline");
+        h.editor_key("Ω", false, false, false, false, false)
+            .expect("type");
+        let saved = h.save_document().expect("save");
+        assert_ne!(saved, DOCX);
+        let again = open_editable(&saved, "pages.docx");
+        let block = again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .find(|b| {
+                b.get("runs").and_then(|r| r.as_array()).is_some_and(|rs| {
+                    rs.iter().any(|r| {
+                        r.get("text")
+                            .and_then(|t| t.as_str())
+                            .unwrap_or("")
+                            .contains('Ω')
+                    })
+                })
+            })
+            .expect("typed character missing after reopen");
+        assert_eq!(block["align"], "center");
+        assert_eq!(block["runs"][0]["underline"], true);
+        h.apply_edit(r#"{"command":"edit.undo"}"#)
+            .expect("undo type");
+        h.apply_edit(r#"{"command":"edit.undo"}"#)
+            .expect("undo underline");
+        h.apply_edit(r#"{"command":"edit.undo"}"#)
+            .expect("undo align");
         assert_eq!(h.save_document().expect("undone"), DOCX);
     }
 

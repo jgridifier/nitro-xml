@@ -42,6 +42,9 @@ pub struct TextStyleSnap {
     pub font_size: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    /// `Some` means the edit authored `a:rPr/@u` (`sng` or absent). `None` leaves the file's underline alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub underline: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_fit: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -548,6 +551,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                     italic: arg_bool_opt(args, "italic"),
                     font_size: arg_f64_opt(args, "fontSize"),
                     color: color.as_deref(),
+                    underline: arg_bool_opt(args, "underline"),
                 },
             )
             .map_err(map_err)?;

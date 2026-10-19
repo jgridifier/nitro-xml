@@ -52,6 +52,9 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("bold", "Bold", surface, false));
         html.push_str(&button("italic", "Italic", surface, false));
         html.push_str(&button("underline", "Underline", surface, false));
+        html.push_str(&button("align-left", "Align Left", surface, false));
+        html.push_str(&button("align-center", "Center", surface, false));
+        html.push_str(&button("align-right", "Align Right", surface, false));
         html.push_str("</section>");
         html.push_str("<section class=\"dve-ribbon-group\" aria-label=\"Editing\">");
         html.push_str(&button("find-and-replace", "Find", surface, false));

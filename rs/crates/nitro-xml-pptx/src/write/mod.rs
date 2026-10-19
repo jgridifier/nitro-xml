@@ -117,6 +117,40 @@ mod tests {
         assert!(!slide_xml(&dirty, "ppt/slides/slide2.xml").contains("Rewritten title"));
     }
 
+    #[test]
+    fn catches_underline_and_align_dropped_on_slide_save() {
+        // Catches: a slide save that drops a:rPr/@u and a:pPr/@algn, so reopen loses underline and center.
+        use crate::edit::host::TextStylePatch;
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        host.set_text_style(
+            0,
+            None,
+            Some(0),
+            TextStylePatch {
+                underline: Some(true),
+                ..TextStylePatch::default()
+            },
+        )
+        .expect("underline");
+        host.set_paragraph_align(0, None, Some(0), 0, "center")
+            .expect("align");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save");
+        let again = PptxHost::open(&saved).expect("reopen");
+        let el = &again.slides[0].elements[0];
+        assert!(
+            el.text_segments.iter().any(|s| s.underline),
+            "reopened shape lost underline"
+        );
+        assert!(
+            el.text_segments
+                .iter()
+                .any(|s| s.align.as_deref() == Some("center")),
+            "reopened shape lost center align: {:?}",
+            el.text_segments
+        );
+    }
+
     // Catches: saving a moved shape re-quantizes an untouched non-multiple EMU axis.
     #[test]
     fn untouched_emu_axis_survives_partial_move() {

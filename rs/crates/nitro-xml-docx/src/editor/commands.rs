@@ -8,7 +8,7 @@ use nitro_xml_opc::edit::{
 };
 use serde_json::{json, Value};
 
-use crate::edit::format::set_run_formatting;
+use crate::edit::format::{set_paragraph_align, set_run_formatting};
 use crate::edit::host::DocxHost;
 use crate::edit::register_docx_command_registry;
 use crate::editor::print_edit::schedule_relayout;
@@ -43,6 +43,9 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("bold", "Bold", Some("Ctrl+B"), true),
     word_cmd!("italic", "Italic", Some("Ctrl+I"), true),
     word_cmd!("underline", "Underline", Some("Ctrl+U"), true),
+    word_cmd!("align-left", "Align Left", None, true),
+    word_cmd!("align-center", "Center", None, true),
+    word_cmd!("align-right", "Align Right", None, true),
     word_cmd!("print", "Print", Some("Ctrl+P"), false),
     word_cmd!("layout-view", "Print Layout", None, false),
     word_cmd!("paste", "Paste", Some("Ctrl+V"), true),
@@ -222,6 +225,24 @@ impl DocxCommandSurface {
                         let mut patch = serde_json::Map::new();
                         patch.insert(toggle_key.into(), json!(!current));
                         set_run_formatting(h, caret_block, caret_run, &patch)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "align-left" | "align-center" | "align-right" => {
+                let align = match id {
+                    "align-left" => "left",
+                    "align-center" => "center",
+                    _ => "right",
+                };
+                session.run(
+                    format!("align {align}"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        set_paragraph_align(h, caret_block, align)?;
                         Ok(())
                     },
                 )?;

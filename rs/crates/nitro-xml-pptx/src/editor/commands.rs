@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 
 use crate::edit::host::PptxHost;
 use crate::edit::shapes::register_shape_commands;
+use crate::edit::text::register_text_commands;
 use crate::editor::selection::SelectionState;
 
 #[derive(Debug, Clone)]
@@ -38,6 +39,10 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("edit.redo", "Redo", Some("Ctrl+Y"), true),
     pptx_cmd!("home.bold", "Bold", Some("Ctrl+B"), true),
     pptx_cmd!("home.italic", "Italic", Some("Ctrl+I"), true),
+    pptx_cmd!("home.underline", "Underline", Some("Ctrl+U"), true),
+    pptx_cmd!("home.align-left", "Align Left", None, true),
+    pptx_cmd!("home.align-center", "Center", None, true),
+    pptx_cmd!("home.align-right", "Align Right", None, true),
     pptx_cmd!("home.duplicate", "Duplicate", Some("Ctrl+D"), true),
     pptx_cmd!("home.delete", "Delete", Some("Delete"), true),
     pptx_cmd!("home.select-all", "Select All", Some("Ctrl+A"), false),
@@ -65,8 +70,9 @@ impl PptxCommandSurface {
     pub fn new(read_only: bool) -> Self {
         let mut registry = CommandRegistry::new();
         register_shape_commands(&mut registry);
+        register_text_commands(&mut registry);
         register_editor_commands(&mut registry);
-        // TODO(#85): register_text_commands / register_table_commands when merged.
+        // TODO(#85): register_table_commands when table insert writes a real part.
         // TODO(#86): slide/notes insert-delete commands when merged.
         let mut meta = BTreeMap::new();
         for m in PPTX_EDITOR_COMMANDS {
@@ -152,6 +158,52 @@ impl PptxCommandSurface {
                 });
                 patch[key] = json!(!current);
                 self.run_shape_op("setShapeTextStyle", &patch, session)
+            }
+            "home.underline" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: "home.underline needs a selected shape".into(),
+                })?;
+                let slide = selection.slide_index;
+                let current = session
+                    .host
+                    .slide(slide)
+                    .ok()
+                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+                    .and_then(|e| {
+                        e.text_style
+                            .as_ref()
+                            .and_then(|ts| ts.underline)
+                            .or_else(|| {
+                                e.text_segments
+                                    .iter()
+                                    .find(|seg| seg.underline)
+                                    .map(|_| true)
+                            })
+                    })
+                    .unwrap_or(false);
+                let patch = json!({
+                    "slideIndex": slide,
+                    "elementId": element_id,
+                    "underline": !current,
+                });
+                self.run_shape_op("setShapeTextStyle", &patch, session)
+            }
+            "home.align-left" | "home.align-center" | "home.align-right" => {
+                let align = match id {
+                    "home.align-left" => "left",
+                    "home.align-center" => "center",
+                    _ => "right",
+                };
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: format!("{id} needs a selected shape"),
+                })?;
+                let patch = json!({
+                    "slideIndex": selection.slide_index,
+                    "elementId": element_id,
+                    "paragraphIndex": 0,
+                    "align": align,
+                });
+                self.run_shape_op("setShapeParagraphAlign", &patch, session)
             }
             "home.duplicate" => {
                 let element_id = selection.primary_id().ok_or_else(|| EditError::Other {

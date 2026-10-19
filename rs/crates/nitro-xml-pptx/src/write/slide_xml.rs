@@ -10,8 +10,9 @@
 
 //! Rewrite one `ppt/slides/slideN.xml` from the editable host.
 //!
-//! Untouched axes go through [`resolve_xfrm_emu`]. Rich runs, bullets, autofit,
-//! tables and notes parts are TODO(#85) / TODO(#86).
+//! Untouched axes go through [`resolve_xfrm_emu`]. The first run's underline
+//! (`a:rPr/@u`) and the first paragraph's align (`a:pPr/@algn`) are written.
+//! Rich multi-run splits, bullets, autofit, tables and notes parts are TODO(#85) / TODO(#86).
 
 use std::collections::{HashMap, HashSet};
 
@@ -167,6 +168,7 @@ fn apply_element(shape: &mut Element, el: &EditableElement) {
     if el.text.is_some() || authored {
         update_text(shape, el.text.as_deref(), el.text_style.as_ref());
     }
+    apply_paragraph_align(shape, el);
 }
 
 /// Write `a:off` / `a:ext` with [`resolve_xfrm_emu`]. No-op when the shape has
@@ -265,6 +267,37 @@ fn apply_line(shape: &mut Element, color: Option<&str>, width: Option<f64>) {
     sp_pr.children.push(Node::Element(ln));
 }
 
+/// First paragraph `a:pPr/@algn`. Editor tokens (`center`) become OOXML (`ctr`).
+fn apply_paragraph_align(shape: &mut Element, el: &EditableElement) {
+    let Some(align) = el.text_segments.iter().find_map(|s| s.align.as_deref()) else {
+        return;
+    };
+    let Some(token) = ooxml_algn_token(align) else {
+        return;
+    };
+    let Some(tx) = child_mut(shape, "txBody", ns::P) else {
+        return;
+    };
+    let Some(p) = child_mut(tx, "p", ns::A) else {
+        return;
+    };
+    let p_pr = ensure_child(p, "pPr", ns::A);
+    set_attr(p_pr, "algn", token);
+}
+
+fn ooxml_algn_token(align: &str) -> Option<&'static str> {
+    Some(match align {
+        "left" | "l" => "l",
+        "center" | "ctr" => "ctr",
+        "right" | "r" => "r",
+        "justify" | "just" => "just",
+        "justLow" => "justLow",
+        "dist" => "dist",
+        "thaiDist" => "thaiDist",
+        _ => return None,
+    })
+}
+
 fn insert_before_line(sp_pr: &mut Element, node: Element) {
     let idx = sp_pr.children.iter().position(|c| match c {
         Node::Element(el) => el.local == "ln" && el.ns.as_deref() == Some(ns::A),
@@ -301,10 +334,17 @@ fn update_text(shape: &mut Element, text: Option<&str>, style: Option<&TextStyle
 }
 
 fn style_authored(style: &TextStyleSnap) -> bool {
-    style.bold || style.italic || style.font_size.is_some() || style.color.is_some()
+    style.bold
+        || style.italic
+        || style.underline.is_some()
+        || style.font_size.is_some()
+        || style.color.is_some()
 }
 
 fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
+    let previous_u = child_ref(run, "rPr", ns::A)
+        .and_then(|rpr| attr(rpr, "u"))
+        .map(str::to_owned);
     remove_children(run, ns::A, &["rPr"]);
     let mut rpr = elem(ns::A, "rPr");
     if let Some(size) = style.font_size {
@@ -317,6 +357,15 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
     }
     if style.italic {
         set_attr(&mut rpr, "i", "1");
+    }
+    match style.underline {
+        Some(true) => set_attr(&mut rpr, "u", "sng"),
+        Some(false) => {}
+        None => {
+            if let Some(u) = previous_u {
+                set_attr(&mut rpr, "u", &u);
+            }
+        }
     }
     if let Some(color) = style.color.as_deref() {
         let mut fill = elem(ns::A, "solidFill");

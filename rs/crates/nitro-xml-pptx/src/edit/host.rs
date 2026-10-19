@@ -52,6 +52,7 @@ pub struct TextStylePatch<'a> {
     pub italic: Option<bool>,
     pub font_size: Option<f64>,
     pub color: Option<&'a str>,
+    pub underline: Option<bool>,
 }
 
 /// A new shape appended at the front of the slide (z-order end).
@@ -246,7 +247,7 @@ impl PptxHost {
         !self.dirty_parts.is_empty()
     }
 
-    fn touch(&mut self, slide_index: u32) -> Result<(), String> {
+    pub(crate) fn touch(&mut self, slide_index: u32) -> Result<(), String> {
         let path = self
             .slides
             .get(slide_index as usize)
@@ -332,6 +333,7 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
             // `gen-pptx-slides-10` (no run properties) keeps fontSize/color null.
             font_size: editor.and_then(|e| e.font_size),
             color: editor.and_then(|e| e.color.clone()),
+            underline: None,
             auto_fit: editor.and_then(|e| e.auto_fit),
             auto_fit_mode: editor.and_then(|e| e.auto_fit_mode.clone()),
         })
@@ -588,18 +590,31 @@ impl PptxHost {
         let slide = self.slide_mut(slide_index)?;
         let idx = Self::resolve_index(slide, element_id, element_index)?;
         let el = &mut slide.elements[idx];
-        let style = el.text_style.get_or_insert_with(TextStyleSnap::default);
-        if let Some(bold) = patch.bold {
-            style.bold = bold;
+        {
+            let style = el.text_style.get_or_insert_with(TextStyleSnap::default);
+            if let Some(bold) = patch.bold {
+                style.bold = bold;
+            }
+            if let Some(italic) = patch.italic {
+                style.italic = italic;
+            }
+            if let Some(font_size) = patch.font_size {
+                style.font_size = Some(font_size);
+            }
+            if let Some(color) = patch.color {
+                style.color = Some(color.to_owned());
+            }
+            if let Some(underline) = patch.underline {
+                style.underline = Some(underline);
+            }
         }
-        if let Some(italic) = patch.italic {
-            style.italic = italic;
-        }
-        if let Some(font_size) = patch.font_size {
-            style.font_size = Some(font_size);
-        }
-        if let Some(color) = patch.color {
-            style.color = Some(color.to_owned());
+        if let Some(underline) = patch.underline {
+            for seg in &mut el.text_segments {
+                if seg.is_paragraph_break || seg.is_line_break {
+                    continue;
+                }
+                seg.underline = underline;
+            }
         }
         self.touch(slide_index)
     }

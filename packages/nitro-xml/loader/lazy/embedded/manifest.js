@@ -23,5 +23,6 @@ const nav = (id, noun) => ({
 });
 
 export const MANIFEST = {
+  docx: { label: "Document tools", groups: [copy, nav("Pages", "page"), { id: "Editing", items: [find] }, view] },
   pptx: { label: "Presentation tools", groups: [copy, nav("Slides", "slide"), { id: "Editing", items: [find] }, view] },
 };

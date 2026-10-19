@@ -77,6 +77,7 @@ function build(host, spec) {
         dis = !m || m.disabled;
         pressed = m && m.getAttribute("aria-pressed");
       } else if (it.n) {
+        on = tb.length > 1; // a single page/slide has nothing to step through
         const to = at + it.n;
         dis = at < 0 || to < 0 || to >= tb.length;
       } else if (it.x) pressed = String(findOpen);
@@ -88,7 +89,7 @@ function build(host, spec) {
       r.textContent =
         r.dataset.r === "zoom"
           ? (q(".z") || {}).textContent || ""
-          : tb.length ? `${at + 1} / ${tb.length}` : "";
+          : tb.length > 1 ? `${at + 1} / ${tb.length}` : "";
       r.hidden = !r.textContent;
     }
     for (const g of groups) g.hidden = !g.querySelector(".nx-b:not([hidden]), .nx-r:not([hidden])");

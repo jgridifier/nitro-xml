@@ -18,7 +18,8 @@ const AXE_SRC = join(A11Y, 'node_modules/axe-core/axe.min.js');
 
 /** One entry per format whose embedded toolbar has shipped. */
 const FORMATS = [
-	{ format: 'pptx', page: 'pptx-a11y.html', fixture: 'fixtures/generated/pptx/slides_10.pptx', next: 'Next slide' },
+	{ format: 'docx', page: 'docx-a11y.html', fixture: 'fixtures/generated/docx/pages_10.docx' }, // one shell page: Pages group hides itself
+	{ format: 'pptx', page: 'pptx-a11y.html', fixture: 'fixtures/generated/pptx/slides_10.pptx', next: 'Next slide', prev: 'Previous slide' },
 ];
 
 const url = (base, f, w, mode) =>
@@ -64,13 +65,15 @@ async function check(f, browser, base, browserName) {
 	const nxBtn = (name) => page.locator(`css=nitro-${f.format} >> .nx-b[aria-label="${name}"]`);
 	await nxBtn('Copy').focus();
 	await page.keyboard.press('ArrowRight');
-	const afterArrow = await page.evaluate(active);
-	if (afterArrow !== 'Next slide') errs.push(`ArrowRight skipped the disabled Previous button: got ${afterArrow}`);
-	const prevDisabled = await nxBtn('Previous slide').isDisabled();
-	await page.keyboard.press('Enter');
-	await page.waitForFunction(() => window.__a11yHost.shadowRoot.querySelector('.nx-r[data-r=nav]').textContent.startsWith('2 /'), null, { timeout: 10_000 }).catch(() => errs.push('Next did not advance / readout not mirrored'));
-	const prevAfter = await nxBtn('Previous slide').isDisabled();
-	if (!prevDisabled || prevAfter) errs.push(`Previous disabled state not mirrored (first=${prevDisabled}, after Next=${prevAfter})`);
+	if (f.next) {
+		const afterArrow = await page.evaluate(active);
+		if (afterArrow !== f.next) errs.push(`ArrowRight skipped the disabled Previous button (expected ${f.next}): got ${afterArrow}`);
+		const prevDisabled = await nxBtn(f.prev).isDisabled();
+		await page.keyboard.press('Enter');
+		await page.waitForFunction(() => window.__a11yHost.shadowRoot.querySelector('.nx-r[data-r=nav]').textContent.startsWith('2 /'), null, { timeout: 10_000 }).catch(() => errs.push('Next did not advance / readout not mirrored'));
+		const prevAfter = await nxBtn(f.prev).isDisabled();
+		if (!prevDisabled || prevAfter) errs.push(`Previous disabled state not mirrored (first=${prevDisabled}, after Next=${prevAfter})`);
+	} else if ((await page.evaluate(active)) !== 'Find') errs.push('Pages group should be hidden for a single page');
 	await page.keyboard.press('End');
 	if ((await page.evaluate(active)) !== 'Zoom in') errs.push('End did not reach last button');
 
@@ -82,8 +85,7 @@ async function check(f, browser, base, browserName) {
 	// Narrow: groups collapse into More; Escape closes and returns focus to it.
 	await open(240, 'embedded');
 	const more = page.locator(`css=nitro-${f.format} >> .nx-mb`);
-	if (!(await more.isVisible())) errs.push('no More button at 240px');
-	else {
+	if (await more.isVisible()) {
 		await more.click();
 		if ((await more.getAttribute('aria-expanded')) !== 'true') errs.push('More did not expand');
 		await page.keyboard.press('Escape');

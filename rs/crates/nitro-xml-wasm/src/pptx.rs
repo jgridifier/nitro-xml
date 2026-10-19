@@ -31,6 +31,8 @@ pub struct PptxState {
     pub scale: f64,
     /// Top-level element ids selected on the active slide, in click / select-all order.
     pub selected_ids: Vec<String>,
+    /// Live editor session when the document is not read-only.
+    pub edit: Option<nitro_xml_pptx::editor::PptxEditor>,
 }
 
 impl PptxState {
@@ -45,6 +47,7 @@ impl PptxState {
             viewport_h: DEFAULT_H,
             scale: 0.0,
             selected_ids: Vec::new(),
+            edit: None,
         })
     }
 

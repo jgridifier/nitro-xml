@@ -28,7 +28,12 @@ const PPTX_NAV: &str = "|ArrowRight:nav-next|ArrowLeft:nav-prev|PageDown:nav-nex
 /// Stage-6 shell plus optional editor ribbon (ribbon above toolbar when edit mode)
 /// and any open dialog/menu overlay (#54).
 pub fn combined_chrome_html(state: &ShellState, editor: &EditorChrome) -> String {
-    let ribbon = editor.ribbon_html();
+    // Empty office ribbon keeps the xlsx Home ribbon byte-for-byte.
+    let ribbon = if editor.office_ribbon().is_empty() {
+        editor.ribbon_html()
+    } else {
+        editor.office_ribbon().to_owned()
+    };
     let formula = editor.formula_html();
     let overlay = editor.overlay_html();
     let shell = chrome_html(state);

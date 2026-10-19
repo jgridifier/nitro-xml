@@ -45,6 +45,8 @@ pub struct EditorChrome {
     focus: focus::FocusStack,
     /// Formula bar fragment. Empty while read-only (#69 negative control).
     formula_html: String,
+    /// Pptx/docx command strip. Empty for xlsx, which keeps [`Self::ribbon_html`].
+    office_ribbon: String,
 }
 
 impl EditorChrome {
@@ -57,6 +59,7 @@ impl EditorChrome {
             overlay: Overlay::None,
             focus: focus::FocusStack::new(),
             formula_html: String::new(),
+            office_ribbon: String::new(),
         }
     }
 
@@ -75,6 +78,7 @@ impl EditorChrome {
             self.overlay = Overlay::None;
             self.focus.clear();
             self.formula_html.clear();
+            self.office_ribbon.clear();
         }
     }
 
@@ -124,6 +128,23 @@ impl EditorChrome {
             return;
         }
         self.formula_html = html;
+    }
+
+    /// Pptx/docx ribbon fragment. Empty means the xlsx Home ribbon.
+    pub fn office_ribbon(&self) -> &str {
+        if self.read_only || !self.loaded {
+            ""
+        } else {
+            &self.office_ribbon
+        }
+    }
+
+    pub fn set_office_ribbon(&mut self, html: String) {
+        if self.read_only || !self.loaded {
+            self.office_ribbon.clear();
+            return;
+        }
+        self.office_ribbon = html;
     }
 
     pub fn is_enabled(&self, id: &str) -> bool {

@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 //! Word ribbon / shortcut command ids → edit session (#83).
 
-use std::any::Any;
 use std::collections::BTreeMap;
 
 use nitro_xml_opc::edit::{
-    ChangeKind, Command, CommandRegistry, EditError, EditHistory, EditScope,
+    ChangeKind, Command, CommandRegistry, EditError, EditHistory, EditHost, EditScope,
 };
 use serde_json::{json, Value};
 
@@ -230,8 +229,15 @@ impl DocxCommandSurface {
                 Ok(())
             }
             _ => {
-                let host_any: &mut dyn Any = &mut session.host;
-                let _ = self.registry.run(id, host_any, args)?;
+                // Script ops (setRunFormatting, setParagraphText, …) must land on the
+                // history stack so edit.undo restores them. The match arms above already do.
+                let registry = &self.registry;
+                session.run(
+                    id.to_string(),
+                    ChangeKind::Other,
+                    vec![EditScope::Workbook],
+                    |host| registry.run(id, host.as_any(), args).map(|_| ()),
+                )?;
                 schedule_relayout(print_edit);
                 Ok(())
             }
@@ -283,5 +289,28 @@ mod tests {
         assert!(surface
             .dispatch("bold", &Value::Null, &mut print, &mut session, 0, 0)
             .is_err());
+    }
+
+    #[test]
+    fn catches_script_format_op_undo_via_editor_dispatch() {
+        // Catches: setRunFormatting mutating the host without a history step, so edit.undo is a no-op.
+        let mut surface = DocxCommandSurface::new(false);
+        let (mut session, _) = session_host();
+        let mut print = PrintEditState::default();
+        surface
+            .dispatch(
+                "setRunFormatting",
+                &json!({ "blockIndex": 0, "runIndex": 0, "bold": true }),
+                &mut print,
+                &mut session,
+                0,
+                0,
+            )
+            .expect("format");
+        assert_eq!(session.host.blocks[0]["runs"][0]["bold"], true);
+        surface
+            .dispatch("edit.undo", &Value::Null, &mut print, &mut session, 0, 0)
+            .expect("undo");
+        assert_eq!(session.host.blocks[0]["runs"][0]["bold"], false);
     }
 }

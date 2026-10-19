@@ -668,6 +668,46 @@ mod tests {
         assert!(lazy.rows_visited(0) < 50);
     }
 
+    // Catches: trustworthy `<dimension>` not driving used extent / early-stop so first view
+    // inflates the whole sheet (dim.end, A1 present, sheet1 touched but not finished).
+    #[test]
+    fn dimension_stops_inflate_at_viewport() {
+        let bytes = sheet_with_dimension(200, "A1:B200");
+        let view = ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 20,
+            c1: 1,
+        };
+        let lazy = open_first_view(&bytes, view).expect("dimension sheet");
+        let sheet = lazy.sheet(0).expect("active");
+        let dim = sheet.dimension.as_ref().expect("dimension retained");
+        assert!(
+            dim.end.row >= 199 && dim.end.col >= 1,
+            "extent should come from dimension, got {:?}:{:?}",
+            dim.start,
+            dim.end
+        );
+        assert!(
+            lazy.rows_visited(0) < 50,
+            "rows_visited {} should be O(viewport), not the full 200",
+            lazy.rows_visited(0)
+        );
+        assert!(
+            !lazy.parts_read.iter().any(|p| p.contains("sheet1")),
+            "sheet1 must stop early (not in parts_read): {:?}",
+            lazy.parts_read
+        );
+        assert!(
+            lazy.touched_parts().iter().any(|p| p.contains("sheet1")),
+            "sheet1 must still be touched"
+        );
+        assert!(
+            sheet.cells.iter().any(|c| c.row == 0 && c.col == 0),
+            "viewport cell A1 missing"
+        );
+    }
+
     // Catches: ensure_sheet_complete still SkipRows-tokenizing every post-viewport row when a
     // trustworthy `<dimension>` is present (should SeekTail instead).
     #[test]

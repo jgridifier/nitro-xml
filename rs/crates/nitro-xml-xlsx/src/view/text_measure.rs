@@ -54,7 +54,7 @@ impl<I: StringIntern> TextMeasure for CanvasTextMeasure<'_, I> {
         if let Some(w) = self.batch.cached_width(font_id, text_id) {
             return w;
         }
-        self.batch.push(font_id, 0.0, text_id);
+        let _ = self.batch.push_unique(font_id, 0.0, text_id);
         estimate_width(text, font)
     }
 }

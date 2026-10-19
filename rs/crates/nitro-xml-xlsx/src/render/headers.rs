@@ -55,10 +55,13 @@ fn place<I: StringIntern>(
     w: i32,
     h: i32,
 ) {
-    set_style(buf, intern, id, "left", &format!("{x}px"));
-    set_style(buf, intern, id, "top", &format!("{y}px"));
-    set_style(buf, intern, id, "width", &format!("{w}px"));
-    set_style(buf, intern, id, "height", &format!("{h}px"));
+    set_attr(
+        buf,
+        intern,
+        id,
+        "style",
+        &format!("left:{x}px;top:{y}px;width:{w}px;height:{h}px"),
+    );
 }
 
 fn header_font_px(zoom: f64) -> i32 {

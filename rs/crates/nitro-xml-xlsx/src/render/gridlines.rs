@@ -13,18 +13,6 @@ use crate::view::metrics::GridMetrics;
 
 const LINE_BASE: u32 = 5_000;
 
-fn set_style<I: StringIntern>(
-    buf: &mut CommandBuffer,
-    intern: &mut I,
-    id: u32,
-    prop: &str,
-    val: &str,
-) {
-    let p = intern.intern(prop);
-    let v = intern.intern(val);
-    buf.set_style(id, p, v);
-}
-
 fn set_attr<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
@@ -64,10 +52,14 @@ pub fn paint<I: StringIntern>(
             "xg-gl xg-gl-h"
         };
         set_attr(buf, intern, id, "class", gl_class);
-        set_style(buf, intern, id, "left", &format!("{}px", x));
-        set_style(buf, intern, id, "top", &format!("{}px", y));
-        set_style(buf, intern, id, "width", &format!("{}px", w));
-        set_style(buf, intern, id, "height", &format!("{}px", h));
+        // One style attr instead of four SetStyle ops (smaller first-frame buffer).
+        set_attr(
+            buf,
+            intern,
+            id,
+            "style",
+            &format!("left:{x}px;top:{y}px;width:{w}px;height:{h}px"),
+        );
     };
 
     let mut paint_set = |parent: u32, rows: &[u32], cols: &[u32]| {

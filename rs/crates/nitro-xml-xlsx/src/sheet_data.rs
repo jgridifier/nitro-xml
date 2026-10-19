@@ -5,7 +5,8 @@
 use std::collections::{HashMap, HashSet};
 
 use nitro_xml_opc::xml::{parse_xml_str, Element};
-use quick_xml::events::Event;
+use quick_xml::escape::resolve_xml_entity;
+use quick_xml::events::{BytesRef, Event};
 use quick_xml::reader::NsReader;
 
 use crate::address::{parse_address, parse_range};
@@ -253,6 +254,15 @@ fn read_sheet_data_xml_stream(
                     }
                 }
             }
+            // quick-xml emits `&lt;` / `&amp;` / `&#38;` as GeneralRef, not Text — skipping
+            // them dropped `<>` / `&` / quotes from formulas (worksheet dump parity).
+            Event::GeneralRef(r) => {
+                if in_v {
+                    append_xml_ref(&mut v_text, &r);
+                } else if in_f {
+                    append_xml_ref(&mut f_text, &r);
+                }
+            }
             Event::CData(t) => {
                 if let Ok(text) = std::str::from_utf8(t.as_ref()) {
                     if in_v {
@@ -315,6 +325,19 @@ fn local_name(qname: &[u8]) -> &[u8] {
         .rposition(|&b| b == b':')
         .map(|i| &qname[i + 1..])
         .unwrap_or(qname)
+}
+
+/// Expand a `GeneralRef` (`&lt;`, `&amp;`, `&#38;`, …) into `out`.
+fn append_xml_ref(out: &mut String, r: &BytesRef<'_>) {
+    if let Ok(Some(ch)) = r.resolve_char_ref() {
+        out.push(ch);
+        return;
+    }
+    if let Ok(name) = r.decode() {
+        if let Some(s) = resolve_xml_entity(name.as_ref()) {
+            out.push_str(s);
+        }
+    }
 }
 
 /// Copy attribute value into `scratch` (cleared first). Returns a slice of `scratch`.
@@ -424,9 +447,9 @@ fn flush_stream_cell(
             }
         }
         "str" => {
-            if !raw.is_empty() {
-                cell_idx = Some(store.push_string(row, col, style_id, raw.to_owned()));
-            }
+            // Match DOM `read_value`: `t="str"` always materializes a string cell, including
+            // empty `<v/>` (formula `""` cells dump as `t:"s", v:""`, not Null).
+            cell_idx = Some(store.push_string(row, col, style_id, raw.to_owned()));
         }
         "b" => {
             if !raw.is_empty() {
@@ -987,4 +1010,71 @@ pub fn store_to_dump_cells_with_sst(store: &CellStore, sst: &[SharedString]) -> 
         });
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cells::CellStore;
+    use std::collections::HashMap;
+
+    // Catches: stream sheetData dropping `&lt;&gt;` / `&amp;` / `&quot;` GeneralRefs from
+    // formula text (COUNT(…)<>0 → COUNT(…)0), breaking worksheet dump parity vs DOM.
+    // Also catches: `t="str"` + empty `<v/>` dumping Null instead of empty string.
+    #[test]
+    fn stream_preserves_xml_entities_in_formulas() {
+        let inner = concat!(
+            r#"<row r="1">"#,
+            r#"<c r="A1"><f>IF(COUNT(C8:C39)&lt;&gt;0,1,)</f><v>1</v></c>"#,
+            r#"<c r="B1" t="str"><f>B3&amp;" Matching List"</f><v>x</v></c>"#,
+            r#"<c r="C1" t="str"><f>HYPERLINK(&quot;http://x&quot;,&quot;Note&quot;)</f><v>Note</v></c>"#,
+            r#"<c r="D1" t="str"><f>""</f><v/></c>"#,
+            r#"</row>"#,
+        );
+        let mut store = CellStore::new();
+        let mut row_info = HashMap::new();
+        let sst: Vec<SharedString> = Vec::new();
+        let xf_map = Vec::new();
+        let dynamic = HashSet::new();
+        let mut warnings = Vec::new();
+        let mut ctx = CellContext {
+            shared_strings: &sst,
+            xf_map: &xf_map,
+            date1904: false,
+            palette: None,
+            dynamic_cells: &dynamic,
+            warnings: &mut warnings,
+        };
+        assert!(
+            read_sheet_data_xml_stream(&mut ctx, inner, &mut store, &mut row_info),
+            "stream must accept fixture"
+        );
+        let dumps = store_to_dump_cells_with_sst(&store, &[]);
+        let formulas: Vec<_> = dumps
+            .iter()
+            .filter_map(|c| c.formula.as_deref())
+            .collect();
+        assert!(
+            formulas.iter().any(|f| f.contains("<>")),
+            "must keep <> from &lt;&gt;: {formulas:?}"
+        );
+        assert!(
+            formulas.iter().any(|f| f.contains('&')),
+            "must keep & from &amp;: {formulas:?}"
+        );
+        assert!(
+            formulas.iter().any(|f| f.contains('"')),
+            "must keep quotes from &quot;: {formulas:?}"
+        );
+        let d1 = dumps
+            .iter()
+            .find(|c| c.row == 0 && c.col == 3)
+            .expect("D1");
+        assert_eq!(
+            d1.value,
+            DumpCellValue::String(String::new()),
+            "empty str+v must dump empty string, got {d1:?}"
+        );
+        assert_eq!(d1.type_tag.as_deref(), Some("s"));
+    }
 }

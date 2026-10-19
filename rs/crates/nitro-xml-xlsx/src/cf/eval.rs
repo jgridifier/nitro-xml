@@ -205,6 +205,7 @@ fn cell_in_any_cf(cache: &mut CfPaintCache, sheet: &ActiveWorksheet, row: u32, c
     }
 }
 
+#[allow(clippy::too_many_arguments)] // mirrors threshold + color resolve inputs for one CF format
 fn cached_color_scale<'a>(
     cache: &'a mut CfPaintCache,
     format_idx: usize,
@@ -636,15 +637,7 @@ pub fn cf_at_cached(
                     continue;
                 };
                 let prep = cached_color_scale(
-                    cache,
-                    format_idx,
-                    sheet,
-                    index,
-                    format,
-                    thresholds,
-                    colors,
-                    theme,
-                    indexed,
+                    cache, format_idx, sheet, index, format, thresholds, colors, theme, indexed,
                 );
                 if let Some(c) = scale_color(n, &prep.cuts, &prep.css) {
                     result.color_scale = Some(c);
@@ -672,8 +665,8 @@ pub fn cf_at_cached(
                     continue;
                 };
                 let nums = cached_range_numbers(cache, format_idx, sheet, index, format);
-                let data_lo = threshold_value(sheet, index, min, &nums);
-                let data_hi = threshold_value(sheet, index, max, &nums);
+                let data_lo = threshold_value(sheet, index, min, nums);
+                let data_hi = threshold_value(sheet, index, max, nums);
                 // Upstream: axis is `none` without x14; `automatic` when an extension is linked.
                 let has_x14 = extension_id.is_some();
                 let (start, fraction, axis_frac) = data_bar_geometry(
@@ -732,7 +725,7 @@ pub fn cf_at_cached(
                 let nums = cached_range_numbers(cache, format_idx, sheet, index, format);
                 let cuts: Vec<f64> = thresholds
                     .iter()
-                    .map(|t| threshold_value(sheet, index, t, &nums))
+                    .map(|t| threshold_value(sheet, index, t, nums))
                     .collect();
                 let mut idx = icon_index(n, &cuts, thresholds);
                 if *reverse && !thresholds.is_empty() {

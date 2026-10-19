@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/ui/grid/cell-items.ts; changes listed in PROVENANCE.md.
 
+use crate::cf::CfPaintCache;
 use crate::model::{ActiveWorksheet, CellRange, WorkbookSlice};
 use crate::sheet_access::CellIndex;
 use crate::view::cell_paint::{css_font, hashes, repeat_to_fill};
-use crate::cf::CfPaintCache;
 use crate::view::cell_view::{cell_view_with_cf_cache, CellViewOptions};
 use crate::view::metrics::GridMetrics;
 use crate::view::number_fit::fit_number;

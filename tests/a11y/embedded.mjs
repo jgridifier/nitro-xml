@@ -19,12 +19,14 @@ const AXE_SRC = join(A11Y, 'node_modules/axe-core/axe.min.js');
 /** One entry per format whose embedded toolbar has shipped. */
 const FORMATS = [
 	{ format: 'docx', page: 'docx-a11y.html', fixture: 'fixtures/generated/docx/pages_10.docx' }, // one shell page: Pages group hides itself
+	{ format: 'xlsx', page: 'xlsx-a11y.html', fixture: 'fixtures/real/xlsx/poi-45544.xlsx', id: 'xlsx-readonly' },
+	{ format: 'xlsx', page: 'xlsx-a11y.html', fixture: 'fixtures/real/xlsx/poi-45544.xlsx', id: 'xlsx-edit', edit: true, after: 'Bold' },
 	{ format: 'pptx', page: 'pptx-a11y.html', fixture: 'fixtures/generated/pptx/slides_10.pptx', next: 'Next slide', prev: 'Previous slide' },
 ];
 
 const url = (base, f, w, mode) =>
 	`${base}/repo/tests/a11y/pages/${f.page}?${new URLSearchParams({
-		side: 'rust', id: `embedded-${f.format}`, fixture: `/repo/${f.fixture}`, width: String(w), height: '400',
+		side: 'rust', id: `embedded-${f.id || f.format}`, ...(f.edit ? { edit: '1' } : {}), fixture: `/repo/${f.fixture}`, width: String(w), height: '400',
 		...(mode ? { mode } : {}),
 	})}`;
 
@@ -51,12 +53,13 @@ async function check(f, browser, base, browserName) {
 
 	await open(960, 'embedded');
 	await page.addScriptTag({ path: AXE_SRC });
-	const axe = await page.evaluate(async () => {
+	const axe = await page.evaluate(async (fmt) => {
 		const r = await axe.run(document, { resultTypes: ['violations'], runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] } });
-		return r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id);
-	});
-	const axeNew = axe.filter((id) => !['landmark-one-main', 'region'].includes(id)); // same allow-list as default mode (#29)
-	if (axeNew.length) errs.push(`axe: ${axeNew.join(',')}`);
+		// Toolbar nodes only: the grid / Rust chrome are covered (differentially) by the default-mode cases.
+		const mine = (n) => /class="nx[ "-]/.test(n.html);
+		return r.violations.filter((v) => (v.impact === 'serious' || v.impact === 'critical') && v.nodes.some(mine)).map((v) => v.id + ':' + v.nodes.filter(mine).slice(0, 2).map((n) => n.target.join(' ') + ' ' + n.html.slice(0, 90) + ' ' + (n.failureSummary || '').slice(0, 160)).join(' | '));
+	}, f.format);
+	if (axe.length) errs.push(`axe: ${axe.join(',')}`);
 
 	const tabStops = await page.evaluate(() => [...window.__a11yHost.shadowRoot.querySelectorAll('.nx .nx-b')].filter((b) => b.tabIndex === 0).length);
 	if (tabStops !== 1) errs.push(`roving tabindex: ${tabStops} tab stops`);
@@ -73,9 +76,24 @@ async function check(f, browser, base, browserName) {
 		await page.waitForFunction(() => window.__a11yHost.shadowRoot.querySelector('.nx-r[data-r=nav]').textContent.startsWith('2 /'), null, { timeout: 10_000 }).catch(() => errs.push('Next did not advance / readout not mirrored'));
 		const prevAfter = await nxBtn(f.prev).isDisabled();
 		if (!prevDisabled || prevAfter) errs.push(`Previous disabled state not mirrored (first=${prevDisabled}, after Next=${prevAfter})`);
-	} else if ((await page.evaluate(active)) !== 'Find') errs.push('Pages group should be hidden for a single page');
+	} else if ((await page.evaluate(active)) !== (f.after || 'Find')) errs.push(`expected ${f.after || 'Find'} after Copy (a group that must be hidden is showing?)`);
 	await page.keyboard.press('End');
 	if ((await page.evaluate(active)) !== 'Zoom in') errs.push('End did not reach last button');
+
+	if (f.edit) {
+		// A narrow CI font/width may have moved the group into More: open it first.
+		const press = async (name) => {
+			if (!(await nxBtn(name).isVisible())) await page.locator(`css=nitro-${f.format} >> .nx-mb`).click();
+			await nxBtn(name).click();
+		};
+		// Wiring + mirroring through the real engine: Insert sheet adds a tab, Undo removes it.
+		const tabs = () => page.evaluate(() => window.__a11yHost.shadowRoot.querySelectorAll('.chrome .t button').length);
+		const n0 = await tabs();
+		await press('Insert sheet');
+		await page.waitForFunction((n) => window.__a11yHost.shadowRoot.querySelectorAll('.chrome .t button').length === n + 1, n0, { timeout: 10_000 }).catch(() => errs.push('Insert sheet did not add a tab'));
+		await press('Undo');
+		await page.waitForFunction((n) => window.__a11yHost.shadowRoot.querySelectorAll('.chrome .t button').length === n, n0, { timeout: 10_000 }).catch(() => errs.push('Undo did not remove the inserted sheet'));
+	}
 
 	// Find toggle mirrors the find bar.
 	await nxBtn('Find').click();
@@ -94,7 +112,7 @@ async function check(f, browser, base, browserName) {
 	const clipped = await page.evaluate(() => { const b = window.__a11yHost.shadowRoot.querySelector('.nx'); return b.scrollWidth > b.clientWidth + 1; });
 	if (clipped) errs.push('toolbar still overflows at 240px');
 	await ctx.close();
-	return { ok: !errs.length, summary: `[${browserName}] ${errs.length ? 'FAIL' : 'OK'} embedded-${f.format}${errs.length ? ': ' + errs.join('; ') : ''}` };
+	return { ok: !errs.length, summary: `[${browserName}] ${errs.length ? 'FAIL' : 'OK'} embedded-${f.id || f.format}${errs.length ? ': ' + errs.join('; ') : ''}` };
 }
 
 export async function runEmbeddedChecks() {

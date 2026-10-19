@@ -1,32 +1,34 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Collect M1-report metrics from existing harnesses only (docs/M1-REPORT.md §5–§7).
+# Collect M1-report metrics from existing harnesses (docs/M1-REPORT.md §5–§7).
 #
-# Does NOT arm gates, edit budgets, or invent TS-vs-WASM numbers. When
-# perf_beats_ts.sh / scoreboard.sh still print NOT IMPLEMENTED, that fact is
-# recorded so the report stays honest.
+# Does NOT arm gates or edit budgets/workflows. TS-vs-WASM cold-open tables come
+# from perf/large/ts-vs-wasm.mjs (report-only). Gate stubs
+# (perf_beats_ts.sh / scoreboard.sh) are still recorded as NOT IMPLEMENTED.
 #
 # Usage (from repo root):
 #   bash perf/large/collect-m1-report.sh
 #   bash perf/large/collect-m1-report.sh --skip-generate   # fixtures already present
 #   bash perf/large/collect-m1-report.sh --skip-build-wasm # pkg already matches tip
+#   bash perf/large/collect-m1-report.sh --skip-ts-vs-wasm # native/wasm/bundle only
 #
-# Writes JSON lines to stdout and a machine-readable summary under
-#   /tmp/m1-metrics-<shortsha>/summary.json
-# Embed the printed SHA + commands in docs/M1-REPORT.md; do not commit L/XL binaries.
+# Writes logs under /tmp/m1-metrics-<shortsha>/; do not commit L/XL binaries.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
 
 SKIP_GENERATE=0
 SKIP_BUILD_WASM=0
+SKIP_TS_VS_WASM=0
 RUNS_NATIVE=7
 RUNS_WASM=7
+RUNS_COMPARE=11
 for a in "$@"; do
   case "$a" in
     --skip-generate) SKIP_GENERATE=1 ;;
     --skip-build-wasm) SKIP_BUILD_WASM=1 ;;
-    --runs=*) RUNS_NATIVE="${a#--runs=}"; RUNS_WASM="$RUNS_NATIVE" ;;
+    --skip-ts-vs-wasm) SKIP_TS_VS_WASM=1 ;;
+    --runs=*) RUNS_NATIVE="${a#--runs=}"; RUNS_WASM="$RUNS_NATIVE"; RUNS_COMPARE="$RUNS_NATIVE" ;;
     *) echo "unknown arg: $a" >&2; exit 2 ;;
   esac
 done
@@ -148,11 +150,20 @@ fi
   '
 } | tee "$OUT/bundle.txt"
 
+# --- TS vs WASM cold open (report-only; does not arm perf_beats_ts) ---
+if [ "$SKIP_TS_VS_WASM" -eq 0 ]; then
+  {
+    echo "sha=$SHA"
+    node --expose-gc perf/large/ts-vs-wasm.mjs --runs="$RUNS_COMPARE" --warmup=2 --bootstrap=2000
+  } | tee "$OUT/ts-vs-wasm.txt"
+fi
+
 # --- Compact summary JSON (pointers + stub status; numbers live in the teed logs) ---
 node - "$OUT" "$SHA" "$SHORT" "$WHEN" "$HOST" <<'JS'
 const fs = require('fs');
 const [out, sha, short, when, host] = process.argv.slice(2);
 const stubs = fs.readFileSync(`${out}/stubs.txt`, 'utf8');
+const hasCompare = fs.existsSync(`${out}/ts-vs-wasm.txt`);
 const summary = {
   sha,
   short,
@@ -161,7 +172,8 @@ const summary = {
   out,
   commands: [
     'bash perf/large/collect-m1-report.sh',
-    'bash scripts/ci/perf_beats_ts.sh <xlsx|docx|pptx>',
+    'node --expose-gc perf/large/ts-vs-wasm.mjs',
+    'bash scripts/ci/perf_beats_ts.sh <xlsx|docx|pptx>  # still stub; not armed',
     'bash scripts/ci/scoreboard.sh',
     'bash scripts/ci/bundle_budget.sh',
   ],
@@ -172,8 +184,8 @@ const summary = {
     raw: stubs.trim().split('\n'),
   },
   gaps: {
-    ts_vs_wasm_medians_and_bootstrap_cis:
-      'Unavailable: scripts/ci/perf_beats_ts.sh still prints NOT IMPLEMENTED (#19/#23/#27; gate machinery #8). Docx arm deferred under #23.',
+    ts_vs_wasm_gate_arm:
+      'Report tables come from perf/large/ts-vs-wasm.mjs. Gate scripts remain stubbed (#8/#19/#23/#27); docx arm deferred under #23 — not closed by this collector.',
     scoreboard_standings_including_losses:
       'Unavailable without scoreboard render-race fix: issue #41 and draft PR #113. nitro-xml remains "not entered" in docs/scoreboard/data/parse-latest.json. Do not invent standings.',
   },
@@ -182,6 +194,7 @@ const summary = {
     wasm: `${out}/wasm.txt`,
     bundle: `${out}/bundle.txt`,
     stubs: `${out}/stubs.txt`,
+    ts_vs_wasm: hasCompare ? `${out}/ts-vs-wasm.txt` : null,
   },
 };
 fs.writeFileSync(`${out}/summary.json`, JSON.stringify(summary, null, 2));

@@ -453,12 +453,21 @@ pub fn formula_cells_json(host: &XlsxHost) -> Value {
             let Some(formula) = &cell.formula else {
                 continue;
             };
+            // Match TS model numbers (JSON numbers), not gate `__NUM__:` encoding.
+            let v = match &cell.value {
+                crate::model::DumpCellValue::Number(n) => crate::model::js_num(*n),
+                crate::model::DumpCellValue::NumberRaw(s) => s
+                    .parse::<f64>()
+                    .map(crate::model::js_num)
+                    .unwrap_or_else(|_| cell.value.to_json()),
+                other => other.to_json(),
+            };
             cells.push(json!({
                 "sheet": sheet_index,
                 "row": cell.row,
                 "col": cell.col,
                 "f": formula,
-                "v": cell.value.to_json(),
+                "v": v,
             }));
         }
     }

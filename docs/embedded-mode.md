@@ -49,8 +49,9 @@ Font, Paragraph, Insert, Arrange exist in `nitro-xml-pptx::editor` but are **not
 ### docx
 Clipboard (Copy) · Pages (Previous, Next) · Editing (Find) · View (zoom). Font/Paragraph/Styles/Insert follow the same rule as pptx.
 
-### xlsx (editable)
-Undo/Redo/Save · Font (Bold, Italic, Underline, Strikethrough, Grow, Shrink) · Alignment (Top, Middle, Bottom, Left, Center, Right, Wrap) · Number (Percent, Comma, Accounting, General) · Cells (Insert/Delete sheet; insert/delete rows and columns if reachable through `applyEdit`) · Editing (Clear contents, Find) · View. Read-only xlsx: Clipboard (Copy), Editing (Find), View.
+### xlsx
+Editable: File (Save, Undo, Redo) · Clipboard (Copy) · Font (Bold, Italic, Underline, Strikethrough, Larger, Smaller) · Alignment (Top, Middle, Bottom, Left, Center, Right, Wrap) · Number (Percent, Comma, Accounting) · Cells (Insert sheet, Delete sheet) · Editing (Clear contents, Find) · View. Read-only: Clipboard (Copy), Editing (Find), View.
+Left out because they are not reachable today: Cut/Paste (unmapped stubs), insert/delete rows and columns (`insertRows` etc. are not registered on the WASM edit session; the ribbon ids are unmapped), number-format dropdown, borders, fills, merge. Toggle buttons carry no pressed state: the Rust chrome has no live cell-style state yet (`is_checked` is a stub), and a pressed look that lies is worse than none.
 
 ## Narrow widths (container query on the host, not the viewport)
 1. ≥ 720 px: icon + label, group captions.

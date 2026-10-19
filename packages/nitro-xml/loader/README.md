@@ -165,6 +165,15 @@ viewer.addEventListener("nitro-copy", (e) => {});
 
 Keys (from Rust `data-hk`): `Ctrl/Cmd+F` find, `Ctrl/Cmd+C` copy, `Ctrl/Cmd+=`/`-` zoom, `Esc` closes find.
 
+### Embedded mode
+
+`<nitro-pptx mode="embedded">` (also `<nitro-docx>`, `<nitro-xlsx>`; or `el.mode = "embedded"`)
+swaps the chrome for one compact, PowerPoint-Home-style toolbar for host apps. Default is
+`mode="full"` (unchanged). The toolbar is a lazy chunk (`loader/lazy/embedded/`, dynamic
+`import()` only for this mode) that calls `shellAction` and mirrors state from the hidden Rust
+chrome. Theme with `--nx-accent`, `--nx-bg`, `--nx-fg`, `--nx-border` or `::part(embedded-toolbar|embedded-group|embedded-button)`.
+See `docs/embedded-mode.md`.
+
 ## Headless session (same thread)
 
 ```js

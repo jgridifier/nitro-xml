@@ -118,7 +118,8 @@ impl XlsxState {
         Ok(normalized)
     }
 
-    /// Load post-`sheetData` merges/CF when first-view stopped early on `<dimension>`.
+    /// Load post-`sheetData` merges/CF/DV when first-view stopped early on `<dimension>`.
+    /// Called before paint and selection so the first frame matches a full SkipRows shell.
     fn ensure_merges_ready(&mut self) -> Result<(), String> {
         let Some(lazy) = self.lazy.as_mut() else {
             return Ok(());
@@ -348,6 +349,8 @@ impl XlsxState {
         measures: &mut nitro_xml_render::MeasureBatch,
     ) {
         if self.lazy.is_some() {
+            // Finish dimension early-stop before the first paint so merges/CF/DV match TS.
+            let _ = self.ensure_merges_ready();
             let rect = self.current_cell_rect();
             let active = self.active;
             if self.sync_lazy_sheet(active, rect).is_err() {

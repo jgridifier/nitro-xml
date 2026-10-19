@@ -10,6 +10,7 @@ import { A11Y_CASES } from './registry.mjs';
 import { runAxeChecks } from './axe.mjs';
 import { runAxTreeChecks } from './ax-tree.mjs';
 import { runKeyboardChecks } from './keyboard.mjs';
+import { runEmbeddedChecks } from './embedded.mjs';
 import { spawnSync } from 'node:child_process';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), 'out');
@@ -35,6 +36,8 @@ async function main() {
 	console.log(ax.summary);
 	const kb = await runKeyboardChecks();
 	console.log(kb.summary);
+	const emb = await runEmbeddedChecks();
+	console.log(emb.summary);
 
 	let editOk = true;
 	let editSummary = 'a11y-edit: skipped';
@@ -55,7 +58,7 @@ async function main() {
 	}
 
 	const deferred = A11Y_CASES.filter((c) => !c.ready).map((c) => `${c.id}: ${c.todo}`);
-	const ok = axe.ok && ax.ok && kb.ok && editOk;
+	const ok = axe.ok && ax.ok && kb.ok && emb.ok && editOk;
 
 	const formats = ['xlsx', 'pptx', 'docx'];
 	const formatLines = [];
@@ -81,6 +84,7 @@ async function main() {
 		axe.summary,
 		ax.summary,
 		kb.summary,
+		emb.summary,
 		editSummary,
 		...(deferred.length ? ['deferred cases:', ...deferred.map((d) => `  - ${d}`)] : []),
 	].join('\n');

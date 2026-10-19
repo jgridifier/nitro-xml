@@ -290,10 +290,21 @@ export class ShellViewerElement extends ViewerElement {
     this._wp = 1;
   }
   static get observedAttributes() {
-    return ["src", "readonly"];
+    return ["src", "readonly", "mode"];
   }
   attributeChangedCallback(n, _, v) {
     if (n == "readonly") this._readonly = v != "false";
+    if (n == "mode" && this._ch) this._em();
+  }
+  get mode() {
+    return this.getAttribute("mode") || "full";
+  }
+  set mode(v) {
+    this.setAttribute("mode", v);
+  }
+  async _em() {
+    const e = this.mode == "embedded";
+    if (e || this._emb) (await import("./lazy/embedded/index.js")).setMode(this, e);
   }
   connectedCallback() {
     this._readonly = this.getAttribute("readonly") != "false";
@@ -303,6 +314,7 @@ export class ShellViewerElement extends ViewerElement {
     return this._readonly;
   }
   async _ao() {
+    await this._em();
     await this.shellAction("ui");
     const z=this.getAttribute("zoom");if(z)await this.shellAction("zoom-set",z);
   }

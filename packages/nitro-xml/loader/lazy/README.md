@@ -11,5 +11,6 @@ same way it skips `loader/test/`.
 | `outline-worker.js` | Worker `take-frame` / `outline-results` when `handle.outlineCount > 0`. |
 | `glyph-outline.js` | A paint frame queues `OutlineBatch` probes (WordArt envelope warp). Host dynamic-`import()`s this only if `outlineCount > 0`. |
 | `journal.js` | Editable `WorkerDocument.open` (`readonly: false`) and package `createJournal` import — crash-recovery op journal (#62 / #30), not on the readonly viewer path. |
+| `embedded/*.js` | Shell element has `mode="embedded"` (dynamic `import()` from `ShellViewerElement._em`). Compact PowerPoint-Home toolbar; see `docs/embedded-mode.md`. |
 
 Keep this directory for on-demand host work that must not grow the initial loader.

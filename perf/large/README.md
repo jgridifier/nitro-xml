@@ -32,3 +32,15 @@ Run one fixture per process when comparing RSS (VmHWM is process-lifetime).
 bash scripts/build-wasm.sh
 node perf/large/wasm-baseline.mjs fixtures/generated/xlsx/cells_1m.xlsx 5
 ```
+
+## TS vs WASM cold open (report-only)
+
+Compares upstream ooxml-core open/parse entry points with Nitro `Handle.openDocument`
+on the S/M/L/XL fixtures. Emits medians and a 95% bootstrap CI of the WASM/TS ratio.
+**Does not arm** `perf_beats_ts.sh`.
+
+```bash
+node --expose-gc perf/large/ts-vs-wasm.mjs
+# or via the M1 collector (also runs native/wasm/bundle):
+bash perf/large/collect-m1-report.sh
+```

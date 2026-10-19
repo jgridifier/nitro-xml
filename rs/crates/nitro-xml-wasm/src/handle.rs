@@ -174,7 +174,8 @@ impl Warning {
 /// `FinalizationRegistry` safety net (#37).
 #[wasm_bindgen]
 pub struct Handle {
-    pub(crate) bytes: Vec<u8>,
+    /// One package buffer shared with xlsx [`FirstView`](nitro_xml_xlsx::FirstView) (Arc).
+    pub(crate) bytes: std::sync::Arc<[u8]>,
     warnings: Vec<Warning>,
     font_source: FontSource,
     /// Optional host resolver: `(families: string[]) => string | null`.
@@ -198,13 +199,14 @@ pub struct Handle {
 
 #[wasm_bindgen]
 impl Handle {
-    /// Takes a copy of the document bytes (one bulk copy across the boundary).
+    /// Takes a copy of the document bytes (one bulk copy across the boundary into an `Arc`).
     #[wasm_bindgen(constructor)]
     pub fn new(bytes: &[u8]) -> Handle {
         let mut strings = StringTable::new();
         crate::events::seed_input_keys(&mut strings);
         Handle {
-            bytes: bytes.to_vec(),
+            // Single copy into Arc; `from(to_vec())` would briefly hold Vec + Arc.
+            bytes: std::sync::Arc::<[u8]>::from(bytes),
             warnings: Vec::new(),
             font_source: FontSource::default(),
             font_source_resolver: None,
@@ -285,7 +287,8 @@ impl Handle {
     pub fn open_document(&mut self, name: &str) -> Result<(), JsValue> {
         if is_xlsx_extension(name) {
             let t0 = now_ms();
-            let (mut state, warnings) = XlsxState::open(&self.bytes).map_err(js_open_err)?;
+            let (mut state, warnings) =
+                XlsxState::open(std::sync::Arc::clone(&self.bytes)).map_err(js_open_err)?;
             self.shell = ShellState::default();
             self.shell.format = FormatKind::Xlsx;
             self.shell.diagnostics.clear_runtime();

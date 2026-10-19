@@ -46,3 +46,7 @@ path = "examples/xlsx_fns_dump.rs"
 [[example]]
 name = "xlsx_editor_recalc"
 path = "examples/xlsx_editor_recalc.rs"
+
+[[example]]
+name = "xlsx_paint_bench"
+path = "examples/xlsx_paint_bench.rs"

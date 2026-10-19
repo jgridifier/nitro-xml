@@ -576,7 +576,7 @@ pub fn parse_all_worksheets(
                 dynamic_cells: dynamic_cells.clone(),
                 warnings: Vec::new(),
             };
-            let ws = parse_worksheet(
+            let mut ws = parse_worksheet(
                 &mut ws_ctx,
                 &mut pkg,
                 part,
@@ -584,6 +584,9 @@ pub fn parse_all_worksheets(
                 stub.sheet_id,
                 stub.state,
             );
+            // Dump / view-IR / engine API / sheet_access read `.cells`; keep living store only on
+            // `load_workbook` (cells_1m HWM). Materialize here with SST so Shared cells resolve.
+            ws.ensure_dump_cells(&workbook.shared_strings);
             out.push(Some(ws));
         } else {
             out.push(Some(stub_worksheet(stub)));
@@ -629,14 +632,16 @@ pub fn parse_worksheet_at(
         dynamic_cells,
         warnings: Vec::new(),
     };
-    Ok(parse_worksheet(
+    let mut ws = parse_worksheet(
         &mut ws_ctx,
         &mut pkg,
         part,
         &stub.name,
         stub.sheet_id,
         stub.state,
-    ))
+    );
+    ws.ensure_dump_cells(&workbook.shared_strings);
+    Ok(ws)
 }
 
 #[cfg(test)]

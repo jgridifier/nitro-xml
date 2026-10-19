@@ -159,8 +159,7 @@ fn dumps_bidi_arabic_hebrew_shared_strings() {
     );
     let bytes = std::fs::read(path).expect("fixture");
     let wb = crate::load_workbook(&bytes).expect("load");
-    let mut sheet = crate::parse_worksheet_at(&bytes, &wb, 0).expect("ws");
-    sheet.ensure_dump_cells(&wb.shared_strings);
+    let sheet = crate::parse_worksheet_at(&bytes, &wb, 0).expect("ws");
     let texts: Vec<String> = sheet
         .cells
         .iter()
@@ -172,6 +171,10 @@ fn dumps_bidi_arabic_hebrew_shared_strings() {
     assert_eq!(texts.len(), 5, "{texts:?}");
     assert!(texts[0].contains("مرحبا"), "{texts:?}");
     assert!(texts[1].contains("שלום"), "{texts:?}");
+    // Catches: parse_all_worksheets leaving `.cells` empty so view-IR/bidi visual dump blanks.
+    let all = crate::parse_all_worksheets(&bytes, &wb).expect("all");
+    let all0 = all[0].as_ref().expect("sheet0");
+    assert_eq!(all0.cells.len(), 5, "parse_all must materialize DumpCell");
     let first = crate::lazy::open_first_view(
         &bytes,
         crate::lazy::ViewportRect {

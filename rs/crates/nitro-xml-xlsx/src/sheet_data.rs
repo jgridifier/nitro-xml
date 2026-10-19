@@ -1069,6 +1069,6 @@ mod tests {
             DumpCellValue::String(String::new()),
             "empty str+v must dump empty string, got {d1:?}"
         );
-        assert_eq!(d1.type_tag.as_deref(), Some("s"));
+        assert_eq!(d1.type_tag, Some("s"));
     }
 }

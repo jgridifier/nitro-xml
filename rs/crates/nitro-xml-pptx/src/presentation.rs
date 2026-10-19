@@ -31,6 +31,69 @@ use nitro_xml_render::chart::chart_blip_rel_ids;
 
 pub type Error = OpcError;
 
+/// Common bullet glyphs that Nitro folds into `DumpElement::text` as their own paragraph.
+fn scoreboard_is_bullet_only(s: &str) -> bool {
+    let t = s.trim();
+    matches!(
+        t,
+        "\u{2022}"
+            | "\u{25CF}"
+            | "\u{25E6}"
+            | "\u{2043}"
+            | "\u{25AA}"
+            | "\u{25AB}"
+            | "•"
+            | "◦"
+            | "▪"
+            | "▫"
+            | "▸"
+            | "►"
+            | "‣"
+            | "⁃"
+    )
+}
+
+fn scoreboard_push_text(text: &str, out: &mut Vec<String>) {
+    for line in text.split('\n') {
+        let mut p = line.to_string();
+        for prefix in [
+            "\u{2022}", "\u{25CF}", "\u{25E6}", "\u{2043}", "\u{25AA}", "\u{25AB}", "•", "◦", "▪",
+            "▫", "▸", "►", "‣", "⁃",
+        ] {
+            if let Some(rest) = p.strip_prefix(prefix) {
+                p = rest.trim_start().to_string();
+                break;
+            }
+        }
+        if !p.is_empty() && !scoreboard_is_bullet_only(&p) {
+            out.push(p);
+        }
+    }
+}
+
+fn scoreboard_walk_elements(elements: &[DumpElement], out: &mut Vec<String>) {
+    for el in elements {
+        if el.type_ != "picture" {
+            if let Some(t) = &el.text {
+                scoreboard_push_text(t, out);
+            }
+        }
+        if let Some(table) = &el.table_data {
+            for row in &table.rows {
+                for cell in &row.cells {
+                    if cell.h_merge || cell.v_merge {
+                        continue;
+                    }
+                    scoreboard_push_text(&cell.text, out);
+                }
+            }
+        }
+        if let Some(kids) = &el.children {
+            scoreboard_walk_elements(kids, out);
+        }
+    }
+}
+
 fn presentation_root(doc_root: &Element) -> Option<&Element> {
     part_root(doc_root, "presentation")
 }
@@ -336,6 +399,21 @@ impl<'a> Presentation<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Scoreboard parse-race extract: per-slide paragraph strings (body + table cells).
+    /// Bullet markers folded into `DumpElement::text` are dropped so equivalence matches
+    /// upstream's `textSegments` filter (see `perf/scoreboard/adapters/js/upstream-pptx.mjs`).
+    pub fn scoreboard_extract_json(&mut self) -> Result<String, Error> {
+        self.ensure_all_slides()?;
+        let mut slides = Vec::new();
+        for i in 0..self.slide_paths.len() {
+            let slide = self.slides[i].as_ref().expect("parsed");
+            let mut paras = Vec::new();
+            scoreboard_walk_elements(&slide.elements, &mut paras);
+            slides.push(paras);
+        }
+        Ok(serde_json::json!({ "slides": slides }).to_string())
     }
 
     pub fn inspect_json(&mut self) -> Result<String, Error> {

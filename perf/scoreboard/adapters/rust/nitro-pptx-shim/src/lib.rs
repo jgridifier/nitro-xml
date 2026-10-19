@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! nitro-xml-pptx behind wasm-bindgen for the scoreboard parse race. `parse` (timed) is
-//! `Presentation::open` then `ensure_all_slides`; `extract` (not timed) returns inspect JSON for
-//! the JS adapter to walk.
+//! `Presentation::open` then `ensure_all_slides`; `extract` (not timed) returns scoreboard
+//! paragraph JSON (`{ slides: [[string, ...], ...] }`).
 use nitro_xml_pptx::Presentation;
 use wasm_bindgen::prelude::*;
 
@@ -22,5 +22,5 @@ pub fn parse(bytes: &[u8]) -> Result<Model, JsError> {
 #[wasm_bindgen]
 pub fn extract(model: &Model) -> String {
     let mut pres = Presentation::open(&model.bytes).expect("open");
-    pres.inspect_json().expect("inspect")
+    pres.scoreboard_extract_json().expect("extract")
 }

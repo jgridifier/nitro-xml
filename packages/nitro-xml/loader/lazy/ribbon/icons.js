@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: MIT
+// Original 24x24 line icons (drawn for this project; no Microsoft assets). Inner markup only.
+// Elements with class="a" take the app accent colour; everything else is currentColor.
+import { ICONS as BASE } from "../embedded/icons.js";
+
+export const ICONS = {
+  ...BASE,
+  paste: '<rect x="5" y="5" width="14" height="16" rx="2"/><path class="a" d="M9 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M9 5h6"/><path d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/>',
+  copy: '<rect x="8" y="8" width="12" height="13" rx="2"/><path class="a" d="M4 16V5a2 2 0 0 1 2-2h8"/>',
+  find: '<circle class="a" cx="10.5" cy="10.5" r="6"/><path d="M15 15l6 6"/>',
+  zoomIn: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/><path class="a" d="M7.5 10.5h6M10.5 7.5v6"/>',
+  zoomOut: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/><path class="a" d="M7.5 10.5h6"/>',
+  zoom100: '<rect x="3" y="5" width="18" height="14" rx="2"/><path class="a" d="M8 15V9l-1.5 1.2M12 9.5h3M12 14.5h3"/>',
+  diag: '<rect x="4" y="4" width="16" height="16" rx="2"/><path class="a" d="M7.5 13l2.5-3 2.5 4 2-2.5 1.5 1.5"/>',
+  open: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path class="a" d="M3 11h18"/>',
+  sample: '<path d="M6 3h8l4 4v14H6z"/><path class="a" d="M14 3v4h4M9 12h6M9 16h6"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  slides: '<rect x="3" y="5" width="14" height="10" rx="1.5"/><path class="a" d="M7 19h14V9"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path class="a" d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M5 5l1.8 1.8M17.2 17.2L19 19M19 5l-1.8 1.8M6.8 17.2L5 19"/>',
+  moon: '<path class="a" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>',
+  chevUp: '<path d="M6 15l6-6 6 6"/>',
+  chevDown: '<path d="M6 9l6 6 6-6"/>',
+  embed: '<rect x="3" y="5" width="18" height="14" rx="2"/><path class="a" d="M3 9.5h18"/>',
+  full: '<rect x="3" y="4" width="18" height="16" rx="2"/><path class="a" d="M3 8h18M3 11.5h18"/>',
+};

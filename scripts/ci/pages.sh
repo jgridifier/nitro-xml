@@ -28,6 +28,9 @@ cp -R "$ROOT/packages/nitro-xml/loader/." "_site/demo/nitro-xml/loader/"
 rm -rf "_site/demo/nitro-xml/loader/test"
 cp -R "$ROOT/packages/nitro-xml/pkg/." "_site/demo/nitro-xml/pkg/"
 
+# Build stamp shown in the demo footer.
+printf '{"sha":"%s","date":"%s"}\n' "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo dev)" "$(date -u +%F)" > _site/demo/build.json
+
 # Sanity: sample fixtures + wasm present
 test -f _site/demo/samples/sample.xlsx
 test -f _site/demo/samples/sample.docx

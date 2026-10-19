@@ -1,0 +1,31 @@
+<!-- SPDX-License-Identifier: MIT -->
+# Nitro XML live demos
+
+Static GitHub Pages demos for `<nitro-xlsx>`, `<nitro-docx>` and `<nitro-pptx>` in
+**full** (normal) and **embedded** modes (`docs/embedded-mode.md`).
+
+## Local preview
+
+```bash
+bash scripts/ci/pages.sh
+python3 -m http.server -d _site 4173
+# open http://127.0.0.1:4173/demo/
+```
+
+The assembled site copies this folder to `_site/demo/` and vendors the WASM package
+plus loader under `_site/demo/nitro-xml/`. Demo HTML/JS is **not** part of the
+loader brotli budget (`scripts/ci/bundle_budget.sh` only walks `packages/nitro-xml/loader`).
+
+## Deploy
+
+`.github/workflows/pages.yml` already builds with `scripts/ci/pages.sh` and deploys
+via `actions/deploy-pages` when the repo variable `PAGES_DEPLOY=actions` is set.
+Until then Pages still serves the legacy **/docs** branch path and will not pick up
+this demo (or the WASM payload).
+
+## Samples
+
+`samples/sample.{xlsx,docx,pptx}` are MIT copies of generated corpus fixtures
+(see `fixtures/manifest.json` ids `gen-xlsx-cells-1k`, `gen-docx-pages-10`,
+`gen-pptx-painter-placeholder`). Nothing is uploaded when you use the file picker;
+files stay in the browser.

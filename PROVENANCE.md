@@ -47,7 +47,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-opc/src/opc/rel_types.rs` | `src/core/opc/relationship-types.ts @ e66aaec` | URI constants as Rust `pub const` strings. |
 | `rs/crates/nitro-xml-opc/src/opc/safe_href.rs` | `src/core/opc/safe-href.ts @ e66aaec` | Same store/open policy and obfuscation hardening; `Option<&str>` instead of null/undefined. |
 | `rs/crates/nitro-xml-opc/src/opc/signature.rs` | `src/core/opc/signature/detection.ts @ e66aaec` | Listing-only port of `isSignaturePart` / `detectDigitalSignatures` (no XML-DSig verify). |
-| `rs/crates/nitro-xml-opc/src/opc/package.rs` | `src/core/xlsx/read/package.ts` (SourceIndex) and `src/core/opc/package.ts` @ e66aaec | `Package::open` over `ZipPackage` with format allow-list (PRODUCT_SPEC.md); properties/signatures listed only. Exposes `stream_part`, `parts_read` and `touched_parts` for the xlsx first-view path. |
+| `rs/crates/nitro-xml-opc/src/opc/package.rs` | `src/core/xlsx/read/package.ts` (SourceIndex) and `src/core/opc/package.ts` @ e66aaec | `Package::open` over `ZipPackage` with format allow-list (PRODUCT_SPEC.md); properties/signatures listed only. Exposes `stream_part`, `parts_read`, `touched_parts`, and `take_text` (cache-evicting one-shot part read) for the xlsx first-view / full-load paths. |
 | `rs/crates/nitro-xml-xlsx/src/numfmt/mod.rs` | `src/core/xlsx/numfmt/index.ts @ e66aaec` | Rust module exports including input parsing (#130). |
 | `rs/crates/nitro-xml-xlsx/src/numfmt/input.rs` | `src/core/xlsx/numfmt/input.ts @ e66aaec` | `parse_cell_input` / number & fraction entry; `ERROR_CODES` kept local (no full workbook `CellValue` object). |
 | `rs/crates/nitro-xml-xlsx/src/numfmt/input_date.rs` | `src/core/xlsx/numfmt/input-date.ts @ e66aaec` | Date/time typed entry over `date_to_serial` / `UtcDateTime`; local year via `localtime_r` on unix. |
@@ -80,7 +80,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/cells.rs` | `src/core/xlsx/cells.ts @ e66aaec` | Columnar parallel arrays + side maps instead of per-cell heap objects; numeric pool stores `js_number_string` text for gate dumps. |
 | `rs/crates/nitro-xml-xlsx/src/worksheet.rs` | `src/core/xlsx/read/worksheet.ts @ e66aaec` | One worksheet part: split sheetData, shell parse (merges, cols, rows, sheetView), attach to workbook model. |
 | `rs/crates/nitro-xml-xlsx/src/sheet_data.rs` | `src/core/xlsx/read/sheet-data.ts @ e66aaec` | Cell read path, formulas (shared/array/dynamic), warning strings; dump via `store_to_dump_cells`. |
-| `rs/crates/nitro-xml-xlsx/src/sheet_data_source.rs` | `src/core/xlsx/read/sheet-data-source.ts @ e66aaec` | `split_sheet_data` string split; inner XML wrapped for tree parse (no full-sheet DOM). |
+| `rs/crates/nitro-xml-xlsx/src/sheet_data_source.rs` | `src/core/xlsx/read/sheet-data-source.ts @ e66aaec` | `sheet_data_bounds` / `split_sheet_data` string split; inner XML borrowed or copied for tree parse (no full-sheet DOM). |
 | `rs/crates/nitro-xml-xlsx/src/sheet_props.rs` | `src/core/xlsx/read/sheet-props.ts @ e66aaec` | Sheet format, default row/col sizes, column defs, row info, sheet view / freeze / selection. |
 | `rs/crates/nitro-xml-xlsx/src/dates.rs` | `src/core/xlsx/read/dates.ts @ e66aaec` | `iso_to_serial` via `numfmt::date_to_serial` and 1900 leap-day quirks. |
 | `rs/crates/nitro-xml-xlsx/src/metadata.rs` | `src/core/xlsx/read/metadata.ts @ e66aaec` | Dynamic-array metadata part for spill anchors. |

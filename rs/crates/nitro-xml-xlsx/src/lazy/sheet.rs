@@ -3,9 +3,12 @@
 //!
 //! The shell (views, columns, format, dimension) is split off the front of the part. `<sheetData>`
 //! rows are visited in order; cell records are kept for the viewport plus slop (and frozen panes).
-//! When row numbers are monotonic past the window, remaining rows are skipped (no cell keep) so the
-//! post-`sheetData` tail — merges, conditional formatting, etc. — and the used-range extents are
-//! still captured without storing every cell.
+//! When row numbers are monotonic past the window:
+//! - If a trustworthy `<dimension ref>` was in the prefix, inflate **stops** (O(viewport)) and the
+//!   used extent comes from that ref — no full-sheet `SkipRows` walk.
+//! - Otherwise remaining rows are skipped (no cell keep) so the post-`sheetData` tail — merges,
+//!   conditional formatting, etc. — and used-range extents are still captured without storing every
+//!   cell.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -220,9 +223,42 @@ fn grid_extent(
 }
 
 fn dimension_ref(shell_xml: &str) -> Option<CellRange> {
-    let doc = parse_xml_str(shell_xml).ok()?;
+    // Mid-stream prefix ends at `<sheetData…>`; a finished shell is already closed.
+    let for_parse = if shell_xml.contains("</worksheet") {
+        shell_xml.to_owned()
+    } else {
+        shell_document(shell_xml, "", true)
+    };
+    let doc = parse_xml_str(&for_parse).ok()?;
     let node = elements(&doc.root).find(|e| e.local == "dimension")?;
     att(Some(node), "ref").and_then(parse_range)
+}
+
+/// Whether `<dimension>` is safe to trust for an early inflate stop (no SkipRows walk).
+fn dimension_trustworthy(
+    dimension: Option<&CellRange>,
+    view: &ViewportRect,
+    capture: &Capture,
+) -> bool {
+    let Some(dim) = dimension else {
+        return false;
+    };
+    if dim.end.row < dim.start.row || dim.end.col < dim.start.col {
+        return false;
+    }
+    let limit = view.r1.saturating_add(ROW_SLOP);
+    // Must cover the viewport we are about to leave behind.
+    if dim.end.row < limit {
+        return false;
+    }
+    // Observed cells past the declared end → stale or wrong dimension; fall back.
+    if capture.saw_row && capture.max_row > dim.end.row {
+        return false;
+    }
+    if capture.max_col > dim.end.col {
+        return false;
+    }
+    true
 }
 
 fn shell_document(prefix: &str, tail: &str, _truncated: bool) -> String {
@@ -372,6 +408,8 @@ struct SheetParser {
     asked_freeze: bool,
     freeze_applied: bool,
     bom_checked: bool,
+    /// From `<dimension ref>` in the prefix when present and later validated.
+    dimension: Option<CellRange>,
 }
 
 enum Phase {
@@ -411,6 +449,7 @@ impl SheetParser {
             asked_freeze: false,
             freeze_applied: false,
             bom_checked: false,
+            dimension: None,
         }
     }
 
@@ -530,6 +569,7 @@ impl SheetParser {
                     OpenScan::Open { end, self_close } => {
                         self.capture.prefix = self.text[..end].to_owned();
                         self.text = self.text[end..].to_owned();
+                        self.dimension = dimension_ref(&self.capture.prefix);
                         self.prefix_ready = true;
                         self.phase = if self_close { Phase::Tail } else { Phase::Rows };
                     }
@@ -551,6 +591,16 @@ impl SheetParser {
                         }
                         let limit = self.view.r1.saturating_add(ROW_SLOP);
                         if self.monotonic && row0 > limit {
+                            if dimension_trustworthy(
+                                self.dimension.as_ref(),
+                                &self.view,
+                                &self.capture,
+                            ) {
+                                // O(viewport): stop inflate; used extent comes from `<dimension>`.
+                                self.stop = true;
+                                self.capture.truncated = true;
+                                return;
+                            }
                             // Keep inflating: skip row bodies so merges/CF after sheetData land,
                             // and so used-range extents stay accurate when `<dimension>` is absent.
                             self.phase = Phase::SkipRows;

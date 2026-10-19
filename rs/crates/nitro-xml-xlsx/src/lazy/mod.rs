@@ -3,7 +3,8 @@
 //!
 //! Eager parts are the content types, package rels, workbook, workbook rels, styles and theme.
 //! Shared strings resolve only indices seen in the viewport. The active worksheet stream keeps
-//! viewport cell rows, then skips the rest of `<sheetData>` so merges / CF / used-range extents
+//! viewport cell rows; when `<dimension>` is present and trustworthy, inflate stops there
+//! (O(viewport)). Otherwise it skips the rest of `<sheetData>` so merges / CF / used-range extents
 //! still land without storing every cell. Other worksheet parts stay unread until
 //! [`FirstView::ensure_sheet`].
 //!
@@ -562,6 +563,99 @@ mod tests {
             "viewport+slop store must stay under the full sheet"
         );
         assert!(lazy.rows_visited(0) < 50);
+    }
+
+    // Catches: trustworthy `<dimension>` still walking every post-viewport row (SkipRows) instead
+    // of stopping inflate at the viewport.
+    #[test]
+    fn dimension_stops_inflate_at_viewport() {
+        let bytes = sheet_with_dimension(200, "A1:B200");
+        let view = ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 20,
+            c1: 1,
+        };
+        let lazy = open_first_view(&bytes, view).expect("dimension sheet");
+        let sheet = lazy.sheet(0).expect("active");
+        let dim = sheet.dimension.as_ref().expect("dimension retained");
+        assert!(
+            dim.end.row >= 199 && dim.end.col >= 1,
+            "extent should come from dimension, got {:?}:{:?}",
+            dim.start,
+            dim.end
+        );
+        assert!(
+            lazy.rows_visited(0) < 50,
+            "rows_visited {} should be O(viewport), not the full 200",
+            lazy.rows_visited(0)
+        );
+        assert!(
+            !lazy.parts_read.iter().any(|p| p.contains("sheet1")),
+            "sheet1 must stop early (not in parts_read): {:?}",
+            lazy.parts_read
+        );
+        assert!(
+            lazy.touched_parts().iter().any(|p| p.contains("sheet1")),
+            "sheet1 must still be touched"
+        );
+        assert!(
+            sheet.cells.iter().any(|c| c.row == 0 && c.col == 0),
+            "viewport cell A1 missing"
+        );
+    }
+
+    // Catches: a too-small `<dimension>` early-stopping and reporting a wrong used extent while
+    // rows past the ref still exist (must fall back to SkipRows).
+    #[test]
+    fn undersized_dimension_falls_back_to_skip_rows() {
+        let bytes = sheet_with_dimension(80, "A1:B2");
+        let view = ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 20,
+            c1: 1,
+        };
+        let lazy = open_first_view(&bytes, view).expect("undersized dimension");
+        let sheet = lazy.sheet(0).expect("active");
+        // Fallback finishes the part so merges/extents from the stream are available.
+        assert!(
+            lazy.parts_read.iter().any(|p| p.contains("sheet1")),
+            "undersized dimension must fall back to full sheetData scan: {:?}",
+            lazy.parts_read
+        );
+        // Catch is that we did not early-stop (parts_read); extent may still use the XML ref.
+        assert!(
+            sheet.dimension.as_ref().is_some_and(|d| d.end.row >= 1),
+            "dimension should surface after fallback"
+        );
+        assert!(lazy.rows_visited(0) < 50);
+    }
+
+    fn sheet_with_dimension(n_rows: u32, dim_ref: &str) -> Vec<u8> {
+        let mut rows = String::new();
+        for r in 1..=n_rows {
+            rows.push_str(&format!(
+                "<row r=\"{r}\"><c r=\"A{r}\"><v>{r}</v></c><c r=\"B{r}\"><v>{}</v></c></row>",
+                r * 2
+            ));
+        }
+        let sheet1 = format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><dimension ref=\"{dim_ref}\"/><sheetData>{rows}</sheetData></worksheet>"
+        );
+        let workbook = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>";
+        let wb_rels = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>";
+        let root_rels = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>";
+        let styles = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"1\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts><fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill></fills><borders count=\"1\"><border/></borders><cellStyleXfs count=\"1\"><xf/></cellStyleXfs><cellXfs count=\"1\"><xf xfId=\"0\"/></cellXfs></styleSheet>";
+        let content_types = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/><Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/></Types>";
+        stored_zip(&[
+            ("[Content_Types].xml", content_types.as_bytes()),
+            ("_rels/.rels", root_rels.as_bytes()),
+            ("xl/workbook.xml", workbook.as_bytes()),
+            ("xl/_rels/workbook.xml.rels", wb_rels.as_bytes()),
+            ("xl/worksheets/sheet1.xml", sheet1.as_bytes()),
+            ("xl/styles.xml", styles.as_bytes()),
+        ])
     }
 
     fn two_sheet_package() -> Vec<u8> {

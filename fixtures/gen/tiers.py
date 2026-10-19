@@ -76,10 +76,14 @@ def gen_xlsx_cells(path: Path, n_cells: int, *, merges: bool, shared_extra: int,
             "</colorScale></cfRule></conditionalFormatting>"
         )
 
+    # Excel always writes `<dimension>`; L/XL first-view uses it to stop inflate at the viewport.
+    last_col = _col(cols)
+    dimension = f'<dimension ref="A1:{last_col}{rows}"/>'
     sheet = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
         'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        f'{dimension}'
         f'<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
         f'<sheetData>{"".join(sheet_rows)}</sheetData>{merge_xml}{cf}'
         '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>'

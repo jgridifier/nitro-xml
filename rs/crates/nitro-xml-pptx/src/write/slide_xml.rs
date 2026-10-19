@@ -118,7 +118,9 @@ fn push_fresh(
 ) {
     let id = *next_id;
     *next_id += 1;
-    nodes.push(new_shape_xml(el, id));
+    let mut shape = new_shape_xml(el, id);
+    apply_element(&mut shape, el);
+    nodes.push(shape);
     order.push(nodes.len() - 1);
 }
 

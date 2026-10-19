@@ -56,6 +56,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("insert.text-box", "Text Box", None, true),
     pptx_cmd!("insert.table", "Table", None, true),
     pptx_cmd!("insert.slide", "New Slide", None, true),
+    pptx_cmd!("insert.duplicate-slide", "Duplicate Slide", None, true),
     pptx_cmd!("home.delete-slide", "Delete Slide", None, true),
 ];
 
@@ -288,10 +289,77 @@ impl PptxCommandSurface {
                 }
                 result
             }
-            // TODO(#85): text box / table insert via text+table edit modules.
-            "insert.text-box" | "insert.table" => Err(EditError::unsupported(id)),
-            // TODO(#86): slide insert/delete when slides/notes edits land.
-            "insert.slide" | "home.delete-slide" => Err(EditError::unsupported(id)),
+            "insert.text-box" => {
+                let slide = selection.slide_index;
+                let n = session
+                    .host
+                    .slide(slide)
+                    .map(|s| s.elements.len())
+                    .unwrap_or(0);
+                let id = format!("text-box-{slide}-{n}");
+                session.run(
+                    "insert.text-box",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |host| -> Result<(), EditError> {
+                        host.add_text_box(slide, &id, 80.0, 80.0, 240.0, 80.0)
+                            .map_err(|e| EditError::Other { message: e })?;
+                        Ok(())
+                    },
+                )?;
+                selection.select(std::iter::once(id));
+                Ok(())
+            }
+            // TODO(#85): table insert still has no slide-table writer.
+            "insert.table" => Err(EditError::unsupported(id)),
+            "insert.slide" => {
+                let at = selection.slide_index.saturating_add(1);
+                session.run(
+                    "insert.slide",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |host| -> Result<(), EditError> {
+                        host.add_slide(Some(at))
+                            .map(|_| ())
+                            .map_err(|e| EditError::Other { message: e })
+                    },
+                )?;
+                let last = (session.host.slides.len() as u32).saturating_sub(1);
+                selection.set_slide(at.min(last));
+                Ok(())
+            }
+            "insert.duplicate-slide" => {
+                let index = selection.slide_index;
+                session.run(
+                    "insert.duplicate-slide",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |host| -> Result<(), EditError> {
+                        host.duplicate_slide(index)
+                            .map(|_| ())
+                            .map_err(|e| EditError::Other { message: e })
+                    },
+                )?;
+                let last = (session.host.slides.len() as u32).saturating_sub(1);
+                selection.set_slide(index.saturating_add(1).min(last));
+                Ok(())
+            }
+            "home.delete-slide" => {
+                let index = selection.slide_index;
+                session.run(
+                    "home.delete-slide",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |host| -> Result<(), EditError> {
+                        host.delete_slide(index)
+                            .map_err(|e| EditError::Other { message: e })?;
+                        Ok(())
+                    },
+                )?;
+                let last = (session.host.slides.len() as u32).saturating_sub(1);
+                selection.set_slide(index.min(last));
+                Ok(())
+            }
             // Direct API / script op ids (addShape, deleteShape, …).
             _ => {
                 let merged = merge_selection_args(id, args, selection);
@@ -402,6 +470,7 @@ mod tests {
                 source_slide_id: None,
             }],
             dirty_parts: Default::default(),
+            structure_dirty: false,
         };
         EditSession::new(host, EditHistory::new())
     }

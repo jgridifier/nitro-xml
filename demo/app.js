@@ -15,10 +15,8 @@ const SAMPLE = {
 
 const LOADER = "./nitro-xml/loader/";
 
-// Editing is on wherever the format's editor is wired to the WASM handle. Today that is xlsx only:
-// for pptx and docx `Handle.saveDocument` / `applyEdit` reject with `no_document` and the chrome
-// is the xlsx one, so those demos stay read-only (and say so) instead of showing dead controls.
-const EDITABLE = { xlsx: true, docx: false, pptx: false };
+// Editing is on for every format whose editor is wired through the WASM handle.
+const EDITABLE = { xlsx: true, docx: true, pptx: true };
 
 async function injectXlsxGridCss(host) {
   if (!host?.shadowRoot) return;
@@ -112,7 +110,7 @@ export async function boot(opts) {
       if (mine !== token) return;
       if (problem) throw new Error(problem);
       ui.ready();
-      ui.doc(lastName, "Read-only");
+      ui.doc(lastName, EDITABLE[format] ? "" : "Read-only");
       ui.opened(buf, lastName);
     } catch (e) {
       if (mine === token) ui.error(`Couldn’t open ${lastName}: ${e?.message || e}`);

@@ -19,6 +19,22 @@ const nav = (unit) => ({
 const find = { g: "Editing", big: [{ i: "find", l: "Find", t: "Find (Ctrl+F)", o: "find-open", x: "find-close", p: 1 }] };
 const copy = { i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy" };
 
+const FONT = {
+  g: "Font",
+  rows: [
+    [
+      it("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
+      it("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
+      it("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
+    ],
+    [
+      it("home.align-left", "left", "Align left"),
+      it("home.align-center", "center", "Center"),
+      it("home.align-right", "right", "Align right"),
+    ],
+  ],
+};
+
 const view = (pptx) => [
   {
     g: "Zoom",
@@ -91,10 +107,32 @@ const XLSX_HOME = [
  * @param {boolean} edit editor commands are wired for this format and the element is writable
  */
 export function tabsFor(format, unit, edit) {
+  const viewOnly = { Home: [{ g: "Clipboard", big: [copy] }, nav(unit), find] };
+  const officeHome = [{ g: "Clipboard", big: [copy] }, FONT, nav(unit), find];
   const tabs =
     format === "xlsx" && edit
       ? { Home: [...XLSX_HOME.slice(0, 5), nav(unit), XLSX_HOME[5]] }
-      : { Home: [{ g: "Clipboard", big: [copy] }, nav(unit), find] };
+      : format === "pptx" && edit
+        ? {
+            Home: officeHome,
+            Insert: [
+              {
+                g: "Slides",
+                big: [
+                  it("insert.slide", "slide", "New Slide"),
+                  it("insert.duplicate-slide", "duplicate", "Duplicate Slide"),
+                  it("insert.text-box", "text", "Text Box"),
+                  it("home.delete-slide", "trash", "Delete Slide"),
+                ],
+              },
+            ],
+          }
+        : format === "docx" && edit
+          ? {
+              Home: officeHome,
+              Insert: [{ g: "Tables", big: [it("insert.table", "table", "Table", "Insert a table")] }],
+            }
+          : viewOnly;
   tabs.View = view(format === "pptx");
   // Give every control a stable key; groups normalise to { big, rows } lists.
   let n = 0;

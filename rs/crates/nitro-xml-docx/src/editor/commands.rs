@@ -11,6 +11,7 @@ use serde_json::{json, Value};
 use crate::edit::format::{set_paragraph_align, set_run_formatting};
 use crate::edit::host::DocxHost;
 use crate::edit::register_docx_command_registry;
+use crate::edit::table::insert_table;
 use crate::editor::print_edit::schedule_relayout;
 use crate::editor::search::SearchController;
 
@@ -46,6 +47,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("align-left", "Align Left", None, true),
     word_cmd!("align-center", "Center", None, true),
     word_cmd!("align-right", "Align Right", None, true),
+    word_cmd!("insert.table", "Table", None, true),
     word_cmd!("print", "Print", Some("Ctrl+P"), false),
     word_cmd!("layout-view", "Print Layout", None, false),
     word_cmd!("paste", "Paste", Some("Ctrl+V"), true),
@@ -249,6 +251,20 @@ impl DocxCommandSurface {
                 schedule_relayout(print_edit);
                 Ok(())
             }
+            "insert.table" => {
+                let at = caret_block.saturating_add(1);
+                session.run(
+                    "insert.table",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |h| -> Result<(), EditError> {
+                        insert_table(h, at, 2, 2)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
             _ => {
                 // Script ops (setRunFormatting, setParagraphText, …) must land on the
                 // history stack so edit.undo restores them. The match arms above already do.
@@ -333,5 +349,35 @@ mod tests {
             .dispatch("edit.undo", &Value::Null, &mut print, &mut session, 0, 0)
             .expect("undo");
         assert_eq!(session.host.blocks[0]["runs"][0]["bold"], false);
+    }
+
+    #[test]
+    fn catches_insert_table_left_in_place_after_undo() {
+        // Catches: insert.table never adding a table block, or undo leaving that table behind.
+        let mut surface = DocxCommandSurface::new(false);
+        let (mut session, _) = session_host();
+        let mut print = PrintEditState::default();
+        surface
+            .dispatch("insert.table", &Value::Null, &mut print, &mut session, 0, 0)
+            .expect("insert");
+        assert!(
+            session
+                .host
+                .blocks
+                .iter()
+                .any(|b| b.get("type").and_then(|t| t.as_str()) == Some("table")),
+            "table was not inserted"
+        );
+        surface
+            .dispatch("edit.undo", &Value::Null, &mut print, &mut session, 0, 0)
+            .expect("undo");
+        assert!(
+            session
+                .host
+                .blocks
+                .iter()
+                .all(|b| b.get("type").and_then(|t| t.as_str()) != Some("table")),
+            "undo left the table in the document"
+        );
     }
 }

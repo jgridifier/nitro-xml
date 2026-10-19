@@ -121,6 +121,7 @@ impl PptxEditor {
         let bytes = save_pptx(&self.session.host, &self.original)?;
         self.original = bytes.clone();
         self.session.host.dirty_parts.clear();
+        self.session.host.structure_dirty = false;
         Ok(bytes)
     }
 
@@ -189,6 +190,7 @@ mod tests {
                 source_slide_id: None,
             }],
             dirty_parts: Default::default(),
+            structure_dirty: false,
         };
         PptxEditor::from_host(host)
     }

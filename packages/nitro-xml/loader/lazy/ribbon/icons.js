@@ -24,4 +24,9 @@ export const ICONS = {
   numFmt: '<path d="M5 17l3-10h2M11 17l3-10h2" /><path class="a" d="M4 10h16M3 14h16"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path class="a" d="M12 11v5M12 7.8v.1"/>',
   full: '<rect x="3" y="4" width="18" height="16" rx="2"/><path class="a" d="M3 8h18M3 11.5h18"/>',
+  slide: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path class="a" d="M9 20h6"/>',
+  duplicate: '<rect x="8" y="7" width="12" height="13" rx="1.5"/><path class="a" d="M4 16V5a1.5 1.5 0 0 1 1.5-1.5H15"/>',
+  text: '<path d="M5 6h14M12 6v12M9 18h6"/><path class="a" d="M5 6h14"/>',
+  trash: '<path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/><path class="a" d="M10 11v6M14 11v6"/>',
+  table: '<rect x="3" y="5" width="18" height="14" rx="1"/><path class="a" d="M3 10h18M3 15h18M9 5v14M15 5v14"/>',
 };

@@ -89,10 +89,15 @@ pub fn ribbon_html(
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Shapes\">");
         html.push_str(&button("insert.shape", "Shape", surface, true));
         html.push_str(&button("insert.text-box", "Text Box", surface, false));
-        html.push_str(&button("insert.table", "Table", surface, false));
         html.push_str("</section>");
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Slides\">");
         html.push_str(&button("insert.slide", "New Slide", surface, false));
+        html.push_str(&button(
+            "insert.duplicate-slide",
+            "Duplicate Slide",
+            surface,
+            false,
+        ));
         html.push_str(&button("home.delete-slide", "Delete Slide", surface, false));
         html.push_str("</section>");
         html.push_str("</div>");

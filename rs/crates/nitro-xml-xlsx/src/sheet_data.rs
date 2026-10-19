@@ -1050,10 +1050,7 @@ mod tests {
             "stream must accept fixture"
         );
         let dumps = store_to_dump_cells_with_sst(&store, &[]);
-        let formulas: Vec<_> = dumps
-            .iter()
-            .filter_map(|c| c.formula.as_deref())
-            .collect();
+        let formulas: Vec<_> = dumps.iter().filter_map(|c| c.formula.as_deref()).collect();
         assert!(
             formulas.iter().any(|f| f.contains("<>")),
             "must keep <> from &lt;&gt;: {formulas:?}"
@@ -1066,10 +1063,7 @@ mod tests {
             formulas.iter().any(|f| f.contains('"')),
             "must keep quotes from &quot;: {formulas:?}"
         );
-        let d1 = dumps
-            .iter()
-            .find(|c| c.row == 0 && c.col == 3)
-            .expect("D1");
+        let d1 = dumps.iter().find(|c| c.row == 0 && c.col == 3).expect("D1");
         assert_eq!(
             d1.value,
             DumpCellValue::String(String::new()),

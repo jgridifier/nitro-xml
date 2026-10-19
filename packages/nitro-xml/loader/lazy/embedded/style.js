@@ -29,7 +29,7 @@ export const CSS = `
 .nx-pop .nx-row{flex-wrap:wrap}
 .nx-pop .nx-b{justify-content:flex-start}
 .nx-pop .nx-l{display:inline}
-:host([data-nx]) .chrome .b,:host([data-nx]) .chrome .d,:host([data-nx]) .chrome .xve-ribbon{display:none!important}
+:host([data-nx]) .chrome .b,:host([data-nx]) .chrome .d,:host([data-nx]) .chrome .xve-ribbon,:host([data-nx]) .chrome .xfb-save{display:none!important}
 :host([data-nx=pptx]) .chrome .t,:host([data-nx=docx]) .chrome .t{display:none}
 .chrome .f{background:var(--nx-bg,#f3f2f1)}
 .chrome .t{gap:2px;padding:0 6px;border-top:1px solid var(--nx-border,#d1d1d1);border-bottom:0;background:var(--nx-bg,#f3f2f1);font:12px/1.2 "Segoe UI",system-ui,sans-serif}

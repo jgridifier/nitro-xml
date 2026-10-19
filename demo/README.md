@@ -23,6 +23,12 @@ via `actions/deploy-pages` when the repo variable `PAGES_DEPLOY=actions` is set.
 Until then Pages still serves the legacy **/docs** branch path and will not pick up
 this demo (or the WASM payload).
 
+## Editing
+
+The **xlsx** demos open writable (`readonly="false"`): ribbon commands, typing, Save (downloads the edited
+file) and an unsaved-changes indicator. pptx and docx stay read-only because their editors are not wired to the
+WASM handle yet; see `docs/ux-revision.md` (Editing pass, and what was skipped).
+
 ## Samples
 
 `samples/sample.{xlsx,docx,pptx}` are MIT copies of generated corpus fixtures

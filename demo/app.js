@@ -15,6 +15,11 @@ const SAMPLE = {
 
 const LOADER = "./nitro-xml/loader/";
 
+// Editing is on wherever the format's editor is wired to the WASM handle. Today that is xlsx only:
+// for pptx and docx `Handle.saveDocument` / `applyEdit` reject with `no_document` and the chrome
+// is the xlsx one, so those demos stay read-only (and say so) instead of showing dead controls.
+const EDITABLE = { xlsx: true, docx: false, pptx: false };
+
 async function injectXlsxGridCss(host) {
   if (!host?.shadowRoot) return;
   const { GRID_CSS } = await import("./xlsx-grid-css.js");
@@ -42,8 +47,11 @@ export async function boot(opts) {
   const tag = TAG[format];
   const makeEl = () => {
     const e = document.createElement(tag);
-    e.setAttribute("readonly", "");
+    // `readonly="false"` opens the editor; the bare attribute keeps the viewer read-only.
+    e.setAttribute("readonly", EDITABLE[format] ? "false" : "");
     e.setAttribute("mode", mode);
+    // Ctrl+S and the Save button download through the element; name the file after the opened one.
+    e._fileName = () => lastName;
     return e;
   };
   /** @type {ArrayBuffer | null} */
@@ -90,6 +98,8 @@ export async function boot(opts) {
     return "";
   }
 
+  const leave = () => !ui?.dirty || confirm("You have unsaved changes. Discard them?");
+
   async function openBytes(buf, name) {
     const mine = ++token;
     lastBytes = buf;
@@ -103,6 +113,7 @@ export async function boot(opts) {
       if (problem) throw new Error(problem);
       ui.ready();
       ui.doc(lastName, "Read-only");
+      ui.opened(buf, lastName);
     } catch (e) {
       if (mine === token) ui.error(`Couldn’t open ${lastName}: ${e?.message || e}`);
     }
@@ -129,21 +140,30 @@ export async function boot(opts) {
       format,
       mode,
       chrome: mode === "full",
+      edit: EDITABLE[format],
       links: [
         ["./index.html", "All demos"],
         ["https://github.com/jgridifier/nitro-xml", "GitHub"],
       ],
-      onMode(m) {
+      async onMode(m) {
         if (m === mode) return;
+        // Remounting reopens the file; carry unsaved edits across as the new starting bytes.
+        const carry = ui?.dirty ? await ui.snapshot() : null;
+        if (carry) lastBytes = carry.buffer.slice(carry.byteOffset, carry.byteOffset + carry.byteLength);
         mode = m;
         history.replaceState(null, "", `./${format}-${m === "embedded" ? "embedded" : "full"}.html`);
         mount();
-        if (lastBytes) openBytes(lastBytes, lastName);
-        else ui.empty();
+        if (lastBytes) {
+          await openBytes(lastBytes, lastName);
+          carry && ui.markDirty();
+        } else ui.empty();
       },
-      onFile: async (f) => openBytes(await f.arrayBuffer(), f.name),
-      onSample: openSample,
+      onFile: async (f) => leave() && openBytes(await f.arrayBuffer(), f.name),
+      onSample() {
+        if (leave()) openSample();
+      },
       onClose() {
+        if (!leave()) return;
         token++;
         lastBytes = null;
         ui.doc("", "");

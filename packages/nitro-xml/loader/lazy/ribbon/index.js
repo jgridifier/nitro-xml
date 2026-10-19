@@ -7,6 +7,9 @@
 // nothing in the element's default mode changes.
 import { ICONS } from "./icons.js";
 import { CANVAS_CSS, CSS, SHADOW_CSS } from "./style.js";
+import { QAT, tabsFor } from "./commands.js";
+import { trackDirty } from "./dirty.js";
+import { createThumbs } from "./thumbs.js";
 
 const APPS = {
   xlsx: { name: "Excel", tile: "X", unit: "Sheet", noun: "workbook", ext: ".xlsx,.xlsm,.xltx,.xltm" },
@@ -17,6 +20,7 @@ export const APP_INFO = APPS;
 
 const svg = (i) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${ICONS[i] || ""}</svg>`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => "&#" + c.charCodeAt(0) + ";");
+const plain = (t) => t.replace(/ \(.*/, "");
 
 export function getTheme() {
   try {
@@ -33,45 +37,23 @@ export function setTheme(t) {
   document.querySelectorAll(".ox").forEach((o) => (o.dataset.theme = t));
 }
 
-// Ribbon content. Only commands that exist on the element's shellAction are listed.
-// k key · i icon · l label · o op · a op arg · x op sent while pressed · p toggle · n tab step · r readout
-const nav = (unit) => ({
-  g: unit + "s",
-  items: [
-    { i: "prev", l: "Previous", t: `Previous ${unit.toLowerCase()}`, o: "nav-prev", n: -1 },
-    { r: "nav" },
-    { i: "next", l: "Next", t: `Next ${unit.toLowerCase()}`, o: "nav-next", n: 1 },
-  ],
-});
-const TABS = (unit) => ({
-  Home: [
-    { g: "Clipboard", items: [{ i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy" }] },
-    nav(unit),
-    { g: "Editing", items: [{ i: "find", l: "Find", t: "Find (Ctrl+F)", o: "find-open", x: "find-close", p: 1 }] },
-  ],
-  View: [
-    {
-      g: "Zoom",
-      items: [
-        { i: "zoomOut", l: "Zoom out", t: "Zoom out (Ctrl+-)", o: "zoom-out" },
-        { r: "zoom" },
-        { i: "zoomIn", l: "Zoom in", t: "Zoom in (Ctrl++)", o: "zoom-in" },
-        { i: "zoom100", l: "100%", t: "Zoom to 100%", o: "zoom-set", a: "100" },
-      ],
-    },
-    { g: "Show", items: [{ i: "diag", l: "Diagnostics", t: "Show or hide load diagnostics", o: "diagnostics-toggle", p: 1, d: 1 }] },
-  ],
-});
-
 /**
  * @param {{ container: HTMLElement, el: HTMLElement, format: 'xlsx'|'docx'|'pptx', chrome?: boolean,
  *   mode: 'full'|'embedded', links?: [string,string][], onMode: (m:string)=>void,
- *   onFile: (f:File)=>void, onSample: ()=>void, onClose?: ()=>void }} o
+ *   onFile: (f:File)=>void, onSample: ()=>void, onClose?: ()=>void, edit?: boolean }} o
+ *   edit: the element is writable and the format's editor is wired to the handle (xlsx today).
  */
 export function mountOffice(o) {
   const app = APPS[o.format];
   const full = o.chrome !== false;
-  const tabsSpec = TABS(app.unit);
+  const edit = !!o.edit;
+  const tabsSpec = tabsFor(o.format, app.unit, edit);
+  const qat = edit && full ? QAT.map((x, i) => ({ ...x, k: "q:" + i })) : [];
+  /** @type {Map<string, any>} control by key */
+  const byKey = new Map();
+  for (const x of qat) byKey.set(x.k, x);
+  for (const groups of Object.values(tabsSpec))
+    for (const g of groups) for (const x of [...g.big, ...g.rows.flat()]) if (!x.r) [x, ...(x.m || [])].forEach((y) => byKey.set(y.k, y));
   const root = document.createElement("div");
   root.className = "ox";
   root.dataset.app = o.format;
@@ -79,19 +61,18 @@ export function mountOffice(o) {
   const style = document.createElement("style");
   style.textContent = CSS;
 
-  const btn = (it, k) =>
-    `<button type="button" class="rb lg" tabindex="-1" aria-label="${esc((it.t || it.l).replace(/ \(.*/, ""))}" title="${esc(it.t || it.l)}" data-k="${k}"${it.p ? ' aria-pressed="false"' : ""}>${svg(it.i)}<span>${esc(it.l)}</span></button>`;
-  const panel = (name) => {
-    let k = 0;
-    return tabsSpec[name]
+  const lbl = (x) => esc(plain(x.t || x.l));
+  const btn = (x, size) =>
+    `<button type="button" class="rb ${size}${x.m ? " dd" : ""}${x.wide ? " wide" : ""}" tabindex="-1" aria-label="${lbl(x)}" title="${esc(x.t || x.l)}" data-k="${x.k}"${x.p ? ' aria-pressed="false"' : ""}${x.m ? ' aria-haspopup="menu" aria-expanded="false"' : ""}>${svg(x.i)}${size === "lg" || x.wide ? `<span>${esc(x.l)}</span>` : ""}${x.m ? svg("chevDown") : ""}</button>`;
+  const panel = (name) =>
+    tabsSpec[name]
       .map(
         (g) =>
-          `<div class="rg" role="group" aria-label="${esc(g.g)}"><div class="rr">${g.items
-            .map((it) => (it.r ? `<span class="rd" data-r="${it.r}" role="status"></span>` : btn(it, name + ":" + k++)))
-            .join("")}</div><div class="gl" aria-hidden="true">${esc(g.g)}</div></div>`,
+          `<div class="rg" role="group" aria-label="${esc(g.g)}"><div class="rr">${g.big
+            .map((x) => (x.r ? `<span class="rd" data-r="${x.r}" role="status"></span>` : btn(x, "lg")))
+            .join("")}${g.rows.length ? `<div class="col2">${g.rows.map((r) => `<div class="r1">${r.map((x) => btn(x, "sm")).join("")}</div>`).join("")}</div>` : ""}</div><div class="gl" aria-hidden="true">${esc(g.g)}</div></div>`,
       )
       .join("");
-  };
   const links = (o.links || []).map(([h, t]) => `<a href="${esc(h)}">${esc(t)}</a>`).join("");
   const seg = (m, l) => `<button type="button" data-mode="${m}" aria-pressed="${o.mode === m}" title="${l} toolbar mode">${l}</button>`;
   root.innerHTML = `
@@ -99,7 +80,8 @@ export function mountOffice(o) {
   <span class="tile" aria-hidden="true">${app.tile}</span>
   <button type="button" class="ib" data-q="open" aria-label="Open file" title="Open file">${svg("open")}</button>
   <span class="sep" aria-hidden="true"></span>
-  <div class="doc"><h1 data-doc>${esc(app.name)}</h1><i data-state></i></div>
+  ${edit ? `<div class="qat" role="toolbar" aria-label="Quick access">${qat.map((x) => `<button type="button" class="ib" data-k="${x.k}" aria-label="${lbl(x)}" title="${esc(x.t)}">${svg(x.i)}</button>`).join("")}</div><span class="sep" aria-hidden="true"></span>` : ""}
+  <div class="doc"><h1 data-doc>${esc(app.name)}</h1><i data-state aria-live="polite"></i></div>
   ${full ? `<span class="srch"><label class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden" for="ox-q">Search in document</label>${svg("find")}<input id="ox-q" type="search" autocomplete="off" placeholder="Search this ${app.noun}" aria-label="Search in document" /></span>` : `<span class="grow"></span>`}
   <div class="seg" role="group" aria-label="Toolbar mode">${seg("full", "Full")}${seg("embedded", "Embedded")}</div>
   <span class="lnks">${links}</span>
@@ -114,13 +96,15 @@ ${
 <div class="fm" role="menu" hidden aria-label="File">
   <button type="button" role="menuitem" data-f="open">${svg("open")}Open…<small>from your device</small></button>
   <button type="button" role="menuitem" data-f="sample">${svg("sample")}Open sample ${app.noun}</button>
+  ${edit ? `<button type="button" role="menuitem" data-f="save">${svg("save")}Save a copy<small>download</small></button>` : ""}
   <button type="button" role="menuitem" data-f="close">${svg("close")}Close</button>
 </div>
+<div class="dm" role="menu" hidden></div>
 <div class="rbn" id="ox-p" role="tabpanel" aria-labelledby="ox-t-Home"><div class="rbn-in" style="display:contents"></div></div></div>`
     : ""
 }
 <div class="body" role="main" aria-label="${esc(app.name)} document">
-  ${o.format === "pptx" && full ? `<aside class="pane" aria-label="Slide thumbnails" hidden><h2>Slides</h2><div class="pl"></div></aside>` : ""}
+  ${o.format === "pptx" && full ? `<aside class="pane" aria-label="Slide thumbnails" hidden><h2>Slides</h2><div class="pl" role="list"></div></aside>` : ""}
   <div class="stage"><div class="over" hidden></div></div>
 </div>
 <div class="foot" role="region" aria-label="Status">
@@ -154,6 +138,9 @@ ${
     sr.appendChild(shadowStyle);
   }
 
+  const thumbs = o.format === "pptx" && full ? createThumbs() : null;
+  let io = null;
+
   // ---- state mirrored from the Rust chrome ----
   const ch = () => o.el._ch;
   const q = (s) => ch() && ch().querySelector(s);
@@ -168,16 +155,20 @@ ${
     const diagOpen = !!q(".d") && !q(".d").hidden;
     const zoomTxt = (q(".z") || {}).textContent || "100%";
     const zoom = parseInt(zoomTxt, 10) || 100;
-    for (const b of $$(".rbn .rb")) {
-      const [tab, k] = b.dataset.k.split(":");
-      const it = tabsSpec[tab].flatMap((g) => g.items).filter((x) => !x.r)[+k];
+    for (const b of [...$$(".rbn .rb"), ...$$(".qat .ib")]) {
+      const it = byKey.get(b.dataset.k);
       let dis = !ch();
       let on = false;
       if (it.n) {
         b.hidden = tb.length < 2;
         dis = at < 0 || at + it.n < 0 || at + it.n >= tb.length;
+      } else if (it.c) {
+        // Mirror the Rust ribbon's own enabled state where it has a control for the command.
+        const m = q(`[data-a="cmd"][data-g="${it.c}"]`);
+        dis = dis || !!(m && m.disabled) || (it.c === "sheet.delete" && tb.length < 2);
       } else if (it.x) on = findOpen;
       else if (it.d) on = diagOpen;
+      else if (it.s) on = !$(".pane").dataset.off;
       b.disabled = dis;
       if (it.p) b.setAttribute("aria-pressed", String(on));
     }
@@ -192,14 +183,16 @@ ${
     $(".sb .zl").textContent = zoomTxt;
     const pane = $(".pl");
     if (pane) {
-      const sig = tb.map((b) => b.textContent + (b.getAttribute("aria-current") === "true")).join("|");
+      const sig = tb.map((b) => b.dataset.g + b.textContent).join("|");
       if (pane.dataset.sig !== sig) {
         pane.dataset.sig = sig;
         pane.innerHTML = tb
-          .map((b, i) => `<button type="button" data-g="${b.dataset.g}"${i === at ? ' aria-current="true"' : ""}><span class="n" aria-hidden="true">${i + 1}</span><span class="th">${esc(b.textContent)}</span></button>`)
+          .map((b, i) => `<button type="button" role="listitem" data-g="${b.dataset.g}" aria-label="${app.unit} ${i + 1}: ${esc(b.textContent)}"><span class="n" aria-hidden="true">${i + 1}</span><span class="th"><span class="ph">${esc(b.textContent)}</span></span></button>`)
           .join("");
+        lazyThumbs();
       }
-      pane.closest(".pane").hidden = tb.length < 2;
+      [...pane.children].forEach((b, i) => (i === at ? b.setAttribute("aria-current", "true") : b.removeAttribute("aria-current")));
+      pane.closest(".pane").hidden = tb.length < 2 || !!pane.closest(".pane").dataset.off;
     }
     const sheets = $(".sheets");
     if (sheets) {
@@ -226,9 +219,16 @@ ${
     if (t.dataset.mode) return o.onMode(t.dataset.mode);
     if (t.dataset.q === "open") return pick.click();
     if (t.dataset.q === "theme") return setTheme(root.dataset.theme === "dark" ? "light" : "dark");
+    if (t.closest(".dm")) {
+      const m = byKey.get(t.dataset.k);
+      dropdown(false, true);
+      return void (m && act("cmd", m.c));
+    }
     if (t.dataset.k) {
-      const [tab, k] = t.dataset.k.split(":");
-      const it = tabsSpec[tab].flatMap((g) => g.items).filter((x) => !x.r)[+k];
+      const it = byKey.get(t.dataset.k);
+      if (it.m) return dropdown(dm.hidden || dm._for !== t, false, t, it);
+      if (it.s) return paneToggle();
+      if (it.c) return void act("cmd", it.c);
       return void act(it.x && t.getAttribute("aria-pressed") === "true" ? it.x : it.o, it.a);
     }
     if (t.closest(".pane, .sheets")) return void act("sheet", t.dataset.g);
@@ -242,6 +242,7 @@ ${
       menu(false);
       if (t.dataset.f === "open") pick.click();
       else if (t.dataset.f === "sample") o.onSample();
+      else if (t.dataset.f === "save") act("cmd", "file.save");
       else o.onClose && o.onClose();
     }
   });
@@ -260,7 +261,38 @@ ${
     }
   }
   document.addEventListener("pointerdown", (e) => menuEl && !menuEl.hidden && !e.composedPath().some((n) => n === menuEl || n === $(".file")) && menu(false));
+  // Dropdown (number format): one popup, filled from the control's own entries.
+  const dm = $(".dm");
+  function dropdown(open, focus, btn, it) {
+    if (!dm) return;
+    if (!open) {
+      const b = dm._for;
+      dm.hidden = true;
+      dm._for = null;
+      b && b.setAttribute("aria-expanded", "false");
+      return void (focus && b && b.focus());
+    }
+    dm.innerHTML = it.m.map((m) => `<button type="button" role="menuitem" tabindex="-1" data-k="${m.k}">${esc(m.l)}</button>`).join("");
+    dm.setAttribute("aria-label", it.l);
+    const r = btn.getBoundingClientRect();
+    const b = root.getBoundingClientRect();
+    dm.style.left = r.left - b.left + "px";
+    dm.style.top = r.bottom - b.top + "px";
+    dm.hidden = false;
+    dm._for = btn;
+    btn.setAttribute("aria-expanded", "true");
+    dm.querySelector("button").focus();
+  }
+  document.addEventListener("pointerdown", (e) => dm && !dm.hidden && !e.composedPath().some((n) => n === dm || n === dm._for) && dropdown(false));
+  function paneToggle() {
+    const pane = $(".pane");
+    if (!pane) return;
+    if (pane.dataset.off) delete pane.dataset.off;
+    else pane.dataset.off = "1";
+    sync();
+  }
   function selectTab(name, focus) {
+    dropdown(false);
     for (const t of $$("[role=tab][data-t]")) {
       const on = t.dataset.t === name;
       t.setAttribute("aria-selected", String(on));
@@ -269,7 +301,7 @@ ${
     }
     const p = $("#ox-p");
     p.setAttribute("aria-labelledby", "ox-t-" + name);
-    $(".rbn-in").innerHTML = panel(name);
+    $(".rbn-in").innerHTML = panel(name) + (edit || name !== "Home" ? "" : `<div class="rn" role="note">${svg("info")}<span><b>View only.</b> ${app.name} editing isn’t connected to the browser engine yet. <a href="./xlsx-full.html">Try the Excel demo</a> to edit.</span></div>`);
     p.hidden = false;
     $(".col").setAttribute("aria-expanded", "true");
     rove();
@@ -284,6 +316,24 @@ ${
   root.addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const t = e.target;
+    if (dm && !dm.hidden && (t.closest(".dm") || t === dm._for)) {
+      const l = [...dm.querySelectorAll("button")];
+      if (e.key === "Escape") {
+        e.preventDefault();
+        return dropdown(false, true);
+      }
+      if (e.key === "Tab") return dropdown(false);
+      if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+        const i = l.indexOf(t);
+        l[e.key === "Home" ? 0 : e.key === "End" ? l.length - 1 : (i + (e.key === "ArrowDown" ? 1 : -1) + l.length) % l.length].focus();
+      }
+      return;
+    }
+    if (e.key === "ArrowDown" && t.matches?.(".rb.dd")) {
+      e.preventDefault();
+      return t.click();
+    }
     if (e.key === "Escape" && menuEl && !menuEl.hidden) {
       menu(false);
       return $(".file").focus();
@@ -324,7 +374,7 @@ ${
     for (const b of $$(".rbn .rb")) b.tabIndex = b === cur ? 0 : -1;
   }
   root.addEventListener("focusin", (e) => e.target.classList?.contains("rb") && ((cur = e.target), rove()));
-  root.addEventListener("pointerdown", (e) => e.target.closest(".rb, .pane button, .sheets button") && e.preventDefault());
+  root.addEventListener("pointerdown", (e) => e.target.closest(".rb, .dm button, .pane button, .sheets button") && e.preventDefault());
   const rv = new MutationObserver(rove);
   full && rv.observe($(".rbn-in"), { subtree: true, attributes: true, childList: true, attributeFilter: ["disabled", "hidden"] });
 
@@ -356,6 +406,60 @@ ${
     clearTimeout(zt);
     zt = setTimeout(() => act("zoom-set", zr.value), 60);
   });
+
+  // ---- slide thumbnails (pptx pane): rendered from the real slides, only when scrolled into view ----
+  function lazyThumbs() {
+    if (!thumbs || typeof IntersectionObserver === "undefined") return;
+    io && io.disconnect();
+    const pl = $(".pl");
+    io = new IntersectionObserver(
+      (hits) => {
+        for (const h of hits) {
+          if (!h.isIntersecting) continue;
+          const box = h.target.querySelector(".th");
+          io.unobserve(h.target);
+          if (!box || box.dataset.live) continue;
+          thumbs.render(h.target.dataset.g).then((r) => box.isConnected && thumbs.mount(box, r));
+        }
+      },
+      { root: pl.closest(".pane"), rootMargin: "160px 0px" },
+    );
+    for (const b of pl.children) io.observe(b);
+  }
+  const thumbSize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => thumbs && $$(".pl .th[data-live]").forEach((b) => thumbs.fit(b)));
+  thumbs && $(".pl") && thumbSize && thumbSize.observe($(".pl"));
+
+  // ---- unsaved changes (editable workbooks) ----
+  let state = "";
+  let dirty = false;
+  const setState = (text, kind) => {
+    const i = $("[data-state]");
+    if (!i) return;
+    i.textContent = text || "";
+    i.dataset.s = kind || "";
+    i.title = kind === "ro" ? "This format is view-only in the browser build: its editor is not wired to the WASM handle yet." : "";
+  };
+  const warn = (e) => dirty && (e.preventDefault(), (e.returnValue = ""));
+  let track = null;
+  if (edit) {
+    track = trackDirty(o.el, (d) => {
+      dirty = d;
+      root.toggleAttribute("data-dirty", d);
+      setState(d ? "Unsaved changes" : state === "saved" ? "Saved" : "No changes", d ? "dirty" : "clean");
+    });
+    o.el.addEventListener("nitro-save", (e) => {
+      state = "saved";
+      track.saved(e.detail);
+    });
+    addEventListener("beforeunload", warn);
+    // The engine's chrome and the typed-cell path both mutate behind the element: re-check after an action.
+    const shell = o.el.shellAction.bind(o.el);
+    o.el.shellAction = async (op, arg) => {
+      const r = await shell(op, arg);
+      if (op === "cmd" || op.startsWith("formula-")) track.touch();
+      return r;
+    };
+  }
 
   // ---- file picker + drag and drop ----
   const pick = document.createElement("input");
@@ -428,9 +532,35 @@ ${
   const ui = {
     root,
     el: o.el,
-    doc(name, state) {
+    doc(name, status) {
       $("[data-doc]").textContent = name || app.name;
-      $("[data-state]").textContent = state || "";
+      if (edit && name) {
+        state = "";
+        dirty = false;
+        setState("No changes", "clean");
+        track.rebase();
+      } else setState(status, status === "Read-only" ? "ro" : "");
+    },
+    /** Hand the opened file to the thumbnail renderer (pptx pane). */
+    opened(bytes, name) {
+      if (!thumbs) return;
+      thumbs.start(bytes, name);
+      const pl = $(".pl");
+      if (pl) {
+        pl.dataset.sig = "";
+        sync();
+      }
+    },
+    get dirty() {
+      return dirty;
+    },
+    /** Serialise the current (possibly edited) workbook; used to carry edits across a mode switch. */
+    async snapshot() {
+      return edit && o.el._d ? o.el._d.save() : null;
+    },
+    /** Re-flag unsaved edits after a reopen (the reopened bytes are the edited ones, so a compare would read clean). */
+    markDirty() {
+      track && track.force();
     },
     loading: (t) => drop("loading", t),
     empty: () => drop("empty"),
@@ -438,6 +568,11 @@ ${
     ready: () => (over.hidden = true),
     destroy() {
       clearInterval(poll);
+      track && track.destroy();
+      io && io.disconnect();
+      thumbSize && thumbSize.disconnect();
+      thumbs && thumbs.stop();
+      removeEventListener("beforeunload", warn);
       mo.disconnect();
       rv.disconnect();
       root.remove();

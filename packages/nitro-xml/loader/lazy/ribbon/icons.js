@@ -21,5 +21,7 @@ export const ICONS = {
   chevUp: '<path d="M6 15l6-6 6 6"/>',
   chevDown: '<path d="M6 9l6 6 6-6"/>',
   embed: '<rect x="3" y="5" width="18" height="14" rx="2"/><path class="a" d="M3 9.5h18"/>',
+  numFmt: '<path d="M5 17l3-10h2M11 17l3-10h2" /><path class="a" d="M4 10h16M3 14h16"/>',
+  info: '<circle cx="12" cy="12" r="8.5"/><path class="a" d="M12 11v5M12 7.8v.1"/>',
   full: '<rect x="3" y="4" width="18" height="16" rx="2"/><path class="a" d="M3 8h18M3 11.5h18"/>',
 };

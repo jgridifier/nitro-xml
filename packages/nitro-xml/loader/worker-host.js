@@ -2,7 +2,11 @@
 import { takePrewarmedWorker, prewarmWorker } from "./bootstrap.js";
 import { applyCommandBuffer } from "./apply.js";
 import { createEventCoalescer } from "./events.js";
-import { isSupportedExtension } from "./formats.js";
+import {
+  isSupportedExtension,
+  VIEWER_RECOVERY_FAILED_MESSAGE,
+  EDITOR_RECOVERY_FAILED_MESSAGE,
+} from "./formats.js";
 import { unsupportedFormatError } from "./bootstrap.js";
 import { getDefaultFontSource } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
@@ -21,6 +25,9 @@ this._req = 0;
 this._originalBytes = null;
 this._ro = true;
 this._viewerReloadAttempted = false;
+this._editRecoveryAttempted = false;
+this._journal = null;
+this._replayingJournal = false;
 this._worker = this._newWorker(true);
 this._wireWorker();
 this._events = createEventCoalescer((bytes) => {
@@ -62,14 +69,73 @@ const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
 this._originalBytes = new Uint8Array(u8);
 this._ro = opts.readonly !== false;
 this._viewerReloadAttempted = false;
+this._editRecoveryAttempted = false;
+if (this._ro) {
+this._journal = null;
+} else {
+const { createJournal } = await import("./lazy/journal.js");
+this._journal = createJournal(this._originalBytes);
+}
 return this._openBytes(u8, n, opts);
 }
 async reloadOnce() {
 if (this._viewerReloadAttempted) {
-throw Object.assign(new Error("Could not reopen this document after a crash."), { code: "viewer_recovery_exhausted" });
+throw Object.assign(new Error(VIEWER_RECOVERY_FAILED_MESSAGE), { code: "viewer_recovery_exhausted" });
 }
 if (!this._originalBytes) throw Object.assign(new Error("no bytes"), { code: "viewer_recovery_failed" });
 this._viewerReloadAttempted = true;
+this._swapWorker();
+await this._openBytes(new Uint8Array(this._originalBytes), this._name, { readonly: this._ro });
+return this;
+}
+/**
+ * Edit-mode crash recovery (#30 / #62): fresh worker, replay op journal.
+ * On failure, error.code is editor_recovery_* and lastGoodSave may be set.
+ */
+async recoverEditOnce() {
+if (this._editRecoveryAttempted) {
+throw Object.assign(new Error(EDITOR_RECOVERY_FAILED_MESSAGE), {
+code: "editor_recovery_exhausted",
+});
+}
+if (!this._journal) {
+throw Object.assign(new Error("no journal"), { code: "editor_recovery_failed" });
+}
+this._editRecoveryAttempted = true;
+this._swapWorker();
+const journal = this._journal;
+const res = await journal.recover({
+openFresh: async (bytes) => {
+await this._openBytes(bytes, this._name, { readonly: false });
+return this;
+},
+applyOps: async (_session, op) => {
+const spec = typeof op.spec === "string" ? op.spec : JSON.stringify(op);
+this._replayingJournal = true;
+try {
+await this._request("apply-edit", () => {
+this._worker.postMessage({ type: "apply-edit", spec: spec || "" });
+});
+} finally {
+this._replayingJournal = false;
+}
+},
+});
+if (!res.ok) {
+const err =
+res.error instanceof Error
+? res.error
+: Object.assign(new Error(String(res.error || EDITOR_RECOVERY_FAILED_MESSAGE)), {
+cause: res.error,
+});
+err.code = res.lastGoodSave ? "editor_recovery_last_save" : err.code || "editor_recovery_failed";
+err.lastGoodSave = res.lastGoodSave || null;
+throw err;
+}
+this._editRecoveryAttempted = false;
+return this;
+}
+_swapWorker() {
 this._events.flushNow();
 try {
 this._worker.postMessage({ type: "dispose" });
@@ -79,8 +145,6 @@ this._worker.terminate();
 this._pending.clear();
 this._worker = this._newWorker(false);
 this._wireWorker();
-await this._openBytes(new Uint8Array(this._originalBytes), this._name, { readonly: this._ro });
-return this;
 }
 async _openBytes(buffer, name, opts = {}) {
 const n = name || this._name;
@@ -117,14 +181,20 @@ mac: !!mac,
 try { return JSON.parse(msg.result || "{}"); } catch { return {}; }
 }
 async save() {
-return (await this._request("saved", () => {
+const bytes = (await this._request("saved", () => {
 this._worker.postMessage({ type: "save" });
 })).bytes;
+if (this._journal && bytes) this._journal.markSave(bytes);
+return bytes;
 }
 async applyEdit(spec) {
-return (await this._request("apply-edit", () => {
+const result = (await this._request("apply-edit", () => {
 this._worker.postMessage({ type: "apply-edit", spec: spec || "" });
 })).result;
+if (this._journal && !this._replayingJournal && spec) {
+this._journal.append({ spec: String(spec) });
+}
+return result;
 }
 async matchShortcut(ev, mac) {
 const msg = await this._request("match-shortcut", () => {

@@ -243,6 +243,16 @@ export class ViewerElement extends HTMLElement {
       void this._tryViewerReload();
       return;
     }
+    if (
+      this._readonly === false &&
+      this._d &&
+      this._d._journal &&
+      !this._d._editRecoveryAttempted &&
+      c === "worker_crashed"
+    ) {
+      void this._tryEditRecover();
+      return;
+    }
     this._showViewerError(e);
   }
   async _tryViewerReload() {
@@ -250,6 +260,17 @@ export class ViewerElement extends HTMLElement {
     try {
       this._clr();
       await this._d.reloadOnce();
+      await this._ao();
+      this._tick();
+    } catch (e) {
+      this._showViewerError(e);
+    }
+  }
+  async _tryEditRecover() {
+    if (!this._d || this._readonly !== false) return;
+    try {
+      this._clr();
+      await this._d.recoverEditOnce();
       await this._ao();
       this._tick();
     } catch (e) {

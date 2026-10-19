@@ -69,6 +69,16 @@ describe("formats allow-list", () => {
       );
     }
   });
+
+  it("maps viewer and editor recovery codes to graceful messages", () => {
+    // Catches: worker crash leaving a blank/hung surface with a raw Error string (#30).
+    assert.match(viewerOpenErrorMessage({ code: "viewer_recovery_exhausted" }), /reopen/i);
+    assert.match(viewerOpenErrorMessage({ code: "editor_recovery_failed" }), /restore edits/i);
+    assert.match(
+      viewerOpenErrorMessage({ code: "editor_recovery_last_save" }),
+      /previous save/i,
+    );
+  });
 });
 
 describe("command buffer applier", () => {

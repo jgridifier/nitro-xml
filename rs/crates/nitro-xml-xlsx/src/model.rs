@@ -798,9 +798,10 @@ impl DumpCellValue {
         match self {
             Self::Null => Value::Null,
             // Loaded numbers stay compact `f64`; dump matches prior NumberRaw gate encoding.
-            Self::Number(n) => {
-                Value::String(format!("__NUM__:{}", crate::number_format::js_number_string(*n)))
-            }
+            Self::Number(n) => Value::String(format!(
+                "__NUM__:{}",
+                crate::number_format::js_number_string(*n)
+            )),
             Self::NumberRaw(s) => Value::String(format!("__NUM__:{}", s)),
             Self::String(s) => Value::String(s.clone()),
             Self::Bool(b) => Value::Bool(*b),

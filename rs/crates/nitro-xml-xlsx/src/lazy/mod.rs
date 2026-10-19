@@ -204,6 +204,16 @@ impl FirstView {
         Ok(true)
     }
 
+    /// True when merges / CF / DV after `<sheetData>` are available for `sheet`
+    /// (never early-stopped, or [`Self::ensure_sheet_complete`] already ran).
+    pub fn is_sheet_complete(&self, sheet: usize) -> bool {
+        if sheet >= self.workbook.sheets.len() {
+            return true;
+        }
+        !self.truncated.get(sheet).copied().unwrap_or(false)
+            || self.tail_complete.get(sheet).copied().unwrap_or(false)
+    }
+
     /// Finish a dimension-truncated sheet so mergeCells / CF after `<sheetData>` are available.
     /// No-op when the sheet was already scanned through EOF. Used before selection expand.
     pub fn ensure_sheet_complete(&mut self, sheet: usize) -> Result<bool, String> {
@@ -714,6 +724,28 @@ mod tests {
             lazy.rows_visited(0)
         );
         assert!(!lazy.ensure_sheet_complete(0).expect("idempotent"));
+    }
+
+    // Catches: is_sheet_complete reporting true while merges are still unloaded after early-stop.
+    #[test]
+    fn is_sheet_complete_false_until_ensure_sheet_complete() {
+        let bytes = sheet_with_dimension_and_merge(120, "A1:B120", "A1:B2");
+        let view = ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 15,
+            c1: 1,
+        };
+        let mut lazy = open_first_view(&bytes, view).expect("open");
+        assert!(
+            !lazy.is_sheet_complete(0),
+            "truncated early-stop must report incomplete"
+        );
+        assert!(lazy.ensure_sheet_complete(0).expect("complete"));
+        assert!(
+            lazy.is_sheet_complete(0),
+            "complete must flip is_sheet_complete"
+        );
     }
 
     // Catches: a too-small `<dimension>` early-stopping and reporting a wrong used extent while

@@ -45,6 +45,7 @@ this._memory = opts.memory;
 this._canvas = opts.canvas;
 this._root = opts.root;
 this._name = opts.name;
+this._openFrameApplied = false;
 this._nodes = new Map();
 this._images = new Map();
 this._disposed = false;
@@ -78,6 +79,9 @@ return this._disposed ? 0 : this._handle.measureCount | 0;
 get outlineCount() {
 return this._disposed ? 0 : this._handle.outlineCount | 0;
 }
+get sheetTailComplete() {
+return this._disposed || !this._handle || this._handle.t !== false;
+}
 pushEvent(ev) {
 this._events.push(ev);
 }
@@ -97,7 +101,8 @@ if ((this._handle.outlineCount | 0) > 0) {
 const { flushOutlineBatch } = await import("./lazy/glyph-outline.js");
 outlined = flushOutlineBatch(this._handle, ctx);
 }
-this._handle.prepareFrame();
+if (this._handle.t !== false || this._openFrameApplied) this._handle.prepareFrame();
+else this._openFrameApplied = true;
 const commands = this._handle.takeFrameCommands();
 const drawCtx = this._canvas && this._canvas.getContext
 ? this._canvas.getContext("2d")

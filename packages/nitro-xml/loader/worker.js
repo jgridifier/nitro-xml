@@ -38,6 +38,7 @@ applyFontSourceToHandle(handle, msg.fontSource);
 } else {
 applyFontSourceToHandle(handle, undefined);
 }
+self._openFrameApplied = false;
 if (msg.name) {
 try {
 handle.openDocument(msg.name);
@@ -57,6 +58,7 @@ self.postMessage({
 type: "opened",
 byteLength: handle.byteLength,
 format: handle.documentFormat(),
+t: handle.t !== false,
 });
 break;
 }
@@ -68,7 +70,8 @@ break;
 }
 case "take-frame": {
 if (!handle) throw new Error("no document");
-handle.prepareFrame();
+if (handle.t !== false || self._openFrameApplied) handle.prepareFrame();
+else self._openFrameApplied = true;
 let chromeHtml = typeof handle.takeChromeIfDirty==="function" ? handle.takeChromeIfDirty()||null : null;
 let measureReqs = null;
 let measureCount = 0;
@@ -127,6 +130,7 @@ outlineCount,
 layoutReqs,
 layoutCount,
 strings,
+t: handle.t !== false,
 },
 transfer,
 );

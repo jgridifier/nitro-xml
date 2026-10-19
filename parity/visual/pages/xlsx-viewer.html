@@ -230,7 +230,19 @@
         }
       }
       if (!painted) throw new Error('nitro-xlsx: no grid paint');
-      for (let i = 0; i < 6; i++) {
+      // Deferred SeekTail: first paint is O(viewport); wait for merges/CF/DV
+      // before snapshot so soft/hard visual parity sees the completed render.
+      let tailReady = false;
+      for (let i = 0; i < 90; i++) {
+        if (el.document) await paint();
+        await waitFrames(1);
+        if (el.document?.sheetTailComplete) {
+          tailReady = true;
+          break;
+        }
+      }
+      if (!tailReady) throw new Error('nitro-xlsx: sheetTailComplete timed out');
+      for (let i = 0; i < 4; i++) {
         if (el.document) await paint();
         await waitFrames(1);
       }

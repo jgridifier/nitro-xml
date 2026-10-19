@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "nitro-xml-large-baseline"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[dependencies]
+nitro-xml-xlsx = { path = "../../rs/crates/nitro-xml-xlsx" }
+nitro-xml-docx = { path = "../../rs/crates/nitro-xml-docx" }
+nitro-xml-pptx = { path = "../../rs/crates/nitro-xml-pptx" }
+nitro-xml-opc = { path = "../../rs/crates/nitro-xml-opc" }
+
+[[bin]]
+name = "baseline"
+path = "src/baseline.rs"

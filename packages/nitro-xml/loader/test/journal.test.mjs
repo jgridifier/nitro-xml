@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createJournal } from "../journal.js";
+import { createJournal } from "../lazy/journal.js";
 
 describe("edit op journal", () => {
   it("replays committed ops into a fresh session after a simulated crash", async () => {

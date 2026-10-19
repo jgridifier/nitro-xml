@@ -5,7 +5,7 @@
  * Usage: bun tests/crash/run.mjs [--ci]
  */
 
-import { createJournal } from "../../packages/nitro-xml/loader/journal.js";
+import { createJournal } from "../../packages/nitro-xml/loader/lazy/journal.js";
 import { loadEditScripts, resolveFixture, fixtureAbs } from "../../parity/edit/scripts.mjs";
 import {
   applyXlsxOp,

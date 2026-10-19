@@ -4,8 +4,13 @@ export {
   SUPPORTED_EXTENSIONS,
   UNSUPPORTED_BROWSER_MESSAGE,
   UNSUPPORTED_FORMAT_MESSAGE,
+  PACKAGE_TOO_LARGE_MESSAGE,
+  VIEWER_RECOVERY_FAILED_MESSAGE,
+  EDITOR_RECOVERY_FAILED_MESSAGE,
+  EDITOR_RECOVERY_LAST_SAVE_MESSAGE,
   extensionOf,
   isSupportedExtension,
+  viewerOpenErrorMessage,
 } from "./formats.js";
 
 export {
@@ -33,7 +38,7 @@ export {
   packLayoutReqs,
 } from "./layout-readback.js";
 export { openDocument, DocumentSession } from "./session.js";
-export { createJournal } from "./journal.js";
+export { createJournal } from "./lazy/journal.js";
 export { WorkerDocument } from "./worker-host.js";
 export {
   defineNitroXml,

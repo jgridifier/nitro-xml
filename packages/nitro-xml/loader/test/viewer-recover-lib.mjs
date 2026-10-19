@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 /** Test-only mirror of viewer one-shot recovery orchestration (#30). */
-export const VIEWER_RECOVERY_FAILED_MESSAGE =
-  "Could not reopen this document after a crash.";
+import { VIEWER_RECOVERY_FAILED_MESSAGE } from "../formats.js";
+
+export { VIEWER_RECOVERY_FAILED_MESSAGE };
 
 export async function recoverViewer(c) {
   if (c.attempted) {

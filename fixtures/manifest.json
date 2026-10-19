@@ -6010,6 +6010,54 @@
       "redistributable": true,
       "on_demand": false,
       "upstream_path": "src/core/xlsx/__fixtures__/openpyxl-1904.xlsx"
+    },
+    {
+      "id": "demo-sample-xlsx",
+      "format": "xlsx",
+      "path": "demo/samples/sample.xlsx",
+      "sha256": "651f8c8c648ec4d4b0624d433f407e92f2e9922b1c14508fb26d33ad2c6944aa",
+      "bytes": 8012,
+      "tier": "S",
+      "source": "copy of fixtures/generated/xlsx/cells_1k.xlsx (gen-xlsx-cells-1k)",
+      "licence": "MIT",
+      "features": [
+        "demo",
+        "pages"
+      ],
+      "redistributable": true,
+      "on_demand": false
+    },
+    {
+      "id": "demo-sample-docx",
+      "format": "docx",
+      "path": "demo/samples/sample.docx",
+      "sha256": "6784ba4ede8aabad7bf995cdf210bbc20c24226677736c59cf9b0018611ce3a8",
+      "bytes": 2555,
+      "tier": "S",
+      "source": "copy of fixtures/bidi/arabic-hebrew-paragraphs.docx",
+      "licence": "MIT",
+      "features": [
+        "demo",
+        "pages"
+      ],
+      "redistributable": true,
+      "on_demand": false
+    },
+    {
+      "id": "demo-sample-pptx",
+      "format": "pptx",
+      "path": "demo/samples/sample.pptx",
+      "sha256": "132bf63c0d40a08ae84dc9d8d634eb2a4dc48a95db3d1b3d660ede143379b731",
+      "bytes": 11993,
+      "tier": "S",
+      "source": "copy of fixtures/generated/pptx/slides_10.pptx (gen-pptx-slides-10)",
+      "licence": "MIT",
+      "features": [
+        "demo",
+        "pages"
+      ],
+      "redistributable": true,
+      "on_demand": false
     }
   ]
 }

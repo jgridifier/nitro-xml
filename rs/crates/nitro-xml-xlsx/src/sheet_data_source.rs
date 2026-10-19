@@ -10,8 +10,16 @@ pub struct SplitSheetData {
     pub sheet_data_tag: String,
 }
 
-/// Splits cell data from a worksheet part, or `None` when the whole part must be parsed.
-pub fn split_sheet_data(xml: &str) -> Option<SplitSheetData> {
+/// Shell XML plus byte range of `<sheetData>` inner content (no inner clone).
+pub struct SheetDataBounds {
+    pub shell_xml: String,
+    pub inner_start: usize,
+    pub inner_end: usize,
+    pub sheet_data_tag: String,
+}
+
+/// Locates `<sheetData>` without copying the cell XML, or `None` when the whole part must be parsed.
+pub fn sheet_data_bounds(xml: &str) -> Option<SheetDataBounds> {
     if xml.contains("<!--") || xml.contains("<![CDATA[") {
         return None;
     }
@@ -34,10 +42,21 @@ pub fn split_sheet_data(xml: &str) -> Option<SplitSheetData> {
         return None;
     }
     let shell_xml = format!("{}{}", &xml[..open_end + 1], &xml[close..]);
-    Some(SplitSheetData {
+    Some(SheetDataBounds {
         shell_xml,
-        sheet_data_inner: xml[inner_start..close].to_owned(),
+        inner_start,
+        inner_end: close,
         sheet_data_tag: tag_name,
+    })
+}
+
+/// Splits cell data from a worksheet part, or `None` when the whole part must be parsed.
+pub fn split_sheet_data(xml: &str) -> Option<SplitSheetData> {
+    let bounds = sheet_data_bounds(xml)?;
+    Some(SplitSheetData {
+        shell_xml: bounds.shell_xml,
+        sheet_data_inner: xml[bounds.inner_start..bounds.inner_end].to_owned(),
+        sheet_data_tag: bounds.sheet_data_tag,
     })
 }
 

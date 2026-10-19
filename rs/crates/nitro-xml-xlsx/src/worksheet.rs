@@ -19,7 +19,7 @@ use crate::model::{ActiveWorksheet, DifferentialStyle, SharedString};
 use crate::sheet_data::{
     read_sheet_data_element, read_sheet_data_xml, store_to_dump_cells, CellContext,
 };
-use crate::sheet_data_source::split_sheet_data;
+use crate::sheet_data_source::sheet_data_bounds;
 use crate::sheet_props::{read_columns, read_data_validations, read_sheet_format, read_sheet_view};
 use crate::sparklines::{extract_ext_lst, read_sparkline_groups_from_ext};
 use crate::xml_util::{att, elements, x_children};
@@ -42,11 +42,13 @@ pub fn parse_worksheet(
     sheet_id: u32,
     state: crate::model::SheetState,
 ) -> ActiveWorksheet {
-    let xml = pkg.text(part_name).ok().flatten();
+    // Take ownership (no text_cache retain). Keep one full-part buffer and borrow
+    // sheetData from it — avoid cloning the cell XML alongside the cache + shell.
+    let xml_owned = pkg.take_text(part_name).ok().flatten();
     let mut store = CellStore::new();
     let mut row_info: HashMap<u32, crate::model::RowInfo> = HashMap::new();
 
-    if xml.is_none() {
+    if xml_owned.is_none() {
         push_warn(
             &mut ctx.warnings,
             format!("Sheet \"{name}\" has no part {part_name}; it was loaded empty."),
@@ -60,13 +62,12 @@ pub fn parse_worksheet(
             row_info,
         );
     }
-    let xml = xml.unwrap();
-    let split = split_sheet_data(xml);
-    let shell_owned = split
-        .as_ref()
-        .map(|s| s.shell_xml.clone())
-        .unwrap_or_else(|| xml.to_string());
-    let shell = shell_owned.as_str();
+    let xml = xml_owned.unwrap();
+    let bounds = sheet_data_bounds(&xml);
+    let shell = match &bounds {
+        Some(b) => b.shell_xml.as_str(),
+        None => xml.as_str(),
+    };
     let doc = match parse_xml_str(shell) {
         Ok(d) => d,
         Err(_) => {
@@ -108,16 +109,24 @@ pub fn parse_worksheet(
         dynamic_cells: &ctx.dynamic_cells,
         warnings: &mut ctx.warnings,
     };
-    if let Some(split) = split {
+    if let Some(b) = &bounds {
         read_sheet_data_xml(
             &mut cell_ctx,
-            &split.sheet_data_inner,
+            &xml[b.inner_start..b.inner_end],
             &mut store,
             &mut row_info,
         );
     } else if let Some(data) = by_name.get("sheetData") {
         read_sheet_data_element(&mut cell_ctx, data, &mut store, &mut row_info);
     }
+    // Drop the full part (and cell borrow); keep only the small emptied shell for extLst.
+    let shell_owned = match bounds {
+        Some(b) => {
+            drop(xml);
+            b.shell_xml
+        }
+        None => xml,
+    };
 
     let cells = store_to_dump_cells(&store);
     let ext_lst = extract_ext_lst(&shell_owned);

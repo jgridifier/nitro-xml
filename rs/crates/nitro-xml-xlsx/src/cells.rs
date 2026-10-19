@@ -2,17 +2,22 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/cells.ts (storage layout); changes listed in
 // PROVENANCE.md.
 //! Columnar cell store (parallel arrays + side maps).
+//!
+//! Shared-string cells keep an SST index (`CellTypeTag::Shared`) instead of cloning text.
+//! Numeric cells store `f64` only — gate `__NUM__:` text is formatted at dump time.
 
 use std::collections::HashMap;
 
 use crate::model::{CellAddress, CellRange, RichTextRun};
-use crate::number_format::js_number_string;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CellTypeTag {
     Empty,
     Number,
+    /// Inline / formula / non-SST string (`CellStore.strings`).
     String,
+    /// Shared string table index in `value_indices` (no text copy).
+    Shared,
     Bool,
     Error,
 }
@@ -25,8 +30,6 @@ pub struct CellStore {
     value_indices: Vec<u32>,
     style_indices: Vec<u32>,
     numbers: Vec<f64>,
-    /// Original `<v>` text for numeric cells (matches `JSON.stringify(Number(raw))` formatting).
-    number_raw: Vec<String>,
     strings: Vec<String>,
     bools: Vec<bool>,
     errors: Vec<String>,
@@ -49,7 +52,6 @@ impl CellStore {
             value_indices: Vec::new(),
             style_indices: Vec::new(),
             numbers: Vec::new(),
-            number_raw: Vec::new(),
             strings: Vec::new(),
             bools: Vec::new(),
             errors: Vec::new(),
@@ -88,16 +90,7 @@ impl CellStore {
             self.numbers.len() as u32,
         );
         self.numbers.push(n);
-        self.number_raw.push(js_number_string(n));
         self.rows.len() - 1
-    }
-
-    pub fn number_raw(&self, cell_index: usize) -> Option<&str> {
-        let idx = self.value_indices[cell_index] as usize;
-        self.number_raw
-            .get(idx)
-            .filter(|s| !s.is_empty())
-            .map(String::as_str)
     }
 
     pub fn push_string(&mut self, row: u32, col: u32, style: u32, s: String) -> usize {
@@ -109,6 +102,11 @@ impl CellStore {
             self.strings.len() as u32,
         );
         self.strings.push(s);
+        self.rows.len() - 1
+    }
+
+    pub fn push_shared(&mut self, row: u32, col: u32, style: u32, sst_idx: u32) -> usize {
+        self.push_cell(row, col, style, CellTypeTag::Shared, sst_idx);
         self.rows.len() - 1
     }
 
@@ -208,6 +206,10 @@ impl CellStore {
 
     pub fn string(&self, i: usize) -> &str {
         &self.strings[self.value_indices[i] as usize]
+    }
+
+    pub fn shared_index(&self, i: usize) -> u32 {
+        self.value_indices[i]
     }
 
     pub fn bool_val(&self, i: usize) -> bool {

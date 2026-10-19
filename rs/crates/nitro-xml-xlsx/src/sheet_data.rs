@@ -188,8 +188,9 @@ fn read_value(
                 }
                 return;
             }
+            let sst_idx = idx.unwrap() as u32;
             let entry = entry.unwrap();
-            let i = store.push_string(row, col, style_id, entry.text.clone());
+            let i = store.push_shared(row, col, style_id, sst_idx);
             if let Some(runs) = &entry.runs {
                 store.set_rich_text(i, runs.clone());
             }
@@ -379,25 +380,28 @@ fn mark_spills(store: &mut CellStore, anchors: &[DynamicAnchor]) {
 }
 
 pub fn store_to_dump_cells(store: &CellStore) -> Vec<DumpCell> {
+    store_to_dump_cells_with_sst(store, &[])
+}
+
+/// Materialize dump cells. Shared-string indices resolve through `sst` once (CellStore keeps indices).
+pub fn store_to_dump_cells_with_sst(store: &CellStore, sst: &[SharedString]) -> Vec<DumpCell> {
     let mut out = Vec::new();
     for i in store.iter_sorted() {
         let value = match store.cell_type(i) {
             CellTypeTag::Empty => DumpCellValue::Null,
-            CellTypeTag::Number => {
-                if let Some(raw) = store.number_raw(i) {
-                    DumpCellValue::NumberRaw(raw.to_owned())
-                } else {
-                    DumpCellValue::Number(store.number(i))
-                }
-            }
+            CellTypeTag::Number => DumpCellValue::Number(store.number(i)),
             CellTypeTag::String => DumpCellValue::String(store.string(i).to_owned()),
+            CellTypeTag::Shared => match sst.get(store.shared_index(i) as usize) {
+                Some(entry) => DumpCellValue::String(entry.text.clone()),
+                None => DumpCellValue::Null,
+            },
             CellTypeTag::Bool => DumpCellValue::Bool(store.bool_val(i)),
             CellTypeTag::Error => DumpCellValue::Error(store.error(i).to_owned()),
         };
         let type_tag = match store.cell_type(i) {
-            CellTypeTag::String => Some("s".to_owned()),
-            CellTypeTag::Bool => Some("b".to_owned()),
-            CellTypeTag::Error => Some("e".to_owned()),
+            CellTypeTag::String | CellTypeTag::Shared => Some("s"),
+            CellTypeTag::Bool => Some("b"),
+            CellTypeTag::Error => Some("e"),
             _ => None,
         };
         out.push(DumpCell {

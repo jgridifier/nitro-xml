@@ -17,7 +17,8 @@ use crate::hyperlinks::read_hyperlinks;
 use crate::metadata::parse_dynamic_array_metadata;
 use crate::model::{ActiveWorksheet, DifferentialStyle, SharedString};
 use crate::sheet_data::{
-    read_sheet_data_element, read_sheet_data_xml, store_to_dump_cells, CellContext,
+    read_sheet_data_element, read_sheet_data_xml, store_to_dump_cells,
+    store_to_dump_cells_with_sst, CellContext,
 };
 use crate::sheet_data_source::split_sheet_data;
 use crate::sheet_props::{read_columns, read_data_validations, read_sheet_format, read_sheet_view};
@@ -119,7 +120,7 @@ pub fn parse_worksheet(
         read_sheet_data_element(&mut cell_ctx, data, &mut store, &mut row_info);
     }
 
-    let cells = store_to_dump_cells(&store);
+    let cells = store_to_dump_cells_with_sst(&store, &ctx.shared_strings);
     let ext_lst = extract_ext_lst(&shell_owned);
     let sparkline_groups = by_name
         .get("extLst")

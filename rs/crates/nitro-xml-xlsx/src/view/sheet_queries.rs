@@ -114,7 +114,7 @@ mod tests {
                 row: 0,
                 col: 3,
                 value: DumpCellValue::String("Zustand Pilot".into()),
-                type_tag: Some("s".into()),
+                type_tag: Some("s"),
                 formula: None,
                 style_id: None,
                 rich_text: None,

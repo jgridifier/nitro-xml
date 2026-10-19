@@ -28,7 +28,8 @@ Host apps that embed `<nitro-xlsx>`, `<nitro-docx>` or `<nitro-pptx>` want one s
 | Zoom -, %, + | stays (View group) |
 | Find bar | stays; opened by the toolbar Find button, styled to match |
 | Copy | stays (Clipboard group) |
-| Sheet tabs (xlsx) | stays, restyled as a bottom tab strip |
+| Sheet tabs (xlsx) | stays |
+| Slide / page tab strip (pptx, docx) | **goes** (replaced by the Slides / Pages group: Previous, `n / N`, Next) |
 | Slide / page prev-next | stays (pptx "Slides" group, docx "Pages" group) |
 | Formula bar (xlsx, editable) | stays, it is core Excel UI |
 | Dialogs / menus opened by commands | stay |
@@ -43,10 +44,10 @@ Order follows PowerPoint Home: **Clipboard, Slides/Pages/Sheets, Font, Paragraph
 
 ### pptx
 Clipboard (Copy) · Slides (Previous, Next, `n / N`) · Editing (Find) · View (Zoom out, %, Zoom in).
-Font, Paragraph, Insert, Arrange exist in `nitro-xml-pptx::editor` but are **not exposed by the WASM handle yet**; wiring them is a separate engine task. The manifest has them declared and gated on a `capabilities` check so they light up when the handle exposes them (no toolbar change needed).
+Font, Paragraph, Insert, Arrange exist in `nitro-xml-pptx::editor` but are **not exposed by the WASM handle yet**; wiring them is a separate engine task. Once the handle exposes them they are a manifest addition (items bound to `cmd` ids show only while the Rust chrome exposes that control), with no toolbar change.
 
 ### docx
-Clipboard (Copy) · Pages (Previous, Next) · Editing (Find) · View (zoom). Same gating note for Font/Paragraph/Styles/Insert.
+Clipboard (Copy) · Pages (Previous, Next) · Editing (Find) · View (zoom). Font/Paragraph/Styles/Insert follow the same rule as pptx.
 
 ### xlsx (editable)
 Undo/Redo/Save · Font (Bold, Italic, Underline, Strikethrough, Grow, Shrink) · Alignment (Top, Middle, Bottom, Left, Center, Right, Wrap) · Number (Percent, Comma, Accounting, General) · Cells (Insert/Delete sheet; insert/delete rows and columns if reachable through `applyEdit`) · Editing (Clear contents, Find) · View. Read-only xlsx: Clipboard (Copy), Editing (Find), View.

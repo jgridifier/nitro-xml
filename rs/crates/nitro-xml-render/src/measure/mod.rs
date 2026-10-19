@@ -23,6 +23,8 @@ pub struct MeasureBatch {
     pub widths: Vec<f64>,
     /// Last resolved widths keyed by `(font_id, text_id)` for the next paint pass.
     pub cache: HashMap<(u32, u32), f64>,
+    /// Keys already queued in this frame (dedupe before the host round-trip).
+    pending: std::collections::HashSet<(u32, u32)>,
     /// Requests taken and awaiting a reply (0 when idle).
     awaiting: usize,
     /// Font/text ids for the in-flight take (cache keys on [`Self::set_results`]).
@@ -63,6 +65,10 @@ impl MeasureBatch {
     }
 
     pub fn push(&mut self, font_id: u32, size_px: f32, text_id: u32) {
+        let key = (font_id, text_id);
+        if self.cache.contains_key(&key) || !self.pending.insert(key) {
+            return;
+        }
         self.font_id.push(font_id);
         self.size_px.push(size_px);
         self.text_id.push(text_id);
@@ -73,6 +79,7 @@ impl MeasureBatch {
         self.font_id.clear();
         self.size_px.clear();
         self.text_id.clear();
+        self.pending.clear();
     }
 
     /// Move pending requests out for the loader; record how many replies are due.
@@ -80,6 +87,7 @@ impl MeasureBatch {
         let font_id = std::mem::take(&mut self.font_id);
         let size_px = std::mem::take(&mut self.size_px);
         let text_id = std::mem::take(&mut self.text_id);
+        self.pending.clear();
         self.awaiting = font_id.len();
         self.inflight_font = font_id.clone();
         self.inflight_text = text_id.clone();
@@ -366,6 +374,23 @@ mod tests {
         assert_eq!(m.awaiting(), 0);
         assert_eq!(m.cached_width(1, 2), Some(1.0));
         assert_eq!(m.cached_width(1, 3), Some(2.0));
+    }
+
+    #[test]
+    fn measure_push_dedupes_same_font_text_in_one_frame() {
+        // Catches: repeated measure probes for the same font+string in one paint
+        // must not inflate the host measure round-trip (small-xlsx first frame).
+        let mut m = MeasureBatch::new();
+        m.push(1, 11.0, 2);
+        m.push(1, 11.0, 2);
+        m.push(1, 12.0, 2); // size ignored for key; still one pending
+        m.push(1, 11.0, 3);
+        let (fonts, _, texts) = m.take_requests();
+        assert_eq!(fonts.len(), 2);
+        assert_eq!(texts, vec![2, 3]);
+        assert!(m.set_results(&[10.0, 20.0]).is_ok());
+        m.push(1, 11.0, 2); // cached — no new request
+        assert!(m.is_empty());
     }
 
     #[test]

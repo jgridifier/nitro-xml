@@ -94,10 +94,17 @@ fn paint_one_cell<I: StringIntern>(
     if stale {
         set_attr(buf, intern, cell_id, "data-stale", "1");
     }
-    set_style(buf, intern, cell_id, "left", &format!("{}px", left));
-    set_style(buf, intern, cell_id, "top", &format!("{}px", top));
-    set_style(buf, intern, cell_id, "width", &format!("{}px", item.w));
-    set_style(buf, intern, cell_id, "height", &format!("{}px", item.h));
+    // Geometry as one style attr (four SetStyle → one SetAttr) before fill/font styles.
+    set_attr(
+        buf,
+        intern,
+        cell_id,
+        "style",
+        &format!(
+            "left:{left}px;top:{top}px;width:{}px;height:{}px",
+            item.w, item.h
+        ),
+    );
 
     let fill = fill_paint(item.view.fill.as_ref());
     if let Some(ref fp) = fill {

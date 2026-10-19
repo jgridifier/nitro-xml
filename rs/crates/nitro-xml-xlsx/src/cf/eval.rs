@@ -3,6 +3,8 @@
 // cf-helpers.ts, cf-values.ts, data-bar-geometry.ts (cellIs/iconSet/colorScale/dataBar/
 // expression path); changes listed in PROVENANCE.md.
 
+use std::collections::HashMap;
+
 use crate::cf::expr::{eval_cf_expression, eval_cf_formula_number, eval_cf_formula_text};
 use crate::model::{
     ActiveWorksheet, CfvoThreshold, Color, ConditionalFormat, ConditionalRule, DifferentialStyle,
@@ -11,6 +13,16 @@ use crate::model::{
 use crate::sheet_access::{get_cell, range_contains, CellIndex};
 use crate::view::colors::{mix_colors, resolve_color};
 use crate::view::types::{DataBarView, IconView};
+
+/// Per-paint memo for CF range scans (color scale / data bar / icon / top10 / …).
+///
+/// Without this, [`cf_at`] re-scans and re-sorts every CF range on **every** cell in the
+/// viewport — O(cells × range) on first paint. Live grid paint threads one cache for the frame.
+#[derive(Debug, Default)]
+pub struct CfPaintCache {
+    range_nums: HashMap<usize, Vec<f64>>,
+    value_counts: HashMap<usize, HashMap<String, usize>>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CfIcon {
@@ -112,6 +124,32 @@ fn range_numbers(
     }
     nums.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     nums
+}
+
+fn cached_range_numbers<'a>(
+    cache: &'a mut CfPaintCache,
+    format_idx: usize,
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    format: &ConditionalFormat,
+) -> &'a [f64] {
+    cache
+        .range_nums
+        .entry(format_idx)
+        .or_insert_with(|| range_numbers(sheet, index, format))
+}
+
+fn cached_value_counts<'a>(
+    cache: &'a mut CfPaintCache,
+    format_idx: usize,
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    format: &ConditionalFormat,
+) -> &'a HashMap<String, usize> {
+    cache
+        .value_counts
+        .entry(format_idx)
+        .or_insert_with(|| range_value_counts(sheet, index, format))
 }
 
 fn threshold_value(
@@ -394,21 +432,35 @@ pub fn cf_at(
     theme: &ThemePalette,
     indexed: &[&str],
 ) -> Option<CfApplied> {
+    let mut cache = CfPaintCache::default();
+    cf_at_cached(sheet, index, row, col, theme, indexed, &mut cache)
+}
+
+/// Like [`cf_at`], but reuses range scans across cells in one paint frame.
+pub fn cf_at_cached(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    row: u32,
+    col: u32,
+    theme: &ThemePalette,
+    indexed: &[&str],
+    cache: &mut CfPaintCache,
+) -> Option<CfApplied> {
     if sheet.conditional_formats.is_empty() {
         return None;
     }
-    let mut entries: Vec<(&ConditionalFormat, &ConditionalRule, usize)> = Vec::new();
+    let mut entries: Vec<(usize, &ConditionalFormat, &ConditionalRule, usize)> = Vec::new();
     let mut order = 0usize;
-    for format in &sheet.conditional_formats {
+    for (format_idx, format) in sheet.conditional_formats.iter().enumerate() {
         for rule in &format.rules {
-            entries.push((format, rule, order));
+            entries.push((format_idx, format, rule, order));
             order += 1;
         }
     }
     entries.sort_by(|a, b| {
-        rule_priority(a.1)
-            .cmp(&rule_priority(b.1))
-            .then(a.2.cmp(&b.2))
+        rule_priority(a.2)
+            .cmp(&rule_priority(b.2))
+            .then(a.3.cmp(&b.3))
     });
 
     let cell = get_cell(sheet, index, row, col);
@@ -417,7 +469,7 @@ pub fn cf_at(
     let mut result = CfApplied::default();
     let mut any = false;
 
-    for (format, rule, _) in entries {
+    for (format_idx, format, rule, _) in entries {
         if !format.ranges.iter().any(|r| range_contains(r, row, col)) {
             continue;
         }
@@ -506,7 +558,7 @@ pub fn cf_at(
                 let Some(n) = number else {
                     continue;
                 };
-                let nums = range_numbers(sheet, index, format);
+                let nums = cached_range_numbers(cache, format_idx, sheet, index, format);
                 let cuts: Vec<f64> = thresholds
                     .iter()
                     .map(|t| threshold_value(sheet, index, t, &nums))
@@ -540,7 +592,7 @@ pub fn cf_at(
                 let Some(n) = number else {
                     continue;
                 };
-                let nums = range_numbers(sheet, index, format);
+                let nums = cached_range_numbers(cache, format_idx, sheet, index, format);
                 let data_lo = threshold_value(sheet, index, min, &nums);
                 let data_hi = threshold_value(sheet, index, max, &nums);
                 // Upstream: axis is `none` without x14; `automatic` when an extension is linked.
@@ -598,7 +650,7 @@ pub fn cf_at(
                 let Some(n) = number else {
                     continue;
                 };
-                let nums = range_numbers(sheet, index, format);
+                let nums = cached_range_numbers(cache, format_idx, sheet, index, format);
                 let cuts: Vec<f64> = thresholds
                     .iter()
                     .map(|t| threshold_value(sheet, index, t, &nums))
@@ -647,7 +699,7 @@ pub fn cf_at(
                 let Some(n) = number else {
                     continue;
                 };
-                let sorted = range_numbers(sheet, index, format);
+                let sorted = cached_range_numbers(cache, format_idx, sheet, index, format);
                 if sorted.is_empty() {
                     continue;
                 }
@@ -680,7 +732,7 @@ pub fn cf_at(
                 let Some(n) = number else {
                     continue;
                 };
-                let nums = range_numbers(sheet, index, format);
+                let nums = cached_range_numbers(cache, format_idx, sheet, index, format);
                 if nums.is_empty() {
                     continue;
                 }
@@ -716,7 +768,7 @@ pub fn cf_at(
                 let Some(key) = value_key(val) else {
                     continue;
                 };
-                let counts = range_value_counts(sheet, index, format);
+                let counts = cached_value_counts(cache, format_idx, sheet, index, format);
                 let count = counts.get(&key).copied().unwrap_or(0);
                 let hit = if *duplicate { count > 1 } else { count == 1 };
                 if !hit {

@@ -126,6 +126,19 @@ pub fn cell_view(
     col: u32,
     options: CellViewOptions<'_>,
 ) -> CellView {
+    cell_view_with_cf_cache(workbook, sheet, index, row, col, options, None)
+}
+
+/// Like [`cell_view`], sharing a [`CfPaintCache`] across cells in one paint frame.
+pub fn cell_view_with_cf_cache(
+    workbook: &WorkbookSlice,
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    row: u32,
+    col: u32,
+    options: CellViewOptions<'_>,
+    mut cf_cache: Option<&mut crate::cf::CfPaintCache>,
+) -> CellView {
     let indexed = indexed_palette(workbook);
     let cell = get_cell(sheet, index, row, col);
     let value = cell.map(|c| c.value.clone()).unwrap_or(DumpCellValue::Null);
@@ -161,7 +174,12 @@ pub fn cell_view(
     } else {
         None
     };
-    let cf = cf_at(sheet, index, row, col, &workbook.theme, &indexed);
+    let cf = match cf_cache.as_mut() {
+        Some(cache) => {
+            crate::cf::cf_at_cached(sheet, index, row, col, &workbook.theme, &indexed, cache)
+        }
+        None => cf_at(sheet, index, row, col, &workbook.theme, &indexed),
+    };
     let hide_value = cf.as_ref().is_some_and(|c| c.hide_value);
     let shown = if hide_value {
         (String::new(), None)

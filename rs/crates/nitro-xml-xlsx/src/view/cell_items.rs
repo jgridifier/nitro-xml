@@ -4,7 +4,8 @@
 use crate::model::{ActiveWorksheet, CellRange, WorkbookSlice};
 use crate::sheet_access::CellIndex;
 use crate::view::cell_paint::{css_font, hashes, repeat_to_fill};
-use crate::view::cell_view::{cell_view, CellViewOptions};
+use crate::cf::CfPaintCache;
+use crate::view::cell_view::{cell_view_with_cf_cache, CellViewOptions};
 use crate::view::metrics::GridMetrics;
 use crate::view::number_fit::fit_number;
 use crate::view::sheet_queries::overflow_extent;
@@ -184,15 +185,18 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
             row >= m.start.row && row <= m.end.row && col >= m.start.col && col <= m.end.col
         })
     };
+    // One CF range-scan cache for the whole frame (color-scale / data-bar / …).
+    let mut cf_cache = CfPaintCache::default();
     let mut out = Vec::new();
     for merge in &merges {
-        let view = cell_view(
+        let view = cell_view_with_cf_cache(
             input.workbook,
             input.sheet,
             input.index,
             merge.start.row,
             merge.start.col,
             cell_opts(input),
+            Some(&mut cf_cache),
         );
         out.push(make_item(
             input,
@@ -210,13 +214,14 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
             if !merges.is_empty() && covered(row, col) {
                 continue;
             }
-            let view = cell_view(
+            let view = cell_view_with_cf_cache(
                 input.workbook,
                 input.sheet,
                 input.index,
                 row,
                 col,
                 cell_opts(input),
+                Some(&mut cf_cache),
             );
             out.push(make_item(input, measure, row, col, view, None));
         }
@@ -241,13 +246,14 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
                 if dist > 64 {
                     continue;
                 }
-                let view = cell_view(
+                let view = cell_view_with_cf_cache(
                     input.workbook,
                     input.sheet,
                     input.index,
                     row,
                     col,
                     cell_opts(input),
+                    Some(&mut cf_cache),
                 );
                 if !view.overflow {
                     continue;

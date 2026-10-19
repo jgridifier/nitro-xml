@@ -98,6 +98,7 @@ impl XlsxState {
     /// Apply an A1 selection ref to the active sheet view (paints `.xg-outline`).
     /// Returns the normalized ref string (`A1` / `A1:B2`) for shell UI parity.
     pub fn apply_selection_ref(&mut self, range_ref: &str) -> Result<String, String> {
+        let _ = self.ensure_merges_ready();
         let range = parse_range(range_ref).ok_or_else(|| format!("invalid range {range_ref}"))?;
         let sheet = self
             .sheets
@@ -115,6 +116,35 @@ impl XlsxState {
         let normalized = selection_ref(&selection);
         sheet.view.selection = Some(selection);
         Ok(normalized)
+    }
+
+    /// Load post-`sheetData` merges/CF/DV when first-view stopped early on `<dimension>`.
+    /// Called before paint and selection so the first frame matches a full SkipRows shell.
+    fn ensure_merges_ready(&mut self) -> Result<(), String> {
+        let Some(lazy) = self.lazy.as_mut() else {
+            return Ok(());
+        };
+        let active = self.active;
+        if !lazy.ensure_sheet_complete(active)? {
+            return Ok(());
+        }
+        let Some(ws) = lazy.sheet(active).cloned() else {
+            return Ok(());
+        };
+        let kept_sel = self
+            .sheets
+            .get(active)
+            .and_then(|s| s.as_ref())
+            .and_then(|s| s.view.selection.clone());
+        let mut ws = ws;
+        if let Some(sel) = kept_sel {
+            ws.view.selection = Some(sel);
+        }
+        if let Some(slot) = self.sheets.get_mut(active) {
+            *slot = Some(ws.clone());
+        }
+        self.workbook.active_worksheet = Some(ws);
+        Ok(())
     }
 
     /// Painted selection as an A1 ref (`1:1048576` for the whole sheet).
@@ -319,6 +349,8 @@ impl XlsxState {
         measures: &mut nitro_xml_render::MeasureBatch,
     ) {
         if self.lazy.is_some() {
+            // Finish dimension early-stop before the first paint so merges/CF/DV match TS.
+            let _ = self.ensure_merges_ready();
             let rect = self.current_cell_rect();
             let active = self.active;
             if self.sync_lazy_sheet(active, rect).is_err() {
@@ -495,6 +527,7 @@ impl XlsxState {
             return self.select_region_or_all();
         }
         let arrow = Arrow::from_key(key)?;
+        let _ = self.ensure_merges_ready();
         let active = self.active;
         let zoom = self.zoom_pct;
         let sheet = self.sheets.get_mut(active)?.as_mut()?;
@@ -521,6 +554,7 @@ impl XlsxState {
     }
 
     fn select_region_or_all(&mut self) -> Option<String> {
+        let _ = self.ensure_merges_ready();
         let active = self.active;
         let lazy = self.lazy.is_some();
         let (current, region) = {
@@ -570,6 +604,7 @@ impl XlsxState {
 
     /// `extend` grows from the anchor (shift-click / drag); otherwise `select_cell`.
     fn commit_selection(&mut self, at: CellAddress, extend: bool) -> Option<String> {
+        let _ = self.ensure_merges_ready();
         let active = self.active;
         let sheet = self.sheets.get_mut(active)?.as_mut()?;
         let next = if extend {

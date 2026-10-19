@@ -3,7 +3,8 @@
 //!
 //! Eager parts are the content types, package rels, workbook, workbook rels, styles and theme.
 //! Shared strings resolve only indices seen in the viewport. The active worksheet stream keeps
-//! viewport cell rows, then skips the rest of `<sheetData>` so merges / CF / used-range extents
+//! viewport cell rows; when `<dimension>` is present and trustworthy, inflate stops there
+//! (O(viewport)). Otherwise it skips the rest of `<sheetData>` so merges / CF / used-range extents
 //! still land without storing every cell. Other worksheet parts stay unread until
 //! [`FirstView::ensure_sheet`].
 //!
@@ -51,12 +52,18 @@ pub struct FirstView {
     sheets: Vec<Option<ActiveWorksheet>>,
     /// Expanded rect whose cells are currently stored.
     windows: Vec<Option<ViewportRect>>,
+    /// Last logical viewport requested for each sheet (pre-slop); used to re-stream for merges.
+    logical_views: Vec<Option<ViewportRect>>,
     rows_visited: Vec<u32>,
     touched: Vec<String>,
     /// Parts inflated through EOF. Worksheet and shared-string streams that stop early stay out
     /// of this list (they are still reported by [`Self::touched_parts`]).
     parts_read: Vec<String>,
     resolved_sst: HashSet<usize>,
+    /// Sheet inflate stopped at the viewport via `<dimension>` (merges / CF not loaded yet).
+    truncated: Vec<bool>,
+    /// Post-`sheetData` shell (merges / CF) has been loaded at least once for this sheet.
+    tail_complete: Vec<bool>,
 }
 
 /// Open the package and materialise `view` on the active sheet only.
@@ -79,14 +86,17 @@ pub fn open_first_view(bytes: &[u8], view: ViewportRect) -> Result<FirstView, St
         workbook: shell.workbook,
         sheets: vec![None; n],
         windows: vec![None; n],
+        logical_views: vec![None; n],
         rows_visited: vec![0; n],
         touched: Vec::new(),
         parts_read: Vec::new(),
         resolved_sst: HashSet::new(),
+        truncated: vec![false; n],
+        tail_complete: vec![false; n],
     };
     view_state.merge_pkg(&pkg);
     if active < n {
-        view_state.load_sheet(&mut pkg, active, view)?;
+        view_state.load_sheet(&mut pkg, active, view, true)?;
         view_state.merge_pkg(&pkg);
     }
     Ok(view_state)
@@ -109,14 +119,17 @@ pub fn open_first_view_arc(bytes: Arc<[u8]>, view: ViewportRect) -> Result<First
         workbook: shell.workbook,
         sheets: vec![None; n],
         windows: vec![None; n],
+        logical_views: vec![None; n],
         rows_visited: vec![0; n],
         touched: Vec::new(),
         parts_read: Vec::new(),
         resolved_sst: HashSet::new(),
+        truncated: vec![false; n],
+        tail_complete: vec![false; n],
     };
     view_state.merge_pkg(&pkg);
     if active < n {
-        view_state.load_sheet(&mut pkg, active, view)?;
+        view_state.load_sheet(&mut pkg, active, view, true)?;
         view_state.merge_pkg(&pkg);
     }
     drop(pkg);
@@ -156,12 +169,89 @@ impl FirstView {
             return Ok(false);
         }
         // Reopen over a cheap Arc clone — no package-byte copy on scroll.
+        // Keep early-stop for scroll TTFV; selection calls [`Self::ensure_sheet_complete`].
+        // If the post-sheetData shell was already loaded, preserve merges/CF across the reload.
+        let preserved = self.sheets.get(sheet).and_then(|s| s.as_ref()).map(|ws| {
+            (
+                ws.merges.clone(),
+                ws.conditional_formats.clone(),
+                ws.hyperlinks.clone(),
+                ws.view.selection.clone(),
+            )
+        });
+        let had_tail = self.tail_complete.get(sheet).copied().unwrap_or(false);
         let pkg_bytes = Arc::clone(&self.bytes);
         let mut pkg = Package::open(pkg_bytes.as_ref()).map_err(|e| e.to_string())?;
-        self.load_sheet(&mut pkg, sheet, view)?;
+        self.load_sheet(&mut pkg, sheet, view, true)?;
         self.merge_pkg(&pkg);
         drop(pkg);
         drop(pkg_bytes);
+        if had_tail {
+            if let Some((merges, cf, hyperlinks, sel)) = preserved {
+                if let Some(Some(ws)) = self.sheets.get_mut(sheet) {
+                    ws.merges = merges;
+                    ws.conditional_formats = cf;
+                    ws.hyperlinks = hyperlinks;
+                    ws.view.selection = sel;
+                }
+            }
+            if let Some(slot) = self.truncated.get_mut(sheet) {
+                *slot = false;
+            }
+            if let Some(slot) = self.tail_complete.get_mut(sheet) {
+                *slot = true;
+            }
+        }
+        Ok(true)
+    }
+
+    /// Finish a dimension-truncated sheet so mergeCells / CF after `<sheetData>` are available.
+    /// No-op when the sheet was already scanned through EOF. Used before selection expand.
+    pub fn ensure_sheet_complete(&mut self, sheet: usize) -> Result<bool, String> {
+        if sheet >= self.workbook.sheets.len() {
+            return Err(format!("sheet index {sheet} out of range"));
+        }
+        if self.tail_complete.get(sheet).copied().unwrap_or(false) {
+            return Ok(false);
+        }
+        if !self.truncated.get(sheet).copied().unwrap_or(false) {
+            // Already finished via SkipRows on open/scroll.
+            if let Some(slot) = self.tail_complete.get_mut(sheet) {
+                *slot = true;
+            }
+            return Ok(false);
+        }
+        let view = self
+            .logical_views
+            .get(sheet)
+            .and_then(|w| w.as_ref())
+            .copied()
+            .unwrap_or(ViewportRect {
+                r0: 0,
+                c0: 0,
+                r1: 40,
+                c1: 16,
+            });
+        // Re-stream without early stop; preserve runtime selection if any.
+        let kept_sel = self
+            .sheets
+            .get(sheet)
+            .and_then(|s| s.as_ref())
+            .and_then(|s| s.view.selection.clone());
+        let pkg_bytes = Arc::clone(&self.bytes);
+        let mut pkg = Package::open(pkg_bytes.as_ref()).map_err(|e| e.to_string())?;
+        self.load_sheet(&mut pkg, sheet, view, false)?;
+        self.merge_pkg(&pkg);
+        drop(pkg);
+        drop(pkg_bytes);
+        if let Some(sel) = kept_sel {
+            if let Some(Some(ws)) = self.sheets.get_mut(sheet) {
+                ws.view.selection = Some(sel);
+            }
+        }
+        if let Some(slot) = self.tail_complete.get_mut(sheet) {
+            *slot = true;
+        }
         Ok(true)
     }
 
@@ -200,6 +290,7 @@ impl FirstView {
         pkg: &mut Package,
         sheet: usize,
         view: ViewportRect,
+        allow_early_stop: bool,
     ) -> Result<(), String> {
         let is_ws = self.sheet_is_worksheet.get(sheet).copied().unwrap_or(false);
         let stub = self
@@ -213,7 +304,11 @@ impl FirstView {
             }
             self.sheets[sheet] = Some(stub_worksheet(stub));
             self.windows[sheet] = Some(expand_view(view));
+            self.logical_views[sheet] = Some(view);
             self.rows_visited[sheet] = 0;
+            if let Some(slot) = self.truncated.get_mut(sheet) {
+                *slot = false;
+            }
             return Ok(());
         }
         let part = stub.part_name.clone().unwrap_or_default();
@@ -232,9 +327,10 @@ impl FirstView {
             name: &name,
             sheet_id,
             state,
+            allow_early_stop,
         };
         let mut warnings = Vec::new();
-        let (ws, visited) =
+        let (ws, visited, truncated) =
             sheet::load_sheet_window(pkg, &req, &mut self.resolved_sst, &mut warnings)?;
         for w in warnings {
             if !self.workbook.warnings.contains(&w) {
@@ -244,6 +340,15 @@ impl FirstView {
         self.rows_visited[sheet] = visited;
         self.sheets[sheet] = Some(ws);
         self.windows[sheet] = Some(expand_view(view));
+        self.logical_views[sheet] = Some(view);
+        if let Some(slot) = self.truncated.get_mut(sheet) {
+            *slot = truncated;
+        }
+        if !truncated {
+            if let Some(slot) = self.tail_complete.get_mut(sheet) {
+                *slot = true;
+            }
+        }
         Ok(())
     }
 
@@ -562,6 +667,142 @@ mod tests {
             "viewport+slop store must stay under the full sheet"
         );
         assert!(lazy.rows_visited(0) < 50);
+    }
+
+    // Catches: trustworthy `<dimension>` still walking every post-viewport row (SkipRows) instead
+    // of stopping inflate at the viewport.
+    #[test]
+    fn dimension_stops_inflate_at_viewport() {
+        let bytes = sheet_with_dimension(200, "A1:B200");
+        let view = ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 20,
+            c1: 1,
+        };
+        let lazy = open_first_view(&bytes, view).expect("dimension sheet");
+        let sheet = lazy.sheet(0).expect("active");
+        let dim = sheet.dimension.as_ref().expect("dimension retained");
+        assert!(
+            dim.end.row >= 199 && dim.end.col >= 1,
+            "extent should come from dimension, got {:?}:{:?}",
+            dim.start,
+            dim.end
+        );
+        assert!(
+            lazy.rows_visited(0) < 50,
+            "rows_visited {} should be O(viewport), not the full 200",
+            lazy.rows_visited(0)
+        );
+        assert!(
+            !lazy.parts_read.iter().any(|p| p.contains("sheet1")),
+            "sheet1 must stop early (not in parts_read): {:?}",
+            lazy.parts_read
+        );
+        assert!(
+            lazy.touched_parts().iter().any(|p| p.contains("sheet1")),
+            "sheet1 must still be touched"
+        );
+        assert!(
+            sheet.cells.iter().any(|c| c.row == 0 && c.col == 0),
+            "viewport cell A1 missing"
+        );
+    }
+
+    // Catches: dimension early-stop leaving mergeCells unloaded so selection cannot expand.
+    #[test]
+    fn ensure_sheet_complete_loads_merges_after_early_stop() {
+        let bytes = sheet_with_dimension_and_merge(120, "A1:B120", "A1:B2");
+        let view = ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 15,
+            c1: 1,
+        };
+        let mut lazy = open_first_view(&bytes, view).expect("open");
+        assert!(
+            !lazy.parts_read.iter().any(|p| p.contains("sheet1")),
+            "should early-stop before EOF"
+        );
+        assert!(
+            lazy.sheet(0).map(|s| s.merges.is_empty()).unwrap_or(true),
+            "merges must be absent until ensure_sheet_complete"
+        );
+        assert!(lazy.ensure_sheet_complete(0).expect("complete"));
+        let sheet = lazy.sheet(0).expect("sheet");
+        assert!(
+            sheet.merges.iter().any(|m| {
+                m.start.row == 0 && m.start.col == 0 && m.end.row == 1 && m.end.col == 1
+            }),
+            "A1:B2 merge missing after complete: {:?}",
+            sheet.merges
+        );
+        assert!(
+            !lazy.ensure_sheet_complete(0).expect("idempotent"),
+            "second complete should be a no-op"
+        );
+    }
+
+    // Catches: a too-small `<dimension>` early-stopping and reporting a wrong used extent while
+    // rows past the ref still exist (must fall back to SkipRows).
+    #[test]
+    fn undersized_dimension_falls_back_to_skip_rows() {
+        let bytes = sheet_with_dimension(80, "A1:B2");
+        let view = ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 20,
+            c1: 1,
+        };
+        let lazy = open_first_view(&bytes, view).expect("undersized dimension");
+        let sheet = lazy.sheet(0).expect("active");
+        // Fallback finishes the part so merges/extents from the stream are available.
+        assert!(
+            lazy.parts_read.iter().any(|p| p.contains("sheet1")),
+            "undersized dimension must fall back to full sheetData scan: {:?}",
+            lazy.parts_read
+        );
+        // Catch is that we did not early-stop (parts_read); extent may still use the XML ref.
+        assert!(
+            sheet.dimension.as_ref().is_some_and(|d| d.end.row >= 1),
+            "dimension should surface after fallback"
+        );
+        assert!(lazy.rows_visited(0) < 50);
+    }
+
+    fn sheet_with_dimension(n_rows: u32, dim_ref: &str) -> Vec<u8> {
+        sheet_with_dimension_and_merge(n_rows, dim_ref, "")
+    }
+
+    fn sheet_with_dimension_and_merge(n_rows: u32, dim_ref: &str, merge_ref: &str) -> Vec<u8> {
+        let mut rows = String::new();
+        for r in 1..=n_rows {
+            rows.push_str(&format!(
+                "<row r=\"{r}\"><c r=\"A{r}\"><v>{r}</v></c><c r=\"B{r}\"><v>{}</v></c></row>",
+                r * 2
+            ));
+        }
+        let merge_xml = if merge_ref.is_empty() {
+            String::new()
+        } else {
+            format!("<mergeCells count=\"1\"><mergeCell ref=\"{merge_ref}\"/></mergeCells>")
+        };
+        let sheet1 = format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><dimension ref=\"{dim_ref}\"/><sheetData>{rows}</sheetData>{merge_xml}</worksheet>"
+        );
+        let workbook = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>";
+        let wb_rels = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/><Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>";
+        let root_rels = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>";
+        let styles = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"1\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts><fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill></fills><borders count=\"1\"><border/></borders><cellStyleXfs count=\"1\"><xf/></cellStyleXfs><cellXfs count=\"1\"><xf xfId=\"0\"/></cellXfs></styleSheet>";
+        let content_types = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/><Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/></Types>";
+        stored_zip(&[
+            ("[Content_Types].xml", content_types.as_bytes()),
+            ("_rels/.rels", root_rels.as_bytes()),
+            ("xl/workbook.xml", workbook.as_bytes()),
+            ("xl/_rels/workbook.xml.rels", wb_rels.as_bytes()),
+            ("xl/worksheets/sheet1.xml", sheet1.as_bytes()),
+            ("xl/styles.xml", styles.as_bytes()),
+        ])
     }
 
     fn two_sheet_package() -> Vec<u8> {

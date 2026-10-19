@@ -1,10 +1,10 @@
 <!-- SPDX-License-Identifier: MIT -->
 # M1 report — Stage 7 gate (#30)
 
-Status: **metrics refresh** (2026-10-19). Milestone 1 viewer gate record for Nitro XML.
-Measured on tip **`164ac7d40f72d68d549bd8218e955a76584e9c7c`** (includes #279 embedded pptx
-and #283 O(viewport) xlsx first paint). Does **not** close #23 (docx perf-gate arm
-and scoreboard / races stay open). Does **not** arm any gate.
+Status: **metrics + TS-vs-WASM tables** (2026-10-19). Milestone 1 viewer gate record for
+Nitro XML. Native/WASM/bundle baselines on **`164ac7d`** (#279/#283); TS-vs-WASM cold-open
+tables on **`42b72b0`** (§5.3). Does **not** close #23 (docx perf-gate arm deferred).
+Does **not** arm any gate (`perf_beats_ts.sh` / `perf.sh` remain stubs).
 
 Upstream pin: ChristopherVR/ooxml @ `e66aaec`. Shipped surface: Rust/WASM only; TS is
 test-oracle / pixel reference / perf baseline and never ships.

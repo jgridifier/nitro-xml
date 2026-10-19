@@ -58,6 +58,7 @@ self.postMessage({
 type: "opened",
 byteLength: handle.byteLength,
 format: handle.documentFormat(),
+t: handle.t !== false,
 });
 break;
 }
@@ -69,15 +70,8 @@ break;
 }
 case "take-frame": {
 if (!handle) throw new Error("no document");
-// After openDocument the command buffer already holds the O(viewport) first
-// paint. Apply it once before prepareFrame runs deferred SeekTail / SkipRows.
-const tailPending =
-typeof handle.sheetTailComplete === "function" && !handle.sheetTailComplete();
-if (!tailPending || self._openFrameApplied) {
-handle.prepareFrame();
-} else {
-self._openFrameApplied = true;
-}
+if (handle.t !== false || self._openFrameApplied) handle.prepareFrame();
+else self._openFrameApplied = true;
 let chromeHtml = typeof handle.takeChromeIfDirty==="function" ? handle.takeChromeIfDirty()||null : null;
 let measureReqs = null;
 let measureCount = 0;
@@ -136,6 +130,7 @@ outlineCount,
 layoutReqs,
 layoutCount,
 strings,
+t: handle.t !== false,
 },
 transfer,
 );

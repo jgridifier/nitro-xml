@@ -38,12 +38,16 @@ this._pendingLayoutReqs = null;
 this._strings = null;
 this._measureCount = 0;
 this._outlineCount = 0;
+this._t = true;
 }
 get measureCount() {
 return this._measureCount | 0;
 }
 get outlineCount() {
 return this._outlineCount | 0;
+}
+get sheetTailComplete() {
+return this._t !== false;
 }
 _newWorker(prewarm) {
 const url = this._workerUrl || new URL("./worker.js", import.meta.url);
@@ -154,12 +158,14 @@ const serializable =
 typeof fontSource === "function" ? undefined : fontSource;
 const readonly = opts.readonly !== false;
 const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-return this._request("opened", () => {
+const opened = await this._request("opened", () => {
 this._worker.postMessage(
 { type: "open", bytes: u8, name: n, fontSource: serializable, readonly },
 [u8.buffer],
 );
 });
+this._t = opened.t !== false;
+return opened;
 }
 async loadEditorChrome() {
 return this._request("editor-chrome", () => {

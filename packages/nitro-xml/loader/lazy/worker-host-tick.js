@@ -26,6 +26,7 @@ export async function tickBody(doc) {
   doc._strings = strings || doc._strings;
   doc._measureCount = measureCount | 0;
   doc._outlineCount = outlineCount | 0;
+  doc._t = frame.t !== false;
   if (measureCount > 0 && measureReqs) {
     const ctx = doc._measureCtx();
     const widths = fillMeasureWidths(

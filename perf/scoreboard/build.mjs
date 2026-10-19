@@ -73,6 +73,9 @@ const ADAPTERS = [
 	'rust-calamine',
 	'rust-umya',
 	'rust-docx-rs',
+	'rust-nitro-xlsx',
+	'rust-nitro-docx',
+	'rust-nitro-pptx',
 ];
 
 const status = {};

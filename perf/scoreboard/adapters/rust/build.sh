@@ -31,7 +31,7 @@ cd "$here"
 rustup target add wasm32-unknown-unknown >/dev/null 2>&1 || true
 status="{"
 sep=""
-for shim in calamine umya docx-rs; do
+for shim in calamine umya docx-rs nitro-xlsx nitro-docx nitro-pptx; do
   crate="scoreboard-$shim"
   lib="scoreboard_${shim//-/_}"
   log="$out/$shim.build.log"

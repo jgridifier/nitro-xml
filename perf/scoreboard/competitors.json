@@ -7,11 +7,18 @@
       "name": "Nitro XML (Rust/WASM)",
       "formats": ["xlsx", "docx", "pptx"],
       "language": "Rust (WASM)",
-      "version": null,
-      "licence": "MIT",
+      "version": "0.0.0 (workspace nitro-xml-xlsx / nitro-xml-docx / nitro-xml-pptx, path-dep from rs/crates/)",
+      "licence": "MIT AND Apache-2.0",
       "races": ["parse", "first-paint", "open-edit-save"],
-      "status": "not entered",
-      "reason": "not entered yet (needs #11-#13): no parser exists yet; it joins the parse race as soon as the zip, XML and OPC crates and the per-format models land."
+      "fastestConfig": {
+        "xlsx": "load_workbook(bytes) then parse_all_worksheets(bytes, &wb). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+        "docx": "read_package(bytes). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+        "pptx": "Presentation::open(bytes) then ensure_all_slides(). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+        "doc": "https://github.com/jgridifier/nitro-xml/tree/main/rs/crates"
+      },
+      "adapters": { "xlsx": "rust-nitro-xlsx", "docx": "rust-nitro-docx", "pptx": "rust-nitro-pptx" },
+      "shim": "perf/scoreboard/adapters/rust/nitro-xlsx-shim (+ nitro-docx-shim, nitro-pptx-shim)",
+      "status": "entered"
     },
     {
       "id": "upstream-ts",

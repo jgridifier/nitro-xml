@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MIT
+[package]
+name = "scoreboard-nitro-pptx"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nitro-xml-pptx = { path = "../../../../../rs/crates/nitro-xml-pptx" }
+wasm-bindgen = "=0.2.129"

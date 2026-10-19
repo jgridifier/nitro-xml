@@ -179,6 +179,17 @@ impl<'a> Package<'a> {
         Ok(self.text_cache.get(part_name).map(String::as_str))
     }
 
+    /// Like [`Self::text`], but takes ownership and does **not** retain the part in the text cache.
+    ///
+    /// Use for large one-shot parses (worksheet `sheetData`) so the inflated XML is not held
+    /// alongside the cloned shell / cell slices and the Element tree.
+    pub fn take_text(&mut self, part_name: &str) -> Result<Option<String>, OpcError> {
+        if let Some(text) = self.text_cache.remove(part_name) {
+            return Ok(Some(text));
+        }
+        Self::read_text_uncached(&mut self.zip, part_name)
+    }
+
     /// Relationships declared by `part_name` (`""` for the package root).
     pub fn rels(&mut self, part_name: &str) -> Result<&IndexMap<String, Relationship>, OpcError> {
         let rels_part = if part_name.is_empty() {

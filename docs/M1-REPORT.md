@@ -3,7 +3,8 @@
 
 Status: **metrics + TS-vs-WASM tables** (2026-10-19). Milestone 1 viewer gate record for
 Nitro XML. Native/WASM/bundle baselines on **`164ac7d`** (#279/#283); TS-vs-WASM cold-open
-tables on **`42b72b0`** (§5.3). Does **not** close #23 (docx perf-gate arm deferred).
+tables refreshed on **`80bbf59`** after #289 (deferred SeekTail) + #291 (measure dedupe /
+packed box geometry) (§5.3). Does **not** close #23 (docx perf-gate arm deferred).
 Does **not** arm any gate (`perf_beats_ts.sh` / `perf.sh` remain stubs).
 
 Upstream pin: ChristopherVR/ooxml @ `e66aaec`. Shipped surface: Rust/WASM only; TS is
@@ -200,8 +201,8 @@ node perf/large/wasm-baseline.mjs <fixture> 7
 
 | | |
 |--|--|
-| **Commit** | `42b72b08c393cabc82431f3d82a5b9ea6004b9e7` |
-| **When** | 2026-10-19T16:42:02Z |
+| **Commit** | `80bbf597d975a70750f91c611af88cb8aef12604` (main tip after #289 + #291 + #293) |
+| **When** | 2026-10-19T20:43:54Z |
 | **Host** | linux x64, Node v22.14.0 (cloud agent VM) |
 | **Command** | `node --expose-gc perf/large/ts-vs-wasm.mjs --runs=11 --warmup=2 --bootstrap=2000` |
 | **TS entry** | scoreboard adapters: `loadWorkbook` / `loadDocument` / `PptxHandler.load` |
@@ -216,32 +217,46 @@ bash perf/large/collect-m1-report.sh --skip-generate --skip-build-wasm
 node --expose-gc perf/large/ts-vs-wasm.mjs
 ```
 
+**Before → after** (xlsx S/M; tip before #289/#291 was §5.3 on `42b72b0`):
+
+| Cell | Before WASM/TS (CI) | After WASM/TS (CI) | Notes |
+|------|--------------------:|-------------------:|-------|
+| xlsx S | 1.792 [1.435, 2.600] **LOSS** | **1.945 [1.227, 2.830] LOSS** | Still loses; SeekTail was already a no-op on `cells_1k` (sheet complete at open) |
+| xlsx M | 0.154 [0.134, 0.165] **WIN** | **0.160 [0.121, 0.171] WIN** | Still wins (noise) |
+| xlsx L | 0.112 [0.108, 0.117] **WIN** | **0.004 [0.003, 0.004] WIN** | Large drop: deferred SeekTail + viewport-first open (#289) |
+| xlsx XL | 0.119 [0.117, 0.123] **WIN** | **0.005 [0.005, 0.008] WIN** | Same as L |
+
 | Format | Tier | TS median (ms) | WASM median (ms) | WASM/TS | 95% CI | Verdict |
 |--------|------|---------------:|-----------------:|--------:|-------:|---------|
-| xlsx | S | 4.65 | 8.33 | 1.792 | [1.435, 2.600] | **LOSS** |
-| xlsx | M | 201.72 | 30.98 | 0.154 | [0.134, 0.165] | **WIN** |
-| xlsx | L | 2141.16 | 240.09 | 0.112 | [0.108, 0.117] | **WIN** |
-| xlsx | XL | 2072.91 | 245.87 | 0.119 | [0.117, 0.123] | **WIN** |
-| docx | S | 2.78 | 1.32 | 0.474 | [0.436, 0.551] | **WIN** |
-| docx | M | 6.88 | 3.52 | 0.512 | [0.434, 0.605] | **WIN** |
-| docx | L | 26.10 | 13.37 | 0.512 | [0.499, 0.544] | **WIN** |
-| docx | XL | 42.78 | 23.34 | 0.546 | [0.438, 0.565] | **WIN** |
-| pptx | S | 13.19 | 1.13 | 0.086 | [0.070, 0.095] | **WIN** |
-| pptx | M | 43.65 | 4.51 | 0.103 | [0.091, 0.123] | **WIN** |
-| pptx | L | 179.74 | 22.49 | 0.125 | [0.106, 0.149] | **WIN** |
-| pptx | XL | 194.36 | 33.92 | 0.175 | [0.152, 0.196] | **WIN** |
+| xlsx | S | 4.35 | 8.46 | 1.945 | [1.227, 2.830] | **LOSS** |
+| xlsx | M | 186.52 | 29.91 | 0.160 | [0.121, 0.171] | **WIN** |
+| xlsx | L | 2181.10 | 8.26 | 0.004 | [0.003, 0.004] | **WIN** |
+| xlsx | XL | 2332.01 | 12.10 | 0.005 | [0.005, 0.008] | **WIN** |
+| docx | S | 2.67 | 1.33 | 0.497 | [0.458, 0.596] | **WIN** |
+| docx | M | 6.51 | 3.54 | 0.544 | [0.495, 0.605] | **WIN** |
+| docx | L | 26.35 | 13.61 | 0.517 | [0.494, 0.554] | **WIN** |
+| docx | XL | 41.34 | 37.16 | 0.899 | [0.530, 0.997] | **WIN** |
+| pptx | S | 13.75 | 1.18 | 0.086 | [0.068, 0.094] | **WIN** |
+| pptx | M | 42.25 | 4.51 | 0.107 | [0.100, 0.119] | **WIN** |
+| pptx | L | 164.16 | 27.58 | 0.168 | [0.139, 0.194] | **WIN** |
+| pptx | XL | 167.55 | 43.16 | 0.258 | [0.247, 0.278] | **WIN** |
 
-**Wins / losses summary:** WASM wins **11 / 12** cells. The only loss is **xlsx S**
-(WASM/TS ≈ 1.79, CI entirely above 1). At M/L/XL xlsx, WASM is ~6–9× faster on this
-metric; pptx is ~6–12×; docx is ~1.8–2.1×.
+**Wins / losses summary:** WASM wins **11 / 12** cells. The only loss is still **xlsx S**
+(WASM/TS ≈ **1.95**, 95% CI entirely above 1 — shown as prominently as the wins). #289/#291
+did not close that gap: first-frame `process_frame` / cell paint at the default 800×600
+viewport still dominates S (~6–8 ms paint vs TS ~4 ms full `loadWorkbook`). At L/XL xlsx,
+WASM is now ~200–250× faster on this metric (viewport-first + deferred SeekTail); pptx
+~4–12×; docx ~1.1–2.0× (docx XL barely wins: CI upper 0.997).
 
 **Honest scope notes:**
 
 - Metric is **cold open only** (not scroll / peak memory / browser first-paint including
   wasm fetch+compile+instantiate). Those remain for the armed gate under #8 once filled in.
 - **xlsx asymmetry:** TS `loadWorkbook` is a full workbook parse; WASM `openDocument` uses
-  `open_first_view` (viewport) + first `process_frame`. That is the viewer path (#283), not
-  identical work — especially visible at L/XL.
+  `open_first_view` (viewport) + first `process_frame`, and after #289 does **not** SeekTail
+  on that first frame. That is the viewer TTFV path, not identical work — especially visible
+  at L/XL. S remains a loss because the sheet is already complete at open (no SeekTail to
+  defer) and paint cost dominates.
 - Gate scripts are **unchanged stubs** (report does not arm anything):
 
 ```text
@@ -274,20 +289,24 @@ bash scripts/ci/bundle_budget.sh
 
 ---
 
-## 7. Scoreboard standings — **deferred**
+## 7. Scoreboard standings — **still blocked** (checked 2026-10-19 on `80bbf59`)
 
 Scoreboard standings (parse / render-to-first-paint / open-edit-save), including
-losses as prominently as wins, **cannot be produced honestly on this tip**:
+losses as prominently as wins, **cannot be produced honestly on this tip** without
+touching draft #113 or inventing numbers. Checked whether a Nitro XML entrant for
+`docs/scoreboard/data/parse-latest.json` could be filled from real runs on **main alone**:
 
-| Blocker | Link | Why |
-|---------|------|-----|
+| Blocker | Link | Why (verified on tip) |
+|---------|------|------------------------|
+| No Nitro XML parse adapter | `perf/scoreboard/adapters/js/` | Entrants that race need `parse` + `extract` modules (see `upstream-xlsx.mjs` etc.). **There is no `nitro-xml` / WASM adapter on main**, and draft #113 does not add one either (gate/selftest/pages only). |
+| `competitors.json` | `perf/scoreboard/competitors.json` | `nitro-xml` is still `"status": "not entered"` with a **stale** reason (`needs #11–#13`); flipping the flag without an adapter + a real race run would publish fiction. |
 | `scripts/ci/scoreboard.sh` | stub → `#39` | Still prints `NOT IMPLEMENTED — see #39` |
-| Render-to-first-paint race | [#41](https://github.com/jgridifier/nitro-xml/issues/41) | Race not landed; labelled blocked |
-| Scoreboard CI / reproducible gate | draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) | Draft; **do not touch from this slice** |
-| Nitro XML entrant | `docs/scoreboard/data/parse-latest.json` | Still `"status": "not entered"` (stale reason from #11–#13 era) |
+| Scoreboard CI / reproducible gate | draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) | Draft; **do not touch from this slice** (per Jared) |
+| Render-to-first-paint race | [#41](https://github.com/jgridifier/nitro-xml/issues/41) | Race not landed; labelled `status:blocked` — first-paint standings wait on it |
+| Published data | `docs/scoreboard/data/parse-latest.json` | Still shows Nitro as `"not entered"` |
 
-No standings invented. When #41 / #113 land, refresh this section from the harness
-output and list W/L columns without demoting losses.
+**Stop:** no scoreboard PR from this slice. No invented medians. When a Nitro adapter +
+#113 / #41 land, re-run the harness and list W/L without demoting losses.
 
 ---
 
@@ -296,7 +315,7 @@ output and list W/L columns without demoting losses.
 | Item | Issue / PR | Notes |
 |------|------------|-------|
 | Arm WASM-beats-TS gates (CI) | **#8**, **#19**, **#27**; docx **#23** (deferred) | Report tables exist (§5.3); stubs still `NOT IMPLEMENTED` — do not arm from this report |
-| Scoreboard standings including losses | **#41**, draft **#113**, **#39** | Link only; do not invent numbers |
+| Scoreboard standings including losses | **#41**, draft **#113**, **#39**; missing Nitro parse adapter | Checked tip: cannot enter `parse-latest.json` honestly without adapter + race run; do not invent numbers |
 | Keep `crash-recovery` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection |
 | Per-format wasm / TTI ceilings | #46 | Bundle gate extension |
 
@@ -307,10 +326,10 @@ output and list W/L columns without demoting losses.
 - [x] Fuzzing clean (1 CPU-hour / target, 0 crashes)
 - [x] Crash recovery tested (viewer + editor; CI injection; flake loop)
 - [x] Memory / package ceiling enforced with graceful viewer errors
-- [x] M1 report published with **real measured** numbers from existing harnesses (native/WASM/bundle on `164ac7d`; TS-vs-WASM cold open on `42b72b0`)
+- [x] M1 report published with **real measured** numbers from existing harnesses (native/WASM/bundle on `164ac7d`; TS-vs-WASM cold open refreshed on `80bbf59` after #289/#291)
 - [x] Unsupported-content rate recorded (**0** × 3 formats)
 - [x] Bundle / loader sizes recorded (loader **16.87 / 17 KB**; wasm sizes above)
 - [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including the xlsx S loss** — gate scripts still stubbed; **#23 left open** (docx arm deferred)
-- [ ] Scoreboard standings including losses — **blocked on #41 / draft #113** (link only; no invented numbers)
+- [ ] Scoreboard standings including losses — **blocked**: no Nitro parse adapter on main + stub `#39` + draft **#113** + blocked **#41** (link only; no invented numbers; checked this tip)
 - [ ] `crash-recovery` added to branch-protection required checks — **Jared / Chief of Staff only**
 - [ ] Arm `perf-beats-ts` CI gates — **#8 / #19 / #27**; docx **#23** deferred

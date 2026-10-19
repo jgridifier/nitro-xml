@@ -32,11 +32,14 @@ node --test \
   "$ROOT/packages/nitro-xml/loader/test/journal.test.mjs" \
   "$ROOT/packages/nitro-xml/loader/test/edit-recover.test.mjs"
 
-echo "crash-recovery: editor journal + TS oracle (crash injection)"
+echo "crash-recovery: editor journal + TS oracle (crash injection, xlsx/docx/pptx)"
 EDITOR_SEED="${NITRO_EDITOR_CRASH_SEED:-62}"
-NITRO_CRASH_SEED="$EDITOR_SEED" bun "$ROOT/tests/crash/run.mjs" --ci
+# Default 10 deterministic flake iterations in CI; override with NITRO_CRASH_FLAKE_RUNS.
+FLAKE_RUNS="${NITRO_CRASH_FLAKE_RUNS:-10}"
+NITRO_CRASH_SEED="$EDITOR_SEED" NITRO_CRASH_FLAKE_RUNS="$FLAKE_RUNS" \
+  bun "$ROOT/tests/crash/run.mjs" --ci
 
-EDITOR_SUMMARY="crash-recovery: editor op-journal replay OK (seed=${EDITOR_SEED})"
+EDITOR_SUMMARY="crash-recovery: editor op-journal replay OK (seed=${EDITOR_SEED} formats=3 flake_runs=${FLAKE_RUNS})"
 echo "$EDITOR_SUMMARY"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {

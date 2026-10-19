@@ -7,6 +7,7 @@
 //! - **Early stop** (`allow_early_stop`): inflate stops at the viewport (O(viewport) first open).
 //! - **SeekTail** (`allow_early_stop = false` with dimension): byte-scan to `</sheetData>` without
 //!   row/cell tokenizing so merges / CF / DV land — used by [`super::FirstView::ensure_sheet_complete`].
+//!
 //! Without a trustworthy dimension, `SkipRows` walks remaining rows for extents and sparse heights.
 
 use std::collections::{BTreeMap, HashMap, HashSet};

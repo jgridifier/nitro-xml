@@ -3,10 +3,10 @@
 //!
 //! Eager parts are the content types, package rels, workbook, workbook rels, styles and theme.
 //! Shared strings resolve only indices seen in the viewport. The active worksheet stream keeps
-//! viewport cell rows; when `<dimension>` is present and trustworthy, inflate stops there
-//! (O(viewport)). Otherwise it skips the rest of `<sheetData>` so merges / CF / used-range extents
-//! still land without storing every cell. Other worksheet parts stay unread until
-//! [`FirstView::ensure_sheet`].
+//! viewport cell rows; with a trustworthy `<dimension>`, first open stops at the viewport and
+//! [`FirstView::ensure_sheet_complete`] byte-scans the rest of `<sheetData>` (no row tokenize) so
+//! merges / CF / DV land before paint. Without dimension, `SkipRows` walks remaining rows.
+//! Other worksheet parts stay unread until [`FirstView::ensure_sheet`].
 //!
 //! `load_workbook` / `parse_worksheet` / `parse_all_worksheets` are unchanged and remain the
 //! full-fidelity path for the editor, formula engine and oracles.
@@ -169,8 +169,7 @@ impl FirstView {
             return Ok(false);
         }
         // Reopen over a cheap Arc clone — no package-byte copy on scroll.
-        // Keep early-stop for scroll TTFV; selection calls [`Self::ensure_sheet_complete`].
-        // If the post-sheetData shell was already loaded, preserve merges/CF across the reload.
+        // Dimension sheets use SeekTail (byte scan); preserve merges/CF if the shell was loaded.
         let preserved = self.sheets.get(sheet).and_then(|s| s.as_ref()).map(|ws| {
             (
                 ws.merges.clone(),
@@ -669,78 +668,52 @@ mod tests {
         assert!(lazy.rows_visited(0) < 50);
     }
 
-    // Catches: trustworthy `<dimension>` still walking every post-viewport row (SkipRows) instead
-    // of stopping inflate at the viewport.
+    // Catches: ensure_sheet_complete still SkipRows-tokenizing every post-viewport row when a
+    // trustworthy `<dimension>` is present (should SeekTail instead).
     #[test]
-    fn dimension_stops_inflate_at_viewport() {
-        let bytes = sheet_with_dimension(200, "A1:B200");
+    fn ensure_sheet_complete_seeks_tail_without_tokenizing_rows() {
+        let bytes = sheet_with_dimension_and_merge(200, "A1:B200", "A1:B2");
         let view = ViewportRect {
             r0: 0,
             c0: 0,
             r1: 20,
             c1: 1,
         };
-        let lazy = open_first_view(&bytes, view).expect("dimension sheet");
-        let sheet = lazy.sheet(0).expect("active");
-        let dim = sheet.dimension.as_ref().expect("dimension retained");
-        assert!(
-            dim.end.row >= 199 && dim.end.col >= 1,
-            "extent should come from dimension, got {:?}:{:?}",
-            dim.start,
-            dim.end
-        );
-        assert!(
-            lazy.rows_visited(0) < 50,
-            "rows_visited {} should be O(viewport), not the full 200",
-            lazy.rows_visited(0)
-        );
+        let mut lazy = open_first_view(&bytes, view).expect("dimension sheet");
         assert!(
             !lazy.parts_read.iter().any(|p| p.contains("sheet1")),
-            "sheet1 must stop early (not in parts_read): {:?}",
+            "first open must early-stop: {:?}",
             lazy.parts_read
         );
         assert!(
-            lazy.touched_parts().iter().any(|p| p.contains("sheet1")),
-            "sheet1 must still be touched"
-        );
-        assert!(
-            sheet.cells.iter().any(|c| c.row == 0 && c.col == 0),
-            "viewport cell A1 missing"
-        );
-    }
-
-    // Catches: dimension early-stop leaving mergeCells unloaded so selection cannot expand.
-    #[test]
-    fn ensure_sheet_complete_loads_merges_after_early_stop() {
-        let bytes = sheet_with_dimension_and_merge(120, "A1:B120", "A1:B2");
-        let view = ViewportRect {
-            r0: 0,
-            c0: 0,
-            r1: 15,
-            c1: 1,
-        };
-        let mut lazy = open_first_view(&bytes, view).expect("open");
-        assert!(
-            !lazy.parts_read.iter().any(|p| p.contains("sheet1")),
-            "should early-stop before EOF"
+            lazy.rows_visited(0) < 50,
+            "rows_visited {} should be O(viewport)",
+            lazy.rows_visited(0)
         );
         assert!(
             lazy.sheet(0).map(|s| s.merges.is_empty()).unwrap_or(true),
-            "merges must be absent until ensure_sheet_complete"
+            "merges absent until SeekTail complete"
         );
-        assert!(lazy.ensure_sheet_complete(0).expect("complete"));
-        let sheet = lazy.sheet(0).expect("sheet");
+        assert!(lazy.ensure_sheet_complete(0).expect("SeekTail complete"));
+        let sheet = lazy.sheet(0).expect("active");
         assert!(
             sheet.merges.iter().any(|m| {
                 m.start.row == 0 && m.start.col == 0 && m.end.row == 1 && m.end.col == 1
             }),
-            "A1:B2 merge missing after complete: {:?}",
+            "SeekTail must keep mergeCells: {:?}",
             sheet.merges
         );
         assert!(
-            !lazy.ensure_sheet_complete(0).expect("idempotent"),
-            "second complete should be a no-op"
+            lazy.parts_read.iter().any(|p| p.contains("sheet1")),
+            "SeekTail must finish the part: {:?}",
+            lazy.parts_read
         );
+        assert!(
+            lazy.rows_visited(0) < 50,
+            "SeekTail must not count skipped rows as visited: {}",
+            lazy.rows_visited(0)
+        );
+        assert!(!lazy.ensure_sheet_complete(0).expect("idempotent"));
     }
 
     // Catches: a too-small `<dimension>` early-stopping and reporting a wrong used extent while

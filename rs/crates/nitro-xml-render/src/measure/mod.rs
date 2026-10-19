@@ -64,14 +64,25 @@ impl MeasureBatch {
         self.awaiting
     }
 
+    /// Always queue (docx [`BatchedMeasurer`] pairs pushes 1:1 with absorb indices).
     pub fn push(&mut self, font_id: u32, size_px: f32, text_id: u32) {
+        let _ = self.pending.insert((font_id, text_id));
+        self.font_id.push(font_id);
+        self.size_px.push(size_px);
+        self.text_id.push(text_id);
+    }
+
+    /// Queue only if this font+string is not cached and not already pending this frame.
+    /// Used by xlsx [`CanvasTextMeasure`] to cut duplicate first-frame probes.
+    pub fn push_unique(&mut self, font_id: u32, size_px: f32, text_id: u32) -> bool {
         let key = (font_id, text_id);
         if self.cache.contains_key(&key) || !self.pending.insert(key) {
-            return;
+            return false;
         }
         self.font_id.push(font_id);
         self.size_px.push(size_px);
         self.text_id.push(text_id);
+        true
     }
 
     /// Drop queued (not yet taken) requests. Does not touch awaiting widths.
@@ -377,20 +388,23 @@ mod tests {
     }
 
     #[test]
-    fn measure_push_dedupes_same_font_text_in_one_frame() {
-        // Catches: repeated measure probes for the same font+string in one paint
-        // must not inflate the host measure round-trip (small-xlsx first frame).
+    fn measure_push_unique_dedupes_same_font_text_in_one_frame() {
+        // Catches: xlsx first-frame measure probes for the same font+string must
+        // not inflate the host round-trip (docx still uses non-deduping push).
         let mut m = MeasureBatch::new();
-        m.push(1, 11.0, 2);
-        m.push(1, 11.0, 2);
-        m.push(1, 12.0, 2); // size ignored for key; still one pending
-        m.push(1, 11.0, 3);
+        assert!(m.push_unique(1, 11.0, 2));
+        assert!(!m.push_unique(1, 11.0, 2));
+        assert!(!m.push_unique(1, 12.0, 2));
+        assert!(m.push_unique(1, 11.0, 3));
         let (fonts, _, texts) = m.take_requests();
         assert_eq!(fonts.len(), 2);
         assert_eq!(texts, vec![2, 3]);
         assert!(m.set_results(&[10.0, 20.0]).is_ok());
-        m.push(1, 11.0, 2); // cached — no new request
+        assert!(!m.push_unique(1, 11.0, 2));
         assert!(m.is_empty());
+        // Non-unique push still appends (docx absorb pairing).
+        m.push(1, 11.0, 2);
+        assert_eq!(m.len(), 1);
     }
 
     #[test]

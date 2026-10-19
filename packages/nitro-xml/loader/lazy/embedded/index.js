@@ -72,10 +72,10 @@ function build(host, spec) {
       let dis = false;
       let pressed = null;
       if (it.c) {
-        const m = mirror(it);
+        const m = it.u ? q(".rb") : mirror(it);
         on = !!m;
-        dis = !m || m.disabled;
-        pressed = m && m.getAttribute("aria-pressed");
+        dis = !m || (!it.u && m.disabled);
+        pressed = !it.u && m && m.getAttribute("aria-pressed");
       } else if (it.n) {
         on = tb.length > 1; // a single page/slide has nothing to step through
         const to = at + it.n;
@@ -111,8 +111,16 @@ function build(host, spec) {
       if (!over()) return;
     }
     more.hidden = false;
+    // Spill from the right, keeping the first group and View as long as possible.
     const live = groups.filter((g) => !g.hidden);
-    for (let k = live.length - 2; k > 0 && over(); k--) pop.prepend(live[k]);
+    const order = [...live.slice(1, -1).reverse(), ...live.slice(-1)];
+    const moved = new Set();
+    for (const g of order) {
+      if (!over() || g === live[0]) break;
+      moved.add(g);
+      pop.append(g);
+    }
+    pop.append(...live.filter((g) => moved.has(g)));
   }
   function fit() {
     const s = [bar.clientWidth, ...groups.map((g) => +g.hidden), ...[...bar.querySelectorAll(".nx-r")].map((r) => r.textContent)].join();

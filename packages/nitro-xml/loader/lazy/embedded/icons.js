@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 // 24x24 stroke icons (currentColor). Inner markup only; the toolbar wraps them in <svg>.
-const T = (s) => `<text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" fill="currentColor" stroke="none">${s}</text>`;
 export const ICONS = {
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>',
   prev: '<path d="M15 6l-6 6 6 6"/>',
@@ -24,10 +23,9 @@ export const ICONS = {
   center: '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>',
   right: '<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>',
   wrap: '<path d="M4 6h16M4 12h12a3 3 0 0 1 0 6h-4m0 0l2-2m-2 2l2 2M4 18h4"/>',
-  percent: T("%"),
-  comma: T("000"),
-  accounting: T("$"),
-  general: T("123"),
+  percent: '<circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/><path d="M18 5L6 19"/>',
+  comma: '<circle cx="6" cy="10" r="2.4"/><circle cx="12" cy="10" r="2.4"/><circle cx="18" cy="10" r="2.4"/><path d="M12 17c0 2-1 3-2 4"/>',
+  accounting: '<path d="M12 3v18M16.5 8c0-1.8-2-3-4.5-3S7.5 6.2 7.5 8s2 2.7 4.5 3.3 4.5 1.5 4.5 3.3-2 3-4.5 3-4.5-1.2-4.5-3"/>',
   clear: '<path d="M4 15l8-8 6 6-5 5H8zM11 20h9"/>',
   sheetAdd: '<path d="M6 3h9l4 4v14H6zM12 11v6M9 14h6"/>',
   sheetDel: '<path d="M6 3h9l4 4v14H6zM9 14h6"/>',

@@ -15,7 +15,10 @@ export const CSS = `
 .nx-b:disabled{opacity:.4;cursor:default}
 .nx-r{align-self:center;min-width:3.4em;text-align:center;font-variant-numeric:tabular-nums;padding:0 2px}
 .nx[data-size=compact] .nx-l,.nx[data-size=compact] .nx-cap{display:none}
-.nx[data-size=compact] .nx-b{min-width:32px;padding:5px}
+.nx[data-size=compact] .nx-b{min-width:28px;padding:4px 3px}
+.nx[data-size=compact] .nx-g{padding-left:4px;padding-right:4px}
+.nx[data-size=compact] .nx-b svg{width:20px;height:20px}
+.nx[data-size=compact] .nx-r{min-width:3em}
 .nx[data-size=compact] .nx-g{justify-content:center;padding-bottom:4px}
 .nx-more{position:relative;display:flex;align-items:center;margin-left:auto;padding:4px}
 .nx-mb .nx-l{display:none}

@@ -84,6 +84,7 @@
       defineNitroDocx();
       const el = document.createElement('nitro-docx');
       el.setAttribute('readonly', '');
+      if (params.get('mode')) el.setAttribute('mode', params.get('mode'));
       stage.appendChild(el);
       el.style.width = '100%';
       el.style.minHeight = '100%';

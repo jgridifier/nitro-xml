@@ -44,6 +44,9 @@ pub struct XlsxState {
     /// Re-apply `topLeftCell` after the host's first real `Resize` (open uses a default
     /// 800×600 until the visual/loader reports the stage size).
     pending_view_scroll: bool,
+    /// Defer `ensure_sheet_complete` until the next frame so first paint stays O(viewport).
+    /// Set after the first paint when the active sheet is still truncated.
+    pending_tail_complete: bool,
 }
 
 impl XlsxState {
@@ -75,9 +78,31 @@ impl XlsxState {
                 edit: None,
                 // Apply after the host Resize so reveal uses the real stage size.
                 pending_view_scroll: true,
+                pending_tail_complete: false,
             },
             warnings,
         ))
+    }
+
+    /// True when the active sheet's post-`sheetData` shell (merges/CF/DV) is loaded.
+    pub fn sheet_tail_complete(&self) -> bool {
+        match &self.lazy {
+            None => true,
+            Some(lazy) => lazy.is_sheet_complete(self.active) && !self.pending_tail_complete,
+        }
+    }
+
+    /// Run deferred `ensure_sheet_complete` once (next tick after first paint).
+    /// Returns true when the shell was (re)loaded and a repaint is required.
+    pub fn flush_pending_tail(&mut self) -> bool {
+        if !self.pending_tail_complete {
+            return false;
+        }
+        self.pending_tail_complete = false;
+        match self.ensure_merges_ready() {
+            Ok(()) => true,
+            Err(_) => false,
+        }
     }
 
     pub fn set_zoom_pct(&mut self, zoom_pct: f64) {
@@ -119,8 +144,10 @@ impl XlsxState {
     }
 
     /// Load post-`sheetData` merges/CF/DV when first-view stopped early on `<dimension>`.
-    /// Called before paint and selection so the first frame matches a full SkipRows shell.
+    /// Called from selection and from the deferred post-first-paint flush — not from the
+    /// first paint itself (that stays O(viewport) for WASM TTFV).
     fn ensure_merges_ready(&mut self) -> Result<(), String> {
+        self.pending_tail_complete = false;
         let Some(lazy) = self.lazy.as_mut() else {
             return Ok(());
         };
@@ -349,8 +376,14 @@ impl XlsxState {
         measures: &mut nitro_xml_render::MeasureBatch,
     ) {
         if self.lazy.is_some() {
-            // Finish dimension early-stop before the first paint so merges/CF/DV match TS.
-            let _ = self.ensure_merges_ready();
+            // First paint stays O(viewport). Schedule post-sheetData shell for the next tick.
+            let needs_tail = self
+                .lazy
+                .as_ref()
+                .is_some_and(|lazy| !lazy.is_sheet_complete(self.active));
+            if needs_tail {
+                self.pending_tail_complete = true;
+            }
             let rect = self.current_cell_rect();
             let active = self.active;
             if self.sync_lazy_sheet(active, rect).is_err() {
@@ -777,6 +810,9 @@ pub fn process_frame(handle: &mut crate::handle::Handle) {
     }
     handle.events.drain();
     if let Some(ref mut xlsx) = handle.xlsx {
+        // Second+ frames: finish deferred SeekTail/SkipRows shell, then paint.
+        // First openDocument frame paints without this (pending set during that paint).
+        let _ = xlsx.flush_pending_tail();
         // Drop unacked measure reqs from a prior paint (e.g. openDocument) so this
         // frame's batch matches the commands about to be taken.
         handle.measures.clear_pending();

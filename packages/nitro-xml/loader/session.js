@@ -45,6 +45,7 @@ this._memory = opts.memory;
 this._canvas = opts.canvas;
 this._root = opts.root;
 this._name = opts.name;
+this._openFrameApplied = false;
 this._nodes = new Map();
 this._images = new Map();
 this._disposed = false;
@@ -78,6 +79,13 @@ return this._disposed ? 0 : this._handle.measureCount | 0;
 get outlineCount() {
 return this._disposed ? 0 : this._handle.outlineCount | 0;
 }
+/** True when xlsx post-sheetData shell (merges/CF/DV) is loaded; non-xlsx always true. */
+get sheetTailComplete() {
+if (this._disposed || !this._handle) return true;
+return typeof this._handle.sheetTailComplete === "function"
+? !!this._handle.sheetTailComplete()
+: true;
+}
 pushEvent(ev) {
 this._events.push(ev);
 }
@@ -97,7 +105,15 @@ if ((this._handle.outlineCount | 0) > 0) {
 const { flushOutlineBatch } = await import("./lazy/glyph-outline.js");
 outlined = flushOutlineBatch(this._handle, ctx);
 }
+// Apply openDocument's O(viewport) frame once before deferred SeekTail.
+const tailPending =
+typeof this._handle.sheetTailComplete === "function" &&
+!this._handle.sheetTailComplete();
+if (!tailPending || this._openFrameApplied) {
 this._handle.prepareFrame();
+} else {
+this._openFrameApplied = true;
+}
 const commands = this._handle.takeFrameCommands();
 const drawCtx = this._canvas && this._canvas.getContext
 ? this._canvas.getContext("2d")

@@ -402,6 +402,17 @@ impl Handle {
         process_frame(self);
     }
 
+    /// True when the active xlsx sheet's post-`sheetData` shell (merges/CF/DV) is loaded.
+    /// Visual parity waits on this after the first viewport paint (deferred SeekTail).
+    /// Non-xlsx documents are always complete.
+    #[wasm_bindgen(js_name = sheetTailComplete)]
+    pub fn sheet_tail_complete(&self) -> bool {
+        match &self.xlsx {
+            Some(xlsx) => xlsx.sheet_tail_complete(),
+            None => true,
+        }
+    }
+
     /// Document format after open (`xlsx`, …) or empty when not opened.
     #[wasm_bindgen(js_name = documentFormat)]
     pub fn document_format(&self) -> String {

@@ -38,6 +38,7 @@ applyFontSourceToHandle(handle, msg.fontSource);
 } else {
 applyFontSourceToHandle(handle, undefined);
 }
+self._openFrameApplied = false;
 if (msg.name) {
 try {
 handle.openDocument(msg.name);
@@ -68,7 +69,15 @@ break;
 }
 case "take-frame": {
 if (!handle) throw new Error("no document");
+// After openDocument the command buffer already holds the O(viewport) first
+// paint. Apply it once before prepareFrame runs deferred SeekTail / SkipRows.
+const tailPending =
+typeof handle.sheetTailComplete === "function" && !handle.sheetTailComplete();
+if (!tailPending || self._openFrameApplied) {
 handle.prepareFrame();
+} else {
+self._openFrameApplied = true;
+}
 let chromeHtml = typeof handle.takeChromeIfDirty==="function" ? handle.takeChromeIfDirty()||null : null;
 let measureReqs = null;
 let measureCount = 0;

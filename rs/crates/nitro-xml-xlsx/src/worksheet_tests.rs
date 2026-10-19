@@ -40,7 +40,7 @@ fn missing_shared_string_warns() {
     };
     let mut store = CellStore::new();
     let mut row_info = HashMap::new();
-    read_sheet_data_xml(&mut ctx, xml.to_owned(), &mut store, &mut row_info);
+    read_sheet_data_xml(&mut ctx, xml, &mut store, &mut row_info);
     assert!(warnings.iter().any(|w| w.contains("missing shared string")));
     assert_eq!(store.len(), 0);
 }

@@ -34,22 +34,18 @@ pub type Error = OpcError;
 /// Common bullet glyphs that Nitro folds into `DumpElement::text` as their own paragraph.
 fn scoreboard_is_bullet_only(s: &str) -> bool {
     let t = s.trim();
+    // Unicode escapes only (literal "•"/"◦"/… are the same codepoints — unreachable duplicates).
     matches!(
         t,
-        "\u{2022}"
-            | "\u{25CF}"
-            | "\u{25E6}"
-            | "\u{2043}"
-            | "\u{25AA}"
-            | "\u{25AB}"
-            | "•"
-            | "◦"
-            | "▪"
-            | "▫"
-            | "▸"
-            | "►"
-            | "‣"
-            | "⁃"
+        "\u{2022}" // •
+            | "\u{25CF}" // ●
+            | "\u{25E6}" // ◦
+            | "\u{2043}" // ⁃
+            | "\u{25AA}" // ▪
+            | "\u{25AB}" // ▫
+            | "\u{25B8}" // ▸
+            | "\u{25BA}" // ►
+            | "\u{2023}" // ‣
     )
 }
 
@@ -57,8 +53,8 @@ fn scoreboard_push_text(text: &str, out: &mut Vec<String>) {
     for line in text.split('\n') {
         let mut p = line.to_string();
         for prefix in [
-            "\u{2022}", "\u{25CF}", "\u{25E6}", "\u{2043}", "\u{25AA}", "\u{25AB}", "•", "◦", "▪",
-            "▫", "▸", "►", "‣", "⁃",
+            "\u{2022}", "\u{25CF}", "\u{25E6}", "\u{2043}", "\u{25AA}", "\u{25AB}", "\u{25B8}",
+            "\u{25BA}", "\u{2023}",
         ] {
             if let Some(rest) = p.strip_prefix(prefix) {
                 p = rest.trim_start().to_string();

@@ -49,7 +49,7 @@ pub use engine_api::{
     cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, search_workbook, visible_sheets_json,
     SearchOptions,
 };
-pub use lazy::{open_first_view, FirstView, ViewportRect};
+pub use lazy::{open_first_view, open_first_view_arc, FirstView, ViewportRect};
 pub use model::{stringify_json, WorkbookSlice};
 pub use render::{paint_grid_frame, GridPaintViewport};
 pub use view::{dump_xlsx_view_ir, dump_xlsx_view_ir_string};

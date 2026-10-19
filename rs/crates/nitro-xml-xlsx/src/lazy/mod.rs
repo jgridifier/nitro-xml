@@ -10,6 +10,10 @@
 //! `load_workbook` / `parse_worksheet` / `parse_all_worksheets` are unchanged and remain the
 //! full-fidelity path for the editor, formula engine and oracles.
 //!
+//! Package bytes are held as [`Arc<[u8]>`] so a viewer `Handle` and this first-view state share
+//! one buffer (no second retain). Scroll / sheet switches reopen the zip over that Arc without
+//! cloning the file.
+//!
 //! TODO: `ZipPackage` still needs the whole compressed blob to read the central directory. A
 //! remote byte-range backend would fetch the EOCD plus the local file ranges of touched parts;
 //! [`nitro_xml_opc::opc::Package::stream_part`] already stops inflate early.
@@ -18,6 +22,7 @@ mod sheet;
 mod sst;
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use nitro_xml_opc::opc::Package;
 
@@ -37,7 +42,8 @@ pub struct ViewportRect {
 
 /// Workbook opened for a viewer first paint. Cells outside the active window are not stored.
 pub struct FirstView {
-    bytes: Vec<u8>,
+    /// Shared with the viewer handle when opened via [`open_first_view_arc`].
+    bytes: Arc<[u8]>,
     workbook: WorkbookSlice,
     strings_part: Option<String>,
     sheet_is_worksheet: Vec<bool>,
@@ -54,13 +60,19 @@ pub struct FirstView {
 }
 
 /// Open the package and materialise `view` on the active sheet only.
+///
+/// Reads the zip from `bytes` (no intermediate package copy), then retains one [`Arc`] for
+/// scroll / sheet switches. Prefer [`open_first_view_arc`] when the caller already owns the
+/// package buffer (viewer `Handle`) so first-view and handle share one allocation.
 pub fn open_first_view(bytes: &[u8], view: ViewportRect) -> Result<FirstView, String> {
+    // Open against the caller's slice (same peak as the pre-Arc path), then Arc once for retention.
     let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
     let shell = load_workbook_shell(&mut pkg)?;
     let n = shell.workbook.sheets.len();
     let active = shell.workbook.active_sheet as usize;
     let mut view_state = FirstView {
-        bytes: bytes.to_vec(),
+        // `Arc::from(&[u8])` copies once into the Arc; avoid `from(to_vec())` which peaks at 3×.
+        bytes: Arc::<[u8]>::from(bytes),
         strings_part: shell.strings_part,
         sheet_is_worksheet: shell.sheet_is_worksheet,
         dynamic_cells: shell.dynamic_cells,
@@ -77,6 +89,38 @@ pub fn open_first_view(bytes: &[u8], view: ViewportRect) -> Result<FirstView, St
         view_state.load_sheet(&mut pkg, active, view)?;
         view_state.merge_pkg(&pkg);
     }
+    Ok(view_state)
+}
+
+/// Like [`open_first_view`], but reuses `bytes` (cheap `Arc` clone on scroll / sheet switch).
+pub fn open_first_view_arc(bytes: Arc<[u8]>, view: ViewportRect) -> Result<FirstView, String> {
+    // Zip reader borrows the slice for its lifetime; keep a second Arc so `bytes` can move
+    // into FirstView while `pkg` is still open (no package-byte copy).
+    let pkg_bytes = Arc::clone(&bytes);
+    let mut pkg = Package::open(pkg_bytes.as_ref()).map_err(|e| e.to_string())?;
+    let shell = load_workbook_shell(&mut pkg)?;
+    let n = shell.workbook.sheets.len();
+    let active = shell.workbook.active_sheet as usize;
+    let mut view_state = FirstView {
+        bytes,
+        strings_part: shell.strings_part,
+        sheet_is_worksheet: shell.sheet_is_worksheet,
+        dynamic_cells: shell.dynamic_cells,
+        workbook: shell.workbook,
+        sheets: vec![None; n],
+        windows: vec![None; n],
+        rows_visited: vec![0; n],
+        touched: Vec::new(),
+        parts_read: Vec::new(),
+        resolved_sst: HashSet::new(),
+    };
+    view_state.merge_pkg(&pkg);
+    if active < n {
+        view_state.load_sheet(&mut pkg, active, view)?;
+        view_state.merge_pkg(&pkg);
+    }
+    drop(pkg);
+    drop(pkg_bytes);
     Ok(view_state)
 }
 
@@ -111,11 +155,19 @@ impl FirstView {
         {
             return Ok(false);
         }
-        let bytes = self.bytes.clone();
-        let mut pkg = Package::open(&bytes).map_err(|e| e.to_string())?;
+        // Reopen over a cheap Arc clone — no package-byte copy on scroll.
+        let pkg_bytes = Arc::clone(&self.bytes);
+        let mut pkg = Package::open(pkg_bytes.as_ref()).map_err(|e| e.to_string())?;
         self.load_sheet(&mut pkg, sheet, view)?;
         self.merge_pkg(&pkg);
+        drop(pkg);
+        drop(pkg_bytes);
         Ok(true)
+    }
+
+    /// Package buffer shared with the caller when opened via [`open_first_view_arc`].
+    pub fn package_bytes(&self) -> &Arc<[u8]> {
+        &self.bytes
     }
 
     pub fn sheet(&self, sheet: usize) -> Option<&ActiveWorksheet> {
@@ -353,6 +405,42 @@ mod tests {
         );
         assert!(lazy.shared_strings_resolved() < full.shared_strings.len() / 2);
         assert!(lazy.shared_strings_resolved() < 200);
+    }
+
+    // Catches: ensure_viewport / open_first_view allocating a second full copy of the package
+    // (Handle + FirstView double retain, or scroll cloning Vec<u8>).
+    #[test]
+    fn first_view_shares_package_arc_across_scroll() {
+        let raw = include_bytes!("../../../../../fixtures/generated/xlsx/cells_1k.xlsx");
+        let bytes = Arc::<[u8]>::from(raw.as_slice());
+        let top = ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 20,
+            c1: 8,
+        };
+        let scrolled = ViewportRect {
+            r0: 40,
+            c0: 0,
+            r1: 60,
+            c1: 8,
+        };
+        let mut lazy = open_first_view_arc(Arc::clone(&bytes), top).expect("first view");
+        assert!(
+            Arc::ptr_eq(&bytes, lazy.package_bytes()),
+            "FirstView must retain the caller's Arc, not a fresh buffer"
+        );
+        assert_eq!(Arc::strong_count(&bytes), 2);
+        assert!(lazy.ensure_viewport(0, scrolled).expect("scroll"));
+        assert!(
+            Arc::ptr_eq(&bytes, lazy.package_bytes()),
+            "scroll must reopen over the same Arc"
+        );
+        assert_eq!(
+            Arc::strong_count(&bytes),
+            2,
+            "scroll must not clone package bytes into another Arc/Vec"
+        );
     }
 
     // Catches: first view inflating sheet2, pad.bin, the whole shared-string table, or every row.

@@ -13,8 +13,10 @@ use nitro_xml_xlsx::render::{
 };
 use nitro_xml_xlsx::render::{EditOverlay, EditorPaintHints};
 use nitro_xml_xlsx::view::metrics::{create_grid_metrics, GridMetrics, GridMetricsOptions};
+use std::sync::Arc;
+
 use nitro_xml_xlsx::{
-    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook, open_first_view,
+    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook, open_first_view_arc,
     paint_grid_frame, parse_all_worksheets, parse_range, parse_worksheet_at, search_workbook,
     visible_sheets_json, FirstView, GridPaintViewport, SearchOptions, ViewportRect, WorkbookSlice,
 };
@@ -45,8 +47,9 @@ pub struct XlsxState {
 }
 
 impl XlsxState {
-    pub fn open(bytes: &[u8]) -> Result<(Self, Vec<String>), String> {
-        let first = open_first_view(bytes, default_cell_rect())?;
+    /// Open via the shared package `Arc` so [`FirstView`] does not retain a second copy.
+    pub fn open(bytes: Arc<[u8]>) -> Result<(Self, Vec<String>), String> {
+        let first = open_first_view_arc(bytes, default_cell_rect())?;
         let warnings = first.workbook().warnings.clone();
         let mut workbook = first.workbook().clone();
         let mut sheets: Vec<Option<ActiveWorksheet>> = vec![None; workbook.sheets.len()];

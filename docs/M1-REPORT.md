@@ -194,31 +194,64 @@ node perf/large/wasm-baseline.mjs <fixture> 7
 | pptx | L | `slides_200.pptx` | 17.36 | 19.41, 19.23, 19.72, 17.36, 16.24, 16.27, 16.61 | ~0.03 |
 | pptx | XL | `xl_a.pptx` | 25.42 | 24.45, 25.10, 25.42, 26.67, 26.08 | ~0.03 |
 
-### 5.3 TS vs WASM medians + 95% bootstrap CIs — **not produced**
+### 5.3 TS vs WASM cold open — medians + 95% bootstrap CIs
 
-`scripts/ci/perf_beats_ts.sh` is still a stub on this SHA. Measured output:
+**Report-only** measurement (does **not** arm `perf_beats_ts.sh` / `perf.sh`).
 
-```text
-$ bash scripts/ci/perf_beats_ts.sh xlsx
-perf_beats_ts.sh format=xlsx
-NOT IMPLEMENTED — see #19 (gate machinery in #8); format=xlsx
+| | |
+|--|--|
+| **Commit** | `42b72b08c393cabc82431f3d82a5b9ea6004b9e7` |
+| **When** | 2026-10-19T16:42:02Z |
+| **Host** | linux x64, Node v22.14.0 (cloud agent VM) |
+| **Command** | `node --expose-gc perf/large/ts-vs-wasm.mjs --runs=11 --warmup=2 --bootstrap=2000` |
+| **TS entry** | scoreboard adapters: `loadWorkbook` / `loadDocument` / `PptxHandler.load` |
+| **WASM entry** | `Handle.openDocument` (Node `initSync`; not browser first-paint) |
+| **Ratio** | `median(wasm) / median(ts)`; 95% CI = unpaired bootstrap of that median ratio (B=2000, seed 20261019) |
+| **Verdict** | **WIN** iff median ratio &lt; 1 **and** CI upper &lt; 1 (PRODUCT_SPEC §5); else **LOSS** / **TIE/LOSS** — losses kept |
 
-$ bash scripts/ci/perf_beats_ts.sh docx
-NOT IMPLEMENTED — see #23 (gate machinery in #8); format=docx
-
-$ bash scripts/ci/perf_beats_ts.sh pptx
-perf_beats_ts.sh format=pptx
-NOT IMPLEMENTED — see #27 (gate machinery in #8); format=pptx
-
-$ bash scripts/ci/perf.sh gate
-perf.sh mode=gate
-NOT IMPLEMENTED — see #8
+```bash
+# also via the collector:
+bash perf/large/collect-m1-report.sh --skip-generate --skip-build-wasm
+# or only the compare:
+node --expose-gc perf/large/ts-vs-wasm.mjs
 ```
 
-Therefore this report **does not invent** per-tier TS medians, WASM/TS ratios, or
-95% bootstrap CIs of those ratios. Filling that table requires implementing the
-gate machinery (#8) and arming per format (#19 / #23 / #27). **Docx arm stays
-deferred under #23 per Jared; this slice does not close #23.**
+| Format | Tier | TS median (ms) | WASM median (ms) | WASM/TS | 95% CI | Verdict |
+|--------|------|---------------:|-----------------:|--------:|-------:|---------|
+| xlsx | S | 4.65 | 8.33 | 1.792 | [1.435, 2.600] | **LOSS** |
+| xlsx | M | 201.72 | 30.98 | 0.154 | [0.134, 0.165] | **WIN** |
+| xlsx | L | 2141.16 | 240.09 | 0.112 | [0.108, 0.117] | **WIN** |
+| xlsx | XL | 2072.91 | 245.87 | 0.119 | [0.117, 0.123] | **WIN** |
+| docx | S | 2.78 | 1.32 | 0.474 | [0.436, 0.551] | **WIN** |
+| docx | M | 6.88 | 3.52 | 0.512 | [0.434, 0.605] | **WIN** |
+| docx | L | 26.10 | 13.37 | 0.512 | [0.499, 0.544] | **WIN** |
+| docx | XL | 42.78 | 23.34 | 0.546 | [0.438, 0.565] | **WIN** |
+| pptx | S | 13.19 | 1.13 | 0.086 | [0.070, 0.095] | **WIN** |
+| pptx | M | 43.65 | 4.51 | 0.103 | [0.091, 0.123] | **WIN** |
+| pptx | L | 179.74 | 22.49 | 0.125 | [0.106, 0.149] | **WIN** |
+| pptx | XL | 194.36 | 33.92 | 0.175 | [0.152, 0.196] | **WIN** |
+
+**Wins / losses summary:** WASM wins **11 / 12** cells. The only loss is **xlsx S**
+(WASM/TS ≈ 1.79, CI entirely above 1). At M/L/XL xlsx, WASM is ~6–9× faster on this
+metric; pptx is ~6–12×; docx is ~1.8–2.1×.
+
+**Honest scope notes:**
+
+- Metric is **cold open only** (not scroll / peak memory / browser first-paint including
+  wasm fetch+compile+instantiate). Those remain for the armed gate under #8 once filled in.
+- **xlsx asymmetry:** TS `loadWorkbook` is a full workbook parse; WASM `openDocument` uses
+  `open_first_view` (viewport) + first `process_frame`. That is the viewer path (#283), not
+  identical work — especially visible at L/XL.
+- Gate scripts are **unchanged stubs** (report does not arm anything):
+
+```text
+$ bash scripts/ci/perf_beats_ts.sh xlsx   # NOT IMPLEMENTED — see #19 (#8)
+$ bash scripts/ci/perf_beats_ts.sh docx   # NOT IMPLEMENTED — see #23 (#8)
+$ bash scripts/ci/perf_beats_ts.sh pptx   # NOT IMPLEMENTED — see #27 (#8)
+$ bash scripts/ci/perf.sh gate            # NOT IMPLEMENTED — see #8
+```
+
+**Docx perf-gate arm stays deferred under #23; this slice does not close #23.**
 
 ---
 
@@ -262,7 +295,7 @@ output and list W/L columns without demoting losses.
 
 | Item | Issue / PR | Notes |
 |------|------------|-------|
-| TS-vs-WASM per-tier medians + 95% bootstrap CIs; arm gates | **#8**, **#19**, **#27**; docx **#23** (deferred) | Stubs still print `NOT IMPLEMENTED`; do not arm from this report |
+| Arm WASM-beats-TS gates (CI) | **#8**, **#19**, **#27**; docx **#23** (deferred) | Report tables exist (§5.3); stubs still `NOT IMPLEMENTED` — do not arm from this report |
 | Scoreboard standings including losses | **#41**, draft **#113**, **#39** | Link only; do not invent numbers |
 | Keep `crash-recovery` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection |
 | Per-format wasm / TTI ceilings | #46 | Bundle gate extension |
@@ -274,9 +307,10 @@ output and list W/L columns without demoting losses.
 - [x] Fuzzing clean (1 CPU-hour / target, 0 crashes)
 - [x] Crash recovery tested (viewer + editor; CI injection; flake loop)
 - [x] Memory / package ceiling enforced with graceful viewer errors
-- [x] M1 report published with **real measured** numbers from existing harnesses (this document, SHA `164ac7d`)
+- [x] M1 report published with **real measured** numbers from existing harnesses (native/WASM/bundle on `164ac7d`; TS-vs-WASM cold open on `42b72b0`)
 - [x] Unsupported-content rate recorded (**0** × 3 formats)
 - [x] Bundle / loader sizes recorded (loader **16.87 / 17 KB**; wasm sizes above)
-- [ ] Per-format×tier **TS vs WASM** medians + 95% bootstrap CIs — **blocked on stubbed `perf_beats_ts.sh` (#8 / #19 / #23 / #27)**; docx arm deferred under #23
+- [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including the xlsx S loss** — gate scripts still stubbed; **#23 left open** (docx arm deferred)
 - [ ] Scoreboard standings including losses — **blocked on #41 / draft #113** (link only; no invented numbers)
 - [ ] `crash-recovery` added to branch-protection required checks — **Jared / Chief of Staff only**
+- [ ] Arm `perf-beats-ts` CI gates — **#8 / #19 / #27**; docx **#23** deferred

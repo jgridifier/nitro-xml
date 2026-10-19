@@ -27,8 +27,10 @@ NITRO_CRASH_SEED="$VIEWER_SEED" bun "$ROOT/tests/crash/viewer_reload.mjs" --ci
 VIEWER_SUMMARY="crash-recovery: viewer reload-once OK (seed=${VIEWER_SEED})"
 echo "$VIEWER_SUMMARY"
 
-echo "crash-recovery: loader journal unit tests"
-node --test "$ROOT/packages/nitro-xml/loader/test/journal.test.mjs"
+echo "crash-recovery: loader journal + edit-recover unit tests"
+node --test \
+  "$ROOT/packages/nitro-xml/loader/test/journal.test.mjs" \
+  "$ROOT/packages/nitro-xml/loader/test/edit-recover.test.mjs"
 
 echo "crash-recovery: editor journal + TS oracle (crash injection)"
 EDITOR_SEED="${NITRO_EDITOR_CRASH_SEED:-62}"

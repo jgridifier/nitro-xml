@@ -74,6 +74,27 @@ impl CellStore {
         self.rows.is_empty()
     }
 
+    pub fn reserve(&mut self, cells: usize) {
+        self.rows.reserve(cells);
+        self.cols.reserve(cells);
+        self.types.reserve(cells);
+        self.value_indices.reserve(cells);
+        self.style_indices.reserve(cells);
+        self.numbers.reserve(cells);
+    }
+
+    pub fn shrink_to_fit(&mut self) {
+        self.rows.shrink_to_fit();
+        self.cols.shrink_to_fit();
+        self.types.shrink_to_fit();
+        self.value_indices.shrink_to_fit();
+        self.style_indices.shrink_to_fit();
+        self.numbers.shrink_to_fit();
+        self.strings.shrink_to_fit();
+        self.bools.shrink_to_fit();
+        self.errors.shrink_to_fit();
+    }
+
     pub fn push_number(
         &mut self,
         row: u32,

@@ -127,7 +127,7 @@ fn bench_xlsx(label: &str, path: &str, runs: usize) {
         full_cells = wb
             .active_worksheet
             .as_ref()
-            .map(|s| s.cells.len())
+            .map(|s| s.cell_count())
             .unwrap_or(0);
         if i > 0 {
             full_ms.push(elapsed);

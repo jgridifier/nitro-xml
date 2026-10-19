@@ -78,11 +78,13 @@ fn find_sheet_data_open(xml: &str) -> Option<OpenMatch> {
             continue;
         }
         let after_lt = &slice[1..];
-        let colon = after_lt.find(':');
+        let tag_end = after_lt.find('>').unwrap_or(after_lt.len());
+        let tag_head = &after_lt[..tag_end];
+        let colon = tag_head.find(':');
         let local_start = if let Some(c) = colon { c + 1 } else { 0 };
-        if after_lt[local_start..].starts_with(needle) {
+        if tag_head[local_start..].starts_with(needle) {
             let prefix = match colon {
-                Some(c) => after_lt[..c + 1].to_owned(),
+                Some(c) => tag_head[..c + 1].to_owned(),
                 None => String::new(),
             };
             let idx = local_start + needle.len();
@@ -150,4 +152,32 @@ fn root_namespaces(xml: &str) -> Option<std::collections::HashMap<String, String
         }
     }
     Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use nitro_xml_opc::opc::Package;
+
+    use super::split_sheet_data;
+
+    #[test]
+    fn split_cells_1m_fixture() {
+        // Catches: split_sheet_data returning None so million-cell sheets DOM-parse and blow HWM.
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/generated/xlsx/cells_1m.xlsx"
+        );
+        let bytes = std::fs::read(path).expect("fixture");
+        let mut pkg = Package::open(&bytes).expect("open");
+        let xml = pkg
+            .text("xl/worksheets/sheet1.xml")
+            .expect("text")
+            .expect("sheet part");
+        let split = split_sheet_data(xml).expect("split must succeed on generated cells_1m");
+        assert!(
+            split.sheet_data_inner.len() > 1_000_000,
+            "inner len={}",
+            split.sheet_data_inner.len()
+        );
+    }
 }

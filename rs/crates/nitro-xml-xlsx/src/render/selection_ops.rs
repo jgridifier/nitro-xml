@@ -324,6 +324,7 @@ mod tests {
                 end: CellAddress { row: 1, col: 1 },
             }],
             row_info: BTreeMap::new(),
+            cell_store: None,
             cells: vec![],
             data_validations: vec![],
             comment_addresses: vec![],

@@ -11,6 +11,7 @@ publish.workspace = true
 [dependencies]
 nitro-xml-opc.workspace = true
 nitro-xml-render.workspace = true
+quick-xml = "0.41"
 regex = "1"
 serde_json = "1"
 ryu = "1"

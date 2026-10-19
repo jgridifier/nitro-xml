@@ -814,6 +814,7 @@ mod tests {
             columns: vec![],
             merges: vec![],
             row_info: BTreeMap::new(),
+            cell_store: None,
             cells,
             data_validations: vec![],
             comment_addresses: vec![],
@@ -884,6 +885,7 @@ mod tests {
             columns: vec![],
             merges: vec![],
             row_info: BTreeMap::new(),
+            cell_store: None,
             cells: vec![DumpCell {
                 row: 0,
                 col: 0,
@@ -963,7 +965,8 @@ mod tests {
             .iter()
             .position(|s| s.name == "Products2")
             .expect("Products2");
-        let sheet = crate::parse_worksheet_at(&bytes, &wb, idx).expect("sheet");
+        let mut sheet = crate::parse_worksheet_at(&bytes, &wb, idx).expect("sheet");
+        sheet.ensure_dump_cells(&wb.shared_strings);
         let index = CellIndex::build(&sheet);
         // D10 = 1103.5 is NOT < 200 — no match. Find a value < 200 in D.
         // D column under lessThan $G$5(=200): pick a cell known small from oracle ($17).
@@ -1017,7 +1020,8 @@ mod tests {
             .iter()
             .position(|s| s.name == "Products1")
             .expect("Products1");
-        let sheet = crate::parse_worksheet_at(&bytes, &wb, idx).expect("sheet");
+        let mut sheet = crate::parse_worksheet_at(&bytes, &wb, idx).expect("sheet");
+        sheet.ensure_dump_cells(&wb.shared_strings);
         let index = CellIndex::build(&sheet);
         let applied = cf_at(&sheet, &index, 8, 1, &wb.theme, &[]).expect("cf");
         let style = applied.style.expect("dxf");
@@ -1054,7 +1058,8 @@ mod tests {
             "/../../../fixtures/real/xlsx/poi-NewStyleConditionalFormattings.xlsx"
         ))
         .expect("fixture");
-        let wb = crate::load_workbook(&bytes).expect("wb");
+        let mut wb = crate::load_workbook(&bytes).expect("wb");
+        wb.ensure_active_dump_cells();
         let sheet = wb.active_worksheet.as_ref().expect("active");
         let index = CellIndex::build(sheet);
         // T2=1 → yellow (index 1); T5=20 → green (index 2); T14=-1 → red (index 0).
@@ -1089,8 +1094,9 @@ mod tests {
             "/../../../fixtures/real/xlsx/poi-ConditionalFormattingSamples.xlsx"
         ))
         .expect("fixture");
-        let wb = crate::load_workbook(&bytes).expect("wb");
+        let mut wb = crate::load_workbook(&bytes).expect("wb");
         assert_eq!(wb.active_sheet, 9);
+        wb.ensure_active_dump_cells();
         let sheet = wb.active_worksheet.as_ref().expect("active");
         assert_eq!(sheet.name, "Regional sales");
         assert!(!sheet.conditional_formats.is_empty());

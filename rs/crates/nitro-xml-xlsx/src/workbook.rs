@@ -489,6 +489,17 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
     Ok(shell.workbook)
 }
 
+impl WorkbookSlice {
+    /// Materialize [`ActiveWorksheet::cells`] for the active sheet when the load path kept a living
+    /// [`ActiveWorksheet::cell_store`].
+    pub fn ensure_active_dump_cells(&mut self) {
+        if let Some(ws) = &mut self.active_worksheet {
+            let sst = &self.shared_strings;
+            ws.ensure_dump_cells(sst);
+        }
+    }
+}
+
 pub(crate) fn stub_worksheet(stub: &SheetStub) -> crate::model::ActiveWorksheet {
     crate::model::ActiveWorksheet {
         name: stub.name.clone(),
@@ -502,6 +513,7 @@ pub(crate) fn stub_worksheet(stub: &SheetStub) -> crate::model::ActiveWorksheet 
         columns: Vec::new(),
         merges: Vec::new(),
         row_info: std::collections::BTreeMap::new(),
+        cell_store: None,
         cells: Vec::new(),
         data_validations: Vec::new(),
         comment_addresses: Vec::new(),

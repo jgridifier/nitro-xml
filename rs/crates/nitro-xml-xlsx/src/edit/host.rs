@@ -58,7 +58,7 @@ impl XlsxHost {
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
         let workbook = load_workbook(bytes)?;
         let parsed = parse_all_worksheets(bytes, &workbook)?;
-        let sheets: Vec<ActiveWorksheet> = parsed
+        let mut sheets: Vec<ActiveWorksheet> = parsed
             .into_iter()
             .enumerate()
             .map(|(i, ws)| {
@@ -77,6 +77,7 @@ impl XlsxHost {
                         columns: Vec::new(),
                         merges: Vec::new(),
                         row_info: Default::default(),
+                        cell_store: None,
                         cells: Vec::new(),
                         data_validations: Vec::new(),
                         comment_addresses: Vec::new(),
@@ -90,6 +91,10 @@ impl XlsxHost {
                 })
             })
             .collect();
+        let sst = workbook.shared_strings.clone();
+        for sheet in &mut sheets {
+            sheet.ensure_dump_cells(&sst);
+        }
         Ok(Self {
             workbook,
             sheets,
@@ -428,6 +433,7 @@ impl XlsxHost {
                     columns: Vec::new(),
                     merges: Vec::new(),
                     row_info: Default::default(),
+                    cell_store: None,
                     cells: Vec::new(),
                     data_validations: Vec::new(),
                     comment_addresses: Vec::new(),

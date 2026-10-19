@@ -500,6 +500,7 @@ mod tests {
             columns: vec![],
             merges: vec![],
             row_info: BTreeMap::new(),
+            cell_store: None,
             cells: vec![DumpCell {
                 row: 3,
                 col: 7,
@@ -541,6 +542,7 @@ mod tests {
             columns: vec![],
             merges: vec![],
             row_info: BTreeMap::new(),
+            cell_store: None,
             cells: vec![DumpCell {
                 row: 4,
                 col: 19,

@@ -40,7 +40,7 @@ fn missing_shared_string_warns() {
     };
     let mut store = CellStore::new();
     let mut row_info = HashMap::new();
-    read_sheet_data_xml(&mut ctx, xml, &mut store, &mut row_info);
+    read_sheet_data_xml(&mut ctx, xml.to_owned(), &mut store, &mut row_info);
     assert!(warnings.iter().any(|w| w.contains("missing shared string")));
     assert_eq!(store.len(), 0);
 }
@@ -82,7 +82,11 @@ fn catches_max_depth_worksheet_shell_open_and_paint() {
     );
     let bytes = std::fs::read(path).expect("fixture");
     let wb = crate::load_workbook(&bytes).expect("workbook opens");
-    let sheets = crate::parse_all_worksheets(&bytes, &wb).expect("sheets");
+    let parsed = crate::parse_all_worksheets(&bytes, &wb).expect("sheets");
+    let mut sheets = parsed;
+    let mut sheet0 = sheets[0].clone().expect("sheet0");
+    sheet0.ensure_dump_cells(&wb.shared_strings);
+    sheets[0] = Some(sheet0);
     let sheet = sheets[0].as_ref().expect("sheet0");
     let a1 = sheet
         .cells

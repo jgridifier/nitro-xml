@@ -110,6 +110,7 @@ mod tests {
             columns: vec![],
             merges: vec![],
             row_info: BTreeMap::new(),
+            cell_store: None,
             cells: vec![DumpCell {
                 row: 0,
                 col: 3,

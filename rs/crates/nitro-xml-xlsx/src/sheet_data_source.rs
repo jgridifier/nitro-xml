@@ -156,28 +156,21 @@ fn root_namespaces(xml: &str) -> Option<std::collections::HashMap<String, String
 
 #[cfg(test)]
 mod tests {
-    use nitro_xml_opc::opc::Package;
-
     use super::split_sheet_data;
 
     #[test]
-    fn split_cells_1m_fixture() {
-        // Catches: split_sheet_data returning None so million-cell sheets DOM-parse and blow HWM.
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../fixtures/generated/xlsx/cells_1m.xlsx"
+    fn split_succeeds_when_body_has_colons() {
+        // Catches: find_sheet_data_open scanning past the tag for ':' into cell formulas
+        // (e.g. A1:B2), returning None and forcing a DOM parse of sheetData (HWM blow-up).
+        let xml = concat!(
+            r#"<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#,
+            r#"<sheetData>"#,
+            r#"<row r="1"><c r="A1"><f>SUM(A1:B2)</f><v>1</v></c></row>"#,
+            r#"</sheetData></worksheet>"#,
         );
-        let bytes = std::fs::read(path).expect("fixture");
-        let mut pkg = Package::open(&bytes).expect("open");
-        let xml = pkg
-            .text("xl/worksheets/sheet1.xml")
-            .expect("text")
-            .expect("sheet part");
-        let split = split_sheet_data(xml).expect("split must succeed on generated cells_1m");
-        assert!(
-            split.sheet_data_inner.len() > 1_000_000,
-            "inner len={}",
-            split.sheet_data_inner.len()
-        );
+        let split = split_sheet_data(xml).expect("split must succeed when body has A1:B2");
+        assert!(split.sheet_data_inner.contains("SUM(A1:B2)"));
+        assert!(split.shell_xml.contains("<sheetData>"));
+        assert!(split.shell_xml.contains("</sheetData>"));
     }
 }

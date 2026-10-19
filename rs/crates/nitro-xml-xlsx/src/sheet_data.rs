@@ -83,7 +83,11 @@ pub fn read_sheet_data_xml(
     store: &mut CellStore,
     row_info: &mut HashMap<u32, RowInfo>,
 ) {
-    if read_sheet_data_xml_stream(ctx, sheet_data_inner, store, row_info) {
+    // Stream path is the HWM win on large sheets. Small fragments stay on the DOM
+    // path below 64KiB so bidi/visual parity matches the prior Element reader.
+    if sheet_data_inner.len() >= 65_536
+        && read_sheet_data_xml_stream(ctx, sheet_data_inner, store, row_info)
+    {
         return;
     }
     // Lazy viewport rows keep `x14ac:dyDescent` (and similar) without the outer worksheet

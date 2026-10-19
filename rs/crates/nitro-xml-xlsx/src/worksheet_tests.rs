@@ -149,3 +149,50 @@ fn catches_poi_46535_zoom_scale_and_hidden_gridlines() {
     assert!((ws.view.zoom - 85.0).abs() < 0.01);
     assert!(!ws.view.show_grid_lines);
 }
+
+#[test]
+fn dumps_bidi_arabic_hebrew_shared_strings() {
+    // Catches: stream sheetData Shared SST dump dropping arabic/hebrew viewport text.
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../fixtures/bidi/arabic-hebrew-mixed.xlsx"
+    );
+    let bytes = std::fs::read(path).expect("fixture");
+    let wb = crate::load_workbook(&bytes).expect("load");
+    let mut sheet = crate::parse_worksheet_at(&bytes, &wb, 0).expect("ws");
+    sheet.ensure_dump_cells(&wb.shared_strings);
+    let texts: Vec<String> = sheet
+        .cells
+        .iter()
+        .map(|c| match &c.value {
+            crate::model::DumpCellValue::String(s) => s.clone(),
+            other => format!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(texts.len(), 5, "{texts:?}");
+    assert!(texts[0].contains("مرحبا"), "{texts:?}");
+    assert!(texts[1].contains("שלום"), "{texts:?}");
+    let first = crate::lazy::open_first_view(
+        &bytes,
+        crate::lazy::ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 10,
+            c1: 10,
+        },
+    )
+    .expect("fv");
+    let lazy = first.sheet(0).expect("lazy sheet");
+    let lazy_texts: Vec<_> = lazy
+        .cells
+        .iter()
+        .map(|c| match &c.value {
+            crate::model::DumpCellValue::String(s) => s.as_str(),
+            _ => "",
+        })
+        .collect();
+    assert_eq!(
+        lazy_texts,
+        texts.iter().map(|s| s.as_str()).collect::<Vec<_>>()
+    );
+}

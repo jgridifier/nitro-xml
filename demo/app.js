@@ -9,8 +9,8 @@ const DEFINE = {
 };
 const SAMPLE = {
   xlsx: "./samples/sample.xlsx",
-  docx: "./samples/sample.docx",
-  pptx: "./samples/sample.pptx",
+  docx: "./samples/notes.docx",
+  pptx: "./samples/deck.pptx",
 };
 
 const LOADER = "./nitro-xml/loader/";

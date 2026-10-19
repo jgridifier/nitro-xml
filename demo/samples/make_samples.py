@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Regenerates sample.docx and sample.pptx (original content; needs python-pptx + python-docx).
+"""Regenerates notes.docx and deck.pptx (original content; needs python-pptx + python-docx).
 
     python3 -I demo/samples/make_samples.py
 """
@@ -52,7 +52,7 @@ u.underline = True
 q.add_run(" runs, plus a numbered list:")
 for t in ("Collect feedback from embedders", "Land the editing commands", "Publish the benchmark report"):
     d.add_paragraph(t, style="List Number")
-d.save(os.path.join(HERE, "sample.docx"))
+d.save(os.path.join(HERE, "notes.docx"))
 
 # ---- pptx ----
 prs = Presentation()
@@ -122,4 +122,4 @@ s = prs.slides.add_slide(blank)
 bg(s, PC(0x24, 0x24, 0x24))
 text(s, 0.9, 2.8, 11.5, 1.4, "Thank you", 60, True, PC(255, 255, 255), 2)
 text(s, 0.9, 4.3, 11.5, 0.8, "github.com/jgridifier/nitro-xml", 22, False, PC(0xBD, 0xBB, 0xB9), 2)
-prs.save(os.path.join(HERE, "sample.pptx"))
+prs.save(os.path.join(HERE, "deck.pptx"))

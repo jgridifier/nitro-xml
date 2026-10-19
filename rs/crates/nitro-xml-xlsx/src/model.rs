@@ -784,6 +784,7 @@ impl RowInfo {
 #[derive(Debug, Clone, PartialEq)]
 pub enum DumpCellValue {
     Null,
+    /// Compact numeric payload; [`Self::to_json`] emits the gate `__NUM__:` token.
     Number(f64),
     /// Numeric `<v>` text preserved for `JSON.stringify` parity on large integers.
     NumberRaw(String),
@@ -796,7 +797,10 @@ impl DumpCellValue {
     pub fn to_json(&self) -> Value {
         match self {
             Self::Null => Value::Null,
-            Self::Number(n) => js_num(*n),
+            // Loaded numbers stay compact `f64`; dump matches prior NumberRaw gate encoding.
+            Self::Number(n) => {
+                Value::String(format!("__NUM__:{}", crate::number_format::js_number_string(*n)))
+            }
             Self::NumberRaw(s) => Value::String(format!("__NUM__:{}", s)),
             Self::String(s) => Value::String(s.clone()),
             Self::Bool(b) => Value::Bool(*b),
@@ -810,7 +814,7 @@ pub struct DumpCell {
     pub row: u32,
     pub col: u32,
     pub value: DumpCellValue,
-    pub type_tag: Option<String>,
+    pub type_tag: Option<&'static str>,
     pub formula: Option<String>,
     pub style_id: Option<u32>,
     pub rich_text: Option<Vec<RichTextRun>>,
@@ -828,8 +832,8 @@ impl DumpCell {
         m.insert("r".into(), json!(self.row));
         m.insert("c".into(), json!(self.col));
         m.insert("v".into(), self.value.to_json());
-        if let Some(t) = &self.type_tag {
-            m.insert("t".into(), Value::String(t.clone()));
+        if let Some(t) = self.type_tag {
+            m.insert("t".into(), Value::String(t.to_owned()));
         }
         if let Some(f) = &self.formula {
             m.insert("f".into(), Value::String(f.clone()));

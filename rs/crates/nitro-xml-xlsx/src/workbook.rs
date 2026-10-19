@@ -465,7 +465,9 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
         let stub = &shell.workbook.sheets[active_idx];
         if let Some(part) = stub.part_name.clone() {
             let mut ws_ctx = WorksheetContext {
-                shared_strings: shell.workbook.shared_strings.clone(),
+                // Move SST into the worksheet context for the parse, then restore —
+                // avoids a full second copy of every shared string during load.
+                shared_strings: std::mem::take(&mut shell.workbook.shared_strings),
                 xf_map: shell.workbook.xf_map.clone(),
                 date1904: shell.workbook.date1904,
                 palette: shell.workbook.palette.clone(),
@@ -477,7 +479,8 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
             let sheet_id = stub.sheet_id;
             let state = stub.state;
             let ws = parse_worksheet(&mut ws_ctx, &mut pkg, &part, &name, sheet_id, state);
-            for w in ws_ctx.warnings {
+            shell.workbook.shared_strings = std::mem::take(&mut ws_ctx.shared_strings);
+            for w in std::mem::take(&mut ws_ctx.warnings) {
                 push_warn(&mut shell.workbook.warnings, w);
             }
             shell.workbook.active_worksheet = Some(ws);

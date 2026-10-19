@@ -634,6 +634,7 @@ impl EditHost for XlsxHost {
 
 fn dump_value_for_edit_snap(value: &DumpCellValue) -> Value {
     match value {
+        DumpCellValue::Number(n) => crate::model::js_num(*n),
         DumpCellValue::NumberRaw(s) => s
             .parse::<f64>()
             .map(crate::model::js_num)
@@ -689,7 +690,15 @@ fn dump_cell_from_snap(v: &Value) -> Result<DumpCell, String> {
         row,
         col,
         value,
-        type_tag: obj.get("t").and_then(|x| x.as_str()).map(str::to_owned),
+        type_tag: match obj.get("t").and_then(|x| x.as_str()) {
+            Some("s") => Some("s"),
+            Some("b") => Some("b"),
+            Some("e") => Some("e"),
+            Some("str") => Some("str"),
+            Some("inlineStr") => Some("inlineStr"),
+            Some("n") => Some("n"),
+            _ => None,
+        },
         formula: obj.get("f").and_then(|x| x.as_str()).map(str::to_owned),
         style_id: obj.get("s").and_then(|x| x.as_u64()).map(|n| n as u32),
         rich_text: None, // rich text not required for #66 cell/style scripts

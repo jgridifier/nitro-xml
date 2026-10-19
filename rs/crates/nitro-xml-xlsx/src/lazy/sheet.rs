@@ -24,7 +24,7 @@ use crate::hyperlinks::read_hyperlinks;
 use crate::model::{
     ActiveWorksheet, CellAddress, CellRange, DifferentialStyle, RowInfo, SheetState,
 };
-use crate::sheet_data::{read_sheet_data_xml, store_to_dump_cells, CellContext};
+use crate::sheet_data::{read_sheet_data_xml, store_to_dump_cells_with_sst, CellContext};
 use crate::sheet_props::{
     read_columns, read_data_validations, read_row_info, read_sheet_format, read_sheet_view,
 };
@@ -134,7 +134,7 @@ pub(crate) fn load_sheet_window(
 
     let shell = shell_document(&capture.prefix, &capture.tail, capture.truncated);
     let mut sheet = worksheet_from_shell(pkg, req, &shell, warnings);
-    let cells = store_to_dump_cells(&store);
+    let cells = store_to_dump_cells_with_sst(&store, &compact);
     let freeze_rows = sheet.view.freeze.as_ref().map(|f| f.rows).unwrap_or(0);
     let freeze_cols = sheet.view.freeze.as_ref().map(|f| f.cols).unwrap_or(0);
     sheet.cells = cells

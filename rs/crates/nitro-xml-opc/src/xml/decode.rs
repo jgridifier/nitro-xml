@@ -4,14 +4,18 @@
 //! Entity decoding and the line-ending / attribute-value normalisation the lite reader and DOM
 //! share.
 
+use std::borrow::Cow;
+
 /// XML 1.0 end-of-line normalisation (also the NEL / line-separator forms lite normalises).
-pub fn normalize_line_endings(xml: &str) -> String {
-    if !xml.contains('\r')
-        && !xml.contains('\u{0085}')
-        && !xml.contains('\u{2028}')
-        && !xml.contains('\u{2029}')
-    {
-        return xml.to_owned();
+/// Borrows the input when nothing needs folding (the common case).
+pub fn normalize_line_endings(xml: &str) -> Cow<'_, str> {
+    // CR is one byte; NEL (C2 85) and LS / PS (E2 80 A8 / A9) all start with a lead byte >= 0xC2.
+    let bytes = xml.as_bytes();
+    let needs = memchr::memchr(b'\r', bytes).is_some()
+        || (memchr::memchr2(0xC2, 0xE2, bytes).is_some()
+            && (xml.contains('\u{0085}') || xml.contains('\u{2028}') || xml.contains('\u{2029}')));
+    if !needs {
+        return Cow::Borrowed(xml);
     }
     let mut out = String::with_capacity(xml.len());
     let mut chars = xml.chars().peekable();
@@ -27,14 +31,14 @@ pub fn normalize_line_endings(xml: &str) -> String {
             other => out.push(other),
         }
     }
-    out
+    Cow::Owned(out)
 }
 
 /// Decodes predefined and numeric character references. Returns `None` when an `&` is not a known,
 /// well-formed reference (parity with lite `decode`).
-pub fn decode_entities(text: &str) -> Option<String> {
-    if !text.contains('&') {
-        return Some(text.to_owned());
+pub fn decode_entities(text: &str) -> Option<Cow<'_, str>> {
+    if memchr::memchr(b'&', text.as_bytes()).is_none() {
+        return Some(Cow::Borrowed(text));
     }
     let mut out = String::with_capacity(text.len());
     let bytes = text.as_bytes();
@@ -43,15 +47,13 @@ pub fn decode_entities(text: &str) -> Option<String> {
     let mut found = 0usize;
     while i < bytes.len() {
         if bytes[i] != b'&' {
-            let start = i;
-            while i < bytes.len() && bytes[i] != b'&' {
-                i += 1;
-            }
-            out.push_str(&text[start..i]);
+            let end = memchr::memchr(b'&', &bytes[i..]).map_or(bytes.len(), |o| i + o);
+            out.push_str(&text[i..end]);
+            i = end;
             continue;
         }
         ampersands += 1;
-        let semi = text[i + 1..].find(';').map(|o| i + 1 + o)?;
+        let semi = memchr::memchr(b';', &bytes[i + 1..]).map(|o| i + 1 + o)?;
         let body = &text[i + 1..semi];
         if body.is_empty() {
             return None;
@@ -65,46 +67,47 @@ pub fn decode_entities(text: &str) -> Option<String> {
                 char_from_code(code)?
             } else {
                 match body {
-                    "amp" => "&".to_owned(),
-                    "lt" => "<".to_owned(),
-                    "gt" => ">".to_owned(),
-                    "quot" => "\"".to_owned(),
-                    "apos" => "'".to_owned(),
+                    "amp" => '&',
+                    "lt" => '<',
+                    "gt" => '>',
+                    "quot" => '"',
+                    "apos" => '\'',
                     _ => return None,
                 }
             };
         found += 1;
-        out.push_str(&replacement);
+        out.push(replacement);
         i = semi + 1;
     }
     if ampersands != found {
         return None;
     }
-    Some(out)
+    Some(Cow::Owned(out))
 }
 
-fn char_from_code(code: u32) -> Option<String> {
+fn char_from_code(code: u32) -> Option<char> {
     if code == 0 || code > 0x10_ffff {
         return None;
     }
     // Surrogate code points are not Unicode scalar values.
-    char::from_u32(code).map(|c| c.to_string())
+    char::from_u32(code)
 }
 
 /// Attribute-value normalisation matching lite: literal tab/LF/CR become spaces, then entities
 /// decode (so `&#10;` remains a newline).
-pub fn normalize_attribute_value(raw: &str) -> Option<String> {
-    let spaced = if raw.bytes().any(|b| matches!(b, b'\t' | b'\n' | b'\r')) {
-        raw.chars()
+pub fn normalize_attribute_value(raw: &str) -> Option<Cow<'_, str>> {
+    if raw.bytes().any(|b| matches!(b, b'\t' | b'\n' | b'\r')) {
+        let spaced: String = raw
+            .chars()
             .map(|c| match c {
                 '\t' | '\n' | '\r' => ' ',
                 other => other,
             })
-            .collect::<String>()
-    } else {
-        raw.to_owned()
-    };
-    decode_entities(&spaced)
+            .collect();
+        // Entities decode after folding; the result must own (it outlives `spaced`).
+        return decode_entities(&spaced).map(|c| Cow::Owned(c.into_owned()));
+    }
+    decode_entities(raw)
 }
 
 #[cfg(test)]
@@ -117,7 +120,7 @@ mod tests {
         // literal CR/LF become LF (lite.test.ts line-ending case).
         let text = normalize_line_endings("l1\r\nl2\rl3");
         assert_eq!(text, "l1\nl2\nl3");
-        assert_eq!(decode_entities("l3&#13;&#x41;"), Some("l3\rA".to_owned()));
+        assert_eq!(decode_entities("l3&#13;&#x41;"), Some("l3\rA".into()));
     }
 
     #[test]
@@ -126,7 +129,7 @@ mod tests {
         // while a literal LF in the attribute value becomes a space.
         assert_eq!(
             normalize_attribute_value("x\ty\nz&#10;"),
-            Some("x y z\n".to_owned())
+            Some("x y z\n".into())
         );
     }
 }

@@ -2,11 +2,12 @@
 //! Minimal owned element tree for small OPC parts (rels, styles, theme).
 
 use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 
 /// An attribute with a resolved namespace URI (or none) and local name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Attr {
-    pub ns: Option<String>,
+    pub ns: Option<Arc<str>>,
     pub local: String,
     pub value: String,
 }
@@ -21,14 +22,14 @@ pub enum Node {
 /// An element with resolved namespace, local name, attributes and children.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Element {
-    pub ns: Option<String>,
+    pub ns: Option<Arc<str>>,
     pub local: String,
     pub attrs: Vec<Attr>,
     pub children: Vec<Node>,
 }
 
 impl Element {
-    pub(crate) fn new(ns: Option<String>, local: String, attrs: Vec<Attr>) -> Self {
+    pub(crate) fn new(ns: Option<Arc<str>>, local: String, attrs: Vec<Attr>) -> Self {
         Self {
             ns,
             local,

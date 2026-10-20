@@ -182,11 +182,11 @@ fn prefix_for_uri(uri: &str) -> Option<&'static str> {
 
 fn write_attr(attr: &Attr, out: &mut String) {
     if let Some(ns_uri) = &attr.ns {
-        if ns_uri == ns::W {
+        if &**ns_uri == ns::W {
             out.push_str("w:");
-        } else if ns_uri == ns::R {
+        } else if &**ns_uri == ns::R {
             out.push_str("r:");
-        } else if ns_uri == ns::XML {
+        } else if &**ns_uri == ns::XML {
             out.push_str("xml:");
         }
     }

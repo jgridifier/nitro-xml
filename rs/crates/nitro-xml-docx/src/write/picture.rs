@@ -177,7 +177,7 @@ fn px_of(image: &Value, key: &str) -> i64 {
 fn drawing_tree(token: &str, doc_id: i64, cx: i64, cy: i64) -> Element {
     let mut blip = el(ns::A, "blip");
     blip.attrs.push(Attr {
-        ns: Some(ns::R.to_owned()),
+        ns: Some(ns::R.into()),
         local: "embed".to_owned(),
         value: token.to_owned(),
     });
@@ -239,7 +239,7 @@ fn drawing_tree(token: &str, doc_id: i64, cx: i64, cy: i64) -> Element {
 
 fn el(uri: &str, local: &str) -> Element {
     Element {
-        ns: Some(uri.to_owned()),
+        ns: Some(uri.into()),
         local: local.to_owned(),
         attrs: Vec::new(),
         children: Vec::new(),

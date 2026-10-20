@@ -51,7 +51,7 @@ pub fn create_run(run: &Value, base: Option<&Value>, old: Option<&Element>) -> E
                 let mut t = make_w("t");
                 if s.starts_with(' ') || s.ends_with(' ') {
                     t.attrs.push(Attr {
-                        ns: Some(ns::XML.to_owned()),
+                        ns: Some(ns::XML.into()),
                         local: "space".to_owned(),
                         value: "preserve".to_owned(),
                     });

@@ -13,6 +13,7 @@ publish.workspace = true
 # present in real-world OOXML packages (#65 touch-rebuild carry).
 zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs", "unreserved"] }
 quick-xml = "0.41"
+memchr = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 indexmap = "2"

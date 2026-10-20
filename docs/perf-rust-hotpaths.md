@@ -107,3 +107,32 @@ code out of the xlsx path.
 - `nitro_xml_wasm::transport::StringTable::intern` (memcmp-heavy, 8% of xlsx S open, called per painted cell and per measure): command-buffer encode.
 - `view::fake_measure::estimate_width` substring searches (~1 ms per process at S) and `MeasureBatch::push_unique` SipHash: grid paint.
 - zip CRC32 verification (3% of open, byte-wise in baseline-tier wasm).
+
+## Slice 2: XML parser zero-copy (`nitro-xml-opc` DOM parse path)
+
+Same-machine A/B of origin/main (0648541) against this branch, both built with `scripts/build-wasm.sh`;
+`ts-vs-wasm.mjs --runs=21`, `peak-mem.mjs --runs=5`. The TS column is that run's own TS median.
+
+| Fixture | TS ms | WASM before | WASM after | ratio after (CI) | TS peak MiB | WASM peak before | WASM peak after |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| xlsx S | 4.30 | 4.61 | 3.53 | 0.820 ([0.660, 0.967]) | 2.9 | 45.0 | 44.5 |
+| xlsx M | 262.89 | 17.83 | 17.42 | 0.066 ([0.063, 0.071]) | 125.8 | 40.1 | 41.7 |
+| xlsx L | 3034.27 | 5.04 | 7.46 (noise, first view only) | 0.002 ([0.002, 0.003]) | 1004.9 | 49.4 | 51.1 |
+| docx S | 5.29 | 1.14 | 0.91 | 0.172 ([0.154, 0.233]) | 2.9 | 35.3 | 35.8 |
+| docx M | 9.35 | 1.49 | 1.53 | 0.164 ([0.143, 0.176]) | 5.0 | 41.1 | 37.3 |
+| docx L | 38.26 | 4.25 | 3.83 | 0.100 ([0.097, 0.108]) | 21.1 | 48.4 | 46.1 |
+| pptx S | 16.32 | 0.45 | 0.43 | 0.026 ([0.023, 0.030]) | 5.0 | 31.2 | 33.0 |
+| pptx M | 88.83 | 0.94 | 0.83 | 0.009 ([0.009, 0.010]) | 34.0 | 44.8 | 45.4 |
+| pptx L | 268.93 | 3.03 | 2.63 | 0.010 ([0.010, 0.011]) | 50.9 | 49.5 | 50.1 |
+
+Changes (all `nitro-xml-opc`): `normalize_line_endings`, `decode_entities`, `normalize_attribute_value` return
+`Cow` and borrow when nothing needs rewriting; `memchr`/`memmem` for `&`, `;`, `<`, `\r` and the DTD/ENTITY scan
+(was a byte loop); namespace URIs interned as `Arc<str>` per parse (one allocation per URI instead of one per
+element and attribute); duplicate-attribute check compares in place (no per-attribute `(Option<String>, String)`
+clone); end-tag names are no longer allocated; entity references no longer go through a `Vec`/`char.to_string()`.
+
+Reading: docx/pptx DOM-bound opens gain 5 to 20% (docx S 1.14 to 0.91 ms, L 4.25 to 3.83 ms; pptx M/L about -10%);
+xlsx S moves from tie/loss to a win in this run (CI upper bound 0.967) but the CI is wide, so treat it as a tie
+until a longer run. Peak memory is unchanged within noise: it is dominated by the wasm compile floor (see
+"Memory floor"), not by XML allocation. Still losing: peak memory on xlsx S, docx S/M/L, pptx S (and docx M time
+in `peak-mem`'s cold single-open measure).

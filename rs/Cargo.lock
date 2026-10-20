@@ -269,6 +269,7 @@ version = "0.0.0"
 dependencies = [
  "crc32fast",
  "indexmap",
+ "memchr",
  "quick-xml",
  "serde",
  "serde_json",

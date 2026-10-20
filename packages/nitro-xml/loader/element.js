@@ -292,7 +292,10 @@ export class ShellViewerElement extends ViewerElement {
   }
   attributeChangedCallback(n, _, v) {
     if (n == "readonly") this._readonly = v != "false";
-    if (n == "mode" && this._ch) this._em();
+    if (n == "mode") {
+      if (v == "embedded") import("./lazy/preload.js").then((m) => m.preload()).catch(() => {});
+      if (this._ch) this._em();
+    }
   }
   get mode() {
     return this.getAttribute("mode") || "full";

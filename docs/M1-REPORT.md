@@ -272,30 +272,38 @@ parse/paint split, no threshold/budget/fixture changes.
 | Cell paint | `PaintKeys` (prop ids once/frame); stacked geometry intern; text styles batched into one `style` attr (same pattern as geometry) |
 | `cmd_bytes` (`cells_1k`) | **106744 → 54354** (~49%) |
 
-| | TS median (ms) | WASM median (ms) | WASM/TS | 95% CI | Notes |
-|--|---------------:|-----------------:|--------:|-------:|-------|
-| **Before encode** (CF tip, this VM) | 4.97 | 7.19 | **1.446 LOSS** | [1.338, 1.813] | `ts-vs-wasm.mjs` runs=11 |
-| **After encode** (same tip + encode) | 4.17 | 6.58 | **1.580 LOSS** | [1.182, 2.072] | single full-protocol run (S noisy) |
-| After 8× fresh-process probe | ~4.3 | ~6.5 | med-of-ratios **~1.48** | CIs still span above 1 | Absolute WASM ~7.2→~6.5 ms |
+Fair same-VM remeasure after rebase onto `main` (#302/#303 tip `8fc6a6f`):
 
-Still a **LOSS** (CI upper above 1). Absolute WASM open dropped ~0.6–1.0 ms; ratio noise
-on S is large because TS medians move too. Gate metric kept intact — further wins need
-parse-path or broader paint work, not a metric split.
+| | TS median (ms) | WASM median (ms) | WASM/TS | 95% CI | openDocument median (ms) |
+|--|---------------:|-----------------:|--------:|-------:|-------------------------:|
+| **Before** (`main` `8fc6a6f`) | 4.24 | 7.26 | **1.711 LOSS** | [1.188, 2.686] | 7.22 |
+| **After** (encode `402fb2e`) | 4.96 | 5.64 | **1.137 LOSS** | [1.050, 1.452] | 3.88 |
+
+| Peak memory (xlsx S / `cells_1k`) | Before | After |
+|----------------------------------|-------:|------:|
+| WASM linear peak | 3.25 MiB | 3.44 MiB |
+| JS heap peak | 4.20 MiB | 4.20 MiB |
+| Native `open_first_view` RSS HWM median | 5.68 MiB | 5.69 MiB |
+
+Still a **LOSS** (CI lower still ≥1.05). Absolute WASM cold-open median **7.26 → 5.64 ms**
+(~22%); openDocument-only median **7.22 → 3.88 ms**. Peak memory **flat** (encode
+shrinks cmdbuf bytes, not retained package residency). Gate metric unchanged.
 
 | Format | Tier | TS median (ms) | WASM median (ms) | WASM/TS | 95% CI | Verdict |
 |--------|------|---------------:|-----------------:|--------:|-------:|---------|
-| xlsx | S | 4.17 | 6.58 | **1.580** | [1.182, 2.072] | **LOSS** |
+| xlsx | S | 4.96 | 5.64 | **1.137** | [1.050, 1.452] | **LOSS** |
 | xlsx | M | 208.50 | 29.16 | 0.140 | [0.137, 0.155] | **WIN** |
 | xlsx | L | 2238.73 | 8.01 | 0.004 | [0.003, 0.004] | **WIN** |
 | xlsx | XL | 2173.12 | 11.34 | 0.005 | [0.005, 0.006] | **WIN** |
 
-xlsx S from encode tip; M/L/XL retained from `368b311` CF rebase (encode does not target
-those). docx/pptx unchanged in character (still WIN).
+xlsx S from encode tip on `main`+#302; M/L/XL retained from `368b311` CF rebase.
+docx/pptx unchanged in character (still WIN).
 
 **Wins / losses summary:** WASM wins **11 / 12** cells. The only loss remains **xlsx S**
-(WASM/TS ≈ **1.5–1.6**; still CI-above-1) — shown as prominently as the wins. Encode cut
-halved first-frame cmdbuf bytes; cold-open gate still loses because TS does not paint.
-L/XL xlsx stay ~200–300× faster (viewport-first + deferred SeekTail).
+(WASM/TS ≈ **1.14**; CI still above 1) — shown as prominently as the wins. Encode cut
+halved first-frame cmdbuf bytes and cut absolute WASM open ~1.6 ms; residual loss is
+still paint+encode vs TS parse-only. L/XL xlsx stay ~200–300× faster
+(viewport-first + deferred SeekTail).
 
 **Honest scope notes:**
 

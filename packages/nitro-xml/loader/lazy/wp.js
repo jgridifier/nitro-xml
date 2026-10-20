@@ -2,7 +2,17 @@
 /**
  * applyEdit coalesce (microtask) + mut-frame edit+paint (one worker RT).
  * Installed from worker-host-tick on first tick (lazy — off eager brotli budget).
+ *
+ * mut-frame is docx/pptx only: on xlsx it forced a full frame build per edit and
+ * regressed cell/bold latency and heap (see #341). Xlsx keeps coalesce + separate tick.
  */
+
+import { extensionOf } from "../formats.js";
+
+function isSpreadsheet(doc) {
+  const ext = extensionOf(doc && doc._name);
+  return ext === "xlsx" || ext === "xlsm" || ext === "xltx" || ext === "xltm";
+}
 
 export function patch(WorkerDocument) {
   if (WorkerDocument._nxPark) return;
@@ -39,7 +49,12 @@ export function patch(WorkerDocument) {
         }
       }
       try {
-        if (doc._worker && typeof doc._request === "function") {
+        // Spreadsheet: coalesce only — frame stays on the next tick (no xlsx regress).
+        if (
+          !isSpreadsheet(doc) &&
+          doc._worker &&
+          typeof doc._request === "function"
+        ) {
           const result = await mutFrame(doc, { op: "a", spec: last.spec });
           const frame = doc._xf;
           doc._xf = null;
@@ -112,7 +127,7 @@ export function patch(WorkerDocument) {
   }
 
   WorkerDocument.prototype.editorKey = async function (ev, mac) {
-    if (!(this._worker && typeof this._request === "function")) {
+    if (isSpreadsheet(this) || !(this._worker && typeof this._request === "function")) {
       return origKey.call(this, ev, mac);
     }
     const result = await mutFrameAndPaint(this, {
@@ -134,7 +149,10 @@ export function patch(WorkerDocument) {
   WorkerDocument.prototype.shellAction = async function (op, arg = "") {
     // Open-path ui/zoom must stay cheap (no forced frame).
     if (op === "ui" || op === "zoom-set") return origSa.call(this, op, arg);
-    if (!(this._worker && typeof this._request === "function")) {
+    if (
+      isSpreadsheet(this) ||
+      !(this._worker && typeof this._request === "function")
+    ) {
       return origSa.call(this, op, arg);
     }
     const result = await mutFrameAndPaint(this, {

@@ -8,7 +8,6 @@ Keyboard: 4,
 Composition: 5,
 Resize: 6,
 });
-// Key ids: events.rs INPUT_KEYS.
 export const KeyId = Object.freeze({
 ArrowLeft: 1,
 ArrowRight: 2,

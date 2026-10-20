@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 import { scheduleMetafileAttr } from "./metafile-resolve.js";
-
 export const Op = Object.freeze({
 FillRect: 1,
 StrokeRect: 2,

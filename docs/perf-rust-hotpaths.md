@@ -136,3 +136,37 @@ xlsx S moves from tie/loss to a win in this run (CI upper bound 0.967) but the C
 until a longer run. Peak memory is unchanged within noise: it is dominated by the wasm compile floor (see
 "Memory floor"), not by XML allocation. Still losing: peak memory on xlsx S, docx S/M/L, pptx S (and docx M time
 in `peak-mem`'s cold single-open measure).
+
+## Slice 3: zip/inflate (`perf/rust-zip-inflate`)
+
+`ZipPackage::read` inflated into a 64 KiB chunk buffer, then copied every chunk into the output `Vec`
+(zeroed chunk buffer allocated per call, one extra memcpy of every byte). Now it inflates straight into the
+output buffer: parts up to 256 KiB use `read_to_end` into exact capacity (no zeroing pass); larger parts read
+into one zeroed exact-size buffer (calloc, no growth/realloc). Parts over 64 MiB keep the incremental path so
+a lying header cannot commit memory up front. All size/ratio/total checks are unchanged; the zip crate still
+verifies CRC32. `stream_part` is unchanged.
+
+Native `read` of every part (best of 30, same box, A/B alternated): pptx L 2.05 to 1.62 ms (-20%); docx L,
+xlsx M, xlsx L within noise (+/-3%).
+
+Inflate crate evaluation: `deflate` (miniz_oxide) vs `deflate-flate2-zlib-rs` measured natively on docx L,
+pptx L, xlsx M: equal within 5%. zlib-rs stays: `nitro-xml-render` also depends on flate2 with zlib-rs, so
+swapping only the zip crate would not remove it from the wasm; no size or time win.
+
+End to end (WASM open, `--runs=21`) and peak memory are unchanged within noise: the copy removed is a
+small share of an open, and the memory floor is the wasm compile (see "Memory floor"). wasm size +0.03%.
+
+| Fixture | TS ms | WASM before | WASM after | ratio after (CI) | TS peak MiB | WASM peak before | WASM peak after |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| xlsx S | 4.26 | 4.09 | 4.53 | 0.966 ([0.854, 1.051]) | 2.9 | 44.8 | 41.3 |
+| xlsx M | 237.96 | 17.49 | 14.94 | 0.070 ([0.067, 0.072]) | 124.6 | 39.7 | 43.6 |
+| xlsx L | 2534.50 | 4.44 | 4.43 | 0.002 ([0.002, 0.002]) | 1004.9 | 55.0 | 52.6 |
+| docx S | 3.14 | 1.00 | 1.19 | 0.375 ([0.321, 0.473]) | 2.7 | 36.1 | 33.4 |
+| docx M | 7.93 | 1.49 | 1.53 | 0.183 ([0.171, 0.204]) | 4.7 | 35.5 | 34.9 |
+| docx L | 30.76 | 3.82 | 4.03 | 0.127 ([0.121, 0.134]) | 21.2 | 44.4 | 48.0 |
+| pptx S | 14.73 | 0.47 | 0.49 | 0.033 ([0.029, 0.037]) | 4.1 | 31.5 | 30.7 |
+| pptx M | 67.45 | 0.87 | 0.94 | 0.014 ([0.013, 0.015]) | 32.7 | 42.9 | 45.0 |
+| pptx L | 246.65 | 2.73 | 2.82 | 0.012 ([0.010, 0.012]) | 51.8 | 47.1 | 48.8 |
+
+Before/after were taken minutes apart on a shared box; differences of this size are noise. Still losing:
+xlsx S time (tie, CI spans 1.0) and peak memory on xlsx S, docx S/M/L, pptx S/M (wasm compile floor).

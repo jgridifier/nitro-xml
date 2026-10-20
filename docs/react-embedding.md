@@ -24,11 +24,12 @@ Hosts can still call `preload()` earlier from route layout for maximum overlap.
 
 ## Phase breakdown (mount → first paint)
 
-Instrumented path marks: fixture fetch, worker ready / `initCore`, open
-round-trip (worker `Handle.new`, `openDocument`, editable upgrade), host
+Instrumented path marks (bench harness only — no eager-loader growth):
+fixture fetch, worker ready / `initCore`, open round-trip, host
 `loadBuffer`, first `tick` / command buffer, measure + layout round-trips,
-paint wait. Worker open sub-phases ride on `opened.trace` when
-`globalThis.__nitroBench` is set (bench only).
+paint wait. Worker open sub-phases (`Handle.new` / `openDocument` /
+`setReadOnly(false)`) were measured with a temporary worker probe that
+identified the xlsx M editable-upgrade cost; that probe is not shipped.
 
 | Format | Tier | mount→paint | open RT | openDocument | “chrome” bucket | 1st tick / paint wait | frames |
 |---|---|---:|---:|---:|---:|---:|---:|

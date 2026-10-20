@@ -408,7 +408,32 @@ fn style_fragment<I: StringIntern>(dom: &mut Dom<'_, I>, el: u32, fragment: &Lay
     if !lines.is_empty() {
         dom.style(el, "text-decoration-line", &lines.join(" "));
     }
+    if let Some(css) = fragment.highlight.as_deref().and_then(highlight_css) {
+        dom.style(el, "background-color", css);
+    }
     dom.text(el, &fragment.text);
+}
+
+fn highlight_css(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "yellow" => "#FFFF00",
+        "green" => "#00FF00",
+        "cyan" => "#00FFFF",
+        "magenta" => "#FF00FF",
+        "blue" => "#0000FF",
+        "red" => "#FF0000",
+        "darkBlue" => "#000080",
+        "darkCyan" => "#008080",
+        "darkGreen" => "#008000",
+        "darkMagenta" => "#800080",
+        "darkRed" => "#800000",
+        "darkYellow" => "#808000",
+        "darkGray" => "#808080",
+        "lightGray" => "#C0C0C0",
+        "black" => "#000000",
+        "white" => "#FFFFFF",
+        _ => return None,
+    })
 }
 
 fn paint_footnotes<I: StringIntern>(

@@ -40,6 +40,7 @@ describe("Office ribbon manifests", () => {
       "home.bold",
       "home.italic",
       "home.underline",
+      "home.strikethrough",
       "home.align-left",
       "home.align-center",
       "home.align-right",
@@ -77,6 +78,7 @@ describe("Office ribbon manifests", () => {
       "home.align-justify",
       "home.bullets",
       "home.numbering",
+      "home.strikethrough",
     ]) {
       assert.ok(bound.includes(id), `missing pptx command ${id}`);
     }
@@ -92,6 +94,8 @@ describe("Office ribbon manifests", () => {
       "home.bold",
       "home.italic",
       "home.underline",
+      "home.strikethrough",
+      "home.highlight",
       "home.align-left",
       "home.align-center",
       "home.align-right",
@@ -116,6 +120,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("home.bold"));
     assert.ok(bound.includes("home.align-justify"));
     assert.ok(bound.includes("home.numbering"));
+    assert.ok(bound.includes("home.strikethrough"));
+    assert.ok(bound.includes("home.highlight"));
     assert.ok(!bound.includes("home.bullets"), "Word bullets stay off until a bullet definition is on the ribbon");
     assert.ok(!bound.includes("insert.slide"));
     assert.ok(!bound.includes("insert.text-box"));

@@ -42,6 +42,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("home.bold", "Bold", Some("Ctrl+B"), true),
     pptx_cmd!("home.italic", "Italic", Some("Ctrl+I"), true),
     pptx_cmd!("home.underline", "Underline", Some("Ctrl+U"), true),
+    pptx_cmd!("home.strikethrough", "Strikethrough", Some("Ctrl+5"), true),
     pptx_cmd!("home.align-left", "Align Left", None, true),
     pptx_cmd!("home.align-center", "Center", None, true),
     pptx_cmd!("home.align-right", "Align Right", None, true),
@@ -199,6 +200,30 @@ impl PptxCommandSurface {
                     "slideIndex": slide,
                     "elementId": element_id,
                     "underline": !current,
+                });
+                self.run_shape_op("setShapeTextStyle", &patch, session)
+            }
+            "home.strikethrough" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: "home.strikethrough needs a selected shape".into(),
+                })?;
+                let slide = selection.slide_index;
+                let current = session
+                    .host
+                    .slide(slide)
+                    .ok()
+                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+                    .and_then(|e| {
+                        e.text_style
+                            .as_ref()
+                            .and_then(|ts| ts.strike)
+                            .or_else(|| e.text_segments.iter().find(|seg| seg.strike).map(|_| true))
+                    })
+                    .unwrap_or(false);
+                let patch = json!({
+                    "slideIndex": slide,
+                    "elementId": element_id,
+                    "strike": !current,
                 });
                 self.run_shape_op("setShapeTextStyle", &patch, session)
             }

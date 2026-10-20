@@ -373,6 +373,7 @@ pub struct TextPaintRun {
     pub text: String,
     pub rtl: Option<bool>,
     pub underline: bool,
+    pub strikethrough: bool,
     pub ruby: Option<TextPaintRuby>,
     /// `a:fld/@type` or inherited header/footer field tag (paint substitution).
     pub field_type: Option<String>,
@@ -905,6 +906,7 @@ fn collect_paint_runs(
                         text: String::new(),
                         rtl: None,
                         underline: false,
+                        strikethrough: false,
                         ruby: None,
                         field_type: None,
                         run_font_family: None,
@@ -946,6 +948,7 @@ fn collect_paint_runs(
                     text: String::new(),
                     rtl: r_pr.and_then(|rp| parse_optional_bool_attr(attr(rp, "rtl"))),
                     underline: false,
+                    strikethrough: false,
                     ruby: None,
                     field_type: None,
                     run_font_family: resolved.font_family,
@@ -976,6 +979,7 @@ fn collect_paint_runs(
                 let r_pr = child_local(el, "rPr", ns::A);
                 let rtl = r_pr.and_then(|rp| parse_optional_bool_attr(attr(rp, "rtl")));
                 let underline = r_pr.map(rpr_has_underline).unwrap_or(false);
+                let strikethrough = r_pr.map(rpr_has_strike).unwrap_or(false);
                 let hyperlink_click = r_pr
                     .map(|rp| child_local(rp, "hlinkClick", ns::A).is_some())
                     .unwrap_or(false);
@@ -1013,6 +1017,7 @@ fn collect_paint_runs(
                     text,
                     rtl,
                     underline: underline || hyperlink_click,
+                    strikethrough,
                     ruby,
                     field_type,
                     run_font_family: resolved.font_family,
@@ -1366,6 +1371,10 @@ fn rpr_has_underline(rpr: &Element) -> bool {
         None | Some("none") => false,
         Some(_) => true,
     }
+}
+
+fn rpr_has_strike(rpr: &Element) -> bool {
+    attr(rpr, "strike").is_some_and(|value| !value.is_empty() && value != "noStrike")
 }
 
 fn parse_tab_stops(p_pr: &Element) -> Vec<TextPaintTabStop> {

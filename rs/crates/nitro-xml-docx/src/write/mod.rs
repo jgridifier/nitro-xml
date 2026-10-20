@@ -215,4 +215,30 @@ mod tests {
         let png = pkg.read(part).expect("read").expect("png bytes");
         assert_eq!(png, INSERTED_PNG);
     }
+
+    #[test]
+    fn catches_strike_and_highlight_missing_from_saved_run() {
+        // Catches: strikethrough or highlight saving without w:strike / w:highlight, so reopen drops them.
+        use crate::edit::format::set_run_formatting;
+        use serde_json::json;
+        let bytes = include_bytes!("../../../../../fixtures/generated/docx/pages_10.docx");
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        let block = host
+            .blocks
+            .iter()
+            .position(|b| b.get("type").and_then(|t| t.as_str()) == Some("paragraph"))
+            .expect("paragraph");
+        let mut patch = serde_json::Map::new();
+        patch.insert("strike".into(), json!(true));
+        patch.insert("highlight".into(), json!("yellow"));
+        set_run_formatting(&mut host, block, 0, &patch).expect("format");
+        let saved = save_docx(&host, bytes.as_slice()).expect("save");
+        let again = DocxHost::open(&saved).expect("reopen");
+        let run = &again.blocks[block]["runs"][0];
+        assert_eq!(run["strike"], true, "reopened run lost strike: {run}");
+        assert_eq!(
+            run["highlight"], "yellow",
+            "reopened run lost highlight: {run}"
+        );
+    }
 }

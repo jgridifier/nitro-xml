@@ -65,6 +65,7 @@ pub fn token_extent(
             color: None,
             underline: None,
             strike: None,
+            highlight: None,
         })
     });
     let (ascent, descent) = font_metrics(measurer, &font);

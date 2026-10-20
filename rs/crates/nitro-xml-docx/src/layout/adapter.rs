@@ -590,6 +590,7 @@ fn label_run(_paragraph: &Value, label: &Value, runs: &[LayoutRun]) -> LayoutRun
         color: None,
         underline: None,
         strike: None,
+        highlight: None,
     });
     let text_label = label.get("text").and_then(|v| v.as_str()).unwrap_or("");
     let suffix = match label.get("suffix").and_then(|v| v.as_str()) {
@@ -646,6 +647,7 @@ fn label_run(_paragraph: &Value, label: &Value, runs: &[LayoutRun]) -> LayoutRun
         script: None,
         underline: None,
         strike: None,
+        highlight: None,
     }
 }
 
@@ -686,6 +688,7 @@ fn adapt_run(
             color: None,
             underline: None,
             strike: None,
+            highlight: None,
         };
     }
     let formatting = resolve_run_formatting(
@@ -886,6 +889,11 @@ fn adapt_run(
             .get("strike")
             .and_then(|v| v.as_bool())
             .or_else(|| formatting.get("doubleStrike").and_then(|v| v.as_bool())),
+        highlight: formatting
+            .get("highlight")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(str::to_string),
     }
 }
 

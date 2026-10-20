@@ -50,6 +50,7 @@ const align = {
     cmd("home.align-left", "left", "Align left"),
     cmd("home.align-center", "center", "Center"),
     cmd("home.align-right", "right", "Align right"),
+    cmd("home.align-justify", "justify", "Justify"),
   ],
 };
 
@@ -69,6 +70,7 @@ export const MANIFEST = {
           cmd("table.delete-row", "rowDel", "Delete row"),
           cmd("table.insert-column", "colAdd", "Insert column"),
           cmd("table.delete-column", "colDel", "Delete column"),
+          cmd("table.delete", "tableDel", "Delete table"),
         ],
       },
       nav("Pages", "page"),
@@ -84,12 +86,31 @@ export const MANIFEST = {
       font,
       align,
       {
+        id: "Lists",
+        items: [
+          cmd("home.bullets", "bullet", "Bullets"),
+          cmd("home.numbering", "numbering", "Numbering"),
+        ],
+      },
+      {
         id: "Slides",
         items: [
           cmd("insert.slide", "slide", "New slide"),
           cmd("insert.duplicate-slide", "duplicate", "Duplicate slide"),
+          cmd("insert.move-slide-up", "chevUp", "Move slide up"),
+          cmd("insert.move-slide-down", "chevDown", "Move slide down"),
           cmd("insert.text-box", "text", "Text box"),
           cmd("home.delete-slide", "trash", "Delete slide"),
+        ],
+      },
+      {
+        id: "Tables",
+        items: [
+          cmd("insert.table", "table", "Table", "Insert a table"),
+          cmd("table.insert-row", "rowAdd", "Insert row"),
+          cmd("table.delete-row", "rowDel", "Delete row"),
+          cmd("table.insert-column", "colAdd", "Insert column"),
+          cmd("table.delete-column", "colDel", "Delete column"),
         ],
       },
       nav("Slides", "slide"),

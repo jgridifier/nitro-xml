@@ -44,6 +44,9 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("home.align-left", "Align Left", None, true),
     pptx_cmd!("home.align-center", "Center", None, true),
     pptx_cmd!("home.align-right", "Align Right", None, true),
+    pptx_cmd!("home.align-justify", "Justify", None, true),
+    pptx_cmd!("home.bullets", "Bullets", None, true),
+    pptx_cmd!("home.numbering", "Numbering", None, true),
     pptx_cmd!("home.font-size", "Font Size", None, true),
     pptx_cmd!("home.font-color", "Font Color", None, true),
     pptx_cmd!("home.duplicate", "Duplicate", Some("Ctrl+D"), true),
@@ -197,11 +200,12 @@ impl PptxCommandSurface {
                 });
                 self.run_shape_op("setShapeTextStyle", &patch, session)
             }
-            "home.align-left" | "home.align-center" | "home.align-right" => {
+            "home.align-left" | "home.align-center" | "home.align-right" | "home.align-justify" => {
                 let align = match id {
                     "home.align-left" => "left",
                     "home.align-center" => "center",
-                    _ => "right",
+                    "home.align-right" => "right",
+                    _ => "justify",
                 };
                 let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
                     message: format!("{id} needs a selected shape"),
@@ -213,6 +217,22 @@ impl PptxCommandSurface {
                     "align": align,
                 });
                 self.run_shape_op("setShapeParagraphAlign", &patch, session)
+            }
+            "home.bullets" | "home.numbering" => {
+                let kind = if id == "home.bullets" {
+                    "bullet"
+                } else {
+                    "numbered"
+                };
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: format!("{id} needs a selected shape"),
+                })?;
+                let patch = json!({
+                    "slideIndex": selection.slide_index,
+                    "elementId": element_id,
+                    "kind": kind,
+                });
+                self.run_shape_op("setShapeBullets", &patch, session)
             }
             "home.font-size" | "home.font-color" => {
                 let element_id = selection.primary_id().ok_or_else(|| EditError::Other {

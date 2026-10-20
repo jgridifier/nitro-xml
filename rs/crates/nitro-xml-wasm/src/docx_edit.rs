@@ -231,6 +231,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.align-justify",
+                    label: "Justify",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.font-size",
                     label: "Font Size",
                     enabled: true,
@@ -285,6 +290,7 @@ fn canonical_command(id: &str) -> &str {
         "home.align-left" => "align-left",
         "home.align-center" => "align-center",
         "home.align-right" => "align-right",
+        "home.align-justify" => "align-justify",
         "home.font-size" => "font-size",
         "home.font-color" => "font-color",
         other => other,

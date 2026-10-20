@@ -11,8 +11,9 @@
 //! Rewrite one `ppt/slides/slideN.xml` from the editable host.
 //!
 //! Untouched axes go through [`resolve_xfrm_emu`]. The first run's underline
-//! (`a:rPr/@u`) and the first paragraph's align (`a:pPr/@algn`) are written.
-//! Rich multi-run splits, bullets, autofit and notes parts are TODO(#85) / TODO(#86).
+//! (`a:rPr/@u`), the first paragraph's align (`a:pPr/@algn`), and a list marker
+//! (`a:buChar` / `a:buAutoNum` / `a:buNone`) are written.
+//! Rich multi-run splits, autofit and notes parts are TODO(#85) / TODO(#86).
 //! An authored table (`table_authored`) is written as `p:graphicFrame` / `a:tbl`.
 
 use std::collections::{HashMap, HashSet};
@@ -22,7 +23,7 @@ use nitro_xml_opc::xml::ns;
 use nitro_xml_opc::xml::{parse_xml_str, Attr, Document, Element, Node};
 
 use crate::edit::host::{EditableElement, EditableSlide};
-use crate::edit::shapes::TextStyleSnap;
+use crate::edit::shapes::{BulletInfoSnap, TextStyleSnap};
 
 const XML_HEADER: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>";
 
@@ -172,6 +173,7 @@ fn apply_element(shape: &mut Element, el: &EditableElement) {
         update_text(shape, el.text.as_deref(), el.text_style.as_ref());
     }
     apply_paragraph_align(shape, el);
+    apply_paragraph_bullet(shape, el);
     apply_table(shape, el);
 }
 
@@ -287,6 +289,39 @@ fn apply_paragraph_align(shape: &mut Element, el: &EditableElement) {
     };
     let p_pr = ensure_child(p, "pPr", ns::A);
     set_attr(p_pr, "algn", token);
+}
+
+/// First paragraph list marker. Skipped when the model has no bullet info, so an
+/// unrelated edit does not strip a `buFont` the parser did not load.
+fn apply_paragraph_bullet(shape: &mut Element, el: &EditableElement) {
+    let Some(info) = el.text_segments.iter().find_map(|s| s.bullet_info.as_ref()) else {
+        return;
+    };
+    let Some(tx) = child_mut(shape, "txBody", ns::P) else {
+        return;
+    };
+    let Some(p) = child_mut(tx, "p", ns::A) else {
+        return;
+    };
+    let p_pr = ensure_child(p, "pPr", ns::A);
+    remove_children(p_pr, ns::A, &["buNone", "buChar", "buAutoNum"]);
+    p_pr.children.insert(0, Node::Element(bullet_marker(info)));
+}
+
+fn bullet_marker(info: &BulletInfoSnap) -> Element {
+    if info.none {
+        return elem(ns::A, "buNone");
+    }
+    if let Some(kind) = info.auto_num_type.as_deref() {
+        let mut bu = elem(ns::A, "buAutoNum");
+        set_attr(&mut bu, "type", kind);
+        let start = info.auto_num_start_at.unwrap_or(1);
+        set_attr(&mut bu, "startAt", &start.to_string());
+        return bu;
+    }
+    let mut bu = elem(ns::A, "buChar");
+    set_attr(&mut bu, "char", info.char.as_deref().unwrap_or("•"));
+    bu
 }
 
 fn ooxml_algn_token(align: &str) -> Option<&'static str> {

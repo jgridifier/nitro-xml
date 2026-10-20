@@ -13,13 +13,11 @@ import {
 } from "./bootstrap.js";
 import { WorkerDocument as WD } from "./worker-host.js";
 import { EventKind as EK, KeyId } from "./events.js";
-
 export function defineTag(t, C) {
   if (typeof customElements === "undefined" || customElements.get(t)) return;
   pw();
   customElements.define(t, C);
 }
-
 export class ViewerElement extends HTMLElement {
   constructor() {
     super();
@@ -278,7 +276,6 @@ export class ViewerElement extends HTMLElement {
     this._show(openMsg(e));
   }
 }
-
 export class ShellViewerElement extends ViewerElement {
   constructor() {
     super();
@@ -426,7 +423,6 @@ export class ShellViewerElement extends ViewerElement {
     return r;
   }
 }
-
 export function defineNitroXml() {
   defineTag("nitro-xml", NitroXmlElement);
 }

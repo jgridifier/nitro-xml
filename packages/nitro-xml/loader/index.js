@@ -12,7 +12,6 @@ export {
   isSupportedExtension,
   viewerOpenErrorMessage,
 } from "./formats.js";
-
 export {
   initCore,
   compileWasmModule,
@@ -26,7 +25,6 @@ export {
   unsupportedBrowserError,
   unsupportedFormatError,
 } from "./bootstrap.js";
-
 export { Op, applyCommandBuffer, cssColor } from "./apply.js";
 export { EventKind, EVENT_VERSION, encodeEventBatch, createEventCoalescer } from "./events.js";
 export { flushMeasureBatch } from "./measure.js";

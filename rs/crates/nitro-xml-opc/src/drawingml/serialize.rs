@@ -37,7 +37,7 @@ fn write_element(root: &Element, out: &mut String) {
             for attr in &top.el.attrs {
                 out.push(' ');
                 if let Some(ns_uri) = &attr.ns {
-                    if ns_uri == ns::R {
+                    if &**ns_uri == ns::R {
                         out.push_str("r:");
                     }
                 }

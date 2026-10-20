@@ -26,7 +26,7 @@ pub fn set_w_attr(el: &mut Element, local: &str, value: &str) {
         return;
     }
     el.attrs.push(Attr {
-        ns: Some(ns::W.to_owned()),
+        ns: Some(ns::W.into()),
         local: local.to_owned(),
         value: value.to_owned(),
     });

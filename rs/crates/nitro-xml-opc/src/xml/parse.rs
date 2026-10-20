@@ -5,6 +5,7 @@
 //! Single-pass streaming parse over `quick-xml` `NsReader` into an owned tree.
 
 use std::borrow::Cow;
+use std::sync::Arc;
 
 use quick_xml::events::Event;
 use quick_xml::name::ResolveResult;
@@ -74,22 +75,13 @@ fn decode_utf8(bytes: &[u8]) -> Cow<'_, str> {
 }
 
 fn contains_dtd_or_entity(xml: &str) -> bool {
-    let lower = xml.as_bytes();
     // Case-insensitive search for <!DOCTYPE or <!ENTITY (upstream `/<!DOCTYPE|<!ENTITY/i`).
-    let n = lower.len();
-    let mut i = 0;
-    while i + 9 <= n {
-        if lower[i] == b'<' && lower[i + 1] == b'!' {
-            let rest = &lower[i + 2..];
-            if starts_with_ignore_ascii_case(rest, b"DOCTYPE")
-                || starts_with_ignore_ascii_case(rest, b"ENTITY")
-            {
-                return true;
-            }
-        }
-        i += 1;
-    }
-    false
+    let bytes = xml.as_bytes();
+    memchr::memmem::find_iter(bytes, b"<!").any(|i| {
+        let rest = &bytes[i + 2..];
+        starts_with_ignore_ascii_case(rest, b"DOCTYPE")
+            || starts_with_ignore_ascii_case(rest, b"ENTITY")
+    })
 }
 
 fn starts_with_ignore_ascii_case(hay: &[u8], needle: &[u8]) -> bool {
@@ -113,6 +105,7 @@ fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlErr
     let mut root: Option<Element> = None;
     let mut pending_text: Option<String> = None;
     let mut seen_root_end = false;
+    let mut interner = NsInterner::default();
 
     loop {
         let (resolve, event) = reader
@@ -130,9 +123,9 @@ fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlErr
                         format!("XML nesting exceeds the depth limit ({max_depth})"),
                     ));
                 }
-                let ns = resolve_element_ns(resolve)?;
+                let ns = resolve_element_ns(resolve, &mut interner)?;
                 let local = local_name_str(e.local_name().as_ref())?;
-                let attrs = collect_attrs(&reader, &e, sort_attributes)?;
+                let attrs = collect_attrs(&reader, &e, sort_attributes, &mut interner)?;
                 let el = Element::new(ns, local, attrs);
                 flush_text(&mut stack, &mut root, &mut pending_text)?;
                 stack.push(el);
@@ -148,9 +141,9 @@ fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlErr
                         format!("XML nesting exceeds the depth limit ({max_depth})"),
                     ));
                 }
-                let ns = resolve_element_ns(resolve)?;
+                let ns = resolve_element_ns(resolve, &mut interner)?;
                 let local = local_name_str(e.local_name().as_ref())?;
-                let attrs = collect_attrs(&reader, &e, sort_attributes)?;
+                let attrs = collect_attrs(&reader, &e, sort_attributes, &mut interner)?;
                 let el = Element::new(ns, local, attrs);
                 let at_document = stack.is_empty();
                 push_child(&mut stack, &mut root, &mut pending_text, Node::Element(el))?;
@@ -159,7 +152,8 @@ fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlErr
                 }
             }
             Event::End(e) => {
-                let local = local_name_str(e.local_name().as_ref())?;
+                let local = std::str::from_utf8(e.local_name().into_inner())
+                    .map_err(|_| XmlError::new("parse", "name is not utf-8"))?;
                 let mut finished = stack
                     .pop()
                     .ok_or_else(|| XmlError::new("parse", "unexpected end tag"))?;
@@ -218,7 +212,8 @@ fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlErr
                 let body = std::str::from_utf8(r.as_ref())
                     .map_err(|_| XmlError::new("parse", "entity is not utf-8"))?;
                 // Body is the inside of &...; (e.g. "amp", "#x41").
-                let decoded = decode_entities(&format!("&{body};"))
+                let reference = format!("&{body};");
+                let decoded = decode_entities(&reference)
                     .ok_or_else(|| XmlError::new("parse", "unknown or malformed entity"))?;
                 append_text(&mut pending_text, &decoded);
             }
@@ -257,12 +252,31 @@ fn append_text(pending: &mut Option<String>, text: &str) {
     }
 }
 
-fn resolve_element_ns(resolve: ResolveResult<'_>) -> Result<Option<String>, XmlError> {
+/// Namespace URIs seen in this parse: a handful per part, so a linear scan beats hashing and every
+/// element / attribute shares one allocation per URI instead of owning a copy.
+#[derive(Default)]
+struct NsInterner(Vec<Arc<str>>);
+
+impl NsInterner {
+    fn intern(&mut self, uri: &str) -> Arc<str> {
+        if let Some(hit) = self.0.iter().find(|u| &***u == uri) {
+            return Arc::clone(hit);
+        }
+        let new: Arc<str> = Arc::from(uri);
+        self.0.push(Arc::clone(&new));
+        new
+    }
+}
+
+fn resolve_element_ns(
+    resolve: ResolveResult<'_>,
+    interner: &mut NsInterner,
+) -> Result<Option<Arc<str>>, XmlError> {
     match resolve {
         ResolveResult::Bound(ns) => {
             let s = std::str::from_utf8(ns.as_ref())
                 .map_err(|_| XmlError::new("parse", "namespace uri is not utf-8"))?;
-            Ok(Some(s.to_owned()))
+            Ok(Some(interner.intern(s)))
         }
         ResolveResult::Unbound => Ok(None),
         ResolveResult::Unknown(prefix) => Err(XmlError::new(
@@ -285,9 +299,9 @@ fn collect_attrs<R: std::io::BufRead>(
     reader: &NsReader<R>,
     start: &quick_xml::events::BytesStart<'_>,
     sort_attributes: bool,
+    interner: &mut NsInterner,
 ) -> Result<Vec<Attr>, XmlError> {
     let mut attrs = Vec::new();
-    let mut seen: Vec<(Option<String>, String)> = Vec::new();
     for attr in start.attributes() {
         let attr = attr.map_err(|e| XmlError::new("parse", e.to_string()))?;
         let key = attr.key;
@@ -303,7 +317,7 @@ fn collect_attrs<R: std::io::BufRead>(
         }
         let raw = std::str::from_utf8(attr.value.as_ref())
             .map_err(|_| XmlError::new("parse", "attribute value is not utf-8"))?;
-        if raw.contains('<') {
+        if memchr::memchr(b'<', raw.as_bytes()).is_some() {
             return Err(XmlError::new(
                 "parse",
                 "unescaped '<' not allowed in attribute values",
@@ -317,7 +331,7 @@ fn collect_attrs<R: std::io::BufRead>(
             ResolveResult::Bound(ns) => {
                 let s = std::str::from_utf8(ns.as_ref())
                     .map_err(|_| XmlError::new("parse", "attribute namespace uri is not utf-8"))?;
-                Some(s.to_owned())
+                Some(interner.intern(s))
             }
             ResolveResult::Unbound => None,
             ResolveResult::Unknown(prefix) => {
@@ -331,18 +345,22 @@ fn collect_attrs<R: std::io::BufRead>(
             }
         };
         let local = std::str::from_utf8(local_name.as_ref())
-            .map_err(|_| XmlError::new("parse", "attribute local name is not utf-8"))?
-            .to_owned();
+            .map_err(|_| XmlError::new("parse", "attribute local name is not utf-8"))?;
 
-        let key_pair = (ns.clone(), local.clone());
-        if seen.iter().any(|s| s == &key_pair) {
+        if attrs
+            .iter()
+            .any(|a: &Attr| a.local == local && a.ns.as_deref() == ns.as_deref())
+        {
             return Err(XmlError::new(
                 "parse",
                 format!("duplicate attribute {local}"),
             ));
         }
-        seen.push(key_pair);
-        attrs.push(Attr { ns, local, value });
+        attrs.push(Attr {
+            ns,
+            local: local.to_owned(),
+            value: value.into_owned(),
+        });
     }
     if sort_attributes {
         attrs.sort_by(|a, b| {

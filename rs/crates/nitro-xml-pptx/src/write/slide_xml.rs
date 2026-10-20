@@ -544,7 +544,7 @@ fn new_picture_xml(el: &EditableElement, id: i64, rel_id: &str) -> Element {
 
     let mut blip = elem(ns::A, "blip");
     blip.attrs.push(Attr {
-        ns: Some(ns::R.to_owned()),
+        ns: Some(ns::R.into()),
         local: "embed".to_owned(),
         value: rel_id.to_owned(),
     });
@@ -892,7 +892,7 @@ fn grp_cnv_mut(sp_tree: &mut Element) -> Option<&mut Element> {
 
 fn elem(uri: &str, local: &str) -> Element {
     Element {
-        ns: Some(uri.to_owned()),
+        ns: Some(uri.into()),
         local: local.to_owned(),
         attrs: Vec::new(),
         children: Vec::new(),

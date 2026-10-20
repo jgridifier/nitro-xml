@@ -45,6 +45,18 @@ function encodeStrokeRect(x, y, w, h, color, line) {
   return u8;
 }
 
+function encodePlaceBox(id, x, y, w, h) {
+  const u8 = new Uint8Array(21);
+  const v = new DataView(u8.buffer);
+  u8[0] = Op.PlaceBox;
+  v.setUint32(1, id, true);
+  v.setInt32(5, x, true);
+  v.setInt32(9, y, true);
+  v.setInt32(13, w, true);
+  v.setInt32(17, h, true);
+  return u8;
+}
+
 describe("formats allow-list", () => {
   it("rejects legacy and non-OOXML extensions the component must not open", () => {
     // Catches: component accept/file checks drifting to allow .doc/.xls/.csv (PRODUCT_SPEC OUT list).
@@ -127,6 +139,20 @@ describe("command buffer applier", () => {
     assert.equal(ops, 1);
     assert.deepEqual(fill.slice(0, 4), [10, 20, 30, 40]);
     assert.equal(bytes[0], Op.FillRect);
+  });
+
+  it("applies PlaceBox via CSSOM left/top/width/height", () => {
+    // Catches: PlaceBox payload endianness drift vs CommandBuffer::place_box (#30).
+    const el = { style: {} };
+    const nodes = new Map([[7, el]]);
+    const bytes = encodePlaceBox(7, 11, 22, 33, 44);
+    const { ops, error } = applyCommandBuffer(bytes, { nodes, resolve: () => "" });
+    assert.equal(error, undefined);
+    assert.equal(ops, 1);
+    assert.equal(el.style.left, "11px");
+    assert.equal(el.style.top, "22px");
+    assert.equal(el.style.width, "33px");
+    assert.equal(el.style.height, "44px");
   });
 });
 

@@ -10,7 +10,6 @@ import {
   prewarmWorker as pw,
   wasmSupported as ws,
   unsupportedBrowserError as ube,
-  loadEditorModule,
 } from "./bootstrap.js";
 import { WorkerDocument as WD } from "./worker-host.js";
 import { EventKind as EK, KeyId } from "./events.js";
@@ -72,7 +71,6 @@ export class ViewerElement extends HTMLElement {
     d.onChrome = (h) => {
       if (this._ch && h) this._ch.innerHTML = h;
     };
-    if (!ro) await loadEditorModule();
     try { await d.open(b, n, { readonly: ro }); }
     catch (e) { this._fail(e); throw e; }
     this._d = d;
@@ -314,9 +312,9 @@ export class ShellViewerElement extends ViewerElement {
     return this._readonly;
   }
   async _ao() {
-    await this._em();
     await this.shellAction("ui");
     const z=this.getAttribute("zoom");if(z)await this.shellAction("zoom-set",z);
+    void this._em();
   }
   _css() {
     return ":host{display:flex;flex-direction:column;min-height:12rem;background:#fff}.v{position:relative;flex:1;min-height:0;outline:none;background:#fff}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}canvas{background:#fff}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";

@@ -21,6 +21,10 @@ const lists = {
   g: "Paragraph",
   rows: [[it("home.bullets", "bullet", "Bullets", "Bulleted list"), it("home.numbering", "numbering", "Numbering", "Numbered list")]],
 };
+const wordLists = {
+  g: "Paragraph",
+  rows: [[it("home.numbering", "numbering", "Numbering", "Numbered list")]],
+};
 const copy = { i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy" };
 
 const FONT = {
@@ -148,7 +152,7 @@ export function tabsFor(format, unit, edit) {
           }
         : format === "docx" && edit
           ? {
-              Home: officeHome,
+              Home: [...officeHome.slice(0, 2), wordLists, ...officeHome.slice(2)],
               Insert: [
                 {
                   g: "Tables",

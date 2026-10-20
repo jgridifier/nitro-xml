@@ -56,6 +56,7 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("align-center", "Center", surface, false));
         html.push_str(&button("align-right", "Align Right", surface, false));
         html.push_str(&button("align-justify", "Justify", surface, false));
+        html.push_str(&button("numbering", "Numbering", surface, false));
         html.push_str(&button("font-size", "Font Size", surface, false));
         html.push_str(&button("font-color", "Font Color", surface, false));
         html.push_str("</section>");

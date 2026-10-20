@@ -208,7 +208,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/watermark.rs` | `src/core/docx/watermark.ts` (`parseWatermarkShape`) @ e66aaec | VML text watermark shapes in `w:pict`. |
 | `rs/crates/nitro-xml-docx/src/write/mod.rs` | `src/core/docx/save.ts` @ e66aaec | PackageWriter save entry, identity shortcut, dirty `word/document.xml` replace (#80). |
 | `rs/crates/nitro-xml-docx/src/write/apply.rs` | `src/core/docx/write.ts` (`applyModel`) @ e66aaec | Block apply + page `sectPr` margins; new table blocks call `create_table`. HF/notes/comments TODO(#80). |
-| `rs/crates/nitro-xml-docx/src/write/paragraph.rs` | `src/core/docx/write-paragraph.ts` @ e66aaec | Paragraph rewrite for edit scripts. |
+| `rs/crates/nitro-xml-docx/src/write/paragraph.rs` | `src/core/docx/write-paragraph.ts` @ e66aaec | Paragraph rewrite for edit scripts, including `w:numPr` from the block `numbering` field. |
 | `rs/crates/nitro-xml-docx/src/write/run.rs` | `src/core/docx/write-run.ts` @ e66aaec | Run text and direct formatting write. |
 | `rs/crates/nitro-xml-docx/src/write/table.rs` | `src/core/docx/write-table.ts` @ e66aaec | Table structure + cell paragraph rewrite; `create_table` builds a `w:tbl` that was not in the package. |
 | `rs/crates/nitro-xml-docx/src/write/inline.rs` | `src/core/docx/write-inline.ts` (`collectInlineSlots`) @ e66aaec | Plain `w:r` slot collection subset. |

@@ -5,6 +5,7 @@ mod apply;
 mod document_xml;
 mod element;
 mod inline;
+mod numbering_part;
 mod paragraph;
 mod run;
 mod table;
@@ -17,6 +18,7 @@ use nitro_xml_opc::xml::parse_xml_str;
 
 use self::apply::apply_model;
 use self::document_xml::build_document_xml;
+use self::numbering_part::write_numbering;
 use self::xml_escape::XML_HEADER;
 
 const CT_DOCUMENT: &str =
@@ -58,6 +60,7 @@ pub fn save_docx_with_options(
     let xml = format!("{}{}", XML_HEADER, build_document_xml(&doc.root));
     let mut writer = PackageWriter::open(original).map_err(|e| e.to_string())?;
     writer.add_text("word/document.xml", xml, Some(CT_DOCUMENT));
+    write_numbering(&mut writer, original, host)?;
     writer.finish().map_err(|e| e.to_string())
 }
 
@@ -134,5 +137,47 @@ mod tests {
             .count();
         assert_eq!(after, before - 1, "reopen still has the deleted table");
         assert_eq!(again.blocks.len(), before_blocks - 1);
+    }
+
+    #[test]
+    fn catches_numbering_missing_from_document_and_numbering_xml() {
+        // Catches: a numbered paragraph saved without w:numPr or word/numbering.xml.
+        let bytes = include_bytes!("../../../../../fixtures/generated/docx/pages_10.docx");
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        let block = host
+            .blocks
+            .iter()
+            .position(|b| b.get("type").and_then(|t| t.as_str()) == Some("paragraph"))
+            .expect("paragraph");
+        let id = crate::edit::numbering::ensure_list_definition(&mut host, "decimal").expect("def");
+        crate::edit::numbering::apply_numbering(&mut host, block, id, 0).expect("apply");
+        let saved = save_docx(&host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let again = DocxHost::open(&saved).expect("reopen");
+        let numbering = again.blocks[block]
+            .get("numbering")
+            .expect("numbering missing after reopen");
+        assert_eq!(numbering["numId"], id);
+        assert_eq!(numbering["level"], 0);
+        let fmt = again
+            .numbering_catalog
+            .as_ref()
+            .and_then(|c| c.get("nums"))
+            .and_then(|n| n.get(id.to_string()))
+            .and_then(|n| n.get("abstractNumId"))
+            .and_then(|v| v.as_str())
+            .and_then(|abs| {
+                again
+                    .numbering_catalog
+                    .as_ref()
+                    .unwrap()
+                    .get("abstractNums")
+                    .and_then(|a| a.get(abs))
+                    .and_then(|a| a.get("levels"))
+                    .and_then(|l| l.get("0"))
+                    .and_then(|l| l.get("numFmt"))
+                    .and_then(|v| v.as_str())
+            });
+        assert_eq!(fmt, Some("decimal"));
     }
 }

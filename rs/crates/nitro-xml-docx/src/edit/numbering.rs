@@ -2,8 +2,8 @@
 //! List / numbering edits on paragraph blocks (#78).
 //!
 //! Ports the model-side of upstream `numbering-editing.ts` (ensure definition,
-//! apply/clear `numPr`). Package rewrite of `word/numbering.xml` waits on the
-//! docx writer; catalog mutations stay in-memory for undo parity.
+//! apply/clear `numPr`). The catalog matches `parse_numbering_catalog` so the
+//! writer can emit `word/numbering.xml` and a reopen reads the same num id.
 
 use nitro_xml_opc::edit::EditError;
 use serde_json::json;
@@ -11,6 +11,9 @@ use serde_json::json;
 use super::host::DocxHost;
 
 /// Ensure a simple bullet or decimal list definition exists; returns `numId`.
+///
+/// Reuses an existing level-0 definition of the same `numFmt`. New entries use
+/// the parser's object catalog (`abstractNums` / `nums` keyed by id string).
 pub fn ensure_list_definition(host: &mut DocxHost, kind: &str) -> Result<u32, EditError> {
     let fmt = match kind {
         "bullet" => "bullet",
@@ -21,43 +24,74 @@ pub fn ensure_list_definition(host: &mut DocxHost, kind: &str) -> Result<u32, Ed
             })
         }
     };
+    let lvl_text = if fmt == "bullet" { "•" } else { "%1." };
+    if host.numbering_catalog.is_none() {
+        host.numbering_catalog = Some(json!({
+            "abstractNums": {},
+            "nums": {},
+            "warnings": [],
+        }));
+    }
     let catalog = host
         .numbering_catalog
-        .get_or_insert_with(|| json!({ "abstractNums": [], "nums": [] }));
-    let abs_len = catalog
-        .get("abstractNums")
-        .and_then(|n| n.as_array())
-        .map(|a| a.len())
-        .unwrap_or(0);
-    let nums_len = catalog
-        .get("nums")
-        .and_then(|n| n.as_array())
-        .map(|a| a.len())
-        .unwrap_or(0);
-    let abs_id = (abs_len as u32) + 1;
-    let num_id = (nums_len as u32) + 1;
-    let lvl_text = if fmt == "bullet" { "•" } else { "%1." };
-    catalog
+        .as_mut()
+        .ok_or_else(|| EditError::Other {
+            message: "numbering catalog missing".into(),
+        })?;
+    if let Some(id) = find_num_id(catalog, fmt) {
+        return Ok(id);
+    }
+    let abs = catalog
         .get_mut("abstractNums")
-        .and_then(|n| n.as_array_mut())
+        .and_then(|n| n.as_object_mut())
         .ok_or_else(|| EditError::Other {
-            message: "numbering catalog missing abstractNums".into(),
-        })?
-        .push(json!({
-            "abstractNumId": abs_id,
-            "levels": [{ "ilvl": 0, "numFmt": fmt, "lvlText": lvl_text }],
-        }));
-    catalog
+            message: "numbering catalog abstractNums is not a map".into(),
+        })?;
+    let next = next_id(abs.keys().map(String::as_str));
+    let id = next.to_string();
+    abs.insert(
+        id.clone(),
+        json!({
+            "id": id,
+            "levels": {
+                "0": { "level": 0, "start": 1, "numFmt": fmt, "lvlText": lvl_text }
+            }
+        }),
+    );
+    let nums = catalog
         .get_mut("nums")
-        .and_then(|n| n.as_array_mut())
+        .and_then(|n| n.as_object_mut())
         .ok_or_else(|| EditError::Other {
-            message: "numbering catalog missing nums".into(),
-        })?
-        .push(json!({
-            "numId": num_id,
-            "abstractNumId": abs_id,
-        }));
+            message: "numbering catalog nums is not a map".into(),
+        })?;
+    let num_id = next_id(nums.keys().map(String::as_str)).max(next);
+    let num_key = num_id.to_string();
+    nums.insert(
+        num_key.clone(),
+        json!({ "id": num_key, "abstractNumId": id }),
+    );
     Ok(num_id)
+}
+
+fn find_num_id(catalog: &serde_json::Value, fmt: &str) -> Option<u32> {
+    let abs = catalog.get("abstractNums")?.as_object()?;
+    let nums = catalog.get("nums")?.as_object()?;
+    for (id, num) in nums {
+        let abs_id = num.get("abstractNumId").and_then(|v| v.as_str())?;
+        let levels = abs.get(abs_id)?.get("levels")?.as_object()?;
+        let lvl = levels.get("0")?;
+        if lvl.get("numFmt").and_then(|v| v.as_str()) == Some(fmt) {
+            return id.parse().ok();
+        }
+    }
+    None
+}
+
+fn next_id<'a>(keys: impl Iterator<Item = &'a str>) -> u32 {
+    keys.filter_map(|k| k.parse::<u32>().ok())
+        .max()
+        .unwrap_or(0)
+        + 1
 }
 
 /// Attach `numbering: { numId, level }` to a paragraph.

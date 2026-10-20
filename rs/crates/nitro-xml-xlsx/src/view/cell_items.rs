@@ -150,11 +150,17 @@ fn make_item(
     let needs_fill = item.view.h_align == "fill";
     let needs_shrink = item.view.shrink;
     // Slack: estimate_width can run narrower than canvas; only skip when clearly fits.
+    // Live paint only — view-IR must run FakeTextMeasure for oracle parity (#30).
     const EST_SLACK: f64 = 1.25;
     let clearly_fits = est * EST_SLACK <= inner;
     let may_hash = item.view.is_number && item.view.rich.is_none() && !clearly_fits;
     let may_overflow = item.view.overflow && merge.is_none() && !clearly_fits;
-    if !needs_fill && !needs_shrink && !may_hash && !may_overflow {
+    if input.enable_number_fit
+        && !needs_fill
+        && !needs_shrink
+        && !may_hash
+        && !may_overflow
+    {
         return item;
     }
     let measured = text_width_of(input, measure, font_memo, &item.view, &item.text);

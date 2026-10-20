@@ -74,8 +74,9 @@ One `Uint8Array` of opcodes per frame, taken with `takeFrameCommands()` and appl
 | SetText | 8 | `u32 id, text_id` |
 | SetStyle | 9 | `u32 id, prop_id, val_id` |
 | SetInnerMarkup | 10 | `u32 parent, markup` — parse SVG/HTML fragment into `parent` in one pass (#28 charts) |
+| PlaceBox | 11 | `u32 id` `i32 x,y,w,h` — CSSOM `left/top/width/height` without style-string intern (#30 xlsx S) |
 
-Opcodes **8–9** (xlsx grid #18) cover DOM `textContent` and `style` property writes for the cell layer. Opcode **10** (`SetInnerMarkup`) is **trusted, Rust-generated markup only** (chart S1 SVG writer in `nitro-xml-render`); remaining gaps below still apply to SVG NS creates, etc. Keep this table aligned with `rs/crates/nitro-xml-render/src/command_buffer/ops.rs` and `packages/nitro-xml/loader/apply.js` — that Rust module is the single source of truth for tag numbers.
+Opcodes **8–9** (xlsx grid #18) cover DOM `textContent` and `style` property writes for the cell layer. Opcode **10** (`SetInnerMarkup`) is **trusted, Rust-generated markup only** (chart S1 SVG writer in `nitro-xml-render`). Opcode **11** (`PlaceBox`) places grid/chrome boxes via CSSOM so first-frame paint skips unique geometry style strings. Remaining gaps below still apply to SVG NS creates, etc. Keep this table aligned with `rs/crates/nitro-xml-render/src/command_buffer/ops.rs` and `packages/nitro-xml/loader/apply.js` — that Rust module is the single source of truth for tag numbers.
 
 #### SetInnerMarkup trust boundary
 

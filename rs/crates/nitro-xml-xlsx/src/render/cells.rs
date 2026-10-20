@@ -169,33 +169,28 @@ fn set_attr_v<I: StringIntern>(
     buf.set_attr(id, key, intern.intern(val));
 }
 
-/// Write `left:Xpx;top:Ypx;width:Wpx;height:Hpx` (+ optional fill) into `out` (#30).
-/// Fill uses kebab-case so the batched `style` attr is valid CSS (not SetStyle camelCase).
-fn write_cell_box_style(
+/// Fill-only `style` attr (kebab-case) so `[style*="background-color"]` overflow CSS still matches.
+/// Geometry uses `PlaceBox` (#30) — no left/top/width/height strings.
+fn write_cell_fill_style(
     out: &mut String,
-    left: f64,
-    top: f64,
-    w: f64,
-    h: f64,
     fill: Option<&FillPaint>,
     merged_blank_fill: bool,
-) {
+) -> bool {
     out.clear();
-    let _ = write!(
-        out,
-        "left:{}px;top:{}px;width:{}px;height:{}px",
-        left as i32, top as i32, w as i32, h as i32
-    );
     if let Some(fp) = fill {
         if let Some(bg) = &fp.background {
-            let _ = write!(out, ";background-color:{bg}");
+            let _ = write!(out, "background-color:{bg}");
         }
         if let Some(img) = &fp.image {
-            let _ = write!(out, ";background-image:{img}");
+            if !out.is_empty() {
+                out.push(';');
+            }
+            let _ = write!(out, "background-image:{img}");
         }
     } else if merged_blank_fill {
-        out.push_str(";background-color:var(--xve-sheet-bg, #fff)");
+        out.push_str("background-color:var(--xve-sheet-bg, #fff)");
     }
+    !out.is_empty()
 }
 
 /// Memoize `css_font` across cells that share family/weight/size/zoom (#30 S paint).
@@ -270,18 +265,13 @@ fn paint_one_cell<I: StringIntern>(
     if stale {
         set_attr_v(buf, intern, cell_id, keys.data_stale, "1");
     }
-    // Geometry + fill as one style attr (cuts per-cell backgroundColor SetStyle; #30).
+    // Geometry via PlaceBox (no unique left/top/width/height strings; #30).
+    buf.place_box(cell_id, left, top, item.w, item.h);
+    // Fill stays on the style attr so overflow CSS `[style*="background-color"]` still matches.
     let fill = fill_paint(item.view.fill.as_ref());
-    write_cell_box_style(
-        style_buf,
-        left as f64,
-        top as f64,
-        item.w as f64,
-        item.h as f64,
-        fill.as_ref(),
-        item.merged && fill.is_none(),
-    );
-    buf.set_attr(cell_id, keys.style, intern.intern(style_buf));
+    if write_cell_fill_style(style_buf, fill.as_ref(), item.merged && fill.is_none()) {
+        buf.set_attr(cell_id, keys.style, intern.intern(style_buf));
+    }
 
     if let Some(bar) = &item.view.data_bar {
         let bar_id = DATA_BAR_BASE + n as u32;

@@ -179,6 +179,7 @@ mod tests {
             color: None,
             underline: None,
             strike: None,
+            highlight: None,
             script: None,
             top_px: None,
             box_height_px: None,

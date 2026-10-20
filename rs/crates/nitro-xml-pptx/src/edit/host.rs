@@ -53,6 +53,7 @@ pub struct TextStylePatch<'a> {
     pub font_size: Option<f64>,
     pub color: Option<&'a str>,
     pub underline: Option<bool>,
+    pub strike: Option<bool>,
 }
 
 /// A new shape appended at the front of the slide (z-order end).
@@ -351,6 +352,7 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
             font_size: editor.and_then(|e| e.font_size),
             color: editor.and_then(|e| e.color.clone()),
             underline: None,
+            strike: None,
             auto_fit: editor.and_then(|e| e.auto_fit),
             auto_fit_mode: editor.and_then(|e| e.auto_fit_mode.clone()),
         })
@@ -626,6 +628,9 @@ impl PptxHost {
             if let Some(underline) = patch.underline {
                 style.underline = Some(underline);
             }
+            if let Some(strike) = patch.strike {
+                style.strike = Some(strike);
+            }
         }
         if let Some(underline) = patch.underline {
             for seg in &mut el.text_segments {
@@ -633,6 +638,14 @@ impl PptxHost {
                     continue;
                 }
                 seg.underline = underline;
+            }
+        }
+        if let Some(strike) = patch.strike {
+            for seg in &mut el.text_segments {
+                if seg.is_paragraph_break || seg.is_line_break {
+                    continue;
+                }
+                seg.strike = strike;
             }
         }
         self.touch(slide_index)

@@ -39,4 +39,6 @@ export const ICONS = {
   bullet: '<circle class="a" cx="5.5" cy="7" r="1.3"/><circle class="a" cx="5.5" cy="12" r="1.3"/><circle class="a" cx="5.5" cy="17" r="1.3"/><path d="M9 7h11M9 12h11M9 17h11"/>',
   numbering: '<path class="a" d="M3.5 8.2V5.2L2.4 6M3 12.2h2.4M3 16h2.4M4.2 12.2V16"/><path d="M9 7h11M9 12h11M9 17h11"/>',
   picture: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle class="a" cx="8.5" cy="9.5" r="1.5"/><path class="a" d="M3 16l5-4 3.5 3L14 13l7 4"/>',
+  strike: '<path d="M6 12h12"/><path class="a" d="M8 16.5c.4 1.6 2 2.5 4 2.5 2.4 0 4-1.2 4-2.8 0-3.2-8-1.6-8-4.4C8 9.6 9.6 8.5 12 8.5c2 0 3.4.8 4 2"/>',
+  highlight: '<path d="M5 16l8-8 3 3-8 8H5z"/><path class="a" d="M14 7l3 3M4 20h10"/>',
 };

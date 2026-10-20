@@ -1154,9 +1154,7 @@ fn append_paint_run<I: StringIntern>(
         if run_line_height_zero {
             set_style(ctx, base, "line-height", "0");
         }
-        if run_model.underline {
-            apply_run_underline(ctx, base);
-        }
+        apply_run_decoration(ctx, base, run_model.underline, run_model.strikethrough);
         if should_emit_gdi_tracking_for_run(&display_text, run_model.underline) {
             apply_gdi_metric_letter_spacing(
                 ctx,
@@ -1457,9 +1455,7 @@ fn paint_run_span_styles<I: StringIntern>(
         };
         set_style(ctx, run, "word-break", wb);
     }
-    if run_model.underline {
-        apply_run_underline(ctx, run);
-    }
+    apply_run_decoration(ctx, run, run_model.underline, run_model.strikethrough);
     if emit_gdi_tracking {
         apply_gdi_metric_letter_spacing(
             ctx,
@@ -1513,8 +1509,26 @@ fn apply_run_rtl<I: StringIntern>(
     }
 }
 
-fn apply_run_underline<I: StringIntern>(ctx: &mut PaintContext<'_, I>, run: u32) {
-    apply_run_underline_with_thickness(ctx, run, true);
+fn apply_run_decoration<I: StringIntern>(
+    ctx: &mut PaintContext<'_, I>,
+    run: u32,
+    underline: bool,
+    strike: bool,
+) {
+    if !underline && !strike {
+        return;
+    }
+    let line = match (underline, strike) {
+        (true, true) => "underline line-through",
+        (false, true) => "line-through",
+        _ => "underline",
+    };
+    set_style(ctx, run, "text-decoration-line", line);
+    if underline {
+        set_style(ctx, run, "text-decoration-style", "solid");
+        set_style(ctx, run, "text-decoration-thickness", "1px");
+    }
+    set_style(ctx, run, "text-decoration-skip-ink", "none");
 }
 
 /// Plain underlines carry `1px`; a hyperlink underline keeps the browser's font-scaled default.
@@ -1665,9 +1679,7 @@ fn paint_css_tab_run<I: StringIntern>(
         set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
     }
     paint_run_typography(ctx, run, paint, size, stack);
-    if run_model.underline {
-        apply_run_underline(ctx, run);
-    }
+    apply_run_decoration(ctx, run, run_model.underline, run_model.strikethrough);
     if should_emit_gdi_tracking_for_run(display_text, run_model.underline) {
         apply_gdi_metric_letter_spacing(
             ctx,
@@ -1743,9 +1755,7 @@ fn paint_tabbed_run<I: StringIntern>(
             set_style(ctx, piece, "font-family", VISUAL_HOST_RUN_FONT_STACK);
         }
         paint_run_typography(ctx, piece, paint, size, stack);
-        if run_model.underline {
-            apply_run_underline(ctx, piece);
-        }
+        apply_run_decoration(ctx, piece, run_model.underline, run_model.strikethrough);
         if should_emit_gdi_tracking_for_run(text, run_model.underline) {
             apply_gdi_metric_letter_spacing(
                 ctx,

@@ -376,6 +376,57 @@ mod tests {
     }
 
     #[test]
+    fn catches_strike_and_highlight_missing_after_reopen_or_undo() {
+        // Catches: strikethrough or highlight never reaching the saved package, or undo failing to restore it.
+        let mut pptx = open_editable(PPTX, "slides.pptx");
+        pptx.shell_action("cmd", "home.strikethrough")
+            .expect("pptx strike");
+        let saved = pptx.save_document().expect("pptx save");
+        assert_ne!(saved, PPTX);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("pptx reopen");
+        assert!(
+            again
+                .session
+                .host
+                .slides
+                .iter()
+                .flat_map(|s| s.elements.iter())
+                .any(|e| e.text_segments.iter().any(|seg| seg.strike)),
+            "pptx strikethrough missing after reopen"
+        );
+        pptx.shell_action("cmd", "edit.undo").expect("pptx undo");
+        assert_eq!(pptx.save_document().expect("pptx undone"), PPTX);
+
+        let mut docx = open_editable(DOCX, "pages.docx");
+        docx.shell_action("cmd", "home.strikethrough")
+            .expect("docx strike");
+        docx.shell_action("cmd", "home.highlight")
+            .expect("docx highlight");
+        let saved = docx.save_document().expect("docx save");
+        assert_ne!(saved, DOCX);
+        let again = open_editable(&saved, "pages.docx");
+        let run = again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .find_map(|b| b.get("runs")?.as_array()?.first())
+            .expect("run");
+        assert_eq!(run["strike"], true, "docx strike missing: {run}");
+        assert_eq!(run["highlight"], "yellow", "docx highlight missing: {run}");
+        docx.shell_action("cmd", "edit.undo")
+            .expect("undo highlight");
+        docx.shell_action("cmd", "edit.undo").expect("undo strike");
+        assert_eq!(docx.save_document().expect("docx undone"), DOCX);
+    }
+
+    #[test]
     fn catches_docx_shell_bold_leaving_the_package_unchanged() {
         // Catches: home.bold on a document staying on the xlsx command table, so w:b never flips.
         let mut h = open_editable(DOCX, "pages.docx");

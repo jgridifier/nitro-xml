@@ -40,6 +40,7 @@ const font = {
     cmd("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
     cmd("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
     cmd("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
+    cmd("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
     cmd("home.font-size", "grow", "Font size", "Set the font size"),
     cmd("home.font-color", "color", "Font color", "Set the font color"),
   ],
@@ -60,7 +61,10 @@ export const MANIFEST = {
     groups: [
       file,
       copy,
-      font,
+      {
+        id: "Font",
+        items: [...font.items, cmd("home.highlight", "highlight", "Highlight", "Text highlight")],
+      },
       align,
       {
         id: "Lists",

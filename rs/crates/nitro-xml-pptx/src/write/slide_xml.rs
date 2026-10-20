@@ -382,6 +382,7 @@ fn style_authored(style: &TextStyleSnap) -> bool {
     style.bold
         || style.italic
         || style.underline.is_some()
+        || style.strike.is_some()
         || style.font_size.is_some()
         || style.color.is_some()
 }
@@ -389,6 +390,9 @@ fn style_authored(style: &TextStyleSnap) -> bool {
 fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
     let previous_u = child_ref(run, "rPr", ns::A)
         .and_then(|rpr| attr(rpr, "u"))
+        .map(str::to_owned);
+    let previous_strike = child_ref(run, "rPr", ns::A)
+        .and_then(|rpr| attr(rpr, "strike"))
         .map(str::to_owned);
     remove_children(run, ns::A, &["rPr"]);
     let mut rpr = elem(ns::A, "rPr");
@@ -409,6 +413,15 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
         None => {
             if let Some(u) = previous_u {
                 set_attr(&mut rpr, "u", &u);
+            }
+        }
+    }
+    match style.strike {
+        Some(true) => set_attr(&mut rpr, "strike", "sngStrike"),
+        Some(false) => {}
+        None => {
+            if let Some(strike) = previous_strike {
+                set_attr(&mut rpr, "strike", &strike);
             }
         }
     }

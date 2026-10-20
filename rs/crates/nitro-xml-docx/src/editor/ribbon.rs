@@ -52,6 +52,8 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("bold", "Bold", surface, false));
         html.push_str(&button("italic", "Italic", surface, false));
         html.push_str(&button("underline", "Underline", surface, false));
+        html.push_str(&button("strike", "Strikethrough", surface, false));
+        html.push_str(&button("highlight", "Highlight", surface, false));
         html.push_str(&button("align-left", "Align Left", surface, false));
         html.push_str(&button("align-center", "Center", surface, false));
         html.push_str(&button("align-right", "Align Right", surface, false));

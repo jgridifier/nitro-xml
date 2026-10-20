@@ -34,6 +34,7 @@ const FONT = {
       it("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
       it("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
       it("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
+      it("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
     ],
     [
       it("home.align-left", "left", "Align left"),
@@ -43,6 +44,13 @@ const FONT = {
       it("home.font-size", "grow", "Font size", "Set the font size"),
       it("home.font-color", "color", "Font color", "Set the font color"),
     ],
+  ],
+};
+const wordFont = {
+  g: "Font",
+  rows: [
+    [...FONT.rows[0], it("home.highlight", "highlight", "Highlight", "Text highlight")],
+    FONT.rows[1],
   ],
 };
 
@@ -153,7 +161,7 @@ export function tabsFor(format, unit, edit) {
           }
         : format === "docx" && edit
           ? {
-              Home: [...officeHome.slice(0, 2), wordLists, ...officeHome.slice(2)],
+              Home: [officeHome[0], wordFont, wordLists, ...officeHome.slice(2)],
               Insert: [
                 {
                   g: "Tables",

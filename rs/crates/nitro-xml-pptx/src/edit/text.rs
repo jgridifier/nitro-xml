@@ -6,7 +6,7 @@
 
 use nitro_xml_opc::drawingml::{parse_drawing_text_body, DrawingColor, DrawingColorKind};
 use nitro_xml_opc::edit::{ChangeKind, ChangeSet, Command, CommandRegistry};
-use nitro_xml_opc::xml::{ns, Element};
+use nitro_xml_opc::xml::{ns, Element, Node};
 
 use crate::auto_number::{
     break_auto_number_run, format_auto_number_bullet, next_auto_number, AutoNumberSequence,
@@ -60,6 +60,7 @@ pub fn parse_editor_text(tx: &Element) -> EditorText {
         let align = p_pr.and_then(|pp| attr(pp, "algn")).and_then(ooxml_align);
         let drawing_para = parsed.as_ref().and_then(|b| b.paragraphs.get(pi));
         let runs = drawing_para.map(|p| p.runs.as_slice()).unwrap_or(&[]);
+        let xml_runs = paragraph_content_runs(p);
         if runs.is_empty() {
             out.segments.push(TextSegmentSnap {
                 bullet_info: bullet,
@@ -78,6 +79,7 @@ pub fn parse_editor_text(tx: &Element) -> EditorText {
                 bold: run.bold.unwrap_or(false),
                 italic: run.italic.unwrap_or(false),
                 underline: run.underline.unwrap_or(false),
+                strike: xml_runs.get(ri).is_some_and(|el| run_has_strike(el)),
                 font_size: run.size_pt.map(pt_to_px),
                 color: run.color.as_ref().and_then(css_srgb),
                 is_line_break: line_break,
@@ -98,6 +100,28 @@ pub fn parse_editor_text(tx: &Element) -> EditorText {
         }
     }
     out
+}
+
+fn paragraph_content_runs(paragraph: &Element) -> Vec<&Element> {
+    paragraph
+        .children
+        .iter()
+        .filter_map(|node| match node {
+            Node::Element(el)
+                if el.ns.as_deref() == Some(ns::A)
+                    && matches!(el.local.as_str(), "r" | "fld" | "br") =>
+            {
+                Some(el)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn run_has_strike(run: &Element) -> bool {
+    child_local(run, "rPr", ns::A)
+        .and_then(|rpr| attr(rpr, "strike"))
+        .is_some_and(|value| !value.is_empty() && value != "noStrike")
 }
 
 fn pt_to_px(pt: f64) -> f64 {
@@ -359,6 +383,7 @@ fn toggle_paragraph(
         bold: marker_style.bold,
         italic: marker_style.italic,
         underline: marker_style.underline,
+        strike: marker_style.strike,
         font_size: marker_style.font_size,
         color: marker_style.color,
         align,
@@ -455,6 +480,7 @@ pub struct RunStylePatch<'a> {
     pub bold: Option<bool>,
     pub italic: Option<bool>,
     pub underline: Option<bool>,
+    pub strike: Option<bool>,
     pub font_size: Option<f64>,
     pub color: Option<&'a str>,
 }
@@ -489,6 +515,9 @@ pub fn set_run_style(
         if let Some(underline) = patch.underline {
             seg.underline = underline;
         }
+        if let Some(strike) = patch.strike {
+            seg.strike = strike;
+        }
         if let Some(font_size) = patch.font_size {
             seg.font_size = Some(font_size);
         }
@@ -500,6 +529,11 @@ pub fn set_run_style(
         el.text_style
             .get_or_insert_with(TextStyleSnap::default)
             .underline = Some(underline);
+    }
+    if let Some(strike) = patch.strike {
+        el.text_style
+            .get_or_insert_with(TextStyleSnap::default)
+            .strike = Some(strike);
     }
     // `reconcileDecorationFlags`: the body flag is true only when every content run is on.
     if let Some(bold) = patch.bold {
@@ -638,6 +672,7 @@ pub fn register_text_commands(registry: &mut CommandRegistry) {
                     bold: arg_bool_opt(args, "bold"),
                     italic: arg_bool_opt(args, "italic"),
                     underline: arg_bool_opt(args, "underline"),
+                    strike: arg_bool_opt(args, "strike"),
                     font_size: arg_f64_opt(args, "fontSize"),
                     color: color.as_deref(),
                 },

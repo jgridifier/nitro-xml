@@ -49,6 +49,8 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("bold", "Bold", Some("Ctrl+B"), true),
     word_cmd!("italic", "Italic", Some("Ctrl+I"), true),
     word_cmd!("underline", "Underline", Some("Ctrl+U"), true),
+    word_cmd!("strike", "Strikethrough", Some("Ctrl+5"), true),
+    word_cmd!("highlight", "Highlight", None, true),
     word_cmd!("align-left", "Align Left", None, true),
     word_cmd!("align-center", "Center", None, true),
     word_cmd!("align-right", "Align Right", None, true),
@@ -210,11 +212,12 @@ impl DocxCommandSurface {
                 }
                 Ok(())
             }
-            "bold" | "italic" | "underline" => {
+            "bold" | "italic" | "underline" | "strike" => {
                 let toggle_key = match id {
                     "bold" => "bold",
                     "italic" => "italic",
-                    _ => "underline",
+                    "underline" => "underline",
+                    _ => "strike",
                 };
                 let scopes = vec![EditScope::Workbook];
                 session.run(
@@ -241,6 +244,41 @@ impl DocxCommandSurface {
                             .unwrap_or(false);
                         let mut patch = serde_json::Map::new();
                         patch.insert(toggle_key.into(), json!(!current));
+                        set_run_formatting(h, caret_block, caret_run, &patch)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "highlight" => {
+                session.run(
+                    String::from("highlight"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        let block = h
+                            .paragraph(caret_block)
+                            .map_err(|e| EditError::Other { message: e })?;
+                        let runs =
+                            block
+                                .get("runs")
+                                .and_then(|r| r.as_array())
+                                .ok_or_else(|| EditError::Other {
+                                    message: "runs missing".into(),
+                                })?;
+                        let run = runs.get(caret_run).ok_or_else(|| EditError::Other {
+                            message: "run missing".into(),
+                        })?;
+                        let on = run
+                            .get("highlight")
+                            .and_then(|v| v.as_str())
+                            .is_some_and(|s| !s.is_empty());
+                        let mut patch = serde_json::Map::new();
+                        patch.insert(
+                            "highlight".into(),
+                            if on { json!("") } else { json!("yellow") },
+                        );
                         set_run_formatting(h, caret_block, caret_run, &patch)?;
                         Ok(())
                     },

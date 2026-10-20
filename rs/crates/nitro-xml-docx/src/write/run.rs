@@ -178,6 +178,19 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
             }
         }
     }
+    if run_property_changed(run, base, "strike") {
+        set_toggle(props, "strike", run.get("strike").and_then(|v| v.as_bool()));
+    }
+    if run_property_changed(run, base, "highlight") {
+        remove_w_children(props, "highlight");
+        if let Some(color) = run.get("highlight").and_then(|v| v.as_str()) {
+            if !color.is_empty() && color != "none" {
+                let mut highlight = make_w("highlight");
+                set_w_attr(&mut highlight, "val", color);
+                props.children.push(Node::Element(highlight));
+            }
+        }
+    }
     order_rpr_children(props);
     if props.children.is_empty() {
         run_node

@@ -79,6 +79,9 @@ pub fn paint_grid_frame<I: StringIntern>(
         },
     );
     buf.begin();
+    // First-frame cells_1k cmdbuf is ~100 KiB; reserve avoids repeated reallocs
+    // during SetStyle/SetAttr encode (#30 WASM encode cut).
+    buf.reserve(128 * 1024);
     grid::paint_frame(buf, intern, sheet, viewport, &metrics);
     gridlines::paint(buf, intern, sheet, &metrics, viewport);
     cells::paint(

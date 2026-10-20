@@ -257,28 +257,53 @@ onto #290 (living CellStore); no CF API conflict.
 | **This PR on main+#290 / `368b311`** | 4.35 | 7.23 | **1.663 LOSS** | [1.495, 2.894] | Full xlsx matrix run |
 | 8× fresh-process probe (same SHA) | 4.35 | ~7.5–11.7 | sample ratios 1.49–2.59 | — | S is noisy; median-of-ratios ~2.26 |
 
-Still a **LOSS** by **~1.66×** (CI entirely above 1). Native paint ~halved; residual gap is
-**WASM encode / command-buffer + StringTable tax** on open+paint (~2.2 ms native → ~7 ms
-WASM in clean runs) while TS only pays parse (~4.4 ms).
+Still a **LOSS** after the CF paint cache (~1.66× on `368b311`). Residual gap was
+**WASM encode / command-buffer + StringTable tax** on open+paint.
 
-**Next lever (not this PR):** cut first-frame command-buffer / intern work in the WASM
-viewer path (or redefine the armed-gate metric to separate parse vs paint) — further
-CellView redesign is out of one-to-one port scope.
+#### Encode cut (this slice — gate metric unchanged)
+
+Same cold-open metric (`Handle.openDocument` = open_first_view + `process_frame`). No
+parse/paint split, no threshold/budget/fixture changes.
+
+| Change | Detail |
+|--------|--------|
+| `StringTable` | FNV-1a hash→id index (single owned copy per string); wasm-safe, no `RandomState` |
+| `CommandBuffer` | `reserve(128 KiB)` on xlsx paint frame; tighter `put_*` writes |
+| Cell paint | `PaintKeys` (prop ids once/frame); stacked geometry intern; text styles batched into one `style` attr (same pattern as geometry) |
+| `cmd_bytes` (`cells_1k`) | **106744 → 54354** (~49%) |
+
+Fair same-VM remeasure after rebase onto `main` (#302/#303 tip `8fc6a6f`):
+
+| | TS median (ms) | WASM median (ms) | WASM/TS | 95% CI | openDocument median (ms) |
+|--|---------------:|-----------------:|--------:|-------:|-------------------------:|
+| **Before** (`main` `8fc6a6f`) | 4.24 | 7.26 | **1.711 LOSS** | [1.188, 2.686] | 7.22 |
+| **After** (encode `402fb2e`) | 4.96 | 5.64 | **1.137 LOSS** | [1.050, 1.452] | 3.88 |
+
+| Peak memory (xlsx S / `cells_1k`) | Before | After |
+|----------------------------------|-------:|------:|
+| WASM linear peak | 3.25 MiB | 3.44 MiB |
+| JS heap peak | 4.20 MiB | 4.20 MiB |
+| Native `open_first_view` RSS HWM median | 5.68 MiB | 5.69 MiB |
+
+Still a **LOSS** (CI lower still ≥1.05). Absolute WASM cold-open median **7.26 → 5.64 ms**
+(~22%); openDocument-only median **7.22 → 3.88 ms**. Peak memory **flat** (encode
+shrinks cmdbuf bytes, not retained package residency). Gate metric unchanged.
 
 | Format | Tier | TS median (ms) | WASM median (ms) | WASM/TS | 95% CI | Verdict |
 |--------|------|---------------:|-----------------:|--------:|-------:|---------|
-| xlsx | S | 4.35 | 7.23 | **1.663** | [1.495, 2.894] | **LOSS** |
+| xlsx | S | 4.96 | 5.64 | **1.137** | [1.050, 1.452] | **LOSS** |
 | xlsx | M | 208.50 | 29.16 | 0.140 | [0.137, 0.155] | **WIN** |
 | xlsx | L | 2238.73 | 8.01 | 0.004 | [0.003, 0.004] | **WIN** |
 | xlsx | XL | 2173.12 | 11.34 | 0.005 | [0.005, 0.006] | **WIN** |
 
-xlsx rows from `368b311` after rebase on main+#290. docx/pptx unchanged in character from
-prior tip (still WIN); re-run full 12-cell matrix in the collector if a tip refresh is needed.
+xlsx S from encode tip on `main`+#302; M/L/XL retained from `368b311` CF rebase.
+docx/pptx unchanged in character (still WIN).
 
 **Wins / losses summary:** WASM wins **11 / 12** cells. The only loss remains **xlsx S**
-(WASM/TS ≈ **1.66**; still CI-above-1) — shown as prominently as the wins. Paint path is
-~2× faster natively after the CF cache; the cold-open gate metric still loses because TS
-does not paint. L/XL xlsx stay ~200–300× faster (viewport-first + deferred SeekTail).
+(WASM/TS ≈ **1.14**; CI still above 1) — shown as prominently as the wins. Encode cut
+halved first-frame cmdbuf bytes and cut absolute WASM open ~1.6 ms; residual loss is
+still paint+encode vs TS parse-only. L/XL xlsx stay ~200–300× faster
+(viewport-first + deferred SeekTail).
 
 **Honest scope notes:**
 

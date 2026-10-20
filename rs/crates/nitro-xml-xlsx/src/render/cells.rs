@@ -38,34 +38,158 @@ const EDITOR_BEFORE: u32 = 70_001;
 const EDITOR_CARET: u32 = 70_002;
 const EDITOR_AFTER: u32 = 70_003;
 
-fn set_style<I: StringIntern>(
-    buf: &mut CommandBuffer,
-    intern: &mut I,
-    id: u32,
-    prop: &str,
-    val: &str,
-) {
-    let p = intern.intern(prop);
-    let v = intern.intern(val);
-    buf.set_style(id, p, v);
+/// CSS / attr keys interned once per `paint()` frame (#30 encode cut).
+struct PaintKeys {
+    class: u32,
+    style: u32,
+    background_color: u32,
+    background_image: u32,
+    width: u32,
+    height: u32,
+    left: u32,
+    right: u32,
+    top: u32,
+    bottom: u32,
+    background: u32,
+    border: u32,
+    position: u32,
+    border_left: u32,
+    border_right: u32,
+    border_top: u32,
+    border_bottom: u32,
+    color: u32,
+    font: u32,
+    text_decoration: u32,
+    white_space: u32,
+    transform: u32,
+    vertical_align: u32,
+    z_index: u32,
+    data_stale: u32,
+    title: u32,
+    view_box: u32,
+    aria_hidden: u32,
+    svg: u32,
+    box_sizing: u32,
+    overflow: u32,
+    padding: u32,
+    display: u32,
 }
 
-fn set_attr<I: StringIntern>(
+impl PaintKeys {
+    fn new<I: StringIntern>(intern: &mut I) -> Self {
+        Self {
+            class: intern.intern("class"),
+            style: intern.intern("style"),
+            background_color: intern.intern("backgroundColor"),
+            background_image: intern.intern("backgroundImage"),
+            width: intern.intern("width"),
+            height: intern.intern("height"),
+            left: intern.intern("left"),
+            right: intern.intern("right"),
+            top: intern.intern("top"),
+            bottom: intern.intern("bottom"),
+            background: intern.intern("background"),
+            border: intern.intern("border"),
+            position: intern.intern("position"),
+            border_left: intern.intern("borderLeft"),
+            border_right: intern.intern("borderRight"),
+            border_top: intern.intern("borderTop"),
+            border_bottom: intern.intern("borderBottom"),
+            color: intern.intern("color"),
+            font: intern.intern("font"),
+            text_decoration: intern.intern("textDecoration"),
+            white_space: intern.intern("whiteSpace"),
+            transform: intern.intern("transform"),
+            vertical_align: intern.intern("verticalAlign"),
+            z_index: intern.intern("zIndex"),
+            data_stale: intern.intern("data-stale"),
+            title: intern.intern("title"),
+            view_box: intern.intern("viewBox"),
+            aria_hidden: intern.intern("aria-hidden"),
+            svg: intern.intern("svg"),
+            box_sizing: intern.intern("boxSizing"),
+            overflow: intern.intern("overflow"),
+            padding: intern.intern("padding"),
+            display: intern.intern("display"),
+        }
+    }
+}
+
+#[inline]
+fn set_style_v<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
     id: u32,
-    key: &str,
+    prop: u32,
     val: &str,
 ) {
-    let k = intern.intern(key);
-    let v = intern.intern(val);
-    buf.set_attr(id, k, v);
+    buf.set_style(id, prop, intern.intern(val));
+}
+
+#[inline]
+fn set_attr_v<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    id: u32,
+    key: u32,
+    val: &str,
+) {
+    buf.set_attr(id, key, intern.intern(val));
+}
+
+/// Format `left:Xpx;top:Ypx;width:Wpx;height:Hpx` into a stack buffer (no `format!`).
+fn intern_box_geometry<I: StringIntern>(
+    intern: &mut I,
+    left: f64,
+    top: f64,
+    w: f64,
+    h: f64,
+) -> u32 {
+    fn push_bytes(buf: &mut [u8], o: &mut usize, s: &[u8]) {
+        buf[*o..*o + s.len()].copy_from_slice(s);
+        *o += s.len();
+    }
+    fn push_i32(buf: &mut [u8], o: &mut usize, n: i32) {
+        let mut tmp = [0u8; 16];
+        let mut x = n.unsigned_abs();
+        let neg = n < 0;
+        let mut i = tmp.len();
+        if x == 0 {
+            i -= 1;
+            tmp[i] = b'0';
+        } else {
+            while x > 0 {
+                i -= 1;
+                tmp[i] = b'0' + (x % 10) as u8;
+                x /= 10;
+            }
+        }
+        if neg {
+            i -= 1;
+            tmp[i] = b'-';
+        }
+        push_bytes(buf, o, &tmp[i..]);
+    }
+    let mut buf = [0u8; 96];
+    let mut o = 0usize;
+    push_bytes(&mut buf, &mut o, b"left:");
+    push_i32(&mut buf, &mut o, left as i32);
+    push_bytes(&mut buf, &mut o, b"px;top:");
+    push_i32(&mut buf, &mut o, top as i32);
+    push_bytes(&mut buf, &mut o, b"px;width:");
+    push_i32(&mut buf, &mut o, w as i32);
+    push_bytes(&mut buf, &mut o, b"px;height:");
+    push_i32(&mut buf, &mut o, h as i32);
+    push_bytes(&mut buf, &mut o, b"px");
+    // SAFETY: only ASCII digits and fixed prefixes written above.
+    intern.intern(unsafe { std::str::from_utf8_unchecked(&buf[..o]) })
 }
 
 #[allow(clippy::too_many_arguments)]
 fn paint_one_cell<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    keys: &PaintKeys,
     div: u32,
     span: u32,
     n: usize,
@@ -90,36 +214,37 @@ fn paint_one_cell<I: StringIntern>(
         cell_class.push_str(" xg-merged");
     }
     mark_stale_class(&mut cell_class, stale);
-    set_attr(buf, intern, cell_id, "class", &cell_class);
+    set_attr_v(buf, intern, cell_id, keys.class, &cell_class);
     if stale {
-        set_attr(buf, intern, cell_id, "data-stale", "1");
+        set_attr_v(buf, intern, cell_id, keys.data_stale, "1");
     }
     // Geometry as one style attr (four SetStyle → one SetAttr) before fill/font styles.
-    set_attr(
-        buf,
-        intern,
+    buf.set_attr(
         cell_id,
-        "style",
-        &format!(
-            "left:{left}px;top:{top}px;width:{}px;height:{}px",
-            item.w, item.h
+        keys.style,
+        intern_box_geometry(
+            intern,
+            left as f64,
+            top as f64,
+            item.w as f64,
+            item.h as f64,
         ),
     );
 
     let fill = fill_paint(item.view.fill.as_ref());
     if let Some(ref fp) = fill {
         if let Some(bg) = &fp.background {
-            set_style(buf, intern, cell_id, "backgroundColor", bg);
+            set_style_v(buf, intern, cell_id, keys.background_color, bg);
         }
         if let Some(img) = &fp.image {
-            set_style(buf, intern, cell_id, "backgroundImage", img);
+            set_style_v(buf, intern, cell_id, keys.background_image, img);
         }
     } else if item.merged {
-        set_style(
+        set_style_v(
             buf,
             intern,
             cell_id,
-            "backgroundColor",
+            keys.background_color,
             "var(--xve-sheet-bg, #fff)",
         );
     }
@@ -127,25 +252,25 @@ fn paint_one_cell<I: StringIntern>(
     if let Some(bar) = &item.view.data_bar {
         let bar_id = DATA_BAR_BASE + n as u32;
         buf.create_element(bar_id, div, cell_id);
-        set_attr(buf, intern, bar_id, "class", "xg-db");
+        set_attr_v(buf, intern, bar_id, keys.class, "xg-db");
         let width = (bar.fraction.clamp(0.0, 1.0) * (item.w as f64 - 4.0)).max(0.0);
-        set_style(buf, intern, bar_id, "width", &format!("{}px", width));
+        set_style_v(buf, intern, bar_id, keys.width, &format!("{}px", width));
         let rtl = bar.direction.as_deref() == Some("rightToLeft");
         if let Some(start) = bar.start {
-            set_style(
+            set_style_v(
                 buf,
                 intern,
                 bar_id,
-                "left",
+                keys.left,
                 &format!("{}px", 2.0 + start * (item.w as f64 - 4.0)),
             );
-            set_style(buf, intern, bar_id, "right", "auto");
+            set_style_v(buf, intern, bar_id, keys.right, "auto");
         } else if rtl {
-            set_style(buf, intern, bar_id, "left", "auto");
-            set_style(buf, intern, bar_id, "right", "2px");
+            set_style_v(buf, intern, bar_id, keys.left, "auto");
+            set_style_v(buf, intern, bar_id, keys.right, "2px");
         } else {
-            set_style(buf, intern, bar_id, "left", "2px");
-            set_style(buf, intern, bar_id, "right", "auto");
+            set_style_v(buf, intern, bar_id, keys.left, "2px");
+            set_style_v(buf, intern, bar_id, keys.right, "auto");
         }
         let bg = if bar.gradient == Some(false) {
             bar.color.clone()
@@ -156,37 +281,37 @@ fn paint_one_cell<I: StringIntern>(
                 bar.color, bar.color
             )
         };
-        set_style(buf, intern, bar_id, "background", &bg);
+        set_style_v(buf, intern, bar_id, keys.background, &bg);
         if let Some(border) = &bar.border_color {
-            set_style(
+            set_style_v(
                 buf,
                 intern,
                 bar_id,
-                "border",
+                keys.border,
                 &format!("1px solid {border}"),
             );
         } else {
-            set_style(buf, intern, bar_id, "border", "none");
+            set_style_v(buf, intern, bar_id, keys.border, "none");
         }
         if let Some((frac, axis_color)) = &bar.axis {
             let axis_id = DATA_BAR_AXIS_BASE + n as u32;
             buf.create_element(axis_id, div, cell_id);
-            set_attr(buf, intern, axis_id, "class", "xg-db-axis");
-            set_style(buf, intern, axis_id, "position", "absolute");
-            set_style(buf, intern, axis_id, "top", "1px");
-            set_style(buf, intern, axis_id, "bottom", "1px");
-            set_style(
+            set_attr_v(buf, intern, axis_id, keys.class, "xg-db-axis");
+            set_style_v(buf, intern, axis_id, keys.position, "absolute");
+            set_style_v(buf, intern, axis_id, keys.top, "1px");
+            set_style_v(buf, intern, axis_id, keys.bottom, "1px");
+            set_style_v(
                 buf,
                 intern,
                 axis_id,
-                "left",
+                keys.left,
                 &format!("{}px", 2.0 + *frac * (item.w as f64 - 4.0)),
             );
-            set_style(
+            set_style_v(
                 buf,
                 intern,
                 axis_id,
-                "borderLeft",
+                keys.border_left,
                 &format!("1px dashed {axis_color}"),
             );
         }
@@ -197,13 +322,13 @@ fn paint_one_cell<I: StringIntern>(
         let size = (16.0 * (zoom / 100.0)).round().max(1.0) as u32;
         // SVG host (createElementNS via loader) + path body — keeps loader SetInnerMarkup
         // as fragment-only so the JS brotli budget stays ≤17 KB.
-        let svg = intern.intern("svg");
+        let svg = keys.svg;
         buf.create_element(icon_id, svg, cell_id);
-        set_attr(buf, intern, icon_id, "class", "xg-ic");
-        set_attr(buf, intern, icon_id, "width", &size.to_string());
-        set_attr(buf, intern, icon_id, "height", &size.to_string());
-        set_attr(buf, intern, icon_id, "viewBox", "0 0 16 16");
-        set_attr(buf, intern, icon_id, "aria-hidden", "true");
+        set_attr_v(buf, intern, icon_id, keys.class, "xg-ic");
+        set_attr_v(buf, intern, icon_id, keys.width, &size.to_string());
+        set_attr_v(buf, intern, icon_id, keys.height, &size.to_string());
+        set_attr_v(buf, intern, icon_id, keys.view_box, "0 0 16 16");
+        set_attr_v(buf, intern, icon_id, keys.aria_hidden, "true");
         buf.set_inner_markup(icon_id, intern.intern(&icon_body(&icon.set, icon.index)));
     }
 
@@ -220,91 +345,49 @@ fn paint_one_cell<I: StringIntern>(
         if item.overflowing {
             text_class.push_str(" xg-over");
         }
-        set_attr(buf, intern, text_id, "class", &text_class);
-        set_style(
-            buf,
-            intern,
-            text_id,
-            "left",
-            &format!("{}px", item.text_left),
-        );
-        set_style(
-            buf,
-            intern,
-            text_id,
-            "width",
-            &format!("{}px", item.text_width),
-        );
-        if item.view.icon.is_some() && item.view.h_align != "right" {
-            set_style(
-                buf,
-                intern,
-                text_id,
-                "paddingLeft",
-                &format!("{}px", 20.0 * (zoom / 100.0)),
-            );
-        }
-        set_style(
-            buf,
-            intern,
-            text_id,
-            "font",
-            &css_font(&item.view.font, zoom * item.font_scale),
-        );
-        set_style(buf, intern, text_id, "color", &item.view.font.color);
-        set_style(
-            buf,
-            intern,
-            text_id,
-            "textDecoration",
-            &text_decoration(&item.view.font),
-        );
-        set_style(
-            buf,
-            intern,
-            text_id,
-            "justifyContent",
-            justify(&item.view.h_align),
-        );
-        set_style(
-            buf,
-            intern,
-            text_id,
-            "alignItems",
-            align_items(&item.view.v_align),
-        );
-        set_style(
-            buf,
-            intern,
-            text_id,
-            "textAlign",
-            text_align(&item.view.h_align),
-        );
-        if !item.view.wrap {
-            set_style(buf, intern, text_id, "whiteSpace", "pre");
-        }
+        set_attr_v(buf, intern, text_id, keys.class, &text_class);
+        // One style attr (same encode pattern as cell geometry) — cuts ~10 SetStyle
+        // opcodes per text cell on the WASM cmdbuf path (#30).
         // Upstream cell-layer.ts: pad rounded; indent keeps fractional CSS px.
+        // Icon paddingLeft (upstream sets after indent) wins when icon + not right.
         let pad = ((2.0 * (zoom / 100.0)).round() as i32).max(1) as f64;
         let indent = pad + item.view.indent_px * (zoom / 100.0);
-        let (pl, pr) = if item.view.h_align == "left" || item.view.h_align == "distributed" {
+        let (mut pl, pr) = if item.view.h_align == "left" || item.view.h_align == "distributed" {
             (indent, pad)
         } else if item.view.h_align == "right" {
             (pad, indent)
         } else {
             (pad, pad)
         };
-        set_style(buf, intern, text_id, "paddingLeft", &format!("{pl}px"));
-        set_style(buf, intern, text_id, "paddingRight", &format!("{pr}px"));
+        if item.view.icon.is_some() && item.view.h_align != "right" {
+            pl = 20.0 * (zoom / 100.0);
+        }
+        let mut text_style = format!(
+            "left:{}px;width:{}px;font:{};color:{};text-decoration:{};justify-content:{};align-items:{};text-align:{};padding-left:{pl}px;padding-right:{pr}px",
+            item.text_left,
+            item.text_width,
+            css_font(&item.view.font, zoom * item.font_scale),
+            item.view.font.color,
+            text_decoration(&item.view.font),
+            justify(&item.view.h_align),
+            align_items(&item.view.v_align),
+            text_align(&item.view.h_align),
+        );
+        // Prior port only set whiteSpace when not wrapping (xg-wrap class handles wrap).
+        if !item.view.wrap {
+            text_style.push_str(";white-space:pre");
+        }
+        buf.set_attr(text_id, keys.style, intern.intern(&text_style));
         let span_id = TEXT_BASE + 50_000 + n as u32;
         // Upstream uses <span class="xg-tx"> (inline-block via CSS).
         buf.create_element(span_id, span, text_id);
-        set_attr(buf, intern, span_id, "class", "xg-tx");
+        set_attr_v(buf, intern, span_id, keys.class, "xg-tx");
         if item.view.rotation != 0.0 {
-            set_style(
+            set_style_v(
                 buf,
                 intern,
                 span_id,
-                "transform",
+                keys.transform,
                 &format!("rotate({}deg)", -item.view.rotation),
             );
         }
@@ -319,19 +402,19 @@ fn paint_one_cell<I: StringIntern>(
             for (ri, run) in runs.iter().enumerate() {
                 let run_id = TEXT_BASE + 70_000 + (n as u32) * 64 + ri as u32;
                 buf.create_element(run_id, span, span_id);
-                set_style(
+                set_style_v(
                     buf,
                     intern,
                     run_id,
-                    "font",
+                    keys.font,
                     &css_font(&run.font, zoom * item.font_scale),
                 );
-                set_style(buf, intern, run_id, "color", &run.font.color);
-                set_style(
+                set_style_v(buf, intern, run_id, keys.color, &run.font.color);
+                set_style_v(
                     buf,
                     intern,
                     run_id,
-                    "textDecoration",
+                    keys.text_decoration,
                     &text_decoration(&run.font),
                 );
                 if let Some(va) = run.font.vert_align.as_deref() {
@@ -340,7 +423,7 @@ fn paint_one_cell<I: StringIntern>(
                     } else {
                         "sub"
                     };
-                    set_style(buf, intern, run_id, "verticalAlign", css_va);
+                    set_style_v(buf, intern, run_id, keys.vertical_align, css_va);
                 }
                 let t = intern.intern(&run.text);
                 buf.set_text(run_id, t);
@@ -352,7 +435,7 @@ fn paint_one_cell<I: StringIntern>(
                 } else {
                     "sub"
                 };
-                set_style(buf, intern, span_id, "verticalAlign", css_va);
+                set_style_v(buf, intern, span_id, keys.vertical_align, css_va);
             }
             let text = intern.intern(&item.text);
             buf.set_text(span_id, text);
@@ -362,55 +445,55 @@ fn paint_one_cell<I: StringIntern>(
     if has_borders(&item.view.borders) {
         let border_id = BORDER_BASE + n as u32;
         buf.create_element(border_id, div, cell_id);
-        set_attr(buf, intern, border_id, "class", "xg-b");
-        set_style(
+        set_attr_v(buf, intern, border_id, keys.class, "xg-b");
+        set_style_v(
             buf,
             intern,
             border_id,
-            "width",
+            keys.width,
             &format!("{}px", item.w + 1),
         );
-        set_style(
+        set_style_v(
             buf,
             intern,
             border_id,
-            "height",
+            keys.height,
             &format!("{}px", item.h + 1),
         );
         let b = &item.view.borders;
         if b.top.is_some() {
-            set_style(
+            set_style_v(
                 buf,
                 intern,
                 border_id,
-                "borderTop",
+                keys.border_top,
                 &edge_css(b.top.as_ref()),
             );
         }
         if b.right.is_some() {
-            set_style(
+            set_style_v(
                 buf,
                 intern,
                 border_id,
-                "borderRight",
+                keys.border_right,
                 &edge_css(b.right.as_ref()),
             );
         }
         if b.bottom.is_some() {
-            set_style(
+            set_style_v(
                 buf,
                 intern,
                 border_id,
-                "borderBottom",
+                keys.border_bottom,
                 &edge_css(b.bottom.as_ref()),
             );
         }
         if b.left.is_some() {
-            set_style(
+            set_style_v(
                 buf,
                 intern,
                 border_id,
-                "borderLeft",
+                keys.border_left,
                 &edge_css(b.left.as_ref()),
             );
         }
@@ -423,28 +506,34 @@ fn paint_one_cell<I: StringIntern>(
     if item.view.has_comment {
         let cm_id = COMMENT_BASE + n as u32;
         buf.create_element(cm_id, div, cell_id);
-        set_attr(buf, intern, cm_id, "class", "xg-cm");
+        set_attr_v(buf, intern, cm_id, keys.class, "xg-cm");
     }
 
     if item.error_mark {
         let er_id = ERROR_BASE + n as u32;
         buf.create_element(er_id, div, cell_id);
-        set_attr(buf, intern, er_id, "class", "xg-er");
+        set_attr_v(buf, intern, er_id, keys.class, "xg-er");
     }
 
     if stale {
         let mark = STALE_BASE + n as u32;
         buf.create_element(mark, div, cell_id);
-        set_attr(buf, intern, mark, "class", "xg-stale-mark");
-        set_attr(buf, intern, mark, "title", "Stale formula");
-        set_style(buf, intern, mark, "position", "absolute");
-        set_style(buf, intern, mark, "left", "0");
-        set_style(buf, intern, mark, "bottom", "0");
-        set_style(buf, intern, mark, "width", "0");
-        set_style(buf, intern, mark, "height", "0");
-        set_style(buf, intern, mark, "borderRight", "8px solid transparent");
-        set_style(buf, intern, mark, "borderBottom", "8px solid #c45911");
-        set_style(buf, intern, mark, "zIndex", "3");
+        set_attr_v(buf, intern, mark, keys.class, "xg-stale-mark");
+        set_attr_v(buf, intern, mark, keys.title, "Stale formula");
+        set_style_v(buf, intern, mark, keys.position, "absolute");
+        set_style_v(buf, intern, mark, keys.left, "0");
+        set_style_v(buf, intern, mark, keys.bottom, "0");
+        set_style_v(buf, intern, mark, keys.width, "0");
+        set_style_v(buf, intern, mark, keys.height, "0");
+        set_style_v(
+            buf,
+            intern,
+            mark,
+            keys.border_right,
+            "8px solid transparent",
+        );
+        set_style_v(buf, intern, mark, keys.border_bottom, "8px solid #c45911");
+        set_style_v(buf, intern, mark, keys.z_index, "3");
     }
 }
 
@@ -461,11 +550,12 @@ pub fn paint<I: StringIntern>(
     viewport: &GridPaintViewport,
     hints: &EditorPaintHints,
 ) {
+    let keys = PaintKeys::new(intern);
     let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let vis = visible_cells_for_host(metrics, viewport, sizes.w, sizes.h);
     let (rows, cols) = paint_indices(&vis);
     if rows.is_empty() || cols.is_empty() {
-        paint_edit_overlay(buf, intern, metrics, hints);
+        paint_edit_overlay(buf, intern, &keys, metrics, hints);
         return;
     }
     let index = CellIndex::build(sheet);
@@ -517,6 +607,7 @@ pub fn paint<I: StringIntern>(
         paint_one_cell(
             buf,
             intern,
+            &keys,
             div,
             span,
             n,
@@ -527,12 +618,13 @@ pub fn paint<I: StringIntern>(
         );
         n += 1;
     }
-    paint_edit_overlay(buf, intern, metrics, hints);
+    paint_edit_overlay(buf, intern, &keys, metrics, hints);
 }
 
 fn paint_edit_overlay<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    keys: &PaintKeys,
     metrics: &crate::view::metrics::GridMetrics,
     hints: &EditorPaintHints,
 ) {
@@ -546,36 +638,42 @@ fn paint_edit_overlay<I: StringIntern>(
     let w = metrics.col_width(edit.col).max(8);
     let h = metrics.row_height(edit.row).max(8);
     buf.create_element(EDITOR_BOX, div, OVERLAY_ID);
-    set_attr(buf, intern, EDITOR_BOX, "class", "xg-edit");
-    set_style(buf, intern, EDITOR_BOX, "position", "absolute");
-    set_style(buf, intern, EDITOR_BOX, "left", &format!("{left}px"));
-    set_style(buf, intern, EDITOR_BOX, "top", &format!("{top}px"));
-    set_style(buf, intern, EDITOR_BOX, "width", &format!("{w}px"));
-    set_style(buf, intern, EDITOR_BOX, "height", &format!("{h}px"));
-    set_style(buf, intern, EDITOR_BOX, "background", "#fff");
-    set_style(buf, intern, EDITOR_BOX, "border", "2px solid #217346");
-    set_style(buf, intern, EDITOR_BOX, "boxSizing", "border-box");
-    set_style(buf, intern, EDITOR_BOX, "zIndex", "6");
-    set_style(buf, intern, EDITOR_BOX, "overflow", "hidden");
-    set_style(buf, intern, EDITOR_BOX, "whiteSpace", "pre");
-    set_style(
+    set_attr_v(buf, intern, EDITOR_BOX, keys.class, "xg-edit");
+    set_style_v(buf, intern, EDITOR_BOX, keys.position, "absolute");
+    set_style_v(buf, intern, EDITOR_BOX, keys.left, &format!("{left}px"));
+    set_style_v(buf, intern, EDITOR_BOX, keys.top, &format!("{top}px"));
+    set_style_v(buf, intern, EDITOR_BOX, keys.width, &format!("{w}px"));
+    set_style_v(buf, intern, EDITOR_BOX, keys.height, &format!("{h}px"));
+    set_style_v(buf, intern, EDITOR_BOX, keys.background, "#fff");
+    set_style_v(buf, intern, EDITOR_BOX, keys.border, "2px solid #217346");
+    set_style_v(buf, intern, EDITOR_BOX, keys.box_sizing, "border-box");
+    set_style_v(buf, intern, EDITOR_BOX, keys.z_index, "6");
+    set_style_v(buf, intern, EDITOR_BOX, keys.overflow, "hidden");
+    set_style_v(buf, intern, EDITOR_BOX, keys.white_space, "pre");
+    set_style_v(
         buf,
         intern,
         EDITOR_BOX,
-        "font",
+        keys.font,
         "13px Calibri,Carlito,sans-serif",
     );
-    set_style(buf, intern, EDITOR_BOX, "padding", "0 2px");
+    set_style_v(buf, intern, EDITOR_BOX, keys.padding, "0 2px");
     let (before, after) = split_caret(&edit.text, edit.caret);
     buf.create_element(EDITOR_BEFORE, span, EDITOR_BOX);
     buf.set_text(EDITOR_BEFORE, intern.intern(before));
     buf.create_element(EDITOR_CARET, span, EDITOR_BOX);
-    set_attr(buf, intern, EDITOR_CARET, "class", "xg-edit-caret");
-    set_style(buf, intern, EDITOR_CARET, "display", "inline-block");
-    set_style(buf, intern, EDITOR_CARET, "width", "1px");
-    set_style(buf, intern, EDITOR_CARET, "height", "1em");
-    set_style(buf, intern, EDITOR_CARET, "background", "#111");
-    set_style(buf, intern, EDITOR_CARET, "verticalAlign", "text-bottom");
+    set_attr_v(buf, intern, EDITOR_CARET, keys.class, "xg-edit-caret");
+    set_style_v(buf, intern, EDITOR_CARET, keys.display, "inline-block");
+    set_style_v(buf, intern, EDITOR_CARET, keys.width, "1px");
+    set_style_v(buf, intern, EDITOR_CARET, keys.height, "1em");
+    set_style_v(buf, intern, EDITOR_CARET, keys.background, "#111");
+    set_style_v(
+        buf,
+        intern,
+        EDITOR_CARET,
+        keys.vertical_align,
+        "text-bottom",
+    );
     buf.create_element(EDITOR_AFTER, span, EDITOR_BOX);
     buf.set_text(EDITOR_AFTER, intern.intern(after));
 }

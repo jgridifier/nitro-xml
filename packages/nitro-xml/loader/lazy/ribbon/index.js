@@ -68,7 +68,7 @@ export function mountOffice(o) {
     tabsSpec[name]
       .map(
         (g) =>
-          `<div class="rg" role="group" aria-label="${esc(g.g)}"><div class="rr">${g.big
+          `<div class="rg" role="group" aria-label="${esc(g.g)}"><button type="button" class="rgc" aria-haspopup="true" aria-expanded="false" aria-label="${esc(g.g)}"><span>${esc(g.g)}</span>${svg("chevDown")}</button><div class="rr">${g.big
             .map((x) => (x.r ? `<span class="rd" data-r="${x.r}" role="status"></span>` : btn(x, "lg")))
             .join("")}${g.rows.length ? `<div class="col2">${g.rows.map((r) => `<div class="r1">${r.map((x) => btn(x, "sm")).join("")}</div>`).join("")}</div>` : ""}</div><div class="gl" aria-hidden="true">${esc(g.g)}</div></div>`,
       )
@@ -216,6 +216,7 @@ ${
   root.addEventListener("click", (e) => {
     const t = e.target.closest("button");
     if (!t || !root.contains(t) || t.disabled) return;
+    if (t.classList.contains("rgc")) return group(t.parentElement, !t.parentElement.dataset.open);
     if (t.dataset.mode) return o.onMode(t.dataset.mode);
     if (t.dataset.q === "open") return pick.click();
     if (t.dataset.q === "theme") return setTheme(root.dataset.theme === "dark" ? "light" : "dark");
@@ -228,8 +229,8 @@ ${
       const it = byKey.get(t.dataset.k);
       if (it.m) return dropdown(dm.hidden || dm._for !== t, false, t, it);
       if (it.s) return paneToggle();
-      if (it.c) return void act("cmd", it.c);
-      return void act(it.x && t.getAttribute("aria-pressed") === "true" ? it.x : it.o, it.a);
+      if (it.c) return void (group(null), act("cmd", it.c));
+      return void (group(null), act(it.x && t.getAttribute("aria-pressed") === "true" ? it.x : it.o, it.a));
     }
     if (t.closest(".pane, .sheets")) return void act("sheet", t.dataset.g);
     if (t.dataset.z) {
@@ -284,6 +285,24 @@ ${
     dm.querySelector("button").focus();
   }
   document.addEventListener("pointerdown", (e) => dm && !dm.hidden && !e.composedPath().some((n) => n === dm || n === dm._for) && dropdown(false));
+  // Narrow frames (CSS container query) collapse each ribbon group to a chip; its buttons open as a popup.
+  function group(g, open) {
+    for (const x of $$(".rg[data-open]")) {
+      if (x === g && open) continue;
+      delete x.dataset.open;
+      x.querySelector(".rgc").setAttribute("aria-expanded", "false");
+      x.querySelector(".rr").style.cssText = "";
+    }
+    if (!g || !open) return;
+    const r = g.querySelector(".rgc").getBoundingClientRect();
+    const pop = g.querySelector(".rr");
+    g.dataset.open = "1";
+    g.querySelector(".rgc").setAttribute("aria-expanded", "true");
+    pop.style.cssText = `top:${r.bottom}px;left:${Math.max(4, Math.min(r.left, innerWidth - 4 - pop.offsetWidth))}px`;
+    const first = [...pop.querySelectorAll(".rb")].find((b) => !b.disabled && !b.hidden);
+    first && first.focus();
+  }
+  document.addEventListener("pointerdown", (e) => $(".rg[data-open]") && !e.composedPath().some((n) => n.classList?.contains("rg")) && group(null));
   function paneToggle() {
     const pane = $(".pane");
     if (!pane) return;
@@ -334,6 +353,11 @@ ${
       e.preventDefault();
       return t.click();
     }
+    if (e.key === "Escape" && $(".rg[data-open]")) {
+      const c = $(".rg[data-open] .rgc");
+      group(null);
+      return c.focus();
+    }
     if (e.key === "Escape" && menuEl && !menuEl.hidden) {
       menu(false);
       return $(".file").focus();
@@ -357,7 +381,7 @@ ${
       const l = $$(".sheets button");
       stepIn(l, l.indexOf(t), e.key === "ArrowRight" ? 1 : -1);
     } else if (t.closest(".rbn") && ["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) {
-      const l = $$(".rbn .rb").filter((b) => !b.hidden && !b.disabled);
+      const l = $$(".rbn .rb").filter((b) => !b.hidden && !b.disabled && b.offsetParent);
       const i = l.indexOf(t);
       if (i < 0) return;
       e.preventDefault();
@@ -369,13 +393,14 @@ ${
   });
   let cur = null;
   function rove() {
-    const l = $$(".rbn .rb").filter((b) => !b.hidden && !b.disabled);
+    const l = $$(".rbn .rb").filter((b) => !b.hidden && !b.disabled && b.offsetParent);
     if (!l.includes(cur)) cur = l[0];
     for (const b of $$(".rbn .rb")) b.tabIndex = b === cur ? 0 : -1;
   }
   root.addEventListener("focusin", (e) => e.target.classList?.contains("rb") && ((cur = e.target), rove()));
   root.addEventListener("pointerdown", (e) => e.target.closest(".rb, .dm button, .pane button, .sheets button") && e.preventDefault());
   const rv = new MutationObserver(rove);
+  typeof ResizeObserver !== "undefined" && new ResizeObserver(() => (group(null), rove())).observe(root);
   full && rv.observe($(".rbn-in"), { subtree: true, attributes: true, childList: true, attributeFilter: ["disabled", "hidden"] });
 
   // search box → the same find-open / find-query / find-next ops the Rust bar uses

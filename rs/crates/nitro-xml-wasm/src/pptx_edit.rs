@@ -5,12 +5,16 @@ use nitro_xml_pptx::editor::PptxEditor;
 use nitro_xml_pptx::save_pptx;
 use serde_json::Value;
 
-use crate::office_edit::{command_ribbon, OfficeEffect, RibbonItem};
+use crate::office_edit::{command_ribbon, edit_plain, is_text_key, OfficeEffect, RibbonItem};
 use crate::pptx::PptxState;
 
 const SHAPE_COMMANDS: &[&str] = &[
     "home.bold",
     "home.italic",
+    "home.underline",
+    "home.align-left",
+    "home.align-center",
+    "home.align-right",
     "home.duplicate",
     "home.delete",
     "home.bring-forward",
@@ -171,6 +175,52 @@ impl PptxState {
         Ok(())
     }
 
+    /// Printable keys and Backspace/Delete edit the selected shape's text.
+    pub fn type_key(
+        &mut self,
+        key: &str,
+        ctrl: bool,
+        meta: bool,
+        alt: bool,
+    ) -> Result<bool, String> {
+        if ctrl || meta || alt || !is_text_key(key) {
+            return Ok(false);
+        }
+        self.ensure_shape_target();
+        let (slide, id, text) = {
+            let edit = self
+                .edit
+                .as_ref()
+                .ok_or_else(|| "no edit session".to_string())?;
+            let slide = edit.selection.slide_index;
+            let id = edit
+                .selection
+                .primary_id()
+                .ok_or_else(|| "no shape to type into".to_string())?
+                .to_owned();
+            let text = edit
+                .session
+                .host
+                .slide(slide)
+                .ok()
+                .and_then(|s| s.elements.iter().find(|e| e.id == id))
+                .map(shape_plain)
+                .unwrap_or_default();
+            (slide, id, text)
+        };
+        let Some(next) = edit_plain(&text, text.len(), key) else {
+            return Ok(false);
+        };
+        let spec = serde_json::json!({
+            "command": "setShapeText",
+            "slideIndex": slide,
+            "elementId": id,
+            "text": next,
+        });
+        self.apply_raw_edit(&spec.to_string())?;
+        Ok(true)
+    }
+
     pub fn ribbon_html(&self) -> String {
         let Some(edit) = &self.edit else {
             return String::new();
@@ -203,7 +253,34 @@ impl PptxState {
                     label: "Italic",
                     enabled: true,
                 },
+                RibbonItem {
+                    id: "home.underline",
+                    label: "Underline",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.align-left",
+                    label: "Align Left",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.align-center",
+                    label: "Center",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.align-right",
+                    label: "Align Right",
+                    enabled: true,
+                },
             ],
         )
     }
+}
+
+fn shape_plain(el: &nitro_xml_pptx::edit::host::EditableElement) -> String {
+    if let Some(text) = el.text.as_deref() {
+        return text.to_owned();
+    }
+    el.text_segments.iter().map(|s| s.text.as_str()).collect()
 }

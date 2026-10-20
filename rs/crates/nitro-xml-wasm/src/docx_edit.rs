@@ -5,7 +5,7 @@ use nitro_xml_docx::{save_docx, DocxEditor};
 use serde_json::Value;
 
 use crate::docx::DocxState;
-use crate::office_edit::{command_ribbon, OfficeEffect, RibbonItem};
+use crate::office_edit::{command_ribbon, edit_plain, is_text_key, OfficeEffect, RibbonItem};
 
 impl DocxState {
     pub fn ensure_edit(&mut self, bytes: &[u8]) -> Result<(), String> {
@@ -62,6 +62,96 @@ impl DocxState {
         edit.dispatch_command(&command, &args)
             .map_err(|e| e.to_string())?;
         Ok(OfficeEffect::Applied)
+    }
+
+    /// Printable keys and Backspace/Delete edit the caret paragraph.
+    pub fn type_key(
+        &mut self,
+        key: &str,
+        ctrl: bool,
+        meta: bool,
+        alt: bool,
+    ) -> Result<bool, String> {
+        if ctrl || meta || alt || !is_text_key(key) {
+            return Ok(false);
+        }
+        let (block, text, offset, attrs) = {
+            let edit = self
+                .edit
+                .as_ref()
+                .ok_or_else(|| "no edit session".to_string())?;
+            let caret = edit.print.caret.block_index;
+            let blocks = &edit.session.host.blocks;
+            let block = if blocks
+                .get(caret)
+                .and_then(|b| b.get("type"))
+                .and_then(|t| t.as_str())
+                == Some("paragraph")
+            {
+                caret
+            } else {
+                blocks
+                    .iter()
+                    .position(|b| b.get("type").and_then(|t| t.as_str()) == Some("paragraph"))
+                    .ok_or_else(|| "no paragraph".to_string())?
+            };
+            let runs = blocks[block].get("runs").and_then(|r| r.as_array());
+            let text: String = runs
+                .map(|rs| {
+                    rs.iter()
+                        .map(|r| r.get("text").and_then(|t| t.as_str()).unwrap_or(""))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let offset = if block == caret {
+                edit.print.caret.offset
+            } else {
+                0
+            };
+            let mut attrs = runs
+                .and_then(|rs| rs.first())
+                .and_then(|r| r.as_object())
+                .cloned()
+                .unwrap_or_default();
+            attrs.remove("text");
+            (block, text, offset, attrs)
+        };
+        let Some(next) = edit_plain(&text, offset, key) else {
+            return Ok(false);
+        };
+        let mut spec = serde_json::json!({
+            "command": "setParagraphText",
+            "blockIndex": block,
+            "text": next,
+        });
+        if let Some(obj) = spec.as_object_mut() {
+            for (k, v) in attrs {
+                obj.entry(k).or_insert(v);
+            }
+        }
+        self.apply_raw_edit(&spec.to_string())?;
+        if let Some(edit) = self.edit.as_mut() {
+            edit.print.caret.block_index = block;
+            edit.print.caret.offset = match key {
+                "Backspace" => {
+                    let mut end = offset.min(text.len());
+                    while end > 0 && !text.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    let mut prev = end;
+                    if prev > 0 {
+                        prev -= 1;
+                        while prev > 0 && !text.is_char_boundary(prev) {
+                            prev -= 1;
+                        }
+                    }
+                    prev
+                }
+                "Delete" => offset.min(next.len()),
+                _ => offset.min(text.len()) + key.len(),
+            };
+        }
+        Ok(true)
     }
 
     /// Re-layout the painted document from the bytes a save would produce.
@@ -125,6 +215,21 @@ impl DocxState {
                     label: "Underline",
                     enabled: true,
                 },
+                RibbonItem {
+                    id: "home.align-left",
+                    label: "Align Left",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.align-center",
+                    label: "Center",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.align-right",
+                    label: "Align Right",
+                    enabled: true,
+                },
             ],
         )
     }
@@ -137,6 +242,9 @@ fn canonical_command(id: &str) -> &str {
         "home.bold" => "bold",
         "home.italic" => "italic",
         "home.underline" => "underline",
+        "home.align-left" => "align-left",
+        "home.align-center" => "align-center",
+        "home.align-right" => "align-right",
         other => other,
     }
 }

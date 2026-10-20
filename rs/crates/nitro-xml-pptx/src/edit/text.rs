@@ -478,21 +478,28 @@ pub fn set_run_style(
     let seg_index = *para
         .get(run_index as usize)
         .ok_or_else(|| format!("setShapeRunStyle run {run_index} missing"))?;
-    let seg = &mut el.text_segments[seg_index];
-    if let Some(bold) = patch.bold {
-        seg.bold = bold;
-    }
-    if let Some(italic) = patch.italic {
-        seg.italic = italic;
+    {
+        let seg = &mut el.text_segments[seg_index];
+        if let Some(bold) = patch.bold {
+            seg.bold = bold;
+        }
+        if let Some(italic) = patch.italic {
+            seg.italic = italic;
+        }
+        if let Some(underline) = patch.underline {
+            seg.underline = underline;
+        }
+        if let Some(font_size) = patch.font_size {
+            seg.font_size = Some(font_size);
+        }
+        if let Some(color) = patch.color {
+            seg.color = Some(color.to_owned());
+        }
     }
     if let Some(underline) = patch.underline {
-        seg.underline = underline;
-    }
-    if let Some(font_size) = patch.font_size {
-        seg.font_size = Some(font_size);
-    }
-    if let Some(color) = patch.color {
-        seg.color = Some(color.to_owned());
+        el.text_style
+            .get_or_insert_with(TextStyleSnap::default)
+            .underline = Some(underline);
     }
     // `reconcileDecorationFlags`: the body flag is true only when every content run is on.
     if let Some(bold) = patch.bold {
@@ -702,9 +709,12 @@ impl PptxHost {
         run_index: u32,
         patch: &RunStylePatch<'_>,
     ) -> Result<(), String> {
-        let slide = self.slide_mut(slide_index)?;
-        let idx = Self::resolve_index(slide, element_id, element_index)?;
-        set_run_style(&mut slide.elements[idx], paragraph_index, run_index, patch)
+        {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            set_run_style(&mut slide.elements[idx], paragraph_index, run_index, patch)?;
+        }
+        self.touch(slide_index)
     }
 
     pub fn set_paragraph_align(
@@ -715,9 +725,12 @@ impl PptxHost {
         paragraph_index: u32,
         align: &str,
     ) -> Result<(), String> {
-        let slide = self.slide_mut(slide_index)?;
-        let idx = Self::resolve_index(slide, element_id, element_index)?;
-        set_paragraph_align(&mut slide.elements[idx], paragraph_index, align)
+        {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            set_paragraph_align(&mut slide.elements[idx], paragraph_index, align)?;
+        }
+        self.touch(slide_index)
     }
 
     pub fn set_bullets(
@@ -729,9 +742,12 @@ impl PptxHost {
         start: Option<u32>,
         end: Option<u32>,
     ) -> Result<(), String> {
-        let slide = self.slide_mut(slide_index)?;
-        let idx = Self::resolve_index(slide, element_id, element_index)?;
-        set_element_bullets(&mut slide.elements[idx], kind, start, end)
+        {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            set_element_bullets(&mut slide.elements[idx], kind, start, end)?;
+        }
+        self.touch(slide_index)
     }
 
     pub fn set_autofit(
@@ -741,8 +757,11 @@ impl PptxHost {
         element_index: Option<u32>,
         mode: &str,
     ) -> Result<(), String> {
-        let slide = self.slide_mut(slide_index)?;
-        let idx = Self::resolve_index(slide, element_id, element_index)?;
-        set_autofit(&mut slide.elements[idx], mode)
+        {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            set_autofit(&mut slide.elements[idx], mode)?;
+        }
+        self.touch(slide_index)
     }
 }

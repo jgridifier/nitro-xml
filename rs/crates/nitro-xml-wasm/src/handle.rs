@@ -1231,6 +1231,9 @@ impl Handle {
         if self.editor.read_only() {
             return Ok(editor_key_json(EditorKeyEffect::Ignored, None));
         }
+        if self.xlsx.is_none() {
+            return self.editor_key_office(key, ctrl, meta, alt);
+        }
         let xlsx = self
             .xlsx
             .as_mut()
@@ -1344,6 +1347,49 @@ impl Handle {
             "no_document",
             "not opened",
         )))
+    }
+
+    fn editor_key_office(
+        &mut self,
+        key: &str,
+        ctrl: bool,
+        meta: bool,
+        alt: bool,
+    ) -> Result<String, JsValue> {
+        let handled = if let Some(pptx) = self.pptx.as_mut() {
+            pptx.ensure_edit(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            pptx.type_key(key, ctrl, meta, alt)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?
+        } else if let Some(docx) = self.docx.as_mut() {
+            docx.ensure_edit(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            docx.type_key(key, ctrl, meta, alt)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?
+        } else {
+            return Err(JsValue::from(OoxmlError::with_code(
+                "no_document",
+                "not opened",
+            )));
+        };
+        if !handled {
+            return Ok(editor_key_json(EditorKeyEffect::Ignored, None));
+        }
+        self.refresh_office_view()?;
+        self.sync_office_tabs();
+        process_frame(self);
+        self.refresh_formula_bar();
+        self.shell.dirty_ui = true;
+        let mut payload: serde_json::Value =
+            serde_json::from_str(&editor_key_json(EditorKeyEffect::Handled, None))
+                .unwrap_or(serde_json::json!({}));
+        let ui = ShellUi::to_json(&self.shell, &self.editor);
+        if let Some(obj) = payload.as_object_mut() {
+            if let Some(h) = ui.get("chromeHtml").and_then(|v| v.as_str()) {
+                obj.insert("h".into(), serde_json::Value::String(h.to_owned()));
+            }
+        }
+        Ok(payload.to_string())
     }
 
     fn apply_office_edit(&mut self, spec: &str) -> Result<String, JsValue> {

@@ -52,10 +52,11 @@ throw e;
 }
 }
 if (msg.readonly === false) {
-handle.loadEditorChrome();
 handle.setReadOnly(false);
+self._pendingEditorChrome = 1;
 } else {
 handle.setReadOnly(true);
+self._pendingEditorChrome = 0;
 }
 self.postMessage({
 type: "opened",
@@ -137,6 +138,16 @@ t: handle.t !== false,
 },
 transfer,
 );
+if (self._pendingEditorChrome) {
+self._pendingEditorChrome = 0;
+const h = handle;
+setTimeout(() => {
+try {
+h.loadEditorChrome();
+} catch {
+}
+}, 0);
+}
 break;
 }
 case "measure-results": {
@@ -178,11 +189,16 @@ msg.code || "",
 break;
 case "editor-chrome":
 if (!handle) throw new Error("no document");
+self._pendingEditorChrome = 0;
 handle.loadEditorChrome();
 self.postMessage({ type: "editor-chrome", ok: true });
 break;
 case "editor-key":
 if (!handle) throw new Error("no document");
+if (self._pendingEditorChrome) {
+self._pendingEditorChrome = 0;
+handle.loadEditorChrome();
+}
 self.postMessage({type:"editor-key",result:handle.editorKey(msg.key||"",!!msg.ctrl,!!msg.meta,!!msg.alt,!!msg.shift,!!msg.mac)});
 break;
 case "save":{
@@ -193,6 +209,10 @@ break;
 }
 case "apply-edit":
 if (!handle) throw new Error("no document");
+if (self._pendingEditorChrome) {
+self._pendingEditorChrome = 0;
+handle.loadEditorChrome();
+}
 self.postMessage({type:"apply-edit",result:handle.applyEdit(msg.spec||"")});
 break;
 case "dispose": {

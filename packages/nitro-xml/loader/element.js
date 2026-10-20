@@ -74,8 +74,8 @@ export class ViewerElement extends HTMLElement {
     try { await d.open(b, n, { readonly: ro }); }
     catch (e) { this._fail(e); throw e; }
     this._d = d;
-    await this._ao();
     this._tick();
+    await this._ao();
   }
   _ok(n) {
     return !n || ok(n);

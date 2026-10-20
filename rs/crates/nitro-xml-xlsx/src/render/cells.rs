@@ -20,7 +20,6 @@ use crate::view::cell_paint::{
     align_items, diagonal_svg, edge_css, fill_paint, has_borders, justify, text_align,
     text_decoration, FontCssMemo,
 };
-use crate::view::cell_view::is_blank_view;
 use crate::view::text_measure::CanvasTextMeasure;
 use crate::view::types::CellItem;
 
@@ -620,7 +619,8 @@ pub fn paint<I: StringIntern>(
     let mut font_memo = FontCssMemo::new();
     for item in &items {
         let is_stale = stale.contains(&(item.row, item.col));
-        if !item.merged && is_blank_view(&item.view) && !is_stale {
+        // Use item.text (live paint takes view.text into item.text); is_blank_view alone drops text-only cells.
+        if !item.merged && item.is_blank() && !is_stale {
             continue;
         }
         // Frozen rows live in `xg-q-top`; scrolling rows in `xg-q-main` (grid-view.ts).

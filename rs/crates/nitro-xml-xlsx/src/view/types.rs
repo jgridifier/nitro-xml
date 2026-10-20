@@ -281,6 +281,20 @@ pub struct CellItem {
 }
 
 impl CellItem {
+    /// Blank for live paint skip — use `item.text`, not `view.text`.
+    ///
+    /// Live paint moves display text into `item.text` (`mem::take` on `view.text`);
+    /// `is_blank_view` alone would drop every text-only cell after that move.
+    pub fn is_blank(&self) -> bool {
+        self.text.is_empty()
+            && self.view.fill.is_none()
+            && !self.view.borders.has_borders()
+            && self.view.data_bar.is_none()
+            && self.view.icon.is_none()
+            && !self.view.has_comment
+            && self.view.sparkline.is_none()
+    }
+
     pub fn to_json(&self) -> Value {
         json!({
             "key": self.key,
@@ -299,5 +313,77 @@ impl CellItem {
             "merged": self.merged,
             "errorMark": self.error_mark,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_text_view() -> CellView {
+        CellView {
+            text: String::new(),
+            title: None,
+            font: Rc::new(FontView {
+                family: "Calibri".into(),
+                size_px: 11.0,
+                bold: false,
+                italic: false,
+                underline: None,
+                strike: false,
+                color: "#000".into(),
+                vert_align: None,
+            }),
+            fill: None,
+            borders: BordersView::default(),
+            h_align: "general".into(),
+            v_align: "bottom".into(),
+            wrap: false,
+            shrink: false,
+            indent_px: 0.0,
+            rotation: 0.0,
+            vertical_text: false,
+            is_number: true,
+            overflow: false,
+            data_bar: None,
+            icon: None,
+            has_comment: false,
+            has_hyperlink: false,
+            validation_list: false,
+            is_error: false,
+            rich: None,
+            sparkline: None,
+        }
+    }
+
+    #[test]
+    fn blank_item_uses_item_text_not_emptied_view_text() {
+        // Catches: live paint skip_blank after mem::take(view.text) dropped text-only cells.
+        let item = CellItem {
+            key: String::new(),
+            row: 0,
+            col: 0,
+            x: 0,
+            y: 0,
+            w: 64,
+            h: 20,
+            view: empty_text_view(),
+            text: "42".into(),
+            text_custom: false,
+            text_left: 0,
+            text_width: 20,
+            overflowing: false,
+            font_scale: 1.0,
+            merged: false,
+            error_mark: false,
+        };
+        assert!(
+            !item.is_blank(),
+            "text-only cell must paint after view.text was taken into item.text"
+        );
+        assert!(
+            crate::view::cell_view::is_blank_view(&item.view),
+            "precondition: emptied view.text looks blank to is_blank_view"
+        );
     }
 }

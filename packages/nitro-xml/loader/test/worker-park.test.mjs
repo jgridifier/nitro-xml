@@ -82,6 +82,7 @@ describe("worker park / edit coalesce", () => {
     assert.match(rb, /ab/);
   });
 
+<<<<<<< HEAD
   it("keeps the docx page painted and advances the caret after typing", async () => {
     // Catches: a Word keystroke painting the pre-measure frame and skipping the next tick, so the page stays blank and the caret never moves.
     const prevDocument = globalThis.document;
@@ -139,5 +140,33 @@ describe("worker park / edit coalesce", () => {
     } finally {
       globalThis.document = prevDocument;
     }
+=======
+  it("uses mut-frame for spreadsheet applyEdit when a worker is present", async () => {
+    // Catches: xlsx staying on apply+tick (two RTs) after sync/history were fixed —
+    // mut-frame must run for spreadsheets too (#341 left them on the slow path).
+    let mutOps = 0;
+    class FakeDoc {
+      applyEdit() {
+        return Promise.resolve("direct");
+      }
+    }
+    patch(FakeDoc);
+    const d = new FakeDoc();
+    d._worker = { postMessage() {} };
+    d._request = async (type, send) => {
+      if (type === "mut-frame") {
+        mutOps++;
+        send();
+        // No `commands` → skip paintFrame import in wp.js.
+        return { type: "mut-frame", result: '{"h":""}' };
+      }
+      return {};
+    };
+    const out = await d.applyEdit(
+      '{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"z"}',
+    );
+    assert.equal(mutOps, 1);
+    assert.equal(out, '{"h":""}');
+>>>>>>> f63cea0 (Part of #30: xlsx applyEdit mut-frame + defer paint to tick)
   });
 });

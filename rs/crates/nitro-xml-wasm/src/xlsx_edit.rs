@@ -534,4 +534,35 @@ mod tests {
             other => panic!("expected string at A1, got {other:?}"),
         }
     }
+
+    #[test]
+    fn catches_xlsx_apply_edit_painting_before_host_tick() {
+        // Catches: applyEdit calling process_frame so every cell edit paints
+        // twice (once in apply, again on the host tick's prepareFrame) — the
+        // dominant edit→screen cost after sync/history were fixed (#344/#345).
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_1k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_1k");
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_1k.xlsx").expect("open");
+        h.load_editor_chrome();
+        h.set_read_only(false);
+        let _ = h.take_frame_commands();
+
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"defer-paint"}"#)
+            .expect("edit");
+        let mid = h.take_frame_commands();
+        assert!(
+            mid.is_empty(),
+            "applyEdit must defer paint to prepareFrame; got {} cmd bytes",
+            mid.len()
+        );
+
+        h.prepare_frame();
+        let painted = h.take_frame_commands();
+        assert!(
+            !painted.is_empty(),
+            "prepareFrame after applyEdit should emit paint commands"
+        );
+    }
 }

@@ -1217,7 +1217,8 @@ impl Handle {
             ) {
                 self.refresh_xlsx_tabs();
             }
-            process_frame(self);
+            // Defer paint to the host tick's prepareFrame. applyEdit+tick used to
+            // process_frame twice per cell edit (edit-to-screen lag on React embeds).
             self.refresh_formula_bar();
             return Ok(self.chrome_payload(false));
         }
@@ -1255,7 +1256,7 @@ impl Handle {
             if let Some(sel) = self.xlsx.as_ref().and_then(|x| x.selection_ref_now()) {
                 self.shell.selection_ref = sel;
             }
-            process_frame(self);
+            // Same as applyEdit: paint on the next prepareFrame/tick, not here.
             self.refresh_formula_bar();
             self.shell.dirty_ui = true;
         }
@@ -1508,7 +1509,8 @@ impl Handle {
             }
         }
         let save = op == "save";
-        if !save {
+        // Xlsx formula-bar ops: model/chrome only; paint on the next tick.
+        if !save && self.xlsx.is_none() {
             process_frame(self);
         }
         Ok(self.chrome_payload(save))
@@ -1565,7 +1567,9 @@ impl Handle {
             self.refresh_office_view()?;
             self.sync_office_tabs();
         }
-        if !save {
+        // Xlsx: defer paint to tick (avoids double process_frame with prepareFrame).
+        // Docx/pptx still paint here — mut-frame (#341) folds apply+paint into one RT.
+        if !save && self.xlsx.is_none() {
             process_frame(self);
         }
         Ok(self.chrome_payload(save))

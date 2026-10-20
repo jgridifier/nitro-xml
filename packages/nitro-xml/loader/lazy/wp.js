@@ -3,8 +3,10 @@
  * applyEdit coalesce (microtask) + mut-frame edit+paint (one worker RT).
  * Installed from worker-host-tick on first tick (lazy — off eager brotli budget).
  *
- * mut-frame is docx/pptx only: on xlsx it forced a full frame build per edit and
- * regressed cell/bold latency and heap (see #341). Xlsx keeps coalesce + separate tick.
+ * applyEdit mut-frame is on for every format (incl. xlsx): Rust defers paint in
+ * applyEdit, mut-frame's prepareFrame paints once, tick skips via `_nxPainted`.
+ * shellAction / editorKey stay docx/pptx-only — xlsx bold on cells_1m still
+ * regresses under mut-frame (#341 / re-check after #344/#345).
  */
 
 import { extensionOf } from "../formats.js";
@@ -49,12 +51,8 @@ export function patch(WorkerDocument) {
         }
       }
       try {
-        // Spreadsheet: coalesce only — frame stays on the next tick (no xlsx regress).
-        if (
-          !isSpreadsheet(doc) &&
-          doc._worker &&
-          typeof doc._request === "function"
-        ) {
+        // All formats: coalesce + mut-frame on the last edit (xlsx paint deferred in Rust).
+        if (doc._worker && typeof doc._request === "function") {
           const result = await mutFrame(doc, { op: "a", spec: last.spec });
           const frame = doc._xf;
           doc._xf = null;

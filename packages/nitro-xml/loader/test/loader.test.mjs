@@ -154,6 +154,21 @@ describe("command buffer applier", () => {
     assert.equal(el.style.width, "33px");
     assert.equal(el.style.height, "44px");
   });
+
+  it("PlaceBox with h<0 sets only left/width (text layer)", () => {
+    // Catches: text-layer PlaceBox sentinel wiping CSS top/bottom stretch (#30).
+    const el = { style: { top: "0px", bottom: "0px" } };
+    const nodes = new Map([[9, el]]);
+    const bytes = encodePlaceBox(9, 15, 0, 120, -1);
+    const { ops, error } = applyCommandBuffer(bytes, { nodes, resolve: () => "" });
+    assert.equal(error, undefined);
+    assert.equal(ops, 1);
+    assert.equal(el.style.left, "15px");
+    assert.equal(el.style.width, "120px");
+    assert.equal(el.style.top, "0px");
+    assert.equal(el.style.bottom, "0px");
+    assert.equal(el.style.height, undefined);
+  });
 });
 
 describe("event batch encoder", () => {

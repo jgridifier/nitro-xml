@@ -36,11 +36,19 @@ impl TextMeasure for FakeTextMeasure {
 pub struct CanvasTextMeasure<'a, I: StringIntern> {
     intern: &'a mut I,
     batch: &'a mut MeasureBatch,
+    /// Last font CSS + id — cells share Calibri/11px; skip StringTable re-hash (#30).
+    last_font: String,
+    last_font_id: u32,
 }
 
 impl<'a, I: StringIntern> CanvasTextMeasure<'a, I> {
     pub fn new(intern: &'a mut I, batch: &'a mut MeasureBatch) -> Self {
-        Self { intern, batch }
+        Self {
+            intern,
+            batch,
+            last_font: String::new(),
+            last_font_id: 0,
+        }
     }
 }
 
@@ -49,7 +57,15 @@ impl<I: StringIntern> TextMeasure for CanvasTextMeasure<'_, I> {
         if text.is_empty() {
             return 0.0;
         }
-        let font_id = self.intern.intern(font);
+        let font_id = if font == self.last_font {
+            self.last_font_id
+        } else {
+            let id = self.intern.intern(font);
+            self.last_font.clear();
+            self.last_font.push_str(font);
+            self.last_font_id = id;
+            id
+        };
         let text_id = self.intern.intern(text);
         if let Some(w) = self.batch.cached_width(font_id, text_id) {
             return w;

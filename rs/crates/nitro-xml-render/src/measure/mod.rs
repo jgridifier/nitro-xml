@@ -7,7 +7,36 @@
 //! batch on the next frame (`packages/nitro-xml/loader/layout-readback.js`).
 //! Never one wasm call per string or per element.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::hash::{BuildHasherDefault, Hasher};
+
+/// FNV-1a — fixed, no entropy; paint measure cache keys are `(font_id, text_id)`
+/// pairs and SipHash showed up on the xlsx S first-paint profile (#30 / hotpaths).
+#[derive(Clone)]
+struct FnvHasher(u64);
+
+impl Default for FnvHasher {
+    fn default() -> Self {
+        Self(0xcbf29ce484222325)
+    }
+}
+
+impl Hasher for FnvHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        const FNV_PRIME: u64 = 0x100000001b3;
+        for &b in bytes {
+            self.0 ^= u64::from(b);
+            self.0 = self.0.wrapping_mul(FNV_PRIME);
+        }
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+type FnvMap<K, V> = HashMap<K, V, BuildHasherDefault<FnvHasher>>;
+type FnvSet<K> = HashSet<K, BuildHasherDefault<FnvHasher>>;
 
 /// Batched text-measurement requests (fonts/measurement follow upstream).
 ///
@@ -22,9 +51,9 @@ pub struct MeasureBatch {
     pub text_id: Vec<u32>,
     pub widths: Vec<f64>,
     /// Last resolved widths keyed by `(font_id, text_id)` for the next paint pass.
-    pub cache: HashMap<(u32, u32), f64>,
+    cache: FnvMap<(u32, u32), f64>,
     /// Keys already queued in this frame (dedupe before the host round-trip).
-    pending: std::collections::HashSet<(u32, u32)>,
+    pending: FnvSet<(u32, u32)>,
     /// Requests taken and awaiting a reply (0 when idle).
     awaiting: usize,
     /// Font/text ids for the in-flight take (cache keys on [`Self::set_results`]).

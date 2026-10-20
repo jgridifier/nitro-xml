@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/ui/grid/cell-items.ts; changes listed in PROVENANCE.md.
 
+use std::collections::HashSet;
+
 use crate::cf::CfPaintCache;
 use crate::model::{ActiveWorksheet, CellRange, WorkbookSlice};
 use crate::sheet_access::CellIndex;
 use crate::view::cell_paint::{css_font, hashes, repeat_to_fill};
-use crate::view::cell_view::{cell_view_with_cf_cache, CellViewOptions};
+use crate::view::cell_view::{
+    cell_view_with_cf_cache, is_blank_view, CellViewOptions, StylePaintCache,
+};
 use crate::view::metrics::GridMetrics;
 use crate::view::number_fit::fit_number;
 use crate::view::sheet_queries::overflow_extent;
@@ -14,10 +18,18 @@ use crate::view::types::{CellItem, CellView};
 
 const PADDING: i32 = 2;
 
-fn cell_opts<'a>(input: &'a BuildInput<'a>) -> CellViewOptions<'a> {
+fn cell_opts<'a>(
+    input: &'a BuildInput<'a>,
+    not_in_merge: bool,
+    comment_at: Option<&'a dyn Fn(u32, u32) -> bool>,
+    style_cache: Option<&'a mut StylePaintCache>,
+) -> CellViewOptions<'a> {
     CellViewOptions {
         sheet_index: Some(input.sheet_index),
         all_sheets: Some(input.all_sheets),
+        not_in_merge,
+        comment_at,
+        style_cache,
         ..CellViewOptions::default()
     }
 }
@@ -36,6 +48,9 @@ pub struct BuildInput<'a> {
     /// Live grid only (upstream `grid-view.ts`); view-IR dumps omit this so FakeTextMeasure
     /// stays differential-clean against the TS oracle dump path.
     pub enable_number_fit: bool,
+    /// Live painter only: drop blank views before `make_item` (upstream CellViewCache
+    /// returns null). View-IR dumps keep blanks for the oracle (#30).
+    pub skip_blank_items: bool,
 }
 
 fn text_width_of(
@@ -187,7 +202,31 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
     };
     // One CF range-scan cache for the whole frame (color-scale / data-bar / …).
     let mut cf_cache = CfPaintCache::default();
-    let mut out = Vec::new();
+    // Style→font/fill/borders once per style_id (cells_1k shares style 0; #30).
+    let mut style_cache = StylePaintCache::default();
+    let comment_set: Option<HashSet<(u32, u32)>> = if input.sheet.comment_addresses.is_empty() {
+        None
+    } else {
+        Some(
+            input
+                .sheet
+                .comment_addresses
+                .iter()
+                .map(|a| (a.row, a.col))
+                .collect(),
+        )
+    };
+    let comment_lookup = |r: u32, c: u32| -> bool {
+        comment_set
+            .as_ref()
+            .is_some_and(|set| set.contains(&(r, c)))
+    };
+    let comment_at: Option<&dyn Fn(u32, u32) -> bool> = if comment_set.is_some() {
+        Some(&comment_lookup)
+    } else {
+        None
+    };
+    let mut out = Vec::with_capacity(rows.len() * cols.len() + merges.len());
     for merge in &merges {
         let view = cell_view_with_cf_cache(
             input.workbook,
@@ -195,7 +234,7 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
             input.index,
             merge.start.row,
             merge.start.col,
-            cell_opts(input),
+            cell_opts(input, false, comment_at, Some(&mut style_cache)),
             Some(&mut cf_cache),
         );
         out.push(make_item(
@@ -220,9 +259,17 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
                 input.index,
                 row,
                 col,
-                cell_opts(input),
+                // Covered cells skipped above — skip merges.iter().any per cell (#30).
+                cell_opts(input, true, comment_at, Some(&mut style_cache)),
                 Some(&mut cf_cache),
             );
+            // Keep formula blanks — paint marks them `xg-stale` after edits (#30).
+            if input.skip_blank_items
+                && is_blank_view(&view)
+                && !(input.has_formula)(row, col)
+            {
+                continue;
+            }
             out.push(make_item(input, measure, row, col, view, None));
         }
         if let Some(stored) = input.index.row_cols(row) {
@@ -252,7 +299,7 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
                     input.index,
                     row,
                     col,
-                    cell_opts(input),
+                    cell_opts(input, false, comment_at, Some(&mut style_cache)),
                     Some(&mut cf_cache),
                 );
                 if !view.overflow {

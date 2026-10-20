@@ -190,9 +190,8 @@ const el = nodes.get(id);
 if (el) {
 const s = el.style;
 s.left = x + "px";
-s.top = y + "px";
 s.width = w + "px";
-s.height = h + "px";
+if (h >= 0) { s.top = y + "px"; s.height = h + "px"; }
 }
 ops++;
 break;

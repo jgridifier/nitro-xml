@@ -9,6 +9,7 @@ mod grid;
 mod gridlines;
 mod headers;
 mod navigate;
+mod paint_encode;
 mod selection;
 mod selection_ops;
 mod viewport;

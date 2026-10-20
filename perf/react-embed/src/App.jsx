@@ -178,15 +178,23 @@ function ScenarioRunner({ cfg }) {
 
         if (scenario.startsWith("edit-")) {
           const el = await waitEl();
-          await openInElement(el, fmt, "S");
-          const n = smoke ? 3 : samples;
+          const editTier = tier || "S";
+          await openInElement(el, fmt, editTier);
+          const n = smoke ? 3 : samples || 50;
           let kind = "cell";
           if (scenario === "edit-docx-text") kind = "docx";
           if (scenario === "edit-pptx-text") kind = "pptx";
           if (scenario === "edit-bold") kind = "bold";
           if (scenario === "edit-cell") kind = "cell";
           const edit = await runEdits(el, kind, n);
-          finish({ scenario, format: fmt, init_core_ms: init_ms, edit });
+          finish({
+            scenario,
+            format: fmt,
+            tier: editTier,
+            init_core_ms: init_ms,
+            edit,
+            heap_after: performance.memory ? performance.memory.usedJSHeapSize : null,
+          });
           return;
         }
 

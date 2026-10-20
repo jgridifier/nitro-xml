@@ -3,7 +3,8 @@
 //   i icon · l label · t tooltip · o shellAction op · a op arg · c ribbon command id (xlsx cmd)
 //   p toggle (aria-pressed) · x op sent instead of `o` while pressed · r readout key · u no ribbon control to mirror
 // xlsx toggles carry no `p`: the Rust chrome has no live cell-style state yet (is_checked is a stub), so a pressed look would lie.
-// Items with `c` are shown only while the Rust ribbon exists (editable xlsx); mirrored ones also follow that control's state.
+// Items with `c` are shown only while the Rust ribbon has that command (editable session);
+// mirrored ones also follow that control's enabled state. Do not list an id the editor does not emit.
 const copy = { id: "Clipboard", items: [{ i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy" }] };
 const find = { i: "find", l: "Find", t: "Find (Ctrl+F)", o: "find-open", x: "find-close", p: 1 };
 const view = {
@@ -25,9 +26,77 @@ const nav = (id, noun) => ({
 
 const cmd = (c, i, l, t, p, u) => ({ c, i, l, t: t || l, p, u });
 
+const file = {
+  id: "File",
+  items: [
+    cmd("file.save", "save", "Save", "Save (Ctrl+S)"),
+    cmd("edit.undo", "undo", "Undo", "Undo (Ctrl+Z)"),
+    cmd("edit.redo", "redo", "Redo", "Redo (Ctrl+Y)"),
+  ],
+};
+const font = {
+  id: "Font",
+  items: [
+    cmd("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
+    cmd("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
+    cmd("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
+    cmd("home.font-size", "grow", "Font size", "Set the font size"),
+    cmd("home.font-color", "color", "Font color", "Set the font color"),
+  ],
+};
+const align = {
+  id: "Alignment",
+  items: [
+    cmd("home.align-left", "left", "Align left"),
+    cmd("home.align-center", "center", "Center"),
+    cmd("home.align-right", "right", "Align right"),
+  ],
+};
+
 export const MANIFEST = {
-  docx: { label: "Document tools", groups: [copy, nav("Pages", "page"), { id: "Editing", items: [find] }, view] },
-  pptx: { label: "Presentation tools", groups: [copy, nav("Slides", "slide"), { id: "Editing", items: [find] }, view] },
+  docx: {
+    label: "Document tools",
+    groups: [
+      file,
+      copy,
+      font,
+      align,
+      {
+        id: "Tables",
+        items: [
+          cmd("insert.table", "table", "Table", "Insert a table"),
+          cmd("table.insert-row", "rowAdd", "Insert row"),
+          cmd("table.delete-row", "rowDel", "Delete row"),
+          cmd("table.insert-column", "colAdd", "Insert column"),
+          cmd("table.delete-column", "colDel", "Delete column"),
+        ],
+      },
+      nav("Pages", "page"),
+      { id: "Editing", items: [find] },
+      view,
+    ],
+  },
+  pptx: {
+    label: "Presentation tools",
+    groups: [
+      file,
+      copy,
+      font,
+      align,
+      {
+        id: "Slides",
+        items: [
+          cmd("insert.slide", "slide", "New slide"),
+          cmd("insert.duplicate-slide", "duplicate", "Duplicate slide"),
+          cmd("insert.text-box", "text", "Text box"),
+          cmd("home.delete-slide", "trash", "Delete slide"),
+        ],
+      },
+      nav("Slides", "slide"),
+      { id: "Editing", items: [find] },
+      view,
+    ],
+  },
   xlsx: {
     label: "Workbook tools",
     groups: [

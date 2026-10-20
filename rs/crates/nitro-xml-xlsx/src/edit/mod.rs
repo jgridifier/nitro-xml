@@ -576,4 +576,87 @@ mod tests {
             eprintln!("xlsx undo-parity: {local_ok}/28 (local undo/redo only; no bun oracle)");
         }
     }
+
+    #[test]
+    fn catches_cells_1m_set_cell_input_history_stays_scoped() {
+        // Catches: full-workbook JSON undo snaps on cells_1m (~64MiB×2/edit) OOM the
+        // WASM 4GiB ceiling by ~edit 22. Cell-scoped history must stay compact and
+        // survive far more than that without cloning the grid (#341 follow-up / main).
+        let fixture = fixture_path("gen-xlsx-cells-1m");
+        let bytes = fs::read(&fixture).unwrap_or_else(|e| {
+            panic!("read {}: {e}", fixture.display());
+        });
+        const N: usize = 40;
+        let mut ops = Vec::with_capacity(N);
+        for i in 0..N {
+            ops.push(json!({
+                "op": "setCellInput",
+                "sheet": 0,
+                "row": i as u32,
+                "col": 0,
+                "text": format!("e{i}"),
+            }));
+        }
+        let script = json!({
+            "id": "cells-1m-edit-trap",
+            "format": "xlsx",
+            "fixture": "gen-xlsx-cells-1m",
+            "ops": ops,
+        });
+        let script_json = serde_json::to_string(&script).unwrap();
+        let (report, mut session) =
+            replay_xlsx_session(&bytes, &script_json).expect("cells_1m edit session");
+        assert_eq!(report.status, "ok", "report={report:?}");
+        assert_eq!(session.history.done().len(), N);
+
+        // Full-grid snap was tens of MiB; scoped cell snaps must stay tiny.
+        const MAX_ENTRY: usize = 64 * 1024;
+        let mut hist_bytes = 0usize;
+        for step in session.history.done() {
+            for entry in &step.entries {
+                assert!(
+                    entry.before.0.len() < MAX_ENTRY,
+                    "before snap {} B exceeds {MAX_ENTRY} (full-grid regress)",
+                    entry.before.0.len()
+                );
+                assert!(
+                    entry.after.0.len() < MAX_ENTRY,
+                    "after snap {} B exceeds {MAX_ENTRY} (full-grid regress)",
+                    entry.after.0.len()
+                );
+                hist_bytes += entry.before.0.len() + entry.after.0.len();
+                let before: Value = serde_json::from_slice(&entry.before.0).expect("before json");
+                assert_eq!(
+                    before.get("kind").and_then(|k| k.as_str()),
+                    Some("cells"),
+                    "setCellInput must use scoped cells snap, got {}",
+                    before
+                );
+            }
+        }
+        // 40 edits × ~64MiB×2 would be ~5GiB; scoped total must stay well under 2MiB.
+        assert!(
+            hist_bytes < 2 * 1024 * 1024,
+            "history retained {hist_bytes} B — still cloning the grid"
+        );
+
+        while session.can_undo() {
+            session.undo();
+        }
+        assert!(!session.can_undo());
+        // First edited cell should be restored (empty / prior value, not e0).
+        let cell0 = session.host.sheets[0]
+            .cells
+            .iter()
+            .find(|c| c.row == 0 && c.col == 0);
+        let text0 = cell0.and_then(|c| match &c.value {
+            crate::model::DumpCellValue::String(s) => Some(s.as_str()),
+            _ => None,
+        });
+        assert_ne!(
+            text0,
+            Some("e0"),
+            "undo-all must clear the last typed value"
+        );
+    }
 }

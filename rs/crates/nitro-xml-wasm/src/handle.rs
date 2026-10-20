@@ -1577,8 +1577,18 @@ impl Handle {
         let match_entire = self.shell.find.match_entire;
         let matches = if self.xlsx.is_some() {
             self.find_xlsx(&query, case_sensitive, match_entire)?
-        } else if let Some(docx) = self.docx.as_ref() {
-            docx.search_body(&query, case_sensitive, match_entire)
+        } else if self.docx.is_some() {
+            let bytes = std::sync::Arc::clone(&self.bytes);
+            if let Some(docx) = self.docx.as_mut() {
+                let _ = docx.flush_pending_body(bytes.as_ref());
+                if docx.session.body_truncated {
+                    let _ = docx.session.ensure_body_complete(bytes.as_ref());
+                }
+            }
+            self.docx
+                .as_ref()
+                .map(|d| d.search_body(&query, case_sensitive, match_entire))
+                .unwrap_or_default()
         } else if let Some(pptx) = self.pptx.as_mut() {
             pptx.search(&query, case_sensitive, match_entire)
                 .map_err(|e| JsValue::from(OoxmlError::with_code("search_failed", e)))?

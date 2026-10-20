@@ -8,13 +8,16 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const PKG = join(ROOT, "packages/nitro-xml");
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react({ jsxRuntime: "automatic" })],
   root: dirname(fileURLToPath(import.meta.url)),
   resolve: {
     alias: {
       "nitro-xml/loader": join(PKG, "loader/index.js"),
       "nitro-xml": PKG,
     },
+  },
+  esbuild: {
+    jsx: "automatic",
   },
   server: {
     port: 5179,

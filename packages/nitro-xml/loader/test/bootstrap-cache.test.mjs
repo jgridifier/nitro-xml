@@ -14,4 +14,15 @@ describe("bootstrap wasm module cache", () => {
     const again = await compileWasmModule(new Uint8Array(bytes));
     assert.equal(again, mod);
   });
+
+  it("cold init prefers Response over awaiting Module before glue.default", async () => {
+    // Catches: #307 setting input=cachedModule after await compileWasmModule so
+    // wasm-bindgen skips instantiateStreaming on the first open (React embed).
+    const src = await import("node:fs").then((fs) =>
+      fs.readFileSync(new URL("../bootstrap.js", import.meta.url), "utf8"),
+    );
+    assert.match(src, /void compileWasmModule\(res\.clone\(\)\)/);
+    assert.match(src, /input = res;/);
+    assert.doesNotMatch(src, /input = cachedModule \|\| res/);
+  });
 });

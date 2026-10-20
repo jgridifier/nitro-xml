@@ -265,6 +265,11 @@ impl DocxState {
                     label: "Table",
                     enabled: true,
                 },
+                RibbonItem {
+                    id: "table.delete",
+                    label: "Delete Table",
+                    enabled: true,
+                },
             ],
         )
     }

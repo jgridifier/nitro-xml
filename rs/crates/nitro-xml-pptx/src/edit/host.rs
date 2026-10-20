@@ -138,6 +138,10 @@ pub struct EditableElement {
     /// Parsed `a:tbl`. Omitted from the snapshot when the element is not a table.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub table: Option<TableModel>,
+    /// The table grid was inserted or edited this session, so save rewrites `a:tbl`.
+    /// Omitted when false so an unedited host snapshot stays the same shape.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub table_authored: bool,
 }
 
 impl EditableElement {
@@ -166,6 +170,7 @@ impl EditableElement {
             source_sp_index: None,
             xml_share_of: None,
             table: None,
+            table_authored: false,
         }
     }
 
@@ -393,6 +398,7 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
         source_sp_index: None,
         xml_share_of: None,
         table: el.table_data.as_ref().map(TableModel::from_parsed),
+        table_authored: false,
     }
 }
 
@@ -640,6 +646,27 @@ impl PptxHost {
             Some("solid"),
         );
         slide.elements.push(el);
+        self.touch(slide_index)
+    }
+
+    /// Append a 2×2 table (`p:graphicFrame` / `a:tbl`) on the slide.
+    pub fn add_table(
+        &mut self,
+        slide_index: u32,
+        id: &str,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    ) -> Result<(), String> {
+        {
+            let slide = self.slide_mut(slide_index)?;
+            let mut el = EditableElement::blank(id, "table");
+            el.set_box(x, y, width, height, 0.0);
+            el.table = Some(super::table::TableModel::blank_grid(2, 2));
+            el.table_authored = true;
+            slide.elements.push(el);
+        }
         self.touch(slide_index)
     }
 

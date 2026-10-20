@@ -12,7 +12,8 @@
 //!
 //! Untouched axes go through [`resolve_xfrm_emu`]. The first run's underline
 //! (`a:rPr/@u`) and the first paragraph's align (`a:pPr/@algn`) are written.
-//! Rich multi-run splits, bullets, autofit, tables and notes parts are TODO(#85) / TODO(#86).
+//! Rich multi-run splits, bullets, autofit and notes parts are TODO(#85) / TODO(#86).
+//! An authored table (`table_authored`) is written as `p:graphicFrame` / `a:tbl`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -171,6 +172,7 @@ fn apply_element(shape: &mut Element, el: &EditableElement) {
         update_text(shape, el.text.as_deref(), el.text_style.as_ref());
     }
     apply_paragraph_align(shape, el);
+    apply_table(shape, el);
 }
 
 /// Write `a:off` / `a:ext` with [`resolve_xfrm_emu`]. No-op when the shape has
@@ -387,6 +389,11 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
 }
 
 fn new_shape_xml(el: &EditableElement, id: i64) -> Element {
+    if el.type_ == "table" {
+        let mut frame = new_table_frame(el, id);
+        apply_element(&mut frame, el);
+        return frame;
+    }
     let emu = EMU_PER_PIXEL as f64;
     let x = resolve_xfrm_emu(el.x, el.x_emu, emu);
     let y = resolve_xfrm_emu(el.y, el.y_emu, emu);
@@ -458,6 +465,182 @@ fn new_shape_xml(el: &EditableElement, id: i64) -> Element {
     // apply_element may rewrite xfrm rot again; new shapes already carry it.
     // A second apply_fill runs when fill_mode is set — new shapes from addShape are.
     sp
+}
+
+const TABLE_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/table";
+
+fn new_table_frame(el: &EditableElement, id: i64) -> Element {
+    let emu = EMU_PER_PIXEL as f64;
+    let x = resolve_xfrm_emu(el.x, el.x_emu, emu);
+    let y = resolve_xfrm_emu(el.y, el.y_emu, emu);
+    let cx = resolve_xfrm_emu(el.width, el.width_emu, emu).max(1);
+    let cy = resolve_xfrm_emu(el.height, el.height_emu, emu).max(1);
+
+    let mut c_nv_pr = elem(ns::P, "cNvPr");
+    set_attr(&mut c_nv_pr, "id", &id.to_string());
+    set_attr(&mut c_nv_pr, "name", &format!("Table {id}"));
+    let mut locks = elem(ns::A, "graphicFrameLocks");
+    set_attr(&mut locks, "noGrp", "1");
+    let mut c_nv_gf = elem(ns::P, "cNvGraphicFramePr");
+    c_nv_gf.children.push(Node::Element(locks));
+    let mut nv = elem(ns::P, "nvGraphicFramePr");
+    nv.children.push(Node::Element(c_nv_pr));
+    nv.children.push(Node::Element(c_nv_gf));
+    nv.children.push(Node::Element(elem(ns::P, "nvPr")));
+
+    let mut off = elem(ns::A, "off");
+    set_attr(&mut off, "x", &x.to_string());
+    set_attr(&mut off, "y", &y.to_string());
+    let mut ext = elem(ns::A, "ext");
+    set_attr(&mut ext, "cx", &cx.to_string());
+    set_attr(&mut ext, "cy", &cy.to_string());
+    let mut xfrm = elem(ns::P, "xfrm");
+    xfrm.children.push(Node::Element(off));
+    xfrm.children.push(Node::Element(ext));
+
+    let tbl = elem(ns::A, "tbl");
+    let mut data = elem(ns::A, "graphicData");
+    set_attr(&mut data, "uri", TABLE_URI);
+    data.children.push(Node::Element(tbl));
+    let mut graphic = elem(ns::A, "graphic");
+    graphic.children.push(Node::Element(data));
+
+    let mut frame = elem(ns::P, "graphicFrame");
+    frame.children.push(Node::Element(nv));
+    frame.children.push(Node::Element(xfrm));
+    frame.children.push(Node::Element(graphic));
+    frame
+}
+
+/// Replace `a:tbl` grid and rows from the edited model. `a:tblPr` already on the
+/// frame is kept so an existing table style id survives a row or column edit.
+fn apply_table(shape: &mut Element, el: &EditableElement) {
+    if !el.table_authored {
+        return;
+    }
+    let Some(model) = el.table.as_ref() else {
+        return;
+    };
+    if shape.local != "graphicFrame" || shape.ns.as_deref() != Some(ns::P) {
+        return;
+    }
+    let Some(data) =
+        child_mut(shape, "graphic", ns::A).and_then(|g| child_mut(g, "graphicData", ns::A))
+    else {
+        return;
+    };
+    let tbl = ensure_child(data, "tbl", ns::A);
+    let kept_pr = child_index(tbl, "tblPr", ns::A).and_then(|i| match &tbl.children[i] {
+        Node::Element(pr) => Some(pr.clone()),
+        Node::Text(_) => None,
+    });
+    tbl.children.clear();
+    tbl.children
+        .push(Node::Element(kept_pr.unwrap_or_else(default_tbl_pr)));
+    tbl.children.push(Node::Element(table_grid(el, model)));
+    for row in &model.rows {
+        tbl.children.push(Node::Element(table_row(row)));
+    }
+}
+
+fn default_tbl_pr() -> Element {
+    let mut pr = elem(ns::A, "tblPr");
+    set_attr(&mut pr, "firstRow", "1");
+    set_attr(&mut pr, "bandRow", "1");
+    pr
+}
+
+fn table_grid(el: &EditableElement, model: &crate::edit::table::TableModel) -> Element {
+    let mut grid = elem(ns::A, "tblGrid");
+    for width in column_emus(el, model) {
+        let mut col = elem(ns::A, "gridCol");
+        set_attr(&mut col, "w", &width.to_string());
+        grid.children.push(Node::Element(col));
+    }
+    grid
+}
+
+fn column_emus(el: &EditableElement, model: &crate::edit::table::TableModel) -> Vec<i64> {
+    let width = resolve_xfrm_emu(el.width, el.width_emu, EMU_PER_PIXEL as f64).max(1);
+    let mut fracs = model.column_widths.clone();
+    if fracs.is_empty() {
+        let n = model
+            .rows
+            .iter()
+            .map(|row| row.cells.len())
+            .max()
+            .unwrap_or(1)
+            .max(1);
+        fracs = vec![1.0 / n as f64; n];
+    }
+    let sum: f64 = fracs.iter().copied().sum();
+    let sum = if sum > 0.0 { sum } else { 1.0 };
+    let mut used = 0i64;
+    let last = fracs.len().saturating_sub(1);
+    fracs
+        .iter()
+        .enumerate()
+        .map(|(i, frac)| {
+            if i == last {
+                (width - used).max(1)
+            } else {
+                let w = ((frac / sum) * width as f64).round() as i64;
+                let w = w.max(1).min(width - used - (last - i) as i64);
+                let w = w.max(1);
+                used += w;
+                w
+            }
+        })
+        .collect()
+}
+
+fn table_row(row: &crate::edit::table::TableRowModel) -> Element {
+    let px = row.height.filter(|h| *h > 0.0).unwrap_or(40.0);
+    let h = (px * EMU_PER_PIXEL as f64).round() as i64;
+    let mut tr = elem(ns::A, "tr");
+    set_attr(&mut tr, "h", &h.max(1).to_string());
+    for cell in &row.cells {
+        tr.children.push(Node::Element(table_cell(cell)));
+    }
+    tr
+}
+
+fn table_cell(cell: &crate::edit::table::TableCellModel) -> Element {
+    let mut tc = elem(ns::A, "tc");
+    if cell.grid_span > 1 {
+        set_attr(&mut tc, "gridSpan", &cell.grid_span.to_string());
+    }
+    if cell.row_span > 1 {
+        set_attr(&mut tc, "rowSpan", &cell.row_span.to_string());
+    }
+    if cell.h_merge {
+        set_attr(&mut tc, "hMerge", "1");
+    }
+    if cell.v_merge {
+        set_attr(&mut tc, "vMerge", "1");
+    }
+    let mut p = elem(ns::A, "p");
+    if cell.text.is_empty() {
+        let mut end = elem(ns::A, "endParaRPr");
+        set_attr(&mut end, "lang", "en-US");
+        p.children.push(Node::Element(end));
+    } else {
+        let mut rpr = elem(ns::A, "rPr");
+        set_attr(&mut rpr, "lang", "en-US");
+        let mut t = elem(ns::A, "t");
+        set_text(&mut t, &cell.text);
+        let mut r = elem(ns::A, "r");
+        r.children.push(Node::Element(rpr));
+        r.children.push(Node::Element(t));
+        p.children.push(Node::Element(r));
+    }
+    let mut body = elem(ns::A, "txBody");
+    body.children.push(Node::Element(elem(ns::A, "bodyPr")));
+    body.children.push(Node::Element(elem(ns::A, "lstStyle")));
+    body.children.push(Node::Element(p));
+    tc.children.push(Node::Element(body));
+    tc.children.push(Node::Element(elem(ns::A, "tcPr")));
+    tc
 }
 
 #[derive(Clone, Copy)]

@@ -291,6 +291,31 @@ impl PptxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "insert.table",
+                    label: "Table",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "table.insert-row",
+                    label: "Insert Row",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "table.delete-row",
+                    label: "Delete Row",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "table.insert-column",
+                    label: "Insert Column",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "table.delete-column",
+                    label: "Delete Column",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "insert.slide",
                     label: "New Slide",
                     enabled: true,
@@ -298,6 +323,16 @@ impl PptxState {
                 RibbonItem {
                     id: "insert.duplicate-slide",
                     label: "Duplicate Slide",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "insert.move-slide-up",
+                    label: "Move Slide Up",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "insert.move-slide-down",
+                    label: "Move Slide Down",
                     enabled: true,
                 },
                 RibbonItem {

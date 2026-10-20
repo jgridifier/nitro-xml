@@ -32,7 +32,8 @@ pub fn save_pptx(host: &PptxHost, original: &[u8]) -> Result<Vec<u8>, String> {
 /// [`PackageWriter`]'s identity shortcut. A slide-list edit rebuilds
 /// `p:sldIdLst`, relationships and slide parts. Otherwise only
 /// `host.dirty_parts` slide XML is replaced. Notes parts are TODO(#86); rich
-/// runs, bullets, autofit and tables are TODO(#85) / TODO(#86).
+/// runs, bullets and autofit are TODO(#85) / TODO(#86). Authored tables are
+/// written as `a:tbl` inside the dirty slide.
 pub fn save_pptx_with_options(
     host: &PptxHost,
     original: &[u8],
@@ -253,6 +254,61 @@ mod tests {
             xml.contains("y=\"381000\""),
             "moved axis was not re-quantized: {xml}"
         );
+    }
+
+    #[test]
+    fn catches_reordered_slides_restored_to_the_open_order() {
+        // Catches: reorder writing the slide list in the original order, so reopen shows slide 1 first.
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        let first = host.slides[0].path.clone();
+        let second = host.slides[1].path.clone();
+        host.reorder_slide(0, 1).expect("reorder");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save");
+        let again = PptxHost::open(&saved).expect("reopen");
+        assert_eq!(again.slides[0].path, second);
+        assert_eq!(again.slides[1].path, first);
+    }
+
+    #[test]
+    fn catches_inserted_slide_table_missing_rows_after_reopen() {
+        // Catches: insert table / row / column edits not writing a:tbl, so reopen has no extra grid.
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        host.add_table(0, "table-0", 80.0, 80.0, 360.0, 120.0)
+            .expect("table");
+        host.insert_slide_row(0, Some("table-0"), None, 1, "below")
+            .expect("row");
+        host.insert_slide_column(0, Some("table-0"), None, 1, "right")
+            .expect("col");
+        host.set_slide_cell_text(0, Some("table-0"), None, 2, 2, "tail")
+            .expect("cell");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let again = PptxHost::open(&saved).expect("reopen");
+        let table = again.slides[0]
+            .elements
+            .iter()
+            .find(|el| el.type_ == "table")
+            .expect("table missing after reopen");
+        let model = table.table.as_ref().expect("table model");
+        assert_eq!(model.rows.len(), 3, "inserted row missing");
+        assert_eq!(model.column_widths.len(), 3, "inserted column missing");
+        assert_eq!(model.rows[2].cells[2].text, "tail");
+        host.delete_slide_row(0, Some("table-0"), None, 2)
+            .expect("delete row");
+        host.delete_slide_column(0, Some("table-0"), None, 2)
+            .expect("delete col");
+        let trimmed = save_pptx(&host, bytes.as_slice()).expect("save trim");
+        let trimmed_host = PptxHost::open(&trimmed).expect("reopen trim");
+        let trimmed_table = trimmed_host.slides[0]
+            .elements
+            .iter()
+            .find(|el| el.type_ == "table")
+            .expect("table missing after delete");
+        let trimmed_model = trimmed_table.table.as_ref().expect("model");
+        assert_eq!(trimmed_model.rows.len(), 2);
+        assert_eq!(trimmed_model.column_widths.len(), 2);
     }
 
     fn slide_plain(slide: &crate::edit::host::EditableSlide) -> String {

@@ -67,6 +67,22 @@ impl TableCellModel {
 }
 
 impl TableModel {
+    /// Equal-width grid used by a ribbon Insert Table (2×2 by default).
+    pub(crate) fn blank_grid(rows: usize, cols: usize) -> Self {
+        let cols = cols.max(1);
+        let rows = rows.max(1);
+        let frac = 1.0 / cols as f64;
+        Self {
+            column_widths: vec![frac; cols],
+            rows: (0..rows)
+                .map(|_| TableRowModel {
+                    height: Some(DEFAULT_INSERTED_ROW_HEIGHT),
+                    cells: (0..cols).map(|_| TableCellModel::blank()).collect(),
+                })
+                .collect(),
+        }
+    }
+
     pub(crate) fn from_parsed(data: &crate::table::TableData) -> Self {
         Self {
             column_widths: data.column_widths.clone(),
@@ -438,9 +454,31 @@ impl PptxHost {
         col: u32,
         text: &str,
     ) -> Result<(), String> {
-        let slide = self.slide_mut(slide_index)?;
-        let idx = Self::resolve_index(slide, element_id, element_index)?;
-        set_cell_text(&mut slide.elements[idx], row, col, text)
+        let changed = {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            let before = slide.elements[idx]
+                .table
+                .as_ref()
+                .and_then(|t| t.rows.get(row as usize))
+                .and_then(|r| r.cells.get(col as usize))
+                .map(|c| c.text.clone());
+            set_cell_text(&mut slide.elements[idx], row, col, text)?;
+            let after = slide.elements[idx]
+                .table
+                .as_ref()
+                .and_then(|t| t.rows.get(row as usize))
+                .and_then(|r| r.cells.get(col as usize))
+                .map(|c| c.text.clone());
+            if before != after {
+                slide.elements[idx].table_authored = true;
+            }
+            before != after
+        };
+        if changed {
+            self.touch(slide_index)?;
+        }
+        Ok(())
     }
 
     pub fn insert_slide_row(
@@ -454,10 +492,32 @@ impl PptxHost {
         if !matches!(position, "above" | "below") {
             return Err(format!("insertSlideTableRow position {position}"));
         }
-        let slide = self.slide_mut(slide_index)?;
-        let idx = Self::resolve_index(slide, element_id, element_index)?;
-        let table = require_table(&mut slide.elements[idx])?;
-        insert_row(table, row as usize, position);
+        let changed = {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            let before = slide.elements[idx]
+                .table
+                .as_ref()
+                .map(|t| t.rows.len())
+                .unwrap_or(0);
+            insert_row(
+                require_table(&mut slide.elements[idx])?,
+                row as usize,
+                position,
+            );
+            let after = slide.elements[idx]
+                .table
+                .as_ref()
+                .map(|t| t.rows.len())
+                .unwrap_or(0);
+            if after != before {
+                slide.elements[idx].table_authored = true;
+            }
+            after != before
+        };
+        if changed {
+            self.touch(slide_index)?;
+        }
         Ok(())
     }
 
@@ -468,10 +528,28 @@ impl PptxHost {
         element_index: Option<u32>,
         row: u32,
     ) -> Result<(), String> {
-        let slide = self.slide_mut(slide_index)?;
-        let idx = Self::resolve_index(slide, element_id, element_index)?;
-        let table = require_table(&mut slide.elements[idx])?;
-        delete_row(table, row as usize);
+        let changed = {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            let before = slide.elements[idx]
+                .table
+                .as_ref()
+                .map(|t| t.rows.len())
+                .unwrap_or(0);
+            delete_row(require_table(&mut slide.elements[idx])?, row as usize);
+            let after = slide.elements[idx]
+                .table
+                .as_ref()
+                .map(|t| t.rows.len())
+                .unwrap_or(0);
+            if after != before {
+                slide.elements[idx].table_authored = true;
+            }
+            after != before
+        };
+        if changed {
+            self.touch(slide_index)?;
+        }
         Ok(())
     }
 
@@ -486,10 +564,32 @@ impl PptxHost {
         if !matches!(position, "left" | "right") {
             return Err(format!("insertSlideTableColumn position {position}"));
         }
-        let slide = self.slide_mut(slide_index)?;
-        let idx = Self::resolve_index(slide, element_id, element_index)?;
-        let table = require_table(&mut slide.elements[idx])?;
-        insert_column(table, col as usize, position);
+        let changed = {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            let before = slide.elements[idx]
+                .table
+                .as_ref()
+                .map(|t| t.column_widths.len())
+                .unwrap_or(0);
+            insert_column(
+                require_table(&mut slide.elements[idx])?,
+                col as usize,
+                position,
+            );
+            let after = slide.elements[idx]
+                .table
+                .as_ref()
+                .map(|t| t.column_widths.len())
+                .unwrap_or(0);
+            if after != before {
+                slide.elements[idx].table_authored = true;
+            }
+            after != before
+        };
+        if changed {
+            self.touch(slide_index)?;
+        }
         Ok(())
     }
 
@@ -500,10 +600,28 @@ impl PptxHost {
         element_index: Option<u32>,
         col: u32,
     ) -> Result<(), String> {
-        let slide = self.slide_mut(slide_index)?;
-        let idx = Self::resolve_index(slide, element_id, element_index)?;
-        let table = require_table(&mut slide.elements[idx])?;
-        delete_column(table, col as usize);
+        let changed = {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            let before = slide.elements[idx]
+                .table
+                .as_ref()
+                .map(|t| t.column_widths.len())
+                .unwrap_or(0);
+            delete_column(require_table(&mut slide.elements[idx])?, col as usize);
+            let after = slide.elements[idx]
+                .table
+                .as_ref()
+                .map(|t| t.column_widths.len())
+                .unwrap_or(0);
+            if after != before {
+                slide.elements[idx].table_authored = true;
+            }
+            after != before
+        };
+        if changed {
+            self.touch(slide_index)?;
+        }
         Ok(())
     }
 }

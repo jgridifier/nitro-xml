@@ -378,6 +378,85 @@ mod tests {
     }
 
     #[test]
+    fn catches_pptx_reorder_and_table_edits_missing_after_reopen() {
+        // Catches: move-slide and table row/column edits that vanish on save, or undo that keeps them.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        let first = h
+            .pptx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .slides[0]
+            .path
+            .clone();
+        let second = h
+            .pptx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .slides[1]
+            .path
+            .clone();
+        h.shell_action("cmd", "insert.move-slide-up")
+            .expect("noop up");
+        assert_eq!(h.save_document().expect("noop"), PPTX);
+        h.shell_action("cmd", "insert.move-slide-down")
+            .expect("down");
+        let saved = h.save_document().expect("save move");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen move");
+        assert_eq!(again.session.host.slides[0].path, second);
+        assert_eq!(again.session.host.slides[1].path, first);
+        h.shell_action("cmd", "edit.undo").expect("undo move");
+        assert_eq!(h.save_document().expect("undone move"), PPTX);
+
+        h.shell_action("cmd", "insert.table").expect("table");
+        h.shell_action("cmd", "table.insert-row").expect("row");
+        h.shell_action("cmd", "table.insert-column").expect("col");
+        let saved = h.save_document().expect("save table");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen table");
+        let table = again
+            .session
+            .host
+            .slides
+            .iter()
+            .flat_map(|s| s.elements.iter())
+            .find(|el| el.type_ == "table")
+            .expect("table missing after reopen");
+        let model = table.table.as_ref().expect("model");
+        assert_eq!(model.rows.len(), 3);
+        assert_eq!(model.column_widths.len(), 3);
+        h.shell_action("cmd", "table.delete-row")
+            .expect("delete row");
+        h.shell_action("cmd", "table.delete-column")
+            .expect("delete col");
+        let saved = h.save_document().expect("save trim");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen trim");
+        let table = again
+            .session
+            .host
+            .slides
+            .iter()
+            .flat_map(|s| s.elements.iter())
+            .find(|el| el.type_ == "table")
+            .expect("trimmed table missing");
+        let model = table.table.as_ref().expect("trimmed model");
+        assert_eq!(model.rows.len(), 2);
+        assert_eq!(model.column_widths.len(), 2);
+        for _ in 0..5 {
+            h.shell_action("cmd", "edit.undo").expect("undo table");
+        }
+        assert_eq!(h.save_document().expect("undone table"), PPTX);
+    }
+
+    #[test]
     fn catches_docx_insert_table_missing_after_reopen() {
         // Catches: insert.table not writing a w:tbl, so a reopened document has no new table.
         let mut h = open_editable(DOCX, "pages.docx");
@@ -524,5 +603,68 @@ mod tests {
         h.shell_action("cmd", "edit.undo")
             .expect("undo insert column");
         assert_eq!(h.save_document().expect("column undone"), DOCX);
+    }
+
+    #[test]
+    fn catches_docx_deleted_table_still_present_after_reopen() {
+        // Catches: table.delete leaving the w:tbl in the saved package, or undo failing to put it back.
+        let mut h = open_editable(DOCX, "pages.docx");
+        let before = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+            .count();
+        assert!(before >= 1, "fixture has no table");
+        let blocks = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .len();
+        h.shell_action("cmd", "table.delete").expect("delete");
+        let saved = h.save_document().expect("save");
+        assert_ne!(saved, DOCX);
+        let again = open_editable(&saved, "pages.docx");
+        let after = again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+            .count();
+        let after_blocks = again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .len();
+        assert_eq!(after, before - 1, "deleted table still in the package");
+        assert_eq!(after_blocks, blocks - 1);
+        h.shell_action("cmd", "edit.undo").expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
     }
 }

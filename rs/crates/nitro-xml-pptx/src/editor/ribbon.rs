@@ -92,11 +92,40 @@ pub fn ribbon_html(
         html.push_str(&button("insert.shape", "Shape", surface, true));
         html.push_str(&button("insert.text-box", "Text Box", surface, false));
         html.push_str("</section>");
+        html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Tables\">");
+        html.push_str(&button("insert.table", "Table", surface, false));
+        html.push_str(&button("table.insert-row", "Insert Row", surface, false));
+        html.push_str(&button("table.delete-row", "Delete Row", surface, false));
+        html.push_str(&button(
+            "table.insert-column",
+            "Insert Column",
+            surface,
+            false,
+        ));
+        html.push_str(&button(
+            "table.delete-column",
+            "Delete Column",
+            surface,
+            false,
+        ));
+        html.push_str("</section>");
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Slides\">");
         html.push_str(&button("insert.slide", "New Slide", surface, false));
         html.push_str(&button(
             "insert.duplicate-slide",
             "Duplicate Slide",
+            surface,
+            false,
+        ));
+        html.push_str(&button(
+            "insert.move-slide-up",
+            "Move Slide Up",
+            surface,
+            false,
+        ));
+        html.push_str(&button(
+            "insert.move-slide-down",
+            "Move Slide Down",
             surface,
             false,
         ));

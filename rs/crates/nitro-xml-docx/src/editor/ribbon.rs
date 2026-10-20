@@ -55,9 +55,25 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("align-left", "Align Left", surface, false));
         html.push_str(&button("align-center", "Center", surface, false));
         html.push_str(&button("align-right", "Align Right", surface, false));
+        html.push_str(&button("font-size", "Font Size", surface, false));
+        html.push_str(&button("font-color", "Font Color", surface, false));
         html.push_str("</section>");
         html.push_str("<section class=\"dve-ribbon-group\" aria-label=\"Insert\">");
         html.push_str(&button("insert.table", "Table", surface, false));
+        html.push_str(&button("table.insert-row", "Insert Row", surface, false));
+        html.push_str(&button("table.delete-row", "Delete Row", surface, false));
+        html.push_str(&button(
+            "table.insert-column",
+            "Insert Column",
+            surface,
+            false,
+        ));
+        html.push_str(&button(
+            "table.delete-column",
+            "Delete Column",
+            surface,
+            false,
+        ));
         html.push_str("</section>");
         html.push_str("<section class=\"dve-ribbon-group\" aria-label=\"Editing\">");
         html.push_str(&button("find-and-replace", "Find", surface, false));

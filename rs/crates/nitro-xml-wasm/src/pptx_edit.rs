@@ -15,6 +15,8 @@ const SHAPE_COMMANDS: &[&str] = &[
     "home.align-left",
     "home.align-center",
     "home.align-right",
+    "home.font-size",
+    "home.font-color",
     "home.duplicate",
     "home.delete",
     "home.bring-forward",
@@ -271,6 +273,16 @@ impl PptxState {
                 RibbonItem {
                     id: "home.align-right",
                     label: "Align Right",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.font-size",
+                    label: "Font Size",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.font-color",
+                    label: "Font Color",
                     enabled: true,
                 },
                 RibbonItem {

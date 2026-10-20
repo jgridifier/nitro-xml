@@ -40,12 +40,12 @@ pub const OVERLAY_TOP_ID: u32 = 24;
 pub fn paint_frame<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    keys: &ChromeKeys,
     sheet: &ActiveWorksheet,
     viewport: &GridPaintViewport,
     metrics: &GridMetrics,
 ) {
     let div = intern.intern("div");
-    let keys = ChromeKeys::new(intern);
     buf.create_element(ROOT_ID, div, 0);
     buf.set_attr(ROOT_ID, keys.class, intern.intern("xg-root"));
     // Upstream grid-view.ts + grid-a11y.ts (#42).
@@ -115,7 +115,7 @@ pub fn paint_frame<I: StringIntern>(
         buf.create_element(Q_TOP_ID, div, ROOT_ID);
         buf.set_attr(Q_TOP_ID, keys.class, class_q_top);
         place_style_attr(
-            buf, intern, &keys, Q_TOP_ID, sizes.w, sizes.h, cells_w, frozen_h,
+            buf, intern, keys, Q_TOP_ID, sizes.w, sizes.h, cells_w, frozen_h,
         );
 
         buf.create_element(PLANE_TOP_ID, div, Q_TOP_ID);
@@ -137,7 +137,7 @@ pub fn paint_frame<I: StringIntern>(
     buf.create_element(Q_MAIN_ID, div, ROOT_ID);
     buf.set_attr(Q_MAIN_ID, keys.class, class_q_main);
     place_style_attr(
-        buf, intern, &keys, Q_MAIN_ID, sizes.w, main_top, cells_w, main_h,
+        buf, intern, keys, Q_MAIN_ID, sizes.w, main_top, cells_w, main_h,
     );
 
     buf.create_element(PLANE_ID, div, Q_MAIN_ID);
@@ -173,7 +173,7 @@ pub fn paint_frame<I: StringIntern>(
         place_style_attr(
             buf,
             intern,
-            &keys,
+            keys,
             FREEZE_H_ID,
             0,
             sizes.h + frozen_h_full - 1,
@@ -188,7 +188,7 @@ pub fn paint_frame<I: StringIntern>(
         place_style_attr(
             buf,
             intern,
-            &keys,
+            keys,
             FREEZE_V_ID,
             sizes.w + frozen_w - 1,
             0,

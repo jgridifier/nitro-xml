@@ -17,6 +17,7 @@ const LINE_BASE: u32 = 5_000;
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    keys: &ChromeKeys,
     sheet: &ActiveWorksheet,
     metrics: &GridMetrics,
     viewport: &GridPaintViewport,
@@ -27,7 +28,6 @@ pub fn paint<I: StringIntern>(
     let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let vis = visible_cells_for_host(metrics, viewport, sizes.w, sizes.h);
     let div = intern.intern("div");
-    let keys = ChromeKeys::new(intern);
     let class_v = intern.intern("xg-gl xg-gl-v");
     let class_h = intern.intern("xg-gl xg-gl-h");
     let mut i = 0u32;
@@ -40,7 +40,7 @@ pub fn paint<I: StringIntern>(
         buf.create_element(id, div, parent);
         buf.set_attr(id, keys.class, if w == 1 { class_v } else { class_h });
         // One style attr instead of four SetStyle ops (smaller first-frame buffer).
-        place_style_attr(buf, intern, &keys, id, x, y, w, h);
+        place_style_attr(buf, intern, keys, id, x, y, w, h);
     };
 
     let mut paint_set = |parent: u32, rows: &[u32], cols: &[u32]| {

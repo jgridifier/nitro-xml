@@ -119,6 +119,7 @@ fn intern_row_hdr_style(intern: &mut impl StringIntern, top: i32, h: i32, font_p
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    keys: &ChromeKeys,
     sheet: &ActiveWorksheet,
     metrics: &GridMetrics,
     viewport: &GridPaintViewport,
@@ -131,7 +132,6 @@ pub fn paint<I: StringIntern>(
     let vis = visible_cells_for_host(metrics, viewport, sizes.w, sizes.h);
     let (rows, cols) = paint_indices(&vis);
     let div = intern.intern("div");
-    let keys = ChromeKeys::new(intern);
     let font_px = header_font_px(metrics.zoom);
     let scroll_x = viewport.scroll_x;
     let scroll_y = viewport.scroll_y;
@@ -150,20 +150,11 @@ pub fn paint<I: StringIntern>(
     // pane-chrome.ts: corner + xg-hbox / xg-hdr-plane wrappers (scroll panes; freeze TODO).
     buf.create_element(CORNER_ID, div, ROOT_ID);
     buf.set_attr(CORNER_ID, keys.class, class_corner);
-    place_style_attr(buf, intern, &keys, CORNER_ID, 0, 0, sizes.w, sizes.h);
+    place_style_attr(buf, intern, keys, CORNER_ID, 0, 0, sizes.w, sizes.h);
 
     buf.create_element(HBOX_COL_ID, div, ROOT_ID);
     buf.set_attr(HBOX_COL_ID, keys.class, class_hbox_col);
-    place_style_attr(
-        buf,
-        intern,
-        &keys,
-        HBOX_COL_ID,
-        sizes.w,
-        0,
-        cells_w,
-        sizes.h,
-    );
+    place_style_attr(buf, intern, keys, HBOX_COL_ID, sizes.w, 0, cells_w, sizes.h);
     buf.create_element(HDR_COL_ID, div, HBOX_COL_ID);
     buf.set_attr(HDR_COL_ID, keys.class, class_hdr_col);
     buf.set_style(HDR_COL_ID, keys.height, intern_px(intern, sizes.h));
@@ -175,16 +166,7 @@ pub fn paint<I: StringIntern>(
 
     buf.create_element(HBOX_ROW_ID, div, ROOT_ID);
     buf.set_attr(HBOX_ROW_ID, keys.class, class_hbox_row);
-    place_style_attr(
-        buf,
-        intern,
-        &keys,
-        HBOX_ROW_ID,
-        0,
-        sizes.h,
-        sizes.w,
-        cells_h,
-    );
+    place_style_attr(buf, intern, keys, HBOX_ROW_ID, 0, sizes.h, sizes.w, cells_h);
     buf.create_element(HDR_ROW_ID, div, HBOX_ROW_ID);
     buf.set_attr(HDR_ROW_ID, keys.class, class_hdr_row);
     buf.set_style(HDR_ROW_ID, keys.width, intern_px(intern, sizes.w));

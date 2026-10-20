@@ -83,8 +83,10 @@ pub fn paint_grid_frame<I: StringIntern>(
     // First-frame cells_1k cmdbuf is ~100 KiB; reserve avoids repeated reallocs
     // during SetStyle/SetAttr encode (#30 WASM encode cut).
     buf.reserve(128 * 1024);
-    grid::paint_frame(buf, intern, sheet, viewport, &metrics);
-    gridlines::paint(buf, intern, sheet, &metrics, viewport);
+    // One ChromeKeys per frame — shared by grid/headers/gridlines/selection.
+    let chrome = paint_encode::ChromeKeys::new(intern);
+    grid::paint_frame(buf, intern, &chrome, sheet, viewport, &metrics);
+    gridlines::paint(buf, intern, &chrome, sheet, &metrics, viewport);
     cells::paint(
         buf,
         intern,
@@ -98,8 +100,8 @@ pub fn paint_grid_frame<I: StringIntern>(
         hints,
     );
     drawings::paint(buf, intern, measures, workbook, sheet, &metrics);
-    selection::paint(buf, intern, sheet, &metrics, viewport);
-    headers::paint(buf, intern, sheet, &metrics, viewport);
+    selection::paint(buf, intern, &chrome, sheet, &metrics, viewport);
+    headers::paint(buf, intern, &chrome, sheet, &metrics, viewport);
     cond_format::paint(buf);
 }
 

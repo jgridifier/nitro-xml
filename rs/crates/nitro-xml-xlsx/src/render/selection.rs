@@ -60,6 +60,7 @@ fn is_single_cell(range: &CellRange) -> bool {
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    keys: &ChromeKeys,
     sheet: &ActiveWorksheet,
     metrics: &GridMetrics,
     viewport: &GridPaintViewport,
@@ -119,7 +120,6 @@ pub fn paint<I: StringIntern>(
         )
     };
 
-    let keys = ChromeKeys::new(intern);
     let outline_class = intern.intern("xg-outline");
     let active_class = intern.intern("xg-active");
 
@@ -134,7 +134,7 @@ pub fn paint<I: StringIntern>(
             place_box(
                 buf,
                 intern,
-                &keys,
+                keys,
                 OUTLINE_ID + id_off,
                 parent,
                 outline_class,
@@ -148,7 +148,7 @@ pub fn paint<I: StringIntern>(
             place_box(
                 buf,
                 intern,
-                &keys,
+                keys,
                 ACTIVE_ID + id_off,
                 parent,
                 active_class,

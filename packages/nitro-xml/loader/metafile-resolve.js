@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-/** Lazy EMF/WMF → PNG for `nitro-metafile:` img src. */
 const RE = /^nitro-metafile:(?:emf|wmf);base64,(.+)$/i;
 let cvt;
 const pend = new WeakSet();

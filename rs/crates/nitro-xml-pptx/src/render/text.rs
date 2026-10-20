@@ -2445,7 +2445,7 @@ mod tests {
         let canvas_font = format!("24px {}", super::VISUAL_HOST_RUN_FONT_STACK);
         let font_id = intern.intern(&canvas_font);
         let text_id = intern.intern("Hi");
-        measure.cache.insert((font_id, text_id), -0.02);
+        measure.insert_cached_width(font_id, text_id, -0.02);
         let intern = paint_with_measure(
             TextBodyPaint {
                 text_color: None,

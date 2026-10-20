@@ -46,6 +46,8 @@ type HashToIds = HashMap<u64, Vec<u32>, BuildHasherDefault<FnvHasher>>;
 pub struct StringTable {
     by_id: Vec<String>,
     by_hash: HashToIds,
+    /// One-slot sticky cache: paint emits the same class/prop many times in a row.
+    last: Option<(u64, u32)>,
 }
 
 impl StringTable {
@@ -53,6 +55,7 @@ impl StringTable {
         let mut t = Self {
             by_id: Vec::new(),
             by_hash: HashToIds::default(),
+            last: None,
         };
         t.intern("");
         t
@@ -67,9 +70,15 @@ impl StringTable {
 
     pub fn intern(&mut self, s: &str) -> u32 {
         let hash = Self::hash_str(s);
+        if let Some((h, id)) = self.last {
+            if h == hash && self.by_id[id as usize] == s {
+                return id;
+            }
+        }
         if let Some(ids) = self.by_hash.get(&hash) {
             for &id in ids {
                 if self.by_id[id as usize] == s {
+                    self.last = Some((hash, id));
                     return id;
                 }
             }
@@ -77,6 +86,7 @@ impl StringTable {
         let id = self.by_id.len() as u32;
         self.by_id.push(s.to_owned());
         self.by_hash.entry(hash).or_default().push(id);
+        self.last = Some((hash, id));
         id
     }
 

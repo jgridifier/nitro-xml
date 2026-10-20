@@ -93,6 +93,11 @@ fn render_abs(v: f64, section: &CompiledSection, general_width: Option<f64>) -> 
         return render_number(v, plan);
     }
     let general = format_general(v.abs(), general_width);
+    let zero = general.as_str() == "0";
+    // Hot path: lone General (cells_1k) — return without a second String (#30).
+    if section.tokens.len() == 1 && matches!(section.tokens[0], Token::General | Token::Text) {
+        return (general, zero);
+    }
     let mut text = String::new();
     for tok in &section.tokens {
         if matches!(tok, Token::General | Token::Text) {
@@ -101,7 +106,6 @@ fn render_abs(v: f64, section: &CompiledSection, general_width: Option<f64>) -> 
             text.push_str(&token_source(tok));
         }
     }
-    let zero = general == "0";
     (text, zero)
 }
 

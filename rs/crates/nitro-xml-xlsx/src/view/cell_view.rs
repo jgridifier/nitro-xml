@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/layout/cell-view.ts; changes listed in PROVENANCE.md.
 
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use crate::cf::cf_at;
-use crate::model::{ActiveWorksheet, DumpCellValue, WorkbookSlice};
+use crate::fast_hash::FastBuild;
+use crate::model::{ActiveWorksheet, CellStyle, DumpCellValue, Font, WorkbookSlice};
 use crate::numfmt::{format_value, FormatOptions};
 use crate::sheet_access::{
     dump_value_to_cell_value, get_cell, is_cell_error, range_contains, CellIndex,
@@ -10,7 +14,7 @@ use crate::sheet_access::{
 use crate::styles::style_at;
 use crate::view::sparkline_data::sparkline_view_at;
 use crate::view::style_view::{borders_view, fill_view, font_view, merge_border, merge_font};
-use crate::view::types::{CellView, FillView, RichRun};
+use crate::view::types::{BordersView, CellView, FillView, FontView, RichRun};
 use crate::view::units::INDENT_PX_PER_LEVEL;
 
 pub fn effective_style_id(sheet: &ActiveWorksheet, index: &CellIndex, row: u32, col: u32) -> u32 {
@@ -76,6 +80,19 @@ fn display_text(
         if *n == 0.0 && !sheet.view.show_zeros {
             return (String::new(), None);
         }
+        // cells_1k / default xf: General — skip compile_format + section choose (#30).
+        if num_fmt.is_empty() || num_fmt.eq_ignore_ascii_case("General") {
+            return (crate::numfmt::format_general(*n, None), None);
+        }
+    } else if let DumpCellValue::NumberRaw(s) = value {
+        if let Ok(n) = s.parse::<f64>() {
+            if n == 0.0 && !sheet.view.show_zeros {
+                return (String::new(), None);
+            }
+            if num_fmt.is_empty() || num_fmt.eq_ignore_ascii_case("General") {
+                return (crate::numfmt::format_general(n, None), None);
+            }
+        }
     }
     if let DumpCellValue::Bool(b) = value {
         return (if *b { "TRUE" } else { "FALSE" }.into(), None);
@@ -109,6 +126,76 @@ pub struct CellViewOptions<'a> {
     pub indent_px: Option<f64>,
     pub sheet_index: Option<usize>,
     pub all_sheets: Option<&'a [Option<ActiveWorksheet>]>,
+    /// Skip `sheet.merges` scan for overflow (caller already excluded covered cells).
+    pub not_in_merge: bool,
+    /// Optional O(1) comment lookup for the paint frame (#30 build_items).
+    pub comment_at: Option<&'a dyn Fn(u32, u32) -> bool>,
+    /// Per-frame cache of style→font/fill/borders (cells_1k is all style 0; #30).
+    pub style_cache: Option<&'a mut StylePaintCache>,
+}
+
+/// Frame-local cache for style-derived paint views (no CF override).
+#[derive(Default)]
+pub struct StylePaintCache {
+    entries: HashMap<u32, Rc<StylePaintParts>, FastBuild>,
+}
+
+struct StylePaintParts {
+    /// Base Font for rich-run merges (before value-color override on FontView).
+    font: Font,
+    font_view: Rc<FontView>,
+    fill: Option<FillView>,
+    borders: BordersView,
+}
+
+impl StylePaintCache {
+    fn get_or_compute<F>(&mut self, style_id: u32, f: F) -> Rc<StylePaintParts>
+    where
+        F: FnOnce() -> StylePaintParts,
+    {
+        self.entries
+            .entry(style_id)
+            .or_insert_with(|| Rc::new(f()))
+            .clone()
+    }
+}
+
+/// Resolve style font/fill/borders once per style_id (shared across cells_1k paint).
+fn resolve_style_parts(
+    workbook: &WorkbookSlice,
+    style: &CellStyle,
+    indexed: &[&str],
+) -> StylePaintParts {
+    let default_font = workbook.styles.first().map(|s| &s.font);
+    let mut base = style.font.clone();
+    if base.name.is_none() && base.scheme.is_none() {
+        if let Some(df) = default_font {
+            if df.name.is_some() {
+                base.name = df.name.clone();
+            }
+            if df.scheme.is_some() {
+                base.scheme = df.scheme.clone();
+            }
+        }
+    }
+    if base.size.is_none() {
+        if let Some(df) = default_font {
+            if df.size.is_some() {
+                base.size = df.size;
+            }
+        }
+    }
+    // merge_font(None) is clone — keep the call for parity with the CF merge path.
+    let font = merge_font(&base, None);
+    let font_view_resolved = Rc::new(font_view(&font, &workbook.theme, indexed));
+    let fill = fill_view(Some(&style.fill), &workbook.theme, false, indexed);
+    let borders = borders_view(&style.border, &workbook.theme, indexed);
+    StylePaintParts {
+        font,
+        font_view: font_view_resolved,
+        fill,
+        borders,
+    }
 }
 
 /// Core cell view without conditional formatting (oracle parity path).
@@ -130,37 +217,21 @@ pub fn cell_view_with_cf_cache(
     index: &CellIndex,
     row: u32,
     col: u32,
-    options: CellViewOptions<'_>,
+    mut options: CellViewOptions<'_>,
     mut cf_cache: Option<&mut crate::cf::CfPaintCache>,
 ) -> CellView {
+    let not_in_merge = options.not_in_merge;
+    let comment_at = options.comment_at;
+    let indent_opt = options.indent_px;
+    let sheet_index = options.sheet_index;
+    let all_sheets = options.all_sheets;
+
     let indexed = indexed_palette(workbook);
     let cell = get_cell(sheet, index, row, col);
     let value_ref = cell.map(|c| &c.value).unwrap_or(&DumpCellValue::Null);
-    let style = style_at(
-        &workbook.styles,
-        Some(effective_style_id(sheet, index, row, col)),
-    );
+    let style_id = effective_style_id(sheet, index, row, col);
+    let style = style_at(&workbook.styles, Some(style_id));
 
-    let default_font = workbook.styles.first().map(|s| &s.font);
-    let mut base = style.font.clone();
-    if base.name.is_none() && base.scheme.is_none() {
-        if let Some(df) = default_font {
-            if df.name.is_some() {
-                base.name = df.name.clone();
-            }
-            if df.scheme.is_some() {
-                base.scheme = df.scheme.clone();
-            }
-        }
-    }
-    if base.size.is_none() {
-        if let Some(df) = default_font {
-            if df.size.is_some() {
-                base.size = df.size;
-            }
-        }
-    }
-    let font = merge_font(&base, None);
     let formula_text = if sheet.view.show_formulas == Some(true) {
         cell.and_then(|c| c.formula.as_ref())
             .map(|f| format!("={}", f))
@@ -189,14 +260,63 @@ pub fn cell_view_with_cf_cache(
         let (t, c) = display_text(value_ref, fmt, workbook, sheet);
         (t, c)
     };
-    // Move `font` when CF does not override — avoid a Font clone on the hot path.
-    let font_for_view = match cf.as_ref().and_then(|c| c.style.as_ref()) {
-        Some(dxf) => merge_font(&font, dxf.font.as_ref()),
-        None => font,
+
+    // num_fmt alone does not restyle font/fill/borders — still cache those (#30).
+    let cf_restyles = cf.as_ref().is_some_and(|c| {
+        c.color_scale.is_some()
+            || c.style
+                .as_ref()
+                .is_some_and(|d| d.font.is_some() || d.fill.is_some() || d.border.is_some())
+    });
+
+    // Shared Rc on the cache hit path — FontView is not cloned per cell (#30).
+    let mut cached_parts: Option<Rc<StylePaintParts>> = None;
+    let (font_for_view, mut font_view_resolved, fill, borders) = if !cf_restyles {
+        if let Some(cache) = options.style_cache.as_mut() {
+            let parts =
+                cache.get_or_compute(style_id, || resolve_style_parts(workbook, style, &indexed));
+            let font_view_resolved = Rc::clone(&parts.font_view);
+            let fill = parts.fill.clone();
+            let borders = parts.borders.clone();
+            // Font stays behind the Rc until rich-text needs it.
+            cached_parts = Some(parts);
+            (None, font_view_resolved, fill, borders)
+        } else {
+            let parts = resolve_style_parts(workbook, style, &indexed);
+            (Some(parts.font), parts.font_view, parts.fill, parts.borders)
+        }
+    } else {
+        let parts = resolve_style_parts(workbook, style, &indexed);
+        let font_for_view = match cf.as_ref().and_then(|c| c.style.as_ref()) {
+            Some(dxf) if dxf.font.is_some() => merge_font(&parts.font, dxf.font.as_ref()),
+            _ => parts.font,
+        };
+        let font_view_resolved = Rc::new(font_view(&font_for_view, &workbook.theme, &indexed));
+        let mut fill = parts.fill;
+        if let Some(cf) = &cf {
+            if let Some(scale) = &cf.color_scale {
+                fill = Some(FillView::Background {
+                    background: scale.clone(),
+                });
+            } else if let Some(dxf) = &cf.style {
+                if let Some(cf_fill) = fill_view(dxf.fill.as_ref(), &workbook.theme, true, &indexed)
+                {
+                    fill = Some(cf_fill);
+                }
+            }
+        }
+        let merged_border;
+        let borders = match cf.as_ref().and_then(|c| c.style.as_ref()) {
+            Some(dxf) if dxf.border.is_some() => {
+                merged_border = merge_border(&style.border, dxf.border.as_ref());
+                borders_view(&merged_border, &workbook.theme, &indexed)
+            }
+            _ => parts.borders,
+        };
+        (Some(font_for_view), font_view_resolved, fill, borders)
     };
-    let mut font_view_resolved = font_view(&font_for_view, &workbook.theme, &indexed);
     if let Some(c) = shown.1 {
-        font_view_resolved.color = c;
+        Rc::make_mut(&mut font_view_resolved).color = c;
     }
 
     let alignment = style.alignment.as_ref();
@@ -219,23 +339,10 @@ pub fn cell_view_with_cf_cache(
     let indentable = h_align == "left" || h_align == "right" || h_align == "distributed";
     let indent = alignment.and_then(|a| a.indent).unwrap_or(0.0);
     let indent_px = if indentable {
-        indent * options.indent_px.unwrap_or(INDENT_PX_PER_LEVEL)
+        indent * indent_opt.unwrap_or(INDENT_PX_PER_LEVEL)
     } else {
         0.0
     };
-
-    let mut fill = fill_view(Some(&style.fill), &workbook.theme, false, &indexed);
-    if let Some(cf) = &cf {
-        if let Some(scale) = &cf.color_scale {
-            fill = Some(FillView::Background {
-                background: scale.clone(),
-            });
-        } else if let Some(dxf) = &cf.style {
-            if let Some(cf_fill) = fill_view(dxf.fill.as_ref(), &workbook.theme, true, &indexed) {
-                fill = Some(cf_fill);
-            }
-        }
-    }
 
     let is_number = matches!(
         value_ref,
@@ -248,23 +355,14 @@ pub fn cell_view_with_cf_cache(
         && rotation == 0.0
         && !vertical
         && h_align != "fill"
-        && !sheet.merges.iter().any(|m| range_contains(m, row, col));
+        && (not_in_merge || !sheet.merges.iter().any(|m| range_contains(m, row, col)));
 
-    // Upstream: `bordersView(mergeBorder(style.border, dxf?.border), …)`.
-    let merged_border;
-    let border_ref = match cf.as_ref().and_then(|c| c.style.as_ref()) {
-        Some(dxf) if dxf.border.is_some() => {
-            merged_border = merge_border(&style.border, dxf.border.as_ref());
-            &merged_border
-        }
-        _ => &style.border,
-    };
     let mut view = CellView {
         text: shown.0,
         title: None,
         font: font_view_resolved,
         fill,
-        borders: borders_view(border_ref, &workbook.theme, &indexed),
+        borders,
         h_align,
         v_align: alignment
             .and_then(|a| a.vertical.as_deref())
@@ -279,10 +377,13 @@ pub fn cell_view_with_cf_cache(
         overflow,
         data_bar: cf.as_ref().and_then(|c| c.data_bar.clone()),
         icon: cf.as_ref().and_then(|c| c.icon.clone().map(Into::into)),
-        has_comment: sheet
-            .comment_addresses
-            .iter()
-            .any(|a| a.row == row && a.col == col),
+        has_comment: match comment_at {
+            Some(f) => f(row, col),
+            None => sheet
+                .comment_addresses
+                .iter()
+                .any(|a| a.row == row && a.col == col),
+        },
         has_hyperlink: false,
         validation_list: sheet.data_validations.iter().any(|dv| {
             dv.validation_type == "list"
@@ -309,8 +410,9 @@ pub fn cell_view_with_cf_cache(
         }
     }
 
-    if let (Some(sheet_index), Some(all_sheets)) = (options.sheet_index, options.all_sheets) {
-        if !all_sheets.is_empty() {
+    if let (Some(sheet_index), Some(all_sheets)) = (sheet_index, all_sheets) {
+        // Skip host-map build when this sheet has no sparklines (#30).
+        if !all_sheets.is_empty() && !sheet.sparkline_groups.is_empty() {
             if let Some(sp) = sparkline_view_at(workbook, all_sheets, sheet_index, row, col) {
                 view.sparkline = Some(sp);
             }
@@ -321,18 +423,23 @@ pub fn cell_view_with_cf_cache(
         if let Some(c) = cell {
             if let Some(rt) = &c.rich_text {
                 if matches!(value_ref, DumpCellValue::String(_)) {
-                    view.rich = Some(
-                        rt.iter()
-                            .map(|run| RichRun {
-                                text: run.text.clone(),
-                                font: font_view(
-                                    &merge_font(&font_for_view, run.font.as_ref()),
-                                    &workbook.theme,
-                                    &indexed,
-                                ),
-                            })
-                            .collect(),
-                    );
+                    let base_font = font_for_view
+                        .as_ref()
+                        .or_else(|| cached_parts.as_ref().map(|p| &p.font));
+                    if let Some(base_font) = base_font {
+                        view.rich = Some(
+                            rt.iter()
+                                .map(|run| RichRun {
+                                    text: run.text.clone(),
+                                    font: font_view(
+                                        &merge_font(base_font, run.font.as_ref()),
+                                        &workbook.theme,
+                                        &indexed,
+                                    ),
+                                })
+                                .collect(),
+                        );
+                    }
                 }
             }
         }

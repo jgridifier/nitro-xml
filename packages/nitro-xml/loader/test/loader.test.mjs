@@ -154,6 +154,7 @@ describe("command buffer applier", () => {
     assert.equal(el.style.width, "33px");
     assert.equal(el.style.height, "44px");
   });
+
 });
 
 describe("event batch encoder", () => {

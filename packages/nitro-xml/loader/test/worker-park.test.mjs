@@ -125,9 +125,13 @@ describe("worker park / edit coalesce", () => {
       const d = new KeyDoc();
       const before = 100;
       d._root.children[0].style.left = `${before}px`;
+      let recaret = 0;
+      d._nxReCaret = () => {
+        recaret++;
+      };
       await d.editorKey({ key: "Z" }, false);
-      assert.equal(d._root.children.length, 0, "pre-measure paint cleared the page");
       await d.tick();
+      assert.ok(recaret >= 1, "measured frame did not re-place the caret");
       assert.ok(d._root.children.length > 0, "follow-up frame did not repaint the page");
       const caret = d._root.children.find((el) => el.attrs.class === "nxc");
       assert.ok(caret, "caret missing after typing");

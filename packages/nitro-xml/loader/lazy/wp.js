@@ -126,16 +126,30 @@ export function patch(WorkerDocument) {
     return result;
   }
 
-  // A mut-frame that still owes measure, outline, or layout is not the painted page.
-  // applyCommandBuffer clears the root first, so skipping the next tick leaves it empty.
+  // A mut-frame with an empty buffer, or one that still owes measure, outline, or
+  // layout, is not the painted page. A later key can report measureCount 0 while the
+  // previous batch is still awaiting, and its rAF tick can run before this flag is
+  // set — so schedule the follow-up here, not only from the caller's tick.
   function notePainted(doc, frame) {
+    const bytes = frame.commands ? frame.commands.byteLength : 0;
     doc._nxPainted = 1;
     if (
+      bytes === 0 ||
       (frame.measureCount | 0) > 0 ||
       (frame.outlineCount | 0) > 0 ||
       (frame.layoutCount | 0) > 0
     ) {
       doc._nxFollow = 1;
+      if (!doc._nxPoke) {
+        doc._nxPoke = 1;
+        const run = () => {
+          doc._nxPoke = 0;
+          if (!doc._nxFollow) return;
+          void doc.tick().catch(() => {});
+        };
+        if (typeof queueMicrotask === "function") queueMicrotask(run);
+        else Promise.resolve().then(run);
+      }
     }
   }
 
@@ -194,6 +208,10 @@ export function patch(WorkerDocument) {
       this._nxFollow = 0;
       if (!follow) return { ops: [], measured: 0, outlined: 0, layoutReads: 0 };
     }
-    return origTick.apply(this, args);
+    const painted = await origTick.apply(this, args);
+    // editorKey places the caret before this tick, often against the pre-measure
+    // frame. Re-place once the measured page is actually in the DOM.
+    if (typeof this._nxReCaret === "function") this._nxReCaret();
+    return painted;
   };
 }

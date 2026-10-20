@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>scoreboard first-paint harness</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #fff; }
+    #stage {
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+      width: 800px;
+      height: 480px;
+      font-family: system-ui, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage" data-ready="0"></div>
+  <script type="module">
+    import * as harness from './harness.mjs';
+    window.__fp = harness;
+    window.__fpReady = true;
+  </script>
+</body>
+</html>

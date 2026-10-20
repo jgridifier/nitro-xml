@@ -1717,9 +1717,9 @@ impl Handle {
         let _ = self.shell_action("copy", "");
         // Docx shell dump matches the TS oracle's whole-body `copySample`; interactive
         // `copy` without a block id stays empty so live selection can use DOM text.
-        // Find/open_first_view may have just finished the truncated body — refresh
-        // diagnostics so unsupported/warning lists match a full-open oracle.
-        self.resync_docx_shell_diagnostics();
+        // Do not unconditionally resync diagnostics here: that clears layout-time
+        // warnings and breaks shell parity on non-truncated opens. Truncated bodies
+        // already resync inside run_find / process_frame after ensure_body_complete.
         let docx_body = self.docx.as_ref().map(|d| d.body_plain());
         if let Some(body) = docx_body {
             self.shell.last_copy = body;

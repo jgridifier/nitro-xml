@@ -1571,14 +1571,48 @@ impl Handle {
         }
     }
 
+    /// Rebuild shell diagnostics from the current docx session warnings.
+    /// Needed after `ensure_body_complete` so truncated open-time lists catch up.
+    pub(crate) fn resync_docx_shell_diagnostics(&mut self) {
+        let Some(docx) = self.docx.as_ref() else {
+            return;
+        };
+        let warnings = docx.session.warnings.clone();
+        self.shell.diagnostics.clear_runtime();
+        self.warnings.clear();
+        for w in warnings {
+            let code = open_diagnostic_code(&w, "docx_warning");
+            self.shell.diagnostics.ingest_warning(code, &w, None);
+            self.push_warning(code.into(), w, None);
+        }
+    }
+
     fn run_find(&mut self) -> Result<(), JsValue> {
         let query = self.shell.find.query.clone();
         let case_sensitive = self.shell.find.case_sensitive;
         let match_entire = self.shell.find.match_entire;
         let matches = if self.xlsx.is_some() {
             self.find_xlsx(&query, case_sensitive, match_entire)?
-        } else if let Some(docx) = self.docx.as_ref() {
-            docx.search_body(&query, case_sensitive, match_entire)
+        } else if self.docx.is_some() {
+            let bytes = std::sync::Arc::clone(&self.bytes);
+            let mut completed = false;
+            if let Some(docx) = self.docx.as_mut() {
+                completed = docx.flush_pending_body(bytes.as_ref()).unwrap_or(false);
+                if docx.session.body_truncated {
+                    completed = docx
+                        .session
+                        .ensure_body_complete(bytes.as_ref())
+                        .unwrap_or(false)
+                        || completed;
+                }
+            }
+            if completed {
+                self.resync_docx_shell_diagnostics();
+            }
+            self.docx
+                .as_ref()
+                .map(|d| d.search_body(&query, case_sensitive, match_entire))
+                .unwrap_or_default()
         } else if let Some(pptx) = self.pptx.as_mut() {
             pptx.search(&query, case_sensitive, match_entire)
                 .map_err(|e| JsValue::from(OoxmlError::with_code("search_failed", e)))?
@@ -1683,6 +1717,9 @@ impl Handle {
         let _ = self.shell_action("copy", "");
         // Docx shell dump matches the TS oracle's whole-body `copySample`; interactive
         // `copy` without a block id stays empty so live selection can use DOM text.
+        // Do not unconditionally resync diagnostics here: that clears layout-time
+        // warnings and breaks shell parity on non-truncated opens. Truncated bodies
+        // already resync inside run_find / process_frame after ensure_body_complete.
         let docx_body = self.docx.as_ref().map(|d| d.body_plain());
         if let Some(body) = docx_body {
             self.shell.last_copy = body;

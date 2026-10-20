@@ -141,18 +141,18 @@ fn bench_xlsx(label: &str, path: &str, runs: usize) {
 
 fn bench_docx(path: &str, runs: usize) {
     let bytes = fs::read(path).unwrap_or_else(|e| panic!("read {path}: {e}"));
-    // PrintSession::open needs 'static — leak once for the process (bench only).
-    let leaked: &'static [u8] = Box::leak(bytes.into_boxed_slice());
-    println!("\n## docx path={path} file_kib={}", leaked.len() / 1024);
+    println!("\n## docx path={path} file_kib={}", bytes.len() / 1024);
+
+    // Full-body open (oracle / ensure path).
     let mut ms = Vec::with_capacity(runs);
     let mut hwm = Vec::with_capacity(runs);
-    let mut pages = 0usize;
+    let mut full_blocks = 0usize;
     for i in 0..(runs + 1) {
         let t0 = Instant::now();
-        let session = PrintSession::open(leaked).expect("PrintSession::open");
+        let session = PrintSession::open(&bytes).expect("PrintSession::open");
         let elapsed = t0.elapsed().as_secs_f64() * 1000.0;
         let (_, peak) = rss_kib();
-        pages = session.result.pages.len();
+        full_blocks = session.blocks_parsed;
         if i > 0 {
             ms.push(elapsed);
             hwm.push(peak);
@@ -160,7 +160,29 @@ fn bench_docx(path: &str, runs: usize) {
         drop(session);
     }
     report("docx_print_session_open", &ms, &hwm);
-    println!("docx_pages={pages}");
+
+    // First-view open (viewer TTFV — first hard page break only).
+    let mut ms = Vec::with_capacity(runs);
+    let mut hwm = Vec::with_capacity(runs);
+    let mut first_blocks = 0usize;
+    let mut truncated = false;
+    for i in 0..(runs + 1) {
+        let t0 = Instant::now();
+        let session = PrintSession::open_first_view(&bytes, 1).expect("open_first_view");
+        let elapsed = t0.elapsed().as_secs_f64() * 1000.0;
+        let (_, peak) = rss_kib();
+        first_blocks = session.blocks_parsed;
+        truncated = session.body_truncated;
+        if i > 0 {
+            ms.push(elapsed);
+            hwm.push(peak);
+        }
+        drop(session);
+    }
+    report("docx_open_first_view", &ms, &hwm);
+    println!(
+        "docx_full_blocks={full_blocks} docx_first_view_blocks={first_blocks} docx_body_truncated={truncated}"
+    );
 }
 
 fn bench_pptx(path: &str, runs: usize) {

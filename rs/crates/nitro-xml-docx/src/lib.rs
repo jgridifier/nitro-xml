@@ -65,7 +65,9 @@ pub mod write;
 mod xml_util;
 
 pub use body::{
-    get_media, parse_blocks_from_container, read_package, DocumentModel, LoadedDocument,
+    get_media, parse_blocks_from_container, parse_blocks_from_container_limited, read_package,
+    read_package_first_view, read_package_with_opts, BodyParseStats, BodyViewOpts, DocumentModel,
+    LoadedDocument,
 };
 pub use write::{save_docx, save_docx_with_options, DocxSaveOptions};
 

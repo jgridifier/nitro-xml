@@ -22,19 +22,33 @@ pub struct DocxState {
     pub zoom: f64,
     /// Live editor session when the document is not read-only.
     pub edit: Option<nitro_xml_docx::DocxEditor>,
+    /// Defer full-body parse until after first paint (xlsx SeekTail analogue).
+    pending_body_complete: bool,
 }
 
 impl DocxState {
+    /// Open with a body prefix (first hard page break) so first paint stays O(visible).
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
         // Borrow the handle's package Arc during parse only — PrintSession owns
         // its model/media after open (no Box::leak second copy of the zip).
-        let session = PrintSession::open(bytes)?;
+        let session = PrintSession::open_first_view(bytes, 1)?;
+        let pending_body_complete = session.body_truncated;
         Ok(Self {
             session,
             active: 0,
             zoom: 1.0,
             edit: None,
+            pending_body_complete,
         })
+    }
+
+    /// Run deferred `ensure_body_complete` once after first paint.
+    pub fn flush_pending_body(&mut self, bytes: &[u8]) -> Result<bool, String> {
+        if !self.pending_body_complete {
+            return Ok(false);
+        }
+        self.pending_body_complete = false;
+        self.session.ensure_body_complete(bytes)
     }
 
     pub fn page_count(&self) -> usize {
@@ -433,6 +447,15 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         .unwrap_or(false);
     let prev_page_count = handle.docx.as_ref().map(|d| d.page_count()).unwrap_or(0);
 
+    // After first paint is ready, finish the truncated body (SeekTail analogue).
+    let mut body_just_completed = false;
+    if was_ready {
+        let bytes = std::sync::Arc::clone(&handle.bytes);
+        if let Some(ref mut docx) = handle.docx {
+            body_just_completed = docx.flush_pending_body(bytes.as_ref()).unwrap_or(false);
+        }
+    }
+
     let layout_ready = if let Some(ref mut docx) = handle.docx {
         docx.session
             .tick_measure(&mut handle.measures, &mut handle.strings)
@@ -458,7 +481,7 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         if !was_ready || page_count != prev_page_count {
             tabs = Some((docx.page_tabs(), docx.active as u32));
         }
-        if !was_ready {
+        if !was_ready || body_just_completed {
             for w in &docx.session.warnings {
                 new_warnings.push(w.clone());
             }
@@ -469,13 +492,18 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         handle.shell.set_tabs(tabs, idx);
         handle.shell.dirty_ui = true;
     }
-    for w in new_warnings {
-        if handle.shell.diagnostics.has_message(&w) {
-            continue;
+    if body_just_completed {
+        // Truncated open ingested a prefix of warnings; replace with the full set.
+        handle.resync_docx_shell_diagnostics();
+    } else {
+        for w in new_warnings {
+            if handle.shell.diagnostics.has_message(&w) {
+                continue;
+            }
+            let code = crate::shell::open_diagnostic_code(&w, "docx_warning");
+            handle.shell.diagnostics.ingest_warning(code, &w, None);
+            handle.push_warning(code.into(), w, None);
         }
-        let code = crate::shell::open_diagnostic_code(&w, "docx_warning");
-        handle.shell.diagnostics.ingest_warning(code, &w, None);
-        handle.push_warning(code.into(), w, None);
     }
 }
 

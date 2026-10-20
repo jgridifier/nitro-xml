@@ -15,7 +15,10 @@ use super::line_numbers::{
 use super::options::{PrintLayoutOptions, PrintNow};
 use super::page_borders::{page_borders_from_section, PageBorders};
 use super::pages::paint_print_layout;
-use crate::body::{read_package, DocumentModel, LoadedDocument};
+use crate::body::{
+    read_package_first_view, read_package_with_opts, BodyParseStats, BodyViewOpts, DocumentModel,
+    LoadedDocument,
+};
 use crate::layout::{
     measure_font_css, prepare_layout_document_input, CachedMeasurer, LayoutDocumentInput,
     LayoutResult, LayoutReviewOptions, LayoutSession, MeasureCache, MeasureSample, PendingKind,
@@ -37,6 +40,10 @@ pub struct PrintSession {
     pub page_borders: Vec<Option<PageBorders>>,
     pub suppressed: HashSet<String>,
     pub warnings: Vec<String>,
+    /// True when [`Self::open_first_view`] stopped before the end of `w:body`.
+    pub body_truncated: bool,
+    /// Top-level body blocks parsed on the last open / ensure.
+    pub blocks_parsed: usize,
     measure_cache: MeasureCache,
     measure_pending: Vec<PendingMeasure>,
     layout_input: Option<LayoutDocumentInput>,
@@ -48,15 +55,43 @@ pub struct PrintSession {
 }
 
 impl PrintSession {
-    /// Parse the package and copy picture/chart payloads into owned maps.
+    /// Full-body open (oracle / bench / ensure path).
     /// Callers may free or reuse `bytes` after this returns — the session does
     /// not retain the zip buffer (avoids a leaked second package copy).
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
-        let mut loaded = read_package(bytes).map_err(|e| e.to_string())?;
+        let (loaded, stats) =
+            read_package_with_opts(bytes, BodyViewOpts::default()).map_err(|e| e.to_string())?;
+        Self::from_loaded(loaded, stats)
+    }
+
+    /// Parse only enough body blocks for the first N hard page breaks (viewer TTFV).
+    /// Same ownership contract as [`Self::open`]: no retained zip buffer.
+    pub fn open_first_view(bytes: &[u8], max_hard_page_breaks: usize) -> Result<Self, String> {
+        let (loaded, stats) =
+            read_package_first_view(bytes, max_hard_page_breaks).map_err(|e| e.to_string())?;
+        Self::from_loaded(loaded, stats)
+    }
+
+    /// Replace a truncated model with a full `read_package` (deferred SeekTail analogue).
+    pub fn ensure_body_complete(&mut self, bytes: &[u8]) -> Result<bool, String> {
+        if !self.body_truncated {
+            return Ok(false);
+        }
+        let full = Self::open(bytes)?;
+        *self = full;
+        Ok(true)
+    }
+
+    fn from_loaded(mut loaded: LoadedDocument<'_>, stats: BodyParseStats) -> Result<Self, String> {
         let picture_urls = collect_pictures(&mut loaded);
         let (chart_spaces, chart_color_palettes) = collect_charts(&mut loaded);
         let warnings = loaded.model.warnings.clone();
         let model = loaded.model;
+        let blocks_parsed = if stats.blocks_parsed > 0 {
+            stats.blocks_parsed
+        } else {
+            model.blocks.len()
+        };
         let sections = model.sections.as_deref().unwrap_or(&[]);
         Ok(Self {
             line_numbers: sections.iter().map(line_numbering_from_section).collect(),
@@ -71,6 +106,8 @@ impl PrintSession {
             chart_spaces,
             chart_color_palettes,
             warnings,
+            body_truncated: stats.body_truncated,
+            blocks_parsed,
             measure_cache: MeasureCache::new(),
             measure_pending: Vec::new(),
             layout_input: None,
@@ -476,6 +513,7 @@ mod incremental_layout_tests {
     }
 
     fn test_session(model: DocumentModel) -> PrintSession {
+        let blocks_parsed = model.blocks.len();
         PrintSession {
             model,
             result: LayoutResult {
@@ -489,6 +527,8 @@ mod incremental_layout_tests {
             page_borders: Vec::new(),
             suppressed: HashSet::new(),
             warnings: Vec::new(),
+            body_truncated: false,
+            blocks_parsed,
             measure_cache: MeasureCache::new(),
             measure_pending: Vec::new(),
             layout_input: None,
@@ -508,6 +548,29 @@ mod incremental_layout_tests {
         let _ = measures.take_requests();
         let widths: Vec<f64> = (0..n).map(|_| 48.0).collect();
         measures.set_results(&widths).expect("measure results");
+    }
+
+    #[test]
+    fn open_first_view_stops_after_first_page_break() {
+        // Catches: PrintSession::open_first_view still parsing every body block so
+        // first view stays O(document) instead of O(visible page breaks).
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/docx/pages_10.docx");
+        let bytes = std::fs::read(&path).expect("pages_10 fixture");
+        let first = PrintSession::open_first_view(&bytes, 1).expect("first view");
+        assert!(first.body_truncated, "expected truncated body");
+        let full = PrintSession::open(&bytes).expect("full");
+        assert!(!full.body_truncated);
+        assert!(
+            first.blocks_parsed < full.blocks_parsed,
+            "first={} full={}",
+            first.blocks_parsed,
+            full.blocks_parsed
+        );
+        let mut ensured = PrintSession::open_first_view(&bytes, 1).expect("first");
+        assert!(ensured.ensure_body_complete(&bytes).expect("ensure"));
+        assert!(!ensured.body_truncated);
+        assert_eq!(ensured.blocks_parsed, full.blocks_parsed);
     }
 
     #[test]

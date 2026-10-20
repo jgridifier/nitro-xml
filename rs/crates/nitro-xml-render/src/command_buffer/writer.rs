@@ -19,24 +19,44 @@ impl CommandBuffer {
         self.buf.clear();
     }
 
+    /// Grow capacity without changing length (paint frames know approximate size).
+    pub fn reserve(&mut self, additional: usize) {
+        self.buf.reserve(additional);
+    }
+
     pub fn take(&mut self) -> Vec<u8> {
         std::mem::take(&mut self.buf)
     }
 
+    #[inline]
+    fn put_bytes<const N: usize>(&mut self, bytes: [u8; N]) {
+        let len = self.buf.len();
+        self.buf.reserve(N);
+        // SAFETY: reserve(N) guarantees capacity for len+N; copy then set_len.
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), self.buf.as_mut_ptr().add(len), N);
+            self.buf.set_len(len + N);
+        }
+    }
+
+    #[inline]
     fn put_u8(&mut self, v: u8) {
         self.buf.push(v);
     }
 
+    #[inline]
     fn put_u32(&mut self, v: u32) {
-        self.buf.extend_from_slice(&v.to_le_bytes());
+        self.put_bytes(v.to_le_bytes());
     }
 
+    #[inline]
     fn put_i32(&mut self, v: i32) {
-        self.buf.extend_from_slice(&v.to_le_bytes());
+        self.put_bytes(v.to_le_bytes());
     }
 
+    #[inline]
     fn put_f32(&mut self, v: f32) {
-        self.buf.extend_from_slice(&v.to_le_bytes());
+        self.put_bytes(v.to_le_bytes());
     }
 
     #[allow(dead_code)] // painter-facing; Stage 3+

@@ -36,14 +36,26 @@ pub fn combined_chrome_html(state: &ShellState, editor: &EditorChrome) -> String
     };
     let formula = editor.formula_html();
     let overlay = editor.overlay_html();
-    let shell = chrome_html(state);
+    // An editable docx keeps Left/Right for the caret; page keys still turn pages.
+    let arrows = !(state.format == FormatKind::Docx && !editor.read_only());
+    let shell = chrome_html_with(state, arrows);
     format!("{ribbon}{formula}{shell}{overlay}")
 }
 
 /// Full chrome fragment (toolbar, find, tabs, diagnostics) for the loader host.
+#[cfg(test)]
 pub fn chrome_html(state: &ShellState) -> String {
+    chrome_html_with(state, true)
+}
+
+fn chrome_html_with(state: &ShellState, arrows_navigate: bool) -> String {
     let hk = if state.format == FormatKind::Pptx || state.format == FormatKind::Docx {
-        format!("{HOTKEYS}{PPTX_NAV}")
+        let nav = if arrows_navigate {
+            PPTX_NAV
+        } else {
+            "|PageDown:nav-next|PageUp:nav-prev"
+        };
+        format!("{HOTKEYS}{nav}")
     } else {
         HOTKEYS.to_owned()
     };

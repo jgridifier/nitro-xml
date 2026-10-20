@@ -63,7 +63,10 @@ export async function tickBody(doc) {
     doc._canvas && doc._canvas.getContext ? doc._canvas.getContext("2d") : null;
   const resolve = (id) => (strings && strings[id]) || "";
   if (frame.h && doc.onChrome) doc.onChrome(frame.h);
-  const result = applyCommandBuffer(commands, {
+  // An empty frame means "layout not ready yet" (e.g. right after an edit reopens the view), so keep
+  // the last good frame instead of clearing the page; the re-tick below paints the real one.
+  const keep = commands.byteLength === 0 && doc._root && doc._root.firstChild;
+  const result = keep ? { ops: 0 } : applyCommandBuffer(commands, {
     canvas: drawCtx,
     root: doc._root,
     resolve,
@@ -71,6 +74,9 @@ export async function tickBody(doc) {
     nodes: doc._nodes,
   });
   doc._queueLayout(layoutReqs, layoutCount || 0);
+  // Measured widths only land in the next frame; bounded so unmeasurable text cannot spin.
+  doc._rt = measureCount > 0 ? (doc._rt | 0) + 1 : 0;
+  if (doc._rt > 0 && doc._rt <= 6) void doc.tick().catch(() => {});
   return {
     ...result,
     measured: measureCount || 0,

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { SELECTION_CASES, deferredCases } from './registry.mjs';
 import { runShellChecks } from './shell.mjs';
 import { runLiveChecks } from './live.mjs';
+import { runCaretChecks } from '../interaction/caret.mjs';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), 'out');
 
@@ -31,18 +32,23 @@ async function main() {
 	console.log(shell.summary);
 	const live = await runLiveChecks();
 	console.log(live.summary);
+	const caret = await runCaretChecks(
+		(process.env.SELECTION_BROWSERS || 'chromium,webkit,firefox').split(',').map((b) => b.trim()).filter(Boolean),
+	);
+	console.log(caret.summary);
 
 	const deferred = deferredCases().map(
 		(c) => `${c.id}: allowList ${c.allowList || '—'} — ${c.todo || ''}`,
 	);
-	const rows = [...shell.rows, ...live.rows];
-	const ok = shell.ok && live.ok;
+	const rows = [...shell.rows, ...live.rows, ...caret.rows];
+	const ok = shell.ok && live.ok && caret.ok;
 	const breakdown = formatBreakdown(rows);
 	const summary = [
 		`selection: ${ok ? 'PASS' : 'FAIL'}`,
 		`per-format (ready): ${breakdown}`,
 		shell.summary,
 		live.summary,
+		caret.summary,
 		...(deferred.length
 			? ['deferred / allow-listed:', ...deferred.map((d) => `  - ${d}`)]
 			: []),

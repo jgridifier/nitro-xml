@@ -215,6 +215,8 @@ fn paint_paragraph<I: StringIntern>(
 ) -> u32 {
     let el = dom.el(parent, "div");
     dom.class(el, "dve-print-block");
+    // The loader's caret hit-test maps a pointer position back to this paragraph.
+    dom.attr(el, "data-bid", &paragraph.block_id);
     dom.px(el, "top", paragraph.y_px);
     dom.px(el, "height", paragraph.height_px);
     if let Some(frame) = &paragraph.frame {

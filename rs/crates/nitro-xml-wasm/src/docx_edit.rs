@@ -5,7 +5,51 @@ use nitro_xml_docx::{save_docx, DocxEditor};
 use serde_json::Value;
 
 use crate::docx::DocxState;
-use crate::office_edit::{command_ribbon, edit_plain, is_text_key, OfficeEffect, RibbonItem};
+use crate::office_edit::{command_ribbon, is_text_key, OfficeEffect, RibbonItem};
+
+/// What a key did at the caret: nothing, moved it (no relayout), or changed the document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyOutcome {
+    Ignored,
+    Moved,
+    Edited,
+}
+
+/// The last coalescible edit, so consecutive typing / deleting folds into one undo step.
+pub struct Typing {
+    kind: &'static str,
+    block_id: String,
+    offset: usize,
+    done_len: usize,
+}
+
+fn paragraph_text(block: &Value) -> String {
+    block
+        .get("runs")
+        .and_then(|r| r.as_array())
+        .map(|rs| {
+            rs.iter()
+                .map(|r| r.get("text").and_then(|t| t.as_str()).unwrap_or(""))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn prev_boundary(text: &str, mut off: usize) -> usize {
+    off = off.saturating_sub(1);
+    while off > 0 && !text.is_char_boundary(off) {
+        off -= 1;
+    }
+    off
+}
+
+fn next_boundary(text: &str, mut off: usize) -> usize {
+    off += 1;
+    while off < text.len() && !text.is_char_boundary(off) {
+        off += 1;
+    }
+    off.min(text.len())
+}
 
 impl DocxState {
     pub fn ensure_edit(&mut self, bytes: &[u8]) -> Result<(), String> {
@@ -27,6 +71,7 @@ impl DocxState {
     }
 
     pub fn dispatch_chrome(&mut self, id: &str) -> Result<OfficeEffect, String> {
+        self.typing = None;
         let id = canonical_command(id);
         if id == "file.save" {
             return Ok(OfficeEffect::Save);
@@ -41,6 +86,11 @@ impl DocxState {
     }
 
     pub fn apply_raw_edit(&mut self, spec: &str) -> Result<OfficeEffect, String> {
+        self.typing = None;
+        self.apply_edit_spec(spec)
+    }
+
+    fn apply_edit_spec(&mut self, spec: &str) -> Result<OfficeEffect, String> {
         let v: Value = serde_json::from_str(spec).map_err(|e| e.to_string())?;
         let command = v
             .get("command")
@@ -64,94 +114,247 @@ impl DocxState {
         Ok(OfficeEffect::Applied)
     }
 
-    /// Printable keys and Backspace/Delete edit the caret paragraph.
+    /// Keys at the caret: typing, Enter, Backspace/Delete (joining paragraphs at the edges) and
+    /// Left/Right. Up/Down/Home/End need line geometry, so the loader resolves those from the DOM.
     pub fn type_key(
         &mut self,
         key: &str,
         ctrl: bool,
         meta: bool,
         alt: bool,
-    ) -> Result<bool, String> {
-        if ctrl || meta || alt || !is_text_key(key) {
-            return Ok(false);
+    ) -> Result<KeyOutcome, String> {
+        let printable = is_text_key(key) && key != "Backspace" && key != "Delete";
+        let known = printable
+            || matches!(
+                key,
+                "Backspace" | "Delete" | "Enter" | "ArrowLeft" | "ArrowRight"
+            );
+        if ctrl || meta || alt || !known {
+            return Ok(KeyOutcome::Ignored);
         }
-        let (block, text, offset, attrs) = {
-            let edit = self
-                .edit
-                .as_ref()
-                .ok_or_else(|| "no edit session".to_string())?;
-            let caret = edit.print.caret.block_index;
-            let blocks = &edit.session.host.blocks;
-            let block = if blocks
-                .get(caret)
+        let Some((bi, off, text)) = self.caret_paragraph() else {
+            return Ok(KeyOutcome::Ignored);
+        };
+        let prev_para = |s: &Self| s.paragraph_before(bi);
+        let next_para = |s: &Self| s.paragraph_after(bi);
+        let (kind, spec, caret): (&str, Option<serde_json::Value>, (usize, usize)) = match key {
+            "ArrowLeft" => {
+                let to = if off > 0 {
+                    (bi, prev_boundary(&text, off))
+                } else if let Some(p) = prev_para(self) {
+                    (p, self.paragraph_len(p))
+                } else {
+                    (bi, 0)
+                };
+                ("", None, to)
+            }
+            "ArrowRight" => {
+                let to = if off < text.len() {
+                    (bi, next_boundary(&text, off))
+                } else if let Some(n) = next_para(self) {
+                    (n, 0)
+                } else {
+                    (bi, text.len())
+                };
+                ("", None, to)
+            }
+            "Enter" => (
+                "",
+                Some(serde_json::json!({
+                    "command": "splitParagraph", "blockIndex": bi, "offset": off,
+                })),
+                (bi + 1, 0),
+            ),
+            "Backspace" if off > 0 => {
+                let start = prev_boundary(&text, off);
+                (
+                    "del",
+                    Some(serde_json::json!({
+                        "command": "deleteText", "blockIndex": bi, "start": start, "end": off,
+                    })),
+                    (bi, start),
+                )
+            }
+            "Backspace" => match prev_para(self) {
+                Some(p) => (
+                    "",
+                    Some(serde_json::json!({ "command": "joinParagraphs", "blockIndex": p })),
+                    (p, self.paragraph_len(p)),
+                ),
+                None => return Ok(KeyOutcome::Moved),
+            },
+            "Delete" if off < text.len() => (
+                "del",
+                Some(serde_json::json!({
+                    "command": "deleteText", "blockIndex": bi,
+                    "start": off, "end": next_boundary(&text, off),
+                })),
+                (bi, off),
+            ),
+            "Delete" => match next_para(self) {
+                Some(_) => (
+                    "",
+                    Some(serde_json::json!({ "command": "joinParagraphs", "blockIndex": bi })),
+                    (bi, off),
+                ),
+                None => return Ok(KeyOutcome::Moved),
+            },
+            _ => (
+                "ins",
+                Some(serde_json::json!({
+                    "command": "insertText", "blockIndex": bi, "offset": off, "text": key,
+                })),
+                (bi, off + key.len()),
+            ),
+        };
+        let Some(spec) = spec else {
+            self.typing = None;
+            self.set_caret(caret.0, caret.1);
+            return Ok(KeyOutcome::Moved);
+        };
+        let block_id = self.block_id(bi);
+        let continues = !kind.is_empty()
+            && self.typing.as_ref().is_some_and(|t| {
+                t.kind == kind
+                    && t.block_id == block_id
+                    && t.offset == off
+                    && Some(t.done_len) == self.done_len()
+            });
+        self.apply_edit_spec(&spec.to_string())?;
+        if continues {
+            if let Some(edit) = self.edit.as_mut() {
+                edit.session.history.merge_last_into_previous();
+            }
+        }
+        self.set_caret(caret.0, caret.1);
+        self.typing = (!kind.is_empty()).then(|| Typing {
+            kind,
+            block_id: self.block_id(caret.0),
+            offset: caret.1,
+            done_len: self.done_len().unwrap_or(0),
+        });
+        Ok(KeyOutcome::Edited)
+    }
+
+    fn done_len(&self) -> Option<usize> {
+        self.edit.as_ref().map(|e| e.session.history.done().len())
+    }
+
+    fn block_id(&self, bi: usize) -> String {
+        self.edit
+            .as_ref()
+            .and_then(|e| e.session.host.blocks.get(bi))
+            .and_then(|b| b.get("id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_owned()
+    }
+
+    fn is_paragraph(&self, bi: usize) -> bool {
+        self.edit
+            .as_ref()
+            .and_then(|e| e.session.host.blocks.get(bi))
+            .and_then(|b| b.get("type"))
+            .and_then(|t| t.as_str())
+            == Some("paragraph")
+    }
+
+    fn paragraph_before(&self, bi: usize) -> Option<usize> {
+        (bi > 0 && self.is_paragraph(bi - 1)).then(|| bi - 1)
+    }
+
+    fn paragraph_after(&self, bi: usize) -> Option<usize> {
+        self.is_paragraph(bi + 1).then_some(bi + 1)
+    }
+
+    fn paragraph_len(&self, bi: usize) -> usize {
+        self.edit
+            .as_ref()
+            .and_then(|e| e.session.host.blocks.get(bi))
+            .map(paragraph_text)
+            .map(|t| t.len())
+            .unwrap_or(0)
+    }
+
+    /// The caret's paragraph (block index, clamped byte offset, plain text). Re-finds the block by
+    /// id after undo/redo or structure edits, and falls back to the first paragraph.
+    fn caret_paragraph(&mut self) -> Option<(usize, usize, String)> {
+        let edit = self.edit.as_mut()?;
+        let blocks = &edit.session.host.blocks;
+        let c = &edit.print.caret;
+        let by_id = (!c.block_id.is_empty())
+            .then(|| {
+                blocks
+                    .iter()
+                    .position(|b| b.get("id").and_then(|v| v.as_str()) == Some(c.block_id.as_str()))
+            })
+            .flatten();
+        let is_para = |i: usize| {
+            blocks
+                .get(i)
                 .and_then(|b| b.get("type"))
                 .and_then(|t| t.as_str())
                 == Some("paragraph")
-            {
-                caret
-            } else {
-                blocks
-                    .iter()
-                    .position(|b| b.get("type").and_then(|t| t.as_str()) == Some("paragraph"))
-                    .ok_or_else(|| "no paragraph".to_string())?
-            };
-            let runs = blocks[block].get("runs").and_then(|r| r.as_array());
-            let text: String = runs
-                .map(|rs| {
-                    rs.iter()
-                        .map(|r| r.get("text").and_then(|t| t.as_str()).unwrap_or(""))
-                        .collect()
-                })
-                .unwrap_or_default();
-            let offset = if block == caret {
-                edit.print.caret.offset
-            } else {
-                0
-            };
-            let mut attrs = runs
-                .and_then(|rs| rs.first())
-                .and_then(|r| r.as_object())
-                .cloned()
-                .unwrap_or_default();
-            attrs.remove("text");
-            (block, text, offset, attrs)
         };
-        let Some(next) = edit_plain(&text, offset, key) else {
-            return Ok(false);
-        };
-        let mut spec = serde_json::json!({
-            "command": "setParagraphText",
-            "blockIndex": block,
-            "text": next,
-        });
-        if let Some(obj) = spec.as_object_mut() {
-            for (k, v) in attrs {
-                obj.entry(k).or_insert(v);
-            }
+        let bi = by_id
+            .filter(|&i| is_para(i))
+            .or_else(|| is_para(c.block_index).then_some(c.block_index))
+            .or_else(|| (0..blocks.len()).find(|&i| is_para(i)))?;
+        let text = paragraph_text(&blocks[bi]);
+        let mut off = c.offset.min(text.len());
+        while !text.is_char_boundary(off) {
+            off -= 1;
         }
-        self.apply_raw_edit(&spec.to_string())?;
+        Some((bi, off, text))
+    }
+
+    fn set_caret(&mut self, bi: usize, off: usize) {
         if let Some(edit) = self.edit.as_mut() {
-            edit.print.caret.block_index = block;
-            edit.print.caret.offset = match key {
-                "Backspace" => {
-                    let mut end = offset.min(text.len());
-                    while end > 0 && !text.is_char_boundary(end) {
-                        end -= 1;
-                    }
-                    let mut prev = end;
-                    if prev > 0 {
-                        prev -= 1;
-                        while prev > 0 && !text.is_char_boundary(prev) {
-                            prev -= 1;
-                        }
-                    }
-                    prev
-                }
-                "Delete" => offset.min(next.len()),
-                _ => offset.min(text.len()) + key.len(),
-            };
+            edit.set_caret_block(bi, off);
         }
-        Ok(true)
+    }
+
+    /// `[block id, chars before the caret, chars in the paragraph]` for the loader's caret overlay.
+    pub fn caret_json(&mut self) -> Option<serde_json::Value> {
+        let (bi, off, text) = self.caret_paragraph()?;
+        Some(serde_json::json!([
+            self.block_id(bi),
+            text[..off].chars().count(),
+            text.chars().count()
+        ]))
+    }
+
+    /// Place the caret from a pointer hit: `shown_before` rendered chars precede the click inside
+    /// the block `block_id`, whose rendered text has `shown_total` chars. Rendered text can carry
+    /// a list label ahead of the model text, which the length difference accounts for.
+    pub fn set_caret_from_view(
+        &mut self,
+        block_id: &str,
+        shown_before: usize,
+        shown_total: usize,
+    ) -> bool {
+        let Some(edit) = self.edit.as_ref() else {
+            return false;
+        };
+        let Some(bi) = edit.session.host.blocks.iter().position(|b| {
+            b.get("id").and_then(|v| v.as_str()) == Some(block_id)
+                && b.get("type").and_then(|t| t.as_str()) == Some("paragraph")
+        }) else {
+            return false;
+        };
+        let text = paragraph_text(&edit.session.host.blocks[bi]);
+        let n = text.chars().count();
+        let chars = shown_before
+            .saturating_sub(shown_total.saturating_sub(n))
+            .min(n);
+        let off = text
+            .char_indices()
+            .nth(chars)
+            .map(|(i, _)| i)
+            .unwrap_or(text.len());
+        self.typing = None;
+        self.set_caret(bi, off);
+        true
     }
 
     /// Re-layout the painted document from the bytes a save would produce.
@@ -160,15 +363,18 @@ impl DocxState {
         let active = self.active;
         let zoom = self.zoom;
         let edit = self.edit.take();
+        let typing = self.typing.take();
         let opened = Self::open(&bytes);
         let mut next = match opened {
             Ok(state) => state,
             Err(e) => {
                 self.edit = edit;
+                self.typing = typing;
                 return Err(e);
             }
         };
         next.edit = edit;
+        next.typing = typing;
         next.zoom = zoom;
         let n = next.page_count();
         if n > 0 {

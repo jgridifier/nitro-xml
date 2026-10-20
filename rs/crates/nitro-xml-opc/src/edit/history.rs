@@ -110,6 +110,23 @@ impl EditHistory {
         self.undone.clear();
     }
 
+    /// Fold the newest step into the one before it (typing coalescing, UI-driven): the merged
+    /// step keeps the older `before` and the newer `after`. Only single-entry steps merge.
+    pub fn merge_last_into_previous(&mut self) -> bool {
+        if self.done.len() < 2 || !self.undone.is_empty() {
+            return false;
+        }
+        let n = self.done.len();
+        if self.done[n - 1].entries.len() != 1 || self.done[n - 2].entries.len() != 1 {
+            return false;
+        }
+        let last = self.done.pop().expect("len checked");
+        let prev = self.done.last_mut().expect("len checked");
+        prev.entries[0].after = last.entries[0].after.clone();
+        prev.change = last.change;
+        true
+    }
+
     /// Restore each entry's `before` in reverse order; move step to redo stack.
     pub fn undo<H: EditHost>(&mut self, host: &mut H) -> Option<HistoryStep> {
         let step = self.done.pop()?;

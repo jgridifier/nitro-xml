@@ -8,12 +8,15 @@ mod structure;
 
 use std::collections::{BTreeSet, HashMap};
 
-use nitro_xml_opc::opc::Package;
+use indexmap::IndexMap;
+
+use nitro_xml_opc::opc::rel_types::SLIDE_LAYOUT;
+use nitro_xml_opc::opc::{relationships_part_for, Package, Relationship};
 use nitro_xml_opc::write::PackageWriter;
 
 use crate::edit::host::PptxHost;
 
-use self::pictures::{attach_pictures, plan_pictures};
+use self::pictures::{attach_pictures, plan_pictures, rels_xml, retarget_slide_layout};
 use self::slide_xml::{max_numeric_id, rewrite_slide_with_pics};
 
 /// Options for [`save_pptx_with_options`].
@@ -33,7 +36,9 @@ pub fn save_pptx(host: &PptxHost, original: &[u8]) -> Result<Vec<u8>, String> {
 /// A clean host, or `skip_slide_rewrite`, returns the original bytes through
 /// [`PackageWriter`]'s identity shortcut. A slide-list edit rebuilds
 /// `p:sldIdLst`, relationships and slide parts. Otherwise only
-/// `host.dirty_parts` slide XML is replaced. Notes parts are TODO(#86); rich
+/// `host.dirty_parts` slide XML is replaced. A layout override rewrites only
+/// that slide's `slideLayout` relationship, leaving other relationships in
+/// place. Notes parts are TODO(#86); rich
 /// runs and autofit are TODO(#85) / TODO(#86). List markers (`a:buChar`,
 /// `a:buAutoNum`, `a:buNone`), authored tables (`a:tbl`), and inserted
 /// pictures (`p:pic` plus `ppt/media`) are written inside the dirty slide.
@@ -57,20 +62,35 @@ pub fn save_pptx_with_options(
     let mut max_id = 0i64;
     let mut sources: HashMap<String, String> = HashMap::new();
     let mut pic_plans = HashMap::new();
+    let mut layout_rels: HashMap<String, IndexMap<String, Relationship>> = HashMap::new();
     for slide in &host.slides {
         let xml = {
             let text = pkg.text(&slide.path).map_err(|e| e.to_string())?;
             text.map(str::to_owned)
         };
+        let content_dirty = host.dirty_parts.contains(&slide.path);
+        if let Some(xml) = xml.as_ref() {
+            max_id = max_id.max(max_numeric_id(xml)?);
+        }
+        if !content_dirty && slide.layout_target.is_none() {
+            continue;
+        }
         let Some(xml) = xml else {
-            return Err(format!("missing part {}", slide.path));
+            if content_dirty {
+                return Err(format!("missing part {}", slide.path));
+            }
+            continue;
         };
-        max_id = max_id.max(max_numeric_id(&xml)?);
-        if host.dirty_parts.contains(&slide.path) {
-            let rels = pkg.rels(&slide.path).map_err(|e| e.to_string())?.clone();
+        let rels = pkg.rels(&slide.path).map_err(|e| e.to_string())?.clone();
+        if content_dirty {
             let (map, planned) = plan_pictures(slide, &rels, &mut used_parts);
-            pic_plans.insert(slide.path.clone(), (rels, map, planned));
+            pic_plans.insert(slide.path.clone(), (rels.clone(), map, planned));
             sources.insert(slide.path.clone(), xml);
+        }
+        if let Some(target) = slide.layout_target.as_deref() {
+            if let Some(next) = retarget_slide_layout(&rels, target) {
+                layout_rels.insert(slide.path.clone(), next);
+            }
         }
     }
 
@@ -79,21 +99,106 @@ pub fn save_pptx_with_options(
     let mut next_id = max_id + 1;
     let mut writer = PackageWriter::open(original).map_err(|e| e.to_string())?;
     for slide in &host.slides {
-        if !host.dirty_parts.contains(&slide.path) {
-            continue;
+        let content_dirty = host.dirty_parts.contains(&slide.path);
+        if content_dirty {
+            let src = sources
+                .get(&slide.path)
+                .ok_or_else(|| format!("missing dirty part {}", slide.path))?;
+            let (rels, map, planned) = pic_plans
+                .get(&slide.path)
+                .ok_or_else(|| format!("missing picture plan {}", slide.path))?;
+            let rewritten = rewrite_slide_with_pics(src, slide, &mut next_id, map)?;
+            // `replace` keeps content types. Picture saves also add media and a slide rel.
+            writer.replace(&slide.path, rewritten.into_bytes());
+            let rels_out = layout_rels.get(&slide.path).unwrap_or(rels);
+            attach_pictures(&mut writer, &slide.path, rels_out, planned)?;
+            if layout_rels.contains_key(&slide.path) && planned.is_empty() {
+                writer.add_text(
+                    relationships_part_for(&slide.path),
+                    rels_xml(rels_out),
+                    None,
+                );
+            }
+        } else if let Some(next) = layout_rels.get(&slide.path) {
+            writer.add_text(relationships_part_for(&slide.path), rels_xml(next), None);
         }
-        let src = sources
-            .get(&slide.path)
-            .ok_or_else(|| format!("missing dirty part {}", slide.path))?;
-        let (rels, map, planned) = pic_plans
-            .get(&slide.path)
-            .ok_or_else(|| format!("missing picture plan {}", slide.path))?;
-        let rewritten = rewrite_slide_with_pics(src, slide, &mut next_id, map)?;
-        // `replace` keeps content types. Picture saves also add media and a slide rel.
-        writer.replace(&slide.path, rewritten.into_bytes());
-        attach_pictures(&mut writer, &slide.path, rels, planned)?;
     }
     writer.finish().map_err(|e| e.to_string())
+}
+
+/// Next layout override for `slide_index`.
+///
+/// `Ok(None)` means the click changes nothing (one layout, or the next target
+/// is already current). `Ok(Some(None))` clears an override that cycled back to
+/// the package target. `Ok(Some(Some(target)))` stores a relative relationship
+/// target such as `../slideLayouts/slideLayout2.xml`.
+pub(crate) fn next_layout_override(
+    package: &[u8],
+    host: &PptxHost,
+    slide_index: u32,
+) -> Result<Option<Option<String>>, String> {
+    let slide = host.slide(slide_index)?;
+    let mut pkg = Package::open(package).map_err(|e| e.to_string())?;
+    let mut layouts: Vec<(u32, String)> = pkg
+        .part_names()
+        .filter_map(|name| {
+            let name = name.trim_start_matches('/');
+            let file = name.rsplit('/').next()?;
+            if !name.starts_with("ppt/slideLayouts/slideLayout")
+                || !file.ends_with(".xml")
+                || name.contains("_rels")
+            {
+                return None;
+            }
+            let num = file
+                .strip_prefix("slideLayout")?
+                .strip_suffix(".xml")?
+                .parse::<u32>()
+                .ok()?;
+            Some((num, file.to_owned()))
+        })
+        .collect();
+    layouts.sort_by_key(|(n, _)| *n);
+    layouts.dedup_by(|a, b| a.1 == b.1);
+    if layouts.len() < 2 {
+        return Ok(None);
+    }
+    let rels = match pkg.rels(&slide.path) {
+        Ok(rels) => rels.clone(),
+        Err(_) => return Ok(None),
+    };
+    let authored = rels
+        .values()
+        .find(|rel| rel.type_ == SLIDE_LAYOUT)
+        .map(|rel| rel.target.clone());
+    let Some(authored) = authored else {
+        return Ok(None);
+    };
+    let current = slide
+        .layout_target
+        .clone()
+        .unwrap_or_else(|| authored.clone());
+    let current_file = layout_file(&current);
+    let pos = layouts
+        .iter()
+        .position(|(_, file)| file == current_file)
+        .unwrap_or(0);
+    let next_file = &layouts[(pos + 1) % layouts.len()].1;
+    if next_file == current_file {
+        return Ok(None);
+    }
+    let authored_file = layout_file(&authored);
+    if next_file == authored_file {
+        if slide.layout_target.is_none() {
+            return Ok(None);
+        }
+        return Ok(Some(None));
+    }
+    Ok(Some(Some(format!("../slideLayouts/{next_file}"))))
+}
+
+fn layout_file(target: &str) -> &str {
+    target.rsplit(['/', '\\']).next().unwrap_or(target)
 }
 
 #[cfg(test)]
@@ -475,6 +580,157 @@ mod tests {
             .to_owned();
         let png = pkg.read(&media).expect("read").expect("bytes");
         assert_eq!(png, INSERTED_PNG);
+    }
+
+    // Catches: shape fill and outline staying off the saved slide, or a second click
+    // rewriting the package, or undo saving the painted bytes.
+    #[test]
+    fn shape_fill_and_outline_round_trip_and_undo() {
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut editor = crate::editor::PptxEditor::open(bytes.as_slice()).expect("open");
+        let id = editor.session.host.slides[0].elements[0].id.clone();
+        editor.select_elements(std::iter::once(id));
+        editor
+            .dispatch_command("home.shape-fill", &serde_json::Value::Null)
+            .expect("fill");
+        let filled = save_pptx(&editor.session.host, bytes.as_slice()).expect("save fill");
+        assert_ne!(filled.as_slice(), bytes.as_slice());
+        let fill_xml = part_text(&filled, "ppt/slides/slide1.xml");
+        assert!(
+            fill_xml.contains("val=\"5B2C6F\""),
+            "reopen lost the shape fill: {fill_xml}"
+        );
+        assert!(
+            fill_xml.contains("Slide 1"),
+            "fill rewrite dropped the title"
+        );
+        let reopened = PptxHost::open(&filled).expect("reopen fill");
+        assert!(!reopened.is_dirty());
+        assert_eq!(
+            save_pptx(&reopened, &filled).expect("identity").as_slice(),
+            filled.as_slice()
+        );
+        editor
+            .dispatch_command("home.shape-fill", &serde_json::Value::Null)
+            .expect("fill again");
+        assert_eq!(
+            save_pptx(&editor.session.host, bytes.as_slice())
+                .expect("second fill")
+                .as_slice(),
+            filled.as_slice()
+        );
+        editor
+            .dispatch_command("edit.undo", &serde_json::Value::Null)
+            .expect("undo fill");
+        assert_eq!(
+            save_pptx(&editor.session.host, bytes.as_slice())
+                .expect("undone fill")
+                .as_slice(),
+            bytes.as_slice()
+        );
+
+        editor
+            .dispatch_command("home.shape-outline", &serde_json::Value::Null)
+            .expect("outline");
+        let outlined = save_pptx(&editor.session.host, bytes.as_slice()).expect("save outline");
+        assert_ne!(outlined.as_slice(), bytes.as_slice());
+        let line_xml = part_text(&outlined, "ppt/slides/slide1.xml");
+        assert!(
+            line_xml.contains("val=\"00B050\""),
+            "reopen lost the outline: {line_xml}"
+        );
+        editor
+            .dispatch_command("home.shape-outline", &serde_json::Value::Null)
+            .expect("outline again");
+        assert_eq!(
+            save_pptx(&editor.session.host, bytes.as_slice())
+                .expect("second outline")
+                .as_slice(),
+            outlined.as_slice()
+        );
+        editor
+            .dispatch_command("edit.undo", &serde_json::Value::Null)
+            .expect("undo outline");
+        assert_eq!(
+            save_pptx(&editor.session.host, bytes.as_slice())
+                .expect("undone outline")
+                .as_slice(),
+            bytes.as_slice()
+        );
+    }
+
+    // Catches: Layout dirtying a one-layout deck, or a multi-layout change dropping
+    // the other slide relationships, or undo failing to restore the original bytes.
+    #[test]
+    fn slide_layout_round_trip_preserves_other_rels_and_undo() {
+        let one = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut editor = crate::editor::PptxEditor::open(one.as_slice()).expect("open one");
+        editor
+            .dispatch_command("home.layout", &serde_json::Value::Null)
+            .expect("layout one");
+        assert_eq!(
+            save_pptx(&editor.session.host, one.as_slice())
+                .expect("one save")
+                .as_slice(),
+            one.as_slice()
+        );
+
+        let bytes =
+            include_bytes!("../../../../../fixtures/upstream/pptx/51edb06a949d_text-layout.pptx");
+        let mut editor = crate::editor::PptxEditor::open(bytes.as_slice()).expect("open");
+        editor
+            .dispatch_command("home.layout", &serde_json::Value::Null)
+            .expect("layout");
+        let saved = save_pptx(&editor.session.host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let rels = part_text(&saved, "ppt/slides/_rels/slide1.xml.rels");
+        assert!(
+            rels.contains("../slideLayouts/slideLayout2.xml"),
+            "layout target unchanged: {rels}"
+        );
+        assert!(
+            rels.contains("https://example.com/docs"),
+            "layout rewrite dropped the hyperlink: {rels}"
+        );
+        assert!(rels.contains("TargetMode=\"External\""));
+        let mut pres = crate::Presentation::open(&saved).expect("reopen");
+        let slide = pres.slide(0).expect("slide");
+        assert_eq!(
+            slide.layout_path.as_deref(),
+            Some("ppt/slideLayouts/slideLayout2.xml")
+        );
+        let reopened = PptxHost::open(&saved).expect("host");
+        assert!(!reopened.is_dirty());
+        assert_eq!(
+            save_pptx(&reopened, &saved).expect("identity").as_slice(),
+            saved.as_slice()
+        );
+        editor
+            .dispatch_command("insert.slide", &serde_json::Value::Null)
+            .expect("insert");
+        let with_slide = save_pptx(&editor.session.host, bytes.as_slice()).expect("structure");
+        let rels = part_text(&with_slide, "ppt/slides/_rels/slide1.xml.rels");
+        assert!(
+            rels.contains("../slideLayouts/slideLayout2.xml"),
+            "insert slide dropped the layout override: {rels}"
+        );
+        editor
+            .dispatch_command("edit.undo", &serde_json::Value::Null)
+            .expect("undo insert");
+        editor
+            .dispatch_command("edit.undo", &serde_json::Value::Null)
+            .expect("undo layout");
+        assert_eq!(
+            save_pptx(&editor.session.host, bytes.as_slice())
+                .expect("undone")
+                .as_slice(),
+            bytes.as_slice()
+        );
+    }
+
+    fn part_text(bytes: &[u8], name: &str) -> String {
+        let mut pkg = Package::open(bytes).expect("pkg");
+        pkg.text(name).expect("text").expect("part").to_owned()
     }
 
     fn slide_plain(slide: &crate::edit::host::EditableSlide) -> String {

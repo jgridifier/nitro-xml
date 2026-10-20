@@ -119,6 +119,13 @@ export const MANIFEST = {
         ],
       },
       {
+        id: "Drawing",
+        items: [
+          cmd("home.shape-fill", "fill", "Fill", "Shape fill"),
+          cmd("home.shape-outline", "outline", "Outline", "Shape outline"),
+        ],
+      },
+      {
         id: "Slides",
         items: [
           cmd("insert.slide", "slide", "New slide"),
@@ -127,6 +134,7 @@ export const MANIFEST = {
           cmd("insert.move-slide-down", "chevDown", "Move slide down"),
           cmd("insert.text-box", "text", "Text box"),
           cmd("insert.picture", "picture", "Picture", "Insert a picture"),
+          cmd("home.layout", "layout", "Layout", "Change slide layout"),
           cmd("home.delete-slide", "trash", "Delete slide"),
         ],
       },

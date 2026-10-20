@@ -82,6 +82,11 @@ pub struct EditableSlide {
     /// Part cloned on duplicate (`sourceSlideId`). Omitted from the parity snapshot.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_slide_id: Option<String>,
+    /// Relationship target for this slide's layout (`../slideLayouts/slideLayout2.xml`).
+    /// `None` keeps the target from the opened package. Omitted from the parity
+    /// snapshot so undo restores `None` and the writer leaves `.rels` alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_target: Option<String>,
 }
 
 /// One thumbnail-rail cell. `preview` stays empty until a painter fills it.
@@ -253,6 +258,7 @@ impl PptxHost {
                 notes,
                 elements,
                 source_slide_id: None,
+                layout_target: None,
             });
         }
         Ok(Self {
@@ -262,9 +268,12 @@ impl PptxHost {
         })
     }
 
-    /// True when a shape command has marked a slide part, or the slide list changed.
+    /// True when a shape command has marked a slide part, the slide list changed,
+    /// or a slide layout relationship override is set.
     pub fn is_dirty(&self) -> bool {
-        self.structure_dirty || !self.dirty_parts.is_empty()
+        self.structure_dirty
+            || !self.dirty_parts.is_empty()
+            || self.slides.iter().any(|s| s.layout_target.is_some())
     }
 
     pub(crate) fn touch(&mut self, slide_index: u32) -> Result<(), String> {
@@ -861,6 +870,21 @@ impl PptxHost {
         self.touch(slide_index)
     }
 
+    /// Point the slide at another layout part. `None` clears the override.
+    /// Does not mark the slide XML dirty: the writer rewrites only the `.rels` target.
+    pub fn set_layout_target(
+        &mut self,
+        slide_index: u32,
+        target: Option<String>,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        if slide.layout_target == target {
+            return Ok(());
+        }
+        slide.layout_target = target;
+        Ok(())
+    }
+
     /// Insert a blank slide at `at` (append when `at` is `None`). Returns the new index.
     pub fn add_slide(&mut self, at: Option<u32>) -> Result<u32, String> {
         let len = self.slides.len();
@@ -874,6 +898,7 @@ impl PptxHost {
                 notes: None,
                 elements: Vec::new(),
                 source_slide_id: None,
+                layout_target: None,
             },
         );
         self.structure_dirty = true;

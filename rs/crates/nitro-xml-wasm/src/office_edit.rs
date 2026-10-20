@@ -1100,4 +1100,86 @@ mod tests {
         h.shell_action("cmd", "edit.undo").expect("undo break");
         assert_eq!(h.save_document().expect("break undone"), DOCX);
     }
+
+    #[test]
+    fn catches_shape_fill_outline_and_layout_missing_after_reopen_or_undo() {
+        // Catches: ribbon Fill, Outline, or Layout leaving the saved package unchanged or undo keeping the edit.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        let ui = h.shell_action("ui", "").expect("ui");
+        assert!(
+            ui.contains("home.shape-fill"),
+            "fill is missing from the ribbon"
+        );
+        assert!(
+            ui.contains("home.shape-outline"),
+            "outline is missing from the ribbon"
+        );
+        assert!(
+            ui.contains("home.layout"),
+            "layout is missing from the ribbon"
+        );
+        h.shell_action("cmd", "home.layout").expect("one layout");
+        assert_eq!(
+            h.save_document().expect("one"),
+            PPTX,
+            "one-layout deck changed"
+        );
+        h.shell_action("cmd", "home.shape-fill").expect("fill");
+        let filled = h.save_document().expect("filled");
+        assert_ne!(filled, PPTX);
+        assert!(
+            reopened_paint(&filled).contains("5B2C6F"),
+            "reopen lost the shape fill"
+        );
+        h.shell_action("cmd", "home.shape-fill")
+            .expect("fill again");
+        assert_eq!(h.save_document().expect("fill again"), filled);
+        h.shell_action("cmd", "edit.undo").expect("undo fill");
+        assert_eq!(h.save_document().expect("undone fill"), PPTX);
+        h.shell_action("cmd", "home.shape-outline")
+            .expect("outline");
+        let outlined = h.save_document().expect("outlined");
+        assert_ne!(outlined, PPTX);
+        assert!(
+            reopened_paint(&outlined).contains("00B050"),
+            "reopen lost the outline"
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo outline");
+        assert_eq!(h.save_document().expect("undone outline"), PPTX);
+
+        let layout =
+            include_bytes!("../../../../fixtures/upstream/pptx/51edb06a949d_text-layout.pptx");
+        let mut h = open_editable(layout, "text-layout.pptx");
+        h.shell_action("cmd", "home.layout").expect("layout");
+        let saved = h.save_document().expect("layout save");
+        assert_ne!(saved, layout);
+        let mut pres = nitro_xml_pptx::Presentation::open(&saved).expect("reopen");
+        let slide = pres.slide(0).expect("slide");
+        assert_eq!(
+            slide.layout_path.as_deref(),
+            Some("ppt/slideLayouts/slideLayout2.xml")
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo layout");
+        assert_eq!(h.save_document().expect("undone layout"), layout);
+    }
+
+    fn reopened_paint(bytes: &[u8]) -> String {
+        let mut pres = nitro_xml_pptx::Presentation::open(bytes).expect("reopen");
+        let slide = pres.slide(0).expect("slide");
+        let path = slide.path.clone();
+        slide
+            .elements
+            .iter()
+            .filter(|el| el.id.starts_with(&path))
+            .map(|el| {
+                format!(
+                    "{} {} {}",
+                    el.fill_color.as_deref().unwrap_or(""),
+                    el.fill_mode.as_deref().unwrap_or(""),
+                    el.stroke_color.as_deref().unwrap_or("")
+                )
+            })
+            .collect::<String>()
+            .to_ascii_uppercase()
+    }
 }

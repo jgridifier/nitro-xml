@@ -5,7 +5,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use indexmap::IndexMap;
 
-use nitro_xml_opc::opc::rel_types::IMAGE;
+use nitro_xml_opc::opc::rel_types::{IMAGE, SLIDE_LAYOUT};
 use nitro_xml_opc::opc::{relationships_part_for, RelMode, Relationship};
 use nitro_xml_opc::write::{PackageWriter, PartWrite};
 
@@ -97,7 +97,24 @@ pub fn attach_pictures(
     Ok(())
 }
 
-fn rels_xml(rels: &IndexMap<String, Relationship>) -> String {
+/// Copy `rels` with the slideLayout `Target` replaced.
+/// `None` when every slideLayout relationship already uses `layout_target`.
+pub(crate) fn retarget_slide_layout(
+    rels: &IndexMap<String, Relationship>,
+    layout_target: &str,
+) -> Option<IndexMap<String, Relationship>> {
+    let mut changed = false;
+    let mut out = rels.clone();
+    for rel in out.values_mut() {
+        if rel.type_ == SLIDE_LAYOUT && rel.target != layout_target {
+            rel.target = layout_target.to_owned();
+            changed = true;
+        }
+    }
+    changed.then_some(out)
+}
+
+pub(crate) fn rels_xml(rels: &IndexMap<String, Relationship>) -> String {
     let mut out = String::from(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">"#,
     );

@@ -25,7 +25,12 @@ const paste = (page, fmt, text) =>
 		(el, sr, t) => {
 			const dt = new DataTransfer();
 			dt.setData('text/plain', t);
-			(sr.activeElement || el).dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+			const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+			// Firefox hands listeners an emptied DataTransfer for synthetic paste events.
+			if (!ev.clipboardData || ev.clipboardData.getData('text/plain') !== t) {
+				Object.defineProperty(ev, 'clipboardData', { value: { getData: (k) => (k === 'text/plain' ? t : '') } });
+			}
+			(sr.activeElement || el).dispatchEvent(ev);
 		},
 		text,
 	);

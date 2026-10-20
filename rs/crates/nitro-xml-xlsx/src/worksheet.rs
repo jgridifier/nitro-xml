@@ -16,10 +16,7 @@ use crate::drawing::load_sheet_drawings;
 use crate::hyperlinks::read_hyperlinks;
 use crate::metadata::parse_dynamic_array_metadata;
 use crate::model::{ActiveWorksheet, DifferentialStyle, SharedString};
-use crate::sheet_data::{
-    read_sheet_data_element, read_sheet_data_xml, store_to_dump_cells,
-    store_to_dump_cells_with_sst, CellContext,
-};
+use crate::sheet_data::{read_sheet_data_element, read_sheet_data_xml, CellContext};
 use crate::sheet_data_source::sheet_data_bounds;
 use crate::sheet_props::{read_columns, read_data_validations, read_sheet_format, read_sheet_view};
 use crate::sparklines::{extract_ext_lst, read_sparkline_groups_from_ext};
@@ -102,6 +99,15 @@ pub fn parse_worksheet(
         .filter_map(|node| att(Some(node), "ref").and_then(parse_range))
         .collect();
 
+    if let Some(dim) = by_name
+        .get("dimension")
+        .and_then(|n| att(Some(n), "ref"))
+        .and_then(parse_range)
+    {
+        let rows = dim.end.row.saturating_sub(dim.start.row) + 1;
+        let cols = dim.end.col.saturating_sub(dim.start.col) + 1;
+        store.reserve(rows.saturating_mul(cols) as usize);
+    }
     let mut cell_ctx = CellContext {
         shared_strings: &ctx.shared_strings,
         xf_map: &ctx.xf_map,
@@ -120,6 +126,7 @@ pub fn parse_worksheet(
     } else if let Some(data) = by_name.get("sheetData") {
         read_sheet_data_element(&mut cell_ctx, data, &mut store, &mut row_info);
     }
+    store.shrink_to_fit();
     // Drop the full part (and cell borrow); keep only the small emptied shell for extLst.
     let shell_owned = match bounds {
         Some(b) => {
@@ -129,7 +136,6 @@ pub fn parse_worksheet(
         None => xml,
     };
 
-    let cells = store_to_dump_cells_with_sst(&store, &ctx.shared_strings);
     let ext_lst = extract_ext_lst(&shell_owned);
     let sparkline_groups = by_name
         .get("extLst")
@@ -155,7 +161,9 @@ pub fn parse_worksheet(
         columns,
         merges,
         row_info: row_info.into_iter().collect(),
-        cells,
+        // Living store: materialize DumpCell only via ensure_dump_cells / to_json_with_sst.
+        cell_store: Some(store),
+        cells: Vec::new(),
         data_validations,
         comment_addresses,
         hyperlinks,
@@ -187,7 +195,8 @@ fn empty_worksheet(
         columns: Vec::new(),
         merges: Vec::new(),
         row_info: row_info.into_iter().collect(),
-        cells: store_to_dump_cells(&store),
+        cell_store: Some(store),
+        cells: Vec::new(),
         data_validations: Vec::new(),
         comment_addresses: Vec::new(),
         hyperlinks: Vec::new(),

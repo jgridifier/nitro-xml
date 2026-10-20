@@ -326,6 +326,16 @@ impl CalcEngine {
     pub fn load(bytes: &[u8]) -> Result<Self, String> {
         let workbook = load_workbook(bytes)?;
         let parsed = parse_all_worksheets(bytes, &workbook)?;
+        let sst = workbook.shared_strings.clone();
+        let parsed: Vec<Option<crate::model::ActiveWorksheet>> = parsed
+            .into_iter()
+            .map(|opt| {
+                opt.map(|mut ws| {
+                    ws.ensure_dump_cells(&sst);
+                    ws
+                })
+            })
+            .collect();
         let parts: Vec<Option<String>> = workbook
             .sheets
             .iter()

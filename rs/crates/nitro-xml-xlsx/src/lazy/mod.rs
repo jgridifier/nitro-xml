@@ -428,13 +428,14 @@ mod tests {
 
     fn assert_rect_matches(bytes: &[u8], rect: ViewportRect) {
         let full = load_workbook(bytes).expect("full workbook");
-        let full_sheet = full
+        let mut full_sheet = full
             .active_worksheet
-            .as_ref()
+            .clone()
             .expect("active sheet on the full path");
+        full_sheet.ensure_dump_cells(&full.shared_strings);
         let lazy = open_first_view(bytes, rect).expect("first view");
         let lazy_sheet = lazy.sheet(full.active_sheet as usize).expect("lazy sheet");
-        let left = cell_texts(&full, full_sheet, rect);
+        let left = cell_texts(&full, &full_sheet, rect);
         let right = cell_texts(lazy.workbook(), lazy_sheet, rect);
         assert_eq!(left, right);
     }
@@ -503,12 +504,13 @@ mod tests {
             c1: 10,
         };
         let full = load_workbook(cells_100k).expect("full");
-        let full_sheet = full.active_worksheet.as_ref().expect("sheet");
+        let mut full_sheet = full.active_worksheet.clone().expect("sheet");
+        full_sheet.ensure_dump_cells(&full.shared_strings);
         let mut lazy = open_first_view(cells_100k, top).expect("first view");
         assert!(lazy.ensure_viewport(0, scrolled).expect("scroll"));
         let lazy_sheet = lazy.sheet(0).expect("scrolled sheet");
         assert_eq!(
-            cell_texts(&full, full_sheet, scrolled),
+            cell_texts(&full, &full_sheet, scrolled),
             cell_texts(lazy.workbook(), lazy_sheet, scrolled)
         );
         let total_rows = full_sheet.cells.iter().map(|c| c.row).max().unwrap_or(0) + 1;
@@ -592,7 +594,8 @@ mod tests {
         let bytes = two_sheet_package();
         let full = load_workbook(&bytes).expect("full synthetic");
         let all = parse_all_worksheets(&bytes, &full).expect("editor path reads every sheet");
-        let sheet2 = all.get(1).and_then(|s| s.as_ref()).expect("sheet2");
+        let mut sheet2 = all.get(1).and_then(|s| s.as_ref()).expect("sheet2").clone();
+        sheet2.ensure_dump_cells(&full.shared_strings);
         assert!(
             sheet2.cells.iter().any(|c| matches!(
                 &c.value,

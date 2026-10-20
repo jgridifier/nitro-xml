@@ -78,11 +78,13 @@ fn find_sheet_data_open(xml: &str) -> Option<OpenMatch> {
             continue;
         }
         let after_lt = &slice[1..];
-        let colon = after_lt.find(':');
+        let tag_end = after_lt.find('>').unwrap_or(after_lt.len());
+        let tag_head = &after_lt[..tag_end];
+        let colon = tag_head.find(':');
         let local_start = if let Some(c) = colon { c + 1 } else { 0 };
-        if after_lt[local_start..].starts_with(needle) {
+        if tag_head[local_start..].starts_with(needle) {
             let prefix = match colon {
-                Some(c) => after_lt[..c + 1].to_owned(),
+                Some(c) => tag_head[..c + 1].to_owned(),
                 None => String::new(),
             };
             let idx = local_start + needle.len();
@@ -150,4 +152,25 @@ fn root_namespaces(xml: &str) -> Option<std::collections::HashMap<String, String
         }
     }
     Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_sheet_data;
+
+    #[test]
+    fn split_succeeds_when_body_has_colons() {
+        // Catches: find_sheet_data_open scanning past the tag for ':' into cell formulas
+        // (e.g. A1:B2), returning None and forcing a DOM parse of sheetData (HWM blow-up).
+        let xml = concat!(
+            r#"<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#,
+            r#"<sheetData>"#,
+            r#"<row r="1"><c r="A1"><f>SUM(A1:B2)</f><v>1</v></c></row>"#,
+            r#"</sheetData></worksheet>"#,
+        );
+        let split = split_sheet_data(xml).expect("split must succeed when body has A1:B2");
+        assert!(split.sheet_data_inner.contains("SUM(A1:B2)"));
+        assert!(split.shell_xml.contains("<sheetData>"));
+        assert!(split.shell_xml.contains("</sheetData>"));
+    }
 }

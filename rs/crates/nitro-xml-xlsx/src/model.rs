@@ -1094,6 +1094,9 @@ pub struct ActiveWorksheet {
     pub columns: Vec<ColumnInfo>,
     pub merges: Vec<CellRange>,
     pub row_info: std::collections::BTreeMap<u32, RowInfo>,
+    /// Living columnar store after full worksheet parse; cleared once [`ActiveWorksheet::ensure_dump_cells`]
+    /// materializes [`Self::cells`].
+    pub cell_store: Option<crate::cells::CellStore>,
     pub cells: Vec<DumpCell>,
     pub data_validations: Vec<DataValidation>,
     pub comment_addresses: Vec<CellAddress>,
@@ -1113,40 +1116,9 @@ pub struct ActiveWorksheet {
 }
 
 impl ActiveWorksheet {
+    /// JSON dump when shared strings are unavailable (materialized [`Self::cells`] only).
     pub fn to_json(&self) -> Value {
-        let mut m = Map::new();
-        m.insert("name".into(), Value::String(self.name.clone()));
-        m.insert("sheetId".into(), json!(self.sheet_id));
-        m.insert("state".into(), Value::String(self.state.as_str().into()));
-        if let Some(p) = &self.part_name {
-            m.insert("partName".into(), Value::String(p.clone()));
-        }
-        m.insert("defaultRowHeight".into(), js_num(self.default_row_height));
-        if let Some(w) = self.default_col_width {
-            m.insert("defaultColWidth".into(), js_num(w));
-        }
-        if let Some(f) = &self.format {
-            m.insert("format".into(), f.to_json());
-        }
-        m.insert("view".into(), self.view.to_json());
-        m.insert(
-            "columns".into(),
-            Value::Array(self.columns.iter().map(ColumnInfo::to_json).collect()),
-        );
-        m.insert(
-            "merges".into(),
-            Value::Array(self.merges.iter().map(CellRange::to_json).collect()),
-        );
-        let mut row_info = Map::new();
-        for (k, v) in &self.row_info {
-            row_info.insert(k.to_string(), v.to_json());
-        }
-        m.insert("rowInfo".into(), Value::Object(row_info));
-        m.insert(
-            "cells".into(),
-            Value::Array(self.cells.iter().map(DumpCell::to_json).collect()),
-        );
-        Value::Object(m)
+        self.to_json_with_sst(&[])
     }
 }
 
@@ -1257,7 +1229,10 @@ impl WorkbookSlice {
             m.insert("workbookModernHash".into(), h.to_json());
         }
         if let Some(ws) = &self.active_worksheet {
-            m.insert("activeWorksheet".into(), ws.to_json());
+            m.insert(
+                "activeWorksheet".into(),
+                ws.to_json_with_sst(&self.shared_strings),
+            );
         }
         Value::Object(m)
     }

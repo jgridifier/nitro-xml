@@ -489,6 +489,17 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
     Ok(shell.workbook)
 }
 
+impl WorkbookSlice {
+    /// Materialize [`ActiveWorksheet::cells`] for the active sheet when the load path kept a living
+    /// [`ActiveWorksheet::cell_store`].
+    pub fn ensure_active_dump_cells(&mut self) {
+        if let Some(ws) = &mut self.active_worksheet {
+            let sst = &self.shared_strings;
+            ws.ensure_dump_cells(sst);
+        }
+    }
+}
+
 pub(crate) fn stub_worksheet(stub: &SheetStub) -> crate::model::ActiveWorksheet {
     crate::model::ActiveWorksheet {
         name: stub.name.clone(),
@@ -502,6 +513,7 @@ pub(crate) fn stub_worksheet(stub: &SheetStub) -> crate::model::ActiveWorksheet 
         columns: Vec::new(),
         merges: Vec::new(),
         row_info: std::collections::BTreeMap::new(),
+        cell_store: None,
         cells: Vec::new(),
         data_validations: Vec::new(),
         comment_addresses: Vec::new(),
@@ -564,7 +576,7 @@ pub fn parse_all_worksheets(
                 dynamic_cells: dynamic_cells.clone(),
                 warnings: Vec::new(),
             };
-            let ws = parse_worksheet(
+            let mut ws = parse_worksheet(
                 &mut ws_ctx,
                 &mut pkg,
                 part,
@@ -572,6 +584,9 @@ pub fn parse_all_worksheets(
                 stub.sheet_id,
                 stub.state,
             );
+            // Dump / view-IR / engine API / sheet_access read `.cells`; keep living store only on
+            // `load_workbook` (cells_1m HWM). Materialize here with SST so Shared cells resolve.
+            ws.ensure_dump_cells(&workbook.shared_strings);
             out.push(Some(ws));
         } else {
             out.push(Some(stub_worksheet(stub)));
@@ -617,14 +632,16 @@ pub fn parse_worksheet_at(
         dynamic_cells,
         warnings: Vec::new(),
     };
-    Ok(parse_worksheet(
+    let mut ws = parse_worksheet(
         &mut ws_ctx,
         &mut pkg,
         part,
         &stub.name,
         stub.sheet_id,
         stub.state,
-    ))
+    );
+    ws.ensure_dump_cells(&workbook.shared_strings);
+    Ok(ws)
 }
 
 #[cfg(test)]

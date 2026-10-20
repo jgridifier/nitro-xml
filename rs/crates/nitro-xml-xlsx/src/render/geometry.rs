@@ -224,6 +224,7 @@ mod tests {
             columns: Vec::new(),
             merges: Vec::new(),
             row_info: std::collections::BTreeMap::new(),
+            cell_store: None,
             cells: Vec::new(),
             data_validations: Vec::new(),
             comment_addresses: Vec::new(),

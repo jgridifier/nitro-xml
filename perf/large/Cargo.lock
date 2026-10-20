@@ -206,6 +206,7 @@ dependencies = [
  "libc",
  "nitro-xml-opc",
  "nitro-xml-render",
+ "quick-xml",
  "regex",
  "ryu",
  "serde_json",

@@ -47,4 +47,6 @@ export const ICONS = {
   subscript: '<path d="M5 6l8 8M13 6L5 14"/><path class="a" d="M16 16h4v1.2c0 1.2-.8 2-2 2s-2-.8-2-2"/>',
   superscript: '<path d="M5 8l8 8M13 8L5 16"/><path class="a" d="M16 4h4v1.2c0 1.2-.8 2-2 2s-2-.8-2-2"/>',
   font: '<path d="M5 19L11 5h2l6 14M7.5 14h9"/><path class="a" d="M16 5h3"/>',
+  style: '<path d="M6 18l4-12h2l4 12"/><path class="a" d="M8 13h6"/>',
+  pageBreak: '<path d="M6 4h12v7H6zM6 13h12v7H6z"/><path class="a" d="M4 12h16"/>',
 };

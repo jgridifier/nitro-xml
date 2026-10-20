@@ -68,10 +68,16 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("line-spacing", "Line Spacing", surface, false));
         html.push_str(&button("font-size", "Font Size", surface, false));
         html.push_str(&button("font-color", "Font Color", surface, false));
+        html.push_str(&button("style-normal", "Normal", surface, false));
+        html.push_str(&button("style-title", "Title", surface, false));
+        html.push_str(&button("style-heading-1", "Heading 1", surface, false));
+        html.push_str(&button("style-heading-2", "Heading 2", surface, false));
+        html.push_str(&button("style-heading-3", "Heading 3", surface, false));
         html.push_str("</section>");
         html.push_str("<section class=\"dve-ribbon-group\" aria-label=\"Insert\">");
         html.push_str(&button("insert.table", "Table", surface, false));
         html.push_str(&button("insert.picture", "Picture", surface, false));
+        html.push_str(&button("insert.page-break", "Page Break", surface, false));
         html.push_str(&button("table.insert-row", "Insert Row", surface, false));
         html.push_str(&button("table.delete-row", "Delete Row", surface, false));
         html.push_str(&button(

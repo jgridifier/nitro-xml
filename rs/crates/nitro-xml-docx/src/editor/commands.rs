@@ -10,8 +10,8 @@ use serde_json::{json, Value};
 
 use crate::edit::drawing::append_inline_picture;
 use crate::edit::format::{
-    adjust_left_indent, cycle_line_spacing, set_paragraph_align, set_run_formatting,
-    INDENT_STEP_TWIPS,
+    adjust_left_indent, cycle_line_spacing, set_paragraph_align, set_paragraph_style,
+    set_run_formatting, INDENT_STEP_TWIPS,
 };
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
@@ -66,6 +66,12 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("align-right", "Align Right", None, true),
     word_cmd!("align-justify", "Justify", None, true),
     word_cmd!("numbering", "Numbering", None, true),
+    word_cmd!("style-normal", "Normal", None, true),
+    word_cmd!("style-title", "Title", None, true),
+    word_cmd!("style-heading-1", "Heading 1", None, true),
+    word_cmd!("style-heading-2", "Heading 2", None, true),
+    word_cmd!("style-heading-3", "Heading 3", None, true),
+    word_cmd!("insert.page-break", "Page Break", None, true),
     word_cmd!("insert.table", "Table", None, true),
     word_cmd!("insert.picture", "Picture", None, true),
     word_cmd!("font-size", "Font Size", None, true),
@@ -469,6 +475,44 @@ impl DocxCommandSurface {
                 schedule_relayout(print_edit);
                 Ok(())
             }
+            "style-normal" | "style-title" | "style-heading-1" | "style-heading-2"
+            | "style-heading-3" => {
+                let style_id = match id {
+                    "style-normal" => "Normal",
+                    "style-title" => "Title",
+                    "style-heading-1" => "Heading1",
+                    "style-heading-2" => "Heading2",
+                    _ => "Heading3",
+                };
+                let current = session
+                    .host
+                    .paragraph(caret_block)
+                    .ok()
+                    .and_then(|block| block.get("style").and_then(|v| v.as_str()))
+                    .map(str::to_owned);
+                if current.as_deref() == Some(style_id) {
+                    return Ok(());
+                }
+                session.run(
+                    format!("style {style_id}"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| set_paragraph_style(h, caret_block, style_id),
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "insert.page-break" => {
+                let at = caret_block.saturating_add(1);
+                session.run(
+                    "insert.page-break",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |h| insert_page_break(h, at),
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
             "insert.picture" => {
                 session.run(
                     String::from("insert.picture"),
@@ -589,6 +633,26 @@ pub fn register_editor_commands(registry: &mut CommandRegistry) {
     ] {
         registry.register(Command::stub(id, id));
     }
+}
+
+fn insert_page_break(host: &mut DocxHost, at: usize) -> Result<(), EditError> {
+    let at = at.min(host.blocks.len());
+    let id = format!("page-break-{at}-{}", host.blocks.len());
+    host.blocks.insert(
+        at,
+        json!({
+            "type": "paragraph",
+            "id": id,
+            "runs": [{ "text": "", "break": "page" }],
+        }),
+    );
+    let mut shifted = std::collections::BTreeSet::new();
+    for index in host.touched.iter().copied() {
+        shifted.insert(if index >= at { index + 1 } else { index });
+    }
+    shifted.insert(at);
+    host.touched = shifted;
+    Ok(())
 }
 
 fn first_table(host: &DocxHost) -> Result<usize, EditError> {

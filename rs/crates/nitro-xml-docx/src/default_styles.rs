@@ -26,6 +26,18 @@ fn note_styles(id: &str, name: &str) -> String {
     )
 }
 
+/// Paragraph style element for the gallery ids the editor can apply.
+/// `None` when `style_id` is not one of Title / Heading1 / Heading2 / Heading3.
+pub fn builtin_paragraph_style_xml(style_id: &str) -> Option<String> {
+    Some(match style_id {
+        "Title" => r#"<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="10"/><w:qFormat/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:contextualSpacing/></w:pPr><w:rPr><w:rFonts w:ascii="Calibri Light" w:hAnsi="Calibri Light" w:eastAsia="Calibri Light" w:cs="Times New Roman"/><w:spacing w:val="-10"/><w:kern w:val="28"/><w:sz w:val="56"/><w:szCs w:val="56"/></w:rPr></w:style>"#.to_owned(),
+        "Heading1" => heading("Heading1", "heading 1", 0, 240, 32, "2F5496"),
+        "Heading2" => heading("Heading2", "heading 2", 1, 40, 26, "2F5496"),
+        "Heading3" => heading("Heading3", "heading 3", 2, 40, 24, "1F3763"),
+        _ => return None,
+    })
+}
+
 /// Built-in `word/styles.xml` for documents without a styles part (matches upstream `DEFAULT_STYLES_XML`).
 pub fn default_styles_xml() -> String {
     let mut s = format!(

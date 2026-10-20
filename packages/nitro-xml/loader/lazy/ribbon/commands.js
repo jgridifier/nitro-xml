@@ -33,6 +33,16 @@ const metrics = [
   it("home.superscript", "superscript", "Superscript"),
   it("home.font-name", "font", "Font", "Set the font name"),
 ];
+const wordStyles = {
+  g: "Styles",
+  rows: [[
+    it("home.style-normal", "style", "Normal"),
+    it("home.style-title", "style", "Title"),
+    it("home.style-heading-1", "style", "Heading 1"),
+    it("home.style-heading-2", "style", "Heading 2"),
+    it("home.style-heading-3", "style", "Heading 3"),
+  ]],
+};
 const copy = { i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy" };
 
 const FONT = {
@@ -171,8 +181,12 @@ export function tabsFor(format, unit, edit) {
           }
         : format === "docx" && edit
           ? {
-              Home: [officeHome[0], wordFont, wordLists, ...officeHome.slice(2)],
+              Home: [officeHome[0], wordFont, wordStyles, wordLists, ...officeHome.slice(2)],
               Insert: [
+                {
+                  g: "Pages",
+                  big: [it("insert.page-break", "pageBreak", "Page Break", "Insert a page break")],
+                },
                 {
                   g: "Tables",
                   big: [

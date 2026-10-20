@@ -113,6 +113,12 @@ describe("Office ribbon manifests", () => {
       "home.align-right",
       "home.align-justify",
       "home.numbering",
+      "home.style-normal",
+      "home.style-title",
+      "home.style-heading-1",
+      "home.style-heading-2",
+      "home.style-heading-3",
+      "insert.page-break",
       "home.font-size",
       "home.font-color",
       "home.font-name",
@@ -144,6 +150,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("home.bullets"));
     assert.ok(bound.includes("home.indent"));
     assert.ok(bound.includes("home.font-name"));
+    assert.ok(bound.includes("home.style-heading-1"));
+    assert.ok(bound.includes("insert.page-break"));
     assert.ok(!bound.includes("insert.slide"));
     assert.ok(!bound.includes("insert.text-box"));
   });

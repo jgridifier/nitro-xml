@@ -1026,4 +1026,78 @@ mod tests {
         h.shell_action("cmd", "edit.undo").expect("undo");
         assert_eq!(h.save_document().expect("undone"), DOCX);
     }
+
+    fn page_breaks(bytes: &[u8]) -> usize {
+        open_editable(bytes, "pages.docx")
+            .docx
+            .unwrap()
+            .edit
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .filter_map(|b| b.get("runs")?.as_array())
+            .flatten()
+            .filter(|run| run.get("break").and_then(|v| v.as_str()) == Some("page"))
+            .count()
+    }
+
+    #[test]
+    fn catches_word_style_gallery_and_page_break_missing_after_reopen_or_undo() {
+        // Catches: a style-gallery or page-break command leaving the saved docx unchanged,
+        // dropping w:pStyle on reopen, or undo keeping the edit.
+        let styles = [
+            ("home.style-normal", "Normal"),
+            ("home.style-title", "Title"),
+            ("home.style-heading-1", "Heading1"),
+            ("home.style-heading-2", "Heading2"),
+            ("home.style-heading-3", "Heading3"),
+        ];
+        for (cmd, style_id) in styles {
+            let mut h = open_editable(DOCX, "pages.docx");
+            h.shell_action("cmd", cmd).expect(cmd);
+            let saved = h.save_document().expect("save");
+            assert_ne!(saved, DOCX, "{cmd} did not change the package");
+            let again = open_editable(&saved, "pages.docx");
+            let got = again
+                .docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .blocks[0]["style"]
+                .as_str()
+                .map(str::to_owned);
+            assert_eq!(
+                got.as_deref(),
+                Some(style_id),
+                "{cmd} style missing after reopen"
+            );
+            h.shell_action("cmd", cmd).expect("second click");
+            assert_eq!(
+                h.save_document().expect("second save"),
+                saved,
+                "{cmd} twice rewrote an already-applied style"
+            );
+            h.shell_action("cmd", "edit.undo").expect("undo");
+            assert_eq!(h.save_document().expect("undone"), DOCX, "{cmd} undo");
+        }
+
+        let before = page_breaks(DOCX);
+        let mut h = open_editable(DOCX, "pages.docx");
+        h.shell_action("cmd", "insert.page-break").expect("break");
+        let saved = h.save_document().expect("save break");
+        assert_ne!(saved, DOCX);
+        assert_eq!(
+            page_breaks(&saved),
+            before + 1,
+            "reopen dropped the page break"
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo break");
+        assert_eq!(h.save_document().expect("break undone"), DOCX);
+    }
 }

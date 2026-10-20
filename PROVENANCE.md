@@ -137,7 +137,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/styles.rs` | `src/core/docx/paragraph-styles.ts`, `character-styles.ts` @ e66aaec | Style catalogs, `resolveParagraphFormatting`, `resolveStyleNumbering`. |
 | `rs/crates/nitro-xml-docx/src/numbering.rs` | `src/core/docx/numbering-parse.ts`, `numbering-format.ts`, `numbering-text.ts` @ e66aaec | Numbering catalog, list labels, format helpers. |
 | `rs/crates/nitro-xml-docx/src/theme.rs` | `src/core/docx/theme.ts`, `diagram-theme.ts` @ e66aaec | Theme/settings colour mapping and `diagramColorTheme` over shared DrawingML theme types (#25). |
-| `rs/crates/nitro-xml-docx/src/default_styles.rs` | `src/core/docx/default-styles.ts` @ e66aaec | Built-in `DEFAULT_STYLES_XML` equivalent via `default_styles_xml()`. |
+| `rs/crates/nitro-xml-docx/src/default_styles.rs` | `src/core/docx/default-styles.ts` @ e66aaec | Built-in `DEFAULT_STYLES_XML` equivalent via `default_styles_xml()`, plus gallery fragments for Title and Heading 1–3. |
 | `rs/crates/nitro-xml-docx/src/run_properties.rs` | `src/core/docx/run-properties.ts` @ e66aaec | `parseRunProperties` for style catalogs. |
 | `rs/crates/nitro-xml-docx/src/simple_types.rs` | `src/core/docx/simple-types.ts` @ e66aaec | Shared WML simple-type parsers. |
 | `rs/crates/nitro-xml-docx/src/paragraph_alignment.rs` | `src/core/docx/paragraph-alignment.ts` @ e66aaec | `parseJustification` / `alignFromJustification`. |
@@ -208,7 +208,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-docx/src/watermark.rs` | `src/core/docx/watermark.ts` (`parseWatermarkShape`) @ e66aaec | VML text watermark shapes in `w:pict`. |
 | `rs/crates/nitro-xml-docx/src/write/mod.rs` | `src/core/docx/save.ts` @ e66aaec | PackageWriter save entry, identity shortcut, dirty `word/document.xml` replace (#80). |
 | `rs/crates/nitro-xml-docx/src/write/apply.rs` | `src/core/docx/write.ts` (`applyModel`) @ e66aaec | Block apply + page `sectPr` margins; new table blocks call `create_table`. HF/notes/comments TODO(#80). |
-| `rs/crates/nitro-xml-docx/src/write/paragraph.rs` | `src/core/docx/write-paragraph.ts` @ e66aaec | Paragraph rewrite for edit scripts, including `w:numPr` from the block `numbering` field, `w:ind`, and `w:spacing` (`w:line` / `w:lineRule`). |
+| `rs/crates/nitro-xml-docx/src/write/paragraph.rs` | `src/core/docx/write-paragraph.ts` @ e66aaec | Paragraph rewrite for edit scripts, including `w:numPr` from the block `numbering` field, `w:ind`, `w:spacing` (`w:line` / `w:lineRule`), and `w:pStyle` from the block `style` field. |
 | `rs/crates/nitro-xml-docx/src/write/run.rs` | `src/core/docx/write-run.ts` @ e66aaec | Run text and direct formatting write, including `w:strike`, `w:highlight`, `w:vertAlign`, and `w:rFonts`. An inserted inline picture (`image.png`) is appended as `w:drawing` / `wp:inline` / `a:blip`; a parser-loaded drawing on the same run is kept. |
 | `rs/crates/nitro-xml-docx/src/write/table.rs` | `src/core/docx/write-table.ts` @ e66aaec | Table structure + cell paragraph rewrite; `create_table` builds a `w:tbl` that was not in the package. |
 | `rs/crates/nitro-xml-docx/src/write/inline.rs` | `src/core/docx/write-inline.ts` (`collectInlineSlots`) @ e66aaec | Plain `w:r` slot collection subset. |

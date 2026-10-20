@@ -403,7 +403,8 @@ pub fn cell_view_with_cf_cache(
     }
 
     if let (Some(sheet_index), Some(all_sheets)) = (sheet_index, all_sheets) {
-        if !all_sheets.is_empty() {
+        // Skip host-map build when this sheet has no sparklines (#30).
+        if !all_sheets.is_empty() && !sheet.sparkline_groups.is_empty() {
             if let Some(sp) = sparkline_view_at(workbook, all_sheets, sheet_index, row, col) {
                 view.sparkline = Some(sp);
             }

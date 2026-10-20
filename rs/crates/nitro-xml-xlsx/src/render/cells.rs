@@ -17,8 +17,8 @@ use crate::render::{EditorPaintHints, GridPaintViewport};
 use crate::sheet_access::CellIndex;
 use crate::view::cell_items::{build_items, BuildInput};
 use crate::view::cell_paint::{
-    align_items, css_font, diagonal_svg, edge_css, fill_paint, has_borders, justify, text_align,
-    text_decoration,
+    align_items, diagonal_svg, edge_css, fill_paint, has_borders, justify, text_align,
+    text_decoration, FontCssMemo,
 };
 use crate::view::cell_view::is_blank_view;
 use crate::view::text_measure::CanvasTextMeasure;
@@ -196,40 +196,29 @@ fn set_attr_v<I: StringIntern>(
     buf.set_attr(id, key, intern.intern(val));
 }
 
-/// Memoize `css_font` across cells that share family/weight/size/zoom (#30 S paint).
-struct FontCssMemo {
-    key: u64,
-    css: String,
+/// One-slot sticky cache for identical text-layer style attrs (#30).
+struct StyleInternMemo {
+    last: String,
+    id: u32,
 }
 
-impl FontCssMemo {
+impl StyleInternMemo {
     fn new() -> Self {
         Self {
-            key: u64::MAX,
-            css: String::new(),
+            last: String::new(),
+            id: 0,
         }
     }
 
-    fn get_or_compute(&mut self, font: &crate::view::types::FontView, zoom: f64) -> &str {
-        let size_c = ((font.size_px * (zoom / 100.0) * 100.0).round() as i32).max(1) as u64;
-        let mut key = size_c;
-        key = key
-            .wrapping_mul(0x9e37_79b9)
-            .wrapping_add(font.family.len() as u64);
-        for b in font.family.as_bytes() {
-            key = key.wrapping_mul(31).wrapping_add(*b as u64);
+    fn intern<I: StringIntern>(&mut self, intern: &mut I, style: &str) -> u32 {
+        if style == self.last {
+            return self.id;
         }
-        if font.bold {
-            key ^= 0x1000_0000;
-        }
-        if font.italic {
-            key ^= 0x2000_0000;
-        }
-        if key != self.key {
-            self.key = key;
-            self.css = css_font(font, zoom);
-        }
-        &self.css
+        let id = intern.intern(style);
+        self.last.clear();
+        self.last.push_str(style);
+        self.id = id;
+        id
     }
 }
 
@@ -246,6 +235,7 @@ fn paint_one_cell<I: StringIntern>(
     stale: bool,
     parent: u32,
     style_buf: &mut String,
+    style_memo: &mut StyleInternMemo,
     font_memo: &mut FontCssMemo,
 ) {
     let cell_id = CELL_BASE + n as u32;
@@ -431,7 +421,7 @@ fn paint_one_cell<I: StringIntern>(
         if !item.view.wrap {
             style_buf.push_str(";white-space:pre");
         }
-        buf.set_attr(text_id, keys.style, intern.intern(style_buf));
+        buf.set_attr(text_id, keys.style, style_memo.intern(intern, style_buf));
         buf.place_box(text_id, item.text_left, 0, item.text_width, -1);
         // Upstream uses <span class="xg-tx">. Plain non-wrap text goes on `.xg-t`
         // directly — skips CreateElement+class per cell (#30). Keep the span when
@@ -640,6 +630,7 @@ pub fn paint<I: StringIntern>(
             // Match upstream grid-view.ts `fitNumber` injection for live paint only.
             enable_number_fit: true,
             skip_blank_items: true,
+            include_item_keys: false,
         };
         build_items(&input, &mut canvas_measure)
     };
@@ -651,6 +642,7 @@ pub fn paint<I: StringIntern>(
     let frozen_rows = viewport.frozen_rows;
     let mut n = 0usize;
     let mut style_buf = String::with_capacity(256);
+    let mut style_memo = StyleInternMemo::new();
     let mut font_memo = FontCssMemo::new();
     for item in &items {
         let is_stale = stale.contains(&(item.row, item.col));
@@ -675,6 +667,7 @@ pub fn paint<I: StringIntern>(
             is_stale,
             parent,
             &mut style_buf,
+            &mut style_memo,
             &mut font_memo,
         );
         n += 1;

@@ -21,6 +21,49 @@ pub fn css_font(font: &FontView, zoom: f64) -> String {
     out
 }
 
+/// Memoize `css_font` across cells that share family/weight/size/zoom (#30 S paint).
+pub struct FontCssMemo {
+    key: u64,
+    css: String,
+}
+
+impl FontCssMemo {
+    pub fn new() -> Self {
+        Self {
+            key: u64::MAX,
+            css: String::new(),
+        }
+    }
+
+    pub fn get_or_compute(&mut self, font: &FontView, zoom: f64) -> &str {
+        let size_c = ((font.size_px * (zoom / 100.0) * 100.0).round() as i32).max(1) as u64;
+        let mut key = size_c;
+        key = key
+            .wrapping_mul(0x9e37_79b9)
+            .wrapping_add(font.family.len() as u64);
+        for b in font.family.as_bytes() {
+            key = key.wrapping_mul(31).wrapping_add(*b as u64);
+        }
+        if font.bold {
+            key ^= 0x1000_0000;
+        }
+        if font.italic {
+            key ^= 0x2000_0000;
+        }
+        if key != self.key {
+            self.key = key;
+            self.css = css_font(font, zoom);
+        }
+        &self.css
+    }
+}
+
+impl Default for FontCssMemo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn has_borders(b: &BordersView) -> bool {
     b.has_borders()
 }

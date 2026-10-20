@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use crate::cf::CfPaintCache;
 use crate::model::{ActiveWorksheet, CellRange, WorkbookSlice};
 use crate::sheet_access::CellIndex;
-use crate::view::cell_paint::{css_font, hashes, repeat_to_fill};
+use crate::view::cell_paint::{hashes, repeat_to_fill, FontCssMemo};
 use crate::view::cell_view::{
     cell_view_with_cf_cache, is_blank_view, CellViewOptions, StylePaintCache,
 };
@@ -51,24 +51,30 @@ pub struct BuildInput<'a> {
     /// Live painter only: drop blank views before `make_item` (upstream CellViewCache
     /// returns null). View-IR dumps keep blanks for the oracle (#30).
     pub skip_blank_items: bool,
+    /// View-IR dumps need `key`; live paint never reads it (#30).
+    pub include_item_keys: bool,
 }
 
 fn text_width_of(
     input: &BuildInput,
     measure: &mut dyn TextMeasure,
+    font_memo: &mut FontCssMemo,
     view: &CellView,
     text: &str,
 ) -> f64 {
     if let Some(rich) = &view.rich {
         return rich
             .iter()
-            .map(|run| measure.measure(&run.text, &css_font(&run.font, input.zoom)))
+            .map(|run| {
+                let font = font_memo.get_or_compute(&run.font, input.zoom);
+                measure.measure(&run.text, font)
+            })
             .sum();
     }
-    let font = css_font(&view.font, input.zoom);
+    let font = font_memo.get_or_compute(&view.font, input.zoom);
     let mut widest = 0.0f64;
     for line in text.split('\n') {
-        widest = widest.max(measure.measure(line, &font));
+        widest = widest.max(measure.measure(line, font));
     }
     widest
 }
@@ -76,6 +82,7 @@ fn text_width_of(
 fn make_item(
     input: &BuildInput,
     measure: &mut dyn TextMeasure,
+    font_memo: &mut FontCssMemo,
     row: u32,
     col: u32,
     view: CellView,
@@ -97,7 +104,11 @@ fn make_item(
     let text = view.text.clone();
     let is_error = view.is_error;
     let mut item = CellItem {
-        key: format!("{}:{}", row, col),
+        key: if input.include_item_keys {
+            format!("{}:{}", row, col)
+        } else {
+            String::new()
+        },
         row,
         col,
         x,
@@ -121,7 +132,7 @@ fn make_item(
         return item;
     }
     let inner = (w - 2 * PADDING) as f64 - item.view.indent_px * (input.zoom / 100.0);
-    let measured = text_width_of(input, measure, &item.view, &item.view.text);
+    let measured = text_width_of(input, measure, font_memo, &item.view, &item.view.text);
     if item.view.h_align == "fill" {
         item.text = repeat_to_fill(&item.view.text, measured, inner);
         return item;
@@ -133,12 +144,12 @@ fn make_item(
         return item;
     }
     if item.view.is_number && measured > inner && item.view.rich.is_none() {
-        let font = css_font(&item.view.font, input.zoom);
+        let font = font_memo.get_or_compute(&item.view.font, input.zoom);
         // Catches: General numbers that still fit after Excel-style decimal drop must not
         // become `###` (poi-WithChartSheet D8/D10/D12 live paint vs TS).
         if input.enable_number_fit {
             let measure_ptr: *mut dyn TextMeasure = measure;
-            let measure_fn = |text: &str| unsafe { (*measure_ptr).measure(text, &font) };
+            let measure_fn = |text: &str| unsafe { (*measure_ptr).measure(text, font) };
             item.text = fit_number(
                 input.workbook,
                 input.sheet,
@@ -148,9 +159,9 @@ fn make_item(
                 inner,
                 &measure_fn,
             )
-            .unwrap_or_else(|| hashes(inner, measure.measure("#", &font)));
+            .unwrap_or_else(|| hashes(inner, measure.measure("#", font)));
         } else {
-            item.text = hashes(inner, measure.measure("#", &font));
+            item.text = hashes(inner, measure.measure("#", font));
         }
         return item;
     }
@@ -226,6 +237,7 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
     } else {
         None
     };
+    let mut font_memo = FontCssMemo::new();
     let mut out = Vec::with_capacity(rows.len() * cols.len() + merges.len());
     for merge in &merges {
         let view = cell_view_with_cf_cache(
@@ -240,6 +252,7 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
         out.push(make_item(
             input,
             measure,
+            &mut font_memo,
             merge.start.row,
             merge.start.col,
             view,
@@ -270,7 +283,15 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
             {
                 continue;
             }
-            out.push(make_item(input, measure, row, col, view, None));
+            out.push(make_item(
+                input,
+                measure,
+                &mut font_memo,
+                row,
+                col,
+                view,
+                None,
+            ));
         }
         if let Some(stored) = input.index.row_cols(row) {
             for &col in stored.keys() {
@@ -305,7 +326,7 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
                 if !view.overflow {
                     continue;
                 }
-                let item = make_item(input, measure, row, col, view, None);
+                let item = make_item(input, measure, &mut font_memo, row, col, view, None);
                 let left = item.x + item.text_left;
                 let right = left + item.text_width;
                 let view_left = input.metrics.col_left(first_col);

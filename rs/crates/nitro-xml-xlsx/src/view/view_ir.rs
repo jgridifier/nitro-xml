@@ -86,6 +86,7 @@ fn sheet_view_ir(
         has_formula: &has_formula,
         enable_number_fit: false,
         skip_blank_items: false,
+        include_item_keys: true,
     };
     let items: Vec<Value> = build_items(&input, &mut measure)
         .iter()

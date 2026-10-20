@@ -73,12 +73,23 @@ export const MANIFEST = {
       },
       align,
       {
+        id: "Styles",
+        items: [
+          cmd("home.style-normal", "style", "Normal"),
+          cmd("home.style-title", "style", "Title"),
+          cmd("home.style-heading-1", "style", "Heading 1"),
+          cmd("home.style-heading-2", "style", "Heading 2"),
+          cmd("home.style-heading-3", "style", "Heading 3"),
+        ],
+      },
+      {
         id: "Lists",
         items: [cmd("home.bullets", "bullet", "Bullets"), cmd("home.numbering", "numbering", "Numbering")],
       },
       {
         id: "Tables",
         items: [
+          cmd("insert.page-break", "pageBreak", "Page break", "Insert a page break"),
           cmd("insert.picture", "picture", "Picture", "Insert a picture"),
           cmd("insert.table", "table", "Table", "Insert a table"),
           cmd("table.insert-row", "rowAdd", "Insert row"),

@@ -90,6 +90,17 @@ pub fn write_paragraph(
         }
     }
 
+    let style_changed = match base {
+        None => paragraph
+            .get("style")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| !s.is_empty()),
+        Some(b) => b.get("style") != paragraph.get("style"),
+    };
+    if style_changed {
+        sync_p_style(&mut out, paragraph);
+    }
+
     sync_num_pr(&mut out, paragraph);
     if let Some(p_pr) = first_w_mut(&mut out, "pPr") {
         if p_pr.children.is_empty() {
@@ -214,6 +225,25 @@ fn sync_spacing(out: &mut Element, paragraph: &Value) {
     if !spacing.attrs.is_empty() {
         p_pr.children.push(Node::Element(spacing));
     }
+}
+
+/// `w:pStyle` follows the block's `style` field. An empty style drops a stale `pStyle`.
+fn sync_p_style(out: &mut Element, paragraph: &Value) {
+    if first_w_mut(out, "pPr").is_none() {
+        out.children.insert(0, Node::Element(make_w("pPr")));
+    }
+    let p_pr = first_w_mut(out, "pPr").expect("pPr");
+    remove_w_children(p_pr, "pStyle");
+    let Some(style) = paragraph
+        .get("style")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+    else {
+        return;
+    };
+    let mut el = make_w("pStyle");
+    set_w_attr(&mut el, "val", style);
+    p_pr.children.insert(0, Node::Element(el));
 }
 
 /// `w:numPr` follows the block's `numbering` field. Absent numbering drops a stale `numPr`.

@@ -14,7 +14,9 @@ mod xml_escape;
 
 use nitro_xml_opc::write::PackageWriter;
 
+use crate::default_styles::builtin_paragraph_style_xml;
 use crate::edit::host::DocxHost;
+use nitro_xml_opc::opc::Package;
 use nitro_xml_opc::xml::parse_xml_str;
 
 use self::apply::apply_model;
@@ -64,7 +66,54 @@ pub fn save_docx_with_options(
     write_inline_pictures(&mut writer, original, host, &mut xml)?;
     writer.add_text("word/document.xml", xml, Some(CT_DOCUMENT));
     write_numbering(&mut writer, original, host)?;
+    ensure_gallery_styles(&mut writer, original, host)?;
     writer.finish().map_err(|e| e.to_string())
+}
+
+const GALLERY_STYLES: &[&str] = &["Title", "Heading1", "Heading2", "Heading3"];
+
+/// Append Title / Heading definitions the package does not already contain.
+fn ensure_gallery_styles(
+    writer: &mut PackageWriter<'_>,
+    original: &[u8],
+    host: &DocxHost,
+) -> Result<(), String> {
+    let needed: Vec<&str> = GALLERY_STYLES
+        .iter()
+        .copied()
+        .filter(|id| {
+            host.blocks
+                .iter()
+                .any(|block| block.get("style").and_then(|v| v.as_str()) == Some(*id))
+        })
+        .collect();
+    if needed.is_empty() {
+        return Ok(());
+    }
+    let mut pkg = Package::open(original).map_err(|e| e.to_string())?;
+    let Some(existing) = pkg.text("word/styles.xml").map_err(|e| e.to_string())? else {
+        return Ok(());
+    };
+    let mut xml = existing.to_string();
+    let mut changed = false;
+    for id in needed {
+        let marker = format!("w:styleId=\"{id}\"");
+        if xml.contains(&marker) {
+            continue;
+        }
+        let Some(fragment) = builtin_paragraph_style_xml(id) else {
+            continue;
+        };
+        let Some(at) = xml.rfind("</w:styles>") else {
+            return Ok(());
+        };
+        xml.insert_str(at, &fragment);
+        changed = true;
+    }
+    if changed {
+        writer.replace("word/styles.xml", xml.into_bytes());
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -310,6 +359,27 @@ mod tests {
         assert_eq!(
             save_docx(&host, bytes.as_slice()).expect("clean"),
             bytes.as_slice()
+        );
+    }
+
+    #[test]
+    fn catches_heading_style_missing_from_styles_part_after_save() {
+        // Catches: Heading 1 written only as w:pStyle, so word/styles.xml has no Heading1 definition.
+        let bytes = include_bytes!("../../../../../fixtures/generated/docx/pages_10.docx");
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        crate::edit::format::set_paragraph_style(&mut host, 0, "Heading1").expect("style");
+        let saved = save_docx(&host, bytes.as_slice()).expect("save");
+        let again = DocxHost::open(&saved).expect("reopen");
+        assert_eq!(again.blocks[0]["style"].as_str(), Some("Heading1"));
+        let mut pkg = Package::open(saved.as_slice()).expect("pkg");
+        let styles = pkg
+            .text("word/styles.xml")
+            .expect("styles")
+            .expect("styles part")
+            .to_string();
+        assert!(
+            styles.contains("w:styleId=\"Heading1\""),
+            "styles part missing Heading1"
         );
     }
 }

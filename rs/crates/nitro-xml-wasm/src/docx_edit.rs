@@ -286,6 +286,31 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.style-normal",
+                    label: "Normal",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.style-title",
+                    label: "Title",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.style-heading-1",
+                    label: "Heading 1",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.style-heading-2",
+                    label: "Heading 2",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.style-heading-3",
+                    label: "Heading 3",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.font-size",
                     label: "Font Size",
                     enabled: true,
@@ -326,6 +351,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "insert.page-break",
+                    label: "Page Break",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "table.delete",
                     label: "Delete Table",
                     enabled: true,
@@ -356,6 +386,12 @@ fn canonical_command(id: &str) -> &str {
         "home.align-right" => "align-right",
         "home.align-justify" => "align-justify",
         "home.numbering" => "numbering",
+        "home.style-normal" => "style-normal",
+        "home.style-title" => "style-title",
+        "home.style-heading-1" => "style-heading-1",
+        "home.style-heading-2" => "style-heading-2",
+        "home.style-heading-3" => "style-heading-3",
+        "insert.page-break" => "insert.page-break",
         "home.font-size" => "font-size",
         "home.font-color" => "font-color",
         other => other,

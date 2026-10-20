@@ -18,7 +18,7 @@ use crate::sheet_access::CellIndex;
 use crate::view::cell_items::{build_items, BuildInput};
 use crate::view::cell_paint::{
     align_items, css_font, diagonal_svg, edge_css, fill_paint, has_borders, justify, text_align,
-    text_decoration, FillPaint,
+    text_decoration,
 };
 use crate::view::cell_view::is_blank_view;
 use crate::view::text_measure::CanvasTextMeasure;
@@ -42,6 +42,8 @@ const EDITOR_AFTER: u32 = 70_003;
 struct PaintKeys {
     class: u32,
     style: u32,
+    background_color: u32,
+    background_image: u32,
     width: u32,
     height: u32,
     left: u32,
@@ -78,6 +80,8 @@ impl PaintKeys {
         Self {
             class: intern.intern("class"),
             style: intern.intern("style"),
+            background_color: intern.intern("backgroundColor"),
+            background_image: intern.intern("backgroundImage"),
             width: intern.intern("width"),
             height: intern.intern("height"),
             left: intern.intern("left"),
@@ -111,25 +115,48 @@ impl PaintKeys {
     }
 }
 
-/// Static class string for the 16 overflow×link×merged×stale combinations (#30).
-fn cell_class_static(overflowing: bool, link: bool, merged: bool, stale: bool) -> &'static str {
-    match (overflowing, link, merged, stale) {
-        (false, false, false, false) => "xg-c",
-        (true, false, false, false) => "xg-c xg-c-over",
-        (false, true, false, false) => "xg-c xg-link",
-        (true, true, false, false) => "xg-c xg-c-over xg-link",
-        (false, false, true, false) => "xg-c xg-merged",
-        (true, false, true, false) => "xg-c xg-c-over xg-merged",
-        (false, true, true, false) => "xg-c xg-link xg-merged",
-        (true, true, true, false) => "xg-c xg-c-over xg-link xg-merged",
-        (false, false, false, true) => "xg-c xg-stale",
-        (true, false, false, true) => "xg-c xg-c-over xg-stale",
-        (false, true, false, true) => "xg-c xg-link xg-stale",
-        (true, true, false, true) => "xg-c xg-c-over xg-link xg-stale",
-        (false, false, true, true) => "xg-c xg-merged xg-stale",
-        (true, false, true, true) => "xg-c xg-c-over xg-merged xg-stale",
-        (false, true, true, true) => "xg-c xg-link xg-merged xg-stale",
-        (true, true, true, true) => "xg-c xg-c-over xg-link xg-merged xg-stale",
+/// Static class string for overflow×link×merged×stale×fill (#30).
+/// `xg-c-fill` keeps overflow CSS working when fill is SetStyle (not a style attr).
+fn cell_class_static(
+    overflowing: bool,
+    link: bool,
+    merged: bool,
+    stale: bool,
+    fill: bool,
+) -> &'static str {
+    match (overflowing, link, merged, stale, fill) {
+        (false, false, false, false, false) => "xg-c",
+        (true, false, false, false, false) => "xg-c xg-c-over",
+        (false, true, false, false, false) => "xg-c xg-link",
+        (true, true, false, false, false) => "xg-c xg-c-over xg-link",
+        (false, false, true, false, false) => "xg-c xg-merged",
+        (true, false, true, false, false) => "xg-c xg-c-over xg-merged",
+        (false, true, true, false, false) => "xg-c xg-link xg-merged",
+        (true, true, true, false, false) => "xg-c xg-c-over xg-link xg-merged",
+        (false, false, false, true, false) => "xg-c xg-stale",
+        (true, false, false, true, false) => "xg-c xg-c-over xg-stale",
+        (false, true, false, true, false) => "xg-c xg-link xg-stale",
+        (true, true, false, true, false) => "xg-c xg-c-over xg-link xg-stale",
+        (false, false, true, true, false) => "xg-c xg-merged xg-stale",
+        (true, false, true, true, false) => "xg-c xg-c-over xg-merged xg-stale",
+        (false, true, true, true, false) => "xg-c xg-link xg-merged xg-stale",
+        (true, true, true, true, false) => "xg-c xg-c-over xg-link xg-merged xg-stale",
+        (false, false, false, false, true) => "xg-c xg-c-fill",
+        (true, false, false, false, true) => "xg-c xg-c-over xg-c-fill",
+        (false, true, false, false, true) => "xg-c xg-link xg-c-fill",
+        (true, true, false, false, true) => "xg-c xg-c-over xg-link xg-c-fill",
+        (false, false, true, false, true) => "xg-c xg-merged xg-c-fill",
+        (true, false, true, false, true) => "xg-c xg-c-over xg-merged xg-c-fill",
+        (false, true, true, false, true) => "xg-c xg-link xg-merged xg-c-fill",
+        (true, true, true, false, true) => "xg-c xg-c-over xg-link xg-merged xg-c-fill",
+        (false, false, false, true, true) => "xg-c xg-stale xg-c-fill",
+        (true, false, false, true, true) => "xg-c xg-c-over xg-stale xg-c-fill",
+        (false, true, false, true, true) => "xg-c xg-link xg-stale xg-c-fill",
+        (true, true, false, true, true) => "xg-c xg-c-over xg-link xg-stale xg-c-fill",
+        (false, false, true, true, true) => "xg-c xg-merged xg-stale xg-c-fill",
+        (true, false, true, true, true) => "xg-c xg-c-over xg-merged xg-stale xg-c-fill",
+        (false, true, true, true, true) => "xg-c xg-link xg-merged xg-stale xg-c-fill",
+        (true, true, true, true, true) => "xg-c xg-c-over xg-link xg-merged xg-stale xg-c-fill",
     }
 }
 
@@ -167,30 +194,6 @@ fn set_attr_v<I: StringIntern>(
     val: &str,
 ) {
     buf.set_attr(id, key, intern.intern(val));
-}
-
-/// Fill-only `style` attr (kebab-case) so `[style*="background-color"]` overflow CSS still matches.
-/// Geometry uses `PlaceBox` (#30) — no left/top/width/height strings.
-fn write_cell_fill_style(
-    out: &mut String,
-    fill: Option<&FillPaint>,
-    merged_blank_fill: bool,
-) -> bool {
-    out.clear();
-    if let Some(fp) = fill {
-        if let Some(bg) = &fp.background {
-            let _ = write!(out, "background-color:{bg}");
-        }
-        if let Some(img) = &fp.image {
-            if !out.is_empty() {
-                out.push(';');
-            }
-            let _ = write!(out, "background-image:{img}");
-        }
-    } else if merged_blank_fill {
-        out.push_str("background-color:var(--xve-sheet-bg, #fff)");
-    }
-    !out.is_empty()
 }
 
 /// Memoize `css_font` across cells that share family/weight/size/zoom (#30 S paint).
@@ -249,6 +252,8 @@ fn paint_one_cell<I: StringIntern>(
     // Plane-relative coords; scroll is on `.xg-plane` translate3d (upstream cell-layer.ts).
     let left = item.x;
     let top = item.y;
+    let fill = fill_paint(item.view.fill.as_ref());
+    let has_fill = fill.is_some() || item.merged;
     buf.create_element(cell_id, div, parent);
     set_attr_v(
         buf,
@@ -260,17 +265,30 @@ fn paint_one_cell<I: StringIntern>(
             item.view.has_hyperlink,
             item.merged,
             stale,
+            has_fill,
         ),
     );
     if stale {
         set_attr_v(buf, intern, cell_id, keys.data_stale, "1");
     }
     // Geometry via PlaceBox (no unique left/top/width/height strings; #30).
+    // Do NOT setAttribute("style", …) on this node afterward — it wipes CSSOM geometry.
     buf.place_box(cell_id, left, top, item.w, item.h);
-    // Fill stays on the style attr so overflow CSS `[style*="background-color"]` still matches.
-    let fill = fill_paint(item.view.fill.as_ref());
-    if write_cell_fill_style(style_buf, fill.as_ref(), item.merged && fill.is_none()) {
-        buf.set_attr(cell_id, keys.style, intern.intern(style_buf));
+    if let Some(ref fp) = fill {
+        if let Some(bg) = &fp.background {
+            set_style_v(buf, intern, cell_id, keys.background_color, bg);
+        }
+        if let Some(img) = &fp.image {
+            set_style_v(buf, intern, cell_id, keys.background_image, img);
+        }
+    } else if item.merged {
+        set_style_v(
+            buf,
+            intern,
+            cell_id,
+            keys.background_color,
+            "var(--xve-sheet-bg, #fff)",
+        );
     }
 
     if let Some(bar) = &item.view.data_bar {

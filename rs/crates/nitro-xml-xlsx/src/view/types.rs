@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/layout/types.ts; changes listed in PROVENANCE.md.
 
+use std::rc::Rc;
+
 use serde_json::{json, Map, Value};
 
 use crate::model::js_num;
@@ -155,7 +157,8 @@ pub struct RichRun {
 pub struct CellView {
     pub text: String,
     pub title: Option<String>,
-    pub font: FontView,
+    /// Shared across same-style cells via StylePaintCache (#30).
+    pub font: Rc<FontView>,
     pub fill: Option<FillView>,
     pub borders: BordersView,
     pub h_align: String,

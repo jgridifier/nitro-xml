@@ -130,7 +130,7 @@ pub struct StylePaintCache {
 struct StylePaintParts {
     /// Base Font for rich-run merges (before value-color override on FontView).
     font: Font,
-    font_view: FontView,
+    font_view: Rc<FontView>,
     fill: Option<FillView>,
     borders: BordersView,
 }
@@ -174,7 +174,7 @@ fn resolve_style_parts(
     }
     // merge_font(None) is clone — keep the call for parity with the CF merge path.
     let font = merge_font(&base, None);
-    let font_view_resolved = font_view(&font, &workbook.theme, indexed);
+    let font_view_resolved = Rc::new(font_view(&font, &workbook.theme, indexed));
     let fill = fill_view(Some(&style.fill), &workbook.theme, false, indexed);
     let borders = borders_view(&style.border, &workbook.theme, indexed);
     StylePaintParts {
@@ -256,13 +256,13 @@ pub fn cell_view_with_cf_cache(
             })
     });
 
-    // Shared Rc on the cache hit path — clone FontView/fill/borders into CellView only.
+    // Shared Rc on the cache hit path — FontView is not cloned per cell (#30).
     let mut cached_parts: Option<Rc<StylePaintParts>> = None;
     let (font_for_view, mut font_view_resolved, fill, borders) = if !cf_restyles {
         if let Some(cache) = options.style_cache.as_mut() {
             let parts =
                 cache.get_or_compute(style_id, || resolve_style_parts(workbook, style, &indexed));
-            let font_view_resolved = parts.font_view.clone();
+            let font_view_resolved = Rc::clone(&parts.font_view);
             let fill = parts.fill.clone();
             let borders = parts.borders.clone();
             // Font stays behind the Rc until rich-text needs it.
@@ -283,7 +283,7 @@ pub fn cell_view_with_cf_cache(
             Some(dxf) if dxf.font.is_some() => merge_font(&parts.font, dxf.font.as_ref()),
             _ => parts.font,
         };
-        let font_view_resolved = font_view(&font_for_view, &workbook.theme, &indexed);
+        let font_view_resolved = Rc::new(font_view(&font_for_view, &workbook.theme, &indexed));
         let mut fill = parts.fill;
         if let Some(cf) = &cf {
             if let Some(scale) = &cf.color_scale {
@@ -308,7 +308,7 @@ pub fn cell_view_with_cf_cache(
         (Some(font_for_view), font_view_resolved, fill, borders)
     };
     if let Some(c) = shown.1 {
-        font_view_resolved.color = c;
+        Rc::make_mut(&mut font_view_resolved).color = c;
     }
 
     let alignment = style.alignment.as_ref();

@@ -156,11 +156,21 @@ const readonly = opts.readonly !== false;
 const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
 const opened = await this._request("opened", () => {
 this._worker.postMessage(
-{ type: "open", bytes: u8, name: n, fontSource: serializable, readonly },
+{
+type: "open",
+bytes: u8,
+name: n,
+fontSource: serializable,
+readonly,
+trace: typeof globalThis !== "undefined" && !!globalThis.__nitroBench,
+},
 [u8.buffer],
 );
 });
 this._t = opened.t !== false;
+if (opened.trace && globalThis.__nitroBench?.mark) {
+globalThis.__nitroBench.mark("worker_open_trace", opened.trace);
+}
 return opened;
 }
 async loadEditorChrome() {

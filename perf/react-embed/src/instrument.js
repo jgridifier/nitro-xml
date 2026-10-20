@@ -3,6 +3,7 @@
  * Page-side instrumentation for React embed latency.
  * Patches fetch / WebAssembly / Worker before the nitro loader is imported.
  */
+import { installWorkerMessageTrace } from "./trace.js";
 
 function now() {
   return performance.now();
@@ -132,6 +133,7 @@ export function installInstrumentation() {
   patchFetch();
   patchWebAssembly();
   patchWorker();
+  installWorkerMessageTrace();
   globalThis.__nitroBench = {
     state,
     mark,

@@ -180,6 +180,61 @@ async function main() {
       console.log("\n### Mount → first paint\n");
       console.log(mdTable(paintRows, ["Format", "Tier", "open ms", "paint ms", "mount→paint ms", "bytes"]));
     }
+
+    // Phase breakdown (instrumented first-paint scenarios)
+    const breakdownRows = [];
+    for (const [k, v] of Object.entries(results.scenarios)) {
+      if (!k.startsWith("first-paint:") || !v.breakdown?.phases) continue;
+      const [, format, tier] = k.split(":");
+      const p = v.breakdown.phases;
+      const tr = p.worker_open || {};
+      const fmt = (x) => (typeof x === "number" ? x.toFixed(1) : (x ?? "—"));
+      breakdownRows.push({
+        Format: format,
+        Tier: tier,
+        "fixture fetch": fmt(p.fixture_fetch_ms),
+        "worker ready": fmt(p.worker_ready_ms),
+        "open RT": fmt(p.open_roundtrip_ms),
+        "initCore(w)": fmt(tr.init_core_ms),
+        "Handle.new": fmt(tr.handle_new_ms),
+        openDocument: fmt(tr.open_document_ms),
+        "editor chrome": fmt(tr.editor_chrome_ms),
+        loadBuffer: fmt(p.host_load_buffer_ms),
+        "1st tick": fmt(p.first_tick_ms),
+        "frame Σ": fmt(p.frame_total_ms),
+        "meas Σ": fmt(p.measure_total_ms),
+        "layout Σ": fmt(p.layout_total_ms),
+        "paint wait": fmt(p.paint_wait_ms),
+        "cmd bytes": p.first_cmdbuf_bytes ?? "—",
+        "meas n": p.measure_rounds ?? "—",
+        frames: p.frame_rounds ?? "—",
+      });
+    }
+    if (breakdownRows.length) {
+      console.log("\n### Phase breakdown (ms)\n");
+      console.log(
+        mdTable(breakdownRows, [
+          "Format",
+          "Tier",
+          "fixture fetch",
+          "worker ready",
+          "open RT",
+          "initCore(w)",
+          "Handle.new",
+          "openDocument",
+          "editor chrome",
+          "loadBuffer",
+          "1st tick",
+          "frame Σ",
+          "meas Σ",
+          "layout Σ",
+          "paint wait",
+          "cmd bytes",
+          "meas n",
+          "frames",
+        ]),
+      );
+    }
     for (const key of ["edit-cell", "edit-docx-text", "edit-pptx-text", "edit-bold"]) {
       const e = results.scenarios[key]?.edit;
       if (!e) continue;

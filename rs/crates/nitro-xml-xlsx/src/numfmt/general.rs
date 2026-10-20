@@ -78,6 +78,11 @@ pub fn format_general(value: f64, width: Option<f64>) -> String {
     if !value.is_finite() {
         return "#NUM!".into();
     }
+    // Whole numbers of up to 11 digits print as-is at the default width (the scientific cutoff is
+    // at 12 digits); skips the digit generation, rounding and re-assembly below.
+    if width.is_none() && value.fract() == 0.0 && value.abs() < 1e11 {
+        return (value as i64).to_string();
+    }
     let text = general_digits(
         &to_digits(value),
         clamp_width(width.unwrap_or(GENERAL_WIDTH as f64)),

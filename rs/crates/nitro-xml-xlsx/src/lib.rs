@@ -16,6 +16,7 @@ pub mod drawing;
 pub mod edit;
 pub mod editor;
 pub mod engine_api;
+pub mod fast_hash;
 pub mod formula;
 pub mod formula_text;
 pub mod formula_translate;

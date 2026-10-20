@@ -326,6 +326,7 @@ name = "nitro-xml-xlsx"
 version = "0.0.0"
 dependencies = [
  "libc",
+ "memchr",
  "nitro-xml-opc",
  "nitro-xml-render",
  "quick-xml",

@@ -59,7 +59,7 @@ pub struct FirstView {
     /// Parts inflated through EOF. Worksheet and shared-string streams that stop early stay out
     /// of this list (they are still reported by [`Self::touched_parts`]).
     parts_read: Vec<String>,
-    resolved_sst: HashSet<usize>,
+    resolved_sst: crate::fast_hash::FastSet<usize>,
     /// Sheet inflate stopped at the viewport via `<dimension>` (merges / CF not loaded yet).
     truncated: Vec<bool>,
     /// Post-`sheetData` shell (merges / CF) has been loaded at least once for this sheet.
@@ -90,7 +90,7 @@ pub fn open_first_view(bytes: &[u8], view: ViewportRect) -> Result<FirstView, St
         rows_visited: vec![0; n],
         touched: Vec::new(),
         parts_read: Vec::new(),
-        resolved_sst: HashSet::new(),
+        resolved_sst: Default::default(),
         truncated: vec![false; n],
         tail_complete: vec![false; n],
     };
@@ -123,7 +123,7 @@ pub fn open_first_view_arc(bytes: Arc<[u8]>, view: ViewportRect) -> Result<First
         rows_visited: vec![0; n],
         touched: Vec::new(),
         parts_read: Vec::new(),
-        resolved_sst: HashSet::new(),
+        resolved_sst: Default::default(),
         truncated: vec![false; n],
         tail_complete: vec![false; n],
     };

@@ -62,7 +62,7 @@ if (!hit) return null;
 return WebAssembly.compile(await hit.arrayBuffer());
 }
 async function putModuleInCache(url, res) {
-if (typeof caches === "undefined" || !url || !(res instanceof Response)) return;
+if (typeof caches === "undefined" || !url || !res || !res.clone) return;
 await (await caches.open(CACHE_NAME)).put(url, res.clone());
 }
 export async function initCore(opts = {}) {

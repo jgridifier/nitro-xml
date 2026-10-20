@@ -92,10 +92,6 @@ this._swapWorker();
 await this._openBytes(new Uint8Array(this._originalBytes), this._name, { readonly: this._ro });
 return this;
 }
-/**
- * Edit-mode crash recovery (#30 / #62): fresh worker, replay op journal.
- * On failure, error.code is editor_recovery_* and lastGoodSave may be set.
- */
 async recoverEditOnce() {
 if (this._editRecoveryAttempted) {
 throw Object.assign(new Error(EDITOR_RECOVERY_FAILED_MESSAGE), {

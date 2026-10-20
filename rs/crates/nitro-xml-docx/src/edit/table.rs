@@ -4,6 +4,7 @@
 //! Matches `parity/edit/apply.mjs` / `parity/undo/session.mjs` docx table ops.
 
 use std::any::Any;
+use std::collections::BTreeSet;
 
 use nitro_xml_opc::edit::{ChangeKind, ChangeSet, Command, CommandRegistry, EditError};
 use serde_json::{json, Value};
@@ -83,6 +84,42 @@ pub fn set_table_cell_text(
     }
     host.mark_touched(block_index);
     Ok(())
+}
+
+/// Insert a rectangular table of empty paragraphs at `at` (clamped to the block list).
+pub fn insert_table(
+    host: &mut DocxHost,
+    at: usize,
+    rows: usize,
+    cols: usize,
+) -> Result<usize, EditError> {
+    let rows = rows.max(1);
+    let cols = cols.max(1);
+    let at = at.min(host.blocks.len());
+    let id = format!("tbl-inserted-{at}-{}", host.blocks.len());
+    let mut grid = Vec::with_capacity(rows);
+    for r in 0..rows {
+        let mut row = Vec::with_capacity(cols);
+        for c in 0..cols {
+            row.push(empty_cell(&format!("{id}-r{r}c{c}")));
+        }
+        grid.push(Value::Array(row));
+    }
+    host.blocks.insert(
+        at,
+        json!({
+            "type": "table",
+            "id": id,
+            "rows": grid,
+        }),
+    );
+    let mut shifted = BTreeSet::new();
+    for index in host.touched.iter().copied() {
+        shifted.insert(if index >= at { index + 1 } else { index });
+    }
+    shifted.insert(at);
+    host.touched = shifted;
+    Ok(at)
 }
 
 pub fn insert_table_row(

@@ -230,6 +230,11 @@ impl DocxState {
                     label: "Align Right",
                     enabled: true,
                 },
+                RibbonItem {
+                    id: "insert.table",
+                    label: "Table",
+                    enabled: true,
+                },
             ],
         )
     }

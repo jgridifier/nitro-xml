@@ -309,4 +309,110 @@ mod tests {
             assert!(!started, "read-only open started an edit session");
         }
     }
+
+    #[test]
+    fn catches_pptx_slide_and_text_box_commands_missing_after_reopen() {
+        // Catches: new, duplicate and delete slide, and text box, not changing the saved package.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        let before = h.pptx.as_ref().unwrap().pres.slide_count();
+        h.shell_action("cmd", "insert.duplicate-slide")
+            .expect("dup");
+        let saved = h.save_document().expect("save dup");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen dup");
+        assert_eq!(again.session.host.slides.len(), before + 1);
+        let text = |slide: &nitro_xml_pptx::edit::host::EditableSlide| {
+            slide
+                .elements
+                .iter()
+                .filter_map(|el| el.text.clone())
+                .collect::<String>()
+        };
+        assert_eq!(
+            text(&again.session.host.slides[1]),
+            text(&again.session.host.slides[0])
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo dup");
+        assert_eq!(h.save_document().expect("undone dup"), PPTX);
+
+        h.shell_action("cmd", "insert.slide").expect("slide");
+        let saved = h.save_document().expect("save slide");
+        assert_ne!(saved, PPTX);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen");
+        assert_eq!(again.session.host.slides.len(), before + 1);
+        h.shell_action("cmd", "edit.undo").expect("undo slide");
+        assert_eq!(h.save_document().expect("undone slide"), PPTX);
+
+        h.shell_action("cmd", "home.delete-slide").expect("delete");
+        let saved = h.save_document().expect("save delete");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen delete");
+        assert_eq!(again.session.host.slides.len(), before - 1);
+        h.shell_action("cmd", "edit.undo").expect("undo delete");
+        assert_eq!(h.save_document().expect("undone delete"), PPTX);
+
+        let shapes: usize = h
+            .pptx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .slides
+            .iter()
+            .map(|s| s.elements.len())
+            .sum();
+        h.shell_action("cmd", "insert.text-box").expect("text box");
+        let saved = h.save_document().expect("save text box");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen text box");
+        let after: usize = again
+            .session
+            .host
+            .slides
+            .iter()
+            .map(|s| s.elements.len())
+            .sum();
+        assert!(after > shapes, "text box missing after reopen");
+        h.shell_action("cmd", "edit.undo").expect("undo text box");
+        assert_eq!(h.save_document().expect("undone text box"), PPTX);
+    }
+
+    #[test]
+    fn catches_docx_insert_table_missing_after_reopen() {
+        // Catches: insert.table not writing a w:tbl, so a reopened document has no new table.
+        let mut h = open_editable(DOCX, "pages.docx");
+        let before = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+            .count();
+        h.shell_action("cmd", "insert.table").expect("table");
+        let saved = h.save_document().expect("save");
+        assert_ne!(saved, DOCX);
+        let again = open_editable(&saved, "pages.docx");
+        let after = again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+            .count();
+        assert_eq!(after, before + 1, "reopen dropped the table");
+        h.shell_action("cmd", "edit.undo").expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
+    }
 }

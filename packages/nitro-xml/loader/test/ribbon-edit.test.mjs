@@ -30,6 +30,60 @@ describe("Office ribbon manifests", () => {
     assert.deepEqual(ids(tabsFor("xlsx", "Sheet", false)), []);
   });
 
+  it("lists only PowerPoint commands that change the saved package", () => {
+    // Catches: a PowerPoint button for insert.table, which the writer still rejects.
+    const bound = [...ids(tabsFor("pptx", "Slide", true)), ...QAT.map((x) => x.c)];
+    const allowed = new Set([
+      "file.save",
+      "edit.undo",
+      "edit.redo",
+      "home.bold",
+      "home.italic",
+      "home.underline",
+      "home.align-left",
+      "home.align-center",
+      "home.align-right",
+      "insert.text-box",
+      "insert.slide",
+      "insert.duplicate-slide",
+      "home.delete-slide",
+    ]);
+    for (const id of bound) assert.ok(allowed.has(id), `unexpected pptx command ${id}`);
+    for (const id of ["insert.slide", "insert.duplicate-slide", "home.delete-slide", "insert.text-box", "home.bold"]) {
+      assert.ok(bound.includes(id), `missing pptx command ${id}`);
+    }
+    assert.ok(!bound.includes("insert.table"));
+  });
+
+  it("lists only Word commands that change the saved package", () => {
+    // Catches: Word advertising a slide command, or omitting the table insert that writes w:tbl.
+    const bound = [...ids(tabsFor("docx", "Page", true)), ...QAT.map((x) => x.c)];
+    const allowed = new Set([
+      "file.save",
+      "edit.undo",
+      "edit.redo",
+      "home.bold",
+      "home.italic",
+      "home.underline",
+      "home.align-left",
+      "home.align-center",
+      "home.align-right",
+      "insert.table",
+    ]);
+    for (const id of bound) assert.ok(allowed.has(id), `unexpected docx command ${id}`);
+    assert.ok(bound.includes("insert.table"));
+    assert.ok(bound.includes("home.bold"));
+    assert.ok(!bound.includes("insert.slide"));
+    assert.ok(!bound.includes("insert.text-box"));
+  });
+
+  it("drops the Read-only pill for Word and PowerPoint", () => {
+    // Catches: the demo still labelling an editable Word or PowerPoint file Read-only.
+    const app = readFileSync(new URL("../../../../demo/app.js", import.meta.url), "utf8");
+    assert.match(app, /docx: true, pptx: true/);
+    assert.match(app, /EDITABLE\[format\] \? "" : "Read-only"/);
+  });
+
   it("gives every control a unique key", () => {
     // Catches: two buttons sharing a data-k, so a click runs the wrong command.
     const tabs = tabsFor("xlsx", "Sheet", true);

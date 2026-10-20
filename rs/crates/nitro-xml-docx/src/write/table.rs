@@ -5,9 +5,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
-use nitro_xml_opc::xml::Element;
+use nitro_xml_opc::xml::{Element, Node};
 
-use super::element::{children_w, first_w, make_w, replace_children_local};
+use super::element::{children_w, first_w, make_w, replace_children_local, set_w_attr};
 use super::paragraph::{create_paragraph, write_paragraph};
 use crate::table::can_edit_table_structure;
 
@@ -39,6 +39,27 @@ struct SourceCell {
     col: usize,
     cell: Element,
     paragraphs: Vec<Value>,
+}
+
+/// Build a new `w:tbl` (grid + rows) for a table that was not in the open package.
+pub fn create_table(table: &Value) -> Result<Element, String> {
+    let cols = table
+        .get("rows")
+        .and_then(|r| r.as_array())
+        .and_then(|rows| rows.first())
+        .and_then(|row| row.as_array())
+        .map(|cells| cells.len())
+        .unwrap_or(1)
+        .max(1);
+    let mut node = make_w("tbl");
+    let mut grid = make_w("tblGrid");
+    for _ in 0..cols {
+        let mut col = make_w("gridCol");
+        set_w_attr(&mut col, "w", "2400");
+        grid.children.push(Node::Element(col));
+    }
+    node.children.push(Node::Element(grid));
+    write_table(table, &node, None)
 }
 
 pub fn write_table(table: &Value, node: &Element, base: Option<&Value>) -> Result<Element, String> {

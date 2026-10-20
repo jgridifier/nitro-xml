@@ -7,7 +7,7 @@ use nitro_xml_opc::xml::{ns, Document, Element, Node};
 
 use super::element::{first_w_mut, is_body_block, make_w, replace_body_blocks, set_w_attr};
 use super::paragraph::{create_paragraph, write_paragraph};
-use super::table::write_table;
+use super::table::{create_table, write_table};
 use crate::edit::host::DocxHost;
 
 fn twips(pixels: f64) -> String {
@@ -64,7 +64,7 @@ pub fn apply_model(doc: &mut Document, host: &DocxHost) -> Result<(), String> {
             let node = if let Some(old) = old {
                 write_table(block, old, base.copied())?
             } else {
-                return Err("Creating new tables is not supported".into());
+                create_table(block)?
             };
             outputs.push(node);
         } else {

@@ -75,4 +75,34 @@ mod tests {
         let out = save_docx(&host, bytes.as_slice()).expect("save");
         assert_eq!(out.as_slice(), bytes.as_slice());
     }
+
+    // Catches: inserting a table leaving word/document.xml without a new w:tbl, so reopen has no extra table.
+    #[test]
+    fn catches_inserted_table_missing_after_reopen() {
+        let bytes = include_bytes!("../../../../../fixtures/generated/docx/pages_10.docx");
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        let before = host
+            .blocks
+            .iter()
+            .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+            .count();
+        crate::edit::table::insert_table(&mut host, 1, 2, 2).expect("insert");
+        let saved = save_docx(&host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let again = DocxHost::open(&saved).expect("reopen");
+        let after = again
+            .blocks
+            .iter()
+            .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+            .count();
+        assert_eq!(after, before + 1, "reopen dropped the new table");
+        let table = &again.blocks[1];
+        assert_eq!(
+            table["type"], "table",
+            "inserted table was not the second block"
+        );
+        let rows = table["rows"].as_array().expect("rows");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].as_array().expect("row").len(), 2);
+    }
 }

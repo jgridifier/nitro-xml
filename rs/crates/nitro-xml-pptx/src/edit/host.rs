@@ -203,6 +203,11 @@ pub struct PptxHost {
     /// OPC part names mutated since open (or since the restored snapshot).
     #[serde(default)]
     pub dirty_parts: BTreeSet<String>,
+    /// Slide list changed (add, delete, duplicate, reorder). The package writer
+    /// rebuilds `sldIdLst`, relationships and slide parts. Omitted when false so
+    /// undo snapshots of an unedited host stay the same shape.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub structure_dirty: bool,
 }
 
 impl PptxHost {
@@ -239,12 +244,13 @@ impl PptxHost {
         Ok(Self {
             slides,
             dirty_parts: BTreeSet::new(),
+            structure_dirty: false,
         })
     }
 
-    /// True when a shape command has marked at least one slide part.
+    /// True when a shape command has marked a slide part, or the slide list changed.
     pub fn is_dirty(&self) -> bool {
-        !self.dirty_parts.is_empty()
+        self.structure_dirty || !self.dirty_parts.is_empty()
     }
 
     pub(crate) fn touch(&mut self, slide_index: u32) -> Result<(), String> {
@@ -637,6 +643,28 @@ impl PptxHost {
         self.touch(slide_index)
     }
 
+    /// Append a text box (`p:cNvSpPr/@txBox="1"`) on the slide.
+    pub fn add_text_box(
+        &mut self,
+        slide_index: u32,
+        id: &str,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    ) -> Result<(), String> {
+        let slide = self.slide_mut(slide_index)?;
+        let mut el = EditableElement::blank(id, "text");
+        el.shape_type = Some("rect".to_owned());
+        el.set_box(x, y, width, height, 0.0);
+        el.text = Some(String::new());
+        el.text_segments
+            .push(crate::edit::shapes::TextSegmentSnap::default());
+        el.patch_fill(Some(None), Some("none"));
+        slide.elements.push(el);
+        self.touch(slide_index)
+    }
+
     pub fn delete_shape(
         &mut self,
         slide_index: u32,
@@ -762,6 +790,7 @@ impl PptxHost {
                 source_slide_id: None,
             },
         );
+        self.structure_dirty = true;
         Ok(index as u32)
     }
 
@@ -775,6 +804,7 @@ impl PptxHost {
             return Err(format!("slide index {index} out of range"));
         }
         self.slides.remove(index);
+        self.structure_dirty = true;
         Ok(())
     }
 
@@ -805,6 +835,7 @@ impl PptxHost {
         }
         let insert_at = index + 1;
         self.slides.insert(insert_at, copy);
+        self.structure_dirty = true;
         Ok(insert_at as u32)
     }
 
@@ -821,6 +852,7 @@ impl PptxHost {
         }
         let slide = self.slides.remove(from);
         self.slides.insert(to, slide);
+        self.structure_dirty = true;
         Ok(())
     }
 

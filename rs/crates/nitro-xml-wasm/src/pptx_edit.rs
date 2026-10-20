@@ -273,6 +273,26 @@ impl PptxState {
                     label: "Align Right",
                     enabled: true,
                 },
+                RibbonItem {
+                    id: "insert.text-box",
+                    label: "Text Box",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "insert.slide",
+                    label: "New Slide",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "insert.duplicate-slide",
+                    label: "Duplicate Slide",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.delete-slide",
+                    label: "Delete Slide",
+                    enabled: true,
+                },
             ],
         )
     }

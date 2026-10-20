@@ -3,6 +3,7 @@
 //! rewrite only the slide parts marked by shape commands.
 
 mod slide_xml;
+mod structure;
 
 use std::collections::HashMap;
 
@@ -28,9 +29,10 @@ pub fn save_pptx(host: &PptxHost, original: &[u8]) -> Result<Vec<u8>, String> {
 /// [`save_pptx`] with explicit options (see [`PptxSaveOptions::skip_slide_rewrite`]).
 ///
 /// A clean host, or `skip_slide_rewrite`, returns the original bytes through
-/// [`PackageWriter`]'s identity shortcut. Otherwise only `host.dirty_parts`
-/// slide XML is replaced. Notes parts are TODO(#86); rich runs, bullets,
-/// autofit, tables and slide add/delete are TODO(#85) / TODO(#86).
+/// [`PackageWriter`]'s identity shortcut. A slide-list edit rebuilds
+/// `p:sldIdLst`, relationships and slide parts. Otherwise only
+/// `host.dirty_parts` slide XML is replaced. Notes parts are TODO(#86); rich
+/// runs, bullets, autofit and tables are TODO(#85) / TODO(#86).
 pub fn save_pptx_with_options(
     host: &PptxHost,
     original: &[u8],
@@ -41,6 +43,9 @@ pub fn save_pptx_with_options(
             .map_err(|e| e.to_string())?
             .finish()
             .map_err(|e| e.to_string());
+    }
+    if host.structure_dirty {
+        return structure::save_with_structure(host, original);
     }
 
     let mut pkg = Package::open(original).map_err(|e| e.to_string())?;
@@ -151,6 +156,76 @@ mod tests {
         );
     }
 
+    // Catches: new, duplicated and deleted slides never landing in the package, and a text box saved without txBox.
+    #[test]
+    fn catches_slide_structure_and_text_box_missing_after_reopen() {
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let opened = PptxHost::open(bytes.as_slice()).expect("open");
+        let before = opened.slides.len();
+        let original_text = slide_plain(&opened.slides[0]);
+        assert!(
+            !original_text.is_empty(),
+            "fixture slide has no text to duplicate"
+        );
+
+        let mut host = opened.clone();
+        host.add_slide(None).expect("add");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save add");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let again = PptxHost::open(&saved).expect("reopen add");
+        assert_eq!(
+            again.slides.len(),
+            before + 1,
+            "new slide missing after reopen"
+        );
+
+        let mut host = opened.clone();
+        host.duplicate_slide(0).expect("dup");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save dup");
+        let again = PptxHost::open(&saved).expect("reopen dup");
+        assert_eq!(again.slides.len(), before + 1);
+        assert_eq!(
+            slide_plain(&again.slides[1]),
+            original_text,
+            "duplicated slide text diverged"
+        );
+
+        let mut host = opened.clone();
+        let removed = host.slides[before - 1].path.clone();
+        host.delete_slide((before - 1) as u32).expect("delete");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save delete");
+        let again = PptxHost::open(&saved).expect("reopen delete");
+        assert_eq!(
+            again.slides.len(),
+            before - 1,
+            "deleted slide still in the package"
+        );
+        assert!(
+            Package::open(saved.as_slice())
+                .expect("pkg")
+                .text(&removed)
+                .expect("read")
+                .is_none(),
+            "deleted slide part {removed} was left in the package"
+        );
+
+        let mut host = opened;
+        let count = host.slides[0].elements.len();
+        host.add_text_box(0, "text-box-0", 80.0, 80.0, 240.0, 80.0)
+            .expect("text box");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save text box");
+        let xml = slide_xml(&saved, "ppt/slides/slide1.xml");
+        assert!(
+            xml.contains("txBox=\"1\""),
+            "text box was not written: {xml}"
+        );
+        let again = PptxHost::open(&saved).expect("reopen text box");
+        assert!(
+            again.slides[0].elements.len() > count,
+            "text box missing after reopen"
+        );
+    }
+
     // Catches: saving a moved shape re-quantizes an untouched non-multiple EMU axis.
     #[test]
     fn untouched_emu_axis_survives_partial_move() {
@@ -178,6 +253,16 @@ mod tests {
             xml.contains("y=\"381000\""),
             "moved axis was not re-quantized: {xml}"
         );
+    }
+
+    fn slide_plain(slide: &crate::edit::host::EditableSlide) -> String {
+        let mut out = String::new();
+        for el in &slide.elements {
+            if let Some(text) = &el.text {
+                out.push_str(text);
+            }
+        }
+        out
     }
 
     fn slide_xml(pkg: &[u8], name: &str) -> String {

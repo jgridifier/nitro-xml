@@ -11,10 +11,15 @@ export default defineConfig({
   plugins: [react({ jsxRuntime: "automatic" })],
   root: dirname(fileURLToPath(import.meta.url)),
   resolve: {
-    alias: {
-      "nitro-xml/loader": join(PKG, "loader/index.js"),
-      "nitro-xml": PKG,
-    },
+    alias: [
+      // More-specific loader subpaths before the index entry (preload, ribbon, …).
+      {
+        find: /^nitro-xml\/loader\/(.+)$/,
+        replacement: join(PKG, "loader/$1"),
+      },
+      { find: "nitro-xml/loader", replacement: join(PKG, "loader/index.js") },
+      { find: "nitro-xml", replacement: PKG },
+    ],
   },
   esbuild: {
     jsx: "automatic",

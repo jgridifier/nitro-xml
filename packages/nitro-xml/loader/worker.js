@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import {
+compileWasmModule,
 initCore,
 unsupportedFormatError,
 } from "./bootstrap.js";
@@ -14,6 +15,10 @@ chain = chain
 .then(async () => {
 switch (msg.type) {
 case "prewarm": {
+if (msg.module) {
+await compileWasmModule(msg.module);
+msg.module = null;
+}
 await initCore();
 self.postMessage({ type: "ready" });
 break;
@@ -31,11 +36,12 @@ handle.free();
 }
 }
 {
-const bytes =
+let bytes =
 msg.bytes instanceof Uint8Array ? msg.bytes : new Uint8Array(msg.bytes);
-handle = new glue.Handle(bytes);
-}
 msg.bytes = null;
+handle = new glue.Handle(bytes);
+bytes = null;
+}
 if (msg.fontSource !== undefined && typeof msg.fontSource !== "function") {
 applyFontSourceToHandle(handle, msg.fontSource);
 } else {

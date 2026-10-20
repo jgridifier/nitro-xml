@@ -23,7 +23,7 @@ function params() {
   };
 }
 
-async function ensureDefined() {
+async function ensureDefined(kind = "embed") {
   const {
     defineNitroXlsx,
     defineNitroDocx,
@@ -32,12 +32,19 @@ async function ensureDefined() {
     prewarmWorker,
   } = await import("nitro-xml/loader");
   const t0 = performance.now();
-  await initCore();
+  if (kind === "startup") {
+    // Host-side cold init (session.js path / explicit initCore callers).
+    await initCore();
+  } else {
+    // React embed path: compile + Module-seeded worker prewarm only — no host
+    // instantiate (WorkerDocument owns the single wasm instance).
+    const { preload } = await import("nitro-xml/loader/lazy/preload.js");
+    await preload();
+  }
   const init_ms = performance.now() - t0;
   defineNitroXlsx();
   defineNitroDocx();
   defineNitroPptx();
-  // defineTag already prewarms; call again is a no-op if taken.
   prewarmWorker();
   return { init_ms };
 }
@@ -102,7 +109,7 @@ function ScenarioRunner({ cfg }) {
         window.__nitroBench?.mark("scenario_start", { scenario, format: fmt, tier });
 
         if (scenario === "startup") {
-          const { init_ms } = await ensureDefined();
+          const { init_ms } = await ensureDefined("startup");
           finish({
             scenario,
             init_core_ms: init_ms,
@@ -111,7 +118,7 @@ function ScenarioRunner({ cfg }) {
           return;
         }
 
-        const { init_ms } = await ensureDefined();
+        const { init_ms } = await ensureDefined("embed");
 
         const waitEl = async () => {
           const deadline = performance.now() + 10000;

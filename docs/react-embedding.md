@@ -79,6 +79,28 @@ xlsx S/M remain the largest embed cost (open+first frame); grid encode cuts are 
 | Remount same xlsx S | first 254 ms → second 28 ms (Δ −225 ms; module + parked worker) |
 | React 18 StrictMode double-mount | `host_ready_count=2`, gap ~0.9 ms; mount→paint ~169 ms |
 
+## Module-seeded preload (no host instantiate)
+
+`preload()` compiles once, parks a worker seeded with that `WebAssembly.Module`,
+and **does not** call host `initCore()`. React embed opens via `WorkerDocument`
+only — a second host-side instance was wasted peak memory. Worker drops the
+transferred open buffer after `Handle.new`. Bench: `node measure-open-mem.mjs`
+(S/M/L). Same VM, Chromium headless, embed-path harness (no host `initCore`).
+
+| Format | Tier | mount→paint before | after | Δ | JS heap peak before | after | Δ |
+|---|---|---:|---:|---:|---:|---:|---:|
+| xlsx | S | 171 ms | 120 ms | −51 | 5.7 MiB | 5.9 MiB | ~0 |
+| xlsx | M | 172 ms | 128 ms | −44 | 6.7 MiB | 6.8 MiB | ~0 |
+| xlsx | L | 121 ms | 188 ms | +67* | 15.6 MiB | 15.4 MiB | −0.2 |
+| docx | S | 146 ms | 107 ms | −39 | 6.0 MiB | 5.5 MiB | −0.5 |
+| docx | M | 161 ms | 112 ms | −49 | 6.2 MiB | 5.8 MiB | −0.4 |
+| docx | L | 180 ms | 87 ms | −93 | 10.8 MiB | 9.8 MiB | −1.0 |
+| pptx | S | 109 ms | 75 ms | −34 | 5.9 MiB | 5.5 MiB | −0.4 |
+| pptx | M | 117 ms | 74 ms | −43 | 6.7 MiB | 6.1 MiB | −0.6 |
+| pptx | L | 119 ms | 82 ms | −37 | 11.0 MiB | 10.6 MiB | −0.4 |
+
+\*xlsx L paint-wait noise on a single run; open ms still improved (73 → 60).
+
 ## Landed cuts
 
 | PR | Change |
@@ -90,6 +112,7 @@ xlsx S/M remain the largest embed cost (open+first frame); grid encode cuts are 
 | #318 | Cold `initCore` passes `Response` again so `instantiateStreaming` runs; overlap compile |
 | #319 | Phase marks + breakdown table (this) |
 | #320 | Defer `setReadOnly(false)` + chrome until after first paint |
+| (this) | Module-seeded preload; no host `initCore`; drop open bytes after `Handle.new` |
 
 Stay out of xlsx grid paint / StringTable encode (separate track). Keep eager
 loader ≤ 17 408 B brotli (new JS under `loader/lazy/`). No budget, threshold,

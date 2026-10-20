@@ -27,6 +27,8 @@ const SHAPE_COMMANDS: &[&str] = &[
     "home.subscript",
     "home.superscript",
     "home.font-name",
+    "home.shape-fill",
+    "home.shape-outline",
     "home.duplicate",
     "home.delete",
     "home.bring-forward",
@@ -343,6 +345,21 @@ impl PptxState {
                 RibbonItem {
                     id: "home.line-spacing",
                     label: "Line Spacing",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.shape-fill",
+                    label: "Fill",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.shape-outline",
+                    label: "Outline",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.layout",
+                    label: "Layout",
                     enabled: true,
                 },
                 RibbonItem {

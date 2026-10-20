@@ -11,7 +11,7 @@ pub use ribbon::{ribbon_html, slide_nav_html};
 pub use selection::SelectionState;
 pub use shortcuts::{find_shortcut, matches_keys, KeyEvent, Shortcut, ShortcutMatch, SHORTCUTS};
 
-use nitro_xml_opc::edit::{EditError, EditHistory, EditSession};
+use nitro_xml_opc::edit::{ChangeKind, EditError, EditHistory, EditScope, EditSession};
 use serde_json::Value;
 
 use crate::edit::host::PptxHost;
@@ -109,6 +109,9 @@ impl PptxEditor {
             self.commands.last_command = Some("file.save".into());
             return Ok(());
         }
+        if id == "home.layout" {
+            return self.cycle_layout();
+        }
         self.commands
             .dispatch(id, args, &mut self.selection, &mut self.session)
     }
@@ -122,7 +125,40 @@ impl PptxEditor {
         self.original = bytes.clone();
         self.session.host.dirty_parts.clear();
         self.session.host.structure_dirty = false;
+        for slide in &mut self.session.host.slides {
+            slide.layout_target = None;
+        }
         Ok(bytes)
+    }
+
+    /// Cycle the active slide to the next layout part in the open package.
+    /// A deck with one layout, or a click that would not change the target, does
+    /// not record history and does not dirty the host.
+    fn cycle_layout(&mut self) -> Result<(), EditError> {
+        if self.read_only {
+            return Err(EditError::unsupported("home.layout"));
+        }
+        self.commands.last_command = Some("home.layout".into());
+        if self.original.is_empty() {
+            return Ok(());
+        }
+        let index = self.selection.slide_index;
+        let next = crate::write::next_layout_override(&self.original, &self.session.host, index)
+            .map_err(|message| EditError::Other { message })?;
+        let Some(next) = next else {
+            return Ok(());
+        };
+        self.session
+            .run(
+                "home.layout",
+                ChangeKind::Format,
+                vec![EditScope::Workbook],
+                |host| {
+                    host.set_layout_target(index, next.clone())
+                        .map_err(|message| EditError::Other { message })
+                },
+            )
+            .map(|_| ())
     }
 
     pub fn original_bytes(&self) -> &[u8] {
@@ -188,6 +224,7 @@ mod tests {
                     el
                 }],
                 source_slide_id: None,
+                layout_target: None,
             }],
             dirty_parts: Default::default(),
             structure_dirty: false,

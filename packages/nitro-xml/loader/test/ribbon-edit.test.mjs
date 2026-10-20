@@ -55,6 +55,9 @@ describe("Office ribbon manifests", () => {
       "home.line-spacing",
       "home.subscript",
       "home.superscript",
+      "home.shape-fill",
+      "home.shape-outline",
+      "home.layout",
       "insert.text-box",
       "insert.picture",
       "insert.table",
@@ -91,6 +94,9 @@ describe("Office ribbon manifests", () => {
       "home.subscript",
       "home.superscript",
       "home.font-name",
+      "home.shape-fill",
+      "home.shape-outline",
+      "home.layout",
     ]) {
       assert.ok(bound.includes(id), `missing pptx command ${id}`);
     }

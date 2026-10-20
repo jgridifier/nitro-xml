@@ -9,6 +9,12 @@ use nitro_xml_opc::edit::{
 use serde_json::{json, Value};
 
 use crate::edit::host::PptxHost;
+
+/// Authored solid fill for `home.shape-fill`. Distinct from the font-color red.
+const SHAPE_FILL: &str = "5B2C6F";
+/// Authored outline for `home.shape-outline`.
+const SHAPE_OUTLINE: &str = "00B050";
+const SHAPE_OUTLINE_PX: f64 = 1.5;
 use crate::edit::picture::INSERTED_PNG;
 use crate::edit::shapes::register_shape_commands;
 use crate::edit::table::register_table_commands;
@@ -57,6 +63,9 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("home.subscript", "Subscript", None, true),
     pptx_cmd!("home.superscript", "Superscript", None, true),
     pptx_cmd!("home.font-name", "Font", None, true),
+    pptx_cmd!("home.shape-fill", "Shape Fill", None, true),
+    pptx_cmd!("home.shape-outline", "Shape Outline", None, true),
+    pptx_cmd!("home.layout", "Layout", None, true),
     pptx_cmd!("home.duplicate", "Duplicate", Some("Ctrl+D"), true),
     pptx_cmd!("home.delete", "Delete", Some("Delete"), true),
     pptx_cmd!("home.select-all", "Select All", Some("Ctrl+A"), false),
@@ -382,6 +391,56 @@ impl PptxCommandSurface {
                 });
                 self.run_shape_op("setShapeTextStyle", &patch, session)
             }
+            "home.shape-fill" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: "home.shape-fill needs a selected shape".into(),
+                })?;
+                let slide = selection.slide_index;
+                let already = session
+                    .host
+                    .slide(slide)
+                    .ok()
+                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+                    .is_some_and(|e| {
+                        e.fill_mode.as_deref() == Some("solid")
+                            && same_hex(e.fill_color.as_deref(), SHAPE_FILL)
+                    });
+                if already {
+                    return Ok(());
+                }
+                let patch = json!({
+                    "slideIndex": slide,
+                    "elementId": element_id,
+                    "fillMode": "solid",
+                    "fillColor": SHAPE_FILL,
+                });
+                self.run_shape_op("setShapeFill", &patch, session)
+            }
+            "home.shape-outline" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: "home.shape-outline needs a selected shape".into(),
+                })?;
+                let slide = selection.slide_index;
+                let already = session
+                    .host
+                    .slide(slide)
+                    .ok()
+                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+                    .is_some_and(|e| {
+                        same_hex(e.stroke_color.as_deref(), SHAPE_OUTLINE)
+                            && e.stroke_width == Some(SHAPE_OUTLINE_PX)
+                    });
+                if already {
+                    return Ok(());
+                }
+                let patch = json!({
+                    "slideIndex": slide,
+                    "elementId": element_id,
+                    "strokeColor": SHAPE_OUTLINE,
+                    "strokeWidth": SHAPE_OUTLINE_PX,
+                });
+                self.run_shape_op("setShapeLine", &patch, session)
+            }
             "home.duplicate" => {
                 let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
                     message: "home.duplicate needs a selected shape".into(),
@@ -651,6 +710,10 @@ impl PptxCommandSurface {
     }
 }
 
+fn same_hex(stored: Option<&str>, want: &str) -> bool {
+    stored.is_some_and(|c| c.trim().trim_start_matches('#').eq_ignore_ascii_case(want))
+}
+
 fn dispatch_table_structure(
     id: &str,
     selection: &SelectionState,
@@ -797,6 +860,7 @@ mod tests {
                     },
                 ],
                 source_slide_id: None,
+                layout_target: None,
             }],
             dirty_parts: Default::default(),
             structure_dirty: false,

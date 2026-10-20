@@ -83,6 +83,8 @@ pub fn ribbon_html(
         html.push_str(&button("home.line-spacing", "Line Spacing", surface, false));
         html.push_str("</section>");
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Drawing\">");
+        html.push_str(&button("home.shape-fill", "Fill", surface, false));
+        html.push_str(&button("home.shape-outline", "Outline", surface, false));
         html.push_str(&button("home.duplicate", "Duplicate", surface, false));
         html.push_str(&button("home.delete", "Delete", surface, false));
         html.push_str(&button(
@@ -146,6 +148,7 @@ pub fn ribbon_html(
             false,
         ));
         html.push_str(&button("home.delete-slide", "Delete Slide", surface, false));
+        html.push_str(&button("home.layout", "Layout", surface, false));
         html.push_str("</section>");
         html.push_str("</div>");
     }

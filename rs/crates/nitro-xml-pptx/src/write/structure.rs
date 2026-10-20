@@ -13,7 +13,9 @@ use nitro_xml_opc::write::PackageWriter;
 
 use crate::edit::host::{EditableSlide, PptxHost};
 
-use super::pictures::{attach_pictures, plan_pictures};
+use super::pictures::{
+    attach_pictures, plan_pictures, rels_xml as relationships_xml, retarget_slide_layout,
+};
 use super::slide_xml::{max_numeric_id, rewrite_slide_with_pics};
 
 const SLIDE_CT: &str = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml";
@@ -86,6 +88,17 @@ pub fn save_with_structure(host: &PptxHost, original: &[u8]) -> Result<Vec<u8>, 
         let is_new = !part_xml.contains_key(path);
         let dirty = host.dirty_parts.contains(&slide.path) || is_new;
         if !dirty && !is_new {
+            if let Some(target) = slide.layout_target.as_deref() {
+                let rels_src = part_rels
+                    .get(path.as_str())
+                    .map(String::as_str)
+                    .unwrap_or("");
+                let rels = parse_relationships((!rels_src.is_empty()).then_some(rels_src))
+                    .map_err(|e| e.to_string())?;
+                if let Some(next) = retarget_slide_layout(&rels, target) {
+                    writer.add_text(slide_rels_name(path), relationships_xml(&next), None);
+                }
+            }
             continue;
         }
         let source_xml = source_xml(slide, &part_xml);
@@ -100,17 +113,32 @@ pub fn save_with_structure(host: &PptxHost, original: &[u8]) -> Result<Vec<u8>, 
                 .map(String::as_str)
                 .unwrap_or("")
         };
-        let rels = parse_relationships((!rels_xml.is_empty()).then_some(rels_xml))
+        let mut rels = parse_relationships((!rels_xml.is_empty()).then_some(rels_xml))
             .map_err(|e| e.to_string())?;
+        let mut layout_changed = false;
+        if let Some(target) = slide.layout_target.as_deref() {
+            if let Some(next) = retarget_slide_layout(&rels, target) {
+                rels = next;
+                layout_changed = true;
+            }
+        }
         let (pic_rels, planned) = plan_pictures(slide, &rels, &mut used_parts);
         let rewritten = rewrite_slide_with_pics(&source_xml, slide, &mut next_id, &pic_rels)?;
         if is_new {
             writer.add_text(path, rewritten, Some(SLIDE_CT));
             if planned.is_empty() {
-                writer.add_text(slide_rels_name(path), rels_xml, None);
+                let xml = if layout_changed {
+                    relationships_xml(&rels)
+                } else {
+                    rels_xml.to_owned()
+                };
+                writer.add_text(slide_rels_name(path), xml, None);
             }
         } else {
             writer.replace(path, rewritten.into_bytes());
+            if layout_changed && planned.is_empty() {
+                writer.add_text(slide_rels_name(path), relationships_xml(&rels), None);
+            }
         }
         if !planned.is_empty() {
             attach_pictures(&mut writer, path, &rels, &planned)?;

@@ -16,6 +16,10 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
 
+# shellcheck source=versions.env
+. scripts/ci/versions.env
+export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
+
 mode="${1:-gate}"
 case "$mode" in gate|record) ;; *)
   echo "perf.sh: usage: perf.sh gate|record" >&2
@@ -31,6 +35,23 @@ mkdir -p "$OUT_DIR"
 
 echo "perf.sh mode=$mode gate_mode=$MODE tiers=$TIERS sha=$SHA"
 echo "out=$OUT_DIR"
+
+# Install bun once so the first format doesn't pay install under set -e races.
+if ! command -v bun >/dev/null 2>&1; then
+  echo "perf.sh: installing bun"
+  curl -fsSL https://bun.sh/install | bash
+  export PATH="$HOME/.bun/bin:$PATH"
+fi
+if ! command -v rustup >/dev/null 2>&1; then
+  echo "perf.sh: rustup missing (needed for wasm build)" >&2
+  exit 1
+fi
+rustup toolchain install --no-self-update >/dev/null
+
+# One wasm build for all formats in this job.
+echo "perf.sh: building wasm package (shared by formats)"
+bash "$ROOT/scripts/build-wasm.sh"
+
 
 # Combined summary header
 {
@@ -57,6 +78,7 @@ for fmt in xlsx docx pptx; do
   echo "perf.sh: running perf_beats_ts.sh $fmt → $fmt_out"
   # Always inherit PERF_GATE_MODE so report/enforce is consistent across formats.
   if ! PERF_BEATS_OUT="$fmt_out" PERF_BEATS_TIERS="$TIERS" \
+      PERF_BEATS_SKIP_WASM_BUILD=1 \
       bash "$ROOT/scripts/ci/perf_beats_ts.sh" "$fmt"; then
     overall_status=1
   fi
@@ -154,7 +176,9 @@ if [ "$mode" = "record" ]; then
 fi
 
 if [ "$overall_status" -ne 0 ]; then
-  echo "perf.sh: ENFORCE MODE — one or more formats failed" >&2
+  # Non-zero from perf_beats_ts is either ENFORCE LOSSes or an infra/setup error
+  # (report mode exits 0 on measurement LOSS). Always fail the job here.
+  echo "perf.sh: one or more formats failed (gate_mode=$MODE)" >&2
   exit 1
 fi
 

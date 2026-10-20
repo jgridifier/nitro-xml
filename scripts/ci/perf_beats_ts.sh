@@ -21,6 +21,10 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
 
+# shellcheck source=versions.env
+. scripts/ci/versions.env
+export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
+
 fmt="${1:?format}"
 case "$fmt" in
   xlsx) arm_issue="#19";;
@@ -46,12 +50,29 @@ mkdir -p "$OUT_DIR"
 echo "perf_beats_ts.sh format=$fmt mode=$MODE tiers=$TIERS arm_when_ready=$arm_issue (gate machinery #8)"
 echo "out=$OUT_DIR"
 
+# --- toolchain (thin perf.yml has no setup-* actions; install in-script like other gates) ---
+if ! command -v bun >/dev/null 2>&1; then
+  echo "perf_beats_ts.sh: installing bun"
+  curl -fsSL https://bun.sh/install | bash
+  export PATH="$HOME/.bun/bin:$PATH"
+fi
+if ! command -v rustup >/dev/null 2>&1; then
+  echo "perf_beats_ts.sh: rustup missing (needed for wasm build)" >&2
+  exit 1
+fi
+rustup toolchain install --no-self-update >/dev/null
+
 # --- prerequisites: upstream TS oracle + wasm pkg + S/M/L fixtures ---
 # shellcheck source=scripts/ci/ensure-upstream-oracle.sh
 source "$ROOT/scripts/ci/ensure-upstream-oracle.sh" "$ROOT"
 
-if [ ! -f "$ROOT/packages/nitro-xml/pkg/nitro_xml_wasm_bg.wasm" ] \
-  || [ ! -f "$ROOT/packages/nitro-xml/pkg/nitro_xml_wasm.js" ]; then
+# Build wasm unless caller already built (perf.sh builds once, then sets SKIP=1).
+# Matrix jobs leave SKIP unset so each format builds the tip SHA (pkg/ is not committed).
+if [ "${PERF_BEATS_SKIP_WASM_BUILD:-0}" = 1 ] \
+  && [ -f "$ROOT/packages/nitro-xml/pkg/nitro_xml_wasm_bg.wasm" ] \
+  && [ -f "$ROOT/packages/nitro-xml/pkg/nitro_xml_wasm.js" ]; then
+  echo "perf_beats_ts.sh: reusing existing wasm pkg (PERF_BEATS_SKIP_WASM_BUILD=1)"
+else
   echo "perf_beats_ts.sh: building wasm package"
   bash "$ROOT/scripts/build-wasm.sh"
 fi

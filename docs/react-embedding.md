@@ -17,9 +17,10 @@ Machine: cloud agent VM, Chromium headless (Playwright), cold page per scenario.
 | Worker construct | ~0.1 |
 | `initCore` (fetch+compile+instantiate) | ~80 |
 
-Streaming compile and instantiate are already used by the loader today
-(`bootstrap.js`). Follow-up PRs measure gains from module cache reuse, host
-`prewarm` before open, and a single worker across remounts.
+Streaming compile and instantiate are used by the loader (`bootstrap.js`).
+`mode="embedded"` also kicks `lazy/preload.js` (wasm compile + worker prewarm +
+`initCore`) as soon as the attribute is set, so compile overlaps React mount.
+Hosts can still call `preload()` earlier from route layout for maximum overlap.
 
 ## Mount → first paint
 

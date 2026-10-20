@@ -137,14 +137,12 @@ if (self._pendingEditorChrome === 1) {
 self._pendingEditorChrome = 2;
 } else if (self._pendingEditorChrome === 2) {
 self._pendingEditorChrome = 0;
-const h = handle;
-setTimeout(() => {
+await new Promise((r) => setTimeout(r, 0));
 try {
-h.setReadOnly(false);
-h.loadEditorChrome();
+handle.setReadOnly(false);
+handle.loadEditorChrome();
 } catch {
 }
-}, 0);
 }
 break;
 }
@@ -168,7 +166,15 @@ break;
 }
 case "sa":
 if (!handle) throw new Error("no document");
-self.postMessage({ type: "sa", result: handle.shellAction(msg.op||"ui", msg.arg||"") });
+{
+const op = msg.op || "ui";
+if (self._pendingEditorChrome && op !== "ui" && op !== "zoom-set") {
+self._pendingEditorChrome = 0;
+handle.setReadOnly(false);
+handle.loadEditorChrome();
+}
+self.postMessage({ type: "sa", result: handle.shellAction(op, msg.arg || "") });
+}
 break;
 case "match-shortcut":
 if (!handle) throw new Error("no document");
@@ -219,6 +225,7 @@ handle.loadEditorChrome();
 self.postMessage({type:"apply-edit",result:handle.applyEdit(msg.spec||"")});
 break;
 case "dispose": {
+self._pendingEditorChrome = 0;
 if (handle) {
 try {
 handle.free();

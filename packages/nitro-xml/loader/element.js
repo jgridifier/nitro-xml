@@ -75,7 +75,7 @@ export class ViewerElement extends HTMLElement {
     catch (e) { this._fail(e); throw e; }
     this._d = d;
     this._tick();
-    void this._ao();
+    await this._ao();
   }
   _ok(n) {
     return !n || ok(n);

@@ -8,7 +8,7 @@ Keyboard: 4,
 Composition: 5,
 Resize: 6,
 });
-// Ids match Handle seed order (empty string is 0). See events.rs INPUT_KEYS.
+// Key ids: events.rs INPUT_KEYS.
 export const KeyId = Object.freeze({
 ArrowLeft: 1,
 ArrowRight: 2,

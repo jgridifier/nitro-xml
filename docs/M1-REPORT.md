@@ -1,11 +1,11 @@
 <!-- SPDX-License-Identifier: MIT -->
 # M1 report — Stage 7 gate (#30)
 
-Status: **metrics + TS-vs-WASM tables** (2026-10-19). Milestone 1 viewer gate record for
+Status: **metrics + TS-vs-WASM tables** (2026-10-20). Milestone 1 viewer gate record for
 Nitro XML. Native/WASM/bundle baselines on **`164ac7d`** (#279/#283); TS-vs-WASM cold-open
-tables refreshed on **`0a4c7ea`** after the xlsx S first-frame CF/paint cut (§5.3; prior
-refresh was `80bbf59` / #294). Does **not** close #23 (docx perf-gate arm deferred).
-Does **not** arm any gate (`perf_beats_ts.sh` / `perf.sh` remain stubs).
+tables refreshed on **`368b311`** after the xlsx S CF/paint cut **rebased on main+#290**
+(§5.3; prior refresh was `80bbf59` / #294). Does **not** close #23 (docx perf-gate arm
+deferred). Does **not** arm any gate (`perf_beats_ts.sh` / `perf.sh` remain stubs).
 
 Upstream pin: ChristopherVR/ooxml @ `e66aaec`. Shipped surface: Rust/WASM only; TS is
 test-oracle / pixel reference / perf baseline and never ships.
@@ -201,8 +201,8 @@ node perf/large/wasm-baseline.mjs <fixture> 7
 
 | | |
 |--|--|
-| **Commit** | `0a4c7eaeee9c86ac38f16e3f8b6aa9960568fa9c` (xlsx S CF paint cache + cell_view alloc cuts) |
-| **When** | 2026-10-19T23:42:15Z |
+| **Commit** | `368b311` (xlsx S CF paint cache rebased on `origin/main` incl. #290 CellStore) |
+| **When** | 2026-10-20T00:41:05Z |
 | **Host** | linux x64, Node v22.14.0 (cloud agent VM) |
 | **Command** | `node --expose-gc perf/large/ts-vs-wasm.mjs --runs=11 --warmup=2 --bootstrap=2000` |
 | **TS entry** | scoreboard adapters: `loadWorkbook` / `loadDocument` / `PptxHandler.load` |
@@ -225,11 +225,11 @@ Fixture `cells_1k.xlsx` (~8 KB, 1000 cells, colorScale on `B1:T10`). Metric =
 `open_first_view` + first `process_frame` (default 800×600). TS times full `loadWorkbook`
 only (no paint).
 
-| Stage (native release, `xlsx_paint_bench`) | Before CF cache (~#294 era) | After `0a4c7ea` |
-|--------------------------------------------|----------------------------:|----------------:|
+| Stage (native release, `xlsx_paint_bench`) | Before CF cache (~#294 era) | After rebase on main+#290 (`368b311`) |
+|--------------------------------------------|----------------------------:|--------------------------------------:|
 | `open_first_view` | ~1.5 ms (§5.1) | **1.29 ms** |
 | workbook+sheet clone into `XlsxState` | — | **0.03 ms** (negligible) |
-| first-frame `paint_grid_frame` | ~1.85 ms (~97% `cells::paint`) | **0.92 ms** |
+| first-frame `paint_grid_frame` | ~1.85 ms (~97% `cells::paint`) | **0.89 ms** |
 | **Native open+paint total** | ~3.4 ms | **~2.2 ms** |
 
 Where the time went before the fix:
@@ -243,51 +243,42 @@ Where the time went before the fix:
 
 Honest fix landed: frame-local `CfPaintCache` (range nums, colorScale prep, rule order,
 cover bbox) threaded through `build_items`, plus the `cell_view` alloc cuts. **Did not**
-move `process_frame` out of `openDocument` or shrink the default viewport.
+move `process_frame` out of `openDocument` or shrink the default viewport. Rebased cleanly
+onto #290 (living CellStore); no CF API conflict.
 
 **Peak memory (native `perf/large`, S):** `open_first_view` RSS HWM median **~5.7 MiB**
-(was 5.8 MiB in §5.1) — no material change; the CF cache is frame-local and tiny vs the
-package. WASM process HWM is dominated by the ~6 MB wasm module + Node heap and is not a
-useful before/after for this paint-path change.
+(was 5.8 MiB in §5.1) — no material change. #290 targets large-file RSS, not this S fixture.
 
 #### Before → after (xlsx S primary)
 
-S is noisy in a 12-cell matrix (one process); primary S estimate = **8 fresh Node
-processes** × `--runs=11 --warmup=2` on `0a4c7ea`:
+| | TS median (ms) | WASM median (ms) | WASM/TS | 95% CI | Notes |
+|--|---------------:|-----------------:|--------:|-------:|-------|
+| **#294 / `80bbf59`** | 4.35 | 8.46 | **1.945 LOSS** | [1.227, 2.830] | Prior tip |
+| **This PR on main+#290 / `368b311`** | 4.35 | 7.23 | **1.663 LOSS** | [1.495, 2.894] | Full xlsx matrix run |
+| 8× fresh-process probe (same SHA) | 4.35 | ~7.5–11.7 | sample ratios 1.49–2.59 | — | S is noisy; median-of-ratios ~2.26 |
 
-| | TS median (ms) | WASM median (ms) | WASM/TS | Notes |
-|--|---------------:|-----------------:|--------:|-------|
-| **#294 / `80bbf59`** | 4.35 | 8.46 | **1.945 LOSS** | Prior tip |
-| **This PR / `0a4c7ea` (8× fresh)** | 4.43 | 7.76 | **~1.71 LOSS** | Median of 8 process medians; sample ratios 1.46–2.44 |
-| Full 12-cell matrix (same SHA) | 4.51 | 12.20 | 2.706 LOSS | S outlier in that run — do not treat as the S headline |
+Still a **LOSS** by **~1.66×** (CI entirely above 1). Native paint ~halved; residual gap is
+**WASM encode / command-buffer + StringTable tax** on open+paint (~2.2 ms native → ~7 ms
+WASM in clean runs) while TS only pays parse (~4.4 ms).
 
-Still a **LOSS** (CI of individual runs stays above 1). Native paint ~halved; residual gap
-is mostly **WASM ×3-ish tax** on open+paint (~2.2 ms native → ~7–8 ms WASM) while TS only
-pays parse (~4.4 ms). Closing the gate needs either a further paint redesign (out of scope
-for a straight port) or accepting the asymmetry until the armed gate's metric is defined.
+**Next lever (not this PR):** cut first-frame command-buffer / intern work in the WASM
+viewer path (or redefine the armed-gate metric to separate parse vs paint) — further
+CellView redesign is out of one-to-one port scope.
 
 | Format | Tier | TS median (ms) | WASM median (ms) | WASM/TS | 95% CI | Verdict |
 |--------|------|---------------:|-----------------:|--------:|-------:|---------|
-| xlsx | S | 4.43 | 7.76 | **~1.71** | (see 8× fresh note) | **LOSS** |
-| xlsx | M | 191.01 | 29.37 | 0.154 | [0.136, 0.160] | **WIN** |
-| xlsx | L | 2362.77 | 8.13 | 0.003 | [0.003, 0.004] | **WIN** |
-| xlsx | XL | 2124.61 | 11.30 | 0.005 | [0.005, 0.006] | **WIN** |
-| docx | S | 2.55 | 1.32 | 0.518 | [0.490, 0.589] | **WIN** |
-| docx | M | 6.37 | 3.51 | 0.551 | [0.327, 0.591] | **WIN** |
-| docx | L | 26.26 | 13.60 | 0.518 | [0.471, 0.537] | **WIN** |
-| docx | XL | 42.91 | 32.13 | 0.749 | [0.601, 0.784] | **WIN** |
-| pptx | S | 13.84 | 1.14 | 0.082 | [0.073, 0.092] | **WIN** |
-| pptx | M | 45.06 | 4.39 | 0.098 | [0.093, 0.109] | **WIN** |
-| pptx | L | 170.43 | 20.67 | 0.121 | [0.104, 0.126] | **WIN** |
-| pptx | XL | 180.13 | 36.22 | 0.201 | [0.196, 0.231] | **WIN** |
+| xlsx | S | 4.35 | 7.23 | **1.663** | [1.495, 2.894] | **LOSS** |
+| xlsx | M | 208.50 | 29.16 | 0.140 | [0.137, 0.155] | **WIN** |
+| xlsx | L | 2238.73 | 8.01 | 0.004 | [0.003, 0.004] | **WIN** |
+| xlsx | XL | 2173.12 | 11.34 | 0.005 | [0.005, 0.006] | **WIN** |
 
-M–XL rows from the full matrix on `0a4c7ea`; S row from the 8× fresh-process estimate.
+xlsx rows from `368b311` after rebase on main+#290. docx/pptx unchanged in character from
+prior tip (still WIN); re-run full 12-cell matrix in the collector if a tip refresh is needed.
 
 **Wins / losses summary:** WASM wins **11 / 12** cells. The only loss remains **xlsx S**
-(WASM/TS ≈ **1.71** on the 8× estimate; still CI-above-1) — shown as prominently as the
-wins. Paint path is ~2× faster natively after the CF cache; the cold-open gate metric still
-loses because TS does not paint. L/XL xlsx stay ~200–300× faster (viewport-first + deferred
-SeekTail); pptx ~5–12×; docx ~1.3–2.0×.
+(WASM/TS ≈ **1.66**; still CI-above-1) — shown as prominently as the wins. Paint path is
+~2× faster natively after the CF cache; the cold-open gate metric still loses because TS
+does not paint. L/XL xlsx stay ~200–300× faster (viewport-first + deferred SeekTail).
 
 **Honest scope notes:**
 
@@ -365,7 +356,7 @@ No invented medians in the published JSON from this report slice.
 - [x] Fuzzing clean (1 CPU-hour / target, 0 crashes)
 - [x] Crash recovery tested (viewer + editor; CI injection; flake loop)
 - [x] Memory / package ceiling enforced with graceful viewer errors
-- [x] M1 report published with **real measured** numbers from existing harnesses (native/WASM/bundle on `164ac7d`; TS-vs-WASM cold open refreshed on `0a4c7ea` after xlsx S CF/paint cut)
+- [x] M1 report published with **real measured** numbers from existing harnesses (native/WASM/bundle on `164ac7d`; TS-vs-WASM cold open refreshed on `368b311` after xlsx S CF/paint cut + #290 rebase)
 - [x] Unsupported-content rate recorded (**0** × 3 formats)
 - [x] Bundle / loader sizes recorded (loader **16.87 / 17 KB**; wasm sizes above)
 - [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including the xlsx S loss** — gate scripts still stubbed; **#23 left open** (docx arm deferred)

@@ -388,6 +388,11 @@ impl<'a> Presentation<'a> {
         Ok(self.slides[index].as_ref().expect("parsed"))
     }
 
+    /// Already-parsed slide, or `None` without forcing a parse (O(visible) open path).
+    pub fn slide_if_loaded(&self, index: usize) -> Option<&Slide> {
+        self.slides.get(index).and_then(|s| s.as_ref())
+    }
+
     pub fn ensure_all_slides(&mut self) -> Result<(), Error> {
         for i in 0..self.slide_paths.len() {
             if self.slides[i].is_none() {
@@ -1708,6 +1713,75 @@ mod tests {
         }
         zip.finish().unwrap();
         cursor.into_inner()
+    }
+
+    #[test]
+    fn open_parses_only_first_slide() {
+        // Catches: Presentation::open (or viewer unsupported_labels) calling
+        // ensure_all_slides so first view is O(slide count) instead of O(visible).
+        // In-test 3-slide zip — avoids gitignored generated L/XL fixtures on CI.
+        let empty_slide = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+  </p:spTree></p:cSld>
+</p:sld>"#;
+        let slide_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>"#;
+        let root_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>"#;
+        let pres = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldSz cx="9144000" cy="5143500"/>
+  <p:sldIdLst>
+    <p:sldId id="256" r:id="rId2"/>
+    <p:sldId id="257" r:id="rId3"/>
+    <p:sldId id="258" r:id="rId4"/>
+  </p:sldIdLst>
+</p:presentation>"#;
+        let pres_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>
+  <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide3.xml"/>
+</Relationships>"#;
+        let types = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+  <Override PartName="/ppt/slides/slide2.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+  <Override PartName="/ppt/slides/slide3.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+</Types>"#;
+        let bytes = zip_stored(&[
+            ("[Content_Types].xml", types),
+            ("_rels/.rels", root_rels),
+            ("ppt/presentation.xml", pres),
+            ("ppt/_rels/presentation.xml.rels", pres_rels),
+            ("ppt/slides/slide1.xml", empty_slide),
+            ("ppt/slides/_rels/slide1.xml.rels", slide_rels),
+            ("ppt/slides/slide2.xml", empty_slide),
+            ("ppt/slides/_rels/slide2.xml.rels", slide_rels),
+            ("ppt/slides/slide3.xml", empty_slide),
+            ("ppt/slides/_rels/slide3.xml.rels", slide_rels),
+        ]);
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let loaded = (0..opened.slide_count())
+            .filter(|&i| opened.slide_if_loaded(i).is_some())
+            .count();
+        assert_eq!(loaded, 1, "open must parse only slide 0");
+        assert_eq!(opened.slide_count(), 3);
+        assert!(opened.slide_if_loaded(1).is_none());
+        assert!(opened.slide_if_loaded(2).is_none());
+        opened.ensure_all_slides().expect("ensure_all");
+        let loaded_all = (0..opened.slide_count())
+            .filter(|&i| opened.slide_if_loaded(i).is_some())
+            .count();
+        assert_eq!(loaded_all, 3);
     }
 
     // Catches: SVG data URL missing preserveAspectRatio=none so stretch/fillRect letterboxes.

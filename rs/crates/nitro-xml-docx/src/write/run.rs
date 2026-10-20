@@ -6,6 +6,7 @@ use serde_json::Value;
 use nitro_xml_opc::xml::{ns, Attr, Element, Node};
 
 use super::element::{first_w_mut, make_w, remove_w_children, set_w_attr};
+use super::picture::inline_drawing;
 use super::xml_escape::encode_escapes;
 
 pub fn run_property_changed(run: &Value, base: Option<&Value>, key: &str) -> bool {
@@ -20,6 +21,17 @@ pub fn create_run(run: &Value, base: Option<&Value>, old: Option<&Element>) -> E
     set_run_properties(&mut node, run, base);
     node.children
         .retain(|n| matches!(n, Node::Element(e) if e.local == "rPr"));
+
+    if let Some(image) = run.get("image") {
+        if let Some(drawing) = inline_drawing(image) {
+            node.children.push(Node::Element(drawing));
+            return node;
+        }
+        if let Some(drawing) = preserved_drawing(old) {
+            node.children.push(Node::Element(drawing));
+            return node;
+        }
+    }
 
     let text = run.get("text").and_then(|t| t.as_str()).unwrap_or("");
     if run.get("break").is_some() {
@@ -59,6 +71,18 @@ pub fn create_run(run: &Value, base: Option<&Value>, old: Option<&Element>) -> E
         node.children.push(Node::Element(make_w("t")));
     }
     node
+}
+
+fn preserved_drawing(old: Option<&Element>) -> Option<Element> {
+    let old = old?;
+    old.children.iter().find_map(|child| match child {
+        Node::Element(el)
+            if el.ns.as_deref() == Some(ns::W) && (el.local == "drawing" || el.local == "pict") =>
+        {
+            Some(el.clone())
+        }
+        _ => None,
+    })
 }
 
 enum TextPiece {

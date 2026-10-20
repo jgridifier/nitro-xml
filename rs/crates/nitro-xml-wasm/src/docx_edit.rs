@@ -276,6 +276,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "insert.picture",
+                    label: "Picture",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "table.delete",
                     label: "Delete Table",
                     enabled: true,

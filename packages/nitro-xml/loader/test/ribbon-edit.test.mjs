@@ -31,7 +31,7 @@ describe("Office ribbon manifests", () => {
   });
 
   it("lists only PowerPoint commands that change the saved package", () => {
-    // Catches: a PowerPoint button whose command does not rewrite the package (notes, pictures).
+    // Catches: a PowerPoint button whose command does not rewrite the package (notes, shapes).
     const bound = [...ids(tabsFor("pptx", "Slide", true)), ...QAT.map((x) => x.c)];
     const allowed = new Set([
       "file.save",
@@ -49,6 +49,7 @@ describe("Office ribbon manifests", () => {
       "home.font-size",
       "home.font-color",
       "insert.text-box",
+      "insert.picture",
       "insert.table",
       "table.insert-row",
       "table.delete-row",
@@ -67,6 +68,7 @@ describe("Office ribbon manifests", () => {
       "insert.move-slide-down",
       "home.delete-slide",
       "insert.text-box",
+      "insert.picture",
       "insert.table",
       "table.insert-row",
       "home.bold",
@@ -97,6 +99,7 @@ describe("Office ribbon manifests", () => {
       "home.numbering",
       "home.font-size",
       "home.font-color",
+      "insert.picture",
       "insert.table",
       "table.insert-row",
       "table.delete-row",
@@ -105,6 +108,7 @@ describe("Office ribbon manifests", () => {
       "table.delete",
     ]);
     for (const id of bound) assert.ok(allowed.has(id), `unexpected docx command ${id}`);
+    assert.ok(bound.includes("insert.picture"));
     assert.ok(bound.includes("insert.table"));
     assert.ok(bound.includes("table.insert-row"));
     assert.ok(bound.includes("table.delete"));

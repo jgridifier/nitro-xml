@@ -8,6 +8,7 @@ use nitro_xml_opc::edit::{
 };
 use serde_json::{json, Value};
 
+use crate::edit::drawing::append_inline_picture;
 use crate::edit::format::{set_paragraph_align, set_run_formatting};
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition};
@@ -54,6 +55,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("align-justify", "Justify", None, true),
     word_cmd!("numbering", "Numbering", None, true),
     word_cmd!("insert.table", "Table", None, true),
+    word_cmd!("insert.picture", "Picture", None, true),
     word_cmd!("font-size", "Font Size", None, true),
     word_cmd!("font-color", "Font Color", None, true),
     word_cmd!("table.insert-row", "Insert Row", None, true),
@@ -287,6 +289,19 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| -> Result<(), EditError> {
                         insert_table(h, at, 2, 2)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "insert.picture" => {
+                session.run(
+                    String::from("insert.picture"),
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        append_inline_picture(h, caret_block)?;
                         Ok(())
                     },
                 )?;

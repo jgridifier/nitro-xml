@@ -9,6 +9,7 @@ use nitro_xml_opc::edit::{
 use serde_json::{json, Value};
 
 use crate::edit::host::PptxHost;
+use crate::edit::picture::INSERTED_PNG;
 use crate::edit::shapes::register_shape_commands;
 use crate::edit::table::register_table_commands;
 use crate::edit::text::register_text_commands;
@@ -61,6 +62,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("insert.shape", "Shape", None, true),
     pptx_cmd!("insert.text-box", "Text Box", None, true),
     pptx_cmd!("insert.table", "Table", None, true),
+    pptx_cmd!("insert.picture", "Picture", None, true),
     pptx_cmd!("table.insert-row", "Insert Row", None, true),
     pptx_cmd!("table.delete-row", "Delete Row", None, true),
     pptx_cmd!("table.insert-column", "Insert Column", None, true),
@@ -367,6 +369,27 @@ impl PptxCommandSurface {
                     vec![EditScope::Workbook],
                     |host| -> Result<(), EditError> {
                         host.add_table(slide, &id, 80.0, 80.0, 360.0, 120.0)
+                            .map_err(|e| EditError::Other { message: e })?;
+                        Ok(())
+                    },
+                )?;
+                selection.select(std::iter::once(id));
+                Ok(())
+            }
+            "insert.picture" => {
+                let slide = selection.slide_index;
+                let n = session
+                    .host
+                    .slide(slide)
+                    .map(|s| s.elements.len())
+                    .unwrap_or(0);
+                let id = format!("picture-{slide}-{n}");
+                session.run(
+                    "insert.picture",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |host| -> Result<(), EditError> {
+                        host.add_picture(slide, &id, INSERTED_PNG)
                             .map_err(|e| EditError::Other { message: e })?;
                         Ok(())
                     },

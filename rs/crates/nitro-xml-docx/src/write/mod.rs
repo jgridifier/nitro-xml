@@ -7,6 +7,7 @@ mod element;
 mod inline;
 mod numbering_part;
 mod paragraph;
+mod picture;
 mod run;
 mod table;
 mod xml_escape;
@@ -19,6 +20,7 @@ use nitro_xml_opc::xml::parse_xml_str;
 use self::apply::apply_model;
 use self::document_xml::build_document_xml;
 use self::numbering_part::write_numbering;
+use self::picture::write_inline_pictures;
 use self::xml_escape::XML_HEADER;
 
 const CT_DOCUMENT: &str =
@@ -57,8 +59,9 @@ pub fn save_docx_with_options(
 
     let mut doc = parse_xml_str(&host.source_document_xml).map_err(|e| e.to_string())?;
     apply_model(&mut doc, host)?;
-    let xml = format!("{}{}", XML_HEADER, build_document_xml(&doc.root));
+    let mut xml = format!("{}{}", XML_HEADER, build_document_xml(&doc.root));
     let mut writer = PackageWriter::open(original).map_err(|e| e.to_string())?;
+    write_inline_pictures(&mut writer, original, host, &mut xml)?;
     writer.add_text("word/document.xml", xml, Some(CT_DOCUMENT));
     write_numbering(&mut writer, original, host)?;
     writer.finish().map_err(|e| e.to_string())
@@ -179,5 +182,37 @@ mod tests {
                     .and_then(|v| v.as_str())
             });
         assert_eq!(fmt, Some("decimal"));
+    }
+
+    #[test]
+    fn catches_inline_picture_missing_from_document_and_media() {
+        // Catches: insert picture saving without w:drawing or word/media, so reopen has no image.
+        use crate::edit::drawing::{append_inline_picture, INSERTED_PNG};
+        use nitro_xml_opc::opc::Package;
+        let bytes = include_bytes!("../../../../../fixtures/generated/docx/pages_10.docx");
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        append_inline_picture(&mut host, 0).expect("picture");
+        let saved = save_docx(&host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let again = DocxHost::open(&saved).expect("reopen");
+        let image = again
+            .blocks
+            .iter()
+            .filter_map(|b| b.get("runs")?.as_array())
+            .flatten()
+            .find_map(|run| run.get("image"))
+            .expect("image missing after reopen");
+        let part = image.get("partName").and_then(|v| v.as_str()).unwrap_or("");
+        assert!(
+            part.contains("word/media/"),
+            "partName {part} is not a media part"
+        );
+        assert_eq!(
+            image.get("contentType").and_then(|v| v.as_str()),
+            Some("image/png")
+        );
+        let mut pkg = Package::open(&saved).expect("pkg");
+        let png = pkg.read(part).expect("read").expect("png bytes");
+        assert_eq!(png, INSERTED_PNG);
     }
 }

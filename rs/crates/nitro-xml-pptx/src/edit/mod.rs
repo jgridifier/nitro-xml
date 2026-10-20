@@ -3,6 +3,7 @@
 //! Undo/redo uses the shared [`EditHistory`] (#64).
 
 pub mod host;
+pub mod picture;
 pub mod shapes;
 pub mod slides;
 pub mod table;

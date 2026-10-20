@@ -14,5 +14,6 @@ same way it skips `loader/test/`.
 | `ribbon/*.js` | Demo host dynamic-`import()`s `mountOffice` (title bar, ribbon tabs, slide pane, status bar, drop zone) around an element; uses only `shellAction`. See `docs/ux-revision.md`. |
 | `ribbon/commands.js`, `dirty.js`, `thumbs.js` | Same host import: per-format ribbon manifest (only engine-mapped command ids), unsaved-changes tracking for writable xlsx, lazy slide thumbnails for pptx. |
 | `embedded/*.js` | Shell element has `mode="embedded"` (dynamic `import()` from `ShellViewerElement._em`). Single-row simplified-ribbon toolbar; see `docs/embedded-mode.md`. |
+| `preload.js` | Host `preload()` — compile+cache wasm, prewarm worker, `initCore` before open (React embed). |
 
 Keep this directory for on-demand host work that must not grow the initial loader.

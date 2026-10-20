@@ -32,7 +32,7 @@ mod = await WebAssembly.compileStreaming(source.clone());
 } else {
 mod = await WebAssembly.compile(await source.arrayBuffer());
 }
-await putModuleInCache(source.url || CACHE_NAME, mod).catch(() => {});
+await putModuleInCache(source.url || CACHE_NAME, source).catch(() => {});
 } else if (typeof source === "string" || source instanceof URL) {
 const url = String(source);
 const fromCache = await getModuleFromCache(url).catch(() => null);
@@ -47,7 +47,7 @@ mod = await WebAssembly.compileStreaming(res.clone());
 } else {
 mod = await WebAssembly.compile(await res.arrayBuffer());
 }
-await putModuleInCache(url, mod).catch(() => {});
+await putModuleInCache(url, res).catch(() => {});
 } else {
 mod = await WebAssembly.compile(source);
 }
@@ -61,9 +61,9 @@ const hit = await cache.match(url);
 if (!hit) return null;
 return WebAssembly.compile(await hit.arrayBuffer());
 }
-async function putModuleInCache(url, mod) {
-if (typeof caches === "undefined" || !url) return;
-void mod;
+async function putModuleInCache(url, res) {
+if (typeof caches === "undefined" || !url || !(res instanceof Response)) return;
+await (await caches.open(CACHE_NAME)).put(url, res.clone());
 }
 export async function initCore(opts = {}) {
 if (!wasmSupported()) {
@@ -78,14 +78,16 @@ try {
 const glueUrl = opts.glueUrl || defaultGlueUrl();
 const wasmUrl = opts.wasmUrl || defaultWasmUrl();
 const glue = await import( String(glueUrl));
-let input;
+let input = cachedModule;
+if (!input) {
 try {
 const res = await fetch(String(wasmUrl));
 if (!res.ok) throw new Error(`wasm fetch failed: ${res.status}`);
-input = res;
 await compileWasmModule(res.clone()).catch(() => {});
+input = cachedModule || res;
 } catch {
 input = String(wasmUrl);
+}
 }
 const exports = await glue.default(input);
 wasmMemory = exports.memory || null;

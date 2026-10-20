@@ -70,8 +70,6 @@ const n = name || this._name;
 if (n && !isSupportedExtension(n)) throw unsupportedFormatError();
 this._name = n;
 const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-// One JS copy for crash recovery / edit journal. The worker open path transfers
-// `u8` (detached after postMessage); Handle then owns the sole WASM copy.
 this._originalBytes = new Uint8Array(u8);
 this._ro = opts.readonly !== false;
 this._viewerReloadAttempted = false;

@@ -591,6 +591,74 @@ mod tests {
     }
 
     #[test]
+    fn catches_pptx_picture_missing_after_reopen_or_undo() {
+        // Catches: insert.picture leaving the saved deck without a picture, or undo keeping the PNG.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        let before = h
+            .pptx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .slides
+            .iter()
+            .flat_map(|s| s.elements.iter())
+            .filter(|el| el.type_ == "picture")
+            .count();
+        h.shell_action("cmd", "insert.picture").expect("picture");
+        let saved = h.save_document().expect("save");
+        assert_ne!(saved, PPTX);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen");
+        let after = again
+            .session
+            .host
+            .slides
+            .iter()
+            .flat_map(|s| s.elements.iter())
+            .filter(|el| el.type_ == "picture")
+            .count();
+        assert_eq!(after, before + 1, "reopen dropped the picture");
+        h.shell_action("cmd", "edit.undo").expect("undo");
+        assert_eq!(h.save_document().expect("undone"), PPTX);
+    }
+
+    #[test]
+    fn catches_docx_picture_missing_after_reopen_or_undo() {
+        // Catches: insert.picture leaving the saved document without an inline image, or undo keeping it.
+        let mut h = open_editable(DOCX, "pages.docx");
+        h.shell_action("cmd", "insert.picture").expect("picture");
+        let saved = h.save_document().expect("save");
+        assert_ne!(saved, DOCX);
+        let again = open_editable(&saved, "pages.docx");
+        let image = again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .filter_map(|b| b.get("runs")?.as_array())
+            .flatten()
+            .find_map(|run| run.get("image").cloned())
+            .expect("image missing after reopen");
+        let part = image.get("partName").and_then(|v| v.as_str()).unwrap_or("");
+        assert!(part.contains("media"), "partName {part}");
+        assert_eq!(
+            image.get("contentType").and_then(|v| v.as_str()),
+            Some("image/png")
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
+    }
+
+    #[test]
     fn catches_pptx_font_size_and_color_missing_after_reopen() {
         // Catches: home.font-size and home.font-color leaving the saved slide run unchanged.
         let mut h = open_editable(PPTX, "slides.pptx");

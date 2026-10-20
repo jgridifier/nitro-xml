@@ -142,6 +142,11 @@ pub struct EditableElement {
     /// Omitted when false so an unedited host snapshot stays the same shape.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub table_authored: bool,
+    /// PNG bytes for a picture inserted this session. Omitted so an unedited
+    /// snapshot stays the same shape. Existing package pictures keep `None`
+    /// and are rewritten from their source `p:pic`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_png: Option<Vec<u8>>,
 }
 
 impl EditableElement {
@@ -171,6 +176,7 @@ impl EditableElement {
             xml_share_of: None,
             table: None,
             table_authored: false,
+            image_png: None,
         }
     }
 
@@ -399,6 +405,7 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
         xml_share_of: None,
         table: el.table_data.as_ref().map(TableModel::from_parsed),
         table_authored: false,
+        image_png: None,
     }
 }
 
@@ -665,6 +672,19 @@ impl PptxHost {
             el.set_box(x, y, width, height, 0.0);
             el.table = Some(super::table::TableModel::blank_grid(2, 2));
             el.table_authored = true;
+            slide.elements.push(el);
+        }
+        self.touch(slide_index)
+    }
+
+    /// Append a picture (`p:pic` / `a:blip`) at a fixed box. `png` is written to
+    /// `ppt/media` on save. Fill mode stays unset so `apply_fill` does not replace the blip.
+    pub fn add_picture(&mut self, slide_index: u32, id: &str, png: &[u8]) -> Result<(), String> {
+        {
+            let slide = self.slide_mut(slide_index)?;
+            let mut el = EditableElement::blank(id, "picture");
+            el.set_box(120.0, 120.0, 160.0, 120.0, 0.0);
+            el.image_png = Some(png.to_vec());
             slide.elements.push(el);
         }
         self.touch(slide_index)

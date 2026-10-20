@@ -13,7 +13,8 @@ use nitro_xml_opc::write::PackageWriter;
 
 use crate::edit::host::{EditableSlide, PptxHost};
 
-use super::slide_xml::{max_numeric_id, rewrite_slide};
+use super::pictures::{attach_pictures, plan_pictures};
+use super::slide_xml::{max_numeric_id, rewrite_slide_with_pics};
 
 const SLIDE_CT: &str = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml";
 
@@ -79,6 +80,7 @@ pub fn save_with_structure(host: &PptxHost, original: &[u8]) -> Result<Vec<u8>, 
     let mut next_id = max_id + 1;
     let mut writer = PackageWriter::open(original).map_err(|e| e.to_string())?;
     let kept: BTreeSet<&str> = assigned.iter().map(String::as_str).collect();
+    let mut used_parts: BTreeSet<String> = pkg.part_names().map(str::to_owned).collect();
 
     for (slide, path) in host.slides.iter().zip(assigned.iter()) {
         let is_new = !part_xml.contains_key(path);
@@ -87,16 +89,31 @@ pub fn save_with_structure(host: &PptxHost, original: &[u8]) -> Result<Vec<u8>, 
             continue;
         }
         let source_xml = source_xml(slide, &part_xml);
-        let rewritten = rewrite_slide(&source_xml, slide, &mut next_id)?;
-        if is_new {
-            writer.add_text(path, rewritten, Some(SLIDE_CT));
-            let rels = part_rels
+        let rels_xml = if is_new {
+            part_rels
                 .get(slide.source_slide_id.as_deref().unwrap_or(""))
                 .map(String::as_str)
-                .unwrap_or(LAYOUT_RELS);
-            writer.add_text(slide_rels_name(path), rels, None);
+                .unwrap_or(LAYOUT_RELS)
+        } else {
+            part_rels
+                .get(path.as_str())
+                .map(String::as_str)
+                .unwrap_or("")
+        };
+        let rels = parse_relationships((!rels_xml.is_empty()).then_some(rels_xml))
+            .map_err(|e| e.to_string())?;
+        let (pic_rels, planned) = plan_pictures(slide, &rels, &mut used_parts);
+        let rewritten = rewrite_slide_with_pics(&source_xml, slide, &mut next_id, &pic_rels)?;
+        if is_new {
+            writer.add_text(path, rewritten, Some(SLIDE_CT));
+            if planned.is_empty() {
+                writer.add_text(slide_rels_name(path), rels_xml, None);
+            }
         } else {
             writer.replace(path, rewritten.into_bytes());
+        }
+        if !planned.is_empty() {
+            attach_pictures(&mut writer, path, &rels, &planned)?;
         }
     }
 

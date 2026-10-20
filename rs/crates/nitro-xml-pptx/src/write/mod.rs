@@ -2,17 +2,19 @@
 //! PPTX package writer (#87): identity shortcut for clean hosts; dirty saves
 //! rewrite only the slide parts marked by shape commands.
 
+mod pictures;
 mod slide_xml;
 mod structure;
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use nitro_xml_opc::opc::Package;
 use nitro_xml_opc::write::PackageWriter;
 
 use crate::edit::host::PptxHost;
 
-use self::slide_xml::{max_numeric_id, rewrite_slide};
+use self::pictures::{attach_pictures, plan_pictures};
+use self::slide_xml::{max_numeric_id, rewrite_slide_with_pics};
 
 /// Options for [`save_pptx_with_options`].
 #[derive(Debug, Clone, Default)]
@@ -33,8 +35,8 @@ pub fn save_pptx(host: &PptxHost, original: &[u8]) -> Result<Vec<u8>, String> {
 /// `p:sldIdLst`, relationships and slide parts. Otherwise only
 /// `host.dirty_parts` slide XML is replaced. Notes parts are TODO(#86); rich
 /// runs and autofit are TODO(#85) / TODO(#86). List markers (`a:buChar`,
-/// `a:buAutoNum`, `a:buNone`) and authored tables (`a:tbl`) are written
-/// inside the dirty slide.
+/// `a:buAutoNum`, `a:buNone`), authored tables (`a:tbl`), and inserted
+/// pictures (`p:pic` plus `ppt/media`) are written inside the dirty slide.
 pub fn save_pptx_with_options(
     host: &PptxHost,
     original: &[u8],
@@ -51,8 +53,10 @@ pub fn save_pptx_with_options(
     }
 
     let mut pkg = Package::open(original).map_err(|e| e.to_string())?;
+    let mut used_parts: BTreeSet<String> = pkg.part_names().map(str::to_owned).collect();
     let mut max_id = 0i64;
     let mut sources: HashMap<String, String> = HashMap::new();
+    let mut pic_plans = HashMap::new();
     for slide in &host.slides {
         let xml = {
             let text = pkg.text(&slide.path).map_err(|e| e.to_string())?;
@@ -63,6 +67,9 @@ pub fn save_pptx_with_options(
         };
         max_id = max_id.max(max_numeric_id(&xml)?);
         if host.dirty_parts.contains(&slide.path) {
+            let rels = pkg.rels(&slide.path).map_err(|e| e.to_string())?.clone();
+            let (map, planned) = plan_pictures(slide, &rels, &mut used_parts);
+            pic_plans.insert(slide.path.clone(), (rels, map, planned));
             sources.insert(slide.path.clone(), xml);
         }
     }
@@ -78,9 +85,13 @@ pub fn save_pptx_with_options(
         let src = sources
             .get(&slide.path)
             .ok_or_else(|| format!("missing dirty part {}", slide.path))?;
-        let rewritten = rewrite_slide(src, slide, &mut next_id)?;
-        // `replace` keeps content types, rels and every other part byte-identical.
+        let (rels, map, planned) = pic_plans
+            .get(&slide.path)
+            .ok_or_else(|| format!("missing picture plan {}", slide.path))?;
+        let rewritten = rewrite_slide_with_pics(src, slide, &mut next_id, map)?;
+        // `replace` keeps content types. Picture saves also add media and a slide rel.
         writer.replace(&slide.path, rewritten.into_bytes());
+        attach_pictures(&mut writer, &slide.path, rels, planned)?;
     }
     writer.finish().map_err(|e| e.to_string())
 }
@@ -349,6 +360,35 @@ mod tests {
         let trimmed_model = trimmed_table.table.as_ref().expect("model");
         assert_eq!(trimmed_model.rows.len(), 2);
         assert_eq!(trimmed_model.column_widths.len(), 2);
+    }
+
+    #[test]
+    fn catches_inserted_picture_missing_from_slide_and_media() {
+        // Catches: a picture save that omits p:pic or the PNG part, so reopen has no picture.
+        use crate::edit::picture::INSERTED_PNG;
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        let before = host.slides[0].elements.len();
+        host.add_picture(0, "picture-test", INSERTED_PNG)
+            .expect("picture");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let again = PptxHost::open(&saved).expect("reopen");
+        let pictures = again.slides[0]
+            .elements
+            .iter()
+            .filter(|el| el.type_ == "picture")
+            .count();
+        assert_eq!(pictures, 1, "reopen dropped the picture");
+        assert_eq!(again.slides[0].elements.len(), before + 1);
+        let mut pkg = Package::open(&saved).expect("pkg");
+        let media = pkg
+            .part_names()
+            .find(|n| n.starts_with("ppt/media/nitro-") && n.ends_with(".png"))
+            .expect("media part")
+            .to_owned();
+        let png = pkg.read(&media).expect("read").expect("bytes");
+        assert_eq!(png, INSERTED_PNG);
     }
 
     fn slide_plain(slide: &crate::edit::host::EditableSlide) -> String {

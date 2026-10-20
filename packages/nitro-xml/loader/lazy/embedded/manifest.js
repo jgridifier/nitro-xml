@@ -69,6 +69,7 @@ export const MANIFEST = {
       {
         id: "Tables",
         items: [
+          cmd("insert.picture", "picture", "Picture", "Insert a picture"),
           cmd("insert.table", "table", "Table", "Insert a table"),
           cmd("table.insert-row", "rowAdd", "Insert row"),
           cmd("table.delete-row", "rowDel", "Delete row"),
@@ -104,6 +105,7 @@ export const MANIFEST = {
           cmd("insert.move-slide-up", "chevUp", "Move slide up"),
           cmd("insert.move-slide-down", "chevDown", "Move slide down"),
           cmd("insert.text-box", "text", "Text box"),
+          cmd("insert.picture", "picture", "Picture", "Insert a picture"),
           cmd("home.delete-slide", "trash", "Delete slide"),
         ],
       },

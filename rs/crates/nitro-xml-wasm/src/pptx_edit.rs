@@ -314,6 +314,11 @@ impl PptxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "insert.picture",
+                    label: "Picture",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "table.insert-row",
                     label: "Insert Row",
                     enabled: true,

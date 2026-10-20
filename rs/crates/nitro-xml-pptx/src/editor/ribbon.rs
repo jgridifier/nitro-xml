@@ -94,6 +94,7 @@ pub fn ribbon_html(
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Shapes\">");
         html.push_str(&button("insert.shape", "Shape", surface, true));
         html.push_str(&button("insert.text-box", "Text Box", surface, false));
+        html.push_str(&button("insert.picture", "Picture", surface, false));
         html.push_str("</section>");
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Tables\">");
         html.push_str(&button("insert.table", "Table", surface, false));

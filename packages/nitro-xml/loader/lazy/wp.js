@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * applyEdit coalesce (microtask) + flush-on-tick.
+ * applyEdit coalesce (microtask) + mut-frame edit+paint (one worker RT).
  * Installed from worker-host-tick on first tick (lazy — off eager brotli budget).
  */
 
@@ -10,6 +10,16 @@ export function patch(WorkerDocument) {
 
   const origEdit = WorkerDocument.prototype.applyEdit;
   const origTick = WorkerDocument.prototype.tick;
+  const origKey = WorkerDocument.prototype.editorKey;
+  const origSa = WorkerDocument.prototype.shellAction;
+
+  async function mutFrame(doc, fields) {
+    const msg = await doc._request("mut-frame", () => {
+      doc._worker.postMessage({ type: "mut-frame", ...fields });
+    });
+    doc._xf = msg;
+    return msg.result;
+  }
 
   async function flushEditQueue(doc) {
     if (doc._ef) return;
@@ -19,12 +29,31 @@ export function patch(WorkerDocument) {
     doc._eq = [];
     doc._ef = 1;
     try {
-      for (const e of q) {
+      const last = q[q.length - 1];
+      for (let i = 0; i < q.length - 1; i++) {
+        const e = q[i];
         try {
           e.resolve(await origEdit.call(doc, e.spec));
         } catch (err) {
           e.reject(err);
         }
+      }
+      try {
+        if (doc._worker && typeof doc._request === "function") {
+          const result = await mutFrame(doc, { op: "a", spec: last.spec });
+          const frame = doc._xf;
+          doc._xf = null;
+          if (frame && frame.commands) {
+            const { paintFrame } = await import("./paint-frame.js");
+            await paintFrame(doc, frame);
+            doc._nxPainted = 1;
+          }
+          last.resolve(result);
+        } else {
+          last.resolve(await origEdit.call(doc, last.spec));
+        }
+      } catch (err) {
+        last.reject(err);
       }
     } finally {
       doc._ef = 0;
@@ -38,7 +67,8 @@ export function patch(WorkerDocument) {
       let key = null;
       try {
         const o = JSON.parse(s);
-        if (o && o.command === "setCellInput") key = `c:${o.sheet | 0}:${o.row | 0}:${o.col | 0}`;
+        if (o && o.command === "setCellInput")
+          key = `c:${o.sheet | 0}:${o.row | 0}:${o.col | 0}`;
       } catch {
         /* raw */
       }
@@ -69,8 +99,68 @@ export function patch(WorkerDocument) {
     });
   };
 
+  async function mutFrameAndPaint(doc, fields) {
+    const result = await mutFrame(doc, fields);
+    const frame = doc._xf;
+    doc._xf = null;
+    if (frame && frame.commands) {
+      const { paintFrame } = await import("./paint-frame.js");
+      await paintFrame(doc, frame);
+      doc._nxPainted = 1;
+    }
+    return result;
+  }
+
+  WorkerDocument.prototype.editorKey = async function (ev, mac) {
+    if (!(this._worker && typeof this._request === "function")) {
+      return origKey.call(this, ev, mac);
+    }
+    const result = await mutFrameAndPaint(this, {
+      op: "k",
+      key: (ev && ev.key) || "",
+      ctrl: !!(ev && ev.ctrlKey),
+      meta: !!(ev && ev.metaKey),
+      alt: !!(ev && ev.altKey),
+      shift: !!(ev && ev.shiftKey),
+      mac: !!mac,
+    });
+    try {
+      return JSON.parse(result || "{}");
+    } catch {
+      return {};
+    }
+  };
+
+  WorkerDocument.prototype.shellAction = async function (op, arg = "") {
+    // Open-path ui/zoom must stay cheap (no forced frame).
+    if (op === "ui" || op === "zoom-set") return origSa.call(this, op, arg);
+    if (!(this._worker && typeof this._request === "function")) {
+      return origSa.call(this, op, arg);
+    }
+    const result = await mutFrameAndPaint(this, {
+      op: "s",
+      sa: op || "ui",
+      arg: arg || "",
+    });
+    try {
+      return JSON.parse(result);
+    } catch {
+      return { ui: null };
+    }
+  };
+
   WorkerDocument.prototype.tick = async function (...args) {
     await flushEditQueue(this);
+    const frame = this._xf;
+    this._xf = null;
+    if (frame && frame.commands) {
+      const { paintFrame } = await import("./paint-frame.js");
+      return paintFrame(this, frame);
+    }
+    if (this._nxPainted) {
+      this._nxPainted = 0;
+      return { ops: [], measured: 0, outlined: 0, layoutReads: 0 };
+    }
     return origTick.apply(this, args);
   };
 }

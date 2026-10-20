@@ -133,8 +133,9 @@ export async function editAndRepaint(el, specOrFn) {
   } else {
     await doc.applyEdit(specOrFn);
   }
+  // tick applies the command buffer to canvas (= painted). Skip trailing rAF
+  // so the metric is not floor-clamped to one display frame (~16ms).
   await doc.tick();
-  await new Promise((r) => requestAnimationFrame(r));
   return performance.now() - t0;
 }
 

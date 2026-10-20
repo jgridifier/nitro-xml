@@ -25,4 +25,27 @@ describe("bootstrap wasm module cache", () => {
     assert.match(src, /input = res;/);
     assert.doesNotMatch(src, /input = cachedModule \|\| res/);
   });
+
+  it("preload compiles and seeds the worker without host initCore", async () => {
+    // Catches: preload() calling initCore() on the host and doubling peak wasm
+    // memory for WorkerDocument-only React embeds.
+    const fs = await import("node:fs");
+    const preloadSrc = fs.readFileSync(
+      new URL("../lazy/preload.js", import.meta.url),
+      "utf8",
+    );
+    const preloadCode = preloadSrc.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    assert.match(preloadCode, /compileWasmModule/);
+    assert.match(preloadCode, /prewarmWorker/);
+    assert.match(preloadCode, /type:\s*"prewarm",\s*module:/);
+    assert.doesNotMatch(preloadCode, /\.terminate\s*\(/);
+    assert.doesNotMatch(preloadCode, /\binitCore\s*\(/);
+    assert.doesNotMatch(preloadCode, /\binitCore\b/);
+    const workerSrc = fs.readFileSync(
+      new URL("../worker.js", import.meta.url),
+      "utf8",
+    );
+    assert.match(workerSrc, /compileWasmModule\(msg\.module\)/);
+    assert.match(workerSrc, /bytes = null/);
+  });
 });

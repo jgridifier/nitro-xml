@@ -22,6 +22,34 @@ Machine: cloud agent VM, Chromium headless (Playwright), cold page per scenario.
 `mode="embedded"` also kicks `lazy/preload.js` as soon as the attribute is set.
 Hosts can still call `preload()` earlier from route layout for maximum overlap.
 
+## Phase breakdown (mount → first paint)
+
+Instrumented path marks (bench harness only — no eager-loader growth):
+fixture fetch, worker ready / `initCore`, open round-trip, host
+`loadBuffer`, first `tick` / command buffer, measure + layout round-trips,
+paint wait. Worker open sub-phases (`Handle.new` / `openDocument` /
+`setReadOnly(false)`) were measured with a temporary worker probe that
+identified the xlsx M editable-upgrade cost; that probe is not shipped.
+
+| Format | Tier | mount→paint | open RT | openDocument | “chrome” bucket | 1st tick / paint wait | frames |
+|---|---|---:|---:|---:|---:|---:|---:|
+| xlsx | S | 255 | 145 | 48 | **33** | 103 | 1 |
+| xlsx | M | 425 | 353 | 71 | **219** | 61 | 1 |
+| docx | S | 162 | 105 | 35 | 3 | 54 | 4 |
+| docx | M | 181 | 107 | 38 | 8 | 71 | 4 |
+| pptx | S | 134 | 107 | 41 | 3 | 24 | 1 |
+| pptx | M | 133 | 115 | 46 | 8 | 14 | 1 |
+
+**Hottest bucket (xlsx):** most of the open “chrome” time is **`setReadOnly(false)`** (~200 ms on M), not `loadEditorChrome` / cell encode. Follow-up #320 defers the editable upgrade until after first paint.
+
+Reproduce:
+
+```bash
+bash scripts/build-wasm.sh
+cd perf/react-embed && npm install && npm run bench
+# Phase table prints under “Phase breakdown”; JSON in results/latest.json
+```
+
 ## Mount → first paint (post #308/#312/#313 stack)
 
 | Format | Tier | open ms | paint ms | mount→paint ms | bytes |
@@ -59,7 +87,10 @@ xlsx S/M remain the largest embed cost (open+first frame); grid encode cuts are 
 | #308 | Park worker on dispose; rAF `applyEdit` coalesce |
 | #312 | Skip host `loadEditorModule` before worker open; defer embedded toolbar |
 | #313 | Auto-`preload()` when `mode="embedded"` is set |
-| (this) | Cold `initCore` passes `Response` again so `instantiateStreaming` runs; overlap compile |
+| #318 | Cold `initCore` passes `Response` again so `instantiateStreaming` runs; overlap compile |
+| #319 | Phase marks + breakdown table (this) |
+| #320 | Defer `setReadOnly(false)` + chrome until after first paint |
 
-Stay out of xlsx grid paint / StringTable encode (separate track). No budget,
-threshold, or fixture changes in those PRs.
+Stay out of xlsx grid paint / StringTable encode (separate track). Keep eager
+loader ≤ 17 408 B brotli (new JS under `loader/lazy/`). No budget, threshold,
+or fixture changes. Stay out of `.github/workflows/` and #113.

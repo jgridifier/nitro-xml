@@ -129,6 +129,9 @@ mod tests {
         // Catches: hash→id index must not store a second owned copy of each string.
         let mut t = StringTable::new();
         let _ = t.intern("only-once");
-        assert_eq!(t.by_id.iter().filter(|s| s.as_str() == "only-once").count(), 1);
+        assert_eq!(
+            t.by_id.iter().filter(|s| s.as_str() == "only-once").count(),
+            1
+        );
     }
 }

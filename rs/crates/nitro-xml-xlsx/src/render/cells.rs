@@ -222,7 +222,13 @@ fn paint_one_cell<I: StringIntern>(
     buf.set_attr(
         cell_id,
         keys.style,
-        intern_box_geometry(intern, left as f64, top as f64, item.w as f64, item.h as f64),
+        intern_box_geometry(
+            intern,
+            left as f64,
+            top as f64,
+            item.w as f64,
+            item.h as f64,
+        ),
     );
 
     let fill = fill_paint(item.view.fill.as_ref());
@@ -234,7 +240,12 @@ fn paint_one_cell<I: StringIntern>(
             set_style_v(buf, intern, cell_id, keys.background_image, img);
         }
     } else if item.merged {
-        set_style_v(buf, intern, cell_id, keys.background_color, "var(--xve-sheet-bg, #fff)",
+        set_style_v(
+            buf,
+            intern,
+            cell_id,
+            keys.background_color,
+            "var(--xve-sheet-bg, #fff)",
         );
     }
 
@@ -246,7 +257,12 @@ fn paint_one_cell<I: StringIntern>(
         set_style_v(buf, intern, bar_id, keys.width, &format!("{}px", width));
         let rtl = bar.direction.as_deref() == Some("rightToLeft");
         if let Some(start) = bar.start {
-            set_style_v(buf, intern, bar_id, keys.left, &format!("{}px", 2.0 + start * (item.w as f64 - 4.0)),
+            set_style_v(
+                buf,
+                intern,
+                bar_id,
+                keys.left,
+                &format!("{}px", 2.0 + start * (item.w as f64 - 4.0)),
             );
             set_style_v(buf, intern, bar_id, keys.right, "auto");
         } else if rtl {
@@ -267,7 +283,12 @@ fn paint_one_cell<I: StringIntern>(
         };
         set_style_v(buf, intern, bar_id, keys.background, &bg);
         if let Some(border) = &bar.border_color {
-            set_style_v(buf, intern, bar_id, keys.border, &format!("1px solid {border}"),
+            set_style_v(
+                buf,
+                intern,
+                bar_id,
+                keys.border,
+                &format!("1px solid {border}"),
             );
         } else {
             set_style_v(buf, intern, bar_id, keys.border, "none");
@@ -279,9 +300,19 @@ fn paint_one_cell<I: StringIntern>(
             set_style_v(buf, intern, axis_id, keys.position, "absolute");
             set_style_v(buf, intern, axis_id, keys.top, "1px");
             set_style_v(buf, intern, axis_id, keys.bottom, "1px");
-            set_style_v(buf, intern, axis_id, keys.left, &format!("{}px", 2.0 + *frac * (item.w as f64 - 4.0)),
+            set_style_v(
+                buf,
+                intern,
+                axis_id,
+                keys.left,
+                &format!("{}px", 2.0 + *frac * (item.w as f64 - 4.0)),
             );
-            set_style_v(buf, intern, axis_id, keys.border_left, &format!("1px dashed {axis_color}"),
+            set_style_v(
+                buf,
+                intern,
+                axis_id,
+                keys.border_left,
+                &format!("1px dashed {axis_color}"),
             );
         }
     }
@@ -352,7 +383,12 @@ fn paint_one_cell<I: StringIntern>(
         buf.create_element(span_id, span, text_id);
         set_attr_v(buf, intern, span_id, keys.class, "xg-tx");
         if item.view.rotation != 0.0 {
-            set_style_v(buf, intern, span_id, keys.transform, &format!("rotate({}deg)", -item.view.rotation),
+            set_style_v(
+                buf,
+                intern,
+                span_id,
+                keys.transform,
+                &format!("rotate({}deg)", -item.view.rotation),
             );
         }
         // Upstream cell-layer.ts: rich runs get per-run font / superscript spans.
@@ -366,10 +402,20 @@ fn paint_one_cell<I: StringIntern>(
             for (ri, run) in runs.iter().enumerate() {
                 let run_id = TEXT_BASE + 70_000 + (n as u32) * 64 + ri as u32;
                 buf.create_element(run_id, span, span_id);
-                set_style_v(buf, intern, run_id, keys.font, &css_font(&run.font, zoom * item.font_scale),
+                set_style_v(
+                    buf,
+                    intern,
+                    run_id,
+                    keys.font,
+                    &css_font(&run.font, zoom * item.font_scale),
                 );
                 set_style_v(buf, intern, run_id, keys.color, &run.font.color);
-                set_style_v(buf, intern, run_id, keys.text_decoration, &text_decoration(&run.font),
+                set_style_v(
+                    buf,
+                    intern,
+                    run_id,
+                    keys.text_decoration,
+                    &text_decoration(&run.font),
                 );
                 if let Some(va) = run.font.vert_align.as_deref() {
                     let css_va = if va == "super" || va == "superscript" {
@@ -400,25 +446,55 @@ fn paint_one_cell<I: StringIntern>(
         let border_id = BORDER_BASE + n as u32;
         buf.create_element(border_id, div, cell_id);
         set_attr_v(buf, intern, border_id, keys.class, "xg-b");
-        set_style_v(buf, intern, border_id, keys.width, &format!("{}px", item.w + 1),
+        set_style_v(
+            buf,
+            intern,
+            border_id,
+            keys.width,
+            &format!("{}px", item.w + 1),
         );
-        set_style_v(buf, intern, border_id, keys.height, &format!("{}px", item.h + 1),
+        set_style_v(
+            buf,
+            intern,
+            border_id,
+            keys.height,
+            &format!("{}px", item.h + 1),
         );
         let b = &item.view.borders;
         if b.top.is_some() {
-            set_style_v(buf, intern, border_id, keys.border_top, &edge_css(b.top.as_ref()),
+            set_style_v(
+                buf,
+                intern,
+                border_id,
+                keys.border_top,
+                &edge_css(b.top.as_ref()),
             );
         }
         if b.right.is_some() {
-            set_style_v(buf, intern, border_id, keys.border_right, &edge_css(b.right.as_ref()),
+            set_style_v(
+                buf,
+                intern,
+                border_id,
+                keys.border_right,
+                &edge_css(b.right.as_ref()),
             );
         }
         if b.bottom.is_some() {
-            set_style_v(buf, intern, border_id, keys.border_bottom, &edge_css(b.bottom.as_ref()),
+            set_style_v(
+                buf,
+                intern,
+                border_id,
+                keys.border_bottom,
+                &edge_css(b.bottom.as_ref()),
             );
         }
         if b.left.is_some() {
-            set_style_v(buf, intern, border_id, keys.border_left, &edge_css(b.left.as_ref()),
+            set_style_v(
+                buf,
+                intern,
+                border_id,
+                keys.border_left,
+                &edge_css(b.left.as_ref()),
             );
         }
         if let Some(svg) = diagonal_svg(b, item.w, item.h) {
@@ -449,7 +525,13 @@ fn paint_one_cell<I: StringIntern>(
         set_style_v(buf, intern, mark, keys.bottom, "0");
         set_style_v(buf, intern, mark, keys.width, "0");
         set_style_v(buf, intern, mark, keys.height, "0");
-        set_style_v(buf, intern, mark, keys.border_right, "8px solid transparent");
+        set_style_v(
+            buf,
+            intern,
+            mark,
+            keys.border_right,
+            "8px solid transparent",
+        );
         set_style_v(buf, intern, mark, keys.border_bottom, "8px solid #c45911");
         set_style_v(buf, intern, mark, keys.z_index, "3");
     }
@@ -585,7 +667,13 @@ fn paint_edit_overlay<I: StringIntern>(
     set_style_v(buf, intern, EDITOR_CARET, keys.width, "1px");
     set_style_v(buf, intern, EDITOR_CARET, keys.height, "1em");
     set_style_v(buf, intern, EDITOR_CARET, keys.background, "#111");
-    set_style_v(buf, intern, EDITOR_CARET, keys.vertical_align, "text-bottom");
+    set_style_v(
+        buf,
+        intern,
+        EDITOR_CARET,
+        keys.vertical_align,
+        "text-bottom",
+    );
     buf.create_element(EDITOR_AFTER, span, EDITOR_BOX);
     buf.set_text(EDITOR_AFTER, intern.intern(after));
 }

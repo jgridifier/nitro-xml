@@ -308,6 +308,270 @@ impl XlsxHost {
         json!({ "format": "xlsx", "sheets": sheets })
     }
 
+    /// Compact undo snap for cell/format edits: only the addressed cells + style table
+    /// and dirty bookkeeping. Avoids serializing every DumpCell on large sheets.
+    fn cells_scope_json(&self, scopes: &[EditScope]) -> Value {
+        let mut patches = Vec::new();
+        let mut seen = BTreeSet::new();
+        for scope in scopes {
+            let EditScope::Cells { sheet, ranges } = scope else {
+                continue;
+            };
+            for range_str in ranges {
+                let Some(range) = parse_edit_scope_range(range_str) else {
+                    continue;
+                };
+                // Single-cell scopes (setCellInput): O(sheet) lookup once.
+                if range.start == range.end {
+                    let key = (*sheet, range.start.row, range.start.col);
+                    if !seen.insert(key) {
+                        continue;
+                    }
+                    let cell = self
+                        .sheets
+                        .get(*sheet as usize)
+                        .and_then(|sh| {
+                            sh.cells
+                                .iter()
+                                .find(|c| c.row == range.start.row && c.col == range.start.col)
+                        })
+                        .map(dump_cell_to_snap);
+                    patches.push(json!({
+                        "sheet": sheet,
+                        "row": range.start.row,
+                        "col": range.start.col,
+                        "cell": cell,
+                    }));
+                    continue;
+                }
+                // Multi-cell (applyStyle ranges): walk stored cells that intersect.
+                if let Some(sh) = self.sheets.get(*sheet as usize) {
+                    for cell in &sh.cells {
+                        if !point_in_edit_range(cell.row, cell.col, &range) {
+                            continue;
+                        }
+                        let key = (*sheet, cell.row, cell.col);
+                        if !seen.insert(key) {
+                            continue;
+                        }
+                        patches.push(json!({
+                            "sheet": sheet,
+                            "row": cell.row,
+                            "col": cell.col,
+                            "cell": dump_cell_to_snap(cell),
+                        }));
+                    }
+                }
+                // Also record absences for coords in a small range so undo can delete
+                // cells created by the edit. Cap expansion to avoid huge empty grids.
+                let rows = range
+                    .end
+                    .row
+                    .saturating_sub(range.start.row)
+                    .saturating_add(1);
+                let cols = range
+                    .end
+                    .col
+                    .saturating_sub(range.start.col)
+                    .saturating_add(1);
+                if rows.saturating_mul(cols) <= 4_096 {
+                    for row in range.start.row..=range.end.row {
+                        for col in range.start.col..=range.end.col {
+                            let key = (*sheet, row, col);
+                            if !seen.insert(key) {
+                                continue;
+                            }
+                            patches.push(json!({
+                                "sheet": sheet,
+                                "row": row,
+                                "col": col,
+                                "cell": Value::Null,
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+        let mut stale_map = Map::new();
+        for (sheet, cells) in &self.stale {
+            stale_map.insert(
+                sheet.to_string(),
+                Value::Array(cells.iter().map(|(r, c)| json!([r, c])).collect()),
+            );
+        }
+        json!({
+            "kind": "cells",
+            "styles": self.workbook.styles.iter().map(|s| s.to_json()).collect::<Vec<_>>(),
+            "activeSheet": self.workbook.active_sheet,
+            "cellPatches": patches,
+            "touched": self.touched.iter().map(|(s, r, c)| json!([s, r, c])).collect::<Vec<_>>(),
+            "dirtySheets": self.dirty_sheets.iter().copied().collect::<Vec<_>>(),
+            "stylesDirty": self.styles_dirty,
+            "workbookDirty": self.workbook_dirty,
+            "allFormulasStale": self.all_formulas_stale,
+            "dirtyPrecedents": self.dirty_precedents.iter().map(|(s, r, c)| json!([s, r, c])).collect::<Vec<_>>(),
+            "stale": stale_map,
+            "axisShifts": self.axis_shifts.iter().map(|rec| json!({
+                "sheet": rec.sheet,
+                "row": rec.row,
+                "at": rec.at,
+                "count": rec.count,
+            })).collect::<Vec<_>>(),
+        })
+    }
+
+    fn apply_cells_scope_json(&mut self, v: &Value) -> Result<(), String> {
+        if let Some(styles) = v.get("styles").and_then(|x| x.as_array()) {
+            self.workbook.styles = styles
+                .iter()
+                .map(cell_style_from_json)
+                .collect::<Result<Vec<_>, _>>()?;
+        }
+        if let Some(a) = v.get("activeSheet").and_then(|x| x.as_u64()) {
+            self.workbook.active_sheet = a as u32;
+        }
+        if let Some(patches) = v.get("cellPatches").and_then(|x| x.as_array()) {
+            for patch in patches {
+                let obj = patch
+                    .as_object()
+                    .ok_or_else(|| "cell patch must be an object".to_owned())?;
+                let sheet = obj
+                    .get("sheet")
+                    .and_then(|x| x.as_u64())
+                    .ok_or_else(|| "cell patch missing sheet".to_owned())?
+                    as u32;
+                let row = obj
+                    .get("row")
+                    .and_then(|x| x.as_u64())
+                    .ok_or_else(|| "cell patch missing row".to_owned())?
+                    as u32;
+                let col = obj
+                    .get("col")
+                    .and_then(|x| x.as_u64())
+                    .ok_or_else(|| "cell patch missing col".to_owned())?
+                    as u32;
+                let ws = self
+                    .sheets
+                    .get_mut(sheet as usize)
+                    .ok_or_else(|| format!("cell patch sheet {sheet} out of range"))?;
+                match obj.get("cell") {
+                    None | Some(Value::Null) => {
+                        if let Some(i) = ws.cells.iter().position(|c| c.row == row && c.col == col)
+                        {
+                            ws.cells.remove(i);
+                        }
+                    }
+                    Some(cell_v) => {
+                        let cell = dump_cell_from_snap(cell_v)?;
+                        if let Some(i) = ws.cells.iter().position(|c| c.row == row && c.col == col)
+                        {
+                            ws.cells[i] = cell;
+                        } else {
+                            ws.cells.push(cell);
+                        }
+                    }
+                }
+            }
+        }
+        self.touched.clear();
+        if let Some(touched) = v.get("touched").and_then(|x| x.as_array()) {
+            for t in touched {
+                let arr = t
+                    .as_array()
+                    .ok_or_else(|| "touched entry must be [sheet,r,c]".to_owned())?;
+                if arr.len() != 3 {
+                    return Err("touched entry must be [sheet,r,c]".into());
+                }
+                let s = arr[0].as_u64().ok_or("touched sheet")? as u32;
+                let r = arr[1].as_u64().ok_or("touched row")? as u32;
+                let c = arr[2].as_u64().ok_or("touched col")? as u32;
+                self.touched.insert((s, r, c));
+            }
+        }
+        self.style_cache.clear();
+        self.dirty_sheets.clear();
+        self.dirty_precedents.clear();
+        self.stale.clear();
+        self.styles_dirty = v
+            .get("stylesDirty")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+        self.workbook_dirty = v
+            .get("workbookDirty")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+        self.all_formulas_stale = v
+            .get("allFormulasStale")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
+        if let Some(sheets) = v.get("dirtySheets").and_then(|x| x.as_array()) {
+            for sheet in sheets {
+                if let Some(index) = sheet.as_u64() {
+                    self.dirty_sheets.insert(index as u32);
+                }
+            }
+        }
+        if let Some(precedents) = v.get("dirtyPrecedents").and_then(|x| x.as_array()) {
+            for entry in precedents {
+                let Some(arr) = entry.as_array() else {
+                    continue;
+                };
+                if arr.len() == 3 {
+                    if let (Some(s), Some(r), Some(c)) =
+                        (arr[0].as_u64(), arr[1].as_u64(), arr[2].as_u64())
+                    {
+                        self.dirty_precedents.insert((s as u32, r as u32, c as u32));
+                    }
+                }
+            }
+        }
+        if let Some(map) = v.get("stale").and_then(|x| x.as_object()) {
+            for (key, cells) in map {
+                let Ok(sheet) = key.parse::<u32>() else {
+                    continue;
+                };
+                let Some(arr) = cells.as_array() else {
+                    continue;
+                };
+                let set = self.stale.entry(sheet).or_default();
+                for pair in arr {
+                    let Some(pair) = pair.as_array() else {
+                        continue;
+                    };
+                    if pair.len() == 2 {
+                        if let (Some(r), Some(c)) = (pair[0].as_u64(), pair[1].as_u64()) {
+                            set.insert((r as u32, c as u32));
+                        }
+                    }
+                }
+            }
+        }
+        self.axis_shifts.clear();
+        if let Some(list) = v.get("axisShifts").and_then(|x| x.as_array()) {
+            for entry in list {
+                let Some(obj) = entry.as_object() else {
+                    continue;
+                };
+                let Some(sheet) = obj.get("sheet").and_then(|x| x.as_u64()) else {
+                    continue;
+                };
+                let Some(at) = obj.get("at").and_then(|x| x.as_u64()) else {
+                    continue;
+                };
+                let Some(count) = obj.get("count").and_then(|x| x.as_i64()) else {
+                    continue;
+                };
+                self.axis_shifts.push(AxisShiftRecord {
+                    sheet: sheet as u32,
+                    row: obj.get("row").and_then(|x| x.as_bool()).unwrap_or(true),
+                    at: at as u32,
+                    count: count as i32,
+                });
+            }
+        }
+        Ok(())
+    }
+
     fn state_json(&self) -> Value {
         let mut stale_map = Map::new();
         for (sheet, cells) in &self.stale {
@@ -616,8 +880,15 @@ impl XlsxHost {
 }
 
 impl EditHost for XlsxHost {
-    fn capture(&self, _scopes: &[EditScope]) -> HostSnapshot {
-        HostSnapshot(serde_json::to_vec(&self.state_json()).unwrap_or_default())
+    fn capture(&self, scopes: &[EditScope]) -> HostSnapshot {
+        // ADR 0003: xlsx history is scoped before/after. Full-workbook JSON per
+        // setCellInput was ~64MiB×2 on cells_1m and trapped the WASM 4GiB ceiling
+        // by edit ~22. Cell-scoped snaps keep undo correct without cloning the grid.
+        if scopes_are_cell_local(scopes) {
+            HostSnapshot(serde_json::to_vec(&self.cells_scope_json(scopes)).unwrap_or_default())
+        } else {
+            HostSnapshot(serde_json::to_vec(&self.state_json()).unwrap_or_default())
+        }
     }
 
     fn restore(&mut self, snap: &HostSnapshot) {
@@ -625,7 +896,11 @@ impl EditHost for XlsxHost {
             return;
         }
         if let Ok(v) = serde_json::from_slice::<Value>(&snap.0) {
-            let _ = self.apply_state_json(&v);
+            if v.get("kind").and_then(|k| k.as_str()) == Some("cells") {
+                let _ = self.apply_cells_scope_json(&v);
+            } else {
+                let _ = self.apply_state_json(&v);
+            }
         }
     }
 
@@ -636,6 +911,38 @@ impl EditHost for XlsxHost {
     fn as_any_ref(&self) -> &dyn Any {
         self
     }
+}
+
+/// True when every scope is cell-local (Cells / Meta) — safe for compact snaps.
+fn scopes_are_cell_local(scopes: &[EditScope]) -> bool {
+    !scopes.is_empty()
+        && scopes
+            .iter()
+            .all(|s| matches!(s, EditScope::Cells { .. } | EditScope::Meta))
+        && scopes.iter().any(|s| matches!(s, EditScope::Cells { .. }))
+}
+
+/// Parses `R{row}C{col}` (replay scopes) or A1-style ranges.
+fn parse_edit_scope_range(s: &str) -> Option<CellRange> {
+    let trimmed = s.trim();
+    if let Some(rest) = trimmed
+        .strip_prefix('R')
+        .or_else(|| trimmed.strip_prefix('r'))
+    {
+        if let Some((r, c)) = rest.split_once('C').or_else(|| rest.split_once('c')) {
+            let row: u32 = r.parse().ok()?;
+            let col: u32 = c.parse().ok()?;
+            return Some(CellRange {
+                start: CellAddress { row, col },
+                end: CellAddress { row, col },
+            });
+        }
+    }
+    crate::address::parse_range(trimmed)
+}
+
+fn point_in_edit_range(row: u32, col: u32, range: &CellRange) -> bool {
+    row >= range.start.row && row <= range.end.row && col >= range.start.col && col <= range.end.col
 }
 
 fn dump_value_for_edit_snap(value: &DumpCellValue) -> Value {

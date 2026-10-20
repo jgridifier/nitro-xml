@@ -180,6 +180,7 @@ fn apply_element(shape: &mut Element, el: &EditableElement) {
     }
     apply_paragraph_align(shape, el);
     apply_paragraph_bullet(shape, el);
+    apply_paragraph_metrics(shape, el);
     apply_table(shape, el);
 }
 
@@ -314,6 +315,41 @@ fn apply_paragraph_bullet(shape: &mut Element, el: &EditableElement) {
     p_pr.children.insert(0, Node::Element(bullet_marker(info)));
 }
 
+/// First paragraph `marL` and `a:lnSpc/a:spcPct`. Absent fields leave the file's values alone.
+fn apply_paragraph_metrics(shape: &mut Element, el: &EditableElement) {
+    let first = el
+        .text_segments
+        .iter()
+        .find(|s| !s.is_paragraph_break && !s.is_line_break);
+    let indent = first.and_then(|s| s.indent_left_emu);
+    let spacing = first.and_then(|s| s.line_spacing_pct);
+    if indent.is_none() && spacing.is_none() {
+        return;
+    }
+    let Some(tx) = child_mut(shape, "txBody", ns::P) else {
+        return;
+    };
+    let Some(p) = child_mut(tx, "p", ns::A) else {
+        return;
+    };
+    let p_pr = ensure_child(p, "pPr", ns::A);
+    if let Some(emu) = indent {
+        if emu <= 0 {
+            remove_attr(p_pr, "marL");
+        } else {
+            set_attr(p_pr, "marL", &emu.to_string());
+        }
+    }
+    if let Some(pct) = spacing {
+        remove_children(p_pr, ns::A, &["lnSpc"]);
+        let mut spc_pct = elem(ns::A, "spcPct");
+        set_attr(&mut spc_pct, "val", &pct.to_string());
+        let mut ln = elem(ns::A, "lnSpc");
+        ln.children.push(Node::Element(spc_pct));
+        p_pr.children.push(Node::Element(ln));
+    }
+}
+
 fn bullet_marker(info: &BulletInfoSnap) -> Element {
     if info.none {
         return elem(ns::A, "buNone");
@@ -383,6 +419,8 @@ fn style_authored(style: &TextStyleSnap) -> bool {
         || style.italic
         || style.underline.is_some()
         || style.strike.is_some()
+        || style.baseline.is_some()
+        || style.typeface.is_some()
         || style.font_size.is_some()
         || style.color.is_some()
 }
@@ -394,6 +432,15 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
     let previous_strike = child_ref(run, "rPr", ns::A)
         .and_then(|rpr| attr(rpr, "strike"))
         .map(str::to_owned);
+    let previous_baseline = child_ref(run, "rPr", ns::A)
+        .and_then(|rpr| attr(rpr, "baseline"))
+        .map(str::to_owned);
+    let previous_latin = child_ref(run, "rPr", ns::A)
+        .and_then(|rpr| child_ref(rpr, "latin", ns::A))
+        .cloned();
+    let previous_fill = child_ref(run, "rPr", ns::A)
+        .and_then(|rpr| child_ref(rpr, "solidFill", ns::A))
+        .cloned();
     remove_children(run, ns::A, &["rPr"]);
     let mut rpr = elem(ns::A, "rPr");
     if let Some(size) = style.font_size {
@@ -425,11 +472,29 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
             }
         }
     }
+    match style.baseline {
+        Some(0) => {}
+        Some(n) => set_attr(&mut rpr, "baseline", &n.to_string()),
+        None => {
+            if let Some(baseline) = previous_baseline {
+                set_attr(&mut rpr, "baseline", &baseline);
+            }
+        }
+    }
+    if let Some(face) = style.typeface.as_deref().filter(|s| !s.is_empty()) {
+        let mut latin = elem(ns::A, "latin");
+        set_attr(&mut latin, "typeface", face);
+        rpr.children.push(Node::Element(latin));
+    } else if let Some(latin) = previous_latin {
+        rpr.children.push(Node::Element(latin));
+    }
     if let Some(color) = style.color.as_deref() {
         let mut fill = elem(ns::A, "solidFill");
         let mut clr = elem(ns::A, "srgbClr");
         set_attr(&mut clr, "val", &hex_val(color));
         fill.children.push(Node::Element(clr));
+        rpr.children.push(Node::Element(fill));
+    } else if let Some(fill) = previous_fill {
         rpr.children.push(Node::Element(fill));
     }
     let at = run.children.iter().position(|c| match c {
@@ -945,6 +1010,10 @@ fn attr<'a>(el: &'a Element, local: &str) -> Option<&'a str> {
         .iter()
         .find(|a| a.ns.is_none() && a.local == local)
         .map(|a| a.value.as_str())
+}
+
+fn remove_attr(el: &mut Element, local: &str) {
+    el.attrs.retain(|a| !(a.ns.is_none() && a.local == local));
 }
 
 fn set_attr(el: &mut Element, local: &str, value: &str) {

@@ -48,6 +48,12 @@ pub struct TextStyleSnap {
     /// `Some` means the edit authored `a:rPr/@strike` (`sngStrike` or absent).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strike: Option<bool>,
+    /// `a:rPr/@baseline` in hundredths of a percent. `Some(0)` clears it; `None` leaves the file alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baseline: Option<i32>,
+    /// `a:rPr/a:latin/@typeface`. `None` leaves the file's latin typeface alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub typeface: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_fit: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -85,6 +91,18 @@ pub struct TextSegmentSnap {
     pub font_size: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    /// `a:rPr/@baseline` hundredths of a percent (`30000` superscript, `-25000` subscript).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baseline: Option<i32>,
+    /// `a:latin/@typeface` on this run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub typeface: Option<String>,
+    /// First-paragraph `a:pPr/@marL` in EMUs. `Some(0)` clears a direct indent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indent_left_emu: Option<i64>,
+    /// First-paragraph `a:lnSpc/a:spcPct/@val` (`100000` = single, `150000` = 1.5, `200000` = double).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line_spacing_pct: Option<i32>,
     /// Paragraph `a:pPr/@algn` on the first segment of a paragraph (`center`, not `ctr`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub align: Option<String>,
@@ -105,6 +123,8 @@ impl TextSegmentSnap {
             italic: style.italic,
             font_size: style.font_size,
             color: style.color,
+            baseline: style.baseline.filter(|n| *n != 0),
+            typeface: style.typeface,
             ..Self::default()
         }
     }
@@ -118,6 +138,8 @@ impl TextSegmentSnap {
             strike: self.strike,
             font_size: self.font_size,
             color: self.color.clone(),
+            baseline: self.baseline,
+            typeface: self.typeface.clone(),
             ..Self::default()
         }
     }
@@ -159,6 +181,8 @@ pub fn remap_text_to_segments(
                 strike: break_style.map(|s| s.strike).unwrap_or(false),
                 font_size: break_style.and_then(|s| s.font_size),
                 color: break_style.and_then(|s| s.color.clone()),
+                baseline: break_style.and_then(|s| s.baseline),
+                typeface: break_style.and_then(|s| s.typeface.clone()),
                 is_paragraph_break: true,
                 ..TextSegmentSnap::default()
             });
@@ -190,8 +214,12 @@ fn remap_paragraph(
             strike: first.strike,
             font_size: first.font_size,
             color: first.color.clone(),
+            baseline: first.baseline,
+            typeface: first.typeface.clone(),
             align: first.align.clone(),
             bullet_info: first.bullet_info.clone(),
+            indent_left_emu: first.indent_left_emu,
+            line_spacing_pct: first.line_spacing_pct,
             ..TextSegmentSnap::default()
         }];
     }
@@ -206,8 +234,12 @@ fn remap_paragraph(
             strike: first.strike,
             font_size: first.font_size,
             color: first.color.clone(),
+            baseline: first.baseline,
+            typeface: first.typeface.clone(),
             align: first.align.clone(),
             bullet_info: first.bullet_info.clone(),
+            indent_left_emu: first.indent_left_emu,
+            line_spacing_pct: first.line_spacing_pct,
             ..TextSegmentSnap::default()
         }];
     }
@@ -240,7 +272,19 @@ fn remap_paragraph(
                 strike: orig_seg.strike,
                 font_size: orig_seg.font_size,
                 color: orig_seg.color.clone(),
+                baseline: orig_seg.baseline,
+                typeface: orig_seg.typeface.clone(),
                 align: if i == 0 { orig_seg.align.clone() } else { None },
+                indent_left_emu: if i == 0 {
+                    orig_seg.indent_left_emu
+                } else {
+                    None
+                },
+                line_spacing_pct: if i == 0 {
+                    orig_seg.line_spacing_pct
+                } else {
+                    None
+                },
                 bullet_info: if i == 0 {
                     orig_seg.bullet_info.clone()
                 } else {
@@ -261,8 +305,12 @@ fn remap_paragraph(
             strike: first.strike,
             font_size: first.font_size,
             color: first.color.clone(),
+            baseline: first.baseline,
+            typeface: first.typeface.clone(),
             align: first.align.clone(),
             bullet_info: first.bullet_info.clone(),
+            indent_left_emu: first.indent_left_emu,
+            line_spacing_pct: first.line_spacing_pct,
             ..TextSegmentSnap::default()
         });
     }
@@ -564,6 +612,11 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                     color: color.as_deref(),
                     underline: arg_bool_opt(args, "underline"),
                     strike: arg_bool_opt(args, "strike"),
+                    baseline: args
+                        .get("baseline")
+                        .and_then(|v| v.as_i64())
+                        .map(|n| n as i32),
+                    typeface: args.get("typeface").and_then(|v| v.as_str()),
                 },
             )
             .map_err(map_err)?;

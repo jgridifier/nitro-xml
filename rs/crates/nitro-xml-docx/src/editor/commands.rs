@@ -9,9 +9,12 @@ use nitro_xml_opc::edit::{
 use serde_json::{json, Value};
 
 use crate::edit::drawing::append_inline_picture;
-use crate::edit::format::{set_paragraph_align, set_run_formatting};
+use crate::edit::format::{
+    adjust_left_indent, cycle_line_spacing, set_paragraph_align, set_run_formatting,
+    INDENT_STEP_TWIPS,
+};
 use crate::edit::host::DocxHost;
-use crate::edit::numbering::{apply_numbering, ensure_list_definition};
+use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
 use crate::edit::register_docx_command_registry;
 use crate::edit::table::{
     delete_table, delete_table_column, delete_table_row, insert_table, insert_table_column,
@@ -51,6 +54,13 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("underline", "Underline", Some("Ctrl+U"), true),
     word_cmd!("strike", "Strikethrough", Some("Ctrl+5"), true),
     word_cmd!("highlight", "Highlight", None, true),
+    word_cmd!("indent", "Increase Indent", None, true),
+    word_cmd!("outdent", "Decrease Indent", None, true),
+    word_cmd!("line-spacing", "Line Spacing", None, true),
+    word_cmd!("subscript", "Subscript", None, true),
+    word_cmd!("superscript", "Superscript", None, true),
+    word_cmd!("font-name", "Font", None, true),
+    word_cmd!("bullets", "Bullets", None, true),
     word_cmd!("align-left", "Align Left", None, true),
     word_cmd!("align-center", "Center", None, true),
     word_cmd!("align-right", "Align Right", None, true),
@@ -313,6 +323,132 @@ impl DocxCommandSurface {
                     |h| {
                         let id = ensure_list_definition(h, "decimal")?;
                         apply_numbering(h, caret_block, id, 0)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "bullets" => {
+                session.run(
+                    String::from("bullets"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        toggle_bullet_list(h, caret_block)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "indent" | "outdent" => {
+                let delta = if id == "indent" {
+                    INDENT_STEP_TWIPS
+                } else {
+                    -INDENT_STEP_TWIPS
+                };
+                let current = session
+                    .host
+                    .paragraph(caret_block)
+                    .map_err(|e| EditError::Other { message: e })?
+                    .get("indentLeftTwips")
+                    .and_then(|n| n.as_i64())
+                    .unwrap_or(0);
+                let next = if delta < 0 {
+                    current.saturating_sub(delta.unsigned_abs() as i64).max(0)
+                } else {
+                    current.saturating_add(delta)
+                };
+                if next == current {
+                    return Ok(());
+                }
+                session.run(id, ChangeKind::Format, vec![EditScope::Workbook], |h| {
+                    adjust_left_indent(h, caret_block, delta)?;
+                    Ok(())
+                })?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "line-spacing" => {
+                session.run(
+                    String::from("line-spacing"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        cycle_line_spacing(h, caret_block)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "subscript" | "superscript" => {
+                let want = if id == "subscript" {
+                    "subscript"
+                } else {
+                    "superscript"
+                };
+                session.run(id, ChangeKind::Format, vec![EditScope::Workbook], |h| {
+                    let block = h
+                        .paragraph(caret_block)
+                        .map_err(|e| EditError::Other { message: e })?;
+                    let runs = block
+                        .get("runs")
+                        .and_then(|r| r.as_array())
+                        .ok_or_else(|| EditError::Other {
+                            message: "runs missing".into(),
+                        })?;
+                    let run = runs.get(caret_run).ok_or_else(|| EditError::Other {
+                        message: "run missing".into(),
+                    })?;
+                    let current = run
+                        .get("verticalAlign")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let mut patch = serde_json::Map::new();
+                    patch.insert(
+                        "verticalAlign".into(),
+                        if current == want {
+                            json!("")
+                        } else {
+                            json!(want)
+                        },
+                    );
+                    set_run_formatting(h, caret_block, caret_run, &patch)?;
+                    Ok(())
+                })?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "font-name" => {
+                session.run(
+                    String::from("font-name"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        let block = h
+                            .paragraph(caret_block)
+                            .map_err(|e| EditError::Other { message: e })?;
+                        let runs =
+                            block
+                                .get("runs")
+                                .and_then(|r| r.as_array())
+                                .ok_or_else(|| EditError::Other {
+                                    message: "runs missing".into(),
+                                })?;
+                        let run = runs.get(caret_run).ok_or_else(|| EditError::Other {
+                            message: "run missing".into(),
+                        })?;
+                        let current = run.get("fontFamily").and_then(|v| v.as_str()).unwrap_or("");
+                        let next = if current == "Georgia" {
+                            "Calibri"
+                        } else {
+                            "Georgia"
+                        };
+                        let mut patch = serde_json::Map::new();
+                        patch.insert("fontFamily".into(), json!(next));
+                        set_run_formatting(h, caret_block, caret_run, &patch)?;
                         Ok(())
                     },
                 )?;

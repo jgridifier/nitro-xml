@@ -21,6 +21,12 @@ const SHAPE_COMMANDS: &[&str] = &[
     "home.numbering",
     "home.font-size",
     "home.font-color",
+    "home.indent",
+    "home.outdent",
+    "home.line-spacing",
+    "home.subscript",
+    "home.superscript",
+    "home.font-name",
     "home.duplicate",
     "home.delete",
     "home.bring-forward",
@@ -307,6 +313,36 @@ impl PptxState {
                 RibbonItem {
                     id: "home.font-color",
                     label: "Font Color",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.font-name",
+                    label: "Font",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.subscript",
+                    label: "Subscript",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.superscript",
+                    label: "Superscript",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.indent",
+                    label: "Increase Indent",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.outdent",
+                    label: "Decrease Indent",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.line-spacing",
+                    label: "Line Spacing",
                     enabled: true,
                 },
                 RibbonItem {

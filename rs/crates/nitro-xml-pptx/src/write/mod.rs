@@ -195,6 +195,67 @@ mod tests {
     }
 
     #[test]
+    fn catches_indent_spacing_baseline_and_typeface_dropped_on_slide_save() {
+        // Catches: a slide save that omits a:pPr/@marL, a:lnSpc/a:spcPct, a:rPr/@baseline, or a:latin/@typeface.
+        use crate::edit::host::TextStylePatch;
+        use crate::edit::text::{INDENT_STEP_EMU, LINE_ONE_HALF_PCT};
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        assert!(host
+            .adjust_indent(0, None, Some(0), INDENT_STEP_EMU)
+            .expect("indent"));
+        host.cycle_line_spacing(0, None, Some(0)).expect("spacing");
+        host.set_text_style(
+            0,
+            None,
+            Some(0),
+            TextStylePatch {
+                baseline: Some(30_000),
+                typeface: Some("Georgia"),
+                ..TextStylePatch::default()
+            },
+        )
+        .expect("style");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save");
+        let again = PptxHost::open(&saved).expect("reopen");
+        let el = &again.slides[0].elements[0];
+        let seg = el
+            .text_segments
+            .iter()
+            .find(|s| s.typeface.as_deref() == Some("Georgia"))
+            .expect("typeface missing after reopen");
+        assert_eq!(
+            seg.indent_left_emu,
+            Some(INDENT_STEP_EMU),
+            "{:?}",
+            el.text_segments
+        );
+        assert_eq!(seg.line_spacing_pct, Some(LINE_ONE_HALF_PCT));
+        assert_eq!(seg.baseline, Some(30_000));
+
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        host.set_text_style(
+            0,
+            None,
+            Some(0),
+            TextStylePatch {
+                baseline: Some(-25_000),
+                ..TextStylePatch::default()
+            },
+        )
+        .expect("sub");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save sub");
+        let again = PptxHost::open(&saved).expect("reopen sub");
+        assert!(
+            again.slides[0].elements[0]
+                .text_segments
+                .iter()
+                .any(|s| s.baseline == Some(-25_000)),
+            "subscript baseline missing"
+        );
+    }
+
+    #[test]
     fn catches_justify_and_list_markers_dropped_on_slide_save() {
         // Catches: a slide save that omits a:pPr/@algn="just", a:buChar, or a:buAutoNum.
         let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");

@@ -126,6 +126,10 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
         "color",
         "strike",
         "highlight",
+        "verticalAlign",
+        "fontFamily",
+        "fontFamilyEastAsia",
+        "fontFamilyComplexScript",
     ]
     .iter()
     .any(|k| run_property_changed(run, base, k));
@@ -191,6 +195,36 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
             }
         }
     }
+    if run_property_changed(run, base, "verticalAlign") {
+        remove_w_children(props, "vertAlign");
+        if let Some(align) = run.get("verticalAlign").and_then(|v| v.as_str()) {
+            if matches!(align, "superscript" | "subscript" | "baseline") {
+                let mut vert = make_w("vertAlign");
+                set_w_attr(&mut vert, "val", align);
+                props.children.push(Node::Element(vert));
+            }
+        }
+    }
+    if run_property_changed(run, base, "fontFamily")
+        || run_property_changed(run, base, "fontFamilyEastAsia")
+        || run_property_changed(run, base, "fontFamilyComplexScript")
+    {
+        remove_w_children(props, "rFonts");
+        let mut fonts = make_w("rFonts");
+        if let Some(name) = non_empty_str(run, "fontFamily") {
+            set_w_attr(&mut fonts, "ascii", name);
+            set_w_attr(&mut fonts, "hAnsi", name);
+        }
+        if let Some(name) = non_empty_str(run, "fontFamilyEastAsia") {
+            set_w_attr(&mut fonts, "eastAsia", name);
+        }
+        if let Some(name) = non_empty_str(run, "fontFamilyComplexScript") {
+            set_w_attr(&mut fonts, "cs", name);
+        }
+        if !fonts.attrs.is_empty() {
+            props.children.push(Node::Element(fonts));
+        }
+    }
     order_rpr_children(props);
     if props.children.is_empty() {
         run_node
@@ -227,6 +261,13 @@ fn order_rpr_children(props: &mut Element) {
             .unwrap_or(ORDER.len()),
         Node::Text(_) => ORDER.len() + 1,
     });
+}
+
+fn non_empty_str<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
+    value
+        .get(key)
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
 }
 
 fn set_toggle(props: &mut Element, local: &str, value: Option<bool>) {

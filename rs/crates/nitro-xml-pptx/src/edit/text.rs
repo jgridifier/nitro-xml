@@ -58,6 +58,8 @@ pub fn parse_editor_text(tx: &Element) -> EditorText {
         let p_pr = child_local(p, "pPr", ns::A);
         let bullet = bullet_from_ppr(p_pr);
         let align = p_pr.and_then(|pp| attr(pp, "algn")).and_then(ooxml_align);
+        let indent_left_emu = paragraph_indent_emu(p_pr);
+        let line_spacing_pct = paragraph_line_spacing(p_pr);
         let drawing_para = parsed.as_ref().and_then(|b| b.paragraphs.get(pi));
         let runs = drawing_para.map(|p| p.runs.as_slice()).unwrap_or(&[]);
         let xml_runs = paragraph_content_runs(p);
@@ -65,6 +67,8 @@ pub fn parse_editor_text(tx: &Element) -> EditorText {
             out.segments.push(TextSegmentSnap {
                 bullet_info: bullet,
                 align,
+                indent_left_emu,
+                line_spacing_pct,
                 ..TextSegmentSnap::default()
             });
             continue;
@@ -82,12 +86,16 @@ pub fn parse_editor_text(tx: &Element) -> EditorText {
                 strike: xml_runs.get(ri).is_some_and(|el| run_has_strike(el)),
                 font_size: run.size_pt.map(pt_to_px),
                 color: run.color.as_ref().and_then(css_srgb),
+                baseline: xml_runs.get(ri).and_then(|el| run_baseline(el)),
+                typeface: run.typeface.clone(),
                 is_line_break: line_break,
                 ..TextSegmentSnap::default()
             };
             if ri == 0 && !line_break {
                 seg.bullet_info = bullet.clone();
                 seg.align = align.clone();
+                seg.indent_left_emu = indent_left_emu;
+                seg.line_spacing_pct = line_spacing_pct;
                 if !seeded {
                     out.bold = seg.bold;
                     out.italic = seg.italic;
@@ -122,6 +130,31 @@ fn run_has_strike(run: &Element) -> bool {
     child_local(run, "rPr", ns::A)
         .and_then(|rpr| attr(rpr, "strike"))
         .is_some_and(|value| !value.is_empty() && value != "noStrike")
+}
+
+fn run_baseline(run: &Element) -> Option<i32> {
+    let n = child_local(run, "rPr", ns::A)
+        .and_then(|rpr| attr(rpr, "baseline"))?
+        .parse::<i32>()
+        .ok()?;
+    if n == 0 {
+        None
+    } else {
+        Some(n)
+    }
+}
+
+fn paragraph_indent_emu(p_pr: Option<&Element>) -> Option<i64> {
+    p_pr.and_then(|pp| attr(pp, "marL"))
+        .and_then(|v| v.parse().ok())
+        .filter(|n| *n != 0)
+}
+
+fn paragraph_line_spacing(p_pr: Option<&Element>) -> Option<i32> {
+    let p_pr = p_pr?;
+    let ln = child_local(p_pr, "lnSpc", ns::A)?;
+    let pct = child_local(ln, "spcPct", ns::A)?;
+    attr(pct, "val").and_then(|v| v.parse().ok())
 }
 
 fn pt_to_px(pt: f64) -> f64 {
@@ -718,6 +751,36 @@ pub fn register_text_commands(registry: &mut CommandRegistry) {
         }),
     );
     registry.register(
+        Command::stub("setShapeParagraphIndent", "setShapeParagraphIndent").with_runner(
+            |host, args| {
+                let h = host_mut(host)?;
+                let slide = arg_u32(args, "slideIndex")?;
+                let delta = args.get("delta").and_then(|v| v.as_i64()).ok_or_else(|| {
+                    nitro_xml_opc::edit::EditError::Other {
+                        message: "setShapeParagraphIndent missing delta".into(),
+                    }
+                })?;
+                h.adjust_indent(
+                    slide,
+                    arg_id(args),
+                    arg_u32_opt(args, "elementIndex"),
+                    delta,
+                )
+                .map_err(map_err)?;
+                Ok(change(ChangeKind::Format, "setShapeParagraphIndent"))
+            },
+        ),
+    );
+    registry.register(
+        Command::stub("setShapeLineSpacing", "setShapeLineSpacing").with_runner(|host, args| {
+            let h = host_mut(host)?;
+            let slide = arg_u32(args, "slideIndex")?;
+            h.cycle_line_spacing(slide, arg_id(args), arg_u32_opt(args, "elementIndex"))
+                .map_err(map_err)?;
+            Ok(change(ChangeKind::Format, "setShapeLineSpacing"))
+        }),
+    );
+    registry.register(
         Command::stub("setShapeAutofit", "setShapeAutofit").with_runner(|host, args| {
             let h = host_mut(host)?;
             let slide = arg_u32(args, "slideIndex")?;
@@ -732,6 +795,73 @@ pub fn register_text_commands(registry: &mut CommandRegistry) {
             Ok(change(ChangeKind::Format, "setShapeAutofit"))
         }),
     );
+}
+
+/// Half-inch paragraph indent (`a:pPr/@marL`). 914400 EMU = 1 inch.
+pub const INDENT_STEP_EMU: i64 = 457_200;
+
+/// `a:rPr/@baseline` hundredths of a percent. DrawingML superscript is +30%, subscript −25%.
+pub const BASELINE_SUPERSCRIPT: i32 = 30_000;
+pub const BASELINE_SUBSCRIPT: i32 = -25_000;
+
+/// `a:lnSpc/a:spcPct/@val` for 100%, 150% and 200%.
+pub const LINE_SINGLE_PCT: i32 = 100_000;
+pub const LINE_ONE_HALF_PCT: i32 = 150_000;
+pub const LINE_DOUBLE_PCT: i32 = 200_000;
+
+fn first_paragraph_segment(el: &EditableElement) -> Result<usize, String> {
+    if !has_text_properties(el) {
+        return Err("element has no text".into());
+    }
+    if el.text_segments.is_empty() {
+        return Err("element has no text segments".into());
+    }
+    let paras = content_runs(&el.text_segments);
+    paras
+        .first()
+        .and_then(|p| p.first().copied())
+        .ok_or_else(|| "paragraph 0 missing".into())
+}
+
+/// Add `delta` EMUs to the first paragraph's `marL`. Returns whether the value changed.
+pub fn adjust_paragraph_indent(el: &mut EditableElement, delta: i64) -> Result<bool, String> {
+    if el.text_segments.is_empty() && has_text_properties(el) {
+        el.text_segments.push(TextSegmentSnap::default());
+    }
+    let idx = first_paragraph_segment(el)?;
+    let current = el.text_segments[idx].indent_left_emu.unwrap_or(0);
+    let next = if delta < 0 {
+        current.saturating_sub(delta.unsigned_abs() as i64).max(0)
+    } else {
+        current.saturating_add(delta)
+    };
+    if next == current {
+        return Ok(false);
+    }
+    el.text_segments[idx].indent_left_emu = if next == 0 { Some(0) } else { Some(next) };
+    Ok(true)
+}
+
+pub fn current_indent_emu(el: &EditableElement) -> i64 {
+    first_paragraph_segment(el)
+        .ok()
+        .and_then(|idx| el.text_segments[idx].indent_left_emu)
+        .unwrap_or(0)
+}
+
+/// Cycle line spacing 1.5 → double → single so a click always changes `a:lnSpc`.
+pub fn cycle_paragraph_spacing(el: &mut EditableElement) -> Result<(), String> {
+    if el.text_segments.is_empty() && has_text_properties(el) {
+        el.text_segments.push(TextSegmentSnap::default());
+    }
+    let idx = first_paragraph_segment(el)?;
+    let next = match el.text_segments[idx].line_spacing_pct {
+        Some(LINE_ONE_HALF_PCT) => LINE_DOUBLE_PCT,
+        Some(LINE_DOUBLE_PCT) => LINE_SINGLE_PCT,
+        _ => LINE_ONE_HALF_PCT,
+    };
+    el.text_segments[idx].line_spacing_pct = Some(next);
+    Ok(())
 }
 
 impl PptxHost {
@@ -781,6 +911,38 @@ impl PptxHost {
             let slide = self.slide_mut(slide_index)?;
             let idx = Self::resolve_index(slide, element_id, element_index)?;
             set_element_bullets(&mut slide.elements[idx], kind, start, end)?;
+        }
+        self.touch(slide_index)
+    }
+
+    pub fn adjust_indent(
+        &mut self,
+        slide_index: u32,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+        delta: i64,
+    ) -> Result<bool, String> {
+        let changed = {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            adjust_paragraph_indent(&mut slide.elements[idx], delta)?
+        };
+        if changed {
+            self.touch(slide_index)?;
+        }
+        Ok(changed)
+    }
+
+    pub fn cycle_line_spacing(
+        &mut self,
+        slide_index: u32,
+        element_id: Option<&str>,
+        element_index: Option<u32>,
+    ) -> Result<(), String> {
+        {
+            let slide = self.slide_mut(slide_index)?;
+            let idx = Self::resolve_index(slide, element_id, element_index)?;
+            cycle_paragraph_spacing(&mut slide.elements[idx])?;
         }
         self.touch(slide_index)
     }

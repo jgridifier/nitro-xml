@@ -42,6 +42,13 @@ pub fn write_paragraph(
         }
     }
 
+    if indent_differs(paragraph, base) {
+        sync_indent(&mut out, paragraph);
+    }
+    if spacing_differs(paragraph, base) {
+        sync_spacing(&mut out, paragraph);
+    }
+
     let runs = paragraph
         .get("runs")
         .and_then(|r| r.as_array())
@@ -92,6 +99,121 @@ pub fn write_paragraph(
     }
 
     Ok(out)
+}
+
+const INDENT_ATTRS: &[(&str, &str)] = &[
+    ("indentLeftTwips", "left"),
+    ("indentRightTwips", "right"),
+    ("indentStartTwips", "start"),
+    ("indentEndTwips", "end"),
+    ("firstLineTwips", "firstLine"),
+    ("hangingTwips", "hanging"),
+];
+
+const SPACING_KEYS: &[&str] = &[
+    "spacingBeforeTwips",
+    "spacingAfterTwips",
+    "lineSpacingTwips",
+    "lineSpacingRule",
+];
+
+fn field_differs(paragraph: &Value, base: Option<&Value>, key: &str) -> bool {
+    match base {
+        None => paragraph.get(key).is_some(),
+        Some(b) => paragraph.get(key) != b.get(key),
+    }
+}
+
+fn indent_differs(paragraph: &Value, base: Option<&Value>) -> bool {
+    INDENT_ATTRS
+        .iter()
+        .any(|(key, _)| field_differs(paragraph, base, key))
+}
+
+fn spacing_differs(paragraph: &Value, base: Option<&Value>) -> bool {
+    SPACING_KEYS
+        .iter()
+        .any(|key| field_differs(paragraph, base, key))
+}
+
+fn json_int(value: &Value, key: &str) -> Option<i64> {
+    value.get(key).and_then(|n| {
+        n.as_i64()
+            .or_else(|| n.as_u64().map(|u| u as i64))
+            .or_else(|| n.as_f64().map(|f| f.round() as i64))
+    })
+}
+
+/// `w:ind` follows indent fields. A paragraph with none of them drops a stale `w:ind`.
+fn sync_indent(out: &mut Element, paragraph: &Value) {
+    let any = INDENT_ATTRS
+        .iter()
+        .any(|(key, _)| paragraph.get(*key).is_some());
+    let has = first_w_mut(out, "pPr")
+        .and_then(|p| first_w_mut(p, "ind"))
+        .is_some();
+    if !any && !has {
+        return;
+    }
+    if first_w_mut(out, "pPr").is_none() {
+        out.children.insert(0, Node::Element(make_w("pPr")));
+    }
+    let p_pr = first_w_mut(out, "pPr").expect("pPr");
+    remove_w_children(p_pr, "ind");
+    if !any {
+        return;
+    }
+    let mut ind = make_w("ind");
+    for (key, xml) in INDENT_ATTRS {
+        if let Some(n) = json_int(paragraph, key) {
+            set_w_attr(&mut ind, xml, &n.to_string());
+        }
+    }
+    if !ind.attrs.is_empty() {
+        p_pr.children.push(Node::Element(ind));
+    }
+}
+
+/// `w:spacing` follows spacing fields, including `w:line` / `w:lineRule`.
+fn sync_spacing(out: &mut Element, paragraph: &Value) {
+    let before = json_int(paragraph, "spacingBeforeTwips");
+    let after = json_int(paragraph, "spacingAfterTwips");
+    let line = json_int(paragraph, "lineSpacingTwips");
+    let rule = paragraph
+        .get("lineSpacingRule")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty());
+    let any = before.is_some() || after.is_some() || line.is_some() || rule.is_some();
+    let has = first_w_mut(out, "pPr")
+        .and_then(|p| first_w_mut(p, "spacing"))
+        .is_some();
+    if !any && !has {
+        return;
+    }
+    if first_w_mut(out, "pPr").is_none() {
+        out.children.insert(0, Node::Element(make_w("pPr")));
+    }
+    let p_pr = first_w_mut(out, "pPr").expect("pPr");
+    remove_w_children(p_pr, "spacing");
+    if !any {
+        return;
+    }
+    let mut spacing = make_w("spacing");
+    if let Some(n) = before {
+        set_w_attr(&mut spacing, "before", &n.to_string());
+    }
+    if let Some(n) = after {
+        set_w_attr(&mut spacing, "after", &n.to_string());
+    }
+    if let Some(n) = line {
+        set_w_attr(&mut spacing, "line", &n.to_string());
+        set_w_attr(&mut spacing, "lineRule", rule.unwrap_or("auto"));
+    } else if let Some(rule) = rule {
+        set_w_attr(&mut spacing, "lineRule", rule);
+    }
+    if !spacing.attrs.is_empty() {
+        p_pr.children.push(Node::Element(spacing));
+    }
 }
 
 /// `w:numPr` follows the block's `numbering` field. Absent numbering drops a stale `numPr`.

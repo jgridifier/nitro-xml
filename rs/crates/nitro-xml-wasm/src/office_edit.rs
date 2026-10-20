@@ -427,6 +427,151 @@ mod tests {
     }
 
     #[test]
+    fn catches_indent_spacing_script_font_and_word_bullets_missing_after_reopen_or_undo() {
+        // Catches: indent, line spacing, subscript/superscript, or font name never reaching the saved package, or undo failing to restore it. Word bullets too.
+        let mut pptx = open_editable(PPTX, "slides.pptx");
+        pptx.shell_action("cmd", "home.indent")
+            .expect("pptx indent");
+        pptx.shell_action("cmd", "home.line-spacing")
+            .expect("pptx spacing");
+        pptx.shell_action("cmd", "home.superscript")
+            .expect("pptx superscript");
+        pptx.shell_action("cmd", "home.font-name")
+            .expect("pptx font");
+        let saved = pptx.save_document().expect("pptx save");
+        assert_ne!(saved, PPTX);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("pptx reopen");
+        let seg = again
+            .session
+            .host
+            .slides
+            .iter()
+            .flat_map(|s| s.elements.iter())
+            .flat_map(|e| e.text_segments.iter())
+            .find(|s| s.typeface.as_deref() == Some("Georgia"))
+            .expect("pptx font missing after reopen");
+        assert_eq!(seg.line_spacing_pct, Some(150_000), "pptx line spacing");
+        assert_eq!(seg.baseline, Some(30_000), "pptx superscript");
+        assert_eq!(seg.typeface.as_deref(), Some("Georgia"), "pptx font");
+        for _ in 0..4 {
+            pptx.shell_action("cmd", "edit.undo").expect("pptx undo");
+        }
+        assert_eq!(pptx.save_document().expect("pptx undone"), PPTX);
+
+        pptx.shell_action("cmd", "home.subscript")
+            .expect("pptx subscript");
+        let saved = pptx.save_document().expect("pptx sub save");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("pptx sub reopen");
+        assert!(
+            again
+                .session
+                .host
+                .slides
+                .iter()
+                .flat_map(|s| s.elements.iter())
+                .flat_map(|e| e.text_segments.iter())
+                .any(|s| s.baseline == Some(-25_000)),
+            "pptx subscript missing after reopen"
+        );
+        pptx.shell_action("cmd", "edit.undo")
+            .expect("pptx sub undo");
+        assert_eq!(pptx.save_document().expect("pptx sub undone"), PPTX);
+
+        let mut docx = open_editable(DOCX, "pages.docx");
+        docx.shell_action("cmd", "home.indent")
+            .expect("docx indent");
+        docx.shell_action("cmd", "home.line-spacing")
+            .expect("docx spacing");
+        docx.shell_action("cmd", "home.superscript")
+            .expect("docx superscript");
+        docx.shell_action("cmd", "home.font-name")
+            .expect("docx font");
+        docx.shell_action("cmd", "home.bullets")
+            .expect("docx bullets");
+        let saved = docx.save_document().expect("docx save");
+        assert_ne!(saved, DOCX);
+        let again = open_editable(&saved, "pages.docx");
+        let host = &again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host;
+        let block = host
+            .blocks
+            .iter()
+            .find(|b| b.get("indentLeftTwips").and_then(|n| n.as_i64()) == Some(720))
+            .expect("docx indent missing after reopen");
+        assert_eq!(block["lineSpacingTwips"], 360, "docx line spacing: {block}");
+        assert_eq!(block["lineSpacingRule"], "auto");
+        assert_eq!(block["runs"][0]["verticalAlign"], "superscript");
+        assert_eq!(block["runs"][0]["fontFamily"], "Georgia");
+        let num_id = block["numbering"]["numId"]
+            .as_i64()
+            .or_else(|| block["numbering"]["numId"].as_u64().map(|n| n as i64))
+            .expect("docx bullet numId");
+        let fmt = host
+            .numbering_catalog
+            .as_ref()
+            .and_then(|c| c.get("nums"))
+            .and_then(|n| n.get(num_id.to_string()))
+            .and_then(|n| n.get("abstractNumId"))
+            .and_then(|v| v.as_str())
+            .and_then(|abs| {
+                host.numbering_catalog
+                    .as_ref()
+                    .unwrap()
+                    .get("abstractNums")
+                    .and_then(|a| a.get(abs))
+                    .and_then(|a| a.get("levels"))
+                    .and_then(|l| l.get("0"))
+                    .and_then(|l| l.get("numFmt"))
+                    .and_then(|v| v.as_str())
+            });
+        assert_eq!(fmt, Some("bullet"), "docx bullet definition missing");
+        for _ in 0..5 {
+            docx.shell_action("cmd", "edit.undo").expect("docx undo");
+        }
+        assert_eq!(docx.save_document().expect("docx undone"), DOCX);
+
+        docx.shell_action("cmd", "home.subscript")
+            .expect("docx subscript");
+        let saved = docx.save_document().expect("docx sub save");
+        let again = open_editable(&saved, "pages.docx");
+        let run = again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .find_map(|b| b.get("runs")?.as_array()?.first())
+            .expect("run");
+        assert_eq!(
+            run["verticalAlign"], "subscript",
+            "docx subscript missing: {run}"
+        );
+        docx.shell_action("cmd", "edit.undo")
+            .expect("docx sub undo");
+        assert_eq!(docx.save_document().expect("docx sub undone"), DOCX);
+
+        docx.shell_action("cmd", "home.outdent")
+            .expect("flush outdent");
+        assert_eq!(
+            docx.save_document().expect("outdent no-op"),
+            DOCX,
+            "outdent on a flush paragraph changed the package"
+        );
+    }
+
+    #[test]
     fn catches_docx_shell_bold_leaving_the_package_unchanged() {
         // Catches: home.bold on a document staying on the xlsx command table, so w:b never flips.
         let mut h = open_editable(DOCX, "pages.docx");

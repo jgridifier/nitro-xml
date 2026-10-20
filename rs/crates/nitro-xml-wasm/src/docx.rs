@@ -22,19 +22,33 @@ pub struct DocxState {
     pub zoom: f64,
     /// Live editor session when the document is not read-only.
     pub edit: Option<nitro_xml_docx::DocxEditor>,
+    /// Defer full-body parse until after first paint (xlsx SeekTail analogue).
+    pending_body_complete: bool,
 }
 
 impl DocxState {
+    /// Open with a body prefix (first hard page break) so first paint stays O(visible).
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
         // Borrow the handle's package Arc during parse only — PrintSession owns
         // its model/media after open (no Box::leak second copy of the zip).
-        let session = PrintSession::open(bytes)?;
+        let session = PrintSession::open_first_view(bytes, 1)?;
+        let pending_body_complete = session.body_truncated;
         Ok(Self {
             session,
             active: 0,
             zoom: 1.0,
             edit: None,
+            pending_body_complete,
         })
+    }
+
+    /// Run deferred `ensure_body_complete` once after first paint.
+    pub fn flush_pending_body(&mut self, bytes: &[u8]) -> Result<bool, String> {
+        if !self.pending_body_complete {
+            return Ok(false);
+        }
+        self.pending_body_complete = false;
+        self.session.ensure_body_complete(bytes)
     }
 
     pub fn page_count(&self) -> usize {
@@ -432,6 +446,14 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         .map(|d| d.paint_ready())
         .unwrap_or(false);
     let prev_page_count = handle.docx.as_ref().map(|d| d.page_count()).unwrap_or(0);
+
+    // After first paint is ready, finish the truncated body (SeekTail analogue).
+    if was_ready {
+        let bytes = std::sync::Arc::clone(&handle.bytes);
+        if let Some(ref mut docx) = handle.docx {
+            let _ = docx.flush_pending_body(bytes.as_ref());
+        }
+    }
 
     let layout_ready = if let Some(ref mut docx) = handle.docx {
         docx.session

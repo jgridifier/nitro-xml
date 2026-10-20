@@ -11,6 +11,7 @@ use nitro_xml_opc::opc::parse_content_types;
 use nitro_xml_opc::opc::{AllowedFormat, OpcError, Package, Relationship};
 use nitro_xml_opc::xml::{parse_xml_str, Element};
 
+use crate::breaks::{classify_break, BreakKind};
 use crate::chart_host::resolve_loaded_charts;
 use crate::comments::parse_comments;
 use crate::drawing::DrawingContext;
@@ -72,7 +73,43 @@ pub struct LoadedDocument<'a> {
     media_cache: HashMap<String, Vec<u8>>,
 }
 
+/// How far into `w:body` a first-view open may parse.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BodyViewOpts {
+    /// Stop after this many hard page-break paragraphs (`w:br w:type="page"`).
+    /// `None` parses the full body (same as [`read_package`]).
+    pub max_hard_page_breaks: Option<usize>,
+}
+
+/// Counters for O(visible) body opens (mirrors xlsx `rows_visited`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BodyParseStats {
+    pub blocks_parsed: usize,
+    pub hard_page_breaks_seen: usize,
+    pub body_truncated: bool,
+}
+
 pub fn read_package(bytes: &[u8]) -> Result<LoadedDocument<'_>, OpcError> {
+    Ok(read_package_with_opts(bytes, BodyViewOpts::default())?.0)
+}
+
+/// Like [`read_package`], but may stop after the first N hard page breaks.
+pub fn read_package_first_view(
+    bytes: &[u8],
+    max_hard_page_breaks: usize,
+) -> Result<(LoadedDocument<'_>, BodyParseStats), OpcError> {
+    read_package_with_opts(
+        bytes,
+        BodyViewOpts {
+            max_hard_page_breaks: Some(max_hard_page_breaks),
+        },
+    )
+}
+
+pub fn read_package_with_opts(
+    bytes: &[u8],
+    opts: BodyViewOpts,
+) -> Result<(LoadedDocument<'_>, BodyParseStats), OpcError> {
     let mut pkg = Package::open(bytes)?;
     let allowed = pkg.format();
     if !matches!(
@@ -117,7 +154,8 @@ pub fn read_package(bytes: &[u8]) -> Result<LoadedDocument<'_>, OpcError> {
         media_parts,
     };
 
-    let blocks = parse_blocks_from_container(body, "", Some(&drawings));
+    let (blocks, parse_stats) =
+        parse_blocks_from_container_limited(body, "", Some(&drawings), opts.max_hard_page_breaks);
 
     let sect_children = children_w(body, "sectPr");
     let section = sect_children.last().copied();
@@ -339,12 +377,15 @@ pub fn read_package(bytes: &[u8]) -> Result<LoadedDocument<'_>, OpcError> {
     }
 
     let media_set: BTreeSet<String> = model.media_part_names.iter().cloned().collect();
-    Ok(LoadedDocument {
-        model,
-        package: pkg,
-        media_parts: media_set,
-        media_cache: HashMap::new(),
-    })
+    Ok((
+        LoadedDocument {
+            model,
+            package: pkg,
+            media_parts: media_set,
+            media_cache: HashMap::new(),
+        },
+        parse_stats,
+    ))
 }
 
 pub fn get_media<'a>(doc: &'a mut LoadedDocument<'a>, part_name: &str) -> Option<&'a [u8]> {
@@ -364,8 +405,28 @@ pub fn parse_blocks_from_container(
     id_prefix: &str,
     context: Option<&DrawingContext>,
 ) -> Vec<Value> {
+    parse_blocks_from_container_limited(container, id_prefix, context, None).0
+}
+
+/// Like [`parse_blocks_from_container`], optionally stopping after N hard page breaks.
+pub fn parse_blocks_from_container_limited(
+    container: &Element,
+    id_prefix: &str,
+    context: Option<&DrawingContext>,
+    max_hard_page_breaks: Option<usize>,
+) -> (Vec<Value>, BodyParseStats) {
     let state = ParseState { context };
-    state.parse_container(container, id_prefix)
+    state.parse_container_limited(container, id_prefix, max_hard_page_breaks)
+}
+
+/// True when a paragraph element contains a hard page break run.
+fn paragraph_element_has_page_break(p: &Element) -> bool {
+    for el in by_name_w(p, "br") {
+        if matches!(classify_break(el), BreakKind::Page) {
+            return true;
+        }
+    }
+    false
 }
 
 struct ParseState<'a> {
@@ -373,14 +434,22 @@ struct ParseState<'a> {
 }
 
 impl<'a> ParseState<'a> {
-    fn parse_container(&self, container: &Element, id_prefix: &str) -> Vec<Value> {
+    fn parse_container_limited(
+        &self,
+        container: &Element,
+        id_prefix: &str,
+        max_hard_page_breaks: Option<usize>,
+    ) -> (Vec<Value>, BodyParseStats) {
         let mut blocks = Vec::new();
         let field_meta = story_field_results(container);
         let mut open_comments = Vec::new();
         let mut open_moves = OpenMoves::default();
         let mut index = 0;
+        let mut hard_page_breaks_seen = 0usize;
+        let mut truncated = false;
         for node in container.element_children() {
             if named_w(node, "p") {
+                let is_page_break = paragraph_element_has_page_break(node);
                 blocks.push(self.parse_paragraph(
                     node,
                     format!("{}p{}", id_prefix, index),
@@ -389,13 +458,38 @@ impl<'a> ParseState<'a> {
                     &mut open_moves,
                 ));
                 index += 1;
+                if is_page_break {
+                    hard_page_breaks_seen += 1;
+                    if let Some(max) = max_hard_page_breaks {
+                        if hard_page_breaks_seen >= max {
+                            truncated = true;
+                            break;
+                        }
+                    }
+                }
             } else if named_w(node, "tbl") {
                 let table_id = format!("{}t{}", id_prefix, index);
                 blocks.push(self.parse_table(node, &table_id, &field_meta));
                 index += 1;
             }
         }
-        blocks
+        // If we stopped early, trailing body children (including final sectPr) were not
+        // visited as blocks — sectPr is read separately via children_w(body, "sectPr").
+        if truncated {
+            // Confirm there is more body content beyond the stop point.
+            let total_story = container
+                .element_children()
+                .into_iter()
+                .filter(|n| named_w(n, "p") || named_w(n, "tbl"))
+                .count();
+            truncated = blocks.len() < total_story;
+        }
+        let stats = BodyParseStats {
+            blocks_parsed: blocks.len(),
+            hard_page_breaks_seen,
+            body_truncated: truncated,
+        };
+        (blocks, stats)
     }
 
     fn parse_table(

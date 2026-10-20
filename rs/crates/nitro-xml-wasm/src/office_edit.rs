@@ -100,7 +100,7 @@ mod tests {
     const MARK: &str = "Nitro edit roundtrip";
 
     fn open_editable(bytes: &[u8], name: &str) -> Handle {
-        let mut h = Handle::new(bytes);
+        let mut h = Handle::new(bytes.to_vec());
         h.open_document(name).expect("open");
         h.load_editor_chrome();
         h.set_read_only(false);
@@ -117,7 +117,7 @@ mod tests {
         .expect("edit");
         let saved = h.save_document().expect("save");
         assert_ne!(saved, PPTX);
-        let mut again = Handle::new(&saved);
+        let mut again = Handle::new(saved);
         again.open_document("slides.pptx").expect("reopen");
         again.shell_action("find-query", MARK).expect("find");
         assert!(
@@ -296,7 +296,7 @@ mod tests {
         // Catches: a read-only pptx/docx save rewriting the package, or a shell cmd applying an edit.
         // applyEdit's Err(JsValue) cannot be observed in native tests (wasm_bindgen panics off-wasm).
         for (bytes, name) in [(PPTX, "slides.pptx"), (DOCX, "pages.docx")] {
-            let mut h = Handle::new(bytes);
+            let mut h = Handle::new(bytes.to_vec());
             h.open_document(name).expect("open");
             h.load_editor_chrome();
             h.set_read_only(true);

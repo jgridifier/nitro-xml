@@ -31,7 +31,7 @@ fn main() {
             process::exit(2);
         }
     };
-    let mut handle = Handle::new(&bytes);
+    let mut handle = Handle::new(bytes);
     if handle.open_document(&path).is_err() {
         println!("{}", json!({ "error": "open_failed" }));
         process::exit(1);

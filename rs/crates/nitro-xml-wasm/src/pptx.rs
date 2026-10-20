@@ -23,6 +23,9 @@ impl StringIntern for StringTable {
 }
 
 pub struct PptxState {
+    /// Keeps the package buffer alive for [`Presentation`]'s `Package` borrow.
+    #[allow(dead_code)]
+    package_bytes: std::sync::Arc<[u8]>,
     pub pres: Presentation<'static>,
     pub sp_autofit: SpAutofitPaintState,
     pub active: usize,
@@ -36,10 +39,20 @@ pub struct PptxState {
 }
 
 impl PptxState {
-    pub fn open(handle_bytes: &[u8]) -> Result<Self, String> {
-        let leaked: &'static [u8] = Box::leak(handle_bytes.to_vec().into_boxed_slice());
+    /// Open via the shared package `Arc` so we do not `Box::leak` a second zip copy.
+    ///
+    /// `Presentation` keeps a `Package` borrow for lazy slide loads; we hold the
+    /// `Arc` for the life of this state and transmute the borrow to `'static`
+    /// (same owning-ref pattern as a leaked box, without the extra allocation).
+    pub fn open(bytes: std::sync::Arc<[u8]>) -> Result<Self, String> {
+        let slice: &[u8] = bytes.as_ref();
+        // SAFETY: `package_bytes` is stored in this struct and dropped only after
+        // `pres`. No other code replaces or truncates the Arc buffer.
+        let leaked: &'static [u8] = unsafe { std::mem::transmute(slice) };
+        let package_bytes = bytes;
         let pres = Presentation::open(leaked).map_err(|e| e.to_string())?;
         Ok(Self {
+            package_bytes,
             pres,
             sp_autofit: SpAutofitPaintState::default(),
             active: 0,
@@ -345,5 +358,29 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
             &mut handle.outlines,
             &mut handle.layout_reads,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn pptx_open_shares_handle_package_arc() {
+        // Catches: PptxState::open Box::leak'ing a second copy of the package
+        // instead of Arc-sharing the handle buffer (permanent +1× zip residency).
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/pptx/slides_10.pptx");
+        let bytes: Arc<[u8]> = Arc::from(std::fs::read(&path).expect("fixture"));
+        let before = Arc::strong_count(&bytes);
+        let state = PptxState::open(Arc::clone(&bytes)).expect("open");
+        assert_eq!(
+            Arc::strong_count(&bytes),
+            before + 1,
+            "open must retain the shared Arc, not an owned leak copy"
+        );
+        drop(state);
+        assert_eq!(Arc::strong_count(&bytes), before);
     }
 }

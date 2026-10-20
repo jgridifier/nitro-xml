@@ -24,16 +24,17 @@ throw unsupportedFormatError();
 }
 const core = await initCore();
 glue = core.glue;
-let bytes =
-msg.bytes instanceof Uint8Array ? msg.bytes : new Uint8Array(msg.bytes);
 if (handle) {
 try {
 handle.free();
 } catch {
 }
 }
+{
+const bytes =
+msg.bytes instanceof Uint8Array ? msg.bytes : new Uint8Array(msg.bytes);
 handle = new glue.Handle(bytes);
-bytes = null;
+}
 msg.bytes = null;
 if (msg.fontSource !== undefined && typeof msg.fontSource !== "function") {
 applyFontSourceToHandle(handle, msg.fontSource);

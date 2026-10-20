@@ -29,4 +29,9 @@ export const ICONS = {
   text: '<path d="M5 6h14M12 6v12M9 18h6"/><path class="a" d="M5 6h14"/>',
   trash: '<path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/><path class="a" d="M10 11v6M14 11v6"/>',
   table: '<rect x="3" y="5" width="18" height="14" rx="1"/><path class="a" d="M3 10h18M3 15h18M9 5v14M15 5v14"/>',
+  color: '<path d="M12 3l7 14H5z"/><path class="a" d="M8.2 13h7.6"/>',
+  rowAdd: '<path d="M4 6h16v5H4zM4 13h16v5H4z"/><path class="a" d="M12 8v8M8 12h8"/>',
+  rowDel: '<path d="M4 6h16v5H4zM4 13h16v5H4z"/><path class="a" d="M8 12h8"/>',
+  colAdd: '<path d="M6 4h5v16H6zM13 4h5v16h-5z"/><path class="a" d="M8 12h8M12 8v8"/>',
+  colDel: '<path d="M6 4h5v16H6zM13 4h5v16h-5z"/><path class="a" d="M8 12h8"/>',
 };

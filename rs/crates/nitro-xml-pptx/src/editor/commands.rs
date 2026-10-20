@@ -43,6 +43,8 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("home.align-left", "Align Left", None, true),
     pptx_cmd!("home.align-center", "Center", None, true),
     pptx_cmd!("home.align-right", "Align Right", None, true),
+    pptx_cmd!("home.font-size", "Font Size", None, true),
+    pptx_cmd!("home.font-color", "Font Color", None, true),
     pptx_cmd!("home.duplicate", "Duplicate", Some("Ctrl+D"), true),
     pptx_cmd!("home.delete", "Delete", Some("Delete"), true),
     pptx_cmd!("home.select-all", "Select All", Some("Ctrl+A"), false),
@@ -205,6 +207,21 @@ impl PptxCommandSurface {
                     "align": align,
                 });
                 self.run_shape_op("setShapeParagraphAlign", &patch, session)
+            }
+            "home.font-size" | "home.font-color" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: format!("{id} needs a selected shape"),
+                })?;
+                let mut patch = json!({
+                    "slideIndex": selection.slide_index,
+                    "elementId": element_id,
+                });
+                if id == "home.font-size" {
+                    patch["fontSize"] = json!(32.0);
+                } else {
+                    patch["color"] = json!("C00000");
+                }
+                self.run_shape_op("setShapeTextStyle", &patch, session)
             }
             "home.duplicate" => {
                 let element_id = selection.primary_id().ok_or_else(|| EditError::Other {

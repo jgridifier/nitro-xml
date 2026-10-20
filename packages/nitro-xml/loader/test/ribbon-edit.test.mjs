@@ -43,13 +43,15 @@ describe("Office ribbon manifests", () => {
       "home.align-left",
       "home.align-center",
       "home.align-right",
+      "home.font-size",
+      "home.font-color",
       "insert.text-box",
       "insert.slide",
       "insert.duplicate-slide",
       "home.delete-slide",
     ]);
     for (const id of bound) assert.ok(allowed.has(id), `unexpected pptx command ${id}`);
-    for (const id of ["insert.slide", "insert.duplicate-slide", "home.delete-slide", "insert.text-box", "home.bold"]) {
+    for (const id of ["insert.slide", "insert.duplicate-slide", "home.delete-slide", "insert.text-box", "home.bold", "home.font-size"]) {
       assert.ok(bound.includes(id), `missing pptx command ${id}`);
     }
     assert.ok(!bound.includes("insert.table"));
@@ -68,10 +70,18 @@ describe("Office ribbon manifests", () => {
       "home.align-left",
       "home.align-center",
       "home.align-right",
+      "home.font-size",
+      "home.font-color",
       "insert.table",
+      "table.insert-row",
+      "table.delete-row",
+      "table.insert-column",
+      "table.delete-column",
     ]);
     for (const id of bound) assert.ok(allowed.has(id), `unexpected docx command ${id}`);
     assert.ok(bound.includes("insert.table"));
+    assert.ok(bound.includes("table.insert-row"));
+    assert.ok(bound.includes("home.font-color"));
     assert.ok(bound.includes("home.bold"));
     assert.ok(!bound.includes("insert.slide"));
     assert.ok(!bound.includes("insert.text-box"));

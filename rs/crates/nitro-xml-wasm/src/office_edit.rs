@@ -415,4 +415,114 @@ mod tests {
         h.shell_action("cmd", "edit.undo").expect("undo");
         assert_eq!(h.save_document().expect("undone"), DOCX);
     }
+
+    #[test]
+    fn catches_pptx_font_size_and_color_missing_after_reopen() {
+        // Catches: home.font-size and home.font-color leaving the saved slide run unchanged.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.shell_action("cmd", "home.font-size").expect("size");
+        h.shell_action("cmd", "home.font-color").expect("color");
+        let saved = h.save_document().expect("save");
+        assert_ne!(saved, PPTX);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen");
+        let style = again
+            .session
+            .host
+            .slides
+            .iter()
+            .flat_map(|s| s.elements.iter())
+            .find_map(|el| el.text_style.as_ref())
+            .expect("styled shape");
+        assert_eq!(style.font_size, Some(32.0));
+        let color = style.color.as_deref().unwrap_or("");
+        assert!(
+            color.to_ascii_uppercase().contains("C00000"),
+            "color {color}"
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo color");
+        h.shell_action("cmd", "edit.undo").expect("undo size");
+        assert_eq!(h.save_document().expect("undone"), PPTX);
+    }
+
+    #[test]
+    fn catches_docx_font_and_table_structure_missing_after_reopen() {
+        // Catches: font size, font color, or a table row/column edit missing from the saved docx.
+        let mut h = open_editable(DOCX, "pages.docx");
+        h.shell_action("cmd", "home.font-size").expect("size");
+        h.shell_action("cmd", "home.font-color").expect("color");
+        let saved = h.save_document().expect("save font");
+        let again = open_editable(&saved, "pages.docx");
+        let run = &again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks[0]["runs"][0];
+        assert_eq!(run["fontSize"].as_f64(), Some(18.0));
+        let color = run["color"].as_str().unwrap_or("");
+        assert!(
+            color.eq_ignore_ascii_case("C00000") || color.eq_ignore_ascii_case("#C00000"),
+            "color {color}"
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo color");
+        h.shell_action("cmd", "edit.undo").expect("undo size");
+        assert_eq!(h.save_document().expect("font undone"), DOCX);
+
+        let rows_of = |h: &Handle| {
+            let host = &h.docx.as_ref().unwrap().edit.as_ref().unwrap().session.host;
+            let table = host
+                .blocks
+                .iter()
+                .find(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+                .expect("table");
+            let rows = table["rows"].as_array().expect("rows");
+            let cols = rows
+                .first()
+                .and_then(|r| r.as_array())
+                .map(|c| c.len())
+                .unwrap_or(0);
+            (rows.len(), cols)
+        };
+        let (rows, cols) = rows_of(&h);
+        h.shell_action("cmd", "table.insert-row").expect("row");
+        h.shell_action("cmd", "table.delete-row")
+            .expect("delete row");
+        let saved = h.save_document().expect("save delete row");
+        let again = open_editable(&saved, "pages.docx");
+        assert_eq!(rows_of(&again).0, rows, "deleted row still in the package");
+        h.shell_action("cmd", "edit.undo").expect("undo delete row");
+        let saved = h.save_document().expect("save restored row");
+        let again = open_editable(&saved, "pages.docx");
+        assert_eq!(rows_of(&again).0, rows + 1, "undo did not restore the row");
+        h.shell_action("cmd", "edit.undo").expect("undo insert row");
+        assert_eq!(h.save_document().expect("row undone"), DOCX);
+
+        h.shell_action("cmd", "table.insert-column")
+            .expect("column");
+        h.shell_action("cmd", "table.delete-column")
+            .expect("delete column");
+        let saved = h.save_document().expect("save delete column");
+        let again = open_editable(&saved, "pages.docx");
+        assert_eq!(
+            rows_of(&again).1,
+            cols,
+            "deleted column still in the package"
+        );
+        h.shell_action("cmd", "edit.undo")
+            .expect("undo delete column");
+        let saved = h.save_document().expect("save restored column");
+        let again = open_editable(&saved, "pages.docx");
+        assert_eq!(
+            rows_of(&again).1,
+            cols + 1,
+            "undo did not restore the column"
+        );
+        h.shell_action("cmd", "edit.undo")
+            .expect("undo insert column");
+        assert_eq!(h.save_document().expect("column undone"), DOCX);
+    }
 }

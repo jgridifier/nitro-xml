@@ -31,6 +31,8 @@ const FONT = {
       it("home.align-left", "left", "Align left"),
       it("home.align-center", "center", "Center"),
       it("home.align-right", "right", "Align right"),
+      it("home.font-size", "grow", "Font size", "Set the font size"),
+      it("home.font-color", "color", "Font color", "Set the font color"),
     ],
   ],
 };
@@ -130,7 +132,13 @@ export function tabsFor(format, unit, edit) {
         : format === "docx" && edit
           ? {
               Home: officeHome,
-              Insert: [{ g: "Tables", big: [it("insert.table", "table", "Table", "Insert a table")] }],
+              Insert: [{ g: "Tables", big: [
+                it("insert.table", "table", "Table", "Insert a table"),
+                it("table.insert-row", "rowAdd", "Insert Row"),
+                it("table.delete-row", "rowDel", "Delete Row"),
+                it("table.insert-column", "colAdd", "Insert Column"),
+                it("table.delete-column", "colDel", "Delete Column"),
+              ] }],
             }
           : viewOnly;
   tabs.View = view(format === "pptx");

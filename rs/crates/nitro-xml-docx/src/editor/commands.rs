@@ -11,7 +11,9 @@ use serde_json::{json, Value};
 use crate::edit::format::{set_paragraph_align, set_run_formatting};
 use crate::edit::host::DocxHost;
 use crate::edit::register_docx_command_registry;
-use crate::edit::table::insert_table;
+use crate::edit::table::{
+    delete_table_column, delete_table_row, insert_table, insert_table_column, insert_table_row,
+};
 use crate::editor::print_edit::schedule_relayout;
 use crate::editor::search::SearchController;
 
@@ -48,6 +50,12 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("align-center", "Center", None, true),
     word_cmd!("align-right", "Align Right", None, true),
     word_cmd!("insert.table", "Table", None, true),
+    word_cmd!("font-size", "Font Size", None, true),
+    word_cmd!("font-color", "Font Color", None, true),
+    word_cmd!("table.insert-row", "Insert Row", None, true),
+    word_cmd!("table.delete-row", "Delete Row", None, true),
+    word_cmd!("table.insert-column", "Insert Column", None, true),
+    word_cmd!("table.delete-column", "Delete Column", None, true),
     word_cmd!("print", "Print", Some("Ctrl+P"), false),
     word_cmd!("layout-view", "Print Layout", None, false),
     word_cmd!("paste", "Paste", Some("Ctrl+V"), true),
@@ -265,6 +273,66 @@ impl DocxCommandSurface {
                 schedule_relayout(print_edit);
                 Ok(())
             }
+            "font-size" | "font-color" => {
+                let mut patch = serde_json::Map::new();
+                let label = if id == "font-size" {
+                    patch.insert("fontSize".into(), json!(18.0));
+                    "font-size"
+                } else {
+                    patch.insert("color".into(), json!("C00000"));
+                    "font-color"
+                };
+                session.run(
+                    label,
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    move |h| -> Result<(), EditError> {
+                        set_run_formatting(h, caret_block, caret_run, &patch)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "table.insert-row"
+            | "table.delete-row"
+            | "table.insert-column"
+            | "table.delete-column" => {
+                let label = match id {
+                    "table.insert-row" => "table.insert-row",
+                    "table.delete-row" => "table.delete-row",
+                    "table.insert-column" => "table.insert-column",
+                    _ => "table.delete-column",
+                };
+                session.run(
+                    label,
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |h| -> Result<(), EditError> {
+                        let bi = first_table(h)?;
+                        match label {
+                            "table.insert-row" => {
+                                let n = table_extent(h, bi, true);
+                                insert_table_row(h, bi, n)
+                            }
+                            "table.delete-row" => {
+                                let n = table_extent(h, bi, true);
+                                delete_table_row(h, bi, n.saturating_sub(1))
+                            }
+                            "table.insert-column" => {
+                                let n = table_extent(h, bi, false);
+                                insert_table_column(h, bi, n)
+                            }
+                            _ => {
+                                let n = table_extent(h, bi, false);
+                                delete_table_column(h, bi, n.saturating_sub(1))
+                            }
+                        }
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
             _ => {
                 // Script ops (setRunFormatting, setParagraphText, …) must land on the
                 // history stack so edit.undo restores them. The match arms above already do.
@@ -295,6 +363,34 @@ pub fn register_editor_commands(registry: &mut CommandRegistry) {
         "search.replaceAll",
     ] {
         registry.register(Command::stub(id, id));
+    }
+}
+
+fn first_table(host: &DocxHost) -> Result<usize, EditError> {
+    host.blocks
+        .iter()
+        .position(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+        .ok_or_else(|| EditError::Other {
+            message: "no table in the document".into(),
+        })
+}
+
+fn table_extent(host: &DocxHost, block: usize, rows: bool) -> usize {
+    let table = &host.blocks[block];
+    if rows {
+        table
+            .get("rows")
+            .and_then(|r| r.as_array())
+            .map(|r| r.len())
+            .unwrap_or(0)
+    } else {
+        table
+            .get("rows")
+            .and_then(|r| r.as_array())
+            .and_then(|r| r.first())
+            .and_then(|r| r.as_array())
+            .map(|c| c.len())
+            .unwrap_or(0)
     }
 }
 

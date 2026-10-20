@@ -231,6 +231,36 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.font-size",
+                    label: "Font Size",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.font-color",
+                    label: "Font Color",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "table.insert-row",
+                    label: "Insert Row",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "table.delete-row",
+                    label: "Delete Row",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "table.insert-column",
+                    label: "Insert Column",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "table.delete-column",
+                    label: "Delete Column",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "insert.table",
                     label: "Table",
                     enabled: true,
@@ -250,6 +280,8 @@ fn canonical_command(id: &str) -> &str {
         "home.align-left" => "align-left",
         "home.align-center" => "align-center",
         "home.align-right" => "align-right",
+        "home.font-size" => "font-size",
+        "home.font-color" => "font-color",
         other => other,
     }
 }

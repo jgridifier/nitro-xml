@@ -150,7 +150,7 @@ impl PptxState {
         let vh = self.viewport_h;
         let scale = self.scale;
         let edit = self.edit.take();
-        let opened = Self::open(&bytes);
+        let opened = Self::open(std::sync::Arc::<[u8]>::from(bytes));
         let mut next = match opened {
             Ok(state) => state,
             Err(e) => {

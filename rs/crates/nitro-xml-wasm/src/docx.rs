@@ -26,8 +26,9 @@ pub struct DocxState {
 
 impl DocxState {
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
-        let leaked: &'static [u8] = Box::leak(bytes.to_vec().into_boxed_slice());
-        let session = PrintSession::open(leaked)?;
+        // Borrow the handle's package Arc during parse only — PrintSession owns
+        // its model/media after open (no Box::leak second copy of the zip).
+        let session = PrintSession::open(bytes)?;
         Ok(Self {
             session,
             active: 0,

@@ -48,7 +48,10 @@ pub struct PrintSession {
 }
 
 impl PrintSession {
-    pub fn open(bytes: &'static [u8]) -> Result<Self, String> {
+    /// Parse the package and copy picture/chart payloads into owned maps.
+    /// Callers may free or reuse `bytes` after this returns — the session does
+    /// not retain the zip buffer (avoids a leaked second package copy).
+    pub fn open(bytes: &[u8]) -> Result<Self, String> {
         let mut loaded = read_package(bytes).map_err(|e| e.to_string())?;
         let picture_urls = collect_pictures(&mut loaded);
         let (chart_spaces, chart_color_palettes) = collect_charts(&mut loaded);
@@ -513,8 +516,7 @@ mod incremental_layout_tests {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../fixtures/real/docx/poi-61745.docx");
         let bytes = std::fs::read(&path).expect("fixture");
-        let leaked: &'static [u8] = Box::leak(bytes.into_boxed_slice());
-        let mut session = PrintSession::open(leaked).expect("open");
+        let mut session = PrintSession::open(&bytes).expect("open");
         let mut measures = MeasureBatch::new();
         let mut intern = TestIntern::new();
         for _ in 0..256 {

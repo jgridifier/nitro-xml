@@ -24,7 +24,7 @@ throw unsupportedFormatError();
 }
 const core = await initCore();
 glue = core.glue;
-const bytes =
+let bytes =
 msg.bytes instanceof Uint8Array ? msg.bytes : new Uint8Array(msg.bytes);
 if (handle) {
 try {
@@ -33,6 +33,11 @@ handle.free();
 }
 }
 handle = new glue.Handle(bytes);
+// Drop the JS-side package buffer after the one copy into WASM linear memory
+// so the transferred ArrayBuffer can be GC'd (avoids double-buffering on the
+// worker heap for the life of the document).
+bytes = null;
+msg.bytes = null;
 if (msg.fontSource !== undefined && typeof msg.fontSource !== "function") {
 applyFontSourceToHandle(handle, msg.fontSource);
 } else {

@@ -199,13 +199,17 @@ pub struct Handle {
 
 #[wasm_bindgen]
 impl Handle {
-    /// Takes a copy of the document bytes (one bulk copy across the boundary into an `Arc`).
+    /// Takes ownership of the package bytes.
+    ///
+    /// wasm-bindgen copies the host `Uint8Array` into linear memory once as a
+    /// `Vec<u8>`; we then move that into an `Arc` shared with xlsx [`FirstView`].
+    /// Prefer this over `&[u8]`, which left a second pass-buffer copy alive for
+    /// the life of the allocation (double residency in WASM linear memory).
     #[wasm_bindgen(constructor)]
-    pub fn new(bytes: &[u8]) -> Handle {
+    pub fn new(bytes: Vec<u8>) -> Handle {
         let mut strings = StringTable::new();
         crate::events::seed_input_keys(&mut strings);
         Handle {
-            // Single copy into Arc; `from(to_vec())` would briefly hold Vec + Arc.
             bytes: std::sync::Arc::<[u8]>::from(bytes),
             warnings: Vec::new(),
             font_source: FontSource::default(),
@@ -335,7 +339,8 @@ impl Handle {
         }
         if is_pptx_extension(name) {
             let t0 = now_ms();
-            let mut state = PptxState::open(&self.bytes).map_err(js_open_err)?;
+            let mut state =
+                PptxState::open(std::sync::Arc::clone(&self.bytes)).map_err(js_open_err)?;
             self.shell = ShellState::default();
             self.shell.format = FormatKind::Pptx;
             self.shell.diagnostics.clear_runtime();
@@ -1829,7 +1834,7 @@ mod tests {
     #[test]
     fn intern_deduplicates_per_document() {
         // Catches: duplicate strings must reuse the same id (interned table, not per-call copies).
-        let mut h = Handle::new(&[]);
+        let mut h = Handle::new(Vec::new());
         let a = h.intern("Calibri");
         let b = h.intern("Calibri");
         let c = h.intern("Arial");

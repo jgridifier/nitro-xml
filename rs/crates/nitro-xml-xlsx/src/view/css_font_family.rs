@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Ported from ChristopherVR/ooxml@e66aaec src/core/text/css-font-family.ts; changes listed in PROVENANCE.md.
 
-pub fn css_font_family(name: &str) -> String {
+use std::borrow::Cow;
+
+pub fn css_font_family(name: &str) -> Cow<'static, str> {
     let lower = name.to_lowercase();
     let known = match lower.as_str() {
         "calibri" => Some("\"Calibri\", \"Carlito\", \"Segoe UI\", Arial, sans-serif"),
@@ -16,11 +18,11 @@ pub fn css_font_family(name: &str) -> String {
         _ => None,
     };
     if let Some(k) = known {
-        return k.to_string();
+        return Cow::Borrowed(k);
     }
     let escaped = name.replace(['"', '\\'], "");
-    format!(
+    Cow::Owned(format!(
         "\"{}\", \"Calibri\", \"Carlito\", \"Segoe UI\", sans-serif",
         escaped
-    )
+    ))
 }

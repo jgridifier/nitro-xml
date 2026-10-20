@@ -7,13 +7,18 @@ use crate::view::types::{BordersView, EdgeView, FillView, FontView};
 
 pub fn css_font(font: &FontView, zoom: f64) -> String {
     let size = ((font.size_px * (zoom / 100.0) * 100.0).round() / 100.0).max(1.0);
-    format!(
-        "{}{} {}px {}",
-        if font.italic { "italic " } else { "" },
-        if font.bold { "bold " } else { "" },
-        size,
-        css_font_family(&font.family)
-    )
+    let family = css_font_family(&font.family);
+    // Capacity covers typical "italic bold 11px \"Calibri\", …" without realloc.
+    let mut out = String::with_capacity(64 + family.len());
+    if font.italic {
+        out.push_str("italic ");
+    }
+    if font.bold {
+        out.push_str("bold ");
+    }
+    use std::fmt::Write as _;
+    let _ = write!(out, "{size}px {family}");
+    out
 }
 
 pub fn has_borders(b: &BordersView) -> bool {
@@ -33,18 +38,12 @@ pub fn hashes(cell_inner_width: f64, hash_width: f64) -> String {
     "#".repeat(n.min(200))
 }
 
-pub fn text_decoration(font: &FontView) -> String {
-    let mut parts = Vec::new();
-    if font.underline.is_some() {
-        parts.push("underline");
-    }
-    if font.strike {
-        parts.push("line-through");
-    }
-    if parts.is_empty() {
-        "none".to_string()
-    } else {
-        parts.join(" ")
+pub fn text_decoration(font: &FontView) -> &'static str {
+    match (font.underline.is_some(), font.strike) {
+        (false, false) => "none",
+        (true, false) => "underline",
+        (false, true) => "line-through",
+        (true, true) => "underline line-through",
     }
 }
 

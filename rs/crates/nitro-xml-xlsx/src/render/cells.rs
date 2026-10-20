@@ -2,6 +2,7 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/ui/src/xlsx/grid/cell-layer.ts; changes listed in PROVENANCE.md.
 
 use std::collections::HashSet;
+use std::fmt::Write as _;
 
 use nitro_xml_render::command_buffer::CommandBuffer;
 use nitro_xml_render::measure::MeasureBatch;
@@ -185,6 +186,43 @@ fn intern_box_geometry<I: StringIntern>(
     intern.intern(unsafe { std::str::from_utf8_unchecked(&buf[..o]) })
 }
 
+/// Memoize `css_font` across cells that share family/weight/size/zoom (#30 S paint).
+struct FontCssMemo {
+    key: u64,
+    css: String,
+}
+
+impl FontCssMemo {
+    fn new() -> Self {
+        Self {
+            key: u64::MAX,
+            css: String::new(),
+        }
+    }
+
+    fn get_or_compute(&mut self, font: &crate::view::types::FontView, zoom: f64) -> &str {
+        let size_c = ((font.size_px * (zoom / 100.0) * 100.0).round() as i32).max(1) as u64;
+        let mut key = size_c;
+        key = key
+            .wrapping_mul(0x9e37_79b9)
+            .wrapping_add(font.family.len() as u64);
+        for b in font.family.as_bytes() {
+            key = key.wrapping_mul(31).wrapping_add(*b as u64);
+        }
+        if font.bold {
+            key ^= 0x1000_0000;
+        }
+        if font.italic {
+            key ^= 0x2000_0000;
+        }
+        if key != self.key {
+            self.key = key;
+            self.css = css_font(font, zoom);
+        }
+        &self.css
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn paint_one_cell<I: StringIntern>(
     buf: &mut CommandBuffer,
@@ -197,6 +235,8 @@ fn paint_one_cell<I: StringIntern>(
     zoom: f64,
     stale: bool,
     parent: u32,
+    style_buf: &mut String,
+    font_memo: &mut FontCssMemo,
 ) {
     let cell_id = CELL_BASE + n as u32;
     // Plane-relative coords; scroll is on `.xg-plane` translate3d (upstream cell-layer.ts).
@@ -362,11 +402,13 @@ fn paint_one_cell<I: StringIntern>(
         if item.view.icon.is_some() && item.view.h_align != "right" {
             pl = 20.0 * (zoom / 100.0);
         }
-        let mut text_style = format!(
-            "left:{}px;width:{}px;font:{};color:{};text-decoration:{};justify-content:{};align-items:{};text-align:{};padding-left:{pl}px;padding-right:{pr}px",
+        let font_css = font_memo.get_or_compute(&item.view.font, zoom * item.font_scale);
+        style_buf.clear();
+        let _ = write!(
+            style_buf,
+            "left:{}px;width:{}px;font:{font_css};color:{};text-decoration:{};justify-content:{};align-items:{};text-align:{};padding-left:{pl}px;padding-right:{pr}px",
             item.text_left,
             item.text_width,
-            css_font(&item.view.font, zoom * item.font_scale),
             item.view.font.color,
             text_decoration(&item.view.font),
             justify(&item.view.h_align),
@@ -375,21 +417,17 @@ fn paint_one_cell<I: StringIntern>(
         );
         // Prior port only set whiteSpace when not wrapping (xg-wrap class handles wrap).
         if !item.view.wrap {
-            text_style.push_str(";white-space:pre");
+            style_buf.push_str(";white-space:pre");
         }
-        buf.set_attr(text_id, keys.style, intern.intern(&text_style));
+        buf.set_attr(text_id, keys.style, intern.intern(style_buf));
         let span_id = TEXT_BASE + 50_000 + n as u32;
         // Upstream uses <span class="xg-tx"> (inline-block via CSS).
         buf.create_element(span_id, span, text_id);
         set_attr_v(buf, intern, span_id, keys.class, "xg-tx");
         if item.view.rotation != 0.0 {
-            set_style_v(
-                buf,
-                intern,
-                span_id,
-                keys.transform,
-                &format!("rotate({}deg)", -item.view.rotation),
-            );
+            style_buf.clear();
+            let _ = write!(style_buf, "rotate({}deg)", -item.view.rotation);
+            set_style_v(buf, intern, span_id, keys.transform, style_buf);
         }
         // Upstream cell-layer.ts: rich runs get per-run font / superscript spans.
         let paint_rich = item
@@ -402,20 +440,15 @@ fn paint_one_cell<I: StringIntern>(
             for (ri, run) in runs.iter().enumerate() {
                 let run_id = TEXT_BASE + 70_000 + (n as u32) * 64 + ri as u32;
                 buf.create_element(run_id, span, span_id);
-                set_style_v(
-                    buf,
-                    intern,
-                    run_id,
-                    keys.font,
-                    &css_font(&run.font, zoom * item.font_scale),
-                );
+                let run_font = font_memo.get_or_compute(&run.font, zoom * item.font_scale);
+                set_style_v(buf, intern, run_id, keys.font, run_font);
                 set_style_v(buf, intern, run_id, keys.color, &run.font.color);
                 set_style_v(
                     buf,
                     intern,
                     run_id,
                     keys.text_decoration,
-                    &text_decoration(&run.font),
+                    text_decoration(&run.font),
                 );
                 if let Some(va) = run.font.vert_align.as_deref() {
                     let css_va = if va == "super" || va == "superscript" {
@@ -593,6 +626,8 @@ pub fn paint<I: StringIntern>(
     let stale: HashSet<(u32, u32)> = hints.stale.iter().copied().collect();
     let frozen_rows = viewport.frozen_rows;
     let mut n = 0usize;
+    let mut style_buf = String::with_capacity(256);
+    let mut font_memo = FontCssMemo::new();
     for item in &items {
         let is_stale = stale.contains(&(item.row, item.col));
         if !item.merged && is_blank_view(&item.view) && !is_stale {
@@ -615,6 +650,8 @@ pub fn paint<I: StringIntern>(
             metrics.zoom,
             is_stale,
             parent,
+            &mut style_buf,
+            &mut font_memo,
         );
         n += 1;
     }

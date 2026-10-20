@@ -579,35 +579,76 @@ mod tests {
 
     #[test]
     fn catches_cells_1m_set_cell_input_history_stays_scoped() {
-        // Catches: full-workbook JSON undo snaps on cells_1m (~64MiB×2/edit) OOM the
+        // Catches: full-workbook JSON undo snaps on ~1M cells (~64MiB×2/edit) OOM the
         // WASM 4GiB ceiling by ~edit 22. Cell-scoped history must stay compact and
-        // survive far more than that without cloning the grid (#341 follow-up / main).
-        let fixture = fixture_path("gen-xlsx-cells-1m");
-        let bytes = fs::read(&fixture).unwrap_or_else(|e| {
-            panic!("read {}: {e}", fixture.display());
-        });
-        const N: usize = 40;
-        let mut ops = Vec::with_capacity(N);
-        for i in 0..N {
-            ops.push(json!({
-                "op": "setCellInput",
-                "sheet": 0,
-                "row": i as u32,
-                "col": 0,
-                "text": format!("e{i}"),
-            }));
+        // survive far more than that without cloning the grid.
+        //
+        // Prefer the real cells_1m fixture when present; CI rust jobs do not ship that
+        // generated xlsx, so inflate a tiny package to 1_000_000 DumpCells in memory
+        // (same grid size as the trap — not a smaller dodge).
+        use crate::model::{DumpCell, DumpCellValue};
+
+        const GRID: usize = 1_000_000;
+        const EDITS: usize = 40;
+
+        let host = {
+            let fixture = fixture_path("gen-xlsx-cells-1m");
+            if fixture.is_file() {
+                let bytes = fs::read(&fixture).expect("cells_1m");
+                XlsxHost::open(&bytes).expect("open cells_1m")
+            } else {
+                let tiny = fixture_path("gen-xlsx-cells-1k");
+                let bytes = fs::read(&tiny).expect("cells_1k shell");
+                let mut h = XlsxHost::open(&bytes).expect("open cells_1k");
+                let mut cells = Vec::with_capacity(GRID);
+                for i in 0..GRID {
+                    cells.push(DumpCell {
+                        row: (i / 50) as u32,
+                        col: (i % 50) as u32,
+                        value: DumpCellValue::Number(i as f64),
+                        type_tag: None,
+                        formula: None,
+                        style_id: None,
+                        rich_text: None,
+                        array_range: None,
+                        legacy_formula: None,
+                        dynamic_array: None,
+                        spill_anchor: None,
+                        cell_metadata: None,
+                        value_metadata: None,
+                    });
+                }
+                h.sheets[0].cells = cells;
+                h
+            }
+        };
+        assert!(
+            host.sheets[0].cells.len() >= GRID,
+            "need ≥{GRID} cells to catch the full-grid snap trap, got {}",
+            host.sheets[0].cells.len()
+        );
+
+        let mut registry = CommandRegistry::new();
+        register_cell_commands(&mut registry);
+        let mut session = EditSession::new(host, EditHistory::new());
+        for i in 0..EDITS {
+            let script = json!({
+                "id": "cells-1m-edit-trap",
+                "format": "xlsx",
+                "fixture": "gen-xlsx-cells-1m",
+                "ops": [{
+                    "op": "setCellInput",
+                    "sheet": 0,
+                    "row": i as u32,
+                    "col": 0,
+                    "text": format!("e{i}"),
+                }],
+            });
+            let one: EditScript = serde_json::from_value(script).expect("script");
+            let report = replay_script(&one, &registry, &mut session);
+            assert_eq!(report.status, "ok", "edit {i}: {report:?}");
         }
-        let script = json!({
-            "id": "cells-1m-edit-trap",
-            "format": "xlsx",
-            "fixture": "gen-xlsx-cells-1m",
-            "ops": ops,
-        });
-        let script_json = serde_json::to_string(&script).unwrap();
-        let (report, mut session) =
-            replay_xlsx_session(&bytes, &script_json).expect("cells_1m edit session");
-        assert_eq!(report.status, "ok", "report={report:?}");
-        assert_eq!(session.history.done().len(), N);
+        assert_eq!(session.history.done().len(), EDITS);
 
         // Full-grid snap was tens of MiB; scoped cell snaps must stay tiny.
         const MAX_ENTRY: usize = 64 * 1024;
@@ -644,7 +685,6 @@ mod tests {
             session.undo();
         }
         assert!(!session.can_undo());
-        // First edited cell should be restored (empty / prior value, not e0).
         let cell0 = session.host.sheets[0]
             .cells
             .iter()

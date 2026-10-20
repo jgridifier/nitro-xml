@@ -329,6 +329,11 @@ impl<'a> Presentation<'a> {
         Ok(self.slides[index].as_ref().expect("parsed"))
     }
 
+    /// Already-parsed slide, or `None` without forcing a parse (O(visible) open path).
+    pub fn slide_if_loaded(&self, index: usize) -> Option<&Slide> {
+        self.slides.get(index).and_then(|s| s.as_ref())
+    }
+
     pub fn ensure_all_slides(&mut self) -> Result<(), Error> {
         for i in 0..self.slide_paths.len() {
             if self.slides[i].is_none() {
@@ -1634,6 +1639,36 @@ mod tests {
         }
         zip.finish().unwrap();
         cursor.into_inner()
+    }
+
+    #[test]
+    fn open_parses_only_first_slide() {
+        // Catches: Presentation::open (or viewer unsupported_labels) calling
+        // ensure_all_slides so first view is O(slide count) instead of O(visible).
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/pptx/slides_200.pptx");
+        let bytes = std::fs::read(&path).expect("slides_200 fixture");
+        let t0 = std::time::Instant::now();
+        let mut opened = Presentation::open(&bytes).expect("open");
+        let open_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        let loaded = (0..opened.slide_count())
+            .filter(|&i| opened.slide_if_loaded(i).is_some())
+            .count();
+        assert_eq!(loaded, 1, "open must parse only slide 0");
+        assert_eq!(opened.slide_count(), 200);
+        let t1 = std::time::Instant::now();
+        opened.ensure_all_slides().expect("ensure_all");
+        let ensure_all_ms = t1.elapsed().as_secs_f64() * 1000.0;
+        let loaded_all = (0..opened.slide_count())
+            .filter(|&i| opened.slide_if_loaded(i).is_some())
+            .count();
+        assert_eq!(loaded_all, 200);
+        // Sanity: full parse is materially more work than first-slide open.
+        assert!(
+            ensure_all_ms > open_ms,
+            "ensure_all ({ensure_all_ms:.1}ms) should exceed open ({open_ms:.1}ms)"
+        );
+        eprintln!("pptx slides_200 open_ms={open_ms:.2} ensure_all_ms={ensure_all_ms:.2}");
     }
 
     // Catches: SVG data URL missing preserveAspectRatio=none so stretch/fillRect letterboxes.

@@ -275,12 +275,16 @@ impl PptxState {
     }
 
     /// Kinds the slide parser did not turn into elements (unsupported content).
+    ///
+    /// Scans **already-loaded** slides only so viewer open stays O(visible).
+    /// Full-deck search still calls [`Presentation::ensure_all_slides`] separately.
     pub fn unsupported_labels(&mut self) -> Result<Vec<String>, String> {
-        self.pres.ensure_all_slides().map_err(|e| e.to_string())?;
         let mut set = BTreeSet::new();
         let n = self.pres.slide_count();
         for i in 0..n {
-            let slide = self.pres.slide(i).map_err(|e| e.to_string())?;
+            let Some(slide) = self.pres.slide_if_loaded(i) else {
+                continue;
+            };
             for kind in &slide.other_kinds {
                 set.insert(kind.clone());
             }

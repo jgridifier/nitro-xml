@@ -8,6 +8,10 @@ import { applyCommandBuffer } from "../apply.js";
 import { fillMeasureWidths } from "../measure.js";
 
 export async function tickBody(doc) {
+  if (!doc.constructor._nxPark) {
+    const { patch } = await import("./wp.js");
+    patch(doc.constructor);
+  }
   doc._events.flushNow();
   const layoutReads = await doc._flushPendingLayout();
   const frame = await doc._request("frame", () => {

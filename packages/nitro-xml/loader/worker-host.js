@@ -238,11 +238,8 @@ release();
 }
 dispose() {
 this._events.flushNow();
-try {
-this._worker.postMessage({ type: "dispose" });
-} catch {
-}
-this._worker.terminate();
+try{this._worker.postMessage({type:"dispose"});}catch{}
+takePrewarmedWorker(this._worker);this._worker=null;
 }
 async _flushPendingLayout() {
 const reqs = this._pendingLayoutReqs;

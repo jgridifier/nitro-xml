@@ -130,7 +130,8 @@ return prewarmedWorker;
 return null;
 }
 }
-export function takePrewarmedWorker() {
+export function takePrewarmedWorker(park) {
+if(park){prewarmedWorker=park;return}
 const w = prewarmedWorker;
 prewarmedWorker = null;
 return w;

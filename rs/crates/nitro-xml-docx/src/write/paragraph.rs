@@ -83,6 +83,7 @@ pub fn write_paragraph(
         }
     }
 
+    sync_num_pr(&mut out, paragraph);
     if let Some(p_pr) = first_w_mut(&mut out, "pPr") {
         if p_pr.children.is_empty() {
             out.children
@@ -91,6 +92,41 @@ pub fn write_paragraph(
     }
 
     Ok(out)
+}
+
+/// `w:numPr` follows the block's `numbering` field. Absent numbering drops a stale `numPr`.
+fn sync_num_pr(out: &mut Element, paragraph: &Value) {
+    let numbering = paragraph.get("numbering").filter(|n| !n.is_null());
+    let has_num_pr = first_w_mut(out, "pPr")
+        .and_then(|p| first_w_mut(p, "numPr"))
+        .is_some();
+    if numbering.is_none() && !has_num_pr {
+        return;
+    }
+    if first_w_mut(out, "pPr").is_none() {
+        out.children.insert(0, Node::Element(make_w("pPr")));
+    }
+    let p_pr = first_w_mut(out, "pPr").expect("pPr");
+    remove_w_children(p_pr, "numPr");
+    let Some(numbering) = numbering else {
+        return;
+    };
+    let num_id = numbering
+        .get("numId")
+        .and_then(|v| v.as_u64().or_else(|| v.as_i64().map(|n| n as u64)))
+        .unwrap_or(1);
+    let level = numbering
+        .get("level")
+        .and_then(|v| v.as_u64().or_else(|| v.as_i64().map(|n| n as u64)))
+        .unwrap_or(0);
+    let mut ilvl = make_w("ilvl");
+    set_w_attr(&mut ilvl, "val", &level.to_string());
+    let mut num_id_el = make_w("numId");
+    set_w_attr(&mut num_id_el, "val", &num_id.to_string());
+    let mut num_pr = make_w("numPr");
+    num_pr.children.push(Node::Element(ilvl));
+    num_pr.children.push(Node::Element(num_id_el));
+    p_pr.children.insert(0, Node::Element(num_pr));
 }
 
 pub fn create_paragraph(paragraph: &Value) -> Result<Element, String> {

@@ -307,6 +307,31 @@ mod tests {
     }
 
     #[test]
+    fn catches_docx_numbering_missing_after_reopen() {
+        // Catches: Word numbering leaving the saved package without w:numPr, or undo keeping the list.
+        let mut h = open_editable(DOCX, "pages.docx");
+        h.shell_action("cmd", "home.numbering").expect("numbering");
+        let saved = h.save_document().expect("save");
+        assert_ne!(saved, DOCX);
+        let again = open_editable(&saved, "pages.docx");
+        let numbered = again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .any(|b| b.get("numbering").is_some());
+        assert!(numbered, "numbering missing after reopen");
+        h.apply_edit(r#"{"command":"edit.undo"}"#).expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
+    }
+
+    #[test]
     fn catches_docx_align_and_typing_missing_after_reopen() {
         // Catches: paragraph align and a typed character never reaching word/document.xml.
         let mut h = open_editable(DOCX, "pages.docx");

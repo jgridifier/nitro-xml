@@ -32,7 +32,7 @@ describe("embedded pptx and docx toolbars", () => {
     const bound = cmds("docx");
     assert.ok(bound.length >= 12);
     for (const id of bound) assert.ok(docxRibbon.includes(`id: "${id}"`), `${id} is not on the docx ribbon`);
-    for (const id of ["file.save", "edit.undo", "home.bold", "home.font-color", "home.align-justify", "insert.table", "table.insert-row", "table.delete-row", "table.insert-column", "table.delete-column", "table.delete"]) {
+    for (const id of ["file.save", "edit.undo", "home.bold", "home.font-color", "home.align-justify", "home.numbering", "insert.table", "table.insert-row", "table.delete-row", "table.insert-column", "table.delete-column", "table.delete"]) {
       assert.ok(bound.includes(id), `missing embedded docx command ${id}`);
     }
     assert.ok(!bound.includes("insert.slide"));

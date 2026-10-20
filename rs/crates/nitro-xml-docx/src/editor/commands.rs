@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 
 use crate::edit::format::{set_paragraph_align, set_run_formatting};
 use crate::edit::host::DocxHost;
+use crate::edit::numbering::{apply_numbering, ensure_list_definition};
 use crate::edit::register_docx_command_registry;
 use crate::edit::table::{
     delete_table, delete_table_column, delete_table_row, insert_table, insert_table_column,
@@ -51,6 +52,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("align-center", "Center", None, true),
     word_cmd!("align-right", "Align Right", None, true),
     word_cmd!("align-justify", "Justify", None, true),
+    word_cmd!("numbering", "Numbering", None, true),
     word_cmd!("insert.table", "Table", None, true),
     word_cmd!("font-size", "Font Size", None, true),
     word_cmd!("font-color", "Font Color", None, true),
@@ -257,6 +259,20 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         set_paragraph_align(h, caret_block, align)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "numbering" => {
+                session.run(
+                    String::from("numbering"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        let id = ensure_list_definition(h, "decimal")?;
+                        apply_numbering(h, caret_block, id, 0)?;
                         Ok(())
                     },
                 )?;

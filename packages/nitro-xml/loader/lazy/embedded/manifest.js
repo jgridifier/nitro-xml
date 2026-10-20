@@ -63,6 +63,10 @@ export const MANIFEST = {
       font,
       align,
       {
+        id: "Lists",
+        items: [cmd("home.numbering", "numbering", "Numbering")],
+      },
+      {
         id: "Tables",
         items: [
           cmd("insert.table", "table", "Table", "Insert a table"),

@@ -94,6 +94,7 @@ describe("Office ribbon manifests", () => {
       "home.align-center",
       "home.align-right",
       "home.align-justify",
+      "home.numbering",
       "home.font-size",
       "home.font-color",
       "insert.table",
@@ -110,7 +111,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("home.font-color"));
     assert.ok(bound.includes("home.bold"));
     assert.ok(bound.includes("home.align-justify"));
-    assert.ok(!bound.includes("home.bullets"), "Word numbering.xml is not written");
+    assert.ok(bound.includes("home.numbering"));
+    assert.ok(!bound.includes("home.bullets"), "Word bullets stay off until a bullet definition is on the ribbon");
     assert.ok(!bound.includes("insert.slide"));
     assert.ok(!bound.includes("insert.text-box"));
   });

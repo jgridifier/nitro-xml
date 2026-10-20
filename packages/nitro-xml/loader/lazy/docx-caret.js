@@ -173,13 +173,21 @@ export function attach(el) {
     return boundaryRect(e.s, Math.max(0, Math.min(e.n, t - e.start)));
   };
 
+  // WebKit often reports a 0-height range on the same turn the page is replaced.
+  // One failed place() used to leave the bar at display:none for the click check.
+  let placeTries = 0;
   const place = () => {
     const r = rectOf();
     const d = dom.getBoundingClientRect();
     if (!r || !r.h) {
       bar.style.display = "none";
+      if (caret && placeTries < 12) {
+        placeTries++;
+        requestAnimationFrame(() => place());
+      }
       return;
     }
+    placeTries = 0;
     if (reveal) {
       reveal = false;
       const pad = 24;

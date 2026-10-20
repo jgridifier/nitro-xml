@@ -133,9 +133,19 @@ export const MANIFEST = {
           cmd("insert.move-slide-up", "chevUp", "Move slide up"),
           cmd("insert.move-slide-down", "chevDown", "Move slide down"),
           cmd("insert.text-box", "text", "Text box"),
+          cmd("insert.shape", "shape", "Shape", "Insert a shape"),
           cmd("insert.picture", "picture", "Picture", "Insert a picture"),
           cmd("home.layout", "layout", "Layout", "Change slide layout"),
           cmd("home.delete-slide", "trash", "Delete slide"),
+        ],
+      },
+      {
+        id: "Arrange",
+        items: [
+          cmd("home.duplicate", "duplicate", "Duplicate", "Duplicate shape"),
+          cmd("home.delete", "trash", "Delete", "Delete shape"),
+          cmd("home.bring-forward", "forward", "Bring forward"),
+          cmd("home.send-backward", "back", "Send backward"),
         ],
       },
       {

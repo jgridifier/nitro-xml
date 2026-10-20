@@ -34,4 +34,5 @@ export const ICONS = {
   rowDel: '<path d="M4 6h16v5H4zM4 13h16v5H4z"/><path class="a" d="M8 12h8"/>',
   colAdd: '<path d="M6 4h5v16H6zM13 4h5v16h-5z"/><path class="a" d="M8 12h8M12 8v8"/>',
   colDel: '<path d="M6 4h5v16H6zM13 4h5v16h-5z"/><path class="a" d="M8 12h8"/>',
+  tableDel: '<rect x="3" y="4" width="14" height="12" rx="1"/><path d="M3 8h14M8 4v12"/><path class="a" d="M16 16l5 5M21 16l-5 5"/>',
 };

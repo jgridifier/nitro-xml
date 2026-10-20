@@ -74,6 +74,7 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
             surface,
             false,
         ));
+        html.push_str(&button("table.delete", "Delete Table", surface, false));
         html.push_str("</section>");
         html.push_str("<section class=\"dve-ribbon-group\" aria-label=\"Editing\">");
         html.push_str(&button("find-and-replace", "Find", surface, false));

@@ -105,4 +105,34 @@ mod tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].as_array().expect("row").len(), 2);
     }
+
+    #[test]
+    fn catches_deleted_table_still_present_after_reopen() {
+        // Catches: deleting a table leaving its w:tbl in word/document.xml.
+        let bytes = include_bytes!("../../../../../fixtures/generated/docx/pages_10.docx");
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        let before_blocks = host.blocks.len();
+        let before = host
+            .blocks
+            .iter()
+            .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+            .count();
+        assert!(before >= 1, "fixture has no table to delete");
+        let at = host
+            .blocks
+            .iter()
+            .position(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+            .expect("table");
+        crate::edit::table::delete_table(&mut host, at).expect("delete");
+        let saved = save_docx(&host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let again = DocxHost::open(&saved).expect("reopen");
+        let after = again
+            .blocks
+            .iter()
+            .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+            .count();
+        assert_eq!(after, before - 1, "reopen still has the deleted table");
+        assert_eq!(again.blocks.len(), before_blocks - 1);
+    }
 }

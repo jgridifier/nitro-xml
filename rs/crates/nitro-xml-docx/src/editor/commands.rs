@@ -12,7 +12,8 @@ use crate::edit::format::{set_paragraph_align, set_run_formatting};
 use crate::edit::host::DocxHost;
 use crate::edit::register_docx_command_registry;
 use crate::edit::table::{
-    delete_table_column, delete_table_row, insert_table, insert_table_column, insert_table_row,
+    delete_table, delete_table_column, delete_table_row, insert_table, insert_table_column,
+    insert_table_row,
 };
 use crate::editor::print_edit::schedule_relayout;
 use crate::editor::search::SearchController;
@@ -56,6 +57,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("table.delete-row", "Delete Row", None, true),
     word_cmd!("table.insert-column", "Insert Column", None, true),
     word_cmd!("table.delete-column", "Delete Column", None, true),
+    word_cmd!("table.delete", "Delete Table", None, true),
     word_cmd!("print", "Print", Some("Ctrl+P"), false),
     word_cmd!("layout-view", "Print Layout", None, false),
     word_cmd!("paste", "Paste", Some("Ctrl+V"), true),
@@ -288,6 +290,22 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     move |h| -> Result<(), EditError> {
                         set_run_formatting(h, caret_block, caret_run, &patch)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "table.delete" => {
+                let Ok(at) = first_table(&session.host) else {
+                    return Ok(());
+                };
+                session.run(
+                    "table.delete",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    move |h| -> Result<(), EditError> {
+                        delete_table(h, at)?;
                         Ok(())
                     },
                 )?;

@@ -67,7 +67,9 @@ pub fn children_w<'a>(parent: &'a Element, local: &str) -> Vec<&'a Element> {
         .collect()
 }
 
-/// Replace body `w:p` / `w:tbl` nodes in order; extra outputs insert before the trailing `w:sectPr`.
+/// Replace body `w:p` / `w:tbl` nodes in order. Extra outputs insert before the
+/// trailing `w:sectPr`. Body blocks the model no longer has (a deleted table)
+/// are removed.
 pub fn replace_body_blocks(body: &mut Element, outputs: &[Element]) {
     let sect_pr = body
         .children
@@ -89,6 +91,15 @@ pub fn replace_body_blocks(body: &mut Element, outputs: &[Element]) {
             }
         }
     }
+
+    let mut seen = 0usize;
+    body.children.retain(|child| match child {
+        Node::Element(e) if is_body_block(e) => {
+            seen += 1;
+            seen <= outputs.len()
+        }
+        _ => true,
+    });
 
     if out_i < outputs.len() {
         let insert_at = body.children.len();

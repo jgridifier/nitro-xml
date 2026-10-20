@@ -122,6 +122,35 @@ pub fn insert_table(
     Ok(at)
 }
 
+/// Remove a whole table block. The writer drops the matching `w:tbl`.
+pub fn delete_table(host: &mut DocxHost, block_index: usize) -> Result<(), EditError> {
+    let ty = host
+        .blocks
+        .get(block_index)
+        .and_then(|b| b.get("type"))
+        .and_then(|t| t.as_str())
+        .unwrap_or("");
+    if ty != "table" {
+        return Err(EditError::Other {
+            message: format!("block {block_index} is not a table"),
+        });
+    }
+    host.blocks.remove(block_index);
+    let mut shifted = BTreeSet::new();
+    for index in host.touched.iter().copied() {
+        if index == block_index {
+            continue;
+        }
+        shifted.insert(if index > block_index {
+            index - 1
+        } else {
+            index
+        });
+    }
+    host.touched = shifted;
+    Ok(())
+}
+
 pub fn insert_table_row(
     host: &mut DocxHost,
     block_index: usize,

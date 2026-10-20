@@ -31,7 +31,7 @@ describe("Office ribbon manifests", () => {
   });
 
   it("lists only PowerPoint commands that change the saved package", () => {
-    // Catches: a PowerPoint button for insert.table, which the writer still rejects.
+    // Catches: a PowerPoint button whose command does not rewrite the package (bullets, notes).
     const bound = [...ids(tabsFor("pptx", "Slide", true)), ...QAT.map((x) => x.c)];
     const allowed = new Set([
       "file.save",
@@ -46,15 +46,32 @@ describe("Office ribbon manifests", () => {
       "home.font-size",
       "home.font-color",
       "insert.text-box",
+      "insert.table",
+      "table.insert-row",
+      "table.delete-row",
+      "table.insert-column",
+      "table.delete-column",
       "insert.slide",
       "insert.duplicate-slide",
+      "insert.move-slide-up",
+      "insert.move-slide-down",
       "home.delete-slide",
     ]);
     for (const id of bound) assert.ok(allowed.has(id), `unexpected pptx command ${id}`);
-    for (const id of ["insert.slide", "insert.duplicate-slide", "home.delete-slide", "insert.text-box", "home.bold", "home.font-size"]) {
+    for (const id of [
+      "insert.slide",
+      "insert.duplicate-slide",
+      "insert.move-slide-down",
+      "home.delete-slide",
+      "insert.text-box",
+      "insert.table",
+      "table.insert-row",
+      "home.bold",
+      "home.font-size",
+      "home.font-color",
+    ]) {
       assert.ok(bound.includes(id), `missing pptx command ${id}`);
     }
-    assert.ok(!bound.includes("insert.table"));
   });
 
   it("lists only Word commands that change the saved package", () => {
@@ -77,10 +94,12 @@ describe("Office ribbon manifests", () => {
       "table.delete-row",
       "table.insert-column",
       "table.delete-column",
+      "table.delete",
     ]);
     for (const id of bound) assert.ok(allowed.has(id), `unexpected docx command ${id}`);
     assert.ok(bound.includes("insert.table"));
     assert.ok(bound.includes("table.insert-row"));
+    assert.ok(bound.includes("table.delete"));
     assert.ok(bound.includes("home.font-color"));
     assert.ok(bound.includes("home.bold"));
     assert.ok(!bound.includes("insert.slide"));

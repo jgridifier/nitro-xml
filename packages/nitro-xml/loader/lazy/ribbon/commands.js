@@ -2,7 +2,7 @@
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
 // Every `c` id below was checked against the engine (the saved bytes change); anything the editor
-// registers but does not implement (cut, paste, fill, borders, insert rows) is deliberately absent.
+// registers but does not implement (cut, paste, fill, borders, bullets) is deliberately absent.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
 //   c editor cmd id · d diagnostics toggle · s slide-pane toggle (host) · m dropdown entries · r readout
 //   g group caption · big: large buttons · rows: stacked small buttons · sm: small button style
@@ -123,8 +123,20 @@ export function tabsFor(format, unit, edit) {
                 big: [
                   it("insert.slide", "slide", "New Slide"),
                   it("insert.duplicate-slide", "duplicate", "Duplicate Slide"),
+                  it("insert.move-slide-up", "chevUp", "Move Slide Up"),
+                  it("insert.move-slide-down", "chevDown", "Move Slide Down"),
                   it("insert.text-box", "text", "Text Box"),
                   it("home.delete-slide", "trash", "Delete Slide"),
+                ],
+              },
+              {
+                g: "Tables",
+                big: [
+                  it("insert.table", "table", "Table", "Insert a table"),
+                  it("table.insert-row", "rowAdd", "Insert Row"),
+                  it("table.delete-row", "rowDel", "Delete Row"),
+                  it("table.insert-column", "colAdd", "Insert Column"),
+                  it("table.delete-column", "colDel", "Delete Column"),
                 ],
               },
             ],
@@ -132,13 +144,19 @@ export function tabsFor(format, unit, edit) {
         : format === "docx" && edit
           ? {
               Home: officeHome,
-              Insert: [{ g: "Tables", big: [
-                it("insert.table", "table", "Table", "Insert a table"),
-                it("table.insert-row", "rowAdd", "Insert Row"),
-                it("table.delete-row", "rowDel", "Delete Row"),
-                it("table.insert-column", "colAdd", "Insert Column"),
-                it("table.delete-column", "colDel", "Delete Column"),
-              ] }],
+              Insert: [
+                {
+                  g: "Tables",
+                  big: [
+                    it("insert.table", "table", "Table", "Insert a table"),
+                    it("table.insert-row", "rowAdd", "Insert Row"),
+                    it("table.delete-row", "rowDel", "Delete Row"),
+                    it("table.insert-column", "colAdd", "Insert Column"),
+                    it("table.delete-column", "colDel", "Delete Column"),
+                    it("table.delete", "tableDel", "Delete Table"),
+                  ],
+                },
+              ],
             }
           : viewOnly;
   tabs.View = view(format === "pptx");

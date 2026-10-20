@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 
 use crate::edit::host::PptxHost;
 use crate::edit::shapes::register_shape_commands;
+use crate::edit::table::register_table_commands;
 use crate::edit::text::register_text_commands;
 use crate::editor::selection::SelectionState;
 
@@ -57,8 +58,14 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("insert.shape", "Shape", None, true),
     pptx_cmd!("insert.text-box", "Text Box", None, true),
     pptx_cmd!("insert.table", "Table", None, true),
+    pptx_cmd!("table.insert-row", "Insert Row", None, true),
+    pptx_cmd!("table.delete-row", "Delete Row", None, true),
+    pptx_cmd!("table.insert-column", "Insert Column", None, true),
+    pptx_cmd!("table.delete-column", "Delete Column", None, true),
     pptx_cmd!("insert.slide", "New Slide", None, true),
     pptx_cmd!("insert.duplicate-slide", "Duplicate Slide", None, true),
+    pptx_cmd!("insert.move-slide-up", "Move Slide Up", None, true),
+    pptx_cmd!("insert.move-slide-down", "Move Slide Down", None, true),
     pptx_cmd!("home.delete-slide", "Delete Slide", None, true),
 ];
 
@@ -75,8 +82,7 @@ impl PptxCommandSurface {
         register_shape_commands(&mut registry);
         register_text_commands(&mut registry);
         register_editor_commands(&mut registry);
-        // TODO(#85): register_table_commands when table insert writes a real part.
-        // TODO(#86): slide/notes insert-delete commands when merged.
+        register_table_commands(&mut registry);
         let mut meta = BTreeMap::new();
         for m in PPTX_EDITOR_COMMANDS {
             meta.insert(m.id.to_string(), m.clone());
@@ -327,8 +333,58 @@ impl PptxCommandSurface {
                 selection.select(std::iter::once(id));
                 Ok(())
             }
-            // TODO(#85): table insert still has no slide-table writer.
-            "insert.table" => Err(EditError::unsupported(id)),
+            "insert.table" => {
+                let slide = selection.slide_index;
+                let n = session
+                    .host
+                    .slide(slide)
+                    .map(|s| s.elements.len())
+                    .unwrap_or(0);
+                let id = format!("table-{slide}-{n}");
+                session.run(
+                    "insert.table",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |host| -> Result<(), EditError> {
+                        host.add_table(slide, &id, 80.0, 80.0, 360.0, 120.0)
+                            .map_err(|e| EditError::Other { message: e })?;
+                        Ok(())
+                    },
+                )?;
+                selection.select(std::iter::once(id));
+                Ok(())
+            }
+            "table.insert-row"
+            | "table.delete-row"
+            | "table.insert-column"
+            | "table.delete-column" => dispatch_table_structure(id, selection, session),
+            "insert.move-slide-up" | "insert.move-slide-down" => {
+                let from = selection.slide_index;
+                let len = session.host.slides.len() as u32;
+                let to = if id == "insert.move-slide-up" {
+                    if from == 0 {
+                        return Ok(());
+                    }
+                    from - 1
+                } else {
+                    if from + 1 >= len {
+                        return Ok(());
+                    }
+                    from + 1
+                };
+                session.run(
+                    id.to_string(),
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    move |host| -> Result<(), EditError> {
+                        host.reorder_slide(from, to)
+                            .map_err(|e| EditError::Other { message: e })?;
+                        Ok(())
+                    },
+                )?;
+                selection.set_slide(to);
+                Ok(())
+            }
             "insert.slide" => {
                 let at = selection.slide_index.saturating_add(1);
                 session.run(
@@ -419,6 +475,84 @@ impl PptxCommandSurface {
             })
             .map(|_| ())
     }
+}
+
+fn dispatch_table_structure(
+    id: &str,
+    selection: &SelectionState,
+    session: &mut EditSession<PptxHost, EditHistory>,
+) -> Result<(), EditError> {
+    let slide = selection.slide_index;
+    let planned = {
+        let host = &session.host;
+        let element_id = match table_target(host, selection) {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        let table = host
+            .slide(slide)
+            .ok()
+            .and_then(|s| s.elements.iter().find(|el| el.id == element_id))
+            .and_then(|el| el.table.as_ref());
+        let Some(table) = table else {
+            return Ok(());
+        };
+        let rows = table.rows.len();
+        let cols = table.column_widths.len();
+        let plan = match id {
+            "table.insert-row" if rows > 0 => Some((rows - 1, 0usize, "below")),
+            "table.delete-row" if rows > 1 => Some((rows - 1, 0, "")),
+            "table.insert-column" if cols > 0 => Some((0, cols - 1, "right")),
+            "table.delete-column" if cols > 1 => Some((0, cols - 1, "")),
+            _ => None,
+        };
+        plan.map(|(row, col, position)| (element_id, row as u32, col as u32, position.to_string()))
+    };
+    let Some((element_id, row, col, position)) = planned else {
+        return Ok(());
+    };
+    let op = id.to_string();
+    session.run(
+        op.clone(),
+        ChangeKind::Structure,
+        vec![EditScope::Workbook],
+        move |host| -> Result<(), EditError> {
+            let result = match op.as_str() {
+                "table.insert-row" => {
+                    host.insert_slide_row(slide, Some(&element_id), None, row, &position)
+                }
+                "table.delete-row" => host.delete_slide_row(slide, Some(&element_id), None, row),
+                "table.insert-column" => {
+                    host.insert_slide_column(slide, Some(&element_id), None, col, &position)
+                }
+                "table.delete-column" => {
+                    host.delete_slide_column(slide, Some(&element_id), None, col)
+                }
+                _ => Ok(()),
+            };
+            result.map_err(|e| EditError::Other { message: e })?;
+            Ok(())
+        },
+    )?;
+    Ok(())
+}
+
+fn table_target(host: &PptxHost, selection: &SelectionState) -> Option<String> {
+    let slide = host.slide(selection.slide_index).ok()?;
+    if let Some(id) = selection.primary_id() {
+        if slide
+            .elements
+            .iter()
+            .any(|el| el.id == id && el.type_ == "table")
+        {
+            return Some(id.to_owned());
+        }
+    }
+    slide
+        .elements
+        .iter()
+        .find(|el| el.type_ == "table")
+        .map(|el| el.id.clone())
 }
 
 fn kind_for_op(id: &str) -> ChangeKind {

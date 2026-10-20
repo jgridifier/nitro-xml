@@ -568,6 +568,9 @@ impl Handle {
         if op == "cmd" {
             return self.dispatch_chrome_command(arg);
         }
+        if op == "docx-caret" {
+            return self.docx_caret(arg);
+        }
         if op == "ui" || op.is_empty() {
             self.refresh_formula_bar();
             let ui = ShellUi::to_json(&self.shell, &self.editor);
@@ -1361,6 +1364,7 @@ impl Handle {
         meta: bool,
         alt: bool,
     ) -> Result<String, JsValue> {
+        let mut moved = false;
         let handled = if let Some(pptx) = self.pptx.as_mut() {
             pptx.ensure_edit(&self.bytes)
                 .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
@@ -1369,8 +1373,17 @@ impl Handle {
         } else if let Some(docx) = self.docx.as_mut() {
             docx.ensure_edit(&self.bytes)
                 .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
-            docx.type_key(key, ctrl, meta, alt)
+            match docx
+                .type_key(key, ctrl, meta, alt)
                 .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?
+            {
+                crate::docx_edit::KeyOutcome::Ignored => false,
+                crate::docx_edit::KeyOutcome::Moved => {
+                    moved = true;
+                    true
+                }
+                crate::docx_edit::KeyOutcome::Edited => true,
+            }
         } else {
             return Err(JsValue::from(OoxmlError::with_code(
                 "no_document",
@@ -1380,18 +1393,25 @@ impl Handle {
         if !handled {
             return Ok(editor_key_json(EditorKeyEffect::Ignored, None));
         }
-        self.refresh_office_view()?;
-        self.sync_office_tabs();
-        process_frame(self);
-        self.refresh_formula_bar();
-        self.shell.dirty_ui = true;
         let mut payload: serde_json::Value =
             serde_json::from_str(&editor_key_json(EditorKeyEffect::Handled, None))
                 .unwrap_or(serde_json::json!({}));
-        let ui = ShellUi::to_json(&self.shell, &self.editor);
-        if let Some(obj) = payload.as_object_mut() {
-            if let Some(h) = ui.get("chromeHtml").and_then(|v| v.as_str()) {
-                obj.insert("h".into(), serde_json::Value::String(h.to_owned()));
+        if !moved {
+            self.refresh_office_view()?;
+            self.sync_office_tabs();
+            process_frame(self);
+            self.refresh_formula_bar();
+            self.shell.dirty_ui = true;
+            let ui = ShellUi::to_json(&self.shell, &self.editor);
+            if let Some(obj) = payload.as_object_mut() {
+                if let Some(h) = ui.get("chromeHtml").and_then(|v| v.as_str()) {
+                    obj.insert("h".into(), serde_json::Value::String(h.to_owned()));
+                }
+            }
+        }
+        if let (Some(docx), Some(obj)) = (self.docx.as_mut(), payload.as_object_mut()) {
+            if let Some(k) = docx.caret_json() {
+                obj.insert("k".into(), k);
             }
         }
         Ok(payload.to_string())
@@ -1492,6 +1512,26 @@ impl Handle {
             process_frame(self);
         }
         Ok(self.chrome_payload(save))
+    }
+
+    /// Docx caret: `bid:before:total` places it from a pointer hit, anything else just reads it.
+    /// Returns `{ k: [block id, chars before caret, chars in paragraph] }`.
+    fn docx_caret(&mut self, arg: &str) -> Result<String, JsValue> {
+        let Some(docx) = self.docx.as_mut() else {
+            return Ok("{}".into());
+        };
+        if self.editor.read_only() {
+            return Ok("{}".into());
+        }
+        docx.ensure_edit(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+        let mut it = arg.rsplitn(3, ':');
+        let total = it.next().and_then(|v| v.parse::<usize>().ok());
+        let before = it.next().and_then(|v| v.parse::<usize>().ok());
+        if let (Some(total), Some(before), Some(bid)) = (total, before, it.next()) {
+            docx.set_caret_from_view(bid, before, total);
+        }
+        Ok(serde_json::json!({ "k": docx.caret_json() }).to_string())
     }
 
     fn dispatch_chrome_command(&mut self, id: &str) -> Result<String, JsValue> {

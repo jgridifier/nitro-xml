@@ -24,6 +24,8 @@ pub struct DocxState {
     pub edit: Option<nitro_xml_docx::DocxEditor>,
     /// Defer full-body parse until after first paint (xlsx SeekTail analogue).
     pending_body_complete: bool,
+    /// Last coalescible edit (typing / deleting), see `docx_edit`.
+    pub(crate) typing: Option<crate::docx_edit::Typing>,
 }
 
 impl DocxState {
@@ -39,6 +41,7 @@ impl DocxState {
             zoom: 1.0,
             edit: None,
             pending_body_complete,
+            typing: None,
         })
     }
 

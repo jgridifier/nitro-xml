@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "race:parse": "node run.mjs"
+    "race:parse": "node run.mjs",
+    "selftest": "node races/parse/selftest.mjs",
+    "gate": "node races/parse/gate.mjs"
   },
   "dependencies": {
     "docx-preview": "0.4.1",

@@ -1,0 +1,10 @@
+{
+  "$comment": "SPDX-License-Identifier: MIT. Pinned parse-race defaults for reproducible CI and local runs. Override only via CLI flags when debugging.",
+  "seed": 20261011,
+  "warmupRuns": 2,
+  "timedRuns": 11,
+  "timeoutMs": 180000,
+  "chromePath": "/usr/bin/google-chrome",
+  "formats": ["xlsx", "docx", "pptx"],
+  "whyTimedRuns": "11 timed runs (was 7 in the first published run) lowers median noise on shared runners while keeping wall time practical for the 90-file real corpus."
+}

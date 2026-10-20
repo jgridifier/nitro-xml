@@ -20,18 +20,19 @@ import { median, summarise } from './lib/summary.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..', '..');
+const defaults = JSON.parse(readFileSync(join(here, 'races', 'parse', 'defaults.json'), 'utf8'));
 const args = Object.fromEntries(
 	process.argv.slice(2).map((a) => {
 		const [k, v] = a.replace(/^--/, '').split('=');
 		return [k, v ?? 'true'];
 	}),
 );
-const RUNS = Number(args.runs ?? 7);
-const WARMUP = Number(args.warmup ?? 2);
-const SEED = Number(args.seed ?? 20261011);
-const CHROME = args.chrome ?? process.env.CHROME_PATH ?? '/usr/bin/google-chrome';
-const TIMEOUT_MS = Number(args.timeout ?? 180000);
-const FORMATS = args.format ? args.format.split(',') : ['xlsx', 'docx', 'pptx'];
+const RUNS = Number(args.runs ?? defaults.timedRuns);
+const WARMUP = Number(args.warmup ?? defaults.warmupRuns);
+const SEED = Number(args.seed ?? defaults.seed);
+const CHROME = args.chrome ?? process.env.CHROME_PATH ?? defaults.chromePath ?? '/usr/bin/google-chrome';
+const TIMEOUT_MS = Number(args.timeout ?? defaults.timeoutMs ?? 180000);
+const FORMATS = args.format ? args.format.split(',') : [...defaults.formats];
 const CHROME_FLAGS = ['--enable-precise-memory-info', '--js-flags=--expose-gc', '--disable-renderer-backgrounding', '--disable-background-timer-throttling'];
 
 const competitors = JSON.parse(readFileSync(join(here, 'competitors.json'), 'utf8'));
@@ -248,6 +249,8 @@ const result = {
 	method: {
 		warmupRuns: WARMUP,
 		timedRuns: RUNS,
+		seed: SEED,
+		defaults: 'perf/scoreboard/races/parse/defaults.json',
 		timer: 'performance.now() around parse() only; bytes already in memory; a fresh copy of the bytes per run, made outside the timed span',
 		gcBetweenRuns: 'gc() (--expose-gc) before every run, outside the timed span',
 		isolation: 'fresh browser context and page per (file, entrant)',
@@ -255,6 +258,7 @@ const result = {
 		memory: 'approximate: performance.memory.usedJSHeapSize just before and just after the last timed parse (model retained), plus wasm linear memory size for wasm entrants; not a peak measurement',
 		reference: REFERENCE,
 		equivalence: 'see docs/scoreboard-method.md#equivalence',
+		methodDoc: 'docs/scoreboard-method.md',
 	},
 	entrants,
 	evaluated: competitors.evaluated,

@@ -31,6 +31,16 @@ export const CSS = `
 .nx-pop .nx-l{display:inline}
 :host([data-nx]) .chrome .b,:host([data-nx]) .chrome .d,:host([data-nx]) .chrome .xve-ribbon,:host([data-nx]) .chrome .xfb-save{display:none!important}
 :host([data-nx=pptx]) .chrome .t,:host([data-nx=docx]) .chrome .t{display:none}
+@media(pointer:coarse){
+.nx{height:52px}
+.nx-b{min-width:44px;height:44px}
+.nx[data-size=compact] .nx-b{min-width:40px}
+.nx-g:not(:last-of-type)::after{top:12px;bottom:12px}
+.chrome .t button{padding:13px 14px}
+.chrome .f input,.chrome .f button{height:44px}
+.chrome .f button{min-width:44px}
+}
+@media(max-width:480px){.nx{padding:0 4px}.nx-g{margin-right:2px;padding-right:2px}}
 .chrome .f{background:var(--nx-bg,#f3f2f1)}
 .chrome .t{gap:2px;padding:0 6px;border-top:1px solid var(--nx-border,#d1d1d1);border-bottom:0;background:var(--nx-bg,#f3f2f1);font:12px/1.2 "Segoe UI",system-ui,sans-serif}
 .chrome .t button{font:inherit;padding:5px 12px;border:0;border-radius:0;background:transparent;color:var(--nx-fg,#242424);cursor:pointer}

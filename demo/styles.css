@@ -39,4 +39,17 @@ body { background: var(--bg); color: var(--fg); font: 14px/1.5 "Segoe UI", "Sego
 .note a { color: inherit; }
 code { font: 12px ui-monospace, Consolas, monospace; background: var(--hov); padding: 1px 5px; border-radius: 4px; }
 .ft { padding: 16px 20px; text-align: center; color: var(--mut); font-size: 12px; }
+@media (max-width: 560px) {
+  .hd { padding: 8px 12px; }
+  .home main { padding: 28px 16px 24px; }
+  .lead { margin-bottom: 28px; font-size: 15px; }
+  .app { padding: 18px; }
+  .apps { grid-template-columns: 1fr; gap: 14px; }
+}
+@media (max-height: 480px) and (orientation: landscape) { .home main { padding-top: 20px; } .lead { margin-bottom: 20px; } }
+@media (pointer: coarse) {
+  .hd a, .ico { min-height: 44px; min-width: 44px; display: inline-grid; place-items: center; }
+  .go a { min-height: 44px; display: inline-flex; align-items: center; padding: 0 18px; }
+  .note a { padding: 12px 0; }
+}
 @media (prefers-reduced-motion: reduce) { .app { transition: none; } }

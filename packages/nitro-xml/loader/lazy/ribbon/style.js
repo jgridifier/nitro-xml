@@ -2,7 +2,7 @@
 // Office-style frame for a Nitro viewer element: title bar, tabs, ribbon, panes, status bar.
 // Theme with --ox-* custom properties; [data-theme=dark] on .ox flips the palette.
 export const CSS = `
-.ox{position:relative;min-width:0;overflow:hidden;--acc:#185abd;--tb:var(--acc);--tbf:#fff;--bg:#fff;--rbn:#fafafa;--tabs:#f3f2f1;--fg:#242424;--mut:#605e5c;--bd:#e1dfdd;--hov:#ebebeb;--sel:color-mix(in srgb,var(--acc) 14%,#fff);--canvas:#e6e6e6;--st:#f3f2f1;--ico:#323130;--ox-st:var(--st);--ox-bd:var(--bd);--ox-fg:var(--fg);--ox-bg:var(--bg);--ox-canvas:var(--canvas);
+.ox{container:ox/inline-size;position:relative;min-width:0;overflow:hidden;--acc:#185abd;--tb:var(--acc);--tbf:#fff;--bg:#fff;--rbn:#fafafa;--tabs:#f3f2f1;--fg:#242424;--mut:#605e5c;--bd:#e1dfdd;--hov:#ebebeb;--sel:color-mix(in srgb,var(--acc) 14%,#fff);--canvas:#e6e6e6;--st:#f3f2f1;--ico:#323130;--ox-st:var(--st);--ox-bd:var(--bd);--ox-fg:var(--fg);--ox-bg:var(--bg);--ox-canvas:var(--canvas);
 display:flex;flex-direction:column;width:100%;height:100%;min-height:0;background:var(--bg);color:var(--fg);font:12px/1.3 "Segoe UI","Segoe UI Variable Text",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif}
 .ox[data-app=pptx]{--acc:#c43e1c}.ox[data-app=xlsx]{--acc:#107c41}
 .ox[data-theme=dark]{--tb:color-mix(in srgb,var(--acc) 62%,#000);--bg:#1b1b1b;--rbn:#262626;--tabs:#202020;--fg:#f3f2f1;--mut:#bdbbb9;--bd:#3b3a39;--hov:#383838;--sel:color-mix(in srgb,var(--acc) 38%,#1b1b1b);--canvas:#121212;--st:#202020;--ico:#e1dfdd}
@@ -41,12 +41,12 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .tb .srch input{all:unset;box-sizing:border-box;width:100%;height:28px;padding:0 10px 0 30px;border-radius:5px;background:rgba(255,255,255,.94);color:#242424;font-size:12.5px;cursor:text}
 .tb .srch input::placeholder{color:#605e5c}
 .tb .srch input:focus{background:#fff;outline:2px solid #fff;outline-offset:1px}
-.tb .seg{display:flex;border:1px solid rgba(255,255,255,.55);border-radius:5px;overflow:hidden}
+.tb .seg{flex:none;display:flex;border:1px solid rgba(255,255,255,.55);border-radius:5px;overflow:hidden}
 .tb .seg button{all:unset;box-sizing:border-box;padding:4px 10px;font-size:12px;cursor:pointer}
 .tb .seg button:hover{background:rgba(255,255,255,.18)}
 .tb .seg button[aria-pressed=true]{background:#fff;color:var(--acc)}
 .ox[data-theme=dark] .tb .seg button[aria-pressed=true]{background:#f3f2f1}
-.tb a{color:inherit;text-decoration:none;font-size:12px;padding:6px 8px;border-radius:4px}
+.tb a{white-space:nowrap;color:inherit;text-decoration:none;font-size:12px;padding:6px 8px;border-radius:4px}
 .tb a:hover{background:rgba(255,255,255,.18)}
 /* tabs */
 .tabs{display:flex;align-items:stretch;height:34px;padding:0 8px;background:var(--tabs);border-bottom:1px solid var(--bd)}
@@ -156,8 +156,49 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .sb .zl{all:unset;cursor:pointer;min-width:40px;text-align:right;color:var(--fg);font-variant-numeric:tabular-nums;padding:2px 4px;border-radius:3px}
 .sb .zl:hover{background:var(--hov)}
 .sb .zr{display:flex;align-items:center;gap:6px}
+.rgc{display:none}
 @media(max-width:820px){.tb .srch,.tb .doc i,.tb .lnks{display:none}.sb input[type=range]{width:70px}.pane{width:132px}}
-@media(max-width:560px){.pane{display:none}.tb .seg button{padding:4px 6px}}
+/* narrow frames: ribbon groups collapse to chips that open as popups (like Office's collapsed groups) */
+@container ox (max-width:900px){
+.rbn{min-height:0;padding:4px 6px;gap:4px;align-items:center;flex-wrap:wrap;overflow:visible}
+.rbn[hidden]{display:none}
+.rg{position:relative;padding:0;border:0}
+.rgc{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:4px;height:32px;padding:0 8px 0 10px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);font-size:12px;white-space:nowrap;cursor:pointer;color:var(--fg)}
+.rgc svg{width:12px;height:12px;stroke-width:2}
+.rgc:hover,.rg[data-open] .rgc{background:var(--hov)}
+.rg[data-open] .rgc{border-color:var(--acc);background:var(--sel)}
+.rgc:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.rg .gl{display:none}
+.rg .rr{display:none}
+.rg[data-open] .rr{display:flex;position:fixed;z-index:40;max-width:calc(100vw - 8px);flex-wrap:wrap;padding:6px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.rn{display:none}
+}
+@media(max-height:500px){.rbn{flex-wrap:nowrap;overflow-x:auto}}
+@container ox (max-width:900px){.tb .lnks{display:none}}
+@container ox (max-width:560px){.pane{display:none}.tb .seg button{padding:4px 6px}.tb .tile,.tb .sep{display:none}.tb .doc h1{max-width:30vw}.tb{gap:2px;padding:0 4px}}
+@media(pointer:coarse){
+.tb{height:52px}
+.tb .ib,.tb .qat .ib{width:44px;height:44px}
+.tb .seg button{min-height:34px;display:grid;align-items:center;padding:0 12px}
+.tb a{padding:12px 10px}
+.tabs{height:44px}
+.tabs [role=tab],.tabs .file{padding:0 14px}
+.tabs .col{width:44px;height:44px}
+.rb.sm{min-width:44px;height:44px}
+.rb.lg{min-width:56px;height:72px}
+.rb.sm.wide{min-width:132px}
+.rgc{height:44px}
+.dm button,.fm button{padding:12px 16px}
+.btn{min-height:44px;display:inline-flex;align-items:center}
+.drop a,.drop .lnk{padding:12px 4px}
+.sb{height:44px}
+.sb .ib{width:44px;height:44px}
+.sb .zl{min-width:48px;padding:12px 4px}
+.sb input[type=range]{height:44px}
+.sheets{height:44px}
+.sheets button{padding:12px 16px}
+.pane button{min-height:44px}
+}
 `;
 
 /** Rules injected into the viewer's shadow root while the Office frame owns the chrome. */

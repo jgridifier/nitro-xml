@@ -54,11 +54,18 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("underline", "Underline", surface, false));
         html.push_str(&button("strike", "Strikethrough", surface, false));
         html.push_str(&button("highlight", "Highlight", surface, false));
+        html.push_str(&button("subscript", "Subscript", surface, false));
+        html.push_str(&button("superscript", "Superscript", surface, false));
+        html.push_str(&button("font-name", "Font", surface, false));
         html.push_str(&button("align-left", "Align Left", surface, false));
         html.push_str(&button("align-center", "Center", surface, false));
         html.push_str(&button("align-right", "Align Right", surface, false));
         html.push_str(&button("align-justify", "Justify", surface, false));
+        html.push_str(&button("bullets", "Bullets", surface, false));
         html.push_str(&button("numbering", "Numbering", surface, false));
+        html.push_str(&button("indent", "Increase Indent", surface, false));
+        html.push_str(&button("outdent", "Decrease Indent", surface, false));
+        html.push_str(&button("line-spacing", "Line Spacing", surface, false));
         html.push_str(&button("font-size", "Font Size", surface, false));
         html.push_str(&button("font-color", "Font Color", surface, false));
         html.push_str("</section>");

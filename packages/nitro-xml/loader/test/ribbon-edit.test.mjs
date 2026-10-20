@@ -49,6 +49,12 @@ describe("Office ribbon manifests", () => {
       "home.numbering",
       "home.font-size",
       "home.font-color",
+      "home.font-name",
+      "home.indent",
+      "home.outdent",
+      "home.line-spacing",
+      "home.subscript",
+      "home.superscript",
       "insert.text-box",
       "insert.picture",
       "insert.table",
@@ -79,6 +85,12 @@ describe("Office ribbon manifests", () => {
       "home.bullets",
       "home.numbering",
       "home.strikethrough",
+      "home.indent",
+      "home.outdent",
+      "home.line-spacing",
+      "home.subscript",
+      "home.superscript",
+      "home.font-name",
     ]) {
       assert.ok(bound.includes(id), `missing pptx command ${id}`);
     }
@@ -103,6 +115,13 @@ describe("Office ribbon manifests", () => {
       "home.numbering",
       "home.font-size",
       "home.font-color",
+      "home.font-name",
+      "home.indent",
+      "home.outdent",
+      "home.line-spacing",
+      "home.subscript",
+      "home.superscript",
+      "home.bullets",
       "insert.picture",
       "insert.table",
       "table.insert-row",
@@ -122,7 +141,9 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("home.numbering"));
     assert.ok(bound.includes("home.strikethrough"));
     assert.ok(bound.includes("home.highlight"));
-    assert.ok(!bound.includes("home.bullets"), "Word bullets stay off until a bullet definition is on the ribbon");
+    assert.ok(bound.includes("home.bullets"));
+    assert.ok(bound.includes("home.indent"));
+    assert.ok(bound.includes("home.font-name"));
     assert.ok(!bound.includes("insert.slide"));
     assert.ok(!bound.includes("insert.text-box"));
   });

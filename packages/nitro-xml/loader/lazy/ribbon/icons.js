@@ -41,4 +41,10 @@ export const ICONS = {
   picture: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle class="a" cx="8.5" cy="9.5" r="1.5"/><path class="a" d="M3 16l5-4 3.5 3L14 13l7 4"/>',
   strike: '<path d="M6 12h12"/><path class="a" d="M8 16.5c.4 1.6 2 2.5 4 2.5 2.4 0 4-1.2 4-2.8 0-3.2-8-1.6-8-4.4C8 9.6 9.6 8.5 12 8.5c2 0 3.4.8 4 2"/>',
   highlight: '<path d="M5 16l8-8 3 3-8 8H5z"/><path class="a" d="M14 7l3 3M4 20h10"/>',
+  indent: '<path d="M4 6h16M10 10h10M10 14h10M4 18h16"/><path class="a" d="M4 12h4M6 10.5l2 1.5-2 1.5"/>',
+  outdent: '<path d="M4 6h16M10 10h10M10 14h10M4 18h16"/><path class="a" d="M8 12H4M6 10.5L4 12l2 1.5"/>',
+  spacing: '<path d="M6 9h12M6 12h12M6 15h12"/><path class="a" d="M12 3v3M12 18v3M10 5l2-2 2 2M10 19l2 2 2-2"/>',
+  subscript: '<path d="M5 6l8 8M13 6L5 14"/><path class="a" d="M16 16h4v1.2c0 1.2-.8 2-2 2s-2-.8-2-2"/>',
+  superscript: '<path d="M5 8l8 8M13 8L5 16"/><path class="a" d="M16 4h4v1.2c0 1.2-.8 2-2 2s-2-.8-2-2"/>',
+  font: '<path d="M5 19L11 5h2l6 14M7.5 14h9"/><path class="a" d="M16 5h3"/>',
 };

@@ -26,6 +26,89 @@ fn block_index(args: &Value) -> Result<usize, EditError> {
         })
 }
 
+/// Half-inch indent step (`w:ind/@w:left`), matching Word's Increase/Decrease Indent.
+pub const INDENT_STEP_TWIPS: i64 = 720;
+
+/// `w:spacing/@w:line` with `w:lineRule="auto"`: single, 1.5, double.
+const LINE_SINGLE: i64 = 240;
+const LINE_ONE_HALF: i64 = 360;
+const LINE_DOUBLE: i64 = 480;
+
+fn json_i64(value: &Value, key: &str) -> i64 {
+    value
+        .get(key)
+        .and_then(|n| {
+            n.as_i64()
+                .or_else(|| n.as_u64().map(|u| u as i64))
+                .or_else(|| n.as_f64().map(|f| f.round() as i64))
+        })
+        .unwrap_or(0)
+}
+
+/// Move `indentLeftTwips` by `delta`. A flush paragraph (`0`) does not change on a negative delta.
+/// Returns whether the block JSON changed.
+pub fn adjust_left_indent(
+    host: &mut DocxHost,
+    block_index: usize,
+    delta: i64,
+) -> Result<bool, EditError> {
+    let current = {
+        let block = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?;
+        json_i64(block, "indentLeftTwips")
+    };
+    let next = if delta < 0 {
+        current.saturating_sub(delta.unsigned_abs() as i64).max(0)
+    } else {
+        current.saturating_add(delta)
+    };
+    if next == current {
+        return Ok(false);
+    }
+    let block = host
+        .paragraph_mut(block_index)
+        .map_err(|e| EditError::Other { message: e })?;
+    if let Some(obj) = block.as_object_mut() {
+        if next == 0 {
+            obj.remove("indentLeftTwips");
+        } else {
+            obj.insert("indentLeftTwips".into(), json!(next));
+        }
+    }
+    host.mark_touched(block_index);
+    Ok(true)
+}
+
+/// Cycle direct line spacing 1.5 → double → single → 1.5 so one click always changes the paragraph.
+pub fn cycle_line_spacing(host: &mut DocxHost, block_index: usize) -> Result<(), EditError> {
+    let current = {
+        let block = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?;
+        let n = json_i64(block, "lineSpacingTwips");
+        if block.get("lineSpacingTwips").is_some() {
+            Some(n)
+        } else {
+            None
+        }
+    };
+    let next = match current {
+        Some(LINE_ONE_HALF) => LINE_DOUBLE,
+        Some(LINE_DOUBLE) => LINE_SINGLE,
+        _ => LINE_ONE_HALF,
+    };
+    let block = host
+        .paragraph_mut(block_index)
+        .map_err(|e| EditError::Other { message: e })?;
+    if let Some(obj) = block.as_object_mut() {
+        obj.insert("lineSpacingTwips".into(), json!(next));
+        obj.insert("lineSpacingRule".into(), json!("auto"));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
 /// Patch run properties on a paragraph run (TS `setRunFormatting`).
 pub fn set_run_formatting(
     host: &mut DocxHost,
@@ -54,9 +137,13 @@ pub fn set_run_formatting(
             "underline",
             "strike",
             "highlight",
+            "verticalAlign",
+            "fontFamily",
         ] {
             if let Some(v) = patch.get(key) {
-                if key == "highlight" && v.as_str().is_some_and(|s| s.is_empty()) {
+                let clear = matches!(key, "highlight" | "verticalAlign" | "fontFamily")
+                    && v.as_str().is_some_and(|s| s.is_empty());
+                if clear {
                     obj.remove(key);
                 } else {
                     obj.insert(key.into(), v.clone());
@@ -153,5 +240,21 @@ mod tests {
         set_run_formatting(&mut host, 0, 0, &patch).unwrap();
         assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
         assert_eq!(host.blocks[0]["runs"][0]["bold"], true);
+    }
+
+    #[test]
+    fn catches_outdent_on_a_flush_paragraph_writing_a_zero_indent() {
+        // Catches: Decrease Indent on a paragraph with no w:ind still storing indentLeftTwips 0, so save emits w:left="0".
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        assert!(!adjust_left_indent(&mut host, 0, -INDENT_STEP_TWIPS).unwrap());
+        assert!(host.blocks[0].get("indentLeftTwips").is_none());
+        assert!(adjust_left_indent(&mut host, 0, INDENT_STEP_TWIPS).unwrap());
+        assert_eq!(host.blocks[0]["indentLeftTwips"], 720);
+        assert!(adjust_left_indent(&mut host, 0, -INDENT_STEP_TWIPS).unwrap());
+        assert!(host.blocks[0].get("indentLeftTwips").is_none());
     }
 }

@@ -43,6 +43,12 @@ const font = {
     cmd("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
     cmd("home.font-size", "grow", "Font size", "Set the font size"),
     cmd("home.font-color", "color", "Font color", "Set the font color"),
+    cmd("home.indent", "indent", "Increase indent"),
+    cmd("home.outdent", "outdent", "Decrease indent"),
+    cmd("home.line-spacing", "spacing", "Line spacing", "Cycle line spacing"),
+    cmd("home.subscript", "subscript", "Subscript"),
+    cmd("home.superscript", "superscript", "Superscript"),
+    cmd("home.font-name", "font", "Font", "Set the font name"),
   ],
 };
 const align = {
@@ -68,7 +74,7 @@ export const MANIFEST = {
       align,
       {
         id: "Lists",
-        items: [cmd("home.numbering", "numbering", "Numbering")],
+        items: [cmd("home.bullets", "bullet", "Bullets"), cmd("home.numbering", "numbering", "Numbering")],
       },
       {
         id: "Tables",

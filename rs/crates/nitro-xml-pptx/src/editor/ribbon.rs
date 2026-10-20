@@ -75,6 +75,12 @@ pub fn ribbon_html(
         html.push_str(&button("home.numbering", "Numbering", surface, false));
         html.push_str(&button("home.font-size", "Font Size", surface, false));
         html.push_str(&button("home.font-color", "Font Color", surface, false));
+        html.push_str(&button("home.font-name", "Font", surface, false));
+        html.push_str(&button("home.subscript", "Subscript", surface, false));
+        html.push_str(&button("home.superscript", "Superscript", surface, false));
+        html.push_str(&button("home.indent", "Increase Indent", surface, false));
+        html.push_str(&button("home.outdent", "Decrease Indent", surface, false));
+        html.push_str(&button("home.line-spacing", "Line Spacing", surface, false));
         html.push_str("</section>");
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Drawing\">");
         html.push_str(&button("home.duplicate", "Duplicate", surface, false));

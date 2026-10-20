@@ -241,4 +241,75 @@ mod tests {
             "reopened run lost highlight: {run}"
         );
     }
+
+    #[test]
+    fn catches_indent_spacing_script_font_and_bullets_missing_after_reopen() {
+        // Catches: a paragraph save that drops w:ind, w:spacing, w:vertAlign, w:rFonts, or a bullet numPr.
+        use crate::edit::format::{
+            adjust_left_indent, cycle_line_spacing, set_run_formatting, INDENT_STEP_TWIPS,
+        };
+        use crate::edit::numbering::toggle_bullet_list;
+        use serde_json::json;
+        let bytes = include_bytes!("../../../../../fixtures/generated/docx/pages_10.docx");
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        let block = host
+            .blocks
+            .iter()
+            .position(|b| b.get("type").and_then(|t| t.as_str()) == Some("paragraph"))
+            .expect("paragraph");
+        assert!(adjust_left_indent(&mut host, block, INDENT_STEP_TWIPS).expect("indent"));
+        cycle_line_spacing(&mut host, block).expect("spacing");
+        let mut patch = serde_json::Map::new();
+        patch.insert("verticalAlign".into(), json!("superscript"));
+        patch.insert("fontFamily".into(), json!("Georgia"));
+        set_run_formatting(&mut host, block, 0, &patch).expect("run");
+        toggle_bullet_list(&mut host, block).expect("bullets");
+        let saved = save_docx(&host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let again = DocxHost::open(&saved).expect("reopen");
+        let para = &again.blocks[block];
+        assert_eq!(para["indentLeftTwips"], 720, "indent: {para}");
+        assert_eq!(para["lineSpacingTwips"], 360, "spacing: {para}");
+        assert_eq!(para["lineSpacingRule"], "auto");
+        assert_eq!(para["runs"][0]["verticalAlign"], "superscript");
+        assert_eq!(para["runs"][0]["fontFamily"], "Georgia");
+        let num_id = para["numbering"]["numId"].as_i64().expect("numId");
+        let fmt = again
+            .numbering_catalog
+            .as_ref()
+            .and_then(|c| c.get("nums"))
+            .and_then(|n| n.get(num_id.to_string()))
+            .and_then(|n| n.get("abstractNumId"))
+            .and_then(|v| v.as_str())
+            .and_then(|abs| {
+                again
+                    .numbering_catalog
+                    .as_ref()
+                    .unwrap()
+                    .get("abstractNums")
+                    .and_then(|a| a.get(abs))
+                    .and_then(|a| a.get("levels"))
+                    .and_then(|l| l.get("0"))
+                    .and_then(|l| l.get("numFmt"))
+                    .and_then(|v| v.as_str())
+            });
+        assert_eq!(fmt, Some("bullet"));
+
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        let mut patch = serde_json::Map::new();
+        patch.insert("verticalAlign".into(), json!("subscript"));
+        set_run_formatting(&mut host, block, 0, &patch).expect("sub");
+        let saved = save_docx(&host, bytes.as_slice()).expect("save sub");
+        let again = DocxHost::open(&saved).expect("reopen sub");
+        assert_eq!(again.blocks[block]["runs"][0]["verticalAlign"], "subscript");
+
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        assert!(adjust_left_indent(&mut host, block, INDENT_STEP_TWIPS).expect("in"));
+        assert!(adjust_left_indent(&mut host, block, -INDENT_STEP_TWIPS).expect("out"));
+        assert!(!host.is_dirty(), "indent then outdent left the host dirty");
+        assert_eq!(
+            save_docx(&host, bytes.as_slice()).expect("clean"),
+            bytes.as_slice()
+        );
+    }
 }

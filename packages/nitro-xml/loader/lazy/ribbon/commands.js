@@ -2,7 +2,7 @@
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
 // Every `c` id below was checked against the engine (the saved bytes change); anything the editor
-// registers but does not implement (cut, paste, fill, borders, Word bullets, shapes) is deliberately absent.
+// registers but does not implement (cut, paste, fill, borders, shapes, grow/shrink) is deliberately absent.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
 //   c editor cmd id · d diagnostics toggle · s slide-pane toggle (host) · m dropdown entries · r readout
 //   g group caption · big: large buttons · rows: stacked small buttons · sm: small button style
@@ -23,8 +23,16 @@ const lists = {
 };
 const wordLists = {
   g: "Paragraph",
-  rows: [[it("home.numbering", "numbering", "Numbering", "Numbered list")]],
+  rows: [[it("home.bullets", "bullet", "Bullets", "Bulleted list"), it("home.numbering", "numbering", "Numbering", "Numbered list")]],
 };
+const metrics = [
+  it("home.indent", "indent", "Increase indent"),
+  it("home.outdent", "outdent", "Decrease indent"),
+  it("home.line-spacing", "spacing", "Line spacing", "Cycle line spacing"),
+  it("home.subscript", "subscript", "Subscript"),
+  it("home.superscript", "superscript", "Superscript"),
+  it("home.font-name", "font", "Font", "Set the font name"),
+];
 const copy = { i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy" };
 
 const FONT = {
@@ -44,6 +52,7 @@ const FONT = {
       it("home.font-size", "grow", "Font size", "Set the font size"),
       it("home.font-color", "color", "Font color", "Set the font color"),
     ],
+    metrics,
   ],
 };
 const wordFont = {
@@ -51,6 +60,7 @@ const wordFont = {
   rows: [
     [...FONT.rows[0], it("home.highlight", "highlight", "Highlight", "Text highlight")],
     FONT.rows[1],
+    FONT.rows[2],
   ],
 };
 

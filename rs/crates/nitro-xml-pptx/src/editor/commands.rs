@@ -51,6 +51,12 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("home.numbering", "Numbering", None, true),
     pptx_cmd!("home.font-size", "Font Size", None, true),
     pptx_cmd!("home.font-color", "Font Color", None, true),
+    pptx_cmd!("home.indent", "Increase Indent", None, true),
+    pptx_cmd!("home.outdent", "Decrease Indent", None, true),
+    pptx_cmd!("home.line-spacing", "Line Spacing", None, true),
+    pptx_cmd!("home.subscript", "Subscript", None, true),
+    pptx_cmd!("home.superscript", "Superscript", None, true),
+    pptx_cmd!("home.font-name", "Font", None, true),
     pptx_cmd!("home.duplicate", "Duplicate", Some("Ctrl+D"), true),
     pptx_cmd!("home.delete", "Delete", Some("Delete"), true),
     pptx_cmd!("home.select-all", "Select All", Some("Ctrl+A"), false),
@@ -274,6 +280,106 @@ impl PptxCommandSurface {
                 } else {
                     patch["color"] = json!("C00000");
                 }
+                self.run_shape_op("setShapeTextStyle", &patch, session)
+            }
+            "home.indent" | "home.outdent" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: format!("{id} needs a selected shape"),
+                })?;
+                let delta = if id == "home.indent" {
+                    crate::edit::text::INDENT_STEP_EMU
+                } else {
+                    -crate::edit::text::INDENT_STEP_EMU
+                };
+                let current = session
+                    .host
+                    .slide(selection.slide_index)
+                    .ok()
+                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+                    .map(crate::edit::text::current_indent_emu)
+                    .unwrap_or(0);
+                let next = if delta < 0 {
+                    current.saturating_sub(delta.unsigned_abs() as i64).max(0)
+                } else {
+                    current.saturating_add(delta)
+                };
+                if next == current {
+                    return Ok(());
+                }
+                let patch = json!({
+                    "slideIndex": selection.slide_index,
+                    "elementId": element_id,
+                    "delta": delta,
+                });
+                self.run_shape_op("setShapeParagraphIndent", &patch, session)
+            }
+            "home.line-spacing" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: "home.line-spacing needs a selected shape".into(),
+                })?;
+                let patch = json!({
+                    "slideIndex": selection.slide_index,
+                    "elementId": element_id,
+                });
+                self.run_shape_op("setShapeLineSpacing", &patch, session)
+            }
+            "home.subscript" | "home.superscript" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: format!("{id} needs a selected shape"),
+                })?;
+                let slide = selection.slide_index;
+                let want = if id == "home.superscript" {
+                    crate::edit::text::BASELINE_SUPERSCRIPT
+                } else {
+                    crate::edit::text::BASELINE_SUBSCRIPT
+                };
+                let current = session
+                    .host
+                    .slide(slide)
+                    .ok()
+                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+                    .and_then(|e| {
+                        e.text_style
+                            .as_ref()
+                            .and_then(|ts| ts.baseline)
+                            .or_else(|| e.text_segments.iter().find_map(|seg| seg.baseline))
+                    })
+                    .unwrap_or(0);
+                let next = if current == want { 0 } else { want };
+                let patch = json!({
+                    "slideIndex": slide,
+                    "elementId": element_id,
+                    "baseline": next,
+                });
+                self.run_shape_op("setShapeTextStyle", &patch, session)
+            }
+            "home.font-name" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: "home.font-name needs a selected shape".into(),
+                })?;
+                let slide = selection.slide_index;
+                let current = session
+                    .host
+                    .slide(slide)
+                    .ok()
+                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+                    .and_then(|e| {
+                        e.text_style
+                            .as_ref()
+                            .and_then(|ts| ts.typeface.clone())
+                            .or_else(|| e.text_segments.iter().find_map(|seg| seg.typeface.clone()))
+                    })
+                    .unwrap_or_default();
+                let next = if current == "Georgia" {
+                    "Calibri"
+                } else {
+                    "Georgia"
+                };
+                let patch = json!({
+                    "slideIndex": slide,
+                    "elementId": element_id,
+                    "typeface": next,
+                });
                 self.run_shape_op("setShapeTextStyle", &patch, session)
             }
             "home.duplicate" => {
@@ -625,7 +731,11 @@ fn table_target(host: &PptxHost, selection: &SelectionState) -> Option<String> {
 
 fn kind_for_op(id: &str) -> ChangeKind {
     match id {
-        "setShapeFill" | "setShapeLine" | "setShapeTextStyle" => ChangeKind::Format,
+        "setShapeFill"
+        | "setShapeLine"
+        | "setShapeTextStyle"
+        | "setShapeParagraphIndent"
+        | "setShapeLineSpacing" => ChangeKind::Format,
         "addShape" | "deleteShape" | "duplicateShape" | "bringForward" | "sendBackward"
         | "bringToFront" | "sendToBack" | "groupShapes" | "ungroupShapes"
         | "patchShapeGeometry" => ChangeKind::Structure,

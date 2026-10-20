@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nitro React embed bench</title>
+    <style>
+      html,
+      body,
+      #root {
+        margin: 0;
+        height: 100%;
+        font: 14px/1.4 system-ui, sans-serif;
+      }
+      #host {
+        height: 100%;
+        min-height: 480px;
+      }
+      nitro-xlsx,
+      nitro-docx,
+      nitro-pptx {
+        display: block;
+        height: 100%;
+        min-height: 480px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

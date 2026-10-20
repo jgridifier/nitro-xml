@@ -1645,30 +1645,69 @@ mod tests {
     fn open_parses_only_first_slide() {
         // Catches: Presentation::open (or viewer unsupported_labels) calling
         // ensure_all_slides so first view is O(slide count) instead of O(visible).
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../fixtures/generated/pptx/slides_200.pptx");
-        let bytes = std::fs::read(&path).expect("slides_200 fixture");
-        let t0 = std::time::Instant::now();
+        // In-test 3-slide zip — avoids gitignored generated L/XL fixtures on CI.
+        let empty_slide = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+  </p:spTree></p:cSld>
+</p:sld>"#;
+        let slide_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>"#;
+        let root_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>"#;
+        let pres = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldSz cx="9144000" cy="5143500"/>
+  <p:sldIdLst>
+    <p:sldId id="256" r:id="rId2"/>
+    <p:sldId id="257" r:id="rId3"/>
+    <p:sldId id="258" r:id="rId4"/>
+  </p:sldIdLst>
+</p:presentation>"#;
+        let pres_rels = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>
+  <Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide3.xml"/>
+</Relationships>"#;
+        let types = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+  <Override PartName="/ppt/slides/slide2.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+  <Override PartName="/ppt/slides/slide3.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+</Types>"#;
+        let bytes = zip_stored(&[
+            ("[Content_Types].xml", types),
+            ("_rels/.rels", root_rels),
+            ("ppt/presentation.xml", pres),
+            ("ppt/_rels/presentation.xml.rels", pres_rels),
+            ("ppt/slides/slide1.xml", empty_slide),
+            ("ppt/slides/_rels/slide1.xml.rels", slide_rels),
+            ("ppt/slides/slide2.xml", empty_slide),
+            ("ppt/slides/_rels/slide2.xml.rels", slide_rels),
+            ("ppt/slides/slide3.xml", empty_slide),
+            ("ppt/slides/_rels/slide3.xml.rels", slide_rels),
+        ]);
         let mut opened = Presentation::open(&bytes).expect("open");
-        let open_ms = t0.elapsed().as_secs_f64() * 1000.0;
         let loaded = (0..opened.slide_count())
             .filter(|&i| opened.slide_if_loaded(i).is_some())
             .count();
         assert_eq!(loaded, 1, "open must parse only slide 0");
-        assert_eq!(opened.slide_count(), 200);
-        let t1 = std::time::Instant::now();
+        assert_eq!(opened.slide_count(), 3);
+        assert!(opened.slide_if_loaded(1).is_none());
+        assert!(opened.slide_if_loaded(2).is_none());
         opened.ensure_all_slides().expect("ensure_all");
-        let ensure_all_ms = t1.elapsed().as_secs_f64() * 1000.0;
         let loaded_all = (0..opened.slide_count())
             .filter(|&i| opened.slide_if_loaded(i).is_some())
             .count();
-        assert_eq!(loaded_all, 200);
-        // Sanity: full parse is materially more work than first-slide open.
-        assert!(
-            ensure_all_ms > open_ms,
-            "ensure_all ({ensure_all_ms:.1}ms) should exceed open ({open_ms:.1}ms)"
-        );
-        eprintln!("pptx slides_200 open_ms={open_ms:.2} ensure_all_ms={ensure_all_ms:.2}");
+        assert_eq!(loaded_all, 3);
     }
 
     // Catches: SVG data URL missing preserveAspectRatio=none so stretch/fillRect letterboxes.

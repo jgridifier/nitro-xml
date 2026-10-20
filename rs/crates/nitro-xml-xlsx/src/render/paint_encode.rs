@@ -110,29 +110,6 @@ fn push_i32(buf: &mut [u8], o: &mut usize, n: i32) {
     push_bytes(buf, o, &tmp[i..]);
 }
 
-/// `left:Xpx;top:Ypx;width:Wpx;height:Hpx` — no `format!`.
-pub(crate) fn intern_box_geometry(
-    intern: &mut impl StringIntern,
-    left: i32,
-    top: i32,
-    w: i32,
-    h: i32,
-) -> u32 {
-    let mut buf = [0u8; 96];
-    let mut o = 0usize;
-    push_bytes(&mut buf, &mut o, b"left:");
-    push_i32(&mut buf, &mut o, left);
-    push_bytes(&mut buf, &mut o, b"px;top:");
-    push_i32(&mut buf, &mut o, top);
-    push_bytes(&mut buf, &mut o, b"px;width:");
-    push_i32(&mut buf, &mut o, w);
-    push_bytes(&mut buf, &mut o, b"px;height:");
-    push_i32(&mut buf, &mut o, h);
-    push_bytes(&mut buf, &mut o, b"px");
-    // SAFETY: only ASCII digits and fixed prefixes.
-    intern.intern(unsafe { std::str::from_utf8_unchecked(&buf[..o]) })
-}
-
 /// `{n}px` — no `format!`.
 pub(crate) fn intern_px(intern: &mut impl StringIntern, n: i32) -> u32 {
     let mut buf = [0u8; 24];
@@ -154,17 +131,17 @@ pub(crate) fn intern_translate3d(intern: &mut impl StringIntern, x: i32, y: i32)
     intern.intern(unsafe { std::str::from_utf8_unchecked(&buf[..o]) })
 }
 
-/// Place via one `style` attr (four SetStyle → one SetAttr).
+/// Place via `PlaceBox` opcode (no geometry style-string intern; #30).
 #[allow(clippy::too_many_arguments)] // mirrors upstream place(node, x, y, w, h) + buf/intern/keys
 pub(crate) fn place_style_attr(
     buf: &mut CommandBuffer,
-    intern: &mut impl StringIntern,
-    keys: &ChromeKeys,
+    _intern: &mut impl StringIntern,
+    _keys: &ChromeKeys,
     id: u32,
     x: i32,
     y: i32,
     w: i32,
     h: i32,
 ) {
-    buf.set_attr(id, keys.style, intern_box_geometry(intern, x, y, w, h));
+    buf.place_box(id, x, y, w, h);
 }

@@ -63,7 +63,7 @@ pub(crate) struct SheetRequest<'a> {
 pub(crate) fn load_sheet_window(
     pkg: &mut Package,
     req: &SheetRequest<'_>,
-    resolved: &mut HashSet<usize>,
+    resolved: &mut crate::fast_hash::FastSet<usize>,
     warnings: &mut Vec<String>,
 ) -> Result<(ActiveWorksheet, u32, bool), String> {
     let mut parser = SheetParser::new(req.view, req.xf_map.to_vec(), req.allow_early_stop);
@@ -88,14 +88,14 @@ pub(crate) fn load_sheet_window(
     let capture = parser.into_capture();
     let truncated = capture.truncated;
 
-    let mut needed = HashSet::new();
+    let mut needed = crate::fast_hash::FastSet::default();
     for row in &capture.kept {
         collect_shared_indices(&row.xml, &mut needed);
     }
     let resolved_now = if let Some(part) = req.strings_part {
         resolve_shared_strings(pkg, part, &needed, req.palette).map_err(|e| e.to_string())?
     } else {
-        HashMap::new()
+        Default::default()
     };
     for idx in resolved_now.keys() {
         resolved.insert(*idx);
@@ -182,12 +182,16 @@ fn empty_sheet(req: &SheetRequest<'_>) -> ActiveWorksheet {
 }
 
 fn compact_strings(
-    resolved: HashMap<usize, crate::model::SharedString>,
-) -> (Vec<crate::model::SharedString>, HashMap<usize, usize>) {
+    resolved: crate::fast_hash::FastMap<usize, crate::model::SharedString>,
+) -> (
+    Vec<crate::model::SharedString>,
+    crate::fast_hash::FastMap<usize, usize>,
+) {
     let mut keys: Vec<usize> = resolved.keys().copied().collect();
     keys.sort_unstable();
     let mut compact = Vec::with_capacity(keys.len());
-    let mut remap = HashMap::with_capacity(keys.len());
+    let mut remap =
+        crate::fast_hash::FastMap::with_capacity_and_hasher(keys.len(), Default::default());
     for (new_idx, old_idx) in keys.into_iter().enumerate() {
         if let Some(entry) = resolved.get(&old_idx) {
             remap.insert(old_idx, new_idx);
@@ -582,7 +586,7 @@ impl SheetParser {
                     OpenScan::NeedMore => return,
                     OpenScan::Open { end, self_close } => {
                         self.capture.prefix = self.text[..end].to_owned();
-                        self.text = self.text[end..].to_owned();
+                        self.text.drain(..end);
                         self.dimension = dimension_ref(&self.capture.prefix);
                         self.prefix_ready = true;
                         self.phase = if self_close { Phase::Tail } else { Phase::Rows };
@@ -626,7 +630,7 @@ impl SheetParser {
                             continue;
                         }
                         let xml = self.text[..end].to_owned();
-                        self.text = self.text[end..].to_owned();
+                        self.text.drain(..end);
                         self.consume_row(row0, xml);
                     }
                 },
@@ -650,7 +654,7 @@ impl SheetParser {
                         }
                         self.last_row = Some(row0);
                         self.row_fallback = row0.saturating_add(1);
-                        self.text = self.text[end..].to_owned();
+                        self.text.drain(..end);
                     }
                 },
                 Phase::SeekTail => {
@@ -735,17 +739,17 @@ fn next_row(text: &str) -> RowScan {
     let bytes = text.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] != b'<' {
-            i += 1;
-            continue;
+        match memchr::memchr(b'<', &bytes[i..]) {
+            Some(off) => i += off,
+            None => break,
         }
         if i + 1 >= bytes.len() {
             return RowScan::NeedMore;
         }
         match tag_kind(text, i) {
             TagKind::Incomplete => return RowScan::NeedMore,
-            TagKind::Close(local) if local == "sheetData" => return RowScan::End { at: i },
-            TagKind::Open(local) if local == "row" => {
+            TagKind::Close("sheetData") => return RowScan::End { at: i },
+            TagKind::Open("row") => {
                 let Some((open_end, self_close)) = end_of_tag(text, i) else {
                     return RowScan::NeedMore;
                 };
@@ -774,12 +778,11 @@ fn next_row(text: &str) -> RowScan {
 fn find_sheet_data_close(text: &str) -> Option<usize> {
     let bytes = text.as_bytes();
     let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'<' {
-            if let TagKind::Close(local) = tag_kind(text, i) {
-                if local == "sheetData" {
-                    return Some(i);
-                }
+    while let Some(off) = memchr::memchr(b'<', &bytes[i..]) {
+        i += off;
+        if let TagKind::Close(local) = tag_kind(text, i) {
+            if local == "sheetData" {
+                return Some(i);
             }
         }
         i += 1;
@@ -814,13 +817,14 @@ fn note_cols(xml: &str, max_col: &mut u32) {
     let bytes = xml.as_bytes();
     let mut i = 0;
     while i + 3 < bytes.len() {
-        if bytes[i] == b'r'
-            && bytes[i + 1] == b'='
-            && (bytes[i + 2] == b'"' || bytes[i + 2] == b'\'')
-        {
-            let q = bytes[i + 2] as char;
+        let Some(off) = memchr::memmem::find(&bytes[i..], b"r=") else {
+            break;
+        };
+        i += off;
+        if i + 3 < bytes.len() && (bytes[i + 2] == b'"' || bytes[i + 2] == b'\'') {
+            let q = bytes[i + 2];
             let start = i + 3;
-            if let Some(end) = xml[start..].find(q) {
+            if let Some(end) = memchr::memchr(q, &bytes[start..]) {
                 let token = &xml[start..start + end];
                 if let Some(addr) = parse_address(token) {
                     *max_col = (*max_col).max(addr.col);
@@ -858,14 +862,14 @@ fn row_info_from_xml(xml: &str, xf_map: &[u32]) -> Option<RowInfo> {
     read_row_info(row, xf_map)
 }
 
-enum TagKind {
+enum TagKind<'a> {
     Incomplete,
-    Open(String),
-    Close(String),
+    Open(&'a str),
+    Close(&'a str),
     Other,
 }
 
-fn tag_kind(s: &str, lt: usize) -> TagKind {
+fn tag_kind(s: &str, lt: usize) -> TagKind<'_> {
     let bytes = s.as_bytes();
     if lt >= bytes.len() || bytes[lt] != b'<' {
         return TagKind::Other;
@@ -907,7 +911,7 @@ fn tag_kind(s: &str, lt: usize) -> TagKind {
     if k >= bytes.len() {
         return TagKind::Incomplete;
     }
-    let local = s[local_start..k].to_owned();
+    let local = &s[local_start..k];
     if is_close {
         TagKind::Close(local)
     } else {
@@ -943,15 +947,14 @@ fn end_of_tag(s: &str, lt: usize) -> Option<(usize, bool)> {
 fn find_close(s: &str, from: usize, local: &str) -> Option<usize> {
     let bytes = s.as_bytes();
     let mut i = from;
-    while i < bytes.len() {
-        if bytes[i] == b'<' {
-            match tag_kind(s, i) {
-                TagKind::Close(name) if name == local => {
-                    return end_of_tag(s, i).map(|(end, _)| end);
-                }
-                TagKind::Incomplete => return None,
-                _ => {}
+    while let Some(off) = memchr::memchr(b'<', &bytes[i..]) {
+        i += off;
+        match tag_kind(s, i) {
+            TagKind::Close(name) if name == local => {
+                return end_of_tag(s, i).map(|(end, _)| end);
             }
+            TagKind::Incomplete => return None,
+            _ => {}
         }
         i += 1;
     }

@@ -40,6 +40,7 @@ const font = {
     cmd("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
     cmd("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
     cmd("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
+    cmd("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
     cmd("home.font-size", "grow", "Font size", "Set the font size"),
     cmd("home.font-color", "color", "Font color", "Set the font color"),
   ],
@@ -60,7 +61,10 @@ export const MANIFEST = {
     groups: [
       file,
       copy,
-      font,
+      {
+        id: "Font",
+        items: [...font.items, cmd("home.highlight", "highlight", "Highlight", "Text highlight")],
+      },
       align,
       {
         id: "Lists",
@@ -69,6 +73,7 @@ export const MANIFEST = {
       {
         id: "Tables",
         items: [
+          cmd("insert.picture", "picture", "Picture", "Insert a picture"),
           cmd("insert.table", "table", "Table", "Insert a table"),
           cmd("table.insert-row", "rowAdd", "Insert row"),
           cmd("table.delete-row", "rowDel", "Delete row"),
@@ -104,6 +109,7 @@ export const MANIFEST = {
           cmd("insert.move-slide-up", "chevUp", "Move slide up"),
           cmd("insert.move-slide-down", "chevDown", "Move slide down"),
           cmd("insert.text-box", "text", "Text box"),
+          cmd("insert.picture", "picture", "Picture", "Insert a picture"),
           cmd("home.delete-slide", "trash", "Delete slide"),
         ],
       },

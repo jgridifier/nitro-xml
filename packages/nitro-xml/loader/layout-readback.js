@@ -6,7 +6,6 @@ ComputedStyle: 3,
 NaturalWidth: 4,
 });
 export const LAYOUT_RESULT_LANES = 4;
-
 /** Natural content height at `el`'s width (upstream `measureAutoFitContentHeightPx`). */
 function measureScrollHeightPx(el) {
 if (!el || typeof document === "undefined") return el?.scrollHeight || 0;
@@ -31,7 +30,6 @@ return clone.scrollHeight || 0;
 doc.body.removeChild(clone);
 }
 }
-
 export function packLayoutReqs(nodes, kinds, props) {
 const n = nodes.length;
 const reqs = new Array(n);

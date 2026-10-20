@@ -45,6 +45,9 @@ pub struct TextStyleSnap {
     /// `Some` means the edit authored `a:rPr/@u` (`sng` or absent). `None` leaves the file's underline alone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub underline: Option<bool>,
+    /// `Some` means the edit authored `a:rPr/@strike` (`sngStrike` or absent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strike: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_fit: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -76,6 +79,8 @@ pub struct TextSegmentSnap {
     pub italic: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub underline: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub strike: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font_size: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -110,6 +115,7 @@ impl TextSegmentSnap {
             bold: self.bold,
             italic: self.italic,
             underline: self.underline,
+            strike: self.strike,
             font_size: self.font_size,
             color: self.color.clone(),
             ..Self::default()
@@ -150,6 +156,7 @@ pub fn remap_text_to_segments(
                 bold: break_style.map(|s| s.bold).unwrap_or(false),
                 italic: break_style.map(|s| s.italic).unwrap_or(false),
                 underline: break_style.map(|s| s.underline).unwrap_or(false),
+                strike: break_style.map(|s| s.strike).unwrap_or(false),
                 font_size: break_style.and_then(|s| s.font_size),
                 color: break_style.and_then(|s| s.color.clone()),
                 is_paragraph_break: true,
@@ -180,6 +187,7 @@ fn remap_paragraph(
             bold: first.bold,
             italic: first.italic,
             underline: first.underline,
+            strike: first.strike,
             font_size: first.font_size,
             color: first.color.clone(),
             align: first.align.clone(),
@@ -195,6 +203,7 @@ fn remap_paragraph(
             bold: first.bold,
             italic: first.italic,
             underline: first.underline,
+            strike: first.strike,
             font_size: first.font_size,
             color: first.color.clone(),
             align: first.align.clone(),
@@ -228,6 +237,7 @@ fn remap_paragraph(
                 bold: orig_seg.bold,
                 italic: orig_seg.italic,
                 underline: orig_seg.underline,
+                strike: orig_seg.strike,
                 font_size: orig_seg.font_size,
                 color: orig_seg.color.clone(),
                 align: if i == 0 { orig_seg.align.clone() } else { None },
@@ -248,6 +258,7 @@ fn remap_paragraph(
             bold: first.bold,
             italic: first.italic,
             underline: first.underline,
+            strike: first.strike,
             font_size: first.font_size,
             color: first.color.clone(),
             align: first.align.clone(),
@@ -552,6 +563,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                     font_size: arg_f64_opt(args, "fontSize"),
                     color: color.as_deref(),
                     underline: arg_bool_opt(args, "underline"),
+                    strike: arg_bool_opt(args, "strike"),
                 },
             )
             .map_err(map_err)?;

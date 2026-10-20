@@ -26,12 +26,28 @@ export async function fetchFixture(format, tier) {
   return { buf, name: entry.name, url: entry.url, bytes: buf.byteLength };
 }
 
-export async function waitFirstPaint(el, timeoutMs = 30000) {
+function probeStyleRecalc(el) {
+  const t0 = performance.now();
+  try {
+    const host = el.shadowRoot || el;
+    void host.querySelector?.("canvas")?.getBoundingClientRect?.();
+    void el.offsetHeight;
+  } catch {
+    /* ignore */
+  }
+  return performance.now() - t0;
+}
+
+export async function waitFirstPaint(el, timeoutMs = 30000, trace = null) {
   const t0 = performance.now();
   const doc = el.document;
   if (!doc) throw new Error("no document after open");
-  // Drive at least one frame; then wait until canvas/DOM shows content.
+  const tick0 = performance.now();
   await doc.tick();
+  if (trace) {
+    trace.set("first_tick_ms", performance.now() - tick0);
+    window.__nitroBench?.mark("first_tick", { ms: trace.phases.first_tick_ms });
+  }
   const deadline = t0 + timeoutMs;
   while (performance.now() < deadline) {
     const canvas = el.shadowRoot?.querySelector("canvas");
@@ -56,7 +72,13 @@ export async function waitFirstPaint(el, timeoutMs = 30000) {
       }
     }
     if (hasDom || hasPixels) {
-      return performance.now() - t0;
+      const paint_ms = performance.now() - t0;
+      if (trace) {
+        trace.set("paint_wait_ms", paint_ms);
+        trace.set("style_recalc_probe_ms", probeStyleRecalc(el));
+        window.__nitroBench?.mark("first_paint", { ms: paint_ms });
+      }
+      return paint_ms;
     }
     await doc.tick();
     await new Promise((r) => requestAnimationFrame(r));
@@ -64,13 +86,42 @@ export async function waitFirstPaint(el, timeoutMs = 30000) {
   throw new Error("first paint timeout");
 }
 
-export async function openInElement(el, format, tier) {
+export async function openInElement(el, format, tier, opts = {}) {
+  const { beginTraceSession } = await import("./trace.js");
+  const trace = opts.trace === false ? null : beginTraceSession();
+
+  const tf0 = performance.now();
   const { buf, name, bytes } = await fetchFixture(format, tier);
+  if (trace) {
+    trace.set("fixture_fetch_ms", performance.now() - tf0);
+    window.__nitroBench?.mark("fixture_fetch", { ms: trace.phases.fixture_fetch_ms, bytes });
+  }
+
   const t0 = performance.now();
   await el.loadBuffer(buf, name);
   const open_ms = performance.now() - t0;
-  const paint_ms = await waitFirstPaint(el);
-  return { open_ms, paint_ms, mount_to_paint_ms: open_ms + paint_ms, bytes, name };
+  if (trace) {
+    trace.set("host_load_buffer_ms", open_ms);
+    // Worker open_trace lands via mark from worker-host when trace:true.
+    const marks = window.__nitroBench?.state?.marks || [];
+    const wot = [...marks].reverse().find((m) => m.name === "worker_open_trace");
+    if (wot) {
+      // mark() stores extra fields on the entry itself
+      const { name: _n, t: _t, ...rest } = wot;
+      trace.phases.worker_open = rest;
+    }
+  }
+  const paint_ms = await waitFirstPaint(el, 30000, trace);
+  const mount_to_paint_ms = open_ms + paint_ms;
+  if (trace) trace.set("mount_to_paint_ms", mount_to_paint_ms);
+  return {
+    open_ms,
+    paint_ms,
+    mount_to_paint_ms,
+    bytes,
+    name,
+    ...(trace ? { breakdown: trace.snapshot() } : {}),
+  };
 }
 
 export async function editAndRepaint(el, specOrFn) {

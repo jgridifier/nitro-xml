@@ -35,6 +35,9 @@ pub(crate) fn to_digits(x: f64) -> Digits {
 /// Rust's default `{:.14e}` breaks ties to even. JavaScript breaks them away from zero, so this
 /// formats 40 digits (enough that a tie at digit 15 is visible) and rounds half away from zero.
 fn exp_15(abs: f64) -> (String, i32) {
+    if let Some(fast) = exp_15_shortest(abs) {
+        return fast;
+    }
     let s = format!("{abs:.40e}");
     let pos = s.find(['e', 'E']).expect("exponential form");
     let mant = &s[..pos];
@@ -61,6 +64,31 @@ fn exp_15(abs: f64) -> (String, i32) {
         }
     }
     (String::from_utf8(head).expect("digits"), exp)
+}
+
+/// Fast path: when the shortest round-trip digits fit in 15 places they *are* the 15-digit
+/// rounding. The exact expansion sits within 2^-53 (relative) of them, far inside half a unit
+/// of the 15th digit (>= 5e-16 relative), so no tie or carry can differ. Skips the 40-digit
+/// exact (Dragon) formatting, which dominated General-format cost on integer-heavy sheets.
+fn exp_15_shortest(abs: f64) -> Option<(String, i32)> {
+    use std::fmt::Write;
+    let mut buf = String::with_capacity(32);
+    write!(buf, "{abs:e}").ok()?;
+    let pos = buf.find('e')?;
+    let exp: i32 = buf[pos + 1..].parse().ok()?;
+    let mut head = String::with_capacity(15);
+    for c in buf[..pos].bytes() {
+        if c != b'.' {
+            head.push(c as char);
+        }
+    }
+    if head.len() > 15 {
+        return None;
+    }
+    while head.len() < 15 {
+        head.push('0');
+    }
+    Some((head, exp))
 }
 
 fn trim(v: Digits) -> Digits {

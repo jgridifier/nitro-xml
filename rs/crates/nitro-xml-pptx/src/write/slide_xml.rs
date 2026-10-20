@@ -15,6 +15,8 @@
 //! (`a:buChar` / `a:buAutoNum` / `a:buNone`) are written.
 //! Rich multi-run splits, autofit and notes parts are TODO(#85) / TODO(#86).
 //! An authored table (`table_authored`) is written as `p:graphicFrame` / `a:tbl`.
+//! A picture inserted this session (`image_png`) is a fresh `p:pic` whose
+//! `a:blip/@r:embed` is the id in `pic_rels`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -46,13 +48,15 @@ pub fn max_numeric_id(xml: &str) -> Result<i64, String> {
 }
 
 /// Apply `slide` onto `xml` and return the rewritten part, including the XML declaration.
-pub fn rewrite_slide(
+/// Rewrite `slide` onto `xml`. `pic_rels` maps an inserted picture's element id to its `rId`.
+pub fn rewrite_slide_with_pics(
     xml: &str,
     slide: &EditableSlide,
     next_id: &mut i64,
+    pic_rels: &HashMap<String, String>,
 ) -> Result<String, String> {
     let mut doc = parse_xml_str(xml).map_err(|e| e.to_string())?;
-    rewrite_document(&mut doc, slide, next_id)?;
+    rewrite_document(&mut doc, slide, next_id, pic_rels)?;
     Ok(format!("{XML_HEADER}{}", write_xml(&doc.root)))
 }
 
@@ -60,6 +64,7 @@ fn rewrite_document(
     doc: &mut Document,
     slide: &EditableSlide,
     next_id: &mut i64,
+    pic_rels: &HashMap<String, String>,
 ) -> Result<(), String> {
     let sp_tree = sp_tree_mut(&mut doc.root).ok_or_else(|| "p:spTree missing".to_string())?;
     let (prefix, mut nodes, suffix) = split_shapes(sp_tree);
@@ -83,7 +88,7 @@ fn rewrite_document(
         }
         if let Some(share) = el.xml_share_of.as_deref() {
             let Some(&idx) = id_to_node.get(share) else {
-                push_fresh(&mut nodes, &mut order, el, next_id);
+                push_fresh(&mut nodes, &mut order, el, next_id, pic_rels);
                 continue;
             };
             apply_element(&mut nodes[idx], el);
@@ -97,7 +102,7 @@ fn rewrite_document(
                 continue;
             }
         }
-        push_fresh(&mut nodes, &mut order, el, next_id);
+        push_fresh(&mut nodes, &mut order, el, next_id, pic_rels);
     }
 
     // Two passes live inside `repair_shape_ids_mut`: a shared rawXml node is one
@@ -117,10 +122,11 @@ fn push_fresh(
     order: &mut Vec<usize>,
     el: &EditableElement,
     next_id: &mut i64,
+    pic_rels: &HashMap<String, String>,
 ) {
     let id = *next_id;
     *next_id += 1;
-    let mut shape = new_shape_xml(el, id);
+    let mut shape = new_shape_xml(el, id, pic_rels);
     apply_element(&mut shape, el);
     nodes.push(shape);
     order.push(nodes.len() - 1);
@@ -376,6 +382,7 @@ fn style_authored(style: &TextStyleSnap) -> bool {
     style.bold
         || style.italic
         || style.underline.is_some()
+        || style.strike.is_some()
         || style.font_size.is_some()
         || style.color.is_some()
 }
@@ -383,6 +390,9 @@ fn style_authored(style: &TextStyleSnap) -> bool {
 fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
     let previous_u = child_ref(run, "rPr", ns::A)
         .and_then(|rpr| attr(rpr, "u"))
+        .map(str::to_owned);
+    let previous_strike = child_ref(run, "rPr", ns::A)
+        .and_then(|rpr| attr(rpr, "strike"))
         .map(str::to_owned);
     remove_children(run, ns::A, &["rPr"]);
     let mut rpr = elem(ns::A, "rPr");
@@ -406,6 +416,15 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
             }
         }
     }
+    match style.strike {
+        Some(true) => set_attr(&mut rpr, "strike", "sngStrike"),
+        Some(false) => {}
+        None => {
+            if let Some(strike) = previous_strike {
+                set_attr(&mut rpr, "strike", &strike);
+            }
+        }
+    }
     if let Some(color) = style.color.as_deref() {
         let mut fill = elem(ns::A, "solidFill");
         let mut clr = elem(ns::A, "srgbClr");
@@ -423,7 +442,13 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
     }
 }
 
-fn new_shape_xml(el: &EditableElement, id: i64) -> Element {
+fn new_shape_xml(el: &EditableElement, id: i64, pic_rels: &HashMap<String, String>) -> Element {
+    if el.type_ == "picture" {
+        let rel = pic_rels.get(&el.id).map(String::as_str).unwrap_or("");
+        let mut pic = new_picture_xml(el, id, rel);
+        apply_element(&mut pic, el);
+        return pic;
+    }
     if el.type_ == "table" {
         let mut frame = new_table_frame(el, id);
         apply_element(&mut frame, el);
@@ -500,6 +525,58 @@ fn new_shape_xml(el: &EditableElement, id: i64) -> Element {
     // apply_element may rewrite xfrm rot again; new shapes already carry it.
     // A second apply_fill runs when fill_mode is set — new shapes from addShape are.
     sp
+}
+
+fn new_picture_xml(el: &EditableElement, id: i64, rel_id: &str) -> Element {
+    let emu = EMU_PER_PIXEL as f64;
+    let x = resolve_xfrm_emu(el.x, el.x_emu, emu);
+    let y = resolve_xfrm_emu(el.y, el.y_emu, emu);
+    let cx = resolve_xfrm_emu(el.width, el.width_emu, emu).max(1);
+    let cy = resolve_xfrm_emu(el.height, el.height_emu, emu).max(1);
+
+    let mut c_nv_pr = elem(ns::P, "cNvPr");
+    set_attr(&mut c_nv_pr, "id", &id.to_string());
+    set_attr(&mut c_nv_pr, "name", &format!("Picture {id}"));
+    let mut nv = elem(ns::P, "nvPicPr");
+    nv.children.push(Node::Element(c_nv_pr));
+    nv.children.push(Node::Element(elem(ns::P, "cNvPicPr")));
+    nv.children.push(Node::Element(elem(ns::P, "nvPr")));
+
+    let mut blip = elem(ns::A, "blip");
+    blip.attrs.push(Attr {
+        ns: Some(ns::R.to_owned()),
+        local: "embed".to_owned(),
+        value: rel_id.to_owned(),
+    });
+    let mut stretch = elem(ns::A, "stretch");
+    stretch
+        .children
+        .push(Node::Element(elem(ns::A, "fillRect")));
+    let mut blip_fill = elem(ns::P, "blipFill");
+    blip_fill.children.push(Node::Element(blip));
+    blip_fill.children.push(Node::Element(stretch));
+
+    let mut off = elem(ns::A, "off");
+    set_attr(&mut off, "x", &x.to_string());
+    set_attr(&mut off, "y", &y.to_string());
+    let mut ext = elem(ns::A, "ext");
+    set_attr(&mut ext, "cx", &cx.to_string());
+    set_attr(&mut ext, "cy", &cy.to_string());
+    let mut xfrm = elem(ns::A, "xfrm");
+    xfrm.children.push(Node::Element(off));
+    xfrm.children.push(Node::Element(ext));
+    let mut geom = elem(ns::A, "prstGeom");
+    set_attr(&mut geom, "prst", "rect");
+    geom.children.push(Node::Element(elem(ns::A, "avLst")));
+    let mut sp_pr = elem(ns::P, "spPr");
+    sp_pr.children.push(Node::Element(xfrm));
+    sp_pr.children.push(Node::Element(geom));
+
+    let mut pic = elem(ns::P, "pic");
+    pic.children.push(Node::Element(nv));
+    pic.children.push(Node::Element(blip_fill));
+    pic.children.push(Node::Element(sp_pr));
+    pic
 }
 
 const TABLE_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/table";

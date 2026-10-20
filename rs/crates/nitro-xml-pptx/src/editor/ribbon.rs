@@ -61,6 +61,12 @@ pub fn ribbon_html(
         html.push_str(&button("home.bold", "Bold", surface, false));
         html.push_str(&button("home.italic", "Italic", surface, false));
         html.push_str(&button("home.underline", "Underline", surface, false));
+        html.push_str(&button(
+            "home.strikethrough",
+            "Strikethrough",
+            surface,
+            false,
+        ));
         html.push_str(&button("home.align-left", "Align Left", surface, false));
         html.push_str(&button("home.align-center", "Center", surface, false));
         html.push_str(&button("home.align-right", "Align Right", surface, false));
@@ -94,6 +100,7 @@ pub fn ribbon_html(
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Shapes\">");
         html.push_str(&button("insert.shape", "Shape", surface, true));
         html.push_str(&button("insert.text-box", "Text Box", surface, false));
+        html.push_str(&button("insert.picture", "Picture", surface, false));
         html.push_str("</section>");
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Tables\">");
         html.push_str(&button("insert.table", "Table", surface, false));

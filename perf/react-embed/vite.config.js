@@ -22,6 +22,7 @@ export default defineConfig({
   server: {
     port: 5179,
     strictPort: true,
+    hmr: false,
     fs: {
       allow: [ROOT],
     },

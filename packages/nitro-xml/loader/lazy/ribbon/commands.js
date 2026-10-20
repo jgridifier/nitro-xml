@@ -2,7 +2,7 @@
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
 // Every `c` id below was checked against the engine (the saved bytes change); anything the editor
-// registers but does not implement (cut, paste, fill, borders, Word numbering) is deliberately absent.
+// registers but does not implement (cut, paste, fill, borders, Word bullets, shapes) is deliberately absent.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
 //   c editor cmd id · d diagnostics toggle · s slide-pane toggle (host) · m dropdown entries · r readout
 //   g group caption · big: large buttons · rows: stacked small buttons · sm: small button style
@@ -34,6 +34,7 @@ const FONT = {
       it("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
       it("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
       it("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
+      it("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
     ],
     [
       it("home.align-left", "left", "Align left"),
@@ -43,6 +44,13 @@ const FONT = {
       it("home.font-size", "grow", "Font size", "Set the font size"),
       it("home.font-color", "color", "Font color", "Set the font color"),
     ],
+  ],
+};
+const wordFont = {
+  g: "Font",
+  rows: [
+    [...FONT.rows[0], it("home.highlight", "highlight", "Highlight", "Text highlight")],
+    FONT.rows[1],
   ],
 };
 
@@ -135,6 +143,7 @@ export function tabsFor(format, unit, edit) {
                   it("insert.move-slide-up", "chevUp", "Move Slide Up"),
                   it("insert.move-slide-down", "chevDown", "Move Slide Down"),
                   it("insert.text-box", "text", "Text Box"),
+                  it("insert.picture", "picture", "Picture", "Insert a picture"),
                   it("home.delete-slide", "trash", "Delete Slide"),
                 ],
               },
@@ -152,11 +161,12 @@ export function tabsFor(format, unit, edit) {
           }
         : format === "docx" && edit
           ? {
-              Home: [...officeHome.slice(0, 2), wordLists, ...officeHome.slice(2)],
+              Home: [officeHome[0], wordFont, wordLists, ...officeHome.slice(2)],
               Insert: [
                 {
                   g: "Tables",
                   big: [
+                    it("insert.picture", "picture", "Picture", "Insert a picture"),
                     it("insert.table", "table", "Table", "Insert a table"),
                     it("table.insert-row", "rowAdd", "Insert Row"),
                     it("table.delete-row", "rowDel", "Delete Row"),

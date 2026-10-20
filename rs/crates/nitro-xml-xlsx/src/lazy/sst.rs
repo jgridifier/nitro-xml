@@ -2,7 +2,7 @@
 //! On-demand shared-string resolution. The table is inflated only through the highest index the
 //! viewport needs, and only those `<si>` entries are materialised.
 
-use std::collections::{HashMap, HashSet};
+use crate::fast_hash::{FastMap as HashMap, FastSet as HashSet};
 
 use nitro_xml_opc::opc::Package;
 use nitro_xml_opc::xml::parse_xml_str;
@@ -86,7 +86,7 @@ pub(crate) fn resolve_shared_strings(
     palette: Option<&[String]>,
 ) -> Result<HashMap<usize, SharedString>, String> {
     if needed.is_empty() {
-        return Ok(HashMap::new());
+        return Ok(HashMap::default());
     }
     let max_needed = needed.iter().copied().max().unwrap_or(0);
     let mut parser = SstParser {
@@ -94,7 +94,7 @@ pub(crate) fn resolve_shared_strings(
         palette,
         max_needed,
         index: 0,
-        out: HashMap::new(),
+        out: HashMap::default(),
         text: String::new(),
         pending: Vec::new(),
         done: false,
@@ -170,7 +170,7 @@ impl SstParser<'_> {
                 }
                 SiScan::Item { start, end } => {
                     let xml = self.text[start..end].to_owned();
-                    self.text = self.text[end..].to_owned();
+                    self.text.drain(..end);
                     if self.needed.contains(&self.index) {
                         self.out.insert(self.index, parse_si(&xml, self.palette));
                     }
@@ -204,8 +204,8 @@ fn next_si(text: &str) -> SiScan {
         }
         match tag_kind(text, i) {
             TagKind::Incomplete => return SiScan::NeedMore,
-            TagKind::Close(local) if local == "sst" => return SiScan::End,
-            TagKind::Open(local) if local == "si" => {
+            TagKind::Close("sst") => return SiScan::End,
+            TagKind::Open("si") => {
                 let Some((open_end, self_close)) = end_of_tag(text, i) else {
                     return SiScan::NeedMore;
                 };
@@ -231,7 +231,27 @@ fn next_si(text: &str) -> SiScan {
     SiScan::NeedMore
 }
 
+/// `<si><t>plain</t></si>` without entities, `\r` or `_xHHHH_` escapes: the text is the answer, so
+/// skip wrapping, DOM parsing and escape decoding (the common shape of generated and exported sheets).
+fn parse_plain_si(xml: &str) -> Option<SharedString> {
+    let inner = xml.strip_prefix("<si>")?.strip_suffix("</si>")?;
+    let body = inner
+        .strip_prefix("<t>")
+        .or_else(|| inner.strip_prefix("<t xml:space=\"preserve\">"))?;
+    let text = body.strip_suffix("</t>")?;
+    if text.bytes().any(|b| matches!(b, b'<' | b'&' | b'\r')) || text.contains("_x") {
+        return None;
+    }
+    Some(SharedString {
+        text: text.to_owned(),
+        runs: None,
+    })
+}
+
 fn parse_si(xml: &str, palette: Option<&[String]>) -> SharedString {
+    if let Some(plain) = parse_plain_si(xml) {
+        return plain;
+    }
     let wrapped = format!(
         "<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">{xml}</sst>"
     );
@@ -250,14 +270,14 @@ fn parse_si(xml: &str, palette: Option<&[String]>) -> SharedString {
     }
 }
 
-enum TagKind {
+enum TagKind<'a> {
     Incomplete,
-    Open(String),
-    Close(String),
+    Open(&'a str),
+    Close(&'a str),
     Other,
 }
 
-fn tag_kind(s: &str, lt: usize) -> TagKind {
+fn tag_kind(s: &str, lt: usize) -> TagKind<'_> {
     let bytes = s.as_bytes();
     if lt >= bytes.len() || bytes[lt] != b'<' {
         return TagKind::Other;
@@ -299,7 +319,7 @@ fn tag_kind(s: &str, lt: usize) -> TagKind {
     if k >= bytes.len() {
         return TagKind::Incomplete;
     }
-    let local = s[local_start..k].to_owned();
+    let local = &s[local_start..k];
     if is_close {
         TagKind::Close(local)
     } else {

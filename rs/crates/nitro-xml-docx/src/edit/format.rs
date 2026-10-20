@@ -46,9 +46,21 @@ pub fn set_run_formatting(
         message: format!("run {run_index} missing on block {block_index}"),
     })?;
     if let Some(obj) = run.as_object_mut() {
-        for key in ["bold", "italic", "fontSize", "color", "underline"] {
+        for key in [
+            "bold",
+            "italic",
+            "fontSize",
+            "color",
+            "underline",
+            "strike",
+            "highlight",
+        ] {
             if let Some(v) = patch.get(key) {
-                obj.insert(key.into(), v.clone());
+                if key == "highlight" && v.as_str().is_some_and(|s| s.is_empty()) {
+                    obj.remove(key);
+                } else {
+                    obj.insert(key.into(), v.clone());
+                }
             }
         }
     }

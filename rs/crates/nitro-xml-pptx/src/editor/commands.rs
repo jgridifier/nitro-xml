@@ -9,6 +9,7 @@ use nitro_xml_opc::edit::{
 use serde_json::{json, Value};
 
 use crate::edit::host::PptxHost;
+use crate::edit::picture::INSERTED_PNG;
 use crate::edit::shapes::register_shape_commands;
 use crate::edit::table::register_table_commands;
 use crate::edit::text::register_text_commands;
@@ -41,6 +42,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("home.bold", "Bold", Some("Ctrl+B"), true),
     pptx_cmd!("home.italic", "Italic", Some("Ctrl+I"), true),
     pptx_cmd!("home.underline", "Underline", Some("Ctrl+U"), true),
+    pptx_cmd!("home.strikethrough", "Strikethrough", Some("Ctrl+5"), true),
     pptx_cmd!("home.align-left", "Align Left", None, true),
     pptx_cmd!("home.align-center", "Center", None, true),
     pptx_cmd!("home.align-right", "Align Right", None, true),
@@ -61,6 +63,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("insert.shape", "Shape", None, true),
     pptx_cmd!("insert.text-box", "Text Box", None, true),
     pptx_cmd!("insert.table", "Table", None, true),
+    pptx_cmd!("insert.picture", "Picture", None, true),
     pptx_cmd!("table.insert-row", "Insert Row", None, true),
     pptx_cmd!("table.delete-row", "Delete Row", None, true),
     pptx_cmd!("table.insert-column", "Insert Column", None, true),
@@ -197,6 +200,30 @@ impl PptxCommandSurface {
                     "slideIndex": slide,
                     "elementId": element_id,
                     "underline": !current,
+                });
+                self.run_shape_op("setShapeTextStyle", &patch, session)
+            }
+            "home.strikethrough" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: "home.strikethrough needs a selected shape".into(),
+                })?;
+                let slide = selection.slide_index;
+                let current = session
+                    .host
+                    .slide(slide)
+                    .ok()
+                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+                    .and_then(|e| {
+                        e.text_style
+                            .as_ref()
+                            .and_then(|ts| ts.strike)
+                            .or_else(|| e.text_segments.iter().find(|seg| seg.strike).map(|_| true))
+                    })
+                    .unwrap_or(false);
+                let patch = json!({
+                    "slideIndex": slide,
+                    "elementId": element_id,
+                    "strike": !current,
                 });
                 self.run_shape_op("setShapeTextStyle", &patch, session)
             }
@@ -367,6 +394,27 @@ impl PptxCommandSurface {
                     vec![EditScope::Workbook],
                     |host| -> Result<(), EditError> {
                         host.add_table(slide, &id, 80.0, 80.0, 360.0, 120.0)
+                            .map_err(|e| EditError::Other { message: e })?;
+                        Ok(())
+                    },
+                )?;
+                selection.select(std::iter::once(id));
+                Ok(())
+            }
+            "insert.picture" => {
+                let slide = selection.slide_index;
+                let n = session
+                    .host
+                    .slide(slide)
+                    .map(|s| s.elements.len())
+                    .unwrap_or(0);
+                let id = format!("picture-{slide}-{n}");
+                session.run(
+                    "insert.picture",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    |host| -> Result<(), EditError> {
+                        host.add_picture(slide, &id, INSERTED_PNG)
                             .map_err(|e| EditError::Other { message: e })?;
                         Ok(())
                     },

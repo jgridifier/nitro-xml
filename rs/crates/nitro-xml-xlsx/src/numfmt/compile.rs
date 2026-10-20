@@ -2,7 +2,9 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/numfmt/compile.ts; changes listed in PROVENANCE.md.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::rc::Rc;
+
+use crate::fast_hash::FastMap;
 
 use crate::numfmt::fraction::{compile_fraction, fraction_slash, FractionPlan};
 use crate::numfmt::number::{compile_number, NumberPlan};
@@ -30,7 +32,7 @@ pub(crate) struct Compiled {
 const CACHE_LIMIT: usize = 2000;
 
 thread_local! {
-    static CACHE: RefCell<HashMap<String, Compiled>> = RefCell::new(HashMap::new());
+    static CACHE: RefCell<FastMap<String, Rc<Compiled>>> = RefCell::new(FastMap::default());
 }
 
 fn system_format(src: &str) -> String {
@@ -76,7 +78,7 @@ fn general_section() -> CompiledSection {
     }
 }
 
-pub(crate) fn compile_format(format: &str) -> Compiled {
+pub(crate) fn compile_format(format: &str) -> Rc<Compiled> {
     if let Some(hit) = CACHE.with(|c| c.borrow().get(format).cloned()) {
         return hit;
     }
@@ -115,16 +117,16 @@ pub(crate) fn compile_format(format: &str) -> Compiled {
         conditional,
         is_date: false,
     };
-    let compiled = Compiled {
+    let compiled = Rc::new(Compiled {
         is_date: compiled.numeric.iter().any(|s| s.kind == SectionKind::Date),
         ..compiled
-    };
+    });
     CACHE.with(|c| {
         let mut cache = c.borrow_mut();
         if cache.len() >= CACHE_LIMIT {
             cache.clear();
         }
-        cache.insert(format.to_string(), compiled.clone());
+        cache.insert(format.to_string(), Rc::clone(&compiled));
     });
     compiled
 }
@@ -146,30 +148,30 @@ fn only_negative(c: &Condition) -> bool {
         || (c.op == ConditionOp::Eq && c.value < 0.0)
 }
 
-pub(crate) struct Choice {
-    pub section: CompiledSection,
+pub(crate) struct Choice<'a> {
+    pub section: &'a CompiledSection,
     pub abs: bool,
 }
 
-pub(crate) fn choose_section(c: &Compiled, v: f64) -> Option<Choice> {
+pub(crate) fn choose_section(c: &Compiled, v: f64) -> Option<Choice<'_>> {
     let s1 = c.numeric.first()?;
     let s2 = c.numeric.get(1);
     let s3 = c.numeric.get(2);
     if !c.conditional {
         if v > 0.0 || s2.is_none() {
             return Some(Choice {
-                section: s1.clone(),
+                section: s1,
                 abs: false,
             });
         }
         if v < 0.0 {
             return Some(Choice {
-                section: s2?.clone(),
+                section: s2?,
                 abs: true,
             });
         }
         return Some(Choice {
-            section: s3.unwrap_or(s1).clone(),
+            section: s3.unwrap_or(s1),
             abs: false,
         });
     }
@@ -177,7 +179,7 @@ pub(crate) fn choose_section(c: &Compiled, v: f64) -> Option<Choice> {
     let c2 = s2.and_then(|s| s.condition);
     if c1.is_none() || c1.is_some_and(|cond| matches(&cond, v)) {
         return Some(Choice {
-            section: s1.clone(),
+            section: s1,
             abs: c1.is_some_and(|cond| only_negative(&cond)),
         });
     }
@@ -185,31 +187,31 @@ pub(crate) fn choose_section(c: &Compiled, v: f64) -> Option<Choice> {
     if let Some(cond2) = c2 {
         if matches(&cond2, v) {
             return Some(Choice {
-                section: s2.clone(),
+                section: s2,
                 abs: only_negative(&cond2),
             });
         }
         return s3.map(|s| Choice {
-            section: s.clone(),
+            section: s,
             abs: false,
         });
     }
     if let Some(s3) = s3 {
         return Some(if v < 0.0 {
             Choice {
-                section: s2.clone(),
+                section: s2,
                 abs: true,
             }
         } else {
             Choice {
-                section: s3.clone(),
+                section: s3,
                 abs: false,
             }
         });
     }
     let c1 = c1?;
     Some(Choice {
-        section: s2.clone(),
+        section: s2,
         abs: v < 0.0 && c1.op != ConditionOp::Eq && c1.value <= 0.0,
     })
 }

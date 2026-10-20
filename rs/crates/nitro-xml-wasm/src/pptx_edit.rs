@@ -12,6 +12,7 @@ const SHAPE_COMMANDS: &[&str] = &[
     "home.bold",
     "home.italic",
     "home.underline",
+    "home.strikethrough",
     "home.align-left",
     "home.align-center",
     "home.align-right",
@@ -264,6 +265,11 @@ impl PptxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.strikethrough",
+                    label: "Strikethrough",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.align-left",
                     label: "Align Left",
                     enabled: true,
@@ -311,6 +317,11 @@ impl PptxState {
                 RibbonItem {
                     id: "insert.table",
                     label: "Table",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "insert.picture",
+                    label: "Picture",
                     enabled: true,
                 },
                 RibbonItem {

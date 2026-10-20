@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use nitro_xml_opc::xml::{parse_xml_str, Element};
 use quick_xml::escape::resolve_xml_entity;
 use quick_xml::events::{BytesRef, Event};
-use quick_xml::reader::NsReader;
+use quick_xml::reader::Reader;
 
 use crate::address::{parse_address, parse_range};
 use crate::cells::{CellStore, CellTypeTag};
@@ -84,11 +84,9 @@ pub fn read_sheet_data_xml(
     store: &mut CellStore,
     row_info: &mut HashMap<u32, RowInfo>,
 ) {
-    // Stream path is the HWM win on large sheets. Small fragments stay on the DOM
-    // path below 64KiB so bidi/visual parity matches the prior Element reader.
-    if sheet_data_inner.len() >= 65_536
-        && read_sheet_data_xml_stream(ctx, sheet_data_inner, store, row_info)
-    {
+    // Stream path first at every size: no wrapper copy, no DOM tree, no per-element name compares.
+    // It declines (returns false) for `inlineStr` / rich-string markup; those take the DOM path.
+    if read_sheet_data_xml_stream(ctx, sheet_data_inner, store, row_info) {
         return;
     }
     // Lazy viewport rows keep `x14ac:dyDescent` (and similar) without the outer worksheet
@@ -117,7 +115,8 @@ fn read_sheet_data_xml_stream(
     }
 
     // Inner XML is the `<sheetData>` children only (rows); no extra wrapper copy on the hot path.
-    let mut reader = NsReader::from_str(sheet_data_inner);
+    // Plain `Reader`: cells are matched by local name, so namespace resolution is wasted work.
+    let mut reader = Reader::from_str(sheet_data_inner);
     reader.config_mut().trim_text(false);
 
     let mut masters: HashMap<String, SharedMaster> = HashMap::new();
@@ -140,12 +139,11 @@ fn read_sheet_data_xml_stream(
     let mut f_kind_buf = Vec::<u8>::with_capacity(8);
     let mut f_si = String::new();
     let mut f_ref: Option<String> = None;
-    let mut buf = Vec::new();
     // Reused so attribute scans do not allocate per cell.
     let mut attr_scratch = Vec::<u8>::with_capacity(32);
 
     loop {
-        let event = match reader.read_event_into(&mut buf) {
+        let event = match reader.read_event() {
             Ok(e) => e,
             Err(_) => return false,
         };
@@ -181,18 +179,36 @@ fn read_sheet_data_xml_stream(
                         f_si.clear();
                         f_ref = None;
                         cell_type_buf.clear();
-                        if let Some(t) = attr_bytes(e, b"t", &mut attr_scratch) {
-                            cell_type_buf.extend_from_slice(t);
-                        } else {
+                        // One pass over the attributes (was five scans, each re-checking duplicates).
+                        let mut s_attr = None;
+                        let mut address = None;
+                        let mut has_t = false;
+                        cell_cm = None;
+                        cell_vm = None;
+                        for a in e.attributes().with_checks(false).flatten() {
+                            let v = a.value.as_ref();
+                            match local_name(a.key.as_ref()) {
+                                b"t" if !has_t => {
+                                    has_t = true;
+                                    cell_type_buf.extend_from_slice(v);
+                                }
+                                b"s" if s_attr.is_none() => s_attr = parse_u32(v),
+                                b"cm" if cell_cm.is_none() => cell_cm = parse_u32(v),
+                                b"vm" if cell_vm.is_none() => cell_vm = parse_u32(v),
+                                b"r" if address.is_none() => {
+                                    address = std::str::from_utf8(v).ok().and_then(parse_address)
+                                }
+                                _ => {}
+                            }
+                        }
+                        if !has_t {
                             cell_type_buf.extend_from_slice(b"n");
                         }
-                        let s = attr_u32(e, b"s", &mut attr_scratch).unwrap_or(0);
-                        cell_style = ctx.xf_map.get(s as usize).copied().unwrap_or(0);
-                        cell_cm = attr_u32(e, b"cm", &mut attr_scratch);
-                        cell_vm = attr_u32(e, b"vm", &mut attr_scratch);
-                        let address = attr_bytes(e, b"r", &mut attr_scratch)
-                            .and_then(|r| std::str::from_utf8(r).ok())
-                            .and_then(parse_address);
+                        cell_style = ctx
+                            .xf_map
+                            .get(s_attr.unwrap_or(0) as usize)
+                            .copied()
+                            .unwrap_or(0);
                         col_index = if let Some(ref a) = address {
                             a.col as i64
                         } else {
@@ -248,9 +264,9 @@ fn read_sheet_data_xml_stream(
             Event::Text(t) => {
                 if let Ok(text) = std::str::from_utf8(t.as_ref()) {
                     if in_v {
-                        v_text.push_str(text);
+                        push_line_normalized(&mut v_text, text);
                     } else if in_f {
-                        f_text.push_str(text);
+                        push_line_normalized(&mut f_text, text);
                     }
                 }
             }
@@ -266,9 +282,9 @@ fn read_sheet_data_xml_stream(
             Event::CData(t) => {
                 if let Ok(text) = std::str::from_utf8(t.as_ref()) {
                     if in_v {
-                        v_text.push_str(text);
+                        push_line_normalized(&mut v_text, text);
                     } else if in_f {
-                        f_text.push_str(text);
+                        push_line_normalized(&mut f_text, text);
                     }
                 }
             }
@@ -315,7 +331,6 @@ fn read_sheet_data_xml_stream(
             }
             _ => {}
         }
-        buf.clear();
     }
 }
 
@@ -325,6 +340,26 @@ fn local_name(qname: &[u8]) -> &[u8] {
         .rposition(|&b| b == b':')
         .map(|i| &qname[i + 1..])
         .unwrap_or(qname)
+}
+
+/// Append `text` with XML line-end normalisation (`\r\n` and lone `\r` become `\n`), matching the
+/// DOM parser. Character references (`&#13;`) arrive as `GeneralRef` and keep their `\r`.
+fn push_line_normalized(out: &mut String, text: &str) {
+    if !text.contains('\r') {
+        out.push_str(text);
+        return;
+    }
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\r' {
+            if chars.peek() == Some(&'\n') {
+                chars.next();
+            }
+            out.push('\n');
+        } else {
+            out.push(c);
+        }
+    }
 }
 
 /// Expand a `GeneralRef` (`&lt;`, `&amp;`, `&#38;`, …) into `out`.
@@ -346,7 +381,7 @@ fn attr_bytes<'a>(
     key: &[u8],
     scratch: &'a mut Vec<u8>,
 ) -> Option<&'a [u8]> {
-    for a in e.attributes().flatten() {
+    for a in e.attributes().with_checks(false).flatten() {
         if local_name(a.key.as_ref()) == key {
             scratch.clear();
             scratch.extend_from_slice(a.value.as_ref());
@@ -354,6 +389,10 @@ fn attr_bytes<'a>(
         }
     }
     None
+}
+
+fn parse_u32(bytes: &[u8]) -> Option<u32> {
+    std::str::from_utf8(bytes).ok()?.parse().ok()
 }
 
 fn attr_u32(

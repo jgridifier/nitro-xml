@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 import { scheduleMetafileAttr } from "./metafile-resolve.js";
-
 export const Op = Object.freeze({
 FillRect: 1,
 StrokeRect: 2,
@@ -12,6 +11,7 @@ AppendChild: 7,
 SetText: 8,
 SetStyle: 9,
 SetInnerMarkup: 10,
+PlaceBox: 11,
 });
 export function applyCommandBuffer(bytes, target) {
 const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -174,6 +174,25 @@ if (parent && markup && typeof document !== "undefined") {
 const tpl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 tpl.innerHTML = markup;
 while (tpl.firstChild) parent.appendChild(tpl.firstChild);
+}
+ops++;
+break;
+}
+case Op.PlaceBox: {
+if (!need(20)) return { ops, error: "truncated PlaceBox" };
+const id = view.getUint32(i, true);
+const x = view.getInt32(i + 4, true);
+const y = view.getInt32(i + 8, true);
+const w = view.getInt32(i + 12, true);
+const h = view.getInt32(i + 16, true);
+i += 20;
+const el = nodes.get(id);
+if (el) {
+const s = el.style;
+s.left = x + "px";
+s.top = y + "px";
+s.width = w + "px";
+s.height = h + "px";
 }
 ops++;
 break;

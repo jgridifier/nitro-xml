@@ -31,7 +31,7 @@ describe("Office ribbon manifests", () => {
   });
 
   it("lists only PowerPoint commands that change the saved package", () => {
-    // Catches: a PowerPoint button whose command does not rewrite the package (notes, pictures).
+    // Catches: a PowerPoint button whose command does not rewrite the package (notes, shapes).
     const bound = [...ids(tabsFor("pptx", "Slide", true)), ...QAT.map((x) => x.c)];
     const allowed = new Set([
       "file.save",
@@ -40,6 +40,7 @@ describe("Office ribbon manifests", () => {
       "home.bold",
       "home.italic",
       "home.underline",
+      "home.strikethrough",
       "home.align-left",
       "home.align-center",
       "home.align-right",
@@ -49,6 +50,7 @@ describe("Office ribbon manifests", () => {
       "home.font-size",
       "home.font-color",
       "insert.text-box",
+      "insert.picture",
       "insert.table",
       "table.insert-row",
       "table.delete-row",
@@ -67,6 +69,7 @@ describe("Office ribbon manifests", () => {
       "insert.move-slide-down",
       "home.delete-slide",
       "insert.text-box",
+      "insert.picture",
       "insert.table",
       "table.insert-row",
       "home.bold",
@@ -75,6 +78,7 @@ describe("Office ribbon manifests", () => {
       "home.align-justify",
       "home.bullets",
       "home.numbering",
+      "home.strikethrough",
     ]) {
       assert.ok(bound.includes(id), `missing pptx command ${id}`);
     }
@@ -90,6 +94,8 @@ describe("Office ribbon manifests", () => {
       "home.bold",
       "home.italic",
       "home.underline",
+      "home.strikethrough",
+      "home.highlight",
       "home.align-left",
       "home.align-center",
       "home.align-right",
@@ -97,6 +103,7 @@ describe("Office ribbon manifests", () => {
       "home.numbering",
       "home.font-size",
       "home.font-color",
+      "insert.picture",
       "insert.table",
       "table.insert-row",
       "table.delete-row",
@@ -105,6 +112,7 @@ describe("Office ribbon manifests", () => {
       "table.delete",
     ]);
     for (const id of bound) assert.ok(allowed.has(id), `unexpected docx command ${id}`);
+    assert.ok(bound.includes("insert.picture"));
     assert.ok(bound.includes("insert.table"));
     assert.ok(bound.includes("table.insert-row"));
     assert.ok(bound.includes("table.delete"));
@@ -112,6 +120,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("home.bold"));
     assert.ok(bound.includes("home.align-justify"));
     assert.ok(bound.includes("home.numbering"));
+    assert.ok(bound.includes("home.strikethrough"));
+    assert.ok(bound.includes("home.highlight"));
     assert.ok(!bound.includes("home.bullets"), "Word bullets stay off until a bullet definition is on the ribbon");
     assert.ok(!bound.includes("insert.slide"));
     assert.ok(!bound.includes("insert.text-box"));

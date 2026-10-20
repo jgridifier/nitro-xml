@@ -146,6 +146,16 @@ impl CommandBuffer {
         self.put_u32(markup);
     }
 
+    /// Place a DOM node via CSSOM `left/top/width/height` (no style-string intern; #30).
+    pub fn place_box(&mut self, id: u32, x: i32, y: i32, w: i32, h: i32) {
+        self.put_u8(opcode::PLACE_BOX);
+        self.put_u32(id);
+        self.put_i32(x);
+        self.put_i32(y);
+        self.put_i32(w);
+        self.put_i32(h);
+    }
+
     /// Mixed canvas/DOM ops matching the seed opcode set (tests + `bench` feature).
     #[allow(dead_code)]
     pub fn encode_demo(&mut self, n_ops: u32) {
@@ -184,5 +194,20 @@ mod tests {
         let bytes = buf.take();
         assert_eq!(bytes.len(), expected);
         assert_eq!(bytes[0], opcode::FILL_RECT);
+    }
+
+    #[test]
+    fn place_box_encodes_21_bytes_le() {
+        // Catches: PlaceBox payload size/endianness drifting from apply.js Op.PlaceBox (#30).
+        let mut buf = CommandBuffer::new();
+        buf.place_box(7, 11, -2, 33, 44);
+        let bytes = buf.take();
+        assert_eq!(bytes.len(), 21);
+        assert_eq!(bytes[0], opcode::PLACE_BOX);
+        assert_eq!(u32::from_le_bytes(bytes[1..5].try_into().unwrap()), 7);
+        assert_eq!(i32::from_le_bytes(bytes[5..9].try_into().unwrap()), 11);
+        assert_eq!(i32::from_le_bytes(bytes[9..13].try_into().unwrap()), -2);
+        assert_eq!(i32::from_le_bytes(bytes[13..17].try_into().unwrap()), 33);
+        assert_eq!(i32::from_le_bytes(bytes[17..21].try_into().unwrap()), 44);
     }
 }

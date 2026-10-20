@@ -83,7 +83,6 @@ if (!input) {
 try {
 const res = await fetch(String(wasmUrl));
 if (!res.ok) throw new Error(`wasm fetch failed: ${res.status}`);
-// Cache Module for remounts; pass Response so glue can instantiateStreaming.
 void compileWasmModule(res.clone()).catch(() => {});
 input = res;
 } catch {

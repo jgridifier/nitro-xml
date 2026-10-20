@@ -216,6 +216,16 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.strikethrough",
+                    label: "Strikethrough",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.highlight",
+                    label: "Highlight",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.align-left",
                     label: "Align Left",
                     enabled: true,
@@ -276,6 +286,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "insert.picture",
+                    label: "Picture",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "table.delete",
                     label: "Delete Table",
                     enabled: true,
@@ -292,6 +307,8 @@ fn canonical_command(id: &str) -> &str {
         "home.bold" => "bold",
         "home.italic" => "italic",
         "home.underline" => "underline",
+        "home.strikethrough" => "strike",
+        "home.highlight" => "highlight",
         "home.align-left" => "align-left",
         "home.align-center" => "align-center",
         "home.align-right" => "align-right",

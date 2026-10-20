@@ -1,6 +1,5 @@
 {
   "xlsx": {
-<<<<<<< HEAD
     "S": { "url": "/samples/sample.xlsx", "name": "sample.xlsx" },
     "M": { "url": "/fixtures/generated/xlsx/cells_100k.xlsx", "name": "cells_100k.xlsx" },
     "L": { "url": "/fixtures/generated/xlsx/cells_1m.xlsx", "name": "cells_1m.xlsx" }
@@ -14,48 +13,5 @@
     "S": { "url": "/fixtures/generated/pptx/slides_10.pptx", "name": "slides_10.pptx" },
     "M": { "url": "/fixtures/generated/pptx/slides_50.pptx", "name": "slides_50.pptx" },
     "L": { "url": "/fixtures/generated/pptx/slides_200.pptx", "name": "slides_200.pptx" }
-=======
-    "S": {
-      "url": "/samples/sample.xlsx",
-      "name": "sample.xlsx"
-    },
-    "M": {
-      "url": "/fixtures/generated/xlsx/cells_100k.xlsx",
-      "name": "cells_100k.xlsx"
-    },
-    "L": {
-      "url": "/fixtures/generated/xlsx/cells_100k.xlsx",
-      "name": "cells_100k.xlsx",
-      "note": "edit L: cells_1m traps on editable open"
-    }
-  },
-  "docx": {
-    "S": {
-      "url": "/fixtures/generated/docx/pages_10.docx",
-      "name": "pages_10.docx"
-    },
-    "M": {
-      "url": "/fixtures/generated/docx/pages_100.docx",
-      "name": "pages_100.docx"
-    },
-    "L": {
-      "url": "/fixtures/generated/docx/pages_500.docx",
-      "name": "pages_500.docx"
-    }
-  },
-  "pptx": {
-    "S": {
-      "url": "/fixtures/generated/pptx/slides_10.pptx",
-      "name": "slides_10.pptx"
-    },
-    "M": {
-      "url": "/fixtures/generated/pptx/slides_50.pptx",
-      "name": "slides_50.pptx"
-    },
-    "L": {
-      "url": "/fixtures/generated/pptx/slides_200.pptx",
-      "name": "slides_200.pptx"
-    }
->>>>>>> 180c27f (Part of #30: mut-frame edit+paint (cut edit-to-screen RTs))
   }
 }

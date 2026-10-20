@@ -7,27 +7,17 @@ use crate::intern::StringIntern;
 use crate::model::ActiveWorksheet;
 use crate::render::geometry::header_sizes;
 use crate::render::grid::{LINES_ID, LINES_TOP_ID};
+use crate::render::paint_encode::{place_style_attr, ChromeKeys};
 use crate::render::viewport::visible_cells_for_host;
 use crate::render::GridPaintViewport;
 use crate::view::metrics::GridMetrics;
 
 const LINE_BASE: u32 = 5_000;
 
-fn set_attr<I: StringIntern>(
-    buf: &mut CommandBuffer,
-    intern: &mut I,
-    id: u32,
-    key: &str,
-    val: &str,
-) {
-    let k = intern.intern(key);
-    let v = intern.intern(val);
-    buf.set_attr(id, k, v);
-}
-
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    keys: &ChromeKeys,
     sheet: &ActiveWorksheet,
     metrics: &GridMetrics,
     viewport: &GridPaintViewport,
@@ -38,6 +28,8 @@ pub fn paint<I: StringIntern>(
     let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let vis = visible_cells_for_host(metrics, viewport, sizes.w, sizes.h);
     let div = intern.intern("div");
+    let class_v = intern.intern("xg-gl xg-gl-v");
+    let class_h = intern.intern("xg-gl xg-gl-h");
     let mut i = 0u32;
 
     // Plane-relative coords (upstream gridlines.ts); scroll is on `.xg-plane`.
@@ -46,20 +38,9 @@ pub fn paint<I: StringIntern>(
         let id = LINE_BASE + i;
         i += 1;
         buf.create_element(id, div, parent);
-        let gl_class = if w == 1 {
-            "xg-gl xg-gl-v"
-        } else {
-            "xg-gl xg-gl-h"
-        };
-        set_attr(buf, intern, id, "class", gl_class);
+        buf.set_attr(id, keys.class, if w == 1 { class_v } else { class_h });
         // One style attr instead of four SetStyle ops (smaller first-frame buffer).
-        set_attr(
-            buf,
-            intern,
-            id,
-            "style",
-            &format!("left:{x}px;top:{y}px;width:{w}px;height:{h}px"),
-        );
+        place_style_attr(buf, intern, keys, id, x, y, w, h);
     };
 
     let mut paint_set = |parent: u32, rows: &[u32], cols: &[u32]| {

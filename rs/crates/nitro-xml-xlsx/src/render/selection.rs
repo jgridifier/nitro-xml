@@ -7,6 +7,7 @@ use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, CellRange};
 use crate::render::geometry::header_sizes;
 use crate::render::grid::{OVERLAY_ID, OVERLAY_TOP_ID};
+use crate::render::paint_encode::{place_style_attr, ChromeKeys};
 use crate::render::selection_ops::paint_selection;
 use crate::render::viewport::visible_cells_for_host;
 use crate::render::GridPaintViewport;
@@ -16,37 +17,14 @@ use crate::view::metrics::GridMetrics;
 const OUTLINE_ID: u32 = 6_000;
 const ACTIVE_ID: u32 = 6_001;
 
-fn set_style<I: StringIntern>(
-    buf: &mut CommandBuffer,
-    intern: &mut I,
-    id: u32,
-    prop: &str,
-    val: &str,
-) {
-    let p = intern.intern(prop);
-    let v = intern.intern(val);
-    buf.set_style(id, p, v);
-}
-
-fn set_attr<I: StringIntern>(
-    buf: &mut CommandBuffer,
-    intern: &mut I,
-    id: u32,
-    key: &str,
-    val: &str,
-) {
-    let k = intern.intern(key);
-    let v = intern.intern(val);
-    buf.set_attr(id, k, v);
-}
-
 #[allow(clippy::too_many_arguments)] // mirrors upstream place(node, x, y, w, h) plus buf/intern/id/class
 fn place_box<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    keys: &ChromeKeys,
     id: u32,
     parent: u32,
-    class: &str,
+    class: u32,
     left: i32,
     top: i32,
     width: i32,
@@ -55,11 +33,8 @@ fn place_box<I: StringIntern>(
     let div = intern.intern("div");
     // Plane-relative (upstream selection-layer.ts); `.xg-overlay` is under `.xg-plane`.
     buf.create_element(id, div, parent);
-    set_attr(buf, intern, id, "class", class);
-    set_style(buf, intern, id, "left", &format!("{}px", left));
-    set_style(buf, intern, id, "top", &format!("{}px", top));
-    set_style(buf, intern, id, "width", &format!("{}px", width));
-    set_style(buf, intern, id, "height", &format!("{}px", height));
+    buf.set_attr(id, keys.class, class);
+    place_style_attr(buf, intern, keys, id, left, top, width, height);
 }
 
 /// Plane-relative box clipped to the painted extent (upstream `rectOf` / maxRow / maxCol).
@@ -85,6 +60,7 @@ fn is_single_cell(range: &CellRange) -> bool {
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    keys: &ChromeKeys,
     sheet: &ActiveWorksheet,
     metrics: &GridMetrics,
     viewport: &GridPaintViewport,
@@ -144,6 +120,9 @@ pub fn paint<I: StringIntern>(
         )
     };
 
+    let outline_class = intern.intern("xg-outline");
+    let active_class = intern.intern("xg-active");
+
     // Upstream paints the overlay in every visible quadrant; each clips its part.
     let mut parents = vec![OVERLAY_ID];
     if viewport.frozen_rows > 0 {
@@ -155,9 +134,10 @@ pub fn paint<I: StringIntern>(
             place_box(
                 buf,
                 intern,
+                keys,
                 OUTLINE_ID + id_off,
                 parent,
-                "xg-outline",
+                outline_class,
                 left,
                 top,
                 w,
@@ -168,9 +148,10 @@ pub fn paint<I: StringIntern>(
             place_box(
                 buf,
                 intern,
+                keys,
                 ACTIVE_ID + id_off,
                 parent,
-                "xg-active",
+                active_class,
                 left,
                 top,
                 w,

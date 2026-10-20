@@ -9,6 +9,9 @@ use crate::intern::StringIntern;
 use crate::model::ActiveWorksheet;
 use crate::render::geometry::header_sizes;
 use crate::render::grid::ROOT_ID;
+use crate::render::paint_encode::{
+    intern_px, intern_translate3d, place_style_attr, set_attr_v, ChromeKeys,
+};
 use crate::render::selection_ops::{col_selected, paint_selection, row_selected};
 use crate::render::viewport::{paint_indices, visible_cells_for_host};
 use crate::render::GridPaintViewport;
@@ -22,48 +25,6 @@ const HDR_ROW_ID: u32 = 2_103;
 const COL_HDR_BASE: u32 = 3_000;
 const ROW_HDR_BASE: u32 = 4_000;
 
-fn set_style<I: StringIntern>(
-    buf: &mut CommandBuffer,
-    intern: &mut I,
-    id: u32,
-    prop: &str,
-    val: &str,
-) {
-    let p = intern.intern(prop);
-    let v = intern.intern(val);
-    buf.set_style(id, p, v);
-}
-
-fn set_attr<I: StringIntern>(
-    buf: &mut CommandBuffer,
-    intern: &mut I,
-    id: u32,
-    key: &str,
-    val: &str,
-) {
-    let k = intern.intern(key);
-    let v = intern.intern(val);
-    buf.set_attr(id, k, v);
-}
-
-fn place<I: StringIntern>(
-    buf: &mut CommandBuffer,
-    intern: &mut I,
-    id: u32,
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-) {
-    set_attr(
-        buf,
-        intern,
-        id,
-        "style",
-        &format!("left:{x}px;top:{y}px;width:{w}px;height:{h}px"),
-    );
-}
-
 fn header_font_px(zoom: f64) -> i32 {
     (11.0 * (zoom / 100.0)).round().max(6.0) as i32
 }
@@ -76,9 +37,89 @@ fn apply_header_sel(state: &str, class: &mut String) {
     }
 }
 
+/// `left:Xpx;width:Wpx;font-size:Fpx;line-height:1.35` for column headers.
+/// (CSS `style` attr needs kebab-case; SetStyle uses camelCase JS props.)
+fn intern_col_hdr_style(intern: &mut impl StringIntern, left: i32, w: i32, font_px: i32) -> u32 {
+    fn push_bytes(buf: &mut [u8], o: &mut usize, s: &[u8]) {
+        buf[*o..*o + s.len()].copy_from_slice(s);
+        *o += s.len();
+    }
+    fn push_i32(buf: &mut [u8], o: &mut usize, n: i32) {
+        let mut tmp = [0u8; 16];
+        let mut x = n.unsigned_abs();
+        let neg = n < 0;
+        let mut i = tmp.len();
+        if x == 0 {
+            i -= 1;
+            tmp[i] = b'0';
+        } else {
+            while x > 0 {
+                i -= 1;
+                tmp[i] = b'0' + (x % 10) as u8;
+                x /= 10;
+            }
+        }
+        if neg {
+            i -= 1;
+            tmp[i] = b'-';
+        }
+        push_bytes(buf, o, &tmp[i..]);
+    }
+    let mut buf = [0u8; 96];
+    let mut o = 0usize;
+    push_bytes(&mut buf, &mut o, b"left:");
+    push_i32(&mut buf, &mut o, left);
+    push_bytes(&mut buf, &mut o, b"px;width:");
+    push_i32(&mut buf, &mut o, w);
+    push_bytes(&mut buf, &mut o, b"px;font-size:");
+    push_i32(&mut buf, &mut o, font_px);
+    push_bytes(&mut buf, &mut o, b"px;line-height:1.35");
+    intern.intern(unsafe { std::str::from_utf8_unchecked(&buf[..o]) })
+}
+
+/// `top:Ypx;height:Hpx;font-size:Fpx;line-height:1.35` for row headers.
+fn intern_row_hdr_style(intern: &mut impl StringIntern, top: i32, h: i32, font_px: i32) -> u32 {
+    fn push_bytes(buf: &mut [u8], o: &mut usize, s: &[u8]) {
+        buf[*o..*o + s.len()].copy_from_slice(s);
+        *o += s.len();
+    }
+    fn push_i32(buf: &mut [u8], o: &mut usize, n: i32) {
+        let mut tmp = [0u8; 16];
+        let mut x = n.unsigned_abs();
+        let neg = n < 0;
+        let mut i = tmp.len();
+        if x == 0 {
+            i -= 1;
+            tmp[i] = b'0';
+        } else {
+            while x > 0 {
+                i -= 1;
+                tmp[i] = b'0' + (x % 10) as u8;
+                x /= 10;
+            }
+        }
+        if neg {
+            i -= 1;
+            tmp[i] = b'-';
+        }
+        push_bytes(buf, o, &tmp[i..]);
+    }
+    let mut buf = [0u8; 96];
+    let mut o = 0usize;
+    push_bytes(&mut buf, &mut o, b"top:");
+    push_i32(&mut buf, &mut o, top);
+    push_bytes(&mut buf, &mut o, b"px;height:");
+    push_i32(&mut buf, &mut o, h);
+    push_bytes(&mut buf, &mut o, b"px;font-size:");
+    push_i32(&mut buf, &mut o, font_px);
+    push_bytes(&mut buf, &mut o, b"px;line-height:1.35");
+    intern.intern(unsafe { std::str::from_utf8_unchecked(&buf[..o]) })
+}
+
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
+    keys: &ChromeKeys,
     sheet: &ActiveWorksheet,
     metrics: &GridMetrics,
     viewport: &GridPaintViewport,
@@ -98,37 +139,41 @@ pub fn paint<I: StringIntern>(
     let cells_w = (viewport.width - sizes.w).max(0);
     let cells_h = (viewport.height - sizes.h).max(0);
 
+    let class_corner = intern.intern("xg-corner");
+    let class_hbox_col = intern.intern("xg-hbox xg-hbox-col");
+    let class_hdr_col = intern.intern("xg-hdr-plane xg-hdr-col");
+    let class_hbox_row = intern.intern("xg-hbox xg-hbox-row");
+    let class_hdr_row = intern.intern("xg-hdr-plane xg-hdr-row");
+    let role_col = intern.intern("columnheader");
+    let role_row = intern.intern("rowheader");
+
     // pane-chrome.ts: corner + xg-hbox / xg-hdr-plane wrappers (scroll panes; freeze TODO).
     buf.create_element(CORNER_ID, div, ROOT_ID);
-    set_attr(buf, intern, CORNER_ID, "class", "xg-corner");
-    place(buf, intern, CORNER_ID, 0, 0, sizes.w, sizes.h);
+    buf.set_attr(CORNER_ID, keys.class, class_corner);
+    place_style_attr(buf, intern, keys, CORNER_ID, 0, 0, sizes.w, sizes.h);
 
     buf.create_element(HBOX_COL_ID, div, ROOT_ID);
-    set_attr(buf, intern, HBOX_COL_ID, "class", "xg-hbox xg-hbox-col");
-    place(buf, intern, HBOX_COL_ID, sizes.w, 0, cells_w, sizes.h);
+    buf.set_attr(HBOX_COL_ID, keys.class, class_hbox_col);
+    place_style_attr(buf, intern, keys, HBOX_COL_ID, sizes.w, 0, cells_w, sizes.h);
     buf.create_element(HDR_COL_ID, div, HBOX_COL_ID);
-    set_attr(buf, intern, HDR_COL_ID, "class", "xg-hdr-plane xg-hdr-col");
-    set_style(buf, intern, HDR_COL_ID, "height", &format!("{}px", sizes.h));
-    set_style(
-        buf,
-        intern,
+    buf.set_attr(HDR_COL_ID, keys.class, class_hdr_col);
+    buf.set_style(HDR_COL_ID, keys.height, intern_px(intern, sizes.h));
+    buf.set_style(
         HDR_COL_ID,
-        "transform",
-        &format!("translate3d({}px,0,0)", -scroll_x),
+        keys.transform,
+        intern_translate3d(intern, -scroll_x, 0),
     );
 
     buf.create_element(HBOX_ROW_ID, div, ROOT_ID);
-    set_attr(buf, intern, HBOX_ROW_ID, "class", "xg-hbox xg-hbox-row");
-    place(buf, intern, HBOX_ROW_ID, 0, sizes.h, sizes.w, cells_h);
+    buf.set_attr(HBOX_ROW_ID, keys.class, class_hbox_row);
+    place_style_attr(buf, intern, keys, HBOX_ROW_ID, 0, sizes.h, sizes.w, cells_h);
     buf.create_element(HDR_ROW_ID, div, HBOX_ROW_ID);
-    set_attr(buf, intern, HDR_ROW_ID, "class", "xg-hdr-plane xg-hdr-row");
-    set_style(buf, intern, HDR_ROW_ID, "width", &format!("{}px", sizes.w));
-    set_style(
-        buf,
-        intern,
+    buf.set_attr(HDR_ROW_ID, keys.class, class_hdr_row);
+    buf.set_style(HDR_ROW_ID, keys.width, intern_px(intern, sizes.w));
+    buf.set_style(
         HDR_ROW_ID,
-        "transform",
-        &format!("translate3d(0,{}px,0)", -scroll_y),
+        keys.transform,
+        intern_translate3d(intern, 0, -scroll_y),
     );
 
     for (n, col) in cols.iter().enumerate() {
@@ -142,14 +187,15 @@ pub fn paint<I: StringIntern>(
         buf.create_element(id, div, HDR_COL_ID);
         let mut hdr_class = String::from("xg-hd");
         apply_header_sel(col_selected(&selection, *col), &mut hdr_class);
-        set_attr(buf, intern, id, "class", &hdr_class);
-        set_attr(buf, intern, id, "role", "columnheader");
-        set_attr(buf, intern, id, "data-index", &col.to_string());
-        set_style(buf, intern, id, "left", &format!("{left}px"));
-        set_style(buf, intern, id, "width", &format!("{w}px"));
-        set_style(buf, intern, id, "fontSize", &format!("{font_px}px"));
+        set_attr_v(buf, intern, id, keys.class, &hdr_class);
+        buf.set_attr(id, keys.role, role_col);
+        set_attr_v(buf, intern, id, keys.data_index, &col.to_string());
         // Keep unitless 1.35 when font-size is set (matches upstream inherited shell LH).
-        set_style(buf, intern, id, "lineHeight", "1.35");
+        buf.set_attr(
+            id,
+            keys.style,
+            intern_col_hdr_style(intern, left, w, font_px),
+        );
         let label = intern.intern(&column_label(*col));
         buf.set_text(id, label);
     }
@@ -165,13 +211,14 @@ pub fn paint<I: StringIntern>(
         buf.create_element(id, div, HDR_ROW_ID);
         let mut hdr_class = String::from("xg-hd");
         apply_header_sel(row_selected(&selection, *row), &mut hdr_class);
-        set_attr(buf, intern, id, "class", &hdr_class);
-        set_attr(buf, intern, id, "role", "rowheader");
-        set_attr(buf, intern, id, "data-index", &row.to_string());
-        set_style(buf, intern, id, "top", &format!("{top}px"));
-        set_style(buf, intern, id, "height", &format!("{h}px"));
-        set_style(buf, intern, id, "fontSize", &format!("{font_px}px"));
-        set_style(buf, intern, id, "lineHeight", "1.35");
+        set_attr_v(buf, intern, id, keys.class, &hdr_class);
+        buf.set_attr(id, keys.role, role_row);
+        set_attr_v(buf, intern, id, keys.data_index, &row.to_string());
+        buf.set_attr(
+            id,
+            keys.style,
+            intern_row_hdr_style(intern, top, h, font_px),
+        );
         let label = intern.intern(&((*row + 1).to_string()));
         buf.set_text(id, label);
     }

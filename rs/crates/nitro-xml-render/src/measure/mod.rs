@@ -164,6 +164,11 @@ impl MeasureBatch {
     pub fn cached_width(&self, font_id: u32, text_id: u32) -> Option<f64> {
         self.cache.get(&(font_id, text_id)).copied()
     }
+
+    /// Seed the width cache (pptx letter-spacing paint tests; #30).
+    pub fn insert_cached_width(&mut self, font_id: u32, text_id: u32, width: f64) {
+        self.cache.insert((font_id, text_id), width);
+    }
 }
 
 /// Contour representation: Vec of rings, each ring is Vec of (x, y) points in em units.

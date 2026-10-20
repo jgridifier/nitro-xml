@@ -264,9 +264,9 @@ pub fn cell_view_with_cf_cache(
     // num_fmt alone does not restyle font/fill/borders — still cache those (#30).
     let cf_restyles = cf.as_ref().is_some_and(|c| {
         c.color_scale.is_some()
-            || c.style.as_ref().is_some_and(|d| {
-                d.font.is_some() || d.fill.is_some() || d.border.is_some()
-            })
+            || c.style
+                .as_ref()
+                .is_some_and(|d| d.font.is_some() || d.fill.is_some() || d.border.is_some())
     });
 
     // Shared Rc on the cache hit path — FontView is not cloned per cell (#30).
@@ -283,12 +283,7 @@ pub fn cell_view_with_cf_cache(
             (None, font_view_resolved, fill, borders)
         } else {
             let parts = resolve_style_parts(workbook, style, &indexed);
-            (
-                Some(parts.font),
-                parts.font_view,
-                parts.fill,
-                parts.borders,
-            )
+            (Some(parts.font), parts.font_view, parts.fill, parts.borders)
         }
     } else {
         let parts = resolve_style_parts(workbook, style, &indexed);

@@ -395,11 +395,7 @@ fn paint_one_cell<I: StringIntern>(
         // Style attr first — setAttribute("style") would wipe CSSOM (#30).
         // Omit CSS defaults so common left-aligned cells share shorter style strings.
         style_buf.clear();
-        let _ = write!(
-            style_buf,
-            "font:{font_css};color:{}",
-            item.view.font.color,
-        );
+        let _ = write!(style_buf, "font:{font_css};color:{}", item.view.font.color,);
         let deco = text_decoration(&item.view.font);
         if deco != "none" {
             let _ = write!(style_buf, ";text-decoration:{deco}");
@@ -427,12 +423,8 @@ fn paint_one_cell<I: StringIntern>(
         // directly — skips CreateElement+class per cell (#30). Keep the span when
         // wrap/rich/rotation/vertAlign need `.xg-tx` layout or hooks.
         // `view.text` is moved into `item.text`; skip rich when fill/shrink/### replaced it.
-        let paint_rich = !item.text_custom
-            && item
-                .view
-                .rich
-                .as_ref()
-                .is_some_and(|r| !r.is_empty());
+        let paint_rich =
+            !item.text_custom && item.view.rich.as_ref().is_some_and(|r| !r.is_empty());
         let need_tx_span = item.view.wrap
             || paint_rich
             || item.view.rotation != 0.0

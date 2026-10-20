@@ -304,10 +304,7 @@ pub fn build_items(input: &BuildInput, measure: &mut dyn TextMeasure) -> Vec<Cel
                 Some(&mut cf_cache),
             );
             // Keep formula blanks — paint marks them `xg-stale` after edits (#30).
-            if input.skip_blank_items
-                && is_blank_view(&view)
-                && !(input.has_formula)(row, col)
-            {
+            if input.skip_blank_items && is_blank_view(&view) && !(input.has_formula)(row, col) {
                 continue;
             }
             out.push(make_item(

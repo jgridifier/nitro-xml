@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * rAF applyEdit coalesce. Worker park: takePrewarmedWorker(w) on dispose.
+ * applyEdit coalesce (microtask) + flush-on-tick.
  * Installed from worker-host-tick on first tick (lazy — off eager brotli budget).
  */
 
@@ -9,9 +9,30 @@ export function patch(WorkerDocument) {
   WorkerDocument._nxPark = 1;
 
   const origEdit = WorkerDocument.prototype.applyEdit;
+  const origTick = WorkerDocument.prototype.tick;
+
+  async function flushEditQueue(doc) {
+    if (doc._ef) return;
+    doc._er = 0;
+    const q = doc._eq;
+    if (!q || !q.length) return;
+    doc._eq = [];
+    doc._ef = 1;
+    try {
+      for (const e of q) {
+        try {
+          e.resolve(await origEdit.call(doc, e.spec));
+        } catch (err) {
+          e.reject(err);
+        }
+      }
+    } finally {
+      doc._ef = 0;
+    }
+  }
+
   WorkerDocument.prototype.applyEdit = function (spec) {
     const s = spec || "";
-    if (typeof requestAnimationFrame !== "function") return origEdit.call(this, s);
     return new Promise((resolve, reject) => {
       if (!this._eq) this._eq = [];
       let key = null;
@@ -38,18 +59,18 @@ export function patch(WorkerDocument) {
         } else this._eq.push(item);
       } else this._eq.push(item);
       if (this._er) return;
-      this._er = requestAnimationFrame(async () => {
-        this._er = 0;
-        const q = this._eq || [];
-        this._eq = [];
-        for (const e of q) {
-          try {
-            e.resolve(await origEdit.call(this, e.spec));
-          } catch (err) {
-            e.reject(err);
-          }
-        }
-      });
+      this._er = 1;
+      const run = () => {
+        if (!this._er) return;
+        void flushEditQueue(this);
+      };
+      if (typeof queueMicrotask === "function") queueMicrotask(run);
+      else Promise.resolve().then(run);
     });
+  };
+
+  WorkerDocument.prototype.tick = async function (...args) {
+    await flushEditQueue(this);
+    return origTick.apply(this, args);
   };
 }

@@ -31,6 +31,8 @@ impl XlsxState {
         Ok(())
     }
 
+    /// Full host→viewer copy. Required after structure edits and on first `ensure_edit`.
+    /// Cell typing must not use this: cloning every DumpCell on cells_100k/1m is ~150 ms/edit.
     pub fn sync_model_from_edit(&mut self) {
         let Some(edit) = self.edit.as_ref() else {
             return;
@@ -53,6 +55,46 @@ impl XlsxState {
         self.sheets = sheets;
         if self.active >= self.sheets.len() {
             self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
+        }
+    }
+
+    /// Patch styles + the addressed cells only (keeps viewer sheet `cells` vec identity).
+    fn sync_cells_from_edit(&mut self, sheet: u32, coords: &[(u32, u32)]) {
+        let Some(edit) = self.edit.as_ref() else {
+            return;
+        };
+        let host = edit.host();
+        // Styles stay small; SST / sheet grids must not be cloned per keystroke.
+        self.workbook.styles = host.workbook.styles.clone();
+        self.workbook.active_sheet = host.workbook.active_sheet;
+        let Some(host_sh) = host.sheets.get(sheet as usize) else {
+            self.sync_model_from_edit();
+            return;
+        };
+        let Some(Some(sh)) = self.sheets.get_mut(sheet as usize) else {
+            self.sync_model_from_edit();
+            return;
+        };
+        for &(row, col) in coords {
+            let host_cell = host_sh
+                .cells
+                .iter()
+                .find(|c| c.row == row && c.col == col)
+                .cloned();
+            match host_cell {
+                Some(cell) => {
+                    if let Some(i) = sh.cells.iter().position(|c| c.row == row && c.col == col) {
+                        sh.cells[i] = cell;
+                    } else {
+                        sh.cells.push(cell);
+                    }
+                }
+                None => {
+                    if let Some(i) = sh.cells.iter().position(|c| c.row == row && c.col == col) {
+                        sh.cells.remove(i);
+                    }
+                }
+            }
         }
     }
 
@@ -107,9 +149,12 @@ impl XlsxState {
             .map_err(|e| e.to_string())?;
         if matches!(effect, ChromeEffect::Applied { .. }) {
             let structure = matches!(effect, ChromeEffect::Applied { structure: true });
-            self.sync_model_from_edit();
             if structure {
+                self.sync_model_from_edit();
                 self.adopt_host_active_sheet();
+            } else {
+                // Bold / number-format etc.: sync the active cell (selection), not the grid.
+                self.sync_cells_from_edit(target.sheet, &[(target.row, target.col)]);
             }
         }
         Ok(effect)
@@ -133,11 +178,34 @@ impl XlsxState {
             .edit
             .as_mut()
             .ok_or_else(|| "no edit session".to_string())?;
-        edit.apply_raw(&command, args).map_err(|e| e.to_string())?;
+        edit.apply_raw(&command, args.clone())
+            .map_err(|e| e.to_string())?;
         let structure = matches!(command.as_str(), "addSheet" | "renameSheet" | "deleteSheet");
-        self.sync_model_from_edit();
-        if structure {
-            self.adopt_host_active_sheet();
+        if structure
+            || matches!(
+                command.as_str(),
+                "insertRows" | "deleteRows" | "insertColumns" | "deleteColumns"
+            )
+        {
+            self.sync_model_from_edit();
+            if structure {
+                self.adopt_host_active_sheet();
+            }
+        } else if matches!(command.as_str(), "setCellInput" | "setCellValue") {
+            let sheet = args.get("sheet").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+            let row = args.get("row").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+            let col = args.get("col").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+            self.sync_cells_from_edit(sheet, &[(row, col)]);
+        } else if matches!(command.as_str(), "applyStyle" | "applyCellStyle") {
+            let sheet = args.get("sheet").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+            let range = args.get("range").and_then(|x| x.as_str()).unwrap_or("");
+            if let Some(coords) = coords_for_style_range(range) {
+                self.sync_cells_from_edit(sheet, &coords);
+            } else {
+                self.sync_model_from_edit();
+            }
+        } else {
+            self.sync_model_from_edit();
         }
         Ok(ChromeEffect::Applied { structure })
     }
@@ -192,12 +260,13 @@ impl XlsxState {
     }
 
     pub fn formula_commit(&mut self) -> Result<bool, String> {
+        let target = self.selection_target();
         let Some(edit) = self.edit.as_mut() else {
             return Ok(false);
         };
         let committed = edit.commit_edit().map_err(|e| e.to_string())?;
         if committed {
-            self.sync_model_from_edit();
+            self.sync_cells_from_edit(target.sheet, &[(target.row, target.col)]);
         }
         Ok(committed)
     }
@@ -259,7 +328,7 @@ impl XlsxState {
                 }),
             )
             .map_err(|e| e.to_string())?;
-            self.sync_model_from_edit();
+            self.sync_cells_from_edit(target.sheet, &[(target.row, target.col)]);
             return Ok(EditorKeyEffect::Handled);
         }
         if key == "Enter" {
@@ -302,6 +371,23 @@ impl XlsxState {
         sheet.view.selection = Some(next);
         Some(text)
     }
+}
+
+/// Expand an A1-style style range to cell coords. Large ranges return `None` → full sync.
+fn coords_for_style_range(range: &str) -> Option<Vec<(u32, u32)>> {
+    let r = nitro_xml_xlsx::parse_range(range)?;
+    let rows = r.end.row.saturating_sub(r.start.row).saturating_add(1);
+    let cols = r.end.col.saturating_sub(r.start.col).saturating_add(1);
+    if rows.saturating_mul(cols) > 4_096 {
+        return None;
+    }
+    let mut out = Vec::with_capacity((rows * cols) as usize);
+    for row in r.start.row..=r.end.row {
+        for col in r.start.col..=r.end.col {
+            out.push((row, col));
+        }
+    }
+    Some(out)
 }
 
 enum Surface {
@@ -402,4 +488,50 @@ pub fn editor_key_json(effect: EditorKeyEffect, selection: Option<String>) -> St
         "selection": selection,
     })
     .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::handle::Handle;
+    use nitro_xml_xlsx::model::DumpCellValue;
+    use std::path::PathBuf;
+
+    #[test]
+    fn catches_set_cell_input_sync_replacing_viewer_cells_vec() {
+        // Catches: sync_model_from_edit cloning the whole sheet grid after every
+        // setCellInput (~150ms apply on cells_100k / cells_1m). Targeted sync must
+        // keep the viewer `cells` vec identity and still surface the new value.
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_100k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_100k");
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_100k.xlsx").expect("open");
+        h.load_editor_chrome();
+        h.set_read_only(false);
+
+        let (ptr_before, len_before) = {
+            let sh = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+            (sh.cells.as_ptr(), sh.cells.len())
+        };
+
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"sync-probe"}"#)
+            .expect("edit");
+
+        let sh = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+        assert_eq!(
+            sh.cells.as_ptr(),
+            ptr_before,
+            "viewer cells vec was replaced — full-grid sync regress"
+        );
+        assert_eq!(sh.cells.len(), len_before);
+        let cell = sh
+            .cells
+            .iter()
+            .find(|c| c.row == 0 && c.col == 0)
+            .expect("A1");
+        match &cell.value {
+            DumpCellValue::String(s) => assert_eq!(s, "sync-probe"),
+            other => panic!("expected string at A1, got {other:?}"),
+        }
+    }
 }

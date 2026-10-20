@@ -3,40 +3,32 @@
 import {
   compileWasmModule,
   defaultWasmUrl,
-  takePrewarmedWorker,
+  prewarmWorker,
   unsupportedBrowserError,
   wasmSupported,
 } from "../bootstrap.js";
 
 /**
- * Compile+cache wasm and park a Module-seeded document worker before open.
+ * Compile+cache wasm and prewarm the document worker before open.
  * Call from a React route layout / app bootstrap:
  *   await import("nitro-xml/loader/lazy/preload.js").then((m) => m.preload());
  *
  * Does not call initCore() on the host: React embed opens via WorkerDocument
- * only, and a host-side instantiate doubled peak JS/wasm memory. The compiled
- * Module is posted with the worker's first prewarm so it skips a second
- * compileStreaming.
+ * only, and a host-side instantiate doubled peak JS/wasm memory. When a
+ * Module is ready it is posted to the parked worker (best-effort seed so the
+ * worker can skip a second compileStreaming). Never terminate a parked worker
+ * — WorkerDocument may already own it.
  */
 export async function preload(opts = {}) {
   if (!wasmSupported()) throw unsupportedBrowserError();
   const mod = await compileWasmModule(
     opts.module || opts.wasmUrl || defaultWasmUrl(),
   ).catch(() => null);
-  if (typeof Worker === "undefined") return mod;
-  // Replace any unseeded park so the Module arrives with the first prewarm.
-  const stale = takePrewarmedWorker();
-  if (stale) {
+  const w = prewarmWorker(opts.workerUrl);
+  if (mod && w) {
     try {
-      stale.terminate();
+      w.postMessage({ type: "prewarm", module: mod });
     } catch {}
   }
-  try {
-    const url = opts.workerUrl || new URL("../worker.js", import.meta.url);
-    const w = new Worker(url, { type: "module", name: "nitro-xml-prewarm" });
-    if (mod) w.postMessage({ type: "prewarm", module: mod });
-    else w.postMessage({ type: "prewarm" });
-    takePrewarmedWorker(w);
-  } catch {}
   return mod;
 }

@@ -7,6 +7,7 @@ import {
   ACCEPT,
 } from "./formats.js";
 import {
+  prewarmWorker as pw,
   wasmSupported as ws,
   unsupportedBrowserError as ube,
 } from "./bootstrap.js";
@@ -14,7 +15,7 @@ import { WorkerDocument as WD } from "./worker-host.js";
 import { EventKind as EK, KeyId } from "./events.js";
 export function defineTag(t, C) {
   if (typeof customElements === "undefined" || customElements.get(t)) return;
-  // Prewarm via preload() / WorkerDocument — keeps Module seed on embed path.
+  pw();
   customElements.define(t, C);
 }
 export class ViewerElement extends HTMLElement {

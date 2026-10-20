@@ -36,8 +36,9 @@ describe("bootstrap wasm module cache", () => {
     );
     const preloadCode = preloadSrc.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     assert.match(preloadCode, /compileWasmModule/);
-    assert.match(preloadCode, /takePrewarmedWorker/);
+    assert.match(preloadCode, /prewarmWorker/);
     assert.match(preloadCode, /type:\s*"prewarm",\s*module:/);
+    assert.doesNotMatch(preloadCode, /\.terminate\s*\(/);
     assert.doesNotMatch(preloadCode, /\binitCore\s*\(/);
     assert.doesNotMatch(preloadCode, /\binitCore\b/);
     const workerSrc = fs.readFileSync(

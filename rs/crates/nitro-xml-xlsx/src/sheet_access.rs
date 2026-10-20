@@ -2,23 +2,21 @@
 // Ported from ChristopherVR/ooxml@e66aaec src/core/xlsx/cells.ts (getCell, usedRange, mergeAt);
 // changes listed in PROVENANCE.md.
 
-use std::collections::HashMap;
+use crate::fast_hash::FastMap;
 
 use crate::model::{ActiveWorksheet, CellRange, DumpCell, DumpCellValue};
 
 /// Row-major cell index built from [`ActiveWorksheet::cells`].
 #[derive(Debug, Default)]
 pub struct CellIndex {
-    rows: HashMap<u32, HashMap<u32, usize>>,
+    rows: FastMap<u32, FastMap<u32, usize>>,
 }
 
 impl CellIndex {
     pub fn build(sheet: &ActiveWorksheet) -> Self {
-        let mut rows = HashMap::new();
+        let mut rows: FastMap<u32, FastMap<u32, usize>> = FastMap::default();
         for (idx, cell) in sheet.cells.iter().enumerate() {
-            rows.entry(cell.row)
-                .or_insert_with(HashMap::new)
-                .insert(cell.col, idx);
+            rows.entry(cell.row).or_default().insert(cell.col, idx);
         }
         Self { rows }
     }
@@ -28,7 +26,7 @@ impl CellIndex {
         sheet.cells.get(*idx)
     }
 
-    pub fn row_cols(&self, row: u32) -> Option<&HashMap<u32, usize>> {
+    pub fn row_cols(&self, row: u32) -> Option<&FastMap<u32, usize>> {
         self.rows.get(&row)
     }
 }

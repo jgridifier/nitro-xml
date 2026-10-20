@@ -6,7 +6,7 @@
 //! Shared-string cells keep an SST index (`CellTypeTag::Shared`) instead of cloning text.
 //! Numeric cells store `f64` only — gate `__NUM__:` text is formatted at dump time.
 
-use std::collections::HashMap;
+use crate::fast_hash::FastMap;
 
 use crate::model::{CellAddress, CellRange, RichTextRun};
 
@@ -33,14 +33,14 @@ pub struct CellStore {
     strings: Vec<String>,
     bools: Vec<bool>,
     errors: Vec<String>,
-    formulas: HashMap<usize, String>,
-    rich_text: HashMap<usize, Vec<RichTextRun>>,
-    array_range: HashMap<usize, CellRange>,
-    legacy_formula: HashMap<usize, bool>,
-    dynamic_array: HashMap<usize, bool>,
-    spill_anchor: HashMap<usize, CellAddress>,
-    cell_metadata: HashMap<usize, u32>,
-    value_metadata: HashMap<usize, u32>,
+    formulas: FastMap<usize, String>,
+    rich_text: FastMap<usize, Vec<RichTextRun>>,
+    array_range: FastMap<usize, CellRange>,
+    legacy_formula: FastMap<usize, bool>,
+    dynamic_array: FastMap<usize, bool>,
+    spill_anchor: FastMap<usize, CellAddress>,
+    cell_metadata: FastMap<usize, u32>,
+    value_metadata: FastMap<usize, u32>,
 }
 
 impl CellStore {
@@ -55,14 +55,14 @@ impl CellStore {
             strings: Vec::new(),
             bools: Vec::new(),
             errors: Vec::new(),
-            formulas: HashMap::new(),
-            rich_text: HashMap::new(),
-            array_range: HashMap::new(),
-            legacy_formula: HashMap::new(),
-            dynamic_array: HashMap::new(),
-            spill_anchor: HashMap::new(),
-            cell_metadata: HashMap::new(),
-            value_metadata: HashMap::new(),
+            formulas: FastMap::default(),
+            rich_text: FastMap::default(),
+            array_range: FastMap::default(),
+            legacy_formula: FastMap::default(),
+            dynamic_array: FastMap::default(),
+            spill_anchor: FastMap::default(),
+            cell_metadata: FastMap::default(),
+            value_metadata: FastMap::default(),
         }
     }
 

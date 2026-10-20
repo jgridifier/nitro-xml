@@ -1571,6 +1571,22 @@ impl Handle {
         }
     }
 
+    /// Rebuild shell diagnostics from the current docx session warnings.
+    /// Needed after `ensure_body_complete` so truncated open-time lists catch up.
+    pub(crate) fn resync_docx_shell_diagnostics(&mut self) {
+        let Some(docx) = self.docx.as_ref() else {
+            return;
+        };
+        let warnings = docx.session.warnings.clone();
+        self.shell.diagnostics.clear_runtime();
+        self.warnings.clear();
+        for w in warnings {
+            let code = open_diagnostic_code(&w, "docx_warning");
+            self.shell.diagnostics.ingest_warning(code, &w, None);
+            self.push_warning(code.into(), w, None);
+        }
+    }
+
     fn run_find(&mut self) -> Result<(), JsValue> {
         let query = self.shell.find.query.clone();
         let case_sensitive = self.shell.find.case_sensitive;
@@ -1579,11 +1595,19 @@ impl Handle {
             self.find_xlsx(&query, case_sensitive, match_entire)?
         } else if self.docx.is_some() {
             let bytes = std::sync::Arc::clone(&self.bytes);
+            let mut completed = false;
             if let Some(docx) = self.docx.as_mut() {
-                let _ = docx.flush_pending_body(bytes.as_ref());
+                completed = docx.flush_pending_body(bytes.as_ref()).unwrap_or(false);
                 if docx.session.body_truncated {
-                    let _ = docx.session.ensure_body_complete(bytes.as_ref());
+                    completed = docx
+                        .session
+                        .ensure_body_complete(bytes.as_ref())
+                        .unwrap_or(false)
+                        || completed;
                 }
+            }
+            if completed {
+                self.resync_docx_shell_diagnostics();
             }
             self.docx
                 .as_ref()
@@ -1693,6 +1717,9 @@ impl Handle {
         let _ = self.shell_action("copy", "");
         // Docx shell dump matches the TS oracle's whole-body `copySample`; interactive
         // `copy` without a block id stays empty so live selection can use DOM text.
+        // Find/open_first_view may have just finished the truncated body — refresh
+        // diagnostics so unsupported/warning lists match a full-open oracle.
+        self.resync_docx_shell_diagnostics();
         let docx_body = self.docx.as_ref().map(|d| d.body_plain());
         if let Some(body) = docx_body {
             self.shell.last_copy = body;

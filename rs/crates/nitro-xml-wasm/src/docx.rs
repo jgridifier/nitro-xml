@@ -448,10 +448,11 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
     let prev_page_count = handle.docx.as_ref().map(|d| d.page_count()).unwrap_or(0);
 
     // After first paint is ready, finish the truncated body (SeekTail analogue).
+    let mut body_just_completed = false;
     if was_ready {
         let bytes = std::sync::Arc::clone(&handle.bytes);
         if let Some(ref mut docx) = handle.docx {
-            let _ = docx.flush_pending_body(bytes.as_ref());
+            body_just_completed = docx.flush_pending_body(bytes.as_ref()).unwrap_or(false);
         }
     }
 
@@ -480,7 +481,7 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         if !was_ready || page_count != prev_page_count {
             tabs = Some((docx.page_tabs(), docx.active as u32));
         }
-        if !was_ready {
+        if !was_ready || body_just_completed {
             for w in &docx.session.warnings {
                 new_warnings.push(w.clone());
             }
@@ -491,13 +492,18 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         handle.shell.set_tabs(tabs, idx);
         handle.shell.dirty_ui = true;
     }
-    for w in new_warnings {
-        if handle.shell.diagnostics.has_message(&w) {
-            continue;
+    if body_just_completed {
+        // Truncated open ingested a prefix of warnings; replace with the full set.
+        handle.resync_docx_shell_diagnostics();
+    } else {
+        for w in new_warnings {
+            if handle.shell.diagnostics.has_message(&w) {
+                continue;
+            }
+            let code = crate::shell::open_diagnostic_code(&w, "docx_warning");
+            handle.shell.diagnostics.ingest_warning(code, &w, None);
+            handle.push_warning(code.into(), w, None);
         }
-        let code = crate::shell::open_diagnostic_code(&w, "docx_warning");
-        handle.shell.diagnostics.ingest_warning(code, &w, None);
-        handle.push_warning(code.into(), w, None);
     }
 }
 

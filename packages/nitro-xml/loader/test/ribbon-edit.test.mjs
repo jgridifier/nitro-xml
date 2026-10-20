@@ -31,7 +31,7 @@ describe("Office ribbon manifests", () => {
   });
 
   it("lists only PowerPoint commands that change the saved package", () => {
-    // Catches: a PowerPoint button whose command does not rewrite the package (bullets, notes).
+    // Catches: a PowerPoint button whose command does not rewrite the package (notes, pictures).
     const bound = [...ids(tabsFor("pptx", "Slide", true)), ...QAT.map((x) => x.c)];
     const allowed = new Set([
       "file.save",
@@ -43,6 +43,9 @@ describe("Office ribbon manifests", () => {
       "home.align-left",
       "home.align-center",
       "home.align-right",
+      "home.align-justify",
+      "home.bullets",
+      "home.numbering",
       "home.font-size",
       "home.font-color",
       "insert.text-box",
@@ -69,6 +72,9 @@ describe("Office ribbon manifests", () => {
       "home.bold",
       "home.font-size",
       "home.font-color",
+      "home.align-justify",
+      "home.bullets",
+      "home.numbering",
     ]) {
       assert.ok(bound.includes(id), `missing pptx command ${id}`);
     }
@@ -87,6 +93,7 @@ describe("Office ribbon manifests", () => {
       "home.align-left",
       "home.align-center",
       "home.align-right",
+      "home.align-justify",
       "home.font-size",
       "home.font-color",
       "insert.table",
@@ -102,6 +109,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("table.delete"));
     assert.ok(bound.includes("home.font-color"));
     assert.ok(bound.includes("home.bold"));
+    assert.ok(bound.includes("home.align-justify"));
+    assert.ok(!bound.includes("home.bullets"), "Word numbering.xml is not written");
     assert.ok(!bound.includes("insert.slide"));
     assert.ok(!bound.includes("insert.text-box"));
   });

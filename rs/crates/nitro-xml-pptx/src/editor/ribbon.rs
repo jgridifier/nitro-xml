@@ -64,6 +64,9 @@ pub fn ribbon_html(
         html.push_str(&button("home.align-left", "Align Left", surface, false));
         html.push_str(&button("home.align-center", "Center", surface, false));
         html.push_str(&button("home.align-right", "Align Right", surface, false));
+        html.push_str(&button("home.align-justify", "Justify", surface, false));
+        html.push_str(&button("home.bullets", "Bullets", surface, false));
+        html.push_str(&button("home.numbering", "Numbering", surface, false));
         html.push_str(&button("home.font-size", "Font Size", surface, false));
         html.push_str(&button("home.font-color", "Font Color", surface, false));
         html.push_str("</section>");

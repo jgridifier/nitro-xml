@@ -50,6 +50,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("align-left", "Align Left", None, true),
     word_cmd!("align-center", "Center", None, true),
     word_cmd!("align-right", "Align Right", None, true),
+    word_cmd!("align-justify", "Justify", None, true),
     word_cmd!("insert.table", "Table", None, true),
     word_cmd!("font-size", "Font Size", None, true),
     word_cmd!("font-color", "Font Color", None, true),
@@ -243,11 +244,12 @@ impl DocxCommandSurface {
                 schedule_relayout(print_edit);
                 Ok(())
             }
-            "align-left" | "align-center" | "align-right" => {
+            "align-left" | "align-center" | "align-right" | "align-justify" => {
                 let align = match id {
                     "align-left" => "left",
                     "align-center" => "center",
-                    _ => "right",
+                    "align-right" => "right",
+                    _ => "justify",
                 };
                 session.run(
                     format!("align {align}"),

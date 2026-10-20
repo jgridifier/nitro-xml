@@ -32,8 +32,9 @@ pub fn save_pptx(host: &PptxHost, original: &[u8]) -> Result<Vec<u8>, String> {
 /// [`PackageWriter`]'s identity shortcut. A slide-list edit rebuilds
 /// `p:sldIdLst`, relationships and slide parts. Otherwise only
 /// `host.dirty_parts` slide XML is replaced. Notes parts are TODO(#86); rich
-/// runs, bullets and autofit are TODO(#85) / TODO(#86). Authored tables are
-/// written as `a:tbl` inside the dirty slide.
+/// runs and autofit are TODO(#85) / TODO(#86). List markers (`a:buChar`,
+/// `a:buAutoNum`, `a:buNone`) and authored tables (`a:tbl`) are written
+/// inside the dirty slide.
 pub fn save_pptx_with_options(
     host: &PptxHost,
     original: &[u8],
@@ -155,6 +156,45 @@ mod tests {
             "reopened shape lost center align: {:?}",
             el.text_segments
         );
+    }
+
+    #[test]
+    fn catches_justify_and_list_markers_dropped_on_slide_save() {
+        // Catches: a slide save that omits a:pPr/@algn="just", a:buChar, or a:buAutoNum.
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        host.set_paragraph_align(0, None, Some(0), 0, "justify")
+            .expect("justify");
+        host.set_bullets(0, None, Some(0), "bullet", None, None)
+            .expect("bullets");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save bullets");
+        let again = PptxHost::open(&saved).expect("reopen bullets");
+        let el = &again.slides[0].elements[0];
+        let info = el
+            .text_segments
+            .iter()
+            .find_map(|s| s.bullet_info.as_ref())
+            .expect("bullet marker missing after reopen");
+        assert_eq!(info.char.as_deref(), Some("•"));
+        assert!(
+            el.text_segments
+                .iter()
+                .any(|s| s.align.as_deref() == Some("justify")),
+            "justify missing after reopen: {:?}",
+            el.text_segments
+        );
+
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        host.set_bullets(0, None, Some(0), "numbered", None, None)
+            .expect("numbering");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save numbering");
+        let again = PptxHost::open(&saved).expect("reopen numbering");
+        let info = again.slides[0].elements[0]
+            .text_segments
+            .iter()
+            .find_map(|s| s.bullet_info.as_ref())
+            .expect("numbering missing after reopen");
+        assert_eq!(info.auto_num_type.as_deref(), Some("arabicPeriod"));
     }
 
     // Catches: new, duplicated and deleted slides never landing in the package, and a text box saved without txBox.

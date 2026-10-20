@@ -237,6 +237,76 @@ mod tests {
     }
 
     #[test]
+    fn catches_pptx_justify_bullets_and_numbering_missing_after_reopen() {
+        // Catches: justify, bullets, or numbering applied from the ribbon but absent after save.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.shell_action("cmd", "home.align-justify")
+            .expect("justify");
+        h.shell_action("cmd", "home.bullets").expect("bullets");
+        let saved = h.save_document().expect("save bullets");
+        assert_ne!(saved, PPTX);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen");
+        let el = &again.session.host.slides[0].elements[0];
+        let info = el
+            .text_segments
+            .iter()
+            .find_map(|s| s.bullet_info.as_ref())
+            .expect("bullet missing after reopen");
+        assert_eq!(info.char.as_deref(), Some("•"));
+        assert!(
+            el.text_segments
+                .iter()
+                .any(|s| s.align.as_deref() == Some("justify")),
+            "justify missing after reopen"
+        );
+        h.apply_edit(r#"{"command":"edit.undo"}"#)
+            .expect("undo bullets");
+        h.apply_edit(r#"{"command":"edit.undo"}"#)
+            .expect("undo justify");
+        assert_eq!(h.save_document().expect("undone"), PPTX);
+
+        h.shell_action("cmd", "home.numbering").expect("numbering");
+        let saved = h.save_document().expect("save numbering");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen numbering");
+        let info = again.session.host.slides[0].elements[0]
+            .text_segments
+            .iter()
+            .find_map(|s| s.bullet_info.as_ref())
+            .expect("numbering missing after reopen");
+        assert_eq!(info.auto_num_type.as_deref(), Some("arabicPeriod"));
+        h.apply_edit(r#"{"command":"edit.undo"}"#)
+            .expect("undo numbering");
+        assert_eq!(h.save_document().expect("undone numbering"), PPTX);
+    }
+
+    #[test]
+    fn catches_docx_justify_missing_after_reopen() {
+        // Catches: Word Justify never writing w:jc w:val="both", so reopen loses the alignment.
+        let mut h = open_editable(DOCX, "pages.docx");
+        h.shell_action("cmd", "home.align-justify")
+            .expect("justify");
+        let saved = h.save_document().expect("save");
+        assert_ne!(saved, DOCX);
+        let again = open_editable(&saved, "pages.docx");
+        let block = again
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .blocks
+            .iter()
+            .find(|b| b.get("align").and_then(|a| a.as_str()) == Some("justify"))
+            .expect("justify missing after reopen");
+        assert_eq!(block["align"], "justify");
+        h.apply_edit(r#"{"command":"edit.undo"}"#).expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
+    }
+
+    #[test]
     fn catches_docx_align_and_typing_missing_after_reopen() {
         // Catches: paragraph align and a typed character never reaching word/document.xml.
         let mut h = open_editable(DOCX, "pages.docx");

@@ -22,11 +22,9 @@ describe("embedded pptx and docx toolbars", () => {
     const bound = cmds("pptx");
     assert.ok(bound.length >= 12);
     for (const id of bound) assert.ok(pptxRibbon.includes(`id: "${id}"`), `${id} is not on the pptx ribbon`);
-    for (const id of ["file.save", "edit.undo", "edit.redo", "home.bold", "home.font-size", "home.font-color", "insert.slide", "insert.duplicate-slide", "insert.text-box", "home.delete-slide"]) {
+    for (const id of ["file.save", "edit.undo", "edit.redo", "home.bold", "home.font-size", "home.font-color", "home.align-justify", "home.bullets", "home.numbering", "insert.slide", "insert.duplicate-slide", "insert.move-slide-up", "insert.move-slide-down", "insert.text-box", "home.delete-slide", "insert.table", "table.insert-row", "table.delete-column"]) {
       assert.ok(bound.includes(id), `missing embedded pptx command ${id}`);
     }
-    assert.ok(!bound.includes("insert.table"), "pptx table insert is not on this engine ribbon");
-    assert.ok(!bound.includes("insert.move-slide-up"));
   });
 
   it("shows only commands the Word editor ribbon emits", () => {
@@ -34,10 +32,10 @@ describe("embedded pptx and docx toolbars", () => {
     const bound = cmds("docx");
     assert.ok(bound.length >= 12);
     for (const id of bound) assert.ok(docxRibbon.includes(`id: "${id}"`), `${id} is not on the docx ribbon`);
-    for (const id of ["file.save", "edit.undo", "home.bold", "home.font-color", "insert.table", "table.insert-row", "table.delete-row", "table.insert-column", "table.delete-column"]) {
+    for (const id of ["file.save", "edit.undo", "home.bold", "home.font-color", "home.align-justify", "insert.table", "table.insert-row", "table.delete-row", "table.insert-column", "table.delete-column", "table.delete"]) {
       assert.ok(bound.includes(id), `missing embedded docx command ${id}`);
     }
     assert.ok(!bound.includes("insert.slide"));
-    assert.ok(!bound.includes("table.delete"), "whole-table delete is not on this engine ribbon");
+    assert.ok(!bound.includes("home.bullets"), "Word numbering.xml is not written");
   });
 });

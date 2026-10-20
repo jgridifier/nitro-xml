@@ -2,7 +2,7 @@
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
 // Every `c` id below was checked against the engine (the saved bytes change); anything the editor
-// registers but does not implement (cut, paste, fill, borders, bullets) is deliberately absent.
+// registers but does not implement (cut, paste, fill, borders, Word numbering) is deliberately absent.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
 //   c editor cmd id · d diagnostics toggle · s slide-pane toggle (host) · m dropdown entries · r readout
 //   g group caption · big: large buttons · rows: stacked small buttons · sm: small button style
@@ -17,6 +17,10 @@ const nav = (unit) => ({
   ],
 });
 const find = { g: "Editing", big: [{ i: "find", l: "Find", t: "Find (Ctrl+F)", o: "find-open", x: "find-close", p: 1 }] };
+const lists = {
+  g: "Paragraph",
+  rows: [[it("home.bullets", "bullet", "Bullets", "Bulleted list"), it("home.numbering", "numbering", "Numbering", "Numbered list")]],
+};
 const copy = { i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy" };
 
 const FONT = {
@@ -31,6 +35,7 @@ const FONT = {
       it("home.align-left", "left", "Align left"),
       it("home.align-center", "center", "Center"),
       it("home.align-right", "right", "Align right"),
+      it("home.align-justify", "justify", "Justify"),
       it("home.font-size", "grow", "Font size", "Set the font size"),
       it("home.font-color", "color", "Font color", "Set the font color"),
     ],
@@ -116,7 +121,7 @@ export function tabsFor(format, unit, edit) {
       ? { Home: [...XLSX_HOME.slice(0, 5), nav(unit), XLSX_HOME[5]] }
       : format === "pptx" && edit
         ? {
-            Home: officeHome,
+            Home: [...officeHome.slice(0, 2), lists, ...officeHome.slice(2)],
             Insert: [
               {
                 g: "Slides",

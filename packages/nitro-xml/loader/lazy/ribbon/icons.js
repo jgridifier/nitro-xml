@@ -35,4 +35,7 @@ export const ICONS = {
   colAdd: '<path d="M6 4h5v16H6zM13 4h5v16h-5z"/><path class="a" d="M8 12h8M12 8v8"/>',
   colDel: '<path d="M6 4h5v16H6zM13 4h5v16h-5z"/><path class="a" d="M8 12h8"/>',
   tableDel: '<rect x="3" y="4" width="14" height="12" rx="1"/><path d="M3 8h14M8 4v12"/><path class="a" d="M16 16l5 5M21 16l-5 5"/>',
+  justify: '<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>',
+  bullet: '<circle class="a" cx="5.5" cy="7" r="1.3"/><circle class="a" cx="5.5" cy="12" r="1.3"/><circle class="a" cx="5.5" cy="17" r="1.3"/><path d="M9 7h11M9 12h11M9 17h11"/>',
+  numbering: '<path class="a" d="M3.5 8.2V5.2L2.4 6M3 12.2h2.4M3 16h2.4M4.2 12.2V16"/><path d="M9 7h11M9 12h11M9 17h11"/>',
 };

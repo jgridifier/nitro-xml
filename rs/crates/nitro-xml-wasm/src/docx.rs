@@ -20,6 +20,8 @@ pub struct DocxState {
     pub session: PrintSession,
     pub active: usize,
     pub zoom: f64,
+    /// Live editor session when the document is not read-only.
+    pub edit: Option<nitro_xml_docx::DocxEditor>,
 }
 
 impl DocxState {
@@ -30,6 +32,7 @@ impl DocxState {
             session,
             active: 0,
             zoom: 1.0,
+            edit: None,
         })
     }
 

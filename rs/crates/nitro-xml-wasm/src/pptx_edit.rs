@@ -1,0 +1,209 @@
+// SPDX-License-Identifier: MIT
+//! Wasm glue for the pptx editor session: open, chrome commands, headless edits, save.
+
+use nitro_xml_pptx::editor::PptxEditor;
+use nitro_xml_pptx::save_pptx;
+use serde_json::Value;
+
+use crate::office_edit::{command_ribbon, OfficeEffect, RibbonItem};
+use crate::pptx::PptxState;
+
+const SHAPE_COMMANDS: &[&str] = &[
+    "home.bold",
+    "home.italic",
+    "home.duplicate",
+    "home.delete",
+    "home.bring-forward",
+    "home.send-backward",
+    "home.bring-to-front",
+    "home.send-to-back",
+    "home.group",
+    "home.ungroup",
+];
+
+impl PptxState {
+    pub fn ensure_edit(&mut self, bytes: &[u8]) -> Result<(), String> {
+        if self.edit.is_some() {
+            self.sync_editor_selection();
+            return Ok(());
+        }
+        let mut edit = PptxEditor::open(bytes)?;
+        edit.set_read_only(false);
+        let slide = self.active as u32;
+        let _ = edit.set_slide(slide);
+        self.edit = Some(edit);
+        self.sync_editor_selection();
+        Ok(())
+    }
+
+    /// Point the editor at the viewer's active slide and selection.
+    /// A shape command with nothing selected targets the first shape on that slide
+    /// so Bold/Italic from the ribbon changes saved bytes without a prior click.
+    pub fn sync_editor_selection(&mut self) {
+        let slide = self.active as u32;
+        let selected = self.selected_ids.clone();
+        let Some(edit) = self.edit.as_mut() else {
+            return;
+        };
+        let _ = edit.set_slide(slide);
+        if !selected.is_empty() {
+            edit.select_elements(selected);
+        }
+    }
+
+    fn ensure_shape_target(&mut self) {
+        self.sync_editor_selection();
+        let Some(edit) = self.edit.as_mut() else {
+            return;
+        };
+        if edit.selection.primary_id().is_some() {
+            return;
+        }
+        let slide = edit.selection.slide_index as usize;
+        let id = edit
+            .session
+            .host
+            .slides
+            .get(slide)
+            .and_then(|s| s.elements.first())
+            .map(|el| el.id.clone());
+        if let Some(id) = id {
+            edit.select_elements(std::iter::once(id));
+        }
+    }
+
+    fn pull_editor_selection(&mut self) {
+        let Some(edit) = self.edit.as_ref() else {
+            return;
+        };
+        self.selected_ids = edit.selection.element_ids.clone();
+        let slide = edit.selection.slide_index as usize;
+        if slide < self.pres.slide_count() {
+            self.active = slide;
+        }
+    }
+
+    pub fn save_bytes(&self, original: &[u8]) -> Result<Vec<u8>, String> {
+        match &self.edit {
+            // Rewrite from the package opened on the handle. The editor's own
+            // `save()` swaps that baseline and would make a later undo save the
+            // edited bytes again.
+            Some(edit) => save_pptx(&edit.session.host, original),
+            None => Ok(original.to_vec()),
+        }
+    }
+
+    pub fn dispatch_chrome(&mut self, id: &str) -> Result<OfficeEffect, String> {
+        self.ensure_shape_if_needed(id);
+        if id == "file.save" {
+            return Ok(OfficeEffect::Save);
+        }
+        let edit = self
+            .edit
+            .as_mut()
+            .ok_or_else(|| "no edit session".to_string())?;
+        edit.dispatch_command(id, &Value::Null)
+            .map_err(|e| e.to_string())?;
+        self.pull_editor_selection();
+        Ok(OfficeEffect::Applied)
+    }
+
+    pub fn apply_raw_edit(&mut self, spec: &str) -> Result<OfficeEffect, String> {
+        let v: Value = serde_json::from_str(spec).map_err(|e| e.to_string())?;
+        let command = v
+            .get("command")
+            .and_then(|c| c.as_str())
+            .ok_or_else(|| "missing command".to_string())?
+            .to_owned();
+        if command == "file.save" {
+            return Ok(OfficeEffect::Save);
+        }
+        self.ensure_shape_if_needed(&command);
+        let mut args = v;
+        if let Some(obj) = args.as_object_mut() {
+            obj.remove("command");
+        }
+        let edit = self
+            .edit
+            .as_mut()
+            .ok_or_else(|| "no edit session".to_string())?;
+        edit.dispatch_command(&command, &args)
+            .map_err(|e| e.to_string())?;
+        self.pull_editor_selection();
+        Ok(OfficeEffect::Applied)
+    }
+
+    fn ensure_shape_if_needed(&mut self, id: &str) {
+        if SHAPE_COMMANDS.contains(&id) {
+            self.ensure_shape_target();
+        } else {
+            self.sync_editor_selection();
+        }
+    }
+
+    /// Re-parse the painted deck from the bytes a save would produce, keeping the edit session.
+    pub fn refresh_view(&mut self, original: &[u8]) -> Result<(), String> {
+        let bytes = self.save_bytes(original)?;
+        let active = self.active;
+        let selected = self.selected_ids.clone();
+        let vw = self.viewport_w;
+        let vh = self.viewport_h;
+        let scale = self.scale;
+        let edit = self.edit.take();
+        let opened = Self::open(&bytes);
+        let mut next = match opened {
+            Ok(state) => state,
+            Err(e) => {
+                self.edit = edit;
+                return Err(e);
+            }
+        };
+        next.edit = edit;
+        next.viewport_w = vw;
+        next.viewport_h = vh;
+        next.scale = scale;
+        let n = next.pres.slide_count();
+        if n > 0 {
+            next.active = active.min(n - 1);
+        }
+        next.selected_ids = selected;
+        *self = next;
+        Ok(())
+    }
+
+    pub fn ribbon_html(&self) -> String {
+        let Some(edit) = &self.edit else {
+            return String::new();
+        };
+        command_ribbon(
+            "Presentation",
+            &[
+                RibbonItem {
+                    id: "file.save",
+                    label: "Save",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "edit.undo",
+                    label: "Undo",
+                    enabled: edit.can_undo(),
+                },
+                RibbonItem {
+                    id: "edit.redo",
+                    label: "Redo",
+                    enabled: edit.can_redo(),
+                },
+                RibbonItem {
+                    id: "home.bold",
+                    label: "Bold",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.italic",
+                    label: "Italic",
+                    enabled: true,
+                },
+            ],
+        )
+    }
+}

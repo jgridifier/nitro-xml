@@ -233,6 +233,10 @@ impl Handle {
         if !read_only {
             if let Some(xlsx) = self.xlsx.as_mut() {
                 let _ = xlsx.ensure_edit(&self.bytes);
+            } else if let Some(pptx) = self.pptx.as_mut() {
+                let _ = pptx.ensure_edit(&self.bytes);
+            } else if let Some(docx) = self.docx.as_mut() {
+                let _ = docx.ensure_edit(&self.bytes);
             }
         }
         self.refresh_formula_bar();
@@ -1135,18 +1139,49 @@ impl Handle {
         self.events.drain() as u32
     }
 
-    /// Save the open xlsx workbook. Unedited documents return the original bytes (#68).
+    /// Save the open document. Unedited documents return the original bytes (#68).
     #[wasm_bindgen(js_name = saveDocument)]
     pub fn save_document(&mut self) -> Result<Vec<u8>, JsValue> {
-        let xlsx = self
-            .xlsx
-            .as_mut()
-            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
-        if !self.editor.read_only() {
-            let _ = xlsx.ensure_edit(&self.bytes);
+        if self.xlsx.is_some() {
+            let xlsx = self
+                .xlsx
+                .as_mut()
+                .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+            if !self.editor.read_only() {
+                let _ = xlsx.ensure_edit(&self.bytes);
+            }
+            return xlsx
+                .save_bytes(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("save_failed", e)));
         }
-        xlsx.save_bytes(&self.bytes)
-            .map_err(|e| JsValue::from(OoxmlError::with_code("save_failed", e)))
+        if self.pptx.is_some() {
+            let pptx = self
+                .pptx
+                .as_mut()
+                .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+            if !self.editor.read_only() {
+                let _ = pptx.ensure_edit(&self.bytes);
+            }
+            return pptx
+                .save_bytes(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("save_failed", e)));
+        }
+        if self.docx.is_some() {
+            let docx = self
+                .docx
+                .as_mut()
+                .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+            if !self.editor.read_only() {
+                let _ = docx.ensure_edit(&self.bytes);
+            }
+            return docx
+                .save_bytes(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("save_failed", e)));
+        }
+        Err(JsValue::from(OoxmlError::with_code(
+            "no_document",
+            "not opened",
+        )))
     }
 
     /// Headless edit: `{"command":"home.bold"}` or `{"command":"setCellInput","sheet":0,...}`.
@@ -1158,24 +1193,27 @@ impl Handle {
                 "editing is disabled",
             )));
         }
-        let xlsx = self
-            .xlsx
-            .as_mut()
-            .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
-        xlsx.ensure_edit(&self.bytes)
-            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
-        let effect = xlsx
-            .apply_raw_edit(spec)
-            .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?;
-        if matches!(
-            effect,
-            nitro_xml_xlsx::editor::ChromeEffect::Applied { structure: true }
-        ) {
-            self.refresh_xlsx_tabs();
+        if self.xlsx.is_some() {
+            let xlsx = self
+                .xlsx
+                .as_mut()
+                .ok_or_else(|| JsValue::from(OoxmlError::with_code("no_document", "not opened")))?;
+            xlsx.ensure_edit(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            let effect = xlsx
+                .apply_raw_edit(spec)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?;
+            if matches!(
+                effect,
+                nitro_xml_xlsx::editor::ChromeEffect::Applied { structure: true }
+            ) {
+                self.refresh_xlsx_tabs();
+            }
+            process_frame(self);
+            self.refresh_formula_bar();
+            return Ok(self.chrome_payload(false));
         }
-        process_frame(self);
-        self.refresh_formula_bar();
-        Ok(self.chrome_payload(false))
+        self.apply_office_edit(spec)
     }
 
     /// Formula bar / in-cell keys. F2 and typing start an edit; Enter commits; Escape cancels.
@@ -1230,6 +1268,7 @@ impl Handle {
     fn refresh_formula_bar(&mut self) {
         if self.editor.read_only() || !self.editor.loaded() {
             self.editor.set_formula_html(String::new());
+            self.editor.set_office_ribbon(String::new());
             return;
         }
         let html = self
@@ -1238,6 +1277,99 @@ impl Handle {
             .map(|xlsx| xlsx.formula_bar_html(false))
             .unwrap_or_default();
         self.editor.set_formula_html(html);
+        self.refresh_office_ribbon();
+    }
+
+    /// Pptx/docx command strip. Xlsx leaves it empty so the Home ribbon is unchanged.
+    fn refresh_office_ribbon(&mut self) {
+        let html = if let Some(pptx) = self.pptx.as_ref() {
+            pptx.ribbon_html()
+        } else if let Some(docx) = self.docx.as_ref() {
+            docx.ribbon_html()
+        } else {
+            String::new()
+        };
+        self.editor.set_office_ribbon(html);
+    }
+
+    fn sync_office_tabs(&mut self) {
+        if let Some(pptx) = self.pptx.as_ref() {
+            let n = pptx.pres.slide_count();
+            let tabs: Vec<(u32, String)> = (0..n)
+                .map(|i| (i as u32, format!("Slide {}", i + 1)))
+                .collect();
+            let active = pptx.active as u32;
+            if self.shell.tabs.len() != n || self.shell.nav_index != active {
+                self.shell.set_tabs(tabs, active);
+            }
+        } else if let Some(docx) = self.docx.as_ref() {
+            let tabs = docx.page_tabs();
+            let active = docx.active as u32;
+            if self.shell.tabs.len() != tabs.len() || self.shell.nav_index != active {
+                self.shell.set_tabs(tabs, active);
+            }
+        }
+    }
+
+    fn refresh_office_view(&mut self) -> Result<(), JsValue> {
+        if let Some(pptx) = self.pptx.as_mut() {
+            pptx.refresh_view(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("save_failed", e)))?;
+        } else if let Some(docx) = self.docx.as_mut() {
+            docx.refresh_view(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("save_failed", e)))?;
+        }
+        Ok(())
+    }
+
+    fn dispatch_office_command(
+        &mut self,
+        id: &str,
+    ) -> Result<crate::office_edit::OfficeEffect, JsValue> {
+        if let Some(pptx) = self.pptx.as_mut() {
+            pptx.ensure_edit(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            return pptx
+                .dispatch_chrome(id)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)));
+        }
+        if let Some(docx) = self.docx.as_mut() {
+            docx.ensure_edit(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            return docx
+                .dispatch_chrome(id)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)));
+        }
+        Err(JsValue::from(OoxmlError::with_code(
+            "no_document",
+            "not opened",
+        )))
+    }
+
+    fn apply_office_edit(&mut self, spec: &str) -> Result<String, JsValue> {
+        let effect = if let Some(pptx) = self.pptx.as_mut() {
+            pptx.ensure_edit(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            pptx.apply_raw_edit(spec)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?
+        } else if let Some(docx) = self.docx.as_mut() {
+            docx.ensure_edit(&self.bytes)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+            docx.apply_raw_edit(spec)
+                .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?
+        } else {
+            return Err(JsValue::from(OoxmlError::with_code(
+                "no_document",
+                "not opened",
+            )));
+        };
+        let save = matches!(effect, crate::office_edit::OfficeEffect::Save);
+        if !save {
+            self.refresh_office_view()?;
+            self.sync_office_tabs();
+            process_frame(self);
+        }
+        Ok(self.chrome_payload(save))
     }
 
     fn refresh_xlsx_tabs(&mut self) {
@@ -1314,6 +1446,7 @@ impl Handle {
     fn dispatch_chrome_command(&mut self, id: &str) -> Result<String, JsValue> {
         let mut save = false;
         let mut structure = false;
+        let mut office_applied = false;
         if !self.editor.read_only() {
             if let Some(xlsx) = self.xlsx.as_mut() {
                 xlsx.ensure_edit(&self.bytes)
@@ -1325,12 +1458,21 @@ impl Handle {
                     }
                     Ok(nitro_xml_xlsx::editor::ChromeEffect::Unmapped) | Err(_) => {}
                 }
+            } else if self.pptx.is_some() || self.docx.is_some() {
+                match self.dispatch_office_command(id)? {
+                    crate::office_edit::OfficeEffect::Save => save = true,
+                    crate::office_edit::OfficeEffect::Applied => office_applied = true,
+                }
             }
         }
         let host: &mut dyn std::any::Any = &mut ();
         let _ran = self.editor.dispatch_command(id, host);
         if structure {
             self.refresh_xlsx_tabs();
+        }
+        if office_applied {
+            self.refresh_office_view()?;
+            self.sync_office_tabs();
         }
         if !save {
             process_frame(self);

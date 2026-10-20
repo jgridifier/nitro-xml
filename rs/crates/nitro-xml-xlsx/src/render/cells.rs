@@ -8,7 +8,6 @@ use nitro_xml_render::command_buffer::CommandBuffer;
 use nitro_xml_render::measure::MeasureBatch;
 
 use crate::cf::icon_body;
-use crate::editor::mark_stale_class;
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
 use crate::render::geometry::header_sizes;
@@ -19,7 +18,7 @@ use crate::sheet_access::CellIndex;
 use crate::view::cell_items::{build_items, BuildInput};
 use crate::view::cell_paint::{
     align_items, css_font, diagonal_svg, edge_css, fill_paint, has_borders, justify, text_align,
-    text_decoration,
+    text_decoration, FillPaint,
 };
 use crate::view::cell_view::is_blank_view;
 use crate::view::text_measure::CanvasTextMeasure;
@@ -43,8 +42,6 @@ const EDITOR_AFTER: u32 = 70_003;
 struct PaintKeys {
     class: u32,
     style: u32,
-    background_color: u32,
-    background_image: u32,
     width: u32,
     height: u32,
     left: u32,
@@ -81,8 +78,6 @@ impl PaintKeys {
         Self {
             class: intern.intern("class"),
             style: intern.intern("style"),
-            background_color: intern.intern("backgroundColor"),
-            background_image: intern.intern("backgroundImage"),
             width: intern.intern("width"),
             height: intern.intern("height"),
             left: intern.intern("left"),
@@ -116,6 +111,42 @@ impl PaintKeys {
     }
 }
 
+/// Static class string for the 16 overflow×link×merged×stale combinations (#30).
+fn cell_class_static(overflowing: bool, link: bool, merged: bool, stale: bool) -> &'static str {
+    match (overflowing, link, merged, stale) {
+        (false, false, false, false) => "xg-c",
+        (true, false, false, false) => "xg-c xg-c-over",
+        (false, true, false, false) => "xg-c xg-link",
+        (true, true, false, false) => "xg-c xg-c-over xg-link",
+        (false, false, true, false) => "xg-c xg-merged",
+        (true, false, true, false) => "xg-c xg-c-over xg-merged",
+        (false, true, true, false) => "xg-c xg-link xg-merged",
+        (true, true, true, false) => "xg-c xg-c-over xg-link xg-merged",
+        (false, false, false, true) => "xg-c xg-stale",
+        (true, false, false, true) => "xg-c xg-c-over xg-stale",
+        (false, true, false, true) => "xg-c xg-link xg-stale",
+        (true, true, false, true) => "xg-c xg-c-over xg-link xg-stale",
+        (false, false, true, true) => "xg-c xg-merged xg-stale",
+        (true, false, true, true) => "xg-c xg-c-over xg-merged xg-stale",
+        (false, true, true, true) => "xg-c xg-link xg-merged xg-stale",
+        (true, true, true, true) => "xg-c xg-c-over xg-link xg-merged xg-stale",
+    }
+}
+
+/// Static class string for wrap×vert×overflow text classes (#30).
+fn text_class_static(wrap: bool, vert: bool, overflowing: bool) -> &'static str {
+    match (wrap, vert, overflowing) {
+        (false, false, false) => "xg-t",
+        (true, false, false) => "xg-t xg-wrap",
+        (false, true, false) => "xg-t xg-vert",
+        (true, true, false) => "xg-t xg-wrap xg-vert",
+        (false, false, true) => "xg-t xg-over",
+        (true, false, true) => "xg-t xg-wrap xg-over",
+        (false, true, true) => "xg-t xg-vert xg-over",
+        (true, true, true) => "xg-t xg-wrap xg-vert xg-over",
+    }
+}
+
 #[inline]
 fn set_style_v<I: StringIntern>(
     buf: &mut CommandBuffer,
@@ -138,52 +169,33 @@ fn set_attr_v<I: StringIntern>(
     buf.set_attr(id, key, intern.intern(val));
 }
 
-/// Format `left:Xpx;top:Ypx;width:Wpx;height:Hpx` into a stack buffer (no `format!`).
-fn intern_box_geometry<I: StringIntern>(
-    intern: &mut I,
+/// Write `left:Xpx;top:Ypx;width:Wpx;height:Hpx` (+ optional fill) into `out` (#30).
+/// Fill uses kebab-case so the batched `style` attr is valid CSS (not SetStyle camelCase).
+fn write_cell_box_style(
+    out: &mut String,
     left: f64,
     top: f64,
     w: f64,
     h: f64,
-) -> u32 {
-    fn push_bytes(buf: &mut [u8], o: &mut usize, s: &[u8]) {
-        buf[*o..*o + s.len()].copy_from_slice(s);
-        *o += s.len();
-    }
-    fn push_i32(buf: &mut [u8], o: &mut usize, n: i32) {
-        let mut tmp = [0u8; 16];
-        let mut x = n.unsigned_abs();
-        let neg = n < 0;
-        let mut i = tmp.len();
-        if x == 0 {
-            i -= 1;
-            tmp[i] = b'0';
-        } else {
-            while x > 0 {
-                i -= 1;
-                tmp[i] = b'0' + (x % 10) as u8;
-                x /= 10;
-            }
+    fill: Option<&FillPaint>,
+    merged_blank_fill: bool,
+) {
+    out.clear();
+    let _ = write!(
+        out,
+        "left:{}px;top:{}px;width:{}px;height:{}px",
+        left as i32, top as i32, w as i32, h as i32
+    );
+    if let Some(fp) = fill {
+        if let Some(bg) = &fp.background {
+            let _ = write!(out, ";background-color:{bg}");
         }
-        if neg {
-            i -= 1;
-            tmp[i] = b'-';
+        if let Some(img) = &fp.image {
+            let _ = write!(out, ";background-image:{img}");
         }
-        push_bytes(buf, o, &tmp[i..]);
+    } else if merged_blank_fill {
+        out.push_str(";background-color:var(--xve-sheet-bg, #fff)");
     }
-    let mut buf = [0u8; 96];
-    let mut o = 0usize;
-    push_bytes(&mut buf, &mut o, b"left:");
-    push_i32(&mut buf, &mut o, left as i32);
-    push_bytes(&mut buf, &mut o, b"px;top:");
-    push_i32(&mut buf, &mut o, top as i32);
-    push_bytes(&mut buf, &mut o, b"px;width:");
-    push_i32(&mut buf, &mut o, w as i32);
-    push_bytes(&mut buf, &mut o, b"px;height:");
-    push_i32(&mut buf, &mut o, h as i32);
-    push_bytes(&mut buf, &mut o, b"px");
-    // SAFETY: only ASCII digits and fixed prefixes written above.
-    intern.intern(unsafe { std::str::from_utf8_unchecked(&buf[..o]) })
 }
 
 /// Memoize `css_font` across cells that share family/weight/size/zoom (#30 S paint).
@@ -243,51 +255,33 @@ fn paint_one_cell<I: StringIntern>(
     let left = item.x;
     let top = item.y;
     buf.create_element(cell_id, div, parent);
-    let mut cell_class = String::from("xg-c");
-    if item.overflowing {
-        cell_class.push_str(" xg-c-over");
-    }
-    if item.view.has_hyperlink {
-        cell_class.push_str(" xg-link");
-    }
-    if item.merged {
-        cell_class.push_str(" xg-merged");
-    }
-    mark_stale_class(&mut cell_class, stale);
-    set_attr_v(buf, intern, cell_id, keys.class, &cell_class);
+    set_attr_v(
+        buf,
+        intern,
+        cell_id,
+        keys.class,
+        cell_class_static(
+            item.overflowing,
+            item.view.has_hyperlink,
+            item.merged,
+            stale,
+        ),
+    );
     if stale {
         set_attr_v(buf, intern, cell_id, keys.data_stale, "1");
     }
-    // Geometry as one style attr (four SetStyle → one SetAttr) before fill/font styles.
-    buf.set_attr(
-        cell_id,
-        keys.style,
-        intern_box_geometry(
-            intern,
-            left as f64,
-            top as f64,
-            item.w as f64,
-            item.h as f64,
-        ),
-    );
-
+    // Geometry + fill as one style attr (cuts per-cell backgroundColor SetStyle; #30).
     let fill = fill_paint(item.view.fill.as_ref());
-    if let Some(ref fp) = fill {
-        if let Some(bg) = &fp.background {
-            set_style_v(buf, intern, cell_id, keys.background_color, bg);
-        }
-        if let Some(img) = &fp.image {
-            set_style_v(buf, intern, cell_id, keys.background_image, img);
-        }
-    } else if item.merged {
-        set_style_v(
-            buf,
-            intern,
-            cell_id,
-            keys.background_color,
-            "var(--xve-sheet-bg, #fff)",
-        );
-    }
+    write_cell_box_style(
+        style_buf,
+        left as f64,
+        top as f64,
+        item.w as f64,
+        item.h as f64,
+        fill.as_ref(),
+        item.merged && fill.is_none(),
+    );
+    buf.set_attr(cell_id, keys.style, intern.intern(style_buf));
 
     if let Some(bar) = &item.view.data_bar {
         let bar_id = DATA_BAR_BASE + n as u32;
@@ -375,17 +369,13 @@ fn paint_one_cell<I: StringIntern>(
     if !item.text.is_empty() {
         let text_id = TEXT_BASE + n as u32;
         buf.create_element(text_id, div, cell_id);
-        let mut text_class = String::from("xg-t");
-        if item.view.wrap {
-            text_class.push_str(" xg-wrap");
-        }
-        if item.view.vertical_text {
-            text_class.push_str(" xg-vert");
-        }
-        if item.overflowing {
-            text_class.push_str(" xg-over");
-        }
-        set_attr_v(buf, intern, text_id, keys.class, &text_class);
+        set_attr_v(
+            buf,
+            intern,
+            text_id,
+            keys.class,
+            text_class_static(item.view.wrap, item.view.vertical_text, item.overflowing),
+        );
         // One style attr (same encode pattern as cell geometry) — cuts ~10 SetStyle
         // opcodes per text cell on the WASM cmdbuf path (#30).
         // Upstream cell-layer.ts: pad rounded; indent keeps fractional CSS px.

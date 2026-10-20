@@ -42,6 +42,8 @@ s = s.replace(/\/\*\*?[\s\S]*?\*\//g, "");
 s = s.replace(/^[ \t]*\/\/.*$/gm, "");
 s = s.replace(/^[ \t]+/gm, "");
 s = s.replace(/\n{2,}/g, "\n");
+// Leading blank line from comment strip still costs brotli bytes on tip main.
+s = s.trim() + "\n";
 fs.writeFileSync(path, s);
 STRIP
 node - "$PKG/pkg" "$JSON" <<'JS'

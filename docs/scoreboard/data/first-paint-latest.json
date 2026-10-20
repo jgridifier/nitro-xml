@@ -1,0 +1,110 @@
+{
+ "race": "first-paint",
+ "schema": 1,
+ "generatedAt": "2026-10-20T02:25:26.282Z",
+ "startedAt": "2026-10-20T02:25:20.931Z",
+ "git": {
+  "sha": "146f59cd94738a5c91bfd401bb84bc697d445309",
+  "short": "146f59c",
+  "branch": "cursor/issue-41-first-paint-race-5eae"
+ },
+ "machine": {
+  "cpuModel": "Intel(R) Xeon(R) Processor",
+  "logicalCores": 4,
+  "ramBytes": 16780574720,
+  "platform": "Linux 6.12.94+ x64",
+  "node": "v22.14.0"
+ },
+ "browser": {
+  "name": "Google Chrome (headless)",
+  "executable": "/usr/bin/google-chrome",
+  "version": "154.0.8037.92",
+  "flags": [
+   "--enable-precise-memory-info",
+   "--js-flags=--expose-gc",
+   "--disable-renderer-backgrounding",
+   "--disable-background-timer-throttling"
+  ],
+  "crossOriginIsolated": true
+ },
+ "method": {
+  "warmupRuns": 1,
+  "timedRuns": 3,
+  "timer": "performance.now() around module/wasm load + open + first painted grid frame; fixture bytes fetched in setup outside the timed span; fresh browser context and page per sample (cold load each time)",
+  "viewport": "800x480 CSS px, DPR 1",
+  "pixelLimits": {
+   "xlsx": 0.001,
+   "pptx": 0.005,
+   "docx": 0.005
+  },
+  "reference": "upstream-ts",
+  "order": "entrants in a seeded random order per fixture (mulberry32, seed 20261011)",
+  "isolation": "fresh browser context and page per timed sample"
+ },
+ "entrants": [
+  {
+   "id": "upstream-ts",
+   "name": "upstream ooxml TS",
+   "formats": [
+    "xlsx"
+   ],
+   "reference": true,
+   "status": "entered"
+  },
+  {
+   "id": "nitro-xml",
+   "name": "Nitro XML (Rust/WASM)",
+   "formats": [
+    "xlsx"
+   ],
+   "status": "entered"
+  }
+ ],
+ "files": [
+  {
+   "format": "xlsx",
+   "tier": "S",
+   "file": "fixtures/generated/xlsx/cells_1k.xlsx",
+   "bytes": 8012,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      227.485,
+      198.805,
+      229.11
+     ],
+     "medianMs": 227.48499999940395,
+     "minMs": 198.80499999970198,
+     "maxMs": 229.10999999940395,
+     "comparable": true,
+     "pixelRatio": 0,
+     "pixel": {
+      "ok": true,
+      "mismatched": 0,
+      "total": 384000,
+      "ratio": 0,
+      "limit": 0.001
+     }
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      751.015,
+      765.95,
+      754.94
+     ],
+     "medianMs": 754.9399999976158,
+     "minMs": 751.015000000596,
+     "maxMs": 765.9500000029802,
+     "comparable": true,
+     "pixelRatio": 0
+    }
+   }
+  }
+ ]
+}

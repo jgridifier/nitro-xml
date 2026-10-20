@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "race:parse": "node run.mjs"
+    "race:parse": "node run.mjs",
+    "race:first-paint": "node races/render/run.mjs"
   },
   "dependencies": {
     "docx-preview": "0.4.1",

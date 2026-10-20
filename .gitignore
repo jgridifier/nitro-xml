@@ -55,3 +55,4 @@ tests/a11y/out/
 tests/a11y/node_modules/
 tests/bidi/out/
 tests/text/out/
+tests/interaction/out/

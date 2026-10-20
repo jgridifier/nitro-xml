@@ -3,7 +3,14 @@
 # Own workspace on purpose: not a member of rs/.
 [workspace]
 resolver = "2"
-members = ["calamine-shim", "umya-shim", "docx-rs-shim"]
+members = [
+    "calamine-shim",
+    "umya-shim",
+    "docx-rs-shim",
+    "nitro-xlsx-shim",
+    "nitro-docx-shim",
+    "nitro-pptx-shim",
+]
 
 [workspace.package]
 edition = "2021"

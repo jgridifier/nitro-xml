@@ -55,18 +55,12 @@ pub fn rotation_degrees(text_rotation: Option<f64>) -> (f64, bool) {
     (tr.clamp(-90.0, 90.0), false)
 }
 
-#[allow(clippy::map_clone)]
-fn indexed_palette(workbook: &WorkbookSlice) -> Vec<&str> {
-    workbook
-        .palette
-        .as_ref()
-        .map(|p| p.iter().map(|s| s.as_str()).collect())
-        .unwrap_or_else(|| {
-            crate::view::colors::INDEXED_COLORS
-                .iter()
-                .map(|s| *s)
-                .collect()
-        })
+/// Default theme palette is a static table — avoid allocating a `Vec` per cell on paint.
+fn indexed_palette<'a>(workbook: &'a WorkbookSlice) -> std::borrow::Cow<'a, [&'a str]> {
+    match workbook.palette.as_ref() {
+        Some(p) => std::borrow::Cow::Owned(p.iter().map(String::as_str).collect()),
+        None => std::borrow::Cow::Borrowed(&crate::view::colors::INDEXED_COLORS),
+    }
 }
 
 fn display_text(
@@ -126,10 +120,22 @@ pub fn cell_view(
     col: u32,
     options: CellViewOptions<'_>,
 ) -> CellView {
+    cell_view_with_cf_cache(workbook, sheet, index, row, col, options, None)
+}
+
+/// Like [`cell_view`], sharing a [`CfPaintCache`] across cells in one paint frame.
+pub fn cell_view_with_cf_cache(
+    workbook: &WorkbookSlice,
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    row: u32,
+    col: u32,
+    options: CellViewOptions<'_>,
+    mut cf_cache: Option<&mut crate::cf::CfPaintCache>,
+) -> CellView {
     let indexed = indexed_palette(workbook);
     let cell = get_cell(sheet, index, row, col);
-    let value = cell.map(|c| c.value.clone()).unwrap_or(DumpCellValue::Null);
-    let value_for_align = value.clone();
+    let value_ref = cell.map(|c| &c.value).unwrap_or(&DumpCellValue::Null);
     let style = style_at(
         &workbook.styles,
         Some(effective_style_id(sheet, index, row, col)),
@@ -161,7 +167,12 @@ pub fn cell_view(
     } else {
         None
     };
-    let cf = cf_at(sheet, index, row, col, &workbook.theme, &indexed);
+    let cf = match cf_cache.as_mut() {
+        Some(cache) => {
+            crate::cf::cf_at_cached(sheet, index, row, col, &workbook.theme, &indexed, cache)
+        }
+        None => cf_at(sheet, index, row, col, &workbook.theme, &indexed),
+    };
     let hide_value = cf.as_ref().is_some_and(|c| c.hide_value);
     let shown = if hide_value {
         (String::new(), None)
@@ -175,17 +186,13 @@ pub fn cell_view(
             .and_then(|s| s.num_fmt.as_deref())
             .filter(|s| !s.is_empty())
             .unwrap_or(style.num_fmt.as_str());
-        let (t, c) = display_text(&value, fmt, workbook, sheet);
+        let (t, c) = display_text(value_ref, fmt, workbook, sheet);
         (t, c)
     };
-    let font_for_view = if let Some(cf) = &cf {
-        if let Some(dxf) = &cf.style {
-            merge_font(&font, dxf.font.as_ref())
-        } else {
-            font.clone()
-        }
-    } else {
-        font.clone()
+    // Move `font` when CF does not override — avoid a Font clone on the hot path.
+    let font_for_view = match cf.as_ref().and_then(|c| c.style.as_ref()) {
+        Some(dxf) => merge_font(&font, dxf.font.as_ref()),
+        None => font,
     };
     let mut font_view_resolved = font_view(&font_for_view, &workbook.theme, &indexed);
     if let Some(c) = shown.1 {
@@ -201,7 +208,7 @@ pub fn cell_view(
     } else if formula_text.is_some() {
         "left".into()
     } else {
-        general_alignment(&value_for_align).to_string()
+        general_alignment(value_ref).to_string()
     };
     let text_rotation = alignment.and_then(|a| a.text_rotation);
     let (rotation, vertical) = rotation_degrees(text_rotation);
@@ -231,11 +238,11 @@ pub fn cell_view(
     }
 
     let is_number = matches!(
-        value,
+        value_ref,
         DumpCellValue::Number(_) | DumpCellValue::NumberRaw(_)
     ) && formula_text.is_none();
     let overflow = (formula_text.is_some()
-        || matches!(&value_for_align, DumpCellValue::String(s) if !s.is_empty()))
+        || matches!(value_ref, DumpCellValue::String(s) if !s.is_empty()))
         && !wrap
         && !shrink
         && rotation == 0.0
@@ -244,17 +251,20 @@ pub fn cell_view(
         && !sheet.merges.iter().any(|m| range_contains(m, row, col));
 
     // Upstream: `bordersView(mergeBorder(style.border, dxf?.border), …)`.
-    let border_for_view = if let Some(dxf) = cf.as_ref().and_then(|c| c.style.as_ref()) {
-        merge_border(&style.border, dxf.border.as_ref())
-    } else {
-        style.border.clone()
+    let merged_border;
+    let border_ref = match cf.as_ref().and_then(|c| c.style.as_ref()) {
+        Some(dxf) if dxf.border.is_some() => {
+            merged_border = merge_border(&style.border, dxf.border.as_ref());
+            &merged_border
+        }
+        _ => &style.border,
     };
     let mut view = CellView {
         text: shown.0,
         title: None,
         font: font_view_resolved,
         fill,
-        borders: borders_view(&border_for_view, &workbook.theme, &indexed),
+        borders: borders_view(border_ref, &workbook.theme, &indexed),
         h_align,
         v_align: alignment
             .and_then(|a| a.vertical.as_deref())
@@ -279,7 +289,7 @@ pub fn cell_view(
                 && dv.show_drop_down != Some(false)
                 && dv.ranges.iter().any(|r| range_contains(r, row, col))
         }),
-        is_error: is_cell_error(&value) && formula_text.is_none(),
+        is_error: is_cell_error(value_ref) && formula_text.is_none(),
         rich: None,
         sparkline: None,
     };
@@ -310,7 +320,7 @@ pub fn cell_view(
     if !hide_value {
         if let Some(c) = cell {
             if let Some(rt) = &c.rich_text {
-                if matches!(value, DumpCellValue::String(_)) {
+                if matches!(value_ref, DumpCellValue::String(_)) {
                     view.rich = Some(
                         rt.iter()
                             .map(|run| RichRun {

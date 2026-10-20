@@ -22,6 +22,10 @@ if (!wasmSupported()) {
 await initCore();          // compileStreaming / instantiateStreaming when possible
 defineNitroXml();          // registers <nitro-xml>, pre-warms a worker
 defineNitroXlsx();         // registers <nitro-xlsx readonly> xlsx viewer (#19)
+
+// React hosts: start wasm+worker before the user picks a file (lazy chunk):
+const { preload } = await import("nitro-xml/loader/lazy/preload.js");
+await preload();
 ```
 
 `defineNitroXlsx()` from the same entry registers `<nitro-xlsx readonly>` for the
@@ -29,10 +33,10 @@ Stage-3 xlsx grid viewer (worker + command buffer). Use `readonly` (default) for
 view-only embeds; editing stays on `<nitro-xml>` / future editor paths.
 
 - Prefers `WebAssembly.compileStreaming` / the wasm-bindgen streaming init path
-  with a `Response`.
-- Compiled `WebAssembly.Module` is cached in memory for the page lifetime (Cache
-  API used when fetch URLs allow).
-- Worker is pre-warmed on `defineNitroXml()`.
+  with a `Response` (`instantiateStreaming` when glue receives a `Response`).
+- Compiled `WebAssembly.Module` is cached in memory for the page lifetime; wasm
+  bytes are written to the Cache API when available (next navigation skips fetch).
+- Worker is pre-warmed on `defineNitroXml()` / `preload()`.
 - `loadFormatModule(ext)` / `loadEditorModule()` are hooks for a future split:
   small core + per-format modules on demand; editor module only on edit. Today
   the core package already links all format crates.

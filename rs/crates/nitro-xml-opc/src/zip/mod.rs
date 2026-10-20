@@ -43,6 +43,8 @@ pub const MIN_RATIO_CHECK_BYTES: u64 = 10 * 1024 * 1024;
 
 /// Read chunk size; also the granularity at which limits are enforced while inflating.
 const CHUNK_BYTES: usize = 64 * 1024;
+/// Parts up to this size inflate via `read_to_end`; larger ones read straight into a zeroed buffer.
+const SMALL_PART_BYTES: usize = 256 * 1024;
 /// Upper bound on the up-front allocation for one part, whatever its declared size.
 const MAX_PREALLOCATE_BYTES: u64 = 64 * 1024 * 1024;
 
@@ -296,16 +298,25 @@ impl<'a> ZipPackage<'a> {
         };
         let (index, declared, compressed) = (entry.index, entry.size, entry.compressed);
         let stored_name = entry.name.clone();
-        let prealloc = usize::try_from(declared.min(MAX_PREALLOCATE_BYTES)).unwrap_or(0);
-        let mut out: Vec<u8> = Vec::with_capacity(prealloc);
-        let (produced, finished) =
-            self.inflate(index, declared, compressed, &stored_name, |chunk| {
-                out.extend_from_slice(chunk);
-                true
-            })?;
-        if !finished || produced != declared {
-            return Err(ZipError::SizeMismatch { name: stored_name });
-        }
+        let (out, produced) = if declared <= MAX_PREALLOCATE_BYTES {
+            (
+                self.inflate_into(index, declared, compressed, &stored_name)?,
+                declared,
+            )
+        } else {
+            // Huge parts grow incrementally so a lying header cannot commit memory up front.
+            let mut out: Vec<u8> =
+                Vec::with_capacity(usize::try_from(MAX_PREALLOCATE_BYTES).unwrap_or(0));
+            let (produced, finished) =
+                self.inflate(index, declared, compressed, &stored_name, |chunk| {
+                    out.extend_from_slice(chunk);
+                    true
+                })?;
+            if !finished || produced != declared {
+                return Err(ZipError::SizeMismatch { name: stored_name });
+            }
+            (out, produced)
+        };
         self.inflated_total = self.inflated_total.saturating_add(produced);
         self.note_full_read(&stored_name);
         Ok(Some(out))
@@ -336,6 +347,80 @@ impl<'a> ZipPackage<'a> {
             self.note_touch(&stored_name);
         }
         Ok(Some(finished))
+    }
+
+    /// Inflates a whole part straight into one exactly-sized buffer (no chunk buffer, no second copy).
+    /// The same size, ratio and total checks as [`Self::inflate`] apply.
+    fn inflate_into(
+        &mut self,
+        index: usize,
+        declared: u64,
+        compressed: u64,
+        stored_name: &str,
+    ) -> Result<Vec<u8>, ZipError> {
+        let mismatch = || ZipError::SizeMismatch {
+            name: stored_name.to_owned(),
+        };
+        let max_total = self.limits.max_total_bytes;
+        // Declared size is already bounded by `max_part_bytes` and the package total at open.
+        if self.inflated_total.saturating_add(declared) > max_total {
+            return Err(ZipError::TotalTooLarge);
+        }
+        if exceeds_compression_ratio(
+            compressed,
+            declared,
+            self.limits.max_compression_ratio,
+            self.limits.min_ratio_check_bytes,
+        ) {
+            return Err(ZipError::CompressionRatio {
+                name: stored_name.to_owned(),
+            });
+        }
+        let len = usize::try_from(declared).map_err(|_| mismatch())?;
+        let mut file = self.archive.by_index(index).map_err(invalid)?;
+        if len <= SMALL_PART_BYTES {
+            // `read_to_end` fills spare capacity directly (no zeroing pass); its adaptive read size
+            // starts small, so it is only used for small parts.
+            let mut out: Vec<u8> = Vec::with_capacity(len);
+            match (&mut file)
+                .take(declared.saturating_add(1))
+                .read_to_end(&mut out)
+            {
+                Ok(_) => {}
+                Err(e) if is_over_declared(&e) => return Err(mismatch()),
+                Err(e) => return Err(invalid(e)),
+            }
+            if out.len() != len {
+                return Err(mismatch());
+            }
+            return Ok(out);
+        }
+        let mut out = vec![0u8; len];
+        let mut filled = 0usize;
+        while filled < len {
+            let Some(dst) = out.get_mut(filled..) else {
+                return Err(mismatch());
+            };
+            match file.read(dst) {
+                Ok(0) => return Err(mismatch()),
+                Ok(n) => filled += n,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) if is_over_declared(&e) => return Err(mismatch()),
+                Err(e) => return Err(invalid(e)),
+            }
+        }
+        // The stream must end exactly at the declared size (this read also runs the CRC check).
+        let mut probe = [0u8; 1];
+        loop {
+            match file.read(&mut probe) {
+                Ok(0) => break,
+                Ok(_) => return Err(mismatch()),
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) if is_over_declared(&e) => return Err(mismatch()),
+                Err(e) => return Err(invalid(e)),
+            }
+        }
+        Ok(out)
     }
 
     /// Returns `(bytes produced, ran to EOF)`.

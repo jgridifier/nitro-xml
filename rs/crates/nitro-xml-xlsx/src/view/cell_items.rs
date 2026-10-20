@@ -10,7 +10,6 @@ use crate::view::cell_paint::{hashes, repeat_to_fill, FontCssMemo};
 use crate::view::cell_view::{
     cell_view_with_cf_cache, is_blank_view, CellViewOptions, StylePaintCache,
 };
-use crate::view::fake_measure::estimate_width;
 use crate::view::metrics::GridMetrics;
 use crate::view::number_fit::fit_number;
 use crate::view::sheet_queries::overflow_extent;
@@ -139,37 +138,13 @@ fn make_item(
         return item;
     }
     let inner = (w - 2 * PADDING) as f64 - item.view.indent_px * (input.zoom / 100.0);
-    // Cheap estimate first — skip CanvasTextMeasure+StringTable when text clearly fits (#30).
-    let font = font_memo.get_or_compute(&item.view.font, input.zoom);
-    let est = if item.view.rich.is_some() {
-        // Rich runs need per-run fonts; fall through to full measure.
-        f64::INFINITY
-    } else {
-        estimate_width(&item.text, font)
-    };
-    let needs_fill = item.view.h_align == "fill";
-    let needs_shrink = item.view.shrink;
-    // Slack: estimate_width can run narrower than canvas; only skip when clearly fits.
-    // Live paint only — view-IR must run FakeTextMeasure for oracle parity (#30).
-    const EST_SLACK: f64 = 1.25;
-    let clearly_fits = est * EST_SLACK <= inner;
-    let may_hash = item.view.is_number && item.view.rich.is_none() && !clearly_fits;
-    let may_overflow = item.view.overflow && merge.is_none() && !clearly_fits;
-    if input.enable_number_fit
-        && !needs_fill
-        && !needs_shrink
-        && !may_hash
-        && !may_overflow
-    {
-        return item;
-    }
     let measured = text_width_of(input, measure, font_memo, &item.view, &item.text);
-    if needs_fill {
+    if item.view.h_align == "fill" {
         item.text = repeat_to_fill(&item.text, measured, inner);
         item.text_custom = true;
         return item;
     }
-    if needs_shrink {
+    if item.view.shrink {
         if measured > inner && measured > 0.0 {
             item.font_scale = (inner / measured).max(0.1);
         }

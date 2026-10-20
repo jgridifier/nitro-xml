@@ -391,94 +391,74 @@ fn paint_one_cell<I: StringIntern>(
             pl = 20.0 * (zoom / 100.0);
         }
         let font_css = font_memo.get_or_compute(&item.view.font, zoom * item.font_scale);
-        // left/width via PlaceBox h<0 (CSSOM only; text keeps CSS top:0/bottom:0).
-        // Style attr first — setAttribute("style") would wipe CSSOM (#30).
-        // Omit CSS defaults so common left-aligned cells share shorter style strings.
+        // Keep left/width in the style attr + always emit `.xg-tx` (upstream layout).
+        // PlaceBox h<0 / span collapse / omitting CSS defaults failed visual (#30).
         style_buf.clear();
-        let _ = write!(style_buf, "font:{font_css};color:{}", item.view.font.color,);
-        let deco = text_decoration(&item.view.font);
-        if deco != "none" {
-            let _ = write!(style_buf, ";text-decoration:{deco}");
-        }
-        let jc = justify(&item.view.h_align);
-        if jc != "flex-start" {
-            let _ = write!(style_buf, ";justify-content:{jc}");
-        }
         let _ = write!(
             style_buf,
-            ";align-items:{};padding-left:{pl}px;padding-right:{pr}px",
+            "left:{}px;width:{}px;font:{font_css};color:{};text-decoration:{};justify-content:{};align-items:{};text-align:{};padding-left:{pl}px;padding-right:{pr}px",
+            item.text_left,
+            item.text_width,
+            item.view.font.color,
+            text_decoration(&item.view.font),
+            justify(&item.view.h_align),
             align_items(&item.view.v_align),
+            text_align(&item.view.h_align),
         );
-        let ta = text_align(&item.view.h_align);
-        if ta != "left" {
-            let _ = write!(style_buf, ";text-align:{ta}");
-        }
         // Prior port only set whiteSpace when not wrapping (xg-wrap class handles wrap).
         if !item.view.wrap {
             style_buf.push_str(";white-space:pre");
         }
         buf.set_attr(text_id, keys.style, style_memo.intern(intern, style_buf));
-        buf.place_box(text_id, item.text_left, 0, item.text_width, -1);
-        // Upstream uses <span class="xg-tx">. Plain non-wrap text goes on `.xg-t`
-        // directly — skips CreateElement+class per cell (#30). Keep the span when
-        // wrap/rich/rotation/vertAlign need `.xg-tx` layout or hooks.
-        // `view.text` is moved into `item.text`; skip rich when fill/shrink/### replaced it.
+        let span_id = TEXT_BASE + 50_000 + n as u32;
+        // Upstream uses <span class="xg-tx"> (inline-block via CSS).
+        buf.create_element(span_id, span, text_id);
+        set_attr_v(buf, intern, span_id, keys.class, "xg-tx");
+        if item.view.rotation != 0.0 {
+            style_buf.clear();
+            let _ = write!(style_buf, "rotate({}deg)", -item.view.rotation);
+            set_style_v(buf, intern, span_id, keys.transform, style_buf);
+        }
+        // `view.text` may be moved into `item.text`; use text_custom for rich gate.
         let paint_rich =
             !item.text_custom && item.view.rich.as_ref().is_some_and(|r| !r.is_empty());
-        let need_tx_span = item.view.wrap
-            || paint_rich
-            || item.view.rotation != 0.0
-            || item.view.font.vert_align.is_some();
-        if need_tx_span {
-            let span_id = TEXT_BASE + 50_000 + n as u32;
-            buf.create_element(span_id, span, text_id);
-            set_attr_v(buf, intern, span_id, keys.class, "xg-tx");
-            if item.view.rotation != 0.0 {
-                style_buf.clear();
-                let _ = write!(style_buf, "rotate({}deg)", -item.view.rotation);
-                set_style_v(buf, intern, span_id, keys.transform, style_buf);
-            }
-            if paint_rich {
-                let runs = item.view.rich.as_ref().unwrap();
-                for (ri, run) in runs.iter().enumerate() {
-                    let run_id = TEXT_BASE + 70_000 + (n as u32) * 64 + ri as u32;
-                    buf.create_element(run_id, span, span_id);
-                    let run_font = font_memo.get_or_compute(&run.font, zoom * item.font_scale);
-                    set_style_v(buf, intern, run_id, keys.font, run_font);
-                    set_style_v(buf, intern, run_id, keys.color, &run.font.color);
-                    set_style_v(
-                        buf,
-                        intern,
-                        run_id,
-                        keys.text_decoration,
-                        text_decoration(&run.font),
-                    );
-                    if let Some(va) = run.font.vert_align.as_deref() {
-                        let css_va = if va == "super" || va == "superscript" {
-                            "super"
-                        } else {
-                            "sub"
-                        };
-                        set_style_v(buf, intern, run_id, keys.vertical_align, css_va);
-                    }
-                    let t = intern.intern(&run.text);
-                    buf.set_text(run_id, t);
-                }
-            } else {
-                if let Some(va) = item.view.font.vert_align.as_deref() {
+        if paint_rich {
+            let runs = item.view.rich.as_ref().unwrap();
+            for (ri, run) in runs.iter().enumerate() {
+                let run_id = TEXT_BASE + 70_000 + (n as u32) * 64 + ri as u32;
+                buf.create_element(run_id, span, span_id);
+                let run_font = font_memo.get_or_compute(&run.font, zoom * item.font_scale);
+                set_style_v(buf, intern, run_id, keys.font, run_font);
+                set_style_v(buf, intern, run_id, keys.color, &run.font.color);
+                set_style_v(
+                    buf,
+                    intern,
+                    run_id,
+                    keys.text_decoration,
+                    text_decoration(&run.font),
+                );
+                if let Some(va) = run.font.vert_align.as_deref() {
                     let css_va = if va == "super" || va == "superscript" {
                         "super"
                     } else {
                         "sub"
                     };
-                    set_style_v(buf, intern, span_id, keys.vertical_align, css_va);
+                    set_style_v(buf, intern, run_id, keys.vertical_align, css_va);
                 }
-                let text = intern.intern(&item.text);
-                buf.set_text(span_id, text);
+                let t = intern.intern(&run.text);
+                buf.set_text(run_id, t);
             }
         } else {
+            if let Some(va) = item.view.font.vert_align.as_deref() {
+                let css_va = if va == "super" || va == "superscript" {
+                    "super"
+                } else {
+                    "sub"
+                };
+                set_style_v(buf, intern, span_id, keys.vertical_align, css_va);
+            }
             let text = intern.intern(&item.text);
-            buf.set_text(text_id, text);
+            buf.set_text(span_id, text);
         }
     }
 

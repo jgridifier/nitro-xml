@@ -53,14 +53,27 @@ export async function paintFrame(doc, frame) {
     doc._canvas && doc._canvas.getContext ? doc._canvas.getContext("2d") : null;
   const resolve = (id) => (strings && strings[id]) || "";
   if (frame.h && doc.onChrome) doc.onChrome(frame.h);
-  const result = applyCommandBuffer(commands, {
-    canvas: drawCtx,
-    root: doc._root,
-    resolve,
-    images: doc._images,
-    nodes: doc._nodes,
-  });
+  // Same empty-frame keep as worker-host-tick: mut-frame can return 0 ops right after
+  // an edit while layout reopens; applying that would wipe the page (docx caret gate).
+  const keep = commands.byteLength === 0 && doc._root && doc._root.firstChild;
+  const result = keep
+    ? { ops: 0 }
+    : applyCommandBuffer(commands, {
+        canvas: drawCtx,
+        root: doc._root,
+        resolve,
+        images: doc._images,
+        nodes: doc._nodes,
+      });
   doc._queueLayout(layoutReqs, layoutCount || 0);
+  // Measured widths only land in the next frame; bounded so unmeasurable text cannot spin.
+  // Empty keep also needs a follow-up take-frame (mut-frame sets _nxPainted which would
+  // otherwise skip the host's next tick and leave the caret/page stale).
+  doc._rt = measureCount > 0 || keep ? (doc._rt | 0) + 1 : 0;
+  if (doc._rt > 0 && doc._rt <= 6) {
+    doc._nxPainted = 0;
+    void doc.tick().catch(() => {});
+  }
   return {
     ...result,
     measured: measureCount || 0,

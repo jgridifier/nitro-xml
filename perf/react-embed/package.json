@@ -1,0 +1,23 @@
+{
+  "name": "nitro-react-embed-bench",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --port 5179 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5179 --strictPort",
+    "bench": "node run.mjs",
+    "bench:smoke": "node run.mjs --smoke"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "playwright": "^1.64.1",
+    "vite": "^5.4.11"
+  }
+}

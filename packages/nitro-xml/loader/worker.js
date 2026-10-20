@@ -51,13 +51,8 @@ handle = null;
 throw e;
 }
 }
-if (msg.readonly === false) {
-handle.setReadOnly(false);
-self._pendingEditorChrome = 1;
-} else {
 handle.setReadOnly(true);
-self._pendingEditorChrome = 0;
-}
+self._pendingEditorChrome = msg.readonly === false ? 1 : 0;
 self.postMessage({
 type: "opened",
 byteLength: handle.byteLength,
@@ -138,11 +133,14 @@ t: handle.t !== false,
 },
 transfer,
 );
-if (self._pendingEditorChrome) {
+if (self._pendingEditorChrome === 1) {
+self._pendingEditorChrome = 2;
+} else if (self._pendingEditorChrome === 2) {
 self._pendingEditorChrome = 0;
 const h = handle;
 setTimeout(() => {
 try {
+h.setReadOnly(false);
 h.loadEditorChrome();
 } catch {
 }
@@ -189,7 +187,10 @@ msg.code || "",
 break;
 case "editor-chrome":
 if (!handle) throw new Error("no document");
+if (self._pendingEditorChrome) {
 self._pendingEditorChrome = 0;
+handle.setReadOnly(false);
+}
 handle.loadEditorChrome();
 self.postMessage({ type: "editor-chrome", ok: true });
 break;
@@ -197,6 +198,7 @@ case "editor-key":
 if (!handle) throw new Error("no document");
 if (self._pendingEditorChrome) {
 self._pendingEditorChrome = 0;
+handle.setReadOnly(false);
 handle.loadEditorChrome();
 }
 self.postMessage({type:"editor-key",result:handle.editorKey(msg.key||"",!!msg.ctrl,!!msg.meta,!!msg.alt,!!msg.shift,!!msg.mac)});
@@ -211,6 +213,7 @@ case "apply-edit":
 if (!handle) throw new Error("no document");
 if (self._pendingEditorChrome) {
 self._pendingEditorChrome = 0;
+handle.setReadOnly(false);
 handle.loadEditorChrome();
 }
 self.postMessage({type:"apply-edit",result:handle.applyEdit(msg.spec||"")});

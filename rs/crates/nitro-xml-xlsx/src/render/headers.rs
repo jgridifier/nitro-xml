@@ -37,7 +37,8 @@ fn apply_header_sel(state: &str, class: &mut String) {
     }
 }
 
-/// `left:Xpx;width:Wpx;fontSize:Fpx;lineHeight:1.35` for column headers.
+/// `left:Xpx;width:Wpx;font-size:Fpx;line-height:1.35` for column headers.
+/// (CSS `style` attr needs kebab-case; SetStyle uses camelCase JS props.)
 fn intern_col_hdr_style(intern: &mut impl StringIntern, left: i32, w: i32, font_px: i32) -> u32 {
     fn push_bytes(buf: &mut [u8], o: &mut usize, s: &[u8]) {
         buf[*o..*o + s.len()].copy_from_slice(s);
@@ -70,13 +71,13 @@ fn intern_col_hdr_style(intern: &mut impl StringIntern, left: i32, w: i32, font_
     push_i32(&mut buf, &mut o, left);
     push_bytes(&mut buf, &mut o, b"px;width:");
     push_i32(&mut buf, &mut o, w);
-    push_bytes(&mut buf, &mut o, b"px;fontSize:");
+    push_bytes(&mut buf, &mut o, b"px;font-size:");
     push_i32(&mut buf, &mut o, font_px);
-    push_bytes(&mut buf, &mut o, b"px;lineHeight:1.35");
+    push_bytes(&mut buf, &mut o, b"px;line-height:1.35");
     intern.intern(unsafe { std::str::from_utf8_unchecked(&buf[..o]) })
 }
 
-/// `top:Ypx;height:Hpx;fontSize:Fpx;lineHeight:1.35` for row headers.
+/// `top:Ypx;height:Hpx;font-size:Fpx;line-height:1.35` for row headers.
 fn intern_row_hdr_style(intern: &mut impl StringIntern, top: i32, h: i32, font_px: i32) -> u32 {
     fn push_bytes(buf: &mut [u8], o: &mut usize, s: &[u8]) {
         buf[*o..*o + s.len()].copy_from_slice(s);
@@ -109,9 +110,9 @@ fn intern_row_hdr_style(intern: &mut impl StringIntern, top: i32, h: i32, font_p
     push_i32(&mut buf, &mut o, top);
     push_bytes(&mut buf, &mut o, b"px;height:");
     push_i32(&mut buf, &mut o, h);
-    push_bytes(&mut buf, &mut o, b"px;fontSize:");
+    push_bytes(&mut buf, &mut o, b"px;font-size:");
     push_i32(&mut buf, &mut o, font_px);
-    push_bytes(&mut buf, &mut o, b"px;lineHeight:1.35");
+    push_bytes(&mut buf, &mut o, b"px;line-height:1.35");
     intern.intern(unsafe { std::str::from_utf8_unchecked(&buf[..o]) })
 }
 

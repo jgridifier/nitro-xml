@@ -1,11 +1,14 @@
 <!-- SPDX-License-Identifier: MIT -->
 # M1 report — Stage 7 gate (#30)
 
-Status: **metrics + TS-vs-WASM tables** (2026-10-20). Milestone 1 viewer gate record for
-Nitro XML. Native/WASM/bundle baselines on **`164ac7d`** (#279/#283); TS-vs-WASM cold-open
-tables refreshed on **`368b311`** after the xlsx S CF/paint cut **rebased on main+#290**
-(§5.3; prior refresh was `80bbf59` / #294). Does **not** close #23 (docx perf-gate arm
-deferred). Does **not** arm any gate (`perf_beats_ts.sh` / `perf.sh` remain stubs).
+Status: **metrics + TS-vs-WASM tables + live report-mode CI gates** (2026-10-20). Milestone 1
+viewer gate record for Nitro XML. Native/WASM/bundle baselines on **`164ac7d`** (#279/#283);
+TS-vs-WASM cold-open tables refreshed on **`368b311`** after the xlsx S CF/paint cut
+**rebased on main+#290** (§5.3; prior refresh was `80bbf59` / #294). CI gate scripts
+implemented in [#342](https://github.com/jgridifier/nitro-xml/pull/342) (§5.4) — default
+`PERF_GATE_MODE=report` (measures and posts LOSSes; does not fail the job). Does **not**
+close #23 (docx perf-gate arm deferred). Enforce mode (`PERF_GATE_MODE=enforce`) waits on
+Jared.
 
 Upstream pin: ChristopherVR/ooxml @ `e66aaec`. Shipped surface: Rust/WASM only; TS is
 test-oracle / pixel reference / perf baseline and never ships.
@@ -307,23 +310,55 @@ still paint+encode vs TS parse-only. L/XL xlsx stay ~200–300× faster
 
 **Honest scope notes:**
 
-- Metric is **cold open only** (not scroll / peak memory / browser first-paint including
-  wasm fetch+compile+instantiate). Those remain for the armed gate under #8 once filled in.
+- Metric in §5.3 is **cold open only**. Peak memory is now measured in CI (§5.4). Scroll /
+  browser first-paint (incl. wasm fetch+compile+instantiate) and 4× CPU / XL remain TODO(#8).
 - **xlsx asymmetry:** TS `loadWorkbook` is a full workbook parse; WASM `openDocument` uses
   `open_first_view` (viewport) + first `process_frame`, and after #289 does **not** SeekTail
   on that first frame. That is the viewer TTFV path, not identical work — especially visible
   at L/XL. S remains a loss because the sheet is already complete at open (no SeekTail to
   defer) and paint + WASM tax dominate.
-- Gate scripts are **unchanged stubs** (report does not arm anything):
-
-```text
-$ bash scripts/ci/perf_beats_ts.sh xlsx   # NOT IMPLEMENTED — see #19 (#8)
-$ bash scripts/ci/perf_beats_ts.sh docx   # NOT IMPLEMENTED — see #23 (#8)
-$ bash scripts/ci/perf_beats_ts.sh pptx   # NOT IMPLEMENTED — see #27 (#8)
-$ bash scripts/ci/perf.sh gate            # NOT IMPLEMENTED — see #8
-```
+- Gate scripts are **live in report mode** — see §5.4 ([#342](https://github.com/jgridifier/nitro-xml/pull/342)).
 
 **Docx perf-gate arm stays deferred under #23; this slice does not close #23.**
+
+### 5.4 WASM-beats-TS CI gate — report mode ([#342](https://github.com/jgridifier/nitro-xml/pull/342))
+
+`scripts/ci/perf_beats_ts.sh` and `scripts/ci/perf.sh` no longer print `NOT IMPLEMENTED`.
+They generate S/M/L fixtures, build wasm, run `perf/large/ts-vs-wasm.mjs` (openDocument) and
+`perf/large/peak-mem.mjs` (VmHWM growth + 95% bootstrap CI), and write a per-test table to
+`$GITHUB_STEP_SUMMARY`.
+
+| | |
+|--|--|
+| **PR** | [#342](https://github.com/jgridifier/nitro-xml/pull/342) (ready; all checks green) |
+| **Pass rule** | median WASM/TS &lt; 1 **and** 95% CI upper &lt; 1 (PRODUCT_SPEC §5); a tie fails |
+| **Mode** | default `PERF_GATE_MODE=report` — LOSS/TIE posted, job exits 0. Jared: set `enforce` to arm |
+| **Not demoted** | budgets, fixtures, loader ceiling (≤17408 B brotli) unchanged |
+
+CI `perf-gate` rollup on tip of #342 (`f430dec`, ubuntu-latest) — **12/18 WIN · 6 LOSS/TIE**:
+
+| Format | Tier | Metric | WASM/TS | 95% CI | Verdict |
+|--------|------|--------|--------:|-------:|---------|
+| xlsx | S | openDocument | 0.827 | [0.686, 1.174] | **TIE/LOSS** |
+| xlsx | S | peak_mem | 7.436 | [6.764, 7.554] | **LOSS** |
+| docx | S | peak_mem | 14.640 | [12.658, 14.885] | **LOSS** |
+| docx | M | peak_mem | 5.019 | [4.582, 5.162] | **LOSS** |
+| docx | L | peak_mem | 1.752 | [1.650, 1.859] | **LOSS** |
+| pptx | S | peak_mem | 2.301 | [2.260, 2.354] | **LOSS** |
+
+All other S/M/L openDocument cells and xlsx M/L + pptx M/L peak mem: **WIN**. Peak-mem LOSSes
+are dominated by the wasm compile floor (~32–45 MiB fresh-process RSS growth vs 2–5 MiB TS on
+S fixtures; see `docs/perf-rust-hotpaths.md`).
+
+Paint-encode follow-up [#333](https://github.com/jgridifier/nitro-xml/pull/333) (ready) fixes a
+live-paint blank skip that dropped text-only cells after `mem::take(view.text)` — visual hard
+xlsx-viewer **124/124** locally; intended to cut xlsx S open further once merged.
+
+```bash
+PERF_GATE_MODE=report bash scripts/ci/perf.sh gate
+# arm later:
+PERF_GATE_MODE=enforce bash scripts/ci/perf_beats_ts.sh xlsx
+```
 
 ---
 
@@ -348,18 +383,19 @@ bash scripts/ci/bundle_budget.sh
 
 ## 7. Scoreboard standings — adapter in parallel PR; publish still #113
 
-A self-contained Nitro WASM **parse adapter** (no #113) is in
-[#299](https://github.com/jgridifier/nitro-xml/pull/299) (`cursor/issue-30-scoreboard-nitro-parse-5eae`):
-calamine-style shims + `competitors.json` **entered**, with local real-fixture runs vs
-upstream-ts (xlsx 28W/2L geomean 0.465; docx 30W/0L; pptx 20 comparable / 10 nc —
-losses and `(nc)` kept). That PR does **not** write `docs/scoreboard/data/parse-latest.json`.
+Self-contained Nitro WASM **parse adapters** (no #113) landed in
+[#299](https://github.com/jgridifier/nitro-xml/pull/299) /
+[#329](https://github.com/jgridifier/nitro-xml/pull/329): calamine-style shims +
+`competitors.json` **entered**, with local real-fixture runs vs upstream-ts (xlsx 28W/2L
+geomean 0.465; docx 30W/0L; pptx 20 comparable / 10 nc — losses and `(nc)` kept). Those PRs
+do **not** write `docs/scoreboard/data/parse-latest.json`.
 
 | Still blocked for published standings | Link | Why |
 |---------------------------------------|------|-----|
 | `scripts/ci/scoreboard.sh` | stub → `#39` | Still `NOT IMPLEMENTED — see #39` |
 | Scoreboard CI / Pages publish | draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) | Draft; **do not touch** (per Jared) |
 | Render-to-first-paint race | [#41](https://github.com/jgridifier/nitro-xml/issues/41) | `status:blocked` — first-paint standings wait on it |
-| Published data | `docs/scoreboard/data/parse-latest.json` | Still shows Nitro as `"not entered"` until #113 + adapter merge |
+| Published data | `docs/scoreboard/data/parse-latest.json` | Still shows Nitro as `"not entered"` until #113 |
 
 No invented medians in the published JSON from this report slice.
 
@@ -369,9 +405,11 @@ No invented medians in the published JSON from this report slice.
 
 | Item | Issue / PR | Notes |
 |------|------------|-------|
-| Arm WASM-beats-TS gates (CI) | **#8**, **#19**, **#27**; docx **#23** (deferred) | Report tables exist (§5.3); stubs still `NOT IMPLEMENTED` — do not arm from this report |
-| Scoreboard standings including losses | **#41**, draft **#113**, **#39**; adapter **#299** | Adapter+local W/L in #299; published `parse-latest.json` still waits on #113 — do not invent numbers |
-| Keep `crash-recovery` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection |
+| Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Scripts live in **report** mode (§5.4 / #342). Jared: `PERF_GATE_MODE=enforce` when reds are fixed |
+| Peak-mem LOSSes (xlsx S, docx S/M/L, pptx S) | #8 / hotpaths | Wasm compile floor; levers in `docs/perf-rust-hotpaths.md` |
+| xlsx S openDocument TIE/LOSS (CI spans 1.0) | #333 (ready) + further paint | Blank-skip fix ready; residual encode/paint tax |
+| Scoreboard standings including losses | **#41**, draft **#113**, **#39**; adapters **#299/#329** | Published `parse-latest.json` still waits on #113 — do not invent numbers |
+| Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |
 | Per-format wasm / TTI ceilings | #46 | Bundle gate extension |
 
 ---
@@ -384,7 +422,8 @@ No invented medians in the published JSON from this report slice.
 - [x] M1 report published with **real measured** numbers from existing harnesses (native/WASM/bundle on `164ac7d`; TS-vs-WASM cold open refreshed on `368b311` after xlsx S CF/paint cut + #290 rebase)
 - [x] Unsupported-content rate recorded (**0** × 3 formats)
 - [x] Bundle / loader sizes recorded (loader **16.87 / 17 KB**; wasm sizes above)
-- [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including the xlsx S loss** — gate scripts still stubbed; **#23 left open** (docx arm deferred)
-- [ ] Scoreboard standings including losses — adapter **#299** (local W/L); published JSON still blocked on stub `#39` + draft **#113** + blocked **#41** (no invented numbers)
-- [ ] `crash-recovery` added to branch-protection required checks — **Jared / Chief of Staff only**
-- [ ] Arm `perf-beats-ts` CI gates — **#8 / #19 / #27**; docx **#23** deferred
+- [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including the xlsx S loss**; **#23 left open** (docx arm deferred)
+- [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped
+- [ ] Scoreboard standings including losses — adapters **#299/#329** (local W/L); published JSON still blocked on stub `#39` + draft **#113** + blocked **#41** (no invented numbers)
+- [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
+- [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27**; docx **#23** deferred

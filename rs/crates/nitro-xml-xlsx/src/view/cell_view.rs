@@ -80,6 +80,19 @@ fn display_text(
         if *n == 0.0 && !sheet.view.show_zeros {
             return (String::new(), None);
         }
+        // cells_1k / default xf: General — skip compile_format + section choose (#30).
+        if num_fmt.is_empty() || num_fmt.eq_ignore_ascii_case("General") {
+            return (crate::numfmt::format_general(*n, None), None);
+        }
+    } else if let DumpCellValue::NumberRaw(s) = value {
+        if let Ok(n) = s.parse::<f64>() {
+            if n == 0.0 && !sheet.view.show_zeros {
+                return (String::new(), None);
+            }
+            if num_fmt.is_empty() || num_fmt.eq_ignore_ascii_case("General") {
+                return (crate::numfmt::format_general(n, None), None);
+            }
+        }
     }
     if let DumpCellValue::Bool(b) = value {
         return (if *b { "TRUE" } else { "FALSE" }.into(), None);

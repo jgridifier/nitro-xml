@@ -270,6 +270,8 @@ pub struct CellItem {
     pub h: i32,
     pub view: CellView,
     pub text: String,
+    /// True when `text` was replaced (fill / shrink / ###) vs moved from `view.text`.
+    pub text_custom: bool,
     pub text_left: i32,
     pub text_width: i32,
     pub overflowing: bool,

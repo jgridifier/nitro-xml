@@ -426,11 +426,13 @@ fn paint_one_cell<I: StringIntern>(
         // Upstream uses <span class="xg-tx">. Plain non-wrap text goes on `.xg-t`
         // directly — skips CreateElement+class per cell (#30). Keep the span when
         // wrap/rich/rotation/vertAlign need `.xg-tx` layout or hooks.
-        let paint_rich = item
-            .view
-            .rich
-            .as_ref()
-            .is_some_and(|r| !r.is_empty() && item.text == item.view.text);
+        // `view.text` is moved into `item.text`; skip rich when fill/shrink/### replaced it.
+        let paint_rich = !item.text_custom
+            && item
+                .view
+                .rich
+                .as_ref()
+                .is_some_and(|r| !r.is_empty());
         let need_tx_span = item.view.wrap
             || paint_rich
             || item.view.rotation != 0.0

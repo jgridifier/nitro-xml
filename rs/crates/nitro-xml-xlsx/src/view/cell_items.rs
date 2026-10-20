@@ -86,7 +86,7 @@ fn make_item(
     font_memo: &mut FontCssMemo,
     row: u32,
     col: u32,
-    view: CellView,
+    mut view: CellView,
     merge: Option<&CellRange>,
 ) -> CellItem {
     let metrics = input.metrics;
@@ -102,7 +102,12 @@ fn make_item(
     } else {
         metrics.row_height(row)
     };
-    let text = view.text.clone();
+    // Live paint: move display text (avoid clone). View-IR keeps both in sync (#30).
+    let text = if input.include_item_keys {
+        view.text.clone()
+    } else {
+        std::mem::take(&mut view.text)
+    };
     let is_error = view.is_error;
     let mut item = CellItem {
         key: if input.include_item_keys {
@@ -118,6 +123,7 @@ fn make_item(
         h,
         view,
         text,
+        text_custom: false,
         text_left: 0,
         text_width: w,
         overflowing: false,
@@ -125,7 +131,7 @@ fn make_item(
         merged: merge.is_some(),
         error_mark: is_error && (input.has_formula)(row, col),
     };
-    if item.view.text.is_empty()
+    if item.text.is_empty()
         || item.view.wrap
         || item.view.vertical_text
         || item.view.rotation != 0.0
@@ -139,7 +145,7 @@ fn make_item(
         // Rich runs need per-run fonts; fall through to full measure.
         f64::INFINITY
     } else {
-        estimate_width(&item.view.text, font)
+        estimate_width(&item.text, font)
     };
     let needs_fill = item.view.h_align == "fill";
     let needs_shrink = item.view.shrink;
@@ -151,9 +157,10 @@ fn make_item(
     if !needs_fill && !needs_shrink && !may_hash && !may_overflow {
         return item;
     }
-    let measured = text_width_of(input, measure, font_memo, &item.view, &item.view.text);
+    let measured = text_width_of(input, measure, font_memo, &item.view, &item.text);
     if needs_fill {
-        item.text = repeat_to_fill(&item.view.text, measured, inner);
+        item.text = repeat_to_fill(&item.text, measured, inner);
+        item.text_custom = true;
         return item;
     }
     if needs_shrink {
@@ -182,6 +189,7 @@ fn make_item(
         } else {
             item.text = hashes(inner, measure.measure("#", font));
         }
+        item.text_custom = true;
         return item;
     }
     if item.view.overflow && merge.is_none() && measured > inner {

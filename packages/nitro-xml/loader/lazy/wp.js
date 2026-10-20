@@ -61,7 +61,7 @@ export function patch(WorkerDocument) {
           if (frame && frame.commands) {
             const { paintFrame } = await import("./paint-frame.js");
             await paintFrame(doc, frame);
-            doc._nxPainted = 1;
+            notePainted(doc, frame);
           }
           last.resolve(result);
         } else {
@@ -121,9 +121,22 @@ export function patch(WorkerDocument) {
     if (frame && frame.commands) {
       const { paintFrame } = await import("./paint-frame.js");
       await paintFrame(doc, frame);
-      doc._nxPainted = 1;
+      notePainted(doc, frame);
     }
     return result;
+  }
+
+  // A mut-frame that still owes measure, outline, or layout is not the painted page.
+  // applyCommandBuffer clears the root first, so skipping the next tick leaves it empty.
+  function notePainted(doc, frame) {
+    doc._nxPainted = 1;
+    if (
+      (frame.measureCount | 0) > 0 ||
+      (frame.outlineCount | 0) > 0 ||
+      (frame.layoutCount | 0) > 0
+    ) {
+      doc._nxFollow = 1;
+    }
   }
 
   WorkerDocument.prototype.editorKey = async function (ev, mac) {
@@ -176,8 +189,10 @@ export function patch(WorkerDocument) {
       return paintFrame(this, frame);
     }
     if (this._nxPainted) {
+      const follow = this._nxFollow;
       this._nxPainted = 0;
-      return { ops: [], measured: 0, outlined: 0, layoutReads: 0 };
+      this._nxFollow = 0;
+      if (!follow) return { ops: [], measured: 0, outlined: 0, layoutReads: 0 };
     }
     return origTick.apply(this, args);
   };

@@ -189,6 +189,16 @@ async function waitFonts() {
 	}
 }
 
+/** Same post–first-content settle for both pptx entrants (PR #390 equivalence). */
+async function settleAfterFirstPptxContent() {
+	await waitFonts();
+	await waitFrames(3);
+}
+
+// PPTX first-paint adapters: timed window is paintOnce() only (fixture fetch in setup() is outside).
+// End state: first visible slide painted in #stage. Parse/open scope follows each product API — see PR
+// "Equivalence / product path (required)".
+
 async function paintNitroPptx(fixtureUrl, bytes) {
 	const { defineNitroPptx, initCore } = await import('/packages/nitro-xml/loader/index.js');
 	const fontMirror = new URL('/fonts/css2', location.origin).href;
@@ -247,16 +257,11 @@ async function paintNitroPptx(fixtureUrl, bytes) {
 		}
 	}
 	if (!painted) throw new Error('nitro-pptx: no slide DOM paint');
-	for (let c = 0; c < 12; c++) {
-		if (el.document) await el.document.tick();
-		await waitFrames(1);
-		if ((el.document?.measureCount | 0) === 0 && c >= 3) break;
-	}
 	hideShellChrome(shadow);
+	await settleAfterFirstPptxContent();
 }
 
 async function paintUpstreamPptx(fixtureUrl, bytes) {
-	await waitFonts();
 	const {
 		loadPresentation,
 		renderSlideStage,
@@ -304,9 +309,21 @@ async function paintUpstreamPptx(fixtureUrl, bytes) {
 		} catch {
 			/* optional */
 		}
-		await waitFrames(3);
-		await waitFonts();
-		await waitFrames(3);
+		let mounted = false;
+		for (let i = 0; i < 90; i++) {
+			await waitFrames(1);
+			const slideRoot = wrap.firstElementChild;
+			if (
+				slideRoot &&
+				(slideRoot.childElementCount > 0 ||
+					wrap.querySelector('.pptxv-element, [class*="pptx"]'))
+			) {
+				mounted = true;
+				break;
+			}
+		}
+		if (!mounted) throw new Error('upstream pptx: no slide DOM paint');
+		await settleAfterFirstPptxContent();
 	} finally {
 		loaded.handler?.dispose?.();
 	}

@@ -157,7 +157,11 @@ async function loadWasmOpener() {
 
 async function timeEngine(label, fn, runs, warmup) {
   const samples = [];
+  const gc = typeof globalThis.gc === "function" ? globalThis.gc : null;
   for (let i = 0; i < warmup + runs; i++) {
+    // Optional GC between opens cuts allocator noise when node is started with --expose-gc
+    // (CI gate). Does not change the pass rule or drop samples.
+    if (gc) gc();
     const t0 = performance.now();
     await fn();
     const elapsed = performance.now() - t0;

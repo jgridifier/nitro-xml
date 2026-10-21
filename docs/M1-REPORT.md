@@ -440,7 +440,7 @@ No invented medians in the published JSON from this report slice.
 |------|------------|-------|
 | Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Scripts live in **report** mode (§5.4 / #342). Jared: `PERF_GATE_MODE=enforce` when reds are fixed |
 | Peak-mem LOSSes (xlsx S, docx S/M/L, pptx S/M) | #8 / hotpaths | Wasm compile floor; levers in `docs/perf-rust-hotpaths.md` |
-| xlsx S openDocument CI noise (local WIN, CI sometimes TIE) | further paint / runner warm | Local **WIN** after #333; CI 95% CI still spans 1.0 on some jobs |
+| xlsx S openDocument CI noise | open runs/warmup defaults | Raised gate defaults to warmup=8 / runs=21 (Liftoff discard); pass rule unchanged |
 | Scoreboard standings including losses | **#41**, draft **#113**, **#39**; adapters **#299/#329** | Published `parse-latest.json` still waits on #113 — do not invent numbers |
 | Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |
 | Per-format wasm / TTI ceilings | #46 | Bundle gate extension |

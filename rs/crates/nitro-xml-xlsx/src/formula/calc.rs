@@ -24,7 +24,7 @@ use crate::formula::parser::parse_formula;
 use crate::model::{CellAddress, CellRange, DumpCellValue};
 use crate::number_format::js_number_string;
 use crate::sheet_data_source::split_sheet_data;
-use crate::workbook::{load_workbook, parse_all_worksheets};
+use crate::workbook::{load_workbook_meta, parse_all_worksheets};
 use crate::xml_util::{att, num_attr, rel_attr, x_children, x_first};
 use nitro_xml_opc::opc::{relationship_types, Package, Relationship};
 use nitro_xml_opc::xml::parse_xml_str;
@@ -324,7 +324,7 @@ pub struct CalcEngine {
 impl CalcEngine {
     /// Load every worksheet of `bytes` into a calc engine. Nodes are built on [`prepare`].
     pub fn load(bytes: &[u8]) -> Result<Self, String> {
-        let workbook = load_workbook(bytes)?;
+        let workbook = load_workbook_meta(bytes)?;
         let parsed = parse_all_worksheets(bytes, &workbook)?;
         let sst = workbook.shared_strings.clone();
         let parsed: Vec<Option<crate::model::ActiveWorksheet>> = parsed

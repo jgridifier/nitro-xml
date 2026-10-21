@@ -12,7 +12,7 @@ use crate::model::{
     DumpCellValue, FreezePane, HyperlinkInfo, RowInfo, SheetSelection, SheetView, WorkbookSlice,
 };
 use crate::styles::style_at;
-use crate::workbook::{load_workbook, parse_all_worksheets};
+use crate::workbook::{load_workbook_meta, parse_all_worksheets};
 
 use super::style_patch::cell_style_from_json;
 
@@ -58,7 +58,7 @@ pub struct XlsxHost {
 impl XlsxHost {
     /// Load every worksheet so cell edits can address any sheet index.
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
-        let workbook = load_workbook(bytes)?;
+        let workbook = load_workbook_meta(bytes)?;
         let parsed = parse_all_worksheets(bytes, &workbook)?;
         let mut sheets: Vec<ActiveWorksheet> = parsed
             .into_iter()

@@ -302,10 +302,22 @@ Remaining levers: [#359](https://github.com/jgridifier/nitro-xml/pull/359) land;
 `wasm-opt -O1` only if it shows **no** open/edit regression vs main; further format-boundary splits of
 shared monoliths that still run on docx open. Do not raise `perf/budgets.json` or demote fixtures.
 
-## Slice 8: docx `take_text` for `word/document.xml` (branch `cursor/perf-docx-take-text-4e30`)
+## Slice 9: docx `take_text` for one-shot XML parts
 
-`read_package_with_opts` uses [`Package::take_text`](../../rs/crates/nitro-xml-opc/src/opc/package.rs) for
-`word/document.xml` so the inflated part is not retained in `text_cache` alongside the parsed body tree
-and later style/theme/numbering loads (same pattern as xlsx worksheet `sheetData` in #288).
+`read_package_with_opts` used `Package::text`, which keeps inflated XML in `text_cache` for the
+life of the open. Now `take_text` for `word/document.xml`, `styles.xml`, `theme1.xml`,
+`numbering.xml`, `settings.xml`, and comments parts so the raw String drops after parse (same
+pattern as xlsx `sheetData` take).
 
-Peak numbers: run `peak-mem.mjs --runs=9 --format=docx` after merge; not recorded here pre-merge.
+Gate fixtures (generated pages_*) have tiny XML (~2–47 KB document) so peak is still dominated by
+the wasm compile floor. On a large real fixture the retained XML was measurable:
+
+| Fixture | WASM open ms before | after | WASM peak MiB before | after |
+|---|--:|--:|--:|--:|
+| docx S (`pages_10`) | 20.11 | 21.52 | 12.98 | **12.09** |
+| docx M (`pages_100`) | 23.07 | 23.00 | 14.74 | 14.67 |
+| docx L (`pages_500`) | 30.01 | 31.09 | 19.15 | 19.67 |
+| `poi-bug65649.docx` (~12.6 MB document + 2.5 MB styles) | 1954 | **1895** | 147.8 | **135.3** (−12.6) |
+
+Method: interleaved fresh-process `peak-mem.mjs --child=wasm:…` (n=25 generated / n=11 real), main
+`3422fbf` vs this branch. No wasm-opt / budget / fixture changes.

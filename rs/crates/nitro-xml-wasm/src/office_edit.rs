@@ -773,6 +773,84 @@ mod tests {
     }
 
     #[test]
+    fn catches_first_line_indent_leaving_the_paragraph_indent_unchanged() {
+        // Catches: First line indent leaving w:ind/@w:firstLine off the saved paragraph, writing a
+        // gap other than half an inch, keeping a hanging indent beside it, or undo keeping it.
+        let gaps = |bytes: &[u8]| {
+            let h = open_editable(bytes, "pages.docx");
+            h.docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .blocks
+                .iter()
+                .map(|b| {
+                    let n = |k: &str| b.get(k).and_then(|v| v.as_i64());
+                    (n("firstLineTwips"), n("hangingTwips"))
+                })
+                .collect::<Vec<_>>()
+        };
+        let want = nitro_xml_docx::edit::format::FIRST_LINE_INDENT_TWIPS;
+        let mut h = open_editable(DOCX, "pages.docx");
+        let original = gaps(DOCX);
+        h.shell_action("cmd", "home.first-line")
+            .expect("first line");
+        let saved = h.save_document().expect("save first line");
+        assert_ne!(saved, DOCX);
+        let after = gaps(&saved);
+        let changed = original
+            .iter()
+            .zip(after.iter())
+            .filter(|(a, b)| a.0 != b.0)
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), 1, "first line indent touched {changed:?}");
+        let (old, new) = changed[0];
+        if old.0 == Some(want) {
+            assert_eq!(new.0, None, "half-inch first line indent was not cleared");
+            assert_eq!(
+                old.1, new.1,
+                "clearing first line rewrote the hanging indent"
+            );
+        } else {
+            assert_eq!(new.0, Some(want), "first line indent was not half an inch");
+            assert_eq!(new.1, None, "first line indent left a hanging indent");
+        }
+        for ((old_f, old_h), (new_f, new_h)) in original.iter().zip(after.iter()) {
+            if old_f == new_f {
+                assert_eq!(
+                    old_h, new_h,
+                    "an untouched paragraph lost its hanging indent"
+                );
+            }
+        }
+        h.shell_action("cmd", "edit.undo").expect("undo first line");
+        assert_eq!(h.save_document().expect("undone first line"), DOCX);
+
+        let strip = h.docx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.first-line\""));
+        let home = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .ribbon_html();
+        assert!(home.contains("data-command=\"first-line\""));
+        let pptx = open_editable(PPTX, "slides.pptx");
+        assert!(!pptx
+            .pptx
+            .as_ref()
+            .unwrap()
+            .ribbon_html()
+            .contains("home.first-line"));
+    }
+
+    #[test]
     fn catches_docx_shell_bold_leaving_the_package_unchanged() {
         // Catches: home.bold on a document staying on the xlsx command table, so w:b never flips.
         let mut h = open_editable(DOCX, "pages.docx");

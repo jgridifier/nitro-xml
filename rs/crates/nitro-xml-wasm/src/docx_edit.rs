@@ -554,6 +554,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.first-line",
+                    label: "First Line",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.bullets",
                     label: "Bullets",
                     enabled: true,
@@ -686,6 +691,7 @@ fn canonical_command(id: &str) -> &str {
         "home.space-before" => "space-before",
         "home.space-after" => "space-after",
         "home.hanging-indent" => "hanging-indent",
+        "home.first-line" => "first-line",
         "home.subscript" => "subscript",
         "home.superscript" => "superscript",
         "home.font-name" => "font-name",

@@ -170,3 +170,42 @@ small share of an open, and the memory floor is the wasm compile (see "Memory fl
 
 Before/after were taken minutes apart on a shared box; differences of this size are noise. Still losing:
 xlsx S time (tie, CI spans 1.0) and peak memory on xlsx S, docx S/M/L, pptx S/M (wasm compile floor).
+
+## Slice 4: peak memory (`perf/rust-tables-alloc`)
+
+Finding: the 30 to 45 MiB "compile floor" is mostly **V8 TurboFan tier-up of a few giant wasm functions**, not Rust
+allocation (linear memory is 2.3 to 3.4 MiB after an open). `node --liftoff-only` cuts first-open growth on xlsx S
+from 41 to 17 MiB; `--trace-wasm-compilation-times` lists the functions (xlsx S: 54 tiered, 132 to 205 MiB of
+cumulative compiler zone). With `wasm-opt -O3` every single-caller function is inlined into its caller, so
+`process_frame` became one 139 KB body (52 MiB of compiler zone alone) and `load_sheet` 31 KB.
+
+| Change | Effect |
+|---|---|
+| `wasm-opt --one-caller-inline-max-function-size=1500` (still `-O3`) | main lever: 9 to 22 MiB less peak on every fixture; brotli 1,660,308 to 1,642,845 B |
+| xlsx wasm state no longer fills the write-only `workbook.active_worksheet` (2 full-sheet clones per open/sheet switch/tail load removed) | less copy work and one fewer sheet copy resident |
+| `cf_at_cached`: rule engine out of line (`cf_apply_rules`), bbox build out of line | per-cell hot function is a few instructions |
+| `compile_format`: cache-miss compile out of line | per-cell hot function no longer drags a 9 KB body |
+
+Tried and dropped: zip/flate2 on miniz_oxide instead of zlib-rs (inflate body 12 KB vs 14 KB, no memory change,
+slower compress); `-ocimfs` 300/600/3000 (same as 1500 within noise).
+
+Method: `peak-mem.mjs --runs=9`, same box, base build vs this branch (`/tmp` copies of `scripts/build-wasm.sh` output).
+Time: `ts-vs-wasm.mjs --runs=21`.
+
+| Fixture | TS ms | WASM ms before | WASM ms after | ratio after (CI) | TS peak MiB | WASM peak before | WASM peak after |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| xlsx S | 3.86 | 3.86 | 3.57 | 0.924 ([0.753, 1.061]) | 2.9 | 44.2 | 29.8 |
+| xlsx M | 219.75 | 16.97 | 15.51 | 0.071 ([0.067, 0.075]) | 124.6 | 42.1 | 26.5 |
+| xlsx L | 2708.75 | 4.81 | 3.99 | 0.001 ([0.001, 0.002]) | 1004.4 | 52.7 | 39.1 |
+| docx S | 4.69 | 1.23 | 0.78 | 0.166 ([0.141, 0.216]) | 2.7 | 33.3 | 21.7 |
+| docx M | 8.08 | 2.76 | 1.20 | 0.149 ([0.139, 0.164]) | 4.9 | 37.6 | 24.9 |
+| docx L | 34.03 | 4.65 | 3.94 | 0.116 ([0.103, 0.131]) | 20.8 | 47.7 | 26.0 |
+| pptx S | 16.04 | 0.60 | 0.42 | 0.026 ([0.021, 0.032]) | 4.8 | 32.0 | 21.2 |
+| pptx M | 77.32 | 1.04 | 0.85 | 0.011 ([0.010, 0.012]) | 33.9 | 42.4 | 30.0 |
+| pptx L | 268.92 | 2.41 | 2.65 | 0.010 ([0.009, 0.010]) | 49.6 | 47.8 | 32.6 |
+
+Before-time runs were taken minutes apart on a shared box; TS medians differ between the two runs, so compare
+ratios. Still losing: **peak memory on xlsx S, docx S/M/L, pptx S** (TS 2 to 5 MiB vs a 13 MiB `initSync` floor plus
+compile of touched code; docx L 1.25x, pptx M/L now win), and xlsx S time is a statistical tie (CI spans 1.0).
+Next levers: `process_frame`/`load_sheet` body size (grid-paint lineage), `parse_normalized` (16 KB) and inflate
+(14 KB) are tiered on every format (about 21 MiB of compiler zone), and the 13 MiB module-instantiate floor.

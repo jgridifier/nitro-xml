@@ -54,14 +54,13 @@ impl XlsxState {
     pub fn open(bytes: Arc<[u8]>) -> Result<(Self, Vec<String>), String> {
         let first = open_first_view_arc(bytes, default_cell_rect())?;
         let warnings = first.workbook().warnings.clone();
-        let mut workbook = first.workbook().clone();
+        let workbook = first.workbook().clone();
         let mut sheets: Vec<Option<ActiveWorksheet>> = vec![None; workbook.sheets.len()];
         let active = workbook.active_sheet as usize;
-        if let Some(ws) = first.sheet(active).cloned() {
-            workbook.active_worksheet = Some(ws.clone());
-            if active < sheets.len() {
-                sheets[active] = Some(ws);
-            }
+        // `workbook.active_worksheet` stays `None`: nothing in the wasm path reads it (it only feeds
+        // the dump/JSON oracle), and filling it cost a full second copy of the sheet.
+        if active < sheets.len() {
+            sheets[active] = first.sheet(active).cloned();
         }
         Ok((
             Self {
@@ -168,9 +167,8 @@ impl XlsxState {
             ws.view.selection = Some(sel);
         }
         if let Some(slot) = self.sheets.get_mut(active) {
-            *slot = Some(ws.clone());
+            *slot = Some(ws);
         }
-        self.workbook.active_worksheet = Some(ws);
         Ok(())
     }
 
@@ -289,9 +287,6 @@ impl XlsxState {
             if let Some(old) = prev {
                 // FirstView clones the file's sheetView; preserve the live selection.
                 ws.view.selection = old.view.selection;
-            }
-            if index == self.active {
-                self.workbook.active_worksheet = Some(ws.clone());
             }
             if index < self.sheets.len() {
                 self.sheets[index] = Some(ws);

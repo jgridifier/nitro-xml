@@ -1,12 +1,12 @@
 {
  "race": "first-paint",
  "schema": 1,
- "generatedAt": "2026-10-20T02:25:26.282Z",
- "startedAt": "2026-10-20T02:25:20.931Z",
+ "generatedAt": "2026-10-21T22:44:58.824Z",
+ "startedAt": "2026-10-21T22:44:36.967Z",
  "git": {
-  "sha": "146f59cd94738a5c91bfd401bb84bc697d445309",
-  "short": "146f59c",
-  "branch": "cursor/issue-41-first-paint-race-5eae"
+  "sha": "b8870f7c61801e837dd5c0decf98dd559be52c0e",
+  "short": "b8870f7",
+  "branch": "cursor/issue-30-pptx-first-paint-race-5eae"
  },
  "machine": {
   "cpuModel": "Intel(R) Xeon(R) Processor",
@@ -46,7 +46,8 @@
    "id": "upstream-ts",
    "name": "upstream ooxml TS",
    "formats": [
-    "xlsx"
+    "xlsx",
+    "pptx"
    ],
    "reference": true,
    "status": "entered"
@@ -55,7 +56,8 @@
    "id": "nitro-xml",
    "name": "Nitro XML (Rust/WASM)",
    "formats": [
-    "xlsx"
+    "xlsx",
+    "pptx"
    ],
    "status": "entered"
   }
@@ -74,13 +76,13 @@
     "nitro-xml": {
      "status": "ok",
      "timesMs": [
-      227.485,
-      198.805,
-      229.11
+      209.02,
+      207.405,
+      200.91
      ],
-     "medianMs": 227.48499999940395,
-     "minMs": 198.80499999970198,
-     "maxMs": 229.10999999940395,
+     "medianMs": 207.4050000011921,
+     "minMs": 200.90999999642372,
+     "maxMs": 209.02000001072884,
      "comparable": true,
      "pixelRatio": 0,
      "pixel": {
@@ -94,13 +96,148 @@
     "upstream-ts": {
      "status": "ok",
      "timesMs": [
-      751.015,
-      765.95,
-      754.94
+      760.48,
+      823.135,
+      753.105
      ],
-     "medianMs": 754.9399999976158,
-     "minMs": 751.015000000596,
-     "maxMs": 765.9500000029802,
+     "medianMs": 760.4799999892712,
+     "minMs": 753.1049999892712,
+     "maxMs": 823.1350000202656,
+     "comparable": true,
+     "pixelRatio": 0
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "tier": "M",
+   "file": "fixtures/generated/xlsx/cells_100k.xlsx",
+   "bytes": 503874,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      967.02,
+      968.395,
+      986.345
+     ],
+     "medianMs": 968.3950000107288,
+     "minMs": 967.0200000107288,
+     "maxMs": 986.3449999988079,
+     "comparable": true,
+     "pixelRatio": 0
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      217.52,
+      231.16,
+      222.3
+     ],
+     "medianMs": 222.2999999821186,
+     "minMs": 217.5199999809265,
+     "maxMs": 231.15999999642372,
+     "comparable": true,
+     "pixelRatio": 0,
+     "pixel": {
+      "ok": true,
+      "mismatched": 0,
+      "total": 384000,
+      "ratio": 0,
+      "limit": 0.001
+     }
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "tier": "S",
+   "file": "fixtures/generated/pptx/slides_10.pptx",
+   "bytes": 11993,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      640.725,
+      659.705,
+      655.53
+     ],
+     "medianMs": 655.5300000011921,
+     "minMs": 640.7249999940395,
+     "maxMs": 659.7049999833107,
+     "comparable": true,
+     "pixelRatio": 0
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      237.135,
+      223.905,
+      224.635
+     ],
+     "medianMs": 224.63499999046326,
+     "minMs": 223.9050000011921,
+     "maxMs": 237.13499999046326,
+     "comparable": true,
+     "pixelRatio": 0.0004427083333333333,
+     "pixel": {
+      "ok": true,
+      "mismatched": 170,
+      "total": 384000,
+      "ratio": 0.0004427083333333333,
+      "limit": 0.005
+     }
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "tier": "M",
+   "file": "fixtures/generated/pptx/slides_50.pptx",
+   "bytes": 442863,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      224.725,
+      220.865,
+      226.285
+     ],
+     "medianMs": 224.72499999403954,
+     "minMs": 220.86500000953674,
+     "maxMs": 226.28499999642372,
+     "comparable": true,
+     "pixelRatio": 0.0004427083333333333,
+     "pixel": {
+      "ok": true,
+      "mismatched": 170,
+      "total": 384000,
+      "ratio": 0.0004427083333333333,
+      "limit": 0.005
+     }
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      717.34,
+      739.055,
+      722.29
+     ],
+     "medianMs": 722.2899999916553,
+     "minMs": 717.3400000035763,
+     "maxMs": 739.0550000071526,
      "comparable": true,
      "pixelRatio": 0
     }

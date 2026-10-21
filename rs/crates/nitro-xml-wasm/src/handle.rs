@@ -188,9 +188,9 @@ pub struct Handle {
     pub(crate) outlines: OutlineBatch,
     pub(crate) layout_reads: LayoutReadBatch,
     pub(crate) events: EventQueue,
-    pub(crate) xlsx: Option<XlsxState>,
-    pub(crate) pptx: Option<PptxState>,
-    pub(crate) docx: Option<DocxState>,
+    pub(crate) xlsx: Option<Box<XlsxState>>,
+    pub(crate) pptx: Option<Box<PptxState>>,
+    pub(crate) docx: Option<Box<DocxState>>,
     pub(crate) shell: ShellState,
     pub(crate) editor: EditorChrome,
     /// Last chrome HTML sent to the host via `h` (editorKey / chrome_payload).
@@ -332,7 +332,7 @@ impl Handle {
             if let Some(r) = state.selection_ref_now() {
                 self.shell.selection_ref = r;
             }
-            self.xlsx = Some(state);
+            self.xlsx = Some(Box::new(state));
             self.pptx = None;
             self.docx = None;
             self.shell.diagnostics.parse_ms = now_ms() - t0;
@@ -372,7 +372,7 @@ impl Handle {
                     self.push_warning("pptx_warning".into(), e, None);
                 }
             }
-            self.pptx = Some(state);
+            self.pptx = Some(Box::new(state));
             self.xlsx = None;
             self.docx = None;
             self.shell.diagnostics.parse_ms = now_ms() - t0;
@@ -394,7 +394,7 @@ impl Handle {
                 self.push_warning(code.into(), w.clone(), None);
             }
             self.shell.set_tabs(state.page_tabs(), state.active as u32);
-            self.docx = Some(state);
+            self.docx = Some(Box::new(state));
             self.xlsx = None;
             self.pptx = None;
             self.shell.diagnostics.parse_ms = now_ms() - t0;
@@ -1984,6 +1984,18 @@ mod tests {
         assert_eq!(a, b);
         assert_ne!(a, c);
         assert_eq!(h.resolve(a).as_deref(), Some("Calibri"));
+    }
+
+    fn assert_format_slot_boxed<T>(_: &Option<Box<T>>) {}
+
+    #[test]
+    fn format_state_slots_are_boxed() {
+        // Catches: Option<LargeFormatState> drop glue inlining every foreign-format
+        // destructor into openDocument when clearing xlsx/pptx/docx slots.
+        let h = Handle::new(Vec::new());
+        assert_format_slot_boxed(&h.xlsx);
+        assert_format_slot_boxed(&h.pptx);
+        assert_format_slot_boxed(&h.docx);
     }
 
     #[test]

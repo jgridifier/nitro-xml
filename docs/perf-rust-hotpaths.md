@@ -230,3 +230,9 @@ Open path, binary and peak memory are untouched by this slice (editor code only,
 allocation), so the per-fixture open table above is unchanged. Remaining losses are as in slice 4: xlsx S time
 (tie) and peak memory on xlsx S and docx/pptx small fixtures (wasm compile floor).
 
+## Slice 7: boxed format state on `Handle` (wasm boundary)
+
+`Handle` stores `Option<Box<XlsxState>>` / `PptxState` / `DocxState` so clearing a slot on `openDocument`
+drops a pointer instead of inlining each large format's `Drop` into `Option` glue (V8 TurboFan compile memory
+on every open). Measurements: TBD (orchestrator).
+

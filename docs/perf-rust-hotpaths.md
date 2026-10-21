@@ -230,3 +230,36 @@ Open path, binary and peak memory are untouched by this slice (editor code only,
 allocation), so the per-fixture open table above is unchanged. Remaining losses are as in slice 4: xlsx S time
 (tie) and peak memory on xlsx S and docx/pptx small fixtures (wasm compile floor).
 
+
+## Slice 7: docx peak_mem — compile-floor attribution (2026-10-21)
+
+Same method as the xlsx S attribution: `peak-mem.mjs` scores **post-`initSync` VmHWM growth**.
+Docx S/M (and often L) still **LOSS** vs TS after [#352](https://github.com/jgridifier/nitro-xml/pull/352).
+Format-split [#359](https://github.com/jgridifier/nitro-xml/pull/359) (undrafted) shrinks first-open compile a
+bit by not TurboFan-compiling xlsx/pptx bodies during a docx open; it does not remove the floor.
+
+Stage HWM (median of 9 fresh processes; tip `fd11a8c` main vs #359 tip `165a1e7`):
+
+| Tier | initSync Δ MiB | first open Δ (main) | first open Δ (#359) | second open Δ (main) | second open Δ (#359) |
+|---|--:|--:|--:|--:|--:|
+| S | 17.8 | 15.1 | **13.3** | 0.27 | 0.48 |
+| M | 17.8 | 16.7 | **15.7** | 0.30 | 0.41 |
+| L | 17.8 | 25.2 | 25.1 | 7.13 | 6.50 |
+
+Gate-shaped `peak-mem.mjs --runs=9 --format=docx` (same box):
+
+| Tier | TS peak MiB | WASM peak main | WASM peak #359 | Second-open Δ (doc alloc) |
+|---|--:|--:|--:|--:|
+| S | 2.3–2.6 | 13.7 | 13.5 | ~0.3–0.5 |
+| M | 6.1–6.3 | 14.3 | 14.3 | ~0.3–0.4 |
+| L | 21.4–21.8 | 19.9 | **18.9** (WIN vs TS) | ~6.5–7.1 |
+
+Reading: on S/M, **warm second open (~0.3–0.5 MiB) already beats TS peak** — retained docx heap is not the
+LOSS. Almost all of the gate cell is first-touch V8 compile (+ the ~18 MiB `initSync` module floor outside
+the post-init baseline). Application cuts tried after #359 (parse_normalized arm split, conditional
+`Option` clears, skip empty chart/picture collect, paint `#[inline(never)]`, skip styles on first-view)
+did not move interleaved n=25 medians beyond noise.
+
+Remaining levers: [#359](https://github.com/jgridifier/nitro-xml/pull/359) land; draft [#332](https://github.com/jgridifier/nitro-xml/pull/332)
+`wasm-opt -O1` only if it shows **no** open/edit regression vs main; further format-boundary splits of
+shared monoliths that still run on docx open. Do not raise `perf/budgets.json` or demote fixtures.

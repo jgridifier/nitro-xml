@@ -4,8 +4,14 @@
  * Used by take-frame and mut-frame (edit+paint in one round-trip).
  */
 
-/** Strip chromeHtml/ui from mut-frame apply results — delivered via `h` instead. */
-function lightMutResult(result) {
+/**
+ * Shrink mut-frame apply JSON so the host does not retain a second copy of the
+ * chrome HTML alongside the command buffer (xlsx S heap regression). Keep the
+ * short keys the element shell path needs: copy text (`c`), hyperlink (`p`),
+ * save / ribbon / key handled. Nested `ui` / `h` are dropped — chrome HTML is
+ * delivered once via the frame's `h` field (see promote below).
+ */
+export function lightMutResult(result) {
   if (typeof result !== "string") return result;
   try {
     const o = JSON.parse(result || "{}");
@@ -14,9 +20,22 @@ function lightMutResult(result) {
       ribbonAction: o.ribbonAction ?? null,
       handled: o.handled,
       k: o.k,
+      c: o.c ?? o.copyText ?? null,
+      p: o.p ?? o.pendingHyperlink ?? null,
     });
   } catch {
     return result;
+  }
+}
+
+/** shellAction embeds chrome in result.h without setting dirty_ui — lift into frame.h. */
+export function chromeFromResult(result) {
+  if (typeof result !== "string") return null;
+  try {
+    const h = JSON.parse(result || "{}").h;
+    return typeof h === "string" && h ? h : null;
+  } catch {
+    return null;
   }
 }
 
@@ -27,6 +46,9 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
     typeof handle.takeChromeIfDirty === "function"
       ? handle.takeChromeIfDirty() || null
       : null;
+  if (!chromeHtml && (extra.type || "frame") === "mut-frame") {
+    chromeHtml = chromeFromResult(extra.result);
+  }
   let measureReqs = null;
   let measureCount = 0;
   if ((handle.measureCount | 0) > 0) {

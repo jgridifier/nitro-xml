@@ -114,6 +114,31 @@ impl XlsxHost {
         })
     }
 
+    /// Edit host from an already-materialised workbook + worksheets (lazy soft-share path).
+    pub fn from_parts(
+        workbook: WorkbookSlice,
+        sheets: Vec<ActiveWorksheet>,
+    ) -> Result<Self, String> {
+        let mut sheets = sheets;
+        for sheet in &mut sheets {
+            sheet.ensure_cell_pos();
+        }
+        Ok(Self {
+            workbook,
+            sheets,
+            touched: BTreeSet::new(),
+            style_cache: HashMap::new(),
+            dirty_sheets: BTreeSet::new(),
+            styles_dirty: false,
+            workbook_dirty: false,
+            all_formulas_stale: false,
+            dirty_precedents: BTreeSet::new(),
+            stale: BTreeMap::new(),
+            axis_shifts: Vec::new(),
+            ref_cache: Default::default(),
+        })
+    }
+
     pub fn mark_touched(&mut self, sheet: u32, row: u32, col: u32) {
         self.touched.insert((sheet, row, col));
     }

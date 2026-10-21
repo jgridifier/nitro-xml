@@ -2,6 +2,7 @@
 //! Wasm glue for the xlsx editor UI (#69): text surface keys, chrome commands, save.
 
 use nitro_xml_xlsx::address::{format_address, MAX_COL, MAX_ROW};
+use nitro_xml_xlsx::edit::XlsxHost;
 use nitro_xml_xlsx::editor::{ChromeEffect, EditorSession, SelectionTarget};
 use nitro_xml_xlsx::model::{CellAddress, SheetSelection};
 use nitro_xml_xlsx::render::{select_cell, selection_ref};
@@ -26,7 +27,23 @@ impl XlsxState {
         if self.edit.is_some() {
             return Ok(());
         }
-        self.edit = Some(EditorSession::open(bytes)?);
+        if self.lazy_first_view_mut().is_some() {
+            let active = self.active;
+            if let Some(lazy) = self.lazy_first_view_mut() {
+                if !lazy.is_sheet_complete(active) {
+                    lazy.ensure_sheet_complete(active)?;
+                }
+            }
+            self.clear_pending_tail_complete();
+            let (workbook, sheets) = self
+                .lazy_first_view_mut()
+                .expect("lazy first view")
+                .materialize_worksheets_for_edit()?;
+            let host = XlsxHost::from_parts(workbook, sheets)?;
+            self.edit = Some(EditorSession::from_host(host));
+        } else {
+            self.edit = Some(EditorSession::open(bytes)?);
+        }
         self.sync_model_from_edit();
         Ok(())
     }
@@ -489,6 +506,117 @@ mod tests {
     use crate::handle::Handle;
     use nitro_xml_xlsx::model::DumpCellValue;
     use std::path::PathBuf;
+
+    #[test]
+    fn catches_ensure_edit_soft_share_materializes_full_sheet_not_viewport() {
+        // Catches: ensure_edit reusing viewport-only lazy cells so edits off-window or
+        // formula range scans see a truncated grid.
+        use nitro_xml_xlsx::edit::XlsxHost;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_100k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_100k");
+        let open_count = XlsxHost::open(&bytes).expect("open").sheets[0].cells.len();
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_100k.xlsx").expect("open");
+        let viewport_cells = h.xlsx.as_ref().unwrap().sheets[0]
+            .as_ref()
+            .map(|s| s.cells.len())
+            .unwrap_or(0);
+        assert!(
+            viewport_cells * 4 < open_count,
+            "precondition: sparse viewport ({viewport_cells} vs {open_count})"
+        );
+        h.load_editor_chrome();
+        h.set_read_only(false);
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"full-grid"}"#)
+            .expect("edit");
+        let viewer = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+        let host = h.xlsx.as_ref().unwrap().edit.as_ref().unwrap().host();
+        assert_eq!(viewer.cells.len(), open_count);
+        assert!(viewer.cells.len() > viewport_cells);
+        assert_eq!(viewer.cells.len(), host.sheets[0].cells.len());
+    }
+
+    #[test]
+    fn catches_ensure_edit_before_process_frame_materializes() {
+        // Catches: ensure_edit requiring a prior host tick before lazy materialize runs.
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_1k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_1k");
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_1k.xlsx").expect("open");
+        h.load_editor_chrome();
+        h.set_read_only(false);
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"no-tick"}"#)
+            .expect("edit");
+        assert!(
+            h.xlsx.as_ref().unwrap().edit.is_some(),
+            "edit session must open without process_frame"
+        );
+        let n = h.xlsx.as_ref().unwrap().sheets[0]
+            .as_ref()
+            .map(|s| s.cells.len())
+            .unwrap_or(0);
+        assert!(n > 900, "expected full 1k sheet after ensure_edit, got {n}");
+    }
+
+    #[test]
+    fn catches_ensure_edit_falls_back_when_lazy_none() {
+        // Catches: ensure_edit failing or no-op when the viewer upgraded off lazy first-view.
+        use nitro_xml_xlsx::edit::XlsxHost;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_1k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_1k");
+        let open_count = XlsxHost::open(&bytes).expect("open").sheets[0].cells.len();
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_1k.xlsx").expect("open");
+        h.xlsx.as_mut().unwrap().drop_lazy_view();
+        assert!(!h.xlsx.as_ref().unwrap().lazy_is_some_for_test());
+        h.load_editor_chrome();
+        h.set_read_only(false);
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"fallback"}"#)
+            .expect("edit");
+        let host_n = h
+            .xlsx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .host()
+            .sheets[0]
+            .cells
+            .len();
+        assert_eq!(host_n, open_count);
+    }
+
+    #[test]
+    fn catches_soft_share_host_cell_count_matches_xlsx_host_open() {
+        // Catches: lazy soft-share materialize diverging from the editor open oracle path.
+        use nitro_xml_xlsx::edit::XlsxHost;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_100k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_100k");
+        let open_count = XlsxHost::open(&bytes).expect("open").sheets[0].cells.len();
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_100k.xlsx").expect("open");
+        h.load_editor_chrome();
+        h.set_read_only(false);
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"parity"}"#)
+            .expect("edit");
+        let host_n = h
+            .xlsx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .host()
+            .sheets[0]
+            .cells
+            .len();
+        assert_eq!(host_n, open_count);
+    }
 
     #[test]
     fn catches_ensure_edit_keeps_lazy_first_view_alive() {

@@ -57,6 +57,37 @@ pub(crate) struct SheetRequest<'a> {
     /// post-sheetData shell lands without SkipRows tokenizing. When dimension is missing/wrong,
     /// false still uses SkipRows.
     pub allow_early_stop: bool,
+    pub full_sheet: bool,
+}
+
+/// Full worksheet stream for edit soft-share (all cells, full sheetData walk).
+pub(crate) fn load_sheet_full(
+    pkg: &mut Package,
+    req: &SheetRequest<'_>,
+    resolved: &mut crate::fast_hash::FastSet<usize>,
+    warnings: &mut Vec<String>,
+) -> Result<(ActiveWorksheet, u32, bool), String> {
+    let full = SheetRequest {
+        part_name: req.part_name,
+        view: ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 0,
+            c1: 0,
+        },
+        xf_map: req.xf_map,
+        date1904: req.date1904,
+        palette: req.palette,
+        dxfs: req.dxfs,
+        dynamic_cells: req.dynamic_cells,
+        strings_part: req.strings_part,
+        name: req.name,
+        sheet_id: req.sheet_id,
+        state: req.state,
+        allow_early_stop: false,
+        full_sheet: true,
+    };
+    load_sheet_window(pkg, &full, resolved, warnings)
 }
 
 /// `(sheet, rows_visited, truncated)` — `truncated` means inflate stopped before `</sheetData>`.
@@ -66,7 +97,12 @@ pub(crate) fn load_sheet_window(
     resolved: &mut crate::fast_hash::FastSet<usize>,
     warnings: &mut Vec<String>,
 ) -> Result<(ActiveWorksheet, u32, bool), String> {
-    let mut parser = SheetParser::new(req.view, req.xf_map.to_vec(), req.allow_early_stop);
+    let mut parser = SheetParser::new(
+        req.view,
+        req.xf_map.to_vec(),
+        req.allow_early_stop,
+        req.full_sheet,
+    );
     let streamed = pkg
         .stream_part(req.part_name, |chunk| {
             parser.push_bytes(chunk);
@@ -142,7 +178,9 @@ pub(crate) fn load_sheet_window(
     sheet.replace_cells(
         cells
             .into_iter()
-            .filter(|c| keep_cell(c.row, c.col, req.view, freeze_rows, freeze_cols))
+            .filter(|c| {
+                req.full_sheet || keep_cell(c.row, c.col, req.view, freeze_rows, freeze_cols)
+            })
             .collect(),
     );
     sheet.row_info = row_info;
@@ -428,6 +466,7 @@ struct SheetParser {
     /// From `<dimension ref>` in the prefix when present and later validated.
     dimension: Option<CellRange>,
     allow_early_stop: bool,
+    full_sheet: bool,
 }
 
 enum Phase {
@@ -442,7 +481,7 @@ enum Phase {
 }
 
 impl SheetParser {
-    fn new(view: ViewportRect, xf_map: Vec<u32>, allow_early_stop: bool) -> Self {
+    fn new(view: ViewportRect, xf_map: Vec<u32>, allow_early_stop: bool, full_sheet: bool) -> Self {
         Self {
             view,
             xf_map,
@@ -472,6 +511,7 @@ impl SheetParser {
             bom_checked: false,
             dimension: None,
             allow_early_stop,
+            full_sheet,
         }
     }
 
@@ -565,6 +605,9 @@ impl SheetParser {
     }
 
     fn should_keep_row(&self, row: u32) -> bool {
+        if self.full_sheet {
+            return true;
+        }
         let r0 = self.view.r0.saturating_sub(ROW_SLOP);
         let r1 = self.view.r1.saturating_add(ROW_SLOP);
         (row >= r0 && row <= r1) || row < self.freeze_rows
@@ -612,7 +655,7 @@ impl SheetParser {
                             }
                         }
                         let limit = self.view.r1.saturating_add(ROW_SLOP);
-                        if self.monotonic && row0 > limit {
+                        if !self.full_sheet && self.monotonic && row0 > limit {
                             let dim_ok = dimension_trustworthy(
                                 self.dimension.as_ref(),
                                 &self.view,

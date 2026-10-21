@@ -427,3 +427,11 @@ outliers but **+0.6 MiB edit heap** — rejected.
 
 **Not a per-edit p99/max win:** with 21 samples/session, session p99 ≈ sample 0. Every session’s first `setCellInput` still runs cold `ensure_edit` → `XlsxHost::open` (`load_workbook` + `parse_all_worksheets` + `ensure_dump_cells` on 1M cells) + `sync_model_from_edit` clone ≈ **0.9–1.3 s**; later samples are ~12–20 ms (`mut-frame` ~6–10 ms, sticky `_nxPainted` tick ~0 ms). Outlier-session count (session **median** ≥ 40 ms) therefore dropped 6→0 while reported p99/max stayed ~900/1260. Soft-share / reuse viewer grid on `ensure_edit` (no second full parse) is the follow-up that can move p99/max; #389 stays draft until that lands with 95% CI.
 
+## Slice 15: xlsx/L edit-cell cold path — lazy soft-share (`ensure_edit`)
+
+**Goal:** first `setCellInput` on large xlsx should not re-run `XlsxHost::open` (second zip parse + `parse_all_worksheets` + `ensure_dump_cells`) when the viewer still holds [`FirstView`](rs/crates/nitro-xml-xlsx/src/lazy/mod.rs).
+
+**Rust:** `FirstView::materialize_worksheets_for_edit` streams each worksheet via keep-all mode in [`lazy/sheet.rs`](rs/crates/nitro-xml-xlsx/src/lazy/sheet.rs), resolves the full SST once, then `XlsxHost::from_parts` + `EditorSession::from_host` + one `sync_model_from_edit`. Lazy stays alive (`drop_lazy_view` not called on edit).
+
+**A/B:** React-embed `edit-cell` L interleaved — numbers TBD after merge (expect cold first-edit p99/max down vs Slice 14; heap neutral vs open path).
+

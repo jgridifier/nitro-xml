@@ -315,10 +315,12 @@ pub struct Presentation<'a> {
 impl<'a> Presentation<'a> {
     pub fn open(bytes: &'a [u8]) -> Result<Self, Error> {
         let mut package = Package::open(bytes)?;
-        let pres_xml = package
-            .text("ppt/presentation.xml")?
-            .ok_or_else(|| missing_part("ppt/presentation.xml"))?;
-        let pres_doc = parse_xml_str(pres_xml)?;
+        let pres_doc = {
+            let pres_xml = package
+                .take_text("ppt/presentation.xml")?
+                .ok_or_else(|| missing_part("ppt/presentation.xml"))?;
+            parse_xml_str(&pres_xml)?
+        };
         let pres =
             presentation_root(&pres_doc.root).ok_or_else(|| missing_part("p:presentation"))?;
 
@@ -357,7 +359,7 @@ impl<'a> Presentation<'a> {
         pres.table_style_map = pres.load_table_styles()?;
         pres.theme = pres.load_theme()?;
         pres.slide_masters = pres.load_slide_masters()?;
-        pres.slide_paths = pres.load_slide_paths()?;
+        pres.slide_paths = pres.load_slide_paths(&pres_doc.root)?;
         pres.slides.resize_with(pres.slide_paths.len(), || None);
         if !pres.slide_paths.is_empty() {
             pres.parse_slide_index(0)?;
@@ -523,8 +525,8 @@ impl<'a> Presentation<'a> {
     }
 
     fn load_table_styles(&mut self) -> Result<TableStyleMap, Error> {
-        let xml = self.package.text("ppt/tableStyles.xml")?;
-        Ok(xml.map(parse_table_style_list).unwrap_or_default())
+        let xml = self.package.take_text("ppt/tableStyles.xml")?;
+        Ok(xml.map(|s| parse_table_style_list(&s)).unwrap_or_default())
     }
 
     fn load_theme(&mut self) -> Result<Option<Theme>, Error> {
@@ -532,9 +534,9 @@ impl<'a> Presentation<'a> {
         if let Some(path) = theme_path {
             let xml = self
                 .package
-                .text(&path)?
-                .ok_or_else(|| missing_part(path))?;
-            let doc = parse_xml_str(xml)?;
+                .take_text(&path)?
+                .ok_or_else(|| missing_part(&path))?;
+            let doc = parse_xml_str(&xml)?;
             let theme = parse_theme_part(&doc.root);
             return Ok(Some(theme));
         }
@@ -587,9 +589,9 @@ impl<'a> Presentation<'a> {
         for path in master_paths {
             let xml = self
                 .package
-                .text(&path)?
+                .take_text(&path)?
                 .ok_or_else(|| missing_part(&path))?;
-            let doc = parse_xml_str(xml)?;
+            let doc = parse_xml_str(&xml)?;
             self.master_xml.insert(path.clone(), doc.clone());
             let sld_master =
                 part_root(&doc.root, "sldMaster").ok_or_else(|| missing_part("p:sldMaster"))?;
@@ -637,9 +639,9 @@ impl<'a> Presentation<'a> {
     ) -> Result<Option<SlideMasterLayout>, Error> {
         let xml = self
             .package
-            .text(layout_path)?
+            .take_text(layout_path)?
             .ok_or_else(|| missing_part(layout_path))?;
-        let doc = parse_xml_str(xml)?;
+        let doc = parse_xml_str(&xml)?;
         self.layout_xml.insert(layout_path.to_owned(), doc.clone());
         let sld_layout =
             part_root(&doc.root, "sldLayout").ok_or_else(|| missing_part("p:sldLayout"))?;
@@ -666,14 +668,9 @@ impl<'a> Presentation<'a> {
         }))
     }
 
-    fn load_slide_paths(&mut self) -> Result<Vec<String>, Error> {
-        let xml = self
-            .package
-            .text("ppt/presentation.xml")?
-            .ok_or_else(|| missing_part("ppt/presentation.xml"))?;
-        let doc = parse_xml_str(xml)?;
+    fn load_slide_paths(&mut self, pres_root: &Element) -> Result<Vec<String>, Error> {
         let presentation =
-            presentation_root(&doc.root).ok_or_else(|| missing_part("p:presentation"))?;
+            presentation_root(pres_root).ok_or_else(|| missing_part("p:presentation"))?;
         let sld_id_lst = child_local(presentation, "sldIdLst", ns::P);
         let mut paths = Vec::new();
         if let Some(lst) = sld_id_lst {
@@ -691,11 +688,10 @@ impl<'a> Presentation<'a> {
 
     fn parse_slide_index(&mut self, index: usize) -> Result<(), Error> {
         let path = self.slide_paths[index].clone();
-        let xml = self
+        let raw = self
             .package
-            .text(&path)?
+            .take_text(&path)?
             .ok_or_else(|| missing_part(&path))?;
-        let raw = xml.to_owned();
         let doc = parse_xml_str(&raw)?;
         let sld = part_root(&doc.root, "sld").ok_or_else(|| missing_part("p:sld"))?;
         let show_master_shapes = attr(sld, "showMasterSp").map(parse_bool_attr_val);
@@ -921,7 +917,7 @@ impl<'a> Presentation<'a> {
 
     fn part_xml_by_rel(&mut self, owner: &str, r_id: &str) -> Option<String> {
         let path = self.resolve_rel_target(owner, r_id).ok().flatten()?;
-        self.package.text(&path).ok().flatten().map(str::to_owned)
+        self.package.take_text(&path).ok().flatten()
     }
 
     /// Cached `dsp:drawing` for a diagram data relationship.
@@ -964,7 +960,7 @@ impl<'a> Presentation<'a> {
             .find(|r| prefer_stem.is_some_and(|stem| diagram_file_stem(&r.target) == Some(stem)))
             .unwrap_or(&rels[0]);
         let path = self.package.target(part, chosen)?;
-        let xml = self.package.text(&path).ok().flatten().map(str::to_owned);
+        let xml = self.package.take_text(&path).ok().flatten();
         Some((Some(path), xml))
     }
 
@@ -979,8 +975,8 @@ impl<'a> Presentation<'a> {
             if el.type_ == "contentPart" && el.ink_data.is_none() {
                 if let Some(rel_id) = el.content_part_ink_rel_id.clone() {
                     if let Ok(Some(path)) = self.resolve_rel_target(owner, &rel_id) {
-                        if let Ok(Some(xml)) = self.package.text(&path) {
-                            if let Ok(doc) = parse_xml_str(xml) {
+                        if let Ok(Some(xml)) = self.package.take_text(&path) {
+                            if let Ok(doc) = parse_xml_str(&xml) {
                                 el.ink_data = crate::inkml::parse_ink_ml_content(
                                     &doc.root, el.width, el.height,
                                 );
@@ -1160,9 +1156,8 @@ impl<'a> Presentation<'a> {
     ) -> Result<ParsedSpTree, Error> {
         let master_raw = self
             .package
-            .text(master_path)?
-            .ok_or_else(|| missing_part(master_path))?
-            .to_owned();
+            .take_text(master_path)?
+            .ok_or_else(|| missing_part(master_path))?;
         let sp_tree = {
             let doc = self
                 .master_xml
@@ -1211,9 +1206,8 @@ impl<'a> Presentation<'a> {
             .ok_or_else(|| missing_part(layout_path))?;
         let layout_raw = self
             .package
-            .text(layout_path)?
-            .ok_or_else(|| missing_part(layout_path))?
-            .to_owned();
+            .take_text(layout_path)?
+            .ok_or_else(|| missing_part(layout_path))?;
         let sld_layout =
             part_root(&doc.root, "sldLayout").ok_or_else(|| missing_part("p:sldLayout"))?;
         let show_master = Self::layout_show_master_shapes(sld_layout);
@@ -1284,9 +1278,8 @@ impl<'a> Presentation<'a> {
         for rel in &note_rels {
             if rel.type_ == rel_types::NOTES_SLIDE {
                 if let Some(notes_path) = self.package.target(slide_path, rel) {
-                    let xml = self.package.text(&notes_path)?;
-                    if let Some(xml) = xml {
-                        let doc = parse_xml_str(xml)?;
+                    if let Some(xml) = self.package.take_text(&notes_path)? {
+                        let doc = parse_xml_str(&xml)?;
                         if let Some(notes) = part_root(&doc.root, "notes") {
                             if notes_slide_has_printable_content(notes) {
                                 return Ok(true);
@@ -1313,10 +1306,10 @@ impl<'a> Presentation<'a> {
             let Some(notes_path) = self.package.target(slide_path, rel) else {
                 continue;
             };
-            let Some(xml) = self.package.text(&notes_path)? else {
+            let Some(xml) = self.package.take_text(&notes_path)? else {
                 continue;
             };
-            let doc = parse_xml_str(xml)?;
+            let doc = parse_xml_str(&xml)?;
             if let Some(notes) = part_root(&doc.root, "notes") {
                 return Ok(speaker_notes_text(notes));
             }
@@ -1713,6 +1706,67 @@ mod tests {
         }
         zip.finish().unwrap();
         cursor.into_inner()
+    }
+
+    // Catches: retained one-shot parse parts doubling peak during pptx open.
+    #[test]
+    fn one_shot_parse_parts_not_retained() {
+        let bytes = include_bytes!("../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut pres = Presentation::open(bytes).expect("open slides_10.pptx");
+        assert!(
+            !pres.package.text_is_cached("ppt/presentation.xml"),
+            "ppt/presentation.xml should not stay in text_cache after open"
+        );
+        if pres
+            .package
+            .part_names()
+            .any(|p| p == "ppt/tableStyles.xml")
+        {
+            assert!(
+                !pres.package.text_is_cached("ppt/tableStyles.xml"),
+                "ppt/tableStyles.xml should not stay in text_cache after open"
+            );
+        }
+        if let Some(slide_path) = pres.slide_paths().first() {
+            assert!(
+                !pres.package.text_is_cached(slide_path),
+                "{slide_path} should not stay in text_cache after first slide parse"
+            );
+        }
+        for master in &pres.slide_masters {
+            assert!(
+                !pres.package.text_is_cached(&master.path),
+                "{} should not stay in text_cache after open",
+                master.path
+            );
+            for layout in &master.layouts {
+                assert!(
+                    !pres.package.text_is_cached(&layout.path),
+                    "{} should not stay in text_cache after open",
+                    layout.path
+                );
+            }
+            let theme_paths: Vec<String> = {
+                let rels: Vec<Relationship> = pres
+                    .package
+                    .rels(&master.path)
+                    .expect("master rels")
+                    .values()
+                    .cloned()
+                    .collect();
+                rels.iter()
+                    .filter(|rel| rel.type_.contains("theme"))
+                    .filter_map(|rel| pres.package.target(&master.path, rel))
+                    .collect()
+            };
+            for theme_path in theme_paths {
+                assert!(
+                    !pres.package.text_is_cached(&theme_path),
+                    "{} should not stay in text_cache after theme parse",
+                    theme_path
+                );
+            }
+        }
     }
 
     #[test]

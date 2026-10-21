@@ -335,3 +335,12 @@ the wasm compile floor. On a large real fixture the retained XML was measurable:
 
 Method: interleaved fresh-process `peak-mem.mjs --child=wasm:…` (n=25 generated / n=11 real), main
 `3422fbf` vs this branch. No wasm-opt / budget / fixture changes.
+
+## Slice 11: pptx `take_text` for one-shot XML parts
+
+`Presentation::open` / first-slide parse used `Package::text`, retaining inflated XML in
+`text_cache` alongside Document trees in `master_xml`/`layout_xml` and the Slide model.
+Now `take_text` for presentation/tableStyles/theme/masters/layouts/slides/notes (and
+chart/ink one-shots) so the raw String drops after parse — sibling of docx #369.
+
+Gate fixtures TBD (orchestrator fills table).

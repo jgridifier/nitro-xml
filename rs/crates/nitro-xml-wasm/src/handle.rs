@@ -193,6 +193,10 @@ pub struct Handle {
     pub(crate) docx: Option<DocxState>,
     pub(crate) shell: ShellState,
     pub(crate) editor: EditorChrome,
+    /// Last chrome HTML sent to the host via `h` (editorKey / chrome_payload).
+    /// Omit unchanged `h` so the loader skips a 50KB+ `.chrome` innerHTML swap
+    /// (audit theme 8 / S3-2).
+    last_chrome_html: Option<String>,
     #[cfg(feature = "bench")]
     pub(crate) grid: crate::bench::SyntheticGrid,
 }
@@ -225,6 +229,7 @@ impl Handle {
             docx: None,
             shell: ShellState::default(),
             editor: EditorChrome::new(),
+            last_chrome_html: None,
             #[cfg(feature = "bench")]
             grid: crate::bench::SyntheticGrid::new(),
         }
@@ -574,13 +579,13 @@ impl Handle {
         if op == "ui" || op.is_empty() {
             self.refresh_formula_bar();
             let ui = ShellUi::to_json(&self.shell, &self.editor);
-            let h = ui
-                .get("chromeHtml")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let out = serde_json::json!({ "h": h, "ui": ui });
-            return Ok(out.to_string());
+            let raw = ui.get("chromeHtml").and_then(|v| v.as_str()).unwrap_or("");
+            let mut out = serde_json::Map::new();
+            if let Some(h) = self.take_chrome_html_if_changed(raw) {
+                out.insert("h".into(), serde_json::Value::String(h));
+            }
+            out.insert("ui".into(), ui);
+            return Ok(serde_json::Value::Object(out).to_string());
         }
         let action = ShellAction::parse(op, arg).ok_or_else(|| {
             JsValue::from(OoxmlError::with_code(
@@ -717,13 +722,11 @@ impl Handle {
         });
         self.refresh_formula_bar();
         let ui = ShellUi::to_json(&self.shell, &self.editor);
-        let h = ui
-            .get("chromeHtml")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        let raw = ui.get("chromeHtml").and_then(|v| v.as_str()).unwrap_or("");
         let mut out = serde_json::Map::new();
-        out.insert("h".into(), serde_json::Value::String(h));
+        if let Some(h) = self.take_chrome_html_if_changed(raw) {
+            out.insert("h".into(), serde_json::Value::String(h));
+        }
         out.insert("c".into(), serde_json::json!(result.copy_text));
         out.insert("copyText".into(), serde_json::json!(result.copy_text));
         out.insert(
@@ -1136,9 +1139,8 @@ impl Handle {
         }
         self.refresh_formula_bar();
         let ui = ShellUi::to_json(&self.shell, &self.editor);
-        ui.get("chromeHtml")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_owned())
+        let h = ui.get("chromeHtml").and_then(|v| v.as_str())?;
+        self.take_chrome_html_if_changed(h)
     }
 
     /// Drain pending events (engine tick). Returns how many were dropped.
@@ -1268,7 +1270,9 @@ impl Handle {
             let ui = ShellUi::to_json(&self.shell, &self.editor);
             if let Some(obj) = payload.as_object_mut() {
                 if let Some(h) = ui.get("chromeHtml").and_then(|v| v.as_str()) {
-                    obj.insert("h".into(), serde_json::Value::String(h.to_owned()));
+                    if let Some(changed) = self.take_chrome_html_if_changed(h) {
+                        obj.insert("h".into(), serde_json::Value::String(changed));
+                    }
                 }
             }
         }
@@ -1277,6 +1281,15 @@ impl Handle {
 }
 
 impl Handle {
+    /// Return chrome HTML only when it differs from the last value sent on `h`.
+    fn take_chrome_html_if_changed(&mut self, h: &str) -> Option<String> {
+        if self.last_chrome_html.as_deref() == Some(h) {
+            return None;
+        }
+        self.last_chrome_html = Some(h.to_owned());
+        Some(h.to_owned())
+    }
+
     fn refresh_formula_bar(&mut self) {
         if self.editor.read_only() || !self.editor.loaded() {
             self.editor.set_formula_html(String::new());
@@ -1406,7 +1419,9 @@ impl Handle {
             let ui = ShellUi::to_json(&self.shell, &self.editor);
             if let Some(obj) = payload.as_object_mut() {
                 if let Some(h) = ui.get("chromeHtml").and_then(|v| v.as_str()) {
-                    obj.insert("h".into(), serde_json::Value::String(h.to_owned()));
+                    if let Some(changed) = self.take_chrome_html_if_changed(h) {
+                        obj.insert("h".into(), serde_json::Value::String(changed));
+                    }
                 }
             }
         }
@@ -1468,18 +1483,19 @@ impl Handle {
     fn chrome_payload(&mut self, save: bool) -> String {
         self.refresh_formula_bar();
         let ui = ShellUi::to_json(&self.shell, &self.editor);
-        let h = ui
-            .get("chromeHtml")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_owned();
-        serde_json::json!({
-            "h": h,
-            "ui": ui,
-            "save": save,
-            "ribbonAction": self.editor.commands.last_ribbon_action,
-        })
-        .to_string()
+        let raw = ui.get("chromeHtml").and_then(|v| v.as_str()).unwrap_or("");
+        let h = self.take_chrome_html_if_changed(raw);
+        let mut out = serde_json::Map::new();
+        if let Some(h) = h {
+            out.insert("h".into(), serde_json::Value::String(h));
+        }
+        out.insert("ui".into(), ui);
+        out.insert("save".into(), serde_json::json!(save));
+        out.insert(
+            "ribbonAction".into(),
+            serde_json::json!(self.editor.commands.last_ribbon_action),
+        );
+        serde_json::Value::Object(out).to_string()
     }
 
     fn editor_chrome_op(&mut self, op: &str) -> Result<String, JsValue> {
@@ -1968,5 +1984,19 @@ mod tests {
         assert_eq!(a, b);
         assert_ne!(a, c);
         assert_eq!(h.resolve(a).as_deref(), Some("Calibri"));
+    }
+
+    #[test]
+    fn chrome_html_omitted_when_unchanged() {
+        // Catches: every handled key re-sending identical chrome HTML so the host
+        // re-parses a 50KB+ ribbon/formula-bar swap (audit theme 8 / S3-2).
+        let mut h = Handle::new(Vec::new());
+        let first = h.take_chrome_html_if_changed("<div class=\"xfb\">A1</div>");
+        assert_eq!(first.as_deref(), Some("<div class=\"xfb\">A1</div>"));
+        assert!(h
+            .take_chrome_html_if_changed("<div class=\"xfb\">A1</div>")
+            .is_none());
+        let next = h.take_chrome_html_if_changed("<div class=\"xfb\">B2</div>");
+        assert_eq!(next.as_deref(), Some("<div class=\"xfb\">B2</div>"));
     }
 }

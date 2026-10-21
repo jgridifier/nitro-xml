@@ -164,6 +164,8 @@ export function patch(WorkerDocument) {
     if (isSpreadsheet(this) || !(this._worker && typeof this._request === "function")) {
       return origKey.call(this, ev, mac);
     }
+    // Same ordering as worker-host editorKey (theme 8 / S3-1).
+    if (this._events && typeof this._events.flushNow === "function") this._events.flushNow();
     const result = await mutFrameAndPaint(this, {
       op: "k",
       key: (ev && ev.key) || "",

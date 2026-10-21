@@ -391,4 +391,21 @@ short key `hf` (~1–2 KB) instead of full `h` (~54 KB ribbon+shell). Loader pat
 (`lazy/chrome-patch.js` on tick/mut-frame and input-proxy); eager `element.js` wires
 `doc._chromeEl`. Follow-up to omit-unchanged `h` (#357).
 
-React-embed `edit-cell` interleaved (n=40): xlsx S ~11→8.5 ms, L ~12→10.8 ms.
+A/B vs main (21 sessions × 21 samples, `edit-cell`):
+
+| Fixture | main p50 | branch p50 | verdict | ratio [95% CI] |
+|---|--:|--:|---|--:|
+| xlsx S | 10.50 ms | 7.30 ms | WIN | [0.657, 0.733] |
+| xlsx L | 13.40 ms | 9.50 ms | NOISE | [0.644, 6.209] |
+| xlsx S heap | — | — | NOISE | — |
+| xlsx L heap | 17.53 MiB | 17.00 MiB | WIN | [0.940, 0.989] |
+| pptx S (control) | 3.00 ms | 2.90 ms | NOISE | — |
+| pptx S heap | — | — | NOISE | — |
+
+## Slice 13: skip `chrome_rest_html` on formula-only xlsx edits (issue #30)
+
+Follow-up to Slice 12 (#378): when `dirty_chrome_rest` is clear and cached `last_chrome_rest`
+matches, `chrome_delta_from_ui` emits `hf` without calling `chrome_rest_html` or
+`ShellUi::to_json` for the chrome HTML comparison. `applyEdit` avoids a second
+`refresh_formula_bar` before `chrome_payload`. Edit-cell A/B pending; unit test counts
+`chrome_rest_html` calls on the fast path.

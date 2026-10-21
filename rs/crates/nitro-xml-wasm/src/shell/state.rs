@@ -91,6 +91,8 @@ pub struct ShellState {
     /// Last TSV produced by copy (for tests / parity dumps).
     pub last_copy: String,
     pub dirty_ui: bool,
+    /// Ribbon/shell/tabs/find/overlay changed; formula-bar-only edits must not set this.
+    pub dirty_chrome_rest: bool,
 }
 
 impl Default for ShellState {
@@ -107,6 +109,7 @@ impl Default for ShellState {
             pending_hyperlink: None,
             last_copy: String::new(),
             dirty_ui: true,
+            dirty_chrome_rest: true,
         }
     }
 }
@@ -204,6 +207,15 @@ pub fn push_text_hits(
 }
 
 impl ShellState {
+    pub fn touch_ui(&mut self) {
+        self.dirty_ui = true;
+    }
+
+    pub fn touch_chrome_rest(&mut self) {
+        self.dirty_ui = true;
+        self.dirty_chrome_rest = true;
+    }
+
     pub fn clamp_zoom(z: f64) -> f64 {
         if !z.is_finite() || z <= 0.0 {
             return 100.0;
@@ -214,7 +226,7 @@ impl ShellState {
 
     pub fn set_zoom(&mut self, z: f64) {
         self.zoom_pct = Self::clamp_zoom(z);
-        self.dirty_ui = true;
+        self.touch_chrome_rest();
     }
 
     pub fn zoom_in(&mut self) {
@@ -227,27 +239,27 @@ impl ShellState {
 
     pub fn open_find(&mut self) {
         self.find.open = true;
-        self.dirty_ui = true;
+        self.touch_chrome_rest();
     }
 
     pub fn close_find(&mut self) {
         self.find.open = false;
-        self.dirty_ui = true;
+        self.touch_chrome_rest();
     }
 
     pub fn toggle_diagnostics(&mut self) {
         self.diagnostics_open = !self.diagnostics_open;
-        self.dirty_ui = true;
+        self.touch_chrome_rest();
     }
 
     pub fn set_tabs(&mut self, tabs: Vec<(u32, String)>, active: u32) {
         self.tabs = tabs;
         self.nav_index = active;
-        self.dirty_ui = true;
+        self.touch_chrome_rest();
     }
 
     pub fn take_pending_hyperlink(&mut self) -> Option<PendingHyperlink> {
-        self.dirty_ui = true;
+        self.touch_chrome_rest();
         self.pending_hyperlink.take()
     }
 }

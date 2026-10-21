@@ -547,6 +547,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "table.cell-text",
+                    label: "Cell Text",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "insert.table",
                     label: "Table",
                     enabled: true,

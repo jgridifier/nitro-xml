@@ -15,6 +15,8 @@ const SHAPE_FILL: &str = "5B2C6F";
 /// Authored outline for `home.shape-outline`.
 const SHAPE_OUTLINE: &str = "00B050";
 const SHAPE_OUTLINE_PX: f64 = 1.5;
+/// Plain text written into the first cell by `table.cell-text`.
+const CELL_TEXT: &str = "Nitro cell";
 use crate::edit::picture::INSERTED_PNG;
 use crate::edit::shapes::register_shape_commands;
 use crate::edit::table::register_table_commands;
@@ -83,6 +85,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("table.delete-row", "Delete Row", None, true),
     pptx_cmd!("table.insert-column", "Insert Column", None, true),
     pptx_cmd!("table.delete-column", "Delete Column", None, true),
+    pptx_cmd!("table.cell-text", "Cell Text", None, true),
     pptx_cmd!("insert.slide", "New Slide", None, true),
     pptx_cmd!("insert.duplicate-slide", "Duplicate Slide", None, true),
     pptx_cmd!("insert.move-slide-up", "Move Slide Up", None, true),
@@ -587,6 +590,7 @@ impl PptxCommandSurface {
                 selection.select(std::iter::once(id));
                 Ok(())
             }
+            "table.cell-text" => dispatch_cell_text(selection, session),
             "table.insert-row"
             | "table.delete-row"
             | "table.insert-column"
@@ -768,6 +772,40 @@ fn dispatch_table_structure(
                 _ => Ok(()),
             };
             result.map_err(|e| EditError::Other { message: e })?;
+            Ok(())
+        },
+    )?;
+    Ok(())
+}
+
+fn dispatch_cell_text(
+    selection: &SelectionState,
+    session: &mut EditSession<PptxHost, EditHistory>,
+) -> Result<(), EditError> {
+    let slide = selection.slide_index;
+    let Some(element_id) = table_target(&session.host, selection) else {
+        return Ok(());
+    };
+    let current = session
+        .host
+        .slide(slide)
+        .ok()
+        .and_then(|s| s.elements.iter().find(|el| el.id == element_id))
+        .and_then(|el| el.table.as_ref())
+        .and_then(|t| t.rows.first())
+        .and_then(|r| r.cells.first())
+        .map(|c| c.text.clone())
+        .unwrap_or_default();
+    if current == CELL_TEXT {
+        return Ok(());
+    }
+    session.run(
+        "table.cell-text",
+        ChangeKind::Other,
+        vec![EditScope::Workbook],
+        move |host| -> Result<(), EditError> {
+            host.set_slide_cell_text(slide, Some(&element_id), None, 0, 0, CELL_TEXT)
+                .map_err(|e| EditError::Other { message: e })?;
             Ok(())
         },
     )?;

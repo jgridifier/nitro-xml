@@ -423,6 +423,11 @@ impl PptxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "table.cell-text",
+                    label: "Cell Text",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "insert.slide",
                     label: "New Slide",
                     enabled: true,

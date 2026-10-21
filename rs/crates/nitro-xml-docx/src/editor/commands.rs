@@ -18,8 +18,11 @@ use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bul
 use crate::edit::register_docx_command_registry;
 use crate::edit::table::{
     delete_table, delete_table_column, delete_table_row, insert_table, insert_table_column,
-    insert_table_row,
+    insert_table_row, set_table_cell_text,
 };
+
+/// Plain text written into the first cell by `table.cell-text`.
+const CELL_TEXT: &str = "Nitro cell";
 use crate::editor::print_edit::schedule_relayout;
 use crate::editor::search::SearchController;
 
@@ -80,6 +83,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("table.delete-row", "Delete Row", None, true),
     word_cmd!("table.insert-column", "Insert Column", None, true),
     word_cmd!("table.delete-column", "Delete Column", None, true),
+    word_cmd!("table.cell-text", "Cell Text", None, true),
     word_cmd!("table.delete", "Delete Table", None, true),
     word_cmd!("print", "Print", Some("Ctrl+P"), false),
     word_cmd!("layout-view", "Print Layout", None, false),
@@ -563,6 +567,22 @@ impl DocxCommandSurface {
                 schedule_relayout(print_edit);
                 Ok(())
             }
+            "table.cell-text" => {
+                let Ok(bi) = first_table(&session.host) else {
+                    return Ok(());
+                };
+                if table_cell_plain(&session.host, bi).as_deref() == Some(CELL_TEXT) {
+                    return Ok(());
+                }
+                session.run(
+                    "table.cell-text",
+                    ChangeKind::Other,
+                    vec![EditScope::Workbook],
+                    move |h| set_table_cell_text(h, bi, 0, 0, CELL_TEXT),
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
             "table.insert-row"
             | "table.delete-row"
             | "table.insert-column"
@@ -653,6 +673,30 @@ fn insert_page_break(host: &mut DocxHost, at: usize) -> Result<(), EditError> {
     shifted.insert(at);
     host.touched = shifted;
     Ok(())
+}
+
+fn table_cell_plain(host: &DocxHost, block: usize) -> Option<String> {
+    let cell = host
+        .blocks
+        .get(block)?
+        .get("rows")?
+        .as_array()?
+        .first()?
+        .as_array()?
+        .first()?;
+    let runs = cell
+        .get("paragraphs")?
+        .as_array()?
+        .first()?
+        .get("runs")?
+        .as_array()?;
+    let mut text = String::new();
+    for run in runs {
+        if let Some(part) = run.get("text").and_then(|v| v.as_str()) {
+            text.push_str(part);
+        }
+    }
+    Some(text)
 }
 
 fn first_table(host: &DocxHost) -> Result<usize, EditError> {

@@ -68,6 +68,25 @@ if [ "$rc" -ne 0 ]; then
   echo "selection: FAIL" >&2
   exit 1
 fi
+
+echo "selection: pages demo edit round-trip (chromium, webkit)"
+set +e
+( cd tests/interaction && DEMO_EDIT_BROWSERS=chromium,webkit bun ./demo-edit.mjs )
+demo_rc=$?
+set -e
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f tests/interaction/out/demo-edit-summary.txt ]; then
+  {
+    echo "## Pages demo edit round-trip"
+    echo '```'
+    cat tests/interaction/out/demo-edit-summary.txt
+    echo '```'
+  } >> "$GITHUB_STEP_SUMMARY"
+fi
+if [ "$demo_rc" -ne 0 ]; then
+  echo "selection: pages demo edit FAIL" >&2
+  exit 1
+fi
+
 echo "selection: PASS"
 echo "Please add the \`selection-parity\` job to branch-protection required checks (Jared / Chief of Staff)."
 exit 0

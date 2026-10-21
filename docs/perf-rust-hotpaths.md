@@ -344,14 +344,18 @@ Now `take_text` for presentation/tableStyles/theme/masters/layouts/slides/notes 
 chart/ink one-shots) so the raw String drops after parse — sibling of docx #369.
 Also stop re-reading `ppt/presentation.xml` for slide paths.
 
-| Fixture | Warm open ms before | after | WASM peak MiB before | after |
-|---|--:|--:|--:|--:|
-| pptx S (`slides_10`) | 0.57 | 0.57 | 5.02 | 5.04 |
-| pptx M (`slides_50`) | 0.98 | 0.97 | 9.72 | **6.82** (−2.9) |
-| pptx L (`slides_200`) | 1.71 | 1.59 | 18.33 | **17.41** (−0.9) |
-| `poi-bug64693.pptx` | 10.29 | 10.55 | 21.08 | 21.32 |
-| `poi-customGeo.pptx` | 4.95 | 4.94 | 21.62 | **20.06** (−1.6) |
+Median(branch)/median(main) with 95% unpaired bootstrap CI (B=2000). Verdict REGRESS
+only if CI entirely > 1. Point-estimate bumps on pptx S peak and `poi-bug64693` open/peak
+are **noise** (CI includes 1).
 
-Method: warm open = fresh process per pkg, 3 warmup + 21 runs, median of 9 processes
-interleaved; peak = `peak-mem.mjs --child=wasm:…` n=25 interleaved vs main `68260ca`.
-No wasm-opt / budget / fixture changes.
+| Fixture | Warm open main→branch p50 | ratio [95% CI] | Peak main→branch p50 | ratio [95% CI] |
+|---|--:|---|--:|---|
+| pptx S (`slides_10`) | 0.565→0.573 | 1.013 [0.956, 1.078] | 5.066→5.072 | 1.001 [0.993, 1.009] |
+| pptx M (`slides_50`) | 0.965→0.958 | 0.993 [0.935, 1.080] | 10.756→**6.934** | **0.645 [0.598, 0.669]** WIN |
+| pptx L (`slides_200`) | 1.620→1.487 | 0.918 [0.874, 1.002] | 18.238→18.129 | 0.994 [0.955, 1.018] |
+| `poi-bug64693.pptx` | 9.521→9.713 | 1.020 [0.971, 1.059] | 21.756→21.150 | 0.972 [0.950, 1.011] |
+| `poi-customGeo.pptx` | 4.973→4.920 | 0.989 [0.962, 1.002] | 20.633→21.256 | 1.030 [0.971, 1.067] |
+
+Method: warm open = fresh process per pkg, 3 warmup + 21 runs, median of 21 processes
+interleaved; peak = `peak-mem.mjs --child=wasm:…` n=50 interleaved vs main `68260ca`.
+No wasm-opt / budget / fixture changes. Zero REGRESS rows.

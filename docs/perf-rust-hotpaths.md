@@ -423,5 +423,7 @@ outliers but **+0.6 MiB edit heap** — rejected.
 | S | 9.4 / 17.1 / 62.8 / 102 | 9.4 / 17.7 / 64.2 / 86 | 1.000 [0.969, 1.043] | NOISE | 0→0 | 7.79→7.49 | NOISE |
 | L | 12.3 / 20.3 / 896 / 1262 | 12.2 / 18.8 / 924 / 1262 | 0.992 [0.917, 1.025] | NOISE | **6→0** | 16.67→16.76 | NOISE [0.990, 1.039] |
 
-**Win:** L ~90 ms session medians gone; p50/p95 flat; edit heap not REGRESS (no `drop_lazy`). First-edit max still ~1 s (`ensure_edit` re-parse — soft-share follow-up).
+**Win (session medians):** L ~90 ms session medians gone; p50/p95 flat; edit heap not REGRESS (no `drop_lazy`).
+
+**Not a per-edit p99/max win:** with 21 samples/session, session p99 ≈ sample 0. Every session’s first `setCellInput` still runs cold `ensure_edit` → `XlsxHost::open` (`load_workbook` + `parse_all_worksheets` + `ensure_dump_cells` on 1M cells) + `sync_model_from_edit` clone ≈ **0.9–1.3 s**; later samples are ~12–20 ms (`mut-frame` ~6–10 ms, sticky `_nxPainted` tick ~0 ms). Outlier-session count (session **median** ≥ 40 ms) therefore dropped 6→0 while reported p99/max stayed ~900/1260. Soft-share / reuse viewer grid on `ensure_edit` (no second full parse) is the follow-up that can move p99/max; #389 stays draft until that lands with 95% CI.
 

@@ -169,6 +169,9 @@ this._worker.postMessage({ type: "editor-chrome" });
 });
 }
 async editorKey(ev, mac) {
+// Flush queued pointer events before the key so click-then-immediate-key
+// acts on the new selection (audit theme 8 / S3-1).
+this._events.flushNow();
 const msg = await this._request("editor-key", () => {
 this._worker.postMessage({
 type: "editor-key",

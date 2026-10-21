@@ -336,9 +336,23 @@ the wasm compile floor. On a large real fixture the retained XML was measurable:
 Method: interleaved fresh-process `peak-mem.mjs --child=wasm:…` (n=25 generated / n=11 real), main
 `3422fbf` vs this branch. No wasm-opt / budget / fixture changes.
 
-## Slice 12: docx take_text for footnotes/endnotes/headers/footers
+## Slice 12: docx take_text for footnotes/endnotes/headers/footers/charts
 
-After #369, open still used `Package::text` for notes and HF slots. Now `take_text`
-so inflated XML drops after parse into the document model.
+After #369, open still used `Package::text` for notes, HF slots, and chart one-shots.
+Now `take_text` so inflated XML drops after parse into the document model.
 
-Gate fixtures TBD (orchestrator fills).
+Median(branch)/median(main) 95% bootstrap CI (B=2000). REGRESS only if CI entirely > 1.
+Gate pages_* and notes/HF fixtures are all **NOISE** (compile-floor / tiny notes XML).
+`poi-bug65649` peak tip −1.1 MiB within noise CI.
+
+| Fixture | Warm/cold open main→branch | ratio [95% CI] | Peak main→branch | ratio [95% CI] |
+|---|--:|---|--:|---|
+| docx S | 0.886→0.892 | 1.007 [0.861, 1.130] | 12.99→12.80 | 0.985 [0.921, 1.078] |
+| docx M | 1.242→1.238 | 0.997 [0.968, 1.031] | 15.06→14.98 | 0.994 [0.955, 1.024] |
+| docx L | 2.832→2.845 | 1.005 [0.997, 1.009] | 19.55→19.69 | 1.007 [0.970, 1.044] |
+| `poi-60316` (HF) | 5.813→5.813 | 1.000 [0.991, 1.003] | 18.12→18.28 | 1.009 [0.965, 1.084] |
+| `poi-form_footnotes` | 31.44→31.35 | 0.997 [0.992, 1.001] | 25.10→25.22 | 1.005 [0.960, 1.081] |
+| `poi-bug65649` (cold) | 1949→1961 | 1.006 [0.982, 1.047] | 137.0→135.9 | 0.992 [0.977, 1.005] |
+
+Method: warm open n=21 procs×21 runs interleaved; peak n=30 (gate/notes) / n=21 (bug65649)
+vs main `baeefcd`. Zero REGRESS. Completeness slice after #369; no budget/fixture changes.

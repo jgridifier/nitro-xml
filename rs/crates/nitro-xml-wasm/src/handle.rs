@@ -1588,6 +1588,7 @@ impl Handle {
         let mut save = false;
         let mut structure = false;
         let mut office_applied = false;
+        let mut copied: Option<String> = None;
         if !self.editor.read_only() {
             if let Some(xlsx) = self.xlsx.as_mut() {
                 xlsx.ensure_edit(&self.bytes)
@@ -1603,6 +1604,13 @@ impl Handle {
                 match self.dispatch_office_command(id)? {
                     crate::office_edit::OfficeEffect::Save => save = true,
                     crate::office_edit::OfficeEffect::Applied => office_applied = true,
+                    crate::office_edit::OfficeEffect::Clipboard { text, changed } => {
+                        office_applied = changed;
+                        if !text.is_empty() {
+                            self.shell.last_copy = text.clone();
+                            copied = Some(text);
+                        }
+                    }
                 }
             }
         }
@@ -1621,7 +1629,16 @@ impl Handle {
         if !save {
             process_frame(self);
         }
-        Ok(self.chrome_payload(save))
+        let mut payload = self.chrome_payload(save);
+        if let Some(text) = copied {
+            if let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&payload) {
+                if let Some(obj) = v.as_object_mut() {
+                    obj.insert("c".into(), serde_json::Value::String(text));
+                }
+                payload = v.to_string();
+            }
+        }
+        Ok(payload)
     }
 
     fn set_font_source_default(&mut self) {

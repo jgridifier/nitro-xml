@@ -2,12 +2,14 @@
 //! Shared edit-effect and ribbon HTML for the pptx and docx WASM sessions.
 
 /// Result of a chrome / headless command on a non-xlsx editor.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OfficeEffect {
     /// Host should download the current package (`shellAction` `save` flag).
     Save,
     /// Model changed (or an undo/redo restored it). The viewer should reload from saved bytes.
     Applied,
+    /// Copy or cut captured `text`. `changed` is set when cut rewrote the package.
+    Clipboard { text: String, changed: bool },
 }
 
 pub struct RibbonItem {
@@ -194,6 +196,54 @@ mod tests {
         assert_eq!(run["bold"], true, "reopened document lost bold: {run}");
         h.apply_edit(r#"{"command":"edit.undo"}"#).expect("undo");
         assert_eq!(h.save_document().expect("undone"), DOCX);
+    }
+
+    #[test]
+    fn catches_docx_cut_copy_paste_leaving_the_paragraph_unchanged() {
+        // Catches: cut or paste of paragraph text not rewriting the package, so undo cannot restore it.
+        let mut h = open_editable(DOCX, "pages.docx");
+        let before = h.save_document().expect("before");
+        let copied = h.shell_action("cmd", "home.copy").expect("copy");
+        assert!(
+            copied.contains("\"c\""),
+            "copy did not return paragraph text: {copied}"
+        );
+        assert_eq!(
+            h.save_document().expect("copy save"),
+            before,
+            "copy must not rewrite the package"
+        );
+        h.shell_action("cmd", "home.cut").expect("cut");
+        assert_ne!(h.save_document().expect("cut save"), before);
+        h.shell_action("cmd", "edit.undo").expect("undo cut");
+        assert_eq!(h.save_document().expect("cut undone"), before);
+        h.shell_action("cmd", "home.paste").expect("paste");
+        assert_ne!(h.save_document().expect("paste save"), before);
+        h.shell_action("cmd", "edit.undo").expect("undo paste");
+        assert_eq!(h.save_document().expect("paste undone"), before);
+    }
+
+    #[test]
+    fn catches_pptx_cut_copy_paste_leaving_the_shape_unchanged() {
+        // Catches: cut or paste of shape text not rewriting the slide, so undo cannot restore it.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.editor_key("Q", false, false, false, false, false)
+            .expect("seed");
+        let seeded = h.save_document().expect("seeded");
+        let copied = h.shell_action("cmd", "home.copy").expect("copy");
+        assert!(
+            copied.contains("\"c\""),
+            "copy did not return shape text: {copied}"
+        );
+        assert_eq!(h.save_document().expect("copy save"), seeded);
+        h.shell_action("cmd", "home.cut").expect("cut");
+        assert_ne!(h.save_document().expect("cut save"), seeded);
+        h.shell_action("cmd", "edit.undo").expect("undo cut");
+        assert_eq!(h.save_document().expect("cut undone"), seeded);
+        h.shell_action("cmd", "home.paste").expect("paste");
+        assert_ne!(h.save_document().expect("paste save"), seeded);
+        h.shell_action("cmd", "edit.undo").expect("undo paste");
+        assert_eq!(h.save_document().expect("paste undone"), seeded);
     }
 
     #[test]

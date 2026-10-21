@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
-// Every `c` id below was checked against the engine (the saved bytes change); anything the editor
-// registers but does not implement (cut, paste, borders, grow/shrink, group, bring to front) is deliberately absent.
+// Every `c` id below was checked against the engine (the saved bytes change, or copy reads them);
+// borders, grow/shrink, group, and bring to front are deliberately absent. Cut and paste rewrite
+// the package; copy only fills the editor clipboard.
 // Indent, spacing, script, font name, Word bullets, insert shape, duplicate, delete, one-step z-order,
 // shape fill, outline, and slide layout are listed only after they change the saved package.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
@@ -62,6 +63,14 @@ const wordStyles = {
   ]],
 };
 const copy = { i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy" };
+const editorClip = {
+  g: "Clipboard",
+  big: [
+    it("home.cut", "cut", "Cut", "Cut (Ctrl+X)"),
+    it("home.copy", "copy", "Copy", "Copy (Ctrl+C)"),
+    it("home.paste", "paste", "Paste", "Paste (Ctrl+V)"),
+  ],
+};
 
 const FONT = {
   g: "Font",
@@ -177,7 +186,7 @@ export function officeCommandHidden(format, chromeReady, present) {
 
 export function tabsFor(format, unit, edit) {
   const viewOnly = { Home: [{ g: "Clipboard", big: [copy] }, nav(unit), find] };
-  const officeHome = [{ g: "Clipboard", big: [copy] }, FONT, nav(unit), find];
+  const officeHome = [editorClip, FONT, nav(unit), find];
   const tabs =
     format === "xlsx" && edit
       ? { Home: [...XLSX_HOME.slice(0, 5), nav(unit), XLSX_HOME[5]] }

@@ -2,10 +2,24 @@
 // Declarative toolbar layout per format (PowerPoint Home order). Item fields:
 //   i icon · l label · t tooltip · o shellAction op · a op arg · c ribbon command id (xlsx cmd)
 //   p toggle (aria-pressed) · x op sent instead of `o` while pressed · r readout key · u no ribbon control to mirror
+//   v view-only shell control, hidden once the editor emits home.copy
 // xlsx toggles carry no `p`: the Rust chrome has no live cell-style state yet (is_checked is a stub), so a pressed look would lie.
 // Items with `c` are shown only while the Rust ribbon has that command (editable session);
 // mirrored ones also follow that control's enabled state. Do not list an id the editor does not emit.
+const cmd = (c, i, l, t, p, u) => ({ c, i, l, t: t || l, p, u });
 const copy = { id: "Clipboard", items: [{ i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy" }] };
+// `v` is the view-only shell Copy. Cut/Copy/Paste commands hide until the editor emits them,
+// so a read-only document still has one Copy for the keyboard path (Find / Next stay reachable).
+const viewCopy = { i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy", v: 1 };
+const editorClip = {
+  id: "Clipboard",
+  items: [
+    cmd("home.cut", "cut", "Cut", "Cut (Ctrl+X)"),
+    cmd("home.copy", "copy", "Copy", "Copy (Ctrl+C)"),
+    viewCopy,
+    cmd("home.paste", "paste", "Paste", "Paste (Ctrl+V)"),
+  ],
+};
 const find = { i: "find", l: "Find", t: "Find (Ctrl+F)", o: "find-open", x: "find-close", p: 1 };
 const view = {
   id: "View",
@@ -23,8 +37,6 @@ const nav = (id, noun) => ({
     { i: "next", l: "Next", t: `Next ${noun}`, o: "nav-next", n: 1 },
   ],
 });
-
-const cmd = (c, i, l, t, p, u) => ({ c, i, l, t: t || l, p, u });
 
 const file = {
   id: "File",
@@ -66,7 +78,7 @@ export const MANIFEST = {
     label: "Document tools",
     groups: [
       file,
-      copy,
+      editorClip,
       {
         id: "Font",
         items: [...font.items, cmd("home.highlight", "highlight", "Highlight", "Text highlight")],
@@ -109,7 +121,7 @@ export const MANIFEST = {
     label: "Presentation tools",
     groups: [
       file,
-      copy,
+      editorClip,
       font,
       align,
       {

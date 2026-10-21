@@ -2,6 +2,8 @@
 // 24x24 stroke icons (currentColor). Inner markup only; the toolbar wraps them in <svg>.
 export const ICONS = {
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>',
+  cut: '<circle cx="6" cy="7" r="2"/><circle cx="6" cy="17" r="2"/><path d="M8 8.2L20 18M8 15.8L20 6"/>',
+  paste: '<rect x="6" y="6" width="12" height="14" rx="1.5"/><path d="M9 6V4.5h6V6"/>',
   prev: '<path d="M15 6l-6 6 6 6"/>',
   next: '<path d="M9 6l6 6-6 6"/>',
   find: '<circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/>',

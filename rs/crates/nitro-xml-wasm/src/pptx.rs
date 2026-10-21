@@ -36,6 +36,8 @@ pub struct PptxState {
     pub selected_ids: Vec<String>,
     /// Live editor session when the document is not read-only.
     pub edit: Option<nitro_xml_pptx::editor::PptxEditor>,
+    /// Plain text captured by home.copy / home.cut for a later home.paste.
+    pub(crate) text_clip: String,
 }
 
 impl PptxState {
@@ -61,6 +63,7 @@ impl PptxState {
             scale: 0.0,
             selected_ids: Vec::new(),
             edit: None,
+            text_clip: String::new(),
         })
     }
 

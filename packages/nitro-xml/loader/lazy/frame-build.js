@@ -127,8 +127,6 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
     transfer,
   );
   if (workerSelf._pendingEditorChrome === 1) {
-    workerSelf._pendingEditorChrome = 2;
-  } else if (workerSelf._pendingEditorChrome === 2) {
     workerSelf._pendingEditorChrome = 0;
     await new Promise((r) => setTimeout(r, 0));
     try {

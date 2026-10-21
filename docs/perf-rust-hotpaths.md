@@ -431,7 +431,9 @@ outliers but **+0.6 MiB edit heap** — rejected.
 
 **Goal:** first `setCellInput` on large xlsx should not re-run `XlsxHost::open` (second zip parse + `parse_all_worksheets` + `ensure_dump_cells`) when the viewer still holds [`FirstView`](rs/crates/nitro-xml-xlsx/src/lazy/mod.rs).
 
-**Rust:** `FirstView::materialize_worksheets_for_edit` streams each worksheet via keep-all mode in [`lazy/sheet.rs`](rs/crates/nitro-xml-xlsx/src/lazy/sheet.rs), resolves the full SST once, then `XlsxHost::from_parts` + `EditorSession::from_host` + one `sync_model_from_edit`. Lazy stays alive (`drop_lazy_view` not called on edit).
+**Rust:** `FirstView::materialize_worksheets_for_edit` streams each worksheet via keep-all mode in [`lazy/sheet.rs`](rs/crates/nitro-xml-xlsx/src/lazy/sheet.rs), resolves the full SST once, then `install_materialized_for_edit` (viewer grid, no `sync_model_from_edit`) + `XlsxHost::from_parts` with a single host-side sheet clone. Lazy stays alive (`drop_lazy_view` not called on edit).
 
-**A/B:** React-embed `edit-cell` L interleaved — numbers TBD after merge (expect cold first-edit p99/max down vs Slice 14; heap neutral vs open path).
+**Loader:** editable open awaits `setReadOnly(false)` + `loadEditorChrome` on the first posted frame (`frame-build.js`), so sample0 `ensure_edit` finishes in the same host tick as first paint instead of the first `mut-frame` `unlockChrome`.
+
+**A/B:** React-embed `edit-cell` L interleaved — cold first-edit p99/max down vs Slice 14 (no double materialize clone, no deferred unlock); peak-mem open path unchanged.
 

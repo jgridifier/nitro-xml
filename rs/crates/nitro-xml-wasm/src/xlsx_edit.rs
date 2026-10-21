@@ -4,8 +4,9 @@
 use nitro_xml_xlsx::address::{format_address, MAX_COL, MAX_ROW};
 use nitro_xml_xlsx::edit::XlsxHost;
 use nitro_xml_xlsx::editor::{ChromeEffect, EditorSession, SelectionTarget};
-use nitro_xml_xlsx::model::{CellAddress, SheetSelection};
+use nitro_xml_xlsx::model::{ActiveWorksheet, CellAddress, SheetSelection};
 use nitro_xml_xlsx::render::{select_cell, selection_ref};
+use nitro_xml_xlsx::WorkbookSlice;
 use serde_json::Value;
 
 use crate::text::{apply_key, cut_plain, KeyAction, KeyEvent, TextField};
@@ -39,12 +40,48 @@ impl XlsxState {
                 .lazy_first_view_mut()
                 .expect("lazy first view")
                 .materialize_worksheets_for_edit()?;
-            let host = XlsxHost::from_parts(workbook, sheets)?;
+            self.install_materialized_for_edit(workbook, sheets)?;
+            let host_sheets = self
+                .sheets
+                .iter()
+                .map(|s| s.as_ref().expect("materialized sheet slot").clone())
+                .collect();
+            let host = XlsxHost::from_parts(self.workbook.clone(), host_sheets)?;
             self.edit = Some(EditorSession::from_host(host));
         } else {
             self.edit = Some(EditorSession::open(bytes)?);
+            self.sync_model_from_edit();
         }
-        self.sync_model_from_edit();
+        Ok(())
+    }
+
+    /// Viewer grid from lazy materialize (one host clone). Skips `sync_model_from_edit`.
+    fn install_materialized_for_edit(
+        &mut self,
+        workbook: WorkbookSlice,
+        sheets: Vec<ActiveWorksheet>,
+    ) -> Result<(), String> {
+        let active_sheet = workbook.active_sheet as usize;
+        let sels: Vec<Option<SheetSelection>> = self
+            .sheets
+            .iter()
+            .map(|s| s.as_ref().and_then(|sh| sh.view.selection.clone()))
+            .collect();
+        let mut viewer_sheets: Vec<Option<ActiveWorksheet>> =
+            sheets.into_iter().map(Some).collect();
+        for (i, sel) in sels.into_iter().enumerate() {
+            if let (Some(sel), Some(Some(sh))) = (sel, viewer_sheets.get_mut(i)) {
+                sh.view.selection = Some(sel);
+            }
+        }
+        for sh in viewer_sheets.iter_mut().flatten() {
+            sh.ensure_cell_pos();
+        }
+        self.workbook = workbook;
+        self.sheets = viewer_sheets;
+        if self.active >= self.sheets.len() {
+            self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
+        }
         Ok(())
     }
 

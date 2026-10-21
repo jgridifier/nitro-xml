@@ -332,7 +332,6 @@ impl FirstView {
                 ws.view.selection = Some(sel);
             }
             ws.ensure_dump_cells(&workbook.shared_strings);
-            self.sheets[sheet] = Some(ws.clone());
             sheets.push(ws);
             self.windows[sheet] = None;
             self.logical_views[sheet] = None;

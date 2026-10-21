@@ -5,6 +5,9 @@
  *
  * applyEdit mut-frame is on for every format (incl. xlsx): Rust defers paint in
  * applyEdit, mut-frame's prepareFrame paints once, tick skips via `_nxPainted`.
+ * For spreadsheets `_nxPainted` stays set across empty host rAF ticks (until
+ * pending scroll/resize/pointer events) so a second prepareFrame cannot rebuild
+ * CellIndex over cells_1m. Concurrent ticks await the in-flight edit flush.
  * shellAction / editorKey stay docx/pptx-only — xlsx bold on cells_1m still
  * regresses under mut-frame (#341 / re-check after #344/#345).
  */
@@ -39,12 +42,21 @@ export function patch(WorkerDocument) {
   }
 
   async function flushEditQueue(doc) {
-    if (doc._ef) return;
+    // Host rAF ticks (element._tick) often overlap mut-frame. Waiting here stops
+    // a concurrent take-frame/prepareFrame that rebuilds CellIndex over cells_1m.
+    if (doc._ef) {
+      if (doc._efDone) await doc._efDone;
+      return;
+    }
     doc._er = 0;
     const q = doc._eq;
     if (!q || !q.length) return;
     doc._eq = [];
     doc._ef = 1;
+    let releaseFlush;
+    doc._efDone = new Promise((r) => {
+      releaseFlush = r;
+    });
     try {
       const last = q[q.length - 1];
       for (let i = 0; i < q.length - 1; i++) {
@@ -75,6 +87,9 @@ export function patch(WorkerDocument) {
       }
     } finally {
       doc._ef = 0;
+      const done = releaseFlush;
+      doc._efDone = null;
+      if (done) done();
     }
   }
 
@@ -213,9 +228,25 @@ export function patch(WorkerDocument) {
     }
     if (this._nxPainted) {
       const follow = this._nxFollow;
-      this._nxPainted = 0;
-      this._nxFollow = 0;
-      if (!follow) return { ops: [], measured: 0, outlined: 0, layoutReads: 0 };
+      // Spreadsheet mut-frame already painted a complete grid. Clearing the flag on
+      // the first short-circuit let host rAF ticks steal it before the caller's
+      // await tick(), forcing prepareFrame + CellIndex::build over the full edit
+      // grid (~150–250 ms → ~90 ms session-p50 outliers on cells_1m). Keep it until
+      // scroll/resize/pointer posts pending events that need a fresh frame.
+      const pending =
+        this._events && typeof this._events.length === "number" ? this._events.length : 0;
+      if (isSpreadsheet(this)) {
+        if (!follow && pending === 0) {
+          return { ops: [], measured: 0, outlined: 0, layoutReads: 0 };
+        }
+        this._nxPainted = 0;
+        this._nxFollow = 0;
+        // Fall through: pending view events need take-frame.
+      } else {
+        this._nxPainted = 0;
+        this._nxFollow = 0;
+        if (!follow) return { ops: [], measured: 0, outlined: 0, layoutReads: 0 };
+      }
     }
     const painted = await origTick.apply(this, args);
     // editorKey places the caret before this tick, often against the pre-measure

@@ -392,3 +392,23 @@ short key `hf` (~1–2 KB) instead of full `h` (~54 KB ribbon+shell). Loader pat
 `doc._chromeEl`. Follow-up to omit-unchanged `h` (#357).
 
 React-embed `edit-cell` interleaved (n=40): xlsx S ~11→8.5 ms, L ~12→10.8 ms.
+
+## Slice 14: xlsx/L edit-cell tail — sticky `_nxPainted` (issue #30)
+
+### Profile (from Slice 13)
+
+~90 ms session-p50 outliers: host rAF `tick` raced mut-frame — either took a
+concurrent `prepareFrame` during flush, or cleared `_nxPainted` so the caller's
+`await tick()` rebuilt `CellIndex` over the full post-`ensure_edit` grid
+(~150–250 ms). Not GC / `memory.grow`. #386's `cell_pos` + `drop_lazy` removed
+outliers but **+0.6 MiB edit heap** — rejected.
+
+### Fix (loader-only, heap-neutral)
+
+`packages/nitro-xml/loader/lazy/wp.js`:
+1. Concurrent ticks **await** the in-flight edit flush (`_efDone`).
+2. Spreadsheet `_nxPainted` stays set across empty ticks until pending
+   scroll/resize/pointer events (`_events.length`).
+
+A/B (React-embed `edit-cell` S+L, n≥21, p50/p95/p99/max + outlier sessions + edit heap): see PR.
+

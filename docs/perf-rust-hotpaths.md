@@ -230,3 +230,16 @@ Open path, binary and peak memory are untouched by this slice (editor code only,
 allocation), so the per-fixture open table above is unchanged. Remaining losses are as in slice 4: xlsx S time
 (tie) and peak memory on xlsx S and docx/pptx small fixtures (wasm compile floor).
 
+## Slice 7 (rejected): throwaway open+free does not cut whole-process peak
+
+Draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) tried a throwaway open+free after
+`initSync` (and matching worker stub opens) so first-touch TurboFan sat outside the post-init
+VmHWM delta. That moves the compile/alloc peak out of the measured window rather than removing
+it, and adds React-embed startup work.
+
+Honest re-measure (VmHWM growth from **process start**, n=50; React-embed mount→paint + TTI
+n=50): whole-process peak **rises** with prewarm (xlsx S WASM **37.1 → 38.8 MiB** p50) and
+startup **slows** (xlsx S mount **129.6 → 159.0 ms**, TTI **190.2 → 220.1 ms** p50). PR closed;
+code reverted. **xlsx S peak_mem remains the wasm compile floor** — see `docs/M1-REPORT.md`
+§5.4. Full tables live in the closed PR body and that report section.
+

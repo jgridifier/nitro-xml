@@ -410,6 +410,52 @@ Remaining LOSSes are the wasm compile floor on small TS footprints (see
 `docs/perf-rust-hotpaths.md`). Peak-mem work continues on another stream — this slice does
 not touch `rs/crates/nitro-xml-wasm/Cargo.toml` wasm-opt flags.
 
+#### xlsx S peak_mem = compile floor (draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) closed)
+
+A throwaway open+free during init / peak-mem baseline was tried so first-touch TurboFan
+would sit outside the measured open window. That **gameses** the post-init delta and adds
+startup work (against React-embed priority). Honest re-measure (2026-10-21):
+
+- **Whole-process peak RSS** = VmHWM growth from process start (includes import, init,
+  optional prewarm, and open); fresh process per sample; **n = 50**; WASM cold vs
+  WASM prewarm vs TS.
+- **Cold mount→first-paint** and **TTI** (`init_core_ms + mount_to_paint_ms`) via
+  `perf/react-embed` first-paint scenario; fresh browser context per sample; **n = 50**;
+  before = worker without stub opens; after = worker with stub open+free.
+
+**Verdict:** whole-process peak does **not** drop (xlsx S WASM p50 **37.1 → 38.8 MiB**);
+React-embed startup **regresses** (xlsx S mount p50 **129.6 → 159.0 ms**, TTI
+**190.2 → 220.1 ms**). Draft #364 closed; code reverted. **xlsx S peak_mem remains a LOSS
+attributed to the wasm compile floor** — not demoted, no threshold/budget/fixture change.
+
+Whole-process peak (VmHWM from process start, MiB, n=50):
+
+| Format | Tier | TS p50/p95 | WASM cold p50/p95 | WASM prewarm p50/p95 | cold→prewarm Δp50 |
+|--------|------|-----------:|------------------:|---------------------:|------------------:|
+| xlsx | S | 31.3/31.9 | 37.1/42.5 | 38.8/46.3 | **+1.7** |
+| xlsx | M | 154.2/158.1 | 39.2/41.5 | 49.8/52.3 | +10.6 |
+| xlsx | L | 1042.0/1045.6 | 52.8/55.5 | 64.8/70.5 | +11.9 |
+| docx | S | 19.8/20.2 | 31.8/32.9 | 32.4/33.4 | +0.5 |
+| docx | M | 23.9/24.8 | 34.9/35.5 | 34.9/35.2 | +0.0 |
+| docx | L | 43.6/44.8 | 43.7/44.6 | 45.8/46.4 | +2.1 |
+| pptx | S | 63.3/64.1 | 23.6/24.1 | 24.4/25.3 | +0.8 |
+| pptx | M | 90.1/91.4 | 32.2/32.6 | 33.5/35.5 | +1.3 |
+| pptx | L | 100.2/103.4 | 43.2/44.5 | 46.6/48.0 | +3.4 |
+
+React-embed cold mount→paint / TTI (ms, n=50):
+
+| Format | Tier | mount before p50/p95 | mount after | tti before | tti after |
+|--------|------|---------------------:|------------:|-----------:|----------:|
+| xlsx | S | 129.6/143.0 | 159.0/181.3 | 190.2/205.8 | 220.1/245.3 |
+| xlsx | M | 143.6/158.6 | 184.2/208.6 | 203.0/217.1 | 245.8/274.4 |
+| xlsx | L | 126.4/221.9 | 161.7/260.6 | 184.4/281.6 | 222.9/324.5 |
+| docx | S | 125.5/141.0 | 157.0/170.7 | 182.5/198.6 | 216.8/231.9 |
+| docx | M | 136.5/142.8 | 164.4/187.0 | 194.1/206.1 | 225.6/252.6 |
+| docx | L | 160.3/178.4 | 199.0/225.6 | 218.8/238.8 | 261.5/287.4 |
+| pptx | S | 97.3/105.3 | 145.4/158.0 | 155.8/167.1 | 207.2/221.4 |
+| pptx | M | 100.4/111.5 | 138.4/152.2 | 158.0/169.8 | 197.7/215.6 |
+| pptx | L | 108.1/116.8 | 136.9/146.1 | 166.8/177.1 | 195.1/207.5 |
+
 Merged on `main` ahead of this refresh: [#333](https://github.com/jgridifier/nitro-xml/pull/333),
 [#349](https://github.com/jgridifier/nitro-xml/pull/349), [#351](https://github.com/jgridifier/nitro-xml/pull/351),
 [#352](https://github.com/jgridifier/nitro-xml/pull/352), [#356](https://github.com/jgridifier/nitro-xml/pull/356).
@@ -466,7 +512,7 @@ No invented medians in the published JSON from this report slice.
 | Item | Issue / PR | Notes |
 |------|------------|-------|
 | Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Scripts live in **report** mode (§5.4 / #342). Jared: `PERF_GATE_MODE=enforce` when reds are fixed |
-| Peak-mem LOSSes (xlsx S, docx S/M; docx L flaky) | #8 / hotpaths | Post-#352: pptx S/M flipped WIN; xlsx/docx S still LOSS (compile floor). Leave wasm-opt to that stream |
+| Peak-mem LOSSes (xlsx S, docx S/M; docx L flaky) | #8 / hotpaths | Post-#352: pptx S/M flipped WIN; xlsx/docx S still LOSS (**compile floor**). Draft #364 pre-warm cut closed — whole-process peak did not drop; startup regressed (§5.4) |
 | xlsx S openDocument | done (clear WIN) | Post-#352 CI 0.269 [0.228, 0.321]; measure sticky size/bold keeps CI upper ≪ 1 even at warmup=2 |
 | Scoreboard standings including losses | **#41**, draft **#113**, **#39**; adapters **#299/#329** | Published `parse-latest.json` still waits on #113 — do not invent numbers |
 | Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |

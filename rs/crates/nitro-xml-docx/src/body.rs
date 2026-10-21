@@ -174,16 +174,17 @@ pub fn read_package_with_opts(
 
     let mut warnings = warnings_for(&document);
 
+    let settings_xml = pkg.take_text("word/settings.xml")?;
+
     let (default_p, default_c, default_t) = default_cats();
-    let (paragraph_styles, character_styles, table_styles) = if pkg
-        .text("word/styles.xml")?
-        .is_some()
+    let (paragraph_styles, character_styles, table_styles) = if let Some(styles_xml) =
+        pkg.take_text("word/styles.xml")?
     {
-        let styles_xml = pkg.text("word/styles.xml")?.unwrap();
+        let styles_ref = styles_xml.as_str();
         warnings.push(
                 "Paragraph style, character style and docDefaults inheritance resolve for rendering, including toggle-property XOR semantics and basedOn chains. Linked styles beyond a basedOn chain, numbering-derived formatting and font metric substitution are not modeled; display can still differ from Word.".to_string(),
             );
-        let table = parse_table_style_catalog(styles_xml);
+        let table = parse_table_style_catalog(styles_ref);
         if let Some(extra) = table.get("warnings").and_then(|v| v.as_array()) {
             for w in extra {
                 if let Some(s) = w.as_str() {
@@ -192,8 +193,8 @@ pub fn read_package_with_opts(
             }
         }
         (
-            Some(parse_paragraph_style_catalog(styles_xml)),
-            Some(parse_run_style_catalog(styles_xml)),
+            Some(parse_paragraph_style_catalog(styles_ref)),
+            Some(parse_run_style_catalog(styles_ref)),
             Some(table),
         )
     } else {
@@ -201,15 +202,14 @@ pub fn read_package_with_opts(
     };
 
     let mut theme = None;
-    if pkg.text("word/theme/theme1.xml")?.is_some() {
-        let theme_xml = pkg.text("word/theme/theme1.xml")?.unwrap();
-        theme = Some(parse_theme(theme_xml));
-        if let Some(settings_xml) = pkg.text("word/settings.xml")? {
+    if let Some(theme_xml) = pkg.take_text("word/theme/theme1.xml")? {
+        theme = Some(parse_theme(&theme_xml));
+        if let Some(settings_ref) = settings_xml.as_deref() {
             if let Some(t) = theme.as_mut() {
                 if let Some(obj) = t.as_object_mut() {
                     obj.insert(
                         "colorMapping".into(),
-                        parse_color_scheme_mapping(settings_xml),
+                        parse_color_scheme_mapping(settings_ref),
                     );
                 }
             }
@@ -220,9 +220,8 @@ pub fn read_package_with_opts(
     }
 
     let mut numbering_catalog = None;
-    if pkg.text("word/numbering.xml")?.is_some() {
-        let num_xml = pkg.text("word/numbering.xml")?.unwrap();
-        let catalog = parse_numbering_catalog(num_xml);
+    if let Some(num_xml) = pkg.take_text("word/numbering.xml")? {
+        let catalog = parse_numbering_catalog(&num_xml);
         numbering_catalog = Some(catalog.clone());
         warnings.push(
             "Numbering is resolved for decimal, Roman numeral, letter, ordinal, cardinal/ordinal text and bullet formats, including multilevel lvlText and legal numbering. Picture bullets, style-linked numbering and other custom formats fall back to Decimal Number and are not rendered as Word would.".to_string(),
@@ -249,7 +248,7 @@ pub fn read_package_with_opts(
         );
     }
 
-    let parts = parse_document_parts(&mut pkg, body, &blocks, &drawings)?;
+    let parts = parse_document_parts(&mut pkg, body, &blocks, &drawings, settings_xml.as_deref())?;
     warnings.extend(parts.warnings);
 
     if blocks.iter().any(|b| {
@@ -261,15 +260,15 @@ pub fn read_package_with_opts(
         );
     }
 
-    if pkg.text("word/comments.xml")?.is_some() {
+    if pkg.part_names().any(|p| p == "word/comments.xml") {
         warnings.push(
             "Comment ranges are modeled at run granularity (they may span paragraphs); a range edge outside any run, such as around an empty paragraph or a table, moves to the nearest commented text when that paragraph is edited.".to_string(),
         );
     }
 
     let (track_changes, track_formatting, track_moves) =
-        if let Some(settings_xml) = pkg.text("word/settings.xml")? {
-            let (tc, tf, tm) = parse_track_review(settings_xml);
+        if let Some(settings_ref) = settings_xml.as_deref() {
+            let (tc, tf, tm) = parse_track_review(settings_ref);
             (Some(tc), Some(tf), Some(tm))
         } else {
             (None, None, None)
@@ -331,11 +330,8 @@ pub fn read_package_with_opts(
         }
     });
 
-    let comments = if pkg.text("word/comments.xml")?.is_some() {
-        let comments_xml = pkg.text("word/comments.xml")?.unwrap().to_string();
-        let extended = pkg
-            .text("word/commentsExtended.xml")?
-            .map(|s| s.to_string());
+    let comments = if let Some(comments_xml) = pkg.take_text("word/comments.xml")? {
+        let extended = pkg.take_text("word/commentsExtended.xml")?;
         Some(parse_comments(&comments_xml, extended.as_deref()))
     } else {
         None
@@ -582,11 +578,12 @@ fn parse_document_parts(
     body: &Element,
     blocks: &[Value],
     drawings: &DrawingContext,
+    settings_xml: Option<&str>,
 ) -> Result<DocumentPartsResult, OpcError> {
     let mut warnings = Vec::new();
     let raw = parse_raw_sections(body, blocks);
     let relationships = pkg.rels("word/document.xml")?.clone();
-    let settings = parse_doc_settings(pkg.text("word/settings.xml")?);
+    let settings = parse_doc_settings(settings_xml);
     let mut cache: HashMap<String, Vec<Value>> = HashMap::new();
     let mut field_markup = false;
     let mut sections = Vec::new();
@@ -863,15 +860,23 @@ fn table_has_nested(block: &Value) -> bool {
 mod tests {
     use super::*;
 
-    // Catches: retained document.xml doubling peak during open.
+    // Catches: retained one-shot parse parts doubling peak during open.
     #[test]
-    fn document_xml_not_retained_in_package_text_cache() {
+    fn one_shot_parse_parts_not_retained_in_package_text_cache() {
         let bytes = include_bytes!("../../../../fixtures/generated/docx/pages_10.docx");
         let (loaded, _) =
             read_package_with_opts(bytes, BodyViewOpts::default()).expect("open minimal docx");
-        assert!(
-            !loaded.package.text_is_cached("word/document.xml"),
-            "word/document.xml should not stay in Package text_cache after body parse"
-        );
+        for part in [
+            "word/document.xml",
+            "word/styles.xml",
+            "word/theme/theme1.xml",
+            "word/numbering.xml",
+            "word/settings.xml",
+        ] {
+            assert!(
+                !loaded.package.text_is_cached(part),
+                "{part} should not stay in Package text_cache after body parse"
+            );
+        }
     }
 }

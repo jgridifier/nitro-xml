@@ -12,13 +12,13 @@ use crate::docx::{is_docx_extension, DocxState};
 use crate::events::{self, EventQueue};
 use crate::pptx::{is_pptx_extension, PptxState};
 use crate::shell::{
-    apply_action, cap_chars, chrome_rest_html, open_diagnostic_code, FindMatch,
-    FormatKind, PendingHyperlink, ShellAction, ShellState, ShellUi,
+    apply_action, cap_chars, chrome_rest_html, open_diagnostic_code, FindMatch, FormatKind,
+    PendingHyperlink, ShellAction, ShellState, ShellUi,
 };
-use serde_json::Value;
 use crate::transport::StringTable;
 use crate::xlsx::{is_xlsx_extension, search_options_from_json, XlsxState};
 use crate::xlsx_edit::{editor_key_json, EditorKeyEffect};
+use serde_json::Value;
 
 #[inline(never)]
 fn process_frame_xlsx(handle: &mut Handle) {
@@ -2087,12 +2087,18 @@ mod tests {
             h.take_chrome_delta(&full1, f1, rest),
             ChromeDelta::Full(s) if s == full1
         ));
-        assert!(matches!(h.take_chrome_delta(&full1, f1, rest), ChromeDelta::None));
+        assert!(matches!(
+            h.take_chrome_delta(&full1, f1, rest),
+            ChromeDelta::None
+        ));
         assert!(matches!(
             h.take_chrome_delta(&full2, f2, rest),
             ChromeDelta::Formula(s) if s == f2
         ));
-        assert!(matches!(h.take_chrome_delta(&full2, f2, rest), ChromeDelta::None));
+        assert!(matches!(
+            h.take_chrome_delta(&full2, f2, rest),
+            ChromeDelta::None
+        ));
     }
 
     #[test]

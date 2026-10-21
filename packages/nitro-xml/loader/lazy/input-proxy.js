@@ -12,7 +12,7 @@
  * the docx caret wrapper sees it). The textarea is parked at the caret / active cell so the IME
  * candidate window opens next to the text being edited.
  */
-import { applyChromePatch } from "./cp.js";
+import { applyChromePatch } from "./chrome-patch.js";
 
 const STYLE =
   ".nxp{position:absolute;z-index:6;margin:0;padding:0;border:0;outline:0;resize:none;overflow:hidden;" +

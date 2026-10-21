@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Builds packages/nitro-xml/pkg with wasm-pack (release: opt-level 3, LTO, codegen-units 1, wasm-opt -O3,
+# Builds packages/nitro-xml/pkg with wasm-pack (release: opt-level 3, LTO, codegen-units 1, wasm-opt -O1,
 # SIMD on) and prints raw, gzip and brotli sizes of the .wasm and the JS glue (read by #7 and #46).
 # Usage: bash scripts/build-wasm.sh [--dev] [--features <feat>] [--json <file>]
 # Default (no --features) is the shipped package: bench exports and serde are off.

@@ -10,11 +10,6 @@
  * Reports, per fixture: median open ms and median peak-RSS growth (MiB) over the post-init
  * baseline for each engine, plus the WASM/TS ratios and a 95% bootstrap CI of the peak-mem
  * median ratio (same unpaired method as ts-vs-wasm.mjs). Child mode: `--child=<engine>:<fixture>`.
- *
- * WASM baseline is post-initSync **and** one throwaway open+free of the fixture (PRODUCT_SPEC
- * §5 "pre-warmed worker"): first-touch V8 TurboFan of open/parse/paint is attributed to ready
- * state, not document peak. Raw wasm bytes are compiled to a Module before instantiate so the
- * Buffer is not held alongside the Instance.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -137,15 +132,7 @@ async function child(spec) {
     }
   } else {
     const mod = await import(pathToFileURL(join(PKG_DIR, "nitro_xml_wasm.js")).href);
-    // Compile first; do not keep the raw wasm Buffer alongside the Instance.
-    const compiled = new WebAssembly.Module(readFileSync(join(PKG_DIR, "nitro_xml_wasm_bg.wasm")));
-    mod.initSync({ module: compiled });
-    // Tier-up open/parse/paint before the baseline (pre-warmed worker).
-    {
-      const warm = new mod.Handle(new Uint8Array(file));
-      warm.openDocument(name);
-      warm.free();
-    }
+    mod.initSync({ module: readFileSync(join(PKG_DIR, "nitro_xml_wasm_bg.wasm")) });
     open = (b) => {
       const h = new mod.Handle(b);
       h.openDocument(name);
@@ -214,8 +201,7 @@ if (args.child) {
             timedRuns: runs,
             bootstrap: BOOTSTRAP,
             seed: SEED,
-            metric:
-              "VmHWM growth over post-init baseline (MiB), fresh process per (engine, fixture, run). WASM baseline is after initSync + one throwaway open+free (pre-warmed ready state); raw wasm bytes are Module-compiled before instantiate.",
+            metric: "VmHWM growth over post-init baseline (MiB), fresh process per (engine, fixture, run)",
             ratio: "median(wasm)/median(ts); 95% CI via unpaired bootstrap of that median ratio",
             beats_rule:
               "WIN = median ratio < 1 AND CI upper < 1 (PRODUCT_SPEC §5); otherwise LOSS or TIE/LOSS",

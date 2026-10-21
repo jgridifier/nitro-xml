@@ -26,15 +26,7 @@ if (msg.module) {
 await compileWasmModule(msg.module);
 msg.module = null;
 }
-const core = await initCore();
-glue = core.glue;
-// Tier-up open/parse/paint (PRODUCT_SPEC §5 pre-warmed worker). Lazy chunk
-// keeps stub builders out of the first-load loader brotli budget.
-try {
-const { prewarmOpenPaths } = await import("./lazy/prewarm-open.js");
-prewarmOpenPaths(glue);
-} catch {
-}
+await initCore();
 self.postMessage({ type: "ready" });
 break;
 }

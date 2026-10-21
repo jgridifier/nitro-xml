@@ -10,7 +10,7 @@ record; each slice appends a row to the summary and a section below.
 |---|---|
 | TS vs WASM open time, 95% CI of the median ratio | `node --expose-gc perf/large/ts-vs-wasm.mjs --runs=21 --tier=S,M,L` |
 | Isolated WASM open (fresh process, 2 warmups + 11 runs) | per-process median, median of 9 processes (see slice 1) |
-| Peak memory, one fresh process per open (VmHWM growth over post-init + pre-warm baseline) | `node perf/large/peak-mem.mjs --runs=7 [--pkg=<dir>]` |
+| Peak memory, one fresh process per open (VmHWM growth over post-init baseline) | `node perf/large/peak-mem.mjs --runs=5 [--pkg=<dir>]` |
 | Where the time goes | `cargo build --release --target wasm32-unknown-unknown` with `CARGO_PROFILE_RELEASE_DEBUG=1 CARGO_PROFILE_RELEASE_STRIP=none`, `wasm-bindgen --keep-debug`, then `node --cpu-prof --cpu-prof-interval 50` over many fresh processes (wasm frames keep their Rust names; ~1 min build, no wasm-opt) |
 
 Notes that change how numbers read:
@@ -229,30 +229,4 @@ on (sheet, row) instead of a full scan. Results are identical (stale sets unchan
 Open path, binary and peak memory are untouched by this slice (editor code only, no change to open-time
 allocation), so the per-fixture open table above is unchanged. Remaining losses are as in slice 4: xlsx S time
 (tie) and peak memory on xlsx S and docx/pptx small fixtures (wasm compile floor).
-
-## Slice 7: peak-mem pre-warm (compile floor out of the open delta)
-
-Finding: post-#352 xlsx S peak was still a LOSS (~19 MiB WASM vs ~5.5 MiB TS) because the
-`peak-mem.mjs` baseline sat after `initSync` only — first-touch V8 TurboFan of open/parse/paint
-still landed in the open delta. A throwaway open+free before the baseline (PRODUCT_SPEC §5
-"pre-warmed worker") leaves document-model growth only. Also: compile the wasm `Module` before
-`initSync` so the raw byte Buffer is not held alongside the Instance.
-
-| Change | Effect |
-|---|---|
-| `peak-mem.mjs`: `WebAssembly.Module` then `initSync`; one throwaway open+free before VmHWM baseline | xlsx S peak **WIN** (see table) |
-| Worker `prewarm`: after `initCore`, dynamic-import `lazy/prewarm-open.js` and open+free tiny in-memory xlsx/docx/pptx stubs | Production matches harness ready state; stub builders stay out of the first-load loader brotli budget |
-
-Method: `peak-mem.mjs --runs=7` (CI `PERF_BEATS_MEM_RUNS`), `--pkg` = `scripts/build-wasm.sh` output.
-Before = cold post-initSync baseline (prior harness). After = this slice.
-
-| Fixture | TS peak MiB | WASM before | WASM after | ratio after (CI) | Verdict |
-|---|--:|--:|--:|--:|---------|
-| xlsx S | 5.5 to 5.8 | 18.6 to 19.8 | 1.5 to 2.2 | 0.28 to 0.41 ([0.00, 0.56]) | **WIN** (was LOSS) |
-| xlsx M | ~127 | ~22 | 3.5 to 9 | ≪ 1 | **WIN** |
-| xlsx L | ~1007 | ~27 | 3.4 to 6.7 | ≪ 1 | **WIN** |
-| docx S | 2.3 to 2.7 | ~12.7 | 0.1 to 0.7 | 0.05 to 0.28 | **WIN** (was LOSS) |
-
-Loader brotli unchanged (prewarm stubs live under `loader/lazy/`). No wasm-opt flag change; no
-fixture/budget demotion.
 

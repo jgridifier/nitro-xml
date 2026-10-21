@@ -74,10 +74,12 @@ pub fn parse_editor_text(tx: &Element) -> EditorText {
             continue;
         }
         for (ri, run) in runs.iter().enumerate() {
+            let xml_is_br = xml_runs
+                .get(ri)
+                .is_some_and(|el| el.local == "br" && el.ns.as_deref() == Some(ns::A));
             let is_break = run.text == "\n" && run.typeface.is_none() && run.size_pt.is_none();
-            // `a:br` is parsed as text "\n" with no run properties. Keep it inside
-            // the paragraph so bullet splitting does not treat it as a new `a:p`.
-            let line_break = is_break;
+            // `a:br` may carry `a:rPr` (typeface on the break); still a soft line break.
+            let line_break = xml_is_br || is_break;
             let mut seg = TextSegmentSnap {
                 text: run.text.clone(),
                 bold: run.bold.unwrap_or(false),

@@ -122,6 +122,8 @@ fn scoreboard_push_segments(segments: &[TextSegmentSnap], out: &mut Vec<String>)
             cur.clear();
         } else if scoreboard_segment_is_skipped_marker(seg) {
             continue;
+        } else if seg.is_line_break {
+            cur.push('\n');
         } else {
             cur.push_str(&seg.text);
         }
@@ -138,41 +140,37 @@ fn scoreboard_segment_is_skipped_marker(seg: &TextSegmentSnap) -> bool {
     t.is_empty() || scoreboard_is_bullet_only(t) || scoreboard_is_letter_bullet_only(t)
 }
 
-/// Editor segments match upstream `textSegments` for literal run bullets; folded `DumpElement::text`
-/// is enough when extract did not synthesize marker-only paragraphs or wingdings / dash prefixes.
-fn scoreboard_prefers_editor_segments(el: &DumpElement) -> bool {
-    if let Some(editor) = &el.editor_text {
-        for seg in &editor.segments {
-            if seg.bullet_info.as_ref().is_some_and(|b| !b.none) {
-                continue;
-            }
-            let t = seg.text.trim_start();
-            if t.starts_with('\u{2022}') || t.starts_with('\u{25CF}') {
-                return true;
-            }
+fn scoreboard_push_cell_runs(runs: &[crate::table_cell_text::CellRun], out: &mut Vec<String>) {
+    let mut cur = String::new();
+    for run in runs {
+        if run.is_paragraph_break {
+            scoreboard_push_segment_paragraph(&cur, out);
+            cur.clear();
+        } else if run.is_line_break {
+            cur.push('\n');
+        } else {
+            cur.push_str(&run.text);
         }
     }
-    let t = el.text.as_deref().unwrap_or("");
-    t.lines().any(|line| {
-        let trimmed = line.trim();
-        scoreboard_is_bullet_only(trimmed)
-            || scoreboard_is_letter_bullet_only(trimmed)
-            || scoreboard_strip_folded_bullet_prefix(line) != line
-    })
+    scoreboard_push_segment_paragraph(&cur, out);
+}
+
+fn scoreboard_push_shape_text(el: &DumpElement, out: &mut Vec<String>) {
+    if let Some(editor) = &el.editor_text {
+        if !editor.segments.is_empty() {
+            scoreboard_push_segments(&editor.segments, out);
+            return;
+        }
+    }
+    if let Some(t) = &el.text {
+        scoreboard_push_text(t, out);
+    }
 }
 
 fn scoreboard_walk_elements(elements: &[DumpElement], out: &mut Vec<String>) {
     for el in elements {
         if el.type_ != "picture" {
-            if scoreboard_prefers_editor_segments(el) {
-                if let Some(editor) = &el.editor_text {
-                    scoreboard_push_segments(&editor.segments, out);
-                } else if let Some(t) = &el.text {
-                    scoreboard_push_text(t, out);
-                }
-            } else if let Some(t) = &el.text {
-                scoreboard_push_text(t, out);
-            }
+            scoreboard_push_shape_text(el, out);
         }
         if let Some(table) = &el.table_data {
             for row in &table.rows {
@@ -180,7 +178,11 @@ fn scoreboard_walk_elements(elements: &[DumpElement], out: &mut Vec<String>) {
                     if cell.h_merge || cell.v_merge {
                         continue;
                     }
-                    scoreboard_push_text(&cell.text, out);
+                    if let Some(runs) = &cell.rich.runs {
+                        scoreboard_push_cell_runs(runs, out);
+                    } else {
+                        scoreboard_push_text(&cell.text, out);
+                    }
                 }
             }
         }
@@ -2519,6 +2521,63 @@ mod tests {
         assert!(
             slide1.iter().any(|p| p.as_str() == Some("u")),
             "expected paragraph `u`, got {slide1:?}"
+        );
+    }
+
+    // Catches: scoreboard treating `a:br` as a paragraph boundary via `DumpElement::text` (poi-bug62513).
+    #[test]
+    fn scoreboard_bug62513_soft_break_in_one_paragraph() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/pptx/poi-bug62513.pptx"
+        );
+        let bytes = std::fs::read(path).expect("bug62513");
+        let mut pres = Presentation::open(&bytes).unwrap();
+        let j = pres.scoreboard_extract_json().unwrap();
+        let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+        let slide1 = v["slides"][0].as_array().expect("slide 1");
+        let merged = |s: &str| {
+            s.chars()
+                .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+                .collect::<String>()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+        assert!(
+            slide1
+                .iter()
+                .any(|p| merged(p.as_str().unwrap_or("")) == "CNIA Annual General Meeting"),
+            "{slide1:?}"
+        );
+    }
+
+    // Catches: `a:br` with `a:rPr` treated as paragraph split in scoreboard (python-pptx-txt-font-typeface).
+    #[test]
+    fn scoreboard_typeface_soft_break_joins_runs() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/pptx/python-pptx-txt-font-typeface.pptx"
+        );
+        let bytes = std::fs::read(path).expect("typeface");
+        let mut pres = Presentation::open(&bytes).unwrap();
+        let j = pres.scoreboard_extract_json().unwrap();
+        let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+        let slide1 = v["slides"][0].as_array().expect("slide 1");
+        let merged = |s: &str| {
+            s.chars()
+                .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+                .collect::<String>()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+        assert!(
+            slide1.iter().any(|p| {
+                merged(p.as_str().unwrap_or(""))
+                    == "textbox with multiple runs having typeface customized at shape level"
+            }),
+            "{slide1:?}"
         );
     }
 

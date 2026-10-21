@@ -451,11 +451,10 @@ pub(crate) fn load_workbook_shell(pkg: &mut Package) -> Result<WorkbookShell, St
     })
 }
 
-/// Load Stage-3 workbook slice (workbook / styles / theme / shared strings; sheet stubs only)
-/// plus the active worksheet's full cell table.
-pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
-    let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
-    let mut shell = load_workbook_shell(&mut pkg)?;
+fn fill_shared_strings_from_shell(
+    shell: &mut WorkbookShell,
+    pkg: &mut Package,
+) -> Result<(), String> {
     if let Some(part) = shell.strings_part.clone() {
         let strings_xml = pkg
             .text(&part)
@@ -464,6 +463,26 @@ pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
         shell.workbook.shared_strings =
             parse_shared_strings(strings_xml.as_deref(), shell.workbook.palette.as_deref());
     }
+    Ok(())
+}
+
+/// Workbook shell, styles, theme, and shared strings — no worksheet cell parse.
+///
+/// Use with [`parse_all_worksheets`] when every sheet must be materialised once (scoreboard parse
+/// race, view-IR dumps) without double-parsing the active sheet via [`load_workbook`].
+pub fn load_workbook_meta(bytes: &[u8]) -> Result<WorkbookSlice, String> {
+    let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
+    let mut shell = load_workbook_shell(&mut pkg)?;
+    fill_shared_strings_from_shell(&mut shell, &mut pkg)?;
+    Ok(shell.workbook)
+}
+
+/// Load Stage-3 workbook slice (workbook / styles / theme / shared strings; sheet stubs only)
+/// plus the active worksheet's full cell table.
+pub fn load_workbook(bytes: &[u8]) -> Result<WorkbookSlice, String> {
+    let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
+    let mut shell = load_workbook_shell(&mut pkg)?;
+    fill_shared_strings_from_shell(&mut shell, &mut pkg)?;
     let active_idx = shell.workbook.active_sheet as usize;
     if shell.sheet_is_worksheet.get(active_idx) == Some(&true) {
         let stub = &shell.workbook.sheets[active_idx];
@@ -674,5 +693,21 @@ mod tests {
         assert_eq!(r.start, CellAddress { row: 0, col: 0 });
         assert_eq!(r.end.col, 2);
         assert_eq!(r.end.row, crate::address::MAX_ROW);
+    }
+
+    #[test]
+    fn load_workbook_meta_skips_active_sheet_cells() {
+        // Catches: scoreboard meta load inflating the active sheet before parse_all_worksheets (double parse).
+        let bytes = include_bytes!("../../../../fixtures/generated/xlsx/cells_100k.xlsx");
+        let meta = load_workbook_meta(bytes).expect("meta");
+        assert!(meta.active_worksheet.is_none());
+        let full = load_workbook(bytes).expect("full");
+        assert!(full.active_worksheet.is_some());
+        let meta_sheets = parse_all_worksheets(bytes, &meta).expect("meta sheets");
+        let full_sheets = parse_all_worksheets(bytes, &full).expect("full sheets");
+        let meta_cells = meta_sheets[0].as_ref().map(|s| s.cells.len()).unwrap_or(0);
+        let full_cells = full_sheets[0].as_ref().map(|s| s.cells.len()).unwrap_or(0);
+        assert_eq!(meta_cells, full_cells);
+        assert!(meta_cells > 0);
     }
 }

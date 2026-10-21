@@ -537,9 +537,10 @@ bash scripts/ci/bundle_budget.sh
 Self-contained Nitro WASM **parse adapters** (no #113) landed in
 [#299](https://github.com/jgridifier/nitro-xml/pull/299) /
 [#329](https://github.com/jgridifier/nitro-xml/pull/329): calamine-style shims +
-`competitors.json` **entered**, with local real-fixture runs vs upstream-ts (xlsx 28W/2L
-geomean 0.465; docx 30W/0L; pptx 20 comparable / 10 nc — losses and `(nc)` kept). Those PRs
-do **not** write `docs/scoreboard/data/parse-latest.json`.
+`competitors.json` **entered**, with local real-fixture runs vs upstream-ts (xlsx **30W/0L**
+geomean **0.272** after single-parse shim cut on this branch; was 28W/2L geomean 0.465;
+docx 30W/0L; pptx **30/30** comparable per [#384](https://github.com/jgridifier/nitro-xml/pull/384)).
+Those PRs do **not** write `docs/scoreboard/data/parse-latest.json`.
 
 | Still blocked for published standings | Link | Why |
 |---------------------------------------|------|-----|

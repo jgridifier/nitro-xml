@@ -7,10 +7,22 @@ use crate::fast_hash::FastMap;
 use crate::model::{ActiveWorksheet, CellRange, DumpCell, DumpCellValue};
 
 /// Row-major cell index built from [`ActiveWorksheet::cells`].
-#[derive(Debug, Default)]
+///
+/// `PartialEq` is always true: this is a cache, not part of sheet identity.
+#[derive(Debug, Default, Clone)]
 pub struct CellIndex {
     rows: FastMap<u32, FastMap<u32, usize>>,
+    /// `cells.len()` when this index was last fully synced.
+    len: usize,
 }
+
+impl PartialEq for CellIndex {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for CellIndex {}
 
 impl CellIndex {
     pub fn build(sheet: &ActiveWorksheet) -> Self {
@@ -18,16 +30,111 @@ impl CellIndex {
         for (idx, cell) in sheet.cells.iter().enumerate() {
             rows.entry(cell.row).or_default().insert(cell.col, idx);
         }
-        Self { rows }
+        Self {
+            rows,
+            len: sheet.cells.len(),
+        }
+    }
+
+    #[inline]
+    pub fn index_of(&self, row: u32, col: u32) -> Option<usize> {
+        self.rows.get(&row)?.get(&col).copied()
     }
 
     pub fn get<'a>(&self, sheet: &'a ActiveWorksheet, row: u32, col: u32) -> Option<&'a DumpCell> {
-        let idx = self.rows.get(&row)?.get(&col)?;
-        sheet.cells.get(*idx)
+        let idx = self.index_of(row, col)?;
+        sheet.cells.get(idx)
     }
 
     pub fn row_cols(&self, row: u32) -> Option<&FastMap<u32, usize>> {
         self.rows.get(&row)
+    }
+
+    pub fn synced_len(&self) -> usize {
+        self.len
+    }
+
+    pub fn insert(&mut self, row: u32, col: u32, idx: usize) {
+        self.rows.entry(row).or_default().insert(col, idx);
+    }
+
+    pub fn clear_at(&mut self, row: u32, col: u32) {
+        let mut empty = false;
+        if let Some(cols) = self.rows.get_mut(&row) {
+            cols.remove(&col);
+            empty = cols.is_empty();
+        }
+        if empty {
+            self.rows.remove(&row);
+        }
+    }
+
+    /// After `cells.remove(i)`: drop the removed key and shift indices above `i`.
+    pub fn remove_shifting(&mut self, removed_row: u32, removed_col: u32, i: usize) {
+        self.clear_at(removed_row, removed_col);
+        for cols in self.rows.values_mut() {
+            for idx in cols.values_mut() {
+                if *idx > i {
+                    *idx -= 1;
+                }
+            }
+        }
+        self.len = self.len.saturating_sub(1);
+    }
+}
+
+impl ActiveWorksheet {
+    pub fn find_cell_pos(&self, row: u32, col: u32) -> Option<usize> {
+        if self.cell_pos.synced_len() == self.cells.len() {
+            return self.cell_pos.index_of(row, col);
+        }
+        // Stale cache (bulk replace forgot rebuild) — linear fallback.
+        self.cells.iter().position(|c| c.row == row && c.col == col)
+    }
+
+    pub fn ensure_cell_pos(&mut self) {
+        if self.cell_pos.synced_len() != self.cells.len() {
+            self.rebuild_cell_pos();
+        }
+    }
+
+    pub fn rebuild_cell_pos(&mut self) {
+        self.cell_pos = CellIndex::build(self);
+    }
+
+    pub fn push_cell(&mut self, cell: DumpCell) {
+        let row = cell.row;
+        let col = cell.col;
+        self.cells.push(cell);
+        let idx = self.cells.len() - 1;
+        self.cell_pos.insert(row, col, idx);
+        self.cell_pos.len += 1;
+    }
+
+    pub fn remove_cell_pos(&mut self, i: usize) {
+        let removed = self.cells.remove(i);
+        self.cell_pos.remove_shifting(removed.row, removed.col, i);
+    }
+
+    pub fn upsert_dump_cell(&mut self, cell: DumpCell) {
+        self.ensure_cell_pos();
+        if let Some(i) = self.cell_pos.index_of(cell.row, cell.col) {
+            self.cells[i] = cell;
+        } else {
+            self.push_cell(cell);
+        }
+    }
+
+    pub fn remove_cell_at_coord(&mut self, row: u32, col: u32) {
+        self.ensure_cell_pos();
+        if let Some(i) = self.cell_pos.index_of(row, col) {
+            self.remove_cell_pos(i);
+        }
+    }
+
+    pub fn replace_cells(&mut self, cells: Vec<DumpCell>) {
+        self.cells = cells;
+        self.rebuild_cell_pos();
     }
 }
 

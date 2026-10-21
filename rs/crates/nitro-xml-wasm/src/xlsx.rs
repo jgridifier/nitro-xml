@@ -257,6 +257,19 @@ impl XlsxState {
         Ok(())
     }
 
+    /// Drop the lazy first-view (and any deferred SeekTail). Used when the edit host
+    /// takes ownership of the grid so paint must not re-stream or replace sheets.
+    pub fn drop_lazy_view(&mut self) {
+        self.lazy = None;
+        self.pending_tail_complete = false;
+    }
+
+    /// Test seam: whether the open path still holds a lazy FirstView.
+    #[cfg(test)]
+    pub fn lazy_is_some_for_test(&self) -> bool {
+        self.lazy.is_some()
+    }
+
     /// Replace the lazy window with a full `load_workbook` so search and hyperlinks see every cell.
     fn materialise_full(&mut self, bytes: &[u8]) -> Result<(), String> {
         if self.lazy.is_none() {
@@ -266,7 +279,7 @@ impl XlsxState {
         let parsed = parse_all_worksheets(bytes, &workbook)?;
         self.sheets = parsed;
         self.workbook = workbook;
-        self.lazy = None;
+        self.drop_lazy_view();
         Ok(())
     }
 

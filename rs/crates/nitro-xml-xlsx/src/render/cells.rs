@@ -567,7 +567,16 @@ pub fn paint<I: StringIntern>(
         paint_edit_overlay(buf, intern, &keys, metrics, hints);
         return;
     }
-    let index = CellIndex::build(sheet);
+    // Prefer the maintained sheet index. Rebuilding over cells_1m is ~150–250ms per
+    // paint and was the xlsx/L edit-cell ~90ms session-p50 outlier (React embed) when
+    // the mut-frame `_nxPainted` short-circuit missed and tick ran a full paint.
+    let rebuilt;
+    let index = if sheet.cell_pos.synced_len() == sheet.cells.len() {
+        &sheet.cell_pos
+    } else {
+        rebuilt = CellIndex::build(sheet);
+        &rebuilt
+    };
     // Live grid matches upstream grid-view.ts: metrics.zoom is percent (e.g. 100).
     // View-IR dumps still pass zoom/100 for FakeTextMeasure — do not change that path here.
     let zoom = metrics.zoom;
@@ -584,7 +593,7 @@ pub fn paint<I: StringIntern>(
             sheet,
             sheet_index,
             all_sheets,
-            index: &index,
+            index,
             metrics,
             zoom,
             rows: &rows,

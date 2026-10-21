@@ -392,3 +392,27 @@ short key `hf` (~1–2 KB) instead of full `h` (~54 KB ribbon+shell). Loader pat
 `doc._chromeEl`. Follow-up to omit-unchanged `h` (#357).
 
 React-embed `edit-cell` interleaved (n=40): xlsx S ~11→8.5 ms, L ~12→10.8 ms.
+
+## Slice 13: xlsx/L edit-cell ~90 ms session-p50 outliers (issue #30)
+
+### Profile (React-embed `edit-cell` xlsx/L, main `df397ce`, 12×21)
+
+Bimodal session medians: ~12 ms (normal) vs ~90–170 ms (outlier). Per-sample breakdown:
+
+| Mode | first sample | later applyEdit | later tick |
+|---|--:|--:|--:|
+| Normal | ~1.1 s (`ensure_edit` re-parse + 1M DumpCell materialize) | ~8–12 ms | ~5–20 ms (`_nxPainted` short-circuit) |
+| Outlier | ~1.1 s | ~10 ms | **~160–250 ms × 1–2 ticks** (full paint) |
+
+Not GC / `memory.grow` / chrome HTML: applyEdit stays cheap; JS heap after is ~15–17 MiB either way.
+Long-task observer empty. Outlier cost is **host tick → `prepareFrame` → `paint_grid_frame`**.
+
+Root cause: after first `ensure_edit`, `sync_model_from_edit` clones the host’s **1M** `DumpCell`s into the viewer while `lazy` FirstView stays live. When the mut-frame `_nxPainted` short-circuit misses (measure re-ticks / race), paint runs `CellIndex::build(sheet)` over the full vec (**~150–250 ms**). Occasional sessions stay in that full-paint regime → session p50 ~90 ms.
+
+### Fix
+
+1. Maintain `ActiveWorksheet.cell_pos`; paint uses it instead of rebuilding.
+2. `ensure_edit` calls `drop_lazy_view()` so `flush_pending_tail` / `sync_lazy_sheet` cannot re-stream or replace the edit grid.
+3. Edit-path helpers (`ensure_cell` / `sync_cells_from_edit`) keep the index in sync (from the closed #385 attempt; that PR was NOISE on median because short-circuit hid the paint cost).
+
+A/B (React-embed `edit-cell` S+L, n≥21 interleaved, p50/p95/max + edit heap): see PR.

@@ -572,11 +572,13 @@ mod tests {
         let mut host = XlsxHost::open(&bytes).expect("open");
         {
             let sheet = host.sheet_mut(0).expect("sheet");
-            if let Some(cell) = sheet.cells.iter_mut().find(|c| c.row == 0 && c.col == 2) {
+            sheet.ensure_cell_pos();
+            if let Some(i) = sheet.find_cell_pos(0, 2) {
+                let cell = &mut sheet.cells[i];
                 cell.formula = Some("A1+1".into());
                 cell.value = DumpCellValue::Null;
             } else {
-                sheet.cells.push(DumpCell {
+                sheet.push_cell(DumpCell {
                     row: 0,
                     col: 2,
                     value: DumpCellValue::Null,

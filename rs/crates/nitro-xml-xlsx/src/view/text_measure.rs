@@ -2,7 +2,7 @@
 //! Text width for grid layout (canvas batch or estimate).
 
 use crate::intern::StringIntern;
-use crate::view::fake_measure::{estimate_width, fake_xlsx_measure};
+use crate::view::fake_measure::{estimate_width_sized, fake_xlsx_measure, font_size_px};
 use nitro_xml_render::measure::MeasureBatch;
 
 pub trait TextMeasure {
@@ -39,6 +39,9 @@ pub struct CanvasTextMeasure<'a, I: StringIntern> {
     /// Last font CSS + id — cells share Calibri/11px; skip StringTable re-hash (#30).
     last_font: String,
     last_font_id: u32,
+    /// Parsed once when `last_font` changes — avoid per-cell `find("px")` / `contains("bold")`.
+    last_size_px: f64,
+    last_bold: bool,
 }
 
 impl<'a, I: StringIntern> CanvasTextMeasure<'a, I> {
@@ -48,6 +51,8 @@ impl<'a, I: StringIntern> CanvasTextMeasure<'a, I> {
             batch,
             last_font: String::new(),
             last_font_id: 0,
+            last_size_px: 14.67,
+            last_bold: false,
         }
     }
 }
@@ -64,13 +69,18 @@ impl<I: StringIntern> TextMeasure for CanvasTextMeasure<'_, I> {
             self.last_font.clear();
             self.last_font.push_str(font);
             self.last_font_id = id;
+            self.last_size_px = font_size_px(font);
+            // Same predicate as upstream estimateWidth (`font.includes("bold")`).
+            self.last_bold = font.contains("bold");
             id
         };
         let text_id = self.intern.intern(text);
         if let Some(w) = self.batch.cached_width(font_id, text_id) {
             return w;
         }
-        let _ = self.batch.push_unique(font_id, 0.0, text_id);
-        estimate_width(text, font)
+        let _ = self
+            .batch
+            .push_unique(font_id, self.last_size_px as f32, text_id);
+        estimate_width_sized(text, self.last_size_px, self.last_bold)
     }
 }

@@ -12,6 +12,7 @@ use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
 use crate::render::geometry::header_sizes;
 use crate::render::grid::{CELLS_ID, CELLS_TOP_ID, OVERLAY_ID};
+use crate::render::paint_encode::intern_px;
 use crate::render::viewport::{paint_indices, visible_cells_for_host};
 use crate::render::{EditorPaintHints, GridPaintViewport};
 use crate::sheet_access::CellIndex;
@@ -392,6 +393,7 @@ fn paint_one_cell<I: StringIntern>(
         let font_css = font_memo.get_or_compute(&item.view.font, zoom * item.font_scale);
         // Keep left/width in the style attr + always emit `.xg-tx` (upstream layout).
         // PlaceBox h<0 / span collapse / omitting CSS defaults failed visual (#30).
+        // Splitting left/width to SetStyle+intern_px raised cmd_bytes ~19% with no open win.
         style_buf.clear();
         let _ = write!(
             style_buf,
@@ -465,20 +467,8 @@ fn paint_one_cell<I: StringIntern>(
         let border_id = BORDER_BASE + n as u32;
         buf.create_element(border_id, div, cell_id);
         set_attr_v(buf, intern, border_id, keys.class, "xg-b");
-        set_style_v(
-            buf,
-            intern,
-            border_id,
-            keys.width,
-            &format!("{}px", item.w + 1),
-        );
-        set_style_v(
-            buf,
-            intern,
-            border_id,
-            keys.height,
-            &format!("{}px", item.h + 1),
-        );
+        buf.set_style(border_id, keys.width, intern_px(intern, item.w + 1));
+        buf.set_style(border_id, keys.height, intern_px(intern, item.h + 1));
         let b = &item.view.borders;
         if b.top.is_some() {
             set_style_v(
@@ -668,10 +658,10 @@ fn paint_edit_overlay<I: StringIntern>(
     buf.create_element(EDITOR_BOX, div, OVERLAY_ID);
     set_attr_v(buf, intern, EDITOR_BOX, keys.class, "xg-edit");
     set_style_v(buf, intern, EDITOR_BOX, keys.position, "absolute");
-    set_style_v(buf, intern, EDITOR_BOX, keys.left, &format!("{left}px"));
-    set_style_v(buf, intern, EDITOR_BOX, keys.top, &format!("{top}px"));
-    set_style_v(buf, intern, EDITOR_BOX, keys.width, &format!("{w}px"));
-    set_style_v(buf, intern, EDITOR_BOX, keys.height, &format!("{h}px"));
+    buf.set_style(EDITOR_BOX, keys.left, intern_px(intern, left));
+    buf.set_style(EDITOR_BOX, keys.top, intern_px(intern, top));
+    buf.set_style(EDITOR_BOX, keys.width, intern_px(intern, w));
+    buf.set_style(EDITOR_BOX, keys.height, intern_px(intern, h));
     set_style_v(buf, intern, EDITOR_BOX, keys.background, "#fff");
     set_style_v(buf, intern, EDITOR_BOX, keys.border, "2px solid #217346");
     set_style_v(buf, intern, EDITOR_BOX, keys.box_sizing, "border-box");

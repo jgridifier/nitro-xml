@@ -234,7 +234,7 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `parity/visual/xlsx-grid-css.js` | `src/ui/src/xlsx/grid/styles.ts` (`GRID_CSS`) @ e66aaec | Visual-gate stylesheet for `<nitro-xlsx>` host (#150); not shipped in the loader. |
 | `rs/crates/nitro-xml-xlsx/src/render/drawings.rs` | `src/ui/src/xlsx/grid/drawings.ts` @ e66aaec | `.xg-drawings` layer: unsupported placeholders + chart SVG; image object-URL paint deferred to loader. |
 | `rs/crates/nitro-xml-xlsx/src/render/grid.rs` | `src/ui/src/xlsx/grid/grid-view.ts`, `grid-a11y.ts` @ e66aaec | Frame shell + `role=grid`/aria counts/live region (#42); full quadrants TODO(#19). |
-| `rs/crates/nitro-xml-xlsx/src/render/cells.rs` | `src/ui/src/xlsx/grid/cell-layer.ts` @ e66aaec | Cell DOM command buffer (`paintCell` parity); geometry packed into one `style` attr. |
+| `rs/crates/nitro-xml-xlsx/src/render/cells.rs` | `src/ui/src/xlsx/grid/cell-layer.ts` @ e66aaec | Cell DOM command buffer (`paintCell` parity); text geometry packed into one `style` attr; border/editor px via `intern_px` (#30). |
 | `rs/crates/nitro-xml-xlsx/src/cf/mod.rs` | `src/core/xlsx/read/conditional.ts`, `layout/cf-evaluator.ts`, `ui/grid/icon-sets.ts` @ e66aaec | Module root for CF read/eval/icon SVG (#150 soft). |
 | `rs/crates/nitro-xml-xlsx/src/cf/read.rs` | `src/core/xlsx/read/conditional.ts` @ e66aaec | `cellIs` / `expression` / `colorScale` / `dataBar` / `iconSet` (+ Other stub). |
 | `rs/crates/nitro-xml-xlsx/src/cf/eval.rs` | `src/core/xlsx/layout/cf-evaluator.ts`, `cf-helpers.ts`, `cf-values.ts`, `data-bar-geometry.ts` @ e66aaec | Icon/colour-scale/data-bar + `cellIs` stopIfTrue + dxf merge; full formula CF deferred. |

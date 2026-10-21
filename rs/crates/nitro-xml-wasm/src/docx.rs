@@ -480,6 +480,19 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         return;
     }
 
+    docx_paint_frame(handle, was_ready, prev_page_count, body_just_completed);
+}
+
+/// Paint path for docx `process_frame` when layout and chart measures are ready.
+/// Kept out of `process_frame` with `inline(never)` so V8 does not TurboFan-inline
+/// print layout / chart paint into the first-open frame body.
+#[inline(never)]
+fn docx_paint_frame(
+    handle: &mut crate::handle::Handle,
+    was_ready: bool,
+    prev_page_count: usize,
+    body_just_completed: bool,
+) {
     let mut new_warnings: Vec<String> = Vec::new();
     let mut tabs: Option<(Vec<(u32, String)>, u32)> = None;
     if let Some(ref mut docx) = handle.docx {
@@ -494,6 +507,16 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         }
         docx.paint(&mut handle.strings, &mut handle.commands);
     }
+    docx_paint_frame_shell(handle, tabs, body_just_completed, new_warnings);
+}
+
+#[inline(never)]
+fn docx_paint_frame_shell(
+    handle: &mut crate::handle::Handle,
+    tabs: Option<(Vec<(u32, String)>, u32)>,
+    body_just_completed: bool,
+    new_warnings: Vec<String>,
+) {
     if let Some((tabs, idx)) = tabs {
         handle.shell.set_tabs(tabs, idx);
         handle.shell.dirty_ui = true;
@@ -517,6 +540,23 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn catches_docx_process_frame_before_paint_ready() {
+        // Catches: first-open process_frame returning before paint_ready must not panic
+        // when the layout/measure gate is still open (openDocument defers paint).
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/docx/pages_10.docx");
+        let bytes = std::fs::read(&path).expect("fixture");
+        let mut handle = crate::handle::Handle::new(bytes);
+        let docx = DocxState::open(handle.bytes.as_ref()).expect("open");
+        assert!(
+            !docx.paint_ready(),
+            "open_first_view must not be fully paint-ready before the first frame tick"
+        );
+        handle.docx = Some(docx);
+        process_frame(&mut handle);
+    }
 
     #[test]
     fn catches_docx_find_table_cells_and_script_hrefs() {

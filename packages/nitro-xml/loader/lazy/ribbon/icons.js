@@ -55,6 +55,7 @@ export const ICONS = {
   spacing: '<path d="M6 9h12M6 12h12M6 15h12"/><path class="a" d="M12 3v3M12 18v3M10 5l2-2 2 2M10 19l2 2 2-2"/>',
   spaceBefore: '<path class="a" d="M4 5h16"/><path d="M6 11h12M6 15h12M6 19h12"/>',
   spaceAfter: '<path d="M6 5h12M6 9h12M6 13h12"/><path class="a" d="M4 19h16"/>',
+  hanging: '<path class="a" d="M4 6h16"/><path d="M8 11h12M8 15h12M8 19h12"/>',
   subscript: '<path d="M5 6l8 8M13 6L5 14"/><path class="a" d="M16 16h4v1.2c0 1.2-.8 2-2 2s-2-.8-2-2"/>',
   superscript: '<path d="M5 8l8 8M13 8L5 16"/><path class="a" d="M16 4h4v1.2c0 1.2-.8 2-2 2s-2-.8-2-2"/>',
   font: '<path d="M5 19L11 5h2l6 14M7.5 14h9"/><path class="a" d="M16 5h3"/>',

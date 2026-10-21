@@ -19,27 +19,42 @@ use crate::transport::StringTable;
 use crate::xlsx::{is_xlsx_extension, search_options_from_json, XlsxState};
 use crate::xlsx_edit::{editor_key_json, EditorKeyEffect};
 
+#[inline(never)]
+fn process_frame_xlsx(handle: &mut Handle) {
+    crate::xlsx::process_frame(handle);
+}
+
+#[inline(never)]
+fn process_frame_pptx(handle: &mut Handle) {
+    crate::pptx::process_frame(handle);
+    if let Some(pptx) = handle.pptx.as_ref() {
+        let idx = pptx.active as u32;
+        if handle.shell.nav_index != idx {
+            handle.shell.nav_index = idx;
+            handle.shell.dirty_ui = true;
+        }
+    }
+}
+
+#[inline(never)]
+fn process_frame_docx(handle: &mut Handle) {
+    crate::docx::process_frame(handle);
+    if let Some(docx) = handle.docx.as_ref() {
+        let idx = docx.active as u32;
+        if handle.shell.nav_index != idx {
+            handle.shell.nav_index = idx;
+            handle.shell.dirty_ui = true;
+        }
+    }
+}
+
 fn process_frame(handle: &mut Handle) {
     if handle.xlsx.is_some() {
-        crate::xlsx::process_frame(handle);
+        process_frame_xlsx(handle);
     } else if handle.pptx.is_some() {
-        crate::pptx::process_frame(handle);
-        if let Some(pptx) = handle.pptx.as_ref() {
-            let idx = pptx.active as u32;
-            if handle.shell.nav_index != idx {
-                handle.shell.nav_index = idx;
-                handle.shell.dirty_ui = true;
-            }
-        }
+        process_frame_pptx(handle);
     } else if handle.docx.is_some() {
-        crate::docx::process_frame(handle);
-        if let Some(docx) = handle.docx.as_ref() {
-            let idx = docx.active as u32;
-            if handle.shell.nav_index != idx {
-                handle.shell.nav_index = idx;
-                handle.shell.dirty_ui = true;
-            }
-        }
+        process_frame_docx(handle);
     }
 }
 use js_sys::{Array, Function, JsString};
@@ -295,114 +310,128 @@ impl Handle {
         }
     }
 
+    #[inline(never)]
+    fn open_xlsx_document(&mut self) -> Result<(), JsValue> {
+        let t0 = now_ms();
+        let (mut state, warnings) =
+            XlsxState::open(std::sync::Arc::clone(&self.bytes)).map_err(js_open_err)?;
+        self.shell = ShellState::default();
+        self.shell.format = FormatKind::Xlsx;
+        self.shell.diagnostics.clear_runtime();
+        for w in &warnings {
+            let code = open_diagnostic_code(w, "xlsx_warning");
+            self.shell.diagnostics.ingest_warning(code, w, None);
+            self.push_warning(code.into(), w.clone(), None);
+        }
+        self.shell.set_tabs(
+            state
+                .sheets_json()
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|s| {
+                            let index = s.get("index")?.as_u64()? as u32;
+                            let name = s.get("name")?.as_str()?.to_owned();
+                            Some((index, name))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            state.active as u32,
+        );
+        // Seed shell zoom from sheet zoomScale (upstream grid-view.ts).
+        self.shell.set_zoom(state.active_view_zoom());
+        state.set_zoom_pct(self.shell.zoom_pct);
+        if let Some(r) = state.selection_ref_now() {
+            self.shell.selection_ref = r;
+        }
+        self.xlsx = Some(state);
+        self.pptx = None;
+        self.docx = None;
+        self.shell.diagnostics.parse_ms = now_ms() - t0;
+        let t1 = now_ms();
+        process_frame(self);
+        self.shell.diagnostics.paint_ms = now_ms() - t1;
+        self.shell.dirty_ui = true;
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn open_pptx_document(&mut self) -> Result<(), JsValue> {
+        let t0 = now_ms();
+        let mut state = PptxState::open(std::sync::Arc::clone(&self.bytes)).map_err(js_open_err)?;
+        self.shell = ShellState::default();
+        self.shell.format = FormatKind::Pptx;
+        self.shell.diagnostics.clear_runtime();
+        let n = state.pres.slide_count();
+        self.shell.set_tabs(
+            (0..n)
+                .map(|i| (i as u32, format!("Slide {}", i + 1)))
+                .collect(),
+            state.active as u32,
+        );
+        match state.unsupported_labels() {
+            Ok(kinds) => {
+                for kind in kinds {
+                    self.shell
+                        .diagnostics
+                        .ingest_warning("unsupported_content", &kind, None);
+                    self.push_warning("unsupported_content".into(), kind, None);
+                }
+            }
+            Err(e) => {
+                self.shell
+                    .diagnostics
+                    .ingest_warning("pptx_warning", &e, None);
+                self.push_warning("pptx_warning".into(), e, None);
+            }
+        }
+        self.pptx = Some(state);
+        self.xlsx = None;
+        self.docx = None;
+        self.shell.diagnostics.parse_ms = now_ms() - t0;
+        let t1 = now_ms();
+        process_frame(self);
+        self.shell.diagnostics.paint_ms = now_ms() - t1;
+        self.shell.dirty_ui = true;
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn open_docx_document(&mut self) -> Result<(), JsValue> {
+        let t0 = now_ms();
+        let state = DocxState::open(&self.bytes).map_err(js_open_err)?;
+        self.shell = ShellState::default();
+        self.shell.format = FormatKind::Docx;
+        self.shell.diagnostics.clear_runtime();
+        for w in &state.session.warnings {
+            let code = open_diagnostic_code(w, "docx_warning");
+            self.shell.diagnostics.ingest_warning(code, w, None);
+            self.push_warning(code.into(), w.clone(), None);
+        }
+        self.shell.set_tabs(state.page_tabs(), state.active as u32);
+        self.docx = Some(state);
+        self.xlsx = None;
+        self.pptx = None;
+        self.shell.diagnostics.parse_ms = now_ms() - t0;
+        let t1 = now_ms();
+        process_frame(self);
+        self.shell.diagnostics.paint_ms = now_ms() - t1;
+        self.shell.dirty_ui = true;
+        Ok(())
+    }
+
     /// Open a supported OOXML document (extension hint). Xlsx viewer path loads workbook + first paint.
     #[wasm_bindgen(js_name = openDocument)]
     pub fn open_document(&mut self, name: &str) -> Result<(), JsValue> {
         if is_xlsx_extension(name) {
-            let t0 = now_ms();
-            let (mut state, warnings) =
-                XlsxState::open(std::sync::Arc::clone(&self.bytes)).map_err(js_open_err)?;
-            self.shell = ShellState::default();
-            self.shell.format = FormatKind::Xlsx;
-            self.shell.diagnostics.clear_runtime();
-            for w in &warnings {
-                let code = open_diagnostic_code(w, "xlsx_warning");
-                self.shell.diagnostics.ingest_warning(code, w, None);
-                self.push_warning(code.into(), w.clone(), None);
-            }
-            self.shell.set_tabs(
-                state
-                    .sheets_json()
-                    .as_array()
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|s| {
-                                let index = s.get("index")?.as_u64()? as u32;
-                                let name = s.get("name")?.as_str()?.to_owned();
-                                Some((index, name))
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-                state.active as u32,
-            );
-            // Seed shell zoom from sheet zoomScale (upstream grid-view.ts).
-            self.shell.set_zoom(state.active_view_zoom());
-            state.set_zoom_pct(self.shell.zoom_pct);
-            if let Some(r) = state.selection_ref_now() {
-                self.shell.selection_ref = r;
-            }
-            self.xlsx = Some(state);
-            self.pptx = None;
-            self.docx = None;
-            self.shell.diagnostics.parse_ms = now_ms() - t0;
-            let t1 = now_ms();
-            process_frame(self);
-            self.shell.diagnostics.paint_ms = now_ms() - t1;
-            self.shell.dirty_ui = true;
-            return Ok(());
+            return self.open_xlsx_document();
         }
         if is_pptx_extension(name) {
-            let t0 = now_ms();
-            let mut state =
-                PptxState::open(std::sync::Arc::clone(&self.bytes)).map_err(js_open_err)?;
-            self.shell = ShellState::default();
-            self.shell.format = FormatKind::Pptx;
-            self.shell.diagnostics.clear_runtime();
-            let n = state.pres.slide_count();
-            self.shell.set_tabs(
-                (0..n)
-                    .map(|i| (i as u32, format!("Slide {}", i + 1)))
-                    .collect(),
-                state.active as u32,
-            );
-            match state.unsupported_labels() {
-                Ok(kinds) => {
-                    for kind in kinds {
-                        self.shell
-                            .diagnostics
-                            .ingest_warning("unsupported_content", &kind, None);
-                        self.push_warning("unsupported_content".into(), kind, None);
-                    }
-                }
-                Err(e) => {
-                    self.shell
-                        .diagnostics
-                        .ingest_warning("pptx_warning", &e, None);
-                    self.push_warning("pptx_warning".into(), e, None);
-                }
-            }
-            self.pptx = Some(state);
-            self.xlsx = None;
-            self.docx = None;
-            self.shell.diagnostics.parse_ms = now_ms() - t0;
-            let t1 = now_ms();
-            process_frame(self);
-            self.shell.diagnostics.paint_ms = now_ms() - t1;
-            self.shell.dirty_ui = true;
-            return Ok(());
+            return self.open_pptx_document();
         }
         if is_docx_extension(name) {
-            let t0 = now_ms();
-            let state = DocxState::open(&self.bytes).map_err(js_open_err)?;
-            self.shell = ShellState::default();
-            self.shell.format = FormatKind::Docx;
-            self.shell.diagnostics.clear_runtime();
-            for w in &state.session.warnings {
-                let code = open_diagnostic_code(w, "docx_warning");
-                self.shell.diagnostics.ingest_warning(code, w, None);
-                self.push_warning(code.into(), w.clone(), None);
-            }
-            self.shell.set_tabs(state.page_tabs(), state.active as u32);
-            self.docx = Some(state);
-            self.xlsx = None;
-            self.pptx = None;
-            self.shell.diagnostics.parse_ms = now_ms() - t0;
-            let t1 = now_ms();
-            process_frame(self);
-            self.shell.diagnostics.paint_ms = now_ms() - t1;
-            self.shell.dirty_ui = true;
-            return Ok(());
+            return self.open_docx_document();
         }
         Err(JsValue::from(OoxmlError::with_code(
             "unsupported_format",
@@ -1998,5 +2027,17 @@ mod tests {
             .is_none());
         let next = h.take_chrome_html_if_changed("<div class=\"xfb\">B2</div>");
         assert_eq!(next.as_deref(), Some("<div class=\"xfb\">B2</div>"));
+    }
+
+    #[test]
+    fn catches_open_document_monolith_tiers_foreign_format_paths() {
+        // Catches: open_document remaining one wasm function so docx open tiers xlsx/pptx bodies (peak RSS).
+        const DOCX: &[u8] = include_bytes!("../../../../fixtures/generated/docx/pages_10.docx");
+        let mut h = Handle::new(DOCX.to_vec());
+        h.open_document("pages.docx").expect("open docx");
+        assert_eq!(h.document_format(), "docx");
+        assert!(h.xlsx.is_none() && h.pptx.is_none() && h.docx.is_some());
+        h.prepare_frame();
+        assert!(h.shell.diagnostics.paint_ms >= 0.0);
     }
 }

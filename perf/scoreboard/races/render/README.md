@@ -11,15 +11,15 @@ within the PRODUCT_SPEC §5 pixel limit vs the upstream TS reference; otherwise 
 | Format | Status |
 |--------|--------|
 | **xlsx** | Entered: `upstream-ts` (reference), `nitro-xml` |
-| **pptx** | Wired when adapters land; #27 viewer is closed — TODO extend adapters |
+| **pptx** | Entered: `upstream-ts` (reference), `nitro-xml` |
 | **docx** | Deferred — TODO(#23) |
 
 ## Fixtures (tiers)
 
 Same generated corpus as `perf/large/ts-vs-wasm.mjs`:
 
-| Tier | xlsx | pptx (later) |
-|------|------|----------------|
+| Tier | xlsx | pptx |
+|------|------|------|
 | S | `fixtures/generated/xlsx/cells_1k.xlsx` | `slides_10.pptx` |
 | M | `cells_100k.xlsx` | `slides_50.pptx` |
 | L | `cells_1m.xlsx` | `slides_200.pptx` |
@@ -37,7 +37,7 @@ bash scripts/build-wasm.sh
 #   cd parity/visual && bun ./prepare.mjs
 
 cd perf/scoreboard && npm ci
-node races/render/run.mjs --format=xlsx --tier=S
+node races/render/run.mjs --format=xlsx,pptx --tier=S
 # writes results/render/<date>-<sha>.json and docs/scoreboard/data/first-paint-latest.json
 ```
 

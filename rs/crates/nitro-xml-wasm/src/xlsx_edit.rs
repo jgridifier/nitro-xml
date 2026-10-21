@@ -549,8 +549,10 @@ mod tests {
         h.set_read_only(false);
         let _ = h.take_frame_commands();
 
-        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"defer-paint"}"#)
-            .expect("edit");
+        h.apply_edit(
+            r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"defer-paint"}"#,
+        )
+        .expect("edit");
         let mid = h.take_frame_commands();
         assert!(
             mid.is_empty(),

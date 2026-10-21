@@ -99,6 +99,13 @@ pub fn ribbon_html(
             surface,
             false,
         ));
+        html.push_str(&button(
+            "home.bring-to-front",
+            "Bring to Front",
+            surface,
+            false,
+        ));
+        html.push_str(&button("home.send-to-back", "Send to Back", surface, false));
         // Group / ungroup change the model, but save skips a still-grouped p:grpSp
         // (TODO #84), so the buttons are omitted until a save round-trip exists.
         html.push_str("</section>");

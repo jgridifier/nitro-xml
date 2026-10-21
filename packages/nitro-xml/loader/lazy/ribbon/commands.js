@@ -2,10 +2,11 @@
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
 // Every `c` id below was checked against the engine (the saved bytes change, or copy reads them);
-// borders, grow/shrink, group, and bring to front are deliberately absent. Cut and paste rewrite
-// the package; copy only fills the editor clipboard.
-// Indent, spacing, script, font name, Word bullets, insert shape, duplicate, delete, one-step z-order,
-// shape fill, outline, and slide layout are listed only after they change the saved package.
+// borders, grow/shrink, and group are deliberately absent. Cut and paste rewrite the package;
+// copy only fills the editor clipboard.
+// Indent, spacing, script, font name, Word bullets, insert shape, duplicate, delete, z-order
+// (one step and all the way), shape fill, outline, and slide layout are listed only after they
+// change the saved package.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
 //   c editor cmd id · d diagnostics toggle · s slide-pane toggle (host) · m dropdown entries · r readout
 //   g group caption · big: large buttons · rows: stacked small buttons · sm: small button style
@@ -38,6 +39,8 @@ const arrange = {
     it("home.delete", "trash", "Delete", "Delete shape"),
     it("home.bring-forward", "forward", "Bring Forward"),
     it("home.send-backward", "back", "Send Backward"),
+    it("home.bring-to-front", "front", "Bring to Front"),
+    it("home.send-to-back", "toBack", "Send to Back"),
   ],
 };
 const wordLists = {

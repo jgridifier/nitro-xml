@@ -1403,6 +1403,109 @@ mod tests {
         assert_eq!(h.save_document().expect("delete undone"), PPTX);
     }
 
+    #[test]
+    fn catches_bring_to_front_and_send_to_back_saving_one_step_order() {
+        // Catches: Bring to Front or Send to Back leaving the saved spTree in one-step
+        // order, a no-op on a single shape rewriting the package, or undo keeping the jump.
+        let order = |bytes: &[u8]| {
+            slide_elements(bytes)
+                .into_iter()
+                .map(|el| {
+                    let text = el.text.clone().unwrap_or_default();
+                    let titled = text.contains("Slide 1")
+                        || el.text_segments.iter().any(|s| s.text.contains("Slide 1"));
+                    if titled {
+                        "title"
+                    } else if (el.x - 100.0).abs() < 1.0 && (el.width - 200.0).abs() < 1.0 {
+                        "rect"
+                    } else if (el.x - 80.0).abs() < 1.0 && (el.width - 240.0).abs() < 1.0 {
+                        "box"
+                    } else {
+                        "other"
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.shell_action("cmd", "home.bring-to-front")
+            .expect("noop front");
+        h.shell_action("cmd", "home.send-to-back")
+            .expect("noop back");
+        assert_eq!(
+            h.save_document().expect("noop z-order"),
+            PPTX,
+            "z-order on the only shape changed the package"
+        );
+
+        h.shell_action("cmd", "insert.shape").expect("shape");
+        h.shell_action("cmd", "insert.text-box").expect("text box");
+        let stacked = h.save_document().expect("stacked");
+        let stacked_ids = order(&stacked);
+        assert_eq!(
+            stacked_ids,
+            ["title", "rect", "box"],
+            "insert order {stacked_ids:?}"
+        );
+
+        h.shell_action("cmd", "home.send-to-back")
+            .expect("send to back");
+        let sent = h.save_document().expect("save back");
+        assert_ne!(sent, stacked);
+        let sent_ids = order(&sent);
+        assert_eq!(
+            sent_ids,
+            ["box", "title", "rect"],
+            "send to back did not jump the text box behind both others"
+        );
+        assert_ne!(
+            sent_ids,
+            ["title", "box", "rect"],
+            "send to back only swapped with the neighbor"
+        );
+
+        h.shell_action("cmd", "home.bring-to-front")
+            .expect("bring to front");
+        let brought = h.save_document().expect("save front");
+        assert_ne!(brought, sent);
+        let brought_ids = order(&brought);
+        assert_eq!(
+            brought_ids,
+            ["title", "rect", "box"],
+            "bring to front did not jump the text box over both others"
+        );
+        assert_ne!(
+            brought_ids,
+            ["title", "box", "rect"],
+            "bring to front only swapped with the neighbor"
+        );
+
+        h.shell_action("cmd", "edit.undo").expect("undo front");
+        assert_eq!(order(&h.save_document().expect("undone front")), sent_ids);
+        h.shell_action("cmd", "edit.undo").expect("undo back");
+        assert_eq!(order(&h.save_document().expect("undone back")), stacked_ids);
+        h.shell_action("cmd", "edit.undo").expect("undo text");
+        h.shell_action("cmd", "edit.undo").expect("undo shape");
+        assert_eq!(h.save_document().expect("clean"), PPTX);
+
+        let strip = h.pptx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.bring-to-front\""));
+        assert!(strip.contains("data-g=\"home.send-to-back\""));
+        assert!(!strip.contains("home.group"));
+        assert!(!strip.contains("home.ungroup"));
+        let home = h
+            .pptx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .ribbon_html();
+        assert!(home.contains("data-command=\"home.bring-to-front\""));
+        assert!(home.contains("data-command=\"home.send-to-back\""));
+        assert!(!home.contains("data-command=\"home.group\""));
+    }
+
     fn apply_cmd(h: &mut Handle, cmd: &'static str) {
         h.apply_edit(&format!(r#"{{"command":"{cmd}"}}"#))
             .expect(cmd);

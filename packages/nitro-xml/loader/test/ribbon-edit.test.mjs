@@ -69,6 +69,8 @@ describe("Office ribbon manifests", () => {
       "home.delete",
       "home.bring-forward",
       "home.send-backward",
+      "home.bring-to-front",
+      "home.send-to-back",
       "insert.table",
       "table.insert-row",
       "table.delete-row",
@@ -93,6 +95,8 @@ describe("Office ribbon manifests", () => {
       "home.delete",
       "home.bring-forward",
       "home.send-backward",
+      "home.bring-to-front",
+      "home.send-to-back",
       "insert.picture",
       "insert.table",
       "table.insert-row",
@@ -208,7 +212,7 @@ describe("Office ribbon manifests", () => {
   });
 
   it("keeps PowerPoint and Word ribbons inside the WASM strip", () => {
-    // Catches: a GitHub Pages button for group or bring-to-front, which the editor does not save.
+    // Catches: a GitHub Pages button for group, which the editor does not save.
     const strip = (rel) => {
       const src = readFileSync(new URL(rel, import.meta.url), "utf8");
       const start = src.indexOf("pub fn ribbon_html");
@@ -224,8 +228,6 @@ describe("Office ribbon manifests", () => {
     const off = [
       "home.group",
       "home.ungroup",
-      "home.bring-to-front",
-      "home.send-to-back",
       "home.grow-font",
       "home.shrink-font",
     ];

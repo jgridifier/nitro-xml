@@ -133,13 +133,7 @@ export function attach(el) {
     // synchronously (the async handler cannot). Dead keys have key "Dead" and keep composing.
     // Alt / AltGr / Option chords produce text the editor path ignores: leave those to beforeinput.
     const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
-    if (plain && [...e.key].length === 1) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!composing) void enqueue(() => key(e.key).then(() => el._tick()));
-      return;
-    }
-    if (keyOwned) e.preventDefault();
+    if ((plain && [...e.key].length === 1) || keyOwned) e.preventDefault();
   });
 
   // ---- beforeinput: soft keyboards, dictation, autocorrect, native edit commands ----

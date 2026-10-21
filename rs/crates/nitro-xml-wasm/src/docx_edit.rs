@@ -76,6 +76,9 @@ impl DocxState {
         if id == "file.save" {
             return Ok(OfficeEffect::Save);
         }
+        if matches!(id, "cut" | "copy" | "paste") {
+            return self.clipboard_command(id);
+        }
         let edit = self
             .edit
             .as_mut()
@@ -83,6 +86,63 @@ impl DocxState {
         edit.dispatch_command(id, &Value::Null)
             .map_err(|e| e.to_string())?;
         Ok(OfficeEffect::Applied)
+    }
+
+    /// Copy, cut, or paste the caret paragraph's plain text. Copy does not touch the package.
+    /// Cut and paste are one history step each, so edit.undo restores the paragraph.
+    fn clipboard_command(&mut self, id: &str) -> Result<OfficeEffect, String> {
+        let (bi, off, text) = self
+            .caret_paragraph()
+            .ok_or_else(|| "no paragraph".to_string())?;
+        match id {
+            "copy" => {
+                self.text_clip = text.clone();
+                Ok(OfficeEffect::Clipboard {
+                    text,
+                    changed: false,
+                })
+            }
+            "cut" => {
+                self.text_clip = text.clone();
+                if text.is_empty() {
+                    return Ok(OfficeEffect::Clipboard {
+                        text,
+                        changed: false,
+                    });
+                }
+                let spec = serde_json::json!({
+                    "command": "deleteText",
+                    "blockIndex": bi,
+                    "start": 0,
+                    "end": text.len(),
+                });
+                self.apply_edit_spec(&spec.to_string())?;
+                self.set_caret(bi, 0);
+                Ok(OfficeEffect::Clipboard {
+                    text: self.text_clip.clone(),
+                    changed: true,
+                })
+            }
+            "paste" => {
+                let clip = self.text_clip.clone();
+                if clip.is_empty() {
+                    return Ok(OfficeEffect::Clipboard {
+                        text: String::new(),
+                        changed: false,
+                    });
+                }
+                let spec = serde_json::json!({
+                    "command": "insertText",
+                    "blockIndex": bi,
+                    "offset": off,
+                    "text": clip,
+                });
+                self.apply_edit_spec(&spec.to_string())?;
+                self.set_caret(bi, off + self.text_clip.len());
+                Ok(OfficeEffect::Applied)
+            }
+            _ => Err(format!("unknown clipboard command {id}")),
+        }
     }
 
     pub fn apply_raw_edit(&mut self, spec: &str) -> Result<OfficeEffect, String> {
@@ -364,6 +424,7 @@ impl DocxState {
         let zoom = self.zoom;
         let edit = self.edit.take();
         let typing = self.typing.take();
+        let clip = self.text_clip.clone();
         let opened = Self::open(&bytes);
         let mut next = match opened {
             Ok(state) => state,
@@ -375,6 +436,7 @@ impl DocxState {
         };
         next.edit = edit;
         next.typing = typing;
+        next.text_clip = clip;
         next.zoom = zoom;
         let n = next.page_count();
         if n > 0 {
@@ -405,6 +467,21 @@ impl DocxState {
                     id: "edit.redo",
                     label: "Redo",
                     enabled: edit.session.can_redo(),
+                },
+                RibbonItem {
+                    id: "home.cut",
+                    label: "Cut",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.copy",
+                    label: "Copy",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.paste",
+                    label: "Paste",
+                    enabled: true,
                 },
                 RibbonItem {
                     id: "home.bold",
@@ -580,6 +657,9 @@ impl DocxState {
 /// registers the short form (`bold`).
 fn canonical_command(id: &str) -> &str {
     match id {
+        "home.cut" => "cut",
+        "home.copy" => "copy",
+        "home.paste" => "paste",
         "home.bold" => "bold",
         "home.italic" => "italic",
         "home.underline" => "underline",

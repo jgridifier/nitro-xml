@@ -22,7 +22,7 @@ describe("embedded pptx and docx toolbars", () => {
     const bound = cmds("pptx");
     assert.ok(bound.length >= 12);
     for (const id of bound) assert.ok(pptxRibbon.includes(`id: "${id}"`), `${id} is not on the pptx ribbon`);
-    for (const id of ["file.save", "edit.undo", "edit.redo", "home.bold", "home.strikethrough", "home.font-size", "home.font-color", "home.font-name", "home.indent", "home.outdent", "home.line-spacing", "home.subscript", "home.superscript", "home.shape-fill", "home.shape-outline", "home.layout", "home.align-justify", "home.bullets", "home.numbering", "insert.slide", "insert.duplicate-slide", "insert.move-slide-up", "insert.move-slide-down", "insert.text-box", "insert.shape", "insert.picture", "home.duplicate", "home.delete", "home.bring-forward", "home.send-backward", "home.delete-slide", "insert.table", "table.insert-row", "table.delete-column", "table.cell-text"]) {
+    for (const id of ["file.save", "edit.undo", "edit.redo", "home.cut", "home.copy", "home.paste", "home.bold", "home.strikethrough", "home.font-size", "home.font-color", "home.font-name", "home.indent", "home.outdent", "home.line-spacing", "home.subscript", "home.superscript", "home.shape-fill", "home.shape-outline", "home.layout", "home.align-justify", "home.bullets", "home.numbering", "insert.slide", "insert.duplicate-slide", "insert.move-slide-up", "insert.move-slide-down", "insert.text-box", "insert.shape", "insert.picture", "home.duplicate", "home.delete", "home.bring-forward", "home.send-backward", "home.delete-slide", "insert.table", "table.insert-row", "table.delete-column", "table.cell-text"]) {
       assert.ok(bound.includes(id), `missing embedded pptx command ${id}`);
     }
   });
@@ -32,7 +32,7 @@ describe("embedded pptx and docx toolbars", () => {
     const bound = cmds("docx");
     assert.ok(bound.length >= 12);
     for (const id of bound) assert.ok(docxRibbon.includes(`id: "${id}"`), `${id} is not on the docx ribbon`);
-    for (const id of ["file.save", "edit.undo", "home.bold", "home.strikethrough", "home.highlight", "home.font-color", "home.font-name", "home.indent", "home.outdent", "home.line-spacing", "home.subscript", "home.superscript", "home.align-justify", "home.numbering", "home.bullets", "home.style-normal", "home.style-title", "home.style-heading-1", "home.style-heading-2", "home.style-heading-3", "insert.page-break", "insert.picture", "insert.table", "table.insert-row", "table.delete-row", "table.insert-column", "table.delete-column", "table.cell-text", "table.delete"]) {
+    for (const id of ["file.save", "edit.undo", "home.cut", "home.copy", "home.paste", "home.bold", "home.strikethrough", "home.highlight", "home.font-color", "home.font-name", "home.indent", "home.outdent", "home.line-spacing", "home.subscript", "home.superscript", "home.align-justify", "home.numbering", "home.bullets", "home.style-normal", "home.style-title", "home.style-heading-1", "home.style-heading-2", "home.style-heading-3", "insert.page-break", "insert.picture", "insert.table", "table.insert-row", "table.delete-row", "table.insert-column", "table.delete-column", "table.cell-text", "table.delete"]) {
       assert.ok(bound.includes(id), `missing embedded docx command ${id}`);
     }
     assert.ok(!bound.includes("insert.slide"));

@@ -38,6 +38,9 @@ describe("Office ribbon manifests", () => {
       "file.save",
       "edit.undo",
       "edit.redo",
+      "home.cut",
+      "home.copy",
+      "home.paste",
       "home.bold",
       "home.italic",
       "home.underline",
@@ -94,6 +97,9 @@ describe("Office ribbon manifests", () => {
       "insert.table",
       "table.insert-row",
       "table.cell-text",
+      "home.cut",
+      "home.copy",
+      "home.paste",
       "home.bold",
       "home.font-size",
       "home.font-color",
@@ -122,6 +128,9 @@ describe("Office ribbon manifests", () => {
       "file.save",
       "edit.undo",
       "edit.redo",
+      "home.cut",
+      "home.copy",
+      "home.paste",
       "home.bold",
       "home.italic",
       "home.underline",
@@ -163,6 +172,9 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("table.cell-text"));
     assert.ok(bound.includes("table.delete"));
     assert.ok(bound.includes("home.font-color"));
+    assert.ok(bound.includes("home.cut"));
+    assert.ok(bound.includes("home.copy"));
+    assert.ok(bound.includes("home.paste"));
     assert.ok(bound.includes("home.bold"));
     assert.ok(bound.includes("home.align-justify"));
     assert.ok(bound.includes("home.numbering"));
@@ -196,7 +208,7 @@ describe("Office ribbon manifests", () => {
   });
 
   it("keeps PowerPoint and Word ribbons inside the WASM strip", () => {
-    // Catches: a GitHub Pages button for cut, paste, group, or bring-to-front, which the editor does not save.
+    // Catches: a GitHub Pages button for group or bring-to-front, which the editor does not save.
     const strip = (rel) => {
       const src = readFileSync(new URL(rel, import.meta.url), "utf8");
       const start = src.indexOf("pub fn ribbon_html");
@@ -214,8 +226,6 @@ describe("Office ribbon manifests", () => {
       "home.ungroup",
       "home.bring-to-front",
       "home.send-to-back",
-      "home.cut",
-      "home.paste",
       "home.grow-font",
       "home.shrink-font",
     ];

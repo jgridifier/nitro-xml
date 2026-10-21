@@ -26,6 +26,8 @@ pub struct DocxState {
     pending_body_complete: bool,
     /// Last coalescible edit (typing / deleting), see `docx_edit`.
     pub(crate) typing: Option<crate::docx_edit::Typing>,
+    /// Plain text captured by home.copy / home.cut for a later home.paste.
+    pub(crate) text_clip: String,
 }
 
 impl DocxState {
@@ -42,6 +44,7 @@ impl DocxState {
             edit: None,
             pending_body_complete,
             typing: None,
+            text_clip: String::new(),
         })
     }
 

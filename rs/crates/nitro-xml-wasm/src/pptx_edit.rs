@@ -116,6 +116,9 @@ impl PptxState {
         if id == "file.save" {
             return Ok(OfficeEffect::Save);
         }
+        if matches!(id, "home.cut" | "home.copy" | "home.paste") {
+            return self.clipboard_command(id);
+        }
         let edit = self
             .edit
             .as_mut()
@@ -124,6 +127,82 @@ impl PptxState {
             .map_err(|e| e.to_string())?;
         self.pull_editor_selection();
         Ok(OfficeEffect::Applied)
+    }
+
+    /// Copy, cut, or paste the selected shape's plain text. Copy does not touch the package.
+    fn clipboard_command(&mut self, id: &str) -> Result<OfficeEffect, String> {
+        self.ensure_shape_target();
+        let (slide, element_id, text) = self.shape_plain_target()?;
+        match id {
+            "home.copy" => {
+                self.text_clip = text.clone();
+                Ok(OfficeEffect::Clipboard {
+                    text,
+                    changed: false,
+                })
+            }
+            "home.cut" => {
+                self.text_clip = text.clone();
+                if text.is_empty() {
+                    return Ok(OfficeEffect::Clipboard {
+                        text,
+                        changed: false,
+                    });
+                }
+                self.set_shape_text(slide, &element_id, "")?;
+                Ok(OfficeEffect::Clipboard {
+                    text: self.text_clip.clone(),
+                    changed: true,
+                })
+            }
+            "home.paste" => {
+                let clip = self.text_clip.clone();
+                if clip.is_empty() {
+                    return Ok(OfficeEffect::Clipboard {
+                        text: String::new(),
+                        changed: false,
+                    });
+                }
+                let mut next = text;
+                next.push_str(&clip);
+                self.set_shape_text(slide, &element_id, &next)?;
+                Ok(OfficeEffect::Applied)
+            }
+            _ => Err(format!("unknown clipboard command {id}")),
+        }
+    }
+
+    fn shape_plain_target(&self) -> Result<(u32, String, String), String> {
+        let edit = self
+            .edit
+            .as_ref()
+            .ok_or_else(|| "no edit session".to_string())?;
+        let slide = edit.selection.slide_index;
+        let id = edit
+            .selection
+            .primary_id()
+            .ok_or_else(|| "no shape".to_string())?
+            .to_owned();
+        let text = edit
+            .session
+            .host
+            .slide(slide)
+            .ok()
+            .and_then(|s| s.elements.iter().find(|e| e.id == id))
+            .map(shape_plain)
+            .unwrap_or_default();
+        Ok((slide, id, text))
+    }
+
+    fn set_shape_text(&mut self, slide: u32, id: &str, text: &str) -> Result<(), String> {
+        let spec = serde_json::json!({
+            "command": "setShapeText",
+            "slideIndex": slide,
+            "elementId": id,
+            "text": text,
+        });
+        self.apply_raw_edit(&spec.to_string())?;
+        Ok(())
     }
 
     pub fn apply_raw_edit(&mut self, spec: &str) -> Result<OfficeEffect, String> {
@@ -168,6 +247,7 @@ impl PptxState {
         let vh = self.viewport_h;
         let scale = self.scale;
         let edit = self.edit.take();
+        let clip = self.text_clip.clone();
         let opened = Self::open(std::sync::Arc::<[u8]>::from(bytes));
         let mut next = match opened {
             Ok(state) => state,
@@ -177,6 +257,7 @@ impl PptxState {
             }
         };
         next.edit = edit;
+        next.text_clip = clip;
         next.viewport_w = vw;
         next.viewport_h = vh;
         next.scale = scale;
@@ -256,6 +337,21 @@ impl PptxState {
                     id: "edit.redo",
                     label: "Redo",
                     enabled: edit.can_redo(),
+                },
+                RibbonItem {
+                    id: "home.cut",
+                    label: "Cut",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.copy",
+                    label: "Copy",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.paste",
+                    label: "Paste",
+                    enabled: true,
                 },
                 RibbonItem {
                     id: "home.bold",

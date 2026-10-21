@@ -5,7 +5,16 @@
 // xlsx toggles carry no `p`: the Rust chrome has no live cell-style state yet (is_checked is a stub), so a pressed look would lie.
 // Items with `c` are shown only while the Rust ribbon has that command (editable session);
 // mirrored ones also follow that control's enabled state. Do not list an id the editor does not emit.
+const cmd = (c, i, l, t, p, u) => ({ c, i, l, t: t || l, p, u });
 const copy = { id: "Clipboard", items: [{ i: "copy", l: "Copy", t: "Copy (Ctrl+C)", o: "copy" }] };
+const editorClip = {
+  id: "Clipboard",
+  items: [
+    cmd("home.cut", "cut", "Cut", "Cut (Ctrl+X)"),
+    cmd("home.copy", "copy", "Copy", "Copy (Ctrl+C)"),
+    cmd("home.paste", "paste", "Paste", "Paste (Ctrl+V)"),
+  ],
+};
 const find = { i: "find", l: "Find", t: "Find (Ctrl+F)", o: "find-open", x: "find-close", p: 1 };
 const view = {
   id: "View",
@@ -23,8 +32,6 @@ const nav = (id, noun) => ({
     { i: "next", l: "Next", t: `Next ${noun}`, o: "nav-next", n: 1 },
   ],
 });
-
-const cmd = (c, i, l, t, p, u) => ({ c, i, l, t: t || l, p, u });
 
 const file = {
   id: "File",
@@ -66,7 +73,7 @@ export const MANIFEST = {
     label: "Document tools",
     groups: [
       file,
-      copy,
+      editorClip,
       {
         id: "Font",
         items: [...font.items, cmd("home.highlight", "highlight", "Highlight", "Text highlight")],
@@ -109,7 +116,7 @@ export const MANIFEST = {
     label: "Presentation tools",
     groups: [
       file,
-      copy,
+      editorClip,
       font,
       align,
       {

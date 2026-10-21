@@ -618,7 +618,7 @@ mod tests {
                         value_metadata: None,
                     });
                 }
-                h.sheets[0].cells = cells;
+                h.sheets[0].replace_cells(cells);
                 h
             }
         };

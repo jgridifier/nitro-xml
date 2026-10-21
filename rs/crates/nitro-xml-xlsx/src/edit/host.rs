@@ -81,6 +81,7 @@ impl XlsxHost {
                         row_info: Default::default(),
                         cell_store: None,
                         cells: Vec::new(),
+                        cell_pos: Default::default(),
                         data_validations: Vec::new(),
                         comment_addresses: Vec::new(),
                         hyperlinks: Vec::new(),
@@ -463,19 +464,11 @@ impl XlsxHost {
                     .ok_or_else(|| format!("cell patch sheet {sheet} out of range"))?;
                 match obj.get("cell") {
                     None | Some(Value::Null) => {
-                        if let Some(i) = ws.cells.iter().position(|c| c.row == row && c.col == col)
-                        {
-                            ws.cells.remove(i);
-                        }
+                        ws.remove_cell_at_coord(row, col);
                     }
                     Some(cell_v) => {
                         let cell = dump_cell_from_snap(cell_v)?;
-                        if let Some(i) = ws.cells.iter().position(|c| c.row == row && c.col == col)
-                        {
-                            ws.cells[i] = cell;
-                        } else {
-                            ws.cells.push(cell);
-                        }
+                        ws.upsert_dump_cell(cell);
                     }
                 }
             }
@@ -706,6 +699,7 @@ impl XlsxHost {
                     row_info: Default::default(),
                     cell_store: None,
                     cells: Vec::new(),
+                    cell_pos: Default::default(),
                     data_validations: Vec::new(),
                     comment_addresses: Vec::new(),
                     hyperlinks: Vec::new(),
@@ -725,10 +719,12 @@ impl XlsxHost {
             if obj.contains_key("defaultColWidth") {
                 ws.default_col_width = obj.get("defaultColWidth").and_then(|x| x.as_f64());
             }
-            ws.cells = cells
-                .iter()
-                .map(dump_cell_from_snap)
-                .collect::<Result<Vec<_>, _>>()?;
+            ws.replace_cells(
+                cells
+                    .iter()
+                    .map(dump_cell_from_snap)
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
             if let Some(cols) = obj.get("columns").and_then(|x| x.as_array()) {
                 ws.columns = cols
                     .iter()

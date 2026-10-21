@@ -115,6 +115,7 @@ fn empty_worksheet(name: String, sheet_id: u32) -> ActiveWorksheet {
         row_info: BTreeMap::new(),
         cell_store: None,
         cells: Vec::new(),
+        cell_pos: Default::default(),
         data_validations: Vec::new(),
         comment_addresses: Vec::new(),
         hyperlinks: Vec::new(),

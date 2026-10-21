@@ -392,3 +392,12 @@ short key `hf` (~1–2 KB) instead of full `h` (~54 KB ribbon+shell). Loader pat
 `doc._chromeEl`. Follow-up to omit-unchanged `h` (#357).
 
 React-embed `edit-cell` interleaved (n=40): xlsx S ~11→8.5 ms, L ~12→10.8 ms.
+
+## Slice 13: O(1) DumpCell index on edit sync (issue #30)
+
+`ActiveWorksheet` keeps a maintained `(row,col)→vec index` (`cell_pos`). `ensure_cell` /
+`prune_cell` / `sync_cells_from_edit` no longer scan the full `cells` vec per keystroke
+(the cells_1m edit trap after #345 stopped full-grid clone). Bulk replaces call
+`replace_cells` so the index rebuilds with the vec.
+
+A/B (React-embed `edit-cell` S+L, n≥21 interleaved, latency + edit heap): pending.

@@ -622,6 +622,85 @@ mod tests {
     }
 
     #[test]
+    fn catches_space_before_and_after_leaving_paragraph_spacing_unchanged() {
+        // Catches: Space before or Space after leaving w:spacing unchanged, writing a gap
+        // other than 12pt, or undo keeping the direct spacing.
+        let gaps = |bytes: &[u8]| {
+            let h = open_editable(bytes, "pages.docx");
+            h.docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .blocks
+                .iter()
+                .map(|b| {
+                    let n = |k: &str| b.get(k).and_then(|v| v.as_i64());
+                    (n("spacingBeforeTwips"), n("spacingAfterTwips"))
+                })
+                .collect::<Vec<_>>()
+        };
+        let want = nitro_xml_docx::edit::format::PARAGRAPH_SPACE_TWIPS;
+        let mut h = open_editable(DOCX, "pages.docx");
+        let original = gaps(DOCX);
+        h.shell_action("cmd", "home.space-before")
+            .expect("space before");
+        let saved = h.save_document().expect("save before");
+        assert_ne!(saved, DOCX);
+        let after = gaps(&saved);
+        let changed = original
+            .iter()
+            .zip(after.iter())
+            .filter(|(a, b)| a.0 != b.0)
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), 1, "space before touched {changed:?}");
+        let (old, new) = changed[0];
+        assert_eq!(old.1, new.1, "space before rewrote space after");
+        if old.0 == Some(want) {
+            assert_eq!(new.0, None, "12pt space before was not cleared");
+        } else {
+            assert_eq!(new.0, Some(want), "space before was not 12pt");
+        }
+        h.shell_action("cmd", "edit.undo").expect("undo before");
+        assert_eq!(h.save_document().expect("undone before"), DOCX);
+
+        h.shell_action("cmd", "home.space-after")
+            .expect("space after");
+        let saved = h.save_document().expect("save after");
+        assert_ne!(saved, DOCX);
+        let after = gaps(&saved);
+        let changed = original
+            .iter()
+            .zip(after.iter())
+            .filter(|(a, b)| a.1 != b.1)
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), 1, "space after touched {changed:?}");
+        let (old, new) = changed[0];
+        assert_eq!(old.0, new.0, "space after rewrote space before");
+        if old.1 == Some(want) {
+            assert_eq!(new.1, None, "12pt space after was not cleared");
+        } else {
+            assert_eq!(new.1, Some(want), "space after was not 12pt");
+        }
+        h.shell_action("cmd", "edit.undo").expect("undo after");
+        assert_eq!(h.save_document().expect("undone after"), DOCX);
+
+        let strip = h.docx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.space-before\""));
+        assert!(strip.contains("data-g=\"home.space-after\""));
+        let pptx = open_editable(PPTX, "slides.pptx");
+        assert!(!pptx
+            .pptx
+            .as_ref()
+            .unwrap()
+            .ribbon_html()
+            .contains("home.space-before"));
+    }
+
+    #[test]
     fn catches_docx_shell_bold_leaving_the_package_unchanged() {
         // Catches: home.bold on a document staying on the xlsx command table, so w:b never flips.
         let mut h = open_editable(DOCX, "pages.docx");

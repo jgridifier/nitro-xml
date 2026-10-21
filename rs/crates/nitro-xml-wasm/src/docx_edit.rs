@@ -539,6 +539,16 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.space-before",
+                    label: "Space Before",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.space-after",
+                    label: "Space After",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.bullets",
                     label: "Bullets",
                     enabled: true,
@@ -668,6 +678,8 @@ fn canonical_command(id: &str) -> &str {
         "home.indent" => "indent",
         "home.outdent" => "outdent",
         "home.line-spacing" => "line-spacing",
+        "home.space-before" => "space-before",
+        "home.space-after" => "space-after",
         "home.subscript" => "subscript",
         "home.superscript" => "superscript",
         "home.font-name" => "font-name",

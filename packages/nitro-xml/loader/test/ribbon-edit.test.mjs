@@ -157,6 +157,8 @@ describe("Office ribbon manifests", () => {
       "home.indent",
       "home.outdent",
       "home.line-spacing",
+      "home.space-before",
+      "home.space-after",
       "home.subscript",
       "home.superscript",
       "home.bullets",
@@ -186,6 +188,9 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("home.highlight"));
     assert.ok(bound.includes("home.bullets"));
     assert.ok(bound.includes("home.indent"));
+    assert.ok(bound.includes("home.space-before"));
+    assert.ok(bound.includes("home.space-after"));
+    assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.space-before"));
     assert.ok(bound.includes("home.font-name"));
     assert.ok(bound.includes("home.style-heading-1"));
     assert.ok(bound.includes("insert.page-break"));

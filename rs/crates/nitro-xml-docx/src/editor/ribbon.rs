@@ -62,6 +62,8 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("indent", "Increase Indent", surface, false));
         html.push_str(&button("outdent", "Decrease Indent", surface, false));
         html.push_str(&button("line-spacing", "Line Spacing", surface, false));
+        html.push_str(&button("space-before", "Space Before", surface, false));
+        html.push_str(&button("space-after", "Space After", surface, false));
         html.push_str(&button("font-size", "Font Size", surface, false));
         html.push_str(&button("font-color", "Font Color", surface, false));
         html.push_str(&button("style-normal", "Normal", surface, false));

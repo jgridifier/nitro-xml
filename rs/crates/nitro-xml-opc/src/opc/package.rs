@@ -190,6 +190,11 @@ impl<'a> Package<'a> {
         Self::read_text_uncached(&mut self.zip, part_name)
     }
 
+    /// Whether UTF-8 text for `part_name` is still retained in the in-memory cache.
+    pub fn text_is_cached(&self, part_name: &str) -> bool {
+        self.text_cache.contains_key(part_name)
+    }
+
     /// Relationships declared by `part_name` (`""` for the package root).
     pub fn rels(&mut self, part_name: &str) -> Result<&IndexMap<String, Relationship>, OpcError> {
         let rels_part = if part_name.is_empty() {

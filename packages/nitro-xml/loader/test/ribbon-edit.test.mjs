@@ -70,6 +70,7 @@ describe("Office ribbon manifests", () => {
       "table.delete-row",
       "table.insert-column",
       "table.delete-column",
+      "table.cell-text",
       "insert.slide",
       "insert.duplicate-slide",
       "insert.move-slide-up",
@@ -91,6 +92,7 @@ describe("Office ribbon manifests", () => {
       "insert.picture",
       "insert.table",
       "table.insert-row",
+      "table.cell-text",
       "home.bold",
       "home.font-size",
       "home.font-color",
@@ -150,12 +152,14 @@ describe("Office ribbon manifests", () => {
       "table.delete-row",
       "table.insert-column",
       "table.delete-column",
+      "table.cell-text",
       "table.delete",
     ]);
     for (const id of bound) assert.ok(allowed.has(id), `unexpected docx command ${id}`);
     assert.ok(bound.includes("insert.picture"));
     assert.ok(bound.includes("insert.table"));
     assert.ok(bound.includes("table.insert-row"));
+    assert.ok(bound.includes("table.cell-text"));
     assert.ok(bound.includes("table.delete"));
     assert.ok(bound.includes("home.font-color"));
     assert.ok(bound.includes("home.bold"));

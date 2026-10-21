@@ -1027,6 +1027,64 @@ mod tests {
         assert_eq!(h.save_document().expect("undone"), DOCX);
     }
 
+    #[test]
+    fn catches_table_cell_text_missing_after_reopen_or_undo() {
+        // Catches: table.cell-text leaving the saved cell unchanged, or a second click pushing another undo step.
+        let mut h = open_editable(DOCX, "pages.docx");
+        h.shell_action("cmd", "table.cell-text").expect("cell");
+        let saved = h.save_document().expect("save cell");
+        assert_ne!(saved, DOCX);
+        let again = open_editable(&saved, "pages.docx");
+        let text = docx_first_cell(&again);
+        assert_eq!(text, "Nitro cell", "reopen dropped cell text");
+        h.shell_action("cmd", "table.cell-text").expect("noop");
+        assert_eq!(h.save_document().expect("second click"), saved);
+        h.shell_action("cmd", "edit.undo").expect("undo cell");
+        assert_eq!(h.save_document().expect("undone cell"), DOCX);
+
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.shell_action("cmd", "insert.table").expect("table");
+        let inserted = h.save_document().expect("save table");
+        h.shell_action("cmd", "table.cell-text").expect("cell");
+        let saved = h.save_document().expect("save cell");
+        assert_ne!(saved, inserted);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen");
+        let cell = again
+            .session
+            .host
+            .slides
+            .iter()
+            .flat_map(|s| s.elements.iter())
+            .find(|el| el.type_ == "table")
+            .and_then(|el| el.table.as_ref())
+            .and_then(|t| t.rows.first())
+            .and_then(|r| r.cells.first())
+            .map(|c| c.text.as_str())
+            .unwrap_or("");
+        assert_eq!(cell, "Nitro cell", "reopen dropped slide cell text");
+        h.shell_action("cmd", "table.cell-text").expect("noop");
+        assert_eq!(h.save_document().expect("second click"), saved);
+        h.shell_action("cmd", "edit.undo").expect("undo cell");
+        assert_eq!(h.save_document().expect("undone cell"), inserted);
+        h.shell_action("cmd", "edit.undo").expect("undo table");
+        assert_eq!(h.save_document().expect("undone table"), PPTX);
+    }
+
+    fn docx_first_cell(h: &Handle) -> String {
+        let host = &h.docx.as_ref().unwrap().edit.as_ref().unwrap().session.host;
+        let table = host
+            .blocks
+            .iter()
+            .find(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+            .expect("table");
+        let runs = table["rows"][0][0]["paragraphs"][0]["runs"]
+            .as_array()
+            .expect("runs");
+        runs.iter()
+            .filter_map(|run| run.get("text").and_then(|v| v.as_str()))
+            .collect()
+    }
+
     fn page_breaks(bytes: &[u8]) -> usize {
         open_editable(bytes, "pages.docx")
             .docx

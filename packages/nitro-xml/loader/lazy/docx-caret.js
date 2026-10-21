@@ -338,9 +338,19 @@ export function attach(el) {
   dom.addEventListener("scroll", place, { passive: true });
   if (typeof ResizeObserver !== "undefined") new ResizeObserver(place).observe(v);
   // focusin/out: focus may move between .v and the input proxy without leaving the viewer.
+  // WebKit often reports relatedTarget as null for that move inside the shadow tree, which
+  // used to hide the caret after a click and leave it hidden.
   v.addEventListener("focusin", place);
   v.addEventListener("focusout", (e) => {
-    if (!v.contains(e.relatedTarget)) bar.style.display = "none";
+    if (e.relatedTarget && v.contains(e.relatedTarget)) return;
+    requestAnimationFrame(() => {
+      const cur = v.getRootNode() && v.getRootNode().activeElement;
+      if (cur && v.contains(cur)) {
+        place();
+        return;
+      }
+      bar.style.display = "none";
+    });
   });
 
   const origAction = el.shellAction.bind(el);

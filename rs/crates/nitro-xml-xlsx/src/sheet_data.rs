@@ -946,10 +946,12 @@ impl crate::model::ActiveWorksheet {
 
     pub fn ensure_dump_cells(&mut self, sst: &[SharedString]) {
         if !self.cells.is_empty() {
+            self.ensure_cell_pos();
             return;
         }
         if let Some(store) = self.cell_store.take() {
             self.cells = store_to_dump_cells_with_sst(&store, sst);
+            self.rebuild_cell_pos();
         }
     }
 

@@ -568,7 +568,7 @@ fn shift_cells(sheet: &mut ActiveWorksheet, shift: &AxisShift) {
     }
     let mut cells: Vec<DumpCell> = placed.into_values().collect();
     cells.sort_by_key(|c| (c.row, c.col));
-    sheet.cells = cells;
+    sheet.replace_cells(cells);
 }
 
 fn single_cell(range: &CellRange) -> bool {
@@ -775,7 +775,7 @@ fn inherit_formats(sheet: &mut ActiveWorksheet, axis: Axis, at: u32, count: u32)
                 if occupied.contains(&(row, col)) {
                     continue;
                 }
-                sheet.cells.push(blank_styled(row, col, style_id));
+                sheet.push_cell(blank_styled(row, col, style_id));
                 occupied.insert((row, col));
             }
         }
@@ -803,7 +803,7 @@ fn inherit_formats(sheet: &mut ActiveWorksheet, axis: Axis, at: u32, count: u32)
             if occupied.contains(&(row, col)) {
                 continue;
             }
-            sheet.cells.push(blank_styled(row, col, style_id));
+            sheet.push_cell(blank_styled(row, col, style_id));
             occupied.insert((row, col));
         }
     }

@@ -541,6 +541,7 @@ mod tests {
                     value_metadata: None,
                 },
             ],
+            cell_pos: Default::default(),
             data_validations: vec![],
             comment_addresses: vec![],
             hyperlinks: vec![],

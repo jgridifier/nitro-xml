@@ -257,6 +257,19 @@ impl XlsxState {
         Ok(())
     }
 
+    /// Drop the lazy first-view (and any deferred SeekTail). Used when materialising the
+    /// full workbook for search / hyperlinks — not on `ensure_edit` (heap cost).
+    pub fn drop_lazy_view(&mut self) {
+        self.lazy = None;
+        self.pending_tail_complete = false;
+    }
+
+    /// Test seam: whether the open path still holds a lazy FirstView.
+    #[cfg(test)]
+    pub fn lazy_is_some_for_test(&self) -> bool {
+        self.lazy.is_some()
+    }
+
     /// Replace the lazy window with a full parse so search and hyperlinks see every cell.
     fn materialise_full(&mut self, bytes: &[u8]) -> Result<(), String> {
         if self.lazy.is_none() {
@@ -266,23 +279,22 @@ impl XlsxState {
         let parsed = parse_all_worksheets(bytes, &workbook)?;
         self.sheets = parsed;
         self.workbook = workbook;
-        self.lazy = None;
+        self.drop_lazy_view();
         Ok(())
     }
 
     fn sync_lazy_sheet(&mut self, index: usize, rect: ViewportRect) -> Result<(), String> {
+        let lazy = self
+            .lazy
+            .as_mut()
+            .ok_or_else(|| "lazy view closed".to_string())?;
+        let has_prev = self.sheets.get(index).and_then(|s| s.as_ref()).is_some();
+        // Covered window + local sheet: keep runtime selection / view state (no 1M-cell clone).
+        if has_prev && lazy.covers_viewport(index, rect) {
+            return Ok(());
+        }
         let prev = self.sheets.get(index).and_then(|s| s.as_ref()).cloned();
-        let reloaded = {
-            let lazy = self
-                .lazy
-                .as_mut()
-                .ok_or_else(|| "lazy view closed".to_string())?;
-            // Covered window + local sheet: keep runtime selection / view state.
-            if prev.is_some() && lazy.covers_viewport(index, rect) {
-                return Ok(());
-            }
-            lazy.ensure_sheet(index, rect)?
-        };
+        let reloaded = lazy.ensure_sheet(index, rect)?;
         if !reloaded && prev.is_some() {
             return Ok(());
         }
@@ -378,18 +390,22 @@ impl XlsxState {
         measures: &mut nitro_xml_render::MeasureBatch,
     ) {
         if self.lazy.is_some() {
-            // First paint stays O(viewport). Schedule post-sheetData shell for the next tick.
-            let needs_tail = self
-                .lazy
-                .as_ref()
-                .is_some_and(|lazy| !lazy.is_sheet_complete(self.active));
-            if needs_tail {
-                self.pending_tail_complete = true;
-            }
-            let rect = self.current_cell_rect();
-            let active = self.active;
-            if self.sync_lazy_sheet(active, rect).is_err() {
-                return;
+            // Inert lazy while editing: paint uses the edit-synced grid + cell_pos without
+            // re-stream/replace (cells_1m edit-tick outliers).
+            if self.edit.is_none() {
+                // First paint stays O(viewport). Schedule post-sheetData shell for the next tick.
+                let needs_tail = self
+                    .lazy
+                    .as_ref()
+                    .is_some_and(|lazy| !lazy.is_sheet_complete(self.active));
+                if needs_tail {
+                    self.pending_tail_complete = true;
+                }
+                let rect = self.current_cell_rect();
+                let active = self.active;
+                if self.sync_lazy_sheet(active, rect).is_err() {
+                    return;
+                }
             }
         } else if self.ensure_sheet_parsed(bytes, self.active).is_err() {
             return;

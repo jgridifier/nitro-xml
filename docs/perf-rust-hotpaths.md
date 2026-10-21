@@ -403,12 +403,18 @@ concurrent `prepareFrame` during flush, or cleared `_nxPainted` so the caller's
 (~150–250 ms). Not GC / `memory.grow`. #386's `cell_pos` + `drop_lazy` removed
 outliers but **+0.6 MiB edit heap** — rejected.
 
-### Fix (loader-only, heap-neutral)
+### Fix (loader + Rust, heap-neutral)
 
-`packages/nitro-xml/loader/lazy/wp.js`:
+**Loader** (`packages/nitro-xml/loader/lazy/wp.js`):
 1. Concurrent ticks **await** the in-flight edit flush (`_efDone`).
 2. Spreadsheet `_nxPainted` stays set across empty ticks until pending
    scroll/resize/pointer events (`_events.length`).
+
+**Rust** (#386, without `drop_lazy_view` on `ensure_edit`):
+- Maintained `cell_pos` on viewer + host sheets; paint prefers it over
+  `CellIndex::build` on every frame; O(1) `used_range` via index bbox.
+- `sync_lazy_sheet` checks `covers_viewport` before cloning the sheet.
+- While `edit.is_some()`, `paint` skips `sync_lazy_sheet` (lazy inert; edit grid paints).
 
 A/B (React-embed `edit-cell` S+L, n≥21, p50/p95/p99/max + outlier sessions + edit heap): see PR.
 

@@ -51,6 +51,11 @@ impl XlsxState {
                 sh.view.selection = Some(sel);
             }
         }
+        // Host open rebuilds cell_pos; cloning keeps it. Re-ensure so paint never falls
+        // back to CellIndex::build over 1M cells after a partial clone path.
+        for sh in sheets.iter_mut().flatten() {
+            sh.ensure_cell_pos();
+        }
         self.workbook = workbook;
         self.sheets = sheets;
         if self.active >= self.sheets.len() {
@@ -75,25 +80,14 @@ impl XlsxState {
             self.sync_model_from_edit();
             return;
         };
+        sh.ensure_cell_pos();
         for &(row, col) in coords {
             let host_cell = host_sh
-                .cells
-                .iter()
-                .find(|c| c.row == row && c.col == col)
-                .cloned();
+                .find_cell_pos(row, col)
+                .map(|i| host_sh.cells[i].clone());
             match host_cell {
-                Some(cell) => {
-                    if let Some(i) = sh.cells.iter().position(|c| c.row == row && c.col == col) {
-                        sh.cells[i] = cell;
-                    } else {
-                        sh.cells.push(cell);
-                    }
-                }
-                None => {
-                    if let Some(i) = sh.cells.iter().position(|c| c.row == row && c.col == col) {
-                        sh.cells.remove(i);
-                    }
-                }
+                Some(cell) => sh.upsert_dump_cell(cell),
+                None => sh.remove_cell_at_coord(row, col),
             }
         }
     }
@@ -495,6 +489,85 @@ mod tests {
     use crate::handle::Handle;
     use nitro_xml_xlsx::model::DumpCellValue;
     use std::path::PathBuf;
+
+    #[test]
+    fn catches_ensure_edit_keeps_lazy_first_view_alive() {
+        // Catches: ensure_edit dropping lazy FirstView — that removed +0.6 MiB edit heap
+        // regress but paint must still use cell_pos on the edit-synced grid while lazy
+        // stays inert (no sync_lazy_sheet re-stream during edit ticks).
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_100k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_100k");
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_100k.xlsx").expect("open");
+        assert!(
+            h.xlsx.as_ref().unwrap().lazy_is_some_for_test(),
+            "precondition: open uses lazy first view"
+        );
+        h.load_editor_chrome();
+        h.set_read_only(false);
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"lazy-keep"}"#)
+            .expect("edit");
+        let x = h.xlsx.as_ref().unwrap();
+        assert!(x.edit.is_some(), "edit session open");
+        assert!(
+            x.lazy_is_some_for_test(),
+            "lazy first view must stay alive on ensure_edit (heap-neutral path)"
+        );
+        let sh = x.sheets[0].as_ref().expect("sheet0");
+        assert_eq!(
+            sh.cell_pos.synced_len(),
+            sh.cells.len(),
+            "viewer cell_pos must be synced for paint after ensure_edit"
+        );
+    }
+
+    #[test]
+    fn catches_cell_pos_index_staying_synced_after_set_cell_input() {
+        // Catches: sync_cells_from_edit / ensure_cell scanning all DumpCells per
+        // keystroke on large sheets (cells_1m edit trap). Index len must stay in
+        // lockstep with cells after targeted sync.
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_100k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_100k");
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_100k.xlsx").expect("open");
+        h.load_editor_chrome();
+        h.set_read_only(false);
+
+        for (row, col, text) in [
+            (0u32, 0u32, "idx-a1"),
+            (50, 3, "idx-b"),
+            (999, 0, "idx-tail"),
+        ] {
+            let spec = format!(
+                r#"{{"command":"setCellInput","sheet":0,"row":{row},"col":{col},"text":"{text}"}}"#
+            );
+            h.apply_edit(&spec).expect("edit");
+        }
+
+        let viewer = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+        assert_eq!(viewer.cell_pos.synced_len(), viewer.cells.len());
+        let host = h.xlsx.as_ref().unwrap().edit.as_ref().unwrap().host();
+        assert_eq!(
+            host.sheets[0].cell_pos.synced_len(),
+            host.sheets[0].cells.len()
+        );
+        for (row, col, text) in [
+            (0u32, 0u32, "idx-a1"),
+            (50, 3, "idx-b"),
+            (999, 0, "idx-tail"),
+        ] {
+            let cell = viewer
+                .find_cell_pos(row, col)
+                .map(|i| &viewer.cells[i])
+                .expect("viewer cell");
+            match &cell.value {
+                DumpCellValue::String(s) => assert_eq!(s, text),
+                other => panic!("expected string at {row}:{col}, got {other:?}"),
+            }
+        }
+    }
 
     #[test]
     fn catches_set_cell_input_sync_replacing_viewer_cells_vec() {

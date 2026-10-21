@@ -326,6 +326,7 @@ mod tests {
             row_info: BTreeMap::new(),
             cell_store: None,
             cells: vec![],
+            cell_pos: Default::default(),
             data_validations: vec![],
             comment_addresses: vec![],
             hyperlinks: vec![],

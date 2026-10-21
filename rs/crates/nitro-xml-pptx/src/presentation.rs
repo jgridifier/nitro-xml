@@ -29,6 +29,8 @@ use nitro_xml_opc::chart::parse_chart_space_xml;
 use nitro_xml_opc::drawingml::{parse_theme_color_map, ThemeColorMap, ThemeFormatScheme};
 use nitro_xml_render::chart::chart_blip_rel_ids;
 
+use crate::edit::shapes::TextSegmentSnap;
+
 pub type Error = OpcError;
 
 /// Common bullet glyphs that Nitro folds into `DumpElement::text` as their own paragraph.
@@ -46,31 +48,129 @@ fn scoreboard_is_bullet_only(s: &str) -> bool {
             | "\u{25B8}" // ▸
             | "\u{25BA}" // ►
             | "\u{2023}" // ‣
-    )
+            | "\u{2013}" // –
+            | "\u{2014}" // —
+    ) || scoreboard_is_letter_bullet_only(t)
+}
+
+/// Wingdings bullet placeholder `l` on poi-45541-style body lists (not arbitrary one-letter words).
+fn scoreboard_is_letter_bullet_only(s: &str) -> bool {
+    s.trim() == "l"
+}
+
+/// Strip a synthetic marker Nitro prepends in `extract_element_text` (`char + " " + body`).
+fn scoreboard_strip_folded_bullet_prefix(line: &str) -> String {
+    let p = line.to_string();
+    for prefix in [
+        "\u{2013} ",
+        "\u{2014} ",
+        "\u{2022} ",
+        "\u{25CF} ",
+        "\u{25E6} ",
+        "\u{2043} ",
+        "\u{25AA} ",
+        "\u{25AB} ",
+        "\u{25B8} ",
+        "\u{25BA} ",
+        "\u{2023} ",
+    ] {
+        if let Some(rest) = p.strip_prefix(prefix) {
+            return rest.to_string();
+        }
+    }
+    for prefix in [
+        "\u{2013}", "\u{2014}", "\u{2022}", "\u{25CF}", "\u{25E6}", "\u{2043}", "\u{25AA}",
+        "\u{25AB}", "\u{25B8}", "\u{25BA}", "\u{2023}",
+    ] {
+        if let Some(rest) = p.strip_prefix(prefix) {
+            return rest.trim_start().to_string();
+        }
+    }
+    if let Some(rest) = p.strip_prefix("l ") {
+        return rest.to_string();
+    }
+    p
+}
+
+fn scoreboard_push_paragraph(p: &str, out: &mut Vec<String>) {
+    let p = scoreboard_strip_folded_bullet_prefix(p);
+    if !p.is_empty() && !scoreboard_is_bullet_only(&p) {
+        out.push(p);
+    }
 }
 
 fn scoreboard_push_text(text: &str, out: &mut Vec<String>) {
     for line in text.split('\n') {
-        let mut p = line.to_string();
-        for prefix in [
-            "\u{2022}", "\u{25CF}", "\u{25E6}", "\u{2043}", "\u{25AA}", "\u{25AB}", "\u{25B8}",
-            "\u{25BA}", "\u{2023}",
-        ] {
-            if let Some(rest) = p.strip_prefix(prefix) {
-                p = rest.trim_start().to_string();
-                break;
-            }
-        }
-        if !p.is_empty() && !scoreboard_is_bullet_only(&p) {
-            out.push(p);
+        scoreboard_push_paragraph(line, out);
+    }
+}
+
+/// Mirrors `segmentParagraphs` in `perf/scoreboard/adapters/js/upstream-pptx.mjs`, but keeps
+/// document runs that carry `bulletInfo` on the first segment (editor model). Only standalone
+/// marker segments are dropped so literal `a:t` bullets (poi-keyframes) stay in the output.
+fn scoreboard_push_segment_paragraph(p: &str, out: &mut Vec<String>) {
+    if !p.is_empty() && !scoreboard_is_bullet_only(p) {
+        out.push(p.to_owned());
+    }
+}
+
+fn scoreboard_push_segments(segments: &[TextSegmentSnap], out: &mut Vec<String>) {
+    let mut cur = String::new();
+    for seg in segments {
+        if seg.is_paragraph_break || (seg.text == "\n" && !seg.is_line_break) {
+            scoreboard_push_segment_paragraph(&cur, out);
+            cur.clear();
+        } else if scoreboard_segment_is_skipped_marker(seg) {
+            continue;
+        } else {
+            cur.push_str(&seg.text);
         }
     }
+    scoreboard_push_segment_paragraph(&cur, out);
+}
+
+fn scoreboard_segment_is_skipped_marker(seg: &TextSegmentSnap) -> bool {
+    let info = seg.bullet_info.as_ref();
+    if info.is_none() || info.is_some_and(|b| b.none) {
+        return false;
+    }
+    let t = seg.text.trim();
+    t.is_empty() || scoreboard_is_bullet_only(t) || scoreboard_is_letter_bullet_only(t)
+}
+
+/// Editor segments match upstream `textSegments` for literal run bullets; folded `DumpElement::text`
+/// is enough when extract did not synthesize marker-only paragraphs or wingdings / dash prefixes.
+fn scoreboard_prefers_editor_segments(el: &DumpElement) -> bool {
+    if let Some(editor) = &el.editor_text {
+        for seg in &editor.segments {
+            if seg.bullet_info.as_ref().is_some_and(|b| !b.none) {
+                continue;
+            }
+            let t = seg.text.trim_start();
+            if t.starts_with('\u{2022}') || t.starts_with('\u{25CF}') {
+                return true;
+            }
+        }
+    }
+    let t = el.text.as_deref().unwrap_or("");
+    t.lines().any(|line| {
+        let trimmed = line.trim();
+        scoreboard_is_bullet_only(trimmed)
+            || scoreboard_is_letter_bullet_only(trimmed)
+            || scoreboard_strip_folded_bullet_prefix(line) != line
+    })
 }
 
 fn scoreboard_walk_elements(elements: &[DumpElement], out: &mut Vec<String>) {
     for el in elements {
         if el.type_ != "picture" {
-            if let Some(t) = &el.text {
+            if scoreboard_prefers_editor_segments(el) {
+                if let Some(editor) = &el.editor_text {
+                    scoreboard_push_segments(&editor.segments, out);
+                } else if let Some(t) = &el.text {
+                    scoreboard_push_text(t, out);
+                }
+            } else if let Some(t) = &el.text {
                 scoreboard_push_text(t, out);
             }
         }
@@ -1677,6 +1777,7 @@ fn base64_encode(data: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::edit::shapes::TextSegmentSnap;
     use crate::render::{paint_slide_frame, SlidePaintViewport, StringIntern};
     use nitro_xml_render::measure::{MeasureBatch, OutlineBatch};
     use nitro_xml_render::smartart::{smartart_svg, smartart_svg_with_scheme};
@@ -2376,5 +2477,68 @@ mod tests {
 
     fn is_lt1_yellow(paint: &str) -> bool {
         paint.contains("FFFF00") || paint.contains("255, 255, 0")
+    }
+
+    // Catches: en-dash bullet prefix left on scoreboard paragraphs (poi-60810) and over-strip of literal • in runs (poi-keyframes).
+    #[test]
+    fn scoreboard_bullet_strip_and_editor_segments() {
+        let mut out = Vec::new();
+        scoreboard_push_text("– What we do\n• \nl Project preparation", &mut out);
+        assert_eq!(out[0], "What we do");
+        assert!(!out.iter().any(|p| p == "l"));
+        assert_eq!(out.last().map(String::as_str), Some("Project preparation"));
+
+        let mut out2 = Vec::new();
+        scoreboard_push_segments(
+            &[
+                TextSegmentSnap {
+                    text: "• ".to_owned(),
+                    ..TextSegmentSnap::default()
+                },
+                TextSegmentSnap {
+                    text: "Menganalisis".to_owned(),
+                    ..TextSegmentSnap::default()
+                },
+            ],
+            &mut out2,
+        );
+        assert_eq!(out2, ["• Menganalisis"]);
+    }
+
+    #[test]
+    fn scoreboard_bug68703_extract_unchanged_on_text_path() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/pptx/poi-bug68703.pptx"
+        );
+        let bytes = std::fs::read(path).expect("bug68703");
+        let mut pres = Presentation::open(&bytes).unwrap();
+        let j = pres.scoreboard_extract_json().unwrap();
+        let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+        let slide1 = v["slides"][0].as_array().expect("slide 1");
+        assert!(
+            slide1.iter().any(|p| p.as_str() == Some("u")),
+            "expected paragraph `u`, got {slide1:?}"
+        );
+    }
+
+    #[test]
+    fn scoreboard_footer_fixture_slide2_title_list() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../fixtures/real/pptx/poi-45541_Footer.pptx"
+        );
+        let bytes = std::fs::read(path).expect("footer fixture");
+        let mut pres = Presentation::open(&bytes).unwrap();
+        let j = pres.scoreboard_extract_json().unwrap();
+        let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+        let paras = v["slides"][1].as_array().expect("slide 2");
+        assert!(
+            paras
+                .iter()
+                .any(|p| p.as_str() == Some("Project preparation")),
+            "{paras:?}"
+        );
+        assert!(!paras.iter().any(|p| p.as_str() == Some("l")));
     }
 }

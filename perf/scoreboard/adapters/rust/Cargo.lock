@@ -754,6 +754,7 @@ name = "nitro-xml-opc"
 version = "0.0.0"
 dependencies = [
  "indexmap",
+ "memchr",
  "quick-xml",
  "serde",
  "serde_json",
@@ -789,6 +790,7 @@ name = "nitro-xml-xlsx"
 version = "0.0.0"
 dependencies = [
  "libc",
+ "memchr",
  "nitro-xml-opc",
  "nitro-xml-render",
  "quick-xml",

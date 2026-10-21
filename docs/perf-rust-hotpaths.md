@@ -523,3 +523,10 @@ Open path unchanged by design; spread above is single-box noise (no fixture >~12
 edit-path regressions.
 
 **Verdict:** ship — clear React embed xlsx edit-cell win (S and L), no material open regression.
+
+## Slice 19: wasm-opt `-O3` → `-O1` (keep #352 one-caller inline cap)
+
+Release `wasm-opt` level drops from `-O3` to `-O1` (PRODUCT_SPEC §5; Jared 2026-10-20) while
+keeping `--one-caller-inline-max-function-size=1500`. Less aggressive shrink reduces V8 TurboFan
+compile zone on cold open (React embed startup + gate open/peak) without changing fixture
+thresholds. Numbers TBD on fresh A/B vs current `main` after rebase.

@@ -412,7 +412,52 @@ not touch `rs/crates/nitro-xml-wasm/Cargo.toml` wasm-opt flags.
 
 Merged on `main` ahead of this refresh: [#333](https://github.com/jgridifier/nitro-xml/pull/333),
 [#349](https://github.com/jgridifier/nitro-xml/pull/349), [#351](https://github.com/jgridifier/nitro-xml/pull/351),
-[#352](https://github.com/jgridifier/nitro-xml/pull/352), [#356](https://github.com/jgridifier/nitro-xml/pull/356).
+[#352](https://github.com/jgridifier/nitro-xml/pull/352), [#356](https://github.com/jgridifier/nitro-xml/pull/356),
+[#360](https://github.com/jgridifier/nitro-xml/pull/360).
+
+#### xlsx S peak_mem — compile-floor attribution (`68c7ba6`)
+
+`peak-mem.mjs` measures **VmHWM growth over the post-`initSync` baseline** (fresh process per
+open). On tip `68c7ba6` (local cloud agent VM, 2026-10-21):
+
+| Metric | TS | WASM | WASM/TS | Verdict |
+|--------|---:|-----:|--------:|---------|
+| openDocument median (ms) | 5.54 | 1.69 | **0.305** [0.215, 0.368] | **WIN** |
+| peak_mem median (MiB) | 5.7 | **18.1** | **3.148** [3.010, 3.299] | **LOSS** |
+
+Stage split of absolute process HWM (median of 7–9 fresh processes; Node base ~45 MiB):
+
+| Stage | HWM (MiB) | Δ vs prior |
+|-------|----------:|-----------:|
+| Node only | 45.2 | — |
+| `import` glue JS | 45.5 | +0.3 |
+| `initSync` (load 6.5 MB module) | 63.3 | **+17.8** |
+| `new Handle(bytes)` | 63.8 | +0.5 |
+| first `openDocument` | 81.1 | **+17.3** |
+| second `openDocument` (new Handle, same process) | 83.1 | **+2.2** |
+
+Gate-shaped probe (baseline after `initSync`, then open) — median of 9:
+
+| Probe | Peak over baseline (MiB) |
+|-------|-------------------------:|
+| Cold first open (matches gate) | **18.0** |
+| Second open after warmup open | **2.3** |
+
+Reading: **~87% of the xlsx S peak_mem LOSS is V8's first-touch wasm compile** of the
+functions the open path executes (Liftoff/TurboFan). Retained document/state alloc is
+~2.3 MiB — already **below** TS's 5.7 MiB. No application-heap cut on the xlsx open path
+can flip the gate cell without shrinking that compile floor.
+
+Levers that do move the floor (owned elsewhere; **not** changed in this slice):
+
+| Lever | Owner | Expected effect |
+|-------|-------|-----------------|
+| `wasm-opt -O1` (drop `-O3` inlining tax) | draft [#332](https://github.com/jgridifier/nitro-xml/pull/332) | ~−15 to −20 MiB first-open RSS (measured in hotpaths) |
+| Format-split `openDocument` / `process_frame` | draft [#359](https://github.com/jgridifier/nitro-xml/pull/359) (docx peak) | May shrink shared compile surface; do not duplicate here |
+| Cap already shipped | [#352](https://github.com/jgridifier/nitro-xml/pull/352) `--one-caller-inline-max-function-size=1500` | xlsx S peak **30.4 → ~18–19 MiB** |
+
+Bar not lowered; budgets/fixtures/loader ceiling unchanged; `Cargo.toml` wasm-opt flags
+untouched.
 
 ```bash
 PERF_GATE_MODE=report bash scripts/ci/perf.sh gate
@@ -466,8 +511,9 @@ No invented medians in the published JSON from this report slice.
 | Item | Issue / PR | Notes |
 |------|------------|-------|
 | Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Scripts live in **report** mode (§5.4 / #342). Jared: `PERF_GATE_MODE=enforce` when reds are fixed |
-| Peak-mem LOSSes (xlsx S, docx S/M; docx L flaky) | #8 / hotpaths | Post-#352: pptx S/M flipped WIN; xlsx/docx S still LOSS (compile floor). Leave wasm-opt to that stream |
-| xlsx S openDocument | done (clear WIN) | Post-#352 CI 0.269 [0.228, 0.321]; measure sticky size/bold keeps CI upper ≪ 1 even at warmup=2 |
+| xlsx S peak_mem LOSS | compile floor (measured) | Cold ~18 MiB / warm-second ~2.3 MiB; residual alloc already beats TS. Next: [#332](https://github.com/jgridifier/nitro-xml/pull/332) `-O1` |
+| Docx peak_mem LOSSes | draft [#359](https://github.com/jgridifier/nitro-xml/pull/359) | Format-split `openDocument`/`process_frame`; do not touch from xlsx stream |
+| xlsx S openDocument | done (clear WIN) | [#360](https://github.com/jgridifier/nitro-xml/pull/360); CI upper ≪ 1 |
 | Scoreboard standings including losses | **#41**, draft **#113**, **#39**; adapters **#299/#329** | Published `parse-latest.json` still waits on #113 — do not invent numbers |
 | Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |
 | Per-format wasm / TTI ceilings | #46 | Bundle gate extension |

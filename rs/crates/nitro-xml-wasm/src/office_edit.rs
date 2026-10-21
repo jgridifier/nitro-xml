@@ -1182,4 +1182,116 @@ mod tests {
             .collect::<String>()
             .to_ascii_uppercase()
     }
+
+    fn slide_elements(bytes: &[u8]) -> Vec<nitro_xml_pptx::edit::host::EditableElement> {
+        nitro_xml_pptx::editor::PptxEditor::open(bytes)
+            .expect("reopen")
+            .session
+            .host
+            .slides
+            .into_iter()
+            .next()
+            .expect("slide")
+            .elements
+    }
+
+    #[test]
+    fn catches_insert_shape_duplicate_delete_and_z_order_missing_after_reopen_or_undo() {
+        // Catches: insert shape, duplicate, delete, or z-order leaving the saved slide
+        // unchanged, a no-op z-order rewriting a one-shape slide, or undo keeping the edit.
+        let count = |bytes: &[u8]| slide_elements(bytes).len();
+        let before = count(PPTX);
+        assert_eq!(before, 1, "slides_10 slide 1 is the one-shape case");
+
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.shell_action("cmd", "home.bring-forward")
+            .expect("noop forward");
+        h.shell_action("cmd", "home.send-backward")
+            .expect("noop back");
+        assert_eq!(
+            h.save_document().expect("noop z-order"),
+            PPTX,
+            "z-order on the only shape changed the package"
+        );
+
+        h.shell_action("cmd", "insert.shape").expect("shape");
+        let saved = h.save_document().expect("save shape");
+        assert_ne!(saved, PPTX);
+        let inserted = slide_elements(&saved);
+        assert_eq!(inserted.len(), before + 1, "reopen dropped the shape");
+        let rect = inserted.iter().find(|el| {
+            el.shape_type.as_deref() == Some("rect")
+                && (el.x - 100.0).abs() < 1.0
+                && (el.y - 100.0).abs() < 1.0
+                && (el.width - 200.0).abs() < 1.0
+                && (el.height - 120.0).abs() < 1.0
+        });
+        assert!(rect.is_some(), "inserted rect missing after reopen");
+        let title_at = inserted.iter().position(|el| {
+            el.text.as_deref().unwrap_or("").contains("Slide 1")
+                || el.text_segments.iter().any(|s| s.text.contains("Slide 1"))
+        });
+        assert_eq!(
+            title_at,
+            Some(0),
+            "insert put the title behind the new shape"
+        );
+
+        h.shell_action("cmd", "home.send-backward")
+            .expect("send back");
+        let ordered = h.save_document().expect("save order");
+        assert_ne!(ordered, saved);
+        let after_order = slide_elements(&ordered);
+        assert_eq!(after_order.len(), before + 1);
+        let title_at = after_order.iter().position(|el| {
+            el.text.as_deref().unwrap_or("").contains("Slide 1")
+                || el.text_segments.iter().any(|s| s.text.contains("Slide 1"))
+        });
+        assert_eq!(
+            title_at,
+            Some(1),
+            "send backward did not move the new shape behind the title"
+        );
+        let front = &after_order[0];
+        assert_eq!(front.shape_type.as_deref(), Some("rect"));
+        assert!((front.x - 100.0).abs() < 1.0, "x {}", front.x);
+
+        h.shell_action("cmd", "home.bring-forward")
+            .expect("bring forward");
+        let forward = h.save_document().expect("save forward");
+        let after_forward = slide_elements(&forward);
+        let title_at = after_forward.iter().position(|el| {
+            el.text.as_deref().unwrap_or("").contains("Slide 1")
+                || el.text_segments.iter().any(|s| s.text.contains("Slide 1"))
+        });
+        assert_eq!(
+            title_at,
+            Some(0),
+            "bring forward did not restore the title to the back"
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo forward");
+        h.shell_action("cmd", "edit.undo").expect("undo back");
+        h.shell_action("cmd", "edit.undo").expect("undo shape");
+        assert_eq!(h.save_document().expect("shape undone"), PPTX);
+
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.shell_action("cmd", "home.duplicate").expect("duplicate");
+        let saved = h.save_document().expect("save duplicate");
+        assert_ne!(saved, PPTX);
+        assert_eq!(count(&saved), before + 1, "reopen dropped the duplicate");
+        h.shell_action("cmd", "edit.undo").expect("undo duplicate");
+        assert_eq!(h.save_document().expect("duplicate undone"), PPTX);
+
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.shell_action("cmd", "home.delete").expect("delete");
+        let saved = h.save_document().expect("save delete");
+        assert_ne!(saved, PPTX);
+        assert_eq!(
+            count(&saved),
+            before - 1,
+            "deleted shape still in the package"
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo delete");
+        assert_eq!(h.save_document().expect("delete undone"), PPTX);
+    }
 }

@@ -175,13 +175,14 @@ export function attach(el) {
 
   // WebKit often reports a 0-height range on the same turn the page is replaced.
   // One failed place() used to leave the bar at display:none for the click check.
+  // 40 frames covers a slow layout without giving up while the click round-trip is in flight.
   let placeTries = 0;
   const place = () => {
     const r = rectOf();
     const d = dom.getBoundingClientRect();
     if (!r || !r.h) {
       bar.style.display = "none";
-      if (caret && placeTries < 12) {
+      if (caret && placeTries < 40) {
         placeTries++;
         requestAnimationFrame(() => place());
       }
@@ -230,6 +231,7 @@ export function attach(el) {
   const commit = (hit) => {
     caret = { bid: hit.bid, shown: hit.shown };
     lineStart = hit.lineStart;
+    placeTries = 0;
     place();
     return syncModel(hit);
   };

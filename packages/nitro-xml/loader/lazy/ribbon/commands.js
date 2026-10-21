@@ -2,7 +2,9 @@
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
 // Every `c` id below was checked against the engine (the saved bytes change); anything the editor
-// registers but does not implement (cut, paste, borders, shapes, grow/shrink, group, bring to front) is deliberately absent.
+// registers but does not implement (cut, paste, borders, grow/shrink, group, bring to front) is deliberately absent.
+// Indent, spacing, script, font name, Word bullets, insert shape, duplicate, delete, one-step z-order,
+// shape fill, outline, and slide layout are listed only after they change the saved package.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
 //   c editor cmd id · d diagnostics toggle · s slide-pane toggle (host) · m dropdown entries · r readout
 //   g group caption · big: large buttons · rows: stacked small buttons · sm: small button style
@@ -27,6 +29,15 @@ const drawing = {
     it("home.shape-fill", "fill", "Fill", "Shape fill"),
     it("home.shape-outline", "outline", "Outline", "Shape outline"),
   ]],
+};
+const arrange = {
+  g: "Arrange",
+  big: [
+    it("home.duplicate", "duplicate", "Duplicate", "Duplicate shape"),
+    it("home.delete", "trash", "Delete", "Delete shape"),
+    it("home.bring-forward", "forward", "Bring Forward"),
+    it("home.send-backward", "back", "Send Backward"),
+  ],
 };
 const wordLists = {
   g: "Paragraph",
@@ -160,7 +171,7 @@ export function tabsFor(format, unit, edit) {
       ? { Home: [...XLSX_HOME.slice(0, 5), nav(unit), XLSX_HOME[5]] }
       : format === "pptx" && edit
         ? {
-            Home: [...officeHome.slice(0, 2), lists, drawing, ...officeHome.slice(2)],
+            Home: [...officeHome.slice(0, 2), lists, drawing, arrange, ...officeHome.slice(2)],
             Insert: [
               {
                 g: "Slides",
@@ -170,6 +181,7 @@ export function tabsFor(format, unit, edit) {
                   it("insert.move-slide-up", "chevUp", "Move Slide Up"),
                   it("insert.move-slide-down", "chevDown", "Move Slide Down"),
                   it("insert.text-box", "text", "Text Box"),
+                  it("insert.shape", "shape", "Shape", "Insert a shape"),
                   it("insert.picture", "picture", "Picture", "Insert a picture"),
                   it("home.layout", "layout", "Layout", "Change slide layout"),
                   it("home.delete-slide", "trash", "Delete Slide"),

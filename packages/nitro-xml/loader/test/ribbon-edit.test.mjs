@@ -31,7 +31,7 @@ describe("Office ribbon manifests", () => {
   });
 
   it("lists only PowerPoint commands that change the saved package", () => {
-    // Catches: a PowerPoint button whose command does not rewrite the package (notes, shapes).
+    // Catches: a PowerPoint button whose command does not rewrite the package (notes, group).
     const bound = [...ids(tabsFor("pptx", "Slide", true)), ...QAT.map((x) => x.c)];
     const allowed = new Set([
       "file.save",
@@ -59,7 +59,12 @@ describe("Office ribbon manifests", () => {
       "home.shape-outline",
       "home.layout",
       "insert.text-box",
+      "insert.shape",
       "insert.picture",
+      "home.duplicate",
+      "home.delete",
+      "home.bring-forward",
+      "home.send-backward",
       "insert.table",
       "table.insert-row",
       "table.delete-row",
@@ -78,6 +83,11 @@ describe("Office ribbon manifests", () => {
       "insert.move-slide-down",
       "home.delete-slide",
       "insert.text-box",
+      "insert.shape",
+      "home.duplicate",
+      "home.delete",
+      "home.bring-forward",
+      "home.send-backward",
       "insert.picture",
       "insert.table",
       "table.insert-row",

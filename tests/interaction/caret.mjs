@@ -36,6 +36,18 @@ const press = async (page, key, n = 1) => {
 	}
 };
 
+// WebKit can still be on a 0-height range, or the caret round-trip can still be in flight,
+// at a single 200ms sample. Waiting does not relax the position, blink, or edit assertions.
+const waitCaret = async (page, budgetMs = 1500) => {
+	const start = Date.now();
+	for (;;) {
+		const c = await caretRect(page);
+		if (c) return c;
+		if (Date.now() - start >= budgetMs) return null;
+		await sleep(page, 50);
+	}
+};
+
 const CHECKS = [
 	{
 		id: 'docx.caret-click-type',
@@ -44,8 +56,7 @@ const CHECKS = [
 			const before = await docxModelParas(page);
 			const r = await line(page, 3);
 			await page.mouse.click(r.x + 150, midY(r));
-			await sleep(page, 200);
-			const c = await caretRect(page);
+			const c = await waitCaret(page);
 			if (!c) return 'no caret overlay after click';
 			if (Math.abs(c.x - (r.x + 150)) > 14 || c.y > midY(r) || c.y + c.h < midY(r)) return `caret ${JSON.stringify(c)} not at click (${r.x + 150},${midY(r)})`;
 			if (!c.blinking) return 'caret has no blink animation';

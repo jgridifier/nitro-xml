@@ -812,7 +812,17 @@ impl PptxHost {
         let slide = self.slide_mut(slide_index)?;
         let idx = Self::resolve_index(slide, element_id, element_index)?;
         let id = slide.elements[idx].id.clone();
-        slide.elements = shapes::reorder(&slide.elements, &id, op);
+        let next = shapes::reorder(&slide.elements, &id, op);
+        // Already at the front or back: leave the package clean. `saturating` order
+        // checks in `reorder` return the same ids; touching would rewrite the slide.
+        let unchanged = next
+            .iter()
+            .map(|el| el.id.as_str())
+            .eq(slide.elements.iter().map(|el| el.id.as_str()));
+        if unchanged {
+            return Ok(());
+        }
+        slide.elements = next;
         self.touch(slide_index)
     }
 

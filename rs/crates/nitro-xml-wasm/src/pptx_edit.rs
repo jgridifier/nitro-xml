@@ -363,8 +363,33 @@ impl PptxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "insert.shape",
+                    label: "Shape",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "insert.text-box",
                     label: "Text Box",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.duplicate",
+                    label: "Duplicate",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.delete",
+                    label: "Delete",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.bring-forward",
+                    label: "Bring Forward",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.send-backward",
+                    label: "Send Backward",
                     enabled: true,
                 },
                 RibbonItem {

@@ -3,8 +3,10 @@
  * applyEdit coalesce (microtask) + mut-frame edit+paint (one worker RT).
  * Installed from worker-host-tick on first tick (lazy — off eager brotli budget).
  *
- * mut-frame is docx/pptx only: on xlsx it forced a full frame build per edit and
- * regressed cell/bold latency and heap (see #341). Xlsx keeps coalesce + separate tick.
+ * applyEdit mut-frame is on for every format (incl. xlsx): Rust defers paint in
+ * applyEdit, mut-frame's prepareFrame paints once, tick skips via `_nxPainted`.
+ * shellAction / editorKey stay docx/pptx-only — xlsx bold on cells_1m still
+ * regresses under mut-frame (#341 / re-check after #344/#345).
  */
 
 import { extensionOf } from "../formats.js";
@@ -27,8 +29,13 @@ export function patch(WorkerDocument) {
     const msg = await doc._request("mut-frame", () => {
       doc._worker.postMessage({ type: "mut-frame", ...fields });
     });
+    // Detach chrome JSON before retaining the frame for paint — otherwise the
+    // large applyEdit payload overlaps commands/strings and inflates JS peak
+    // (xlsx M was ~+1–2 MiB vs main).
+    const result = msg.result;
+    msg.result = null;
     doc._xf = msg;
-    return msg.result;
+    return result;
   }
 
   async function flushEditQueue(doc) {
@@ -49,12 +56,8 @@ export function patch(WorkerDocument) {
         }
       }
       try {
-        // Spreadsheet: coalesce only — frame stays on the next tick (no xlsx regress).
-        if (
-          !isSpreadsheet(doc) &&
-          doc._worker &&
-          typeof doc._request === "function"
-        ) {
+        // All formats: coalesce + mut-frame on the last edit (xlsx paint deferred in Rust).
+        if (doc._worker && typeof doc._request === "function") {
           const result = await mutFrame(doc, { op: "a", spec: last.spec });
           const frame = doc._xf;
           doc._xf = null;
@@ -130,9 +133,13 @@ export function patch(WorkerDocument) {
   // layout, is not the painted page. A later key can report measureCount 0 while the
   // previous batch is still awaiting, and its rAF tick can run before this flag is
   // set — so schedule the follow-up here, not only from the caller's tick.
+  // Spreadsheet applyEdit mut-frame already paints a complete grid; layout reads are
+  // queued via _queueLayout. A follow-up tick here would force a second worker RT and
+  // erase the edit→screen win (xlsx cell S ~6ms → ~15ms after #349).
   function notePainted(doc, frame) {
     const bytes = frame.commands ? frame.commands.byteLength : 0;
     doc._nxPainted = 1;
+    if (isSpreadsheet(doc)) return;
     if (
       bytes === 0 ||
       (frame.measureCount | 0) > 0 ||

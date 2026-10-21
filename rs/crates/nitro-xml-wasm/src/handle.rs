@@ -1217,7 +1217,8 @@ impl Handle {
             ) {
                 self.refresh_xlsx_tabs();
             }
-            process_frame(self);
+            // Defer paint to the host tick's prepareFrame. applyEdit+tick used to
+            // process_frame twice per cell edit (edit-to-screen lag on React embeds).
             self.refresh_formula_bar();
             return Ok(self.chrome_payload(false));
         }
@@ -1255,7 +1256,7 @@ impl Handle {
             if let Some(sel) = self.xlsx.as_ref().and_then(|x| x.selection_ref_now()) {
                 self.shell.selection_ref = sel;
             }
-            process_frame(self);
+            // Same as applyEdit: paint on the next prepareFrame/tick, not here.
             self.refresh_formula_bar();
             self.shell.dirty_ui = true;
         }
@@ -1565,6 +1566,9 @@ impl Handle {
             self.refresh_office_view()?;
             self.sync_office_tabs();
         }
+        // Paint here for chrome commands (bold/etc). applyEdit defers paint instead;
+        // xlsx shellAction stays off mut-frame, so skipping paint here only added a
+        // tick round-trip without a time win and nudged JS peak on bold S/M.
         if !save {
             process_frame(self);
         }

@@ -273,6 +273,12 @@ impl FirstView {
         self.sheets.get(sheet).and_then(|s| s.as_ref())
     }
 
+    /// Move the stored sheet out (viewer open takes ownership so `XlsxState` does not clone
+    /// the viewport sheet while `lazy` still holds a second copy — #30 peak_mem).
+    pub fn take_sheet(&mut self, sheet: usize) -> Option<ActiveWorksheet> {
+        self.sheets.get_mut(sheet).and_then(|s| s.take())
+    }
+
     /// Styles, theme and sheet stubs. [`WorkbookSlice::shared_strings`] stays empty; string cells
     /// in the window already hold their text.
     pub fn workbook(&self) -> &WorkbookSlice {

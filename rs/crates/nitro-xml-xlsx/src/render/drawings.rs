@@ -78,6 +78,9 @@ fn theme_colors(workbook: &WorkbookSlice) -> Option<Vec<String>> {
 }
 
 /// Paint `.xg-drawings` children for the active sheet (main plane only for now).
+///
+/// Empty sheets return before calling the body so V8 never TurboFan-compiles chart/image
+/// paint on first open of drawing-free fixtures (xlsx S peak_mem / #30).
 pub fn paint<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
@@ -89,6 +92,18 @@ pub fn paint<I: StringIntern>(
     if sheet.drawings.is_empty() {
         return;
     }
+    paint_drawings_body(buf, intern, measures, workbook, sheet, metrics);
+}
+
+#[inline(never)]
+fn paint_drawings_body<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    measures: &mut MeasureBatch,
+    workbook: &WorkbookSlice,
+    sheet: &ActiveWorksheet,
+    metrics: &GridMetrics,
+) {
     let div = intern.intern("div");
     let img_tag = intern.intern("img");
     buf.create_element(DRAWINGS_ID, div, PLANE_ID);

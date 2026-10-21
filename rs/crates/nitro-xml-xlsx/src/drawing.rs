@@ -288,13 +288,26 @@ pub fn parse_drawing(
 }
 
 /// Load drawings for a worksheet part via its `drawing` relationship (or `<drawing r:id>`).
+///
+/// Rel lookup stays in the thin wrapper; `parse_drawing` is never-inlined so drawing-free
+/// sheets (xlsx S gate) do not TurboFan-compile the chart/image parse path on first open (#30).
 pub fn load_sheet_drawings(
     pkg: &mut Package,
     worksheet_part: &str,
     sheet_xml_root: Option<&Element>,
     warn: &mut impl FnMut(String),
 ) -> Vec<DrawingObject> {
-    let mut target = None;
+    let Some(target) = resolve_drawing_part(pkg, worksheet_part, sheet_xml_root) else {
+        return Vec::new();
+    };
+    parse_drawing_outlined(pkg, &target, warn)
+}
+
+fn resolve_drawing_part(
+    pkg: &mut Package,
+    worksheet_part: &str,
+    sheet_xml_root: Option<&Element>,
+) -> Option<String> {
     if let Some(root) = sheet_xml_root {
         if let Some(drawing) = children_ns(root, "drawing", ns::X)
             .into_iter()
@@ -307,21 +320,25 @@ pub fn load_sheet_drawings(
                     .ok()
                     .and_then(|rels| rels.get(rid).cloned());
                 if let Some(rel) = rel {
-                    target = pkg.target(worksheet_part, &rel);
+                    if let Some(target) = pkg.target(worksheet_part, &rel) {
+                        return Some(target);
+                    }
                 }
             }
         }
     }
-    if target.is_none() {
-        target = pkg
-            .target_of_type(worksheet_part, relationship_types::DRAWING)
-            .ok()
-            .flatten();
-    }
-    let Some(target) = target else {
-        return Vec::new();
-    };
-    parse_drawing(pkg, &target, warn)
+    pkg.target_of_type(worksheet_part, relationship_types::DRAWING)
+        .ok()
+        .flatten()
+}
+
+#[inline(never)]
+fn parse_drawing_outlined(
+    pkg: &mut Package,
+    target: &str,
+    warn: &mut impl FnMut(String),
+) -> Vec<DrawingObject> {
+    parse_drawing(pkg, target, warn)
 }
 
 #[cfg(test)]

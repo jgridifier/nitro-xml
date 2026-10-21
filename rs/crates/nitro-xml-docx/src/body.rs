@@ -615,8 +615,8 @@ fn parse_document_parts(
         }
         sections.push(Value::Object(section));
     }
-    let footnotes_xml = pkg.text("word/footnotes.xml")?.map(|s| s.to_string());
-    let endnotes_xml = pkg.text("word/endnotes.xml")?.map(|s| s.to_string());
+    let footnotes_xml = pkg.take_text("word/footnotes.xml")?;
+    let endnotes_xml = pkg.take_text("word/endnotes.xml")?;
     let footnotes = if let Some(xml) = footnotes_xml {
         let ctx = part_context(pkg, "word/footnotes.xml", drawings)?;
         let mut parser = |container: &Element, prefix: &str| {
@@ -861,6 +861,7 @@ mod tests {
     use super::*;
 
     // Catches: retained one-shot parse parts doubling peak during open.
+    // footnotes.xml / endnotes.xml use take_text too when present (not in pages_10 fixture).
     #[test]
     fn one_shot_parse_parts_not_retained_in_package_text_cache() {
         let bytes = include_bytes!("../../../../fixtures/generated/docx/pages_10.docx");

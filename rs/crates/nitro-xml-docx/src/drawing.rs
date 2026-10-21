@@ -82,6 +82,7 @@ fn svg_blip_rel_id(blip: &Element) -> Option<String> {
     get_r(Some(svg_blip), "embed")
 }
 
+#[inline(never)]
 fn text_box_paragraphs(graphic_data: Option<&Element>) -> Option<Vec<String>> {
     let graphic_data = graphic_data?;
     let box_el = descendant_ns(Some(graphic_data), WPS_NS, "txbx")?;
@@ -291,6 +292,37 @@ fn parse_modern_drawing(node: &Element, context: &DrawingContext) -> Value {
         }
         return pic;
     }
+    parse_non_picture_modern_drawing(
+        graphic_data,
+        extent,
+        doc_pr,
+        anchor_only,
+        context,
+        uri,
+        rel_id,
+        width_px,
+        height_px,
+        alt_text,
+        title,
+        anchored,
+    )
+}
+
+#[inline(never)]
+fn parse_non_picture_modern_drawing(
+    graphic_data: Option<&Element>,
+    extent: Option<&Element>,
+    doc_pr: Option<&Element>,
+    anchor_only: Option<&Element>,
+    context: &DrawingContext,
+    uri: String,
+    rel_id: Option<String>,
+    width_px: i64,
+    height_px: i64,
+    alt_text: Option<String>,
+    title: Option<String>,
+    anchored: bool,
+) -> Value {
     let diagram = if uri == DGM_NS {
         Some(parse_diagram_graphic(
             graphic_data.unwrap(),
@@ -358,6 +390,7 @@ fn parse_modern_drawing(node: &Element, context: &DrawingContext) -> Value {
     base
 }
 
+#[inline(never)]
 fn parse_diagram_graphic(
     graphic_data: &Element,
     extent: Option<&Element>,

@@ -76,6 +76,9 @@ function build(host, spec) {
         on = !!m;
         dis = !m || (!it.u && m.disabled);
         pressed = !it.u && m && m.getAttribute("aria-pressed");
+      } else if (it.v) {
+        // Shell Copy only while the editor's home.copy is absent (read-only chrome).
+        on = !q('[data-a="cmd"][data-g="home.copy"]');
       } else if (it.n) {
         on = tb.length > 1; // a single page/slide has nothing to step through
         const to = at + it.n;

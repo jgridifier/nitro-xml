@@ -65,7 +65,8 @@ async function check(f, browser, base, browserName) {
 	if (tabStops !== 1) errs.push(`roving tabindex: ${tabStops} tab stops`);
 
 	// Roving focus + state mirrored from the re-rendered Rust chrome.
-	const nxBtn = (name) => page.locator(`css=nitro-${f.format} >> .nx-b[aria-label="${name}"]`);
+	// Cut/Copy/Paste stay in the DOM but hidden until the editor emits them; the view-only shell Copy shares the name.
+	const nxBtn = (name) => page.locator(`css=nitro-${f.format} >> .nx-b[aria-label="${name}"]:not([hidden])`);
 	await nxBtn('Copy').focus();
 	await page.keyboard.press('ArrowRight');
 	if (f.next) {

@@ -37,4 +37,15 @@ describe("embedded pptx and docx toolbars", () => {
     }
     assert.ok(!bound.includes("insert.slide"));
   });
+
+  it("keeps a shell Copy for a read-only Word or PowerPoint toolbar", () => {
+    // Catches: read-only embedded Copy disappearing, so ArrowRight from Copy never reaches Find or Next.
+    for (const format of ["docx", "pptx"]) {
+      const items = MANIFEST[format].groups.find((g) => g.id === "Clipboard").items;
+      assert.ok(items.some((it) => it.o === "copy" && it.v === 1), `${format} clipboard has no view-only Copy`);
+      assert.ok(items.some((it) => it.c === "home.copy"));
+    }
+    const xlsx = MANIFEST.xlsx.groups.find((g) => g.id === "Clipboard").items;
+    assert.ok(xlsx.some((it) => it.o === "copy" && !it.v));
+  });
 });

@@ -133,9 +133,13 @@ export function patch(WorkerDocument) {
   // layout, is not the painted page. A later key can report measureCount 0 while the
   // previous batch is still awaiting, and its rAF tick can run before this flag is
   // set — so schedule the follow-up here, not only from the caller's tick.
+  // Spreadsheet applyEdit mut-frame already paints a complete grid; layout reads are
+  // queued via _queueLayout. A follow-up tick here would force a second worker RT and
+  // erase the edit→screen win (xlsx cell S ~6ms → ~15ms after #349).
   function notePainted(doc, frame) {
     const bytes = frame.commands ? frame.commands.byteLength : 0;
     doc._nxPainted = 1;
+    if (isSpreadsheet(doc)) return;
     if (
       bytes === 0 ||
       (frame.measureCount | 0) > 0 ||

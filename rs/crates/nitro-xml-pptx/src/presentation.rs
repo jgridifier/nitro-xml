@@ -34,6 +34,7 @@ use crate::edit::shapes::TextSegmentSnap;
 pub type Error = OpcError;
 
 /// Common bullet glyphs that Nitro folds into `DumpElement::text` as their own paragraph.
+#[inline(never)]
 fn scoreboard_is_bullet_only(s: &str) -> bool {
     let t = s.trim();
     // Unicode escapes only (literal "•"/"◦"/… are the same codepoints — unreachable duplicates).
@@ -54,11 +55,13 @@ fn scoreboard_is_bullet_only(s: &str) -> bool {
 }
 
 /// Wingdings bullet placeholder `l` on poi-45541-style body lists (not arbitrary one-letter words).
+#[inline(never)]
 fn scoreboard_is_letter_bullet_only(s: &str) -> bool {
     s.trim() == "l"
 }
 
 /// Strip a synthetic marker Nitro prepends in `extract_element_text` (`char + " " + body`).
+#[inline(never)]
 fn scoreboard_strip_folded_bullet_prefix(line: &str) -> String {
     let p = line.to_string();
     for prefix in [
@@ -92,6 +95,7 @@ fn scoreboard_strip_folded_bullet_prefix(line: &str) -> String {
     p
 }
 
+#[inline(never)]
 fn scoreboard_push_paragraph(p: &str, out: &mut Vec<String>) {
     let p = scoreboard_strip_folded_bullet_prefix(p);
     if !p.is_empty() && !scoreboard_is_bullet_only(&p) {
@@ -99,6 +103,7 @@ fn scoreboard_push_paragraph(p: &str, out: &mut Vec<String>) {
     }
 }
 
+#[inline(never)]
 fn scoreboard_push_text(text: &str, out: &mut Vec<String>) {
     for line in text.split('\n') {
         scoreboard_push_paragraph(line, out);
@@ -108,12 +113,14 @@ fn scoreboard_push_text(text: &str, out: &mut Vec<String>) {
 /// Mirrors `segmentParagraphs` in `perf/scoreboard/adapters/js/upstream-pptx.mjs`, but keeps
 /// document runs that carry `bulletInfo` on the first segment (editor model). Only standalone
 /// marker segments are dropped so literal `a:t` bullets (poi-keyframes) stay in the output.
+#[inline(never)]
 fn scoreboard_push_segment_paragraph(p: &str, out: &mut Vec<String>) {
     if !p.is_empty() && !scoreboard_is_bullet_only(p) {
         out.push(p.to_owned());
     }
 }
 
+#[inline(never)]
 fn scoreboard_push_segments(segments: &[TextSegmentSnap], out: &mut Vec<String>) {
     let mut cur = String::new();
     for seg in segments {
@@ -131,6 +138,7 @@ fn scoreboard_push_segments(segments: &[TextSegmentSnap], out: &mut Vec<String>)
     scoreboard_push_segment_paragraph(&cur, out);
 }
 
+#[inline(never)]
 fn scoreboard_segment_is_skipped_marker(seg: &TextSegmentSnap) -> bool {
     let info = seg.bullet_info.as_ref();
     if info.is_none() || info.is_some_and(|b| b.none) {
@@ -140,6 +148,7 @@ fn scoreboard_segment_is_skipped_marker(seg: &TextSegmentSnap) -> bool {
     t.is_empty() || scoreboard_is_bullet_only(t) || scoreboard_is_letter_bullet_only(t)
 }
 
+#[inline(never)]
 fn scoreboard_push_cell_runs(runs: &[crate::table_cell_text::CellRun], out: &mut Vec<String>) {
     let mut cur = String::new();
     for run in runs {
@@ -155,6 +164,7 @@ fn scoreboard_push_cell_runs(runs: &[crate::table_cell_text::CellRun], out: &mut
     scoreboard_push_segment_paragraph(&cur, out);
 }
 
+#[inline(never)]
 fn scoreboard_push_shape_text(el: &DumpElement, out: &mut Vec<String>) {
     if let Some(editor) = &el.editor_text {
         if !editor.segments.is_empty() {
@@ -167,6 +177,7 @@ fn scoreboard_push_shape_text(el: &DumpElement, out: &mut Vec<String>) {
     }
 }
 
+#[inline(never)]
 fn scoreboard_walk_elements(elements: &[DumpElement], out: &mut Vec<String>) {
     for el in elements {
         if el.type_ != "picture" {
@@ -190,6 +201,19 @@ fn scoreboard_walk_elements(elements: &[DumpElement], out: &mut Vec<String>) {
             scoreboard_walk_elements(kids, out);
         }
     }
+}
+
+#[inline(never)]
+fn scoreboard_build_extract_json(pres: &mut Presentation) -> Result<String, Error> {
+    pres.ensure_all_slides()?;
+    let mut slides = Vec::new();
+    for i in 0..pres.slide_paths.len() {
+        let slide = pres.slides[i].as_ref().expect("parsed");
+        let mut paras = Vec::new();
+        scoreboard_walk_elements(&slide.elements, &mut paras);
+        slides.push(paras);
+    }
+    Ok(serde_json::json!({ "slides": slides }).to_string())
 }
 
 fn presentation_root(doc_root: &Element) -> Option<&Element> {
@@ -510,15 +534,7 @@ impl<'a> Presentation<'a> {
     /// Bullet markers folded into `DumpElement::text` are dropped so equivalence matches
     /// upstream's `textSegments` filter (see `perf/scoreboard/adapters/js/upstream-pptx.mjs`).
     pub fn scoreboard_extract_json(&mut self) -> Result<String, Error> {
-        self.ensure_all_slides()?;
-        let mut slides = Vec::new();
-        for i in 0..self.slide_paths.len() {
-            let slide = self.slides[i].as_ref().expect("parsed");
-            let mut paras = Vec::new();
-            scoreboard_walk_elements(&slide.elements, &mut paras);
-            slides.push(paras);
-        }
-        Ok(serde_json::json!({ "slides": slides }).to_string())
+        scoreboard_build_extract_json(self)
     }
 
     pub fn inspect_json(&mut self) -> Result<String, Error> {

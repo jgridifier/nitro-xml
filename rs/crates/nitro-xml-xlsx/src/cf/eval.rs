@@ -181,23 +181,28 @@ fn ensure_ordered_rules(cache: &mut CfPaintCache, sheet: &ActiveWorksheet) {
     cache.ordered_rules = Some(entries.into_iter().map(|(f, r, _, _)| (f, r)).collect());
 }
 
+#[inline(never)]
+fn cover_bbox(sheet: &ActiveWorksheet) -> Option<(u32, u32, u32, u32)> {
+    let mut bbox: Option<(u32, u32, u32, u32)> = None;
+    for format in &sheet.conditional_formats {
+        for r in &format.ranges {
+            bbox = Some(match bbox {
+                None => (r.start.row, r.start.col, r.end.row, r.end.col),
+                Some((r0, c0, r1, c1)) => (
+                    r0.min(r.start.row),
+                    c0.min(r.start.col),
+                    r1.max(r.end.row),
+                    c1.max(r.end.col),
+                ),
+            });
+        }
+    }
+    bbox
+}
+
 fn cell_in_any_cf(cache: &mut CfPaintCache, sheet: &ActiveWorksheet, row: u32, col: u32) -> bool {
     if cache.cover_bbox.is_none() {
-        let mut bbox: Option<(u32, u32, u32, u32)> = None;
-        for format in &sheet.conditional_formats {
-            for r in &format.ranges {
-                bbox = Some(match bbox {
-                    None => (r.start.row, r.start.col, r.end.row, r.end.col),
-                    Some((r0, c0, r1, c1)) => (
-                        r0.min(r.start.row),
-                        c0.min(r.start.col),
-                        r1.max(r.end.row),
-                        c1.max(r.end.col),
-                    ),
-                });
-            }
-        }
-        cache.cover_bbox = Some(bbox);
+        cache.cover_bbox = Some(cover_bbox(sheet));
     }
     match cache.cover_bbox {
         Some(Some((r0, c0, r1, c1))) => row >= r0 && row <= r1 && col >= c0 && col <= c1,
@@ -535,7 +540,22 @@ pub fn cf_at_cached(
     if !cell_in_any_cf(cache, sheet, row, col) {
         return None;
     }
+    cf_apply_rules(sheet, index, row, col, theme, indexed, cache)
+}
 
+/// Rule evaluation for a cell inside some CF range. Out of line so `cf_at_cached` (called once per
+/// painted cell) stays a few instructions: V8 tiers up on executed function size, and the inlined
+/// rule engine made a 17 KB hot function for sheets with no conditional formatting at all.
+#[inline(never)]
+fn cf_apply_rules(
+    sheet: &ActiveWorksheet,
+    index: &CellIndex,
+    row: u32,
+    col: u32,
+    theme: &ThemePalette,
+    indexed: &[&str],
+    cache: &mut CfPaintCache,
+) -> Option<CfApplied> {
     let cell = get_cell(sheet, index, row, col);
     let value = cell.map(|c| &c.value);
     let number = value.and_then(cell_number);

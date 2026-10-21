@@ -82,6 +82,13 @@ pub(crate) fn compile_format(format: &str) -> Rc<Compiled> {
     if let Some(hit) = CACHE.with(|c| c.borrow().get(format).cloned()) {
         return hit;
     }
+    compile_format_uncached(format)
+}
+
+/// Cache-miss path kept out of line: `compile_format` runs once per painted cell, so its body must
+/// stay tiny (V8 tiers up on executed function size; the compile work would drag a 9 KB body along).
+#[inline(never)]
+fn compile_format_uncached(format: &str) -> Rc<Compiled> {
     let code = if format.trim().is_empty() {
         "General"
     } else {

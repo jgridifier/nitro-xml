@@ -152,7 +152,7 @@ export class ViewerElement extends HTMLElement {
         type,
         ...keys(e),
       });
-      this._tick();
+      if (!type) this._tick();
     };
     t.addEventListener("keydown", keyEv(0));
     t.addEventListener("keyup", keyEv(1));
@@ -196,14 +196,22 @@ export class ViewerElement extends HTMLElement {
     }
   }
   _tick() {
-    if (this._raf) return;
+    if (this._raf) {
+      this._rd = this._rr;
+      return;
+    }
     this._raf = requestAnimationFrame(async () => {
+      this._rr = 1;
       try {
         if (this._d) await this._d.tick();
       } catch (e) {
         this._fail(e);
       } finally {
-        this._raf = 0;
+        this._raf = this._rr = 0;
+        if (this._rd) {
+          this._rd = 0;
+          this._tick();
+        }
       }
     });
   }

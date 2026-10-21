@@ -29,8 +29,13 @@ export function patch(WorkerDocument) {
     const msg = await doc._request("mut-frame", () => {
       doc._worker.postMessage({ type: "mut-frame", ...fields });
     });
+    // Detach chrome JSON before retaining the frame for paint — otherwise the
+    // large applyEdit payload overlaps commands/strings and inflates JS peak
+    // (xlsx M was ~+1–2 MiB vs main).
+    const result = msg.result;
+    msg.result = null;
     doc._xf = msg;
-    return msg.result;
+    return result;
   }
 
   async function flushEditQueue(doc) {

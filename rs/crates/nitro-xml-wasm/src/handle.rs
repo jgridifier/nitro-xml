@@ -1509,8 +1509,7 @@ impl Handle {
             }
         }
         let save = op == "save";
-        // Xlsx formula-bar ops: model/chrome only; paint on the next tick.
-        if !save && self.xlsx.is_none() {
+        if !save {
             process_frame(self);
         }
         Ok(self.chrome_payload(save))
@@ -1567,9 +1566,10 @@ impl Handle {
             self.refresh_office_view()?;
             self.sync_office_tabs();
         }
-        // Xlsx: defer paint to tick (avoids double process_frame with prepareFrame).
-        // Docx/pptx still paint here — mut-frame (#341) folds apply+paint into one RT.
-        if !save && self.xlsx.is_none() {
+        // Paint here for chrome commands (bold/etc). applyEdit defers paint instead;
+        // xlsx shellAction stays off mut-frame, so skipping paint here only added a
+        // tick round-trip without a time win and nudged JS peak on bold S/M.
+        if !save {
             process_frame(self);
         }
         Ok(self.chrome_payload(save))

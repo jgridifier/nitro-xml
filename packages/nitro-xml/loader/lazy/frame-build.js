@@ -4,6 +4,22 @@
  * Used by take-frame and mut-frame (edit+paint in one round-trip).
  */
 
+/** Strip chromeHtml/ui from mut-frame apply results — delivered via `h` instead. */
+function lightMutResult(result) {
+  if (typeof result !== "string") return result;
+  try {
+    const o = JSON.parse(result || "{}");
+    return JSON.stringify({
+      save: !!o.save,
+      ribbonAction: o.ribbonAction ?? null,
+      handled: o.handled,
+      k: o.k,
+    });
+  } catch {
+    return result;
+  }
+}
+
 export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
   if (handle.t !== false || workerSelf._openFrameApplied) handle.prepareFrame();
   else workerSelf._openFrameApplied = true;
@@ -57,10 +73,12 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
     );
   }
   const type = extra.type || "frame";
+  const result =
+    type === "mut-frame" ? lightMutResult(extra.result) : extra.result;
   workerSelf.postMessage(
     {
       type,
-      result: extra.result,
+      result,
       h: chromeHtml,
       commands,
       measureReqs,

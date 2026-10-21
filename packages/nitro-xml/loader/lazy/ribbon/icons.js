@@ -46,6 +46,8 @@ export const ICONS = {
   shape: '<rect x="4" y="5" width="16" height="14" rx="2"/><path class="a" d="M8 12h8"/>',
   forward: '<path d="M8 9h11v10H8z"/><path class="a" d="M5 5h11v10H5z"/>',
   back: '<path class="a" d="M8 9h11v10H8z"/><path d="M5 5h11v10H5z"/>',
+  front: '<path d="M10 12h10v8H10z"/><path d="M7 9h10v8H7z"/><path class="a" d="M4 6h10v8H4z"/>',
+  toBack: '<path class="a" d="M10 12h10v8H10z"/><path d="M7 9h10v8H7z"/><path d="M4 6h10v8H4z"/>',
   strike: '<path d="M6 12h12"/><path class="a" d="M8 16.5c.4 1.6 2 2.5 4 2.5 2.4 0 4-1.2 4-2.8 0-3.2-8-1.6-8-4.4C8 9.6 9.6 8.5 12 8.5c2 0 3.4.8 4 2"/>',
   highlight: '<path d="M5 16l8-8 3 3-8 8H5z"/><path class="a" d="M14 7l3 3M4 20h10"/>',
   indent: '<path d="M4 6h16M10 10h10M10 14h10M4 18h16"/><path class="a" d="M4 12h4M6 10.5l2 1.5-2 1.5"/>',

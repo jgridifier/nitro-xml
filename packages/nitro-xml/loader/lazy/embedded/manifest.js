@@ -159,6 +159,8 @@ export const MANIFEST = {
           cmd("home.delete", "trash", "Delete", "Delete shape"),
           cmd("home.bring-forward", "forward", "Bring forward"),
           cmd("home.send-backward", "back", "Send backward"),
+          cmd("home.bring-to-front", "front", "Bring to front"),
+          cmd("home.send-to-back", "toBack", "Send to back"),
         ],
       },
       {

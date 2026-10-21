@@ -489,6 +489,16 @@ impl PptxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.bring-to-front",
+                    label: "Bring to Front",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.send-to-back",
+                    label: "Send to Back",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "insert.table",
                     label: "Table",
                     enabled: true,

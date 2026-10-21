@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use crate::edit::drawing::append_inline_picture;
 use crate::edit::format::{
     adjust_left_indent, cycle_line_spacing, set_paragraph_align, set_paragraph_style,
-    set_run_formatting, INDENT_STEP_TWIPS,
+    set_run_formatting, toggle_paragraph_space, INDENT_STEP_TWIPS,
 };
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
@@ -60,6 +60,8 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("indent", "Increase Indent", None, true),
     word_cmd!("outdent", "Decrease Indent", None, true),
     word_cmd!("line-spacing", "Line Spacing", None, true),
+    word_cmd!("space-before", "Space Before", None, true),
+    word_cmd!("space-after", "Space After", None, true),
     word_cmd!("subscript", "Subscript", None, true),
     word_cmd!("superscript", "Superscript", None, true),
     word_cmd!("font-name", "Font", None, true),
@@ -390,6 +392,19 @@ impl DocxCommandSurface {
                         Ok(())
                     },
                 )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "space-before" | "space-after" => {
+                let key = if id == "space-before" {
+                    "spacingBeforeTwips"
+                } else {
+                    "spacingAfterTwips"
+                };
+                session.run(id, ChangeKind::Format, vec![EditScope::Workbook], |h| {
+                    toggle_paragraph_space(h, caret_block, key)?;
+                    Ok(())
+                })?;
                 schedule_relayout(print_edit);
                 Ok(())
             }

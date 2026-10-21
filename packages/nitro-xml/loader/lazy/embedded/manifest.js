@@ -81,7 +81,12 @@ export const MANIFEST = {
       editorClip,
       {
         id: "Font",
-        items: [...font.items, cmd("home.highlight", "highlight", "Highlight", "Text highlight")],
+        items: [
+          ...font.items,
+          cmd("home.highlight", "highlight", "Highlight", "Text highlight"),
+          cmd("home.space-before", "spaceBefore", "Space before", "Add 12 pt space before the paragraph"),
+          cmd("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),
+        ],
       },
       align,
       {

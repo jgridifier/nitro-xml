@@ -29,6 +29,9 @@ fn block_index(args: &Value) -> Result<usize, EditError> {
 /// Half-inch indent step (`w:ind/@w:left`), matching Word's Increase/Decrease Indent.
 pub const INDENT_STEP_TWIPS: i64 = 720;
 
+/// Word's Add Space Before/After Paragraph (`w:spacing` before/after), 12 points.
+pub const PARAGRAPH_SPACE_TWIPS: i64 = 240;
+
 /// `w:spacing/@w:line` with `w:lineRule="auto"`: single, 1.5, double.
 const LINE_SINGLE: i64 = 240;
 const LINE_ONE_HALF: i64 = 360;
@@ -104,6 +107,30 @@ pub fn cycle_line_spacing(host: &mut DocxHost, block_index: usize) -> Result<(),
     if let Some(obj) = block.as_object_mut() {
         obj.insert("lineSpacingTwips".into(), json!(next));
         obj.insert("lineSpacingRule".into(), json!("auto"));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
+/// Toggle direct space before or after the paragraph. `key` is `spacingBeforeTwips` or
+/// `spacingAfterTwips`. A paragraph already at 12pt drops the direct value; any other value
+/// becomes 12pt so one click always changes the saved `w:spacing`.
+pub fn toggle_paragraph_space(
+    host: &mut DocxHost,
+    block_index: usize,
+    key: &str,
+) -> Result<(), EditError> {
+    let block = host
+        .paragraph_mut(block_index)
+        .map_err(|e| EditError::Other { message: e })?;
+    let obj = block.as_object_mut().ok_or_else(|| EditError::Other {
+        message: format!("paragraph {block_index} is not an object"),
+    })?;
+    let current = obj.get(key).and_then(|n| n.as_i64());
+    if current == Some(PARAGRAPH_SPACE_TWIPS) {
+        obj.remove(key);
+    } else {
+        obj.insert(key.into(), json!(PARAGRAPH_SPACE_TWIPS));
     }
     host.mark_touched(block_index);
     Ok(())

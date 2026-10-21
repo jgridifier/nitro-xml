@@ -298,7 +298,7 @@ the post-init baseline). Application cuts tried after #359 (parse_normalized arm
 `Option` clears, skip empty chart/picture collect, paint `#[inline(never)]`, skip styles on first-view)
 did not move interleaved n=25 medians beyond noise.
 
-Remaining levers: [#359](https://github.com/jgridifier/nitro-xml/pull/359) land; draft [#332](https://github.com/jgridifier/nitro-xml/pull/332)
+Remaining levers: draft [#332](https://github.com/jgridifier/nitro-xml/pull/332)
 `wasm-opt -O1` only if it shows **no** open/edit regression vs main; further format-boundary splits of
 shared monoliths that still run on docx open. Do not raise `perf/budgets.json` or demote fixtures.
 
@@ -359,3 +359,12 @@ are **noise** (CI includes 1).
 Method: warm open = fresh process per pkg, 3 warmup + 21 runs, median of 21 processes
 interleaved; peak = `peak-mem.mjs --child=wasm:…` n=50 interleaved vs main `68260ca`.
 No wasm-opt / budget / fixture changes. Zero REGRESS rows.
+
+## Draft #332: wasm-opt -O1 — **recommend close**
+
+Jared approved `-O1` on 2026-10-20 **iff every benchmark still passes with no regression vs main**.
+Keeps `--one-caller-inline-max-function-size=1500`. Spec §5 on this branch pins `-O1`.
+
+Interleaved n=50 vs main: peak RSS improves on every fixture, but **open and/or edit latency
+regresses** (xlsx open, docx edit, docx L, pptx L). Under the no-regression bar this PR should
+stay draft or be **closed** — do not merge. Full table in PR #332 body.

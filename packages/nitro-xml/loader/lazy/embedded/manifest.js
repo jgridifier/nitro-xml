@@ -88,6 +88,8 @@ export const MANIFEST = {
           cmd("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),
           cmd("home.hanging-indent", "hanging", "Hanging", "Hanging indent, half an inch"),
           cmd("home.first-line", "firstLine", "First line", "First line indent, half an inch"),
+          cmd("home.indent-right", "indentRight", "Increase right", "Increase the right indent by half an inch"),
+          cmd("home.outdent-right", "outdentRight", "Decrease right", "Decrease the right indent by half an inch"),
         ],
       },
       align,

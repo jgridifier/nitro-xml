@@ -10,9 +10,9 @@ use serde_json::{json, Value};
 
 use crate::edit::drawing::append_inline_picture;
 use crate::edit::format::{
-    adjust_left_indent, cycle_line_spacing, set_paragraph_align, set_paragraph_style,
-    set_run_formatting, toggle_first_line_indent, toggle_hanging_indent, toggle_paragraph_space,
-    INDENT_STEP_TWIPS,
+    adjust_left_indent, adjust_right_indent, cycle_line_spacing, set_paragraph_align,
+    set_paragraph_style, set_run_formatting, toggle_first_line_indent, toggle_hanging_indent,
+    toggle_paragraph_space, INDENT_STEP_TWIPS,
 };
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
@@ -60,6 +60,8 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("highlight", "Highlight", None, true),
     word_cmd!("indent", "Increase Indent", None, true),
     word_cmd!("outdent", "Decrease Indent", None, true),
+    word_cmd!("indent-right", "Increase Right Indent", None, true),
+    word_cmd!("outdent-right", "Decrease Right Indent", None, true),
     word_cmd!("line-spacing", "Line Spacing", None, true),
     word_cmd!("space-before", "Space Before", None, true),
     word_cmd!("space-after", "Space After", None, true),
@@ -380,6 +382,34 @@ impl DocxCommandSurface {
                 }
                 session.run(id, ChangeKind::Format, vec![EditScope::Workbook], |h| {
                     adjust_left_indent(h, caret_block, delta)?;
+                    Ok(())
+                })?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "indent-right" | "outdent-right" => {
+                let delta = if id == "indent-right" {
+                    INDENT_STEP_TWIPS
+                } else {
+                    -INDENT_STEP_TWIPS
+                };
+                let current = session
+                    .host
+                    .paragraph(caret_block)
+                    .map_err(|e| EditError::Other { message: e })?
+                    .get("indentRightTwips")
+                    .and_then(|n| n.as_i64())
+                    .unwrap_or(0);
+                let next = if delta < 0 {
+                    current.saturating_sub(delta.unsigned_abs() as i64).max(0)
+                } else {
+                    current.saturating_add(delta)
+                };
+                if next == current {
+                    return Ok(());
+                }
+                session.run(id, ChangeKind::Format, vec![EditScope::Workbook], |h| {
+                    adjust_right_indent(h, caret_block, delta)?;
                     Ok(())
                 })?;
                 schedule_relayout(print_edit);

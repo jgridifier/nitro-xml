@@ -33,6 +33,8 @@ export const ICONS = {
   sheetDel: '<path d="M6 3h9l4 4v14H6zM9 14h6"/>',
   more: '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
   hanging: '<path d="M4 6h16M8 11h12M8 15h12M8 19h12"/>',
+  indentRight: '<path d="M4 6h16M4 10h10M4 14h10M4 18h16M16 12h4M18 10.5l2 1.5-2 1.5"/>',
+  outdentRight: '<path d="M4 6h16M4 10h10M4 14h10M4 18h16M20 12h-4M18 10.5L16 12l2 1.5"/>',
   front: '<path d="M10 12h10v8H10z"/><path d="M7 9h10v8H7z"/><path stroke-width="2.2" d="M4 6h10v8H4z"/>',
   toBack: '<path d="M4 6h10v8H4z"/><path d="M7 9h10v8H7z"/><path stroke-width="2.2" d="M10 12h10v8H10z"/>',
   spaceBefore: '<path d="M4 5h16M6 11h12M6 15h12M6 19h12"/>',

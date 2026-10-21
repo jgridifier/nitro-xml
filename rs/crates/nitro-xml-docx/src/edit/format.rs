@@ -61,11 +61,30 @@ pub fn adjust_left_indent(
     block_index: usize,
     delta: i64,
 ) -> Result<bool, EditError> {
+    adjust_named_indent(host, block_index, "indentLeftTwips", delta)
+}
+
+/// Move `indentRightTwips` (`w:ind/@w:right`) by `delta`. A flush paragraph does not change on a
+/// negative delta, and `0` drops the field so save does not emit `w:right="0"`.
+pub fn adjust_right_indent(
+    host: &mut DocxHost,
+    block_index: usize,
+    delta: i64,
+) -> Result<bool, EditError> {
+    adjust_named_indent(host, block_index, "indentRightTwips", delta)
+}
+
+fn adjust_named_indent(
+    host: &mut DocxHost,
+    block_index: usize,
+    key: &str,
+    delta: i64,
+) -> Result<bool, EditError> {
     let current = {
         let block = host
             .paragraph(block_index)
             .map_err(|e| EditError::Other { message: e })?;
-        json_i64(block, "indentLeftTwips")
+        json_i64(block, key)
     };
     let next = if delta < 0 {
         current.saturating_sub(delta.unsigned_abs() as i64).max(0)
@@ -80,9 +99,9 @@ pub fn adjust_left_indent(
         .map_err(|e| EditError::Other { message: e })?;
     if let Some(obj) = block.as_object_mut() {
         if next == 0 {
-            obj.remove("indentLeftTwips");
+            obj.remove(key);
         } else {
-            obj.insert("indentLeftTwips".into(), json!(next));
+            obj.insert(key.into(), json!(next));
         }
     }
     host.mark_touched(block_index);
@@ -329,6 +348,26 @@ mod tests {
         assert_eq!(host.blocks[0]["indentLeftTwips"], 720);
         assert!(adjust_left_indent(&mut host, 0, -INDENT_STEP_TWIPS).unwrap());
         assert!(host.blocks[0].get("indentLeftTwips").is_none());
+    }
+
+    #[test]
+    fn catches_right_outdent_on_a_flush_paragraph_writing_a_zero_indent() {
+        // Catches: Decrease Right Indent on a paragraph with no w:right still storing indentRightTwips 0, so save emits w:right="0".
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "indentLeftTwips": 720,
+            "runs": [{ "text": "Hi" }],
+        })]);
+        assert!(!adjust_right_indent(&mut host, 0, -INDENT_STEP_TWIPS).unwrap());
+        assert!(host.blocks[0].get("indentRightTwips").is_none());
+        assert_eq!(host.blocks[0]["indentLeftTwips"], 720);
+        assert!(adjust_right_indent(&mut host, 0, INDENT_STEP_TWIPS).unwrap());
+        assert_eq!(host.blocks[0]["indentRightTwips"], 720);
+        assert_eq!(host.blocks[0]["indentLeftTwips"], 720);
+        assert!(adjust_right_indent(&mut host, 0, -INDENT_STEP_TWIPS).unwrap());
+        assert!(host.blocks[0].get("indentRightTwips").is_none());
+        assert_eq!(host.blocks[0]["indentLeftTwips"], 720);
     }
 
     #[test]

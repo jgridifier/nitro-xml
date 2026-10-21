@@ -4,9 +4,10 @@
 // Every `c` id below was checked against the engine (the saved bytes change, or copy reads them);
 // borders, grow/shrink, and group are deliberately absent. Cut and paste rewrite the package;
 // copy only fills the editor clipboard.
-// Indent, line spacing, paragraph space before and after, hanging indent, first-line indent,
-// script, font name, Word bullets, insert shape, duplicate, delete, z-order (one step and all
-// the way), shape fill, outline, and slide layout are listed only after they change the saved package.
+// Indent, right indent, line spacing, paragraph space before and after, hanging indent,
+// first-line indent, script, font name, Word bullets, insert shape, duplicate, delete, z-order
+// (one step and all the way), shape fill, outline, and slide layout are listed only after they
+// change the saved package.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
 //   c editor cmd id · d diagnostics toggle · s slide-pane toggle (host) · m dropdown entries · r readout
 //   g group caption · big: large buttons · rows: stacked small buttons · sm: small button style
@@ -106,6 +107,8 @@ const wordFont = {
       it("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),
       it("home.hanging-indent", "hanging", "Hanging", "Hanging indent, half an inch"),
       it("home.first-line", "firstLine", "First line", "First line indent, half an inch"),
+      it("home.indent-right", "indentRight", "Increase right", "Increase the right indent by half an inch"),
+      it("home.outdent-right", "outdentRight", "Decrease right", "Decrease the right indent by half an inch"),
     ],
   ],
 };

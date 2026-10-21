@@ -113,11 +113,7 @@ impl CellIndex {
         }
         // Shrink only when the removed cell sat on the cached edge.
         if let Some(u) = &self.used {
-            if row == u.start.row
-                || row == u.end.row
-                || col == u.start.col
-                || col == u.end.col
-            {
+            if row == u.start.row || row == u.end.row || col == u.start.col || col == u.end.col {
                 self.recompute_used();
             }
         }

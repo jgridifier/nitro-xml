@@ -416,4 +416,11 @@ Root cause: after first `ensure_edit`, `sync_model_from_edit` clones the host’
 3. `used_range` / metrics: prefer `<dimension>` or the index’s cached bbox — linear scan of cells_1m on every paint raised the non-outlier median (~12→16 ms) after (1)+(2).
 4. Edit-path helpers keep the index in sync.
 
-A/B (React-embed `edit-cell` S+L, n≥21 interleaved, p50/p95/max + edit heap): see PR.
+### A/B (React-embed `edit-cell` S+L, n=21×21 interleaved, main `df397ce` vs tip)
+
+| Tier | main p50/p95/max ms | branch p50/p95/max ms | p50 ratio [95% CI] | latency | outlier sessions (p50≥40ms) | heap main→branch MiB | heap |
+|---|--:|--:|---|---|--:|--:|---|
+| S | 9.3 / 16.8 / 90 | 9.3 / 16.7 / 85 | 1.000 [0.967, 1.044] | NOISE | 0→0 | 7.63→7.47 | NOISE |
+| L | 12.4 / 20.7 / 1298 | 12.4 / 20.7 / 1086 | 1.000 [0.976, 1.033] | NOISE | **5→0** | 16.76→17.36 | REGRESS (~+3.5%) |
+
+**Win:** L session medians no longer land in the ~90 ms bucket; p50/p95 flat. First-edit max still ~1 s (`ensure_edit` re-parse — soft-share follow-up). Small L heap cost of keeping the full edit grid after dropping lazy.

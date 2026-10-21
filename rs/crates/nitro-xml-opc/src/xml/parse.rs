@@ -92,20 +92,29 @@ fn starts_with_ignore_ascii_case(hay: &[u8], needle: &[u8]) -> bool {
             .all(|(a, b)| a.eq_ignore_ascii_case(b))
 }
 
+/// Mutable parse loop state kept in one place so event handlers stay out-of-line for wasm.
+struct ParseNormalizedState {
+    stack: Vec<Element>,
+    root: Option<Element>,
+    pending_text: Option<String>,
+    seen_root_end: bool,
+    interner: NsInterner,
+}
+
 fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlError> {
-    let sort_attributes = options.sort_attributes;
-    let max_depth = options.max_depth;
     let mut reader = NsReader::from_str(xml);
     let config = reader.config_mut();
     config.trim_text(false);
     config.check_end_names = true;
     config.expand_empty_elements = false;
 
-    let mut stack: Vec<Element> = Vec::new();
-    let mut root: Option<Element> = None;
-    let mut pending_text: Option<String> = None;
-    let mut seen_root_end = false;
-    let mut interner = NsInterner::default();
+    let mut state = ParseNormalizedState {
+        stack: Vec::new(),
+        root: None,
+        pending_text: None,
+        seen_root_end: false,
+        interner: NsInterner::default(),
+    };
 
     loop {
         let (resolve, event) = reader
@@ -114,122 +123,24 @@ fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlErr
 
         match event {
             Event::Start(e) => {
-                if seen_root_end && stack.is_empty() {
-                    return Err(XmlError::new("parse", "only one root element allowed"));
-                }
-                if max_depth > 0 && stack.len() >= max_depth {
-                    return Err(XmlError::new(
-                        "depth",
-                        format!("XML nesting exceeds the depth limit ({max_depth})"),
-                    ));
-                }
-                let ns = resolve_element_ns(resolve, &mut interner)?;
-                let local = local_name_str(e.local_name().as_ref())?;
-                let attrs = collect_attrs(&reader, &e, sort_attributes, &mut interner)?;
-                let el = Element::new(ns, local, attrs);
-                flush_text(&mut stack, &mut root, &mut pending_text)?;
-                stack.push(el);
+                let ns = resolve_element_ns(resolve, &mut state.interner)?;
+                parse_start_event(&reader, &e, ns, options, &mut state)?;
             }
             Event::Empty(e) => {
-                if seen_root_end && stack.is_empty() {
-                    return Err(XmlError::new("parse", "only one root element allowed"));
-                }
-                // Empty elements still occupy one nesting level under their parent.
-                if max_depth > 0 && stack.len() >= max_depth {
-                    return Err(XmlError::new(
-                        "depth",
-                        format!("XML nesting exceeds the depth limit ({max_depth})"),
-                    ));
-                }
-                let ns = resolve_element_ns(resolve, &mut interner)?;
-                let local = local_name_str(e.local_name().as_ref())?;
-                let attrs = collect_attrs(&reader, &e, sort_attributes, &mut interner)?;
-                let el = Element::new(ns, local, attrs);
-                let at_document = stack.is_empty();
-                push_child(&mut stack, &mut root, &mut pending_text, Node::Element(el))?;
-                if at_document {
-                    seen_root_end = true;
-                }
+                let ns = resolve_element_ns(resolve, &mut state.interner)?;
+                parse_empty_event(&reader, &e, ns, options, &mut state)?;
             }
             Event::End(e) => {
-                let local = std::str::from_utf8(e.local_name().into_inner())
-                    .map_err(|_| XmlError::new("parse", "name is not utf-8"))?;
-                let mut finished = stack
-                    .pop()
-                    .ok_or_else(|| XmlError::new("parse", "unexpected end tag"))?;
-                if finished.local != local {
-                    return Err(XmlError::new(
-                        "parse",
-                        format!("end tag mismatch: {} != {}", finished.local, local),
-                    ));
-                }
-                if let Some(text) = pending_text.take() {
-                    finished.children.push(Node::Text(text));
-                }
-                if stack.is_empty() {
-                    if root.is_some() {
-                        return Err(XmlError::new("parse", "only one root element allowed"));
-                    }
-                    root = Some(finished);
-                    seen_root_end = true;
-                } else {
-                    let parent = stack
-                        .last_mut()
-                        .ok_or_else(|| XmlError::new("parse", "internal stack error"))?;
-                    parent.children.push(Node::Element(finished));
-                }
+                parse_end_event(&e, &mut state)?;
             }
             Event::Text(t) => {
-                let raw = std::str::from_utf8(t.as_ref())
-                    .map_err(|_| XmlError::new("parse", "text is not utf-8"))?;
-                // After the root, only whitespace is allowed (prolog trailing / document trailing).
-                if seen_root_end && stack.is_empty() {
-                    if !raw.chars().all(|c| matches!(c, ' ' | '\t' | '\n' | '\r')) {
-                        return Err(XmlError::new("parse", "trailing content after root"));
-                    }
-                    continue;
-                }
-                if stack.is_empty() && root.is_none() {
-                    // Leading whitespace before the root.
-                    if raw.chars().all(|c| matches!(c, ' ' | '\t' | '\n' | '\r')) {
-                        continue;
-                    }
-                    return Err(XmlError::new("parse", "text before root element"));
-                }
-                // quick-xml ≥0.41 emits entities as GeneralRef; Text is usually entity-free, but
-                // decode_entities still handles any leftover &...; forms.
-                let decoded = decode_entities(raw)
-                    .ok_or_else(|| XmlError::new("parse", "unknown or malformed entity"))?;
-                append_text(&mut pending_text, &decoded);
+                parse_text_event(&t, &mut state)?;
             }
             Event::GeneralRef(r) => {
-                if seen_root_end && stack.is_empty() {
-                    return Err(XmlError::new("parse", "trailing content after root"));
-                }
-                if stack.is_empty() && root.is_none() {
-                    return Err(XmlError::new("parse", "text before root element"));
-                }
-                let body = std::str::from_utf8(r.as_ref())
-                    .map_err(|_| XmlError::new("parse", "entity is not utf-8"))?;
-                // Body is the inside of &...; (e.g. "amp", "#x41").
-                let reference = format!("&{body};");
-                let decoded = decode_entities(&reference)
-                    .ok_or_else(|| XmlError::new("parse", "unknown or malformed entity"))?;
-                append_text(&mut pending_text, &decoded);
+                parse_general_ref_event(&r, &mut state)?;
             }
             Event::CData(c) => {
-                if seen_root_end && stack.is_empty() {
-                    return Err(XmlError::new("parse", "trailing content after root"));
-                }
-                if stack.is_empty() {
-                    return Err(XmlError::new("parse", "cdata before root element"));
-                }
-                let raw = std::str::from_utf8(c.as_ref())
-                    .map_err(|_| XmlError::new("parse", "cdata is not utf-8"))?;
-                match &mut pending_text {
-                    Some(buf) => buf.push_str(raw),
-                    None => pending_text = Some(raw.to_owned()),
-                }
+                parse_cdata_event(&c, &mut state)?;
             }
             Event::Comment(_) | Event::PI(_) | Event::Decl(_) | Event::DocType(_) => {
                 // Prolog / comments / PIs are dropped. DocType is also rejected by the regex above.
@@ -238,11 +149,180 @@ fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlErr
         }
     }
 
-    if !stack.is_empty() {
+    if !state.stack.is_empty() {
         return Err(XmlError::new("parse", "unclosed element"));
     }
-    let root = root.ok_or_else(|| XmlError::new("parse", "missing root element"))?;
+    let root = state
+        .root
+        .ok_or_else(|| XmlError::new("parse", "missing root element"))?;
     Ok(Document { root })
+}
+
+#[inline(never)]
+fn parse_start_event<R: std::io::BufRead>(
+    reader: &NsReader<R>,
+    e: &quick_xml::events::BytesStart<'_>,
+    ns: Option<Arc<str>>,
+    options: ParseOptions,
+    state: &mut ParseNormalizedState,
+) -> Result<(), XmlError> {
+    if state.seen_root_end && state.stack.is_empty() {
+        return Err(XmlError::new("parse", "only one root element allowed"));
+    }
+    let max_depth = options.max_depth;
+    if max_depth > 0 && state.stack.len() >= max_depth {
+        return Err(XmlError::new(
+            "depth",
+            format!("XML nesting exceeds the depth limit ({max_depth})"),
+        ));
+    }
+    let local = local_name_str(e.local_name().as_ref())?;
+    let attrs = collect_attrs(reader, e, options.sort_attributes, &mut state.interner)?;
+    let el = Element::new(ns, local, attrs);
+    flush_text(&mut state.stack, &mut state.root, &mut state.pending_text)?;
+    state.stack.push(el);
+    Ok(())
+}
+
+#[inline(never)]
+fn parse_empty_event<R: std::io::BufRead>(
+    reader: &NsReader<R>,
+    e: &quick_xml::events::BytesStart<'_>,
+    ns: Option<Arc<str>>,
+    options: ParseOptions,
+    state: &mut ParseNormalizedState,
+) -> Result<(), XmlError> {
+    if state.seen_root_end && state.stack.is_empty() {
+        return Err(XmlError::new("parse", "only one root element allowed"));
+    }
+    // Empty elements still occupy one nesting level under their parent.
+    let max_depth = options.max_depth;
+    if max_depth > 0 && state.stack.len() >= max_depth {
+        return Err(XmlError::new(
+            "depth",
+            format!("XML nesting exceeds the depth limit ({max_depth})"),
+        ));
+    }
+    let local = local_name_str(e.local_name().as_ref())?;
+    let attrs = collect_attrs(reader, e, options.sort_attributes, &mut state.interner)?;
+    let el = Element::new(ns, local, attrs);
+    let at_document = state.stack.is_empty();
+    push_child(
+        &mut state.stack,
+        &mut state.root,
+        &mut state.pending_text,
+        Node::Element(el),
+    )?;
+    if at_document {
+        state.seen_root_end = true;
+    }
+    Ok(())
+}
+
+#[inline(never)]
+fn parse_end_event(
+    e: &quick_xml::events::BytesEnd<'_>,
+    state: &mut ParseNormalizedState,
+) -> Result<(), XmlError> {
+    let local = std::str::from_utf8(e.local_name().into_inner())
+        .map_err(|_| XmlError::new("parse", "name is not utf-8"))?;
+    let mut finished = state
+        .stack
+        .pop()
+        .ok_or_else(|| XmlError::new("parse", "unexpected end tag"))?;
+    if finished.local != local {
+        return Err(XmlError::new(
+            "parse",
+            format!("end tag mismatch: {} != {}", finished.local, local),
+        ));
+    }
+    if let Some(text) = state.pending_text.take() {
+        finished.children.push(Node::Text(text));
+    }
+    if state.stack.is_empty() {
+        if state.root.is_some() {
+            return Err(XmlError::new("parse", "only one root element allowed"));
+        }
+        state.root = Some(finished);
+        state.seen_root_end = true;
+    } else {
+        let parent = state
+            .stack
+            .last_mut()
+            .ok_or_else(|| XmlError::new("parse", "internal stack error"))?;
+        parent.children.push(Node::Element(finished));
+    }
+    Ok(())
+}
+
+#[inline(never)]
+fn parse_text_event(
+    t: &quick_xml::events::BytesText<'_>,
+    state: &mut ParseNormalizedState,
+) -> Result<(), XmlError> {
+    let raw =
+        std::str::from_utf8(t.as_ref()).map_err(|_| XmlError::new("parse", "text is not utf-8"))?;
+    // After the root, only whitespace is allowed (prolog trailing / document trailing).
+    if state.seen_root_end && state.stack.is_empty() {
+        if !raw.chars().all(|c| matches!(c, ' ' | '\t' | '\n' | '\r')) {
+            return Err(XmlError::new("parse", "trailing content after root"));
+        }
+        return Ok(());
+    }
+    if state.stack.is_empty() && state.root.is_none() {
+        // Leading whitespace before the root.
+        if raw.chars().all(|c| matches!(c, ' ' | '\t' | '\n' | '\r')) {
+            return Ok(());
+        }
+        return Err(XmlError::new("parse", "text before root element"));
+    }
+    // quick-xml ≥0.41 emits entities as GeneralRef; Text is usually entity-free, but
+    // decode_entities still handles any leftover &...; forms.
+    let decoded = decode_entities(raw)
+        .ok_or_else(|| XmlError::new("parse", "unknown or malformed entity"))?;
+    append_text(&mut state.pending_text, &decoded);
+    Ok(())
+}
+
+#[inline(never)]
+fn parse_general_ref_event(
+    r: &quick_xml::events::BytesRef<'_>,
+    state: &mut ParseNormalizedState,
+) -> Result<(), XmlError> {
+    if state.seen_root_end && state.stack.is_empty() {
+        return Err(XmlError::new("parse", "trailing content after root"));
+    }
+    if state.stack.is_empty() && state.root.is_none() {
+        return Err(XmlError::new("parse", "text before root element"));
+    }
+    let body = std::str::from_utf8(r.as_ref())
+        .map_err(|_| XmlError::new("parse", "entity is not utf-8"))?;
+    // Body is the inside of &...; (e.g. "amp", "#x41").
+    let reference = format!("&{body};");
+    let decoded = decode_entities(&reference)
+        .ok_or_else(|| XmlError::new("parse", "unknown or malformed entity"))?;
+    append_text(&mut state.pending_text, &decoded);
+    Ok(())
+}
+
+#[inline(never)]
+fn parse_cdata_event(
+    c: &quick_xml::events::BytesCData<'_>,
+    state: &mut ParseNormalizedState,
+) -> Result<(), XmlError> {
+    if state.seen_root_end && state.stack.is_empty() {
+        return Err(XmlError::new("parse", "trailing content after root"));
+    }
+    if state.stack.is_empty() {
+        return Err(XmlError::new("parse", "cdata before root element"));
+    }
+    let raw = std::str::from_utf8(c.as_ref())
+        .map_err(|_| XmlError::new("parse", "cdata is not utf-8"))?;
+    match &mut state.pending_text {
+        Some(buf) => buf.push_str(raw),
+        None => state.pending_text = Some(raw.to_owned()),
+    }
+    Ok(())
 }
 
 fn append_text(pending: &mut Option<String>, text: &str) {
@@ -453,5 +533,55 @@ mod tests {
     fn catches_lt_in_attribute_value_rejected() {
         // Catches: quick-xml accepts a literal '<' in attribute values; xmldom rejects it.
         assert!(parse_xml_str(r#"<a b="<"/>"#).is_err());
+    }
+
+    #[test]
+    fn catches_parse_normalized_split_changes_tree_shape() {
+        // Catches: splitting parse_normalized into out-of-line event handlers changes nesting,
+        // entity decoding, or empty-element handling for a small OOXML-shaped fragment.
+        let xml = r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>Hi &amp; bye</w:t></w:r><w:br/></w:p></w:body>
+</w:document>"#;
+        let doc = parse_xml_str(xml).expect("parse");
+        assert_eq!(doc.root.local, "document");
+        assert_eq!(
+            doc.root.ns.as_deref(),
+            Some("http://schemas.openxmlformats.org/wordprocessingml/2006/main")
+        );
+        let body = doc
+            .root
+            .children
+            .iter()
+            .find_map(|n| match n {
+                Node::Element(el) if el.local == "body" => Some(el),
+                _ => None,
+            })
+            .expect("w:body");
+        let p = body
+            .children
+            .iter()
+            .find_map(|n| match n {
+                Node::Element(el) if el.local == "p" => Some(el),
+                _ => None,
+            })
+            .expect("w:p");
+        let text = p
+            .children
+            .iter()
+            .flat_map(|n| match n {
+                Node::Element(r) if r.local == "r" => r.children.iter(),
+                _ => [].iter(),
+            })
+            .find_map(|n| match n {
+                Node::Element(t) if t.local == "t" => t.children.first(),
+                _ => None,
+            })
+            .expect("w:t text");
+        assert!(matches!(text, Node::Text(s) if s == "Hi & bye"));
+        let has_br = p
+            .children
+            .iter()
+            .any(|n| matches!(n, Node::Element(el) if el.local == "br" && el.children.is_empty()));
+        assert!(has_br, "empty w:br must remain an element child");
     }
 }

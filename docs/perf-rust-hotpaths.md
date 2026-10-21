@@ -416,5 +416,12 @@ outliers but **+0.6 MiB edit heap** — rejected.
 - `sync_lazy_sheet` checks `covers_viewport` before cloning the sheet.
 - While `edit.is_some()`, `paint` skips `sync_lazy_sheet` (lazy inert; edit grid paints).
 
-A/B (React-embed `edit-cell` S+L, n≥21, p50/p95/p99/max + outlier sessions + edit heap): see PR.
+### A/B (React-embed `edit-cell` S+L, n=21×21 interleaved, main `0f2f0db` vs tip `28caa84`)
+
+| Tier | main p50/p95/p99/max ms | branch p50/p95/p99/max ms | p50 ratio [95% CI] | latency | outlier sessions (p50≥40ms) | heap main→branch MiB | heap |
+|---|--:|--:|---|---|--:|--:|---|
+| S | 9.4 / 17.1 / 62.8 / 102 | 9.4 / 17.7 / 64.2 / 86 | 1.000 [0.969, 1.043] | NOISE | 0→0 | 7.79→7.49 | NOISE |
+| L | 12.3 / 20.3 / 896 / 1262 | 12.2 / 18.8 / 924 / 1262 | 0.992 [0.917, 1.025] | NOISE | **6→0** | 16.67→16.76 | NOISE [0.990, 1.039] |
+
+**Win:** L ~90 ms session medians gone; p50/p95 flat; edit heap not REGRESS (no `drop_lazy`). First-edit max still ~1 s (`ensure_edit` re-parse — soft-share follow-up).
 

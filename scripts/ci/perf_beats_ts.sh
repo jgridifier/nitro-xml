@@ -208,7 +208,7 @@ if (fails.length) {
 }
 lines.push("");
 lines.push(
-  `Method: open = \`perf/large/ts-vs-wasm.mjs\` (Handle.openDocument vs upstream load*); peak mem = \`perf/large/peak-mem.mjs\` (VmHWM growth, fresh process). Ratio = median(wasm)/median(ts); 95% CI unpaired bootstrap.`,
+  `Method: open = \`perf/large/ts-vs-wasm.mjs\` (Handle.openDocument vs upstream load*); peak mem = \`perf/large/peak-mem.mjs\` (VmHWM growth over post-init baseline after one throwaway wasm open+free — pre-warmed ready state; fresh process). Ratio = median(wasm)/median(ts); 95% CI unpaired bootstrap.`,
 );
 
 fs.writeFileSync(outMd, lines.join("\n") + "\n");

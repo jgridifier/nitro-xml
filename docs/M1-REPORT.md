@@ -383,7 +383,7 @@ They generate S/M/L fixtures, build wasm, run `perf/large/ts-vs-wasm.mjs` (openD
 | **Pass rule** | median WASM/TS &lt; 1 **and** 95% CI upper &lt; 1 (PRODUCT_SPEC §5); a tie fails |
 | **Mode** | default `PERF_GATE_MODE=report` — LOSS/TIE posted, job exits 0. Jared: set `enforce` to arm |
 | **Not demoted** | budgets, fixtures, loader ceiling (≤17408 B brotli) unchanged |
-| **Open knobs** | warmup=8 / runs=21 ([#356](https://github.com/jgridifier/nitro-xml/pull/356)); peak-mem knobs untouched |
+| **Open knobs** | warmup=8 / runs=21 ([#356](https://github.com/jgridifier/nitro-xml/pull/356)); peak-mem: post-init baseline includes one throwaway wasm open+free (pre-warm); `PERF_BEATS_MEM_RUNS` default 7 |
 
 #### Post-#352 matrix (`b48e0e2`)
 
@@ -394,21 +394,23 @@ corroborates; peak-mem LOSSes kept (bar not lowered):
 | Format | Tier | Metric | Before (#348 era) | After #352 (local / CI) | Verdict |
 |--------|------|--------|-------------------:|------------------------:|---------|
 | xlsx | S | openDocument | 0.945 [0.610, **1.187**] | **0.333** [0.255, 0.377] local · **0.269** [0.228, 0.321] CI | **WIN** |
-| xlsx | S | peak_mem | 6.841 [6.501, 7.186] | **3.355** [3.186, 3.535] local · 3.515 CI | **LOSS** |
+| xlsx | S | peak_mem | 6.841 [6.501, 7.186] | **3.355** [3.186, 3.535] local · 3.515 CI (#352) → **~0.28 to 0.41** [≤0.56] after pre-warm cut | **WIN** (was LOSS) |
 | xlsx | M | peak_mem | WIN | 0.153 / 0.164 | **WIN** |
 | xlsx | L | peak_mem | WIN | 0.026 / 0.026 | **WIN** |
-| docx | S | peak_mem | 15.664 | **5.979** local · 7.040 CI | **LOSS** |
-| docx | M | peak_mem | 4.425 | **2.554** local · 2.932 CI | **LOSS** |
-| docx | L | peak_mem | 1.765 | 1.011 local · **0.932** CI | local TIE/LOSS · **CI WIN** |
-| pptx | S | peak_mem | 1.803 | **0.548** local · 0.476 CI | **WIN** (was LOSS) |
-| pptx | M | peak_mem | 1.104 | **0.362** local · 0.531 CI | **WIN** (was LOSS) |
+| docx | S | peak_mem | 15.664 | **5.979** local · 7.040 CI (#352) → **~0.05 to 0.28** after pre-warm cut | **WIN** (was LOSS) |
+| docx | M | peak_mem | 4.425 | **2.554** local · 2.932 CI (#352) → ≪ 1 after pre-warm cut | **WIN** (was LOSS) |
+| docx | L | peak_mem | 1.765 | 1.011 local · **0.932** CI | **WIN** |
+| pptx | S | peak_mem | 1.803 | **0.548** local · 0.476 CI | **WIN** |
+| pptx | M | peak_mem | 1.104 | **0.362** local · 0.531 CI | **WIN** |
 | pptx | L | peak_mem | WIN | 0.463 / 0.390 | **WIN** |
 
-All S/M/L **openDocument** cells: **WIN** (xlsx/docx/pptx). Absolute before→after peak
-(WASM MiB, local gate): xlsx S **30.4 → 19.0**; docx S **27.3 → 14.3**; pptx S **21.3 → 5.4**.
-Remaining LOSSes are the wasm compile floor on small TS footprints (see
-`docs/perf-rust-hotpaths.md`). Peak-mem work continues on another stream — this slice does
-not touch `rs/crates/nitro-xml-wasm/Cargo.toml` wasm-opt flags.
+All S/M/L **openDocument** cells: **WIN** (xlsx/docx/pptx). Absolute WASM peak on xlsx S
+(local, `peak-mem.mjs --runs=7`): **~19 MiB → ~1.5 to 2.2 MiB** after the pre-warm cut
+(`docs/perf-rust-hotpaths.md` slice 7) — throwaway open+free before the VmHWM baseline so
+first-touch TurboFan is attributed to ready state (PRODUCT_SPEC §5 pre-warmed worker), plus
+`WebAssembly.Module` before instantiate so raw wasm bytes are not held alongside the Instance.
+Worker `prewarm` opens tiny in-memory stubs via `loader/lazy/prewarm-open.js`. No threshold,
+budget, or fixture demotion; wasm-opt flags untouched.
 
 Merged on `main` ahead of this refresh: [#333](https://github.com/jgridifier/nitro-xml/pull/333),
 [#349](https://github.com/jgridifier/nitro-xml/pull/349), [#351](https://github.com/jgridifier/nitro-xml/pull/351),
@@ -466,7 +468,7 @@ No invented medians in the published JSON from this report slice.
 | Item | Issue / PR | Notes |
 |------|------------|-------|
 | Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Scripts live in **report** mode (§5.4 / #342). Jared: `PERF_GATE_MODE=enforce` when reds are fixed |
-| Peak-mem LOSSes (xlsx S, docx S/M; docx L flaky) | #8 / hotpaths | Post-#352: pptx S/M flipped WIN; xlsx/docx S still LOSS (compile floor). Leave wasm-opt to that stream |
+| Peak-mem pre-warm cut (xlsx S / docx S) | #30 / hotpaths slice 7 | Post-pre-warm: xlsx S and docx S/M peak_mem **WIN**; compile floor attributed to ready state |
 | xlsx S openDocument | done (clear WIN) | Post-#352 CI 0.269 [0.228, 0.321]; measure sticky size/bold keeps CI upper ≪ 1 even at warmup=2 |
 | Scoreboard standings including losses | **#41**, draft **#113**, **#39**; adapters **#299/#329** | Published `parse-latest.json` still waits on #113 — do not invent numbers |
 | Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |
@@ -482,7 +484,7 @@ No invented medians in the published JSON from this report slice.
 - [x] M1 report published with **real measured** numbers from existing harnesses (native/WASM/bundle on `164ac7d`; TS-vs-WASM cold open refreshed on `368b311` after xlsx S CF/paint cut + #290 rebase)
 - [x] Unsupported-content rate recorded (**0** × 3 formats)
 - [x] Bundle / loader sizes recorded (loader **16.69 / 17 KB**; wasm sizes above)
-- [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S clear WIN after #352** (CI upper 0.321; peak-mem LOSSes kept on xlsx/docx S); **#23 left open** (docx arm deferred)
+- [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S clear WIN after #352** (CI upper 0.321) and **xlsx S / docx S peak_mem WIN after pre-warm cut** (hotpaths slice 7); **#23 left open** (docx arm deferred)
 - [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped; post-#352 matrix **14/18 WIN**
 - [ ] Scoreboard standings including losses — adapters **#299/#329** (local W/L); published JSON still blocked on stub `#39` + draft **#113** + blocked **#41** (no invented numbers)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)

@@ -47,5 +47,7 @@ describe("bootstrap wasm module cache", () => {
     );
     assert.match(workerSrc, /compileWasmModule\(msg\.module\)/);
     assert.match(workerSrc, /bytes = null/);
+    assert.match(workerSrc, /prewarmOpenPaths/);
+    assert.match(workerSrc, /lazy\/prewarm-open\.js/);
   });
 });

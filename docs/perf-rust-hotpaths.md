@@ -102,6 +102,21 @@ saves ~20 MiB) and still to try: drop `regex`/`serde_json` from the wasm graph (
 aho_corasick = 8% of code), move the 1.1 MB static data (preset shapes) behind lazy init, split docx/pptx-only
 code out of the xlsx path.
 
+#### xlsx S gate peak — post-#352 attribution (2026-10-21, tip `68c7ba6`)
+
+`peak-mem.mjs` scores **post-`initSync` VmHWM growth**. After [#352](https://github.com/jgridifier/nitro-xml/pull/352)'s
+one-caller inline cap, xlsx S gate peak is ~18 MiB WASM vs ~5.7 MiB TS (LOSS ~3.1×). Stage split:
+
+| | MiB |
+|--|--:|
+| Cold first open (post-init baseline → open) | **18.0** |
+| Second open in the same process (compile already done) | **2.3** |
+| TS `loadWorkbook` peak (same harness) | **5.6** |
+
+So ~87% of the LOSS is first-touch compile, not retained xlsx heap. Application-level cuts on the
+xlsx open path cannot flip the cell; the remaining lever is `wasm-opt -O1` (draft #332). Docx
+peak / `handle.rs` format split stays with draft #359 — do not retouch from the xlsx stream.
+
 ### Candidates seen in the profile but not touched (other lineages)
 
 - `nitro_xml_wasm::transport::StringTable::intern` (memcmp-heavy, 8% of xlsx S open, called per painted cell and per measure): command-buffer encode.

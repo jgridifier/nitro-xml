@@ -11,6 +11,7 @@ import { runShellChecks } from './shell.mjs';
 import { runLiveChecks } from './live.mjs';
 import { runCaretChecks } from '../interaction/caret.mjs';
 import { runInputProxyChecks } from '../interaction/inputproxy.mjs';
+import { runKeyPathChecks } from '../interaction/keypath.mjs';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), 'out');
 
@@ -41,12 +42,16 @@ async function main() {
 		(process.env.SELECTION_BROWSERS || 'chromium,webkit,firefox').split(',').map((b) => b.trim()).filter(Boolean),
 	);
 	console.log(proxy.summary);
+	const keypath = await runKeyPathChecks(
+		(process.env.SELECTION_BROWSERS || 'chromium,webkit,firefox').split(',').map((b) => b.trim()).filter(Boolean),
+	);
+	console.log(keypath.summary);
 
 	const deferred = deferredCases().map(
 		(c) => `${c.id}: allowList ${c.allowList || '—'} — ${c.todo || ''}`,
 	);
-	const rows = [...shell.rows, ...live.rows, ...caret.rows, ...proxy.rows];
-	const ok = shell.ok && live.ok && caret.ok && proxy.ok;
+	const rows = [...shell.rows, ...live.rows, ...caret.rows, ...proxy.rows, ...keypath.rows];
+	const ok = shell.ok && live.ok && caret.ok && proxy.ok && keypath.ok;
 	const breakdown = formatBreakdown(rows);
 	const summary = [
 		`selection: ${ok ? 'PASS' : 'FAIL'}`,
@@ -55,6 +60,7 @@ async function main() {
 		live.summary,
 		caret.summary,
 		proxy.summary,
+		keypath.summary,
 		...(deferred.length
 			? ['deferred / allow-listed:', ...deferred.map((d) => `  - ${d}`)]
 			: []),

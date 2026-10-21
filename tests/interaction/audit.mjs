@@ -29,6 +29,8 @@ const only = arg('only', '');
 const formats = String(arg('formats', 'docx,xlsx,pptx')).split(',');
 const concurrency = +arg('concurrency', 2);
 const skipLatency = process.argv.includes('--skip-latency');
+const latencyOnly = process.argv.includes('--latency-only');
+const reps = +arg('reps', 1);
 
 const { chromium, webkit } = await import(pathToFileURL(join(HERE, '../../parity/visual/node_modules/playwright/index.mjs')).href);
 const ENGINES = { chromium, webkit };
@@ -133,8 +135,8 @@ async function latency(browser, base, browserName, target) {
 	for (const [fmt, kind] of plan) {
 		if (!formats.includes(fmt)) continue;
 		let samples = [];
-		const reps = fmt === 'docx' ? 5 : 1; // docx stops painting after the first keystroke, so use fresh pages
-		for (let k = 0; k < reps; k++) samples = samples.concat(await latencyRun(browser, base, browserName, target, fmt, kind).catch((e) => []));
+		const nrun = (fmt === 'docx' ? 5 : 1) * reps; // docx stops painting after the first keystroke, so use fresh pages
+		for (let k = 0; k < nrun; k++) samples = samples.concat(await latencyRun(browser, base, browserName, target, fmt, kind).catch((e) => []));
 		const dom = samples.map((s) => s.dom), frame = samples.map((s) => s.frame);
 		rows.push({ target, browser: browserName, fmt, kind, n: samples.length, domP50: pct(dom, 50), domP95: pct(dom, 95), frameP50: pct(frame, 50), frameP95: pct(frame, 95) });
 		console.log(`latency ${target}/${browserName} ${fmt}.${kind}: n=${samples.length} dom p50/p95=${pct(dom, 50)}/${pct(dom, 95)}ms frame p50/p95=${pct(frame, 50)}/${pct(frame, 95)}ms`);
@@ -156,7 +158,7 @@ for (const target of targets) {
 		const browser = await ENGINES[browserName].launch();
 		const jobs = [];
 		for (const sc of SCENARIOS) {
-			if (only && !sc.id.includes(only)) continue;
+			if (latencyOnly || (only && !sc.id.includes(only))) continue;
 			for (const fmt of sc.fmts) if (formats.includes(fmt)) jobs.push([sc, fmt]);
 		}
 		const t0 = Date.now();
@@ -166,12 +168,12 @@ for (const target of targets) {
 		const rs = [...(await pool(par, concurrency, run)), ...(await pool(ser, 1, run))];
 		for (const r of rs) { results.push(r); console.log(`${r.status.toUpperCase().padEnd(5)} ${target}/${browserName} ${r.id}${r.fmt !== r.id.split('.')[0] ? ' [' + r.fmt + ']' : ''}: ${r.detail}`.slice(0, 300)); }
 		console.log(`-- ${target}/${browserName}: ${rs.length} scenarios in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
-		if (!skipLatency && !only) lat.push(...(await latency(browser, base, browserName, target)));
+		if (!skipLatency && (latencyOnly || !only)) lat.push(...(await latency(browser, base, browserName, target)));
 		await browser.close();
 	}
 }
 server?.close();
-writeFileSync(join(OUT, 'results.json'), JSON.stringify({ when: new Date().toISOString(), results, latency: lat }, null, 1));
+writeFileSync(join(OUT, latencyOnly ? 'latency.json' : 'results.json'), JSON.stringify({ when: new Date().toISOString(), results, latency: lat }, null, 1));
 const tally = {};
 for (const r of results) { const k = `${r.target}/${r.browser}`; (tally[k] ||= { pass: 0, fail: 0, na: 0, error: 0 })[r.status]++; }
 console.log(JSON.stringify(tally));

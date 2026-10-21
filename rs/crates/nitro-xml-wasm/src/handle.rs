@@ -1271,6 +1271,10 @@ impl Handle {
         if self.editor.read_only() {
             return Ok(editor_key_json(EditorKeyEffect::Ignored, None));
         }
+        // Pointer events flushed just before this key must act first (click, then type).
+        if self.events.len() > 0 {
+            process_frame(self);
+        }
         if self.xlsx.is_none() {
             return self.editor_key_office(key, ctrl, meta, alt);
         }

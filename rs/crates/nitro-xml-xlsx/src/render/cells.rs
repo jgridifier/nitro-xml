@@ -639,6 +639,8 @@ pub fn paint<I: StringIntern>(
     paint_edit_overlay(buf, intern, &keys, metrics, hints);
 }
 
+/// Viewer first-paint has no edit hints; keep the overlay body out of line so cold open
+/// does not TurboFan-compile the caret DOM path (#30 xlsx S peak_mem).
 fn paint_edit_overlay<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
@@ -649,6 +651,17 @@ fn paint_edit_overlay<I: StringIntern>(
     let Some(edit) = &hints.edit else {
         return;
     };
+    paint_edit_overlay_body(buf, intern, keys, metrics, edit);
+}
+
+#[inline(never)]
+fn paint_edit_overlay_body<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    keys: &PaintKeys,
+    metrics: &crate::view::metrics::GridMetrics,
+    edit: &super::EditOverlay,
+) {
     let div = intern.intern("div");
     let span = intern.intern("span");
     let left = metrics.col_left(edit.col);

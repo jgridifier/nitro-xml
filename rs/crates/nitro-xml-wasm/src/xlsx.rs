@@ -52,15 +52,22 @@ pub struct XlsxState {
 impl XlsxState {
     /// Open via the shared package `Arc` so [`FirstView`] does not retain a second copy.
     pub fn open(bytes: Arc<[u8]>) -> Result<(Self, Vec<String>), String> {
-        let first = open_first_view_arc(bytes, default_cell_rect())?;
+        let mut first = open_first_view_arc(bytes, default_cell_rect())?;
         let warnings = first.workbook().warnings.clone();
         let workbook = first.workbook().clone();
         let mut sheets: Vec<Option<ActiveWorksheet>> = vec![None; workbook.sheets.len()];
         let active = workbook.active_sheet as usize;
         // `workbook.active_worksheet` stays `None`: nothing in the wasm path reads it (it only feeds
         // the dump/JSON oracle), and filling it cost a full second copy of the sheet.
+        // When the first-view sheet is already complete, take it out of FirstView so open does
+        // not hold two copies (#30 peak_mem). Truncated sheets keep a clone — `ensure_sheet`
+        // still needs the lazy copy to preserve merges/CF across re-stream.
         if active < sheets.len() {
-            sheets[active] = first.sheet(active).cloned();
+            sheets[active] = if first.is_sheet_complete(active) {
+                first.take_sheet(active)
+            } else {
+                first.sheet(active).cloned()
+            };
         }
         Ok((
             Self {

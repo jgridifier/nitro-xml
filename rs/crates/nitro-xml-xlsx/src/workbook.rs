@@ -287,31 +287,35 @@ pub(crate) fn load_workbook_shell(pkg: &mut Package) -> Result<WorkbookShell, St
             }
         })
         .ok_or_else(|| "XLSX package has no workbook part (xl/workbook.xml)".to_owned())?;
+    // One-shot parts: `take_text` drops the inflated String from text_cache after parse
+    // (same pattern as sheetData / docx #369 — #30 peak_mem).
     let workbook_xml = pkg
-        .text(&workbook_part)
+        .take_text(&workbook_part)
         .map_err(|e| e.to_string())?
-        .unwrap_or("")
-        .to_owned();
+        .unwrap_or_default();
     let book = parse_workbook_part(&workbook_xml)?;
+    drop(workbook_xml);
     let mut warnings: Vec<String> = Vec::new();
 
     let styles_part = pkg
         .target_of_type(&workbook_part, relationship_types::STYLES)
         .map_err(|e| e.to_string())?;
     let styles_xml = match &styles_part {
-        Some(p) => pkg.text(p).map_err(|e| e.to_string())?.map(str::to_owned),
+        Some(p) => pkg.take_text(p).map_err(|e| e.to_string())?,
         None => None,
     };
     let styles = parse_styles(styles_xml.as_deref(), &mut warnings);
+    drop(styles_xml);
 
     let theme_part = pkg
         .target_of_type(&workbook_part, relationship_types::THEME)
         .map_err(|e| e.to_string())?;
     let theme_xml = match &theme_part {
-        Some(p) => pkg.text(p).map_err(|e| e.to_string())?.map(str::to_owned),
+        Some(p) => pkg.take_text(p).map_err(|e| e.to_string())?,
         None => None,
     };
     let theme = parse_theme(theme_xml.as_deref());
+    drop(theme_xml);
 
     let strings_part = pkg
         .target_of_type(&workbook_part, relationship_types::SHARED_STRINGS)

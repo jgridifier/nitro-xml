@@ -99,8 +99,8 @@ pub fn ribbon_html(
             surface,
             false,
         ));
-        html.push_str(&button("home.group", "Group", surface, false));
-        html.push_str(&button("home.ungroup", "Ungroup", surface, false));
+        // Group / ungroup change the model, but save skips a still-grouped p:grpSp
+        // (TODO #84), so the buttons are omitted until a save round-trip exists.
         html.push_str("</section>");
         html.push_str("</div>");
     } else if active_tab == "insert" {

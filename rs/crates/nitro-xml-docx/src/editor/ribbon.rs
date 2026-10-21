@@ -33,7 +33,8 @@ fn button(id: &str, label: &str, surface: &DocxCommandSurface, large: bool) -> S
     )
 }
 
-/// Home tab ribbon markup (subset of upstream Word Home: Clipboard, Font, Editing).
+/// Home tab ribbon markup (subset of upstream Word Home: Font, Insert, Editing).
+/// Paste, cut, and copy are registered stubs with no runner, so they are omitted.
 pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
     let tab = esc(active_tab);
     let mut html = String::from("<nav class=\"dve-ribbon\" aria-label=\"Ribbon\">");
@@ -43,11 +44,6 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
     ));
     if active_tab == "home" {
         html.push_str("<div class=\"dve-ribbon-panel\" role=\"tabpanel\" data-tab=\"home\">");
-        html.push_str("<section class=\"dve-ribbon-group\" aria-label=\"Clipboard\">");
-        html.push_str(&button("paste", "Paste", surface, true));
-        html.push_str(&button("cut", "Cut", surface, false));
-        html.push_str(&button("copy", "Copy", surface, false));
-        html.push_str("</section>");
         html.push_str("<section class=\"dve-ribbon-group\" aria-label=\"Font\">");
         html.push_str(&button("bold", "Bold", surface, false));
         html.push_str(&button("italic", "Italic", surface, false));

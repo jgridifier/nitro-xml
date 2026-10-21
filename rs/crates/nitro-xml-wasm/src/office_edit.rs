@@ -1352,4 +1352,278 @@ mod tests {
         h.shell_action("cmd", "edit.undo").expect("undo delete");
         assert_eq!(h.save_document().expect("delete undone"), PPTX);
     }
+
+    fn apply_cmd(h: &mut Handle, cmd: &'static str) {
+        h.apply_edit(&format!(r#"{{"command":"{cmd}"}}"#))
+            .expect(cmd);
+    }
+
+    #[test]
+    fn catches_slide_and_table_commands_missing_after_apply_edit_save_or_undo() {
+        // Catches: applyEdit of add/delete/duplicate/reorder slide or table row/column
+        // leaving the saved package unchanged, or undo keeping that edit.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        let before = h.pptx.as_ref().unwrap().pres.slide_count();
+        apply_cmd(&mut h, "insert.duplicate-slide");
+        let saved = h.save_document().expect("save dup");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen dup");
+        assert_eq!(again.session.host.slides.len(), before + 1);
+        let text = |slide: &nitro_xml_pptx::edit::host::EditableSlide| {
+            slide
+                .elements
+                .iter()
+                .filter_map(|el| el.text.clone())
+                .collect::<String>()
+        };
+        assert_eq!(
+            text(&again.session.host.slides[1]),
+            text(&again.session.host.slides[0]),
+            "applyEdit duplicate did not copy the slide"
+        );
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(h.save_document().expect("undone dup"), PPTX);
+
+        apply_cmd(&mut h, "insert.slide");
+        let saved = h.save_document().expect("save slide");
+        assert_ne!(saved, PPTX);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen slide");
+        assert_eq!(again.session.host.slides.len(), before + 1);
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(h.save_document().expect("undone slide"), PPTX);
+
+        apply_cmd(&mut h, "home.delete-slide");
+        let saved = h.save_document().expect("save delete");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen delete");
+        assert_eq!(again.session.host.slides.len(), before - 1);
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(h.save_document().expect("undone delete"), PPTX);
+
+        {
+            let edit = h.pptx.as_mut().unwrap().edit.as_mut().unwrap();
+            let home = edit.ribbon_html();
+            assert!(
+                !home.contains("data-command=\"home.group\""),
+                "group is shown even though save skips a grouped shape"
+            );
+            assert!(!home.contains("data-command=\"home.ungroup\""));
+            edit.set_active_tab("insert");
+            let insert = edit.ribbon_html();
+            for id in [
+                "insert.slide",
+                "insert.duplicate-slide",
+                "insert.move-slide-up",
+                "insert.move-slide-down",
+                "home.delete-slide",
+                "insert.table",
+                "table.insert-row",
+                "table.delete-row",
+                "table.insert-column",
+                "table.delete-column",
+            ] {
+                assert!(
+                    insert.contains(&format!("data-command=\"{id}\"")),
+                    "insert ribbon dropped {id}"
+                );
+            }
+            edit.set_active_tab("home");
+        }
+        let strip = h.pptx.as_ref().unwrap().ribbon_html();
+        for id in [
+            "insert.slide",
+            "insert.duplicate-slide",
+            "insert.move-slide-down",
+            "home.delete-slide",
+            "insert.table",
+            "table.insert-row",
+            "table.delete-column",
+        ] {
+            assert!(
+                strip.contains(&format!("data-g=\"{id}\"")),
+                "wasm strip dropped {id}"
+            );
+        }
+        assert!(!strip.contains("home.group"));
+        assert!(!strip.contains("home.ungroup"));
+
+        let mut h = open_editable(PPTX, "slides.pptx");
+        let first = h.pptx.as_ref().unwrap().pres.slide_count();
+        assert!(first >= 2, "reorder needs two slides");
+        apply_cmd(&mut h, "insert.move-slide-up");
+        assert_eq!(
+            h.save_document().expect("noop up"),
+            PPTX,
+            "move up on the first slide changed the package"
+        );
+        let paths = {
+            let edit = h.pptx.as_ref().unwrap().edit.as_ref().unwrap();
+            (
+                edit.session.host.slides[0].path.clone(),
+                edit.session.host.slides[1].path.clone(),
+            )
+        };
+        apply_cmd(&mut h, "insert.move-slide-down");
+        let saved = h.save_document().expect("save move");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen move");
+        assert_eq!(again.session.host.slides[0].path, paths.1);
+        assert_eq!(again.session.host.slides[1].path, paths.0);
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(h.save_document().expect("undone move"), PPTX);
+
+        apply_cmd(&mut h, "insert.table");
+        apply_cmd(&mut h, "table.insert-row");
+        apply_cmd(&mut h, "table.insert-column");
+        let saved = h.save_document().expect("save table");
+        let dims = |bytes: &[u8]| {
+            let again = nitro_xml_pptx::editor::PptxEditor::open(bytes).expect("reopen table");
+            let table = again
+                .session
+                .host
+                .slides
+                .iter()
+                .flat_map(|s| s.elements.iter())
+                .find(|el| el.type_ == "table")
+                .expect("table missing after applyEdit");
+            let model = table.table.as_ref().expect("model");
+            (model.rows.len(), model.column_widths.len())
+        };
+        assert_eq!(dims(&saved), (3, 3));
+        apply_cmd(&mut h, "table.delete-row");
+        apply_cmd(&mut h, "table.delete-column");
+        let saved = h.save_document().expect("save trim");
+        assert_eq!(dims(&saved), (2, 2));
+        for _ in 0..5 {
+            apply_cmd(&mut h, "edit.undo");
+        }
+        assert_eq!(h.save_document().expect("undone table"), PPTX);
+
+        let mut h = open_editable(DOCX, "pages.docx");
+        // Empty undo only opens the session. It must not rewrite the package.
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(h.save_document().expect("warm"), DOCX);
+        let rows_of = |h: &Handle| {
+            let host = &h.docx.as_ref().unwrap().edit.as_ref().unwrap().session.host;
+            let table = host
+                .blocks
+                .iter()
+                .find(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+                .expect("table");
+            let rows = table["rows"].as_array().expect("rows");
+            let cols = rows
+                .first()
+                .and_then(|r| r.as_array())
+                .map(|c| c.len())
+                .unwrap_or(0);
+            (rows.len(), cols)
+        };
+        let tables_of = |h: &Handle| {
+            h.docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .blocks
+                .iter()
+                .filter(|b| b.get("type").and_then(|t| t.as_str()) == Some("table"))
+                .count()
+        };
+        let reopen = |bytes: &[u8]| {
+            let mut again = open_editable(bytes, "pages.docx");
+            apply_cmd(&mut again, "edit.undo");
+            again
+        };
+        let before_tables = tables_of(&h);
+        let (rows, cols) = rows_of(&h);
+        apply_cmd(&mut h, "insert.table");
+        let saved = h.save_document().expect("save docx table");
+        assert_ne!(saved, DOCX);
+        assert_eq!(
+            tables_of(&reopen(&saved)),
+            before_tables + 1,
+            "applyEdit insert.table dropped the table"
+        );
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(h.save_document().expect("undone docx table"), DOCX);
+        assert_eq!(tables_of(&h), before_tables);
+
+        apply_cmd(&mut h, "table.insert-row");
+        let saved = h.save_document().expect("save row");
+        assert_eq!(rows_of(&reopen(&saved)), (rows + 1, cols));
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(rows_of(&h), (rows, cols));
+        assert_eq!(h.save_document().expect("undone row"), DOCX);
+
+        apply_cmd(&mut h, "table.insert-row");
+        apply_cmd(&mut h, "table.delete-row");
+        let saved = h.save_document().expect("save delete row");
+        assert_eq!(
+            rows_of(&reopen(&saved)).0,
+            rows,
+            "deleted row still in the package"
+        );
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(
+            rows_of(&h).0,
+            rows + 1,
+            "undo did not restore the inserted row"
+        );
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(h.save_document().expect("row undone"), DOCX);
+
+        apply_cmd(&mut h, "table.insert-column");
+        let saved = h.save_document().expect("save column");
+        assert_eq!(rows_of(&reopen(&saved)).1, cols + 1);
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(h.save_document().expect("undone column"), DOCX);
+
+        apply_cmd(&mut h, "table.insert-column");
+        apply_cmd(&mut h, "table.delete-column");
+        let saved = h.save_document().expect("save delete column");
+        assert_eq!(
+            rows_of(&reopen(&saved)).1,
+            cols,
+            "deleted column still in the package"
+        );
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(rows_of(&h).1, cols + 1);
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(h.save_document().expect("column undone"), DOCX);
+
+        apply_cmd(&mut h, "table.delete");
+        let saved = h.save_document().expect("save delete table");
+        assert_ne!(saved, DOCX);
+        assert_eq!(tables_of(&reopen(&saved)), before_tables - 1);
+        apply_cmd(&mut h, "edit.undo");
+        assert_eq!(h.save_document().expect("undone delete table"), DOCX);
+
+        let engine = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .ribbon_html();
+        assert!(
+            !engine.contains("data-command=\"paste\""),
+            "paste is shown with no runner"
+        );
+        assert!(!engine.contains("data-command=\"cut\""));
+        assert!(!engine.contains("data-command=\"copy\""));
+        for id in [
+            "insert.table",
+            "table.insert-row",
+            "table.delete-row",
+            "table.insert-column",
+            "table.delete-column",
+            "table.delete",
+        ] {
+            assert!(
+                engine.contains(&format!("data-command=\"{id}\"")),
+                "word ribbon dropped {id}"
+            );
+        }
+    }
 }

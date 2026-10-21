@@ -88,5 +88,17 @@ if [ "$demo_rc" -ne 0 ]; then
 fi
 
 echo "selection: PASS"
+
+echo "selection: docx zoom on the Pages demos (chromium, webkit)"
+( cd tests/interaction && DOCX_ZOOM_BROWSERS=chromium,webkit bun ./docx-zoom.mjs )
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f tests/interaction/out/docx-zoom-summary.txt ]; then
+  {
+    echo "## Docx zoom (Pages demos)"
+    echo '```'
+    cat tests/interaction/out/docx-zoom-summary.txt
+    echo '```'
+  } >> "$GITHUB_STEP_SUMMARY"
+fi
+
 echo "Please add the \`selection-parity\` job to branch-protection required checks (Jared / Chief of Staff)."
 exit 0

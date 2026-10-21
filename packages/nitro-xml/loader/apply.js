@@ -158,7 +158,10 @@ const el = nodes.get(id);
 if (el) {
 const prop = target.resolve(propId);
 const val = target.resolve(valId);
-if (prop != null) el.style[prop] = val ?? "";
+if (prop != null) {
+if (prop.charCodeAt(0) === 45) el.style.setProperty(prop, val ?? "");
+else el.style[prop] = val ?? "";
+}
 }
 ops++;
 break;

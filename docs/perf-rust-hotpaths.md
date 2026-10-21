@@ -210,6 +210,29 @@ compile of touched code; docx L 1.25x, pptx M/L now win), and xlsx S time is a s
 Next levers: `process_frame`/`load_sheet` body size (grid-paint lineage), `parse_normalized` (16 KB) and inflate
 (14 KB) are tiered on every format (about 21 MiB of compiler zone), and the 13 MiB module-instantiate floor.
 
+## Slice 5: format-split open/paint (`perf-docx-open-split`)
+
+Finding: `Handle::open_document` and `process_frame` were single wasm functions containing all three
+format paths. On a docx open, V8 TurboFan still tiered the xlsx/pptx bodies reachable from that
+shared function (same compile-floor mechanism as slice 4).
+
+| Change | Effect |
+|---|---|
+| `#[inline(never)]` `open_{xlsx,pptx,docx}_document` + thin `openDocument` dispatcher | docx open no longer compiles xlsx/pptx open paths |
+| `#[inline(never)]` `process_frame_{xlsx,pptx,docx}` + thin `process_frame` | same for first paint / prepareFrame |
+
+wasm-opt flags unchanged (`-O3` + `--one-caller-inline-max-function-size=1500`). Method:
+`peak-mem.mjs --runs=9 --format=docx`, same box, main (`b48e0e2` / #352) vs this branch.
+
+| Fixture | TS ms | WASM ms before | WASM ms after | TS peak MiB | WASM peak before | WASM peak after |
+|---|--:|--:|--:|--:|--:|--:|
+| docx S | 16.6 / 16.8 | 22.91 | **21.00** | 2.6 | 14.8 | **13.1** |
+| docx M | 28.1 / 27.7 | 23.67 | **23.12** | 6.6 / 6.7 | 15.4 | **14.5** |
+| docx L | 77.7 / 78.8 | 33.12 | **30.61** | 21.9 / 22.8 | 20.5 | **19.7** |
+
+Peak drops ~0.8 to 1.7 MiB per tier; cold open time also down slightly. Still LOSS vs TS on S/M
+(module instantiate + remaining shared compile: parse_normalized / inflate). L stays WIN.
+
 ## Slice 6: live-edit stale scan (xlsx editor, Rust side)
 
 Every `setCellInput` value edit re-ran `recompute_stale`, which cloned every formula `String` and re-ran the

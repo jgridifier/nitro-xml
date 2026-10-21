@@ -96,6 +96,10 @@ line): `wasm-opt -O1`.
 
 ### Memory floor (next slices)
 
+- **wasm open, skip `None` sibling clears (`nitro-xml-wasm`):** on `openDocument`, only drop foreign-format
+  state when `is_some()` so TurboFan does not compile the full `Option<XlsxState>` drop arm on every docx open.
+  Measure with `peak-mem.mjs` on docx S (fresh process).
+
 Fresh-process first open grows RSS by 32 to 45 MiB: ~13 MiB at `initSync` (6.5 MB module) plus 20 to 30 MiB of lazy
 compile for the functions the first open touches. TS grows 2 to 5 MiB on S fixtures. Levers measured above (`-O1`
 saves ~20 MiB) and still to try: drop `regex`/`serde_json` from the wasm graph (regex_automata + regex_syntax +

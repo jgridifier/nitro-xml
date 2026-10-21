@@ -19,6 +19,14 @@ use crate::transport::StringTable;
 use crate::xlsx::{is_xlsx_extension, search_options_from_json, XlsxState};
 use crate::xlsx_edit::{editor_key_json, EditorKeyEffect};
 
+/// Clear a format slot only when it holds state, so wasm open paths do not run
+/// `drop_in_place` on an already-`None` `Option<FormatState>`.
+fn clear_format_slot<T>(slot: &mut Option<T>) {
+    if slot.is_some() {
+        *slot = None;
+    }
+}
+
 fn process_frame(handle: &mut Handle) {
     if handle.xlsx.is_some() {
         crate::xlsx::process_frame(handle);
@@ -333,8 +341,8 @@ impl Handle {
                 self.shell.selection_ref = r;
             }
             self.xlsx = Some(state);
-            self.pptx = None;
-            self.docx = None;
+            clear_format_slot(&mut self.pptx);
+            clear_format_slot(&mut self.docx);
             self.shell.diagnostics.parse_ms = now_ms() - t0;
             let t1 = now_ms();
             process_frame(self);
@@ -373,8 +381,8 @@ impl Handle {
                 }
             }
             self.pptx = Some(state);
-            self.xlsx = None;
-            self.docx = None;
+            clear_format_slot(&mut self.xlsx);
+            clear_format_slot(&mut self.docx);
             self.shell.diagnostics.parse_ms = now_ms() - t0;
             let t1 = now_ms();
             process_frame(self);
@@ -395,8 +403,8 @@ impl Handle {
             }
             self.shell.set_tabs(state.page_tabs(), state.active as u32);
             self.docx = Some(state);
-            self.xlsx = None;
-            self.pptx = None;
+            clear_format_slot(&mut self.xlsx);
+            clear_format_slot(&mut self.pptx);
             self.shell.diagnostics.parse_ms = now_ms() - t0;
             let t1 = now_ms();
             process_frame(self);
@@ -1984,6 +1992,18 @@ mod tests {
         assert_eq!(a, b);
         assert_ne!(a, c);
         assert_eq!(h.resolve(a).as_deref(), Some("Calibri"));
+    }
+
+    #[test]
+    fn clear_format_slot_only_clears_some() {
+        // Catches: docx first-open must not assign None into xlsx/pptx slots that are
+        // already None (V8 still compiles the full Option drop glue for that assignment).
+        let mut empty: Option<u32> = None;
+        clear_format_slot(&mut empty);
+        assert!(empty.is_none());
+        let mut live = Some(42u32);
+        clear_format_slot(&mut live);
+        assert!(live.is_none());
     }
 
     #[test]

@@ -12,9 +12,10 @@ use crate::docx::{is_docx_extension, DocxState};
 use crate::events::{self, EventQueue};
 use crate::pptx::{is_pptx_extension, PptxState};
 use crate::shell::{
-    apply_action, cap_chars, open_diagnostic_code, FindMatch, FormatKind, PendingHyperlink,
-    ShellAction, ShellState, ShellUi,
+    apply_action, cap_chars, chrome_rest_html, open_diagnostic_code, FindMatch,
+    FormatKind, PendingHyperlink, ShellAction, ShellState, ShellUi,
 };
+use serde_json::Value;
 use crate::transport::StringTable;
 use crate::xlsx::{is_xlsx_extension, search_options_from_json, XlsxState};
 use crate::xlsx_edit::{editor_key_json, EditorKeyEffect};
@@ -212,6 +213,11 @@ pub struct Handle {
     /// Omit unchanged `h` so the loader skips a 50KB+ `.chrome` innerHTML swap
     /// (audit theme 8 / S3-2).
     last_chrome_html: Option<String>,
+    /// Ribbon + shell + overlay (no formula bar); used to emit `hf` when only the formula changes.
+    last_chrome_rest: Option<String>,
+    last_formula_html: Option<String>,
+    /// Formula-only delta stashed for `takeFormulaChromeIfDirty` after `takeChromeIfDirty`.
+    pending_formula_chrome: Option<String>,
     #[cfg(feature = "bench")]
     pub(crate) grid: crate::bench::SyntheticGrid,
 }
@@ -245,6 +251,9 @@ impl Handle {
             shell: ShellState::default(),
             editor: EditorChrome::new(),
             last_chrome_html: None,
+            last_chrome_rest: None,
+            last_formula_html: None,
+            pending_formula_chrome: None,
             #[cfg(feature = "bench")]
             grid: crate::bench::SyntheticGrid::new(),
         }
@@ -608,11 +617,8 @@ impl Handle {
         if op == "ui" || op.is_empty() {
             self.refresh_formula_bar();
             let ui = ShellUi::to_json(&self.shell, &self.editor);
-            let raw = ui.get("chromeHtml").and_then(|v| v.as_str()).unwrap_or("");
             let mut out = serde_json::Map::new();
-            if let Some(h) = self.take_chrome_html_if_changed(raw) {
-                out.insert("h".into(), serde_json::Value::String(h));
-            }
+            Self::insert_chrome_delta(&mut out, self.chrome_delta_from_ui());
             out.insert("ui".into(), ui);
             return Ok(serde_json::Value::Object(out).to_string());
         }
@@ -751,11 +757,8 @@ impl Handle {
         });
         self.refresh_formula_bar();
         let ui = ShellUi::to_json(&self.shell, &self.editor);
-        let raw = ui.get("chromeHtml").and_then(|v| v.as_str()).unwrap_or("");
         let mut out = serde_json::Map::new();
-        if let Some(h) = self.take_chrome_html_if_changed(raw) {
-            out.insert("h".into(), serde_json::Value::String(h));
-        }
+        Self::insert_chrome_delta(&mut out, self.chrome_delta_from_ui());
         out.insert("c".into(), serde_json::json!(result.copy_text));
         out.insert("copyText".into(), serde_json::json!(result.copy_text));
         out.insert(
@@ -1167,9 +1170,22 @@ impl Handle {
             return None;
         }
         self.refresh_formula_bar();
-        let ui = ShellUi::to_json(&self.shell, &self.editor);
-        let h = ui.get("chromeHtml").and_then(|v| v.as_str())?;
-        self.take_chrome_html_if_changed(h)
+        self.pending_formula_chrome = None;
+        let delta = self.chrome_delta_from_ui();
+        match delta {
+            ChromeDelta::None => None,
+            ChromeDelta::Full(h) => Some(h),
+            ChromeDelta::Formula(f) => {
+                self.pending_formula_chrome = Some(f);
+                None
+            }
+        }
+    }
+
+    /// Formula-bar HTML when only `.xfb` changed since the last chrome update (`takeChromeIfDirty` first).
+    #[wasm_bindgen(js_name = takeFormulaChromeIfDirty)]
+    pub fn take_formula_chrome_if_dirty(&mut self) -> Option<String> {
+        self.pending_formula_chrome.take()
     }
 
     /// Drain pending events (engine tick). Returns how many were dropped.
@@ -1300,27 +1316,57 @@ impl Handle {
             serde_json::from_str(&editor_key_json(effect, selection))
                 .unwrap_or(serde_json::json!({}));
         if payload.get("handled").and_then(|v| v.as_bool()) == Some(true) {
-            let ui = ShellUi::to_json(&self.shell, &self.editor);
             if let Some(obj) = payload.as_object_mut() {
-                if let Some(h) = ui.get("chromeHtml").and_then(|v| v.as_str()) {
-                    if let Some(changed) = self.take_chrome_html_if_changed(h) {
-                        obj.insert("h".into(), serde_json::Value::String(changed));
-                    }
-                }
+                Self::insert_chrome_delta(obj, self.chrome_delta_from_ui());
             }
         }
         Ok(payload.to_string())
     }
 }
 
+enum ChromeDelta {
+    None,
+    Formula(String),
+    Full(String),
+}
+
 impl Handle {
-    /// Return chrome HTML only when it differs from the last value sent on `h`.
-    fn take_chrome_html_if_changed(&mut self, h: &str) -> Option<String> {
-        if self.last_chrome_html.as_deref() == Some(h) {
-            return None;
+    fn chrome_delta_from_ui(&mut self) -> ChromeDelta {
+        let ui = ShellUi::to_json(&self.shell, &self.editor);
+        let full = ui.get("chromeHtml").and_then(|v| v.as_str()).unwrap_or("");
+        let formula = self.editor.formula_html().to_owned();
+        let rest = chrome_rest_html(&self.shell, &self.editor);
+        self.take_chrome_delta(full, &formula, &rest)
+    }
+
+    fn insert_chrome_delta(map: &mut serde_json::Map<String, Value>, delta: ChromeDelta) {
+        match delta {
+            ChromeDelta::None => {}
+            ChromeDelta::Formula(f) => {
+                map.insert("hf".into(), Value::String(f));
+            }
+            ChromeDelta::Full(h) => {
+                map.insert("h".into(), Value::String(h));
+            }
         }
-        self.last_chrome_html = Some(h.to_owned());
-        Some(h.to_owned())
+    }
+
+    /// Emit full `h` when ribbon/shell/overlay change; `hf` when only the formula bar changes.
+    fn take_chrome_delta(&mut self, full: &str, formula: &str, rest: &str) -> ChromeDelta {
+        if self.last_chrome_html.as_deref() == Some(full) {
+            return ChromeDelta::None;
+        }
+        let formula_only = self.last_chrome_rest.as_deref() == Some(rest)
+            && self.last_formula_html.as_deref() != Some(formula);
+        if formula_only {
+            self.last_formula_html = Some(formula.to_owned());
+            self.last_chrome_html = Some(full.to_owned());
+            return ChromeDelta::Formula(formula.to_owned());
+        }
+        self.last_chrome_html = Some(full.to_owned());
+        self.last_chrome_rest = Some(rest.to_owned());
+        self.last_formula_html = Some(formula.to_owned());
+        ChromeDelta::Full(full.to_owned())
     }
 
     fn refresh_formula_bar(&mut self) {
@@ -1449,13 +1495,8 @@ impl Handle {
             process_frame(self);
             self.refresh_formula_bar();
             self.shell.dirty_ui = true;
-            let ui = ShellUi::to_json(&self.shell, &self.editor);
             if let Some(obj) = payload.as_object_mut() {
-                if let Some(h) = ui.get("chromeHtml").and_then(|v| v.as_str()) {
-                    if let Some(changed) = self.take_chrome_html_if_changed(h) {
-                        obj.insert("h".into(), serde_json::Value::String(changed));
-                    }
-                }
+                Self::insert_chrome_delta(obj, self.chrome_delta_from_ui());
             }
         }
         if let (Some(docx), Some(obj)) = (self.docx.as_mut(), payload.as_object_mut()) {
@@ -1516,12 +1557,8 @@ impl Handle {
     fn chrome_payload(&mut self, save: bool) -> String {
         self.refresh_formula_bar();
         let ui = ShellUi::to_json(&self.shell, &self.editor);
-        let raw = ui.get("chromeHtml").and_then(|v| v.as_str()).unwrap_or("");
-        let h = self.take_chrome_html_if_changed(raw);
         let mut out = serde_json::Map::new();
-        if let Some(h) = h {
-            out.insert("h".into(), serde_json::Value::String(h));
-        }
+        Self::insert_chrome_delta(&mut out, self.chrome_delta_from_ui());
         out.insert("ui".into(), ui);
         out.insert("save".into(), serde_json::json!(save));
         out.insert(
@@ -2041,13 +2078,42 @@ mod tests {
         // Catches: every handled key re-sending identical chrome HTML so the host
         // re-parses a 50KB+ ribbon/formula-bar swap (audit theme 8 / S3-2).
         let mut h = Handle::new(Vec::new());
-        let first = h.take_chrome_html_if_changed("<div class=\"xfb\">A1</div>");
-        assert_eq!(first.as_deref(), Some("<div class=\"xfb\">A1</div>"));
-        assert!(h
-            .take_chrome_html_if_changed("<div class=\"xfb\">A1</div>")
-            .is_none());
-        let next = h.take_chrome_html_if_changed("<div class=\"xfb\">B2</div>");
-        assert_eq!(next.as_deref(), Some("<div class=\"xfb\">B2</div>"));
+        let rest = "<div class=\"ribbon\"></div>";
+        let f1 = "<div class=\"xfb\">A1</div>";
+        let f2 = "<div class=\"xfb\">B2</div>";
+        let full1 = format!("{rest}{f1}");
+        let full2 = format!("{rest}{f2}");
+        assert!(matches!(
+            h.take_chrome_delta(&full1, f1, rest),
+            ChromeDelta::Full(s) if s == full1
+        ));
+        assert!(matches!(h.take_chrome_delta(&full1, f1, rest), ChromeDelta::None));
+        assert!(matches!(
+            h.take_chrome_delta(&full2, f2, rest),
+            ChromeDelta::Formula(s) if s == f2
+        ));
+        assert!(matches!(h.take_chrome_delta(&full2, f2, rest), ChromeDelta::None));
+    }
+
+    #[test]
+    fn formula_only_chrome_emits_hf_not_full_h() {
+        // Catches: formula-only chrome still shipping full ribbon HTML on every key.
+        let mut h = Handle::new(Vec::new());
+        let rest = "<ribbon>static</ribbon><div data-hk=\"\"></div>";
+        let f1 = "<div class=\"xfb\">=1</div>";
+        let f2 = "<div class=\"xfb\">=12</div>";
+        let full1 = format!("{rest}{f1}");
+        let full2 = format!("{rest}{f2}");
+        assert!(matches!(
+            h.take_chrome_delta(&full1, f1, rest),
+            ChromeDelta::Full(_)
+        ));
+        let d = h.take_chrome_delta(&full2, f2, rest);
+        assert!(matches!(&d, ChromeDelta::Formula(s) if s == f2));
+        let mut out = serde_json::Map::new();
+        Handle::insert_chrome_delta(&mut out, d);
+        assert!(out.get("h").is_none());
+        assert_eq!(out.get("hf").and_then(|v| v.as_str()), Some(f2));
     }
 
     #[test]

@@ -20,6 +20,6 @@ describe("mut-frame result lightening", () => {
     assert.equal(light.p, null);
     assert.equal(light.h, undefined);
     assert.equal(light.ui, undefined);
-    assert.equal(chromeFromResult(raw), "<div class=\"f\">find</div>");
+    assert.deepEqual(chromeFromResult(raw), { h: "<div class=\"f\">find</div>" });
   });
 });

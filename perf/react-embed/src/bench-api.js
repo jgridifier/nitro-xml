@@ -157,9 +157,15 @@ export async function typeKey(el, key = "a") {
     { key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false },
     false,
   );
-  if (edit && edit.h != null && el.shadowRoot) {
+  if (edit && el.shadowRoot) {
     const ch = el.shadowRoot.querySelector(".chrome");
-    if (ch) ch.innerHTML = edit.h;
+    if (ch && (edit.h != null || edit.hf != null)) {
+      if (edit.hf != null) {
+        const x = ch.querySelector(".xfb");
+        if (x) x.outerHTML = edit.hf;
+        else ch.insertAdjacentHTML("afterbegin", edit.hf);
+      } else if (edit.h != null) ch.innerHTML = edit.h;
+    }
   }
 }
 

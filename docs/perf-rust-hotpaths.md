@@ -359,3 +359,12 @@ are **noise** (CI includes 1).
 Method: warm open = fresh process per pkg, 3 warmup + 21 runs, median of 21 processes
 interleaved; peak = `peak-mem.mjs --child=wasm:…` n=50 interleaved vs main `68260ca`.
 No wasm-opt / budget / fixture changes. Zero REGRESS rows.
+
+## Slice 12: xlsx formula-bar chrome `hf` (issue #30)
+
+On xlsx keystrokes and `setCellInput`, when only the `.xfb` formula-bar HTML changes, WASM now emits
+short key `hf` (~1–2 KB) instead of full `h` (~54 KB ribbon+shell). Loader patches `.xfb` in place
+(`lazy/chrome-patch.js` on tick/mut-frame and input-proxy); eager `element.js` wires
+`doc._chromeEl`. Follow-up to omit-unchanged `h` (#357).
+
+React-embed `edit-cell` interleaved (n=40): xlsx S ~11→8.5 ms, L ~12→10.8 ms.

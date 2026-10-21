@@ -27,19 +27,25 @@ const PPTX_NAV: &str = "|ArrowRight:nav-next|ArrowLeft:nav-prev|PageDown:nav-nex
 
 /// Stage-6 shell plus optional editor ribbon (ribbon above toolbar when edit mode)
 /// and any open dialog/menu overlay (#54).
-pub fn combined_chrome_html(state: &ShellState, editor: &EditorChrome) -> String {
+/// Ribbon, toolbar/find/tabs shell, and overlay — everything except the formula bar.
+pub fn chrome_rest_html(state: &ShellState, editor: &EditorChrome) -> String {
     // Empty office ribbon keeps the xlsx Home ribbon byte-for-byte.
     let ribbon = if editor.office_ribbon().is_empty() {
         editor.ribbon_html()
     } else {
         editor.office_ribbon().to_owned()
     };
-    let formula = editor.formula_html();
     let overlay = editor.overlay_html();
     // An editable docx keeps Left/Right for the caret; page keys still turn pages.
     let arrows = !(state.format == FormatKind::Docx && !editor.read_only());
     let shell = chrome_html_with(state, arrows);
-    format!("{ribbon}{formula}{shell}{overlay}")
+    format!("{ribbon}{shell}{overlay}")
+}
+
+pub fn combined_chrome_html(state: &ShellState, editor: &EditorChrome) -> String {
+    let rest = chrome_rest_html(state, editor);
+    let formula = editor.formula_html();
+    format!("{rest}{formula}")
 }
 
 /// Full chrome fragment (toolbar, find, tabs, diagnostics) for the loader host.

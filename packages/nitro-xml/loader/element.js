@@ -319,6 +319,7 @@ export class ShellViewerElement extends ViewerElement {
     return this._readonly;
   }
   async _ao() {
+    if (this._d && this._ch) this._d._chromeEl = this._ch;
     await this.shellAction("ui");
     const z=this.getAttribute("zoom");if(z)await this.shellAction("zoom-set",z);
     void this._em();

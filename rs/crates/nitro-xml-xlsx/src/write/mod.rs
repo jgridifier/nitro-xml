@@ -36,7 +36,7 @@ use self::workbook_part::{workbook_xml, SheetRef};
 use self::worksheet::{worksheet_xml, SheetWriteExtra};
 use self::xml_out::{escape_attr, relative_target};
 
-pub(crate) use stale::stale_formula_cells;
+pub(crate) use stale::{stale_formula_cells, RefCache};
 
 const CT_WORKSHEET: &str =
     "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";

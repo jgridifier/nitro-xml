@@ -40,8 +40,13 @@ case "$MODE" in report|enforce) ;; *)
 esac
 
 TIERS="${PERF_BEATS_TIERS:-S,M,L}"
-RUNS_OPEN="${PERF_BEATS_OPEN_RUNS:-11}"
-WARMUP_OPEN="${PERF_BEATS_OPEN_WARMUP:-2}"
+# OpenDocument samples share one Node process. V8 Liftoff dominates the first ~dozen
+# opens; with only 2 warmups the timed set is noisy and ubuntu's 95% CI often spans 1.0
+# on xlsx S even when the true ratio is ~0.6. More warmup discards Liftoff; more runs
+# tighten the bootstrap CI. Pass rule unchanged (median < 1 AND CI upper < 1).
+# Peak-mem knobs untouched (separate fresh-process metric / other agents).
+RUNS_OPEN="${PERF_BEATS_OPEN_RUNS:-21}"
+WARMUP_OPEN="${PERF_BEATS_OPEN_WARMUP:-8}"
 BOOTSTRAP="${PERF_BEATS_BOOTSTRAP:-2000}"
 RUNS_MEM="${PERF_BEATS_MEM_RUNS:-7}"
 OUT_DIR="${PERF_BEATS_OUT:-/tmp/perf-beats-ts-$(git rev-parse --short HEAD)-$fmt}"

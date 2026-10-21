@@ -7,7 +7,7 @@
 // nothing in the element's default mode changes.
 import { ICONS } from "./icons.js";
 import { CANVAS_CSS, CSS, SHADOW_CSS } from "./style.js";
-import { QAT, tabsFor } from "./commands.js";
+import { QAT, officeCommandHidden, tabsFor } from "./commands.js";
 import { trackDirty } from "./dirty.js";
 import { createThumbs } from "./thumbs.js";
 
@@ -164,8 +164,11 @@ ${
         dis = at < 0 || at + it.n < 0 || at + it.n >= tb.length;
       } else if (it.c) {
         // Mirror the Rust ribbon's own enabled state where it has a control for the command.
+        // PowerPoint and Word hide a button the strip does not emit, so a dead command
+        // cannot stay clickable after the editor drops it.
         const m = q(`[data-a="cmd"][data-g="${it.c}"]`);
         dis = dis || !!(m && m.disabled) || (it.c === "sheet.delete" && tb.length < 2);
+        b.hidden = officeCommandHidden(o.format, !!ch(), !!m);
       } else if (it.x) on = findOpen;
       else if (it.d) on = diagOpen;
       else if (it.s) on = !$(".pane").dataset.off;
@@ -215,7 +218,7 @@ ${
   // ---- events ----
   root.addEventListener("click", (e) => {
     const t = e.target.closest("button");
-    if (!t || !root.contains(t) || t.disabled) return;
+    if (!t || !root.contains(t) || t.disabled || t.hidden) return;
     if (t.classList.contains("rgc")) return group(t.parentElement, !t.parentElement.dataset.open);
     if (t.dataset.mode) return o.onMode(t.dataset.mode);
     if (t.dataset.q === "open") return pick.click();

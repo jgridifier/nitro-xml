@@ -163,6 +163,18 @@ const XLSX_HOME = [
  * @param {string} unit  Sheet | Page | Slide
  * @param {boolean} edit editor commands are wired for this format and the element is writable
  */
+/**
+ * Hide a Pages command once the WASM strip is up and does not emit it.
+ * PowerPoint and Word only. Excel keeps its own controls. Before chrome
+ * HTML arrives the button stays (the caller disables it) so the ribbon
+ * does not flash empty on open.
+ */
+export function officeCommandHidden(format, chromeReady, present) {
+  if (format !== "pptx" && format !== "docx") return false;
+  if (!chromeReady) return false;
+  return !present;
+}
+
 export function tabsFor(format, unit, edit) {
   const viewOnly = { Home: [{ g: "Clipboard", big: [copy] }, nav(unit), find] };
   const officeHome = [{ g: "Clipboard", big: [copy] }, FONT, nav(unit), find];

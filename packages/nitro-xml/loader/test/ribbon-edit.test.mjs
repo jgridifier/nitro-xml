@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { NUMBER_FORMATS, QAT, tabsFor } from "../lazy/ribbon/commands.js";
+import { NUMBER_FORMATS, QAT, officeCommandHidden, tabsFor } from "../lazy/ribbon/commands.js";
+import { MANIFEST } from "../lazy/embedded/manifest.js";
 import { trackDirty } from "../lazy/ribbon/dirty.js";
 
 const enginePath = fileURLToPath(new URL("../../../../rs/crates/nitro-xml-xlsx/src/editor/commands.rs", import.meta.url));
@@ -181,6 +182,52 @@ describe("Office ribbon manifests", () => {
     const app = readFileSync(new URL("../../../../demo/app.js", import.meta.url), "utf8");
     assert.match(app, /docx: true, pptx: true/);
     assert.match(app, /EDITABLE\[format\] \? "" : "Read-only"/);
+  });
+
+  it("hides a Pages command the WASM strip does not emit", () => {
+    // Catches: a PowerPoint or Word ribbon button staying clickable after the editor drops that command.
+    assert.equal(officeCommandHidden("pptx", true, false), true);
+    assert.equal(officeCommandHidden("docx", true, false), true);
+    assert.equal(officeCommandHidden("pptx", true, true), false);
+    assert.equal(officeCommandHidden("docx", false, false), false);
+    assert.equal(officeCommandHidden("xlsx", true, false), false);
+    const frame = readFileSync(new URL("../lazy/ribbon/index.js", import.meta.url), "utf8");
+    assert.match(frame, /b\.hidden = officeCommandHidden\(o\.format, !!ch\(\), !!m\)/);
+  });
+
+  it("keeps PowerPoint and Word ribbons inside the WASM strip", () => {
+    // Catches: a GitHub Pages button for cut, paste, group, or bring-to-front, which the editor does not save.
+    const strip = (rel) => {
+      const src = readFileSync(new URL(rel, import.meta.url), "utf8");
+      const start = src.indexOf("pub fn ribbon_html");
+      const rest = src.slice(start + 1);
+      const end = rest.search(/\nfn |\nimpl |\npub fn /);
+      const body = src.slice(start, end === -1 ? src.length : start + 1 + end);
+      return [...body.matchAll(/id: "([^"]+)"/g)].map((m) => m[1]);
+    };
+    const pptx = new Set(strip("../../../../rs/crates/nitro-xml-wasm/src/pptx_edit.rs"));
+    const docx = new Set(strip("../../../../rs/crates/nitro-xml-wasm/src/docx_edit.rs"));
+    const manifestIds = (format) =>
+      MANIFEST[format].groups.flatMap((g) => g.items || []).map((x) => x.c).filter(Boolean);
+    const off = [
+      "home.group",
+      "home.ungroup",
+      "home.bring-to-front",
+      "home.send-to-back",
+      "home.cut",
+      "home.paste",
+      "home.grow-font",
+      "home.shrink-font",
+    ];
+    for (const [format, rust, unit] of [
+      ["pptx", pptx, "Slide"],
+      ["docx", docx, "Page"],
+    ]) {
+      const bound = [...ids(tabsFor(format, unit, true)), ...QAT.map((x) => x.c), ...manifestIds(format)];
+      for (const id of bound) assert.ok(rust.has(id), `${format} advertises ${id}, which the WASM strip does not emit`);
+      for (const id of off) assert.ok(!bound.includes(id), `${format} still lists ${id}`);
+      for (const id of ["file.save", "edit.undo", "edit.redo", "home.bold"]) assert.ok(rust.has(id));
+    }
   });
 
   it("gives every control a unique key", () => {

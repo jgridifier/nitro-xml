@@ -413,6 +413,7 @@ Root cause: after first `ensure_edit`, `sync_model_from_edit` clones the host’
 
 1. Maintain `ActiveWorksheet.cell_pos`; paint uses it instead of rebuilding.
 2. `ensure_edit` calls `drop_lazy_view()` so `flush_pending_tail` / `sync_lazy_sheet` cannot re-stream or replace the edit grid.
-3. Edit-path helpers (`ensure_cell` / `sync_cells_from_edit`) keep the index in sync (from the closed #385 attempt; that PR was NOISE on median because short-circuit hid the paint cost).
+3. `used_range` / metrics: prefer `<dimension>` or the index’s cached bbox — linear scan of cells_1m on every paint raised the non-outlier median (~12→16 ms) after (1)+(2).
+4. Edit-path helpers keep the index in sync.
 
 A/B (React-embed `edit-cell` S+L, n≥21 interleaved, p50/p95/max + edit heap): see PR.

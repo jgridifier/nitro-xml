@@ -14,6 +14,8 @@ pub struct CellIndex {
     rows: FastMap<u32, FastMap<u32, usize>>,
     /// `cells.len()` when this index was last fully synced.
     len: usize,
+    /// Cached bounding box; maintained on insert / full rebuild.
+    used: Option<CellRange>,
 }
 
 impl PartialEq for CellIndex {
@@ -27,12 +29,35 @@ impl Eq for CellIndex {}
 impl CellIndex {
     pub fn build(sheet: &ActiveWorksheet) -> Self {
         let mut rows: FastMap<u32, FastMap<u32, usize>> = FastMap::default();
+        let mut min_row = u32::MAX;
+        let mut max_row = 0u32;
+        let mut min_col = u32::MAX;
+        let mut max_col = 0u32;
         for (idx, cell) in sheet.cells.iter().enumerate() {
             rows.entry(cell.row).or_default().insert(cell.col, idx);
+            min_row = min_row.min(cell.row);
+            max_row = max_row.max(cell.row);
+            min_col = min_col.min(cell.col);
+            max_col = max_col.max(cell.col);
         }
+        let used = if sheet.cells.is_empty() {
+            None
+        } else {
+            Some(CellRange {
+                start: crate::model::CellAddress {
+                    row: min_row,
+                    col: min_col,
+                },
+                end: crate::model::CellAddress {
+                    row: max_row,
+                    col: max_col,
+                },
+            })
+        };
         Self {
             rows,
             len: sheet.cells.len(),
+            used,
         }
     }
 
@@ -54,8 +79,27 @@ impl CellIndex {
         self.len
     }
 
+    /// Bounding box of indexed cells, or `None` when empty.
+    pub fn used_range(&self) -> Option<CellRange> {
+        self.used.clone()
+    }
+
     pub fn insert(&mut self, row: u32, col: u32, idx: usize) {
         self.rows.entry(row).or_default().insert(col, idx);
+        match &mut self.used {
+            None => {
+                self.used = Some(CellRange {
+                    start: crate::model::CellAddress { row, col },
+                    end: crate::model::CellAddress { row, col },
+                });
+            }
+            Some(u) => {
+                u.start.row = u.start.row.min(row);
+                u.start.col = u.start.col.min(col);
+                u.end.row = u.end.row.max(row);
+                u.end.col = u.end.col.max(col);
+            }
+        }
     }
 
     pub fn clear_at(&mut self, row: u32, col: u32) {
@@ -67,6 +111,45 @@ impl CellIndex {
         if empty {
             self.rows.remove(&row);
         }
+        // Shrink only when the removed cell sat on the cached edge.
+        if let Some(u) = &self.used {
+            if row == u.start.row
+                || row == u.end.row
+                || col == u.start.col
+                || col == u.end.col
+            {
+                self.recompute_used();
+            }
+        }
+    }
+
+    fn recompute_used(&mut self) {
+        if self.rows.is_empty() {
+            self.used = None;
+            return;
+        }
+        let mut min_row = u32::MAX;
+        let mut max_row = 0u32;
+        let mut min_col = u32::MAX;
+        let mut max_col = 0u32;
+        for (&row, cols) in &self.rows {
+            min_row = min_row.min(row);
+            max_row = max_row.max(row);
+            for &col in cols.keys() {
+                min_col = min_col.min(col);
+                max_col = max_col.max(col);
+            }
+        }
+        self.used = Some(CellRange {
+            start: crate::model::CellAddress {
+                row: min_row,
+                col: min_col,
+            },
+            end: crate::model::CellAddress {
+                row: max_row,
+                col: max_col,
+            },
+        });
     }
 
     /// After `cells.remove(i)`: drop the removed key and shift indices above `i`.
@@ -148,6 +231,15 @@ pub fn get_cell<'a>(
 }
 
 pub fn used_range(sheet: &ActiveWorksheet) -> Option<CellRange> {
+    // Prefer `<dimension>` (lazy first-view / explicit) — O(1).
+    if let Some(dim) = &sheet.dimension {
+        return Some(dim.clone());
+    }
+    // Maintained index: O(occupied rows), not O(cells). Scanning cells_1m here
+    // cost ~4ms+ per paint and raised edit-cell L median after ensure_edit.
+    if sheet.cell_pos.synced_len() == sheet.cells.len() {
+        return sheet.cell_pos.used_range();
+    }
     let mut min_row = u32::MAX;
     let mut max_row = 0u32;
     let mut min_col = u32::MAX;

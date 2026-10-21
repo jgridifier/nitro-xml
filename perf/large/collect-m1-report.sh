@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 # Collect M1-report metrics from existing harnesses (docs/M1-REPORT.md §5–§7).
 #
-# Does NOT arm gates or edit budgets/workflows. TS-vs-WASM cold-open tables come
-# from perf/large/ts-vs-wasm.mjs (report-only). Gate stubs
-# (perf_beats_ts.sh / scoreboard.sh) are still recorded as NOT IMPLEMENTED.
+# Does NOT flip PERF_GATE_MODE=enforce or edit budgets/workflows. TS-vs-WASM
+# cold-open tables come from perf/large/ts-vs-wasm.mjs. perf_beats_ts.sh /
+# perf.sh are live in report mode (#342); scoreboard.sh may still stub (#39).
 #
 # Usage (from repo root):
 #   bash perf/large/collect-m1-report.sh
@@ -44,18 +44,16 @@ echo "m1-report-metrics sha=$SHA short=$SHORT when=$WHEN"
 echo "host=$HOST"
 echo "out=$OUT"
 
-# --- Stub / deferred harnesses (record exactly what they print) ---
+# --- Gate / deferred harnesses (record exactly what they print) ---
+# perf_beats_ts / perf.sh are real but default REPORT MODE (exit 0 on LOSS) — #342.
+# Full S/M/L × 3 formats is slow; collector keeps a short S-only sample + scoreboard stub.
 {
-  echo "### stubs"
-  for fmt in xlsx docx pptx; do
-    echo "--- perf_beats_ts.sh $fmt ---"
-    bash scripts/ci/perf_beats_ts.sh "$fmt" || true
-  done
-  echo "--- perf.sh gate ---"
-  bash scripts/ci/perf.sh gate || true
+  echo "### gates"
+  echo "--- perf_beats_ts.sh xlsx (PERF_BEATS_TIERS=S, report) ---"
+  PERF_GATE_MODE=report PERF_BEATS_TIERS=S bash scripts/ci/perf_beats_ts.sh xlsx || true
   echo "--- scoreboard.sh ---"
   bash scripts/ci/scoreboard.sh || true
-} | tee "$OUT/stubs.txt"
+} | tee "$OUT/gates.txt"
 
 # --- Fixtures (on-demand L/XL; S/M usually already committed under fixtures/generated) ---
 if [ "$SKIP_GENERATE" -eq 0 ]; then
@@ -158,11 +156,11 @@ if [ "$SKIP_TS_VS_WASM" -eq 0 ]; then
   } | tee "$OUT/ts-vs-wasm.txt"
 fi
 
-# --- Compact summary JSON (pointers + stub status; numbers live in the teed logs) ---
+# --- Compact summary JSON (pointers + gate status; numbers live in the teed logs) ---
 node - "$OUT" "$SHA" "$SHORT" "$WHEN" "$HOST" <<'JS'
 const fs = require('fs');
 const [out, sha, short, when, host] = process.argv.slice(2);
-const stubs = fs.readFileSync(`${out}/stubs.txt`, 'utf8');
+const gates = fs.readFileSync(`${out}/gates.txt`, 'utf8');
 const hasCompare = fs.existsSync(`${out}/ts-vs-wasm.txt`);
 const summary = {
   sha,
@@ -173,19 +171,19 @@ const summary = {
   commands: [
     'bash perf/large/collect-m1-report.sh',
     'node --expose-gc perf/large/ts-vs-wasm.mjs',
-    'bash scripts/ci/perf_beats_ts.sh <xlsx|docx|pptx>  # still stub; not armed',
+    'PERF_GATE_MODE=report bash scripts/ci/perf_beats_ts.sh <xlsx|docx|pptx>',
     'bash scripts/ci/scoreboard.sh',
     'bash scripts/ci/bundle_budget.sh',
   ],
-  stubs: {
-    perf_beats_ts: /NOT IMPLEMENTED/.test(stubs),
-    perf_sh: /NOT IMPLEMENTED — see #8/.test(stubs),
-    scoreboard_sh: /NOT IMPLEMENTED — see #39/.test(stubs),
-    raw: stubs.trim().split('\n'),
+  gates: {
+    perf_beats_ts_not_implemented: /NOT IMPLEMENTED/.test(gates),
+    perf_beats_ts_report_mode: /REPORT MODE/.test(gates),
+    scoreboard_sh_stub: /NOT IMPLEMENTED — see #39/.test(gates),
+    raw: gates.trim().split('\n'),
   },
   gaps: {
-    ts_vs_wasm_gate_arm:
-      'Report tables come from perf/large/ts-vs-wasm.mjs. Gate scripts remain stubbed (#8/#19/#23/#27); docx arm deferred under #23 — not closed by this collector.',
+    ts_vs_wasm_gate_enforce:
+      'Gate scripts are live in PERF_GATE_MODE=report (#342 / docs/M1-REPORT.md §5.4). Jared flips to enforce when reds are fixed; docx arm deferred under #23.',
     scoreboard_standings_including_losses:
       'Unavailable without scoreboard render-race fix: issue #41 and draft PR #113. nitro-xml remains "not entered" in docs/scoreboard/data/parse-latest.json. Do not invent standings.',
   },
@@ -193,7 +191,7 @@ const summary = {
     native: `${out}/native.txt`,
     wasm: `${out}/wasm.txt`,
     bundle: `${out}/bundle.txt`,
-    stubs: `${out}/stubs.txt`,
+    gates: `${out}/gates.txt`,
     ts_vs_wasm: hasCompare ? `${out}/ts-vs-wasm.txt` : null,
   },
 };

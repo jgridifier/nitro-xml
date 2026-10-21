@@ -504,7 +504,8 @@ A/B vs main (21 sessions × 21 samples, `edit-cell`):
 ## Slice 13: skip `chrome_rest_html` on formula-only xlsx edits (issue #30)
 
 Follow-up to Slice 12 (#378): when `dirty_chrome_rest` is clear and cached `last_chrome_rest`
-matches, `chrome_delta_from_ui` emits `hf` without calling `chrome_rest_html` or
-`ShellUi::to_json` for the chrome HTML comparison. `applyEdit` avoids a second
-`refresh_formula_bar` before `chrome_payload`. Edit-cell A/B pending; unit test counts
-`chrome_rest_html` calls on the fast path.
+matches, `chrome_delta_from_ui` emits `hf` without calling `chrome_rest_html`.
+`build_chrome_payload` omits `ui.chromeHtml` on formula-only / unchanged deltas (host uses
+`hf`/`h`). Slow path builds rest once (no double `to_json` + `chrome_rest_html`).
+`applyEdit` avoids a second `refresh_formula_bar`. Open load/peak vs main are flat (NOISE);
+edit-cell A/B after omit-chromeHtml pending.

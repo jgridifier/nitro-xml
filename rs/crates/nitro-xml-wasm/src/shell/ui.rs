@@ -11,6 +11,15 @@ pub struct ShellUi;
 
 impl ShellUi {
     pub fn to_json(state: &ShellState, editor: &EditorChrome) -> Value {
+        Self::to_json_with_chrome(state, editor, true)
+    }
+
+    /// When `include_chrome_html` is false, omit `chromeHtml` (formula-only `hf`/`h` carries chrome).
+    pub fn to_json_with_chrome(
+        state: &ShellState,
+        editor: &EditorChrome,
+        include_chrome_html: bool,
+    ) -> Value {
         let tabs: Vec<Value> = state
             .tabs
             .iter()
@@ -60,18 +69,26 @@ impl ShellUi {
             }
             Value::Object(m)
         });
-        json!({
-            "format": state.format.as_str(),
-            "zoom": state.zoom_pct,
-            "find": find,
-            "tabs": tabs,
-            "diagnostics": diag,
-            "selection": state.selection_ref,
-            "copyAvailable": !state.selection_ref.is_empty(),
-            "pendingHyperlink": pending,
-            "lastCopy": state.last_copy,
+        let mut obj = serde_json::Map::new();
+        obj.insert("format".into(), json!(state.format.as_str()));
+        obj.insert("zoom".into(), json!(state.zoom_pct));
+        obj.insert("find".into(), find);
+        obj.insert("tabs".into(), json!(tabs));
+        obj.insert("diagnostics".into(), diag);
+        obj.insert("selection".into(), json!(state.selection_ref));
+        obj.insert(
+            "copyAvailable".into(),
+            json!(!state.selection_ref.is_empty()),
+        );
+        obj.insert("pendingHyperlink".into(), json!(pending));
+        obj.insert("lastCopy".into(), json!(state.last_copy));
+        if include_chrome_html {
             // Trusted Rust-built chrome; loader assigns innerHTML only (#29 budget).
-            "chromeHtml": combined_chrome_html(state, editor),
-        })
+            obj.insert(
+                "chromeHtml".into(),
+                json!(combined_chrome_html(state, editor)),
+            );
+        }
+        Value::Object(obj)
     }
 }

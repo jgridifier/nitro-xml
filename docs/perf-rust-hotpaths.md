@@ -342,5 +342,16 @@ Method: interleaved fresh-process `peak-mem.mjs --child=wasm:…` (n=25 generate
 `text_cache` alongside Document trees in `master_xml`/`layout_xml` and the Slide model.
 Now `take_text` for presentation/tableStyles/theme/masters/layouts/slides/notes (and
 chart/ink one-shots) so the raw String drops after parse — sibling of docx #369.
+Also stop re-reading `ppt/presentation.xml` for slide paths.
 
-Gate fixtures TBD (orchestrator fills table).
+| Fixture | Warm open ms before | after | WASM peak MiB before | after |
+|---|--:|--:|--:|--:|
+| pptx S (`slides_10`) | 0.57 | 0.57 | 5.02 | 5.04 |
+| pptx M (`slides_50`) | 0.98 | 0.97 | 9.72 | **6.82** (−2.9) |
+| pptx L (`slides_200`) | 1.71 | 1.59 | 18.33 | **17.41** (−0.9) |
+| `poi-bug64693.pptx` | 10.29 | 10.55 | 21.08 | 21.32 |
+| `poi-customGeo.pptx` | 4.95 | 4.94 | 21.62 | **20.06** (−1.6) |
+
+Method: warm open = fresh process per pkg, 3 warmup + 21 runs, median of 9 processes
+interleaved; peak = `peak-mem.mjs --child=wasm:…` n=25 interleaved vs main `68260ca`.
+No wasm-opt / budget / fixture changes.

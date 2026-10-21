@@ -448,3 +448,8 @@ outliers but **+0.6 MiB edit heap** — rejected.
 
 Materialise (~0.9 s soft-share) now sits in the first editable `take-frame` (embed first-paint / open tick), not in timed sample0. Peak-mem wasm open path unchanged.
 
+## Slice 7: docx print open skips empty chart/picture collect (`nitro-xml-docx`)
+
+`PrintSession::from_loaded` gates `collect_charts` / `collect_pictures` on cheap package predicates so
+text-only docx opens avoid tiering those paths' wasm bodies. Peak RSS on docx S/M without embedded media is
+the target; numbers TBD on `peak-mem.mjs`.

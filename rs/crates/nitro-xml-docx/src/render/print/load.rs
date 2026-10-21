@@ -83,8 +83,16 @@ impl PrintSession {
     }
 
     fn from_loaded(mut loaded: LoadedDocument<'_>, stats: BodyParseStats) -> Result<Self, String> {
-        let picture_urls = collect_pictures(&mut loaded);
-        let (chart_spaces, chart_color_palettes) = collect_charts(&mut loaded);
+        let picture_urls = if loaded_package_has_image_media(&loaded) {
+            collect_pictures(&mut loaded)
+        } else {
+            HashMap::new()
+        };
+        let (chart_spaces, chart_color_palettes) = if loaded_package_has_chart_parts(&loaded) {
+            collect_charts(&mut loaded)
+        } else {
+            (HashMap::new(), HashMap::new())
+        };
         let warnings = loaded.model.warnings.clone();
         let model = loaded.model;
         let blocks_parsed = if stats.blocks_parsed > 0 {
@@ -318,6 +326,21 @@ impl PrintSession {
     }
 }
 
+fn loaded_package_has_chart_parts(loaded: &LoadedDocument<'_>) -> bool {
+    loaded
+        .package
+        .part_names()
+        .any(|name| name.contains("/charts/") && name.ends_with(".xml"))
+}
+
+fn loaded_package_has_image_media(loaded: &LoadedDocument<'_>) -> bool {
+    loaded
+        .model
+        .media_part_names
+        .iter()
+        .any(|name| mime_of(name).starts_with("image/"))
+}
+
 fn collect_pictures(loaded: &mut LoadedDocument<'_>) -> HashMap<String, String> {
     let names = loaded.model.media_part_names.clone();
     let mut out = HashMap::new();
@@ -548,6 +571,19 @@ mod incremental_layout_tests {
         let _ = measures.take_requests();
         let widths: Vec<f64> = (0..n).map(|_| 48.0).collect();
         measures.set_results(&widths).expect("measure results");
+    }
+
+    #[test]
+    fn from_loaded_skips_media_collect_when_package_has_no_charts_or_images() {
+        // Catches: PrintSession::from_loaded always calling collect_charts/collect_pictures,
+        // tiering their wasm bodies on text-only opens even when the loops are empty.
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/upstream/docx/9815f4cd7f0c_baseline.docx");
+        let bytes = std::fs::read(&path).expect("baseline fixture");
+        let session = PrintSession::open(&bytes).expect("open");
+        assert!(session.picture_urls.is_empty());
+        assert!(session.chart_spaces.is_empty());
+        assert!(session.chart_color_palettes.is_empty());
     }
 
     #[test]

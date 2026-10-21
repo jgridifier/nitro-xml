@@ -335,8 +335,11 @@ export function attach(el) {
   mo.observe(dom, { childList: true });
   dom.addEventListener("scroll", place, { passive: true });
   if (typeof ResizeObserver !== "undefined") new ResizeObserver(place).observe(v);
-  v.addEventListener("focus", place);
-  v.addEventListener("blur", () => (bar.style.display = "none"));
+  // focusin/out: focus may move between .v and the input proxy without leaving the viewer.
+  v.addEventListener("focusin", place);
+  v.addEventListener("focusout", (e) => {
+    if (!v.contains(e.relatedTarget)) bar.style.display = "none";
+  });
 
   const origAction = el.shellAction.bind(el);
   el.shellAction = async (op, arg) => {

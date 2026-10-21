@@ -314,6 +314,7 @@ export class ShellViewerElement extends ViewerElement {
     await this.shellAction("ui");
     const z=this.getAttribute("zoom");if(z)await this.shellAction("zoom-set",z);
     void this._em();
+    if (!this._readonly) import("./lazy/input-proxy.js").then((m) => m.attach(this)).catch(() => {});
   }
   _css() {
     return ":host{display:flex;flex-direction:column;min-height:12rem;background:#fff}.v{position:relative;flex:1;min-height:0;outline:none;background:#fff}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}canvas{background:#fff}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";

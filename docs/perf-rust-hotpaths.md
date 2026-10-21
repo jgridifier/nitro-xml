@@ -302,6 +302,20 @@ Remaining levers: [#359](https://github.com/jgridifier/nitro-xml/pull/359) land;
 `wasm-opt -O1` only if it shows **no** open/edit regression vs main; further format-boundary splits of
 shared monoliths that still run on docx open. Do not raise `perf/budgets.json` or demote fixtures.
 
+## Slice 8 (rejected): throwaway open+free does not cut whole-process peak
+
+Draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) tried a throwaway open+free after
+`initSync` (and matching worker stub opens) so first-touch TurboFan sat outside the post-init
+VmHWM delta. That moves the compile/alloc peak out of the measured window rather than removing
+it, and adds React-embed startup work.
+
+Honest re-measure (VmHWM growth from **process start**, n=50; React-embed mount→paint + TTI
+n=50): whole-process peak **rises** with prewarm (xlsx S WASM **37.1 → 38.8 MiB** p50) and
+startup **slows** (xlsx S mount **129.6 → 159.0 ms**, TTI **190.2 → 220.1 ms** p50). PR closed;
+code reverted. Confirms xlsx S (and the same pattern for small fixtures) as the **wasm compile
+floor** — see `docs/M1-REPORT.md` §5.4. Full tables live in the closed PR body and that report
+section.
+
 ## Slice 9: docx `take_text` for one-shot XML parts
 
 `read_package_with_opts` used `Package::text`, which keeps inflated XML in `text_cache` for the

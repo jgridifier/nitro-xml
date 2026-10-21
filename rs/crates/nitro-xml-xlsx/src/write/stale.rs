@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 //! Formula reference scan used to mark dependents stale (no recalculation in E1).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 
 use regex::Regex;
 use std::sync::OnceLock;
@@ -9,6 +10,7 @@ use std::sync::OnceLock;
 use crate::address::parse_address;
 use crate::model::CellRange;
 
+#[derive(Debug)]
 pub struct FormulaRef {
     pub sheet_name: Option<String>,
     pub range: CellRange,
@@ -47,27 +49,57 @@ pub fn formula_refs(formula: &str) -> Vec<FormulaRef> {
     out
 }
 
-/// Sheet indexes whose formula cells read `precedents`.
-pub fn stale_formula_cells(
-    sheet_names: &[String],
-    formulas: &[(u32, u32, u32, String)],
+/// Parsed references per formula text. Edits re-run the stale scan on every keystroke; the
+/// regex pass is the expensive part and a formula's references never change, so they are
+/// parsed once per distinct text.
+#[derive(Debug, Default, Clone)]
+pub struct RefCache(HashMap<String, Arc<[FormulaRef]>>);
+
+impl RefCache {
+    fn refs(&mut self, formula: &str) -> Arc<[FormulaRef]> {
+        if let Some(hit) = self.0.get(formula) {
+            return Arc::clone(hit);
+        }
+        let parsed: Arc<[FormulaRef]> = formula_refs(formula).into();
+        self.0.insert(formula.to_owned(), Arc::clone(&parsed));
+        parsed
+    }
+
+    /// Drop entries once the cache holds far more texts than the workbook has formulas.
+    fn trim(&mut self, live: usize) {
+        if self.0.len() > live.saturating_mul(2) + 64 {
+            self.0.clear();
+        }
+    }
+}
+
+/// Formula cells (sheet, row, col) that are edited themselves or read an edited cell.
+pub fn stale_formula_cells<'a>(
+    cache: &mut RefCache,
+    sheet_names: &[&str],
+    formulas: impl Iterator<Item = (u32, u32, u32, &'a str)>,
     precedents: &BTreeSet<(u32, u32, u32)>,
 ) -> BTreeSet<(u32, u32, u32)> {
     let mut stale = BTreeSet::new();
+    let mut live = 0;
     for (sheet, row, col, formula) in formulas {
-        let edited = precedents.contains(&(*sheet, *row, *col));
-        let hits = formula_refs(formula)
-            .iter()
-            .any(|r| ref_hits(sheet_names, *sheet, r, precedents));
-        if edited || hits {
-            stale.insert((*sheet, *row, *col));
+        live += 1;
+        let edited = precedents.contains(&(sheet, row, col));
+        if edited
+            || cache
+                .refs(formula)
+                .iter()
+                .any(|r| ref_hits(sheet_names, sheet, r, precedents))
+        {
+            stale.insert((sheet, row, col));
         }
     }
+    cache.trim(live);
     stale
 }
 
 fn ref_hits(
-    sheet_names: &[String],
+    sheet_names: &[&str],
     current: u32,
     formula_ref: &FormulaRef,
     precedents: &BTreeSet<(u32, u32, u32)>,
@@ -87,9 +119,9 @@ fn ref_hits(
     let r1 = formula_ref.range.start.row.max(formula_ref.range.end.row);
     let c0 = formula_ref.range.start.col.min(formula_ref.range.end.col);
     let c1 = formula_ref.range.start.col.max(formula_ref.range.end.col);
-    precedents.iter().any(|(sheet, row, col)| {
-        *sheet == target && *row >= r0 && *row <= r1 && *col >= c0 && *col <= c1
-    })
+    precedents
+        .range((target, r0, 0)..=(target, r1, u32::MAX))
+        .any(|(_, _, col)| *col >= c0 && *col <= c1)
 }
 
 fn blank_strings(formula: &str) -> String {

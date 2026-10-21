@@ -209,3 +209,24 @@ ratios. Still losing: **peak memory on xlsx S, docx S/M/L, pptx S** (TS 2 to 5 M
 compile of touched code; docx L 1.25x, pptx M/L now win), and xlsx S time is a statistical tie (CI spans 1.0).
 Next levers: `process_frame`/`load_sheet` body size (grid-paint lineage), `parse_normalized` (16 KB) and inflate
 (14 KB) are tiered on every format (about 21 MiB of compiler zone), and the 13 MiB module-instantiate floor.
+
+## Slice 6: live-edit stale scan (xlsx editor, Rust side)
+
+Every `setCellInput` value edit re-ran `recompute_stale`, which cloned every formula `String` and re-ran the
+regex reference parser over every formula in the workbook, then did a linear scan of all dirty precedents per
+reference. Now: formulas are borrowed (no clones), parsed references are cached per distinct formula text
+(`RefCache`, trimmed when it grows past 2x live formulas), and the precedent lookup is a `BTreeSet` range query
+on (sheet, row) instead of a full scan. Results are identical (stale sets unchanged; xlsx crate tests pass).
+
+`cargo run --release -p nitro-xml-xlsx --example xlsx_edit_bench <fixture> 2000 200` (native, per-edit
+`apply_raw("setCellInput")`, 2000 `=SUM(Bn:En)` formulas, 200 edits):
+
+| Metric | Before | After |
+|---|--:|--:|
+| median per edit | 8.89 ms | 1.71 ms (-81%) |
+| p95 per edit | 10.30 ms | 2.00 ms |
+
+Open path, binary and peak memory are untouched by this slice (editor code only, no change to open-time
+allocation), so the per-fixture open table above is unchanged. Remaining losses are as in slice 4: xlsx S time
+(tie) and peak memory on xlsx S and docx/pptx small fixtures (wasm compile floor).
+

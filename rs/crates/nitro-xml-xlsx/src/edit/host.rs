@@ -51,6 +51,8 @@ pub struct XlsxHost {
     /// Row/column shifts applied since open, in order. Save uses this to move
     /// conditional-format `sqref`s that are still copied from the source part.
     pub axis_shifts: Vec<AxisShiftRecord>,
+    /// Parsed references per formula text, for the stale scan.
+    ref_cache: crate::write::RefCache,
 }
 
 impl XlsxHost {
@@ -107,6 +109,7 @@ impl XlsxHost {
             dirty_precedents: BTreeSet::new(),
             stale: BTreeMap::new(),
             axis_shifts: Vec::new(),
+            ref_cache: Default::default(),
         })
     }
 
@@ -175,16 +178,20 @@ impl XlsxHost {
     }
 
     fn recompute_stale(&mut self) {
-        let names: Vec<String> = self.sheets.iter().map(|s| s.name.clone()).collect();
-        let mut formulas = Vec::new();
-        for (index, sheet) in self.sheets.iter().enumerate() {
-            for cell in &sheet.cells {
-                if let Some(formula) = &cell.formula {
-                    formulas.push((index as u32, cell.row, cell.col, formula.clone()));
-                }
-            }
-        }
-        let stale = crate::write::stale_formula_cells(&names, &formulas, &self.dirty_precedents);
+        let names: Vec<&str> = self.sheets.iter().map(|s| s.name.as_str()).collect();
+        let formulas = self.sheets.iter().enumerate().flat_map(|(index, sheet)| {
+            sheet.cells.iter().filter_map(move |cell| {
+                cell.formula
+                    .as_deref()
+                    .map(|formula| (index as u32, cell.row, cell.col, formula))
+            })
+        });
+        let stale = crate::write::stale_formula_cells(
+            &mut self.ref_cache,
+            &names,
+            formulas,
+            &self.dirty_precedents,
+        );
         self.stale.clear();
         for (sheet, row, col) in stale {
             self.stale.entry(sheet).or_default().insert((row, col));

@@ -335,3 +335,10 @@ the wasm compile floor. On a large real fixture the retained XML was measurable:
 
 Method: interleaved fresh-process `peak-mem.mjs --child=wasm:…` (n=25 generated / n=11 real), main
 `3422fbf` vs this branch. No wasm-opt / budget / fixture changes.
+
+## Slice 12: docx take_text for footnotes/endnotes/headers/footers
+
+After #369, open still used `Package::text` for notes and HF slots. Now `take_text`
+so inflated XML drops after parse into the document model.
+
+Gate fixtures TBD (orchestrator fills).

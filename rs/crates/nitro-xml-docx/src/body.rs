@@ -364,7 +364,7 @@ pub fn read_package_with_opts(
     // Layout labels need title / undrawn family; full chartSpace parse is #28.
     {
         let mut read_text =
-            |name: &str| -> Option<String> { pkg.text(name).ok().flatten().map(|s| s.to_string()) };
+            |name: &str| -> Option<String> { pkg.take_text(name).ok().flatten() };
         resolve_loaded_charts(
             &mut model.blocks,
             model.footnotes.as_mut(),
@@ -615,8 +615,8 @@ fn parse_document_parts(
         }
         sections.push(Value::Object(section));
     }
-    let footnotes_xml = pkg.text("word/footnotes.xml")?.map(|s| s.to_string());
-    let endnotes_xml = pkg.text("word/endnotes.xml")?.map(|s| s.to_string());
+    let footnotes_xml = pkg.take_text("word/footnotes.xml")?;
+    let endnotes_xml = pkg.take_text("word/endnotes.xml")?;
     let footnotes = if let Some(xml) = footnotes_xml {
         let ctx = part_context(pkg, "word/footnotes.xml", drawings)?;
         let mut parser = |container: &Element, prefix: &str| {
@@ -731,7 +731,7 @@ fn resolve_slots(
         let blocks = if let Some(b) = cache.get(&path) {
             b.clone()
         } else {
-            let xml = pkg.text(&path)?;
+            let xml = pkg.take_text(&path)?;
             if xml.is_none() {
                 continue;
             }
@@ -739,7 +739,7 @@ fn resolve_slots(
             if xml.contains("fldSimple") || xml.contains("instrText") || xml.contains("fldChar") {
                 *field_markup = true;
             }
-            let root = parse_xml_str(xml)?.root;
+            let root = parse_xml_str(&xml)?.root;
             let prefix = format!(
                 "{}-",
                 path.replace(|c: char| !c.is_ascii_alphanumeric(), "")
@@ -860,7 +860,7 @@ fn table_has_nested(block: &Value) -> bool {
 mod tests {
     use super::*;
 
-    // Catches: retained one-shot parse parts doubling peak during open.
+    // Catches: retained footnotes/endnotes/header XML doubling peak during docx open.
     #[test]
     fn one_shot_parse_parts_not_retained_in_package_text_cache() {
         let bytes = include_bytes!("../../../../fixtures/generated/docx/pages_10.docx");
@@ -872,11 +872,23 @@ mod tests {
             "word/theme/theme1.xml",
             "word/numbering.xml",
             "word/settings.xml",
+            "word/footnotes.xml",
+            "word/endnotes.xml",
         ] {
             assert!(
                 !loaded.package.text_is_cached(part),
                 "{part} should not stay in Package text_cache after body parse"
             );
+        }
+        for part in loaded.package.part_names() {
+            if (part.starts_with("word/header") || part.starts_with("word/footer"))
+                && part.ends_with(".xml")
+            {
+                assert!(
+                    !loaded.package.text_is_cached(part),
+                    "{part} should not stay in Package text_cache after body parse"
+                );
+            }
         }
     }
 }

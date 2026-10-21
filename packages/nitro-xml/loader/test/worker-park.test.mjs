@@ -27,10 +27,24 @@ function concat(parts) {
 /** Page line plus a caret whose left edge is `caretX` px. */
 function paintedPage(caretX) {
   return concat([
-    Uint8Array.of(Op.CreateElement), u32(1), u32(1), u32(0),
-    Uint8Array.of(Op.CreateElement), u32(2), u32(1), u32(0),
-    Uint8Array.of(Op.SetAttr), u32(2), u32(2), u32(3),
-    Uint8Array.of(Op.PlaceBox), u32(2), i32(caretX), i32(20), i32(1), i32(16),
+    Uint8Array.of(Op.CreateElement),
+    u32(1),
+    u32(1),
+    u32(0),
+    Uint8Array.of(Op.CreateElement),
+    u32(2),
+    u32(1),
+    u32(0),
+    Uint8Array.of(Op.SetAttr),
+    u32(2),
+    u32(2),
+    u32(3),
+    Uint8Array.of(Op.PlaceBox),
+    u32(2),
+    i32(caretX),
+    i32(20),
+    i32(1),
+    i32(16),
   ]);
 }
 function mockElement() {
@@ -54,7 +68,11 @@ function mockElement() {
 describe("worker park / edit coalesce", () => {
   it("parks one worker and hands it back on takePrewarmedWorker", () => {
     // Catches: remount terminating the worker so React remount pays spin-up again.
-    const fake = { terminate() { this.dead = true; } };
+    const fake = {
+      terminate() {
+        this.dead = true;
+      },
+    };
     takePrewarmedWorker(fake);
     assert.equal(takePrewarmedWorker(), fake);
     assert.equal(takePrewarmedWorker(), null);
@@ -82,7 +100,6 @@ describe("worker park / edit coalesce", () => {
     assert.match(rb, /ab/);
   });
 
-<<<<<<< HEAD
   it("keeps the docx page painted and advances the caret after typing", async () => {
     // Catches: a Word keystroke painting the pre-measure frame and skipping the next tick, so the page stays blank and the caret never moves.
     const prevDocument = globalThis.document;
@@ -136,11 +153,15 @@ describe("worker park / edit coalesce", () => {
       assert.ok(d._root.children.length > 0, "follow-up frame did not repaint the page");
       const caret = d._root.children.find((el) => el.attrs.class === "nxc");
       assert.ok(caret, "caret missing after typing");
-      assert.ok(parseFloat(caret.style.left) > before, `caret did not advance (${before} -> ${caret.style.left})`);
+      assert.ok(
+        parseFloat(caret.style.left) > before,
+        `caret did not advance (${before} -> ${caret.style.left})`,
+      );
     } finally {
       globalThis.document = prevDocument;
     }
-=======
+  });
+
   it("uses mut-frame for spreadsheet applyEdit when a worker is present", async () => {
     // Catches: xlsx staying on apply+tick (two RTs) after sync/history were fixed —
     // mut-frame must run for spreadsheets too (#341 left them on the slow path).
@@ -167,6 +188,5 @@ describe("worker park / edit coalesce", () => {
     );
     assert.equal(mutOps, 1);
     assert.equal(out, '{"h":""}');
->>>>>>> f63cea0 (Part of #30: xlsx applyEdit mut-frame + defer paint to tick)
   });
 });

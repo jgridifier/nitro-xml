@@ -39,6 +39,7 @@ const CHART_GROUP_LOCALS: &[(&str, &str)] = &[
     ("surface3DChart", "surface"),
 ];
 
+#[inline(never)]
 pub fn parse_chart_graphic(
     graphic_data: &Element,
     doc_pr: Option<&Element>,

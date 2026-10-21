@@ -1339,11 +1339,11 @@ impl Handle {
                 return self.take_chrome_delta(&full, &formula, &rest);
             }
         }
-        let ui = ShellUi::to_json(&self.shell, &self.editor);
-        let full = ui.get("chromeHtml").and_then(|v| v.as_str()).unwrap_or("");
+        // Build rest once; do not go through ShellUi::to_json (that would rebuild rest+formula).
         let rest = chrome_rest_html(&self.shell, &self.editor);
+        let full = format!("{rest}{formula}");
         self.shell.dirty_chrome_rest = false;
-        self.take_chrome_delta(full, &formula, &rest)
+        self.take_chrome_delta(&full, &formula, &rest)
     }
 
     fn insert_chrome_delta(map: &mut serde_json::Map<String, Value>, delta: ChromeDelta) {
@@ -1574,9 +1574,12 @@ impl Handle {
         if refresh_formula {
             self.refresh_formula_bar();
         }
-        let ui = ShellUi::to_json(&self.shell, &self.editor);
+        let delta = self.chrome_delta_from_ui();
+        // Formula-only / unchanged: host already has chrome from `hf`/`h`; skip ~50KB chromeHtml.
+        let include_chrome_html = matches!(delta, ChromeDelta::Full(_));
+        let ui = ShellUi::to_json_with_chrome(&self.shell, &self.editor, include_chrome_html);
         let mut out = serde_json::Map::new();
-        Self::insert_chrome_delta(&mut out, self.chrome_delta_from_ui());
+        Self::insert_chrome_delta(&mut out, delta);
         out.insert("ui".into(), ui);
         out.insert("save".into(), serde_json::json!(save));
         out.insert(
@@ -2166,6 +2169,38 @@ mod tests {
         chrome_rest_html_calls_reset();
         let _ = h.chrome_delta_from_ui();
         assert!(chrome_rest_html_calls() >= 1);
+    }
+
+    #[test]
+    fn formula_only_chrome_payload_omits_ui_chrome_html() {
+        // Catches: formula-only applyEdit payload still embedded full ui.chromeHtml (~50KB).
+        use crate::shell::{chrome_rest_html_calls, chrome_rest_html_calls_reset};
+
+        let mut h = Handle::new(Vec::new());
+        h.editor.load();
+        h.editor.set_read_only(false);
+        let rest = "<ribbon>static</ribbon>";
+        h.last_chrome_rest = Some(rest.to_string());
+        h.last_formula_html = Some("<div class=\"xfb\">=1</div>".into());
+        h.last_chrome_html = Some(format!("{rest}<div class=\"xfb\">=1</div>"));
+        h.shell.dirty_chrome_rest = false;
+        h.editor
+            .set_formula_html("<div class=\"xfb\">=99</div>".into());
+
+        chrome_rest_html_calls_reset();
+        let raw = h.chrome_payload_after_formula_refresh(false);
+        assert_eq!(chrome_rest_html_calls(), 0);
+        let v: serde_json::Value = serde_json::from_str(&raw).expect("json");
+        assert_eq!(
+            v.get("hf").and_then(|x| x.as_str()),
+            Some("<div class=\"xfb\">=99</div>")
+        );
+        assert!(v.get("h").is_none());
+        assert!(v
+            .pointer("/ui/chromeHtml")
+            .and_then(|x| x.as_str())
+            .is_none());
+        assert!(v.pointer("/ui/zoom").is_some());
     }
 
     #[test]

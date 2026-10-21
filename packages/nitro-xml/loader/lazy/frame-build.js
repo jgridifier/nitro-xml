@@ -43,6 +43,17 @@ export function chromeFromResult(result) {
 }
 
 export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
+  // Editable open: finish soft-share ensure_edit *before* posting the first
+  // frame so waitFirstPaint cannot return and start timed edits while the
+  // worker is still materialising (that race put ~1s back into sample0).
+  if (workerSelf._pendingEditorChrome === 1) {
+    workerSelf._pendingEditorChrome = 0;
+    await new Promise((r) => setTimeout(r, 0));
+    try {
+      handle.setReadOnly(false);
+      handle.loadEditorChrome();
+    } catch {}
+  }
   if (handle.t !== false || workerSelf._openFrameApplied) handle.prepareFrame();
   else workerSelf._openFrameApplied = true;
   let chromeHtml =
@@ -126,12 +137,4 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
     },
     transfer,
   );
-  if (workerSelf._pendingEditorChrome === 1) {
-    workerSelf._pendingEditorChrome = 0;
-    await new Promise((r) => setTimeout(r, 0));
-    try {
-      handle.setReadOnly(false);
-      handle.loadEditorChrome();
-    } catch {}
-  }
 }

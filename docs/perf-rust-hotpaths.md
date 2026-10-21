@@ -433,7 +433,7 @@ outliers but **+0.6 MiB edit heap** — rejected.
 
 **Rust:** `FirstView::materialize_worksheets_for_edit` streams each worksheet via keep-all mode in [`lazy/sheet.rs`](rs/crates/nitro-xml-xlsx/src/lazy/sheet.rs), resolves the full SST once, then `install_materialized_for_edit` (viewer grid, no `sync_model_from_edit`) + `XlsxHost::from_parts` with a single host-side sheet clone. Lazy stays alive (`drop_lazy_view` not called on edit).
 
-**Loader:** editable open awaits `setReadOnly(false)` + `loadEditorChrome` on the first posted frame (`frame-build.js`), so sample0 `ensure_edit` finishes in the same host tick as first paint instead of the first `mut-frame` `unlockChrome`.
+**Loader:** editable open runs `setReadOnly(false)` + `loadEditorChrome` **before** `prepareFrame` / `postMessage` on the first take-frame (`frame-build.js`). Posting paint first let `waitFirstPaint` return while soft-share was still running, so sample0 raced the materialise; unlock-before-post moves that cost into the first tick (embed first-paint), leaving sample0 warm. Peak-mem / wasm open path unchanged.
 
-**A/B:** React-embed `edit-cell` L interleaved — cold first-edit p99/max down vs Slice 14 (no double materialize clone, no deferred unlock); peak-mem open path unchanged.
+**A/B:** React-embed `edit-cell` L — sample0 vs Slice 14 tip; p50/p95; open/edit heap; peak-mem open — n≥21, 95% CI.
 

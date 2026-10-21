@@ -533,3 +533,20 @@ No invented medians in the published JSON from this report slice.
 - [ ] Scoreboard standings including losses — adapters **#299/#329** (local W/L); published JSON still blocked on stub `#39` + draft **#113** + blocked **#41** (no invented numbers)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
 - [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27**; docx **#23** deferred
+
+---
+
+## Appendix: docx peak_mem compile-floor attribution (2026-10-21)
+
+Companion to the xlsx S attribution. Measured on main `fd11a8c` and undrafted [#359](https://github.com/jgridifier/nitro-xml/pull/359) tip `165a1e7`.
+
+| Tier | Cold first open Δ MiB (main → #359) | Second open Δ MiB | TS peak MiB (gate) |
+|---|--:|--:|--:|
+| S | 15.1 → **13.3** | 0.3–0.5 | ~2.5 |
+| M | 16.7 → **15.7** | 0.3–0.4 | ~6.2 |
+| L | 25.2 → 25.1 | 6.5–7.1 | ~21.6 |
+
+`initSync` adds ~17.8 MiB before the gate baseline. After warmup, S/M document alloc already beats TS;
+the LOSS rows are first-touch compile. [#359](https://github.com/jgridifier/nitro-xml/pull/359) is the
+application cut that measurably helps; further docx-heap edits did not clear noise (see
+`docs/perf-rust-hotpaths.md` slice 7).

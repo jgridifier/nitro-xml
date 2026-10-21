@@ -429,22 +429,43 @@ ${
     si.addEventListener("keyup", (e) => e.stopPropagation());
   }
   let zt = 0;
+  let pendingZoom = null;
   const zr = $(".sb input");
-  // `input` covers pointer/drag; Chromium headless sometimes skips `input` on
-  // ArrowRight/ArrowLeft for <input type=range>, so also sync from keydown after
-  // the browser updates `.value` (keeps Pages docx-zoom selection-parity green).
-  const zoomFromSlider = () => {
+  // sync() copies the chrome readout back onto this range on a timer. Reading
+  // `.value` when the debounce fires can undo a step that has not reached
+  // zoom-set yet. Chromium headless also skips the native range step on arrow
+  // keys, so the key handler applies the step and the queued percent is the
+  // one that gets sent.
+  const queueZoom = (value) => {
+    pendingZoom = String(value);
     clearTimeout(zt);
-    zt = setTimeout(() => act("zoom-set", zr.value), 60);
+    zt = setTimeout(() => {
+      const v = pendingZoom;
+      pendingZoom = null;
+      if (v != null) act("zoom-set", v);
+    }, 60);
   };
   if (zr) {
-    zr.addEventListener("input", zoomFromSlider);
-    zr.addEventListener("change", zoomFromSlider);
+    zr.addEventListener("input", () => queueZoom(zr.value));
+    zr.addEventListener("change", () => {
+      if (pendingZoom == null) queueZoom(zr.value);
+    });
     zr.addEventListener("keydown", (e) => {
-      if (!["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(e.key)) {
-        return;
-      }
-      requestAnimationFrame(zoomFromSlider);
+      const step = Number(zr.step) || 10;
+      const min = Number(zr.min) || 0;
+      const max = Number(zr.max) || 100;
+      let next = Number(pendingZoom != null ? pendingZoom : zr.value);
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") next += step;
+      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") next -= step;
+      else if (e.key === "PageUp") next += step * 10;
+      else if (e.key === "PageDown") next -= step * 10;
+      else if (e.key === "Home") next = min;
+      else if (e.key === "End") next = max;
+      else return;
+      e.preventDefault();
+      next = Math.min(max, Math.max(min, next));
+      zr.value = String(next);
+      queueZoom(next);
     });
   }
 

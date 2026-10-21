@@ -335,3 +335,27 @@ the wasm compile floor. On a large real fixture the retained XML was measurable:
 
 Method: interleaved fresh-process `peak-mem.mjs --child=wasm:…` (n=25 generated / n=11 real), main
 `3422fbf` vs this branch. No wasm-opt / budget / fixture changes.
+
+## Slice 11: pptx `take_text` for one-shot XML parts
+
+`Presentation::open` / first-slide parse used `Package::text`, retaining inflated XML in
+`text_cache` alongside Document trees in `master_xml`/`layout_xml` and the Slide model.
+Now `take_text` for presentation/tableStyles/theme/masters/layouts/slides/notes (and
+chart/ink one-shots) so the raw String drops after parse — sibling of docx #369.
+Also stop re-reading `ppt/presentation.xml` for slide paths.
+
+Median(branch)/median(main) with 95% unpaired bootstrap CI (B=2000). Verdict REGRESS
+only if CI entirely > 1. Point-estimate bumps on pptx S peak and `poi-bug64693` open/peak
+are **noise** (CI includes 1).
+
+| Fixture | Warm open main→branch p50 | ratio [95% CI] | Peak main→branch p50 | ratio [95% CI] |
+|---|--:|---|--:|---|
+| pptx S (`slides_10`) | 0.565→0.573 | 1.013 [0.956, 1.078] | 5.066→5.072 | 1.001 [0.993, 1.009] |
+| pptx M (`slides_50`) | 0.965→0.958 | 0.993 [0.935, 1.080] | 10.756→**6.934** | **0.645 [0.598, 0.669]** WIN |
+| pptx L (`slides_200`) | 1.620→1.487 | 0.918 [0.874, 1.002] | 18.238→18.129 | 0.994 [0.955, 1.018] |
+| `poi-bug64693.pptx` | 9.521→9.713 | 1.020 [0.971, 1.059] | 21.756→21.150 | 0.972 [0.950, 1.011] |
+| `poi-customGeo.pptx` | 4.973→4.920 | 0.989 [0.962, 1.002] | 20.633→21.256 | 1.030 [0.971, 1.067] |
+
+Method: warm open = fresh process per pkg, 3 warmup + 21 runs, median of 21 processes
+interleaved; peak = `peak-mem.mjs --child=wasm:…` n=50 interleaved vs main `68260ca`.
+No wasm-opt / budget / fixture changes. Zero REGRESS rows.

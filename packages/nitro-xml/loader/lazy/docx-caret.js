@@ -174,18 +174,22 @@ export function attach(el) {
   };
 
   // WebKit often reports a 0-height range on the same turn the page is replaced.
-  // One failed place() used to leave the bar at display:none for the click check.
-  // 40 frames covers a slow layout without giving up while the click round-trip is in flight.
+  // Hiding on that sample, then stopping after 40 frames, left the bar at display:none
+  // for the rest of the click: frames spent on the previous root used up the budget, so
+  // the paint that finally had a rect did not retry. Keep the last bar while retrying.
+  // `fresh` starts a new budget (a new caret, a replaced page, a resize).
   let placeTries = 0;
-  const place = () => {
+  const place = (fresh) => {
+    if (fresh) placeTries = 0;
     const r = rectOf();
     const d = dom.getBoundingClientRect();
     if (!r || !r.h) {
-      bar.style.display = "none";
       if (caret && placeTries < 40) {
         placeTries++;
-        requestAnimationFrame(() => place());
+        requestAnimationFrame(() => place(false));
+        return;
       }
+      bar.style.display = "none";
       return;
     }
     placeTries = 0;
@@ -194,7 +198,7 @@ export function attach(el) {
       const pad = 24;
       if (r.top < d.top + pad) dom.scrollTop -= d.top + pad - r.top;
       else if (r.top + r.h > d.bottom - pad) dom.scrollTop += r.top + r.h - (d.bottom - pad);
-      return place();
+      return place(false);
     }
     const vr = v.getBoundingClientRect();
     const visible = r.top + r.h > d.top && r.top < d.bottom && r.x >= d.left && r.x <= d.right;
@@ -212,14 +216,14 @@ export function attach(el) {
     if (!keepGoal) goalX = null;
     if (!k) {
       caret = null;
-      return place();
+      return place(true);
     }
     const [bid, chars, model] = k;
     const { total } = shownIndex(bid);
     const shown = Math.max(0, total - model) + chars;
     if (caret && caret.bid !== bid) lineStart = false;
     caret = { bid, shown };
-    place();
+    place(true);
   };
 
   const syncModel = async (hit) => {
@@ -231,8 +235,7 @@ export function attach(el) {
   const commit = (hit) => {
     caret = { bid: hit.bid, shown: hit.shown };
     lineStart = hit.lineStart;
-    placeTries = 0;
-    place();
+    place(true);
     return syncModel(hit);
   };
 
@@ -333,24 +336,43 @@ export function attach(el) {
     true,
   );
 
-  const mo = new MutationObserver(place);
+  const mo = new MutationObserver(() => place(true));
   mo.observe(dom, { childList: true });
-  dom.addEventListener("scroll", place, { passive: true });
-  if (typeof ResizeObserver !== "undefined") new ResizeObserver(place).observe(v);
-  // focusin/out: focus may move between .v and the input proxy without leaving the viewer.
-  // WebKit often reports relatedTarget as null for that move inside the shadow tree, which
-  // used to hide the caret after a click and leave it hidden.
-  v.addEventListener("focusin", place);
-  v.addEventListener("focusout", (e) => {
-    if (e.relatedTarget && v.contains(e.relatedTarget)) return;
-    requestAnimationFrame(() => {
-      const cur = v.getRootNode() && v.getRootNode().activeElement;
-      if (cur && v.contains(cur)) {
-        place();
+  dom.addEventListener("scroll", () => place(true), { passive: true });
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => place(true)).observe(v);
+  // Focus moves between .v and the input proxy without leaving the viewer. WebKit often
+  // reports relatedTarget as null for that move, and for a frame the shadow active element
+  // is null too. One rAF that treated null as "focus left" hid the caret after place() had
+  // already shown it. A later focusin cancels the hide; a real blur still hides once focus
+  // has stayed outside the viewer.
+  let focusGen = 0;
+  const focusInside = () => {
+    const root = v.getRootNode();
+    const cur = root && root.activeElement;
+    if (cur && (cur === v || v.contains(cur))) return true;
+    const host = root && root.host;
+    return !!(host && document.activeElement === host);
+  };
+  v.addEventListener("focusin", () => {
+    focusGen++;
+    place(true);
+  });
+  v.addEventListener("focusout", () => {
+    const gen = ++focusGen;
+    let left = 0;
+    const step = () => {
+      if (gen !== focusGen) return;
+      if (focusInside()) {
+        place(true);
         return;
       }
-      bar.style.display = "none";
-    });
+      if (left++ < 10) {
+        requestAnimationFrame(step);
+        return;
+      }
+      if (gen === focusGen && !focusInside()) bar.style.display = "none";
+    };
+    requestAnimationFrame(step);
   });
 
   const origAction = el.shellAction.bind(el);

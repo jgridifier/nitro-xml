@@ -536,6 +536,9 @@ ${
   // ---- empty / loading / error states ----
   function drop(kind, text) {
     over.hidden = false;
+    // Lines paint under this veil, before ready(). While it hit-tests, the first
+    // click of a cold WebKit load lands on "Opening…" and the caret never appears.
+    over.style.pointerEvents = kind === "loading" ? "none" : "";
     const ext = app.ext.split(",")[0];
     if (kind === "loading") {
       over.innerHTML = `<div class="drop" role="status"><div class="spin" aria-hidden="true"></div><h1>${esc(text || "Opening…")}</h1><p>Everything happens in your browser.</p></div>`;

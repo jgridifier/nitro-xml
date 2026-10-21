@@ -6,6 +6,7 @@
  */
 import { applyCommandBuffer } from "../apply.js";
 import { fillMeasureWidths } from "../measure.js";
+import { applyChromePatch } from "./chrome-patch.js";
 
 export async function tickBody(doc) {
   if (!doc.constructor._nxPark) {
@@ -62,7 +63,9 @@ export async function tickBody(doc) {
   const drawCtx =
     doc._canvas && doc._canvas.getContext ? doc._canvas.getContext("2d") : null;
   const resolve = (id) => (strings && strings[id]) || "";
-  if (frame.h && doc.onChrome) doc.onChrome(frame.h);
+  if (doc._chromeEl && (frame.h || frame.hf)) {
+    applyChromePatch(doc._chromeEl, { h: frame.h, hf: frame.hf });
+  } else if (frame.h && doc.onChrome) doc.onChrome(frame.h);
   // An empty frame means "layout not ready yet" (e.g. right after an edit reopens the view), so keep
   // the last good frame instead of clearing the page; the re-tick below paints the real one.
   const keep = commands.byteLength === 0 && doc._root && doc._root.firstChild;

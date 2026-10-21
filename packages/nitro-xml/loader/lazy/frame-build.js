@@ -28,12 +28,15 @@ export function lightMutResult(result) {
   }
 }
 
-/** shellAction embeds chrome in result.h without setting dirty_ui — lift into frame.h. */
+/** shellAction embeds chrome in result.h/hf without setting dirty_ui — lift into frame fields. */
 export function chromeFromResult(result) {
   if (typeof result !== "string") return null;
   try {
-    const h = JSON.parse(result || "{}").h;
-    return typeof h === "string" && h ? h : null;
+    const o = JSON.parse(result || "{}");
+    const out = {};
+    if (typeof o.h === "string" && o.h) out.h = o.h;
+    if (typeof o.hf === "string" && o.hf) out.hf = o.hf;
+    return out.h || out.hf ? out : null;
   } catch {
     return null;
   }
@@ -46,8 +49,16 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
     typeof handle.takeChromeIfDirty === "function"
       ? handle.takeChromeIfDirty() || null
       : null;
-  if (!chromeHtml && (extra.type || "frame") === "mut-frame") {
-    chromeHtml = chromeFromResult(extra.result);
+  let chromeFormula =
+    typeof handle.takeFormulaChromeIfDirty === "function"
+      ? handle.takeFormulaChromeIfDirty() || null
+      : null;
+  if (!chromeHtml && !chromeFormula && (extra.type || "frame") === "mut-frame") {
+    const lifted = chromeFromResult(extra.result);
+    if (lifted) {
+      chromeHtml = lifted.h || null;
+      chromeFormula = lifted.hf || null;
+    }
   }
   let measureReqs = null;
   let measureCount = 0;
@@ -102,6 +113,7 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
       type,
       result,
       h: chromeHtml,
+      hf: chromeFormula,
       commands,
       measureReqs,
       measureCount,

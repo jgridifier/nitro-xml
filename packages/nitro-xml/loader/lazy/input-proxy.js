@@ -12,6 +12,8 @@
  * the docx caret wrapper sees it). The textarea is parked at the caret / active cell so the IME
  * candidate window opens next to the text being edited.
  */
+import { applyChromePatch } from "./chrome-patch.js";
+
 const STYLE =
   ".nxp{position:absolute;z-index:6;margin:0;padding:0;border:0;outline:0;resize:none;overflow:hidden;" +
   "width:2px;height:1.2em;opacity:0;background:transparent;color:transparent;caret-color:transparent;" +
@@ -94,7 +96,7 @@ export function attach(el) {
     const d = el.document;
     if (!d || !d.editorKey) return null;
     const r = await d.editorKey({ key: k, ...mods }, mac);
-    if (r && r.handled && r.h != null && el._ch) el._ch.innerHTML = r.h;
+    if (r && r.handled && el._ch) applyChromePatch(el._ch, r);
     return r;
   };
   const enqueue = (fn) => {
@@ -220,13 +222,13 @@ export function attach(el) {
             );
           }
         }
-        let h = null;
+        let patch = null;
         try {
-          h = last && JSON.parse(last).h;
+          patch = last && JSON.parse(last);
         } catch {
           /* chrome payload is optional */
         }
-        if (h != null && el._ch) el._ch.innerHTML = h;
+        if (patch && el._ch) applyChromePatch(el._ch, patch);
         el._tick();
         return;
       }

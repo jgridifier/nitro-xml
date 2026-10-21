@@ -113,6 +113,7 @@ transferred open buffer after `Handle.new`. Bench: `node measure-open-mem.mjs`
 | #319 | Phase marks + breakdown table (this) |
 | #320 | Defer `setReadOnly(false)` + chrome until after first paint |
 | (this) | Module-seeded preload; no host `initCore`; drop open bytes after `Handle.new` |
+| (this) | xlsx edit keys: WASM `hf` formula-bar delta (~1–2 KB) vs full `h`; lazy loader patches `.xfb` |
 
 Stay out of xlsx grid paint / StringTable encode (separate track). Keep eager
 loader ≤ 17 408 B brotli (new JS under `loader/lazy/`). No budget, threshold,

@@ -5,6 +5,7 @@
  */
 import { applyCommandBuffer } from "../apply.js";
 import { fillMeasureWidths } from "../measure.js";
+import { applyChromePatch } from "./chrome-patch.js";
 
 /** Drop transferable / large fields so the mut-frame message is not retained after paint. */
 function releaseFrame(frame) {
@@ -15,6 +16,7 @@ function releaseFrame(frame) {
   frame.layoutReqs = null;
   frame.strings = null;
   frame.h = null;
+  frame.hf = null;
   frame.result = null;
 }
 
@@ -65,7 +67,9 @@ export async function paintFrame(doc, frame) {
     const drawCtx =
       doc._canvas && doc._canvas.getContext ? doc._canvas.getContext("2d") : null;
     const resolve = (id) => (strings && strings[id]) || "";
-    if (frame.h && doc.onChrome) doc.onChrome(frame.h);
+    if (doc._chromeEl && (frame.h || frame.hf)) {
+      applyChromePatch(doc._chromeEl, { h: frame.h, hf: frame.hf });
+    } else if (frame.h && doc.onChrome) doc.onChrome(frame.h);
     // Empty commands mean the layout is not ready (measures still in flight). Wiping the
     // root here blanks the page and hides the caret; keep the last good frame.
     const keep = commands.byteLength === 0 && doc._root && doc._root.firstChild;

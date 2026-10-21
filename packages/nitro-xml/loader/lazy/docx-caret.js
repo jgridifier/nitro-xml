@@ -173,13 +173,21 @@ export function attach(el) {
     return boundaryRect(e.s, Math.max(0, Math.min(e.n, t - e.start)));
   };
 
+  // WebKit often reports a 0-height range on the same turn the page is replaced.
+  // One failed place() used to leave the bar at display:none for the click check.
+  let placeTries = 0;
   const place = () => {
     const r = rectOf();
     const d = dom.getBoundingClientRect();
     if (!r || !r.h) {
       bar.style.display = "none";
+      if (caret && placeTries < 12) {
+        placeTries++;
+        requestAnimationFrame(() => place());
+      }
       return;
     }
+    placeTries = 0;
     if (reveal) {
       reveal = false;
       const pad = 24;
@@ -232,6 +240,7 @@ export function attach(el) {
     "pointerdown",
     (e) => {
       if (e.button !== 0 || !editable()) return;
+      if (el.document) el.document._nxCaretK = null;
       const d = dom.getBoundingClientRect();
       if (e.clientX - d.left > dom.clientWidth || e.clientY - d.top > dom.clientHeight) return; // scrollbar
       const line = lineAt(e.clientX, e.clientY);
@@ -248,13 +257,34 @@ export function attach(el) {
     if (!d || d._nxc) return;
     d._nxc = 1;
     const orig = d.editorKey.bind(d);
+    // The key result arrives before the measured frame replaces the page. Placing
+    // against that pre-measure root hides the bar; the follow-up tick calls
+    // _nxReCaret once the spans exist so the caret survives the repaint.
+    d._nxCaretK = null;
+    d._nxCaretTries = 0;
+    d._nxReCaret = () => {
+      const k = d._nxCaretK;
+      if (!k) return;
+      setFromK(k, false);
+      if (bar.style.display === "block") {
+        d._nxCaretK = null;
+        return;
+      }
+      if (d._nxCaretTries < 8) {
+        d._nxCaretTries++;
+        requestAnimationFrame(() => d._nxReCaret());
+      }
+    };
     d.editorKey = async (ev, mac) => {
       const r = await orig(ev, mac);
       if (r && r.handled) {
         reveal = true;
         goalX = null;
         lineStart = false;
+        d._nxCaretK = r.k || null;
+        d._nxCaretTries = 0;
         setFromK(r.k, false);
+        if (bar.style.display === "block") d._nxCaretK = null;
       }
       return r;
     };

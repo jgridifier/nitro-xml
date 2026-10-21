@@ -430,10 +430,23 @@ ${
   }
   let zt = 0;
   const zr = $(".sb input");
-  zr && zr.addEventListener("input", () => {
+  // `input` covers pointer/drag; Chromium headless sometimes skips `input` on
+  // ArrowRight/ArrowLeft for <input type=range>, so also sync from keydown after
+  // the browser updates `.value` (keeps Pages docx-zoom selection-parity green).
+  const zoomFromSlider = () => {
     clearTimeout(zt);
     zt = setTimeout(() => act("zoom-set", zr.value), 60);
-  });
+  };
+  if (zr) {
+    zr.addEventListener("input", zoomFromSlider);
+    zr.addEventListener("change", zoomFromSlider);
+    zr.addEventListener("keydown", (e) => {
+      if (!["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(e.key)) {
+        return;
+      }
+      requestAnimationFrame(zoomFromSlider);
+    });
+  }
 
   // ---- slide thumbnails (pptx pane): rendered from the real slides, only when scrolled into view ----
   function lazyThumbs() {

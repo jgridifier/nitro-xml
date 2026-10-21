@@ -16,7 +16,7 @@ use nitro_xml_xlsx::view::metrics::{create_grid_metrics, GridMetrics, GridMetric
 use std::sync::Arc;
 
 use nitro_xml_xlsx::{
-    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook, open_first_view_arc,
+    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook_meta, open_first_view_arc,
     paint_grid_frame, parse_all_worksheets, parse_range, parse_worksheet_at, search_workbook,
     visible_sheets_json, FirstView, GridPaintViewport, SearchOptions, ViewportRect, WorkbookSlice,
 };
@@ -37,7 +37,7 @@ pub struct XlsxState {
     /// Last cell visited while a primary-button cell drag is active.
     drag: Option<(u32, u32)>,
     /// Viewport-sized workbook. `None` after a search or hyperlink lookup upgrades to the full
-    /// `load_workbook` path (those need every cell, not the painted window).
+    /// full materialise path (those need every cell, not the painted window).
     lazy: Option<FirstView>,
     /// Live edit session when the document is not read-only (#69).
     pub edit: Option<EditorSession>,
@@ -257,12 +257,12 @@ impl XlsxState {
         Ok(())
     }
 
-    /// Replace the lazy window with a full `load_workbook` so search and hyperlinks see every cell.
+    /// Replace the lazy window with a full parse so search and hyperlinks see every cell.
     fn materialise_full(&mut self, bytes: &[u8]) -> Result<(), String> {
         if self.lazy.is_none() {
             return Ok(());
         }
-        let workbook = load_workbook(bytes)?;
+        let workbook = load_workbook_meta(bytes)?;
         let parsed = parse_all_worksheets(bytes, &workbook)?;
         self.sheets = parsed;
         self.workbook = workbook;

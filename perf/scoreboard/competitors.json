@@ -11,7 +11,7 @@
       "licence": "MIT AND Apache-2.0",
       "races": ["parse", "first-paint", "open-edit-save"],
       "fastestConfig": {
-        "xlsx": "load_workbook(bytes) then parse_all_worksheets(bytes, &wb). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+        "xlsx": "load_workbook_meta(bytes) then parse_all_worksheets(bytes, &wb). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
         "docx": "read_package(bytes). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
         "pptx": "Presentation::open(bytes) then ensure_all_slides(). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
         "doc": "https://github.com/jgridifier/nitro-xml/tree/main/rs/crates"

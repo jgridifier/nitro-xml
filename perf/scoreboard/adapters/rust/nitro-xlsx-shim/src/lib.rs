@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 //! nitro-xml-xlsx behind wasm-bindgen for the scoreboard parse race. `parse` (timed) is
-//! `load_workbook` then `parse_all_worksheets`; `extract` (not timed) serialises cell values.
+//! `load_workbook_meta` then `parse_all_worksheets` (one pass per sheet); `extract` (not timed)
+//! serialises cell values.
 use nitro_xml_xlsx::format_address;
 use nitro_xml_xlsx::model::{ActiveWorksheet, CellAddress, DumpCellValue};
-use nitro_xml_xlsx::{load_workbook, parse_all_worksheets};
+use nitro_xml_xlsx::{load_workbook_meta, parse_all_worksheets};
 use std::fmt::Write;
 use wasm_bindgen::prelude::*;
 
@@ -14,7 +15,7 @@ pub struct Model {
 
 #[wasm_bindgen]
 pub fn parse(bytes: &[u8]) -> Result<Model, JsError> {
-    let wb = load_workbook(bytes).map_err(|e| JsError::new(&e))?;
+    let wb = load_workbook_meta(bytes).map_err(|e| JsError::new(&e))?;
     let names: Vec<String> = wb.sheets.iter().map(|s| s.name.clone()).collect();
     let parsed = parse_all_worksheets(bytes, &wb).map_err(|e| JsError::new(&e))?;
     let sheets = names

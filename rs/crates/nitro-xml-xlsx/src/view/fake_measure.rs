@@ -12,7 +12,7 @@ pub fn fake_xlsx_measure(text: &str) -> f64 {
 }
 
 /// Parse `Npx` from a `css_font` string (`[italic ][bold ]{size}px {family}`).
-fn font_size_px(font: &str) -> f64 {
+pub(crate) fn font_size_px(font: &str) -> f64 {
     let Some(px) = font.find("px") else {
         return 14.67;
     };
@@ -41,12 +41,22 @@ pub fn estimate_width(text: &str, font: &str) -> f64 {
     }
     let size = font_size_px(font);
     // Same predicate as upstream estimateWidth (`font.includes("bold")`).
-    let bold = if font.contains("bold") { 1.07 } else { 1.0 };
+    let bold = font.contains("bold");
+    estimate_width_sized(text, size, bold)
+}
+
+/// Same buckets as [`estimate_width`], with size/bold already known (skip CSS parse; #30).
+#[inline]
+pub fn estimate_width_sized(text: &str, size_px: f64, bold: bool) -> f64 {
+    if text.is_empty() {
+        return 0.0;
+    }
+    let bold_mul = if bold { 1.07 } else { 1.0 };
     let mut units = 0.0;
     for ch in text.chars() {
         units += char_units(ch);
     }
-    units * size * bold
+    units * size_px * bold_mul
 }
 
 #[cfg(test)]
@@ -63,6 +73,9 @@ mod tests {
         assert!((estimate_width("中", font) - 1.0 * 11.0).abs() < 1e-9);
         let bold = "bold 11px Calibri, sans-serif";
         assert!((estimate_width("a", bold) - 0.52 * 11.0 * 1.07).abs() < 1e-9);
+        // Catches: sized fast-path drifting from CSS-parse estimate_width (#30).
+        assert!((estimate_width_sized("a", 11.0, false) - estimate_width("a", font)).abs() < 1e-9);
+        assert!((estimate_width_sized("a", 11.0, true) - estimate_width("a", bold)).abs() < 1e-9);
     }
 
     #[test]

@@ -3,8 +3,9 @@
 
 Status: **metrics + TS-vs-WASM tables + live report-mode CI gates** (2026-10-21). Milestone 1
 viewer gate record for Nitro XML. Native/WASM/bundle baselines on **`164ac7d`** (#279/#283);
-TS-vs-WASM cold-open refreshed on **`f2b68fa`** after xlsx S paint-intern [#333](https://github.com/jgridifier/nitro-xml/pull/333)
-(§5.3; prior: encode `402fb2e`, CF `368b311`). CI gate scripts in
+TS-vs-WASM / peak-mem refreshed on **`b48e0e2`** after peak-mem cut [#352](https://github.com/jgridifier/nitro-xml/pull/352)
+(+ open warmup/runs [#356](https://github.com/jgridifier/nitro-xml/pull/356); prior paint-intern
+[#333](https://github.com/jgridifier/nitro-xml/pull/333)). CI gate scripts in
 [#342](https://github.com/jgridifier/nitro-xml/pull/342) (§5.4) — default
 `PERF_GATE_MODE=report` (measures and posts LOSSes; does not fail the job). Does **not**
 close #23 (docx perf-gate arm deferred). Enforce mode (`PERF_GATE_MODE=enforce`) waits on
@@ -332,15 +333,34 @@ Local peak-mem (`peak-mem.mjs --runs=5`, same SHA) — losses kept:
 | pptx | M | 34.6 | 27.3 | 0.789 | [0.737, 0.814] | **WIN** |
 | pptx | L | 41.6 | 33.2 | 0.799 | [0.782, 0.867] | **WIN** |
 
-**Wins / losses summary (openDocument):** WASM wins **9 / 9** cells locally on `f2b68fa`
-(xlsx S flipped LOSS → WIN: **5.64 → 2.56 ms** WASM median). Peak-mem LOSSes remain (wasm
-compile floor) — not demoted. CI ubuntu runners still sometimes post xlsx S openDocument as
-**TIE/LOSS** when the 95% CI upper spans 1.0 (machine noise; bar unchanged) — reported as
-prominently as the wins.
+**Wins / losses summary (openDocument, `f2b68fa`):** WASM wins **9 / 9** cells locally
+(xlsx S flipped LOSS → WIN: **5.64 → 2.56 ms** WASM median). Peak-mem LOSSes remained
+(wasm compile floor) — not demoted. Pre-#352 CI sometimes posted xlsx S openDocument as
+**TIE/LOSS** when the 95% CI upper spanned 1.0 — see §5.4 post-#352 refresh (now a clear WIN).
+
+#### Post-#352 refresh (`b48e0e2` + measure sticky size/bold)
+
+[#352](https://github.com/jgridifier/nitro-xml/pull/352) (wasm-opt one-caller inline cap +
+sheet-clone drops; **Cargo.toml wasm-opt flags owned by that stream — not retouched here**),
+[#351](https://github.com/jgridifier/nitro-xml/pull/351) (mut-frame), [#356](https://github.com/jgridifier/nitro-xml/pull/356)
+(open warmup 8 / runs 21). This slice adds a **real** xlsx S paint speedup: sticky
+`estimate_width` size/bold on `CanvasTextMeasure` (skip per-cell CSS parse) + `intern_px`
+for border/editor geometry (no `format!("{}px")`). No extra warmup/runs; pass rule /
+budgets / fixtures unchanged.
+
+| | TS median (ms) | WASM median (ms) | WASM/TS | 95% CI | Verdict |
+|--|---------------:|-----------------:|--------:|-------:|---------|
+| **Before** (CI tip pre-#352, `928926d` era) | — | — | **0.945** | [0.610, **1.187**] | **TIE/LOSS** |
+| **After #352** (CI `perf-beats-ts (xlsx)` on `b48e0e2`) | 5.86 | 1.58 | **0.269** | [0.228, 0.321] | **WIN** |
+| **+ measure cut** (local, same gate knobs) | ~5.4 | ~1.66 | **~0.31** | [~0.22, ~0.41] | **WIN** |
+| Noisy probe (warmup=2 / runs=11, local) | 6.00 | 1.78 | **0.297** | [0.266, 0.354] | **WIN** |
+
+CI upper stays **well below 1** without relying on warmup/runs alone (noisy probe CI upper
+0.354). Native `xlsx_paint_bench` paint **0.387 → 0.370 ms**; `cmd_bytes` flat at 56254.
 
 **Honest scope notes:**
 
-- Metric in §5.3 is **cold open only**. Peak memory is now measured in CI (§5.4). Scroll /
+- Metric in §5.3 is **cold open only**. Peak memory is measured in CI (§5.4). Scroll /
   browser first-paint (incl. wasm fetch+compile+instantiate) and 4× CPU / XL remain TODO(#8).
 - **xlsx asymmetry:** TS `loadWorkbook` is a full workbook parse; WASM `openDocument` uses
   `open_first_view` (viewport) + first `process_frame`, and after #289 does **not** SeekTail
@@ -363,29 +383,36 @@ They generate S/M/L fixtures, build wasm, run `perf/large/ts-vs-wasm.mjs` (openD
 | **Pass rule** | median WASM/TS &lt; 1 **and** 95% CI upper &lt; 1 (PRODUCT_SPEC §5); a tie fails |
 | **Mode** | default `PERF_GATE_MODE=report` — LOSS/TIE posted, job exits 0. Jared: set `enforce` to arm |
 | **Not demoted** | budgets, fixtures, loader ceiling (≤17408 B brotli) unchanged |
+| **Open knobs** | warmup=8 / runs=21 ([#356](https://github.com/jgridifier/nitro-xml/pull/356)); peak-mem knobs untouched |
 
-CI `perf-gate` rollup on `main` tip after #333/#349 (`928926d` job sample via [#348](https://github.com/jgridifier/nitro-xml/pull/348)
-CI, ubuntu-latest) — **11/18 WIN · 7 LOSS/TIE**:
+#### Post-#352 matrix (`b48e0e2`)
 
-| Format | Tier | Metric | WASM/TS | 95% CI | Verdict |
-|--------|------|--------|--------:|-------:|---------|
-| xlsx | S | openDocument | 0.945 | [0.610, 1.187] | **TIE/LOSS** |
-| xlsx | S | peak_mem | 6.841 | [6.501, 7.186] | **LOSS** |
-| docx | S | peak_mem | 15.664 | [11.974, 16.189] | **LOSS** |
-| docx | M | peak_mem | 4.425 | [4.183, 5.041] | **LOSS** |
-| docx | L | peak_mem | 1.765 | [1.654, 1.846] | **LOSS** |
-| pptx | S | peak_mem | 1.803 | [1.640, 1.987] | **LOSS** |
-| pptx | M | peak_mem | 1.104 | [1.054, 1.160] | **LOSS** |
+Local `PERF_GATE_MODE=report bash scripts/ci/perf.sh gate` on tip `b48e0e2` —
+**14/18 WIN · 4 LOSS/TIE**. CI `perf.yml` `perf-beats-ts (*)` on the same SHA (ubuntu-latest)
+corroborates; peak-mem LOSSes kept (bar not lowered):
 
-All other S/M/L openDocument cells and xlsx M/L + pptx L peak mem: **WIN**. Same run's
-dedicated `perf-beats-ts (xlsx)` job posted xlsx S openDocument **WIN** 0.549 [0.491, 0.626]
-— S remains noisy across jobs. Peak-mem LOSSes are the wasm compile floor (~32–45 MiB
-fresh-process RSS growth vs 2–5 MiB TS on S; see `docs/perf-rust-hotpaths.md`). Bar not
-lowered.
+| Format | Tier | Metric | Before (#348 era) | After #352 (local / CI) | Verdict |
+|--------|------|--------|-------------------:|------------------------:|---------|
+| xlsx | S | openDocument | 0.945 [0.610, **1.187**] | **0.333** [0.255, 0.377] local · **0.269** [0.228, 0.321] CI | **WIN** |
+| xlsx | S | peak_mem | 6.841 [6.501, 7.186] | **3.355** [3.186, 3.535] local · 3.515 CI | **LOSS** |
+| xlsx | M | peak_mem | WIN | 0.153 / 0.164 | **WIN** |
+| xlsx | L | peak_mem | WIN | 0.026 / 0.026 | **WIN** |
+| docx | S | peak_mem | 15.664 | **5.979** local · 7.040 CI | **LOSS** |
+| docx | M | peak_mem | 4.425 | **2.554** local · 2.932 CI | **LOSS** |
+| docx | L | peak_mem | 1.765 | 1.011 local · **0.932** CI | local TIE/LOSS · **CI WIN** |
+| pptx | S | peak_mem | 1.803 | **0.548** local · 0.476 CI | **WIN** (was LOSS) |
+| pptx | M | peak_mem | 1.104 | **0.362** local · 0.531 CI | **WIN** (was LOSS) |
+| pptx | L | peak_mem | WIN | 0.463 / 0.390 | **WIN** |
 
-[#333](https://github.com/jgridifier/nitro-xml/pull/333) (paint-intern + blank-skip) and
-[#349](https://github.com/jgridifier/nitro-xml/pull/349) (mut-frame empty-frame keep) are
-**merged** on `main`.
+All S/M/L **openDocument** cells: **WIN** (xlsx/docx/pptx). Absolute before→after peak
+(WASM MiB, local gate): xlsx S **30.4 → 19.0**; docx S **27.3 → 14.3**; pptx S **21.3 → 5.4**.
+Remaining LOSSes are the wasm compile floor on small TS footprints (see
+`docs/perf-rust-hotpaths.md`). Peak-mem work continues on another stream — this slice does
+not touch `rs/crates/nitro-xml-wasm/Cargo.toml` wasm-opt flags.
+
+Merged on `main` ahead of this refresh: [#333](https://github.com/jgridifier/nitro-xml/pull/333),
+[#349](https://github.com/jgridifier/nitro-xml/pull/349), [#351](https://github.com/jgridifier/nitro-xml/pull/351),
+[#352](https://github.com/jgridifier/nitro-xml/pull/352), [#356](https://github.com/jgridifier/nitro-xml/pull/356).
 
 ```bash
 PERF_GATE_MODE=report bash scripts/ci/perf.sh gate
@@ -439,8 +466,8 @@ No invented medians in the published JSON from this report slice.
 | Item | Issue / PR | Notes |
 |------|------------|-------|
 | Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Scripts live in **report** mode (§5.4 / #342). Jared: `PERF_GATE_MODE=enforce` when reds are fixed |
-| Peak-mem LOSSes (xlsx S, docx S/M/L, pptx S/M) | #8 / hotpaths | Wasm compile floor; levers in `docs/perf-rust-hotpaths.md` |
-| xlsx S openDocument CI noise | open runs/warmup defaults | Raised gate defaults to warmup=8 / runs=21 (Liftoff discard); pass rule unchanged |
+| Peak-mem LOSSes (xlsx S, docx S/M; docx L flaky) | #8 / hotpaths | Post-#352: pptx S/M flipped WIN; xlsx/docx S still LOSS (compile floor). Leave wasm-opt to that stream |
+| xlsx S openDocument | done (clear WIN) | Post-#352 CI 0.269 [0.228, 0.321]; measure sticky size/bold keeps CI upper ≪ 1 even at warmup=2 |
 | Scoreboard standings including losses | **#41**, draft **#113**, **#39**; adapters **#299/#329** | Published `parse-latest.json` still waits on #113 — do not invent numbers |
 | Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |
 | Per-format wasm / TTI ceilings | #46 | Bundle gate extension |
@@ -455,8 +482,8 @@ No invented medians in the published JSON from this report slice.
 - [x] M1 report published with **real measured** numbers from existing harnesses (native/WASM/bundle on `164ac7d`; TS-vs-WASM cold open refreshed on `368b311` after xlsx S CF/paint cut + #290 rebase)
 - [x] Unsupported-content rate recorded (**0** × 3 formats)
 - [x] Bundle / loader sizes recorded (loader **16.69 / 17 KB**; wasm sizes above)
-- [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S LOSS→WIN after #333** (peak-mem LOSSes kept); **#23 left open** (docx arm deferred)
-- [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped
+- [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S clear WIN after #352** (CI upper 0.321; peak-mem LOSSes kept on xlsx/docx S); **#23 left open** (docx arm deferred)
+- [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped; post-#352 matrix **14/18 WIN**
 - [ ] Scoreboard standings including losses — adapters **#299/#329** (local W/L); published JSON still blocked on stub `#39` + draft **#113** + blocked **#41** (no invented numbers)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
 - [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27**; docx **#23** deferred

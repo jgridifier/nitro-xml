@@ -216,6 +216,7 @@ async function editDemo(page, base, demo, shotDir) {
 
 	await clickButton(page, ['Redo']);
 	await waitState(page, demo.format, (s) => s.present && s.bold, 'redo did not restore typed bold text');
+	await shot(page, join(shotDir, `${id}-edited.png`));
 
 	const mid = stateOf(demo.format, await packageBytes(page, demo.format));
 	if (demo.structure === 'slide') await clickButton(page, ['New Slide', 'New slide'], 'Insert');
@@ -251,9 +252,27 @@ async function editDemo(page, base, demo, shotDir) {
 		(s) => s.present && s.bold && s.count === structured.count,
 		'reopen did not round-trip the saved edit',
 	);
+	await revealEditedText(page, demo.format);
 	await shot(page, join(shotDir, `${id}-after.png`));
-	if (!reopened.present) return 'reopen dropped the typed text';
+	console.log(`  ${id} reopened count=${reopened.count} bold=${reopened.bold}`);
 	return null;
+}
+
+/** Insert slide leaves the new blank slide on screen. Step back until the typed text is visible. */
+async function revealEditedText(page, format) {
+	const visible = () =>
+		page.evaluate(({ format, mark }) => {
+			const tag = format === 'docx' ? 'nitro-docx' : 'nitro-pptx';
+			const sr = document.querySelector(tag)?.shadowRoot;
+			return !!(sr && (sr.textContent || '').includes(mark));
+		}, { format, mark: MARK });
+	for (let i = 0; i < 6; i++) {
+		if (await visible()) return;
+		const prev = await findButton(page, ['Previous slide', 'Previous page']);
+		if (!prev) return;
+		await prev.click();
+		await page.waitForTimeout(400);
+	}
 }
 
 export async function runDemoEdit(browserNames, shotDir) {

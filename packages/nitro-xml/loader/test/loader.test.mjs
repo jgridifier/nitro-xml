@@ -45,6 +45,16 @@ function encodeStrokeRect(x, y, w, h, color, line) {
   return u8;
 }
 
+function encodeSetStyle(id, propId, valId) {
+  const u8 = new Uint8Array(13);
+  const v = new DataView(u8.buffer);
+  u8[0] = Op.SetStyle;
+  v.setUint32(1, id, true);
+  v.setUint32(5, propId, true);
+  v.setUint32(9, valId, true);
+  return u8;
+}
+
 function encodePlaceBox(id, x, y, w, h) {
   const u8 = new Uint8Array(21);
   const v = new DataView(u8.buffer);
@@ -153,6 +163,28 @@ describe("command buffer applier", () => {
     assert.equal(el.style.top, "22px");
     assert.equal(el.style.width, "33px");
     assert.equal(el.style.height, "44px");
+  });
+
+  it("writes CSS custom properties with setProperty", () => {
+    // Catches: Word zoom storing --dve-zoom via style['--dve-zoom'], which Chromium and WebKit ignore so the page stays at 100%.
+    const calls = [];
+    const el = { style: { setProperty(k, v) { calls.push([k, v]); } } };
+    const nodes = new Map([[1, el]]);
+    const strings = { 2: "--dve-zoom", 3: "1.2", 4: "width", 5: "10px" };
+    const a = encodeSetStyle(1, 2, 3);
+    const b = encodeSetStyle(1, 4, 5);
+    const bytes = new Uint8Array(a.length + b.length);
+    bytes.set(a, 0);
+    bytes.set(b, a.length);
+    const { ops, error } = applyCommandBuffer(bytes, {
+      nodes,
+      resolve: (id) => strings[id] ?? "",
+    });
+    assert.equal(error, undefined);
+    assert.equal(ops, 2);
+    assert.deepEqual(calls, [["--dve-zoom", "1.2"]]);
+    assert.equal(el.style.width, "10px");
+    assert.equal(el.style["--dve-zoom"], undefined);
   });
 
 });

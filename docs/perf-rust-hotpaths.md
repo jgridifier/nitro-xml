@@ -301,3 +301,11 @@ did not move interleaved n=25 medians beyond noise.
 Remaining levers: [#359](https://github.com/jgridifier/nitro-xml/pull/359) land; draft [#332](https://github.com/jgridifier/nitro-xml/pull/332)
 `wasm-opt -O1` only if it shows **no** open/edit regression vs main; further format-boundary splits of
 shared monoliths that still run on docx open. Do not raise `perf/budgets.json` or demote fixtures.
+
+## Slice 8: docx `take_text` for `word/document.xml` (branch `cursor/perf-docx-take-text-4e30`)
+
+`read_package_with_opts` uses [`Package::take_text`](../../rs/crates/nitro-xml-opc/src/opc/package.rs) for
+`word/document.xml` so the inflated part is not retained in `text_cache` alongside the parsed body tree
+and later style/theme/numbering loads (same pattern as xlsx worksheet `sheetData` in #288).
+
+Peak numbers: run `peak-mem.mjs --runs=9 --format=docx` after merge; not recorded here pre-merge.

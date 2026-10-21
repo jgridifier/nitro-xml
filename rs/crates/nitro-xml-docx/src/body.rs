@@ -132,12 +132,14 @@ pub fn read_package_with_opts(
         }
     }
     .to_string();
-    let doc_xml = pkg
-        .text("word/document.xml")?
-        .ok_or_else(|| OpcError::MissingPart {
-            name: "word/document.xml".into(),
-        })?;
-    let document = parse_xml_str(doc_xml)?;
+    let document = {
+        let doc_xml = pkg
+            .take_text("word/document.xml")?
+            .ok_or_else(|| OpcError::MissingPart {
+                name: "word/document.xml".into(),
+            })?;
+        parse_xml_str(&doc_xml)?
+    };
     let body =
         crate::xml_util::first_body(&document.root).ok_or_else(|| OpcError::MissingPart {
             name: "w:body".into(),
@@ -855,4 +857,21 @@ fn table_has_nested(block: &Value) -> bool {
             })
         })
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Catches: retained document.xml doubling peak during open.
+    #[test]
+    fn document_xml_not_retained_in_package_text_cache() {
+        let bytes = include_bytes!("../../../../fixtures/generated/docx/pages_10.docx");
+        let (loaded, _) =
+            read_package_with_opts(bytes, BodyViewOpts::default()).expect("open minimal docx");
+        assert!(
+            !loaded.package.text_is_cached("word/document.xml"),
+            "word/document.xml should not stay in Package text_cache after body parse"
+        );
+    }
 }

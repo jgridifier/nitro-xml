@@ -363,8 +363,7 @@ pub fn read_package_with_opts(
 
     // Layout labels need title / undrawn family; full chartSpace parse is #28.
     {
-        let mut read_text =
-            |name: &str| -> Option<String> { pkg.take_text(name).ok().flatten() };
+        let mut read_text = |name: &str| -> Option<String> { pkg.take_text(name).ok().flatten() };
         resolve_loaded_charts(
             &mut model.blocks,
             model.footnotes.as_mut(),

@@ -103,9 +103,27 @@ export async function boot(opts) {
     lastBytes = buf;
     lastName = name || lastName;
     ui.loading(`Opening ${lastName}…`);
+    const el = ui.el;
+    // Dismiss the veil as soon as the page is visible. ready() used to wait for
+    // loadBuffer's UI round trip plus settlePaint, which is after the test (and a
+    // user) can already see lines and click.
+    const paintSeen = () => {
+      const sr = el.shadowRoot;
+      return !!(sr && sr.querySelector(".dve-print-line, .xg-c, [aria-roledescription=slide]"));
+    };
+    let raf = 0;
+    const kick = () => {
+      if (mine !== token) return;
+      if (paintSeen()) {
+        ui.ready();
+        return;
+      }
+      raf = requestAnimationFrame(kick);
+    };
+    raf = requestAnimationFrame(kick);
     try {
-      const el = ui.el;
       await el.loadBuffer(buf.slice(0), lastName);
+      kick();
       const problem = await settlePaint(el);
       if (mine !== token) return;
       if (problem) throw new Error(problem);
@@ -114,6 +132,8 @@ export async function boot(opts) {
       ui.opened(buf, lastName);
     } catch (e) {
       if (mine === token) ui.error(`Couldn’t open ${lastName}: ${e?.message || e}`);
+    } finally {
+      if (raf) cancelAnimationFrame(raf);
     }
   }
 

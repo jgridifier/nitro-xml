@@ -557,8 +557,8 @@ No invented medians in the published JSON from this report slice.
 | Item | Issue / PR | Notes |
 |------|------------|-------|
 | Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Scripts live in **report** mode (§5.4 / #342). Jared: `PERF_GATE_MODE=enforce` when reds are fixed |
-| xlsx S peak_mem LOSS | compile floor (measured) | Cold ~18 MiB / warm-second ~2.3 MiB; residual alloc already beats TS. Draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) pre-warm cut **closed** (whole-process peak rose; startup regressed). Next: [#332](https://github.com/jgridifier/nitro-xml/pull/332) `-O1` |
-| Docx peak_mem LOSSes | draft [#359](https://github.com/jgridifier/nitro-xml/pull/359) | Format-split `openDocument`/`process_frame`; do not touch from xlsx stream |
+| xlsx S peak_mem LOSS | compile floor (measured) | Cold ~16 MiB / warm-second already beats TS alloc. Draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) pre-warm cut **closed**. [#332](https://github.com/jgridifier/nitro-xml/pull/332) `-O1` still draft (open/edit regress vs main — recommend close) |
+| Docx peak_mem LOSSes | [#359](https://github.com/jgridifier/nitro-xml/pull/359) merged; outline slice 10 | Format-split landed. Drawing non-picture outline + notes `take_text` cuts docx M WASM peak (~15.4→14.7 MiB, CI WIN vs prior tip); S/M still **LOSS vs TS** (compile floor) |
 | xlsx S openDocument | done (clear WIN) | [#360](https://github.com/jgridifier/nitro-xml/pull/360); CI upper ≪ 1 |
 | Scoreboard standings including losses | **#41**, draft **#113**, **#39**; adapters **#299/#329** | Published `parse-latest.json` still waits on #113 — do not invent numbers |
 | Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |
@@ -584,7 +584,7 @@ No invented medians in the published JSON from this report slice.
 
 ## Appendix: docx peak_mem compile-floor attribution (2026-10-21)
 
-Companion to the xlsx S attribution. Measured on main `fd11a8c` and undrafted [#359](https://github.com/jgridifier/nitro-xml/pull/359) tip `165a1e7`.
+Companion to the xlsx S attribution. Measured on main `fd11a8c` and [#359](https://github.com/jgridifier/nitro-xml/pull/359) tip `165a1e7` (now merged). Later drawing-outline cut: see `docs/perf-rust-hotpaths.md` slice 10.
 
 | Tier | Cold first open Δ MiB (main → #359) | Second open Δ MiB | TS peak MiB (gate) |
 |---|--:|--:|--:|

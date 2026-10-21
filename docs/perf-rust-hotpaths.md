@@ -336,6 +336,30 @@ the wasm compile floor. On a large real fixture the retained XML was measurable:
 Method: interleaved fresh-process `peak-mem.mjs --child=wasm:…` (n=25 generated / n=11 real), main
 `3422fbf` vs this branch. No wasm-opt / budget / fixture changes.
 
+## Slice 10: docx non-picture drawing outline + notes `take_text`
+
+Gate `pages_*` always parse a picture (`w:drawing` + `a:blip`) but never chart/SmartArt/text-box.
+`parse_modern_drawing` returned the picture early inside one fat function, so `wasm-opt -O3`
+one-caller inlining still TurboFan-compiled `parse_diagram_graphic` / `parse_chart_graphic` /
+text-box collect on first image open (#373 shape for xlsx).
+
+Change: thin picture path stays in `parse_modern_drawing`; non-picture body moves to
+`#[inline(never)] parse_non_picture_modern_drawing`; `#[inline(never)]` on
+`parse_diagram_graphic`, `text_box_paragraphs`, and `chart_host::parse_chart_graphic`.
+Also `take_text` for `word/footnotes.xml` / `word/endnotes.xml` (leftover dual-retain after
+slice 9; gate fixtures have no notes parts).
+
+Interleaved A/B vs main tip (`baeefcd` pkg), `peak-mem.mjs` wasm child, **n=21**, B=2000:
+
+| Fixture | peak before | after | ratio [CI] | open verdict |
+|---|--:|--:|--:|---|
+| docx S | 12.75 | 12.72 | 0.998 [0.966, 1.053] noise | open noise |
+| docx M | 15.39 | **14.66** | **0.953 [0.920, 0.998] WIN** | open noise |
+| docx L | 20.62 | 19.67 | 0.954 [0.920, 1.035] noise | open noise |
+| xlsx S (no-reg) | 16.39 | 16.39 | 1.000 [0.989, 1.009] | open noise |
+
+docx S/M remain **LOSS vs TS** (compile floor). No budgets / fixtures / `#332` / `#113`.
+
 ## Slice 11: pptx `take_text` for one-shot XML parts
 
 `Presentation::open` / first-slide parse used `Package::text`, retaining inflated XML in

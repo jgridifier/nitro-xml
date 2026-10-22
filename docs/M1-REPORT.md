@@ -440,11 +440,15 @@ recorded as documented known-loss exceptions so they **do not** block enforce re
 **do not** fail `PERF_GATE_MODE=enforce`. No fixture demotion; no threshold or
 `perf/budgets.json` change. **Any other cell that is LOSS / TIE/LOSS still fails.**
 
+Tip remasure on **`a098647`** (`PERF_GATE_MODE=report bash scripts/ci/perf.sh gate`,
+post-#413 main + this exception): **15/18 WIN · 3 LOSS/TIE** (all three LOSSes are the
+documented known-loss cells). Per-format enforce readiness:
+
 | Format | openDocument S/M/L | peak_mem S/M/L | Enforce ready? | Blockers | Known-loss (still LOSS) |
 |--------|--------------------|----------------|:--------------:|----------|-------------------------|
-| **pptx** | WIN / WIN / WIN | WIN / WIN / WIN | **READY** | — | — |
-| **xlsx** | WIN / WIN / WIN | **LOSS** / WIN / WIN | **READY** | — | xlsx S peak_mem |
-| **docx** | WIN / WIN / WIN | **LOSS** / **LOSS** / WIN | **READY** | — | docx S peak_mem; docx M peak_mem |
+| **pptx** | WIN / WIN / WIN | WIN / WIN / WIN | **READY** (6/6) | — | — |
+| **xlsx** | WIN / WIN / WIN | **LOSS** / WIN / WIN | **READY** (5/6) | — | xlsx S peak_mem **2.959** [2.694, 3.302] |
+| **docx** | WIN / WIN / WIN | **LOSS** / **LOSS** / WIN | **READY** (4/6) | — | docx S **5.523** [4.747, 6.814]; docx M **2.503** [2.144, 2.615] |
 
 **Ask Jared:** flip `PERF_GATE_MODE=enforce` for formats marked READY (all three after this
 exception) and add `perf-beats-ts` to branch-protection required checks. Agents do not edit

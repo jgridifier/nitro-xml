@@ -51,4 +51,4 @@ node run.mjs                     # writes results/parse/<date>-<sha>.json and do
 
 - **Loaded machine.** The run was on the shared 8-core development box while other jobs were compiling, so absolute times are noisy. Rankings were consistent file by file (see W/L counts). CI runs on a quiet runner will replace it.
 - **LibreOffice WASM is not entered.** It can only be pulled from an unpinned `latest` URL, it is about 53 MB, and it has no parse-only boundary. It is planned for the first-paint race with a self-built, pinned build.
-- **Evaluated but not entered.** `@silurus/ooxml`, shrimp-doc-viewer, BetterOffice and pptx-preview are listed in `competitors.json` under `evaluated`, with the reasons.
+- **Evaluated but not entered.** `@silurus/ooxml`, shrimp-doc-viewer and pptx-preview are listed in `competitors.json` under `evaluated`, with the reasons. **BetterOffice** (`@betteroffice/docx@0.4.3`) is now entered in the docx parse race (`parseDocx`, opc+parse wasm only).

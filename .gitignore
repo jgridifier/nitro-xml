@@ -35,6 +35,11 @@ fixtures/generated/**/xl_*.pptx
 fixtures/generated/**/*.tmp.pptx
 # Python bytecode from fixture generators
 fixtures/gen/__pycache__/
+python/.venv/
+python/dist/
+python/**/__pycache__/
+python/**/*.so
+python/**/*.pyd
 # OS / editors
 .DS_Store
 .idea/

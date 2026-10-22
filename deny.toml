@@ -10,7 +10,13 @@ confidence-threshold = 0.9
 unused-allowed-license = "allow"
 # Every exception needs a written reason and a link to the approving PR, e.g.
 # { name = "some-crate", allow = ["MPL-2.0"], reason = "...", approved = "https://github.com/jgridifier/nitro-xml/pull/N" }
-exceptions = []
+# Per-crate license exceptions (reason + approving PR in comment; cargo-deny only reads `crate` + `allow`).
+exceptions = [
+  # PyO3 build-time deps only; LLVM-exception is upstream's SPDX on Apache-2.0.
+  # Approved: https://github.com/jgridifier/nitro-xml/pull/420
+  { crate = "pyo3-build-config", allow = ["Apache-2.0 WITH LLVM-exception"] },
+  { crate = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
+]
 
 [licenses.private]
 # Our own unpublished crates are checked by scripts/ci/licenses.sh (MIT, or MIT AND Apache-2.0 when they hold ported files).

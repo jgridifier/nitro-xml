@@ -15,6 +15,7 @@
 - **The upstream TS engine stays in the test and bench harness only**, pinned at commit `e66aaec`, as the correctness reference (parity oracle) and the speed baseline.
 - **Upstream pin:** the `upstream/` git submodule is ChristopherVR/ooxml at `e66aaec24adc0b68472eae1fc42aa4598e09c352` (test and bench only; never shipped).
 - One npm package (`nitro-xml`) and Rust crates `nitro-xml-opc`, `nitro-xml-render`, `nitro-xml-xlsx`, `nitro-xml-docx`, `nitro-xml-pptx`, `nitro-xml-wasm` and the umbrella `nitro-xml`.
+- **Python (PyPI, in progress):** maturin/PyO3 bindings under [`python/`](python/) — see [`python/README.md`](python/README.md). Not published to PyPI yet; local build via `scripts/ci/pypi_build_dry_run.sh`.
 
 ## Publishing names
 

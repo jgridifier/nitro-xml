@@ -19,19 +19,23 @@ exclude = ["fuzz"]
 license = "MIT"   # default for crates with only original files; a crate containing ported upstream files sets `license = "MIT AND Apache-2.0"` itself (see AGENTS.md §6, PROVENANCE.md)
 repository = "https://github.com/jgridifier/nitro-xml"
 homepage = "https://jgridifier.github.io/nitro-xml/"
+documentation = "https://docs.rs/nitro-xml"
 edition = "2021"
-version = "0.0.0"
+version = "0.1.0"
 publish = false
+keywords = ["ooxml", "office", "openxml", "xlsx", "docx", "pptx", "spreadsheet"]
+categories = ["parser-implementations", "encoding"]
 
 # `upstream/` (ChristopherVR/ooxml submodule) is test and bench only and lives
 # outside rs/, so no crate package can include it.
 [workspace.dependencies]
-nitro-xml-opc = { path = "crates/nitro-xml-opc" }
-nitro-xml-render = { path = "crates/nitro-xml-render" }
-nitro-xml-xlsx = { path = "crates/nitro-xml-xlsx" }
-nitro-xml-docx = { path = "crates/nitro-xml-docx" }
-nitro-xml-pptx = { path = "crates/nitro-xml-pptx" }
-nitro-xml = { path = "crates/nitro-xml" }
+nitro-xml-opc = { version = "0.1.0", path = "crates/nitro-xml-opc" }
+nitro-xml-render = { version = "0.1.0", path = "crates/nitro-xml-render" }
+nitro-xml-xlsx = { version = "0.1.0", path = "crates/nitro-xml-xlsx" }
+nitro-xml-docx = { version = "0.1.0", path = "crates/nitro-xml-docx" }
+nitro-xml-pptx = { version = "0.1.0", path = "crates/nitro-xml-pptx" }
+nitro-xml = { version = "0.1.0", path = "crates/nitro-xml" }
+nitro-xml-wasm = { version = "0.1.0", path = "crates/nitro-xml-wasm" }
 wasm-bindgen = "0.2"
 
 [profile.release]

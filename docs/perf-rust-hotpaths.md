@@ -448,3 +448,11 @@ outliers but **+0.6 MiB edit heap** — rejected.
 
 Materialise (~0.9 s soft-share) now sits in the first editable `take-frame` (embed first-paint / open tick), not in timed sample0. Peak-mem wasm open path unchanged.
 
+## Slice 16: embed first-paint — paint-then-soft-share + `edit-ready`
+
+**Goal:** React-embed editable **first-paint** on xlsx/L should not pay ~1 s `ensure_edit` inside `waitFirstPaint` (slice 15 unlock-before-post moved materialise into the first tick). Timed **edit-cell** must still wait until soft-share finishes so sample0 does not race materialise.
+
+**Loader:** first `take-frame` with `_pendingEditorChrome`: `prepareFrame` → `postMessage` frame → then `setReadOnly(false)` + `loadEditorChrome` → `postMessage` `{ type: "edit-ready" }`. Host `WorkerDocument.whenEditReady()` resolves on `edit-ready` (or immediately for readonly / after explicit `loadEditorChrome`). `applyEdit` / mut-frame await `whenEditReady` before worker apply; bench `edit-*` scenarios await after `openInElement`, **not** `first-paint`.
+
+**Numbers:** TBD (React-embed `first-paint` L + `edit-cell` L A/B vs slice 15 tip).
+

@@ -39,6 +39,9 @@ this._strings = null;
 this._measureCount = 0;
 this._outlineCount = 0;
 this._t = true;
+this._editReadyPromise = Promise.resolve();
+this._editReadyPending = false;
+this._editReadyResolve = null;
 }
 get measureCount() {
 return this._measureCount | 0;
@@ -145,6 +148,9 @@ this._worker.terminate();
 this._pending.clear();
 this._worker = this._newWorker(false);
 this._wireWorker();
+this._editReadyPromise = Promise.resolve();
+this._editReadyPending = false;
+this._editReadyResolve = null;
 }
 async _openBytes(buffer, name, opts = {}) {
 const n = name || this._name;
@@ -161,12 +167,35 @@ this._worker.postMessage(
 );
 });
 this._t = opened.t !== false;
+if (readonly) {
+this._editReadyPending = false;
+this._editReadyPromise = Promise.resolve();
+this._editReadyResolve = null;
+} else {
+this._editReadyPending = true;
+this._editReadyPromise = new Promise((resolve) => {
+this._editReadyResolve = resolve;
+});
+}
 return opened;
 }
+_markEditReady() {
+if (!this._editReadyPending) return;
+this._editReadyPending = false;
+if (this._editReadyResolve) {
+this._editReadyResolve();
+this._editReadyResolve = null;
+}
+}
+whenEditReady() {
+return this._editReadyPromise || Promise.resolve();
+}
 async loadEditorChrome() {
-return this._request("editor-chrome", () => {
+const msg = await this._request("editor-chrome", () => {
 this._worker.postMessage({ type: "editor-chrome" });
 });
+this._markEditReady();
+return msg;
 }
 async editorKey(ev, mac) {
 // Flush queued pointer events before the key so click-then-immediate-key
@@ -193,6 +222,7 @@ if (this._journal && bytes) this._journal.markSave(bytes);
 return bytes;
 }
 async applyEdit(spec) {
+await this.whenEditReady();
 const result = (await this._request("apply-edit", () => {
 this._worker.postMessage({ type: "apply-edit", spec: spec || "" });
 })).result;
@@ -292,6 +322,10 @@ return this._measureCanvas.getContext("2d");
 }
 _onMessage(msg) {
 if (!msg || !msg.type) return;
+if (msg.type === "edit-ready") {
+this._markEditReady();
+return;
+}
 if (msg.type === "error") {
 for (const [, p] of this._pending) {
 p.reject(Object.assign(new Error(msg.message), { code: msg.code }));

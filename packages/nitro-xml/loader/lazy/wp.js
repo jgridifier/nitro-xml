@@ -29,6 +29,7 @@ export function patch(WorkerDocument) {
   const origSa = WorkerDocument.prototype.shellAction;
 
   async function mutFrame(doc, fields) {
+    if (typeof doc.whenEditReady === "function") await doc.whenEditReady();
     const msg = await doc._request("mut-frame", () => {
       doc._worker.postMessage({ type: "mut-frame", ...fields });
     });

@@ -201,6 +201,42 @@ pub fn toggle_first_line_indent(host: &mut DocxHost, block_index: usize) -> Resu
     Ok(())
 }
 
+/// Toggle a direct double underline (`w:u/@w:val="double"`).
+/// A run already double-underlined drops the style and the underline.
+/// Any other run becomes underlined with style `double`.
+pub fn toggle_double_underline(
+    host: &mut DocxHost,
+    block_index: usize,
+    run_index: usize,
+) -> Result<(), EditError> {
+    let block = host
+        .paragraph_mut(block_index)
+        .map_err(|e| EditError::Other { message: e })?;
+    let runs = block
+        .get_mut("runs")
+        .and_then(|r| r.as_array_mut())
+        .ok_or_else(|| EditError::Other {
+            message: format!("runs missing on block {block_index}"),
+        })?;
+    let run = runs.get_mut(run_index).ok_or_else(|| EditError::Other {
+        message: format!("run {run_index} missing on block {block_index}"),
+    })?;
+    let obj = run.as_object_mut().ok_or_else(|| EditError::Other {
+        message: format!("run {run_index} is not an object"),
+    })?;
+    let underlined = obj.get("underline").and_then(|v| v.as_bool()) == Some(true);
+    let style = obj.get("underlineStyle").and_then(|v| v.as_str());
+    if underlined && style == Some("double") {
+        obj.insert("underline".into(), json!(false));
+        obj.remove("underlineStyle");
+    } else {
+        obj.insert("underline".into(), json!(true));
+        obj.insert("underlineStyle".into(), json!("double"));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
 /// Patch run properties on a paragraph run (TS `setRunFormatting`).
 pub fn set_run_formatting(
     host: &mut DocxHost,
@@ -227,14 +263,17 @@ pub fn set_run_formatting(
             "fontSize",
             "color",
             "underline",
+            "underlineStyle",
             "strike",
             "highlight",
             "verticalAlign",
             "fontFamily",
         ] {
             if let Some(v) = patch.get(key) {
-                let clear = matches!(key, "highlight" | "verticalAlign" | "fontFamily")
-                    && v.as_str().is_some_and(|s| s.is_empty());
+                let clear = matches!(
+                    key,
+                    "highlight" | "verticalAlign" | "fontFamily" | "underlineStyle"
+                ) && v.as_str().is_some_and(|s| s.is_empty());
                 if clear {
                     obj.remove(key);
                 } else {
@@ -404,5 +443,44 @@ mod tests {
         toggle_first_line_indent(&mut host, 0).unwrap();
         assert!(host.blocks[0].get("firstLineTwips").is_none());
         assert!(host.blocks[0].get("hangingTwips").is_none());
+    }
+
+    #[test]
+    fn catches_double_underline_on_a_single_underlined_run_dropping_the_style() {
+        // Catches: double underline on a run that is already underlined leaving underlineStyle unset, so save keeps w:u val="single".
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi", "underline": true }],
+        })]);
+        toggle_double_underline(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["underline"], true);
+        assert_eq!(host.blocks[0]["runs"][0]["underlineStyle"], "double");
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_double_underline(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["underline"], false);
+        assert!(host.blocks[0]["runs"][0].get("underlineStyle").is_none());
+    }
+
+    #[test]
+    fn catches_clearing_underline_leaving_a_double_style() {
+        // Catches: turning underline off while underlineStyle stays "double", so the next underline writes w:u val="double".
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi", "underline": true, "underlineStyle": "double" }],
+        })]);
+        let mut off = serde_json::Map::new();
+        off.insert("underline".into(), json!(false));
+        off.insert("underlineStyle".into(), json!(""));
+        set_run_formatting(&mut host, 0, 0, &off).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["underline"], false);
+        assert!(host.blocks[0]["runs"][0].get("underlineStyle").is_none());
+        let mut on = serde_json::Map::new();
+        on.insert("underline".into(), json!(true));
+        on.insert("underlineStyle".into(), json!(""));
+        set_run_formatting(&mut host, 0, 0, &on).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["underline"], true);
+        assert!(host.blocks[0]["runs"][0].get("underlineStyle").is_none());
     }
 }

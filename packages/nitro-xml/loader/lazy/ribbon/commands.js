@@ -5,9 +5,9 @@
 // borders and grow/shrink are deliberately absent. Cut, paste, and group rewrite the package;
 // copy only fills the editor clipboard.
 // Indent, right indent, line spacing, paragraph space before and after, hanging indent,
-// first-line indent, script, font name, Word bullets, insert shape, duplicate, delete, z-order
-// (one step and all the way), shape fill, outline, and slide layout are listed only after they
-// change the saved package.
+// first-line indent, double underline, script, font name, Word bullets, insert shape, duplicate,
+// delete, z-order (one step and all the way), shape fill, outline, and slide layout are listed
+// only after they change the saved package.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
 //   c editor cmd id · d diagnostics toggle · s slide-pane toggle (host) · m dropdown entries · r readout
 //   g group caption · big: large buttons · rows: stacked small buttons · sm: small button style
@@ -101,7 +101,11 @@ const FONT = {
 const wordFont = {
   g: "Font",
   rows: [
-    [...FONT.rows[0], it("home.highlight", "highlight", "Highlight", "Text highlight")],
+    [
+      ...FONT.rows[0],
+      it("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
+      it("home.highlight", "highlight", "Highlight", "Text highlight"),
+    ],
     FONT.rows[1],
     FONT.rows[2],
     [

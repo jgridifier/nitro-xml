@@ -122,6 +122,7 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
         "bold",
         "italic",
         "underline",
+        "underlineStyle",
         "fontSize",
         "color",
         "strike",
@@ -147,20 +148,27 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
     if run_property_changed(run, base, "italic") {
         set_toggle(props, "i", run.get("italic").and_then(|v| v.as_bool()));
     }
-    if run_property_changed(run, base, "underline") {
+    if run_property_changed(run, base, "underline")
+        || run_property_changed(run, base, "underlineStyle")
+    {
         remove_w_children(props, "u");
-        if run.get("underline").and_then(|v| v.as_bool()) == Some(false) {
-            let mut u = make_w("u");
-            set_w_attr(&mut u, "val", "none");
-            props.children.push(Node::Element(u));
-        } else if run.get("underline").and_then(|v| v.as_bool()) == Some(true) {
-            let mut u = make_w("u");
-            let style = run
-                .get("underlineStyle")
-                .and_then(|v| v.as_str())
-                .unwrap_or("single");
-            set_w_attr(&mut u, "val", style);
-            props.children.push(Node::Element(u));
+        match run.get("underline").and_then(|v| v.as_bool()) {
+            Some(false) => {
+                let mut u = make_w("u");
+                set_w_attr(&mut u, "val", "none");
+                props.children.push(Node::Element(u));
+            }
+            Some(true) => {
+                let mut u = make_w("u");
+                let style = run
+                    .get("underlineStyle")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or("single");
+                set_w_attr(&mut u, "val", style);
+                props.children.push(Node::Element(u));
+            }
+            None => {}
         }
     }
     if run_property_changed(run, base, "fontSize") {
@@ -280,4 +288,35 @@ fn set_toggle(props: &mut Element, local: &str, value: Option<bool>) {
         set_w_attr(&mut el, "val", "0");
     }
     props.children.push(Node::Element(el));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::create_run;
+    use nitro_xml_opc::xml::Node;
+    use serde_json::json;
+
+    fn underline_val(el: &nitro_xml_opc::xml::Element) -> Option<&str> {
+        let props = el.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "rPr" => Some(e),
+            _ => None,
+        })?;
+        let u = props.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "u" => Some(e),
+            _ => None,
+        })?;
+        u.attrs
+            .iter()
+            .find(|a| a.local == "val")
+            .map(|a| a.value.as_str())
+    }
+
+    #[test]
+    fn catches_double_underline_on_a_single_underlined_run_writing_val_single() {
+        // Catches: a run that stays underlined but gains underlineStyle "double" still saving w:u val="single".
+        let base = json!({"text": "Hi", "underline": true});
+        let run = json!({"text": "Hi", "underline": true, "underlineStyle": "double"});
+        let el = create_run(&run, Some(&base), None);
+        assert_eq!(underline_val(&el), Some("double"));
+    }
 }

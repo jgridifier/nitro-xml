@@ -51,6 +51,9 @@ describe("paint-frame measure ordering", () => {
       t: true,
     };
     await paintFrame(doc, frame);
-    assert.deepEqual(seq, ["apply", "await-measure-acked"]);
+    // Apply must win the race with measure; measure refine is async after return.
+    assert.equal(seq[0], "apply");
+    await new Promise((r) => setTimeout(r, 0));
+    assert.ok(seq.includes("await-measure-acked"));
   });
 });

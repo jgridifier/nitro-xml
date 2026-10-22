@@ -36,8 +36,6 @@ this._strings = null;
 this._measureCount = 0;
 this._outlineCount = 0;
 this._t = true;
-this._eP = Promise.resolve();
-this._eR = null;
 }
 get measureCount() {
 return this._measureCount | 0;
@@ -144,8 +142,6 @@ this._worker.terminate();
 this._pending.clear();
 this._worker = this._newWorker(false);
 this._wireWorker();
-this._eP = Promise.resolve();
-this._eR = null;
 }
 async _openBytes(buffer, name, opts = {}) {
 const n = name || this._name;
@@ -162,14 +158,6 @@ this._worker.postMessage(
 );
 });
 this._t = opened.t !== false;
-if (readonly) {
-this._eP = Promise.resolve();
-this._eR = null;
-} else {
-this._eP = new Promise((r) => {
-this._eR = r;
-});
-}
 return opened;
 }
 async loadEditorChrome() {
@@ -301,13 +289,6 @@ return this._measureCanvas.getContext("2d");
 }
 _onMessage(msg) {
 if (!msg || !msg.type) return;
-if (msg.type === "er") {
-if (this._eR) {
-this._eR();
-this._eR = null;
-}
-return;
-}
 if (msg.type === "error") {
 for (const [, p] of this._pending) {
 p.reject(Object.assign(new Error(msg.message), { code: msg.code }));

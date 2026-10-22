@@ -97,9 +97,14 @@ const fs = require("fs");
 const path = require("path");
 const outDir = process.argv[2];
 const rows = [];
+const readiness = [];
 for (const fmt of ["xlsx", "docx", "pptx"]) {
   const openPath = path.join(outDir, `${fmt}-ts-vs-wasm.json`);
   const memPath = path.join(outDir, `${fmt}-peak-mem.json`);
+  const readyPath = path.join(outDir, fmt, "enforce-readiness.json");
+  if (fs.existsSync(readyPath)) {
+    readiness.push(JSON.parse(fs.readFileSync(readyPath, "utf8")));
+  }
   if (fs.existsSync(openPath)) {
     const open = JSON.parse(fs.readFileSync(openPath, "utf8"));
     for (const r of open.rows || []) {
@@ -144,6 +149,29 @@ if (losses.length) {
     lines.push(`| ${r.format} | ${r.tier} | ${r.metric} | ${ratio} | [${lo}, ${hi}] | **${r.verdict}** |`);
   }
   lines.push("");
+}
+if (readiness.length) {
+  lines.push("### Enforce readiness (per format)");
+  lines.push("");
+  lines.push("| Format | Ready? | Wins | Blockers |");
+  lines.push("|---|---|---:|---|");
+  for (const r of readiness) {
+    const blockers = (r.blockers || []).length
+      ? r.blockers.join("; ")
+      : "—";
+    lines.push(
+      `| ${r.format} | ${r.enforceReady ? "**READY**" : "NOT READY"} | ${r.wins}/${r.total} | ${blockers} |`,
+    );
+  }
+  lines.push("");
+  lines.push(
+    "Jared: flip `PERF_GATE_MODE=enforce` only for formats marked READY (bar unchanged). Agents do not edit workflows or branch protection.",
+  );
+  lines.push("");
+  fs.writeFileSync(
+    path.join(outDir, "enforce-readiness.json"),
+    JSON.stringify({ schema: 1, formats: readiness }, null, 2) + "\n",
+  );
 }
 lines.push(
   "TODO(#8): perf-data branch append, regression-vs-main thresholds, 4× CPU, XL, scroll/view-query, browser first-paint (fetch/compile/instantiate).",

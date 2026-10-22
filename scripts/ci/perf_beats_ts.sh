@@ -14,9 +14,10 @@
 # (fresh-process VmHWM). Fixtures generated in-job. XL / 4× CPU / scroll / browser first-paint
 # remain TODO(#8) once the Node open+peak baseline is green.
 #
-# Definition of done for arming: flip PERF_GATE_MODE=enforce (or set it in the workflow env)
-# and ask Jared / Chief of Staff to keep `perf-beats-ts` in branch-protection required checks.
-# Agents never edit .github/workflows/.
+# Definition of done for arming: every cell WIN (see enforce-readiness.json / summary footer),
+# then Jared flips PERF_GATE_MODE=enforce (or sets it in the workflow env) and asks Jared /
+# Chief of Staff to keep `perf-beats-ts` in branch-protection required checks.
+# Agents never edit .github/workflows/. The readiness footer never lowers the bar.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
@@ -139,11 +140,13 @@ node "$ROOT/perf/large/peak-mem.mjs" \
 # --- per-test table + pass/fail ---
 SUMMARY_MD="$OUT_DIR/summary.md"
 FAILS_FILE="$OUT_DIR/fails.txt"
+READINESS_JSON="$OUT_DIR/enforce-readiness.json"
 : > "$FAILS_FILE"
 
-node - "$OPEN_JSON" "$MEM_JSON" "$SUMMARY_MD" "$FAILS_FILE" "$fmt" "$MODE" "$arm_issue" <<'JS'
+node - "$OPEN_JSON" "$MEM_JSON" "$SUMMARY_MD" "$FAILS_FILE" "$READINESS_JSON" "$fmt" "$MODE" "$arm_issue" <<'JS'
 const fs = require("fs");
-const [openPath, memPath, outMd, failsPath, fmt, mode, armIssue] = process.argv.slice(2);
+const [openPath, memPath, outMd, failsPath, readinessPath, fmt, mode, armIssue] =
+  process.argv.slice(2);
 const open = JSON.parse(fs.readFileSync(openPath, "utf8"));
 const mem = JSON.parse(fs.readFileSync(memPath, "utf8"));
 
@@ -153,6 +156,8 @@ function fmtN(n, d = 3) {
 }
 
 const fails = [];
+const openFails = [];
+const peakFails = [];
 const lines = [];
 lines.push(`## WASM-beats-TS — \`${fmt}\` (**${mode.toUpperCase()} MODE**)`);
 lines.push("");
@@ -183,7 +188,11 @@ for (const r of open.rows || []) {
   lines.push(
     `| ${r.format} | ${r.tier} | openDocument (ms) | ${fmtN(r.ts_ms_median, 2)} | ${fmtN(r.wasm_ms_median, 2)} | ${fmtN(r.wasm_over_ts_median)} | [${fmtN(ci.lo)}, ${fmtN(ci.hi)}] | **${v}** |`,
   );
-  if (v !== "WIN") fails.push(`${r.format} ${r.tier} openDocument ${v}`);
+  if (v !== "WIN") {
+    const label = `${r.format} ${r.tier} openDocument ${v}`;
+    fails.push(label);
+    openFails.push(label);
+  }
 }
 
 for (const r of mem.rows || []) {
@@ -192,11 +201,16 @@ for (const r of mem.rows || []) {
   lines.push(
     `| ${r.format} | ${r.tier} | peak mem (MiB) | ${fmtN(r.ts.mem, 1)} | ${fmtN(r.wasm.mem, 1)} | ${fmtN(r.wasm_over_ts_mem)} | [${fmtN(ci.lo)}, ${fmtN(ci.hi)}] | **${v}** |`,
   );
-  if (v !== "WIN") fails.push(`${r.format} ${r.tier} peak_mem ${v}`);
+  if (v !== "WIN") {
+    const label = `${r.format} ${r.tier} peak_mem ${v}`;
+    fails.push(label);
+    peakFails.push(label);
+  }
 }
 
 const wins = (open.rows || []).length + (mem.rows || []).length - fails.length;
 const total = (open.rows || []).length + (mem.rows || []).length;
+const enforceReady = fails.length === 0;
 lines.push("");
 lines.push(
   `**Result:** ${wins}/${total} WIN · ${fails.length} LOSS/TIE · mode=\`${mode}\``,
@@ -207,12 +221,50 @@ if (fails.length) {
   for (const f of fails) lines.push(`- ${f}`);
 }
 lines.push("");
+lines.push("### Enforce readiness");
+lines.push("");
+if (enforceReady) {
+  lines.push(
+    `**READY** — all ${total} cells WIN. Jared may set \`PERF_GATE_MODE=enforce\` for this format (see ${armIssue} / #8) and keep \`perf-beats-ts\` in branch-protection required checks. Agents do not edit workflows or branch protection.`,
+  );
+} else {
+  lines.push(
+    `**NOT READY** — flipping \`PERF_GATE_MODE=enforce\` would fail this job. Bar unchanged (no thresholds lowered).`,
+  );
+  if (openFails.length === 0) {
+    lines.push(
+      `- openDocument: all WIN (time gate clear for this format)`,
+    );
+  } else {
+    lines.push(`- openDocument blockers: ${openFails.join("; ")}`);
+  }
+  if (peakFails.length) {
+    lines.push(
+      `- peak_mem blockers: ${peakFails.join("; ")} (xlsx/docx S often wasm compile floor — see \`docs/M1-REPORT.md\` §5.4)`,
+    );
+  }
+}
+lines.push("");
 lines.push(
   `Method: open = \`perf/large/ts-vs-wasm.mjs\` (Handle.openDocument vs upstream load*); peak mem = \`perf/large/peak-mem.mjs\` (VmHWM growth, fresh process). Ratio = median(wasm)/median(ts); 95% CI unpaired bootstrap.`,
 );
 
+const readiness = {
+  format: fmt,
+  mode,
+  armIssue,
+  enforceReady,
+  wins,
+  total,
+  losses: fails.length,
+  openDocumentBlockers: openFails,
+  peakMemBlockers: peakFails,
+  blockers: fails,
+};
+
 fs.writeFileSync(outMd, lines.join("\n") + "\n");
 fs.writeFileSync(failsPath, fails.join("\n") + (fails.length ? "\n" : ""));
+fs.writeFileSync(readinessPath, JSON.stringify(readiness, null, 2) + "\n");
 process.stdout.write(lines.join("\n") + "\n");
 JS
 
@@ -223,13 +275,14 @@ fi
 fail_count=$(wc -l < "$FAILS_FILE" | tr -d ' ')
 if [ "${fail_count:-0}" -gt 0 ]; then
   echo "perf_beats_ts.sh: ${fail_count} LOSS/TIE (see table above)" >&2
+  echo "perf_beats_ts.sh: enforce readiness NOT READY ($READINESS_JSON)" >&2
   if [ "$MODE" = "enforce" ]; then
     echo "perf_beats_ts.sh: ENFORCE MODE — failing job" >&2
     exit 1
   fi
-  echo "perf_beats_ts.sh: REPORT MODE — exiting 0; flip PERF_GATE_MODE=enforce to arm" >&2
+  echo "perf_beats_ts.sh: REPORT MODE — exiting 0; do not flip PERF_GATE_MODE=enforce until readiness is READY" >&2
   exit 0
 fi
 
-echo "perf_beats_ts.sh: all cells WIN (mode=$MODE)"
+echo "perf_beats_ts.sh: all cells WIN (mode=$MODE) — enforce readiness READY ($READINESS_JSON)"
 exit 0

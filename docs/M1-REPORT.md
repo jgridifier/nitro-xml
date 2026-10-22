@@ -410,6 +410,26 @@ Remaining LOSSes are the wasm compile floor on small TS footprints (see
 `docs/perf-rust-hotpaths.md`). Peak-mem work continues on another stream — this slice does
 not touch `rs/crates/nitro-xml-wasm/Cargo.toml` wasm-opt flags.
 
+#### Tip enforce-readiness refresh (`efd9315`, 2026-10-22)
+
+`PERF_GATE_MODE=report bash scripts/ci/perf_beats_ts.sh <fmt>` on tip **`efd9315`**
+(open warmup=8 / runs=21; peak runs=7). Bar unchanged. Each format now writes
+`enforce-readiness.json` + a summary footer (`scripts/ci/perf_beats_ts.sh`);
+`perf.sh` rollup aggregates READY / NOT READY. **Does not** flip enforce (Jared / #8).
+
+| Format | openDocument S/M/L | peak_mem S/M/L | Enforce ready? | Blockers |
+|--------|--------------------|----------------|:--------------:|----------|
+| **pptx** | WIN / WIN / WIN | WIN / WIN / WIN | **READY** (6/6) | — |
+| **xlsx** | WIN / WIN / WIN | **LOSS** / WIN / WIN | NOT READY (5/6) | xlsx S peak_mem (~2.91× [2.74, 3.03]; compile floor) |
+| **docx** | WIN / WIN / WIN | **LOSS** / **LOSS** / WIN | NOT READY (4/6) | docx S/M peak_mem; arm deferred under **#23** |
+
+Tip openDocument WASM/TS (median [95% CI]): xlsx S **0.302** [0.285, 0.351]; pptx S **0.034**
+[0.032, 0.037]; docx S **0.221** [0.183, 0.247].
+
+**Ask Jared:** set `PERF_GATE_MODE=enforce` on the **pptx** `perf-beats-ts` matrix job only
+(READY); keep xlsx/docx in report until peak_mem policy or further cuts. Agents do not edit
+`.github/workflows/` or branch protection.
+
 Merged on `main` ahead of this refresh: [#333](https://github.com/jgridifier/nitro-xml/pull/333),
 [#349](https://github.com/jgridifier/nitro-xml/pull/349), [#351](https://github.com/jgridifier/nitro-xml/pull/351),
 [#352](https://github.com/jgridifier/nitro-xml/pull/352), [#356](https://github.com/jgridifier/nitro-xml/pull/356),
@@ -593,7 +613,7 @@ Published `parse-latest.json` is real measured tip data (Nitro **entered**); fir
 
 | Item | Issue / PR | Notes |
 |------|------------|-------|
-| Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Scripts live in **report** mode (§5.4 / #342). Jared: `PERF_GATE_MODE=enforce` when reds are fixed |
+| Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Tip `efd9315`: **pptx READY** (6/6); xlsx blocked by S peak_mem; docx by S/M peak_mem. Readiness JSON/footer in `perf_beats_ts.sh`. Jared: enforce pptx when ready; do not lower peak_mem bar |
 | xlsx S peak_mem LOSS | compile floor (measured) | Cold ~16–17 MiB / warm-second already beats TS alloc. Draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) pre-warm cut **closed**. [#332](https://github.com/jgridifier/nitro-xml/pull/332) `-O1` **closed** (open/edit regress vs main) |
 | Docx peak_mem LOSSes | [#359](https://github.com/jgridifier/nitro-xml/pull/359) merged; outline slice 10 | Format-split landed. Drawing non-picture outline + notes `take_text` cuts docx M WASM peak (~15.4→14.7 MiB, CI WIN vs prior tip); S/M still **LOSS vs TS** (compile floor) |
 | xlsx S openDocument | done (clear WIN) | [#360](https://github.com/jgridifier/nitro-xml/pull/360); CI upper ≪ 1 |
@@ -615,7 +635,7 @@ Published `parse-latest.json` is real measured tip data (Nitro **entered**); fir
 - [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped; post-#352 matrix **14/18 WIN**
 - [x] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; published `parse-latest.json` Nitro **entered**, tip **90W/0L** (method 2+7); first-paint **8W/0L** S–XL; CI `scoreboard` job / draft **#113** still open (not required for Pages data)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
-- [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27**; docx **#23** deferred
+- [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27**; tip readiness: **pptx READY**, xlsx/docx NOT READY (peak_mem); docx arm **#23** deferred; Jared flips workflow env (agents do not)
 
 ---
 

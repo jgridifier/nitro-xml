@@ -1823,8 +1823,8 @@ mod tests {
         let strip = h.pptx.as_ref().unwrap().ribbon_html();
         assert!(strip.contains("data-g=\"home.bring-to-front\""));
         assert!(strip.contains("data-g=\"home.send-to-back\""));
-        assert!(!strip.contains("home.group"));
-        assert!(!strip.contains("home.ungroup"));
+        assert!(strip.contains("data-g=\"home.group\""));
+        assert!(strip.contains("data-g=\"home.ungroup\""));
         let home = h
             .pptx
             .as_ref()
@@ -1835,7 +1835,80 @@ mod tests {
             .ribbon_html();
         assert!(home.contains("data-command=\"home.bring-to-front\""));
         assert!(home.contains("data-command=\"home.send-to-back\""));
-        assert!(!home.contains("data-command=\"home.group\""));
+        assert!(home.contains("data-command=\"home.group\""));
+        assert!(home.contains("data-command=\"home.ungroup\""));
+    }
+
+    #[test]
+    fn catches_group_dropping_shapes_or_undoing_with_ungroup() {
+        // Catches: Group saving no p:grpSp, or one undo rolling group and ungroup back together.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.shell_action("cmd", "insert.shape").expect("shape");
+        let with_shape = h.save_document().expect("save shape");
+        let ids = {
+            let edit = h.pptx.as_ref().unwrap().edit.as_ref().unwrap();
+            edit.session.host.slides[0]
+                .elements
+                .iter()
+                .take(2)
+                .map(|el| el.id.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(ids.len(), 2, "group needs two shapes");
+        h.pptx.as_mut().unwrap().selected_ids = ids;
+        h.shell_action("cmd", "home.group").expect("group");
+        let grouped = h.save_document().expect("save group");
+        assert_ne!(grouped, with_shape);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&grouped).expect("reopen group");
+        assert_eq!(
+            again.session.host.slides[0]
+                .elements
+                .iter()
+                .filter(|el| el.type_ == "group")
+                .count(),
+            1,
+            "group did not survive save"
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo group");
+        assert_eq!(h.save_document().expect("group undone"), with_shape);
+        h.shell_action("cmd", "edit.undo").expect("undo shape");
+        assert_eq!(h.save_document().expect("shape undone"), PPTX);
+
+        h.shell_action("cmd", "insert.shape").expect("shape again");
+        let with_shape = h.save_document().expect("save shape again");
+        h.pptx.as_mut().unwrap().selected_ids = {
+            let edit = h.pptx.as_ref().unwrap().edit.as_ref().unwrap();
+            edit.session.host.slides[0]
+                .elements
+                .iter()
+                .take(2)
+                .map(|el| el.id.clone())
+                .collect()
+        };
+        h.shell_action("cmd", "home.group").expect("group again");
+        let grouped = h.save_document().expect("save group again");
+        h.shell_action("cmd", "home.ungroup").expect("ungroup");
+        let flat = h.save_document().expect("save ungroup");
+        let flat_host = nitro_xml_pptx::editor::PptxEditor::open(&flat).expect("reopen flat");
+        assert!(
+            flat_host.session.host.slides[0]
+                .elements
+                .iter()
+                .all(|el| el.type_ != "group"),
+            "ungroup left a group"
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo ungroup");
+        assert_eq!(h.save_document().expect("ungroup undone"), grouped);
+        h.shell_action("cmd", "edit.undo").expect("undo group");
+        assert_eq!(h.save_document().expect("group undone"), with_shape);
+
+        let strip = h.pptx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.group\""));
+        assert!(strip.contains("data-g=\"home.ungroup\""));
+        let word = open_editable(DOCX, "pages.docx");
+        let word_strip = word.docx.as_ref().unwrap().ribbon_html();
+        assert!(!word_strip.contains("home.group"));
+        assert!(!word_strip.contains("home.ungroup"));
     }
 
     fn apply_cmd(h: &mut Handle, cmd: &'static str) {
@@ -1886,11 +1959,8 @@ mod tests {
         {
             let edit = h.pptx.as_mut().unwrap().edit.as_mut().unwrap();
             let home = edit.ribbon_html();
-            assert!(
-                !home.contains("data-command=\"home.group\""),
-                "group is shown even though save skips a grouped shape"
-            );
-            assert!(!home.contains("data-command=\"home.ungroup\""));
+            assert!(home.contains("data-command=\"home.group\""));
+            assert!(home.contains("data-command=\"home.ungroup\""));
             edit.set_active_tab("insert");
             let insert = edit.ribbon_html();
             for id in [
@@ -1927,8 +1997,8 @@ mod tests {
                 "wasm strip dropped {id}"
             );
         }
-        assert!(!strip.contains("home.group"));
-        assert!(!strip.contains("home.ungroup"));
+        assert!(strip.contains("data-g=\"home.group\""));
+        assert!(strip.contains("data-g=\"home.ungroup\""));
 
         let mut h = open_editable(PPTX, "slides.pptx");
         let first = h.pptx.as_ref().unwrap().pres.slide_count();

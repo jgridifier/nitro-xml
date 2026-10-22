@@ -40,4 +40,6 @@ export const ICONS = {
   spaceBefore: '<path d="M4 5h16M6 11h12M6 15h12M6 19h12"/>',
   spaceAfter: '<path d="M6 5h12M6 9h12M6 13h12M4 19h16"/>',
   firstLine: '<path d="M8 6h12M4 11h16M4 15h16M4 19h16"/>',
+  group: '<rect x="3" y="8" width="8" height="8"/><rect x="13" y="8" width="8" height="8"/><path d="M3 5h18M3 19h18"/>',
+  ungroup: '<rect x="2" y="8" width="7" height="7"/><rect x="15" y="8" width="7" height="7"/><path d="M10 5v14"/>',
 };

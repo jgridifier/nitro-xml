@@ -170,6 +170,8 @@ export const MANIFEST = {
           cmd("home.send-backward", "back", "Send backward"),
           cmd("home.bring-to-front", "front", "Bring to front"),
           cmd("home.send-to-back", "toBack", "Send to back"),
+          cmd("home.group", "group", "Group", "Group the selected shapes"),
+          cmd("home.ungroup", "ungroup", "Ungroup", "Ungroup the selected shapes"),
         ],
       },
       {

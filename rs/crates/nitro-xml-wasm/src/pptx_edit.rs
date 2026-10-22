@@ -499,6 +499,16 @@ impl PptxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.group",
+                    label: "Group",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.ungroup",
+                    label: "Ungroup",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "insert.table",
                     label: "Table",
                     enabled: true,

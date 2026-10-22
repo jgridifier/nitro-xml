@@ -487,17 +487,38 @@ impl PptxCommandSurface {
                     "elementIds": selection.element_ids,
                     "groupId": group_id,
                 });
-                self.run_shape_op("groupShapes", &op_args, session)
+                let result = self.run_shape_op("groupShapes", &op_args, session);
+                if result.is_ok() {
+                    selection.select(std::iter::once(group_id.to_string()));
+                }
+                result
             }
             "home.ungroup" => {
                 let group_id = selection.primary_id().ok_or_else(|| EditError::Other {
                     message: "home.ungroup needs a selected group".into(),
                 })?;
+                let child_ids: Vec<String> = session
+                    .host
+                    .slide(selection.slide_index)
+                    .ok()
+                    .and_then(|slide| slide.elements.iter().find(|el| el.id == group_id))
+                    .map(|group| {
+                        group
+                            .children
+                            .iter()
+                            .map(|child| child.id.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
                 let op_args = json!({
                     "slideIndex": selection.slide_index,
                     "groupId": group_id,
                 });
-                self.run_shape_op("ungroupShapes", &op_args, session)
+                let result = self.run_shape_op("ungroupShapes", &op_args, session);
+                if result.is_ok() && !child_ids.is_empty() {
+                    selection.select(child_ids);
+                }
+                result
             }
             "insert.shape" => {
                 let shape_type = args

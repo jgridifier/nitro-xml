@@ -17,6 +17,7 @@ export const ICONS = {
   underline: '<path d="M7 4v7a5 5 0 0 0 10 0V4M5 21h14"/>',
   doubleUnderline: '<path d="M7 3v6a5 5 0 0 0 10 0V3M5 18h14M5 21h14"/>',
   caps: '<path d="M7 19L12 6l5 13M9 14h6"/>',
+  hidden: '<path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6zM5 5l14 14"/>',
   expandSpacing: '<path d="M8 6v12M16 6v12M4 12h3M17 12h3M5 10L3 12l2 2M19 10l2 2-2 2"/>',
   condenseSpacing: '<path d="M8 6v12M16 6v12M3 12h3M18 12h3M6 10l2 2-2 2M18 10l-2 2 2 2"/>',
   scaleUp: '<path d="M9 8h6v8H9zM4 12H2M6 10L4 12l2 2M20 12h2M18 10l2 2-2 2"/>',

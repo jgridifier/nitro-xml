@@ -7,6 +7,7 @@
 // Cut, paste, and group rewrite the package; copy only fills the editor clipboard.
 // Grow and shrink font, character spacing, character scale, indent, right indent, line spacing,
 // paragraph space before and after, hanging indent, first-line indent, double underline, all caps,
+// hidden text,
 // script, font name, Word bullets, insert shape, duplicate,
 // delete, z-order (one step and all the way), shape fill, outline, and slide layout are listed
 // only after they change the saved package.
@@ -109,6 +110,7 @@ const wordFont = {
       ...FONT.rows[0],
       it("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
       it("home.caps", "caps", "All caps", "All caps"),
+      it("home.hidden", "hidden", "Hidden", "Hidden text"),
       it("home.expand-spacing", "expandSpacing", "Expand", "Expand character spacing"),
       it("home.condense-spacing", "condenseSpacing", "Condense", "Condense character spacing"),
       it("home.scale-up", "scaleUp", "Scale up", "Increase character scale"),

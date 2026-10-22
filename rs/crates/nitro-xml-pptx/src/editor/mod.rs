@@ -90,6 +90,28 @@ impl PptxEditor {
         self.selection.select(ids);
     }
 
+    /// One history step: insert `snapshot` on the active slide and select it.
+    pub fn paste_clipboard_shape(
+        &mut self,
+        snapshot: &crate::edit::host::EditableElement,
+    ) -> Result<(), EditError> {
+        if self.read_only {
+            return Err(EditError::unsupported("home.paste"));
+        }
+        let slide = self.selection.slide_index;
+        let (id, _) = self.session.run(
+            "home.paste",
+            ChangeKind::Structure,
+            vec![EditScope::Workbook],
+            |host| {
+                host.paste_shape(slide, snapshot)
+                    .map_err(|message| EditError::Other { message })
+            },
+        )?;
+        self.selection.select(std::iter::once(id));
+        Ok(())
+    }
+
     pub fn ribbon_html(&self) -> String {
         format!(
             "{}{}",

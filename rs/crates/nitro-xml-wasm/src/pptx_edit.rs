@@ -135,6 +135,7 @@ impl PptxState {
         let (slide, element_id, text) = self.shape_plain_target()?;
         match id {
             "home.copy" => {
+                self.remember_shape();
                 self.text_clip = text.clone();
                 Ok(OfficeEffect::Clipboard {
                     text,
@@ -156,6 +157,15 @@ impl PptxState {
                 })
             }
             "home.paste" => {
+                if let Some(snapshot) = self.shape_clip.clone() {
+                    let edit = self
+                        .edit
+                        .as_mut()
+                        .ok_or_else(|| "no edit session".to_string())?;
+                    edit.paste_clipboard_shape(&snapshot)
+                        .map_err(|e| e.to_string())?;
+                    return Ok(OfficeEffect::Applied);
+                }
                 let clip = self.text_clip.clone();
                 if clip.is_empty() {
                     return Ok(OfficeEffect::Clipboard {
@@ -192,6 +202,24 @@ impl PptxState {
             .map(shape_plain)
             .unwrap_or_default();
         Ok((slide, id, text))
+    }
+
+    fn remember_shape(&mut self) {
+        let snap = self.edit.as_ref().and_then(|edit| {
+            let id = edit.selection.primary_id()?.to_owned();
+            let slide = edit.selection.slide_index;
+            edit.session
+                .host
+                .slide(slide)
+                .ok()?
+                .elements
+                .iter()
+                .find(|el| el.id == id)
+                .cloned()
+        });
+        if snap.is_some() {
+            self.shape_clip = snap;
+        }
     }
 
     fn set_shape_text(&mut self, slide: u32, id: &str, text: &str) -> Result<(), String> {
@@ -248,6 +276,7 @@ impl PptxState {
         let scale = self.scale;
         let edit = self.edit.take();
         let clip = self.text_clip.clone();
+        let shape_clip = self.shape_clip.clone();
         let opened = Self::open(std::sync::Arc::<[u8]>::from(bytes));
         let mut next = match opened {
             Ok(state) => state,
@@ -258,6 +287,7 @@ impl PptxState {
         };
         next.edit = edit;
         next.text_clip = clip;
+        next.shape_clip = shape_clip;
         next.viewport_w = vw;
         next.viewport_h = vh;
         next.scale = scale;

@@ -554,6 +554,58 @@ mod tests {
     }
 
     #[test]
+    fn catches_pasted_shape_overwriting_the_original() {
+        // Catches: Paste of a shape appending its text, or moving the original onto the copy.
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        let original = host.slides[0].elements[0].clone();
+        let text = original.text.clone().unwrap_or_else(|| {
+            original
+                .text_segments
+                .iter()
+                .map(|seg| seg.text.clone())
+                .collect()
+        });
+        assert!(!text.is_empty(), "fixture shape has no text");
+        let before = host.slides[0].elements.len();
+        host.paste_shape(0, &original).expect("paste");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save");
+        let again = PptxHost::open(&saved).expect("reopen");
+        assert_eq!(again.slides[0].elements.len(), before + 1);
+        let label = |el: &crate::edit::host::EditableElement| {
+            el.text.clone().unwrap_or_else(|| {
+                el.text_segments
+                    .iter()
+                    .map(|seg| seg.text.clone())
+                    .collect()
+            })
+        };
+        let kept = again.slides[0].elements.iter().any(|el| {
+            label(el).contains(&text)
+                && (el.x - original.x).abs() < 1.0
+                && (el.y - original.y).abs() < 1.0
+        });
+        assert!(kept, "paste moved the original shape");
+        let copied = again.slides[0].elements.iter().any(|el| {
+            label(el).contains(&text)
+                && (el.x - (original.x + 20.0)).abs() < 1.0
+                && (el.y - (original.y + 20.0)).abs() < 1.0
+        });
+        assert!(
+            copied,
+            "paste did not insert the shape 20 px down and right from {},{} text {:?}: {:?}",
+            original.x,
+            original.y,
+            text,
+            again.slides[0]
+                .elements
+                .iter()
+                .map(|el| (el.type_.clone(), el.x, el.y, label(el)))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
     fn catches_inserted_picture_missing_from_slide_and_media() {
         // Catches: a picture save that omits p:pic or the PNG part, so reopen has no picture.
         use crate::edit::picture::INSERTED_PNG;

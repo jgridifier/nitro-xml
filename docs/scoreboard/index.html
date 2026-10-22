@@ -13,7 +13,7 @@ details{margin:8px 0}
 </style></head><body>
 <header><h1>Nitro XML scoreboard</h1><div><a href="../">Plan</a> · <a href="https://github.com/jgridifier/nitro-xml/blob/main/docs/scoreboard-method.md">Method</a> · <a href="data/parse-latest.json">Raw data</a></div></header>
 <main>
-<p class="note">Races: <b>parse</b> (live below), <b>render to first paint</b> and <b>open, edit, save</b> (not run yet: they need Nitro XML's viewer and editor, #70/#71). Nitro XML adapters are <b>entered</b> in the parse race (#299/#329); published <code>parse-latest.json</code> on this page still waits on #113. Lower is faster. Ratios are versus the upstream ooxml TypeScript engine (the reference) as a geometric mean over the files both parsed with equal output.</p>
+<p class="note">Races: <b>parse</b> (live below), <b>render to first paint</b> (see <a href="data/first-paint-latest.json">first-paint-latest.json</a>), and <b>open, edit, save</b> (not run yet: needs the editor). Nitro XML is <b>entered</b> in the parse race (#299/#329/#388/#384); <code>parse-latest.json</code> below is a real measured tip run (method knobs: 2 warm-up + 7 timed). The CI <code>scoreboard</code> job / reproducible gate remains draft <a href="https://github.com/jgridifier/nitro-xml/pull/113">#113</a>. Lower is faster. Ratios are versus the upstream ooxml TypeScript engine (the reference) as a geometric mean over the files both parsed with equal output.</p>
 <div id="meta" class="muted">Loading…</div>
 <div id="out"></div>
 <script type="module">

@@ -11,7 +11,8 @@ use serde_json::{json, Value};
 use crate::edit::drawing::append_inline_picture;
 use crate::edit::format::{
     adjust_left_indent, cycle_line_spacing, set_paragraph_align, set_paragraph_style,
-    set_run_formatting, toggle_hanging_indent, toggle_paragraph_space, INDENT_STEP_TWIPS,
+    set_run_formatting, toggle_first_line_indent, toggle_hanging_indent, toggle_paragraph_space,
+    INDENT_STEP_TWIPS,
 };
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
@@ -63,6 +64,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("space-before", "Space Before", None, true),
     word_cmd!("space-after", "Space After", None, true),
     word_cmd!("hanging-indent", "Hanging", None, true),
+    word_cmd!("first-line", "First Line", None, true),
     word_cmd!("subscript", "Subscript", None, true),
     word_cmd!("superscript", "Superscript", None, true),
     word_cmd!("font-name", "Font", None, true),
@@ -416,6 +418,19 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         toggle_hanging_indent(h, caret_block)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "first-line" => {
+                session.run(
+                    String::from("first-line"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        toggle_first_line_indent(h, caret_block)?;
                         Ok(())
                     },
                 )?;

@@ -37,4 +37,5 @@ export const ICONS = {
   toBack: '<path d="M4 6h10v8H4z"/><path d="M7 9h10v8H7z"/><path stroke-width="2.2" d="M10 12h10v8H10z"/>',
   spaceBefore: '<path d="M4 5h16M6 11h12M6 15h12M6 19h12"/>',
   spaceAfter: '<path d="M6 5h12M6 9h12M6 13h12M4 19h16"/>',
+  firstLine: '<path d="M8 6h12M4 11h16M4 15h16M4 19h16"/>',
 };

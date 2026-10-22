@@ -222,7 +222,10 @@ impl StyleInternMemo {
     }
 }
 
+/// Per-cell paint. Outlined so V8 does not TurboFan this body into [`paint`]
+/// (xlsx S peak_mem compile floor after #405).
 #[allow(clippy::too_many_arguments)]
+#[inline(never)]
 fn paint_one_cell<I: StringIntern>(
     buf: &mut CommandBuffer,
     intern: &mut I,
@@ -281,87 +284,12 @@ fn paint_one_cell<I: StringIntern>(
         );
     }
 
-    if let Some(bar) = &item.view.data_bar {
-        let bar_id = DATA_BAR_BASE + n as u32;
-        buf.create_element(bar_id, div, cell_id);
-        set_attr_v(buf, intern, bar_id, keys.class, "xg-db");
-        let width = (bar.fraction.clamp(0.0, 1.0) * (item.w as f64 - 4.0)).max(0.0);
-        set_style_v(buf, intern, bar_id, keys.width, &format!("{}px", width));
-        let rtl = bar.direction.as_deref() == Some("rightToLeft");
-        if let Some(start) = bar.start {
-            set_style_v(
-                buf,
-                intern,
-                bar_id,
-                keys.left,
-                &format!("{}px", 2.0 + start * (item.w as f64 - 4.0)),
-            );
-            set_style_v(buf, intern, bar_id, keys.right, "auto");
-        } else if rtl {
-            set_style_v(buf, intern, bar_id, keys.left, "auto");
-            set_style_v(buf, intern, bar_id, keys.right, "2px");
-        } else {
-            set_style_v(buf, intern, bar_id, keys.left, "2px");
-            set_style_v(buf, intern, bar_id, keys.right, "auto");
-        }
-        let bg = if bar.gradient == Some(false) {
-            bar.color.clone()
-        } else {
-            let deg = if rtl { 270 } else { 90 };
-            format!(
-                "linear-gradient({deg}deg, {}, color-mix(in srgb, {} 15%, #fff))",
-                bar.color, bar.color
-            )
-        };
-        set_style_v(buf, intern, bar_id, keys.background, &bg);
-        if let Some(border) = &bar.border_color {
-            set_style_v(
-                buf,
-                intern,
-                bar_id,
-                keys.border,
-                &format!("1px solid {border}"),
-            );
-        } else {
-            set_style_v(buf, intern, bar_id, keys.border, "none");
-        }
-        if let Some((frac, axis_color)) = &bar.axis {
-            let axis_id = DATA_BAR_AXIS_BASE + n as u32;
-            buf.create_element(axis_id, div, cell_id);
-            set_attr_v(buf, intern, axis_id, keys.class, "xg-db-axis");
-            set_style_v(buf, intern, axis_id, keys.position, "absolute");
-            set_style_v(buf, intern, axis_id, keys.top, "1px");
-            set_style_v(buf, intern, axis_id, keys.bottom, "1px");
-            set_style_v(
-                buf,
-                intern,
-                axis_id,
-                keys.left,
-                &format!("{}px", 2.0 + *frac * (item.w as f64 - 4.0)),
-            );
-            set_style_v(
-                buf,
-                intern,
-                axis_id,
-                keys.border_left,
-                &format!("1px dashed {axis_color}"),
-            );
-        }
+    // Cold on cells_1k gate fixture — keep out of the hot TurboFan body.
+    if item.view.data_bar.is_some() {
+        paint_cell_data_bar(buf, intern, keys, div, n, item, cell_id);
     }
-
-    if let Some(icon) = &item.view.icon {
-        let icon_id = ICON_BASE + n as u32;
-        let size = (16.0 * (zoom / 100.0)).round().max(1.0) as u32;
-        // SVG host (createElementNS via loader) + path body — keeps loader SetInnerMarkup
-        // as fragment-only so the JS brotli budget stays ≤17 KB.
-        let svg = keys.svg;
-        buf.create_element(icon_id, svg, cell_id);
-        set_attr_v(buf, intern, icon_id, keys.class, "xg-ic");
-        set_attr_v(buf, intern, icon_id, keys.width, &size.to_string());
-        set_attr_v(buf, intern, icon_id, keys.height, &size.to_string());
-        set_attr_v(buf, intern, icon_id, keys.view_box, "0 0 16 16");
-        set_attr_v(buf, intern, icon_id, keys.aria_hidden, "true");
-        buf.set_inner_markup(icon_id, intern.intern(&icon_body(&icon.set, icon.index)));
+    if item.view.icon.is_some() {
+        paint_cell_icon(buf, intern, keys, n, item, zoom, cell_id);
     }
 
     if !item.text.is_empty() {
@@ -424,31 +352,7 @@ fn paint_one_cell<I: StringIntern>(
         let paint_rich =
             !item.text_custom && item.view.rich.as_ref().is_some_and(|r| !r.is_empty());
         if paint_rich {
-            let runs = item.view.rich.as_ref().unwrap();
-            for (ri, run) in runs.iter().enumerate() {
-                let run_id = TEXT_BASE + 70_000 + (n as u32) * 64 + ri as u32;
-                buf.create_element(run_id, span, span_id);
-                let run_font = font_memo.get_or_compute(&run.font, zoom * item.font_scale);
-                set_style_v(buf, intern, run_id, keys.font, run_font);
-                set_style_v(buf, intern, run_id, keys.color, &run.font.color);
-                set_style_v(
-                    buf,
-                    intern,
-                    run_id,
-                    keys.text_decoration,
-                    text_decoration(&run.font),
-                );
-                if let Some(va) = run.font.vert_align.as_deref() {
-                    let css_va = if va == "super" || va == "superscript" {
-                        "super"
-                    } else {
-                        "sub"
-                    };
-                    set_style_v(buf, intern, run_id, keys.vertical_align, css_va);
-                }
-                let t = intern.intern(&run.text);
-                buf.set_text(run_id, t);
-            }
+            paint_cell_rich_runs(buf, intern, keys, span, n, item, zoom, span_id, font_memo);
         } else {
             if let Some(va) = item.view.font.vert_align.as_deref() {
                 let css_va = if va == "super" || va == "superscript" {
@@ -507,11 +411,191 @@ fn paint_one_cell<I: StringIntern>(
             );
         }
         if let Some(svg) = diagonal_svg(b, item.w, item.h) {
-            let markup = intern.intern(&svg);
-            buf.set_inner_markup(cell_id, markup);
+            paint_cell_diagonal(buf, intern, cell_id, &svg);
         }
     }
 
+    if item.view.has_comment || item.error_mark || stale {
+        paint_cell_marks(buf, intern, keys, div, n, item, stale, cell_id);
+    }
+}
+
+/// CF dataBar chrome — cold on cells_1k (no dataBar rules in the viewport).
+#[inline(never)]
+fn paint_cell_data_bar<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    keys: &PaintKeys,
+    div: u32,
+    n: usize,
+    item: &CellItem,
+    cell_id: u32,
+) {
+    let Some(bar) = &item.view.data_bar else {
+        return;
+    };
+    let bar_id = DATA_BAR_BASE + n as u32;
+    buf.create_element(bar_id, div, cell_id);
+    set_attr_v(buf, intern, bar_id, keys.class, "xg-db");
+    let width = (bar.fraction.clamp(0.0, 1.0) * (item.w as f64 - 4.0)).max(0.0);
+    set_style_v(buf, intern, bar_id, keys.width, &format!("{}px", width));
+    let rtl = bar.direction.as_deref() == Some("rightToLeft");
+    if let Some(start) = bar.start {
+        set_style_v(
+            buf,
+            intern,
+            bar_id,
+            keys.left,
+            &format!("{}px", 2.0 + start * (item.w as f64 - 4.0)),
+        );
+        set_style_v(buf, intern, bar_id, keys.right, "auto");
+    } else if rtl {
+        set_style_v(buf, intern, bar_id, keys.left, "auto");
+        set_style_v(buf, intern, bar_id, keys.right, "2px");
+    } else {
+        set_style_v(buf, intern, bar_id, keys.left, "2px");
+        set_style_v(buf, intern, bar_id, keys.right, "auto");
+    }
+    let bg = if bar.gradient == Some(false) {
+        bar.color.clone()
+    } else {
+        let deg = if rtl { 270 } else { 90 };
+        format!(
+            "linear-gradient({deg}deg, {}, color-mix(in srgb, {} 15%, #fff))",
+            bar.color, bar.color
+        )
+    };
+    set_style_v(buf, intern, bar_id, keys.background, &bg);
+    if let Some(border) = &bar.border_color {
+        set_style_v(
+            buf,
+            intern,
+            bar_id,
+            keys.border,
+            &format!("1px solid {border}"),
+        );
+    } else {
+        set_style_v(buf, intern, bar_id, keys.border, "none");
+    }
+    if let Some((frac, axis_color)) = &bar.axis {
+        let axis_id = DATA_BAR_AXIS_BASE + n as u32;
+        buf.create_element(axis_id, div, cell_id);
+        set_attr_v(buf, intern, axis_id, keys.class, "xg-db-axis");
+        set_style_v(buf, intern, axis_id, keys.position, "absolute");
+        set_style_v(buf, intern, axis_id, keys.top, "1px");
+        set_style_v(buf, intern, axis_id, keys.bottom, "1px");
+        set_style_v(
+            buf,
+            intern,
+            axis_id,
+            keys.left,
+            &format!("{}px", 2.0 + *frac * (item.w as f64 - 4.0)),
+        );
+        set_style_v(
+            buf,
+            intern,
+            axis_id,
+            keys.border_left,
+            &format!("1px dashed {axis_color}"),
+        );
+    }
+}
+
+/// CF iconSet SVG chrome — cold on cells_1k.
+#[inline(never)]
+fn paint_cell_icon<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    keys: &PaintKeys,
+    n: usize,
+    item: &CellItem,
+    zoom: f64,
+    cell_id: u32,
+) {
+    let Some(icon) = &item.view.icon else {
+        return;
+    };
+    let icon_id = ICON_BASE + n as u32;
+    let size = (16.0 * (zoom / 100.0)).round().max(1.0) as u32;
+    // SVG host (createElementNS via loader) + path body — keeps loader SetInnerMarkup
+    // as fragment-only so the JS brotli budget stays ≤17 KB.
+    let svg = keys.svg;
+    buf.create_element(icon_id, svg, cell_id);
+    set_attr_v(buf, intern, icon_id, keys.class, "xg-ic");
+    set_attr_v(buf, intern, icon_id, keys.width, &size.to_string());
+    set_attr_v(buf, intern, icon_id, keys.height, &size.to_string());
+    set_attr_v(buf, intern, icon_id, keys.view_box, "0 0 16 16");
+    set_attr_v(buf, intern, icon_id, keys.aria_hidden, "true");
+    buf.set_inner_markup(icon_id, intern.intern(&icon_body(&icon.set, icon.index)));
+}
+
+/// Rich-run text — cold on cells_1k (plain shared strings).
+#[allow(clippy::too_many_arguments)]
+#[inline(never)]
+fn paint_cell_rich_runs<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    keys: &PaintKeys,
+    span: u32,
+    n: usize,
+    item: &CellItem,
+    zoom: f64,
+    span_id: u32,
+    font_memo: &mut FontCssMemo,
+) {
+    let Some(runs) = item.view.rich.as_ref() else {
+        return;
+    };
+    for (ri, run) in runs.iter().enumerate() {
+        let run_id = TEXT_BASE + 70_000 + (n as u32) * 64 + ri as u32;
+        buf.create_element(run_id, span, span_id);
+        let run_font = font_memo.get_or_compute(&run.font, zoom * item.font_scale);
+        set_style_v(buf, intern, run_id, keys.font, run_font);
+        set_style_v(buf, intern, run_id, keys.color, &run.font.color);
+        set_style_v(
+            buf,
+            intern,
+            run_id,
+            keys.text_decoration,
+            text_decoration(&run.font),
+        );
+        if let Some(va) = run.font.vert_align.as_deref() {
+            let css_va = if va == "super" || va == "superscript" {
+                "super"
+            } else {
+                "sub"
+            };
+            set_style_v(buf, intern, run_id, keys.vertical_align, css_va);
+        }
+        let t = intern.intern(&run.text);
+        buf.set_text(run_id, t);
+    }
+}
+
+#[inline(never)]
+fn paint_cell_diagonal<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    cell_id: u32,
+    svg: &str,
+) {
+    let markup = intern.intern(svg);
+    buf.set_inner_markup(cell_id, markup);
+}
+
+/// Comment / error / stale corner marks — sparse on the gate S fixture.
+#[allow(clippy::too_many_arguments)]
+#[inline(never)]
+fn paint_cell_marks<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    keys: &PaintKeys,
+    div: u32,
+    n: usize,
+    item: &CellItem,
+    stale: bool,
+    cell_id: u32,
+) {
     if item.view.has_comment {
         let cm_id = COMMENT_BASE + n as u32;
         buf.create_element(cm_id, div, cell_id);

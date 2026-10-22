@@ -78,6 +78,9 @@ fn style_of(ctx: &CellContext<'_>, element: Option<&Element>) -> u32 {
 /// Prefer a pull parse into [`CellStore`] so a full Element tree for every `<c>`/`<v>` is not
 /// retained (the HWM driver on million-cell sheets). Falls back to the DOM path when the
 /// stream sees `inlineStr` / nested markup that needs the rich-string tree.
+///
+/// DOM fallback is outlined ([`read_sheet_data_xml_dom`]) so xlsx S first-open TurboFan does
+/// not compile wrap+parse into the stream entry (peak_mem compile floor).
 pub fn read_sheet_data_xml(
     ctx: &mut CellContext<'_>,
     sheet_data_inner: &str,
@@ -89,6 +92,17 @@ pub fn read_sheet_data_xml(
     if read_sheet_data_xml_stream(ctx, sheet_data_inner, store, row_info) {
         return;
     }
+    read_sheet_data_xml_dom(ctx, sheet_data_inner, store, row_info);
+}
+
+/// DOM fallback for `inlineStr` / rich-string markup. Cold on the gate S fixture stream path.
+#[inline(never)]
+fn read_sheet_data_xml_dom(
+    ctx: &mut CellContext<'_>,
+    sheet_data_inner: &str,
+    store: &mut CellStore,
+    row_info: &mut HashMap<u32, RowInfo>,
+) {
     // Lazy viewport rows keep `x14ac:dyDescent` (and similar) without the outer worksheet
     // xmlns declarations, so the wrapper must re-declare x14ac/mc or parsing drops cells.
     let wrapped = format!(
@@ -103,6 +117,7 @@ pub fn read_sheet_data_xml(
 }
 
 /// Pull-parse `sheetData` inner XML. Returns `false` when the caller should use the DOM path.
+#[inline(never)]
 fn read_sheet_data_xml_stream(
     ctx: &mut CellContext<'_>,
     sheet_data_inner: &str,

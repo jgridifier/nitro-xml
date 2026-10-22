@@ -435,5 +435,16 @@ outliers but **+0.6 MiB edit heap** — rejected.
 
 **Loader:** editable open runs `setReadOnly(false)` + `loadEditorChrome` **before** `prepareFrame` / `postMessage` on the first take-frame (`frame-build.js`). Posting paint first let `waitFirstPaint` return while soft-share was still running, so sample0 raced the materialise; unlock-before-post moves that cost into the first tick (embed first-paint), leaving sample0 warm. Peak-mem / wasm open path unchanged.
 
-**A/B:** React-embed `edit-cell` L — sample0 vs Slice 14 tip; p50/p95; open/edit heap; peak-mem open — n≥21, 95% CI.
+**A/B** (vs #389 tip `d7c1a54`, React-embed `edit-cell` L, n=21×21, 95% bootstrap CI of median ratios):
+
+| Metric | main (#389) | soft-share | ratio CI | Verdict |
+|---|---:|---:|---|---|
+| sample0 (first edit) | 1122.7 ms | 45.0 ms | [0.038, 0.043] | **WIN** |
+| session p50 | 12.4 ms | 11.8 ms | [0.914, 0.983] | WIN |
+| session p95 | 17.3 ms | 17.6 ms | — | flat |
+| edit heap L | 34.16 MiB | 34.07 MiB | [0.991, 0.999] | WIN (≈flat) |
+| peak-mem open L | 32.1 ms | 29.5 ms | [0.855, 1.042] | NOISE |
+| peak-mem peak L | 28.0 MiB | 25.0 MiB | [0.803, 1.050] | NOISE |
+
+Materialise (~0.9 s soft-share) now sits in the first editable `take-frame` (embed first-paint / open tick), not in timed sample0. Peak-mem wasm open path unchanged.
 

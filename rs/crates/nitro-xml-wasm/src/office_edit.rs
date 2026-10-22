@@ -1440,6 +1440,115 @@ mod tests {
     }
 
     #[test]
+    fn catches_grow_font_jumping_to_a_fixed_size() {
+        // Catches: Grow Font writing a fixed size instead of the next Office size, or undo
+        // rolling back the shrink and the grow together.
+        let docx_sizes = |bytes: &[u8]| {
+            let h = open_editable(bytes, "pages.docx");
+            h.docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .blocks
+                .iter()
+                .flat_map(|b| {
+                    b.get("runs")
+                        .and_then(|r| r.as_array())
+                        .into_iter()
+                        .flatten()
+                })
+                .map(|run| run.get("fontSize").and_then(|v| v.as_f64()))
+                .collect::<Vec<_>>()
+        };
+        let pptx_sizes = |bytes: &[u8]| {
+            nitro_xml_pptx::editor::PptxEditor::open(bytes)
+                .expect("open pptx")
+                .session
+                .host
+                .slides
+                .iter()
+                .flat_map(|s| s.elements.iter())
+                .map(|el| el.text_style.as_ref().and_then(|style| style.font_size))
+                .collect::<Vec<_>>()
+        };
+        let near = |a: f64, b: f64| (a - b).abs() < 0.05;
+
+        let mut h = open_editable(DOCX, "pages.docx");
+        let before = docx_sizes(DOCX);
+        h.shell_action("cmd", "home.grow-font").expect("grow");
+        let grown = h.save_document().expect("save grow");
+        assert_ne!(grown, DOCX);
+        let after = docx_sizes(&grown);
+        let changed = before
+            .iter()
+            .zip(after.iter())
+            .enumerate()
+            .filter(|(_, (a, b))| a != b)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), 1, "grow touched {changed:?}");
+        let idx = changed[0];
+        let expected =
+            nitro_xml_docx::edit::format::step_office_font_pt(before[idx].unwrap_or(11.0), true);
+        assert!(
+            after[idx].is_some_and(|n| near(n, expected)),
+            "grew to {:?} want {expected}",
+            after[idx]
+        );
+        h.shell_action("cmd", "home.shrink-font").expect("shrink");
+        let shrunk = h.save_document().expect("save shrink");
+        let down = docx_sizes(&shrunk);
+        let expected_down =
+            nitro_xml_docx::edit::format::step_office_font_pt(after[idx].unwrap(), false);
+        assert!(
+            down[idx].is_some_and(|n| near(n, expected_down)),
+            "shrank to {:?} want {expected_down}",
+            down[idx]
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo shrink");
+        assert_eq!(h.save_document().expect("shrink undone"), grown);
+        h.shell_action("cmd", "edit.undo").expect("undo grow");
+        assert_eq!(h.save_document().expect("grow undone"), DOCX);
+        let strip = h.docx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.grow-font\""));
+        assert!(strip.contains("data-g=\"home.shrink-font\""));
+
+        let mut p = open_editable(PPTX, "slides.pptx");
+        let before = pptx_sizes(PPTX);
+        p.shell_action("cmd", "home.grow-font").expect("grow slide");
+        let grown = p.save_document().expect("save slide grow");
+        assert_ne!(grown, PPTX);
+        let after = pptx_sizes(&grown);
+        let changed = before
+            .iter()
+            .zip(after.iter())
+            .enumerate()
+            .filter(|(_, (a, b))| match (a, b) {
+                (Some(x), Some(y)) => !near(*x, *y),
+                _ => a != b,
+            })
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), 1, "slide grow touched {changed:?}");
+        let idx = changed[0];
+        let expected = nitro_xml_pptx::editor::step_shape_font_px(before[idx], true);
+        assert!(
+            after[idx].is_some_and(|n| near(n, expected)),
+            "slide grew to {:?} want {expected}",
+            after[idx]
+        );
+        p.shell_action("cmd", "edit.undo").expect("undo slide grow");
+        assert_eq!(p.save_document().expect("slide undone"), PPTX);
+        let strip = p.pptx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.grow-font\""));
+        assert!(strip.contains("data-g=\"home.shrink-font\""));
+    }
+
+    #[test]
     fn catches_docx_font_and_table_structure_missing_after_reopen() {
         // Catches: font size, font color, or a table row/column edit missing from the saved docx.
         let mut h = open_editable(DOCX, "pages.docx");

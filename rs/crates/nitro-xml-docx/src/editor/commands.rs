@@ -10,9 +10,10 @@ use serde_json::{json, Value};
 
 use crate::edit::drawing::append_inline_picture;
 use crate::edit::format::{
-    adjust_left_indent, adjust_right_indent, cycle_line_spacing, set_paragraph_align,
-    set_paragraph_style, set_run_formatting, toggle_double_underline, toggle_first_line_indent,
-    toggle_hanging_indent, toggle_paragraph_space, INDENT_STEP_TWIPS,
+    adjust_left_indent, adjust_right_indent, cycle_line_spacing, effective_run_font_pt,
+    set_paragraph_align, set_paragraph_style, set_run_formatting, step_office_font_pt,
+    toggle_double_underline, toggle_first_line_indent, toggle_hanging_indent,
+    toggle_paragraph_space, INDENT_STEP_TWIPS,
 };
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
@@ -86,6 +87,8 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("insert.table", "Table", None, true),
     word_cmd!("insert.picture", "Picture", None, true),
     word_cmd!("font-size", "Font Size", None, true),
+    word_cmd!("grow-font", "Grow Font", None, true),
+    word_cmd!("shrink-font", "Shrink Font", None, true),
     word_cmd!("font-color", "Font Color", None, true),
     word_cmd!("table.insert-row", "Insert Row", None, true),
     word_cmd!("table.delete-row", "Delete Row", None, true),
@@ -615,6 +618,27 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         append_inline_picture(h, caret_block)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "grow-font" | "shrink-font" => {
+                let grow = id == "grow-font";
+                let current = effective_run_font_pt(&session.host, caret_block, caret_run);
+                let next = step_office_font_pt(current, grow);
+                if (next - current).abs() < f64::EPSILON {
+                    return Ok(());
+                }
+                session.run(
+                    id,
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    move |h| {
+                        let mut patch = serde_json::Map::new();
+                        patch.insert("fontSize".into(), json!(next));
+                        set_run_formatting(h, caret_block, caret_run, &patch)?;
                         Ok(())
                     },
                 )?;

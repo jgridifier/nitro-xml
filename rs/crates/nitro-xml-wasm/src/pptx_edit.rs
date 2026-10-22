@@ -20,6 +20,8 @@ const SHAPE_COMMANDS: &[&str] = &[
     "home.bullets",
     "home.numbering",
     "home.font-size",
+    "home.grow-font",
+    "home.shrink-font",
     "home.font-color",
     "home.indent",
     "home.outdent",
@@ -436,6 +438,16 @@ impl PptxState {
                 RibbonItem {
                     id: "home.font-size",
                     label: "Font Size",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.grow-font",
+                    label: "Grow Font",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.shrink-font",
+                    label: "Shrink Font",
                     enabled: true,
                 },
                 RibbonItem {

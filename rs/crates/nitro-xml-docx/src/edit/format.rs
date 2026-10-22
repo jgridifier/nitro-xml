@@ -9,6 +9,7 @@ use nitro_xml_opc::edit::{ChangeKind, ChangeSet, Command, CommandRegistry, EditE
 use serde_json::{json, Value};
 
 use super::host::DocxHost;
+use crate::run_formatting::{resolve_run_formatting, RunFormattingContext};
 
 fn host_mut(host: &mut dyn Any) -> Result<&mut DocxHost, EditError> {
     host.downcast_mut::<DocxHost>()
@@ -179,6 +180,62 @@ pub fn toggle_hanging_indent(host: &mut DocxHost, block_index: usize) -> Result<
     }
     host.mark_touched(block_index);
     Ok(())
+}
+
+/// Office Grow Font / Shrink Font sizes, in points. Same list Excel uses.
+pub const OFFICE_FONT_SIZES_PT: &[f64] = &[
+    8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0, 36.0, 48.0, 72.0,
+];
+
+/// Next or previous size on [`OFFICE_FONT_SIZES_PT`]. Below 8 pt, shrink steps by 1 down to 1.
+/// Above 72 pt, grow adds 10 up to 409.
+pub fn step_office_font_pt(size: f64, grow: bool) -> f64 {
+    if grow {
+        OFFICE_FONT_SIZES_PT
+            .iter()
+            .copied()
+            .find(|s| *s > size + f64::EPSILON)
+            .unwrap_or_else(|| (size + 10.0).min(409.0))
+    } else {
+        OFFICE_FONT_SIZES_PT
+            .iter()
+            .rev()
+            .copied()
+            .find(|s| *s < size - f64::EPSILON)
+            .unwrap_or_else(|| (size - 1.0).max(1.0))
+    }
+}
+
+/// Direct run size, or the style's size, or 11 pt when nothing sets `w:sz`.
+pub fn effective_run_font_pt(host: &DocxHost, block_index: usize, run_index: usize) -> f64 {
+    let block = host.paragraph(block_index).ok();
+    let style_id = block
+        .and_then(|b| b.get("style"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let run = block
+        .and_then(|b| b.get("runs"))
+        .and_then(|r| r.as_array())
+        .and_then(|runs| runs.get(run_index))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let resolved = resolve_run_formatting(
+        &run,
+        RunFormattingContext {
+            paragraph_style_id: style_id,
+            paragraph_catalog: host.paragraph_styles.clone(),
+            run_catalog: host.character_styles.clone(),
+        },
+    );
+    run_font_pt(&resolved)
+}
+
+/// Direct run size, or 11 pt when the run has no `w:sz` (Calibri body).
+pub fn run_font_pt(run: &Value) -> f64 {
+    run.get("fontSize")
+        .and_then(|v| v.as_f64())
+        .filter(|n| n.is_finite() && *n > 0.0)
+        .unwrap_or(11.0)
 }
 
 /// Toggle a direct first-line indent. A paragraph already at half an inch drops `firstLineTwips`.
@@ -482,5 +539,32 @@ mod tests {
         set_run_formatting(&mut host, 0, 0, &on).unwrap();
         assert_eq!(host.blocks[0]["runs"][0]["underline"], true);
         assert!(host.blocks[0]["runs"][0].get("underlineStyle").is_none());
+    }
+
+    #[test]
+    fn catches_grow_font_jumping_from_11_to_a_fixed_size() {
+        // Catches: Grow Font jumping from 11 pt to a fixed 18 instead of the next Office size, 12.
+        assert_eq!(step_office_font_pt(11.0, true), 12.0);
+        assert_eq!(step_office_font_pt(12.0, true), 14.0);
+        assert_eq!(step_office_font_pt(12.0, false), 11.0);
+        assert_eq!(step_office_font_pt(8.0, false), 7.0);
+        assert_eq!(run_font_pt(&json!({ "text": "Hi" })), 11.0);
+    }
+
+    #[test]
+    fn catches_grow_font_on_a_styled_title_writing_12pt() {
+        // Catches: Grow Font on a 26 pt title with no direct w:sz writing 12 pt.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({ "styles": { "Title": { "id": "Title" } } }));
+        host.character_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "fontSize": 26 } } }
+        }));
+        assert_eq!(effective_run_font_pt(&host, 0, 0), 26.0);
+        assert_eq!(step_office_font_pt(26.0, true), 28.0);
     }
 }

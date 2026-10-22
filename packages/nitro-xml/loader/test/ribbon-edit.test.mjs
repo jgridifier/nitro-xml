@@ -52,6 +52,8 @@ describe("Office ribbon manifests", () => {
       "home.bullets",
       "home.numbering",
       "home.font-size",
+      "home.grow-font",
+      "home.shrink-font",
       "home.font-color",
       "home.font-name",
       "home.indent",
@@ -110,6 +112,8 @@ describe("Office ribbon manifests", () => {
       "home.paste",
       "home.bold",
       "home.font-size",
+      "home.grow-font",
+      "home.shrink-font",
       "home.font-color",
       "home.align-justify",
       "home.bullets",
@@ -158,6 +162,8 @@ describe("Office ribbon manifests", () => {
       "home.style-heading-3",
       "insert.page-break",
       "home.font-size",
+      "home.grow-font",
+      "home.shrink-font",
       "home.font-color",
       "home.font-name",
       "home.indent",
@@ -252,7 +258,7 @@ describe("Office ribbon manifests", () => {
     const docx = new Set(strip("../../../../rs/crates/nitro-xml-wasm/src/docx_edit.rs"));
     const manifestIds = (format) =>
       MANIFEST[format].groups.flatMap((g) => g.items || []).map((x) => x.c).filter(Boolean);
-    const off = ["home.grow-font", "home.shrink-font"];
+    const off = [];
     for (const [format, rust, unit] of [
       ["pptx", pptx, "Slide"],
       ["docx", docx, "Page"],

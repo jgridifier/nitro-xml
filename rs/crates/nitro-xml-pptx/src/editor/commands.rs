@@ -12,6 +12,38 @@ use crate::edit::host::PptxHost;
 
 /// Authored solid fill for `home.shape-fill`. Distinct from the font-color red.
 const SHAPE_FILL: &str = "5B2C6F";
+
+/// Paint default when a run has no `a:rPr/@sz`: 18 pt, which is 24 CSS px.
+const DEFAULT_SHAPE_FONT_PT: f64 = 18.0;
+
+/// Office Grow Font / Shrink Font sizes, in points. Same list Word and Excel use.
+const SHAPE_FONT_SIZES_PT: &[f64] = &[
+    8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0, 36.0, 48.0, 72.0,
+];
+
+/// Next shape font size in CSS px. `current_px` is the editor's stored size (`pt * 96/72`).
+pub fn step_shape_font_px(current_px: Option<f64>, grow: bool) -> f64 {
+    let pt = current_px
+        .filter(|n| n.is_finite() && *n > 0.0)
+        .map(|px| px * 72.0 / 96.0)
+        .unwrap_or(DEFAULT_SHAPE_FONT_PT);
+    let next = if grow {
+        SHAPE_FONT_SIZES_PT
+            .iter()
+            .copied()
+            .find(|s| *s > pt + f64::EPSILON)
+            .unwrap_or_else(|| (pt + 10.0).min(409.0))
+    } else {
+        SHAPE_FONT_SIZES_PT
+            .iter()
+            .rev()
+            .copied()
+            .find(|s| *s < pt - f64::EPSILON)
+            .unwrap_or_else(|| (pt - 1.0).max(1.0))
+    };
+    next * (96.0 / 72.0)
+}
+
 /// Authored outline for `home.shape-outline`.
 const SHAPE_OUTLINE: &str = "00B050";
 const SHAPE_OUTLINE_PX: f64 = 1.5;
@@ -58,6 +90,8 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("home.bullets", "Bullets", None, true),
     pptx_cmd!("home.numbering", "Numbering", None, true),
     pptx_cmd!("home.font-size", "Font Size", None, true),
+    pptx_cmd!("home.grow-font", "Grow Font", None, true),
+    pptx_cmd!("home.shrink-font", "Shrink Font", None, true),
     pptx_cmd!("home.font-color", "Font Color", None, true),
     pptx_cmd!("home.indent", "Increase Indent", None, true),
     pptx_cmd!("home.outdent", "Decrease Indent", None, true),
@@ -279,6 +313,28 @@ impl PptxCommandSurface {
                     "kind": kind,
                 });
                 self.run_shape_op("setShapeBullets", &patch, session)
+            }
+            "home.grow-font" | "home.shrink-font" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: format!("{id} needs a selected shape"),
+                })?;
+                let current = session
+                    .host
+                    .slide(selection.slide_index)
+                    .ok()
+                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+                    .and_then(|el| el.text_style.as_ref())
+                    .and_then(|style| style.font_size);
+                let next = step_shape_font_px(current, id == "home.grow-font");
+                if current.is_some_and(|px| (px - next).abs() < f64::EPSILON) {
+                    return Ok(());
+                }
+                let patch = json!({
+                    "slideIndex": selection.slide_index,
+                    "elementId": element_id,
+                    "fontSize": next,
+                });
+                self.run_shape_op("setShapeTextStyle", &patch, session)
             }
             "home.font-size" | "home.font-color" => {
                 let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
@@ -947,6 +1003,14 @@ mod tests {
             structure_dirty: false,
         };
         EditSession::new(host, EditHistory::new())
+    }
+
+    #[test]
+    fn catches_grow_font_jumping_from_18pt_to_a_fixed_size() {
+        // Catches: Grow Font on a default 18 pt shape jumping to a fixed 24 pt (32 px) instead of 20 pt.
+        assert_eq!(step_shape_font_px(Some(24.0), true), 20.0 * (96.0 / 72.0));
+        assert_eq!(step_shape_font_px(None, true), 20.0 * (96.0 / 72.0));
+        assert_eq!(step_shape_font_px(Some(24.0), false), 16.0 * (96.0 / 72.0));
     }
 
     #[test]

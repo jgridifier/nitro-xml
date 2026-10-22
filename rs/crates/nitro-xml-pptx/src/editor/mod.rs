@@ -6,7 +6,7 @@ mod ribbon;
 mod selection;
 mod shortcuts;
 
-pub use commands::{CommandMeta, PptxCommandSurface, PPTX_EDITOR_COMMANDS};
+pub use commands::{step_shape_font_px, CommandMeta, PptxCommandSurface, PPTX_EDITOR_COMMANDS};
 pub use ribbon::{ribbon_html, slide_nav_html};
 pub use selection::SelectionState;
 pub use shortcuts::{find_shortcut, matches_keys, KeyEvent, Shortcut, ShortcutMatch, SHORTCUTS};

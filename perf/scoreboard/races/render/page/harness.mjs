@@ -66,11 +66,21 @@ function injectStyle(root, cssText, id) {
 }
 
 async function paintNitroXlsx(fixtureUrl, bytes) {
-	const { defineNitroXlsx, initCore } = await import('/packages/nitro-xml/loader/index.js');
+	// Product path: WorkerDocument opens in a worker. Do **not** call host `initCore`
+	// here — that instantiates wasm on the page and then again in the worker (doubles
+	// cold first-paint vs React-embed / `preload()`, which compile only for the worker).
+	const { defineNitroXlsx, setDefaultFontSource } = await import(
+		'/packages/nitro-xml/loader/index.js'
+	);
 	// Same font mirror as parity/visual xlsx host (pixel-comparable paint).
 	const fontMirror = new URL('/fonts/css2', location.origin).href;
-	await initCore({ fontSource: fontMirror });
+	setDefaultFontSource(fontMirror);
 	defineNitroXlsx();
+	// Seed the parked worker with a compiled Module (same as React-embed `preload()`),
+	// so open does not pay a second compileStreaming. Still inside the timed window.
+	await import('/packages/nitro-xml/loader/lazy/preload.js')
+		.then((m) => m.preload())
+		.catch(() => {});
 	const el = document.createElement('nitro-xlsx');
 	el.setAttribute('readonly', '');
 	el.style.display = 'flex';
@@ -200,10 +210,16 @@ async function settleAfterFirstPptxContent() {
 // "Equivalence / product path (required)".
 
 async function paintNitroPptx(fixtureUrl, bytes) {
-	const { defineNitroPptx, initCore } = await import('/packages/nitro-xml/loader/index.js');
+	// Same as xlsx: worker-only wasm init (no host `initCore` double-instantiate).
+	const { defineNitroPptx, setDefaultFontSource } = await import(
+		'/packages/nitro-xml/loader/index.js'
+	);
 	const fontMirror = new URL('/fonts/css2', location.origin).href;
-	await initCore({ fontSource: fontMirror });
+	setDefaultFontSource(fontMirror);
 	defineNitroPptx();
+	await import('/packages/nitro-xml/loader/lazy/preload.js')
+		.then((m) => m.preload())
+		.catch(() => {});
 	const el = document.createElement('nitro-pptx');
 	el.setAttribute('readonly', '');
 	el.style.display = 'flex';

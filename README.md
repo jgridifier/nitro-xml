@@ -55,6 +55,12 @@ bash scripts/ci/crates_package_dry_run.sh
 
 CI can use `bash scripts/ci/test_crates_package_dry_run.sh` to check `Cargo.toml` invariants and optionally the full dry-run (`NITRO_CRATES_PACKAGE_SKIP_DRY_RUN=1` skips packaging when needed). The dry-run script vendors each crate locally so dependents can verify before anything is on crates.io. **First real publish order:** `nitro-xml-opc` → `nitro-xml-render` → `nitro-xml-xlsx` / `nitro-xml-docx` / `nitro-xml-pptx` → `nitro-xml` → `nitro-xml-wasm`.
 
+## Releasing
+
+Tag `v$(cat VERSION)` and let `.github/workflows/release.yml` run
+`scripts/ci/release_publish.sh` (default **dry-run**). One-time npm / crates.io /
+PyPI setup: [docs/RELEASING.md](docs/RELEASING.md).
+
 ## Goals
 
 1. **Fidelity:** output matches the TS reference (view-IR parity and pixel diffs), and saves round-trip losslessly.

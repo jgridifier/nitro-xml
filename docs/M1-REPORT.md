@@ -532,32 +532,34 @@ bash scripts/ci/bundle_budget.sh
 
 ---
 
-## 7. Scoreboard standings — adapter in parallel PR; publish still #113
+## 7. Scoreboard standings — Nitro entered in published parse-latest
 
-Self-contained Nitro WASM **parse adapters** (no #113) landed in
+Self-contained Nitro WASM **parse adapters** landed in
 [#299](https://github.com/jgridifier/nitro-xml/pull/299) /
 [#329](https://github.com/jgridifier/nitro-xml/pull/329) (+ single-parse xlsx
 [#388](https://github.com/jgridifier/nitro-xml/pull/388), pptx extract
 [#384](https://github.com/jgridifier/nitro-xml/pull/384)): calamine-style shims +
-`competitors.json` **entered**. Those PRs do **not** write
-`docs/scoreboard/data/parse-latest.json`.
+`competitors.json` **entered**.
 
-Latest local parse race vs `upstream-ts` on tip **`ce07994`**
-(`node run.mjs --entrants=nitro-xml,upstream-ts --format=xlsx,docx,pptx --runs=3 --warmup=1 --out=…`;
-archived `perf/scoreboard/results/parse/2026-10-22-ce07994-nitro-upstream.json`):
+**Published** `docs/scoreboard/data/parse-latest.json` (tip **`453e2e0`**, method knobs
+warmup=2 / runs=7, all entered competitors; **not invented**): Nitro status **`entered`**.
+Archive: `perf/scoreboard/results/parse/2026-10-22-453e2e0.json`. Draft
+[#113](https://github.com/jgridifier/nitro-xml/pull/113) / stub `scoreboard.sh` (#39)
+**untouched** — CI reproducible gate still open.
 
-| Format | Comparable | Geomean vs TS | W/L | Errors |
-|--------|-----------:|--------------:|:---:|-------:|
-| xlsx | **30/30** | **0.288** | **30W/0L** | 0 |
-| docx | **30/30** | **0.253** | **30W/0L** | 0 |
-| pptx | **30/30** | **0.093** | **30W/0L** | 0 |
+| Format | Nitro comparable | Geomean vs TS | Nitro W/L | Errors |
+|--------|-----------------:|--------------:|:---------:|-------:|
+| xlsx | **30/30** | **0.255** | **30W/0L** | 0 |
+| docx | **30/30** | **0.204** | **30W/0L** | 0 |
+| pptx | **30/30** | **0.085** | **30W/0L** | 0 |
 
-**Totals:** **90W/0L**, **90/90** comparable. Equivalence: timed `parse()` only; xlsx Nitro is
+**Totals:** Nitro **90W/0L**, **90/90** comparable. Equivalence: timed `parse()` only; xlsx Nitro is
 `load_workbook_meta` + `parse_all_worksheets` (one pass per sheet) vs TS `loadWorkbook` (see #388).
+Losses for other entrants kept in the published JSON (e.g. exceljs / mammoth).
 
 **Render-to-first-paint** ([#41](https://github.com/jgridifier/nitro-xml/issues/41) closed): `perf/scoreboard/races/render/`
 times load+init+first paint (800×480, DPR 1). **xlsx** and **pptx** are entered for `nitro-xml` vs
-`upstream-ts`; docx deferred (#23). Equivalence unchanged from [#390](https://github.com/jgridifier/nitro-xml/pull/390): shared pptx post–first-content settle (`settleAfterFirstPptxContent`); parse/open scope follows each product API (see harness comment *Equivalence / product path*).
+`upstream-ts`; docx deferred (#23). Equivalence unchanged from [#390](https://github.com/jgridifier/nitro-xml/pull/390).
 
 Latest local snapshot `docs/scoreboard/data/first-paint-latest.json` at **`6a6cced`** (tiers **S/M/L/XL**, 3 timed + 1 warmup, `--timeout=600000`):
 
@@ -572,19 +574,18 @@ Latest local snapshot `docs/scoreboard/data/first-paint-latest.json` at **`6a6cc
 | pptx | L | 224 | 912 | yes | **W** |
 | pptx | XL | 241 | 904 | yes | **W** |
 
-Nitro **8W/0L** on comparable cells (pptx Nitro pixels **0.044%** vs 0.5% limit). No timeouts or `nc` on this run.
+Nitro **8W/0L** on comparable cells (pptx Nitro pixels **0.044%** vs 0.5% limit).
 
-**Crash recovery** on this tip: `bash scripts/ci/crash_recovery.sh` → **PASS** (default **10** flake iterations × 3 formats; CI uses the same knob).
+**Crash recovery** on tip: `bash scripts/ci/crash_recovery.sh` → **PASS** (default **10** flake iterations × 3 formats).
 
-**M1 gate still open:** published scoreboard JSON (#113 / `#39` stub) — local parse **90W/0L** archived above, but Pages `parse-latest.json` still `"not entered"`; **`perf-beats-ts` enforce** (#8); **xlsx S peak_mem** still **LOSS** at wasm compile floor (local tip `ce07994` sample WASM/TS ≈ **3.06×** [2.90, 3.46] — not demoted); docx perf arm deferred (#23).
+**M1 gate still open:** CI `scoreboard` job stub (#39) + draft **#113** (reproducible gate; not the Pages data file); **`perf-beats-ts` enforce** (#8); **xlsx S peak_mem** still **LOSS** at wasm compile floor; docx perf arm deferred (#23).
 
-| Still blocked for published standings | Link | Why |
-|---------------------------------------|------|-----|
+| Still blocked for CI scoreboard gate | Link | Why |
+|--------------------------------------|------|-----|
 | `scripts/ci/scoreboard.sh` | stub → `#39` | Still `NOT IMPLEMENTED — see #39` |
-| Scoreboard CI / Pages publish | draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) | Draft; **do not touch** (per Jared) |
-| Published parse standings | `docs/scoreboard/data/parse-latest.json` | Still shows Nitro as `"not entered"` until #113 |
+| Scoreboard CI / reproducible publish | draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) | Draft; **do not touch** (per Jared) |
 
-No invented medians in the published parse JSON from this report slice; first-paint JSON is updated locally only.
+Published `parse-latest.json` is real measured tip data (Nitro **entered**); first-paint JSON remains local.
 
 ---
 
@@ -596,7 +597,7 @@ No invented medians in the published parse JSON from this report slice; first-pa
 | xlsx S peak_mem LOSS | compile floor (measured) | Cold ~16–17 MiB / warm-second already beats TS alloc. Draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) pre-warm cut **closed**. [#332](https://github.com/jgridifier/nitro-xml/pull/332) `-O1` **closed** (open/edit regress vs main) |
 | Docx peak_mem LOSSes | [#359](https://github.com/jgridifier/nitro-xml/pull/359) merged; outline slice 10 | Format-split landed. Drawing non-picture outline + notes `take_text` cuts docx M WASM peak (~15.4→14.7 MiB, CI WIN vs prior tip); S/M still **LOSS vs TS** (compile floor) |
 | xlsx S openDocument | done (clear WIN) | [#360](https://github.com/jgridifier/nitro-xml/pull/360); CI upper ≪ 1 |
-| Scoreboard standings including losses | draft **#113**, **#39**; adapters **#299/#329**; first-paint **#41** done locally | Published `parse-latest.json` still waits on #113 — do not invent numbers |
+| Scoreboard CI gate (reproducible) | draft **#113**, **#39** | Pages `parse-latest.json` now has real Nitro **entered** tip data; CI stub / #113 still open |
 | Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |
 | Per-format wasm / TTI ceilings | #46 | Bundle gate extension |
 
@@ -612,7 +613,7 @@ No invented medians in the published parse JSON from this report slice; first-pa
 - [x] Bundle / loader sizes recorded (loader **16.69 / 17 KB**; wasm sizes above)
 - [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S clear WIN after #352** (CI upper 0.321; peak-mem LOSSes kept on xlsx/docx S); **#23 left open** (docx arm deferred)
 - [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped; post-#352 matrix **14/18 WIN**
-- [ ] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; local parse **90W/0L** on tip `ce07994` (archived under `perf/scoreboard/results/parse/`); first-paint **8W/0L** S–XL; published **parse** JSON still blocked on stub `#39` + draft **#113** (no invented `parse-latest` numbers)
+- [x] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; published `parse-latest.json` Nitro **entered**, tip **90W/0L** (method 2+7); first-paint **8W/0L** S–XL; CI `scoreboard` job / draft **#113** still open (not required for Pages data)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
 - [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27**; docx **#23** deferred
 

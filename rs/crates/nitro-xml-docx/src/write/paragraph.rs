@@ -548,4 +548,23 @@ mod tests {
         assert_eq!(side_attr(&on, "bottom", "val"), Some("single"));
         assert_eq!(side_attr(&on, "bottom", "color"), Some("4F81BD"));
     }
+
+    #[test]
+    fn catches_left_border_omitting_w_left() {
+        // Catches: a left border saving without w:left, or a styled bottom rule dropped from w:pBdr.
+        let base = json!({"id": "p0", "runs": [{"text": "Hi"}]});
+        let bordered = json!({
+            "id": "p0",
+            "runs": [{"text": "Hi"}],
+            "borders": {
+                "left": {"style": "single", "sizeEighthPoints": 12, "spacePoints": 1, "color": "000000"},
+                "bottom": {"style": "single", "sizeEighthPoints": 8, "color": "4F81BD"}
+            }
+        });
+        let on = write_paragraph(&bordered, &make_w("p"), Some(&base)).unwrap();
+        assert_eq!(side_attr(&on, "left", "val"), Some("single"));
+        assert_eq!(side_attr(&on, "left", "sz"), Some("12"));
+        assert_eq!(side_attr(&on, "bottom", "val"), Some("single"));
+        assert_eq!(side_attr(&on, "bottom", "color"), Some("4F81BD"));
+    }
 }

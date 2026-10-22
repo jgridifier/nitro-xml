@@ -172,6 +172,7 @@ describe("Office ribbon manifests", () => {
       "home.shading",
       "home.border-bottom",
       "home.border-top",
+      "home.border-left",
       "home.page-break-before",
       "home.space-before",
       "home.space-after",
@@ -221,6 +222,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.border-bottom"));
     assert.ok(bound.includes("home.border-top"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.border-top"));
+    assert.ok(bound.includes("home.border-left"));
+    assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.border-left"));
     assert.ok(bound.includes("home.page-break-before"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.page-break-before"));
     assert.ok(bound.includes("home.space-before"));

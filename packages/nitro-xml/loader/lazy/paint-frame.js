@@ -36,6 +36,25 @@ export async function paintFrame(doc, frame) {
     doc._measureCount = measureCount | 0;
     doc._outlineCount = outlineCount | 0;
     doc._t = frame.t !== false;
+    const drawCtx =
+      doc._canvas && doc._canvas.getContext ? doc._canvas.getContext("2d") : null;
+    const resolve = (id) => (strings && strings[id]) || "";
+    if (doc._chromeEl && (frame.h || frame.hf)) {
+      applyChromePatch(doc._chromeEl, { h: frame.h, hf: frame.hf });
+    } else if (frame.h && doc.onChrome) doc.onChrome(frame.h);
+    // Empty commands mean the layout is not ready (measures still in flight). Wiping the
+    // root here blanks the page and hides the caret; keep the last good frame.
+    const keep = commands.byteLength === 0 && doc._root && doc._root.firstChild;
+    const result = keep
+      ? { ops: 0 }
+      : applyCommandBuffer(commands, {
+          canvas: drawCtx,
+          root: doc._root,
+          resolve,
+          images: doc._images,
+          nodes: doc._nodes,
+        });
+    doc._queueLayout(layoutReqs, layoutCount || 0);
     if (measureCount > 0 && measureReqs) {
       const ctx = doc._measureCtx();
       const widths = fillMeasureWidths(
@@ -64,25 +83,8 @@ export async function paintFrame(doc, frame) {
           }),
       );
     }
-    const drawCtx =
-      doc._canvas && doc._canvas.getContext ? doc._canvas.getContext("2d") : null;
-    const resolve = (id) => (strings && strings[id]) || "";
-    if (doc._chromeEl && (frame.h || frame.hf)) {
-      applyChromePatch(doc._chromeEl, { h: frame.h, hf: frame.hf });
-    } else if (frame.h && doc.onChrome) doc.onChrome(frame.h);
-    // Empty commands mean the layout is not ready (measures still in flight). Wiping the
-    // root here blanks the page and hides the caret; keep the last good frame.
-    const keep = commands.byteLength === 0 && doc._root && doc._root.firstChild;
-    const result = keep
-      ? { ops: 0 }
-      : applyCommandBuffer(commands, {
-          canvas: drawCtx,
-          root: doc._root,
-          resolve,
-          images: doc._images,
-          nodes: doc._nodes,
-        });
-    doc._queueLayout(layoutReqs, layoutCount || 0);
+    doc._rt = measureCount > 0 ? (doc._rt | 0) + 1 : 0;
+    if (doc._rt > 0 && doc._rt <= 6) void doc.tick().catch(() => {});
     return {
       ...result,
       measured: measureCount | 0,

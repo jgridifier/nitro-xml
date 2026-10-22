@@ -72,6 +72,7 @@ export class WorkerDocument {
   save(): Promise<Uint8Array>;
   applyEdit(spec: string): Promise<string>;
   editorKey(ev: unknown, mac?: boolean): Promise<string>;
+  whenEditReady(): Promise<void>;
 }
 
 export function defineNitroXml(): void;

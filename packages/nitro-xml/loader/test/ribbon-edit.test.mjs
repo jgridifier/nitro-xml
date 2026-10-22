@@ -177,6 +177,7 @@ describe("Office ribbon manifests", () => {
       "home.outdent-right",
       "home.double-underline",
       "home.caps",
+      "home.hidden",
       "home.expand-spacing",
       "home.condense-spacing",
       "home.scale-up",
@@ -224,6 +225,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.double-underline"));
     assert.ok(bound.includes("home.caps"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.caps"));
+    assert.ok(bound.includes("home.hidden"));
+    assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.hidden"));
     assert.ok(bound.includes("home.expand-spacing"));
     assert.ok(bound.includes("home.condense-spacing"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.expand-spacing"));

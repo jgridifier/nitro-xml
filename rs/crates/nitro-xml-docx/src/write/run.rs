@@ -132,6 +132,7 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
         "fontFamilyEastAsia",
         "fontFamilyComplexScript",
         "caps",
+        "vanish",
         "characterSpacingTwips",
         "textScalePercent",
     ]
@@ -210,6 +211,9 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
     if run_property_changed(run, base, "caps") {
         set_toggle(props, "caps", run.get("caps").and_then(|v| v.as_bool()));
     }
+    if run_property_changed(run, base, "vanish") {
+        set_toggle(props, "vanish", run.get("vanish").and_then(|v| v.as_bool()));
+    }
     if run_property_changed(run, base, "textScalePercent") {
         remove_w_children(props, "w");
         if let Some(percent) = run
@@ -281,6 +285,7 @@ fn order_rpr_children(props: &mut Element) {
         "smallCaps",
         "strike",
         "dstrike",
+        "vanish",
         "color",
         "spacing",
         "w",
@@ -392,6 +397,35 @@ mod tests {
         assert_eq!(caps_val(&on), Some(None));
         let off = create_run(&json!({"text": "Hi", "caps": false}), Some(&base), None);
         assert_eq!(caps_val(&off), Some(Some("0")));
+    }
+
+    /// `None` when `w:vanish` is absent. `Some(None)` is a val-less (on) element.
+    fn vanish_val(el: &nitro_xml_opc::xml::Element) -> Option<Option<&str>> {
+        let props = el.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "rPr" => Some(e),
+            _ => None,
+        })?;
+        let vanish = props.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "vanish" => Some(e),
+            _ => None,
+        })?;
+        Some(
+            vanish
+                .attrs
+                .iter()
+                .find(|a| a.local == "val")
+                .map(|a| a.value.as_str()),
+        )
+    }
+
+    #[test]
+    fn catches_hidden_omitting_w_vanish_or_writing_val_on() {
+        // Catches: a vanish-true run saving without w:vanish, or vanish false omitting w:val="0".
+        let base = json!({"text": "Hi"});
+        let on = create_run(&json!({"text": "Hi", "vanish": true}), Some(&base), None);
+        assert_eq!(vanish_val(&on), Some(None));
+        let off = create_run(&json!({"text": "Hi", "vanish": false}), Some(&base), None);
+        assert_eq!(vanish_val(&off), Some(Some("0")));
     }
 
     #[test]

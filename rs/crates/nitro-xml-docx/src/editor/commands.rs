@@ -14,7 +14,7 @@ use crate::edit::format::{
     effective_run_font_pt, effective_text_scale_percent, set_character_spacing,
     set_paragraph_align, set_paragraph_style, set_run_formatting, set_text_scale,
     step_office_font_pt, toggle_caps, toggle_double_underline, toggle_first_line_indent,
-    toggle_hanging_indent, toggle_paragraph_space, CHAR_SPACING_LIMIT_TWIPS,
+    toggle_hanging_indent, toggle_paragraph_space, toggle_vanish, CHAR_SPACING_LIMIT_TWIPS,
     CHAR_SPACING_STEP_TWIPS, INDENT_STEP_TWIPS, TEXT_SCALE_MAX_PERCENT, TEXT_SCALE_MIN_PERCENT,
     TEXT_SCALE_STEP_PERCENT,
 };
@@ -62,6 +62,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("underline", "Underline", Some("Ctrl+U"), true),
     word_cmd!("double-underline", "Double Underline", None, true),
     word_cmd!("caps", "All Caps", None, true),
+    word_cmd!("hidden", "Hidden", None, true),
     word_cmd!("expand-spacing", "Expand", None, true),
     word_cmd!("condense-spacing", "Condense", None, true),
     word_cmd!("scale-up", "Scale Up", None, true),
@@ -489,6 +490,19 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         toggle_caps(h, caret_block, caret_run)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "hidden" => {
+                session.run(
+                    String::from("hidden"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        toggle_vanish(h, caret_block, caret_run)?;
                         Ok(())
                     },
                 )?;

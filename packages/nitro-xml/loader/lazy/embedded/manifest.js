@@ -94,6 +94,7 @@ export const MANIFEST = {
           cmd("home.outdent-right", "outdentRight", "Decrease right", "Decrease the right indent by half an inch"),
           cmd("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
           cmd("home.caps", "caps", "All caps", "All caps"),
+          cmd("home.hidden", "hidden", "Hidden", "Hidden text"),
           cmd("home.expand-spacing", "expandSpacing", "Expand", "Expand character spacing"),
           cmd("home.condense-spacing", "condenseSpacing", "Condense", "Condense character spacing"),
           cmd("home.scale-up", "scaleUp", "Scale up", "Increase character scale"),

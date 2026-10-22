@@ -476,6 +476,46 @@ pub fn toggle_caps(
     set_run_formatting(host, block_index, run_index, &patch)
 }
 
+/// Direct `w:vanish`, or the style chain when the run does not set it.
+pub fn effective_vanish(host: &DocxHost, block_index: usize, run_index: usize) -> bool {
+    let block = host.paragraph(block_index).ok();
+    let style_id = block
+        .and_then(|b| b.get("style"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let run = block
+        .and_then(|b| b.get("runs"))
+        .and_then(|r| r.as_array())
+        .and_then(|runs| runs.get(run_index))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let resolved = resolve_run_formatting(
+        &run,
+        RunFormattingContext {
+            paragraph_style_id: style_id,
+            paragraph_catalog: host.paragraph_styles.clone(),
+            run_catalog: host.character_styles.clone(),
+        },
+    );
+    resolved
+        .get("vanish")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// Toggle hidden text from the effective value.
+/// A styled hidden run with no direct `w:vanish` writes `false` (`w:vanish w:val="0"`).
+pub fn toggle_vanish(
+    host: &mut DocxHost,
+    block_index: usize,
+    run_index: usize,
+) -> Result<(), EditError> {
+    let on = effective_vanish(host, block_index, run_index);
+    let mut patch = serde_json::Map::new();
+    patch.insert("vanish".into(), json!(!on));
+    set_run_formatting(host, block_index, run_index, &patch)
+}
+
 /// Toggle a direct double underline (`w:u/@w:val="double"`).
 /// A run already double-underlined drops the style and the underline.
 /// Any other run becomes underlined with style `double`.
@@ -544,6 +584,7 @@ pub fn set_run_formatting(
             "verticalAlign",
             "fontFamily",
             "caps",
+            "vanish",
             "characterSpacingTwips",
             "textScalePercent",
         ] {
@@ -822,6 +863,41 @@ mod tests {
         toggle_caps(&mut host, 0, 0).unwrap();
         assert_eq!(host.blocks[0]["runs"][0]["caps"], false);
         assert!(!effective_caps(&host, 0, 0));
+    }
+
+    #[test]
+    fn catches_hidden_leaving_vanish_unset_on_a_visible_run() {
+        // Catches: Hidden leaving vanish unset on a visible run, so save omits w:vanish.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        toggle_vanish(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["vanish"], true);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_vanish(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["vanish"], false);
+    }
+
+    #[test]
+    fn catches_hidden_on_a_styled_title_writing_vanish_false() {
+        // Catches: Hidden on a title that is already hidden via its style writing vanish true again, so the run stays invisible.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({ "styles": { "Title": { "id": "Title" } } }));
+        host.character_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "vanish": true } } }
+        }));
+        assert!(effective_vanish(&host, 0, 0));
+        assert!(host.blocks[0]["runs"][0].get("vanish").is_none());
+        toggle_vanish(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["vanish"], false);
+        assert!(!effective_vanish(&host, 0, 0));
     }
 
     #[test]

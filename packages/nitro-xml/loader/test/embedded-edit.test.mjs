@@ -32,7 +32,7 @@ describe("embedded pptx and docx toolbars", () => {
     const bound = cmds("docx");
     assert.ok(bound.length >= 12);
     for (const id of bound) assert.ok(docxRibbon.includes(`id: "${id}"`), `${id} is not on the docx ribbon`);
-    for (const id of ["file.save", "edit.undo", "home.cut", "home.copy", "home.paste", "home.bold", "home.strikethrough", "home.highlight", "home.font-color", "home.font-name", "home.indent", "home.outdent", "home.line-spacing", "home.space-before", "home.space-after", "home.hanging-indent", "home.first-line", "home.indent-right", "home.outdent-right", "home.double-underline", "home.caps", "home.expand-spacing", "home.condense-spacing", "home.grow-font", "home.shrink-font", "home.subscript", "home.superscript", "home.align-justify", "home.numbering", "home.bullets", "home.style-normal", "home.style-title", "home.style-heading-1", "home.style-heading-2", "home.style-heading-3", "insert.page-break", "insert.picture", "insert.table", "table.insert-row", "table.delete-row", "table.insert-column", "table.delete-column", "table.cell-text", "table.delete"]) {
+    for (const id of ["file.save", "edit.undo", "home.cut", "home.copy", "home.paste", "home.bold", "home.strikethrough", "home.highlight", "home.font-color", "home.font-name", "home.indent", "home.outdent", "home.line-spacing", "home.space-before", "home.space-after", "home.hanging-indent", "home.first-line", "home.indent-right", "home.outdent-right", "home.double-underline", "home.caps", "home.expand-spacing", "home.condense-spacing", "home.scale-up", "home.scale-down", "home.grow-font", "home.shrink-font", "home.subscript", "home.superscript", "home.align-justify", "home.numbering", "home.bullets", "home.style-normal", "home.style-title", "home.style-heading-1", "home.style-heading-2", "home.style-heading-3", "insert.page-break", "insert.picture", "insert.table", "table.insert-row", "table.delete-row", "table.insert-column", "table.delete-column", "table.cell-text", "table.delete"]) {
       assert.ok(bound.includes(id), `missing embedded docx command ${id}`);
     }
     assert.ok(!bound.includes("insert.slide"));
@@ -41,6 +41,8 @@ describe("embedded pptx and docx toolbars", () => {
     assert.ok(!cmds("pptx").includes("home.caps"));
     assert.ok(!cmds("pptx").includes("home.expand-spacing"));
     assert.ok(!cmds("pptx").includes("home.condense-spacing"));
+    assert.ok(!cmds("pptx").includes("home.scale-up"));
+    assert.ok(!cmds("pptx").includes("home.scale-down"));
   });
 
   it("keeps a shell Copy for a read-only Word or PowerPoint toolbar", () => {

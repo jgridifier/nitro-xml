@@ -44,6 +44,12 @@ pub const CHAR_SPACING_LIMIT_TWIPS: i64 = 1584 * 20;
 /// Word first-line indent (`w:ind/@w:firstLine`). Half an inch, the same step as Increase Indent.
 /// `w:firstLine` and `w:hanging` are mutually exclusive, so setting this drops a direct hanging indent.
 pub const FIRST_LINE_INDENT_TWIPS: i64 = INDENT_STEP_TWIPS;
+/// Word character scale (`w:w`), ten percent. The Font dialog stores a percent from 1 to 600.
+pub const TEXT_SCALE_STEP_PERCENT: i64 = 10;
+pub const TEXT_SCALE_MIN_PERCENT: i64 = 1;
+pub const TEXT_SCALE_MAX_PERCENT: i64 = 600;
+/// Absent `w:w` is 100 percent.
+pub const TEXT_SCALE_NORMAL_PERCENT: i64 = 100;
 
 /// `w:spacing/@w:line` with `w:lineRule="auto"`: single, 1.5, double.
 const LINE_SINGLE: i64 = 240;
@@ -319,6 +325,88 @@ pub fn set_character_spacing(
     Ok(())
 }
 
+/// Direct `w:w`, or the style's scale, or 100 when nothing sets it.
+pub fn effective_text_scale_percent(host: &DocxHost, block_index: usize, run_index: usize) -> i64 {
+    let block = host.paragraph(block_index).ok();
+    let style_id = block
+        .and_then(|b| b.get("style"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let run = block
+        .and_then(|b| b.get("runs"))
+        .and_then(|r| r.as_array())
+        .and_then(|runs| runs.get(run_index))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let resolved = resolve_run_formatting(
+        &run,
+        RunFormattingContext {
+            paragraph_style_id: style_id,
+            paragraph_catalog: host.paragraph_styles.clone(),
+            run_catalog: host.character_styles.clone(),
+        },
+    );
+    resolved
+        .get("textScalePercent")
+        .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|n| n.round() as i64)))
+        .filter(|n| *n > 0)
+        .unwrap_or(TEXT_SCALE_NORMAL_PERCENT)
+}
+
+/// Set direct character scale. `100` drops the field when the style is also 100, and writes
+/// an explicit `100` when the style would otherwise keep another percent.
+pub fn set_text_scale(
+    host: &mut DocxHost,
+    block_index: usize,
+    run_index: usize,
+    percent: i64,
+) -> Result<(), EditError> {
+    {
+        let block = host
+            .paragraph_mut(block_index)
+            .map_err(|e| EditError::Other { message: e })?;
+        let runs = block
+            .get_mut("runs")
+            .and_then(|r| r.as_array_mut())
+            .ok_or_else(|| EditError::Other {
+                message: format!("runs missing on block {block_index}"),
+            })?;
+        let run = runs.get_mut(run_index).ok_or_else(|| EditError::Other {
+            message: format!("run {run_index} missing on block {block_index}"),
+        })?;
+        let obj = run.as_object_mut().ok_or_else(|| EditError::Other {
+            message: format!("run {run_index} is not an object"),
+        })?;
+        if percent == TEXT_SCALE_NORMAL_PERCENT {
+            obj.remove("textScalePercent");
+        } else {
+            obj.insert("textScalePercent".into(), json!(percent));
+        }
+    }
+    if percent == TEXT_SCALE_NORMAL_PERCENT
+        && effective_text_scale_percent(host, block_index, run_index) != TEXT_SCALE_NORMAL_PERCENT
+    {
+        let block = host
+            .paragraph_mut(block_index)
+            .map_err(|e| EditError::Other { message: e })?;
+        let runs = block
+            .get_mut("runs")
+            .and_then(|r| r.as_array_mut())
+            .ok_or_else(|| EditError::Other {
+                message: format!("runs missing on block {block_index}"),
+            })?;
+        let run = runs.get_mut(run_index).ok_or_else(|| EditError::Other {
+            message: format!("run {run_index} missing on block {block_index}"),
+        })?;
+        let obj = run.as_object_mut().ok_or_else(|| EditError::Other {
+            message: format!("run {run_index} is not an object"),
+        })?;
+        obj.insert("textScalePercent".into(), json!(TEXT_SCALE_NORMAL_PERCENT));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
 /// Direct run size, or 11 pt when the run has no `w:sz` (Calibri body).
 pub fn run_font_pt(run: &Value) -> f64 {
     run.get("fontSize")
@@ -457,6 +545,7 @@ pub fn set_run_formatting(
             "fontFamily",
             "caps",
             "characterSpacingTwips",
+            "textScalePercent",
         ] {
             if let Some(v) = patch.get(key) {
                 let clear = matches!(
@@ -772,5 +861,40 @@ mod tests {
         set_character_spacing(&mut host, 0, 0, 0).unwrap();
         assert_eq!(host.blocks[0]["runs"][0]["characterSpacingTwips"], 0);
         assert_eq!(effective_character_spacing_twips(&host, 0, 0), 0);
+    }
+
+    #[test]
+    fn catches_scale_up_leaving_w_w_off_a_normal_run() {
+        // Catches: Scale up leaving textScalePercent unset, so save omits w:w.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        assert_eq!(effective_text_scale_percent(&host, 0, 0), 100);
+        set_text_scale(&mut host, 0, 0, 110).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["textScalePercent"], 110);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        set_text_scale(&mut host, 0, 0, TEXT_SCALE_NORMAL_PERCENT).unwrap();
+        assert!(host.blocks[0]["runs"][0].get("textScalePercent").is_none());
+    }
+
+    #[test]
+    fn catches_scale_up_on_a_90_percent_title_writing_110() {
+        // Catches: Scale up on a title whose style scale is 90 percent writing 110 percent.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({ "styles": { "Title": { "id": "Title" } } }));
+        host.character_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "textScalePercent": 90 } } }
+        }));
+        assert_eq!(effective_text_scale_percent(&host, 0, 0), 90);
+        set_text_scale(&mut host, 0, 0, 100).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["textScalePercent"], 100);
+        assert_eq!(effective_text_scale_percent(&host, 0, 0), 100);
     }
 }

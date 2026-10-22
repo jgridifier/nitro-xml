@@ -96,6 +96,8 @@ export const MANIFEST = {
           cmd("home.caps", "caps", "All caps", "All caps"),
           cmd("home.expand-spacing", "expandSpacing", "Expand", "Expand character spacing"),
           cmd("home.condense-spacing", "condenseSpacing", "Condense", "Condense character spacing"),
+          cmd("home.scale-up", "scaleUp", "Scale up", "Increase character scale"),
+          cmd("home.scale-down", "scaleDown", "Scale down", "Decrease character scale"),
         ],
       },
       align,

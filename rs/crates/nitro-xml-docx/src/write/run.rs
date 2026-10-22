@@ -133,6 +133,7 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
         "fontFamilyComplexScript",
         "caps",
         "characterSpacingTwips",
+        "textScalePercent",
     ]
     .iter()
     .any(|k| run_property_changed(run, base, k));
@@ -209,6 +210,17 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
     if run_property_changed(run, base, "caps") {
         set_toggle(props, "caps", run.get("caps").and_then(|v| v.as_bool()));
     }
+    if run_property_changed(run, base, "textScalePercent") {
+        remove_w_children(props, "w");
+        if let Some(percent) = run
+            .get("textScalePercent")
+            .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|n| n.round() as i64)))
+        {
+            let mut scale = make_w("w");
+            set_w_attr(&mut scale, "val", &percent.to_string());
+            props.children.push(Node::Element(scale));
+        }
+    }
     if run_property_changed(run, base, "highlight") {
         remove_w_children(props, "highlight");
         if let Some(color) = run.get("highlight").and_then(|v| v.as_str()) {
@@ -271,6 +283,7 @@ fn order_rpr_children(props: &mut Element) {
         "dstrike",
         "color",
         "spacing",
+        "w",
         "sz",
         "szCs",
         "highlight",
@@ -396,5 +409,38 @@ mod tests {
             None,
         );
         assert_eq!(spacing_val(&zero), Some("0"));
+    }
+
+    fn scale_val(el: &nitro_xml_opc::xml::Element) -> Option<&str> {
+        let props = el.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "rPr" => Some(e),
+            _ => None,
+        })?;
+        let scale = props.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "w" => Some(e),
+            _ => None,
+        })?;
+        scale
+            .attrs
+            .iter()
+            .find(|a| a.local == "val")
+            .map(|a| a.value.as_str())
+    }
+
+    #[test]
+    fn catches_scale_up_omitting_w_w() {
+        // Catches: a run scaled to 110 percent saving without w:w, or a cleared scale leaving the old value.
+        let base = json!({"text": "Hi"});
+        let wider = json!({"text": "Hi", "textScalePercent": 110});
+        let on = create_run(&wider, Some(&base), None);
+        assert_eq!(scale_val(&on), Some("110"));
+        let cleared = create_run(&json!({"text": "Hi"}), Some(&wider), None);
+        assert_eq!(scale_val(&cleared), None);
+        let normal = create_run(
+            &json!({"text": "Hi", "textScalePercent": 100}),
+            Some(&base),
+            None,
+        );
+        assert_eq!(scale_val(&normal), Some("100"));
     }
 }

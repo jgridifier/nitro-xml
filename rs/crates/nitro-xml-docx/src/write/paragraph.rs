@@ -529,4 +529,23 @@ mod tests {
         .unwrap();
         assert_eq!(page_break_val(&off), Some(Some("0")));
     }
+
+    #[test]
+    fn catches_top_border_omitting_w_top() {
+        // Catches: a top border saving without w:top, or a styled bottom rule dropped from w:pBdr.
+        let base = json!({"id": "p0", "runs": [{"text": "Hi"}]});
+        let bordered = json!({
+            "id": "p0",
+            "runs": [{"text": "Hi"}],
+            "borders": {
+                "top": {"style": "single", "sizeEighthPoints": 12, "spacePoints": 1, "color": "000000"},
+                "bottom": {"style": "single", "sizeEighthPoints": 8, "color": "4F81BD"}
+            }
+        });
+        let on = write_paragraph(&bordered, &make_w("p"), Some(&base)).unwrap();
+        assert_eq!(side_attr(&on, "top", "val"), Some("single"));
+        assert_eq!(side_attr(&on, "top", "sz"), Some("12"));
+        assert_eq!(side_attr(&on, "bottom", "val"), Some("single"));
+        assert_eq!(side_attr(&on, "bottom", "color"), Some("4F81BD"));
+    }
 }

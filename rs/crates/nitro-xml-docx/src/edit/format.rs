@@ -329,6 +329,73 @@ pub fn toggle_paragraph_bottom_border(
     Ok(())
 }
 
+fn border_side_visible(borders: &Map<String, Value>, side: &str) -> bool {
+    let style = borders
+        .get(side)
+        .and_then(|edge| edge.get("style"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    !style.is_empty() && style != "nil" && style != "none"
+}
+
+/// Toggle the paragraph top border. A visible rule is removed; anything else becomes a
+/// 1.5 pt single black rule. A styled rule is cleared with `w:val="nil"` so it does not stick.
+/// Other sides on the effective border are kept.
+pub fn toggle_paragraph_top_border(
+    host: &mut DocxHost,
+    block_index: usize,
+) -> Result<(), EditError> {
+    let (styled, direct, visible) = {
+        let style_id = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?
+            .get("style")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
+        let styled = style_paragraph_borders(host, style_id.as_deref());
+        let direct = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?
+            .get("borders")
+            .and_then(|b| b.as_object())
+            .cloned();
+        let effective = direct.clone().unwrap_or_else(|| styled.clone());
+        let visible = border_side_visible(&effective, "top");
+        (styled, direct, visible)
+    };
+    let mut next = direct.unwrap_or_else(|| styled.clone());
+    if visible {
+        if border_side_visible(&styled, "top") {
+            next.insert("top".into(), json!({ "style": "nil" }));
+        } else {
+            next.remove("top");
+        }
+    } else {
+        next.insert(
+            "top".into(),
+            json!({
+                "style": "single",
+                "sizeEighthPoints": PARAGRAPH_BORDER_SZ,
+                "spacePoints": PARAGRAPH_BORDER_SPACE,
+                "color": "000000",
+            }),
+        );
+    }
+    let block = host
+        .paragraph_mut(block_index)
+        .map_err(|e| EditError::Other { message: e })?;
+    let obj = block.as_object_mut().ok_or_else(|| EditError::Other {
+        message: format!("paragraph {block_index} is not an object"),
+    })?;
+    if next.is_empty() || next == styled {
+        obj.remove("borders");
+    } else {
+        obj.insert("borders".into(), Value::Object(next));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
 fn style_page_break_before(host: &DocxHost, style_id: Option<&str>) -> bool {
     let Some(id) = style_id else {
         return false;
@@ -1325,5 +1392,62 @@ mod tests {
         toggle_page_break_before(&mut host, 0).unwrap();
         assert_eq!(host.blocks[0]["pageBreakBefore"], json!(true));
         assert!(effective_page_break_before(&host, 0));
+    }
+
+    #[test]
+    fn catches_top_border_leaving_w_pbdr_off_an_unbordered_paragraph() {
+        // Catches: Top border leaving borders unset, so save omits w:pBdr.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        toggle_paragraph_top_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["top"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["top"]["sizeEighthPoints"], 12);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_paragraph_top_border(&mut host, 0).unwrap();
+        assert!(host.blocks[0].get("borders").is_none());
+    }
+
+    #[test]
+    fn catches_top_border_on_a_styled_top_rule_writing_nil() {
+        // Catches: Top border on a heading whose style rule is already on leaving that rule in place.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Heading1",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Heading1": { "id": "Heading1", "formatting": { "borders": {
+                "top": { "style": "single", "sizeEighthPoints": 8, "color": "4F81BD" }
+            } } } }
+        }));
+        toggle_paragraph_top_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["top"]["style"], "nil");
+        toggle_paragraph_top_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["top"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["top"]["sizeEighthPoints"], 12);
+    }
+
+    #[test]
+    fn catches_top_border_dropping_a_styled_bottom_rule() {
+        // Catches: Top border on a title whose style has a bottom rule dropping that bottom rule.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "borders": {
+                "bottom": { "style": "single", "sizeEighthPoints": 8, "spacePoints": 4, "color": "4F81BD" }
+            } } } }
+        }));
+        toggle_paragraph_top_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["color"], "4F81BD");
+        assert_eq!(host.blocks[0]["borders"]["top"]["style"], "single");
     }
 }

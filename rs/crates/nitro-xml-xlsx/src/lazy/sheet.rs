@@ -61,6 +61,9 @@ pub(crate) struct SheetRequest<'a> {
 }
 
 /// `(sheet, rows_visited, truncated)` — `truncated` means inflate stopped before `</sheetData>`.
+///
+/// Thin wrapper: stream + SST resolve stay here so TurboFan on xlsx S open does not also
+/// compile cell materialise / shell parse into one giant body (peak_mem compile floor).
 pub(crate) fn load_sheet_window(
     pkg: &mut Package,
     req: &SheetRequest<'_>,
@@ -107,17 +110,32 @@ pub(crate) fn load_sheet_window(
         resolved.insert(*idx);
     }
     let (compact, remap) = compact_strings(resolved_now);
+    let rows_visited = capture.rows_visited;
+    let sheet = materialize_window_cells(pkg, req, capture, &compact, &remap, warnings);
+    Ok((sheet, rows_visited, truncated))
+}
 
+/// Body rewrite → CellStore → shell worksheet → DumpCell viewport filter.
+/// Outlined so V8 does not TurboFan this with [`load_sheet_window`]'s stream loop.
+#[inline(never)]
+fn materialize_window_cells(
+    pkg: &mut Package,
+    req: &SheetRequest<'_>,
+    capture: Capture,
+    compact: &[crate::model::SharedString],
+    remap: &crate::fast_hash::FastMap<usize, usize>,
+    warnings: &mut Vec<String>,
+) -> ActiveWorksheet {
     let mut body = String::new();
     for row in &capture.kept {
-        body.push_str(&rewrite_shared_indices(&row.xml, &remap));
+        body.push_str(&rewrite_shared_indices(&row.xml, remap));
     }
     let mut store = CellStore::new();
     let mut parsed_info: HashMap<u32, RowInfo> = HashMap::new();
     let mut cell_warnings = Vec::new();
     {
         let mut ctx = CellContext {
-            shared_strings: &compact,
+            shared_strings: compact,
             xf_map: req.xf_map,
             date1904: req.date1904,
             palette: req.palette,
@@ -142,7 +160,7 @@ pub(crate) fn load_sheet_window(
 
     let shell = shell_document(&capture.prefix, &capture.tail, capture.truncated);
     let mut sheet = worksheet_from_shell(pkg, req, &shell, warnings);
-    let cells = store_to_dump_cells_with_sst(&store, &compact);
+    let cells = store_to_dump_cells_with_sst(&store, compact);
     let freeze_rows = sheet.view.freeze.as_ref().map(|f| f.rows).unwrap_or(0);
     let freeze_cols = sheet.view.freeze.as_ref().map(|f| f.cols).unwrap_or(0);
     sheet.replace_cells(
@@ -162,7 +180,7 @@ pub(crate) fn load_sheet_window(
         max_col,
         capture.truncated,
     ));
-    Ok((sheet, capture.rows_visited, truncated))
+    sheet
 }
 
 fn empty_sheet(req: &SheetRequest<'_>) -> ActiveWorksheet {
@@ -304,6 +322,7 @@ fn prefix_has_sheet_data(prefix: &str) -> bool {
     prefix.contains("<sheetData") || prefix.contains(":sheetData")
 }
 
+#[inline(never)]
 fn worksheet_from_shell(
     pkg: &mut Package,
     req: &SheetRequest<'_>,

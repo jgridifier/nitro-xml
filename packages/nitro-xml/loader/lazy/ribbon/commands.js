@@ -2,11 +2,12 @@
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
 // Every `c` id below was checked against the engine (the saved bytes change, or copy reads them);
-// borders are deliberately absent. Delete Table removes the slide table and leaves
-// other shapes. Cut, paste, and group rewrite the package; copy only fills the editor clipboard.
+// borders are deliberately absent. All caps is a Word command that writes w:caps.
+// Delete Table removes the slide table and leaves other shapes.
+// Cut, paste, and group rewrite the package; copy only fills the editor clipboard.
 // Grow and shrink font, indent, right indent, line spacing, paragraph space before and after,
-// hanging indent, first-line indent, double underline, script, font name, Word bullets, insert
-// shape, duplicate,
+// hanging indent, first-line indent, double underline, all caps, script, font name, Word bullets,
+// insert shape, duplicate,
 // delete, z-order (one step and all the way), shape fill, outline, and slide layout are listed
 // only after they change the saved package.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
@@ -107,6 +108,7 @@ const wordFont = {
     [
       ...FONT.rows[0],
       it("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
+      it("home.caps", "caps", "All caps", "All caps"),
       it("home.highlight", "highlight", "Highlight", "Text highlight"),
     ],
     FONT.rows[1],

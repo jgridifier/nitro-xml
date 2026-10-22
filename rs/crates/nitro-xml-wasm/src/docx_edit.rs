@@ -504,6 +504,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.caps",
+                    label: "All Caps",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.strikethrough",
                     label: "Strikethrough",
                     enabled: true,
@@ -709,6 +714,7 @@ fn canonical_command(id: &str) -> &str {
         "home.italic" => "italic",
         "home.underline" => "underline",
         "home.double-underline" => "double-underline",
+        "home.caps" => "caps",
         "home.strikethrough" => "strike",
         "home.highlight" => "highlight",
         "home.indent" => "indent",

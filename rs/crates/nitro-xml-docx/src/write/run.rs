@@ -131,6 +131,7 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
         "fontFamily",
         "fontFamilyEastAsia",
         "fontFamilyComplexScript",
+        "caps",
     ]
     .iter()
     .any(|k| run_property_changed(run, base, k));
@@ -192,6 +193,9 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
     }
     if run_property_changed(run, base, "strike") {
         set_toggle(props, "strike", run.get("strike").and_then(|v| v.as_bool()));
+    }
+    if run_property_changed(run, base, "caps") {
+        set_toggle(props, "caps", run.get("caps").and_then(|v| v.as_bool()));
     }
     if run_property_changed(run, base, "highlight") {
         remove_w_children(props, "highlight");
@@ -318,5 +322,33 @@ mod tests {
         let run = json!({"text": "Hi", "underline": true, "underlineStyle": "double"});
         let el = create_run(&run, Some(&base), None);
         assert_eq!(underline_val(&el), Some("double"));
+    }
+
+    /// `None` when `w:caps` is absent. `Some(None)` is a val-less (on) element.
+    fn caps_val(el: &nitro_xml_opc::xml::Element) -> Option<Option<&str>> {
+        let props = el.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "rPr" => Some(e),
+            _ => None,
+        })?;
+        let caps = props.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "caps" => Some(e),
+            _ => None,
+        })?;
+        Some(
+            caps.attrs
+                .iter()
+                .find(|a| a.local == "val")
+                .map(|a| a.value.as_str()),
+        )
+    }
+
+    #[test]
+    fn catches_all_caps_omitting_w_caps_or_writing_val_on() {
+        // Catches: a caps-true run saving without w:caps, or caps false omitting w:val="0".
+        let base = json!({"text": "Hi"});
+        let on = create_run(&json!({"text": "Hi", "caps": true}), Some(&base), None);
+        assert_eq!(caps_val(&on), Some(None));
+        let off = create_run(&json!({"text": "Hi", "caps": false}), Some(&base), None);
+        assert_eq!(caps_val(&off), Some(Some("0")));
     }
 }

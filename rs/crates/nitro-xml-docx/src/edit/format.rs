@@ -8,8 +8,9 @@ use std::any::Any;
 use nitro_xml_opc::edit::{ChangeKind, ChangeSet, Command, CommandRegistry, EditError};
 use serde_json::{json, Value};
 
-use super::host::DocxHost;
 use crate::run_formatting::{resolve_run_formatting, RunFormattingContext};
+
+use super::host::DocxHost;
 
 fn host_mut(host: &mut dyn Any) -> Result<&mut DocxHost, EditError> {
     host.downcast_mut::<DocxHost>()
@@ -258,6 +259,47 @@ pub fn toggle_first_line_indent(host: &mut DocxHost, block_index: usize) -> Resu
     Ok(())
 }
 
+/// Direct `w:caps`, or the style chain when the run does not set it.
+/// A title style can be all caps with no direct flag on the run.
+pub fn effective_caps(host: &DocxHost, block_index: usize, run_index: usize) -> bool {
+    let block = host.paragraph(block_index).ok();
+    let style_id = block
+        .and_then(|b| b.get("style"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let run = block
+        .and_then(|b| b.get("runs"))
+        .and_then(|r| r.as_array())
+        .and_then(|runs| runs.get(run_index))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let resolved = resolve_run_formatting(
+        &run,
+        RunFormattingContext {
+            paragraph_style_id: style_id,
+            paragraph_catalog: host.paragraph_styles.clone(),
+            run_catalog: host.character_styles.clone(),
+        },
+    );
+    resolved
+        .get("caps")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// Toggle all caps from the effective value.
+/// A styled all-caps run with no direct `w:caps` writes `false` (`w:caps w:val="0"`).
+pub fn toggle_caps(
+    host: &mut DocxHost,
+    block_index: usize,
+    run_index: usize,
+) -> Result<(), EditError> {
+    let on = effective_caps(host, block_index, run_index);
+    let mut patch = serde_json::Map::new();
+    patch.insert("caps".into(), json!(!on));
+    set_run_formatting(host, block_index, run_index, &patch)
+}
+
 /// Toggle a direct double underline (`w:u/@w:val="double"`).
 /// A run already double-underlined drops the style and the underline.
 /// Any other run becomes underlined with style `double`.
@@ -325,6 +367,7 @@ pub fn set_run_formatting(
             "highlight",
             "verticalAlign",
             "fontFamily",
+            "caps",
         ] {
             if let Some(v) = patch.get(key) {
                 let clear = matches!(
@@ -566,5 +609,40 @@ mod tests {
         }));
         assert_eq!(effective_run_font_pt(&host, 0, 0), 26.0);
         assert_eq!(step_office_font_pt(26.0, true), 28.0);
+    }
+
+    #[test]
+    fn catches_all_caps_leaving_caps_unset_on_a_sentence_case_run() {
+        // Catches: All Caps leaving caps unset on a sentence-case run, so save omits w:caps.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        toggle_caps(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["caps"], true);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_caps(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["caps"], false);
+    }
+
+    #[test]
+    fn catches_all_caps_on_a_styled_title_writing_caps_true() {
+        // Catches: All Caps on a title that is already all caps via its style writing caps true again, so the run stays uppercase.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({ "styles": { "Title": { "id": "Title" } } }));
+        host.character_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "caps": true } } }
+        }));
+        assert!(effective_caps(&host, 0, 0));
+        assert!(host.blocks[0]["runs"][0].get("caps").is_none());
+        toggle_caps(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["caps"], false);
+        assert!(!effective_caps(&host, 0, 0));
     }
 }

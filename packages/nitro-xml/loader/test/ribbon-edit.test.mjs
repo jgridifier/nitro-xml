@@ -176,6 +176,7 @@ describe("Office ribbon manifests", () => {
       "home.indent-right",
       "home.outdent-right",
       "home.double-underline",
+      "home.caps",
       "home.subscript",
       "home.superscript",
       "home.bullets",
@@ -217,6 +218,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.indent-right"));
     assert.ok(bound.includes("home.double-underline"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.double-underline"));
+    assert.ok(bound.includes("home.caps"));
+    assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.caps"));
     assert.ok(bound.includes("home.font-name"));
     assert.ok(bound.includes("home.style-heading-1"));
     assert.ok(bound.includes("insert.page-break"));

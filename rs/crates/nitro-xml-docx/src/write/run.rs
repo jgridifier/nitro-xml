@@ -132,6 +132,7 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
         "fontFamilyEastAsia",
         "fontFamilyComplexScript",
         "caps",
+        "characterSpacingTwips",
     ]
     .iter()
     .any(|k| run_property_changed(run, base, k));
@@ -178,6 +179,17 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
             let mut sz = make_w("sz");
             set_w_attr(&mut sz, "val", &format!("{}", (size * 2.0).round() as i64));
             props.children.push(Node::Element(sz));
+        }
+    }
+    if run_property_changed(run, base, "characterSpacingTwips") {
+        remove_w_children(props, "spacing");
+        if let Some(twips) = run
+            .get("characterSpacingTwips")
+            .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|n| n.round() as i64)))
+        {
+            let mut spacing = make_w("spacing");
+            set_w_attr(&mut spacing, "val", &twips.to_string());
+            props.children.push(Node::Element(spacing));
         }
     }
     if run_property_changed(run, base, "color") {
@@ -258,6 +270,7 @@ fn order_rpr_children(props: &mut Element) {
         "strike",
         "dstrike",
         "color",
+        "spacing",
         "sz",
         "szCs",
         "highlight",
@@ -342,6 +355,22 @@ mod tests {
         )
     }
 
+    fn spacing_val(el: &nitro_xml_opc::xml::Element) -> Option<&str> {
+        let props = el.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "rPr" => Some(e),
+            _ => None,
+        })?;
+        let spacing = props.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "spacing" => Some(e),
+            _ => None,
+        })?;
+        spacing
+            .attrs
+            .iter()
+            .find(|a| a.local == "val")
+            .map(|a| a.value.as_str())
+    }
+
     #[test]
     fn catches_all_caps_omitting_w_caps_or_writing_val_on() {
         // Catches: a caps-true run saving without w:caps, or caps false omitting w:val="0".
@@ -350,5 +379,22 @@ mod tests {
         assert_eq!(caps_val(&on), Some(None));
         let off = create_run(&json!({"text": "Hi", "caps": false}), Some(&base), None);
         assert_eq!(caps_val(&off), Some(Some("0")));
+    }
+
+    #[test]
+    fn catches_expand_spacing_omitting_w_spacing() {
+        // Catches: a run expanded by 1 pt saving without w:spacing, or a cleared spacing leaving the old value.
+        let base = json!({"text": "Hi"});
+        let expanded = json!({"text": "Hi", "characterSpacingTwips": 20});
+        let on = create_run(&expanded, Some(&base), None);
+        assert_eq!(spacing_val(&on), Some("20"));
+        let cleared = create_run(&json!({"text": "Hi"}), Some(&expanded), None);
+        assert_eq!(spacing_val(&cleared), None);
+        let zero = create_run(
+            &json!({"text": "Hi", "characterSpacingTwips": 0}),
+            Some(&base),
+            None,
+        );
+        assert_eq!(spacing_val(&zero), Some("0"));
     }
 }

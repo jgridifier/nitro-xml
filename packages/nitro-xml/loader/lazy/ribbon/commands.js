@@ -5,9 +5,9 @@
 // borders are deliberately absent. All caps is a Word command that writes w:caps.
 // Delete Table removes the slide table and leaves other shapes.
 // Cut, paste, and group rewrite the package; copy only fills the editor clipboard.
-// Grow and shrink font, indent, right indent, line spacing, paragraph space before and after,
-// hanging indent, first-line indent, double underline, all caps, script, font name, Word bullets,
-// insert shape, duplicate,
+// Grow and shrink font, character spacing, indent, right indent, line spacing, paragraph space
+// before and after, hanging indent, first-line indent, double underline, all caps, script,
+// font name, Word bullets, insert shape, duplicate,
 // delete, z-order (one step and all the way), shape fill, outline, and slide layout are listed
 // only after they change the saved package.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
@@ -109,6 +109,8 @@ const wordFont = {
       ...FONT.rows[0],
       it("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
       it("home.caps", "caps", "All caps", "All caps"),
+      it("home.expand-spacing", "expandSpacing", "Expand", "Expand character spacing"),
+      it("home.condense-spacing", "condenseSpacing", "Condense", "Condense character spacing"),
       it("home.highlight", "highlight", "Highlight", "Text highlight"),
     ],
     FONT.rows[1],

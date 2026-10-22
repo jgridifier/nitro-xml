@@ -1,49 +1,79 @@
 {
   "name": "nitro-xml",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Open, view, edit and save .xlsx, .docx and .pptx in the browser, in Rust/WebAssembly.",
   "license": "MIT",
+  "author": "Nitro XML contributors",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jgridifier/nitro-xml.git",
     "directory": "packages/nitro-xml"
   },
   "homepage": "https://jgridifier.github.io/nitro-xml/",
+  "bugs": {
+    "url": "https://github.com/jgridifier/nitro-xml/issues"
+  },
+  "keywords": [
+    "ooxml",
+    "xlsx",
+    "docx",
+    "pptx",
+    "wasm",
+    "spreadsheet",
+    "word",
+    "powerpoint"
+  ],
   "type": "module",
-  "main": "./pkg/nitro_xml_wasm.js",
-  "module": "./pkg/nitro_xml_wasm.js",
-  "types": "./pkg/nitro_xml_wasm.d.ts",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
   "exports": {
     ".": {
-      "types": "./pkg/nitro_xml_wasm.d.ts",
-      "import": "./pkg/nitro_xml_wasm.js"
+      "types": "./index.d.ts",
+      "import": "./index.js"
     },
     "./loader": {
+      "types": "./loader/index.d.ts",
       "import": "./loader/index.js"
     },
     "./loader/*": "./loader/*",
-    "./nitro_xml_wasm_bg.wasm": "./pkg/nitro_xml_wasm_bg.wasm"
+    "./wasm": {
+      "types": "./pkg/nitro_xml_wasm.d.ts",
+      "import": "./pkg/nitro_xml_wasm.js"
+    },
+    "./nitro_xml_wasm_bg.wasm": "./pkg/nitro_xml_wasm_bg.wasm",
+    "./package.json": "./package.json"
   },
   "files": [
+    "index.js",
+    "index.d.ts",
     "pkg/nitro_xml_wasm.js",
     "pkg/nitro_xml_wasm.d.ts",
     "pkg/nitro_xml_wasm_bg.wasm",
     "pkg/nitro_xml_wasm_bg.wasm.d.ts",
     "loader/**/*.js",
+    "loader/**/*.d.ts",
     "loader/README.md",
+    "README.md",
     "LICENSE",
     "LICENSE-THIRD-PARTY",
     "NOTICE"
   ],
   "sideEffects": [
     "./loader/element.js",
-    "./loader/index.js"
+    "./loader/index.js",
+    "./index.js"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "dependencies": {
     "emf-converter": "4.11.2"
   },
   "scripts": {
     "build": "bash ../../scripts/build-wasm.sh",
-    "test:loader": "node --test loader/test/*.mjs"
+    "test:loader": "node --test loader/test/*.mjs",
+    "prepack": "node --input-type=module -e \"import { accessSync } from 'node:fs'; accessSync('pkg/nitro_xml_wasm_bg.wasm');\""
   }
 }

@@ -594,6 +594,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.page-break-before",
+                    label: "Page Break Before",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.space-before",
                     label: "Space Before",
                     enabled: true,
@@ -764,6 +769,7 @@ fn canonical_command(id: &str) -> &str {
         "home.line-spacing" => "line-spacing",
         "home.shading" => "shading",
         "home.border-bottom" => "border-bottom",
+        "home.page-break-before" => "page-break-before",
         "home.space-before" => "space-before",
         "home.space-after" => "space-after",
         "home.hanging-indent" => "hanging-indent",

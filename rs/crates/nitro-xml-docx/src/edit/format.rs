@@ -329,6 +329,64 @@ pub fn toggle_paragraph_bottom_border(
     Ok(())
 }
 
+fn style_page_break_before(host: &DocxHost, style_id: Option<&str>) -> bool {
+    let Some(id) = style_id else {
+        return false;
+    };
+    host.paragraph_styles
+        .as_ref()
+        .and_then(|c| c.get("styles"))
+        .and_then(|s| s.get(id))
+        .and_then(|s| s.get("formatting"))
+        .and_then(|f| f.get("pageBreakBefore"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// Direct `w:pageBreakBefore`, or the paragraph style's flag. A direct `false` wins over a style.
+pub fn effective_page_break_before(host: &DocxHost, block_index: usize) -> bool {
+    let Ok(block) = host.paragraph(block_index) else {
+        return false;
+    };
+    if let Some(direct) = block.get("pageBreakBefore").and_then(|v| v.as_bool()) {
+        return direct;
+    }
+    style_page_break_before(host, block.get("style").and_then(|v| v.as_str()))
+}
+
+/// Toggle page break before. A paragraph that already starts a page drops the flag, and writes
+/// `false` when the style would otherwise keep the break.
+pub fn toggle_page_break_before(host: &mut DocxHost, block_index: usize) -> Result<(), EditError> {
+    let on = effective_page_break_before(host, block_index);
+    let style_on = {
+        let block = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?;
+        let style_id = block
+            .get("style")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        style_page_break_before(host, style_id.as_deref())
+    };
+    let block = host
+        .paragraph_mut(block_index)
+        .map_err(|e| EditError::Other { message: e })?;
+    let obj = block.as_object_mut().ok_or_else(|| EditError::Other {
+        message: format!("paragraph {block_index} is not an object"),
+    })?;
+    if on {
+        if style_on {
+            obj.insert("pageBreakBefore".into(), json!(false));
+        } else {
+            obj.remove("pageBreakBefore");
+        }
+    } else {
+        obj.insert("pageBreakBefore".into(), json!(true));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
 /// Toggle a direct hanging indent. A paragraph already at half an inch drops `hangingTwips`.
 /// Any other value, including none, becomes half an inch and drops `firstLineTwips`.
 pub fn toggle_hanging_indent(host: &mut DocxHost, block_index: usize) -> Result<(), EditError> {
@@ -1230,5 +1288,42 @@ mod tests {
         assert_eq!(host.blocks[0]["borders"]["left"]["style"], "single");
         assert_eq!(host.blocks[0]["borders"]["left"]["color"], "FF0000");
         assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "single");
+    }
+
+    #[test]
+    fn catches_page_break_before_leaving_the_flag_off_an_unbroken_paragraph() {
+        // Catches: Page break before leaving pageBreakBefore unset, so save omits w:pageBreakBefore.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        assert!(!effective_page_break_before(&host, 0));
+        toggle_page_break_before(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["pageBreakBefore"], json!(true));
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_page_break_before(&mut host, 0).unwrap();
+        assert!(host.blocks[0].get("pageBreakBefore").is_none());
+    }
+
+    #[test]
+    fn catches_page_break_before_on_a_styled_break_writing_false() {
+        // Catches: Page break before on a heading whose style already breaks writing nothing, so the break sticks.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Heading1",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Heading1": { "id": "Heading1", "formatting": { "pageBreakBefore": true } } }
+        }));
+        assert!(effective_page_break_before(&host, 0));
+        toggle_page_break_before(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["pageBreakBefore"], json!(false));
+        assert!(!effective_page_break_before(&host, 0));
+        toggle_page_break_before(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["pageBreakBefore"], json!(true));
+        assert!(effective_page_break_before(&host, 0));
     }
 }

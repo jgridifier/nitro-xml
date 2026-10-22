@@ -88,6 +88,12 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("line-spacing", "Line Spacing", surface, false));
         html.push_str(&button("shading", "Shade", surface, false));
         html.push_str(&button("border-bottom", "Bottom Border", surface, false));
+        html.push_str(&button(
+            "page-break-before",
+            "Page Break Before",
+            surface,
+            false,
+        ));
         html.push_str(&button("space-before", "Space Before", surface, false));
         html.push_str(&button("space-after", "Space After", surface, false));
         html.push_str(&button("hanging-indent", "Hanging", surface, false));

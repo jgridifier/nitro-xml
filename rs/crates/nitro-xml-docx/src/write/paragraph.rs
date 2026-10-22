@@ -54,6 +54,9 @@ pub fn write_paragraph(
     if field_differs(paragraph, base, "borders") {
         sync_borders(&mut out, paragraph);
     }
+    if field_differs(paragraph, base, "pageBreakBefore") {
+        sync_page_break_before(&mut out, paragraph);
+    }
 
     let runs = paragraph
         .get("runs")
@@ -324,6 +327,31 @@ fn border_side_el(name: &str, side: &Value) -> Element {
     el
 }
 
+/// `w:pageBreakBefore` follows `pageBreakBefore`. An absent field drops a stale element.
+/// `true` writes an empty element (on). `false` writes `w:val="0"` so a styled break does not stick.
+fn sync_page_break_before(out: &mut Element, paragraph: &Value) {
+    let value = paragraph.get("pageBreakBefore").and_then(|v| v.as_bool());
+    let has = first_w_mut(out, "pPr")
+        .and_then(|p| first_w_mut(p, "pageBreakBefore"))
+        .is_some();
+    if value.is_none() && !has {
+        return;
+    }
+    if first_w_mut(out, "pPr").is_none() {
+        out.children.insert(0, Node::Element(make_w("pPr")));
+    }
+    let p_pr = first_w_mut(out, "pPr").expect("pPr");
+    remove_w_children(p_pr, "pageBreakBefore");
+    let Some(value) = value else {
+        return;
+    };
+    let mut el = make_w("pageBreakBefore");
+    if !value {
+        set_w_attr(&mut el, "val", "0");
+    }
+    p_pr.children.push(Node::Element(el));
+}
+
 /// `w:pStyle` follows the block's `style` field. An empty style drops a stale `pStyle`.
 fn sync_p_style(out: &mut Element, paragraph: &Value) {
     if first_w_mut(out, "pPr").is_none() {
@@ -465,5 +493,40 @@ mod tests {
         let off = write_paragraph(&nil, &on, Some(&bordered)).unwrap();
         assert_eq!(side_attr(&off, "bottom", "val"), Some("nil"));
         assert_eq!(side_attr(&off, "bottom", "sz"), None);
+    }
+
+    fn page_break_val(el: &Element) -> Option<Option<&str>> {
+        let props = el.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "pPr" => Some(e),
+            _ => None,
+        })?;
+        let brk = props.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "pageBreakBefore" => Some(e),
+            _ => None,
+        })?;
+        Some(
+            brk.attrs
+                .iter()
+                .find(|a| a.local == "val")
+                .map(|a| a.value.as_str()),
+        )
+    }
+
+    #[test]
+    fn catches_page_break_before_omitting_the_element() {
+        // Catches: a page-break paragraph saving without w:pageBreakBefore, or false omitting w:val="0".
+        let base = json!({"id": "p0", "runs": [{"text": "Hi"}]});
+        let broken = json!({"id": "p0", "runs": [{"text": "Hi"}], "pageBreakBefore": true});
+        let on = write_paragraph(&broken, &make_w("p"), Some(&base)).unwrap();
+        assert_eq!(page_break_val(&on), Some(None));
+        let cleared = write_paragraph(&base, &on, Some(&broken)).unwrap();
+        assert_eq!(page_break_val(&cleared), None);
+        let off = write_paragraph(
+            &json!({"id": "p0", "runs": [{"text": "Hi"}], "pageBreakBefore": false}),
+            &on,
+            Some(&broken),
+        )
+        .unwrap();
+        assert_eq!(page_break_val(&off), Some(Some("0")));
     }
 }

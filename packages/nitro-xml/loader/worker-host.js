@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { takePrewarmedWorker, prewarmWorker } from "./bootstrap.js";
-import { applyCommandBuffer } from "./apply.js";
+import { takePrewarmedWorker, prewarmWorker, unsupportedFormatError } from "./bootstrap.js";
 import { createEventCoalescer } from "./events.js";
 import {
   isSupportedExtension,
   VIEWER_RECOVERY_FAILED_MESSAGE,
   EDITOR_RECOVERY_FAILED_MESSAGE,
 } from "./formats.js";
-import { unsupportedFormatError } from "./bootstrap.js";
 import { getDefaultFontSource } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
-import { fillMeasureWidths } from "./measure.js";
 export class WorkerDocument {
 constructor(opts = {}) {
 this._canvas = opts.canvas || null;
@@ -39,9 +36,8 @@ this._strings = null;
 this._measureCount = 0;
 this._outlineCount = 0;
 this._t = true;
-this._editReadyPromise = Promise.resolve();
-this._editReadyPending = false;
-this._editReadyResolve = null;
+this._eP = Promise.resolve();
+this._eR = null;
 }
 get measureCount() {
 return this._measureCount | 0;
@@ -148,9 +144,8 @@ this._worker.terminate();
 this._pending.clear();
 this._worker = this._newWorker(false);
 this._wireWorker();
-this._editReadyPromise = Promise.resolve();
-this._editReadyPending = false;
-this._editReadyResolve = null;
+this._eP = Promise.resolve();
+this._eR = null;
 }
 async _openBytes(buffer, name, opts = {}) {
 const n = name || this._name;
@@ -168,34 +163,19 @@ this._worker.postMessage(
 });
 this._t = opened.t !== false;
 if (readonly) {
-this._editReadyPending = false;
-this._editReadyPromise = Promise.resolve();
-this._editReadyResolve = null;
+this._eP = Promise.resolve();
+this._eR = null;
 } else {
-this._editReadyPending = true;
-this._editReadyPromise = new Promise((resolve) => {
-this._editReadyResolve = resolve;
+this._eP = new Promise((r) => {
+this._eR = r;
 });
 }
 return opened;
 }
-_markEditReady() {
-if (!this._editReadyPending) return;
-this._editReadyPending = false;
-if (this._editReadyResolve) {
-this._editReadyResolve();
-this._editReadyResolve = null;
-}
-}
-whenEditReady() {
-return this._editReadyPromise || Promise.resolve();
-}
 async loadEditorChrome() {
-const msg = await this._request("editor-chrome", () => {
+return this._request("editor-chrome", () => {
 this._worker.postMessage({ type: "editor-chrome" });
 });
-this._markEditReady();
-return msg;
 }
 async editorKey(ev, mac) {
 // Flush queued pointer events before the key so click-then-immediate-key
@@ -222,7 +202,6 @@ if (this._journal && bytes) this._journal.markSave(bytes);
 return bytes;
 }
 async applyEdit(spec) {
-await this.whenEditReady();
 const result = (await this._request("apply-edit", () => {
 this._worker.postMessage({ type: "apply-edit", spec: spec || "" });
 })).result;
@@ -322,8 +301,11 @@ return this._measureCanvas.getContext("2d");
 }
 _onMessage(msg) {
 if (!msg || !msg.type) return;
-if (msg.type === "edit-ready") {
-this._markEditReady();
+if (msg.type === "er") {
+if (this._eR) {
+this._eR();
+this._eR = null;
+}
 return;
 }
 if (msg.type === "error") {

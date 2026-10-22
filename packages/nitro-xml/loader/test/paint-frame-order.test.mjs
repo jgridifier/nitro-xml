@@ -35,6 +35,7 @@ describe("paint-frame measure ordering", () => {
       tick() {
         return Promise.resolve();
       },
+      _worker: { postMessage() {} },
     };
     const frame = {
       commands,

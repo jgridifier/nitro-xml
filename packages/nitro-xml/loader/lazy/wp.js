@@ -22,6 +22,9 @@ function isSpreadsheet(doc) {
 export function patch(WorkerDocument) {
   if (WorkerDocument._nxPark) return;
   WorkerDocument._nxPark = 1;
+  WorkerDocument.prototype.whenEditReady = function () {
+    return this._eP;
+  };
 
   const origEdit = WorkerDocument.prototype.applyEdit;
   const origTick = WorkerDocument.prototype.tick;
@@ -29,7 +32,7 @@ export function patch(WorkerDocument) {
   const origSa = WorkerDocument.prototype.shellAction;
 
   async function mutFrame(doc, fields) {
-    if (typeof doc.whenEditReady === "function") await doc.whenEditReady();
+    if (doc._eR) await doc._eP;
     const msg = await doc._request("mut-frame", () => {
       doc._worker.postMessage({ type: "mut-frame", ...fields });
     });
@@ -43,6 +46,7 @@ export function patch(WorkerDocument) {
   }
 
   async function flushEditQueue(doc) {
+    if (doc._eR) await doc._eP;
     // Host rAF ticks (element._tick) often overlap mut-frame. Waiting here stops
     // a concurrent take-frame/prepareFrame that rebuilds CellIndex over cells_1m.
     if (doc._ef) {

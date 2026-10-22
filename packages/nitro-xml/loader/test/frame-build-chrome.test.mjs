@@ -48,7 +48,7 @@ describe("frame-build pending editor chrome", () => {
       ["postMessage", "frame"],
       ["setReadOnly", false],
       ["loadEditorChrome"],
-      ["postMessage", "edit-ready"],
+      ["postMessage", "er"],
     ]);
   });
 });

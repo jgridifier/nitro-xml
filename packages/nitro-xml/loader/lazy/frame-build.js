@@ -147,6 +147,6 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
       handle.setReadOnly(false);
       handle.loadEditorChrome();
     } catch {}
-    workerSelf.postMessage({ type: "edit-ready" });
+    workerSelf.postMessage({ type: "er" });
   }
 }

@@ -1,0 +1,4688 @@
+{
+ "race": "parse",
+ "schema": 1,
+ "generatedAt": "2026-10-22T16:19:25.296Z",
+ "startedAt": "2026-10-22T16:17:57.773Z",
+ "git": {
+  "sha": "09a82b38e11a12b84f070e4305779e127512be10",
+  "short": "09a82b3",
+  "branch": "cursor/issue-30-parse-standings-tip-5eae",
+  "upstream": "e66aaec24adc0b68472eae1fc42aa4598e09c352"
+ },
+ "machine": {
+  "cpuModel": "Intel(R) Xeon(R) Processor",
+  "logicalCores": 4,
+  "ramBytes": 16780574720,
+  "memInfo": "MemTotal:       16387280 kB",
+  "platform": "Linux 6.12.94+ x64",
+  "node": "v22.14.0",
+  "ci": null
+ },
+ "browser": {
+  "name": "Google Chrome (headless)",
+  "executable": "/usr/local/bin/google-chrome",
+  "version": "154.0.8037.92",
+  "flags": [
+   "--enable-precise-memory-info",
+   "--js-flags=--expose-gc",
+   "--disable-renderer-backgrounding",
+   "--disable-background-timer-throttling"
+  ],
+  "crossOriginIsolated": true
+ },
+ "method": {
+  "warmupRuns": 1,
+  "timedRuns": 3,
+  "timer": "performance.now() around parse() only; bytes already in memory; a fresh copy of the bytes per run, made outside the timed span",
+  "gcBetweenRuns": "gc() (--expose-gc) before every run, outside the timed span",
+  "isolation": "fresh browser context and page per (file, entrant)",
+  "order": "entrants in a seeded random order per file (mulberry32, seed 20261011)",
+  "memory": "approximate: performance.memory.usedJSHeapSize just before and just after the last timed parse (model retained), plus wasm linear memory size for wasm entrants; not a peak measurement",
+  "reference": "upstream-ts",
+  "equivalence": "see docs/scoreboard-method.md#equivalence"
+ },
+ "entrants": [
+  {
+   "id": "nitro-xml",
+   "name": "Nitro XML (Rust/WASM)",
+   "formats": [
+    "xlsx",
+    "docx",
+    "pptx"
+   ],
+   "version": "0.0.0 (workspace nitro-xml-xlsx / nitro-xml-docx / nitro-xml-pptx, path-dep from rs/crates/)",
+   "licence": "MIT AND Apache-2.0",
+   "language": "Rust (WASM)",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "xlsx": "load_workbook_meta(bytes) then parse_all_worksheets(bytes, &wb). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+    "docx": "read_package(bytes). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+    "pptx": "Presentation::open(bytes) then ensure_all_slides(). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+    "doc": "https://github.com/jgridifier/nitro-xml/tree/main/rs/crates"
+   },
+   "status": "entered",
+   "reason": null,
+   "wasmBytes": 1323481,
+   "bundleBytes": {
+    "xlsx": 3368,
+    "docx": 3690,
+    "pptx": 3368
+   },
+   "adapters": {
+    "xlsx": "rust-nitro-xlsx",
+    "docx": "rust-nitro-docx",
+    "pptx": "rust-nitro-pptx"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "upstream-ts",
+   "name": "upstream ooxml TS (ChristopherVR/ooxml, ooxml-core)",
+   "formats": [
+    "xlsx",
+    "docx",
+    "pptx"
+   ],
+   "version": "git e66aaec24adc0b68472eae1fc42aa4598e09c352 (ooxml-core 1.8.2), built from the upstream/ submodule",
+   "licence": "Apache-2.0",
+   "language": "TypeScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "xlsx": "loadWorkbook(bytes) from ooxml-core/xlsx/load, the call the upstream Excel UI makes (src/ui/src/xlsx/editor-files.ts)",
+    "docx": "loadDocument(bytes) from ooxml-core/docx/load, the call the upstream Word UI makes (src/ui/src/docx/component.ts)",
+    "pptx": "new PptxHandler().load(arrayBuffer) from ooxml-core/pptx, as the upstream PowerPoint viewer does (viewers/pptx/packages/angular/src/viewer/load-content.service.ts)",
+    "doc": "https://github.com/ChristopherVR/ooxml/blob/e66aaec24adc0b68472eae1fc42aa4598e09c352/src/core/README.md"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "xlsx": 552242,
+    "docx": 477443,
+    "pptx": 3405879
+   },
+   "adapters": {
+    "xlsx": "upstream-xlsx",
+    "docx": "upstream-docx",
+    "pptx": "upstream-pptx"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "sheetjs",
+   "name": "SheetJS Community Edition",
+   "formats": [
+    "xlsx"
+   ],
+   "version": "0.20.3",
+   "licence": "Apache-2.0",
+   "language": "JavaScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "XLSX.read(bytes, { type: 'array', dense: true, cellText: false, cellFormula: false, cellHTML: false, cellStyles: false })",
+    "why": "dense mode is the documented faster/lower-memory sheet layout; cellText/cellFormula/cellHTML skip formatted text, formulae and rich-text HTML, none of which the parse race's equivalence output (value + type) needs",
+    "doc": "https://docs.sheetjs.com/docs/api/parse-options"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "xlsx": 371416
+   },
+   "adapters": {
+    "xlsx": "sheetjs"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "exceljs",
+   "name": "ExcelJS",
+   "formats": [
+    "xlsx"
+   ],
+   "version": "4.4.0",
+   "licence": "MIT",
+   "language": "JavaScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "new ExcelJS.Workbook().xlsx.load(bytes)",
+    "why": "the documented browser reader; the faster streaming WorkbookReader needs Node streams and files and is not available in a browser",
+    "doc": "https://github.com/exceljs/exceljs#reading-xlsx"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "xlsx": 947914
+   },
+   "adapters": {
+    "xlsx": "exceljs"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "calamine",
+   "name": "calamine (Rust, via wasm-bindgen)",
+   "formats": [
+    "xlsx"
+   ],
+   "version": "0.36.1 (crates.io)",
+   "licence": "MIT",
+   "language": "Rust (WASM)",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "Xlsx::new(Cursor::new(bytes)) then Reader::worksheets() (all sheet ranges into memory); default features (no chrono). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+    "why": "calamine is lazy per sheet; worksheets() is the documented call that reads every sheet's values, which the equivalence check needs",
+    "doc": "https://docs.rs/calamine/0.36.1/calamine/trait.Reader.html#tymethod.worksheets"
+   },
+   "status": "entered",
+   "reason": null,
+   "wasmBytes": 498763,
+   "bundleBytes": {
+    "xlsx": 3366
+   },
+   "adapters": {
+    "xlsx": "rust-calamine"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "umya-spreadsheet",
+   "name": "umya-spreadsheet (Rust, via wasm-bindgen)",
+   "formats": [
+    "xlsx"
+   ],
+   "version": "3.1.0 (crates.io)",
+   "licence": "MIT",
+   "language": "Rust (WASM)",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "reader::xlsx::read_reader(Cursor::new(bytes), true). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3; getrandom 0.4 'wasm_js' feature enabled (its documented wasm32 backend, pulled in via rand)",
+    "why": "the full reader; lazy_read leaves sheets undeserialised, so it would not yield the cell values the equivalence check needs",
+    "doc": "https://docs.rs/umya-spreadsheet/3.1.0/umya_spreadsheet/reader/xlsx/fn.read_reader.html"
+   },
+   "status": "entered",
+   "reason": null,
+   "wasmBytes": 2356186,
+   "bundleBytes": {
+    "xlsx": 3362
+   },
+   "adapters": {
+    "xlsx": "rust-umya"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "docx-preview",
+   "name": "docx-preview (docxjs)",
+   "formats": [
+    "docx"
+   ],
+   "version": "0.4.1",
+   "licence": "Apache-2.0",
+   "language": "TypeScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "parseAsync(bytes, {}) (the parse half of renderAsync; parsing does not consult the render options)",
+    "doc": "https://github.com/VolodymyrBaydalka/docxjs#api"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "docx": 148463
+   },
+   "adapters": {
+    "docx": "docx-preview"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "mammoth",
+   "name": "mammoth.js",
+   "formats": [
+    "docx"
+   ],
+   "version": "1.13.0",
+   "licence": "BSD-2-Clause",
+   "language": "JavaScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "mammoth.extractRawText({ arrayBuffer })",
+    "why": "its cheapest public API that yields all body text; there is no public parse-only API, so the timed span also produces the text string (cheap compared with convertToHtml)",
+    "doc": "https://github.com/mwilliamson/mammoth.js#mammothextractrawtextinput"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "docx": 307811
+   },
+   "adapters": {
+    "docx": "mammoth"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "docx-rs",
+   "name": "docx-rs (Rust, via wasm-bindgen)",
+   "formats": [
+    "docx"
+   ],
+   "version": "0.4.22 (crates.io)",
+   "licence": "MIT",
+   "language": "Rust (WASM)",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "read_docx(bytes). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+    "doc": "https://docs.rs/docx-rs/0.4.22/docx_rs/fn.read_docx.html"
+   },
+   "status": "entered",
+   "reason": null,
+   "wasmBytes": 1731720,
+   "bundleBytes": {
+    "docx": 4230
+   },
+   "adapters": {
+    "docx": "rust-docx-rs"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "pptxjs",
+   "name": "PPTXjs",
+   "formats": [
+    "pptx"
+   ],
+   "version": "v1.21.1 = git 1a9260b2062f89ba822aeb54da792236780af8e7 (not published on npm; files fetched from GitHub and sha256-verified by build.mjs)",
+   "licence": "MIT",
+   "language": "JavaScript (jQuery plugin)",
+   "timingScope": "parse + HTML generation + DOM insertion (no parse-only API)",
+   "fastestConfig": {
+    "setting": "$(host).pptxToHtml({ pptxFileUrl: <blob: URL of the in-memory bytes>, mediaProcess: false, slideMode: false })",
+    "why": "its only public API; it parses and generates and inserts the slides' HTML in one synchronous pass, so its parse-race time includes HTML generation and DOM insertion (more work than a parse: flagged on the page). mediaProcess:false is a documented option that skips audio/video extraction and does not change text",
+    "doc": "https://github.com/meshesha/PPTXjs#usage"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "pptx": 1208
+   },
+   "adapters": {
+    "pptx": "pptxjs"
+   },
+   "scripts": [
+    "/dist/bundles/pptxjs-vendor.js"
+   ],
+   "refuses": {}
+  },
+  {
+   "id": "libreoffice-wasm",
+   "name": "LibreOffice WASM (ZetaOffice / LOWA)",
+   "formats": [
+    "xlsx",
+    "docx",
+    "pptx"
+   ],
+   "version": null,
+   "licence": "MPL-2.0 (LibreOffice core); zetajs wrapper MIT",
+   "language": "C++ (Emscripten WASM)",
+   "timingScope": "parse",
+   "fastestConfig": null,
+   "status": "not entered",
+   "reason": "not entered: the documented binaries are only published under the unversioned path zetaoffice_latest (cannot be pinned, which the fairness rules require), they are about 53 MB (soffice.wasm 36.3 MB + soffice.data 15.9 MB + soffice.js 0.9 MB) and need a cross-origin-isolated threaded page, and LibreOffice has no parse-only boundary: loadComponentFromURL imports and lays out the document into the Writer/Calc/Impress model, so a parse-race number would not measure the same work. Building a pinned LOWA from source was not feasible in this run. Revisit for the render-to-first-paint race with a self-built, pinned LOWA."
+  }
+ ],
+ "evaluated": [
+  {
+   "name": "@silurus/ooxml (yukiyokotani/office-open-xml-viewer)",
+   "version": "0.88.0 (npm, 2026-09-21)",
+   "licence": "MIT",
+   "language": "Rust parsers compiled to WASM + TypeScript Canvas renderers",
+   "upkeep": "very active (last commit 2026-10-11); README states the whole codebase is written by AI coding agents",
+   "assessment": "docx/xlsx/pptx viewer (17 MB unpacked). Public API is viewer classes (DocxViewer, ...) that parse and paint; candidate for the render-to-first-paint race, not entered in the parse race because no documented parse-only API with a cell/text model was found.",
+   "status": "evaluated, not entered"
+  },
+  {
+   "name": "shrimp-doc-viewer (cjo4m06/shrimp-doc-viewer)",
+   "version": "0.5.0 (npm, 2026-08-14)",
+   "licence": "MIT OR Apache-2.0 (licence files in the npm package; the GitHub repo has no detected licence)",
+   "language": "Rust/WASM core, JS API",
+   "upkeep": "single commit burst (last commit 2026-08-14), 1 star",
+   "assessment": "viewer-only (renderDocxInto, XlsxViewer, ...); no parse-only API. Candidate for first-paint only; low upkeep.",
+   "status": "evaluated, not entered"
+  },
+  {
+   "name": "OpenOOXML/BetterOffice (openooxml/betteroffice)",
+   "version": "@betteroffice/docx 0.4.3 (npm, 2026-10-03)",
+   "licence": "Apache-2.0",
+   "language": "Rust compiled to WASM",
+   "upkeep": "very active (created 2026-07-11, last commit 2026-10-09)",
+   "assessment": "@betteroffice/docx exposes a real parse API (parseDocx) and a layout engine (31 MB unpacked, four wasm assets). Strong candidate for the docx parse race and first paint; not entered in this run (evaluation only was requested). xlsx/pptx packages not evaluated yet.",
+   "status": "evaluated, not entered"
+  },
+  {
+   "name": "pptx-preview",
+   "version": "1.0.7 (npm, 2025-10-17)",
+   "licence": "ISC",
+   "language": "JavaScript",
+   "upkeep": "last publish 2025-10-17; npm lists no source repository",
+   "assessment": "renderer only (init(el).preview(arrayBuffer)), minified dist without a public repo; no parse-only API. Candidate for first paint only.",
+   "status": "evaluated, not entered"
+  }
+ ],
+ "files": [
+  {
+   "format": "xlsx",
+   "file": "poi-45540_classic_Footer.xlsx",
+   "bytes": 40199,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      27.21,
+      22.44,
+      22.045
+     ],
+     "medianMs": 22.439999997615814,
+     "minMs": 22.0450000166893,
+     "maxMs": 27.21000000834465,
+     "approxHeapBeforeBytes": 6298184,
+     "approxHeapAfterBytes": 8644470,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 591,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      7.88,
+      7.44,
+      7.275
+     ],
+     "medianMs": 7.439999997615814,
+     "minMs": 7.2750000059604645,
+     "maxMs": 7.880000025033951,
+     "approxHeapBeforeBytes": 1457826,
+     "approxHeapAfterBytes": 1458186,
+     "wasmMemoryBeforeBytes": 1966080,
+     "wasmMemoryAfterBytes": 1966080,
+     "outputSize": 591,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-45540_classic_Header.xlsx",
+   "bytes": 40213,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      8.71,
+      8.325,
+      7.5
+     ],
+     "medianMs": 8.324999988079071,
+     "minMs": 7.5,
+     "maxMs": 8.71000000834465,
+     "approxHeapBeforeBytes": 1457868,
+     "approxHeapAfterBytes": 1458228,
+     "wasmMemoryBeforeBytes": 1966080,
+     "wasmMemoryAfterBytes": 1966080,
+     "outputSize": 591,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      22.71,
+      23.705,
+      22.37
+     ],
+     "medianMs": 22.71000000834465,
+     "minMs": 22.37000000476837,
+     "maxMs": 23.7049999833107,
+     "approxHeapBeforeBytes": 6280210,
+     "approxHeapAfterBytes": 8334102,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 591,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-45544.xlsx",
+   "bytes": 43042,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      9.28,
+      8.54,
+      6.6
+     ],
+     "medianMs": 8.540000021457672,
+     "minMs": 6.5999999940395355,
+     "maxMs": 9.280000001192093,
+     "approxHeapBeforeBytes": 1466324,
+     "approxHeapAfterBytes": 1466684,
+     "wasmMemoryBeforeBytes": 1966080,
+     "wasmMemoryAfterBytes": 1966080,
+     "outputSize": 589,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      23.215,
+      23.82,
+      22.45
+     ],
+     "medianMs": 23.21500000357628,
+     "minMs": 22.450000017881393,
+     "maxMs": 23.819999992847443,
+     "approxHeapBeforeBytes": 6544452,
+     "approxHeapAfterBytes": 9513383,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 589,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-46535.xlsx",
+   "bytes": 313321,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      103.035,
+      64.83,
+      68.7
+     ],
+     "medianMs": 68.69999998807907,
+     "minMs": 64.83000001311302,
+     "maxMs": 103.03499999642372,
+     "approxHeapBeforeBytes": 11265071,
+     "approxHeapAfterBytes": 27511772,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 7155,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      20.495,
+      15.96,
+      16.315
+     ],
+     "medianMs": 16.314999997615814,
+     "minMs": 15.96000000834465,
+     "maxMs": 20.49500000476837,
+     "approxHeapBeforeBytes": 2275913,
+     "approxHeapAfterBytes": 2276273,
+     "wasmMemoryBeforeBytes": 5636096,
+     "wasmMemoryAfterBytes": 5636096,
+     "outputSize": 7155,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-47813.xlsx",
+   "bytes": 54880,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      21.64,
+      22.59,
+      18.37
+     ],
+     "medianMs": 21.639999985694885,
+     "minMs": 18.37000000476837,
+     "maxMs": 22.59000000357628,
+     "approxHeapBeforeBytes": 7125720,
+     "approxHeapAfterBytes": 14799827,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 2164,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      10.29,
+      10.97,
+      8.86
+     ],
+     "medianMs": 10.28999999165535,
+     "minMs": 8.859999984502792,
+     "maxMs": 10.969999998807907,
+     "approxHeapBeforeBytes": 1501490,
+     "approxHeapAfterBytes": 1501850,
+     "wasmMemoryBeforeBytes": 2621440,
+     "wasmMemoryAfterBytes": 2621440,
+     "outputSize": 2164,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-49156.xlsx",
+   "bytes": 25064,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      8.945,
+      6.795,
+      4.355
+     ],
+     "medianMs": 6.794999986886978,
+     "minMs": 4.354999989271164,
+     "maxMs": 8.944999992847443,
+     "approxHeapBeforeBytes": 1412354,
+     "approxHeapAfterBytes": 1412714,
+     "wasmMemoryBeforeBytes": 2162688,
+     "wasmMemoryAfterBytes": 2162688,
+     "outputSize": 101,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      15.74,
+      14.295,
+      18.88
+     ],
+     "medianMs": 15.740000009536743,
+     "minMs": 14.2950000166893,
+     "maxMs": 18.87999999523163,
+     "approxHeapBeforeBytes": 5105102,
+     "approxHeapAfterBytes": 6648334,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 101,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-50096.xlsx",
+   "bytes": 12391,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      2.715,
+      2.54,
+      2.235
+     ],
+     "medianMs": 2.5399999916553497,
+     "minMs": 2.2350000143051147,
+     "maxMs": 2.7150000035762787,
+     "approxHeapBeforeBytes": 1374339,
+     "approxHeapAfterBytes": 1374699,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 600,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      9.605,
+      9.075,
+      8.7
+     ],
+     "medianMs": 9.075000017881393,
+     "minMs": 8.699999988079071,
+     "maxMs": 9.604999989271164,
+     "approxHeapBeforeBytes": 4702889,
+     "approxHeapAfterBytes": 5793590,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 600,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-56644.xlsx",
+   "bytes": 34412,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      6.17,
+      5.975,
+      7.075
+     ],
+     "medianMs": 6.1700000166893005,
+     "minMs": 5.9749999940395355,
+     "maxMs": 7.075000017881393,
+     "approxHeapBeforeBytes": 1439650,
+     "approxHeapAfterBytes": 1440010,
+     "wasmMemoryBeforeBytes": 2555904,
+     "wasmMemoryAfterBytes": 2555904,
+     "outputSize": 212,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      20.425,
+      17.725,
+      19.42
+     ],
+     "medianMs": 19.4200000166893,
+     "minMs": 17.724999994039536,
+     "maxMs": 20.42500001192093,
+     "approxHeapBeforeBytes": 5395010,
+     "approxHeapAfterBytes": 10830588,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 212,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-57181.xlsm",
+   "bytes": 334727,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      40.86,
+      40.115,
+      32.545
+     ],
+     "medianMs": 40.11499997973442,
+     "minMs": 32.54499998688698,
+     "maxMs": 40.85999998450279,
+     "approxHeapBeforeBytes": 2341415,
+     "approxHeapAfterBytes": 2341775,
+     "wasmMemoryBeforeBytes": 19333120,
+     "wasmMemoryAfterBytes": 19333120,
+     "outputSize": 10998,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      97.28,
+      92.225,
+      84.545
+     ],
+     "medianMs": 92.22500002384186,
+     "minMs": 84.5450000166893,
+     "maxMs": 97.2800000011921,
+     "approxHeapBeforeBytes": 15210731,
+     "approxHeapAfterBytes": 21873949,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 10998,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-57893-many-merges.xlsx",
+   "bytes": 848912,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      331.495,
+      323.95,
+      306.285
+     ],
+     "medianMs": 323.94999998807907,
+     "minMs": 306.28500002622604,
+     "maxMs": 331.4950000047684,
+     "approxHeapBeforeBytes": 17602670,
+     "approxHeapAfterBytes": 103987620,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      98.075,
+      91.39,
+      91.4
+     ],
+     "medianMs": 91.40000000596046,
+     "minMs": 91.38999998569489,
+     "maxMs": 98.07499998807907,
+     "approxHeapBeforeBytes": 3880958,
+     "approxHeapAfterBytes": 3881318,
+     "wasmMemoryBeforeBytes": 28966912,
+     "wasmMemoryAfterBytes": 28966912,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-61652.xlsx",
+   "bytes": 17614,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      10.39,
+      9.555,
+      9.815
+     ],
+     "medianMs": 9.814999997615814,
+     "minMs": 9.555000007152557,
+     "maxMs": 10.389999985694885,
+     "approxHeapBeforeBytes": 4762520,
+     "approxHeapAfterBytes": 6304977,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 14,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.95,
+      3.595,
+      3.985
+     ],
+     "medianMs": 3.9500000178813934,
+     "minMs": 3.594999998807907,
+     "maxMs": 3.9849999845027924,
+     "approxHeapBeforeBytes": 1388688,
+     "approxHeapAfterBytes": 1389048,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 14,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-62629_target.xlsm",
+   "bytes": 33015,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.655,
+      3.535,
+      2.995
+     ],
+     "medianMs": 3.5349999964237213,
+     "minMs": 2.9950000047683716,
+     "maxMs": 3.655000001192093,
+     "approxHeapBeforeBytes": 1435482,
+     "approxHeapAfterBytes": 1435842,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      19.29,
+      18.225,
+      17.84
+     ],
+     "medianMs": 18.224999994039536,
+     "minMs": 17.84000000357628,
+     "maxMs": 19.28999999165535,
+     "approxHeapBeforeBytes": 6117728,
+     "approxHeapAfterBytes": 10790063,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-ConditionalFormattingSamples.xlsx",
+   "bytes": 654688,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      74.495,
+      70.205,
+      70.54
+     ],
+     "medianMs": 70.54000002145767,
+     "minMs": 70.20500001311302,
+     "maxMs": 74.49500000476837,
+     "approxHeapBeforeBytes": 13268272,
+     "approxHeapAfterBytes": 22790390,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1723,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      26.86,
+      20.94,
+      17.95
+     ],
+     "medianMs": 20.939999997615814,
+     "minMs": 17.94999998807907,
+     "maxMs": 26.860000014305115,
+     "approxHeapBeforeBytes": 3301681,
+     "approxHeapAfterBytes": 3302041,
+     "wasmMemoryBeforeBytes": 4194304,
+     "wasmMemoryAfterBytes": 4194304,
+     "outputSize": 1723,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-DataTableCities.xlsx",
+   "bytes": 23936,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.075,
+      7.78,
+      2.835
+     ],
+     "medianMs": 3.074999988079071,
+     "minMs": 2.834999978542328,
+     "maxMs": 7.780000001192093,
+     "approxHeapBeforeBytes": 1407568,
+     "approxHeapAfterBytes": 1407928,
+     "wasmMemoryBeforeBytes": 1441792,
+     "wasmMemoryAfterBytes": 1441792,
+     "outputSize": 185,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      15.55,
+      16.675,
+      12.305
+     ],
+     "medianMs": 15.549999982118607,
+     "minMs": 12.305000007152557,
+     "maxMs": 16.67500001192093,
+     "approxHeapBeforeBytes": 5787919,
+     "approxHeapAfterBytes": 8375472,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 185,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-DateFormatTests.xlsx",
+   "bytes": 12394,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      8.985,
+      10.295,
+      11.44
+     ],
+     "medianMs": 10.294999986886978,
+     "minMs": 8.985000014305115,
+     "maxMs": 11.439999997615814,
+     "approxHeapBeforeBytes": 5161912,
+     "approxHeapAfterBytes": 7376135,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 194,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      2.37,
+      5.48,
+      2.42
+     ],
+     "medianMs": 2.419999986886978,
+     "minMs": 2.3700000047683716,
+     "maxMs": 5.480000019073486,
+     "approxHeapBeforeBytes": 1374226,
+     "approxHeapAfterBytes": 1374586,
+     "wasmMemoryBeforeBytes": 1376256,
+     "wasmMemoryAfterBytes": 1376256,
+     "outputSize": 194,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-ExcelPivotTableSample.xlsx",
+   "bytes": 19460,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      1.85,
+      1.75,
+      1.64
+     ],
+     "medianMs": 1.75,
+     "minMs": 1.6400000154972076,
+     "maxMs": 1.8499999940395355,
+     "approxHeapBeforeBytes": 1393210,
+     "approxHeapAfterBytes": 1393570,
+     "wasmMemoryBeforeBytes": 1376256,
+     "wasmMemoryAfterBytes": 1376256,
+     "outputSize": 50,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      8.745,
+      8.125,
+      8.08
+     ],
+     "medianMs": 8.125,
+     "minMs": 8.080000013113022,
+     "maxMs": 8.74499997496605,
+     "approxHeapBeforeBytes": 6242948,
+     "approxHeapAfterBytes": 8402503,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 50,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-ExcelWithAttachments.xlsm",
+   "bytes": 62646,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      2.515,
+      4.425,
+      1.705
+     ],
+     "medianMs": 2.5149999856948853,
+     "minMs": 1.7050000131130219,
+     "maxMs": 4.424999982118607,
+     "approxHeapBeforeBytes": 1524771,
+     "approxHeapAfterBytes": 1525131,
+     "wasmMemoryBeforeBytes": 1441792,
+     "wasmMemoryAfterBytes": 1441792,
+     "outputSize": 6,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      17.385,
+      14.09,
+      14.545
+     ],
+     "medianMs": 14.5450000166893,
+     "minMs": 14.090000003576279,
+     "maxMs": 17.384999990463257,
+     "approxHeapBeforeBytes": 5513673,
+     "approxHeapAfterBytes": 9985150,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 6,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-FormulaEvalTestData_Copy.xlsx",
+   "bytes": 65011,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      35.97,
+      28.725,
+      28.51
+     ],
+     "medianMs": 28.725000023841858,
+     "minMs": 28.51000002026558,
+     "maxMs": 35.96999999880791,
+     "approxHeapBeforeBytes": 6568724,
+     "approxHeapAfterBytes": 15628027,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 4141,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      11.725,
+      12.535,
+      9.1
+     ],
+     "medianMs": 11.724999994039536,
+     "minMs": 9.099999994039536,
+     "maxMs": 12.535000026226044,
+     "approxHeapBeforeBytes": 1531982,
+     "approxHeapAfterBytes": 1532342,
+     "wasmMemoryBeforeBytes": 4718592,
+     "wasmMemoryAfterBytes": 4718592,
+     "outputSize": 4141,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-NewStyleConditionalFormattings.xlsx",
+   "bytes": 13378,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      10.43,
+      9.37,
+      9.19
+     ],
+     "medianMs": 9.370000004768372,
+     "minMs": 9.189999997615814,
+     "maxMs": 10.430000007152557,
+     "approxHeapBeforeBytes": 4771705,
+     "approxHeapAfterBytes": 6416846,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 340,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      2.635,
+      2.34,
+      3.18
+     ],
+     "medianMs": 2.634999990463257,
+     "minMs": 2.3400000035762787,
+     "maxMs": 3.1800000071525574,
+     "approxHeapBeforeBytes": 1377545,
+     "approxHeapAfterBytes": 1377905,
+     "wasmMemoryBeforeBytes": 1441792,
+     "wasmMemoryAfterBytes": 1441792,
+     "outputSize": 340,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-StructuredRefs-lots-with-lookups.xlsx",
+   "bytes": 325446,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      43.365,
+      45.05,
+      35.345
+     ],
+     "medianMs": 43.36500000953674,
+     "minMs": 35.34499999880791,
+     "maxMs": 45.04999998211861,
+     "approxHeapBeforeBytes": 2313671,
+     "approxHeapAfterBytes": 2314031,
+     "wasmMemoryBeforeBytes": 13041664,
+     "wasmMemoryAfterBytes": 13041664,
+     "outputSize": 37696,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      114.355,
+      97.25,
+      106.02
+     ],
+     "medianMs": 106.02000001072884,
+     "minMs": 97.25,
+     "maxMs": 114.35500001907349,
+     "approxHeapBeforeBytes": 15546594,
+     "approxHeapAfterBytes": 28802149,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 37696,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-WithChartSheet.xlsx",
+   "bytes": 30333,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      2.875,
+      2.705,
+      4.455
+     ],
+     "medianMs": 2.875,
+     "minMs": 2.705000013113022,
+     "maxMs": 4.455000013113022,
+     "approxHeapBeforeBytes": 1425914,
+     "approxHeapAfterBytes": 1426274,
+     "wasmMemoryBeforeBytes": 1441792,
+     "wasmMemoryAfterBytes": 1441792,
+     "outputSize": 267,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      12.015,
+      12.845,
+      12.27
+     ],
+     "medianMs": 12.269999980926514,
+     "minMs": 12.015000015497208,
+     "maxMs": 12.844999998807907,
+     "approxHeapBeforeBytes": 5920742,
+     "approxHeapAfterBytes": 8734816,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 267,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-WithEmbeded.xlsx",
+   "bytes": 23668,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      1.36,
+      1.045,
+      1.155
+     ],
+     "medianMs": 1.155000001192093,
+     "minMs": 1.0449999868869781,
+     "maxMs": 1.3599999845027924,
+     "approxHeapBeforeBytes": 1406708,
+     "approxHeapAfterBytes": 1407068,
+     "wasmMemoryBeforeBytes": 1376256,
+     "wasmMemoryAfterBytes": 1376256,
+     "outputSize": 3,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      10.465,
+      6.7,
+      6.28
+     ],
+     "medianMs": 6.700000017881393,
+     "minMs": 6.280000001192093,
+     "maxMs": 10.465000003576279,
+     "approxHeapBeforeBytes": 5677218,
+     "approxHeapAfterBytes": 6903461,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 3,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-bug64512_embed.xlsx",
+   "bytes": 49746,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      1.745,
+      1.455,
+      1.265
+     ],
+     "medianMs": 1.4549999833106995,
+     "minMs": 1.2650000154972076,
+     "maxMs": 1.7450000047683716,
+     "approxHeapBeforeBytes": 1483345,
+     "approxHeapAfterBytes": 1483705,
+     "wasmMemoryBeforeBytes": 1376256,
+     "wasmMemoryAfterBytes": 1376256,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      9.21,
+      8.24,
+      9.885
+     ],
+     "medianMs": 9.21000000834465,
+     "minMs": 8.240000009536743,
+     "maxMs": 9.88500002026558,
+     "approxHeapBeforeBytes": 5721480,
+     "approxHeapAfterBytes": 7637539,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-dataValidationTableRange.xlsx",
+   "bytes": 116554,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      19.7,
+      13.85,
+      13.73
+     ],
+     "medianMs": 13.849999994039536,
+     "minMs": 13.729999989271164,
+     "maxMs": 19.700000017881393,
+     "approxHeapBeforeBytes": 1685699,
+     "approxHeapAfterBytes": 1686059,
+     "wasmMemoryBeforeBytes": 5505024,
+     "wasmMemoryAfterBytes": 5505024,
+     "outputSize": 6579,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      64.255,
+      73.675,
+      55.935
+     ],
+     "medianMs": 64.25499999523163,
+     "minMs": 55.935000002384186,
+     "maxMs": 73.67500001192093,
+     "approxHeapBeforeBytes": 9159637,
+     "approxHeapAfterBytes": 35494973,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 6579,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-no_drawing_patriarch.xlsx",
+   "bytes": 672414,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      404.685,
+      418.14,
+      389.41
+     ],
+     "medianMs": 404.6850000023842,
+     "minMs": 389.4099999964237,
+     "maxMs": 418.1400000154972,
+     "approxHeapBeforeBytes": 26146257,
+     "approxHeapAfterBytes": 170807046,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 66935,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      125.01,
+      98.235,
+      97.36
+     ],
+     "medianMs": 98.23499998450279,
+     "minMs": 97.35999998450279,
+     "maxMs": 125.00999999046326,
+     "approxHeapBeforeBytes": 3352263,
+     "approxHeapAfterBytes": 3352623,
+     "wasmMemoryBeforeBytes": 53018624,
+     "wasmMemoryAfterBytes": 53018624,
+     "outputSize": 66935,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "poi-test.xltx",
+   "bytes": 8566,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      5.85,
+      5.01,
+      5.11
+     ],
+     "medianMs": 5.109999984502792,
+     "minMs": 5.009999990463257,
+     "maxMs": 5.8499999940395355,
+     "approxHeapBeforeBytes": 4959415,
+     "approxHeapAfterBytes": 6124438,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      1.125,
+      1.045,
+      1.155
+     ],
+     "medianMs": 1.125,
+     "minMs": 1.0449999868869781,
+     "maxMs": 1.155000001192093,
+     "approxHeapBeforeBytes": 1361355,
+     "approxHeapAfterBytes": 1361715,
+     "wasmMemoryBeforeBytes": 1376256,
+     "wasmMemoryAfterBytes": 1376256,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "python-pptx-shp-embedded-xlsx.xlsx",
+   "bytes": 8250,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      1.125,
+      1.06,
+      1.12
+     ],
+     "medianMs": 1.1200000047683716,
+     "minMs": 1.0600000023841858,
+     "maxMs": 1.125,
+     "approxHeapBeforeBytes": 1358908,
+     "approxHeapAfterBytes": 1359268,
+     "wasmMemoryBeforeBytes": 1376256,
+     "wasmMemoryAfterBytes": 1376256,
+     "outputSize": 3,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      5.675,
+      5.165,
+      4.235
+     ],
+     "medianMs": 5.16499999165535,
+     "minMs": 4.235000014305115,
+     "maxMs": 5.675000011920929,
+     "approxHeapBeforeBytes": 5111324,
+     "approxHeapAfterBytes": 5723586,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 3,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "usgov-census-NST-EST2024-POP.xlsx",
+   "bytes": 15507,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      6.955,
+      3.505,
+      3.355
+     ],
+     "medianMs": 3.5049999952316284,
+     "minMs": 3.354999989271164,
+     "maxMs": 6.9549999833106995,
+     "approxHeapBeforeBytes": 1382198,
+     "approxHeapAfterBytes": 1382558,
+     "wasmMemoryBeforeBytes": 1572864,
+     "wasmMemoryAfterBytes": 1572864,
+     "outputSize": 415,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      12.58,
+      11.995,
+      10.265
+     ],
+     "medianMs": 11.995000004768372,
+     "minMs": 10.265000015497208,
+     "maxMs": 12.580000013113022,
+     "approxHeapBeforeBytes": 5330720,
+     "approxHeapAfterBytes": 9429901,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 415,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "usgov-eia-MER-T01.01.xlsx",
+   "bytes": 77207,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      18.37,
+      10.48,
+      7.69
+     ],
+     "medianMs": 10.479999989271164,
+     "minMs": 7.690000027418137,
+     "maxMs": 18.37000000476837,
+     "approxHeapBeforeBytes": 1567026,
+     "approxHeapAfterBytes": 1567386,
+     "wasmMemoryBeforeBytes": 5701632,
+     "wasmMemoryAfterBytes": 5701632,
+     "outputSize": 9409,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      29.125,
+      22.43,
+      24
+     ],
+     "medianMs": 24,
+     "minMs": 22.429999977350235,
+     "maxMs": 29.125,
+     "approxHeapBeforeBytes": 6308596,
+     "approxHeapAfterBytes": 20070984,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 9409,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "file": "usgov-fhwa-2022-vm1.xlsx",
+   "bytes": 35960,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      23.77,
+      23.03,
+      24.145
+     ],
+     "medianMs": 23.770000010728836,
+     "minMs": 23.030000001192093,
+     "maxMs": 24.144999980926514,
+     "approxHeapBeforeBytes": 5839322,
+     "approxHeapAfterBytes": 9306069,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 867,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      10.165,
+      9.325,
+      6.775
+     ],
+     "medianMs": 9.325000017881393,
+     "minMs": 6.7750000059604645,
+     "maxMs": 10.16499999165535,
+     "approxHeapBeforeBytes": 1446028,
+     "approxHeapAfterBytes": 1446388,
+     "wasmMemoryBeforeBytes": 2555904,
+     "wasmMemoryAfterBytes": 2555904,
+     "outputSize": 867,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-45690.docm",
+   "bytes": 49596,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      15.94,
+      14.305,
+      14.685
+     ],
+     "medianMs": 14.685000002384186,
+     "minMs": 14.304999977350235,
+     "maxMs": 15.939999997615814,
+     "approxHeapBeforeBytes": 1501352,
+     "approxHeapAfterBytes": 1501712,
+     "wasmMemoryBeforeBytes": 4194304,
+     "wasmMemoryAfterBytes": 4194304,
+     "outputSize": 25,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      68.435,
+      61.105,
+      66.235
+     ],
+     "medianMs": 66.23499998450279,
+     "minMs": 61.104999989271164,
+     "maxMs": 68.43500000238419,
+     "approxHeapBeforeBytes": 6331145,
+     "approxHeapAfterBytes": 18434425,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 25,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-58067.docx",
+   "bytes": 28709,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.655,
+      2.79,
+      2.565
+     ],
+     "medianMs": 2.7899999916553497,
+     "minMs": 2.564999997615814,
+     "maxMs": 3.655000001192093,
+     "approxHeapBeforeBytes": 1436203,
+     "approxHeapAfterBytes": 1436563,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 5,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      13.28,
+      12.25,
+      12.525
+     ],
+     "medianMs": 12.525000005960464,
+     "minMs": 12.25,
+     "maxMs": 13.280000001192093,
+     "approxHeapBeforeBytes": 4483504,
+     "approxHeapAfterBytes": 8911123,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-60158.docm",
+   "bytes": 15617,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      9.38,
+      9.38,
+      8.82
+     ],
+     "medianMs": 9.379999995231628,
+     "minMs": 8.820000022649765,
+     "maxMs": 9.379999995231628,
+     "approxHeapBeforeBytes": 3903360,
+     "approxHeapAfterBytes": 5149727,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 3,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      2.67,
+      3.23,
+      2.445
+     ],
+     "medianMs": 2.6700000166893005,
+     "minMs": 2.4449999928474426,
+     "maxMs": 3.229999989271164,
+     "approxHeapBeforeBytes": 1396403,
+     "approxHeapAfterBytes": 1396763,
+     "wasmMemoryBeforeBytes": 1376256,
+     "wasmMemoryAfterBytes": 1376256,
+     "outputSize": 3,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-60316.docx",
+   "bytes": 48142,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      27.405,
+      26.535,
+      24.74
+     ],
+     "medianMs": 26.53499999642372,
+     "minMs": 24.73999997973442,
+     "maxMs": 27.40499997138977,
+     "approxHeapBeforeBytes": 5034809,
+     "approxHeapAfterBytes": 9666655,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      5.79,
+      5.82,
+      6.12
+     ],
+     "medianMs": 5.819999992847443,
+     "minMs": 5.790000021457672,
+     "maxMs": 6.119999974966049,
+     "approxHeapBeforeBytes": 1496782,
+     "approxHeapAfterBytes": 1497142,
+     "wasmMemoryBeforeBytes": 1835008,
+     "wasmMemoryAfterBytes": 1835008,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-60316.dotx",
+   "bytes": 59583,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      24.715,
+      25.68,
+      23.235
+     ],
+     "medianMs": 24.71500000357628,
+     "minMs": 23.234999984502792,
+     "maxMs": 25.680000007152557,
+     "approxHeapBeforeBytes": 4899498,
+     "approxHeapAfterBytes": 8746399,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      14.42,
+      10.91,
+      7.23
+     ],
+     "medianMs": 10.909999996423721,
+     "minMs": 7.229999989271164,
+     "maxMs": 14.419999986886978,
+     "approxHeapBeforeBytes": 1531105,
+     "approxHeapAfterBytes": 1531465,
+     "wasmMemoryBeforeBytes": 1835008,
+     "wasmMemoryAfterBytes": 1835008,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-60329.docx",
+   "bytes": 31124,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      6.79,
+      4.75,
+      4.78
+     ],
+     "medianMs": 4.780000001192093,
+     "minMs": 4.75,
+     "maxMs": 6.78999999165535,
+     "approxHeapBeforeBytes": 1448252,
+     "approxHeapAfterBytes": 1448612,
+     "wasmMemoryBeforeBytes": 1966080,
+     "wasmMemoryAfterBytes": 1966080,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      25.73,
+      28.065,
+      27.125
+     ],
+     "medianMs": 27.125,
+     "minMs": 25.729999989271164,
+     "maxMs": 28.064999997615814,
+     "approxHeapBeforeBytes": 4957079,
+     "approxHeapAfterBytes": 8841523,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-61470.docx",
+   "bytes": 12523,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      7.02,
+      5.845,
+      2.775
+     ],
+     "medianMs": 5.844999998807907,
+     "minMs": 2.7750000059604645,
+     "maxMs": 7.019999980926514,
+     "approxHeapBeforeBytes": 1386929,
+     "approxHeapAfterBytes": 1387289,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      13.445,
+      13.19,
+      13.315
+     ],
+     "medianMs": 13.315000027418137,
+     "minMs": 13.189999997615814,
+     "maxMs": 13.445000022649765,
+     "approxHeapBeforeBytes": 3902450,
+     "approxHeapAfterBytes": 5263491,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-61745.docx",
+   "bytes": 37030,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      20.79,
+      19.205,
+      18.525
+     ],
+     "medianMs": 19.205000013113022,
+     "minMs": 18.524999976158142,
+     "maxMs": 20.78999999165535,
+     "approxHeapBeforeBytes": 4756865,
+     "approxHeapAfterBytes": 8734899,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      5.005,
+      4.6,
+      3.465
+     ],
+     "medianMs": 4.600000023841858,
+     "minMs": 3.4649999737739563,
+     "maxMs": 5.004999995231628,
+     "approxHeapBeforeBytes": 1460850,
+     "approxHeapAfterBytes": 1461210,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-Bug54849.docx",
+   "bytes": 27566,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      18.345,
+      16.04,
+      15.985
+     ],
+     "medianMs": 16.040000021457672,
+     "minMs": 15.985000014305115,
+     "maxMs": 18.344999998807907,
+     "approxHeapBeforeBytes": 4610832,
+     "approxHeapAfterBytes": 7698958,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 7,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.375,
+      4.835,
+      3.685
+     ],
+     "medianMs": 4.375,
+     "minMs": 3.685000002384186,
+     "maxMs": 4.83500000834465,
+     "approxHeapBeforeBytes": 1435085,
+     "approxHeapAfterBytes": 1435445,
+     "wasmMemoryBeforeBytes": 1638400,
+     "wasmMemoryAfterBytes": 1638400,
+     "outputSize": 7,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-SimpleMacro.docm",
+   "bytes": 15517,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.31,
+      2.495,
+      1.93
+     ],
+     "medianMs": 2.4950000047683716,
+     "minMs": 1.9300000071525574,
+     "maxMs": 3.310000002384186,
+     "approxHeapBeforeBytes": 1395333,
+     "approxHeapAfterBytes": 1395693,
+     "wasmMemoryBeforeBytes": 1376256,
+     "wasmMemoryAfterBytes": 1376256,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      8.25,
+      11.09,
+      13.105
+     ],
+     "medianMs": 11.090000003576279,
+     "minMs": 8.25,
+     "maxMs": 13.104999989271164,
+     "approxHeapBeforeBytes": 3872650,
+     "approxHeapAfterBytes": 5115877,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-WordWithAttachments.docx",
+   "bytes": 144959,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      26.005,
+      21.48,
+      22.635
+     ],
+     "medianMs": 22.634999990463257,
+     "minMs": 21.479999989271164,
+     "maxMs": 26.00499999523163,
+     "approxHeapBeforeBytes": 5443688,
+     "approxHeapAfterBytes": 7295301,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 31,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      9.465,
+      5.885,
+      5.635
+     ],
+     "medianMs": 5.884999990463257,
+     "minMs": 5.634999990463257,
+     "maxMs": 9.465000003576279,
+     "approxHeapBeforeBytes": 1787703,
+     "approxHeapAfterBytes": 1788063,
+     "wasmMemoryBeforeBytes": 1900544,
+     "wasmMemoryAfterBytes": 1900544,
+     "outputSize": 31,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-bug65649.docx",
+   "bytes": 474844,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      3617.51,
+      3757.545,
+      3217.56
+     ],
+     "medianMs": 3617.5099999904633,
+     "minMs": 3217.560000002384,
+     "maxMs": 3757.5450000166893,
+     "approxHeapBeforeBytes": 132077982,
+     "approxHeapAfterBytes": 599480274,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 12264,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      691.455,
+      694.015,
+      694.565
+     ],
+     "medianMs": 694.0149999856949,
+     "minMs": 691.455000013113,
+     "maxMs": 694.5649999976158,
+     "approxHeapBeforeBytes": 2778767,
+     "approxHeapAfterBytes": 2779127,
+     "wasmMemoryBeforeBytes": 219676672,
+     "wasmMemoryAfterBytes": 219676672,
+     "outputSize": 12264,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-chartex.docx",
+   "bytes": 133304,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      29.015,
+      33.405,
+      27.88
+     ],
+     "medianMs": 29.015000015497208,
+     "minMs": 27.88000002503395,
+     "maxMs": 33.40500000119209,
+     "approxHeapBeforeBytes": 5598505,
+     "approxHeapAfterBytes": 12086205,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      6.33,
+      5.77,
+      4.735
+     ],
+     "medianMs": 5.769999980926514,
+     "minMs": 4.734999984502792,
+     "maxMs": 6.3299999833106995,
+     "approxHeapBeforeBytes": 1752958,
+     "approxHeapAfterBytes": 1753318,
+     "wasmMemoryBeforeBytes": 1769472,
+     "wasmMemoryAfterBytes": 1769472,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-delins.docx",
+   "bytes": 17720,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      10.105,
+      6.845,
+      6.285
+     ],
+     "medianMs": 6.844999998807907,
+     "minMs": 6.284999996423721,
+     "maxMs": 10.104999989271164,
+     "approxHeapBeforeBytes": 1405293,
+     "approxHeapAfterBytes": 1405653,
+     "wasmMemoryBeforeBytes": 2293760,
+     "wasmMemoryAfterBytes": 2293760,
+     "outputSize": 21,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      30.84,
+      31.105,
+      29.455
+     ],
+     "medianMs": 30.84000000357628,
+     "minMs": 29.4549999833107,
+     "maxMs": 31.105000019073486,
+     "approxHeapBeforeBytes": 5026396,
+     "approxHeapAfterBytes": 12669348,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 21,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-drawing.docx",
+   "bytes": 95247,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      26.905,
+      17.62,
+      11.59
+     ],
+     "medianMs": 17.62000000476837,
+     "minMs": 11.590000003576279,
+     "maxMs": 26.905000001192093,
+     "approxHeapBeforeBytes": 1639379,
+     "approxHeapAfterBytes": 1639739,
+     "wasmMemoryBeforeBytes": 5111808,
+     "wasmMemoryAfterBytes": 5111808,
+     "outputSize": 169,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      79.295,
+      68.59,
+      75.245
+     ],
+     "medianMs": 75.24500000476837,
+     "minMs": 68.59000000357628,
+     "maxMs": 79.2950000166893,
+     "approxHeapBeforeBytes": 6832302,
+     "approxHeapAfterBytes": 22680063,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 169,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-endnotes.docx",
+   "bytes": 13553,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.02,
+      3.74,
+      2.555
+     ],
+     "medianMs": 3.7399999797344208,
+     "minMs": 2.554999977350235,
+     "maxMs": 4.019999980926514,
+     "approxHeapBeforeBytes": 1390858,
+     "approxHeapAfterBytes": 1391218,
+     "wasmMemoryBeforeBytes": 1441792,
+     "wasmMemoryAfterBytes": 1441792,
+     "outputSize": 10,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      12.7,
+      9.985,
+      11.535
+     ],
+     "medianMs": 11.534999996423721,
+     "minMs": 9.985000014305115,
+     "maxMs": 12.699999988079071,
+     "approxHeapBeforeBytes": 4251307,
+     "approxHeapAfterBytes": 8894126,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 10,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-form_footnotes.docx",
+   "bytes": 27824,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      16.7,
+      11.725,
+      12.16
+     ],
+     "medianMs": 12.160000026226044,
+     "minMs": 11.724999994039536,
+     "maxMs": 16.69999998807907,
+     "approxHeapBeforeBytes": 1438725,
+     "approxHeapAfterBytes": 1439085,
+     "wasmMemoryBeforeBytes": 3866624,
+     "wasmMemoryAfterBytes": 3866624,
+     "outputSize": 104,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      48.205,
+      44.05,
+      46.685
+     ],
+     "medianMs": 46.685000002384186,
+     "minMs": 44.04999998211861,
+     "maxMs": 48.20500001311302,
+     "approxHeapBeforeBytes": 5808346,
+     "approxHeapAfterBytes": 18824138,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 104,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-testComment.docx",
+   "bytes": 65298,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      18.42,
+      16.95,
+      14.905
+     ],
+     "medianMs": 16.94999998807907,
+     "minMs": 14.905000001192093,
+     "maxMs": 18.4200000166893,
+     "approxHeapBeforeBytes": 4568975,
+     "approxHeapAfterBytes": 7249009,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.11,
+      3.715,
+      3.66
+     ],
+     "medianMs": 3.7150000035762787,
+     "minMs": 3.6599999964237213,
+     "maxMs": 4.110000014305115,
+     "approxHeapBeforeBytes": 1545576,
+     "approxHeapAfterBytes": 1545936,
+     "wasmMemoryBeforeBytes": 1572864,
+     "wasmMemoryAfterBytes": 1572864,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-blk-paras-and-tables.docx",
+   "bytes": 15649,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      17.88,
+      16.745,
+      17.135
+     ],
+     "medianMs": 17.13500002026558,
+     "minMs": 16.74499997496605,
+     "maxMs": 17.87999999523163,
+     "approxHeapBeforeBytes": 4425807,
+     "approxHeapAfterBytes": 7470250,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 4,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      5.545,
+      3.71,
+      3.635
+     ],
+     "medianMs": 3.7100000083446503,
+     "minMs": 3.6350000202655792,
+     "maxMs": 5.544999986886978,
+     "approxHeapBeforeBytes": 1399402,
+     "approxHeapAfterBytes": 1399762,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 4,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-comments-rich-para.docx",
+   "bytes": 20023,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      17.76,
+      18.755,
+      17.13
+     ],
+     "medianMs": 17.759999990463257,
+     "minMs": 17.12999999523163,
+     "maxMs": 18.75499999523163,
+     "approxHeapBeforeBytes": 4371335,
+     "approxHeapAfterBytes": 7876432,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 7,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.37,
+      4.28,
+      3.745
+     ],
+     "medianMs": 4.280000001192093,
+     "minMs": 3.7450000047683716,
+     "maxMs": 4.370000004768372,
+     "approxHeapBeforeBytes": 1409958,
+     "approxHeapAfterBytes": 1410318,
+     "wasmMemoryBeforeBytes": 1638400,
+     "wasmMemoryAfterBytes": 1638400,
+     "outputSize": 7,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-doc-access-sections.docx",
+   "bytes": 25591,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.315,
+      3.33,
+      2.805
+     ],
+     "medianMs": 3.330000013113022,
+     "minMs": 2.8050000071525574,
+     "maxMs": 4.314999997615814,
+     "approxHeapBeforeBytes": 1426367,
+     "approxHeapAfterBytes": 1426727,
+     "wasmMemoryBeforeBytes": 1441792,
+     "wasmMemoryAfterBytes": 1441792,
+     "outputSize": 3,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      8.015,
+      14.44,
+      7.71
+     ],
+     "medianMs": 8.014999985694885,
+     "minMs": 7.71000000834465,
+     "maxMs": 14.439999997615814,
+     "approxHeapBeforeBytes": 4096084,
+     "approxHeapAfterBytes": 7487297,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 3,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-having-images.docx",
+   "bytes": 132875,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      15.33,
+      14.635,
+      14.18
+     ],
+     "medianMs": 14.634999990463257,
+     "minMs": 14.180000007152557,
+     "maxMs": 15.3299999833107,
+     "approxHeapBeforeBytes": 5174062,
+     "approxHeapAfterBytes": 5169595,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.43,
+      3.885,
+      3.74
+     ],
+     "medianMs": 3.8850000202655792,
+     "minMs": 3.7399999797344208,
+     "maxMs": 4.429999977350235,
+     "approxHeapBeforeBytes": 1749453,
+     "approxHeapAfterBytes": 1749813,
+     "wasmMemoryBeforeBytes": 1638400,
+     "wasmMemoryAfterBytes": 1638400,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-hdr-header-footer.docx",
+   "bytes": 18079,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.195,
+      4.035,
+      3.89
+     ],
+     "medianMs": 4.034999996423721,
+     "minMs": 3.8899999856948853,
+     "maxMs": 4.194999992847443,
+     "approxHeapBeforeBytes": 1404485,
+     "approxHeapAfterBytes": 1404845,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 2,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      20.775,
+      15.37,
+      14.99
+     ],
+     "medianMs": 15.36999997496605,
+     "minMs": 14.990000009536743,
+     "maxMs": 20.775000005960464,
+     "approxHeapBeforeBytes": 4621654,
+     "approxHeapAfterBytes": 6763655,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 2,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-sct-first-page-hdrftr.docx",
+   "bytes": 14849,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      14.175,
+      15.465,
+      13.955
+     ],
+     "medianMs": 14.175000011920929,
+     "minMs": 13.9549999833107,
+     "maxMs": 15.464999973773956,
+     "approxHeapBeforeBytes": 4363684,
+     "approxHeapAfterBytes": 6847523,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      5.275,
+      7.505,
+      3.92
+     ],
+     "medianMs": 5.2750000059604645,
+     "minMs": 3.919999986886978,
+     "maxMs": 7.504999995231628,
+     "approxHeapBeforeBytes": 1394731,
+     "approxHeapAfterBytes": 1395091,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-sct-inner-content.docx",
+   "bytes": 12051,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      16.13,
+      15.52,
+      14.44
+     ],
+     "medianMs": 15.520000010728836,
+     "minMs": 14.439999997615814,
+     "maxMs": 16.12999999523163,
+     "approxHeapBeforeBytes": 4126166,
+     "approxHeapAfterBytes": 5849287,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 9,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.645,
+      3.655,
+      3.23
+     ],
+     "medianMs": 3.645000010728836,
+     "minMs": 3.2300000190734863,
+     "maxMs": 3.655000001192093,
+     "approxHeapBeforeBytes": 1387729,
+     "approxHeapAfterBytes": 1388089,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 9,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-sct-section-props.docx",
+   "bytes": 28168,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      9.405,
+      10.61,
+      9.62
+     ],
+     "medianMs": 9.620000004768372,
+     "minMs": 9.405000001192093,
+     "maxMs": 10.609999984502792,
+     "approxHeapBeforeBytes": 4105139,
+     "approxHeapAfterBytes": 7830779,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      7.5,
+      2.885,
+      2.575
+     ],
+     "medianMs": 2.884999990463257,
+     "minMs": 2.574999988079071,
+     "maxMs": 7.5,
+     "approxHeapBeforeBytes": 1434096,
+     "approxHeapAfterBytes": 1434456,
+     "wasmMemoryBeforeBytes": 1441792,
+     "wasmMemoryAfterBytes": 1441792,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-shp-inline-shape-access.docx",
+   "bytes": 122610,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      24.49,
+      23.585,
+      22.405
+     ],
+     "medianMs": 23.58500000834465,
+     "minMs": 22.405000001192093,
+     "maxMs": 24.48999997973442,
+     "approxHeapBeforeBytes": 5072655,
+     "approxHeapAfterBytes": 8314001,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.295,
+      2.905,
+      3.925
+     ],
+     "medianMs": 3.294999986886978,
+     "minMs": 2.9049999713897705,
+     "maxMs": 3.925000011920929,
+     "approxHeapBeforeBytes": 1718168,
+     "approxHeapAfterBytes": 1718528,
+     "wasmMemoryBeforeBytes": 1572864,
+     "wasmMemoryAfterBytes": 1572864,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-tbl-cell-access.docx",
+   "bytes": 36051,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.06,
+      2.96,
+      3.565
+     ],
+     "medianMs": 3.060000002384186,
+     "minMs": 2.9600000083446503,
+     "maxMs": 3.564999997615814,
+     "approxHeapBeforeBytes": 1459847,
+     "approxHeapAfterBytes": 1460207,
+     "wasmMemoryBeforeBytes": 1572864,
+     "wasmMemoryAfterBytes": 1572864,
+     "outputSize": 31,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      10.835,
+      14.155,
+      12.38
+     ],
+     "medianMs": 12.379999995231628,
+     "minMs": 10.83500000834465,
+     "maxMs": 14.155000001192093,
+     "approxHeapBeforeBytes": 3972340,
+     "approxHeapAfterBytes": 5007669,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 31,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-tbl-cell-props.docx",
+   "bytes": 13773,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      7.61,
+      3.37,
+      3.43
+     ],
+     "medianMs": 3.4300000071525574,
+     "minMs": 3.3700000047683716,
+     "maxMs": 7.609999984502792,
+     "approxHeapBeforeBytes": 1392304,
+     "approxHeapAfterBytes": 1392664,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 14,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      11.965,
+      9.44,
+      11.365
+     ],
+     "medianMs": 11.36499997973442,
+     "minMs": 9.439999997615814,
+     "maxMs": 11.965000003576279,
+     "approxHeapBeforeBytes": 4051257,
+     "approxHeapAfterBytes": 8649912,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 14,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-tbl-on-off-props.docx",
+   "bytes": 16017,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      9.92,
+      12.875,
+      9.955
+     ],
+     "medianMs": 9.955000013113022,
+     "minMs": 9.9200000166893,
+     "maxMs": 12.875,
+     "approxHeapBeforeBytes": 4300247,
+     "approxHeapAfterBytes": 8486318,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.87,
+      3.08,
+      2.645
+     ],
+     "medianMs": 3.080000013113022,
+     "minMs": 2.645000010728836,
+     "maxMs": 3.8700000047683716,
+     "approxHeapBeforeBytes": 1392658,
+     "approxHeapAfterBytes": 1393018,
+     "wasmMemoryBeforeBytes": 1507328,
+     "wasmMemoryAfterBytes": 1507328,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-45541_Footer.pptx",
+   "bytes": 307913,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      121.55,
+      111.27,
+      113.24
+     ],
+     "medianMs": 113.24000000953674,
+     "minMs": 111.27000001072884,
+     "maxMs": 121.55000001192093,
+     "approxHeapBeforeBytes": 18267456,
+     "approxHeapAfterBytes": 28217923,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 11,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      15.225,
+      14.165,
+      14.29
+     ],
+     "medianMs": 14.28999999165535,
+     "minMs": 14.16499999165535,
+     "maxMs": 15.224999994039536,
+     "approxHeapBeforeBytes": 2285136,
+     "approxHeapAfterBytes": 2285496,
+     "wasmMemoryBeforeBytes": 2883584,
+     "wasmMemoryAfterBytes": 2883584,
+     "outputSize": 11,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-45541_Header.pptx",
+   "bytes": 308041,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      122.595,
+      112.43,
+      118.835
+     ],
+     "medianMs": 118.83500000834465,
+     "minMs": 112.43000000715256,
+     "maxMs": 122.5949999988079,
+     "approxHeapBeforeBytes": 17413752,
+     "approxHeapAfterBytes": 18761775,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 11,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      14.66,
+      14.51,
+      15.16
+     ],
+     "medianMs": 14.659999996423721,
+     "minMs": 14.51000002026558,
+     "maxMs": 15.159999996423721,
+     "approxHeapBeforeBytes": 2285520,
+     "approxHeapAfterBytes": 2285880,
+     "wasmMemoryBeforeBytes": 3014656,
+     "wasmMemoryAfterBytes": 3014656,
+     "outputSize": 11,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-45545_Comment.pptx",
+   "bytes": 308394,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      17.96,
+      17.53,
+      14.935
+     ],
+     "medianMs": 17.530000001192093,
+     "minMs": 14.935000002384186,
+     "maxMs": 17.959999978542328,
+     "approxHeapBeforeBytes": 2286580,
+     "approxHeapAfterBytes": 2286940,
+     "wasmMemoryBeforeBytes": 2883584,
+     "wasmMemoryAfterBytes": 2883584,
+     "outputSize": 11,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      127.425,
+      119.33,
+      119.975
+     ],
+     "medianMs": 119.97500002384186,
+     "minMs": 119.3299999833107,
+     "maxMs": 127.4249999821186,
+     "approxHeapBeforeBytes": 15526669,
+     "approxHeapAfterBytes": 28666243,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 11,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-51187.pptx",
+   "bytes": 45681,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      53.42,
+      56.52,
+      51.925
+     ],
+     "medianMs": 53.4200000166893,
+     "minMs": 51.92500001192093,
+     "maxMs": 56.520000010728836,
+     "approxHeapBeforeBytes": 14356045,
+     "approxHeapAfterBytes": 22088892,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      5.375,
+      3.05,
+      3.255
+     ],
+     "medianMs": 3.2549999952316284,
+     "minMs": 3.0499999821186066,
+     "maxMs": 5.375,
+     "approxHeapBeforeBytes": 1487149,
+     "approxHeapAfterBytes": 1487509,
+     "wasmMemoryBeforeBytes": 1966080,
+     "wasmMemoryAfterBytes": 1966080,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-60810.pptx",
+   "bytes": 874522,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      219.465,
+      214.27,
+      208.475
+     ],
+     "medianMs": 214.27000001072884,
+     "minMs": 208.47499999403954,
+     "maxMs": 219.46500000357628,
+     "approxHeapBeforeBytes": 24320847,
+     "approxHeapAfterBytes": 41822765,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 28,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      28.3,
+      30.38,
+      28.35
+     ],
+     "medianMs": 28.349999994039536,
+     "minMs": 28.299999982118607,
+     "maxMs": 30.37999999523163,
+     "approxHeapBeforeBytes": 3997244,
+     "approxHeapAfterBytes": 3997604,
+     "wasmMemoryBeforeBytes": 6488064,
+     "wasmMemoryAfterBytes": 6488064,
+     "outputSize": 28,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-EmbeddedAudio.pptx",
+   "bytes": 90047,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      51.32,
+      51.625,
+      46.42
+     ],
+     "medianMs": 51.31999999284744,
+     "minMs": 46.41999998688698,
+     "maxMs": 51.625,
+     "approxHeapBeforeBytes": 13751401,
+     "approxHeapAfterBytes": 20094386,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.55,
+      3.57,
+      3.415
+     ],
+     "medianMs": 3.5699999928474426,
+     "minMs": 3.4149999916553497,
+     "maxMs": 4.550000011920929,
+     "approxHeapBeforeBytes": 1619667,
+     "approxHeapAfterBytes": 1620027,
+     "wasmMemoryBeforeBytes": 2162688,
+     "wasmMemoryAfterBytes": 2162688,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-PPTWithAttachments.pptm",
+   "bytes": 235317,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      79.79,
+      73.195,
+      73.65
+     ],
+     "medianMs": 73.65000000596046,
+     "minMs": 73.19500002264977,
+     "maxMs": 79.78999999165535,
+     "approxHeapBeforeBytes": 15953586,
+     "approxHeapAfterBytes": 24221849,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 2,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.96,
+      4.62,
+      4.815
+     ],
+     "medianMs": 4.814999997615814,
+     "minMs": 4.619999974966049,
+     "maxMs": 4.96000000834465,
+     "approxHeapBeforeBytes": 2072958,
+     "approxHeapAfterBytes": 2073318,
+     "wasmMemoryBeforeBytes": 2490368,
+     "wasmMemoryAfterBytes": 2490368,
+     "outputSize": 2,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-SimpleMacro.pptm",
+   "bytes": 41578,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      47.29,
+      47.84,
+      45.165
+     ],
+     "medianMs": 47.28999999165535,
+     "minMs": 45.16500002145767,
+     "maxMs": 47.84000000357628,
+     "approxHeapBeforeBytes": 13233487,
+     "approxHeapAfterBytes": 17650457,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.57,
+      3.88,
+      3.07
+     ],
+     "medianMs": 3.8799999952316284,
+     "minMs": 3.070000022649765,
+     "maxMs": 4.569999992847443,
+     "approxHeapBeforeBytes": 1478714,
+     "approxHeapAfterBytes": 1479074,
+     "wasmMemoryBeforeBytes": 1966080,
+     "wasmMemoryAfterBytes": 1966080,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-bug59273.potx",
+   "bytes": 617839,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      48.87,
+      48.53,
+      46.075
+     ],
+     "medianMs": 48.53000000119209,
+     "minMs": 46.07500001788139,
+     "maxMs": 48.87000000476837,
+     "approxHeapBeforeBytes": 16086491,
+     "approxHeapAfterBytes": 19902328,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.82,
+      3.885,
+      3.96
+     ],
+     "medianMs": 3.9600000083446503,
+     "minMs": 3.8850000202655792,
+     "maxMs": 4.819999992847443,
+     "approxHeapBeforeBytes": 3199974,
+     "approxHeapAfterBytes": 3200334,
+     "wasmMemoryBeforeBytes": 5242880,
+     "wasmMemoryAfterBytes": 5242880,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-bug62513.pptx",
+   "bytes": 384775,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      18.165,
+      17.525,
+      18.67
+     ],
+     "medianMs": 18.16499999165535,
+     "minMs": 17.525000005960464,
+     "maxMs": 18.6700000166893,
+     "approxHeapBeforeBytes": 2524990,
+     "approxHeapAfterBytes": 2525350,
+     "wasmMemoryBeforeBytes": 3407872,
+     "wasmMemoryAfterBytes": 3407872,
+     "outputSize": 19,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      153.28,
+      150.995,
+      162.81
+     ],
+     "medianMs": 153.2800000011921,
+     "minMs": 150.99500000476837,
+     "maxMs": 162.80999997258186,
+     "approxHeapBeforeBytes": 20350789,
+     "approxHeapAfterBytes": 32322605,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 19,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-bug64693.pptx",
+   "bytes": 881432,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      9.305,
+      10.615,
+      9.415
+     ],
+     "medianMs": 9.41499999165535,
+     "minMs": 9.305000007152557,
+     "maxMs": 10.61499997973442,
+     "approxHeapBeforeBytes": 4013809,
+     "approxHeapAfterBytes": 4014169,
+     "wasmMemoryBeforeBytes": 5111808,
+     "wasmMemoryAfterBytes": 5111808,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      120.415,
+      124.97,
+      111.53
+     ],
+     "medianMs": 120.41499999165535,
+     "minMs": 111.5300000011921,
+     "maxMs": 124.9699999988079,
+     "approxHeapBeforeBytes": 19236381,
+     "approxHeapAfterBytes": 36054983,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-bug68703.pptx",
+   "bytes": 60711,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      69.515,
+      61.67,
+      62.435
+     ],
+     "medianMs": 62.435000002384186,
+     "minMs": 61.6700000166893,
+     "maxMs": 69.51499998569489,
+     "approxHeapBeforeBytes": 13667730,
+     "approxHeapAfterBytes": 16987123,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      7.82,
+      6.39,
+      5.735
+     ],
+     "medianMs": 6.389999985694885,
+     "minMs": 5.735000014305115,
+     "maxMs": 7.819999992847443,
+     "approxHeapBeforeBytes": 1549110,
+     "approxHeapAfterBytes": 1549470,
+     "wasmMemoryBeforeBytes": 2490368,
+     "wasmMemoryAfterBytes": 2490368,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-customGeo.pptx",
+   "bytes": 1046067,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      468.925,
+      457.11,
+      442.845
+     ],
+     "medianMs": 457.1100000143051,
+     "minMs": 442.8449999988079,
+     "maxMs": 468.92500001192093,
+     "approxHeapBeforeBytes": 32134367,
+     "approxHeapAfterBytes": 53797776,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 48,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      58.205,
+      56.63,
+      54.35
+     ],
+     "medianMs": 56.62999999523163,
+     "minMs": 54.349999994039536,
+     "maxMs": 58.2049999833107,
+     "approxHeapBeforeBytes": 4518883,
+     "approxHeapAfterBytes": 4519243,
+     "wasmMemoryBeforeBytes": 8912896,
+     "wasmMemoryAfterBytes": 8912896,
+     "outputSize": 48,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-keyframes.pptx",
+   "bytes": 389330,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      57.11,
+      54.125,
+      52.45
+     ],
+     "medianMs": 54.125,
+     "minMs": 52.44999998807907,
+     "maxMs": 57.110000014305115,
+     "approxHeapBeforeBytes": 2532168,
+     "approxHeapAfterBytes": 2532528,
+     "wasmMemoryBeforeBytes": 16515072,
+     "wasmMemoryAfterBytes": 16515072,
+     "outputSize": 28,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      172.65,
+      174.8,
+      164.97
+     ],
+     "medianMs": 172.65000000596046,
+     "minMs": 164.9699999988079,
+     "maxMs": 174.80000001192093,
+     "approxHeapBeforeBytes": 20244553,
+     "approxHeapAfterBytes": 39263391,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 28,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "poi-with_japanese.pptx",
+   "bytes": 48011,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      6.925,
+      7.27,
+      5.69
+     ],
+     "medianMs": 6.925000011920929,
+     "minMs": 5.689999997615814,
+     "maxMs": 7.269999980926514,
+     "approxHeapBeforeBytes": 1505079,
+     "approxHeapAfterBytes": 1505439,
+     "wasmMemoryBeforeBytes": 2883584,
+     "wasmMemoryAfterBytes": 2883584,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      59.185,
+      58.585,
+      54.16
+     ],
+     "medianMs": 58.58500000834465,
+     "minMs": 54.15999999642372,
+     "maxMs": 59.185000002384186,
+     "approxHeapBeforeBytes": 13962093,
+     "approxHeapAfterBytes": 19461610,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-act-props.pptm",
+   "bytes": 982098,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      42.355,
+      45.91,
+      38.88
+     ],
+     "medianMs": 42.354999989271164,
+     "minMs": 38.87999999523163,
+     "maxMs": 45.90999999642372,
+     "approxHeapBeforeBytes": 17281671,
+     "approxHeapAfterBytes": 17958686,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      6.035,
+      5.24,
+      5.785
+     ],
+     "medianMs": 5.784999996423721,
+     "minMs": 5.240000009536743,
+     "maxMs": 6.034999996423721,
+     "approxHeapBeforeBytes": 4312684,
+     "approxHeapAfterBytes": 4313044,
+     "wasmMemoryBeforeBytes": 7340032,
+     "wasmMemoryAfterBytes": 7340032,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-cht-axis-props.pptx",
+   "bytes": 366536,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      91.585,
+      84.755,
+      88.015
+     ],
+     "medianMs": 88.01499998569489,
+     "minMs": 84.75499999523163,
+     "maxMs": 91.58500000834465,
+     "approxHeapBeforeBytes": 16015590,
+     "approxHeapAfterBytes": 36841618,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 8,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      8.135,
+      6.805,
+      6.025
+     ],
+     "medianMs": 6.805000007152557,
+     "minMs": 6.0250000059604645,
+     "maxMs": 8.134999990463257,
+     "approxHeapBeforeBytes": 2461067,
+     "approxHeapAfterBytes": 2461427,
+     "wasmMemoryBeforeBytes": 2293760,
+     "wasmMemoryAfterBytes": 2293760,
+     "outputSize": 8,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-cht-category-access.pptx",
+   "bytes": 222711,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      6.34,
+      3.86,
+      3.55
+     ],
+     "medianMs": 3.8600000143051147,
+     "minMs": 3.550000011920929,
+     "maxMs": 6.339999973773956,
+     "approxHeapBeforeBytes": 2028853,
+     "approxHeapAfterBytes": 2029213,
+     "wasmMemoryBeforeBytes": 1966080,
+     "wasmMemoryAfterBytes": 1966080,
+     "outputSize": 4,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      54.765,
+      56.565,
+      50.025
+     ],
+     "medianMs": 54.764999985694885,
+     "minMs": 50.025000005960464,
+     "maxMs": 56.564999997615814,
+     "approxHeapBeforeBytes": 14669137,
+     "approxHeapAfterBytes": 27682490,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 4,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-cht-chart-props.pptx",
+   "bytes": 218303,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.205,
+      3.955,
+      2.935
+     ],
+     "medianMs": 3.955000013113022,
+     "minMs": 2.935000002384186,
+     "maxMs": 4.205000013113022,
+     "approxHeapBeforeBytes": 2016441,
+     "approxHeapAfterBytes": 2016801,
+     "wasmMemoryBeforeBytes": 1966080,
+     "wasmMemoryAfterBytes": 1966080,
+     "outputSize": 2,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      57.3,
+      52.885,
+      51.22
+     ],
+     "medianMs": 52.88500002026558,
+     "minMs": 51.21999999880791,
+     "maxMs": 57.29999998211861,
+     "approxHeapBeforeBytes": 14688701,
+     "approxHeapAfterBytes": 28892318,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 2,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-cht-chart-type.pptx",
+   "bytes": 1393564,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      12.61,
+      13.25,
+      12.845
+     ],
+     "medianMs": 12.844999998807907,
+     "minMs": 12.610000014305115,
+     "maxMs": 13.25,
+     "approxHeapBeforeBytes": 5542195,
+     "approxHeapAfterBytes": 5542555,
+     "wasmMemoryBeforeBytes": 4521984,
+     "wasmMemoryAfterBytes": 4521984,
+     "outputSize": 8,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      258.935,
+      301.345,
+      238.035
+     ],
+     "medianMs": 258.9350000023842,
+     "minMs": 238.03499999642372,
+     "maxMs": 301.3449999988079,
+     "approxHeapBeforeBytes": 23301542,
+     "approxHeapAfterBytes": 73975422,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 8,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-cht-charts.pptx",
+   "bytes": 77751,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      30.005,
+      29.535,
+      28.68
+     ],
+     "medianMs": 29.53499999642372,
+     "minMs": 28.680000007152557,
+     "maxMs": 30.00499999523163,
+     "approxHeapBeforeBytes": 12078214,
+     "approxHeapAfterBytes": 14697031,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      2.11,
+      1.93,
+      1.69
+     ],
+     "medianMs": 1.929999977350235,
+     "minMs": 1.6899999976158142,
+     "maxMs": 2.1100000143051147,
+     "approxHeapBeforeBytes": 1593956,
+     "approxHeapAfterBytes": 1594316,
+     "wasmMemoryBeforeBytes": 1638400,
+     "wasmMemoryAfterBytes": 1638400,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-cht-datalabels.pptx",
+   "bytes": 243765,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.935,
+      3.975,
+      3.395
+     ],
+     "medianMs": 3.9749999940395355,
+     "minMs": 3.3949999809265137,
+     "maxMs": 4.935000002384186,
+     "approxHeapBeforeBytes": 2092798,
+     "approxHeapAfterBytes": 2093158,
+     "wasmMemoryBeforeBytes": 2031616,
+     "wasmMemoryAfterBytes": 2031616,
+     "outputSize": 5,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      65.285,
+      59.97,
+      59.97
+     ],
+     "medianMs": 59.96999999880791,
+     "minMs": 59.96999999880791,
+     "maxMs": 65.28499999642372,
+     "approxHeapBeforeBytes": 14171702,
+     "approxHeapAfterBytes": 22813233,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-cht-series.pptx",
+   "bytes": 518464,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      112.775,
+      118.62,
+      149.83
+     ],
+     "medianMs": 118.62000000476837,
+     "minMs": 112.77500000596046,
+     "maxMs": 149.8299999833107,
+     "approxHeapBeforeBytes": 16965410,
+     "approxHeapAfterBytes": 34025306,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 11,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      10.46,
+      6.6,
+      6.52
+     ],
+     "medianMs": 6.5999999940395355,
+     "minMs": 6.520000010728836,
+     "maxMs": 10.46000000834465,
+     "approxHeapBeforeBytes": 2916887,
+     "approxHeapAfterBytes": 2917247,
+     "wasmMemoryBeforeBytes": 2621440,
+     "wasmMemoryAfterBytes": 2621440,
+     "outputSize": 11,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-ph-populated-placeholders.pptx",
+   "bytes": 172254,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      75.665,
+      76.14,
+      71.805
+     ],
+     "medianMs": 75.66499999165535,
+     "minMs": 71.80500000715256,
+     "maxMs": 76.13999998569489,
+     "approxHeapBeforeBytes": 15759687,
+     "approxHeapAfterBytes": 21099981,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 9,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      5.655,
+      4.52,
+      4.145
+     ],
+     "medianMs": 4.520000010728836,
+     "minMs": 4.145000010728836,
+     "maxMs": 5.655000001192093,
+     "approxHeapBeforeBytes": 1899220,
+     "approxHeapAfterBytes": 1899580,
+     "wasmMemoryBeforeBytes": 2293760,
+     "wasmMemoryAfterBytes": 2293760,
+     "outputSize": 9,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-shp-access-chart.pptx",
+   "bytes": 80038,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      34.015,
+      32.595,
+      31.465
+     ],
+     "medianMs": 32.59499999880791,
+     "minMs": 31.46500000357628,
+     "maxMs": 34.014999985694885,
+     "approxHeapBeforeBytes": 12457740,
+     "approxHeapAfterBytes": 15762274,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 2,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.55,
+      2.82,
+      2.52
+     ],
+     "medianMs": 2.8199999928474426,
+     "minMs": 2.520000010728836,
+     "maxMs": 4.550000011920929,
+     "approxHeapBeforeBytes": 1603027,
+     "approxHeapAfterBytes": 1603387,
+     "wasmMemoryBeforeBytes": 1769472,
+     "wasmMemoryAfterBytes": 1769472,
+     "outputSize": 2,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-shp-common-props.pptx",
+   "bytes": 81639,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.785,
+      3.685,
+      3.3
+     ],
+     "medianMs": 3.685000002384186,
+     "minMs": 3.2999999821186066,
+     "maxMs": 3.7850000262260437,
+     "approxHeapBeforeBytes": 1629826,
+     "approxHeapAfterBytes": 1630186,
+     "wasmMemoryBeforeBytes": 1900544,
+     "wasmMemoryAfterBytes": 1900544,
+     "outputSize": 2,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      38.755,
+      36.61,
+      34.885
+     ],
+     "medianMs": 36.60999998450279,
+     "minMs": 34.88499999046326,
+     "maxMs": 38.75499999523163,
+     "approxHeapBeforeBytes": 13457368,
+     "approxHeapAfterBytes": 18809237,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 2,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-shp-movie-props.pptx",
+   "bytes": 684874,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      2.99,
+      3.415,
+      3.49
+     ],
+     "medianMs": 3.4149999916553497,
+     "minMs": 2.990000009536743,
+     "maxMs": 3.490000009536743,
+     "approxHeapBeforeBytes": 3403838,
+     "approxHeapAfterBytes": 3404198,
+     "wasmMemoryBeforeBytes": 5439488,
+     "wasmMemoryAfterBytes": 5439488,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      21.195,
+      21.81,
+      21.59
+     ],
+     "medianMs": 21.59000000357628,
+     "minMs": 21.194999992847443,
+     "maxMs": 21.810000002384186,
+     "approxHeapBeforeBytes": 14365985,
+     "approxHeapAfterBytes": 16308959,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-shp-shapes.pptx",
+   "bytes": 125205,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      50.875,
+      48.8,
+      52.36
+     ],
+     "medianMs": 50.875,
+     "minMs": 48.80000001192093,
+     "maxMs": 52.35999998450279,
+     "approxHeapBeforeBytes": 14746076,
+     "approxHeapAfterBytes": 17806783,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 2,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      3.79,
+      3.46,
+      3.095
+     ],
+     "medianMs": 3.4600000083446503,
+     "minMs": 3.094999998807907,
+     "maxMs": 3.790000021457672,
+     "approxHeapBeforeBytes": 1763094,
+     "approxHeapAfterBytes": 1763454,
+     "wasmMemoryBeforeBytes": 2031616,
+     "wasmMemoryAfterBytes": 2031616,
+     "outputSize": 2,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-test_slides.pptx",
+   "bytes": 38616,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      50.17,
+      51.32,
+      53.28
+     ],
+     "medianMs": 51.31999999284744,
+     "minMs": 50.1700000166893,
+     "maxMs": 53.28000000119209,
+     "approxHeapBeforeBytes": 13672003,
+     "approxHeapAfterBytes": 19742799,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      4.975,
+      3.79,
+      3.765
+     ],
+     "medianMs": 3.790000021457672,
+     "minMs": 3.7650000154972076,
+     "maxMs": 4.9749999940395355,
+     "approxHeapBeforeBytes": 1488768,
+     "approxHeapAfterBytes": 1489128,
+     "wasmMemoryBeforeBytes": 2097152,
+     "wasmMemoryAfterBytes": 2097152,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "file": "python-pptx-txt-font-typeface.pptx",
+   "bytes": 25817,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      21.545,
+      21.525,
+      21.815
+     ],
+     "medianMs": 21.544999986886978,
+     "minMs": 21.525000005960464,
+     "maxMs": 21.814999997615814,
+     "approxHeapBeforeBytes": 12326991,
+     "approxHeapAfterBytes": 15629066,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      1.98,
+      2.755,
+      2.16
+     ],
+     "medianMs": 2.1599999964237213,
+     "minMs": 1.9800000190734863,
+     "maxMs": 2.7549999952316284,
+     "approxHeapBeforeBytes": 1430229,
+     "approxHeapAfterBytes": 1430589,
+     "wasmMemoryBeforeBytes": 1572864,
+     "wasmMemoryAfterBytes": 1572864,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  }
+ ],
+ "summary": {
+  "xlsx": {
+   "nitro-xml": {
+    "status": "entered",
+    "files": 30,
+    "ran": 30,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 30,
+    "notComparable": 0,
+    "medianOfMediansMs": 6.482500001788139,
+    "sharedWithReference": 30,
+    "geomeanRatioVsReference": 0.28299188588063967,
+    "winsVsReference": 30,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "upstream-ts": {
+    "status": "entered",
+    "files": 30,
+    "ran": 30,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 30,
+    "notComparable": 0,
+    "medianOfMediansMs": 18.822500005364418,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": 1,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "sheetjs": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "exceljs": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "calamine": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "umya-spreadsheet": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "libreoffice-wasm": {
+    "status": "not entered",
+    "reason": "not entered: the documented binaries are only published under the unversioned path zetaoffice_latest (cannot be pinned, which the fairness rules require), they are about 53 MB (soffice.wasm 36.3 MB + soffice.data 15.9 MB + soffice.js 0.9 MB) and need a cross-origin-isolated threaded page, and LibreOffice has no parse-only boundary: loadComponentFromURL imports and lays out the document into the Writer/Calc/Impress model, so a parse-race number would not measure the same work. Building a pinned LOWA from source was not feasible in this run. Revisit for the render-to-first-paint race with a self-built, pinned LOWA."
+   }
+  },
+  "docx": {
+   "nitro-xml": {
+    "status": "entered",
+    "files": 30,
+    "ran": 30,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 30,
+    "notComparable": 0,
+    "medianOfMediansMs": 4.157499998807907,
+    "sharedWithReference": 30,
+    "geomeanRatioVsReference": 0.25655553649823243,
+    "winsVsReference": 30,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "upstream-ts": {
+    "status": "entered",
+    "files": 30,
+    "ran": 30,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 30,
+    "notComparable": 0,
+    "medianOfMediansMs": 16.49500000476837,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": 1,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "docx-preview": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "mammoth": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "docx-rs": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "libreoffice-wasm": {
+    "status": "not entered",
+    "reason": "not entered: the documented binaries are only published under the unversioned path zetaoffice_latest (cannot be pinned, which the fairness rules require), they are about 53 MB (soffice.wasm 36.3 MB + soffice.data 15.9 MB + soffice.js 0.9 MB) and need a cross-origin-isolated threaded page, and LibreOffice has no parse-only boundary: loadComponentFromURL imports and lays out the document into the Writer/Calc/Impress model, so a parse-race number would not measure the same work. Building a pinned LOWA from source was not feasible in this run. Revisit for the render-to-first-paint race with a self-built, pinned LOWA."
+   }
+  },
+  "pptx": {
+   "nitro-xml": {
+    "status": "entered",
+    "files": 30,
+    "ran": 30,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 30,
+    "notComparable": 0,
+    "medianOfMediansMs": 4.667500004172325,
+    "sharedWithReference": 30,
+    "geomeanRatioVsReference": 0.09138485749592865,
+    "winsVsReference": 30,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "upstream-ts": {
+    "status": "entered",
+    "files": 30,
+    "ran": 30,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 30,
+    "notComparable": 0,
+    "medianOfMediansMs": 59.27750000357628,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": 1,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "pptxjs": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "libreoffice-wasm": {
+    "status": "not entered",
+    "reason": "not entered: the documented binaries are only published under the unversioned path zetaoffice_latest (cannot be pinned, which the fairness rules require), they are about 53 MB (soffice.wasm 36.3 MB + soffice.data 15.9 MB + soffice.js 0.9 MB) and need a cross-origin-isolated threaded page, and LibreOffice has no parse-only boundary: loadComponentFromURL imports and lays out the document into the Writer/Calc/Impress model, so a parse-race number would not measure the same work. Building a pinned LOWA from source was not feasible in this run. Revisit for the render-to-first-paint race with a self-built, pinned LOWA."
+   }
+  }
+ }
+}

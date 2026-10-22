@@ -65,12 +65,16 @@ xlsx S/M remain the largest embed cost (open+first frame); grid encode cuts are 
 
 ## Edit → repaint (p50 / p95)
 
-| Interaction | p50 ms | p95 ms | n |
-|---|---|---|---|
-| xlsx cell (`setCellInput`) | 33.4 | 33.9 | 20 |
-| docx type (`editorKey`) | 16.6 | 16.9 | 20 |
-| pptx type (`editorKey`) | 16.6 | 16.8 | 20 |
-| bold (`shellAction cmd home.bold`) | 25.9 | 54.2 | 10 |
+Post–soft-share / mut-frame / `hf` baseline (this machine, `measure-edit-latency.mjs`):
+
+| Interaction | Tier | Before p50 / p95 | After (drop xlsx mut-frame measures) | Heap peak before → after | n |
+|---|---|---:|---:|---:|---:|
+| xlsx cell (`setCellInput`) | S | 9.0 / 12.1 ms | **8.0 / 11.5 ms** | 7.3 → 7.4 MiB | 40 |
+| xlsx cell (`setCellInput`) | L | 11.9 / 18.2 ms | 12.7 / 17.1 ms (noise) | 16.9 → 17.1 MiB | 40 |
+
+xlsx mut-frame always queued `measureCount=1` for novel cell text, but sticky
+`_nxPainted` never re-ticks to apply CanvasTextMeasure results — a dead worker
+RT. Drop (drain) those payloads on xlsx mut-frame only; docx/pptx unchanged.
 
 ## Remount / StrictMode
 
@@ -114,6 +118,7 @@ transferred open buffer after `Handle.new`. Bench: `node measure-open-mem.mjs`
 | #320 | Defer `setReadOnly(false)` + chrome until after first paint |
 | (this) | Module-seeded preload; no host `initCore`; drop open bytes after `Handle.new` |
 | (this) | xlsx edit keys: WASM `hf` formula-bar delta (~1–2 KB) vs full `h`; lazy loader patches `.xfb` |
+| (this) | xlsx mut-frame: drop dead CanvasTextMeasure payloads (sticky `_nxPainted`) |
 
 Stay out of xlsx grid paint / StringTable encode (separate track). Keep eager
 loader ≤ 17 408 B brotli (new JS under `loader/lazy/`). No budget, threshold,

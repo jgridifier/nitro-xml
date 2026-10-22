@@ -41,10 +41,7 @@ pub fn base_style_id(sheet: &ActiveWorksheet, row: u32, col: u32) -> Option<u32>
 }
 
 fn find_cell_index(sheet: &ActiveWorksheet, row: u32, col: u32) -> Option<usize> {
-    sheet
-        .cells
-        .iter()
-        .position(|c| c.row == row && c.col == col)
+    sheet.find_cell_pos(row, col)
 }
 
 fn get_cell(sheet: &ActiveWorksheet, row: u32, col: u32) -> Option<&DumpCell> {
@@ -53,11 +50,12 @@ fn get_cell(sheet: &ActiveWorksheet, row: u32, col: u32) -> Option<&DumpCell> {
 
 /// Stored cell at a position, created (with inherited format) when missing.
 pub fn ensure_cell(sheet: &mut ActiveWorksheet, row: u32, col: u32) -> &mut DumpCell {
+    sheet.ensure_cell_pos();
     if let Some(i) = find_cell_index(sheet, row, col) {
         return &mut sheet.cells[i];
     }
     let style_id = base_style_id(sheet, row, col);
-    sheet.cells.push(DumpCell {
+    sheet.push_cell(DumpCell {
         row,
         col,
         value: DumpCellValue::Null,
@@ -89,6 +87,7 @@ pub fn clear_contents(cell: &mut DumpCell) {
 
 /// Drops a cell when it carries nothing worth keeping.
 pub fn prune_cell(sheet: &mut ActiveWorksheet, row: u32, col: u32) {
+    sheet.ensure_cell_pos();
     let Some(i) = find_cell_index(sheet, row, col) else {
         return;
     };
@@ -98,7 +97,7 @@ pub fn prune_cell(sheet: &mut ActiveWorksheet, row: u32, col: u32) {
         && cell.style_id.is_none()
         && cell.rich_text.is_none();
     if empty {
-        sheet.cells.remove(i);
+        sheet.remove_cell_pos(i);
     }
 }
 

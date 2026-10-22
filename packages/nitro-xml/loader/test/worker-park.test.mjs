@@ -189,4 +189,88 @@ describe("worker park / edit coalesce", () => {
     assert.equal(mutOps, 1);
     assert.equal(out, '{"h":""}');
   });
+
+  it("keeps xlsx _nxPainted across empty ticks until pending view events", async () => {
+    // Catches: host rAF tick clearing _nxPainted after mut-frame so the caller's
+    // await tick() rebuilds CellIndex over cells_1m (~90 ms session-p50 outliers).
+    let origTicks = 0;
+    class SheetDoc {
+      constructor() {
+        this._name = "cells.xlsx";
+      }
+      applyEdit() {
+        return Promise.resolve("{}");
+      }
+      tick() {
+        origTicks++;
+        return Promise.resolve({ ops: [1] });
+      }
+    }
+    patch(SheetDoc);
+    const d = new SheetDoc();
+    d._nxPainted = 1;
+    const a = await d.tick();
+    const b = await d.tick();
+    assert.deepEqual(a.ops, []);
+    assert.deepEqual(b.ops, []);
+    assert.equal(d._nxPainted, 1);
+    assert.equal(origTicks, 0);
+    d._events = { length: 1, flushNow() {} };
+    const c = await d.tick();
+    assert.equal(origTicks, 1);
+    assert.equal(d._nxPainted, 0);
+    assert.deepEqual(c.ops, [1]);
+  });
+
+  it("waits for in-flight mut-frame before a concurrent tick take-frame", async () => {
+    // Catches: element._tick rAF entering origTick while mut-frame prepareFrame
+    // is still running (double paint / CellIndex::build on the edit grid).
+    let releaseMut;
+    const mutGate = new Promise((r) => {
+      releaseMut = r;
+    });
+    let origTicks = 0;
+    let mutStarted = 0;
+    class SheetDoc {
+      constructor() {
+        this._name = "cells.xlsx";
+      }
+      applyEdit() {
+        return Promise.resolve("{}");
+      }
+      tick() {
+        origTicks++;
+        return Promise.resolve({ ops: [1] });
+      }
+    }
+    patch(SheetDoc);
+    const d = new SheetDoc();
+    d._worker = { postMessage() {} };
+    d._request = async (type, send) => {
+      if (type === "mut-frame") {
+        mutStarted++;
+        send();
+        await mutGate;
+        d._nxPainted = 1;
+        return { type: "mut-frame", result: '{"h":""}' };
+      }
+      return {};
+    };
+    const editP = d.applyEdit(
+      '{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"z"}',
+    );
+    // Let the microtask start flush / mut-frame, then overlap a host tick.
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(mutStarted, 1);
+    const tickP = d.tick();
+    await Promise.resolve();
+    assert.equal(origTicks, 0, "tick must not take-frame during mut-frame");
+    releaseMut();
+    await editP;
+    const tickResult = await tickP;
+    assert.deepEqual(tickResult.ops, []);
+    assert.equal(origTicks, 0);
+    assert.equal(d._nxPainted, 1);
+  });
 });

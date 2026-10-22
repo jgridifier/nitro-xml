@@ -139,10 +139,12 @@ pub(crate) fn load_sheet_window(
     let cells = store_to_dump_cells_with_sst(&store, &compact);
     let freeze_rows = sheet.view.freeze.as_ref().map(|f| f.rows).unwrap_or(0);
     let freeze_cols = sheet.view.freeze.as_ref().map(|f| f.cols).unwrap_or(0);
-    sheet.cells = cells
-        .into_iter()
-        .filter(|c| keep_cell(c.row, c.col, req.view, freeze_rows, freeze_cols))
-        .collect();
+    sheet.replace_cells(
+        cells
+            .into_iter()
+            .filter(|c| keep_cell(c.row, c.col, req.view, freeze_rows, freeze_cols))
+            .collect(),
+    );
     sheet.row_info = row_info;
     let max_row = if capture.saw_row { capture.max_row } else { 0 };
     let max_col = capture.max_col;
@@ -170,6 +172,7 @@ fn empty_sheet(req: &SheetRequest<'_>) -> ActiveWorksheet {
         row_info: BTreeMap::new(),
         cell_store: None,
         cells: Vec::new(),
+        cell_pos: Default::default(),
         data_validations: Vec::new(),
         comment_addresses: Vec::new(),
         hyperlinks: Vec::new(),
@@ -360,6 +363,7 @@ fn worksheet_from_shell(
         row_info: BTreeMap::new(),
         cell_store: None,
         cells: Vec::new(),
+        cell_pos: Default::default(),
         data_validations,
         comment_addresses,
         hyperlinks,

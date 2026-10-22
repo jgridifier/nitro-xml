@@ -392,3 +392,38 @@ short key `hf` (~1–2 KB) instead of full `h` (~54 KB ribbon+shell). Loader pat
 `doc._chromeEl`. Follow-up to omit-unchanged `h` (#357).
 
 React-embed `edit-cell` interleaved (n=40): xlsx S ~11→8.5 ms, L ~12→10.8 ms.
+
+## Slice 14: xlsx/L edit-cell tail — sticky `_nxPainted` (issue #30)
+
+### Profile (from Slice 13)
+
+~90 ms session-p50 outliers: host rAF `tick` raced mut-frame — either took a
+concurrent `prepareFrame` during flush, or cleared `_nxPainted` so the caller's
+`await tick()` rebuilt `CellIndex` over the full post-`ensure_edit` grid
+(~150–250 ms). Not GC / `memory.grow`. #386's `cell_pos` + `drop_lazy` removed
+outliers but **+0.6 MiB edit heap** — rejected.
+
+### Fix (loader + Rust, heap-neutral)
+
+**Loader** (`packages/nitro-xml/loader/lazy/wp.js`):
+1. Concurrent ticks **await** the in-flight edit flush (`_efDone`).
+2. Spreadsheet `_nxPainted` stays set across empty ticks until pending
+   scroll/resize/pointer events (`_events.length`).
+
+**Rust** (#386, without `drop_lazy_view` on `ensure_edit`):
+- Maintained `cell_pos` on viewer + host sheets; paint prefers it over
+  `CellIndex::build` on every frame; O(1) `used_range` via index bbox.
+- `sync_lazy_sheet` checks `covers_viewport` before cloning the sheet.
+- While `edit.is_some()`, `paint` skips `sync_lazy_sheet` (lazy inert; edit grid paints).
+
+### A/B (React-embed `edit-cell` S+L, n=21×21 interleaved, main `0f2f0db` vs tip `28caa84`)
+
+| Tier | main p50/p95/p99/max ms | branch p50/p95/p99/max ms | p50 ratio [95% CI] | latency | outlier sessions (p50≥40ms) | heap main→branch MiB | heap |
+|---|--:|--:|---|---|--:|--:|---|
+| S | 9.4 / 17.1 / 62.8 / 102 | 9.4 / 17.7 / 64.2 / 86 | 1.000 [0.969, 1.043] | NOISE | 0→0 | 7.79→7.49 | NOISE |
+| L | 12.3 / 20.3 / 896 / 1262 | 12.2 / 18.8 / 924 / 1262 | 0.992 [0.917, 1.025] | NOISE | **6→0** | 16.67→16.76 | NOISE [0.990, 1.039] |
+
+**Win (session medians):** L ~90 ms session medians gone; p50/p95 flat; edit heap not REGRESS (no `drop_lazy`).
+
+**Not a per-edit p99/max win:** with 21 samples/session, session p99 ≈ sample 0. Every session’s first `setCellInput` still runs cold `ensure_edit` → `XlsxHost::open` (`load_workbook` + `parse_all_worksheets` + `ensure_dump_cells` on 1M cells) + `sync_model_from_edit` clone ≈ **0.9–1.3 s**; later samples are ~12–20 ms (`mut-frame` ~6–10 ms, sticky `_nxPainted` tick ~0 ms). Outlier-session count (session **median** ≥ 40 ms) therefore dropped 6→0 while reported p99/max stayed ~900/1260. Soft-share / reuse viewer grid on `ensure_edit` (no second full parse) is the follow-up that can move p99/max; #389 stays draft until that lands with 95% CI.
+

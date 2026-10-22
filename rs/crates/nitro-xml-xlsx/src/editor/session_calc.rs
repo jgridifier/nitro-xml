@@ -417,17 +417,15 @@ fn write_results(host: &mut XlsxHost, cells: &[CalculatedCell]) {
         if cell.spill_anchor.is_none() {
             continue;
         }
-        if let Some(existing) = sheet
-            .cells
-            .iter_mut()
-            .find(|item| item.row == cell.row && item.col == cell.col)
-        {
+        sheet.ensure_cell_pos();
+        if let Some(i) = sheet.find_cell_pos(cell.row, cell.col) {
+            let existing = &mut sheet.cells[i];
             existing.value = cell.value.clone();
             existing.formula = None;
             existing.spill_anchor = cell.spill_anchor;
             continue;
         }
-        sheet.cells.push(DumpCell {
+        sheet.push_cell(DumpCell {
             row: cell.row,
             col: cell.col,
             value: cell.value.clone(),

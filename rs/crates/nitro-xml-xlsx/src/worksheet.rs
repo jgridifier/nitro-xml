@@ -164,6 +164,7 @@ pub fn parse_worksheet(
         // Living store: materialize DumpCell only via ensure_dump_cells / to_json_with_sst.
         cell_store: Some(store),
         cells: Vec::new(),
+        cell_pos: Default::default(),
         data_validations,
         comment_addresses,
         hyperlinks,
@@ -197,6 +198,7 @@ fn empty_worksheet(
         row_info: row_info.into_iter().collect(),
         cell_store: Some(store),
         cells: Vec::new(),
+        cell_pos: Default::default(),
         data_validations: Vec::new(),
         comment_addresses: Vec::new(),
         hyperlinks: Vec::new(),

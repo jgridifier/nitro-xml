@@ -1098,6 +1098,8 @@ pub struct ActiveWorksheet {
     /// materializes [`Self::cells`].
     pub cell_store: Option<crate::cells::CellStore>,
     pub cells: Vec<DumpCell>,
+    /// `(row,col) → index` into [`Self::cells`]. Cache only (`PartialEq` ignores it).
+    pub cell_pos: crate::sheet_access::CellIndex,
     pub data_validations: Vec<DataValidation>,
     pub comment_addresses: Vec<CellAddress>,
     pub hyperlinks: Vec<HyperlinkInfo>,

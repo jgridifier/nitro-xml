@@ -180,7 +180,11 @@ function ScenarioRunner({ cfg }) {
           const el = await waitEl();
           const editTier = tier || "S";
           await openInElement(el, fmt, editTier);
-          await el.document.whenEditReady();
+          // Optional: paint-then-soft-share hosts expose whenEditReady so timed
+          // edits wait for ensure_edit; main / older packages omit it.
+          if (typeof el.document.whenEditReady === "function") {
+            await el.document.whenEditReady();
+          }
           const n = smoke ? 3 : samples || 50;
           let kind = "cell";
           if (scenario === "edit-docx-text") kind = "docx";

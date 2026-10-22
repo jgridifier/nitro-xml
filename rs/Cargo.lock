@@ -242,7 +242,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "nitro-xml-docx",
  "nitro-xml-opc",
@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-docx"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "indexmap",
  "nitro-xml-opc",
@@ -265,7 +265,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-opc"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "crc32fast",
  "indexmap",
@@ -279,7 +279,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-pptx"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "indexmap",
  "nitro-xml-opc",
@@ -293,7 +293,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-render"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "flate2",
  "nitro-xml-opc",
@@ -305,7 +305,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-wasm"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -324,7 +324,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-xlsx"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "libc",
  "memchr",

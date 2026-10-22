@@ -16,6 +16,20 @@
 - **Upstream pin:** the `upstream/` git submodule is ChristopherVR/ooxml at `e66aaec24adc0b68472eae1fc42aa4598e09c352` (test and bench only; never shipped).
 - One npm package (`nitro-xml`) and Rust crates `nitro-xml-opc`, `nitro-xml-render`, `nitro-xml-xlsx`, `nitro-xml-docx`, `nitro-xml-pptx`, `nitro-xml-wasm` and the umbrella `nitro-xml`.
 
+## Publishing names
+
+Recommended registry names (checked read-only; **not registered yet**):
+
+| Registry | Name |
+|----------|------|
+| npm | `nitro-xml` + `@nitro-xml/react` |
+| crates.io | `nitro-xml` (+ `nitro-xml-*` internals) |
+| PyPI | `nitro-xml` (`import nitro_xml`) |
+
+Full availability matrix, fallbacks and Jared’s one-time account steps:
+[docs/PUBLISHING_NAMES.md](docs/PUBLISHING_NAMES.md). Re-check with
+`bash scripts/ci/check_publish_names.sh` before the first publish.
+
 ## Goals
 
 1. **Fidelity:** output matches the TS reference (view-IR parity and pixel diffs), and saves round-trip losslessly.

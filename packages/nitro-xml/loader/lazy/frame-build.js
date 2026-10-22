@@ -71,12 +71,23 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
       chromeFormula = lifted.hf || null;
     }
   }
+  // xlsx mut-frame already paints a complete sticky grid (`_nxPainted`); the host
+  // never re-ticks to apply CanvasTextMeasure results, so posting measures here
+  // only adds a dead worker round-trip on every novel cell string. Drop pending
+  // so the queue does not grow; a later take-frame can re-request on scroll/resize.
   let measureReqs = null;
   let measureCount = 0;
+  const frameType = extra.type || "frame";
+  const skipXlsxMutMeasures =
+    frameType === "mut-frame" &&
+    typeof handle.documentFormat === "function" &&
+    handle.documentFormat() === "xlsx";
   if ((handle.measureCount | 0) > 0) {
     const t = handle.takeMeasureReqs();
-    measureReqs = { fonts: t[0], sizes: t[1], texts: t[2] };
-    measureCount = measureReqs.fonts.length;
+    if (!skipXlsxMutMeasures) {
+      measureReqs = { fonts: t[0], sizes: t[1], texts: t[2] };
+      measureCount = measureReqs.fonts.length;
+    }
   }
   let outlineReqs = null,
     outlineCount = 0,
@@ -116,7 +127,7 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
       layoutReqs.props.buffer,
     );
   }
-  const type = extra.type || "frame";
+  const type = frameType;
   const result =
     type === "mut-frame" ? lightMutResult(extra.result) : extra.result;
   workerSelf.postMessage(

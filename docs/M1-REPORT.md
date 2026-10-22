@@ -542,14 +542,20 @@ geomean **0.272** after single-parse shim cut on this branch; was 28W/2L geomean
 docx 30W/0L; pptx **30/30** comparable per [#384](https://github.com/jgridifier/nitro-xml/pull/384)).
 Those PRs do **not** write `docs/scoreboard/data/parse-latest.json`.
 
+**Render-to-first-paint** ([#41](https://github.com/jgridifier/nitro-xml/issues/41) closed): `perf/scoreboard/races/render/`
+times load+init+first paint (800×480, DPR 1). **xlsx** and **pptx** are entered for `nitro-xml` vs
+`upstream-ts`; docx deferred (#23). Latest local snapshot `docs/scoreboard/data/first-paint-latest.json`
+at `b8870f7` (generated tiers S/M, 3 timed + 1 warmup): xlsx S **207** vs **760** ms, M **222** vs **968** ms;
+pptx S **225** vs **656** ms, M **225** vs **722** ms — Nitro **4W/0L** comparable (pptx pixels **0.044%** vs
+0.5% limit; font-pin settling).
+
 | Still blocked for published standings | Link | Why |
 |---------------------------------------|------|-----|
 | `scripts/ci/scoreboard.sh` | stub → `#39` | Still `NOT IMPLEMENTED — see #39` |
 | Scoreboard CI / Pages publish | draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) | Draft; **do not touch** (per Jared) |
-| Render-to-first-paint race | [#41](https://github.com/jgridifier/nitro-xml/issues/41) | `status:blocked` — first-paint standings wait on it |
-| Published data | `docs/scoreboard/data/parse-latest.json` | Still shows Nitro as `"not entered"` until #113 |
+| Published parse standings | `docs/scoreboard/data/parse-latest.json` | Still shows Nitro as `"not entered"` until #113 |
 
-No invented medians in the published JSON from this report slice.
+No invented medians in the published parse JSON from this report slice; first-paint JSON is updated locally only.
 
 ---
 
@@ -561,7 +567,7 @@ No invented medians in the published JSON from this report slice.
 | xlsx S peak_mem LOSS | compile floor (measured) | Cold ~16 MiB / warm-second already beats TS alloc. Draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) pre-warm cut **closed**. [#332](https://github.com/jgridifier/nitro-xml/pull/332) `-O1` still draft (open/edit regress vs main — recommend close) |
 | Docx peak_mem LOSSes | [#359](https://github.com/jgridifier/nitro-xml/pull/359) merged; outline slice 10 | Format-split landed. Drawing non-picture outline + notes `take_text` cuts docx M WASM peak (~15.4→14.7 MiB, CI WIN vs prior tip); S/M still **LOSS vs TS** (compile floor) |
 | xlsx S openDocument | done (clear WIN) | [#360](https://github.com/jgridifier/nitro-xml/pull/360); CI upper ≪ 1 |
-| Scoreboard standings including losses | **#41**, draft **#113**, **#39**; adapters **#299/#329** | Published `parse-latest.json` still waits on #113 — do not invent numbers |
+| Scoreboard standings including losses | draft **#113**, **#39**; adapters **#299/#329**; first-paint **#41** done locally | Published `parse-latest.json` still waits on #113 — do not invent numbers |
 | Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |
 | Per-format wasm / TTI ceilings | #46 | Bundle gate extension |
 
@@ -577,7 +583,7 @@ No invented medians in the published JSON from this report slice.
 - [x] Bundle / loader sizes recorded (loader **16.69 / 17 KB**; wasm sizes above)
 - [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S clear WIN after #352** (CI upper 0.321; peak-mem LOSSes kept on xlsx/docx S); **#23 left open** (docx arm deferred)
 - [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped; post-#352 matrix **14/18 WIN**
-- [ ] Scoreboard standings including losses — adapters **#299/#329** (local W/L); published JSON still blocked on stub `#39` + draft **#113** + blocked **#41** (no invented numbers)
+- [ ] Scoreboard standings including losses — adapters **#299/#329** + first-paint **xlsx/pptx** (local W/L in `first-paint-latest.json`); published **parse** JSON still blocked on stub `#39` + draft **#113** (no invented parse numbers)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
 - [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27**; docx **#23** deferred
 

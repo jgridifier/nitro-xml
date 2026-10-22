@@ -50,14 +50,14 @@ const ENTRANTS = [
 	{
 		id: 'upstream-ts',
 		name: 'upstream ooxml TS',
-		formats: ['xlsx'],
+		formats: ['xlsx', 'pptx'],
 		reference: true,
 		status: 'entered',
 	},
 	{
 		id: 'nitro-xml',
 		name: 'Nitro XML (Rust/WASM)',
-		formats: ['xlsx'],
+		formats: ['xlsx', 'pptx'],
 		status: 'entered',
 	},
 ];
@@ -150,6 +150,10 @@ if (!existsSync(join(repo, 'packages/nitro-xml/pkg/nitro_xml_wasm_bg.wasm'))) {
 }
 if (!existsSync(join(visualOut, 'bundles/xlsx-editor.js'))) {
 	console.error('missing parity/visual/out/bundles/xlsx-editor.js — run: cd parity/visual && bun ./prepare.mjs');
+	process.exit(1);
+}
+if (FORMATS.includes('pptx') && !existsSync(join(visualOut, 'bundles/pptx-slide.js'))) {
+	console.error('missing parity/visual/out/bundles/pptx-slide.js — run: cd parity/visual && bun ./prepare.mjs');
 	process.exit(1);
 }
 

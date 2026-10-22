@@ -8,7 +8,7 @@ The public scoreboard at <https://jgridifier.github.io/nitro-xml/scoreboard/> co
 | Race | Status |
 |---|---|
 | **Parse** | Live. Bytes in memory, then the entrant's parse call returns a model. |
-| **Render to first paint** | Live for **xlsx** (#41): `perf/scoreboard/races/render/`. Times load+init+first paint; ranks only within PRODUCT_SPEC §5 pixel limits vs upstream TS. **docx** deferred (TODO(#23)); **pptx** adapter TODO after #27. |
+| **Render to first paint** | Live for **xlsx** and **pptx** (#41): `perf/scoreboard/races/render/`. Times load+init+first paint; ranks only within PRODUCT_SPEC §5 pixel limits vs upstream TS. **docx** deferred (TODO(#23)). |
 | **Open, edit, save** | Not run yet. Needs the editor (#71). |
 
 ## Fairness rules

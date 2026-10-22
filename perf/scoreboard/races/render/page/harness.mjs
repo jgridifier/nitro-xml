@@ -168,9 +168,170 @@ async function paintUpstreamXlsx(fixtureUrl, bytes) {
 	throw new Error('upstream xlsx-editor: no grid paint');
 }
 
+function fitScale(canvasW, canvasH, viewW, viewH) {
+	if (viewW <= 0 || viewH <= 0) return 1;
+	return Math.min(viewW / Math.max(1, canvasW), viewH / Math.max(1, canvasH), 1);
+}
+
+async function waitFonts() {
+	if (document.fonts?.ready) await document.fonts.ready;
+	try {
+		await Promise.all([
+			...[...document.fonts].map((face) => face.load().catch(() => {})),
+			document.fonts.load('18px "Liberation Sans"'),
+			document.fonts.load('bold 18px "Liberation Sans"'),
+			document.fonts.load('18px Calibri'),
+			document.fonts.load('18px Carlito'),
+			document.fonts.load('18px Arial'),
+		]);
+	} catch {
+		/* optional */
+	}
+}
+
+/** Same post–first-content settle for both pptx entrants (PR #390 equivalence). */
+async function settleAfterFirstPptxContent() {
+	await waitFonts();
+	await waitFrames(3);
+}
+
+// PPTX first-paint adapters: timed window is paintOnce() only (fixture fetch in setup() is outside).
+// End state: first visible slide painted in #stage. Parse/open scope follows each product API — see PR
+// "Equivalence / product path (required)".
+
+async function paintNitroPptx(fixtureUrl, bytes) {
+	const { defineNitroPptx, initCore } = await import('/packages/nitro-xml/loader/index.js');
+	const fontMirror = new URL('/fonts/css2', location.origin).href;
+	await initCore({ fontSource: fontMirror });
+	defineNitroPptx();
+	const el = document.createElement('nitro-pptx');
+	el.setAttribute('readonly', '');
+	el.style.display = 'flex';
+	el.style.flexDirection = 'column';
+	el.style.width = '100%';
+	el.style.height = '100%';
+	stage().replaceChildren(el);
+	const name = fixtureUrl.split('/').pop() || 'deck.pptx';
+	const file = new File([bytes], name, {
+		type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+	});
+	await el.loadFile(file);
+	const shadow = el.shadowRoot;
+	hideShellChrome(shadow);
+	try {
+		const fontCss = await (await fetch('/fonts/visual-fonts.css')).text();
+		injectStyle(
+			shadow,
+			fontCss +
+				`\n:host,.dom{font-family:"Liberation Sans",Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}` +
+				`\n.dom [data-pptx-element]{font-family:"Liberation Sans",Arial,sans-serif}`,
+			'font-pin',
+		);
+	} catch {
+		/* optional */
+	}
+	if (el.document) {
+		const dpr = window.devicePixelRatio || 1;
+		const w = el.clientWidth || 800;
+		const h = el.clientHeight || 480;
+		el.document.pushEvent({
+			kind: 6,
+			time_ms: performance.now(),
+			width: w,
+			height: h,
+			dpr,
+		});
+	}
+	let painted = false;
+	for (let i = 0; i < 90; i++) {
+		await waitFrames(1);
+		const msg = shadow?.querySelector('.msg');
+		if (msg && !msg.hidden && msg.textContent) {
+			throw new Error(`nitro-pptx: ${msg.textContent}`);
+		}
+		if (el.document) await el.document.tick();
+		const dom = shadow?.querySelector('.dom');
+		if (dom && dom.childElementCount > 0) {
+			painted = true;
+			break;
+		}
+	}
+	if (!painted) throw new Error('nitro-pptx: no slide DOM paint');
+	hideShellChrome(shadow);
+	await settleAfterFirstPptxContent();
+}
+
+async function paintUpstreamPptx(fixtureUrl, bytes) {
+	const {
+		loadPresentation,
+		renderSlideStage,
+		createDefaultRegistry,
+		createTranslator,
+	} = await import('/out/bundles/pptx-slide.js');
+	const viewW = 800;
+	const viewH = 480;
+	const loaded = await loadPresentation(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+	try {
+		if (!loaded.slides?.length) throw new Error('upstream pptx: empty slides');
+		const scale = fitScale(loaded.canvasSize.width, loaded.canvasSize.height, viewW, viewH);
+		const slideEl = renderSlideStage({
+			document,
+			slide: loaded.slides[0],
+			canvasSize: loaded.canvasSize,
+			mediaDataUrls: loaded.mediaDataUrls,
+			colorScheme: loaded.colorScheme,
+			fontScheme: loaded.fontScheme,
+			tableStyleMap: loaded.tableStyleMap,
+			registry: createDefaultRegistry(),
+			t: createTranslator('en'),
+			scale,
+			slides: loaded.slides,
+			currentSlideIndex: 0,
+			reading: true,
+		});
+		const wrap = document.createElement('div');
+		wrap.id = 'ts-wrap';
+		wrap.style.position = 'absolute';
+		wrap.style.inset = '0';
+		wrap.style.overflow = 'hidden';
+		wrap.style.background = '#fff';
+		wrap.appendChild(slideEl);
+		stage().replaceChildren(wrap);
+		try {
+			const fontCss = await (await fetch('/fonts/visual-fonts.css')).text();
+			injectStyle(
+				document.head,
+				fontCss +
+					`\n#ts-wrap{font-family:"Liberation Sans",Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}` +
+					`\n#ts-wrap .pptxv-element{font-family:"Liberation Sans",Arial,sans-serif}`,
+				'font-pin-ts',
+			);
+		} catch {
+			/* optional */
+		}
+		let mounted = false;
+		for (let i = 0; i < 90; i++) {
+			await waitFrames(1);
+			const slideRoot = wrap.firstElementChild;
+			if (
+				slideRoot &&
+				(slideRoot.childElementCount > 0 ||
+					wrap.querySelector('.pptxv-element, [class*="pptx"]'))
+			) {
+				mounted = true;
+				break;
+			}
+		}
+		if (!mounted) throw new Error('upstream pptx: no slide DOM paint');
+		await settleAfterFirstPptxContent();
+	} finally {
+		loaded.handler?.dispose?.();
+	}
+}
+
 const PAINTERS = {
-	'nitro-xml': { xlsx: paintNitroXlsx },
-	'upstream-ts': { xlsx: paintUpstreamXlsx },
+	'nitro-xml': { xlsx: paintNitroXlsx, pptx: paintNitroPptx },
+	'upstream-ts': { xlsx: paintUpstreamXlsx, pptx: paintUpstreamPptx },
 };
 
 let fixtureBytes = null;

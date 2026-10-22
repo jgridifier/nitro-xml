@@ -11,6 +11,7 @@ members = [
     "crates/nitro-xml-pptx",
     "crates/nitro-xml-wasm",
     "crates/nitro-xml",
+    "crates/nitro-xml-py",
 ]
 # cargo-fuzz nest (nightly + libFuzzer); has its own [workspace] in fuzz/Cargo.toml.
 exclude = ["fuzz"]

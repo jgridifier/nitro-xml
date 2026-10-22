@@ -589,6 +589,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.border-bottom",
+                    label: "Bottom Border",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.space-before",
                     label: "Space Before",
                     enabled: true,
@@ -758,6 +763,7 @@ fn canonical_command(id: &str) -> &str {
         "home.outdent-right" => "outdent-right",
         "home.line-spacing" => "line-spacing",
         "home.shading" => "shading",
+        "home.border-bottom" => "border-bottom",
         "home.space-before" => "space-before",
         "home.space-after" => "space-after",
         "home.hanging-indent" => "hanging-indent",

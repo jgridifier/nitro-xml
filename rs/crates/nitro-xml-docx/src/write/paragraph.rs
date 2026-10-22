@@ -51,6 +51,9 @@ pub fn write_paragraph(
     if field_differs(paragraph, base, "shadingFill") {
         sync_shading(&mut out, paragraph);
     }
+    if field_differs(paragraph, base, "borders") {
+        sync_borders(&mut out, paragraph);
+    }
 
     let runs = paragraph
         .get("runs")
@@ -261,6 +264,66 @@ fn sync_shading(out: &mut Element, paragraph: &Value) {
     p_pr.children.push(Node::Element(shd));
 }
 
+const BORDER_SIDES: &[&str] = &["top", "left", "bottom", "right", "between"];
+
+/// `w:pBdr` follows `borders`. An absent field drops a stale border. `style: "nil"` writes
+/// `w:val="nil"` so a styled rule does not stick. Other sides are kept.
+fn sync_borders(out: &mut Element, paragraph: &Value) {
+    let borders = paragraph.get("borders").filter(|v| v.is_object());
+    let has = first_w_mut(out, "pPr")
+        .and_then(|p| first_w_mut(p, "pBdr"))
+        .is_some();
+    if borders.is_none() && !has {
+        return;
+    }
+    if first_w_mut(out, "pPr").is_none() {
+        out.children.insert(0, Node::Element(make_w("pPr")));
+    }
+    let p_pr = first_w_mut(out, "pPr").expect("pPr");
+    remove_w_children(p_pr, "pBdr");
+    let Some(borders) = borders else {
+        return;
+    };
+    let mut p_bdr = make_w("pBdr");
+    for side in BORDER_SIDES {
+        if let Some(value) = borders.get(*side) {
+            p_bdr
+                .children
+                .push(Node::Element(border_side_el(side, value)));
+        }
+    }
+    if !p_bdr.children.is_empty() {
+        p_pr.children.push(Node::Element(p_bdr));
+    }
+}
+
+fn border_side_el(name: &str, side: &Value) -> Element {
+    let mut el = make_w(name);
+    let style = side
+        .get("style")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("single");
+    set_w_attr(&mut el, "val", style);
+    if style == "nil" || style == "none" {
+        return el;
+    }
+    if let Some(n) = json_int(side, "sizeEighthPoints") {
+        set_w_attr(&mut el, "sz", &n.to_string());
+    }
+    if let Some(n) = json_int(side, "spacePoints") {
+        set_w_attr(&mut el, "space", &n.to_string());
+    }
+    if let Some(color) = side
+        .get("color")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+    {
+        set_w_attr(&mut el, "color", color.trim_start_matches('#'));
+    }
+    el
+}
+
 /// `w:pStyle` follows the block's `style` field. An empty style drops a stale `pStyle`.
 fn sync_p_style(out: &mut Element, paragraph: &Value) {
     if first_w_mut(out, "pPr").is_none() {
@@ -340,6 +403,25 @@ mod tests {
             .map(|a| a.value.as_str())
     }
 
+    fn side_attr<'a>(el: &'a Element, side: &str, attr: &str) -> Option<&'a str> {
+        let props = el.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "pPr" => Some(e),
+            _ => None,
+        })?;
+        let bdr = props.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "pBdr" => Some(e),
+            _ => None,
+        })?;
+        let edge = bdr.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == side => Some(e),
+            _ => None,
+        })?;
+        edge.attrs
+            .iter()
+            .find(|a| a.local == attr)
+            .map(|a| a.value.as_str())
+    }
+
     #[test]
     fn catches_shade_omitting_w_shd() {
         // Catches: a yellow paragraph saving without w:shd, or a cleared shade leaving the old fill.
@@ -356,5 +438,32 @@ mod tests {
         )
         .unwrap();
         assert_eq!(shd_fill(&auto), Some("auto"));
+    }
+
+    #[test]
+    fn catches_bottom_border_omitting_w_pbdr() {
+        // Catches: a bottom border saving without w:pBdr, a cleared border leaving the old rule, or nil omitted.
+        let base = json!({"id": "p0", "runs": [{"text": "Hi"}]});
+        let bordered = json!({
+            "id": "p0",
+            "runs": [{"text": "Hi"}],
+            "borders": {
+                "bottom": {"style": "single", "sizeEighthPoints": 12, "spacePoints": 1, "color": "000000"},
+                "left": {"style": "single", "sizeEighthPoints": 4, "color": "FF0000"}
+            }
+        });
+        let on = write_paragraph(&bordered, &make_w("p"), Some(&base)).unwrap();
+        assert_eq!(side_attr(&on, "bottom", "val"), Some("single"));
+        assert_eq!(side_attr(&on, "bottom", "sz"), Some("12"));
+        assert_eq!(side_attr(&on, "bottom", "space"), Some("1"));
+        assert_eq!(side_attr(&on, "bottom", "color"), Some("000000"));
+        assert_eq!(side_attr(&on, "left", "val"), Some("single"));
+        let cleared = write_paragraph(&base, &on, Some(&bordered)).unwrap();
+        assert_eq!(side_attr(&cleared, "bottom", "val"), None);
+        let nil =
+            json!({"id": "p0", "runs": [{"text": "Hi"}], "borders": {"bottom": {"style": "nil"}}});
+        let off = write_paragraph(&nil, &on, Some(&bordered)).unwrap();
+        assert_eq!(side_attr(&off, "bottom", "val"), Some("nil"));
+        assert_eq!(side_attr(&off, "bottom", "sz"), None);
     }
 }

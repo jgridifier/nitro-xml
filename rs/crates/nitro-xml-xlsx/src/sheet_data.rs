@@ -423,6 +423,7 @@ fn attr_flag(e: &quick_xml::events::BytesStart<'_>, key: &[u8], scratch: &mut Ve
     attr_bytes(e, key, scratch).is_some_and(|b| b == b"1" || b.eq_ignore_ascii_case(b"true"))
 }
 
+#[inline(never)]
 fn row_info_from_attrs(
     ctx: &CellContext<'_>,
     e: &quick_xml::events::BytesStart<'_>,
@@ -466,7 +467,10 @@ fn row_info_from_attrs(
     }
 }
 
+/// Per-cell commit from the stream loop. Outlined so V8 TurboFan on xlsx S open
+/// does not compile value/formula materialise into [`read_sheet_data_xml_stream`].
 #[allow(clippy::too_many_arguments)]
+#[inline(never)]
 fn flush_stream_cell(
     ctx: &mut CellContext<'_>,
     store: &mut CellStore,
@@ -574,7 +578,9 @@ fn flush_stream_cell(
     }
 }
 
+/// Formula materialise — cold on cells_1k (no `<f>`). Keep out of flush TurboFan.
 #[allow(clippy::too_many_arguments)]
+#[inline(never)]
 fn apply_stream_formula(
     ctx: &mut CellContext<'_>,
     store: &mut CellStore,

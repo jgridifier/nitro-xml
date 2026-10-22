@@ -534,6 +534,16 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.indent-right",
+                    label: "Increase Right Indent",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.outdent-right",
+                    label: "Decrease Right Indent",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.line-spacing",
                     label: "Line Spacing",
                     enabled: true,
@@ -687,6 +697,8 @@ fn canonical_command(id: &str) -> &str {
         "home.highlight" => "highlight",
         "home.indent" => "indent",
         "home.outdent" => "outdent",
+        "home.indent-right" => "indent-right",
+        "home.outdent-right" => "outdent-right",
         "home.line-spacing" => "line-spacing",
         "home.space-before" => "space-before",
         "home.space-after" => "space-after",

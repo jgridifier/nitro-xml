@@ -52,6 +52,8 @@ export const ICONS = {
   highlight: '<path d="M5 16l8-8 3 3-8 8H5z"/><path class="a" d="M14 7l3 3M4 20h10"/>',
   indent: '<path d="M4 6h16M10 10h10M10 14h10M4 18h16"/><path class="a" d="M4 12h4M6 10.5l2 1.5-2 1.5"/>',
   outdent: '<path d="M4 6h16M10 10h10M10 14h10M4 18h16"/><path class="a" d="M8 12H4M6 10.5L4 12l2 1.5"/>',
+  indentRight: '<path d="M4 6h16M4 10h10M4 14h10M4 18h16"/><path class="a" d="M16 12h4M18 10.5l2 1.5-2 1.5"/>',
+  outdentRight: '<path d="M4 6h16M4 10h10M4 14h10M4 18h16"/><path class="a" d="M20 12h-4M18 10.5L16 12l2 1.5"/>',
   spacing: '<path d="M6 9h12M6 12h12M6 15h12"/><path class="a" d="M12 3v3M12 18v3M10 5l2-2 2 2M10 19l2 2 2-2"/>',
   spaceBefore: '<path class="a" d="M4 5h16"/><path d="M6 11h12M6 15h12M6 19h12"/>',
   spaceAfter: '<path d="M6 5h12M6 9h12M6 13h12"/><path class="a" d="M4 19h16"/>',

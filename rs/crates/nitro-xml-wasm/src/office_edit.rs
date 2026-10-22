@@ -851,6 +851,109 @@ mod tests {
     }
 
     #[test]
+    fn catches_right_indent_leaving_the_left_indent_unchanged() {
+        // Catches: Increase Right Indent leaving w:ind/@w:right off the saved paragraph, writing
+        // w:right="0" from a flush paragraph, or moving the left indent.
+        let gaps = |bytes: &[u8]| {
+            let h = open_editable(bytes, "pages.docx");
+            h.docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .blocks
+                .iter()
+                .map(|b| {
+                    let n = |k: &str| b.get(k).and_then(|v| v.as_i64());
+                    (n("indentRightTwips"), n("indentLeftTwips"))
+                })
+                .collect::<Vec<_>>()
+        };
+        let step = nitro_xml_docx::edit::format::INDENT_STEP_TWIPS;
+        let mut h = open_editable(DOCX, "pages.docx");
+        let original = gaps(DOCX);
+        h.shell_action("cmd", "home.indent-right")
+            .expect("indent right");
+        let saved = h.save_document().expect("save right");
+        assert_ne!(saved, DOCX);
+        let after = gaps(&saved);
+        let changed = original
+            .iter()
+            .zip(after.iter())
+            .filter(|(a, b)| a.0 != b.0)
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), 1, "right indent touched {changed:?}");
+        let (old, new) = changed[0];
+        assert_eq!(old.1, new.1, "right indent moved the left indent");
+        assert_eq!(
+            new.0,
+            Some(old.0.unwrap_or(0) + step),
+            "right indent was not half an inch"
+        );
+        for ((old_r, old_l), (new_r, new_l)) in original.iter().zip(after.iter()) {
+            if old_r == new_r {
+                assert_eq!(old_l, new_l, "an untouched paragraph lost its left indent");
+            }
+        }
+        h.shell_action("cmd", "edit.undo").expect("undo right");
+        assert_eq!(h.save_document().expect("undone right"), DOCX);
+
+        h.shell_action("cmd", "home.outdent-right")
+            .expect("outdent right");
+        let saved = h.save_document().expect("save outdent right");
+        if old.0.unwrap_or(0) == 0 {
+            assert_eq!(
+                saved, DOCX,
+                "outdent on a flush right indent changed the package"
+            );
+        } else {
+            assert_ne!(saved, DOCX);
+            let after = gaps(&saved);
+            let changed = original
+                .iter()
+                .zip(after.iter())
+                .filter(|(a, b)| a.0 != b.0)
+                .collect::<Vec<_>>();
+            assert_eq!(changed.len(), 1, "right outdent touched {changed:?}");
+            let (before, next) = changed[0];
+            assert_eq!(before.1, next.1, "right outdent moved the left indent");
+            let want = before.0.unwrap_or(0) - step;
+            if want == 0 {
+                assert_eq!(next.0, None, "flush right indent stored 0");
+            } else {
+                assert_eq!(next.0, Some(want));
+            }
+            h.shell_action("cmd", "edit.undo")
+                .expect("undo outdent right");
+            assert_eq!(h.save_document().expect("undone outdent right"), DOCX);
+        }
+
+        let strip = h.docx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.indent-right\""));
+        assert!(strip.contains("data-g=\"home.outdent-right\""));
+        let home = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .ribbon_html();
+        assert!(home.contains("data-command=\"indent-right\""));
+        assert!(home.contains("data-command=\"outdent-right\""));
+        let pptx = open_editable(PPTX, "slides.pptx");
+        assert!(!pptx
+            .pptx
+            .as_ref()
+            .unwrap()
+            .ribbon_html()
+            .contains("home.indent-right"));
+    }
+
+    #[test]
     fn catches_docx_shell_bold_leaving_the_package_unchanged() {
         // Catches: home.bold on a document staying on the xlsx command table, so w:b never flips.
         let mut h = open_editable(DOCX, "pages.docx");

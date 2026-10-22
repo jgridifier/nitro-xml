@@ -8,16 +8,22 @@
 # Mode (do not lower the bar; do not raise budgets; do not demote fixtures):
 #   PERF_GATE_MODE=report   (default) — measure, write the per-test table, exit 0 even on LOSS.
 #                            Clearly labeled so Jared can decide when to enforce.
-#   PERF_GATE_MODE=enforce  — same table; exit 1 on any LOSS / TIE/LOSS.
+#   PERF_GATE_MODE=enforce  — same table; exit 1 on any non-excepted LOSS / TIE/LOSS.
 #
 # Harnesses: perf/large/ts-vs-wasm.mjs (cold openDocument) and perf/large/peak-mem.mjs
 # (fresh-process VmHWM). Fixtures generated in-job. XL / 4× CPU / scroll / browser first-paint
 # remain TODO(#8) once the Node open+peak baseline is green.
 #
-# Definition of done for arming: every cell WIN (see enforce-readiness.json / summary footer),
-# then Jared flips PERF_GATE_MODE=enforce (or sets it in the workflow env) and asks Jared /
-# Chief of Staff to keep `perf-beats-ts` in branch-protection required checks.
-# Agents never edit .github/workflows/. The readiness footer never lowers the bar.
+# Known-loss exceptions (M1 compile floor; Jared 2026-10-22):
+#   https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384
+#   xlsx S peak_mem, docx S peak_mem, docx M peak_mem — stay measured and printed as LOSS
+#   with numbers; they do not block enforce readiness or fail ENFORCE mode. Any other cell
+#   that is LOSS / TIE/LOSS still fails. No fixture demotion; no threshold/budget changes.
+#
+# Definition of done for arming: enforce-readiness READY (all cells WIN, or only the
+# documented known-loss exceptions above), then Jared flips PERF_GATE_MODE=enforce (or
+# sets it in the workflow env) and asks Jared / Chief of Staff to keep `perf-beats-ts`
+# in branch-protection required checks. Agents never edit .github/workflows/.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
@@ -143,10 +149,15 @@ FAILS_FILE="$OUT_DIR/fails.txt"
 READINESS_JSON="$OUT_DIR/enforce-readiness.json"
 : > "$FAILS_FILE"
 
-node - "$OPEN_JSON" "$MEM_JSON" "$SUMMARY_MD" "$FAILS_FILE" "$READINESS_JSON" "$fmt" "$MODE" "$arm_issue" <<'JS'
+node - "$OPEN_JSON" "$MEM_JSON" "$SUMMARY_MD" "$FAILS_FILE" "$READINESS_JSON" "$fmt" "$MODE" "$arm_issue" "$ROOT" <<'JS'
 const fs = require("fs");
-const [openPath, memPath, outMd, failsPath, readinessPath, fmt, mode, armIssue] =
+const path = require("path");
+const [openPath, memPath, outMd, failsPath, readinessPath, fmt, mode, armIssue, root] =
   process.argv.slice(2);
+const {
+  KNOWN_LOSS_DECISION,
+  classifyMeasuredLoss,
+} = require(path.join(root, "scripts/ci/lib/perf-beats-known-loss.cjs"));
 const open = JSON.parse(fs.readFileSync(openPath, "utf8"));
 const mem = JSON.parse(fs.readFileSync(memPath, "utf8"));
 
@@ -155,7 +166,9 @@ function fmtN(n, d = 3) {
   return n.toFixed(d);
 }
 
-const fails = [];
+const measuredLosses = [];
+const blockingFails = [];
+const knownLosses = [];
 const openFails = [];
 const peakFails = [];
 const lines = [];
@@ -171,7 +184,7 @@ if (mode === "report") {
   lines.push("");
 } else {
   lines.push(
-    `> **ENFORCE MODE** — any LOSS / TIE/LOSS fails this job. Pass rule: median WASM/TS &lt; 1 and 95% CI upper &lt; 1.`,
+    `> **ENFORCE MODE** — any non-excepted LOSS / TIE/LOSS fails this job. Documented known-loss cells stay printed as LOSS but do not fail. Pass rule: median WASM/TS &lt; 1 and 95% CI upper &lt; 1.`,
   );
   lines.push("");
 }
@@ -189,44 +202,95 @@ for (const r of open.rows || []) {
     `| ${r.format} | ${r.tier} | openDocument (ms) | ${fmtN(r.ts_ms_median, 2)} | ${fmtN(r.wasm_ms_median, 2)} | ${fmtN(r.wasm_over_ts_median)} | [${fmtN(ci.lo)}, ${fmtN(ci.hi)}] | **${v}** |`,
   );
   if (v !== "WIN") {
-    const label = `${r.format} ${r.tier} openDocument ${v}`;
-    fails.push(label);
-    openFails.push(label);
+    const cls = classifyMeasuredLoss(r.format, r.tier, "openDocument", v);
+    measuredLosses.push(cls.label);
+    if (cls.blocking) {
+      blockingFails.push(cls.label);
+      openFails.push(cls.label);
+    }
   }
 }
 
 for (const r of mem.rows || []) {
   const ci = r.wasm_over_ts_mem_ci95 || {};
   const v = r.verdict || "LOSS";
+  const tsMem = r.ts && Number.isFinite(r.ts.mem) ? r.ts.mem : NaN;
+  const wasmMem = r.wasm && Number.isFinite(r.wasm.mem) ? r.wasm.mem : NaN;
   lines.push(
-    `| ${r.format} | ${r.tier} | peak mem (MiB) | ${fmtN(r.ts.mem, 1)} | ${fmtN(r.wasm.mem, 1)} | ${fmtN(r.wasm_over_ts_mem)} | [${fmtN(ci.lo)}, ${fmtN(ci.hi)}] | **${v}** |`,
+    `| ${r.format} | ${r.tier} | peak mem (MiB) | ${fmtN(tsMem, 1)} | ${fmtN(wasmMem, 1)} | ${fmtN(r.wasm_over_ts_mem)} | [${fmtN(ci.lo)}, ${fmtN(ci.hi)}] | **${v}** |`,
   );
   if (v !== "WIN") {
-    const label = `${r.format} ${r.tier} peak_mem ${v}`;
-    fails.push(label);
-    peakFails.push(label);
+    const cls = classifyMeasuredLoss(r.format, r.tier, "peak_mem", v);
+    measuredLosses.push(cls.label);
+    if (cls.knownLoss) {
+      knownLosses.push({
+        format: r.format,
+        tier: r.tier,
+        metric: "peak_mem",
+        verdict: v,
+        label: cls.label,
+        tsMiB: tsMem,
+        wasmMiB: wasmMem,
+        wasmOverTs: r.wasm_over_ts_mem,
+        ci95: ci,
+        decision: KNOWN_LOSS_DECISION,
+      });
+    } else {
+      blockingFails.push(cls.label);
+      peakFails.push(cls.label);
+    }
   }
 }
 
-const wins = (open.rows || []).length + (mem.rows || []).length - fails.length;
+const wins =
+  (open.rows || []).length + (mem.rows || []).length - measuredLosses.length;
 const total = (open.rows || []).length + (mem.rows || []).length;
-const enforceReady = fails.length === 0;
+const enforceReady = blockingFails.length === 0;
 lines.push("");
 lines.push(
-  `**Result:** ${wins}/${total} WIN · ${fails.length} LOSS/TIE · mode=\`${mode}\``,
+  `**Result:** ${wins}/${total} WIN · ${measuredLosses.length} LOSS/TIE · ${knownLosses.length} known-loss exception · ${blockingFails.length} blocking · mode=\`${mode}\``,
 );
-if (fails.length) {
+if (measuredLosses.length) {
   lines.push("");
-  lines.push("Losses (shown as prominently as wins):");
-  for (const f of fails) lines.push(`- ${f}`);
+  lines.push("Losses (shown as prominently as wins; numbers kept):");
+  for (const f of measuredLosses) {
+    const known = knownLosses.some((k) => k.label === f);
+    lines.push(known ? `- ${f} _(known-loss exception — still LOSS)_` : `- ${f}`);
+  }
+}
+if (knownLosses.length) {
+  lines.push("");
+  lines.push("### Known-loss exceptions (M1 compile floor)");
+  lines.push("");
+  lines.push(
+    `Documented by Jared ([comment](${KNOWN_LOSS_DECISION})): cells stay **LOSS** with measured numbers; they do not block enforce readiness and do not fail ENFORCE mode. No fixture demotion; thresholds and \`perf/budgets.json\` unchanged. Any other LOSS / TIE/LOSS still fails.`,
+  );
+  lines.push("");
+  lines.push(
+    `| Format | Tier | Metric | TS MiB | WASM MiB | WASM/TS | Verdict |`,
+  );
+  lines.push(`|---|---|---|---:|---:|---:|---|`);
+  for (const k of knownLosses) {
+    const lo = k.ci95 && Number.isFinite(k.ci95.lo) ? fmtN(k.ci95.lo) : "—";
+    const hi = k.ci95 && Number.isFinite(k.ci95.hi) ? fmtN(k.ci95.hi) : "—";
+    lines.push(
+      `| ${k.format} | ${k.tier} | ${k.metric} | ${fmtN(k.tsMiB, 1)} | ${fmtN(k.wasmMiB, 1)} | ${fmtN(k.wasmOverTs)} [${lo}, ${hi}] | **${k.verdict}** |`,
+    );
+  }
 }
 lines.push("");
 lines.push("### Enforce readiness");
 lines.push("");
 if (enforceReady) {
-  lines.push(
-    `**READY** — all ${total} cells WIN. Jared may set \`PERF_GATE_MODE=enforce\` for this format (see ${armIssue} / #8) and keep \`perf-beats-ts\` in branch-protection required checks. Agents do not edit workflows or branch protection.`,
-  );
+  if (knownLosses.length === 0) {
+    lines.push(
+      `**READY** — all ${total} cells WIN. Jared may set \`PERF_GATE_MODE=enforce\` for this format (see ${armIssue} / #8) and keep \`perf-beats-ts\` in branch-protection required checks. Agents do not edit workflows or branch protection.`,
+    );
+  } else {
+    lines.push(
+      `**READY** — ${wins}/${total} WIN; ${knownLosses.length} documented known-loss exception(s) still printed as LOSS ([Jared](${KNOWN_LOSS_DECISION})). Jared may set \`PERF_GATE_MODE=enforce\` for this format (see ${armIssue} / #8). Agents do not edit workflows or branch protection.`,
+    );
+  }
 } else {
   lines.push(
     `**NOT READY** — flipping \`PERF_GATE_MODE=enforce\` would fail this job. Bar unchanged (no thresholds lowered).`,
@@ -239,8 +303,11 @@ if (enforceReady) {
     lines.push(`- openDocument blockers: ${openFails.join("; ")}`);
   }
   if (peakFails.length) {
+    lines.push(`- peak_mem blockers: ${peakFails.join("; ")}`);
+  }
+  if (knownLosses.length) {
     lines.push(
-      `- peak_mem blockers: ${peakFails.join("; ")} (xlsx/docx S often wasm compile floor — see \`docs/M1-REPORT.md\` §5.4)`,
+      `- known-loss exceptions (not blockers): ${knownLosses.map((k) => k.label).join("; ")} ([decision](${KNOWN_LOSS_DECISION}))`,
     );
   }
 }
@@ -256,14 +323,22 @@ const readiness = {
   enforceReady,
   wins,
   total,
-  losses: fails.length,
+  losses: measuredLosses.length,
+  blockingLosses: blockingFails.length,
+  knownLossExceptions: knownLosses,
+  knownLossDecision: KNOWN_LOSS_DECISION,
   openDocumentBlockers: openFails,
   peakMemBlockers: peakFails,
-  blockers: fails,
+  blockers: blockingFails,
+  measuredLosses,
 };
 
 fs.writeFileSync(outMd, lines.join("\n") + "\n");
-fs.writeFileSync(failsPath, fails.join("\n") + (fails.length ? "\n" : ""));
+// FAILS_FILE drives exit code: only blocking (non-excepted) losses.
+fs.writeFileSync(
+  failsPath,
+  blockingFails.join("\n") + (blockingFails.length ? "\n" : ""),
+);
 fs.writeFileSync(readinessPath, JSON.stringify(readiness, null, 2) + "\n");
 process.stdout.write(lines.join("\n") + "\n");
 JS
@@ -274,7 +349,7 @@ fi
 
 fail_count=$(wc -l < "$FAILS_FILE" | tr -d ' ')
 if [ "${fail_count:-0}" -gt 0 ]; then
-  echo "perf_beats_ts.sh: ${fail_count} LOSS/TIE (see table above)" >&2
+  echo "perf_beats_ts.sh: ${fail_count} blocking LOSS/TIE (see table above)" >&2
   echo "perf_beats_ts.sh: enforce readiness NOT READY ($READINESS_JSON)" >&2
   if [ "$MODE" = "enforce" ]; then
     echo "perf_beats_ts.sh: ENFORCE MODE — failing job" >&2
@@ -284,5 +359,5 @@ if [ "${fail_count:-0}" -gt 0 ]; then
   exit 0
 fi
 
-echo "perf_beats_ts.sh: all cells WIN (mode=$MODE) — enforce readiness READY ($READINESS_JSON)"
+echo "perf_beats_ts.sh: enforce readiness READY ($READINESS_JSON) — mode=$MODE (known-loss exceptions may still print as LOSS)"
 exit 0

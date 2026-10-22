@@ -7,7 +7,9 @@
 #
 # Every commit posts its numbers to the job summary. Default PERF_GATE_MODE=report so the
 # job stays green while losses are still measured and shown; set PERF_GATE_MODE=enforce to
-# fail on any LOSS / TIE/LOSS (PRODUCT_SPEC §5 bar unchanged).
+# fail on any non-excepted LOSS / TIE/LOSS (PRODUCT_SPEC §5 bar unchanged). Documented
+# M1 known-loss cells (xlsx S + docx S/M peak_mem; Jared comment on #30) stay LOSS with
+# numbers and do not fail enforce — see perf_beats_ts.sh.
 #
 # Definition of done for #8 history/thresholds slice: append to perf-data and wire
 # regression-vs-main. This script already deletes the stub and runs the WASM-beats-TS
@@ -60,7 +62,7 @@ bash "$ROOT/scripts/build-wasm.sh"
   if [ "$MODE" = "report" ]; then
     echo "> **REPORT MODE** — numbers posted; LOSS does not fail the job. Bar unchanged (CI upper &lt; 1.0). Jared: \`PERF_GATE_MODE=enforce\` to arm (#8)."
   else
-    echo "> **ENFORCE MODE** — any LOSS / TIE/LOSS from \`perf_beats_ts.sh\` fails this job."
+    echo "> **ENFORCE MODE** — any non-excepted LOSS / TIE/LOSS from \`perf_beats_ts.sh\` fails this job. Documented known-loss cells stay printed as LOSS."
   fi
   echo ""
   echo "Tiers: \`$TIERS\` · formats: xlsx, docx, pptx · metrics: openDocument time + peak VmHWM"
@@ -134,35 +136,59 @@ for (const fmt of ["xlsx", "docx", "pptx"]) {
 }
 const wins = rows.filter((r) => r.verdict === "WIN").length;
 const losses = rows.filter((r) => r.verdict !== "WIN");
+const knownLossKeys = new Set();
+for (const r of readiness) {
+  for (const k of r.knownLossExceptions || []) {
+    knownLossKeys.add(`${k.format}|${k.tier}|${k.metric}`);
+  }
+}
+const decision =
+  (readiness.find((r) => r.knownLossDecision) || {}).knownLossDecision ||
+  "https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384";
 const lines = [];
 lines.push("### perf.sh rollup");
 lines.push("");
-lines.push(`**${wins}/${rows.length} WIN** · **${losses.length} LOSS/TIE**`);
+lines.push(
+  `**${wins}/${rows.length} WIN** · **${losses.length} LOSS/TIE** (known-loss exceptions still counted as LOSS)`,
+);
 lines.push("");
 if (losses.length) {
-  lines.push("| Format | Tier | Metric | WASM/TS | 95% CI | Verdict |");
-  lines.push("|---|---|---|---:|---:|---|");
+  lines.push("| Format | Tier | Metric | WASM/TS | 95% CI | Verdict | Note |");
+  lines.push("|---|---|---|---:|---:|---|---|");
   for (const r of losses) {
     const lo = r.ci && Number.isFinite(r.ci.lo) ? r.ci.lo.toFixed(3) : "—";
     const hi = r.ci && Number.isFinite(r.ci.hi) ? r.ci.hi.toFixed(3) : "—";
     const ratio = Number.isFinite(r.ratio) ? r.ratio.toFixed(3) : "—";
-    lines.push(`| ${r.format} | ${r.tier} | ${r.metric} | ${ratio} | [${lo}, ${hi}] | **${r.verdict}** |`);
+    const key = `${r.format}|${r.tier}|${r.metric}`;
+    const note = knownLossKeys.has(key)
+      ? `[known-loss](${decision})`
+      : "blocking";
+    lines.push(
+      `| ${r.format} | ${r.tier} | ${r.metric} | ${ratio} | [${lo}, ${hi}] | **${r.verdict}** | ${note} |`,
+    );
   }
   lines.push("");
 }
 if (readiness.length) {
   lines.push("### Enforce readiness (per format)");
   lines.push("");
-  lines.push("| Format | Ready? | Wins | Blockers |");
-  lines.push("|---|---|---:|---|");
+  lines.push("| Format | Ready? | Wins | Blockers | Known-loss (still LOSS) |");
+  lines.push("|---|---|---:|---|---|");
   for (const r of readiness) {
     const blockers = (r.blockers || []).length
       ? r.blockers.join("; ")
       : "—";
+    const known = (r.knownLossExceptions || []).length
+      ? r.knownLossExceptions.map((k) => k.label).join("; ")
+      : "—";
     lines.push(
-      `| ${r.format} | ${r.enforceReady ? "**READY**" : "NOT READY"} | ${r.wins}/${r.total} | ${blockers} |`,
+      `| ${r.format} | ${r.enforceReady ? "**READY**" : "NOT READY"} | ${r.wins}/${r.total} | ${blockers} | ${known} |`,
     );
   }
+  lines.push("");
+  lines.push(
+    `Known-loss decision: [Jared on #30](${decision}). Exceptions stay measured/printed as LOSS; they do not block READY or ENFORCE. Any other LOSS still fails.`,
+  );
   lines.push("");
   lines.push(
     "Jared: flip `PERF_GATE_MODE=enforce` only for formats marked READY (bar unchanged). Agents do not edit workflows or branch protection.",
@@ -170,7 +196,7 @@ if (readiness.length) {
   lines.push("");
   fs.writeFileSync(
     path.join(outDir, "enforce-readiness.json"),
-    JSON.stringify({ schema: 1, formats: readiness }, null, 2) + "\n",
+    JSON.stringify({ schema: 1, knownLossDecision: decision, formats: readiness }, null, 2) + "\n",
   );
 }
 lines.push(

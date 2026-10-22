@@ -427,8 +427,31 @@ footer (`scripts/ci/perf_beats_ts.sh`); `perf.sh` rollup aggregates READY / NOT 
 Tip openDocument WASM/TS (median [95% CI]): xlsx S **0.301** [0.240, 0.367]; pptx S **0.028**
 [0.026, 0.031]; docx S **0.247** [0.237, 0.268]. pptx S peak_mem **0.513** [0.498, 0.561] WIN.
 
-**Ask Jared:** set `PERF_GATE_MODE=enforce` on the **pptx** `perf-beats-ts` matrix job only
-(READY); keep xlsx/docx in report until peak_mem policy or further cuts. Agents do not edit
+#### Known-loss exception — xlsx S + docx S/M peak_mem (Jared 2026-10-22)
+
+**Decision:** [Jared on #30](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)
+accepts the first-open peak-memory LOSS on **xlsx S** and **docx S/M** as a known V8
+TurboFan compile floor for M1. Tip numbers cited in that comment: xlsx S 14.75 vs 5.72 MiB
+TS, docx S 13.52 vs 2.29, docx M 14.71 vs 6.33; liftoff-only 3.8 MiB.
+
+**Gate behaviour (this slice):** those exact cells stay **measured and printed as LOSS**
+with their numbers in `perf_beats_ts.sh` / `perf.sh` rollup / this standings table. They are
+recorded as documented known-loss exceptions so they **do not** block enforce readiness and
+**do not** fail `PERF_GATE_MODE=enforce`. No fixture demotion; no threshold or
+`perf/budgets.json` change. **Any other cell that is LOSS / TIE/LOSS still fails.**
+
+Tip remasure on **`a098647`** (`PERF_GATE_MODE=report bash scripts/ci/perf.sh gate`,
+post-#413 main + this exception): **15/18 WIN · 3 LOSS/TIE** (all three LOSSes are the
+documented known-loss cells). Per-format enforce readiness:
+
+| Format | openDocument S/M/L | peak_mem S/M/L | Enforce ready? | Blockers | Known-loss (still LOSS) |
+|--------|--------------------|----------------|:--------------:|----------|-------------------------|
+| **pptx** | WIN / WIN / WIN | WIN / WIN / WIN | **READY** (6/6) | — | — |
+| **xlsx** | WIN / WIN / WIN | **LOSS** / WIN / WIN | **READY** (5/6) | — | xlsx S peak_mem **2.959** [2.694, 3.302] |
+| **docx** | WIN / WIN / WIN | **LOSS** / **LOSS** / WIN | **READY** (4/6) | — | docx S **5.523** [4.747, 6.814]; docx M **2.503** [2.144, 2.615] |
+
+**Ask Jared:** flip `PERF_GATE_MODE=enforce` for formats marked READY (all three after this
+exception) and add `perf-beats-ts` to branch-protection required checks. Agents do not edit
 `.github/workflows/` or branch protection.
 
 Merged on `main` ahead of this refresh: [#405](https://github.com/jgridifier/nitro-xml/pull/405)
@@ -608,7 +631,7 @@ Nitro **8W/0L** on comparable cells (pptx Nitro pixels **0.044%** vs 0.5% limit)
 
 **Crash recovery** on tip: `bash scripts/ci/crash_recovery.sh` → **PASS** (default **10** flake iterations × 3 formats).
 
-**M1 gate still open:** CI `scoreboard` job stub (#39) + draft **#113** (reproducible gate; not the Pages data file); **`perf-beats-ts` enforce** (#8) — tip readiness: **pptx READY**, xlsx/docx NOT READY (peak_mem); **xlsx S peak_mem** still **LOSS** at wasm compile floor; docx perf arm deferred (#23).
+**M1 gate still open:** CI `scoreboard` job stub (#39) + draft **#113** (reproducible gate; not the Pages data file); **`perf-beats-ts` enforce** (#8) — tip readiness: **xlsx/docx/pptx READY** with documented known-loss exceptions still printed as **LOSS** (xlsx S + docx S/M peak_mem; [Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)). Leftover agent-facing work: Jared flips `PERF_GATE_MODE=enforce` + required-check wiring (agents do not).
 
 | Still blocked for CI scoreboard gate | Link | Why |
 |--------------------------------------|------|-----|
@@ -624,9 +647,9 @@ Published `parse-latest.json` and `first-paint-latest.json` are real measured ti
 
 | Item | Issue / PR | Notes |
 |------|------------|-------|
-| Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Tip `a5a58d6`: **pptx READY** (6/6); xlsx blocked by S peak_mem (~3.09×); docx by S/M peak_mem. Readiness JSON/footer in `perf_beats_ts.sh`. Jared: enforce pptx when ready; do not lower peak_mem bar |
-| xlsx S peak_mem LOSS | compile floor (measured) | Cold ~16–17 MiB / warm-second already beats TS alloc. [#405](https://github.com/jgridifier/nitro-xml/pull/405) outlined stream helpers (~3 MiB vs prior tip). Draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) pre-warm **closed**. [#332](https://github.com/jgridifier/nitro-xml/pull/332) `-O1` **closed** (open/edit regress) |
-| Docx peak_mem LOSSes | [#359](https://github.com/jgridifier/nitro-xml/pull/359) merged; outline slice 10 | Format-split landed. Drawing non-picture outline + notes `take_text` cuts docx M WASM peak (~15.4→14.7 MiB, CI WIN vs prior tip); S/M still **LOSS vs TS** (compile floor) |
+| Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** | Tip readiness: **xlsx/docx/pptx READY** with known-loss exceptions still printed as LOSS (xlsx S + docx S/M peak_mem; [Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)). Jared flips `PERF_GATE_MODE=enforce` + required checks; agents do not |
+| xlsx S peak_mem LOSS | compile floor (measured; **known-loss**) | Still measured/printed **LOSS**. Accepted for M1 ([comment](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)). Does not block enforce readiness |
+| Docx S/M peak_mem LOSSes | compile floor (measured; **known-loss**) | Still measured/printed **LOSS**. Accepted for M1 ([comment](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)). Does not block enforce readiness |
 | xlsx S openDocument | done (clear WIN) | [#360](https://github.com/jgridifier/nitro-xml/pull/360); tip CI upper ≪ 1 |
 | Scoreboard CI gate (reproducible) | draft **#113**, **#39** | Pages `parse-latest.json` + `first-paint-latest.json` have real Nitro tip data; CI stub / #113 still open |
 | Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |
@@ -644,9 +667,9 @@ Published `parse-latest.json` and `first-paint-latest.json` are real measured ti
 - [x] Bundle / loader sizes recorded (loader **16.69 / 17 KB**; wasm sizes above)
 - [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S clear WIN after #352** (CI upper 0.321; peak-mem LOSSes kept on xlsx/docx S); **#23 left open** (docx arm deferred)
 - [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped; post-#352 matrix **14/18 WIN**
-- [x] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; published `parse-latest.json` Nitro **entered**, tip **90W/0L** (method 2+7); published `first-paint-latest.json` tip **`a5a58d6`** **8W/0L** S–XL; CI `scoreboard` job / draft **#113** still open (not required for Pages data)
+- [x] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; published `parse-latest.json` Nitro **entered**, tip **90W/0L** (method 2+7); published `first-paint-latest.json` tip **`c08b73d`** / #413 **8W/0L** S–XL; peak_mem standings keep xlsx S + docx S/M as **LOSS** with known-loss exception ([Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)); CI `scoreboard` job / draft **#113** still open (not required for Pages data)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
-- [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27**; tip `a5a58d6` readiness: **pptx READY**, xlsx/docx NOT READY (peak_mem); docx arm **#23** deferred; Jared flips workflow env (agents do not)
+- [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27** (+ docx **#23**); tip readiness **READY** for xlsx/docx/pptx with documented known-loss exceptions still printed as LOSS; Jared flips workflow env (agents do not)
 
 ---
 

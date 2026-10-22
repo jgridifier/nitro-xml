@@ -583,21 +583,26 @@ Losses for other entrants kept in the published JSON (e.g. exceljs / mammoth).
 times load+init+first paint (800×480, DPR 1). **xlsx** and **pptx** are entered for `nitro-xml` vs
 `upstream-ts`; docx deferred (#23). Equivalence unchanged from [#390](https://github.com/jgridifier/nitro-xml/pull/390).
 
-**Published** `docs/scoreboard/data/first-paint-latest.json` at tip **`a5a58d6`** (tiers
+**Published** `docs/scoreboard/data/first-paint-latest.json` at tip **`c08b73d`** (tiers
 **S/M/L/XL**, 3 timed + 1 warmup, `--timeout=600000`). Archive:
-`perf/scoreboard/results/render/2026-10-22-a5a58d6.json`. Draft **#113** / stub
+`perf/scoreboard/results/render/2026-10-22-c08b73d.json`. Draft **#113** / stub
 `scoreboard.sh` (#39) **untouched**.
+
+Harness fix (this tip): Nitro adapters no longer call host `initCore` (that
+double-instantiated wasm vs the worker); they use `setDefaultFontSource` +
+`preload()` like React-embed. Absolute xlsx S median **284 → 176 ms** vs the
+prior published tip.
 
 | Format | Tier | Nitro median (ms) | TS median (ms) | Comparable | W/L |
 |--------|------|------------------:|---------------:|:----------:|:---:|
-| xlsx | S | 284 | 908 | yes | **W** |
-| xlsx | M | 414 | 1204 | yes | **W** |
-| xlsx | L | 472 | 2817 | yes | **W** |
-| xlsx | XL | 430 | 2785 | yes | **W** |
-| pptx | S | 253 | 730 | yes | **W** |
-| pptx | M | 296 | 828 | yes | **W** |
-| pptx | L | 326 | 1062 | yes | **W** |
-| pptx | XL | 330 | 1078 | yes | **W** |
+| xlsx | S | 176 | 776 | yes | **W** |
+| xlsx | M | 205 | 978 | yes | **W** |
+| xlsx | L | 261 | 2257 | yes | **W** |
+| xlsx | XL | 312 | 2393 | yes | **W** |
+| pptx | S | 189 | 628 | yes | **W** |
+| pptx | M | 192 | 693 | yes | **W** |
+| pptx | L | 186 | 876 | yes | **W** |
+| pptx | XL | 213 | 877 | yes | **W** |
 
 Nitro **8W/0L** on comparable cells (pptx Nitro pixels **0.044%** vs 0.5% limit).
 

@@ -32,7 +32,7 @@ describe("Office ribbon manifests", () => {
   });
 
   it("lists only PowerPoint commands that change the saved package", () => {
-    // Catches: a PowerPoint button whose command does not rewrite the package (notes, group).
+    // Catches: a PowerPoint button whose command does not rewrite the package (notes).
     const bound = [...ids(tabsFor("pptx", "Slide", true)), ...QAT.map((x) => x.c)];
     const allowed = new Set([
       "file.save",
@@ -71,6 +71,8 @@ describe("Office ribbon manifests", () => {
       "home.send-backward",
       "home.bring-to-front",
       "home.send-to-back",
+      "home.group",
+      "home.ungroup",
       "insert.table",
       "table.insert-row",
       "table.delete-row",
@@ -120,6 +122,8 @@ describe("Office ribbon manifests", () => {
       "home.shape-fill",
       "home.shape-outline",
       "home.layout",
+      "home.group",
+      "home.ungroup",
     ]) {
       assert.ok(bound.includes(id), `missing pptx command ${id}`);
     }
@@ -202,6 +206,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("insert.page-break"));
     assert.ok(!bound.includes("insert.slide"));
     assert.ok(!bound.includes("insert.text-box"));
+    assert.ok(!bound.includes("home.group"));
+    assert.ok(!bound.includes("home.ungroup"));
   });
 
   it("drops the Read-only pill for Word and PowerPoint", () => {
@@ -223,7 +229,7 @@ describe("Office ribbon manifests", () => {
   });
 
   it("keeps PowerPoint and Word ribbons inside the WASM strip", () => {
-    // Catches: a GitHub Pages button for group, which the editor does not save.
+    // Catches: a GitHub Pages Group button on Word, or a PowerPoint Group button the strip does not emit.
     const strip = (rel) => {
       const src = readFileSync(new URL(rel, import.meta.url), "utf8");
       const start = src.indexOf("pub fn ribbon_html");
@@ -236,12 +242,7 @@ describe("Office ribbon manifests", () => {
     const docx = new Set(strip("../../../../rs/crates/nitro-xml-wasm/src/docx_edit.rs"));
     const manifestIds = (format) =>
       MANIFEST[format].groups.flatMap((g) => g.items || []).map((x) => x.c).filter(Boolean);
-    const off = [
-      "home.group",
-      "home.ungroup",
-      "home.grow-font",
-      "home.shrink-font",
-    ];
+    const off = ["home.grow-font", "home.shrink-font"];
     for (const [format, rust, unit] of [
       ["pptx", pptx, "Slide"],
       ["docx", docx, "Page"],

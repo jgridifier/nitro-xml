@@ -728,6 +728,123 @@ mod tests {
         );
     }
 
+    #[test]
+    fn catches_grouped_shapes_omitted_from_slide_save() {
+        // Catches: Group leaving the two shapes out of the saved slide because p:grpSp was skipped.
+        use crate::edit::host::NewShape;
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        host.add_shape(
+            0,
+            NewShape {
+                shape_type: "rect",
+                x: 320.0,
+                y: 180.0,
+                width: 160.0,
+                height: 80.0,
+                id: Some("rect-b"),
+            },
+        )
+        .expect("shape");
+        let before: Vec<(String, f64, f64, String)> = host.slides[0]
+            .elements
+            .iter()
+            .map(|el| {
+                let text = el.text.clone().unwrap_or_else(|| {
+                    el.text_segments
+                        .iter()
+                        .map(|seg| seg.text.clone())
+                        .collect()
+                });
+                (el.id.clone(), el.x, el.y, text)
+            })
+            .collect();
+        assert!(before.len() >= 2, "slide has {}", before.len());
+        let ids: Vec<String> = before
+            .iter()
+            .take(2)
+            .map(|(id, _, _, _)| id.clone())
+            .collect();
+        let before: Vec<_> = before.into_iter().take(2).collect();
+        assert!(
+            before
+                .iter()
+                .any(|(_, _, _, text)| text.contains("Slide 1")),
+            "title text missing: {before:?}"
+        );
+        host.group_shapes(0, &ids, "group-editor").expect("group");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save group");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let xml = slide_xml(&saved, "ppt/slides/slide1.xml");
+        let start = xml.find("<p:grpSp>").expect("saved slide has no p:grpSp");
+        let end = xml[start..]
+            .find("</p:grpSp>")
+            .map(|n| start + n)
+            .expect("unclosed p:grpSp");
+        let body = &xml[start..end];
+        for (_, _, _, text) in &before {
+            assert!(body.contains(text), "{text} is not inside p:grpSp");
+        }
+        let again = PptxHost::open(&saved).expect("reopen");
+        let groups: Vec<_> = again.slides[0]
+            .elements
+            .iter()
+            .filter(|el| el.type_ == "group")
+            .collect();
+        assert_eq!(groups.len(), 1, "reopen did not keep one group");
+        assert_eq!(groups[0].children.len(), 2);
+        for (i, child) in groups[0].children.iter().enumerate() {
+            let (_, x, y, text) = &before[i];
+            if !text.is_empty() {
+                let child_text = child.text.clone().unwrap_or_else(|| {
+                    child
+                        .text_segments
+                        .iter()
+                        .map(|seg| seg.text.clone())
+                        .collect()
+                });
+                assert!(
+                    child_text.contains(text),
+                    "child {i} lost {text}, has {child_text}"
+                );
+            }
+            let slide_x = groups[0].x + child.x;
+            let slide_y = groups[0].y + child.y;
+            assert!(
+                (slide_x - x).abs() < 1.0 && (slide_y - y).abs() < 1.0,
+                "child {i} moved to {slide_x},{slide_y} from {x},{y}"
+            );
+        }
+
+        host.ungroup_shapes(0, "group-editor", &[])
+            .expect("ungroup");
+        let flat = save_pptx(&host, bytes.as_slice()).expect("save ungroup");
+        let flat_xml = slide_xml(&flat, "ppt/slides/slide1.xml");
+        assert!(
+            !flat_xml.contains("<p:grpSp>"),
+            "ungroup still wrote a group"
+        );
+        let flat_host = PptxHost::open(&flat).expect("reopen flat");
+        assert!(flat_host.slides[0]
+            .elements
+            .iter()
+            .all(|el| el.type_ != "group"));
+        for (_, x, y, text) in &before {
+            let found = flat_host.slides[0].elements.iter().any(|el| {
+                let label = el.text.clone().unwrap_or_else(|| {
+                    el.text_segments
+                        .iter()
+                        .map(|seg| seg.text.clone())
+                        .collect()
+                });
+                (text.is_empty() || label.contains(text))
+                    && (el.x - x).abs() < 1.0
+                    && (el.y - y).abs() < 1.0
+            });
+            assert!(found, "ungroup lost {text} at {x},{y}");
+        }
+    }
+
     fn part_text(bytes: &[u8], name: &str) -> String {
         let mut pkg = Package::open(bytes).expect("pkg");
         pkg.text(name).expect("text").expect("part").to_owned()

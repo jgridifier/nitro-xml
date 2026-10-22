@@ -72,18 +72,17 @@ fn rewrite_document(
     sp_tree.children = prefix;
     let mut id_to_node: HashMap<String, usize> = HashMap::new();
     for el in &slide.elements {
-        if let Some(idx) = el.source_sp_index {
-            if idx < nodes.len() {
-                id_to_node.insert(el.id.clone(), idx);
-            }
-        }
+        index_source_nodes(el, nodes.len(), &mut id_to_node);
     }
 
     let mut order: Vec<usize> = Vec::new();
     for el in &slide.elements {
-        // TODO(#84): a still-grouped `p:grpSp` is not rewritten; edit scripts ungroup
-        // before save. Children keep their own source nodes when promoted.
         if el.type_ == "group" {
+            let id = *next_id;
+            *next_id += 1;
+            let group = new_group_xml(&nodes, &id_to_node, el, id, next_id, pic_rels);
+            nodes.push(group);
+            order.push(nodes.len() - 1);
             continue;
         }
         if let Some(share) = el.xml_share_of.as_deref() {
@@ -115,6 +114,102 @@ fn rewrite_document(
     }
     sp_tree.children.extend(suffix);
     Ok(())
+}
+
+fn index_source_nodes(el: &EditableElement, nodes_len: usize, map: &mut HashMap<String, usize>) {
+    if let Some(idx) = el.source_sp_index {
+        if idx < nodes_len {
+            map.insert(el.id.clone(), idx);
+        }
+    }
+    for child in &el.children {
+        index_source_nodes(child, nodes_len, map);
+    }
+}
+
+/// `p:grpSp` for a grouped shape. Child coordinates are group-local: `chOff` is
+/// the origin and `chExt` matches the group box, which is how `group_elements` stores them.
+fn new_group_xml(
+    nodes: &[Element],
+    id_to_node: &HashMap<String, usize>,
+    el: &EditableElement,
+    id: i64,
+    next_id: &mut i64,
+    pic_rels: &HashMap<String, String>,
+) -> Element {
+    let emu = EMU_PER_PIXEL as f64;
+    let x = resolve_xfrm_emu(el.x, el.x_emu, emu);
+    let y = resolve_xfrm_emu(el.y, el.y_emu, emu);
+    let cx = resolve_xfrm_emu(el.width, el.width_emu, emu).max(0);
+    let cy = resolve_xfrm_emu(el.height, el.height_emu, emu).max(0);
+
+    let mut c_nv_pr = elem(ns::P, "cNvPr");
+    set_attr(&mut c_nv_pr, "id", &id.to_string());
+    set_attr(&mut c_nv_pr, "name", &format!("Group {id}"));
+    let mut nv = elem(ns::P, "nvGrpSpPr");
+    nv.children.push(Node::Element(c_nv_pr));
+    nv.children.push(Node::Element(elem(ns::P, "cNvGrpSpPr")));
+    nv.children.push(Node::Element(elem(ns::P, "nvPr")));
+
+    let mut off = elem(ns::A, "off");
+    set_attr(&mut off, "x", &x.to_string());
+    set_attr(&mut off, "y", &y.to_string());
+    let mut ext = elem(ns::A, "ext");
+    set_attr(&mut ext, "cx", &cx.to_string());
+    set_attr(&mut ext, "cy", &cy.to_string());
+    let mut ch_off = elem(ns::A, "chOff");
+    set_attr(&mut ch_off, "x", "0");
+    set_attr(&mut ch_off, "y", "0");
+    let mut ch_ext = elem(ns::A, "chExt");
+    set_attr(&mut ch_ext, "cx", &cx.to_string());
+    set_attr(&mut ch_ext, "cy", &cy.to_string());
+    let mut xfrm = elem(ns::A, "xfrm");
+    xfrm.children.push(Node::Element(off));
+    xfrm.children.push(Node::Element(ext));
+    xfrm.children.push(Node::Element(ch_off));
+    xfrm.children.push(Node::Element(ch_ext));
+    let mut grp_sp_pr = elem(ns::P, "grpSpPr");
+    grp_sp_pr.children.push(Node::Element(xfrm));
+
+    let mut grp = elem(ns::P, "grpSp");
+    grp.children.push(Node::Element(nv));
+    grp.children.push(Node::Element(grp_sp_pr));
+    for child in &el.children {
+        grp.children.push(Node::Element(grouped_child(
+            nodes, id_to_node, child, next_id, pic_rels,
+        )));
+    }
+    grp
+}
+
+fn grouped_child(
+    nodes: &[Element],
+    id_to_node: &HashMap<String, usize>,
+    child: &EditableElement,
+    next_id: &mut i64,
+    pic_rels: &HashMap<String, String>,
+) -> Element {
+    if child.type_ == "group" {
+        let id = *next_id;
+        *next_id += 1;
+        return new_group_xml(nodes, id_to_node, child, id, next_id, pic_rels);
+    }
+    let idx = child.source_sp_index.or_else(|| {
+        child
+            .xml_share_of
+            .as_deref()
+            .and_then(|share| id_to_node.get(share).copied())
+    });
+    if let Some(idx) = idx {
+        if idx < nodes.len() && nodes[idx].local != "grpSp" {
+            let mut shape = nodes[idx].clone();
+            apply_element(&mut shape, child);
+            return shape;
+        }
+    }
+    let id = *next_id;
+    *next_id += 1;
+    new_shape_xml(child, id, pic_rels)
 }
 
 fn push_fresh(

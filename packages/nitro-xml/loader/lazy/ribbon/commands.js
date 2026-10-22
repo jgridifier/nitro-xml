@@ -2,7 +2,7 @@
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
 // Every `c` id below was checked against the engine (the saved bytes change, or copy reads them);
-// borders, grow/shrink, and group are deliberately absent. Cut and paste rewrite the package;
+// borders and grow/shrink are deliberately absent. Cut, paste, and group rewrite the package;
 // copy only fills the editor clipboard.
 // Indent, line spacing, paragraph space before and after, hanging indent, first-line indent,
 // script, font name, Word bullets, insert shape, duplicate, delete, z-order (one step and all
@@ -41,6 +41,8 @@ const arrange = {
     it("home.send-backward", "back", "Send Backward"),
     it("home.bring-to-front", "front", "Bring to Front"),
     it("home.send-to-back", "toBack", "Send to Back"),
+    it("home.group", "group", "Group", "Group the selected shapes"),
+    it("home.ungroup", "ungroup", "Ungroup", "Ungroup the selected shapes"),
   ],
 };
 const wordLists = {

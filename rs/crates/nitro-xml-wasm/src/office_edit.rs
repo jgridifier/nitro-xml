@@ -247,6 +247,56 @@ mod tests {
     }
 
     #[test]
+    fn catches_pptx_paste_of_a_shape_only_appending_text() {
+        // Catches: Paste of a copied shape appending its text instead of inserting the shape,
+        // or one undo rolling the picture paste and the shape paste back together.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        let before = h
+            .pptx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .session
+            .host
+            .slides[0]
+            .elements
+            .len();
+        h.shell_action("cmd", "home.copy").expect("copy");
+        assert_eq!(h.save_document().expect("copy"), PPTX);
+        h.shell_action("cmd", "home.paste").expect("paste shape");
+        let pasted = h.save_document().expect("save paste");
+        assert_ne!(pasted, PPTX);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&pasted).expect("reopen");
+        assert_eq!(again.session.host.slides[0].elements.len(), before + 1);
+        h.shell_action("cmd", "edit.undo").expect("undo paste");
+        assert_eq!(h.save_document().expect("paste undone"), PPTX);
+
+        h.shell_action("cmd", "insert.picture").expect("picture");
+        let with_picture = h.save_document().expect("save picture");
+        h.shell_action("cmd", "home.copy").expect("copy picture");
+        assert_eq!(h.save_document().expect("copy picture"), with_picture);
+        h.shell_action("cmd", "home.paste").expect("paste picture");
+        let pasted = h.save_document().expect("save picture paste");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&pasted).expect("reopen pics");
+        let pictures = again.session.host.slides[0]
+            .elements
+            .iter()
+            .filter(|el| el.type_ == "picture")
+            .count();
+        assert_eq!(pictures, 2, "paste did not insert a second picture");
+        h.shell_action("cmd", "edit.undo")
+            .expect("undo picture paste");
+        assert_eq!(
+            h.save_document().expect("picture paste undone"),
+            with_picture
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo picture");
+        assert_eq!(h.save_document().expect("picture undone"), PPTX);
+    }
+
+    #[test]
     fn catches_pptx_underline_align_and_typing_missing_after_reopen() {
         // Catches: underline, center, and a typed character never reaching the saved slide XML.
         let mut h = open_editable(PPTX, "slides.pptx");

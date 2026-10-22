@@ -38,6 +38,8 @@ pub struct PptxState {
     pub edit: Option<nitro_xml_pptx::editor::PptxEditor>,
     /// Plain text captured by home.copy / home.cut for a later home.paste.
     pub(crate) text_clip: String,
+    /// Shape or picture captured by home.copy. Paste inserts this, not just its text.
+    pub(crate) shape_clip: Option<nitro_xml_pptx::edit::host::EditableElement>,
 }
 
 impl PptxState {
@@ -64,6 +66,7 @@ impl PptxState {
             selected_ids: Vec::new(),
             edit: None,
             text_clip: String::new(),
+            shape_clip: None,
         })
     }
 

@@ -85,6 +85,22 @@ fn rewrite_document(
             order.push(nodes.len() - 1);
             continue;
         }
+        if el.clone_xml {
+            if let Some(share) = el.xml_share_of.as_deref() {
+                if let Some(&idx) = id_to_node.get(share) {
+                    if idx < nodes.len() {
+                        let mut shape = nodes[idx].clone();
+                        ensure_own_xfrm(&mut shape);
+                        apply_element(&mut shape, el);
+                        nodes.push(shape);
+                        order.push(nodes.len() - 1);
+                        continue;
+                    }
+                }
+            }
+            push_fresh(&mut nodes, &mut order, el, next_id, pic_rels);
+            continue;
+        }
         if let Some(share) = el.xml_share_of.as_deref() {
             let Some(&idx) = id_to_node.get(share) else {
                 push_fresh(&mut nodes, &mut order, el, next_id, pic_rels);
@@ -1080,6 +1096,20 @@ fn child_mut<'a>(el: &'a mut Element, local: &str, uri: &str) -> Option<&'a mut 
         Node::Element(e) => Some(e),
         _ => None,
     }
+}
+
+/// A placeholder often has no `a:xfrm`. Paste needs one so the copy's box is written
+/// without changing the source shape.
+fn ensure_own_xfrm(shape: &mut Element) {
+    ensure_child(shape, "spPr", ns::P);
+    {
+        let sp_pr = child_mut(shape, "spPr", ns::P).expect("spPr");
+        ensure_child(sp_pr, "xfrm", ns::A);
+    }
+    let sp_pr = child_mut(shape, "spPr", ns::P).expect("spPr");
+    let xfrm = child_mut(sp_pr, "xfrm", ns::A).expect("xfrm");
+    let _ = ensure_child(xfrm, "off", ns::A);
+    let _ = ensure_child(xfrm, "ext", ns::A);
 }
 
 fn ensure_child<'a>(el: &'a mut Element, local: &str, uri: &str) -> &'a mut Element {

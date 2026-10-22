@@ -143,6 +143,10 @@ pub struct EditableElement {
     /// node (upstream `cloneElement` shares `rawXml`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xml_share_of: Option<String>,
+    /// Paste clones that source node into a new shape instead of aliasing it,
+    /// so the original keeps its transform. Omitted when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub clone_xml: bool,
     /// Parsed `a:tbl`. Omitted from the snapshot when the element is not a table.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub table: Option<TableModel>,
@@ -182,6 +186,7 @@ impl EditableElement {
             shape_type: None,
             source_sp_index: None,
             xml_share_of: None,
+            clone_xml: false,
             table: None,
             table_authored: false,
             image_png: None,
@@ -418,6 +423,7 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
         shape_type: el.shape_type.clone(),
         source_sp_index: None,
         xml_share_of: None,
+        clone_xml: false,
         table: el.table_data.as_ref().map(TableModel::from_parsed),
         table_authored: false,
         image_png: None,
@@ -800,6 +806,31 @@ impl PptxHost {
         copy.sync_emus();
         slide.elements.push(copy);
         self.touch(slide_index)
+    }
+
+    /// Insert a clipboard snapshot as a new shape, nudged like Duplicate.
+    /// A shape that came from the file clones its source XML so the original stays put.
+    pub fn paste_shape(
+        &mut self,
+        slide_index: u32,
+        snapshot: &EditableElement,
+    ) -> Result<String, String> {
+        let slide = self.slide_mut(slide_index)?;
+        let source_id = snapshot.id.clone();
+        let mut copy = snapshot.clone();
+        if snapshot.source_sp_index.is_some() || snapshot.xml_share_of.is_some() {
+            copy.xml_share_of = snapshot.xml_share_of.clone().or(Some(source_id.clone()));
+            copy.source_sp_index = None;
+            copy.clone_xml = true;
+        }
+        copy.id = format!("paste-{}-{source_id}", slide.elements.len());
+        copy.x += shapes::DUPLICATE_OFFSET_PX;
+        copy.y += shapes::DUPLICATE_OFFSET_PX;
+        copy.sync_emus();
+        let id = copy.id.clone();
+        slide.elements.push(copy);
+        self.touch(slide_index)?;
+        Ok(id)
     }
 
     pub fn reorder(

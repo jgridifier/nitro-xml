@@ -1,0 +1,63 @@
+{
+  "name": "@nitro-xml/react",
+  "version": "0.1.0",
+  "description": "SSR-safe React <NitroViewer> for Nitro XML (xlsx/docx/pptx).",
+  "license": "MIT",
+  "author": "Nitro XML contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jgridifier/nitro-xml.git",
+    "directory": "packages/nitro-xml-react"
+  },
+  "homepage": "https://jgridifier.github.io/nitro-xml/",
+  "bugs": {
+    "url": "https://github.com/jgridifier/nitro-xml/issues"
+  },
+  "keywords": [
+    "nitro-xml",
+    "react",
+    "ooxml",
+    "xlsx",
+    "docx",
+    "pptx",
+    "wasm"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "nitro-xml": ">=0.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "test": "npm run build && node --test test/*.mjs"
+  }
+}

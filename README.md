@@ -30,6 +30,20 @@ Full availability matrix, fallbacks and Jared’s one-time account steps:
 [docs/PUBLISHING_NAMES.md](docs/PUBLISHING_NAMES.md). Re-check with
 `bash scripts/ci/check_publish_names.sh` before the first publish.
 
+## Install from npm (local / upcoming publish)
+
+```bash
+npm install nitro-xml
+npm install @nitro-xml/react react react-dom   # optional React host
+```
+
+- Package docs: [`packages/nitro-xml/README.md`](packages/nitro-xml/README.md),
+  [`packages/nitro-xml-react/README.md`](packages/nitro-xml-react/README.md)
+- Vite + React example + Playwright open/edit/save:
+  [`examples/vite-react/`](examples/vite-react/)
+- Eager loader must stay ≤ **17 408 B** brotli (`bash scripts/ci/bundle_budget.sh`).
+  React code is a separate package so it cannot grow that budget.
+
 ## Goals
 
 1. **Fidelity:** output matches the TS reference (view-IR parity and pixel diffs), and saves round-trip losslessly.

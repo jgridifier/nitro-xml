@@ -536,11 +536,24 @@ bash scripts/ci/bundle_budget.sh
 
 Self-contained Nitro WASM **parse adapters** (no #113) landed in
 [#299](https://github.com/jgridifier/nitro-xml/pull/299) /
-[#329](https://github.com/jgridifier/nitro-xml/pull/329): calamine-style shims +
-`competitors.json` **entered**, with local real-fixture runs vs upstream-ts (xlsx **30W/0L**
-geomean **0.272** after single-parse shim cut on this branch; was 28W/2L geomean 0.465;
-docx 30W/0L; pptx **30/30** comparable per [#384](https://github.com/jgridifier/nitro-xml/pull/384)).
-Those PRs do **not** write `docs/scoreboard/data/parse-latest.json`.
+[#329](https://github.com/jgridifier/nitro-xml/pull/329) (+ single-parse xlsx
+[#388](https://github.com/jgridifier/nitro-xml/pull/388), pptx extract
+[#384](https://github.com/jgridifier/nitro-xml/pull/384)): calamine-style shims +
+`competitors.json` **entered**. Those PRs do **not** write
+`docs/scoreboard/data/parse-latest.json`.
+
+Latest local parse race vs `upstream-ts` on tip **`ce07994`**
+(`node run.mjs --entrants=nitro-xml,upstream-ts --format=xlsx,docx,pptx --runs=3 --warmup=1 --out=…`;
+archived `perf/scoreboard/results/parse/2026-10-22-ce07994-nitro-upstream.json`):
+
+| Format | Comparable | Geomean vs TS | W/L | Errors |
+|--------|-----------:|--------------:|:---:|-------:|
+| xlsx | **30/30** | **0.288** | **30W/0L** | 0 |
+| docx | **30/30** | **0.253** | **30W/0L** | 0 |
+| pptx | **30/30** | **0.093** | **30W/0L** | 0 |
+
+**Totals:** **90W/0L**, **90/90** comparable. Equivalence: timed `parse()` only; xlsx Nitro is
+`load_workbook_meta` + `parse_all_worksheets` (one pass per sheet) vs TS `loadWorkbook` (see #388).
 
 **Render-to-first-paint** ([#41](https://github.com/jgridifier/nitro-xml/issues/41) closed): `perf/scoreboard/races/render/`
 times load+init+first paint (800×480, DPR 1). **xlsx** and **pptx** are entered for `nitro-xml` vs
@@ -563,7 +576,7 @@ Nitro **8W/0L** on comparable cells (pptx Nitro pixels **0.044%** vs 0.5% limit)
 
 **Crash recovery** on this tip: `bash scripts/ci/crash_recovery.sh` → **PASS** (default **10** flake iterations × 3 formats; CI uses the same knob).
 
-**M1 gate still open:** published scoreboard JSON (#113 / `#39` stub); **parse** standings not updated; **`perf-beats-ts` enforce** (#8); **xlsx S peak_mem** still **LOSS** at wasm compile floor (local tip sample WASM/TS ≈ **2.86×** — not demoted); docx perf arm deferred (#23).
+**M1 gate still open:** published scoreboard JSON (#113 / `#39` stub) — local parse **90W/0L** archived above, but Pages `parse-latest.json` still `"not entered"`; **`perf-beats-ts` enforce** (#8); **xlsx S peak_mem** still **LOSS** at wasm compile floor (local tip `ce07994` sample WASM/TS ≈ **3.06×** [2.90, 3.46] — not demoted); docx perf arm deferred (#23).
 
 | Still blocked for published standings | Link | Why |
 |---------------------------------------|------|-----|
@@ -580,7 +593,7 @@ No invented medians in the published parse JSON from this report slice; first-pa
 | Item | Issue / PR | Notes |
 |------|------------|-------|
 | Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** (deferred) | Scripts live in **report** mode (§5.4 / #342). Jared: `PERF_GATE_MODE=enforce` when reds are fixed |
-| xlsx S peak_mem LOSS | compile floor (measured) | Cold ~16 MiB / warm-second already beats TS alloc. Draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) pre-warm cut **closed**. [#332](https://github.com/jgridifier/nitro-xml/pull/332) `-O1` still draft (open/edit regress vs main — recommend close) |
+| xlsx S peak_mem LOSS | compile floor (measured) | Cold ~16–17 MiB / warm-second already beats TS alloc. Draft [#364](https://github.com/jgridifier/nitro-xml/pull/364) pre-warm cut **closed**. [#332](https://github.com/jgridifier/nitro-xml/pull/332) `-O1` **closed** (open/edit regress vs main) |
 | Docx peak_mem LOSSes | [#359](https://github.com/jgridifier/nitro-xml/pull/359) merged; outline slice 10 | Format-split landed. Drawing non-picture outline + notes `take_text` cuts docx M WASM peak (~15.4→14.7 MiB, CI WIN vs prior tip); S/M still **LOSS vs TS** (compile floor) |
 | xlsx S openDocument | done (clear WIN) | [#360](https://github.com/jgridifier/nitro-xml/pull/360); CI upper ≪ 1 |
 | Scoreboard standings including losses | draft **#113**, **#39**; adapters **#299/#329**; first-paint **#41** done locally | Published `parse-latest.json` still waits on #113 — do not invent numbers |
@@ -599,7 +612,7 @@ No invented medians in the published parse JSON from this report slice; first-pa
 - [x] Bundle / loader sizes recorded (loader **16.69 / 17 KB**; wasm sizes above)
 - [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S clear WIN after #352** (CI upper 0.321; peak-mem LOSSes kept on xlsx/docx S); **#23 left open** (docx arm deferred)
 - [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped; post-#352 matrix **14/18 WIN**
-- [ ] Scoreboard standings including losses — adapters **#299/#329** + first-paint **xlsx/pptx S/M/L/XL** (local **8W/0L** in `first-paint-latest.json` at `6a6cced`); published **parse** JSON still blocked on stub `#39` + draft **#113** (no invented parse numbers)
+- [ ] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; local parse **90W/0L** on tip `ce07994` (archived under `perf/scoreboard/results/parse/`); first-paint **8W/0L** S–XL; published **parse** JSON still blocked on stub `#39` + draft **#113** (no invented `parse-latest` numbers)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
 - [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27**; docx **#23** deferred
 

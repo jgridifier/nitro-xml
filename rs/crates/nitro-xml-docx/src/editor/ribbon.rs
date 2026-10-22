@@ -85,6 +85,8 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("hanging-indent", "Hanging", surface, false));
         html.push_str(&button("first-line", "First Line", surface, false));
         html.push_str(&button("font-size", "Font Size", surface, false));
+        html.push_str(&button("grow-font", "Grow Font", surface, false));
+        html.push_str(&button("shrink-font", "Shrink Font", surface, false));
         html.push_str(&button("font-color", "Font Color", surface, false));
         html.push_str(&button("style-normal", "Normal", surface, false));
         html.push_str(&button("style-title", "Title", surface, false));

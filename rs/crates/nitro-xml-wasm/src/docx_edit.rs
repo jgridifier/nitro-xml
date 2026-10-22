@@ -634,6 +634,16 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.grow-font",
+                    label: "Grow Font",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.shrink-font",
+                    label: "Shrink Font",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.font-color",
                     label: "Font Color",
                     enabled: true,
@@ -726,6 +736,8 @@ fn canonical_command(id: &str) -> &str {
         "home.style-heading-3" => "style-heading-3",
         "insert.page-break" => "insert.page-break",
         "home.font-size" => "font-size",
+        "home.grow-font" => "grow-font",
+        "home.shrink-font" => "shrink-font",
         "home.font-color" => "font-color",
         other => other,
     }

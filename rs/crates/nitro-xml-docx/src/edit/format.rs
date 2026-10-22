@@ -181,6 +181,38 @@ pub fn toggle_hanging_indent(host: &mut DocxHost, block_index: usize) -> Result<
     Ok(())
 }
 
+/// Office Grow Font / Shrink Font sizes, in points. Same list Excel uses.
+pub const OFFICE_FONT_SIZES_PT: &[f64] = &[
+    8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0, 36.0, 48.0, 72.0,
+];
+
+/// Next or previous size on [`OFFICE_FONT_SIZES_PT`]. Below 8 pt, shrink steps by 1 down to 1.
+/// Above 72 pt, grow adds 10 up to 409.
+pub fn step_office_font_pt(size: f64, grow: bool) -> f64 {
+    if grow {
+        OFFICE_FONT_SIZES_PT
+            .iter()
+            .copied()
+            .find(|s| *s > size + f64::EPSILON)
+            .unwrap_or_else(|| (size + 10.0).min(409.0))
+    } else {
+        OFFICE_FONT_SIZES_PT
+            .iter()
+            .rev()
+            .copied()
+            .find(|s| *s < size - f64::EPSILON)
+            .unwrap_or_else(|| (size - 1.0).max(1.0))
+    }
+}
+
+/// Direct run size, or 11 pt when the run has no `w:sz` (Calibri body).
+pub fn run_font_pt(run: &Value) -> f64 {
+    run.get("fontSize")
+        .and_then(|v| v.as_f64())
+        .filter(|n| n.is_finite() && *n > 0.0)
+        .unwrap_or(11.0)
+}
+
 /// Toggle a direct first-line indent. A paragraph already at half an inch drops `firstLineTwips`.
 /// Any other value, including none, becomes half an inch and drops `hangingTwips`.
 pub fn toggle_first_line_indent(host: &mut DocxHost, block_index: usize) -> Result<(), EditError> {
@@ -482,5 +514,15 @@ mod tests {
         set_run_formatting(&mut host, 0, 0, &on).unwrap();
         assert_eq!(host.blocks[0]["runs"][0]["underline"], true);
         assert!(host.blocks[0]["runs"][0].get("underlineStyle").is_none());
+    }
+
+    #[test]
+    fn catches_grow_font_jumping_from_11_to_a_fixed_size() {
+        // Catches: Grow Font jumping from 11 pt to a fixed 18 instead of the next Office size, 12.
+        assert_eq!(step_office_font_pt(11.0, true), 12.0);
+        assert_eq!(step_office_font_pt(12.0, true), 14.0);
+        assert_eq!(step_office_font_pt(12.0, false), 11.0);
+        assert_eq!(step_office_font_pt(8.0, false), 7.0);
+        assert_eq!(run_font_pt(&json!({ "text": "Hi" })), 11.0);
     }
 }

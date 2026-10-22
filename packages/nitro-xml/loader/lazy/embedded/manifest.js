@@ -54,6 +54,8 @@ const font = {
     cmd("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
     cmd("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
     cmd("home.font-size", "grow", "Font size", "Set the font size"),
+    cmd("home.grow-font", "grow", "Grow font", "Increase the font size"),
+    cmd("home.shrink-font", "shrink", "Shrink font", "Decrease the font size"),
     cmd("home.font-color", "color", "Font color", "Set the font color"),
     cmd("home.indent", "indent", "Increase indent"),
     cmd("home.outdent", "outdent", "Decrease indent"),

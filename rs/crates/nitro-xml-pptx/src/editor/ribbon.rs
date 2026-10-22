@@ -74,6 +74,8 @@ pub fn ribbon_html(
         html.push_str(&button("home.bullets", "Bullets", surface, false));
         html.push_str(&button("home.numbering", "Numbering", surface, false));
         html.push_str(&button("home.font-size", "Font Size", surface, false));
+        html.push_str(&button("home.grow-font", "Grow Font", surface, false));
+        html.push_str(&button("home.shrink-font", "Shrink Font", surface, false));
         html.push_str(&button("home.font-color", "Font Color", surface, false));
         html.push_str(&button("home.font-name", "Font", surface, false));
         html.push_str(&button("home.subscript", "Subscript", surface, false));

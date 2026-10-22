@@ -2,11 +2,11 @@
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
 // Every `c` id below was checked against the engine (the saved bytes change, or copy reads them);
-// borders and grow/shrink are deliberately absent. Delete Table removes the slide
-// table and leaves other shapes. Cut, paste, and group rewrite the package;
-// copy only fills the editor clipboard.
-// Indent, right indent, line spacing, paragraph space before and after, hanging indent,
-// first-line indent, double underline, script, font name, Word bullets, insert shape, duplicate,
+// borders are deliberately absent. Delete Table removes the slide table and leaves
+// other shapes. Cut, paste, and group rewrite the package; copy only fills the editor clipboard.
+// Grow and shrink font, indent, right indent, line spacing, paragraph space before and after,
+// hanging indent, first-line indent, double underline, script, font name, Word bullets, insert
+// shape, duplicate,
 // delete, z-order (one step and all the way), shape fill, outline, and slide layout are listed
 // only after they change the saved package.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
@@ -94,6 +94,8 @@ const FONT = {
       it("home.align-right", "right", "Align right"),
       it("home.align-justify", "justify", "Justify"),
       it("home.font-size", "grow", "Font size", "Set the font size"),
+      it("home.grow-font", "grow", "Grow font", "Increase the font size"),
+      it("home.shrink-font", "shrink", "Shrink font", "Decrease the font size"),
       it("home.font-color", "color", "Font color", "Set the font color"),
     ],
     metrics,

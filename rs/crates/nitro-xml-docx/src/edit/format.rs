@@ -6,7 +6,7 @@
 use std::any::Any;
 
 use nitro_xml_opc::edit::{ChangeKind, ChangeSet, Command, CommandRegistry, EditError};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 use crate::run_formatting::{resolve_run_formatting, RunFormattingContext};
 
@@ -35,6 +35,10 @@ pub const INDENT_STEP_TWIPS: i64 = 720;
 pub const PARAGRAPH_SPACE_TWIPS: i64 = 240;
 /// Word paragraph shading (`w:pPr/w:shd/@w:fill`). One click paints yellow.
 pub const PARAGRAPH_SHADE: &str = "#FFFF00";
+/// Word Bottom Border (`w:pBdr/w:bottom`), 1.5 pt single. Eighths of a point.
+pub const PARAGRAPH_BORDER_SZ: i64 = 12;
+/// Gap between the text and that rule, in points.
+pub const PARAGRAPH_BORDER_SPACE: i64 = 1;
 /// Word hanging indent (`w:ind/@w:hanging`). Half an inch, the same step as Increase Indent.
 /// `w:firstLine` and `w:hanging` are mutually exclusive, so setting this drops a direct first line.
 pub const HANGING_INDENT_TWIPS: i64 = INDENT_STEP_TWIPS;
@@ -238,6 +242,88 @@ pub fn toggle_paragraph_shading(host: &mut DocxHost, block_index: usize) -> Resu
         }
     } else {
         obj.insert("shadingFill".into(), json!(PARAGRAPH_SHADE));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
+fn bottom_border_visible(borders: &Map<String, Value>) -> bool {
+    let style = borders
+        .get("bottom")
+        .and_then(|side| side.get("style"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    !style.is_empty() && style != "nil" && style != "none"
+}
+
+fn style_paragraph_borders(host: &DocxHost, style_id: Option<&str>) -> Map<String, Value> {
+    let Some(id) = style_id else {
+        return Map::new();
+    };
+    host.paragraph_styles
+        .as_ref()
+        .and_then(|c| c.get("styles"))
+        .and_then(|s| s.get(id))
+        .and_then(|s| s.get("formatting"))
+        .and_then(|f| f.get("borders"))
+        .and_then(|b| b.as_object())
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// Toggle the paragraph bottom border. A visible rule is removed; anything else becomes a
+/// 1.5 pt single black rule. A styled rule is cleared with `w:val="nil"` so it does not stick.
+/// Other sides on the effective border are kept.
+pub fn toggle_paragraph_bottom_border(
+    host: &mut DocxHost,
+    block_index: usize,
+) -> Result<(), EditError> {
+    let (styled, direct, visible) = {
+        let style_id = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?
+            .get("style")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
+        let styled = style_paragraph_borders(host, style_id.as_deref());
+        let direct = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?
+            .get("borders")
+            .and_then(|b| b.as_object())
+            .cloned();
+        let effective = direct.clone().unwrap_or_else(|| styled.clone());
+        let visible = bottom_border_visible(&effective);
+        (styled, direct, visible)
+    };
+    let mut next = direct.unwrap_or_else(|| styled.clone());
+    if visible {
+        if bottom_border_visible(&styled) {
+            next.insert("bottom".into(), json!({ "style": "nil" }));
+        } else {
+            next.remove("bottom");
+        }
+    } else {
+        next.insert(
+            "bottom".into(),
+            json!({
+                "style": "single",
+                "sizeEighthPoints": PARAGRAPH_BORDER_SZ,
+                "spacePoints": PARAGRAPH_BORDER_SPACE,
+                "color": "000000",
+            }),
+        );
+    }
+    let block = host
+        .paragraph_mut(block_index)
+        .map_err(|e| EditError::Other { message: e })?;
+    let obj = block.as_object_mut().ok_or_else(|| EditError::Other {
+        message: format!("paragraph {block_index} is not an object"),
+    })?;
+    if next.is_empty() || next == styled {
+        obj.remove("borders");
+    } else {
+        obj.insert("borders".into(), Value::Object(next));
     }
     host.mark_touched(block_index);
     Ok(())
@@ -1087,5 +1173,62 @@ mod tests {
             effective_paragraph_shading(&host, 0).as_deref(),
             Some("00FF00")
         );
+    }
+
+    #[test]
+    fn catches_bottom_border_leaving_w_pbdr_off_an_unbordered_paragraph() {
+        // Catches: Bottom border leaving borders unset, so save omits w:pBdr.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        toggle_paragraph_bottom_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["sizeEighthPoints"], 12);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_paragraph_bottom_border(&mut host, 0).unwrap();
+        assert!(host.blocks[0].get("borders").is_none());
+    }
+
+    #[test]
+    fn catches_bottom_border_on_a_blue_title_writing_nil() {
+        // Catches: Bottom border on a title whose style rule is blue leaving that rule in place.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Title": { "id": "Title", "formatting": { "borders": {
+                "bottom": { "style": "single", "sizeEighthPoints": 8, "spacePoints": 4, "color": "4F81BD" }
+            } } } }
+        }));
+        toggle_paragraph_bottom_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "nil");
+        toggle_paragraph_bottom_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["sizeEighthPoints"], 12);
+    }
+
+    #[test]
+    fn catches_bottom_border_dropping_a_styled_left_rule() {
+        // Catches: Bottom border on a paragraph whose style has a left rule dropping that left rule.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "borders": {
+                "left": { "style": "single", "sizeEighthPoints": 4, "color": "FF0000" }
+            } } } }
+        }));
+        toggle_paragraph_bottom_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["left"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["left"]["color"], "FF0000");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "single");
     }
 }

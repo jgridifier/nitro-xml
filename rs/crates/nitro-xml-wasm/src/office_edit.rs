@@ -1463,6 +1463,69 @@ mod tests {
     }
 
     #[test]
+    fn catches_bottom_border_leaving_w_pbdr_off_the_saved_paragraph() {
+        // Catches: Bottom border leaving w:pBdr off the saved paragraph, or undoing as more than one step.
+        let marks = |bytes: &[u8]| {
+            let h = open_editable(bytes, "pages.docx");
+            h.docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .blocks
+                .iter()
+                .map(|b| {
+                    b.get("borders")
+                        .and_then(|v| v.get("bottom"))
+                        .and_then(|v| v.get("style"))
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut h = open_editable(DOCX, "pages.docx");
+        let start = marks(DOCX);
+        h.shell_action("cmd", "home.border-bottom").expect("border");
+        let saved = h.save_document().expect("save border");
+        assert_ne!(saved, DOCX);
+        let after = marks(&saved);
+        let changed = start
+            .iter()
+            .zip(after.iter())
+            .enumerate()
+            .filter(|(_, (a, b))| a != b)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), 1, "border touched {changed:?}");
+        let idx = changed[0];
+        assert_eq!(after[idx].as_deref(), Some("single"));
+        h.shell_action("cmd", "edit.undo").expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
+
+        let strip = h.docx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.border-bottom\""));
+        let home = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .ribbon_html();
+        assert!(home.contains("data-command=\"border-bottom\""));
+        let pptx = open_editable(PPTX, "slides.pptx");
+        assert!(!pptx
+            .pptx
+            .as_ref()
+            .unwrap()
+            .ribbon_html()
+            .contains("home.border-bottom"));
+    }
+
+    #[test]
     fn catches_docx_shell_bold_leaving_the_package_unchanged() {
         // Catches: home.bold on a document staying on the xlsx command table, so w:b never flips.
         let mut h = open_editable(DOCX, "pages.docx");

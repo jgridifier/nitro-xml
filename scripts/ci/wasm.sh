@@ -47,4 +47,4 @@ export WASM_BINDGEN_USE_BROWSER=1   # run every wasm test in the browser (headle
 cd "$ROOT/rs"
 cargo build --release --locked -p nitro-xml-wasm --target wasm32-unknown-unknown
 ls -l target/wasm32-unknown-unknown/release/*.wasm
-cargo test --workspace --locked --target wasm32-unknown-unknown
+cargo test --workspace --locked --target wasm32-unknown-unknown --exclude nitro-xml-py --exclude nitro-xml-py

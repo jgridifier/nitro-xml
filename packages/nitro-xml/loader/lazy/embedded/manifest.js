@@ -183,6 +183,7 @@ export const MANIFEST = {
           cmd("table.insert-column", "colAdd", "Insert column"),
           cmd("table.delete-column", "colDel", "Delete column"),
           cmd("table.cell-text", "cellText", "Cell text", "Set cell text"),
+          cmd("table.delete", "tableDel", "Delete table", "Delete the table"),
         ],
       },
       nav("Slides", "slide"),

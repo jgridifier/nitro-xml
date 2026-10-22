@@ -2,7 +2,8 @@
 // Ribbon manifests for the Office-style frame. A control is listed only if it maps to a real
 // action: a viewer `shellAction` op (o) or an editor ribbon command id (c, sent as shellAction("cmd", id)).
 // Every `c` id below was checked against the engine (the saved bytes change, or copy reads them);
-// borders and grow/shrink are deliberately absent. Cut, paste, and group rewrite the package;
+// borders and grow/shrink are deliberately absent. Delete Table removes the slide
+// table and leaves other shapes. Cut, paste, and group rewrite the package;
 // copy only fills the editor clipboard.
 // Indent, right indent, line spacing, paragraph space before and after, hanging indent,
 // first-line indent, script, font name, Word bullets, insert shape, duplicate, delete, z-order
@@ -231,6 +232,7 @@ export function tabsFor(format, unit, edit) {
                   it("table.insert-column", "colAdd", "Insert Column"),
                   it("table.delete-column", "colDel", "Delete Column"),
                   it("table.cell-text", "cellText", "Cell Text", "Set cell text"),
+                  it("table.delete", "tableDel", "Delete Table", "Delete the table"),
                 ],
               },
             ],

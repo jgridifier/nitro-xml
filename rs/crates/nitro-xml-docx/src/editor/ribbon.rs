@@ -54,6 +54,7 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
             surface,
             false,
         ));
+        html.push_str(&button("caps", "All Caps", surface, false));
         html.push_str(&button("strike", "Strikethrough", surface, false));
         html.push_str(&button("highlight", "Highlight", surface, false));
         html.push_str(&button("subscript", "Subscript", surface, false));

@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use crate::edit::drawing::append_inline_picture;
 use crate::edit::format::{
     adjust_left_indent, adjust_right_indent, cycle_line_spacing, effective_run_font_pt,
-    set_paragraph_align, set_paragraph_style, set_run_formatting, step_office_font_pt,
+    set_paragraph_align, set_paragraph_style, set_run_formatting, step_office_font_pt, toggle_caps,
     toggle_double_underline, toggle_first_line_indent, toggle_hanging_indent,
     toggle_paragraph_space, INDENT_STEP_TWIPS,
 };
@@ -58,6 +58,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("italic", "Italic", Some("Ctrl+I"), true),
     word_cmd!("underline", "Underline", Some("Ctrl+U"), true),
     word_cmd!("double-underline", "Double Underline", None, true),
+    word_cmd!("caps", "All Caps", None, true),
     word_cmd!("strike", "Strikethrough", Some("Ctrl+5"), true),
     word_cmd!("highlight", "Highlight", None, true),
     word_cmd!("indent", "Increase Indent", None, true),
@@ -468,6 +469,19 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         toggle_double_underline(h, caret_block, caret_run)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "caps" => {
+                session.run(
+                    String::from("caps"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        toggle_caps(h, caret_block, caret_run)?;
                         Ok(())
                     },
                 )?;

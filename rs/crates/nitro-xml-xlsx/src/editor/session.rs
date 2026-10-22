@@ -37,14 +37,18 @@ pub struct EditorSession {
 impl EditorSession {
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
         let host = XlsxHost::open(bytes)?;
+        Ok(Self::from_host(host))
+    }
+
+    pub fn from_host(host: XlsxHost) -> Self {
         let mut registry = CommandRegistry::new();
         register_cell_commands(&mut registry);
         register_structure_commands(&mut registry);
-        Ok(Self {
+        Self {
             session: EditSession::new(host, EditHistory::new()),
             registry,
             cell: CellEditor::default(),
-        })
+        }
     }
 
     pub fn host(&self) -> &XlsxHost {

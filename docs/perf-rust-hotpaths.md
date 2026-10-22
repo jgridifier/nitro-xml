@@ -427,3 +427,24 @@ outliers but **+0.6 MiB edit heap** — rejected.
 
 **Not a per-edit p99/max win:** with 21 samples/session, session p99 ≈ sample 0. Every session’s first `setCellInput` still runs cold `ensure_edit` → `XlsxHost::open` (`load_workbook` + `parse_all_worksheets` + `ensure_dump_cells` on 1M cells) + `sync_model_from_edit` clone ≈ **0.9–1.3 s**; later samples are ~12–20 ms (`mut-frame` ~6–10 ms, sticky `_nxPainted` tick ~0 ms). Outlier-session count (session **median** ≥ 40 ms) therefore dropped 6→0 while reported p99/max stayed ~900/1260. Soft-share / reuse viewer grid on `ensure_edit` (no second full parse) is the follow-up that can move p99/max; #389 stays draft until that lands with 95% CI.
 
+## Slice 15: xlsx/L edit-cell cold path — lazy soft-share (`ensure_edit`)
+
+**Goal:** first `setCellInput` on large xlsx should not re-run `XlsxHost::open` (second zip parse + `parse_all_worksheets` + `ensure_dump_cells`) when the viewer still holds [`FirstView`](rs/crates/nitro-xml-xlsx/src/lazy/mod.rs).
+
+**Rust:** `FirstView::materialize_worksheets_for_edit` streams each worksheet via keep-all mode in [`lazy/sheet.rs`](rs/crates/nitro-xml-xlsx/src/lazy/sheet.rs), resolves the full SST once, then `install_materialized_for_edit` (viewer grid, no `sync_model_from_edit`) + `XlsxHost::from_parts` with a single host-side sheet clone. Lazy stays alive (`drop_lazy_view` not called on edit).
+
+**Loader:** editable open runs `setReadOnly(false)` + `loadEditorChrome` **before** `prepareFrame` / `postMessage` on the first take-frame (`frame-build.js`). Posting paint first let `waitFirstPaint` return while soft-share was still running, so sample0 raced the materialise; unlock-before-post moves that cost into the first tick (embed first-paint), leaving sample0 warm. Peak-mem / wasm open path unchanged.
+
+**A/B** (vs #389 tip `d7c1a54`, React-embed `edit-cell` L, n=21×21, 95% bootstrap CI of median ratios):
+
+| Metric | main (#389) | soft-share | ratio CI | Verdict |
+|---|---:|---:|---|---|
+| sample0 (first edit) | 1122.7 ms | 45.0 ms | [0.038, 0.043] | **WIN** |
+| session p50 | 12.4 ms | 11.8 ms | [0.914, 0.983] | WIN |
+| session p95 | 17.3 ms | 17.6 ms | — | flat |
+| edit heap L | 34.16 MiB | 34.07 MiB | [0.991, 0.999] | WIN (≈flat) |
+| peak-mem open L | 32.1 ms | 29.5 ms | [0.855, 1.042] | NOISE |
+| peak-mem peak L | 28.0 MiB | 25.0 MiB | [0.803, 1.050] | NOISE |
+
+Materialise (~0.9 s soft-share) now sits in the first editable `take-frame` (embed first-paint / open tick), not in timed sample0. Peak-mem wasm open path unchanged.
+

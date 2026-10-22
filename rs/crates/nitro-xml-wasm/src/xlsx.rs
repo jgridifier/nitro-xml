@@ -270,6 +270,14 @@ impl XlsxState {
         self.lazy.is_some()
     }
 
+    pub(crate) fn lazy_first_view_mut(&mut self) -> Option<&mut FirstView> {
+        self.lazy.as_mut()
+    }
+
+    pub(crate) fn clear_pending_tail_complete(&mut self) {
+        self.pending_tail_complete = false;
+    }
+
     /// Replace the lazy window with a full parse so search and hyperlinks see every cell.
     fn materialise_full(&mut self, bytes: &[u8]) -> Result<(), String> {
         if self.lazy.is_none() {

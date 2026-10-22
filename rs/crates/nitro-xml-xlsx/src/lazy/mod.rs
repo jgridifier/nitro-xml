@@ -28,6 +28,7 @@ use std::sync::Arc;
 use nitro_xml_opc::opc::Package;
 
 use crate::model::{ActiveWorksheet, SheetState, WorkbookSlice};
+use crate::shared_strings::parse_shared_strings;
 use crate::workbook::{load_workbook_shell, stub_worksheet};
 
 use sheet::{COL_SLOP, ROW_SLOP};
@@ -264,6 +265,89 @@ impl FirstView {
         Ok(true)
     }
 
+    /// Materialise every worksheet for the edit host (full sheetData, no viewport filter).
+    ///
+    /// Reopens the shared package [`Arc`] once, resolves the full shared-string table, and
+    /// streams each worksheet with [`sheet::load_sheet_full`]. Viewer selection on already-loaded
+    /// sheets is preserved when present.
+    pub fn materialize_worksheets_for_edit(
+        &mut self,
+    ) -> Result<(WorkbookSlice, Vec<ActiveWorksheet>), String> {
+        let n = self.workbook.sheets.len();
+        let pkg_bytes = Arc::clone(&self.bytes);
+        let mut pkg = Package::open(pkg_bytes.as_ref()).map_err(|e| e.to_string())?;
+        let mut workbook = self.workbook.clone();
+        workbook.active_worksheet = None;
+        if let Some(part) = self.strings_part.clone() {
+            let strings_xml = pkg
+                .text(&part)
+                .map_err(|e| e.to_string())?
+                .map(str::to_owned);
+            workbook.shared_strings =
+                parse_shared_strings(strings_xml.as_deref(), workbook.palette.as_deref());
+        }
+        let mut sheets = Vec::with_capacity(n);
+        for sheet in 0..n {
+            let kept_sel = self
+                .sheets
+                .get(sheet)
+                .and_then(|s| s.as_ref())
+                .and_then(|s| s.view.selection.clone());
+            let is_ws = self.sheet_is_worksheet.get(sheet).copied().unwrap_or(false);
+            let stub = &self.workbook.sheets[sheet];
+            if !is_ws || stub.part_name.is_none() {
+                sheets.push(stub_worksheet(stub));
+                continue;
+            }
+            let part = stub.part_name.clone().unwrap_or_default();
+            let req = sheet::SheetRequest {
+                part_name: &part,
+                view: ViewportRect {
+                    r0: 0,
+                    c0: 0,
+                    r1: 0,
+                    c1: 0,
+                },
+                xf_map: &workbook.xf_map,
+                date1904: workbook.date1904,
+                palette: workbook.palette.as_deref(),
+                dxfs: &workbook.dxfs,
+                dynamic_cells: &self.dynamic_cells,
+                strings_part: self.strings_part.as_deref(),
+                name: &stub.name,
+                sheet_id: stub.sheet_id,
+                state: stub.state,
+                allow_early_stop: false,
+                full_sheet: true,
+            };
+            let mut warnings = Vec::new();
+            let (mut ws, _visited, truncated) =
+                sheet::load_sheet_full(&mut pkg, &req, &mut self.resolved_sst, &mut warnings)?;
+            for w in warnings {
+                if !workbook.warnings.contains(&w) {
+                    workbook.warnings.push(w);
+                }
+            }
+            if let Some(sel) = kept_sel {
+                ws.view.selection = Some(sel);
+            }
+            ws.ensure_dump_cells(&workbook.shared_strings);
+            sheets.push(ws);
+            self.windows[sheet] = None;
+            self.logical_views[sheet] = None;
+            if let Some(slot) = self.truncated.get_mut(sheet) {
+                *slot = truncated;
+            }
+            if let Some(slot) = self.tail_complete.get_mut(sheet) {
+                *slot = !truncated;
+            }
+        }
+        self.merge_pkg(&pkg);
+        drop(pkg);
+        drop(pkg_bytes);
+        Ok((workbook, sheets))
+    }
+
     /// Package buffer shared with the caller when opened via [`open_first_view_arc`].
     pub fn package_bytes(&self) -> &Arc<[u8]> {
         &self.bytes
@@ -343,6 +427,7 @@ impl FirstView {
             sheet_id,
             state,
             allow_early_stop,
+            full_sheet: false,
         };
         let mut warnings = Vec::new();
         let (ws, visited, truncated) =
@@ -527,6 +612,33 @@ mod tests {
         );
         assert!(lazy.shared_strings_resolved() < full.shared_strings.len() / 2);
         assert!(lazy.shared_strings_resolved() < 200);
+    }
+
+    // Catches: edit soft-share materialize_worksheets_for_edit keeping a viewport-sized cell
+    // store instead of the full sheet grid.
+    #[test]
+    fn materialize_for_edit_loads_full_sheet_not_viewport() {
+        let cells_1k = include_bytes!("../../../../../fixtures/generated/xlsx/cells_1k.xlsx");
+        let view = ViewportRect {
+            r0: 0,
+            c0: 0,
+            r1: 20,
+            c1: 8,
+        };
+        let mut lazy = open_first_view(cells_1k, view).expect("first view");
+        let viewport_cells = lazy.sheet(0).map(|s| s.cells.len()).unwrap_or(0);
+        assert!(
+            viewport_cells < 500,
+            "precondition: viewport store is sparse ({viewport_cells} cells)"
+        );
+        let (_, sheets) = lazy
+            .materialize_worksheets_for_edit()
+            .expect("materialize for edit");
+        let full = load_workbook(cells_1k).expect("full");
+        let open_sheets = parse_all_worksheets(cells_1k, &full).expect("parse all");
+        let open_count = open_sheets[0].as_ref().map(|s| s.cells.len()).unwrap_or(0);
+        assert_eq!(sheets[0].cells.len(), open_count);
+        assert!(sheets[0].cells.len() > viewport_cells);
     }
 
     // Catches: ensure_viewport / open_first_view allocating a second full copy of the package

@@ -216,7 +216,7 @@ impl Document {
         if matches!(self.format, OfficeFormat::Pptx) {
             self.original = out.clone();
         }
-        Ok(PyBytes::new_bound(py, &out))
+        Ok(PyBytes::new(py, &out))
     }
 }
 

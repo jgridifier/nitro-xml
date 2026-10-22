@@ -499,6 +499,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.double-underline",
+                    label: "Double Underline",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.strikethrough",
                     label: "Strikethrough",
                     enabled: true,
@@ -693,6 +698,7 @@ fn canonical_command(id: &str) -> &str {
         "home.bold" => "bold",
         "home.italic" => "italic",
         "home.underline" => "underline",
+        "home.double-underline" => "double-underline",
         "home.strikethrough" => "strike",
         "home.highlight" => "highlight",
         "home.indent" => "indent",

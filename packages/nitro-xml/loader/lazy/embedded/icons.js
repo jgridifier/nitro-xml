@@ -15,6 +15,7 @@ export const ICONS = {
   bold: '<path d="M7 4h6a4 4 0 0 1 0 8H7zM7 12h7a4 4 0 0 1 0 8H7z"/>',
   italic: '<path d="M10 4h8M6 20h8M15 4l-6 16"/>',
   underline: '<path d="M7 4v7a5 5 0 0 0 10 0V4M5 21h14"/>',
+  doubleUnderline: '<path d="M7 3v6a5 5 0 0 0 10 0V3M5 18h14M5 21h14"/>',
   strike: '<path d="M4 12h16M16 6.5C15 5 13.5 4.5 12 4.5c-2.5 0-4 1.3-4 3 0 1.5 1 2.5 4 3.5M8 17c1 1.6 2.5 2.5 4.5 2.5 2.5 0 4-1.3 4-3 0-1-.5-1.8-1.5-2.5"/>',
   grow: '<path d="M4 19l5-13 5 13M6 14h6M18 10V4M15 7l3-3 3 3"/>',
   shrink: '<path d="M4 19l5-13 5 13M6 14h6M18 4v6M15 7l3 3 3-3"/>',

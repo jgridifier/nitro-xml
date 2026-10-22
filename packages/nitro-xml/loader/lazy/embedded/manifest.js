@@ -90,6 +90,7 @@ export const MANIFEST = {
           cmd("home.first-line", "firstLine", "First line", "First line indent, half an inch"),
           cmd("home.indent-right", "indentRight", "Increase right", "Increase the right indent by half an inch"),
           cmd("home.outdent-right", "outdentRight", "Decrease right", "Decrease the right indent by half an inch"),
+          cmd("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
         ],
       },
       align,

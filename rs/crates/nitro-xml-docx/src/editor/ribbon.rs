@@ -48,6 +48,12 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("bold", "Bold", surface, false));
         html.push_str(&button("italic", "Italic", surface, false));
         html.push_str(&button("underline", "Underline", surface, false));
+        html.push_str(&button(
+            "double-underline",
+            "Double Underline",
+            surface,
+            false,
+        ));
         html.push_str(&button("strike", "Strikethrough", surface, false));
         html.push_str(&button("highlight", "Highlight", surface, false));
         html.push_str(&button("subscript", "Subscript", surface, false));

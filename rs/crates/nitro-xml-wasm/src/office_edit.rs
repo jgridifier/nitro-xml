@@ -1004,6 +1004,131 @@ mod tests {
     }
 
     #[test]
+    fn catches_double_underline_on_a_single_underlined_run_writing_val_single() {
+        // Catches: Double underline on a run that is already underlined leaving w:u val="single",
+        // or the Underline button turning a cleared double underline back into val="double".
+        let marks = |bytes: &[u8]| {
+            let h = open_editable(bytes, "pages.docx");
+            h.docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .blocks
+                .iter()
+                .flat_map(|b| {
+                    b.get("runs")
+                        .and_then(|r| r.as_array())
+                        .into_iter()
+                        .flatten()
+                })
+                .map(|run| {
+                    let on = run
+                        .get("underline")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    let style = run
+                        .get("underlineStyle")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string);
+                    (on, style)
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut h = open_editable(DOCX, "pages.docx");
+        let start = marks(DOCX);
+        h.shell_action("cmd", "home.underline").expect("underline");
+        let once = h.save_document().expect("save underline");
+        let once_marks = marks(&once);
+        let changed = start
+            .iter()
+            .zip(once_marks.iter())
+            .enumerate()
+            .filter(|(_, (a, b))| a != b)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), 1, "underline touched {changed:?}");
+        let idx = changed[0];
+        if !once_marks[idx].0 {
+            h.shell_action("cmd", "home.underline")
+                .expect("underline on");
+        }
+        let single = h.save_document().expect("save single");
+        let single_marks = marks(&single);
+        assert!(single_marks[idx].0, "caret run is not underlined");
+        assert_ne!(
+            single_marks[idx].1.as_deref(),
+            Some("double"),
+            "single underline wrote val=double"
+        );
+
+        h.shell_action("cmd", "home.double-underline")
+            .expect("double underline");
+        let doubled = h.save_document().expect("save double");
+        assert_ne!(doubled, single);
+        let double_marks = marks(&doubled);
+        assert!(double_marks[idx].0);
+        assert_eq!(double_marks[idx].1.as_deref(), Some("double"));
+        for (i, (before, after)) in single_marks.iter().zip(double_marks.iter()).enumerate() {
+            if i != idx {
+                assert_eq!(before, after, "double underline changed run {i}");
+            }
+        }
+
+        h.shell_action("cmd", "home.underline")
+            .expect("clear double");
+        let off = h.save_document().expect("save cleared");
+        let off_marks = marks(&off);
+        assert!(!off_marks[idx].0, "underline left the run underlined");
+        assert!(
+            off_marks[idx].1.is_none(),
+            "underline left a double style on the run"
+        );
+        h.shell_action("cmd", "home.underline")
+            .expect("single again");
+        let again = h.save_document().expect("save single again");
+        let again_marks = marks(&again);
+        assert!(again_marks[idx].0);
+        assert_ne!(
+            again_marks[idx].1.as_deref(),
+            Some("double"),
+            "underline rewrote a cleared double underline as double"
+        );
+
+        let mut restored = false;
+        for _ in 0..8 {
+            if h.save_document().expect("save undo") == DOCX {
+                restored = true;
+                break;
+            }
+            h.shell_action("cmd", "edit.undo").expect("undo");
+        }
+        assert!(restored, "undo did not restore the package");
+
+        let strip = h.docx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.double-underline\""));
+        let home = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .ribbon_html();
+        assert!(home.contains("data-command=\"double-underline\""));
+        let pptx = open_editable(PPTX, "slides.pptx");
+        assert!(!pptx
+            .pptx
+            .as_ref()
+            .unwrap()
+            .ribbon_html()
+            .contains("home.double-underline"));
+    }
+
+    #[test]
     fn catches_docx_shell_bold_leaving_the_package_unchanged() {
         // Catches: home.bold on a document staying on the xlsx command table, so w:b never flips.
         let mut h = open_editable(DOCX, "pages.docx");

@@ -448,3 +448,11 @@ outliers but **+0.6 MiB edit heap** — rejected.
 
 Materialise (~0.9 s soft-share) now sits in the first editable `take-frame` (embed first-paint / open tick), not in timed sample0. Peak-mem wasm open path unchanged.
 
+## Slice 16: xlsx/L edit-cell — host owns grid (soft-share heap)
+
+**Goal:** drop the second full sheet clone on lazy `ensure_edit` (viewer grid + `XlsxHost::from_parts` clone) so edit-session peak heap falls toward one materialised grid.
+
+**Rust (stub):** `materialize_worksheets_for_edit` → move sheets into `XlsxHost::from_parts`; viewer `sheets` cleared; paint / selection / nudge read through `edit.host().sheets` while `host_owns_edit_grid`; `sync_cells_from_edit` no-ops cell patches on that path; fallback `XlsxHost::open` keeps `sync_model_from_edit`.
+
+**Measure:** React-embed `edit-cell` L peak heap + sample0 after land; parity unchanged.
+

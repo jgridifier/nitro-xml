@@ -6,7 +6,7 @@ use serde_json::{json, Map, Value};
 
 use crate::address::parse_range;
 use crate::model::{ActiveWorksheet, SheetState, WorkbookSlice};
-use crate::sheet_access::CellIndex;
+use crate::sheet_access::{AllSheetsSlice, CellIndex};
 use crate::view::cell_view::{cell_view, CellViewOptions};
 
 pub fn visible_sheets_json(workbook: &WorkbookSlice) -> Value {
@@ -34,7 +34,7 @@ fn displayed_text(
     row: u32,
     col: u32,
     sheet_index: usize,
-    all_sheets: &[Option<ActiveWorksheet>],
+    all_sheets: AllSheetsSlice<'_>,
 ) -> String {
     let opts = CellViewOptions {
         sheet_index: Some(sheet_index),
@@ -48,7 +48,7 @@ pub fn cell_text_tsv(
     workbook: &WorkbookSlice,
     sheet: &ActiveWorksheet,
     sheet_index: usize,
-    all_sheets: &[Option<ActiveWorksheet>],
+    all_sheets: AllSheetsSlice<'_>,
     range_ref: &str,
 ) -> Result<String, String> {
     let range = parse_range(range_ref).ok_or_else(|| format!("invalid range {}", range_ref))?;
@@ -188,7 +188,7 @@ pub fn search_workbook(
                 cell.row,
                 cell.col,
                 sheet_index,
-                sheets,
+                AllSheetsSlice::viewer(sheets),
             );
             let hit = if opts.case_sensitive {
                 if opts.match_entire {

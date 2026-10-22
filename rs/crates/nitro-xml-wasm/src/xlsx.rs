@@ -18,7 +18,8 @@ use std::sync::Arc;
 use nitro_xml_xlsx::{
     cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook_meta, open_first_view_arc,
     paint_grid_frame, parse_all_worksheets, parse_range, parse_worksheet_at, search_workbook,
-    visible_sheets_json, FirstView, GridPaintViewport, SearchOptions, ViewportRect, WorkbookSlice,
+    visible_sheets_json, AllSheetsSlice, FirstView, GridPaintViewport, SearchOptions, ViewportRect,
+    WorkbookSlice,
 };
 use serde_json::Value;
 const DEFAULT_W: i32 = 800;
@@ -41,6 +42,8 @@ pub struct XlsxState {
     lazy: Option<FirstView>,
     /// Live edit session when the document is not read-only (#69).
     pub edit: Option<EditorSession>,
+    /// Lazy soft-share: cell grids live on [`EditorSession::host`]; viewer `sheets` are empty.
+    pub(crate) host_owns_edit_grid: bool,
     /// Re-apply `topLeftCell` after the host's first real `Resize` (open uses a default
     /// 800×600 until the visual/loader reports the stage size).
     pending_view_scroll: bool,
@@ -82,12 +85,30 @@ impl XlsxState {
                 drag: None,
                 lazy: Some(first),
                 edit: None,
+                host_owns_edit_grid: false,
                 // Apply after the host Resize so reveal uses the real stage size.
                 pending_view_scroll: true,
                 pending_tail_complete: false,
             },
             warnings,
         ))
+    }
+
+    /// Active worksheet for paint, selection, and scroll (edit host when soft-share owns grids).
+    pub fn active_sheet_for_ui(&self) -> Option<&ActiveWorksheet> {
+        if self.host_owns_edit_grid {
+            let edit = self.edit.as_ref()?;
+            return edit.host().sheets.get(self.active);
+        }
+        self.sheets.get(self.active).and_then(|s| s.as_ref())
+    }
+
+    pub(crate) fn active_sheet_for_ui_mut(&mut self) -> Option<&mut ActiveWorksheet> {
+        if self.host_owns_edit_grid {
+            let edit = self.edit.as_mut()?;
+            return edit.host_mut().sheets.get_mut(self.active);
+        }
+        self.sheets.get_mut(self.active).and_then(|s| s.as_mut())
     }
 
     /// True when the active sheet's post-`sheetData` shell (merges/CF/DV) is loaded.
@@ -118,9 +139,7 @@ impl XlsxState {
     /// Active sheet `zoomScale` (percent). Used to seed shell zoom on open/sheet switch
     /// so live paint matches upstream (`sheet.view.zoom` when no override).
     pub fn active_view_zoom(&self) -> f64 {
-        self.sheets
-            .get(self.active)
-            .and_then(|s| s.as_ref())
+        self.active_sheet_for_ui()
             .map(|s| s.view.zoom)
             .filter(|z| z.is_finite() && *z > 0.0)
             .unwrap_or(100.0)
@@ -132,9 +151,7 @@ impl XlsxState {
         let _ = self.ensure_merges_ready();
         let range = parse_range(range_ref).ok_or_else(|| format!("invalid range {range_ref}"))?;
         let sheet = self
-            .sheets
-            .get_mut(self.active)
-            .and_then(|s| s.as_mut())
+            .active_sheet_for_ui_mut()
             .ok_or_else(|| "no active sheet".to_string())?;
         let selection = SheetSelection {
             active: range.start,
@@ -181,20 +198,15 @@ impl XlsxState {
 
     /// Painted selection as an A1 ref (`1:1048576` for the whole sheet).
     pub fn selection_ref_now(&self) -> Option<String> {
-        self.sheets
-            .get(self.active)
-            .and_then(|s| s.as_ref())
+        self.active_sheet_for_ui()
             .and_then(|s| s.view.selection.as_ref())
             .map(selection_ref)
     }
 
     /// Scroll so `(row, col)` is fully visible (upstream `GridView.reveal` / `scrollToReveal`).
     pub fn scroll_to_cell(&mut self, row: u32, col: u32) {
-        let Some((metrics, header, frozen_rows, frozen_cols)) = self
-            .sheets
-            .get(self.active)
-            .and_then(|s| s.as_ref())
-            .map(|sheet| {
+        let Some((metrics, header, frozen_rows, frozen_cols)) =
+            self.active_sheet_for_ui().map(|sheet| {
                 let metrics = grid_metrics(sheet, self.zoom_pct);
                 let header = header_sizes(sheet, &metrics, metrics.last_row);
                 let (frozen_rows, frozen_cols) = sheet
@@ -323,7 +335,7 @@ impl XlsxState {
     }
 
     fn current_cell_rect(&self) -> ViewportRect {
-        let Some(sheet) = self.sheets.get(self.active).and_then(|s| s.as_ref()) else {
+        let Some(sheet) = self.active_sheet_for_ui() else {
             return default_cell_rect();
         };
         let metrics = grid_metrics(sheet, self.zoom_pct);
@@ -374,7 +386,7 @@ impl XlsxState {
     }
 
     pub fn viewport(&self) -> GridPaintViewport {
-        let sheet = self.sheets[self.active].as_ref();
+        let sheet = self.active_sheet_for_ui();
         let (frozen_rows, frozen_cols) = sheet
             .and_then(|s| s.view.freeze.as_ref())
             .map(|f| (f.rows, f.cols))
@@ -421,21 +433,41 @@ impl XlsxState {
         let viewport = self.viewport();
         let hints = self.editor_paint_hints();
         let active = self.active;
-        let workbook = &self.workbook;
-        let sheets_ref = &self.sheets;
-        let sheet = sheets_ref[active].as_ref().expect("parsed");
         let mut intern = |s: &str| strings.intern(s);
-        paint_grid_frame(
-            commands,
-            &mut intern,
-            measures,
-            workbook,
-            sheet,
-            active,
-            sheets_ref,
-            &viewport,
-            &hints,
-        );
+        if self.host_owns_edit_grid {
+            let edit = self.edit.as_ref().expect("host owns edit grid");
+            let host = edit.host();
+            let workbook = &host.workbook;
+            let sheet = host.sheets.get(active).expect("parsed");
+            let all_sheets = AllSheetsSlice::host(&host.sheets);
+            paint_grid_frame(
+                commands,
+                &mut intern,
+                measures,
+                workbook,
+                sheet,
+                active,
+                all_sheets,
+                &viewport,
+                &hints,
+            );
+        } else {
+            let workbook = &self.workbook;
+            let sheets_ref = &self.sheets;
+            let sheet = sheets_ref[active].as_ref().expect("parsed");
+            let all_sheets = AllSheetsSlice::viewer(sheets_ref);
+            paint_grid_frame(
+                commands,
+                &mut intern,
+                measures,
+                workbook,
+                sheet,
+                active,
+                all_sheets,
+                &viewport,
+                &hints,
+            );
+        }
     }
 
     fn editor_paint_hints(&self) -> EditorPaintHints {
@@ -587,9 +619,8 @@ impl XlsxState {
         }
         let arrow = Arrow::from_key(key)?;
         let _ = self.ensure_merges_ready();
-        let active = self.active;
         let zoom = self.zoom_pct;
-        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let sheet = self.active_sheet_for_ui_mut()?;
         let metrics = grid_metrics(sheet, zoom);
         let current = sheet
             .view
@@ -614,16 +645,21 @@ impl XlsxState {
 
     fn select_region_or_all(&mut self) -> Option<String> {
         let _ = self.ensure_merges_ready();
-        let active = self.active;
-        let lazy = self.lazy.is_some();
+        let lazy = self.lazy.is_some() && !self.host_owns_edit_grid;
+        let workbook = if self.host_owns_edit_grid {
+            self.edit.as_ref().map(|e| &e.host().workbook)
+        } else {
+            None
+        };
         let (current, region) = {
-            let sheet = self.sheets.get(active)?.as_ref()?;
+            let sheet = self.active_sheet_for_ui()?;
             let current = sheet
                 .view
                 .selection
                 .clone()
                 .unwrap_or_else(|| select_cell(sheet, CellAddress { row: 0, col: 0 }));
-            let mut region = current_region_or_all(&self.workbook, sheet, &current);
+            let wb = workbook.unwrap_or(&self.workbook);
+            let mut region = current_region_or_all(wb, sheet, &current);
             // Viewport cells alone under-grow current_region; prefer the streamed used extent.
             if lazy {
                 if let Some(dim) = sheet.dimension.clone() {
@@ -643,7 +679,7 @@ impl XlsxState {
             }
             (current, region)
         };
-        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let sheet = self.active_sheet_for_ui_mut()?;
         let next = match region {
             Some(range) => SheetSelection {
                 active: current.active,
@@ -664,8 +700,7 @@ impl XlsxState {
     /// `extend` grows from the anchor (shift-click / drag); otherwise `select_cell`.
     fn commit_selection(&mut self, at: CellAddress, extend: bool) -> Option<String> {
         let _ = self.ensure_merges_ready();
-        let active = self.active;
-        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let sheet = self.active_sheet_for_ui_mut()?;
         let next = if extend {
             let current = sheet
                 .view
@@ -682,7 +717,7 @@ impl XlsxState {
     }
 
     fn active_sheet(&self) -> Option<&ActiveWorksheet> {
-        self.sheets.get(self.active)?.as_ref()
+        self.active_sheet_for_ui()
     }
 
     pub fn sheets_json(&self) -> Value {
@@ -695,6 +730,24 @@ impl XlsxState {
         sheet_index: usize,
         range: &str,
     ) -> Result<String, String> {
+        if self.host_owns_edit_grid {
+            let edit = self
+                .edit
+                .as_ref()
+                .ok_or_else(|| "no edit session".to_string())?;
+            let host = edit.host();
+            let sheet = host
+                .sheets
+                .get(sheet_index)
+                .ok_or_else(|| format!("sheet index {sheet_index} out of range"))?;
+            return cell_text_tsv(
+                &host.workbook,
+                sheet,
+                sheet_index,
+                AllSheetsSlice::host(&host.sheets),
+                range,
+            );
+        }
         if self.lazy.is_some() {
             if let Some(r) = parse_range(range) {
                 // Copy / TSV must see every cell in the selection, not only the paint window.
@@ -714,7 +767,13 @@ impl XlsxState {
         let workbook = &self.workbook;
         let sheets = &self.sheets;
         let sheet = sheets[sheet_index].as_ref().expect("parsed");
-        cell_text_tsv(workbook, sheet, sheet_index, sheets, range)
+        cell_text_tsv(
+            workbook,
+            sheet,
+            sheet_index,
+            AllSheetsSlice::viewer(sheets),
+            range,
+        )
     }
 
     pub fn hyperlinks(&mut self, bytes: &[u8], sheet_index: usize) -> Result<Value, String> {

@@ -5,7 +5,7 @@ use std::collections::HashSet;
 
 use crate::cf::CfPaintCache;
 use crate::model::{ActiveWorksheet, CellRange, WorkbookSlice};
-use crate::sheet_access::CellIndex;
+use crate::sheet_access::{AllSheetsSlice, CellIndex};
 use crate::view::cell_paint::{hashes, repeat_to_fill, FontCssMemo};
 use crate::view::cell_view::{
     cell_view_with_cf_cache, is_blank_view, CellViewOptions, StylePaintCache,
@@ -38,7 +38,7 @@ pub struct BuildInput<'a> {
     pub workbook: &'a WorkbookSlice,
     pub sheet: &'a ActiveWorksheet,
     pub sheet_index: usize,
-    pub all_sheets: &'a [Option<ActiveWorksheet>],
+    pub all_sheets: AllSheetsSlice<'a>,
     pub index: &'a CellIndex,
     pub metrics: &'a GridMetrics,
     pub zoom: f64,

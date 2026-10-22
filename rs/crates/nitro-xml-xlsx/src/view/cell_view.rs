@@ -9,7 +9,7 @@ use crate::fast_hash::FastBuild;
 use crate::model::{ActiveWorksheet, CellStyle, DumpCellValue, Font, WorkbookSlice};
 use crate::numfmt::{format_value, FormatOptions};
 use crate::sheet_access::{
-    dump_value_to_cell_value, get_cell, is_cell_error, range_contains, CellIndex,
+    dump_value_to_cell_value, get_cell, is_cell_error, range_contains, AllSheetsSlice, CellIndex,
 };
 use crate::styles::style_at;
 use crate::view::sparkline_data::sparkline_view_at;
@@ -125,7 +125,7 @@ fn display_text(
 pub struct CellViewOptions<'a> {
     pub indent_px: Option<f64>,
     pub sheet_index: Option<usize>,
-    pub all_sheets: Option<&'a [Option<ActiveWorksheet>]>,
+    pub all_sheets: Option<AllSheetsSlice<'a>>,
     /// Skip `sheet.merges` scan for overflow (caller already excluded covered cells).
     pub not_in_merge: bool,
     /// Optional O(1) comment lookup for the paint frame (#30 build_items).

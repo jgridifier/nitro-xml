@@ -112,7 +112,14 @@ fn catches_max_depth_worksheet_shell_open_and_paint() {
         frozen_cols: 0,
         zoom_pct: None,
     };
-    let cmds = crate::render::paint_grid_frame_vec(&mut intern, &wb, sheet, 0, &sheets, &viewport);
+    let cmds = crate::render::paint_grid_frame_vec(
+        &mut intern,
+        &wb,
+        sheet,
+        0,
+        crate::sheet_access::AllSheetsSlice::viewer(&sheets),
+        &viewport,
+    );
     assert!(
         !cmds.is_empty(),
         "paint must emit commands for the deep-nest workbook"

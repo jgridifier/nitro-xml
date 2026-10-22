@@ -33,7 +33,14 @@ fn main() {
     };
     let active = workbook.active_sheet as usize;
     let cell_text = if let Some(Some(sheet)) = sheets.get(active) {
-        cell_text_tsv(&workbook, sheet, active, &sheets, "A1:E20").unwrap_or_default()
+        cell_text_tsv(
+            &workbook,
+            sheet,
+            active,
+            nitro_xml_xlsx::AllSheetsSlice::viewer(&sheets),
+            "A1:E20",
+        )
+        .unwrap_or_default()
     } else {
         String::new()
     };

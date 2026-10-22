@@ -30,6 +30,7 @@ use nitro_xml_render::measure::MeasureBatch;
 
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
+use crate::sheet_access::AllSheetsSlice;
 use crate::view::metrics::{create_grid_metrics, GridMetricsOptions};
 
 pub struct GridPaintViewport {
@@ -68,7 +69,7 @@ pub fn paint_grid_frame<I: StringIntern>(
     workbook: &WorkbookSlice,
     sheet: &ActiveWorksheet,
     sheet_index: usize,
-    all_sheets: &[Option<ActiveWorksheet>],
+    all_sheets: AllSheetsSlice<'_>,
     viewport: &GridPaintViewport,
     hints: &EditorPaintHints,
 ) {
@@ -111,7 +112,7 @@ pub fn paint_grid_frame_vec<I: StringIntern>(
     workbook: &WorkbookSlice,
     sheet: &ActiveWorksheet,
     sheet_index: usize,
-    all_sheets: &[Option<ActiveWorksheet>],
+    all_sheets: AllSheetsSlice<'_>,
     viewport: &GridPaintViewport,
 ) -> Vec<u8> {
     let mut buf = CommandBuffer::new();
@@ -149,7 +150,7 @@ pub fn paint_grid_frame_with_hints<I: StringIntern>(
         workbook,
         sheet,
         sheet_index,
-        all_sheets,
+        AllSheetsSlice::viewer(all_sheets),
         viewport,
         hints,
     );

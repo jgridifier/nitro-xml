@@ -291,3 +291,41 @@ pub fn dump_value_to_cell_value(value: &DumpCellValue) -> crate::numfmt::CellVal
 pub fn is_cell_error(value: &DumpCellValue) -> bool {
     matches!(value, DumpCellValue::Error(_))
 }
+
+/// Viewer `Option` slots or a dense edit-host sheet list (no clone for paint / sparklines).
+#[derive(Clone, Copy)]
+pub enum AllSheetsSlice<'a> {
+    Viewer(&'a [Option<ActiveWorksheet>]),
+    Host(&'a [ActiveWorksheet]),
+}
+
+impl<'a> AllSheetsSlice<'a> {
+    pub fn viewer(sheets: &'a [Option<ActiveWorksheet>]) -> Self {
+        Self::Viewer(sheets)
+    }
+
+    pub fn host(sheets: &'a [ActiveWorksheet]) -> Self {
+        Self::Host(sheets)
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Viewer(s) => s.len(),
+            Self::Host(s) => s.len(),
+        }
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<&'a ActiveWorksheet> {
+        match self {
+            Self::Viewer(s) => s.get(index).and_then(|o| o.as_ref()),
+            Self::Host(s) => s.get(index),
+        }
+    }
+}

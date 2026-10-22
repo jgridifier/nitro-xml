@@ -4,7 +4,7 @@
 use serde_json::{json, Value};
 
 use crate::model::{stringify_json, ActiveWorksheet, WorkbookSlice};
-use crate::sheet_access::{used_range, CellIndex};
+use crate::sheet_access::{used_range, AllSheetsSlice, CellIndex};
 use crate::view::cell_items::{build_items, BuildInput};
 use crate::view::metrics::{create_grid_metrics, GridMetricsOptions};
 use crate::view::text_measure::FakeTextMeasure;
@@ -77,7 +77,7 @@ fn sheet_view_ir(
         workbook,
         sheet,
         sheet_index,
-        all_sheets,
+        all_sheets: AllSheetsSlice::viewer(all_sheets),
         index: &index,
         metrics: &metrics,
         zoom,

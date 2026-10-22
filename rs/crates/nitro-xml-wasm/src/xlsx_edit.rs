@@ -4,9 +4,8 @@
 use nitro_xml_xlsx::address::{format_address, MAX_COL, MAX_ROW};
 use nitro_xml_xlsx::edit::XlsxHost;
 use nitro_xml_xlsx::editor::{ChromeEffect, EditorSession, SelectionTarget};
-use nitro_xml_xlsx::model::{ActiveWorksheet, CellAddress, SheetSelection};
+use nitro_xml_xlsx::model::{CellAddress, SheetSelection};
 use nitro_xml_xlsx::render::{select_cell, selection_ref};
-use nitro_xml_xlsx::WorkbookSlice;
 use serde_json::Value;
 
 use crate::text::{apply_key, cut_plain, KeyAction, KeyEvent, TextField};
@@ -36,51 +35,33 @@ impl XlsxState {
                 }
             }
             self.clear_pending_tail_complete();
-            let (workbook, sheets) = self
+            let sels: Vec<Option<SheetSelection>> = self
+                .sheets
+                .iter()
+                .map(|s| s.as_ref().and_then(|sh| sh.view.selection.clone()))
+                .collect();
+            let (workbook, mut sheets) = self
                 .lazy_first_view_mut()
                 .expect("lazy first view")
                 .materialize_worksheets_for_edit()?;
-            self.install_materialized_for_edit(workbook, sheets)?;
-            let host_sheets = self
-                .sheets
-                .iter()
-                .map(|s| s.as_ref().expect("materialized sheet slot").clone())
-                .collect();
-            let host = XlsxHost::from_parts(self.workbook.clone(), host_sheets)?;
+            for (i, sel) in sels.into_iter().enumerate() {
+                if let (Some(sel), Some(sh)) = (sel, sheets.get_mut(i)) {
+                    sh.view.selection = Some(sel);
+                }
+            }
+            let active_sheet = workbook.active_sheet as usize;
+            let host = XlsxHost::from_parts(workbook, sheets)?;
+            self.workbook = host.workbook.clone();
             self.edit = Some(EditorSession::from_host(host));
+            self.host_owns_edit_grid = true;
+            self.sheets = vec![None; self.workbook.sheets.len()];
+            if self.active >= self.sheets.len() {
+                self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
+            }
         } else {
             self.edit = Some(EditorSession::open(bytes)?);
+            self.host_owns_edit_grid = false;
             self.sync_model_from_edit();
-        }
-        Ok(())
-    }
-
-    /// Viewer grid from lazy materialize (one host clone). Skips `sync_model_from_edit`.
-    fn install_materialized_for_edit(
-        &mut self,
-        workbook: WorkbookSlice,
-        sheets: Vec<ActiveWorksheet>,
-    ) -> Result<(), String> {
-        let active_sheet = workbook.active_sheet as usize;
-        let sels: Vec<Option<SheetSelection>> = self
-            .sheets
-            .iter()
-            .map(|s| s.as_ref().and_then(|sh| sh.view.selection.clone()))
-            .collect();
-        let mut viewer_sheets: Vec<Option<ActiveWorksheet>> =
-            sheets.into_iter().map(Some).collect();
-        for (i, sel) in sels.into_iter().enumerate() {
-            if let (Some(sel), Some(Some(sh))) = (sel, viewer_sheets.get_mut(i)) {
-                sh.view.selection = Some(sel);
-            }
-        }
-        for sh in viewer_sheets.iter_mut().flatten() {
-            sh.ensure_cell_pos();
-        }
-        self.workbook = workbook;
-        self.sheets = viewer_sheets;
-        if self.active >= self.sheets.len() {
-            self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
         }
         Ok(())
     }
@@ -112,6 +93,7 @@ impl XlsxState {
         }
         self.workbook = workbook;
         self.sheets = sheets;
+        self.host_owns_edit_grid = false;
         if self.active >= self.sheets.len() {
             self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
         }
@@ -126,6 +108,9 @@ impl XlsxState {
         // Styles stay small; SST / sheet grids must not be cloned per keystroke.
         self.workbook.styles = host.workbook.styles.clone();
         self.workbook.active_sheet = host.workbook.active_sheet;
+        if self.host_owns_edit_grid {
+            return;
+        }
         let Some(host_sh) = host.sheets.get(sheet as usize) else {
             self.sync_model_from_edit();
             return;
@@ -149,9 +134,7 @@ impl XlsxState {
     pub fn selection_target(&self) -> SelectionTarget {
         let sheet = self.active as u32;
         let sel = self
-            .sheets
-            .get(self.active)
-            .and_then(|s| s.as_ref())
+            .active_sheet_for_ui()
             .and_then(|s| s.view.selection.as_ref());
         match sel {
             Some(sel) => {
@@ -405,8 +388,7 @@ impl XlsxState {
     }
 
     fn nudge_active(&mut self, d_row: i32, d_col: i32) -> Option<String> {
-        let active = self.active;
-        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let sheet = self.active_sheet_for_ui_mut()?;
         let current = sheet
             .view
             .selection
@@ -567,11 +549,14 @@ mod tests {
         h.set_read_only(false);
         h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"full-grid"}"#)
             .expect("edit");
-        let viewer = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
-        let host = h.xlsx.as_ref().unwrap().edit.as_ref().unwrap().host();
-        assert_eq!(viewer.cells.len(), open_count);
-        assert!(viewer.cells.len() > viewport_cells);
-        assert_eq!(viewer.cells.len(), host.sheets[0].cells.len());
+        let x = h.xlsx.as_ref().unwrap();
+        assert!(
+            x.sheets[0].is_none(),
+            "soft-share must not install a viewer cell grid"
+        );
+        let host = x.edit.as_ref().unwrap().host();
+        assert_eq!(host.sheets[0].cells.len(), open_count);
+        assert!(host.sheets[0].cells.len() > viewport_cells);
     }
 
     #[test]
@@ -590,10 +575,17 @@ mod tests {
             h.xlsx.as_ref().unwrap().edit.is_some(),
             "edit session must open without process_frame"
         );
-        let n = h.xlsx.as_ref().unwrap().sheets[0]
+        let n = h
+            .xlsx
             .as_ref()
-            .map(|s| s.cells.len())
-            .unwrap_or(0);
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .host()
+            .sheets[0]
+            .cells
+            .len();
         assert!(n > 900, "expected full 1k sheet after ensure_edit, got {n}");
     }
 
@@ -679,11 +671,11 @@ mod tests {
             x.lazy_is_some_for_test(),
             "lazy first view must stay alive on ensure_edit (heap-neutral path)"
         );
-        let sh = x.sheets[0].as_ref().expect("sheet0");
+        let sh = &x.edit.as_ref().unwrap().host().sheets[0];
         assert_eq!(
             sh.cell_pos.synced_len(),
             sh.cells.len(),
-            "viewer cell_pos must be synced for paint after ensure_edit"
+            "host cell_pos must be synced for paint after ensure_edit"
         );
     }
 
@@ -711,22 +703,18 @@ mod tests {
             h.apply_edit(&spec).expect("edit");
         }
 
-        let viewer = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
-        assert_eq!(viewer.cell_pos.synced_len(), viewer.cells.len());
         let host = h.xlsx.as_ref().unwrap().edit.as_ref().unwrap().host();
-        assert_eq!(
-            host.sheets[0].cell_pos.synced_len(),
-            host.sheets[0].cells.len()
-        );
+        let sh = &host.sheets[0];
+        assert_eq!(sh.cell_pos.synced_len(), sh.cells.len());
         for (row, col, text) in [
             (0u32, 0u32, "idx-a1"),
             (50, 3, "idx-b"),
             (999, 0, "idx-tail"),
         ] {
-            let cell = viewer
+            let cell = sh
                 .find_cell_pos(row, col)
-                .map(|i| &viewer.cells[i])
-                .expect("viewer cell");
+                .map(|i| &sh.cells[i])
+                .expect("host cell");
             match &cell.value {
                 DumpCellValue::String(s) => assert_eq!(s, text),
                 other => panic!("expected string at {row}:{col}, got {other:?}"),
@@ -737,8 +725,8 @@ mod tests {
     #[test]
     fn catches_set_cell_input_sync_replacing_viewer_cells_vec() {
         // Catches: sync_model_from_edit cloning the whole sheet grid after every
-        // setCellInput (~150ms apply on cells_100k / cells_1m). Targeted sync must
-        // keep the viewer `cells` vec identity and still surface the new value.
+        // setCellInput (~150ms apply on cells_100k / cells_1m). Soft-share must keep
+        // a single grid on the edit host and still surface the new value for paint.
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../../fixtures/generated/xlsx/cells_100k.xlsx");
         let bytes = std::fs::read(&path).expect("cells_100k");
@@ -747,19 +735,41 @@ mod tests {
         h.load_editor_chrome();
         h.set_read_only(false);
 
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"warm"}"#)
+            .expect("warm edit");
         let (ptr_before, len_before) = {
-            let sh = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+            let sh = &h
+                .xlsx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .host()
+                .sheets[0];
             (sh.cells.as_ptr(), sh.cells.len())
         };
 
         h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"sync-probe"}"#)
             .expect("edit");
 
-        let sh = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+        assert!(
+            h.xlsx.as_ref().unwrap().sheets[0].is_none(),
+            "viewer must not gain a cell grid on setCellInput"
+        );
+        let sh = &h
+            .xlsx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .host()
+            .sheets[0];
         assert_eq!(
             sh.cells.as_ptr(),
             ptr_before,
-            "viewer cells vec was replaced — full-grid sync regress"
+            "host cells vec was replaced — full-grid sync regress"
         );
         assert_eq!(sh.cells.len(), len_before);
         let cell = sh

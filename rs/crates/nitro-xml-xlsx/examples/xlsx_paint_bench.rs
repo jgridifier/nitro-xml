@@ -70,7 +70,14 @@ fn main() {
             id
         };
         let t2 = Instant::now();
-        let cmds = paint_grid_frame_vec(&mut intern, &wb, sheet, sheet_idx, &sheets, &viewport);
+        let cmds = paint_grid_frame_vec(
+            &mut intern,
+            &wb,
+            sheet,
+            sheet_idx,
+            nitro_xml_xlsx::AllSheetsSlice::viewer(&sheets),
+            &viewport,
+        );
         t_paint.push(t2.elapsed().as_secs_f64() * 1000.0);
         ncmds = cmds.len();
     }

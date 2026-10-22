@@ -36,6 +36,11 @@ pub const PARAGRAPH_SPACE_TWIPS: i64 = 240;
 /// Word hanging indent (`w:ind/@w:hanging`). Half an inch, the same step as Increase Indent.
 /// `w:firstLine` and `w:hanging` are mutually exclusive, so setting this drops a direct first line.
 pub const HANGING_INDENT_TWIPS: i64 = INDENT_STEP_TWIPS;
+/// Word character spacing (`w:spacing` on `w:rPr`), one point. The Font dialog steps by 1 pt.
+pub const CHAR_SPACING_STEP_TWIPS: i64 = 20;
+/// Word's Font dialog limit for expanded or condensed spacing (±1584 pt).
+pub const CHAR_SPACING_LIMIT_TWIPS: i64 = 1584 * 20;
+
 /// Word first-line indent (`w:ind/@w:firstLine`). Half an inch, the same step as Increase Indent.
 /// `w:firstLine` and `w:hanging` are mutually exclusive, so setting this drops a direct hanging indent.
 pub const FIRST_LINE_INDENT_TWIPS: i64 = INDENT_STEP_TWIPS;
@@ -231,6 +236,89 @@ pub fn effective_run_font_pt(host: &DocxHost, block_index: usize, run_index: usi
     run_font_pt(&resolved)
 }
 
+/// Direct `w:spacing`, or the style's spacing, or 0 when nothing sets it.
+pub fn effective_character_spacing_twips(
+    host: &DocxHost,
+    block_index: usize,
+    run_index: usize,
+) -> i64 {
+    let block = host.paragraph(block_index).ok();
+    let style_id = block
+        .and_then(|b| b.get("style"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let run = block
+        .and_then(|b| b.get("runs"))
+        .and_then(|r| r.as_array())
+        .and_then(|runs| runs.get(run_index))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let resolved = resolve_run_formatting(
+        &run,
+        RunFormattingContext {
+            paragraph_style_id: style_id,
+            paragraph_catalog: host.paragraph_styles.clone(),
+            run_catalog: host.character_styles.clone(),
+        },
+    );
+    resolved
+        .get("characterSpacingTwips")
+        .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|n| n.round() as i64)))
+        .unwrap_or(0)
+}
+
+/// Set direct character spacing. `0` drops the field when the style is also 0, and writes
+/// an explicit `0` when the style would otherwise keep a non-zero spacing.
+pub fn set_character_spacing(
+    host: &mut DocxHost,
+    block_index: usize,
+    run_index: usize,
+    twips: i64,
+) -> Result<(), EditError> {
+    {
+        let block = host
+            .paragraph_mut(block_index)
+            .map_err(|e| EditError::Other { message: e })?;
+        let runs = block
+            .get_mut("runs")
+            .and_then(|r| r.as_array_mut())
+            .ok_or_else(|| EditError::Other {
+                message: format!("runs missing on block {block_index}"),
+            })?;
+        let run = runs.get_mut(run_index).ok_or_else(|| EditError::Other {
+            message: format!("run {run_index} missing on block {block_index}"),
+        })?;
+        let obj = run.as_object_mut().ok_or_else(|| EditError::Other {
+            message: format!("run {run_index} is not an object"),
+        })?;
+        if twips == 0 {
+            obj.remove("characterSpacingTwips");
+        } else {
+            obj.insert("characterSpacingTwips".into(), json!(twips));
+        }
+    }
+    if twips == 0 && effective_character_spacing_twips(host, block_index, run_index) != 0 {
+        let block = host
+            .paragraph_mut(block_index)
+            .map_err(|e| EditError::Other { message: e })?;
+        let runs = block
+            .get_mut("runs")
+            .and_then(|r| r.as_array_mut())
+            .ok_or_else(|| EditError::Other {
+                message: format!("runs missing on block {block_index}"),
+            })?;
+        let run = runs.get_mut(run_index).ok_or_else(|| EditError::Other {
+            message: format!("run {run_index} missing on block {block_index}"),
+        })?;
+        let obj = run.as_object_mut().ok_or_else(|| EditError::Other {
+            message: format!("run {run_index} is not an object"),
+        })?;
+        obj.insert("characterSpacingTwips".into(), json!(0));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
 /// Direct run size, or 11 pt when the run has no `w:sz` (Calibri body).
 pub fn run_font_pt(run: &Value) -> f64 {
     run.get("fontSize")
@@ -368,6 +456,7 @@ pub fn set_run_formatting(
             "verticalAlign",
             "fontFamily",
             "caps",
+            "characterSpacingTwips",
         ] {
             if let Some(v) = patch.get(key) {
                 let clear = matches!(
@@ -644,5 +733,44 @@ mod tests {
         toggle_caps(&mut host, 0, 0).unwrap();
         assert_eq!(host.blocks[0]["runs"][0]["caps"], false);
         assert!(!effective_caps(&host, 0, 0));
+    }
+
+    #[test]
+    fn catches_expand_spacing_leaving_w_spacing_off_the_run() {
+        // Catches: Expand leaving characterSpacingTwips unset, so save omits w:spacing.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        assert_eq!(effective_character_spacing_twips(&host, 0, 0), 0);
+        set_character_spacing(&mut host, 0, 0, CHAR_SPACING_STEP_TWIPS).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["characterSpacingTwips"], 20);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        set_character_spacing(&mut host, 0, 0, 0).unwrap();
+        assert!(host.blocks[0]["runs"][0]
+            .get("characterSpacingTwips")
+            .is_none());
+    }
+
+    #[test]
+    fn catches_expand_spacing_on_a_styled_title_writing_20_twips() {
+        // Catches: Expand on a title whose style spacing is -10 twips writing 20 twips.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({ "styles": { "Title": { "id": "Title" } } }));
+        host.character_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "characterSpacingTwips": -10 } } }
+        }));
+        assert_eq!(effective_character_spacing_twips(&host, 0, 0), -10);
+        set_character_spacing(&mut host, 0, 0, 10).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["characterSpacingTwips"], 10);
+        set_character_spacing(&mut host, 0, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["characterSpacingTwips"], 0);
+        assert_eq!(effective_character_spacing_twips(&host, 0, 0), 0);
     }
 }

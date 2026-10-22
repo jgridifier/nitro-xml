@@ -10,10 +10,11 @@ use serde_json::{json, Value};
 
 use crate::edit::drawing::append_inline_picture;
 use crate::edit::format::{
-    adjust_left_indent, adjust_right_indent, cycle_line_spacing, effective_run_font_pt,
-    set_paragraph_align, set_paragraph_style, set_run_formatting, step_office_font_pt, toggle_caps,
-    toggle_double_underline, toggle_first_line_indent, toggle_hanging_indent,
-    toggle_paragraph_space, INDENT_STEP_TWIPS,
+    adjust_left_indent, adjust_right_indent, cycle_line_spacing, effective_character_spacing_twips,
+    effective_run_font_pt, set_character_spacing, set_paragraph_align, set_paragraph_style,
+    set_run_formatting, step_office_font_pt, toggle_caps, toggle_double_underline,
+    toggle_first_line_indent, toggle_hanging_indent, toggle_paragraph_space,
+    CHAR_SPACING_LIMIT_TWIPS, CHAR_SPACING_STEP_TWIPS, INDENT_STEP_TWIPS,
 };
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
@@ -59,6 +60,8 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("underline", "Underline", Some("Ctrl+U"), true),
     word_cmd!("double-underline", "Double Underline", None, true),
     word_cmd!("caps", "All Caps", None, true),
+    word_cmd!("expand-spacing", "Expand", None, true),
+    word_cmd!("condense-spacing", "Condense", None, true),
     word_cmd!("strike", "Strikethrough", Some("Ctrl+5"), true),
     word_cmd!("highlight", "Highlight", None, true),
     word_cmd!("indent", "Increase Indent", None, true),
@@ -632,6 +635,31 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         append_inline_picture(h, caret_block)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "expand-spacing" | "condense-spacing" => {
+                let delta = if id == "expand-spacing" {
+                    CHAR_SPACING_STEP_TWIPS
+                } else {
+                    -CHAR_SPACING_STEP_TWIPS
+                };
+                let current =
+                    effective_character_spacing_twips(&session.host, caret_block, caret_run);
+                let next =
+                    (current + delta).clamp(-CHAR_SPACING_LIMIT_TWIPS, CHAR_SPACING_LIMIT_TWIPS);
+                if next == current {
+                    return Ok(());
+                }
+                session.run(
+                    id,
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    move |h| {
+                        set_character_spacing(h, caret_block, caret_run, next)?;
                         Ok(())
                     },
                 )?;

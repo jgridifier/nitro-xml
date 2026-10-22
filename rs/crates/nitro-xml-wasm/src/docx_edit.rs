@@ -519,6 +519,16 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.scale-up",
+                    label: "Scale Up",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.scale-down",
+                    label: "Scale Down",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.strikethrough",
                     label: "Strikethrough",
                     enabled: true,
@@ -727,6 +737,8 @@ fn canonical_command(id: &str) -> &str {
         "home.caps" => "caps",
         "home.expand-spacing" => "expand-spacing",
         "home.condense-spacing" => "condense-spacing",
+        "home.scale-up" => "scale-up",
+        "home.scale-down" => "scale-down",
         "home.strikethrough" => "strike",
         "home.highlight" => "highlight",
         "home.indent" => "indent",

@@ -179,6 +179,8 @@ describe("Office ribbon manifests", () => {
       "home.caps",
       "home.expand-spacing",
       "home.condense-spacing",
+      "home.scale-up",
+      "home.scale-down",
       "home.subscript",
       "home.superscript",
       "home.bullets",
@@ -226,6 +228,10 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("home.condense-spacing"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.expand-spacing"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.condense-spacing"));
+    assert.ok(bound.includes("home.scale-up"));
+    assert.ok(bound.includes("home.scale-down"));
+    assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.scale-up"));
+    assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.scale-down"));
     assert.ok(bound.includes("home.font-name"));
     assert.ok(bound.includes("home.style-heading-1"));
     assert.ok(bound.includes("insert.page-break"));

@@ -9,6 +9,7 @@ use nitro_xml_opc::edit::{ChangeKind, ChangeSet, Command, CommandRegistry, EditE
 use serde_json::{json, Value};
 
 use super::host::DocxHost;
+use crate::run_formatting::{resolve_run_formatting, RunFormattingContext};
 
 fn host_mut(host: &mut dyn Any) -> Result<&mut DocxHost, EditError> {
     host.downcast_mut::<DocxHost>()
@@ -203,6 +204,30 @@ pub fn step_office_font_pt(size: f64, grow: bool) -> f64 {
             .find(|s| *s < size - f64::EPSILON)
             .unwrap_or_else(|| (size - 1.0).max(1.0))
     }
+}
+
+/// Direct run size, or the style's size, or 11 pt when nothing sets `w:sz`.
+pub fn effective_run_font_pt(host: &DocxHost, block_index: usize, run_index: usize) -> f64 {
+    let block = host.paragraph(block_index).ok();
+    let style_id = block
+        .and_then(|b| b.get("style"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let run = block
+        .and_then(|b| b.get("runs"))
+        .and_then(|r| r.as_array())
+        .and_then(|runs| runs.get(run_index))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let resolved = resolve_run_formatting(
+        &run,
+        RunFormattingContext {
+            paragraph_style_id: style_id,
+            paragraph_catalog: host.paragraph_styles.clone(),
+            run_catalog: host.character_styles.clone(),
+        },
+    );
+    run_font_pt(&resolved)
 }
 
 /// Direct run size, or 11 pt when the run has no `w:sz` (Calibri body).
@@ -524,5 +549,22 @@ mod tests {
         assert_eq!(step_office_font_pt(12.0, false), 11.0);
         assert_eq!(step_office_font_pt(8.0, false), 7.0);
         assert_eq!(run_font_pt(&json!({ "text": "Hi" })), 11.0);
+    }
+
+    #[test]
+    fn catches_grow_font_on_a_styled_title_writing_12pt() {
+        // Catches: Grow Font on a 26 pt title with no direct w:sz writing 12 pt.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({ "styles": { "Title": { "id": "Title" } } }));
+        host.character_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "fontSize": 26 } } }
+        }));
+        assert_eq!(effective_run_font_pt(&host, 0, 0), 26.0);
+        assert_eq!(step_office_font_pt(26.0, true), 28.0);
     }
 }

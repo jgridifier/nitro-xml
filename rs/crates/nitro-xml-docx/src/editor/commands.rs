@@ -10,9 +10,10 @@ use serde_json::{json, Value};
 
 use crate::edit::drawing::append_inline_picture;
 use crate::edit::format::{
-    adjust_left_indent, adjust_right_indent, cycle_line_spacing, run_font_pt, set_paragraph_align,
-    set_paragraph_style, set_run_formatting, step_office_font_pt, toggle_double_underline,
-    toggle_first_line_indent, toggle_hanging_indent, toggle_paragraph_space, INDENT_STEP_TWIPS,
+    adjust_left_indent, adjust_right_indent, cycle_line_spacing, effective_run_font_pt,
+    set_paragraph_align, set_paragraph_style, set_run_formatting, step_office_font_pt,
+    toggle_double_underline, toggle_first_line_indent, toggle_hanging_indent,
+    toggle_paragraph_space, INDENT_STEP_TWIPS,
 };
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
@@ -625,15 +626,7 @@ impl DocxCommandSurface {
             }
             "grow-font" | "shrink-font" => {
                 let grow = id == "grow-font";
-                let current = session
-                    .host
-                    .paragraph(caret_block)
-                    .ok()
-                    .and_then(|b| b.get("runs"))
-                    .and_then(|r| r.as_array())
-                    .and_then(|runs| runs.get(caret_run))
-                    .map(run_font_pt)
-                    .unwrap_or(11.0);
+                let current = effective_run_font_pt(&session.host, caret_block, caret_run);
                 let next = step_office_font_pt(current, grow);
                 if (next - current).abs() < f64::EPSILON {
                     return Ok(());

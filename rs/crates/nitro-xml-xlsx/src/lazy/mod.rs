@@ -30,6 +30,7 @@ use nitro_xml_opc::opc::Package;
 use crate::model::{ActiveWorksheet, SheetState, WorkbookSlice};
 use crate::shared_strings::parse_shared_strings;
 use crate::workbook::{load_workbook_shell, stub_worksheet};
+use crate::worksheet::{parse_worksheet, WorksheetContext};
 
 use sheet::{COL_SLOP, ROW_SLOP};
 
@@ -268,8 +269,10 @@ impl FirstView {
     /// Materialise every worksheet for the edit host (full sheetData, no viewport filter).
     ///
     /// Reopens the shared package [`Arc`] once, resolves the full shared-string table, and
-    /// streams each worksheet with [`sheet::load_sheet_full`]. Viewer selection on already-loaded
-    /// sheets is preserved when present.
+    /// parses each worksheet with [`parse_worksheet`] (same living-store path as
+    /// [`crate::workbook::parse_all_worksheets`] / `XlsxHost::open`). That avoids the lazy
+    /// keep-all → SST rewrite → second sheetData parse the old soft-share stream used.
+    /// Viewer selection on already-loaded sheets is preserved when present.
     pub fn materialize_worksheets_for_edit(
         &mut self,
     ) -> Result<(WorkbookSlice, Vec<ActiveWorksheet>), String> {
@@ -300,30 +303,24 @@ impl FirstView {
                 continue;
             }
             let part = stub.part_name.clone().unwrap_or_default();
-            let req = sheet::SheetRequest {
-                part_name: &part,
-                view: ViewportRect {
-                    r0: 0,
-                    c0: 0,
-                    r1: 0,
-                    c1: 0,
-                },
-                xf_map: &workbook.xf_map,
+            let mut ws_ctx = WorksheetContext {
+                shared_strings: workbook.shared_strings.clone(),
+                xf_map: workbook.xf_map.clone(),
                 date1904: workbook.date1904,
-                palette: workbook.palette.as_deref(),
-                dxfs: &workbook.dxfs,
-                dynamic_cells: &self.dynamic_cells,
-                strings_part: self.strings_part.as_deref(),
-                name: &stub.name,
-                sheet_id: stub.sheet_id,
-                state: stub.state,
-                allow_early_stop: false,
-                full_sheet: true,
+                palette: workbook.palette.clone(),
+                dxfs: workbook.dxfs.clone(),
+                dynamic_cells: self.dynamic_cells.clone(),
+                warnings: Vec::new(),
             };
-            let mut warnings = Vec::new();
-            let (mut ws, _visited, truncated) =
-                sheet::load_sheet_full(&mut pkg, &req, &mut self.resolved_sst, &mut warnings)?;
-            for w in warnings {
+            let mut ws = parse_worksheet(
+                &mut ws_ctx,
+                &mut pkg,
+                &part,
+                &stub.name,
+                stub.sheet_id,
+                stub.state,
+            );
+            for w in ws_ctx.warnings {
                 if !workbook.warnings.contains(&w) {
                     workbook.warnings.push(w);
                 }
@@ -331,15 +328,17 @@ impl FirstView {
             if let Some(sel) = kept_sel {
                 ws.view.selection = Some(sel);
             }
+            // Dump / edit / paint read `.cells`; match parse_all_worksheets.
             ws.ensure_dump_cells(&workbook.shared_strings);
             sheets.push(ws);
             self.windows[sheet] = None;
             self.logical_views[sheet] = None;
+            // parse_worksheet always reads the full part (no dimension early-stop).
             if let Some(slot) = self.truncated.get_mut(sheet) {
-                *slot = truncated;
+                *slot = false;
             }
             if let Some(slot) = self.tail_complete.get_mut(sheet) {
-                *slot = !truncated;
+                *slot = true;
             }
         }
         self.merge_pkg(&pkg);

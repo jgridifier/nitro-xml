@@ -60,36 +60,6 @@ pub(crate) struct SheetRequest<'a> {
     pub full_sheet: bool,
 }
 
-/// Full worksheet stream for edit soft-share (all cells, full sheetData walk).
-pub(crate) fn load_sheet_full(
-    pkg: &mut Package,
-    req: &SheetRequest<'_>,
-    resolved: &mut crate::fast_hash::FastSet<usize>,
-    warnings: &mut Vec<String>,
-) -> Result<(ActiveWorksheet, u32, bool), String> {
-    let full = SheetRequest {
-        part_name: req.part_name,
-        view: ViewportRect {
-            r0: 0,
-            c0: 0,
-            r1: 0,
-            c1: 0,
-        },
-        xf_map: req.xf_map,
-        date1904: req.date1904,
-        palette: req.palette,
-        dxfs: req.dxfs,
-        dynamic_cells: req.dynamic_cells,
-        strings_part: req.strings_part,
-        name: req.name,
-        sheet_id: req.sheet_id,
-        state: req.state,
-        allow_early_stop: false,
-        full_sheet: true,
-    };
-    load_sheet_window(pkg, &full, resolved, warnings)
-}
-
 /// `(sheet, rows_visited, truncated)` — `truncated` means inflate stopped before `</sheetData>`.
 pub(crate) fn load_sheet_window(
     pkg: &mut Package,

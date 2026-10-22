@@ -29,12 +29,8 @@ impl XlsxState {
             return Ok(());
         }
         if self.lazy_first_view_mut().is_some() {
-            let active = self.active;
-            if let Some(lazy) = self.lazy_first_view_mut() {
-                if !lazy.is_sheet_complete(active) {
-                    lazy.ensure_sheet_complete(active)?;
-                }
-            }
+            // Soft-share reloads every sheet via parse_worksheet (full part + merges/CF).
+            // Skip ensure_sheet_complete SeekTail — it re-streams sheetData only to be discarded.
             self.clear_pending_tail_complete();
             let (workbook, sheets) = self
                 .lazy_first_view_mut()

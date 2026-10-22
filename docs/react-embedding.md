@@ -130,6 +130,11 @@ this branch):
 `measure-edit-latency.mjs` (`EDIT_SAMPLES=20`, after): xlsx cell S p50 **8.9 ms**,
 L p50 **16.1 ms** (barrier after open; first-paint path unchanged).
 
+Follow-up on tip: measure/outline refine is fire-and-forget after apply (eager
+brotli **17390 / 17408 B** with `er` / `whenEditReady` in lazy tick+wp). xlsx L
+paint-wait remains ~0.7 s class — soft-share is off the first frame, but host
+DOM apply / tick still dominate `waitFirstPaint`.
+
 ## Landed cuts
 
 | PR | Change |

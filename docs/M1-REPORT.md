@@ -598,7 +598,7 @@ Nitro **8W/0L** on comparable cells (pptx Nitro pixels **0.044%** vs 0.5% limit)
 
 **Crash recovery** on tip: `bash scripts/ci/crash_recovery.sh` → **PASS** (default **10** flake iterations × 3 formats).
 
-**M1 gate still open:** CI `scoreboard` job stub (#39) + draft **#113** (reproducible gate; not the Pages data file); **`perf-beats-ts` enforce** (#8); **xlsx S peak_mem** still **LOSS** at wasm compile floor; docx perf arm deferred (#23).
+**M1 gate still open:** CI `scoreboard` job stub (#39) + draft **#113** (reproducible gate; not the Pages data file); **`perf-beats-ts` enforce** (#8) — tip readiness: **pptx READY**, xlsx/docx NOT READY (peak_mem); **xlsx S peak_mem** still **LOSS** at wasm compile floor; docx perf arm deferred (#23).
 
 | Still blocked for CI scoreboard gate | Link | Why |
 |--------------------------------------|------|-----|

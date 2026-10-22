@@ -33,6 +33,8 @@ pub const INDENT_STEP_TWIPS: i64 = 720;
 
 /// Word's Add Space Before/After Paragraph (`w:spacing` before/after), 12 points.
 pub const PARAGRAPH_SPACE_TWIPS: i64 = 240;
+/// Word paragraph shading (`w:pPr/w:shd/@w:fill`). One click paints yellow.
+pub const PARAGRAPH_SHADE: &str = "#FFFF00";
 /// Word hanging indent (`w:ind/@w:hanging`). Half an inch, the same step as Increase Indent.
 /// `w:firstLine` and `w:hanging` are mutually exclusive, so setting this drops a direct first line.
 pub const HANGING_INDENT_TWIPS: i64 = INDENT_STEP_TWIPS;
@@ -169,6 +171,73 @@ pub fn toggle_paragraph_space(
         obj.remove(key);
     } else {
         obj.insert(key.into(), json!(PARAGRAPH_SPACE_TWIPS));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
+fn shade_hex(value: &Value) -> Option<String> {
+    let raw = value.as_str()?;
+    let hex = raw.trim_start_matches('#').to_ascii_uppercase();
+    if hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        Some(hex)
+    } else {
+        None
+    }
+}
+
+/// Direct `w:shd`, or the paragraph style's fill. An empty direct value clears a style fill.
+pub fn effective_paragraph_shading(host: &DocxHost, block_index: usize) -> Option<String> {
+    let block = host.paragraph(block_index).ok()?;
+    if block.get("shadingFill").is_some() {
+        return block.get("shadingFill").and_then(shade_hex);
+    }
+    let style_id = block.get("style").and_then(|v| v.as_str())?;
+    host.paragraph_styles
+        .as_ref()
+        .and_then(|c| c.get("styles"))
+        .and_then(|s| s.get(style_id))
+        .and_then(|s| s.get("formatting"))
+        .and_then(|f| f.get("shadingFill"))
+        .and_then(shade_hex)
+}
+
+/// Toggle yellow paragraph shading. A paragraph already yellow drops the direct fill, and writes
+/// an empty fill when the style would otherwise keep yellow.
+pub fn toggle_paragraph_shading(host: &mut DocxHost, block_index: usize) -> Result<(), EditError> {
+    let yellow = effective_paragraph_shading(host, block_index).as_deref() == Some("FFFF00");
+    let style_yellow = {
+        let block = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?;
+        let style_id = block.get("style").and_then(|v| v.as_str());
+        style_id
+            .and_then(|id| {
+                host.paragraph_styles
+                    .as_ref()
+                    .and_then(|c| c.get("styles"))
+                    .and_then(|s| s.get(id))
+                    .and_then(|s| s.get("formatting"))
+                    .and_then(|f| f.get("shadingFill"))
+                    .and_then(shade_hex)
+            })
+            .as_deref()
+            == Some("FFFF00")
+    };
+    let block = host
+        .paragraph_mut(block_index)
+        .map_err(|e| EditError::Other { message: e })?;
+    let obj = block.as_object_mut().ok_or_else(|| EditError::Other {
+        message: format!("paragraph {block_index} is not an object"),
+    })?;
+    if yellow {
+        if style_yellow {
+            obj.insert("shadingFill".into(), json!(""));
+        } else {
+            obj.remove("shadingFill");
+        }
+    } else {
+        obj.insert("shadingFill".into(), json!(PARAGRAPH_SHADE));
     }
     host.mark_touched(block_index);
     Ok(())
@@ -972,5 +1041,51 @@ mod tests {
         set_text_scale(&mut host, 0, 0, 100).unwrap();
         assert_eq!(host.blocks[0]["runs"][0]["textScalePercent"], 100);
         assert_eq!(effective_text_scale_percent(&host, 0, 0), 100);
+    }
+
+    #[test]
+    fn catches_shade_leaving_w_shd_off_an_unshaded_paragraph() {
+        // Catches: Shade leaving shadingFill unset, so save omits w:shd.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        assert!(effective_paragraph_shading(&host, 0).is_none());
+        toggle_paragraph_shading(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["shadingFill"], "#FFFF00");
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_paragraph_shading(&mut host, 0).unwrap();
+        assert!(host.blocks[0].get("shadingFill").is_none());
+    }
+
+    #[test]
+    fn catches_shade_on_a_green_title_writing_yellow() {
+        // Catches: Shade on a title whose style fill is green writing yellow, then clearing back onto that green.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Title": { "id": "Title", "formatting": { "shadingFill": "#00FF00" } } }
+        }));
+        assert_eq!(
+            effective_paragraph_shading(&host, 0).as_deref(),
+            Some("00FF00")
+        );
+        toggle_paragraph_shading(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["shadingFill"], "#FFFF00");
+        assert_eq!(
+            effective_paragraph_shading(&host, 0).as_deref(),
+            Some("FFFF00")
+        );
+        toggle_paragraph_shading(&mut host, 0).unwrap();
+        assert!(host.blocks[0].get("shadingFill").is_none());
+        assert_eq!(
+            effective_paragraph_shading(&host, 0).as_deref(),
+            Some("00FF00")
+        );
     }
 }

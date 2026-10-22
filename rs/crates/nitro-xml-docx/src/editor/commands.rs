@@ -14,9 +14,9 @@ use crate::edit::format::{
     effective_run_font_pt, effective_text_scale_percent, set_character_spacing,
     set_paragraph_align, set_paragraph_style, set_run_formatting, set_text_scale,
     step_office_font_pt, toggle_caps, toggle_double_underline, toggle_first_line_indent,
-    toggle_hanging_indent, toggle_paragraph_space, toggle_vanish, CHAR_SPACING_LIMIT_TWIPS,
-    CHAR_SPACING_STEP_TWIPS, INDENT_STEP_TWIPS, TEXT_SCALE_MAX_PERCENT, TEXT_SCALE_MIN_PERCENT,
-    TEXT_SCALE_STEP_PERCENT,
+    toggle_hanging_indent, toggle_paragraph_shading, toggle_paragraph_space, toggle_vanish,
+    CHAR_SPACING_LIMIT_TWIPS, CHAR_SPACING_STEP_TWIPS, INDENT_STEP_TWIPS, TEXT_SCALE_MAX_PERCENT,
+    TEXT_SCALE_MIN_PERCENT, TEXT_SCALE_STEP_PERCENT,
 };
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
@@ -75,6 +75,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("outdent-right", "Decrease Right Indent", None, true),
     word_cmd!("line-spacing", "Line Spacing", None, true),
     word_cmd!("space-before", "Space Before", None, true),
+    word_cmd!("shading", "Shade", None, true),
     word_cmd!("space-after", "Space After", None, true),
     word_cmd!("hanging-indent", "Hanging", None, true),
     word_cmd!("first-line", "First Line", None, true),
@@ -438,6 +439,19 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         cycle_line_spacing(h, caret_block)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "shading" => {
+                session.run(
+                    String::from("shading"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        toggle_paragraph_shading(h, caret_block)?;
                         Ok(())
                     },
                 )?;

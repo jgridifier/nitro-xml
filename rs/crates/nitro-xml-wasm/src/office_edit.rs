@@ -1402,6 +1402,67 @@ mod tests {
     }
 
     #[test]
+    fn catches_shade_leaving_w_shd_off_the_saved_paragraph() {
+        // Catches: Shade leaving w:shd off the saved paragraph, or undoing as more than one step.
+        let marks = |bytes: &[u8]| {
+            let h = open_editable(bytes, "pages.docx");
+            h.docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .blocks
+                .iter()
+                .map(|b| {
+                    b.get("shadingFill")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut h = open_editable(DOCX, "pages.docx");
+        let start = marks(DOCX);
+        h.shell_action("cmd", "home.shading").expect("shade");
+        let saved = h.save_document().expect("save shade");
+        assert_ne!(saved, DOCX);
+        let after = marks(&saved);
+        let changed = start
+            .iter()
+            .zip(after.iter())
+            .enumerate()
+            .filter(|(_, (a, b))| a != b)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), 1, "shade touched {changed:?}");
+        let idx = changed[0];
+        assert_eq!(after[idx].as_deref(), Some("#FFFF00"));
+        h.shell_action("cmd", "edit.undo").expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
+
+        let strip = h.docx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.shading\""));
+        let home = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .ribbon_html();
+        assert!(home.contains("data-command=\"shading\""));
+        let pptx = open_editable(PPTX, "slides.pptx");
+        assert!(!pptx
+            .pptx
+            .as_ref()
+            .unwrap()
+            .ribbon_html()
+            .contains("home.shading"));
+    }
+
+    #[test]
     fn catches_docx_shell_bold_leaving_the_package_unchanged() {
         // Catches: home.bold on a document staying on the xlsx command table, so w:b never flips.
         let mut h = open_editable(DOCX, "pages.docx");

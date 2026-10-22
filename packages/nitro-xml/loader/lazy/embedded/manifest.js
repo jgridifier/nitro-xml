@@ -86,6 +86,7 @@ export const MANIFEST = {
         items: [
           ...font.items,
           cmd("home.highlight", "highlight", "Highlight", "Text highlight"),
+          cmd("home.shading", "shade", "Shade", "Shade the paragraph yellow"),
           cmd("home.space-before", "spaceBefore", "Space before", "Add 12 pt space before the paragraph"),
           cmd("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),
           cmd("home.hanging-indent", "hanging", "Hanging", "Hanging indent, half an inch"),

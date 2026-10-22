@@ -48,6 +48,9 @@ pub fn write_paragraph(
     if spacing_differs(paragraph, base) {
         sync_spacing(&mut out, paragraph);
     }
+    if field_differs(paragraph, base, "shadingFill") {
+        sync_shading(&mut out, paragraph);
+    }
 
     let runs = paragraph
         .get("runs")
@@ -227,6 +230,37 @@ fn sync_spacing(out: &mut Element, paragraph: &Value) {
     }
 }
 
+/// `w:shd` follows `shadingFill`. An absent field drops a stale shade. An empty string writes
+/// `w:fill="auto"` so a styled shade does not stick.
+fn sync_shading(out: &mut Element, paragraph: &Value) {
+    let fill = paragraph.get("shadingFill").and_then(|v| v.as_str());
+    let has = first_w_mut(out, "pPr")
+        .and_then(|p| first_w_mut(p, "shd"))
+        .is_some();
+    if fill.is_none() && !has {
+        return;
+    }
+    if first_w_mut(out, "pPr").is_none() {
+        out.children.insert(0, Node::Element(make_w("pPr")));
+    }
+    let p_pr = first_w_mut(out, "pPr").expect("pPr");
+    remove_w_children(p_pr, "shd");
+    let Some(fill) = fill else {
+        return;
+    };
+    let mut shd = make_w("shd");
+    set_w_attr(&mut shd, "val", "clear");
+    set_w_attr(&mut shd, "color", "auto");
+    let hex = fill.trim_start_matches('#');
+    let fill_attr = if hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        hex
+    } else {
+        "auto"
+    };
+    set_w_attr(&mut shd, "fill", fill_attr);
+    p_pr.children.push(Node::Element(shd));
+}
+
 /// `w:pStyle` follows the block's `style` field. An empty style drops a stale `pStyle`.
 fn sync_p_style(out: &mut Element, paragraph: &Value) {
     if first_w_mut(out, "pPr").is_none() {
@@ -284,4 +318,43 @@ fn sync_num_pr(out: &mut Element, paragraph: &Value) {
 pub fn create_paragraph(paragraph: &Value) -> Result<Element, String> {
     let node = make_w("p");
     write_paragraph(paragraph, &node, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn shd_fill(el: &Element) -> Option<&str> {
+        let props = el.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "pPr" => Some(e),
+            _ => None,
+        })?;
+        let shd = props.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "shd" => Some(e),
+            _ => None,
+        })?;
+        shd.attrs
+            .iter()
+            .find(|a| a.local == "fill")
+            .map(|a| a.value.as_str())
+    }
+
+    #[test]
+    fn catches_shade_omitting_w_shd() {
+        // Catches: a yellow paragraph saving without w:shd, or a cleared shade leaving the old fill.
+        let base = json!({"id": "p0", "runs": [{"text": "Hi"}]});
+        let shaded = json!({"id": "p0", "runs": [{"text": "Hi"}], "shadingFill": "#FFFF00"});
+        let on = write_paragraph(&shaded, &make_w("p"), Some(&base)).unwrap();
+        assert_eq!(shd_fill(&on), Some("FFFF00"));
+        let cleared = write_paragraph(&base, &on, Some(&shaded)).unwrap();
+        assert_eq!(shd_fill(&cleared), None);
+        let auto = write_paragraph(
+            &json!({"id": "p0", "runs": [{"text": "Hi"}], "shadingFill": ""}),
+            &on,
+            Some(&shaded),
+        )
+        .unwrap();
+        assert_eq!(shd_fill(&auto), Some("auto"));
+    }
 }

@@ -584,6 +584,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.shading",
+                    label: "Shade",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.space-before",
                     label: "Space Before",
                     enabled: true,
@@ -752,6 +757,7 @@ fn canonical_command(id: &str) -> &str {
         "home.indent-right" => "indent-right",
         "home.outdent-right" => "outdent-right",
         "home.line-spacing" => "line-spacing",
+        "home.shading" => "shading",
         "home.space-before" => "space-before",
         "home.space-after" => "space-after",
         "home.hanging-indent" => "hanging-indent",

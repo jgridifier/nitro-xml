@@ -86,6 +86,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("table.insert-column", "Insert Column", None, true),
     pptx_cmd!("table.delete-column", "Delete Column", None, true),
     pptx_cmd!("table.cell-text", "Cell Text", None, true),
+    pptx_cmd!("table.delete", "Delete Table", None, true),
     pptx_cmd!("insert.slide", "New Slide", None, true),
     pptx_cmd!("insert.duplicate-slide", "Duplicate Slide", None, true),
     pptx_cmd!("insert.move-slide-up", "Move Slide Up", None, true),
@@ -612,6 +613,27 @@ impl PptxCommandSurface {
                 Ok(())
             }
             "table.cell-text" => dispatch_cell_text(selection, session),
+            "table.delete" => {
+                let slide = selection.slide_index;
+                let Some(element_id) = table_target(&session.host, selection) else {
+                    return Ok(());
+                };
+                let clear_id = element_id.clone();
+                session.run(
+                    "table.delete",
+                    ChangeKind::Structure,
+                    vec![EditScope::Workbook],
+                    move |host| -> Result<(), EditError> {
+                        host.delete_shape(slide, Some(&element_id), None)
+                            .map_err(|e| EditError::Other { message: e })?;
+                        Ok(())
+                    },
+                )?;
+                if selection.primary_id() == Some(clear_id.as_str()) {
+                    selection.clear();
+                }
+                Ok(())
+            }
             "table.insert-row"
             | "table.delete-row"
             | "table.insert-column"

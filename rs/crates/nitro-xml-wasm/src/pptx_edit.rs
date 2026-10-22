@@ -574,6 +574,11 @@ impl PptxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "table.delete",
+                    label: "Delete Table",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "insert.slide",
                     label: "New Slide",
                     enabled: true,

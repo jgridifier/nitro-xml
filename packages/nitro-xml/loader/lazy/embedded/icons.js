@@ -42,4 +42,5 @@ export const ICONS = {
   firstLine: '<path d="M8 6h12M4 11h16M4 15h16M4 19h16"/>',
   group: '<rect x="3" y="8" width="8" height="8"/><rect x="13" y="8" width="8" height="8"/><path d="M3 5h18M3 19h18"/>',
   ungroup: '<rect x="2" y="8" width="7" height="7"/><rect x="15" y="8" width="7" height="7"/><path d="M10 5v14"/>',
+  tableDel: '<rect x="3" y="4" width="14" height="12" rx="1"/><path d="M3 8h14M8 4v12M16 16l5 5M21 16l-5 5"/>',
 };

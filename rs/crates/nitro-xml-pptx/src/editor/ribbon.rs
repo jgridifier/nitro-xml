@@ -134,6 +134,7 @@ pub fn ribbon_html(
             false,
         ));
         html.push_str(&button("table.cell-text", "Cell Text", surface, false));
+        html.push_str(&button("table.delete", "Delete Table", surface, false));
         html.push_str("</section>");
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Slides\">");
         html.push_str(&button("insert.slide", "New Slide", surface, false));

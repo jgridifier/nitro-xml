@@ -1961,6 +1961,71 @@ mod tests {
         assert!(!word_strip.contains("home.ungroup"));
     }
 
+    #[test]
+    fn catches_pptx_delete_table_removing_the_selected_shape_or_undoing_with_insert() {
+        // Catches: Delete Table removing the selected shape instead of the table, or one undo
+        // rolling the delete and the insert back together.
+        let open = |bytes: &[u8]| nitro_xml_pptx::editor::PptxEditor::open(bytes).expect("open");
+        let tables = |bytes: &[u8]| {
+            open(bytes)
+                .session
+                .host
+                .slides
+                .iter()
+                .flat_map(|s| s.elements.iter())
+                .filter(|el| el.type_ == "table")
+                .count()
+        };
+        let titled = |bytes: &[u8]| {
+            open(bytes).session.host.slides[0]
+                .elements
+                .iter()
+                .filter(|el| {
+                    el.text.as_deref().unwrap_or("").contains("Slide 1")
+                        || el.text_segments.iter().any(|s| s.text.contains("Slide 1"))
+                })
+                .count()
+        };
+        let mut h = open_editable(PPTX, "slides.pptx");
+        h.shell_action("cmd", "table.delete").expect("noop");
+        assert_eq!(
+            h.save_document().expect("noop save"),
+            PPTX,
+            "delete with no table changed the package"
+        );
+        let before = tables(PPTX);
+        let title_before = titled(PPTX);
+        assert!(title_before >= 1, "fixture title missing");
+        h.shell_action("cmd", "insert.table").expect("table");
+        let with_table = h.save_document().expect("save table");
+        assert_eq!(tables(&with_table), before + 1);
+        let title_id = {
+            let edit = h.pptx.as_ref().unwrap().edit.as_ref().unwrap();
+            edit.session.host.slides[0]
+                .elements
+                .iter()
+                .find(|el| el.type_ != "table")
+                .map(|el| el.id.clone())
+                .expect("non-table shape")
+        };
+        h.pptx.as_mut().unwrap().selected_ids = vec![title_id];
+        h.shell_action("cmd", "table.delete").expect("delete");
+        let deleted = h.save_document().expect("save delete");
+        assert_ne!(deleted, with_table);
+        assert_eq!(tables(&deleted), before, "table still in the package");
+        assert_eq!(
+            titled(&deleted),
+            title_before,
+            "delete removed the selected shape"
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo delete");
+        assert_eq!(h.save_document().expect("delete undone"), with_table);
+        h.shell_action("cmd", "edit.undo").expect("undo insert");
+        assert_eq!(h.save_document().expect("insert undone"), PPTX);
+        let strip = h.pptx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"table.delete\""));
+    }
+
     fn apply_cmd(h: &mut Handle, cmd: &'static str) {
         h.apply_edit(&format!(r#"{{"command":"{cmd}"}}"#))
             .expect(cmd);
@@ -2024,6 +2089,7 @@ mod tests {
                 "table.delete-row",
                 "table.insert-column",
                 "table.delete-column",
+                "table.delete",
             ] {
                 assert!(
                     insert.contains(&format!("data-command=\"{id}\"")),
@@ -2041,6 +2107,7 @@ mod tests {
             "insert.table",
             "table.insert-row",
             "table.delete-column",
+            "table.delete",
         ] {
             assert!(
                 strip.contains(&format!("data-g=\"{id}\"")),

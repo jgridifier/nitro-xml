@@ -29,9 +29,21 @@ const PPTX_NAV: &str = "|ArrowRight:nav-next|ArrowLeft:nav-prev|PageDown:nav-nex
 /// and any open dialog/menu overlay (#54).
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(test)]
+use std::sync::{Mutex, MutexGuard};
 
 #[cfg(test)]
 static CHROME_REST_HTML_CALLS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static CHROME_REST_HTML_CALLS_LOCK: Mutex<()> = Mutex::new(());
+
+/// Hold across reset → call → assert so parallel tests cannot interleave the counter.
+#[cfg(test)]
+pub fn chrome_rest_html_calls_lock() -> MutexGuard<'static, ()> {
+    CHROME_REST_HTML_CALLS_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
 
 #[cfg(test)]
 pub fn chrome_rest_html_calls_reset() {

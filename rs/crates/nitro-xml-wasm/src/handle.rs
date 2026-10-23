@@ -2147,8 +2147,11 @@ mod tests {
     #[test]
     fn formula_only_chrome_skips_chrome_rest_html_build() {
         // Catches: formula-only chrome path still allocated full chrome_rest_html.
-        use crate::shell::{chrome_rest_html_calls, chrome_rest_html_calls_reset};
+        use crate::shell::{
+            chrome_rest_html_calls, chrome_rest_html_calls_lock, chrome_rest_html_calls_reset,
+        };
 
+        let _guard = chrome_rest_html_calls_lock();
         let mut h = Handle::new(Vec::new());
         h.editor.load();
         h.editor.set_read_only(false);
@@ -2174,8 +2177,11 @@ mod tests {
     #[test]
     fn formula_only_chrome_payload_omits_ui_chrome_html() {
         // Catches: formula-only applyEdit payload still embedded full ui.chromeHtml (~50KB).
-        use crate::shell::{chrome_rest_html_calls, chrome_rest_html_calls_reset};
+        use crate::shell::{
+            chrome_rest_html_calls, chrome_rest_html_calls_lock, chrome_rest_html_calls_reset,
+        };
 
+        let _guard = chrome_rest_html_calls_lock();
         let mut h = Handle::new(Vec::new());
         h.editor.load();
         h.editor.set_read_only(false);

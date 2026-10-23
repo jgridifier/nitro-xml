@@ -604,6 +604,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.border-double",
+                    label: "Double Border",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.page-break-before",
                     label: "Page Break Before",
                     enabled: true,
@@ -781,6 +786,7 @@ fn canonical_command(id: &str) -> &str {
         "home.border-bottom" => "border-bottom",
         "home.border-top" => "border-top",
         "home.border-left" => "border-left",
+        "home.border-double" => "border-double",
         "home.page-break-before" => "page-break-before",
         "home.space-before" => "space-before",
         "home.space-after" => "space-after",

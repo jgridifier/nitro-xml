@@ -28,7 +28,12 @@ pub struct DocxHost {
     pub character_styles: Option<Value>,
     /// Section properties including header/footer stories (#79).
     pub sections: Option<Value>,
+    /// Section snapshot at open. Page-setup edits compare against this so a
+    /// landscape toggle is dirty without rewriting paragraph blocks.
+    pub base_sections: Option<Value>,
     pub page: Option<Value>,
+    /// `page` at open. Same role as [`Self::base_sections`].
+    pub base_page: Option<Value>,
     pub even_and_odd_headers: bool,
     pub comments: Option<Vec<Value>>,
     pub comments_touched: bool,
@@ -50,7 +55,9 @@ impl DocxHost {
             paragraph_styles: None,
             character_styles: None,
             sections: None,
+            base_sections: None,
             page: None,
+            base_page: None,
             even_and_odd_headers: false,
             comments: None,
             comments_touched: false,
@@ -68,6 +75,8 @@ impl DocxHost {
             .to_owned();
         let m = &loaded.model;
         let blocks = m.blocks.clone();
+        let sections = m.sections.as_ref().map(|s| json!(s));
+        let page = Some(m.page.clone());
         Ok(Self {
             format: m.format.clone(),
             blocks: blocks.clone(),
@@ -76,8 +85,10 @@ impl DocxHost {
             numbering_catalog: m.numbering_catalog.clone(),
             paragraph_styles: m.paragraph_styles.clone(),
             character_styles: m.character_styles.clone(),
-            sections: m.sections.as_ref().map(|s| json!(s)),
-            page: Some(m.page.clone()),
+            sections: sections.clone(),
+            base_sections: sections,
+            page: page.clone(),
+            base_page: page,
             even_and_odd_headers: m.even_and_odd_headers,
             comments: m.comments.clone(),
             comments_touched: false,
@@ -88,6 +99,8 @@ impl DocxHost {
     /// True when the live model differs from the package-open snapshot (TS save dirty check).
     pub fn is_dirty(&self) -> bool {
         !blocks_json_equal(&self.blocks, &self.base_blocks)
+            || self.page != self.base_page
+            || self.sections != self.base_sections
     }
 
     pub fn mark_touched(&mut self, block: usize) {
@@ -182,7 +195,9 @@ impl DocxHost {
             "paragraphStyles": self.paragraph_styles,
             "characterStyles": self.character_styles,
             "sections": self.sections,
+            "baseSections": self.base_sections,
             "page": self.page,
+            "basePage": self.base_page,
             "evenAndOddHeaders": self.even_and_odd_headers,
             "comments": self.comments,
             "commentsTouched": self.comments_touched,
@@ -211,7 +226,13 @@ impl DocxHost {
         self.paragraph_styles = v.get("paragraphStyles").cloned().filter(|x| !x.is_null());
         self.character_styles = v.get("characterStyles").cloned().filter(|x| !x.is_null());
         self.sections = v.get("sections").cloned().filter(|x| !x.is_null());
+        if v.get("baseSections").is_some() {
+            self.base_sections = v.get("baseSections").cloned().filter(|x| !x.is_null());
+        }
         self.page = v.get("page").cloned().filter(|x| !x.is_null());
+        if v.get("basePage").is_some() {
+            self.base_page = v.get("basePage").cloned().filter(|x| !x.is_null());
+        }
         self.even_and_odd_headers = v
             .get("evenAndOddHeaders")
             .and_then(|x| x.as_bool())

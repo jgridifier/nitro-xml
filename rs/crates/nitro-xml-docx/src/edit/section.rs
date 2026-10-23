@@ -224,6 +224,90 @@ fn restore_open_margins(host: &mut DocxHost) -> Result<(), EditError> {
     Ok(())
 }
 
+const WIDE_MARGINS: [(&str, &str, i64, f64); 4] = [
+    ("marginTopTwips", "marginTop", 1440, 96.0),
+    ("marginRightTwips", "marginRight", 2880, 192.0),
+    ("marginBottomTwips", "marginBottom", 1440, 96.0),
+    ("marginLeftTwips", "marginLeft", 2880, 192.0),
+];
+
+/// Set Word's Wide margin preset, or restore the margins from open.
+///
+/// Wide is one inch on the top and bottom and two inches on the left and
+/// right. Print layout reads `margin*Twips`. The writer reads the CSS-pixel
+/// margin fields on `host.page`. Restoring the open snapshot makes a second
+/// click clean, so save returns the original package bytes.
+pub fn toggle_wide_margins(host: &mut DocxHost) -> Result<(), EditError> {
+    let already = {
+        let section = section_mut(host, 0)?;
+        WIDE_MARGINS
+            .iter()
+            .all(|(section_key, _, twips, _)| margin_twips(section, section_key) == *twips)
+    };
+    if already {
+        restore_wide_margins(host)
+    } else {
+        apply_wide_margins(host)
+    }
+}
+
+fn apply_wide_margins(host: &mut DocxHost) -> Result<(), EditError> {
+    {
+        let section = section_mut(host, 0)?;
+        if let Some(obj) = section.as_object_mut() {
+            for (section_key, _, twips, _) in WIDE_MARGINS {
+                obj.insert(section_key.into(), json!(twips));
+            }
+        }
+    }
+    let page = host.page.get_or_insert_with(|| json!({}));
+    if let Some(obj) = page.as_object_mut() {
+        for (_, page_key, _, px) in WIDE_MARGINS {
+            obj.insert(page_key.into(), json!(px));
+        }
+    }
+    Ok(())
+}
+
+fn restore_wide_margins(host: &mut DocxHost) -> Result<(), EditError> {
+    let section_vals: Vec<Value> = WIDE_MARGINS
+        .iter()
+        .map(|(section_key, _, _, _)| {
+            host.base_sections
+                .as_ref()
+                .and_then(|sections| sections.get(0))
+                .and_then(|section| section.get(*section_key))
+                .cloned()
+                .unwrap_or_else(|| json!(1440))
+        })
+        .collect();
+    let page_vals: Vec<Value> = WIDE_MARGINS
+        .iter()
+        .map(|(_, page_key, _, _)| {
+            host.base_page
+                .as_ref()
+                .and_then(|page| page.get(*page_key))
+                .cloned()
+                .unwrap_or_else(|| json!(96.0))
+        })
+        .collect();
+    {
+        let section = section_mut(host, 0)?;
+        if let Some(obj) = section.as_object_mut() {
+            for ((section_key, _, _, _), value) in WIDE_MARGINS.iter().zip(section_vals) {
+                obj.insert((*section_key).into(), value);
+            }
+        }
+    }
+    let page = host.page.get_or_insert_with(|| json!({}));
+    if let Some(obj) = page.as_object_mut() {
+        for ((_, page_key, _, _), value) in WIDE_MARGINS.iter().zip(page_vals) {
+            obj.insert((*page_key).into(), value);
+        }
+    }
+    Ok(())
+}
+
 /// Set column count on a section.
 pub fn set_section_columns(
     host: &mut DocxHost,
@@ -398,6 +482,82 @@ mod tests {
         assert_eq!(host.sections.as_ref().unwrap()[0]["marginLeftTwips"], 1800);
         assert_eq!(host.sections.as_ref().unwrap()[0]["marginRightTwips"], 1800);
         assert_eq!(host.page.as_ref().unwrap()["marginLeft"], 120.0);
+        assert!(!host.is_dirty());
+    }
+    #[test]
+    fn catches_wide_margins_leaving_w_pg_mar_sides_at_one_inch() {
+        // Catches: Wide margins leaving w:pgMar left and right at one inch, so the reopened page keeps the narrow inset.
+        let bytes = include_bytes!("../../../../../fixtures/generated/docx/pages_10.docx");
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        assert!(!host.is_dirty());
+        toggle_wide_margins(&mut host).unwrap();
+        assert!(host.is_dirty());
+        let section = &host.sections.as_ref().unwrap()[0];
+        assert_eq!(section["marginTopTwips"], 1440);
+        assert_eq!(section["marginBottomTwips"], 1440);
+        assert_eq!(section["marginLeftTwips"], 2880);
+        assert_eq!(section["marginRightTwips"], 2880);
+        let page = host.page.as_ref().unwrap();
+        assert_eq!(page["marginTop"], 96.0);
+        assert_eq!(page["marginBottom"], 96.0);
+        assert_eq!(page["marginLeft"], 192.0);
+        assert_eq!(page["marginRight"], 192.0);
+        let saved = crate::save_docx(&host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let mut pkg = nitro_xml_opc::opc::Package::open(&saved).expect("pkg");
+        let xml = pkg
+            .text("word/document.xml")
+            .expect("read")
+            .expect("document.xml");
+        assert!(
+            xml.contains("w:left=\"2880\""),
+            "left margin stayed one inch: {xml}"
+        );
+        assert!(
+            xml.contains("w:right=\"2880\""),
+            "right margin stayed one inch"
+        );
+        assert!(xml.contains("w:top=\"1440\""), "top margin left one inch");
+        assert!(
+            xml.contains("w:bottom=\"1440\""),
+            "bottom margin left one inch"
+        );
+        toggle_wide_margins(&mut host).unwrap();
+        assert!(
+            !host.is_dirty(),
+            "second wide-margins click left the host dirty"
+        );
+        let restored = crate::save_docx(&host, bytes.as_slice()).expect("save restored");
+        assert_eq!(restored.as_slice(), bytes.as_slice());
+    }
+
+    #[test]
+    fn catches_wide_margins_restoring_a_one_and_a_quarter_inch_side() {
+        // Catches: Wide margins restoring every side to one inch, so a 1.25 inch left margin comes back as 1 inch.
+        let mut host = DocxHost::stub(vec![]);
+        host.sections = Some(json!([{
+            "marginTopTwips": 720,
+            "marginRightTwips": 1800,
+            "marginBottomTwips": 1440,
+            "marginLeftTwips": 1800
+        }]));
+        host.base_sections = host.sections.clone();
+        host.page = Some(json!({
+            "marginTop": 48.0,
+            "marginRight": 120.0,
+            "marginBottom": 96.0,
+            "marginLeft": 120.0
+        }));
+        host.base_page = host.page.clone();
+        toggle_wide_margins(&mut host).unwrap();
+        assert_eq!(host.sections.as_ref().unwrap()[0]["marginLeftTwips"], 2880);
+        assert_eq!(host.sections.as_ref().unwrap()[0]["marginTopTwips"], 1440);
+        toggle_wide_margins(&mut host).unwrap();
+        assert_eq!(host.sections.as_ref().unwrap()[0]["marginLeftTwips"], 1800);
+        assert_eq!(host.sections.as_ref().unwrap()[0]["marginRightTwips"], 1800);
+        assert_eq!(host.sections.as_ref().unwrap()[0]["marginTopTwips"], 720);
+        assert_eq!(host.page.as_ref().unwrap()["marginLeft"], 120.0);
+        assert_eq!(host.page.as_ref().unwrap()["marginTop"], 48.0);
         assert!(!host.is_dirty());
     }
 }

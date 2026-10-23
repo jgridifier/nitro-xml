@@ -6,7 +6,7 @@
 // stops the build of the others.
 import { build } from 'esbuild';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -76,6 +76,7 @@ const ADAPTERS = [
 	'rust-nitro-xlsx',
 	'rust-nitro-docx',
 	'rust-nitro-pptx',
+	'betteroffice-docx',
 ];
 
 const status = {};
@@ -122,4 +123,29 @@ await build({
 	outfile: join(out, 'harness.js'),
 	logLevel: 'warning',
 });
+
+// BetterOffice parseDocx loads opc+parse wasm via new URL(..., import.meta.url)
+// relative to the bundled adapter. Copy those assets next to dist/bundles/.
+if (status['betteroffice-docx']?.built) {
+	try {
+		const distDir = join(here, 'node_modules', '@betteroffice', 'docx', 'dist');
+		const copies = [
+			['generated/opc/ooxml_opc_bg.wasm', 'generated/opc/ooxml_opc_bg.wasm'],
+			['generated/parse/docx_parse_bg.wasm', 'generated/parse/docx_parse_bg.wasm'],
+		];
+		for (const [rel, destRel] of copies) {
+			const src = join(distDir, rel);
+			if (!existsSync(src)) throw new Error(`missing ${src}`);
+			const dest = join(out, destRel);
+			mkdirSync(dirname(dest), { recursive: true });
+			copyFileSync(src, dest);
+		}
+		status['betteroffice-docx'].wasmAssets = copies.map(([, d]) => d);
+		console.log('copied betteroffice opc+parse wasm next to bundles/');
+	} catch (e) {
+		status['betteroffice-docx'].wasmAssetsError = String(e.message ?? e);
+		console.log(`FAILED betteroffice wasm copy: ${status['betteroffice-docx'].wasmAssetsError}`);
+	}
+}
+
 writeFileSync(join(out, 'status.json'), JSON.stringify(status, null, 2));

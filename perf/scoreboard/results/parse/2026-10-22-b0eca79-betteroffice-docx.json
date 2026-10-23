@@ -1,0 +1,2301 @@
+{
+ "race": "parse",
+ "schema": 1,
+ "generatedAt": "2026-10-22T17:01:41.545Z",
+ "startedAt": "2026-10-22T17:01:07.549Z",
+ "git": {
+  "sha": "b0eca792db73ba7f577f67c3e34feff2018f55c1",
+  "short": "b0eca79",
+  "branch": "cursor/issue-30-betteroffice-docx-parse-5eae",
+  "upstream": "e66aaec24adc0b68472eae1fc42aa4598e09c352"
+ },
+ "machine": {
+  "cpuModel": "Intel(R) Xeon(R) Processor",
+  "logicalCores": 4,
+  "ramBytes": 16780574720,
+  "memInfo": "MemTotal:       16387280 kB",
+  "platform": "Linux 6.12.94+ x64",
+  "node": "v22.14.0",
+  "ci": null
+ },
+ "browser": {
+  "name": "Google Chrome (headless)",
+  "executable": "/usr/local/bin/google-chrome",
+  "version": "154.0.8037.92",
+  "flags": [
+   "--enable-precise-memory-info",
+   "--js-flags=--expose-gc",
+   "--disable-renderer-backgrounding",
+   "--disable-background-timer-throttling"
+  ],
+  "crossOriginIsolated": true
+ },
+ "method": {
+  "warmupRuns": 1,
+  "timedRuns": 3,
+  "timer": "performance.now() around parse() only; bytes already in memory; a fresh copy of the bytes per run, made outside the timed span",
+  "gcBetweenRuns": "gc() (--expose-gc) before every run, outside the timed span",
+  "isolation": "fresh browser context and page per (file, entrant)",
+  "order": "entrants in a seeded random order per file (mulberry32, seed 20261011)",
+  "memory": "approximate: performance.memory.usedJSHeapSize just before and just after the last timed parse (model retained), plus wasm linear memory size for wasm entrants; not a peak measurement",
+  "reference": "upstream-ts",
+  "equivalence": "see docs/scoreboard-method.md#equivalence"
+ },
+ "entrants": [
+  {
+   "id": "nitro-xml",
+   "name": "Nitro XML (Rust/WASM)",
+   "formats": [
+    "xlsx",
+    "docx",
+    "pptx"
+   ],
+   "version": "0.0.0 (workspace nitro-xml-xlsx / nitro-xml-docx / nitro-xml-pptx, path-dep from rs/crates/)",
+   "licence": "MIT AND Apache-2.0",
+   "language": "Rust (WASM)",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "xlsx": "load_workbook_meta(bytes) then parse_all_worksheets(bytes, &wb). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+    "docx": "read_package(bytes). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+    "pptx": "Presentation::open(bytes) then ensure_all_slides(). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+    "doc": "https://github.com/jgridifier/nitro-xml/tree/main/rs/crates"
+   },
+   "status": "entered",
+   "reason": null,
+   "wasmBytes": 1323481,
+   "bundleBytes": {
+    "xlsx": 3368,
+    "docx": 3690,
+    "pptx": 3368
+   },
+   "adapters": {
+    "xlsx": "rust-nitro-xlsx",
+    "docx": "rust-nitro-docx",
+    "pptx": "rust-nitro-pptx"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "upstream-ts",
+   "name": "upstream ooxml TS (ChristopherVR/ooxml, ooxml-core)",
+   "formats": [
+    "xlsx",
+    "docx",
+    "pptx"
+   ],
+   "version": "git e66aaec24adc0b68472eae1fc42aa4598e09c352 (ooxml-core 1.8.2), built from the upstream/ submodule",
+   "licence": "Apache-2.0",
+   "language": "TypeScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "xlsx": "loadWorkbook(bytes) from ooxml-core/xlsx/load, the call the upstream Excel UI makes (src/ui/src/xlsx/editor-files.ts)",
+    "docx": "loadDocument(bytes) from ooxml-core/docx/load, the call the upstream Word UI makes (src/ui/src/docx/component.ts)",
+    "pptx": "new PptxHandler().load(arrayBuffer) from ooxml-core/pptx, as the upstream PowerPoint viewer does (viewers/pptx/packages/angular/src/viewer/load-content.service.ts)",
+    "doc": "https://github.com/ChristopherVR/ooxml/blob/e66aaec24adc0b68472eae1fc42aa4598e09c352/src/core/README.md"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "xlsx": 552242,
+    "docx": 477443,
+    "pptx": 3405879
+   },
+   "adapters": {
+    "xlsx": "upstream-xlsx",
+    "docx": "upstream-docx",
+    "pptx": "upstream-pptx"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "sheetjs",
+   "name": "SheetJS Community Edition",
+   "formats": [
+    "xlsx"
+   ],
+   "version": "0.20.3",
+   "licence": "Apache-2.0",
+   "language": "JavaScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "XLSX.read(bytes, { type: 'array', dense: true, cellText: false, cellFormula: false, cellHTML: false, cellStyles: false })",
+    "why": "dense mode is the documented faster/lower-memory sheet layout; cellText/cellFormula/cellHTML skip formatted text, formulae and rich-text HTML, none of which the parse race's equivalence output (value + type) needs",
+    "doc": "https://docs.sheetjs.com/docs/api/parse-options"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "xlsx": 371416
+   },
+   "adapters": {
+    "xlsx": "sheetjs"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "exceljs",
+   "name": "ExcelJS",
+   "formats": [
+    "xlsx"
+   ],
+   "version": "4.4.0",
+   "licence": "MIT",
+   "language": "JavaScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "new ExcelJS.Workbook().xlsx.load(bytes)",
+    "why": "the documented browser reader; the faster streaming WorkbookReader needs Node streams and files and is not available in a browser",
+    "doc": "https://github.com/exceljs/exceljs#reading-xlsx"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "xlsx": 947914
+   },
+   "adapters": {
+    "xlsx": "exceljs"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "calamine",
+   "name": "calamine (Rust, via wasm-bindgen)",
+   "formats": [
+    "xlsx"
+   ],
+   "version": "0.36.1 (crates.io)",
+   "licence": "MIT",
+   "language": "Rust (WASM)",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "Xlsx::new(Cursor::new(bytes)) then Reader::worksheets() (all sheet ranges into memory); default features (no chrono). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+    "why": "calamine is lazy per sheet; worksheets() is the documented call that reads every sheet's values, which the equivalence check needs",
+    "doc": "https://docs.rs/calamine/0.36.1/calamine/trait.Reader.html#tymethod.worksheets"
+   },
+   "status": "entered",
+   "reason": null,
+   "wasmBytes": 498763,
+   "bundleBytes": {
+    "xlsx": 3366
+   },
+   "adapters": {
+    "xlsx": "rust-calamine"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "umya-spreadsheet",
+   "name": "umya-spreadsheet (Rust, via wasm-bindgen)",
+   "formats": [
+    "xlsx"
+   ],
+   "version": "3.1.0 (crates.io)",
+   "licence": "MIT",
+   "language": "Rust (WASM)",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "reader::xlsx::read_reader(Cursor::new(bytes), true). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3; getrandom 0.4 'wasm_js' feature enabled (its documented wasm32 backend, pulled in via rand)",
+    "why": "the full reader; lazy_read leaves sheets undeserialised, so it would not yield the cell values the equivalence check needs",
+    "doc": "https://docs.rs/umya-spreadsheet/3.1.0/umya_spreadsheet/reader/xlsx/fn.read_reader.html"
+   },
+   "status": "entered",
+   "reason": null,
+   "wasmBytes": 2356186,
+   "bundleBytes": {
+    "xlsx": 3362
+   },
+   "adapters": {
+    "xlsx": "rust-umya"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "docx-preview",
+   "name": "docx-preview (docxjs)",
+   "formats": [
+    "docx"
+   ],
+   "version": "0.4.1",
+   "licence": "Apache-2.0",
+   "language": "TypeScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "parseAsync(bytes, {}) (the parse half of renderAsync; parsing does not consult the render options)",
+    "doc": "https://github.com/VolodymyrBaydalka/docxjs#api"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "docx": 148463
+   },
+   "adapters": {
+    "docx": "docx-preview"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "mammoth",
+   "name": "mammoth.js",
+   "formats": [
+    "docx"
+   ],
+   "version": "1.13.0",
+   "licence": "BSD-2-Clause",
+   "language": "JavaScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "mammoth.extractRawText({ arrayBuffer })",
+    "why": "its cheapest public API that yields all body text; there is no public parse-only API, so the timed span also produces the text string (cheap compared with convertToHtml)",
+    "doc": "https://github.com/mwilliamson/mammoth.js#mammothextractrawtextinput"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "docx": 307811
+   },
+   "adapters": {
+    "docx": "mammoth"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "docx-rs",
+   "name": "docx-rs (Rust, via wasm-bindgen)",
+   "formats": [
+    "docx"
+   ],
+   "version": "0.4.22 (crates.io)",
+   "licence": "MIT",
+   "language": "Rust (WASM)",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "read_docx(bytes). Built wasm32-unknown-unknown release, opt-level 3, LTO, codegen-units 1, wasm-opt -O3",
+    "doc": "https://docs.rs/docx-rs/0.4.22/docx_rs/fn.read_docx.html"
+   },
+   "status": "entered",
+   "reason": null,
+   "wasmBytes": 1731720,
+   "bundleBytes": {
+    "docx": 4230
+   },
+   "adapters": {
+    "docx": "rust-docx-rs"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "betteroffice-docx",
+   "name": "BetterOffice (@betteroffice/docx)",
+   "formats": [
+    "docx"
+   ],
+   "version": "0.4.3 (npm)",
+   "licence": "Apache-2.0",
+   "language": "Rust (WASM) + TypeScript",
+   "timingScope": "parse",
+   "fastestConfig": {
+    "setting": "parseDocx(bytes, { preloadFonts: false, parseHeadersFooters: false, parseNotes: false }) — opc+parse wasm only; layout/edit wasm unused",
+    "why": "documented headless parse API; skipping fonts/headers/notes is the cheapest path that still yields the body paragraph model the equivalence check needs",
+    "doc": "https://www.npmjs.com/package/@betteroffice/docx"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "docx": 298506
+   },
+   "adapters": {
+    "docx": "betteroffice-docx"
+   },
+   "scripts": [],
+   "refuses": {}
+  },
+  {
+   "id": "pptxjs",
+   "name": "PPTXjs",
+   "formats": [
+    "pptx"
+   ],
+   "version": "v1.21.1 = git 1a9260b2062f89ba822aeb54da792236780af8e7 (not published on npm; files fetched from GitHub and sha256-verified by build.mjs)",
+   "licence": "MIT",
+   "language": "JavaScript (jQuery plugin)",
+   "timingScope": "parse + HTML generation + DOM insertion (no parse-only API)",
+   "fastestConfig": {
+    "setting": "$(host).pptxToHtml({ pptxFileUrl: <blob: URL of the in-memory bytes>, mediaProcess: false, slideMode: false })",
+    "why": "its only public API; it parses and generates and inserts the slides' HTML in one synchronous pass, so its parse-race time includes HTML generation and DOM insertion (more work than a parse: flagged on the page). mediaProcess:false is a documented option that skips audio/video extraction and does not change text",
+    "doc": "https://github.com/meshesha/PPTXjs#usage"
+   },
+   "status": "entered",
+   "reason": null,
+   "bundleBytes": {
+    "pptx": 1208
+   },
+   "adapters": {
+    "pptx": "pptxjs"
+   },
+   "scripts": [
+    "/dist/bundles/pptxjs-vendor.js"
+   ],
+   "refuses": {}
+  },
+  {
+   "id": "libreoffice-wasm",
+   "name": "LibreOffice WASM (ZetaOffice / LOWA)",
+   "formats": [
+    "xlsx",
+    "docx",
+    "pptx"
+   ],
+   "version": null,
+   "licence": "MPL-2.0 (LibreOffice core); zetajs wrapper MIT",
+   "language": "C++ (Emscripten WASM)",
+   "timingScope": "parse",
+   "fastestConfig": null,
+   "status": "not entered",
+   "reason": "not entered: the documented binaries are only published under the unversioned path zetaoffice_latest (cannot be pinned, which the fairness rules require), they are about 53 MB (soffice.wasm 36.3 MB + soffice.data 15.9 MB + soffice.js 0.9 MB) and need a cross-origin-isolated threaded page, and LibreOffice has no parse-only boundary: loadComponentFromURL imports and lays out the document into the Writer/Calc/Impress model, so a parse-race number would not measure the same work. Building a pinned LOWA from source was not feasible in this run. Revisit for the render-to-first-paint race with a self-built, pinned LOWA."
+  }
+ ],
+ "evaluated": [
+  {
+   "name": "@silurus/ooxml (yukiyokotani/office-open-xml-viewer)",
+   "version": "0.88.0 (npm, 2026-09-21)",
+   "licence": "MIT",
+   "language": "Rust parsers compiled to WASM + TypeScript Canvas renderers",
+   "upkeep": "very active (last commit 2026-10-11); README states the whole codebase is written by AI coding agents",
+   "assessment": "docx/xlsx/pptx viewer (17 MB unpacked). Public API is viewer classes (DocxViewer, ...) that parse and paint; candidate for the render-to-first-paint race, not entered in the parse race because no documented parse-only API with a cell/text model was found.",
+   "status": "evaluated, not entered"
+  },
+  {
+   "name": "shrimp-doc-viewer (cjo4m06/shrimp-doc-viewer)",
+   "version": "0.5.0 (npm, 2026-08-14)",
+   "licence": "MIT OR Apache-2.0 (licence files in the npm package; the GitHub repo has no detected licence)",
+   "language": "Rust/WASM core, JS API",
+   "upkeep": "single commit burst (last commit 2026-08-14), 1 star",
+   "assessment": "viewer-only (renderDocxInto, XlsxViewer, ...); no parse-only API. Candidate for first-paint only; low upkeep.",
+   "status": "evaluated, not entered"
+  },
+  {
+   "name": "OpenOOXML/BetterOffice (openooxml/betteroffice)",
+   "version": "@betteroffice/docx 0.4.3 (npm, 2026-10-03)",
+   "licence": "Apache-2.0",
+   "language": "Rust compiled to WASM",
+   "upkeep": "very active (created 2026-07-11, last commit 2026-10-09)",
+   "assessment": "@betteroffice/docx entered in the docx parse race (see entrants.betteroffice-docx). Layout/edit wasm and xlsx/pptx packages remain out of scope for this slice.",
+   "status": "entered (docx parse)"
+  },
+  {
+   "name": "pptx-preview",
+   "version": "1.0.7 (npm, 2025-10-17)",
+   "licence": "ISC",
+   "language": "JavaScript",
+   "upkeep": "last publish 2025-10-17; npm lists no source repository",
+   "assessment": "renderer only (init(el).preview(arrayBuffer)), minified dist without a public repo; no parse-only API. Candidate for first paint only.",
+   "status": "evaluated, not entered"
+  }
+ ],
+ "files": [
+  {
+   "format": "docx",
+   "file": "poi-45690.docm",
+   "bytes": 49596,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      22.23,
+      16.675,
+      16.255
+     ],
+     "medianMs": 16.67500001192093,
+     "minMs": 16.25499999523163,
+     "maxMs": 22.230000019073486,
+     "approxHeapBeforeBytes": 3266677,
+     "approxHeapAfterBytes": 6988692,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 25,
+     "comparable": false,
+     "firstDifference": {
+      "paragraph": 1,
+      "reference": "\"[править]\"",
+      "entrant": "\"[]\"",
+      "context": {
+       "at": 1,
+       "reference": "[править]",
+       "entrant": "[]"
+      },
+      "counts": [
+       25,
+       25
+      ]
+     }
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      70.485,
+      63.85,
+      76.175
+     ],
+     "medianMs": 70.48500001430511,
+     "minMs": 63.849999994039536,
+     "maxMs": 76.17500001192093,
+     "approxHeapBeforeBytes": 6333865,
+     "approxHeapAfterBytes": 18278213,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 25,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-58067.docx",
+   "bytes": 28709,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      13.255,
+      13.175,
+      12.55
+     ],
+     "medianMs": 13.174999982118607,
+     "minMs": 12.550000011920929,
+     "maxMs": 13.254999995231628,
+     "approxHeapBeforeBytes": 4482016,
+     "approxHeapAfterBytes": 8871411,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      3.04,
+      2.54,
+      2.325
+     ],
+     "medianMs": 2.5399999916553497,
+     "minMs": 2.3250000178813934,
+     "maxMs": 3.0399999916553497,
+     "approxHeapBeforeBytes": 2307377,
+     "approxHeapAfterBytes": 2412258,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-60158.docm",
+   "bytes": 15617,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      9.925,
+      9.645,
+      8.62
+     ],
+     "medianMs": 9.644999980926514,
+     "minMs": 8.620000004768372,
+     "maxMs": 9.925000011920929,
+     "approxHeapBeforeBytes": 3899832,
+     "approxHeapAfterBytes": 5150271,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 3,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      2.245,
+      2.435,
+      1.83
+     ],
+     "medianMs": 2.2450000047683716,
+     "minMs": 1.8300000131130219,
+     "maxMs": 2.435000002384186,
+     "approxHeapBeforeBytes": 2219573,
+     "approxHeapAfterBytes": 2266677,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 3,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-60316.docx",
+   "bytes": 48142,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      5.345,
+      4.6,
+      4.875
+     ],
+     "medianMs": 4.875,
+     "minMs": 4.600000023841858,
+     "maxMs": 5.344999998807907,
+     "approxHeapBeforeBytes": 2476998,
+     "approxHeapAfterBytes": 2772934,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 18,
+     "comparable": false,
+     "firstDifference": {
+      "paragraph": 1,
+      "reference": "\"Experience\"",
+      "entrant": "\"Getting the perfect job might be challenging, but a great-looking résumé doesn’t have to be! We’ve provided a few quick tips to help you get started. To replace any tip text with your own, just click",
+      "context": {
+       "at": 0,
+       "reference": "Experience",
+       "entrant": "Getting the perfect job might be challen"
+      },
+      "counts": [
+       5,
+       18
+      ]
+     }
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      26.61,
+      26.95,
+      25.73
+     ],
+     "medianMs": 26.610000014305115,
+     "minMs": 25.730000019073486,
+     "maxMs": 26.94999998807907,
+     "approxHeapBeforeBytes": 5164773,
+     "approxHeapAfterBytes": 9556299,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-60316.dotx",
+   "bytes": 59583,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      5.525,
+      4.95,
+      5.545
+     ],
+     "medianMs": 5.5250000059604645,
+     "minMs": 4.950000017881393,
+     "maxMs": 5.5450000166893005,
+     "approxHeapBeforeBytes": 2526655,
+     "approxHeapAfterBytes": 2776681,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 18,
+     "comparable": false,
+     "firstDifference": {
+      "paragraph": 1,
+      "reference": "\"Experience\"",
+      "entrant": "\"Getting the perfect job might be challenging, but a great-looking résumé doesn’t have to be! We’ve provided a few quick tips to help you get started. To replace any tip text with your own, just click",
+      "context": {
+       "at": 0,
+       "reference": "Experience",
+       "entrant": "Getting the perfect job might be challen"
+      },
+      "counts": [
+       5,
+       18
+      ]
+     }
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      27.83,
+      32.105,
+      27.66
+     ],
+     "medianMs": 27.8299999833107,
+     "minMs": 27.65999999642372,
+     "maxMs": 32.105000019073486,
+     "approxHeapBeforeBytes": 4903898,
+     "approxHeapAfterBytes": 8847843,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-60329.docx",
+   "bytes": 31124,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      30.48,
+      32.17,
+      31.615
+     ],
+     "medianMs": 31.61499997973442,
+     "minMs": 30.480000019073486,
+     "maxMs": 32.16999998688698,
+     "approxHeapBeforeBytes": 4953387,
+     "approxHeapAfterBytes": 8903963,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      7.625,
+      6.9,
+      7.4
+     ],
+     "medianMs": 7.4000000059604645,
+     "minMs": 6.9000000059604645,
+     "maxMs": 7.625,
+     "approxHeapBeforeBytes": 2469040,
+     "approxHeapAfterBytes": 3251353,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 18,
+     "comparable": false,
+     "firstDifference": {
+      "paragraph": 0,
+      "reference": "(missing)",
+      "entrant": "\"Protocol No. (Document ID):\"",
+      "counts": [
+       0,
+       18
+      ]
+     }
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-61470.docx",
+   "bytes": 12523,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      22.73,
+      22.91,
+      19.345
+     ],
+     "medianMs": 22.729999989271164,
+     "minMs": 19.344999998807907,
+     "maxMs": 22.90999999642372,
+     "approxHeapBeforeBytes": 3936658,
+     "approxHeapAfterBytes": 4811259,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      3.165,
+      2.63,
+      1.95
+     ],
+     "medianMs": 2.6299999952316284,
+     "minMs": 1.9500000178813934,
+     "maxMs": 3.1649999916553497,
+     "approxHeapBeforeBytes": 2211839,
+     "approxHeapAfterBytes": 2277355,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-61745.docx",
+   "bytes": 37030,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      22.6,
+      21.93,
+      20.315
+     ],
+     "medianMs": 21.930000007152557,
+     "minMs": 20.314999997615814,
+     "maxMs": 22.599999994039536,
+     "approxHeapBeforeBytes": 4759257,
+     "approxHeapAfterBytes": 8726115,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      4.89,
+      4.55,
+      3.36
+     ],
+     "medianMs": 4.550000011920929,
+     "minMs": 3.3600000143051147,
+     "maxMs": 4.890000015497208,
+     "approxHeapBeforeBytes": 2377922,
+     "approxHeapAfterBytes": 2658359,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-Bug54849.docx",
+   "bytes": 27566,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      18.85,
+      16.43,
+      16.225
+     ],
+     "medianMs": 16.430000007152557,
+     "minMs": 16.225000023841858,
+     "maxMs": 18.849999994039536,
+     "approxHeapBeforeBytes": 4611780,
+     "approxHeapAfterBytes": 7711342,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 7,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      4.25,
+      3.37,
+      3.31
+     ],
+     "medianMs": 3.3700000047683716,
+     "minMs": 3.310000002384186,
+     "maxMs": 4.25,
+     "approxHeapBeforeBytes": 2335397,
+     "approxHeapAfterBytes": 2556155,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 17,
+     "comparable": false,
+     "firstDifference": {
+      "paragraph": 0,
+      "reference": "\"Blahdeblah1\"",
+      "entrant": "\"Rich_text\"",
+      "context": {
+       "at": 0,
+       "reference": "Blahdeblah1",
+       "entrant": "Rich_text"
+      },
+      "counts": [
+       7,
+       17
+      ]
+     }
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-SimpleMacro.docm",
+   "bytes": 15517,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      2.4,
+      2.305,
+      4.21
+     ],
+     "medianMs": 2.4000000059604645,
+     "minMs": 2.3050000071525574,
+     "maxMs": 4.21000000834465,
+     "approxHeapBeforeBytes": 2217971,
+     "approxHeapAfterBytes": 2295054,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      8.23,
+      9.035,
+      8.16
+     ],
+     "medianMs": 8.229999989271164,
+     "minMs": 8.159999996423721,
+     "maxMs": 9.034999996423721,
+     "approxHeapBeforeBytes": 3829490,
+     "approxHeapAfterBytes": 5047529,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-WordWithAttachments.docx",
+   "bytes": 144959,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      8.2,
+      7.64,
+      8.355
+     ],
+     "medianMs": 8.199999988079071,
+     "minMs": 7.639999985694885,
+     "maxMs": 8.355000019073486,
+     "approxHeapBeforeBytes": 3073893,
+     "approxHeapAfterBytes": 3867014,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 31,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      26.76,
+      25.485,
+      23.8
+     ],
+     "medianMs": 25.485000014305115,
+     "minMs": 23.80000001192093,
+     "maxMs": 26.759999990463257,
+     "approxHeapBeforeBytes": 5361156,
+     "approxHeapAfterBytes": 11973457,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 31,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-bug65649.docx",
+   "bytes": 474844,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      3566.33,
+      3611.46,
+      3599.725
+     ],
+     "medianMs": 3599.7249999940395,
+     "minMs": 3566.330000013113,
+     "maxMs": 3611.4600000083447,
+     "approxHeapBeforeBytes": 132078322,
+     "approxHeapAfterBytes": 598998070,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 12264,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      860.08,
+      988.62,
+      893.93
+     ],
+     "medianMs": 893.9300000071526,
+     "minMs": 860.0799999833107,
+     "maxMs": 988.6200000047684,
+     "approxHeapBeforeBytes": 26422863,
+     "approxHeapAfterBytes": 75465938,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 12264,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-chartex.docx",
+   "bytes": 133304,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      8.49,
+      7.87,
+      8.065
+     ],
+     "medianMs": 8.064999997615814,
+     "minMs": 7.870000004768372,
+     "maxMs": 8.490000009536743,
+     "approxHeapBeforeBytes": 3121198,
+     "approxHeapAfterBytes": 4030198,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      32.77,
+      35.235,
+      32.035
+     ],
+     "medianMs": 32.770000010728836,
+     "minMs": 32.03499999642372,
+     "maxMs": 35.235000014305115,
+     "approxHeapBeforeBytes": 6104117,
+     "approxHeapAfterBytes": 12087605,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-delins.docx",
+   "bytes": 17720,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      31.12,
+      31.445,
+      29.4
+     ],
+     "medianMs": 31.12000000476837,
+     "minMs": 29.400000005960464,
+     "maxMs": 31.444999992847443,
+     "approxHeapBeforeBytes": 5033472,
+     "approxHeapAfterBytes": 12678656,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 21,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      7.395,
+      6.96,
+      6.365
+     ],
+     "medianMs": 6.96000000834465,
+     "minMs": 6.365000009536743,
+     "maxMs": 7.395000010728836,
+     "approxHeapBeforeBytes": 2347201,
+     "approxHeapAfterBytes": 3000725,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 21,
+     "comparable": false,
+     "firstDifference": {
+      "paragraph": 11,
+      "reference": "\"Lucene will be extremely well represented at ApacheCon EU 2009 in Amsterdam, Netherlands this March 23-27, 2009:\"",
+      "entrant": "\"Lucene will be extremely well represented at in Amsterdam, Netherlands this March 23-27, 2009:\"",
+      "context": {
+       "at": 45,
+       "reference": "e will be extremely well represented at ApacheCon EU 2009 in Amsterdam, Netherla",
+       "entrant": "e will be extremely well represented at in Amsterdam, Netherlands this March 23-"
+      },
+      "counts": [
+       21,
+       21
+      ]
+     }
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-drawing.docx",
+   "bytes": 95247,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      21.615,
+      18.34,
+      17.235
+     ],
+     "medianMs": 18.34000000357628,
+     "minMs": 17.234999984502792,
+     "maxMs": 21.61499997973442,
+     "approxHeapBeforeBytes": 3263400,
+     "approxHeapAfterBytes": 5245114,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 176,
+     "comparable": false,
+     "firstDifference": {
+      "paragraph": 9,
+      "reference": "\"НОВОСИБИРСК\"",
+      "entrant": "\"Ведомости и МАЗАЙ\"",
+      "context": {
+       "at": 0,
+       "reference": "НОВОСИБИРСК",
+       "entrant": "Ведомости и МАЗАЙ"
+      },
+      "counts": [
+       169,
+       176
+      ]
+     }
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      76.58,
+      69.515,
+      77.38
+     ],
+     "medianMs": 76.58000001311302,
+     "minMs": 69.51500001549721,
+     "maxMs": 77.37999999523163,
+     "approxHeapBeforeBytes": 6827978,
+     "approxHeapAfterBytes": 21962239,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 169,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-endnotes.docx",
+   "bytes": 13553,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      13.66,
+      11.78,
+      11.865
+     ],
+     "medianMs": 11.865000009536743,
+     "minMs": 11.780000001192093,
+     "maxMs": 13.659999996423721,
+     "approxHeapBeforeBytes": 4249803,
+     "approxHeapAfterBytes": 8893446,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 10,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      2.905,
+      2.44,
+      2.475
+     ],
+     "medianMs": 2.4749999940395355,
+     "minMs": 2.439999997615814,
+     "maxMs": 2.905000001192093,
+     "approxHeapBeforeBytes": 2217904,
+     "approxHeapAfterBytes": 2318198,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 10,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-form_footnotes.docx",
+   "bytes": 27824,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      63.32,
+      61.44,
+      62.105
+     ],
+     "medianMs": 62.104999989271164,
+     "minMs": 61.439999997615814,
+     "maxMs": 63.31999999284744,
+     "approxHeapBeforeBytes": 5702454,
+     "approxHeapAfterBytes": 18631194,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 104,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      17.045,
+      11.645,
+      10.62
+     ],
+     "medianMs": 11.645000010728836,
+     "minMs": 10.620000004768372,
+     "maxMs": 17.044999986886978,
+     "approxHeapBeforeBytes": 2601810,
+     "approxHeapAfterBytes": 3815814,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 104,
+     "comparable": false,
+     "firstDifference": {
+      "paragraph": 2,
+      "reference": "\"CONSULADO-GERAL EM\"",
+      "entrant": "\"CONSULADO-GERAL EM SAN FRANCISCO\"",
+      "context": {
+       "at": 18,
+       "reference": "CONSULADO-GERAL EM",
+       "entrant": "CONSULADO-GERAL EM SAN FRANCISCO"
+      },
+      "counts": [
+       104,
+       104
+      ]
+     }
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "poi-testComment.docx",
+   "bytes": 65298,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      6.545,
+      4.64,
+      4.24
+     ],
+     "medianMs": 4.640000015497208,
+     "minMs": 4.240000009536743,
+     "maxMs": 6.5450000166893005,
+     "approxHeapBeforeBytes": 2860340,
+     "approxHeapAfterBytes": 3810844,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      17.295,
+      17.035,
+      16.84
+     ],
+     "medianMs": 17.03499999642372,
+     "minMs": 16.84000000357628,
+     "maxMs": 17.294999986886978,
+     "approxHeapBeforeBytes": 4572211,
+     "approxHeapAfterBytes": 7808293,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 1,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-blk-paras-and-tables.docx",
+   "bytes": 15649,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      3.75,
+      2.78,
+      2.28
+     ],
+     "medianMs": 2.780000001192093,
+     "minMs": 2.280000001192093,
+     "maxMs": 3.75,
+     "approxHeapBeforeBytes": 2245672,
+     "approxHeapAfterBytes": 2397118,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 6,
+     "comparable": false,
+     "firstDifference": {
+      "paragraph": 2,
+      "reference": "\"Text after\"",
+      "entrant": "\"Table\"",
+      "context": {
+       "at": 1,
+       "reference": "Text after",
+       "entrant": "Table"
+      },
+      "counts": [
+       4,
+       6
+      ]
+     }
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      18.38,
+      15.685,
+      17.35
+     ],
+     "medianMs": 17.349999994039536,
+     "minMs": 15.685000002384186,
+     "maxMs": 18.37999999523163,
+     "approxHeapBeforeBytes": 4426015,
+     "approxHeapAfterBytes": 7481334,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 4,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-comments-rich-para.docx",
+   "bytes": 20023,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      18.265,
+      18.78,
+      17.445
+     ],
+     "medianMs": 18.265000015497208,
+     "minMs": 17.444999992847443,
+     "maxMs": 18.780000001192093,
+     "approxHeapBeforeBytes": 4369551,
+     "approxHeapAfterBytes": 7814816,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 7,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      3.795,
+      3.06,
+      3.03
+     ],
+     "medianMs": 3.060000002384186,
+     "minMs": 3.030000001192093,
+     "maxMs": 3.794999986886978,
+     "approxHeapBeforeBytes": 2321091,
+     "approxHeapAfterBytes": 2553824,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 7,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-doc-access-sections.docx",
+   "bytes": 25591,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      10.385,
+      9.11,
+      9.62
+     ],
+     "medianMs": 9.620000004768372,
+     "minMs": 9.109999984502792,
+     "maxMs": 10.38500002026558,
+     "approxHeapBeforeBytes": 4052812,
+     "approxHeapAfterBytes": 5545805,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 3,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      2.755,
+      2.35,
+      2.265
+     ],
+     "medianMs": 2.3499999940395355,
+     "minMs": 2.2650000154972076,
+     "maxMs": 2.7549999952316284,
+     "approxHeapBeforeBytes": 2279449,
+     "approxHeapAfterBytes": 2323308,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 3,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-having-images.docx",
+   "bytes": 132875,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      14.35,
+      12.57,
+      14.625
+     ],
+     "medianMs": 14.349999994039536,
+     "minMs": 12.569999992847443,
+     "maxMs": 14.625,
+     "approxHeapBeforeBytes": 4617374,
+     "approxHeapAfterBytes": 5168787,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      6.085,
+      6.63,
+      5.43
+     ],
+     "medianMs": 6.08500000834465,
+     "minMs": 5.430000007152557,
+     "maxMs": 6.630000025033951,
+     "approxHeapBeforeBytes": 3361805,
+     "approxHeapAfterBytes": 4663148,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-hdr-header-footer.docx",
+   "bytes": 18079,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      18.915,
+      16.715,
+      17.115
+     ],
+     "medianMs": 17.11499997973442,
+     "minMs": 16.71500000357628,
+     "maxMs": 18.91499999165535,
+     "approxHeapBeforeBytes": 4614998,
+     "approxHeapAfterBytes": 6750151,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 2,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      3.35,
+      2.81,
+      4.365
+     ],
+     "medianMs": 3.3499999940395355,
+     "minMs": 2.810000002384186,
+     "maxMs": 4.365000009536743,
+     "approxHeapBeforeBytes": 2252463,
+     "approxHeapAfterBytes": 2378065,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 2,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-sct-first-page-hdrftr.docx",
+   "bytes": 14849,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      13.69,
+      16.725,
+      14.61
+     ],
+     "medianMs": 14.610000014305115,
+     "minMs": 13.689999997615814,
+     "maxMs": 16.724999994039536,
+     "approxHeapBeforeBytes": 4364836,
+     "approxHeapAfterBytes": 6421807,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      2.855,
+      2.695,
+      2.295
+     ],
+     "medianMs": 2.695000022649765,
+     "minMs": 2.294999986886978,
+     "maxMs": 2.8550000190734863,
+     "approxHeapBeforeBytes": 2237009,
+     "approxHeapAfterBytes": 2359810,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-sct-inner-content.docx",
+   "bytes": 12051,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      2.75,
+      2.165,
+      2.13
+     ],
+     "medianMs": 2.1649999916553497,
+     "minMs": 2.130000025033951,
+     "maxMs": 2.75,
+     "approxHeapBeforeBytes": 2230231,
+     "approxHeapAfterBytes": 2356916,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 9,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      15.855,
+      11.145,
+      13.645
+     ],
+     "medianMs": 13.645000010728836,
+     "minMs": 11.144999980926514,
+     "maxMs": 15.854999989271164,
+     "approxHeapBeforeBytes": 4148346,
+     "approxHeapAfterBytes": 6267439,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 9,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-sct-section-props.docx",
+   "bytes": 28168,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      3.08,
+      2.595,
+      1.955
+     ],
+     "medianMs": 2.594999998807907,
+     "minMs": 1.9550000131130219,
+     "maxMs": 3.0799999833106995,
+     "approxHeapBeforeBytes": 2297380,
+     "approxHeapAfterBytes": 2374551,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      11,
+      9.455,
+      10.23
+     ],
+     "medianMs": 10.229999989271164,
+     "minMs": 9.4549999833107,
+     "maxMs": 11,
+     "approxHeapBeforeBytes": 4141967,
+     "approxHeapAfterBytes": 7870811,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 5,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-shp-inline-shape-access.docx",
+   "bytes": 122610,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      24.78,
+      23.355,
+      22.9
+     ],
+     "medianMs": 23.354999989271164,
+     "minMs": 22.900000005960464,
+     "maxMs": 24.77999997138977,
+     "approxHeapBeforeBytes": 5072871,
+     "approxHeapAfterBytes": 8294093,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      4.84,
+      4.33,
+      4.045
+     ],
+     "medianMs": 4.330000013113022,
+     "minMs": 4.044999986886978,
+     "maxMs": 4.840000003576279,
+     "approxHeapBeforeBytes": 2926484,
+     "approxHeapAfterBytes": 3311741,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-tbl-cell-access.docx",
+   "bytes": 36051,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      12.07,
+      13.91,
+      11.56
+     ],
+     "medianMs": 12.069999992847443,
+     "minMs": 11.560000002384186,
+     "maxMs": 13.909999996423721,
+     "approxHeapBeforeBytes": 3976248,
+     "approxHeapAfterBytes": 5044069,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 31,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      3.31,
+      2.835,
+      2.645
+     ],
+     "medianMs": 2.834999978542328,
+     "minMs": 2.6449999809265137,
+     "maxMs": 3.310000002384186,
+     "approxHeapBeforeBytes": 2354249,
+     "approxHeapAfterBytes": 2516755,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 31,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-tbl-cell-props.docx",
+   "bytes": 13773,
+   "entrantOrder": [
+    "upstream-ts",
+    "betteroffice-docx"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      17.39,
+      9.435,
+      12.505
+     ],
+     "medianMs": 12.504999995231628,
+     "minMs": 9.435000002384186,
+     "maxMs": 17.389999985694885,
+     "approxHeapBeforeBytes": 4050017,
+     "approxHeapAfterBytes": 8487760,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 14,
+     "comparable": true
+    },
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      2.67,
+      2.26,
+      1.95
+     ],
+     "medianMs": 2.2600000202655792,
+     "minMs": 1.9500000178813934,
+     "maxMs": 2.669999986886978,
+     "approxHeapBeforeBytes": 2224150,
+     "approxHeapAfterBytes": 2307576,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 14,
+     "comparable": true
+    }
+   }
+  },
+  {
+   "format": "docx",
+   "file": "python-docx-tbl-on-off-props.docx",
+   "bytes": 16017,
+   "entrantOrder": [
+    "betteroffice-docx",
+    "upstream-ts"
+   ],
+   "results": {
+    "betteroffice-docx": {
+     "status": "ok",
+     "timesMs": [
+      3.315,
+      2.41,
+      2.055
+     ],
+     "medianMs": 2.4099999964237213,
+     "minMs": 2.054999977350235,
+     "maxMs": 3.314999997615814,
+     "approxHeapBeforeBytes": 2238608,
+     "approxHeapAfterBytes": 2335255,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      13.415,
+      10.69,
+      12.205
+     ],
+     "medianMs": 12.205000013113022,
+     "minMs": 10.689999997615814,
+     "maxMs": 13.415000021457672,
+     "approxHeapBeforeBytes": 4055255,
+     "approxHeapAfterBytes": 8536578,
+     "wasmMemoryBeforeBytes": null,
+     "wasmMemoryAfterBytes": null,
+     "outputSize": 0,
+     "comparable": true
+    }
+   }
+  }
+ ],
+ "summary": {
+  "xlsx": {
+   "nitro-xml": {
+    "status": "entered",
+    "files": 0,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "upstream-ts": {
+    "status": "entered",
+    "files": 0,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": 1,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "sheetjs": {
+    "status": "entered",
+    "files": 0,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "exceljs": {
+    "status": "entered",
+    "files": 0,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "calamine": {
+    "status": "entered",
+    "files": 0,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "umya-spreadsheet": {
+    "status": "entered",
+    "files": 0,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "libreoffice-wasm": {
+    "status": "not entered",
+    "reason": "not entered: the documented binaries are only published under the unversioned path zetaoffice_latest (cannot be pinned, which the fairness rules require), they are about 53 MB (soffice.wasm 36.3 MB + soffice.data 15.9 MB + soffice.js 0.9 MB) and need a cross-origin-isolated threaded page, and LibreOffice has no parse-only boundary: loadComponentFromURL imports and lays out the document into the Writer/Calc/Impress model, so a parse-race number would not measure the same work. Building a pinned LOWA from source was not feasible in this run. Revisit for the render-to-first-paint race with a self-built, pinned LOWA."
+   }
+  },
+  "docx": {
+   "nitro-xml": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "upstream-ts": {
+    "status": "entered",
+    "files": 30,
+    "ran": 30,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 30,
+    "notComparable": 0,
+    "medianOfMediansMs": 17.232499986886978,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": 1,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "docx-preview": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "mammoth": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "docx-rs": {
+    "status": "entered",
+    "files": 30,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "betteroffice-docx": {
+    "status": "entered",
+    "files": 30,
+    "ran": 30,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 21,
+    "notComparable": 9,
+    "medianOfMediansMs": 2.695000022649765,
+    "sharedWithReference": 21,
+    "geomeanRatioVsReference": 0.21874008526485064,
+    "winsVsReference": 21,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [
+     {
+      "file": "poi-45690.docm",
+      "firstDifference": {
+       "paragraph": 1,
+       "reference": "\"[править]\"",
+       "entrant": "\"[]\"",
+       "context": {
+        "at": 1,
+        "reference": "[править]",
+        "entrant": "[]"
+       },
+       "counts": [
+        25,
+        25
+       ]
+      }
+     },
+     {
+      "file": "poi-60316.docx",
+      "firstDifference": {
+       "paragraph": 1,
+       "reference": "\"Experience\"",
+       "entrant": "\"Getting the perfect job might be challenging, but a great-looking résumé doesn’t have to be! We’ve provided a few quick tips to help you get started. To replace any tip text with your own, just click",
+       "context": {
+        "at": 0,
+        "reference": "Experience",
+        "entrant": "Getting the perfect job might be challen"
+       },
+       "counts": [
+        5,
+        18
+       ]
+      }
+     },
+     {
+      "file": "poi-60316.dotx",
+      "firstDifference": {
+       "paragraph": 1,
+       "reference": "\"Experience\"",
+       "entrant": "\"Getting the perfect job might be challenging, but a great-looking résumé doesn’t have to be! We’ve provided a few quick tips to help you get started. To replace any tip text with your own, just click",
+       "context": {
+        "at": 0,
+        "reference": "Experience",
+        "entrant": "Getting the perfect job might be challen"
+       },
+       "counts": [
+        5,
+        18
+       ]
+      }
+     },
+     {
+      "file": "poi-60329.docx",
+      "firstDifference": {
+       "paragraph": 0,
+       "reference": "(missing)",
+       "entrant": "\"Protocol No. (Document ID):\"",
+       "counts": [
+        0,
+        18
+       ]
+      }
+     },
+     {
+      "file": "poi-Bug54849.docx",
+      "firstDifference": {
+       "paragraph": 0,
+       "reference": "\"Blahdeblah1\"",
+       "entrant": "\"Rich_text\"",
+       "context": {
+        "at": 0,
+        "reference": "Blahdeblah1",
+        "entrant": "Rich_text"
+       },
+       "counts": [
+        7,
+        17
+       ]
+      }
+     },
+     {
+      "file": "poi-delins.docx",
+      "firstDifference": {
+       "paragraph": 11,
+       "reference": "\"Lucene will be extremely well represented at ApacheCon EU 2009 in Amsterdam, Netherlands this March 23-27, 2009:\"",
+       "entrant": "\"Lucene will be extremely well represented at in Amsterdam, Netherlands this March 23-27, 2009:\"",
+       "context": {
+        "at": 45,
+        "reference": "e will be extremely well represented at ApacheCon EU 2009 in Amsterdam, Netherla",
+        "entrant": "e will be extremely well represented at in Amsterdam, Netherlands this March 23-"
+       },
+       "counts": [
+        21,
+        21
+       ]
+      }
+     },
+     {
+      "file": "poi-drawing.docx",
+      "firstDifference": {
+       "paragraph": 9,
+       "reference": "\"НОВОСИБИРСК\"",
+       "entrant": "\"Ведомости и МАЗАЙ\"",
+       "context": {
+        "at": 0,
+        "reference": "НОВОСИБИРСК",
+        "entrant": "Ведомости и МАЗАЙ"
+       },
+       "counts": [
+        169,
+        176
+       ]
+      }
+     },
+     {
+      "file": "poi-form_footnotes.docx",
+      "firstDifference": {
+       "paragraph": 2,
+       "reference": "\"CONSULADO-GERAL EM\"",
+       "entrant": "\"CONSULADO-GERAL EM SAN FRANCISCO\"",
+       "context": {
+        "at": 18,
+        "reference": "CONSULADO-GERAL EM",
+        "entrant": "CONSULADO-GERAL EM SAN FRANCISCO"
+       },
+       "counts": [
+        104,
+        104
+       ]
+      }
+     },
+     {
+      "file": "python-docx-blk-paras-and-tables.docx",
+      "firstDifference": {
+       "paragraph": 2,
+       "reference": "\"Text after\"",
+       "entrant": "\"Table\"",
+       "context": {
+        "at": 1,
+        "reference": "Text after",
+        "entrant": "Table"
+       },
+       "counts": [
+        4,
+        6
+       ]
+      }
+     }
+    ],
+    "errorFiles": []
+   },
+   "libreoffice-wasm": {
+    "status": "not entered",
+    "reason": "not entered: the documented binaries are only published under the unversioned path zetaoffice_latest (cannot be pinned, which the fairness rules require), they are about 53 MB (soffice.wasm 36.3 MB + soffice.data 15.9 MB + soffice.js 0.9 MB) and need a cross-origin-isolated threaded page, and LibreOffice has no parse-only boundary: loadComponentFromURL imports and lays out the document into the Writer/Calc/Impress model, so a parse-race number would not measure the same work. Building a pinned LOWA from source was not feasible in this run. Revisit for the render-to-first-paint race with a self-built, pinned LOWA."
+   }
+  },
+  "pptx": {
+   "nitro-xml": {
+    "status": "entered",
+    "files": 0,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "upstream-ts": {
+    "status": "entered",
+    "files": 0,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": 1,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "pptxjs": {
+    "status": "entered",
+    "files": 0,
+    "ran": 0,
+    "errors": 0,
+    "skipped": 0,
+    "comparable": 0,
+    "notComparable": 0,
+    "medianOfMediansMs": null,
+    "sharedWithReference": 0,
+    "geomeanRatioVsReference": null,
+    "winsVsReference": 0,
+    "lossesVsReference": 0,
+    "tiesVsReference": 0,
+    "notComparableFiles": [],
+    "errorFiles": []
+   },
+   "libreoffice-wasm": {
+    "status": "not entered",
+    "reason": "not entered: the documented binaries are only published under the unversioned path zetaoffice_latest (cannot be pinned, which the fairness rules require), they are about 53 MB (soffice.wasm 36.3 MB + soffice.data 15.9 MB + soffice.js 0.9 MB) and need a cross-origin-isolated threaded page, and LibreOffice has no parse-only boundary: loadComponentFromURL imports and lays out the document into the Writer/Calc/Impress model, so a parse-race number would not measure the same work. Building a pinned LOWA from source was not feasible in this run. Revisit for the render-to-first-paint race with a self-built, pinned LOWA."
+   }
+  }
+ }
+}

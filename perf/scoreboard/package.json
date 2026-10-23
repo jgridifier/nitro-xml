@@ -10,6 +10,7 @@
     "race:first-paint": "node races/render/run.mjs"
   },
   "dependencies": {
+    "@betteroffice/docx": "0.4.3",
     "docx-preview": "0.4.1",
     "exceljs": "4.4.0",
     "jszip": "3.10.1",

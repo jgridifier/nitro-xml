@@ -619,6 +619,25 @@ Archive: `perf/scoreboard/results/parse/2026-10-22-09a82b3-nitro-upstream.json`.
 **Totals:** Nitro **90W/0L**, **90/90** comparable on tip. Median-of-medians: xlsx **6.48** ms
 (vs TS 18.82), docx **4.16** (vs 16.50), pptx **4.67** (vs 59.28).
 
+#### BetterOffice docx parse entrant (`b0eca79`)
+
+Entered **`@betteroffice/docx@0.4.3`** (Apache-2.0) in the docx parse race — Rust/WASM
+`parseDocx` with opc+parse wasm only (layout/edit unused). Adapter:
+`perf/scoreboard/adapters/js/betteroffice-docx.mjs`. Does **not** touch draft
+[#113](https://github.com/jgridifier/nitro-xml/pull/113) / `parse-latest.json`.
+
+Local race on tip **`b0eca79`** (warmup=1 / runs=3), archive
+`perf/scoreboard/results/parse/2026-10-22-b0eca79-betteroffice-docx.json`:
+
+| Entrant | Comparable | Geomean vs TS | W/L |
+|---------|-----------:|--------------:|:---:|
+| betteroffice-docx | **21/30** | **0.219** | **21W/0L** |
+| nitro-xml (same tip, prior remasure) | 30/30 | ~0.24–0.26 | 30W/0L |
+
+Nine files **not comparable** (drawings / fields / content-control / revision edge
+cases — same class of diffs as docx-preview / mammoth). Losses still shown as
+prominently as wins when present; this tip had **0** losses on comparable cells.
+
 **Render-to-first-paint** ([#41](https://github.com/jgridifier/nitro-xml/issues/41) closed): `perf/scoreboard/races/render/`
 times load+init+first paint (800×480, DPR 1). **xlsx** and **pptx** are entered for `nitro-xml` vs
 `upstream-ts`; docx deferred (#23). Equivalence unchanged from [#390](https://github.com/jgridifier/nitro-xml/pull/390).

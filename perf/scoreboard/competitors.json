@@ -168,6 +168,24 @@
       "status": "entered"
     },
     {
+      "id": "betteroffice-docx",
+      "name": "BetterOffice (@betteroffice/docx)",
+      "formats": ["docx"],
+      "language": "Rust (WASM) + TypeScript",
+      "version": "0.4.3 (npm)",
+      "source": "npm @betteroffice/docx@0.4.3",
+      "licence": "Apache-2.0",
+      "upkeep": { "latestRelease": "0.4.3 on npm, 2026-10-03", "latestCommit": "2026-10-09", "notes": "very active (openooxml/betteroffice)" },
+      "races": ["parse"],
+      "fastestConfig": {
+        "setting": "parseDocx(bytes, { preloadFonts: false, parseHeadersFooters: false, parseNotes: false }) — opc+parse wasm only; layout/edit wasm unused",
+        "why": "documented headless parse API; skipping fonts/headers/notes is the cheapest path that still yields the body paragraph model the equivalence check needs",
+        "doc": "https://www.npmjs.com/package/@betteroffice/docx"
+      },
+      "adapters": { "docx": "betteroffice-docx" },
+      "status": "entered"
+    },
+    {
       "id": "pptxjs",
       "name": "PPTXjs",
       "formats": ["pptx"],
@@ -226,8 +244,8 @@
       "licence": "Apache-2.0",
       "language": "Rust compiled to WASM",
       "upkeep": "very active (created 2026-07-11, last commit 2026-10-09)",
-      "assessment": "@betteroffice/docx exposes a real parse API (parseDocx) and a layout engine (31 MB unpacked, four wasm assets). Strong candidate for the docx parse race and first paint; not entered in this run (evaluation only was requested). xlsx/pptx packages not evaluated yet.",
-      "status": "evaluated, not entered"
+      "assessment": "@betteroffice/docx entered in the docx parse race (see entrants.betteroffice-docx). Layout/edit wasm and xlsx/pptx packages remain out of scope for this slice.",
+      "status": "entered (docx parse)"
     },
     {
       "name": "pptx-preview",

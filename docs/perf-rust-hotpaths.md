@@ -448,3 +448,21 @@ outliers but **+0.6 MiB edit heap** — rejected.
 
 Materialise (~0.9 s soft-share) now sits in the first editable `take-frame` (embed first-paint / open tick), not in timed sample0. Peak-mem wasm open path unchanged.
 
+## Slice 16: xlsx S TurboFan peak — `#[inline(never)]` on sheet_data stream helpers
+
+**Change:** `row_info_from_attrs`, `flush_stream_cell`, and `apply_stream_formula` in
+[`sheet_data.rs`](rs/crates/nitro-xml-xlsx/src/sheet_data.rs) are outlined so V8 does not compile
+per-cell value/formula materialise into `read_sheet_data_xml_stream` on first open (xlsx S is
+formula-light but still hits the stream loop thousands of times).
+
+**A/B** (`peak-mem.mjs --runs=9 --format=xlsx --tier=S,M,L`, wasm median open ms + post-init VmHWM
+growth MiB; baseline wasm pkg at `e6ff241`, branch `1da4223`):
+
+| Tier | baseline load ms | branch load ms | Δ load | baseline peak MiB | branch peak MiB | Δ peak |
+|---|--:|--:|--:|--:|--:|--:|
+| S | 25.98 | 20.99 | **−19%** | 15.70 | 14.08 | **−10%** |
+| M | 40.37 | 41.61 | +3% (noise) | 18.35 | 18.73 | +2% (noise) |
+| L | 27.92 | 27.16 | −3% (noise) | 22.27 | 22.34 | flat |
+
+**Verdict:** ship — clear xlsx S peak_mem win with faster S open and no material M/L regression.
+

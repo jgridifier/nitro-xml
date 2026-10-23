@@ -71,13 +71,13 @@ this._originalBytes = new Uint8Array(u8);
 this._ro = opts.readonly !== false;
 this._viewerReloadAttempted = false;
 this._editRecoveryAttempted = false;
-if (this._ro) {
 this._journal = null;
-} else {
-const { createJournal } = await import("./lazy/journal.js");
-this._journal = createJournal(this._originalBytes);
-}
 return this._openBytes(u8, n, opts);
+}
+async _ej() {
+if (this._journal || this._ro || !this._originalBytes) return this._journal;
+const { createJournal } = await import("./lazy/journal.js");
+return (this._journal = createJournal(this._originalBytes));
 }
 async reloadOnce() {
 if (this._viewerReloadAttempted) {
@@ -95,6 +95,7 @@ throw Object.assign(new Error(EDITOR_RECOVERY_FAILED_MESSAGE), {
 code: "editor_recovery_exhausted",
 });
 }
+await this._ej();
 if (!this._journal) {
 throw Object.assign(new Error("no journal"), { code: "editor_recovery_failed" });
 }
@@ -190,6 +191,7 @@ if (this._journal && bytes) this._journal.markSave(bytes);
 return bytes;
 }
 async applyEdit(spec) {
+await this._ej();
 const result = (await this._request("apply-edit", () => {
 this._worker.postMessage({ type: "apply-edit", spec: spec || "" });
 })).result;

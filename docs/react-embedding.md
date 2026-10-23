@@ -138,6 +138,45 @@ paint-wait remains ~0.8–0.9 s class on this VM (high harness variance on S/M);
 soft-share is off the first frame, but host DOM apply / tick still dominate
 `waitFirstPaint`.
 
+## Defer edit journal until first mutating `applyEdit`
+
+Host `createJournal(originalBytes)` no longer runs on every writable open; the
+journal is created lazily on the first mutating edit (mut-frame path included).
+Loader-only change; same `nitro_xml_wasm_bg.wasm` bytes on `main` @ `2397944`
+and branch `f4d77b9`.
+
+`measure-open-mem.mjs` on this VM (single cold run per cell; shared wasm pkg;
+`before` = main, `after` = defer-journal tip). Bundle brotli **17406 / 17408 B**.
+
+| Format | Tier | mount→paint before | after | Δ | open before | after | heap peak before | after |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| xlsx | S | 277 ms | 154 ms | −123 | 198 ms | 98 ms | 5.6 MiB | 5.5 MiB |
+| xlsx | M | 231 ms | 221 ms | −10 | 122 ms | 102 ms | 6.4 MiB | 6.4 MiB |
+| xlsx | L | 1056 ms | 760 ms | −296 | 63 ms | 93 ms | 15.6 MiB | 15.5 MiB |
+| docx | S | 167 ms | 135 ms | −32 | 92 ms | 88 ms | 5.6 MiB | 6.0 MiB |
+| docx | M | 140 ms | 165 ms | +25* | 89 ms | 97 ms | 6.1 MiB | 6.3 MiB |
+| docx | L | 221 ms | 196 ms | −25 | 97 ms | 99 ms | 10.8 MiB | 10.8 MiB |
+| pptx | S | 130 ms | 132 ms | ~0 | 83 ms | 85 ms | 5.3 MiB | 5.3 MiB |
+| pptx | M | 142 ms | 129 ms | −13 | 84 ms | 83 ms | 6.1 MiB | 6.7 MiB |
+| pptx | L | 160 ms | 153 ms | −7 | 90 ms | 89 ms | 11.0 MiB | 11.0 MiB |
+
+\*docx M mount→paint noise on one run; heap flat.
+
+Cold WASM `peak-mem.mjs` (`--runs=7`) unchanged between tips (no Rust diff).
+Median wasm open ms / peak VmHWM growth (MiB) on branch tip:
+
+| Format | Tier | wasm open ms | wasm peak MiB |
+|---|---|---:|---:|
+| xlsx | S | 23.5 | 15.4 |
+| xlsx | M | 42.9 | 17.0 |
+| xlsx | L | 25.9 | 21.2 |
+| docx | S | 20.0 | 10.8 |
+| docx | M | 21.2 | 12.7 |
+| docx | L | 28.5 | 16.5 |
+| pptx | S | 16.9 | 4.5 |
+| pptx | M | 17.9 | 6.4 |
+| pptx | L | 22.7 | 17.2 |
+
 ## Landed cuts
 
 | PR | Change |
@@ -153,6 +192,7 @@ soft-share is off the first frame, but host DOM apply / tick still dominate
 | (this) | xlsx edit keys: WASM `hf` formula-bar delta (~1–2 KB) vs full `h`; lazy loader patches `.xfb` |
 | (this) | xlsx mut-frame: drop dead CanvasTextMeasure payloads (sticky `_nxPainted`) |
 | (this) | Paint-before-soft-share + host apply-before-measure + `er` / `_eP` edit barrier |
+| (this) | Defer `createJournal` until first mutating `applyEdit` (writable embed open) |
 
 Stay out of xlsx grid paint / StringTable encode (separate track). Keep eager
 loader ≤ 17 408 B brotli (new JS under `loader/lazy/`). No budget, threshold,

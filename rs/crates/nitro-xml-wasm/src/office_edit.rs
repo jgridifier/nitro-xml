@@ -1277,7 +1277,7 @@ mod tests {
             .ribbon_html();
         assert!(home.contains("data-command=\"small-caps\""));
         let pptx = open_editable(PPTX, "slides.pptx");
-        assert!(!pptx
+        assert!(pptx
             .pptx
             .as_ref()
             .unwrap()

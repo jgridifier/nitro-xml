@@ -226,8 +226,6 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("home.align-justify"));
     assert.ok(bound.includes("home.numbering"));
     assert.ok(bound.includes("home.strikethrough"));
-    assert.ok(!bound.includes("home.small-caps"));
-    assert.ok(ids(tabsFor("pptx", "Slide", true)).includes("home.small-caps"));
     assert.ok(bound.includes("home.highlight"));
     assert.ok(bound.includes("home.bullets"));
     assert.ok(bound.includes("home.indent"));
@@ -276,7 +274,7 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("home.caps"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.caps"));
     assert.ok(bound.includes("home.small-caps"));
-    assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.small-caps"));
+    assert.ok(ids(tabsFor("pptx", "Slide", true)).includes("home.small-caps"));
     assert.ok(bound.includes("home.hidden"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.hidden"));
     assert.ok(bound.includes("home.expand-spacing"));

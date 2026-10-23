@@ -74,6 +74,7 @@ fn decode_utf8(bytes: &[u8]) -> Cow<'_, str> {
     }
 }
 
+#[inline(never)]
 fn contains_dtd_or_entity(xml: &str) -> bool {
     // Case-insensitive search for <!DOCTYPE or <!ENTITY (upstream `/<!DOCTYPE|<!ENTITY/i`).
     let bytes = xml.as_bytes();
@@ -92,6 +93,7 @@ fn starts_with_ignore_ascii_case(hay: &[u8], needle: &[u8]) -> bool {
             .all(|(a, b)| a.eq_ignore_ascii_case(b))
 }
 
+#[inline(never)]
 fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlError> {
     let sort_attributes = options.sort_attributes;
     let max_depth = options.max_depth;
@@ -245,6 +247,7 @@ fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlErr
     Ok(Document { root })
 }
 
+#[inline(never)]
 fn append_text(pending: &mut Option<String>, text: &str) {
     match pending {
         Some(buf) => buf.push_str(text),
@@ -268,6 +271,7 @@ impl NsInterner {
     }
 }
 
+#[inline(never)]
 fn resolve_element_ns(
     resolve: ResolveResult<'_>,
     interner: &mut NsInterner,
@@ -295,6 +299,7 @@ fn local_name_str(local: &[u8]) -> Result<String, XmlError> {
         .map_err(|_| XmlError::new("parse", "name is not utf-8"))
 }
 
+#[inline(never)]
 fn collect_attrs<R: std::io::BufRead>(
     reader: &NsReader<R>,
     start: &quick_xml::events::BytesStart<'_>,
@@ -372,6 +377,7 @@ fn collect_attrs<R: std::io::BufRead>(
     Ok(attrs)
 }
 
+#[inline(never)]
 fn flush_text(
     stack: &mut [Element],
     root: &mut Option<Element>,
@@ -390,6 +396,7 @@ fn flush_text(
     }
 }
 
+#[inline(never)]
 fn push_child(
     stack: &mut [Element],
     root: &mut Option<Element>,

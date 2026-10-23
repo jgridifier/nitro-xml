@@ -1028,6 +1028,76 @@ pub fn toggle_small_caps(
     set_run_formatting(host, block_index, run_index, &patch)
 }
 
+/// Direct `w:dstrike`, or the style chain when the run does not set it.
+pub fn effective_double_strike(host: &DocxHost, block_index: usize, run_index: usize) -> bool {
+    let block = host.paragraph(block_index).ok();
+    let style_id = block
+        .and_then(|b| b.get("style"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let run = block
+        .and_then(|b| b.get("runs"))
+        .and_then(|r| r.as_array())
+        .and_then(|runs| runs.get(run_index))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let resolved = resolve_run_formatting(
+        &run,
+        RunFormattingContext {
+            paragraph_style_id: style_id,
+            paragraph_catalog: host.paragraph_styles.clone(),
+            run_catalog: host.character_styles.clone(),
+        },
+    );
+    resolved
+        .get("doubleStrike")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+fn effective_strike(host: &DocxHost, block_index: usize, run_index: usize) -> bool {
+    let block = host.paragraph(block_index).ok();
+    let style_id = block
+        .and_then(|b| b.get("style"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let run = block
+        .and_then(|b| b.get("runs"))
+        .and_then(|r| r.as_array())
+        .and_then(|runs| runs.get(run_index))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let resolved = resolve_run_formatting(
+        &run,
+        RunFormattingContext {
+            paragraph_style_id: style_id,
+            paragraph_catalog: host.paragraph_styles.clone(),
+            run_catalog: host.character_styles.clone(),
+        },
+    );
+    resolved
+        .get("strike")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// Toggle double strikethrough from the effective value.
+/// Turning it on clears single strikethrough, so the painter draws two lines.
+/// A styled double-strike run with no direct `w:dstrike` writes `false` (`w:dstrike w:val="0"`).
+pub fn toggle_double_strike(
+    host: &mut DocxHost,
+    block_index: usize,
+    run_index: usize,
+) -> Result<(), EditError> {
+    let on = effective_double_strike(host, block_index, run_index);
+    let mut patch = serde_json::Map::new();
+    patch.insert("doubleStrike".into(), json!(!on));
+    if !on && effective_strike(host, block_index, run_index) {
+        patch.insert("strike".into(), json!(false));
+    }
+    set_run_formatting(host, block_index, run_index, &patch)
+}
+
 /// Direct `w:vanish`, or the style chain when the run does not set it.
 pub fn effective_vanish(host: &DocxHost, block_index: usize, run_index: usize) -> bool {
     let block = host.paragraph(block_index).ok();
@@ -1132,6 +1202,7 @@ pub fn set_run_formatting(
             "underline",
             "underlineStyle",
             "strike",
+            "doubleStrike",
             "highlight",
             "verticalAlign",
             "fontFamily",
@@ -1445,6 +1516,34 @@ mod tests {
         toggle_small_caps(&mut host, 0, 0).unwrap();
         assert_eq!(host.blocks[0]["runs"][0]["smallCaps"], true);
         assert_eq!(host.blocks[0]["runs"][0]["caps"], false);
+    }
+
+    #[test]
+    fn catches_double_strike_leaving_double_strike_unset_on_a_plain_run() {
+        // Catches: Double strikethrough leaving doubleStrike unset, so save omits w:dstrike.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        toggle_double_strike(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["doubleStrike"], true);
+        assert!(host.blocks[0]["runs"][0].get("strike").is_none());
+        toggle_double_strike(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["doubleStrike"], false);
+    }
+
+    #[test]
+    fn catches_double_strike_on_a_single_strike_run_leaving_one_line() {
+        // Catches: Double strikethrough on a struck run leaving strike true, so the painter draws one line.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi", "strike": true }],
+        })]);
+        toggle_double_strike(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["doubleStrike"], true);
+        assert_eq!(host.blocks[0]["runs"][0]["strike"], false);
     }
 
     #[test]

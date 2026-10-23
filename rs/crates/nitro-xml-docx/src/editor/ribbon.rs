@@ -62,6 +62,12 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("scale-up", "Scale Up", surface, false));
         html.push_str(&button("scale-down", "Scale Down", surface, false));
         html.push_str(&button("strike", "Strikethrough", surface, false));
+        html.push_str(&button(
+            "double-strike",
+            "Double Strikethrough",
+            surface,
+            false,
+        ));
         html.push_str(&button("highlight", "Highlight", surface, false));
         html.push_str(&button("subscript", "Subscript", surface, false));
         html.push_str(&button("superscript", "Superscript", surface, false));

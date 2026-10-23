@@ -126,6 +126,7 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
         "fontSize",
         "color",
         "strike",
+        "doubleStrike",
         "highlight",
         "verticalAlign",
         "fontFamily",
@@ -208,6 +209,13 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
     }
     if run_property_changed(run, base, "strike") {
         set_toggle(props, "strike", run.get("strike").and_then(|v| v.as_bool()));
+    }
+    if run_property_changed(run, base, "doubleStrike") {
+        set_toggle(
+            props,
+            "dstrike",
+            run.get("doubleStrike").and_then(|v| v.as_bool()),
+        );
     }
     if run_property_changed(run, base, "caps") {
         set_toggle(props, "caps", run.get("caps").and_then(|v| v.as_bool()));
@@ -437,6 +445,24 @@ mod tests {
             None,
         );
         assert_eq!(toggle_val(&off, "smallCaps"), Some(Some("0")));
+    }
+
+    #[test]
+    fn catches_double_strike_omitting_w_dstrike_or_writing_val_on() {
+        // Catches: a doubleStrike-true run saving without w:dstrike, or doubleStrike false omitting w:val="0".
+        let base = json!({"text": "Hi"});
+        let on = create_run(
+            &json!({"text": "Hi", "doubleStrike": true}),
+            Some(&base),
+            None,
+        );
+        assert_eq!(toggle_val(&on, "dstrike"), Some(None));
+        let off = create_run(
+            &json!({"text": "Hi", "doubleStrike": false}),
+            Some(&base),
+            None,
+        );
+        assert_eq!(toggle_val(&off, "dstrike"), Some(Some("0")));
     }
 
     /// `None` when `w:vanish` is absent. `Some(None)` is a val-less (on) element.

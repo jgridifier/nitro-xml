@@ -13,13 +13,13 @@ use crate::edit::format::{
     adjust_left_indent, adjust_right_indent, cycle_line_spacing, effective_character_spacing_twips,
     effective_run_font_pt, effective_text_scale_percent, set_character_spacing,
     set_paragraph_align, set_paragraph_style, set_run_formatting, set_text_scale,
-    step_office_font_pt, toggle_caps, toggle_double_underline, toggle_first_line_indent,
-    toggle_hanging_indent, toggle_page_break_before, toggle_paragraph_bottom_border,
-    toggle_paragraph_dashed_border, toggle_paragraph_dotted_border, toggle_paragraph_double_border,
-    toggle_paragraph_left_border, toggle_paragraph_right_border, toggle_paragraph_shading,
-    toggle_paragraph_space, toggle_paragraph_top_border, toggle_small_caps, toggle_vanish,
-    CHAR_SPACING_LIMIT_TWIPS, CHAR_SPACING_STEP_TWIPS, INDENT_STEP_TWIPS, TEXT_SCALE_MAX_PERCENT,
-    TEXT_SCALE_MIN_PERCENT, TEXT_SCALE_STEP_PERCENT,
+    step_office_font_pt, toggle_caps, toggle_double_strike, toggle_double_underline,
+    toggle_first_line_indent, toggle_hanging_indent, toggle_page_break_before,
+    toggle_paragraph_bottom_border, toggle_paragraph_dashed_border, toggle_paragraph_dotted_border,
+    toggle_paragraph_double_border, toggle_paragraph_left_border, toggle_paragraph_right_border,
+    toggle_paragraph_shading, toggle_paragraph_space, toggle_paragraph_top_border,
+    toggle_small_caps, toggle_vanish, CHAR_SPACING_LIMIT_TWIPS, CHAR_SPACING_STEP_TWIPS,
+    INDENT_STEP_TWIPS, TEXT_SCALE_MAX_PERCENT, TEXT_SCALE_MIN_PERCENT, TEXT_SCALE_STEP_PERCENT,
 };
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
@@ -76,6 +76,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("scale-up", "Scale Up", None, true),
     word_cmd!("scale-down", "Scale Down", None, true),
     word_cmd!("strike", "Strikethrough", Some("Ctrl+5"), true),
+    word_cmd!("double-strike", "Double Strikethrough", None, true),
     word_cmd!("highlight", "Highlight", None, true),
     word_cmd!("indent", "Increase Indent", None, true),
     word_cmd!("outdent", "Decrease Indent", None, true),
@@ -309,6 +310,15 @@ impl DocxCommandSurface {
                         patch.insert(toggle_key.into(), json!(!current));
                         if toggle_key == "underline" {
                             patch.insert("underlineStyle".into(), json!(""));
+                        }
+                        if toggle_key == "strike" && !current {
+                            let doubled = run
+                                .get("doubleStrike")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            if doubled {
+                                patch.insert("doubleStrike".into(), json!(false));
+                            }
                         }
                         set_run_formatting(h, caret_block, caret_run, &patch)?;
                         Ok(())
@@ -708,6 +718,19 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         toggle_caps(h, caret_block, caret_run)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "double-strike" => {
+                session.run(
+                    String::from("double-strike"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        toggle_double_strike(h, caret_block, caret_run)?;
                         Ok(())
                     },
                 )?;

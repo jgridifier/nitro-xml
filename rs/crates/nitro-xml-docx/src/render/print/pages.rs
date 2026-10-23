@@ -407,11 +407,14 @@ fn style_fragment<I: StringIntern>(dom: &mut Dom<'_, I>, el: u32, fragment: &Lay
     if fragment.underline == Some(true) {
         lines.push("underline");
     }
-    if fragment.strike == Some(true) {
+    if fragment.strike == Some(true) || fragment.double_strike == Some(true) {
         lines.push("line-through");
     }
     if !lines.is_empty() {
         dom.style(el, "text-decoration-line", &lines.join(" "));
+    }
+    if fragment.double_strike == Some(true) {
+        dom.style(el, "text-decoration-style", "double");
     }
     if let Some(css) = fragment.highlight.as_deref().and_then(highlight_css) {
         dom.style(el, "background-color", css);
@@ -648,5 +651,84 @@ mod tests {
         assert!(intern.0.iter().any(|s| s == "Hi"));
         assert!(intern.0.iter().any(|s| s == "font-variant"));
         assert!(intern.0.iter().any(|s| s == "small-caps"));
+    }
+
+    #[test]
+    fn catches_double_strike_painting_one_line() {
+        // Catches: Double strikethrough painting a single line-through, so it looks like ordinary strike.
+        let block = json!({
+            "kind": "paragraph",
+            "blockId": "p1",
+            "yPx": 0.0,
+            "heightPx": 20.0,
+            "lines": [{
+                "yPx": 0.0,
+                "heightPx": 20.0,
+                "fragments": [{
+                    "text": "Hi",
+                    "xPx": 1.0,
+                    "widthPx": 12.0,
+                    "runIndex": 0,
+                    "doubleStrike": true
+                }],
+                "sourceStart": 0,
+                "sourceEnd": 2
+            }]
+        });
+        let result = LayoutResult {
+            pages: vec![LayoutPageBox {
+                index: 0,
+                section_index: 0,
+                section_indices: None,
+                page_in_section: 0,
+                width_px: 100.0,
+                height_px: 100.0,
+                margin_top_px: 10.0,
+                margin_right_px: 10.0,
+                margin_bottom_px: 10.0,
+                margin_left_px: 10.0,
+                columns: vec![crate::layout::LayoutColumnBox {
+                    x_px: 0.0,
+                    width_px: 80.0,
+                    blocks: vec![block],
+                    section_index: None,
+                    start_y_px: None,
+                    end_y_px: None,
+                    separator: None,
+                }],
+                column_separator: None,
+                floats: None,
+                footnotes: None,
+            }],
+            approximations: Vec::new(),
+        };
+        let lines = Vec::new();
+        let borders = Vec::new();
+        let suppressed = HashSet::new();
+        let urls = HashMap::new();
+        let charts = HashMap::new();
+        let palettes = HashMap::new();
+        let chart_svg_cache = HashMap::new();
+        let options = PrintLayoutOptions {
+            line_numbers: &lines,
+            page_borders: &borders,
+            suppressed_line_number_paragraphs: &suppressed,
+            picture_urls: &urls,
+            chart_spaces: &charts,
+            chart_color_palettes: &palettes,
+            model: None,
+            review_mode: ReviewDisplayMode::All,
+            now: PrintNow::default(),
+            page_color: None,
+            zoom: 1.0,
+            current_page: Some(0),
+            chart_svg_cache: &chart_svg_cache,
+        };
+        let mut buf = CommandBuffer::new();
+        let mut intern = Rec(Vec::new());
+        paint_print_layout(&mut buf, &mut intern, &result, &options);
+        assert!(intern.0.iter().any(|s| s == "line-through"));
+        assert!(intern.0.iter().any(|s| s == "text-decoration-style"));
+        assert!(intern.0.iter().any(|s| s == "double"));
     }
 }

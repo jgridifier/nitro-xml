@@ -181,6 +181,7 @@ mod tests {
             strike: None,
             highlight: None,
             small_caps: None,
+            double_strike: None,
             script: None,
             top_px: None,
             box_height_px: None,

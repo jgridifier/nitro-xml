@@ -97,6 +97,7 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("landscape", "Landscape", surface, false));
         html.push_str(&button("narrow-margins", "Narrow Margins", surface, false));
         html.push_str(&button("wide-margins", "Wide Margins", surface, false));
+        html.push_str(&button("page-a4", "A4", surface, false));
         html.push_str(&button(
             "page-break-before",
             "Page Break Before",

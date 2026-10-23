@@ -24,7 +24,9 @@ use crate::edit::format::{
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
 use crate::edit::register_docx_command_registry;
-use crate::edit::section::{toggle_narrow_margins, toggle_page_landscape, toggle_wide_margins};
+use crate::edit::section::{
+    toggle_narrow_margins, toggle_page_a4, toggle_page_landscape, toggle_wide_margins,
+};
 use crate::edit::table::{
     delete_table, delete_table_column, delete_table_row, insert_table, insert_table_column,
     insert_table_row, set_table_cell_text,
@@ -88,6 +90,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("landscape", "Landscape", None, true),
     word_cmd!("narrow-margins", "Narrow Margins", None, true),
     word_cmd!("wide-margins", "Wide Margins", None, true),
+    word_cmd!("page-a4", "A4", None, true),
     word_cmd!("space-before", "Space Before", None, true),
     word_cmd!("shading", "Shade", None, true),
     word_cmd!("page-break-before", "Page Break Before", None, true),
@@ -597,6 +600,19 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         toggle_wide_margins(h)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "page-a4" => {
+                session.run(
+                    String::from("page-a4"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        toggle_page_a4(h)?;
                         Ok(())
                     },
                 )?;

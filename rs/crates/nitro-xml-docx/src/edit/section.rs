@@ -308,6 +308,139 @@ fn restore_wide_margins(host: &mut DocxHost) -> Result<(), EditError> {
     Ok(())
 }
 
+const A4_SHORT_TWIPS: i64 = 11906;
+const A4_LONG_TWIPS: i64 = 16838;
+
+fn page_twips(section: &Value, key: &str) -> i64 {
+    section
+        .get(key)
+        .and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|n| n as i64)))
+        .unwrap_or(if key == "pageWidthTwips" {
+            12240
+        } else {
+            15840
+        })
+}
+
+fn section_is_landscape(section: &Value) -> bool {
+    section.get("orientation").and_then(|v| v.as_str()) == Some("landscape")
+}
+
+/// Switch section 0 to A4, or restore the page size from open.
+///
+/// Print layout reads `pageWidthTwips` / `pageHeightTwips`. The writer reads
+/// `host.page` width and height in CSS pixels. A landscape page keeps the long
+/// side as the width. Restoring the open snapshot makes a second click clean,
+/// so save returns the original package bytes.
+pub fn toggle_page_a4(host: &mut DocxHost) -> Result<(), EditError> {
+    let already = {
+        let section = section_mut(host, 0)?;
+        let (width, height) = a4_twips(section_is_landscape(section));
+        page_twips(section, "pageWidthTwips") == width
+            && page_twips(section, "pageHeightTwips") == height
+    };
+    if already {
+        restore_open_page_size(host)
+    } else {
+        apply_a4(host)
+    }
+}
+
+fn a4_twips(landscape: bool) -> (i64, i64) {
+    if landscape {
+        (A4_LONG_TWIPS, A4_SHORT_TWIPS)
+    } else {
+        (A4_SHORT_TWIPS, A4_LONG_TWIPS)
+    }
+}
+
+fn apply_a4(host: &mut DocxHost) -> Result<(), EditError> {
+    let (width, height) = {
+        let section = section_mut(host, 0)?;
+        let pair = a4_twips(section_is_landscape(section));
+        if let Some(obj) = section.as_object_mut() {
+            obj.insert("pageWidthTwips".into(), json!(pair.0));
+            obj.insert("pageHeightTwips".into(), json!(pair.1));
+        }
+        pair
+    };
+    let page = host.page.get_or_insert_with(|| json!({}));
+    if let Some(obj) = page.as_object_mut() {
+        obj.insert("width".into(), json!(width as f64 / 15.0));
+        obj.insert("height".into(), json!(height as f64 / 15.0));
+    }
+    Ok(())
+}
+
+fn restore_open_page_size(host: &mut DocxHost) -> Result<(), EditError> {
+    let width = host
+        .base_sections
+        .as_ref()
+        .and_then(|sections| sections.get(0))
+        .and_then(|section| section.get("pageWidthTwips"))
+        .cloned()
+        .unwrap_or_else(|| json!(12240));
+    let height = host
+        .base_sections
+        .as_ref()
+        .and_then(|sections| sections.get(0))
+        .and_then(|section| section.get("pageHeightTwips"))
+        .cloned()
+        .unwrap_or_else(|| json!(15840));
+    let orientation = host
+        .base_sections
+        .as_ref()
+        .and_then(|sections| sections.get(0))
+        .and_then(|section| section.get("orientation"))
+        .cloned();
+    let page_width = host
+        .base_page
+        .as_ref()
+        .and_then(|page| page.get("width"))
+        .cloned()
+        .unwrap_or_else(|| json!(816.0));
+    let page_height = host
+        .base_page
+        .as_ref()
+        .and_then(|page| page.get("height"))
+        .cloned()
+        .unwrap_or_else(|| json!(1056.0));
+    let page_orientation = host
+        .base_page
+        .as_ref()
+        .and_then(|page| page.get("orientation"))
+        .cloned();
+    {
+        let section = section_mut(host, 0)?;
+        if let Some(obj) = section.as_object_mut() {
+            obj.insert("pageWidthTwips".into(), width);
+            obj.insert("pageHeightTwips".into(), height);
+            match orientation {
+                Some(value) => {
+                    obj.insert("orientation".into(), value);
+                }
+                None => {
+                    obj.remove("orientation");
+                }
+            }
+        }
+    }
+    let page = host.page.get_or_insert_with(|| json!({}));
+    if let Some(obj) = page.as_object_mut() {
+        obj.insert("width".into(), page_width);
+        obj.insert("height".into(), page_height);
+        match page_orientation {
+            Some(value) => {
+                obj.insert("orientation".into(), value);
+            }
+            None => {
+                obj.remove("orientation");
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Set column count on a section.
 pub fn set_section_columns(
     host: &mut DocxHost,
@@ -558,6 +691,66 @@ mod tests {
         assert_eq!(host.sections.as_ref().unwrap()[0]["marginTopTwips"], 720);
         assert_eq!(host.page.as_ref().unwrap()["marginLeft"], 120.0);
         assert_eq!(host.page.as_ref().unwrap()["marginTop"], 48.0);
+        assert!(!host.is_dirty());
+    }
+
+    #[test]
+    fn catches_a4_leaving_pg_sz_on_letter() {
+        // Catches: A4 leaving w:pgSz at US Letter, so the reopened page stays 8.5 by 11 inches.
+        let bytes = include_bytes!("../../../../../fixtures/generated/docx/pages_10.docx");
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        assert!(!host.is_dirty());
+        toggle_page_a4(&mut host).unwrap();
+        assert!(host.is_dirty());
+        let section = &host.sections.as_ref().unwrap()[0];
+        assert_eq!(section["pageWidthTwips"], 11906);
+        assert_eq!(section["pageHeightTwips"], 16838);
+        assert!(section.get("orientation").is_none());
+        let page = host.page.as_ref().unwrap();
+        assert_eq!(page["width"], 11906.0 / 15.0);
+        assert_eq!(page["height"], 16838.0 / 15.0);
+        assert!(page.get("orientation").is_none());
+        let saved = crate::save_docx(&host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let mut pkg = nitro_xml_opc::opc::Package::open(&saved).expect("pkg");
+        let xml = pkg
+            .text("word/document.xml")
+            .expect("read")
+            .expect("document.xml");
+        assert!(xml.contains("w:w=\"11906\""), "width stayed letter: {xml}");
+        assert!(xml.contains("w:h=\"16838\""), "height stayed letter");
+        assert!(!xml.contains("w:orient="), "portrait A4 gained w:orient");
+        toggle_page_a4(&mut host).unwrap();
+        assert!(!host.is_dirty(), "second A4 click left the host dirty");
+        let restored = crate::save_docx(&host, bytes.as_slice()).expect("save restored");
+        assert_eq!(restored.as_slice(), bytes.as_slice());
+    }
+
+    #[test]
+    fn catches_a4_on_a_landscape_page_keeping_the_wide_side() {
+        // Catches: A4 on a landscape page writing the short side as the width, so the page flips back to portrait.
+        let mut host = DocxHost::stub(vec![]);
+        host.sections = Some(json!([{
+            "orientation": "landscape",
+            "pageWidthTwips": 15840,
+            "pageHeightTwips": 12240
+        }]));
+        host.base_sections = host.sections.clone();
+        host.page = Some(json!({ "width": 1056.0, "height": 816.0, "orientation": "landscape" }));
+        host.base_page = host.page.clone();
+        toggle_page_a4(&mut host).unwrap();
+        assert_eq!(host.sections.as_ref().unwrap()[0]["pageWidthTwips"], 16838);
+        assert_eq!(host.sections.as_ref().unwrap()[0]["pageHeightTwips"], 11906);
+        assert_eq!(
+            host.sections.as_ref().unwrap()[0]["orientation"],
+            "landscape"
+        );
+        assert_eq!(host.page.as_ref().unwrap()["orientation"], "landscape");
+        toggle_page_a4(&mut host).unwrap();
+        assert_eq!(host.sections.as_ref().unwrap()[0]["pageWidthTwips"], 15840);
+        assert_eq!(host.sections.as_ref().unwrap()[0]["pageHeightTwips"], 12240);
+        assert_eq!(host.page.as_ref().unwrap()["width"], 1056.0);
+        assert_eq!(host.page.as_ref().unwrap()["height"], 816.0);
         assert!(!host.is_dirty());
     }
 }

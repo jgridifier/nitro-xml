@@ -414,6 +414,72 @@ fn toggle_paragraph_border_side(
     Ok(())
 }
 
+/// Toggle a double bottom rule. A double line is removed; anything else, including a single
+/// style rule, becomes a 1.5 pt double black rule. A styled double rule is cleared with
+/// `w:val="nil"`. Other sides on the effective border are kept.
+pub fn toggle_paragraph_double_border(
+    host: &mut DocxHost,
+    block_index: usize,
+) -> Result<(), EditError> {
+    let (styled, direct, is_double) = {
+        let style_id = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?
+            .get("style")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
+        let styled = style_paragraph_borders(host, style_id.as_deref());
+        let direct = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?
+            .get("borders")
+            .and_then(|b| b.as_object())
+            .cloned();
+        let effective = direct.clone().unwrap_or_else(|| styled.clone());
+        let is_double = border_side_style(&effective, "bottom") == "double";
+        (styled, direct, is_double)
+    };
+    let mut next = direct.unwrap_or_else(|| styled.clone());
+    if is_double {
+        if border_side_style(&styled, "bottom") == "double" {
+            next.insert("bottom".into(), json!({ "style": "nil" }));
+        } else {
+            next.remove("bottom");
+        }
+    } else {
+        next.insert(
+            "bottom".into(),
+            json!({
+                "style": "double",
+                "sizeEighthPoints": PARAGRAPH_BORDER_SZ,
+                "spacePoints": PARAGRAPH_BORDER_SPACE,
+                "color": "000000",
+            }),
+        );
+    }
+    let block = host
+        .paragraph_mut(block_index)
+        .map_err(|e| EditError::Other { message: e })?;
+    let obj = block.as_object_mut().ok_or_else(|| EditError::Other {
+        message: format!("paragraph {block_index} is not an object"),
+    })?;
+    if next.is_empty() || next == styled {
+        obj.remove("borders");
+    } else {
+        obj.insert("borders".into(), Value::Object(next));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
+fn border_side_style<'a>(borders: &'a Map<String, Value>, side: &str) -> &'a str {
+    borders
+        .get(side)
+        .and_then(|edge| edge.get("style"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+}
+
 fn style_page_break_before(host: &DocxHost, style_id: Option<&str>) -> bool {
     let Some(id) = style_id else {
         return false;
@@ -1430,6 +1496,65 @@ mod tests {
         assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "single");
         assert_eq!(host.blocks[0]["borders"]["bottom"]["color"], "4F81BD");
         assert_eq!(host.blocks[0]["borders"]["left"]["style"], "single");
+    }
+
+    #[test]
+    fn catches_double_border_leaving_w_pbdr_off_an_unbordered_paragraph() {
+        // Catches: Double border leaving borders unset, so save omits w:pBdr.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        toggle_paragraph_double_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "double");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["sizeEighthPoints"], 12);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_paragraph_double_border(&mut host, 0).unwrap();
+        assert!(host.blocks[0].get("borders").is_none());
+    }
+
+    #[test]
+    fn catches_double_border_on_a_styled_double_rule_writing_nil() {
+        // Catches: Double border on a heading whose style rule is already double leaving that rule in place.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Heading1",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Heading1": { "id": "Heading1", "formatting": { "borders": {
+                "bottom": { "style": "double", "sizeEighthPoints": 8, "color": "4F81BD" }
+            } } } }
+        }));
+        toggle_paragraph_double_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "nil");
+        toggle_paragraph_double_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "double");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["sizeEighthPoints"], 12);
+    }
+
+    #[test]
+    fn catches_double_border_replacing_a_styled_single_bottom_and_keeping_left() {
+        // Catches: Double border on a title whose style has a single bottom and a left rule dropping the left rule.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "borders": {
+                "bottom": { "style": "single", "sizeEighthPoints": 8, "spacePoints": 4, "color": "4F81BD" },
+                "left": { "style": "single", "sizeEighthPoints": 4, "color": "FF0000" }
+            } } } }
+        }));
+        toggle_paragraph_double_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "double");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["color"], "000000");
+        assert_eq!(host.blocks[0]["borders"]["left"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["left"]["color"], "FF0000");
     }
 
     #[test]

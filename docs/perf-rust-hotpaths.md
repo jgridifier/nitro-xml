@@ -767,9 +767,9 @@ Harness: `cargo run --release --manifest-path perf/large/Cargo.toml --bin pptx-e
 
 | Tier | fixture KiB | main retained copy B | branch retained copy B | main attach ms | branch attach ms | branch `Arc` +1 |
 |---|---:|---:|---:|---:|---:|---|
-| pptx S | 11 | 11 993 | **0** | 0.025 | 0.025 | yes |
-| pptx M | 432 | 442 863 | **0** | 0.056 | 0.036 | yes |
-| pptx L | 2 596 | 2 658 791 | **0** | 0.252 | **0.085** | yes |
+| pptx S | 11 | 11,993 | **0** | 0.025 | 0.025 | yes |
+| pptx M | 432 | 442,863 | **0** | 0.056 | 0.036 | yes |
+| pptx L | 2,596 | 2,658,791 | **0** | 0.252 | **0.085** | yes |
 
 Retained copy = full zip bytes duplicated into `PptxEditor::original` on unlock (main only).
 Process VmHWM delta around attach is within noise for M/L (allocator does not always bump HWM

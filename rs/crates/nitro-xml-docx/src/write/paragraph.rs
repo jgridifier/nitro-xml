@@ -624,4 +624,23 @@ mod tests {
         assert_eq!(side_attr(&on, "left", "val"), Some("single"));
         assert_eq!(side_attr(&on, "left", "color"), Some("FF0000"));
     }
+
+    #[test]
+    fn catches_dotted_border_omitting_w_bottom() {
+        // Catches: a dotted bottom border saving without w:bottom val="dotted", or a styled left rule dropped from w:pBdr.
+        let base = json!({"id": "p0", "runs": [{"text": "Hi"}]});
+        let bordered = json!({
+            "id": "p0",
+            "runs": [{"text": "Hi"}],
+            "borders": {
+                "bottom": {"style": "dotted", "sizeEighthPoints": 12, "spacePoints": 1, "color": "000000"},
+                "left": {"style": "single", "sizeEighthPoints": 4, "color": "FF0000"}
+            }
+        });
+        let on = write_paragraph(&bordered, &make_w("p"), Some(&base)).unwrap();
+        assert_eq!(side_attr(&on, "bottom", "val"), Some("dotted"));
+        assert_eq!(side_attr(&on, "bottom", "sz"), Some("12"));
+        assert_eq!(side_attr(&on, "left", "val"), Some("single"));
+        assert_eq!(side_attr(&on, "left", "color"), Some("FF0000"));
+    }
 }

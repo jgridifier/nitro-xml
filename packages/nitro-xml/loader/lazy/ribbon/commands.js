@@ -6,7 +6,7 @@
 // Delete Table removes the slide table and leaves other shapes.
 // Cut, paste, and group rewrite the package; copy only fills the editor clipboard.
 // Grow and shrink font, character spacing, character scale, indent, right indent, line spacing,
-// paragraph space before and after, paragraph shading, paragraph bottom, top, left, and right borders, double and dashed bottom borders, page break before,
+// paragraph space before and after, paragraph shading, paragraph bottom, top, left, and right borders, double, dashed, and dotted bottom borders, page break before,
 // hanging indent, first-line indent, double underline, all caps, hidden text, script, font name,
 // Word bullets, insert shape, duplicate,
 // delete, z-order (one step and all the way), shape fill, outline, and slide layout are listed
@@ -127,6 +127,7 @@ const wordFont = {
       it("home.border-right", "borderRight", "Right border", "Toggle the paragraph right border"),
       it("home.border-double", "borderDouble", "Double border", "Toggle a double paragraph bottom border"),
       it("home.border-dash", "borderDash", "Dashed border", "Toggle a dashed paragraph bottom border"),
+      it("home.border-dot", "borderDot", "Dotted border", "Toggle a dotted paragraph bottom border"),
       it("home.page-break-before", "pageBreakBefore", "Page break before", "Start this paragraph on a new page"),
       it("home.space-before", "spaceBefore", "Space before", "Add 12 pt space before the paragraph"),
       it("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),

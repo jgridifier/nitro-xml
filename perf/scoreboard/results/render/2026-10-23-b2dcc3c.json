@@ -1,0 +1,427 @@
+{
+ "race": "first-paint",
+ "schema": 1,
+ "generatedAt": "2026-10-23T14:40:44.941Z",
+ "startedAt": "2026-10-23T14:39:47.063Z",
+ "git": {
+  "sha": "b2dcc3cb96b0d8a760823eeb165c0988bab3fcc4",
+  "short": "b2dcc3c",
+  "branch": "cursor/issue-30-first-paint-tip-5eae"
+ },
+ "machine": {
+  "cpuModel": "Intel(R) Xeon(R) Processor",
+  "logicalCores": 4,
+  "ramBytes": 16780574720,
+  "platform": "Linux 6.12.94+ x64",
+  "node": "v22.14.0"
+ },
+ "browser": {
+  "name": "Google Chrome (headless)",
+  "executable": "/usr/bin/google-chrome",
+  "version": "154.0.8037.92",
+  "flags": [
+   "--enable-precise-memory-info",
+   "--js-flags=--expose-gc",
+   "--disable-renderer-backgrounding",
+   "--disable-background-timer-throttling"
+  ],
+  "crossOriginIsolated": true
+ },
+ "method": {
+  "warmupRuns": 1,
+  "timedRuns": 3,
+  "timer": "performance.now() around module/wasm load + open + first painted grid frame; fixture bytes fetched in setup outside the timed span; fresh browser context and page per sample (cold load each time)",
+  "viewport": "800x480 CSS px, DPR 1",
+  "pixelLimits": {
+   "xlsx": 0.001,
+   "pptx": 0.005,
+   "docx": 0.005
+  },
+  "reference": "upstream-ts",
+  "order": "entrants in a seeded random order per fixture (mulberry32, seed 20261011)",
+  "isolation": "fresh browser context and page per timed sample"
+ },
+ "entrants": [
+  {
+   "id": "upstream-ts",
+   "name": "upstream ooxml TS",
+   "formats": [
+    "xlsx",
+    "pptx"
+   ],
+   "reference": true,
+   "status": "entered"
+  },
+  {
+   "id": "nitro-xml",
+   "name": "Nitro XML (Rust/WASM)",
+   "formats": [
+    "xlsx",
+    "pptx"
+   ],
+   "status": "entered"
+  }
+ ],
+ "files": [
+  {
+   "format": "xlsx",
+   "tier": "S",
+   "file": "fixtures/generated/xlsx/cells_1k.xlsx",
+   "bytes": 8012,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      203.73,
+      169.5,
+      169.29
+     ],
+     "medianMs": 169.5,
+     "minMs": 169.28999999165535,
+     "maxMs": 203.72999998927116,
+     "comparable": true,
+     "pixelRatio": 0,
+     "pixel": {
+      "ok": true,
+      "mismatched": 0,
+      "total": 384000,
+      "ratio": 0,
+      "limit": 0.001
+     }
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      760.86,
+      777.715,
+      779.195
+     ],
+     "medianMs": 777.7150000035763,
+     "minMs": 760.8599999845028,
+     "maxMs": 779.1949999928474,
+     "comparable": true,
+     "pixelRatio": 0
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "tier": "M",
+   "file": "fixtures/generated/xlsx/cells_100k.xlsx",
+   "bytes": 503874,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      1031.955,
+      970.65,
+      978.045
+     ],
+     "medianMs": 978.0450000166893,
+     "minMs": 970.6500000059605,
+     "maxMs": 1031.955000013113,
+     "comparable": true,
+     "pixelRatio": 0
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      203.675,
+      221.83,
+      186.395
+     ],
+     "medianMs": 203.6749999821186,
+     "minMs": 186.3949999809265,
+     "maxMs": 221.83000001311302,
+     "comparable": true,
+     "pixelRatio": 0,
+     "pixel": {
+      "ok": true,
+      "mismatched": 0,
+      "total": 384000,
+      "ratio": 0,
+      "limit": 0.001
+     }
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "tier": "L",
+   "file": "fixtures/generated/xlsx/cells_1m.xlsx",
+   "bytes": 5044858,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      2279.16,
+      2300.525,
+      2389.355
+     ],
+     "medianMs": 2300.5250000059605,
+     "minMs": 2279.160000026226,
+     "maxMs": 2389.354999989271,
+     "comparable": true,
+     "pixelRatio": 0
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      301.095,
+      285.295,
+      275.515
+     ],
+     "medianMs": 285.294999986887,
+     "minMs": 275.5150000154972,
+     "maxMs": 301.0949999988079,
+     "comparable": true,
+     "pixelRatio": 0,
+     "pixel": {
+      "ok": true,
+      "mismatched": 0,
+      "total": 384000,
+      "ratio": 0,
+      "limit": 0.001
+     }
+    }
+   }
+  },
+  {
+   "format": "xlsx",
+   "tier": "XL",
+   "file": "fixtures/generated/xlsx/xl_a.xlsx",
+   "bytes": 17058915,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      341.355,
+      337.7,
+      339.39
+     ],
+     "medianMs": 339.3900000154972,
+     "minMs": 337.69999998807907,
+     "maxMs": 341.3550000190735,
+     "comparable": true,
+     "pixelRatio": 0,
+     "pixel": {
+      "ok": true,
+      "mismatched": 0,
+      "total": 384000,
+      "ratio": 0,
+      "limit": 0.001
+     }
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      2323.28,
+      2201.825,
+      2206.535
+     ],
+     "medianMs": 2206.5349999964237,
+     "minMs": 2201.824999988079,
+     "maxMs": 2323.280000001192,
+     "comparable": true,
+     "pixelRatio": 0
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "tier": "S",
+   "file": "fixtures/generated/pptx/slides_10.pptx",
+   "bytes": 11993,
+   "entrantOrder": [
+    "nitro-xml",
+    "upstream-ts"
+   ],
+   "results": {
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      173.8,
+      185.4,
+      179.035
+     ],
+     "medianMs": 179.03499999642372,
+     "minMs": 173.80000001192093,
+     "maxMs": 185.40000000596046,
+     "comparable": true,
+     "pixelRatio": 0.0004427083333333333,
+     "pixel": {
+      "ok": true,
+      "mismatched": 170,
+      "total": 384000,
+      "ratio": 0.0004427083333333333,
+      "limit": 0.005
+     }
+    },
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      649.48,
+      637.615,
+      618.625
+     ],
+     "medianMs": 637.6150000095367,
+     "minMs": 618.625,
+     "maxMs": 649.4799999892712,
+     "comparable": true,
+     "pixelRatio": 0
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "tier": "M",
+   "file": "fixtures/generated/pptx/slides_50.pptx",
+   "bytes": 442863,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      682.245,
+      679.18,
+      671.735
+     ],
+     "medianMs": 679.1800000071526,
+     "minMs": 671.7349999845028,
+     "maxMs": 682.2450000047684,
+     "comparable": true,
+     "pixelRatio": 0
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      189.01,
+      188.895,
+      175.895
+     ],
+     "medianMs": 188.89500001072884,
+     "minMs": 175.89500001072884,
+     "maxMs": 189.01000002026558,
+     "comparable": true,
+     "pixelRatio": 0.0004427083333333333,
+     "pixel": {
+      "ok": true,
+      "mismatched": 170,
+      "total": 384000,
+      "ratio": 0.0004427083333333333,
+      "limit": 0.005
+     }
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "tier": "L",
+   "file": "fixtures/generated/pptx/slides_200.pptx",
+   "bytes": 2658791,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      892.885,
+      874.705,
+      878.24
+     ],
+     "medianMs": 878.2400000095367,
+     "minMs": 874.705000013113,
+     "maxMs": 892.8850000202656,
+     "comparable": true,
+     "pixelRatio": 0
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      200.585,
+      180.99,
+      186.885
+     ],
+     "medianMs": 186.88499999046326,
+     "minMs": 180.98999997973442,
+     "maxMs": 200.58500000834465,
+     "comparable": true,
+     "pixelRatio": 0.0004427083333333333,
+     "pixel": {
+      "ok": true,
+      "mismatched": 170,
+      "total": 384000,
+      "ratio": 0.0004427083333333333,
+      "limit": 0.005
+     }
+    }
+   }
+  },
+  {
+   "format": "pptx",
+   "tier": "XL",
+   "file": "fixtures/generated/pptx/xl_a.pptx",
+   "bytes": 12161691,
+   "entrantOrder": [
+    "upstream-ts",
+    "nitro-xml"
+   ],
+   "results": {
+    "upstream-ts": {
+     "status": "ok",
+     "timesMs": [
+      930.7,
+      897.39,
+      882.625
+     ],
+     "medianMs": 897.3900000154972,
+     "minMs": 882.625,
+     "maxMs": 930.6999999880791,
+     "comparable": true,
+     "pixelRatio": 0
+    },
+    "nitro-xml": {
+     "status": "ok",
+     "timesMs": [
+      237.265,
+      243.74,
+      219.635
+     ],
+     "medianMs": 237.26499998569489,
+     "minMs": 219.63499999046326,
+     "maxMs": 243.74000000953674,
+     "comparable": true,
+     "pixelRatio": 0.0004427083333333333,
+     "pixel": {
+      "ok": true,
+      "mismatched": 170,
+      "total": 384000,
+      "ratio": 0.0004427083333333333,
+      "limit": 0.005
+     }
+    }
+   }
+  }
+ ]
+}

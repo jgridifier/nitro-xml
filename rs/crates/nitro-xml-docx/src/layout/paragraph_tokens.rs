@@ -32,7 +32,7 @@ pub fn font_of(run: &LayoutRun) -> LayoutFontSpec {
             }
         }),
         ligatures: run.ligatures.clone(),
-        small_caps: false,
+        small_caps: run.small_caps.unwrap_or(false),
     }
 }
 

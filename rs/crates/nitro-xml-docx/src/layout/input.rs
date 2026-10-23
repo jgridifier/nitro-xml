@@ -116,6 +116,8 @@ pub struct LayoutRun {
     pub strike: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub highlight: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub small_caps: Option<bool>,
 }
 
 pub type TabLeader = String;

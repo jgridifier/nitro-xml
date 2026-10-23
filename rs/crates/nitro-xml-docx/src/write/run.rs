@@ -132,6 +132,7 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
         "fontFamilyEastAsia",
         "fontFamilyComplexScript",
         "caps",
+        "smallCaps",
         "vanish",
         "characterSpacingTwips",
         "textScalePercent",
@@ -210,6 +211,13 @@ fn set_run_properties(run_node: &mut Element, run: &Value, base: Option<&Value>)
     }
     if run_property_changed(run, base, "caps") {
         set_toggle(props, "caps", run.get("caps").and_then(|v| v.as_bool()));
+    }
+    if run_property_changed(run, base, "smallCaps") {
+        set_toggle(
+            props,
+            "smallCaps",
+            run.get("smallCaps").and_then(|v| v.as_bool()),
+        );
     }
     if run_property_changed(run, base, "vanish") {
         set_toggle(props, "vanish", run.get("vanish").and_then(|v| v.as_bool()));
@@ -397,6 +405,38 @@ mod tests {
         assert_eq!(caps_val(&on), Some(None));
         let off = create_run(&json!({"text": "Hi", "caps": false}), Some(&base), None);
         assert_eq!(caps_val(&off), Some(Some("0")));
+    }
+
+    /// `None` when the toggle element is absent. `Some(None)` is a val-less (on) element.
+    fn toggle_val<'a>(el: &'a nitro_xml_opc::xml::Element, local: &str) -> Option<Option<&'a str>> {
+        let props = el.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == "rPr" => Some(e),
+            _ => None,
+        })?;
+        let node = props.children.iter().find_map(|child| match child {
+            Node::Element(e) if e.local == local => Some(e),
+            _ => None,
+        })?;
+        Some(
+            node.attrs
+                .iter()
+                .find(|a| a.local == "val")
+                .map(|a| a.value.as_str()),
+        )
+    }
+
+    #[test]
+    fn catches_small_caps_omitting_w_small_caps_or_writing_val_on() {
+        // Catches: a smallCaps-true run saving without w:smallCaps, or smallCaps false omitting w:val="0".
+        let base = json!({"text": "Hi"});
+        let on = create_run(&json!({"text": "Hi", "smallCaps": true}), Some(&base), None);
+        assert_eq!(toggle_val(&on, "smallCaps"), Some(None));
+        let off = create_run(
+            &json!({"text": "Hi", "smallCaps": false}),
+            Some(&base),
+            None,
+        );
+        assert_eq!(toggle_val(&off, "smallCaps"), Some(Some("0")));
     }
 
     /// `None` when `w:vanish` is absent. `Some(None)` is a val-less (on) element.

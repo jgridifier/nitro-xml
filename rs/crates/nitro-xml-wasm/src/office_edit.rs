@@ -1193,6 +1193,71 @@ mod tests {
     }
 
     #[test]
+    fn catches_small_caps_leaving_w_small_caps_off_the_saved_run() {
+        // Catches: Small caps leaving w:smallCaps off the saved run, or undoing as more than one step.
+        let marks = |bytes: &[u8]| {
+            let h = open_editable(bytes, "pages.docx");
+            h.docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .blocks
+                .iter()
+                .flat_map(|b| {
+                    b.get("runs")
+                        .and_then(|r| r.as_array())
+                        .into_iter()
+                        .flatten()
+                })
+                .map(|run| run.get("smallCaps").and_then(|v| v.as_bool()))
+                .collect::<Vec<_>>()
+        };
+        let mut h = open_editable(DOCX, "pages.docx");
+        let start = marks(DOCX);
+        h.shell_action("cmd", "home.small-caps")
+            .expect("small caps");
+        let saved = h.save_document().expect("save small caps");
+        assert_ne!(saved, DOCX);
+        let after = marks(&saved);
+        let changed = start
+            .iter()
+            .zip(after.iter())
+            .enumerate()
+            .filter(|(_, (a, b))| a != b)
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        assert_eq!(changed.len(), 1, "small caps touched {changed:?}");
+        let idx = changed[0];
+        let was = start[idx].unwrap_or(false);
+        assert_eq!(after[idx], Some(!was));
+        h.shell_action("cmd", "edit.undo").expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
+
+        let strip = h.docx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.small-caps\""));
+        let home = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .ribbon_html();
+        assert!(home.contains("data-command=\"small-caps\""));
+        let pptx = open_editable(PPTX, "slides.pptx");
+        assert!(!pptx
+            .pptx
+            .as_ref()
+            .unwrap()
+            .ribbon_html()
+            .contains("home.small-caps"));
+    }
+
+    #[test]
     fn catches_hidden_leaving_w_vanish_off_the_saved_run() {
         // Catches: Hidden leaving w:vanish off the saved run, or undoing as more than one step.
         let marks = |bytes: &[u8]| {

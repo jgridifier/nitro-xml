@@ -110,6 +110,7 @@ const wordFont = {
       ...FONT.rows[0],
       it("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
       it("home.caps", "caps", "All caps", "All caps"),
+      it("home.small-caps", "smallCaps", "Small caps", "Small caps"),
       it("home.hidden", "hidden", "Hidden", "Hidden text"),
       it("home.expand-spacing", "expandSpacing", "Expand", "Expand character spacing"),
       it("home.condense-spacing", "condenseSpacing", "Condense", "Condense character spacing"),

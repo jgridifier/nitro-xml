@@ -17,9 +17,9 @@ use crate::edit::format::{
     toggle_hanging_indent, toggle_page_break_before, toggle_paragraph_bottom_border,
     toggle_paragraph_dashed_border, toggle_paragraph_dotted_border, toggle_paragraph_double_border,
     toggle_paragraph_left_border, toggle_paragraph_right_border, toggle_paragraph_shading,
-    toggle_paragraph_space, toggle_paragraph_top_border, toggle_vanish, CHAR_SPACING_LIMIT_TWIPS,
-    CHAR_SPACING_STEP_TWIPS, INDENT_STEP_TWIPS, TEXT_SCALE_MAX_PERCENT, TEXT_SCALE_MIN_PERCENT,
-    TEXT_SCALE_STEP_PERCENT,
+    toggle_paragraph_space, toggle_paragraph_top_border, toggle_small_caps, toggle_vanish,
+    CHAR_SPACING_LIMIT_TWIPS, CHAR_SPACING_STEP_TWIPS, INDENT_STEP_TWIPS, TEXT_SCALE_MAX_PERCENT,
+    TEXT_SCALE_MIN_PERCENT, TEXT_SCALE_STEP_PERCENT,
 };
 use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
@@ -69,6 +69,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("underline", "Underline", Some("Ctrl+U"), true),
     word_cmd!("double-underline", "Double Underline", None, true),
     word_cmd!("caps", "All Caps", None, true),
+    word_cmd!("small-caps", "Small Caps", None, true),
     word_cmd!("hidden", "Hidden", None, true),
     word_cmd!("expand-spacing", "Expand", None, true),
     word_cmd!("condense-spacing", "Condense", None, true),
@@ -707,6 +708,19 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         toggle_caps(h, caret_block, caret_run)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "small-caps" => {
+                session.run(
+                    String::from("small-caps"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        toggle_small_caps(h, caret_block, caret_run)?;
                         Ok(())
                     },
                 )?;

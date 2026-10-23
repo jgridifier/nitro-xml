@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! Wasm glue for the docx editor session: open, chrome commands, headless edits, save.
 
+use nitro_xml_docx::edit::host::DocxHost;
 use nitro_xml_docx::{save_docx, DocxEditor};
 use serde_json::Value;
 
@@ -56,7 +57,12 @@ impl DocxState {
         if self.edit.is_some() {
             return Ok(());
         }
-        let mut edit = DocxEditor::open(bytes)?;
+        let host = if self.viewer_model_complete() {
+            DocxHost::from_document_model_bytes(&self.session.model, bytes)?
+        } else {
+            DocxHost::open(bytes)?
+        };
+        let mut edit = DocxEditor::from_host(host);
         edit.set_read_only(false);
         self.edit = Some(edit);
         Ok(())

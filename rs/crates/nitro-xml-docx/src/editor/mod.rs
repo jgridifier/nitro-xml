@@ -33,15 +33,18 @@ pub struct DocxEditor {
 
 impl DocxEditor {
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
-        let host = DocxHost::open(bytes)?;
-        Ok(Self {
+        Ok(Self::from_host(DocxHost::open(bytes)?))
+    }
+
+    pub fn from_host(host: DocxHost) -> Self {
+        Self {
             session: EditSession::new(host, EditHistory::new()),
             commands: DocxCommandSurface::new(false),
             print: PrintEditState::default(),
             active_tab: "home".to_string(),
             read_only: false,
             caret_run: 0,
-        })
+        }
     }
 
     pub fn set_read_only(&mut self, read_only: bool) {

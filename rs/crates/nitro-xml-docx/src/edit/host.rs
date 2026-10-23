@@ -12,7 +12,7 @@ use serde_json::{json, Map, Value};
 
 use nitro_xml_opc::opc::Package;
 
-use crate::body::read_package;
+use crate::body::{read_package, DocumentModel};
 
 /// In-memory docx document the text/format/table/section runners mutate.
 #[derive(Debug, Clone)]
@@ -67,33 +67,50 @@ impl DocxHost {
 
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
         let loaded = read_package(bytes).map_err(|e| e.to_string())?;
-        let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
-        let source_document_xml = pkg
-            .text("word/document.xml")
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| "word/document.xml missing".to_string())?
-            .to_owned();
-        let m = &loaded.model;
-        let blocks = m.blocks.clone();
-        let sections = m.sections.as_ref().map(|s| json!(s));
-        let page = Some(m.page.clone());
-        Ok(Self {
-            format: m.format.clone(),
+        let source_document_xml = Self::source_document_xml_from_package(bytes)?;
+        Ok(Self::from_document_model(
+            &loaded.model,
+            source_document_xml,
+        ))
+    }
+
+    /// Edit host from an already-loaded [`DocumentModel`] (viewer / print session soft-share).
+    /// Only re-opens the zip for `word/document.xml` text — no second body parse.
+    pub fn from_document_model(model: &DocumentModel, source_document_xml: String) -> Self {
+        let blocks = model.blocks.clone();
+        let sections = model.sections.as_ref().map(|s| json!(s));
+        let page = Some(model.page.clone());
+        Self {
+            format: model.format.clone(),
             blocks: blocks.clone(),
             base_blocks: blocks,
             source_document_xml,
-            numbering_catalog: m.numbering_catalog.clone(),
-            paragraph_styles: m.paragraph_styles.clone(),
-            character_styles: m.character_styles.clone(),
+            numbering_catalog: model.numbering_catalog.clone(),
+            paragraph_styles: model.paragraph_styles.clone(),
+            character_styles: model.character_styles.clone(),
             sections: sections.clone(),
             base_sections: sections,
             page: page.clone(),
             base_page: page,
-            even_and_odd_headers: m.even_and_odd_headers,
-            comments: m.comments.clone(),
+            even_and_odd_headers: model.even_and_odd_headers,
+            comments: model.comments.clone(),
             comments_touched: false,
             touched: BTreeSet::new(),
-        })
+        }
+    }
+
+    /// Like [`Self::from_document_model`], loading `word/document.xml` from `bytes`.
+    pub fn from_document_model_bytes(model: &DocumentModel, bytes: &[u8]) -> Result<Self, String> {
+        let source_document_xml = Self::source_document_xml_from_package(bytes)?;
+        Ok(Self::from_document_model(model, source_document_xml))
+    }
+
+    fn source_document_xml_from_package(bytes: &[u8]) -> Result<String, String> {
+        let mut pkg = Package::open(bytes).map_err(|e| e.to_string())?;
+        pkg.text("word/document.xml")
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "word/document.xml missing".to_string())
+            .map(|s| s.to_owned())
     }
 
     /// True when the live model differs from the package-open snapshot (TS save dirty check).

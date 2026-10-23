@@ -655,3 +655,44 @@ structure sync repopulates the viewer (`sync_model_from_edit` clears `grid_in_ho
 
 **Verdict:** **SHIP** — edit p50 and xlsx L edit heap win; no >12% regressions on edit or peak
 floors; xlsx S/M open-ms swings are harness noise on this VM.
+
+## Slice 24: docx soft-share `ensure_edit` (reuse print `DocumentModel`)
+
+**Goal:** first `setReadOnly(false)` / `ensure_edit` no longer runs a second full
+`read_package` when the print session already finished the body (post–first-paint
+`flush_pending_body`). Still uses `DocxHost::open(bytes)` when the viewer model is
+truncated so we do not replace `PrintSession` on the edit path.
+
+**Rust:** `DocxHost::from_document_model` / `from_document_model_bytes` (zip open for
+`word/document.xml` only); `DocxEditor::from_host`; wasm `ensure_edit` branches on
+`DocxState::viewer_model_complete()`.
+
+**A/B** (`origin/main` `b2ae2ec` vs `cursor/perf-docx-ensure-edit-soft-share-4e30` on this box):
+
+### React-embed writable open (`measure-open-mem.mjs`, open ms / heap peak MiB)
+
+| Format×tier | before | after | Δ open |
+|---|---:|---:|---:|
+| docx S | 151.7 / 5.4 | 79.7 / 5.5 | **−47%** |
+| docx M | 120.2 / 6.5 | 89.0 / 6.2 | **−26%** |
+| docx L | 87.3 / 10.3 | 87.6 / 10.3 | flat |
+| xlsx/pptx S–L | flat within noise | flat within noise | — |
+
+### Peak memory (`peak-mem.mjs --runs=7`, wasm open ms / peak MiB)
+
+| Format×tier | before | after | Δ |
+|---|---:|---:|---|
+| docx S | 19.8 / 10.3 | 19.1 / 10.8 | open −4%; peak +5% (noise) |
+| docx M | 22.9 / 12.7 | 23.5 / 12.4 | flat |
+| docx L | 36.2 / 16.0 | 29.2 / 16.4 | open **−19%** |
+| xlsx/pptx | unchanged within paired-run noise | unchanged within paired-run noise | — |
+
+### Edit-bold (`EDIT_SAMPLES=21`, `measure-edit-latency.mjs`)
+
+| Tier | before p50 | after p50 |
+|---|---:|---:|
+| docx S | 23.3 ms | 23.7 ms |
+| docx L | 44.9 ms | 46.0 ms |
+
+**Verdict:** **SHIP** — large docx S/M writable-open win; wasm peak floors unchanged; no
+demoted fixtures or budget edits.

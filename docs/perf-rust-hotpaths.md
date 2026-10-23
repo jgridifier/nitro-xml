@@ -754,7 +754,7 @@ one buffer for view + edit save overlay.
 `ensure_edit` clones `PptxState::package_arc()` into the editor. `save()` still returns a fresh
 `Vec` to callers; only the retained baseline is Arc-backed.
 
-**A/B** (`origin/main` `61c5195` vs `cursor/perf-pptx-arc-original-4e30` `705cda9` on this box):
+**A/B** (`origin/main` `61c5195` vs tip of `cursor/perf-pptx-arc-original-4e30` on this box):
 
 ### Native `ensure_edit` package baseline (primary — release, n=21 medians)
 
@@ -775,19 +775,11 @@ Retained copy = full zip bytes duplicated into `PptxEditor::original` on unlock 
 Process VmHWM delta around attach is within noise for M/L (allocator does not always bump HWM
 per `Vec`); the byte accounting and `Arc::strong_count` (+1 on branch) are the honest signal.
 
-### Peak memory (`peak-mem.mjs --runs=5`, wasm cold open ms / peak MiB) — **expected flat**
+### Peak memory (`peak-mem.mjs --runs=5`, wasm open ms / peak MiB) — **expected flat**
 
 Cold open does not call `ensure_edit`; editor baseline is not built on the read-only path.
-
-| Format×tier | before | after (705cda9) | Δ |
-|---|---:|---:|---|
-| pptx S | 66.7 / 4.3 | 65.4 / 4.4 | flat |
-| pptx M | 133.1 / 6.5 | 130.7 / 6.3 | flat |
-| pptx L | 266.0 / 16.5 | 263.4 / 17.0 | flat |
-| xlsx/docx | within noise | within noise | — |
-
-Re-run on tip (`peak-mem.mjs --runs=5`, pptx only): S 17.8 ms / 4.3 MiB, M 19.7 / 6.1, L 23.1 / 16.9
-— unchanged vs pre-slice (no editor on cold open).
+Tip re-run (pptx only): S **17.8 ms / 4.3 MiB**, M **19.7 / 6.1**, L **23.1 / 16.9** — same class
+as main cold opens (no material Δ from Arc plumbing).
 
 ### Edit (`EDIT_SAMPLES=21`, `measure-edit-latency.mjs`, p50 ms / heap peak MiB)
 

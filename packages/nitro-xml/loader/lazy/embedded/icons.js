@@ -23,6 +23,7 @@ export const ICONS = {
   borderLeft: '<path d="M5 4v16M10 6h9v12h-9z"/>',
   borderRight: '<path d="M19 4v16M5 6h9v12H5z"/>',
   borderDouble: '<path d="M5 5h14v8H5zM4 17h16M4 20h16"/>',
+  borderDash: '<path d="M5 6h14v8H5zM4 19h3M9 19h3M14 19h3M19 19h1"/>',
   expandSpacing: '<path d="M8 6v12M16 6v12M4 12h3M17 12h3M5 10L3 12l2 2M19 10l2 2-2 2"/>',
   condenseSpacing: '<path d="M8 6v12M16 6v12M3 12h3M18 12h3M6 10l2 2-2 2M18 10l-2 2 2 2"/>',
   scaleUp: '<path d="M9 8h6v8H9zM4 12H2M6 10L4 12l2 2M20 12h2M18 10l2 2-2 2"/>',

@@ -614,6 +614,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.border-dash",
+                    label: "Dashed Border",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.page-break-before",
                     label: "Page Break Before",
                     enabled: true,
@@ -793,6 +798,7 @@ fn canonical_command(id: &str) -> &str {
         "home.border-left" => "border-left",
         "home.border-right" => "border-right",
         "home.border-double" => "border-double",
+        "home.border-dash" => "border-dash",
         "home.page-break-before" => "page-break-before",
         "home.space-before" => "space-before",
         "home.space-after" => "space-after",

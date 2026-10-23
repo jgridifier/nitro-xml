@@ -605,4 +605,23 @@ mod tests {
         assert_eq!(side_attr(&on, "bottom", "val"), Some("single"));
         assert_eq!(side_attr(&on, "bottom", "color"), Some("4F81BD"));
     }
+
+    #[test]
+    fn catches_dashed_border_omitting_w_bottom() {
+        // Catches: a dashed bottom border saving without w:bottom val="dashed", or a styled left rule dropped from w:pBdr.
+        let base = json!({"id": "p0", "runs": [{"text": "Hi"}]});
+        let bordered = json!({
+            "id": "p0",
+            "runs": [{"text": "Hi"}],
+            "borders": {
+                "bottom": {"style": "dashed", "sizeEighthPoints": 12, "spacePoints": 1, "color": "000000"},
+                "left": {"style": "single", "sizeEighthPoints": 4, "color": "FF0000"}
+            }
+        });
+        let on = write_paragraph(&bordered, &make_w("p"), Some(&base)).unwrap();
+        assert_eq!(side_attr(&on, "bottom", "val"), Some("dashed"));
+        assert_eq!(side_attr(&on, "bottom", "sz"), Some("12"));
+        assert_eq!(side_attr(&on, "left", "val"), Some("single"));
+        assert_eq!(side_attr(&on, "left", "color"), Some("FF0000"));
+    }
 }

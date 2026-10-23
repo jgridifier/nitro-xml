@@ -249,7 +249,6 @@ export class ViewerElement extends HTMLElement {
     if (
       this._readonly === false &&
       this._d &&
-      this._d._originalBytes &&
       !this._d._editRecoveryAttempted &&
       c === "worker_crashed"
     ) {

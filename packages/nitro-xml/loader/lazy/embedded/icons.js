@@ -31,6 +31,7 @@ export const ICONS = {
   scaleDown: '<path d="M8 9h8v6H8zM3 12h3M6 10l2 2-2 2M18 12h3M18 10l-2 2 2 2"/>',
   shade: '<path d="M5 14c0-4 3-8 7-8s7 4 7 8H5zM8 16h8M9 19h6"/>',
   landscape: '<path d="M3 7h14l4 4v6H3zM17 7v4h4"/>',
+  narrowMargins: '<path d="M4 4h16v16H4zM8 8h8v8H8z"/>',
   pageBreakBefore: '<path d="M6 3h8l4 4v6H6zM14 3v4h4M6 15h12v6H6zM12 11v4M10 13l2 2 2-2"/>',
   strike: '<path d="M4 12h16M16 6.5C15 5 13.5 4.5 12 4.5c-2.5 0-4 1.3-4 3 0 1.5 1 2.5 4 3.5M8 17c1 1.6 2.5 2.5 4.5 2.5 2.5 0 4-1.3 4-3 0-1-.5-1.8-1.5-2.5"/>',
   grow: '<path d="M4 19l5-13 5 13M6 14h6M18 10V4M15 7l3-3 3 3"/>',

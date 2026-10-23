@@ -162,8 +162,48 @@ and branch `f4d77b9`.
 
 \*docx M mount→paint noise on one run; heap flat.
 
-Cold WASM `peak-mem.mjs` (`--runs=7`) unchanged between tips (no Rust diff).
-Median wasm open ms / peak VmHWM growth (MiB) on branch tip:
+## Defer host `originalBytes` until edit or reload
+
+Writable embed open no longer clones the zip on the host before transferring
+the buffer to the worker; `_ensureOriginalBytes()` fetches a copy via worker
+`original-bytes` → WASM `Handle.takePackageBytes` on first `_ej()` /
+`reloadOnce()` / `recoverEditOnce()`. Read-only opens still prefetch async
+after `opened` so viewer `reloadOnce` has a snapshot.
+
+`measure-open-mem.mjs` on this VM (`main` `bbbea70` → branch `d48ef89`;
+single cold run per cell). Bundle brotli **17339 / 17408 B**.
+
+| Format | Tier | mount→paint before | after | open before | after | paint before | after | heap peak before | after |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| xlsx | S | 323 ms | **202 ms** | 159 ms | 125 ms | 164 ms | 77 ms | 6.1 MiB | **5.5 MiB** |
+| xlsx | M | 310 ms | **288 ms** | 138 ms | 153 ms | 172 ms | 135 ms | 6.4 MiB | 6.4 MiB* |
+| xlsx | L | 978 ms | **868 ms** | 136 ms | 116 ms | 842 ms | 751 ms | 15.5 MiB | **15.3 MiB** |
+| docx | S | 165 ms | 186 ms | 89 ms | 114 ms | 76 ms | 73 ms | 5.5 MiB | 5.5 MiB |
+| docx | M | 164 ms | 226 ms* | 94 ms | 127 ms | 69 ms | 99 ms | 6.6 MiB | 6.3 MiB |
+| docx | L | 243 ms | 229 ms | 102 ms | 103 ms | 140 ms | 126 ms | 10.7 MiB | 10.3 MiB |
+| pptx | S | 168 ms | **142 ms** | 107 ms | 86 ms | 61 ms | 56 ms | 5.5 MiB | 5.6 MiB |
+| pptx | M | 151 ms | 196 ms* | 90 ms | 109 ms | 62 ms | 87 ms | 6.1 MiB | 6.7 MiB |
+| pptx | L | 193 ms | 207 ms | 92 ms | 105 ms | 101 ms | 101 ms | 10.9 MiB | 11.0 MiB |
+
+\*xlsx M sampled peak 7.1 MiB mid-run, settled 6.4 MiB after; docx/pptx M mount→paint
+single-run swing (open/paint split noise on this VM).
+
+Cold WASM `peak-mem.mjs` (`--runs=7`, same wasm pkg aside from `takePackageBytes`):
+median wasm open ms / peak VmHWM growth (MiB) before → after:
+
+| Format | Tier | wasm open ms before | after | wasm peak MiB before | after |
+|---|---|---:|---:|---:|---:|
+| xlsx | S | 34.6 | 27.6 | 14.6 | 15.5 |
+| xlsx | M | 58.1 | 50.4 | 18.1 | 17.8 |
+| xlsx | L | 25.0 | 25.3 | 22.0 | 21.2 |
+| docx | S | 19.3 | 21.4 | 10.6 | 10.8 |
+| docx | M | 24.4 | 23.8 | 11.9 | 12.3 |
+| docx | L | 30.3 | 28.6 | 15.7 | 16.2 |
+| pptx | S | 18.3 | 17.0 | 4.3 | 4.5 |
+| pptx | M | 20.1 | 18.1 | 6.1 | 6.1 |
+| pptx | L | 24.6 | 22.2 | 17.3 | 16.5 |
+
+Median wasm open ms / peak VmHWM growth (MiB) on branch tip (defer-journal era, no Rust diff):
 
 | Format | Tier | wasm open ms | wasm peak MiB |
 |---|---|---:|---:|
@@ -193,6 +233,7 @@ Median wasm open ms / peak VmHWM growth (MiB) on branch tip:
 | (this) | xlsx mut-frame: drop dead CanvasTextMeasure payloads (sticky `_nxPainted`) |
 | (this) | Paint-before-soft-share + host apply-before-measure + `er` / `_eP` edit barrier |
 | (this) | Defer `createJournal` until first mutating `applyEdit` (writable embed open) |
+| (this) | Defer host `originalBytes` until edit/reload (`takePackageBytes` + `original-bytes`) |
 
 Stay out of xlsx grid paint / StringTable encode (separate track). Keep eager
 loader ≤ 17 408 B brotli (new JS under `loader/lazy/`). No budget, threshold,

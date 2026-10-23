@@ -609,3 +609,9 @@ outlined in Slice 10).
 
 **Verdict:** **SHIP** — ~6% xlsx S/M peak wins, faster docx S/M open, no tier >12% regression on
 open or peak (xlsx M open +6% within noise; docx S open swing is paired-run noise on this box).
+
+## Slice 22: `Handle.takePackageBytes` (defer host zip copy)
+
+Tiny WASM export: copy `Arc<[u8]>` package bytes for loader `original-bytes` RPC so the host
+defers its zip duplicate until first edit / reload (`cursor/perf-defer-original-bytes-4e30`).
+Open/paint path unchanged; `peak-mem.mjs` wasm peak flat within noise (xlsx M/L slightly lower).

@@ -351,6 +351,7 @@ impl<'a> ZipPackage<'a> {
 
     /// Inflates a whole part straight into one exactly-sized buffer (no chunk buffer, no second copy).
     /// The same size, ratio and total checks as [`Self::inflate`] apply.
+    #[inline(never)]
     fn inflate_into(
         &mut self,
         index: usize,
@@ -424,6 +425,7 @@ impl<'a> ZipPackage<'a> {
     }
 
     /// Returns `(bytes produced, ran to EOF)`.
+    #[inline(never)]
     fn inflate<F>(
         &mut self,
         index: usize,

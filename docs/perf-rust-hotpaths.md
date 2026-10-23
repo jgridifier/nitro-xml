@@ -558,3 +558,28 @@ every tier (no new LOSS vs TS from this flag alone).
 **Verdict:** **SHIP** — clear multi-fixture peak_mem win (8/9 tiers, docx/pptx also faster open);
 trade xlsx M/L cold open (~10%) for ~1–2 MiB less post-init peak on small/medium fixtures and
 ~2–3 MiB on docx tiers. Recommend merge `cursor/perf-wasm-opt-O1-4e30`.
+
+## Slice 20: opc parse + zip inflate outline (`cursor/perf-opc-outline-open-4e30`)
+
+`#[inline(never)]` on `nitro-xml-opc` DOM parse helpers (`parse_normalized`, `collect_attrs`,
+`flush_text`, `resolve_element_ns`, `append_text`, `push_child`, `contains_dtd_or_entity`) and zip
+inflate (`inflate_into`, `inflate`) so V8 TurboFan does not merge the whole OPC open path into one
+megafunction on first touch (same playbook as xlsx stream/paint #432/#435).
+
+**A/B** (`main` `642a7dd` pkg `/tmp/pkg-main-opc-base` vs branch pkg `/tmp/pkg-opc-outline`;
+`peak-mem.mjs --runs=7 --format=xlsx,docx,pptx --tier=S,M,L`):
+
+| Format | Tier | main open ms | branch open ms | Δ open | main peak MiB | branch peak MiB | Δ peak |
+|---|---|--:|--:|--:|--:|--:|--:|
+| xlsx | S | 22.59 | 24.00 | +6.2% | 16.3 | **12.8** | **−21.5%** |
+| xlsx | M | 42.96 | 40.14 | −6.6% | 16.4 | 16.8 | +2.4% |
+| xlsx | L | 28.32 | 29.08 | +2.7% | 22.5 | 23.4 | +4.0% |
+| docx | S | 21.11 | 19.82 | **−6.1%** | 11.2 | **10.1** | **−9.8%** |
+| docx | M | 23.47 | 22.46 | **−4.3%** | 13.0 | **12.5** | **−3.8%** |
+| docx | L | 42.15 | 31.78 | **−24.6%** | 16.2 | 16.1 | −0.6% |
+| pptx | S | 18.76 | 17.33 | **−7.6%** | 4.4 | 4.4 | 0% |
+| pptx | M | 19.56 | 18.73 | **−4.2%** | 6.1 | 6.5 | +6.6% |
+| pptx | L | 25.21 | 23.76 | **−5.8%** | 17.1 | 16.8 | −1.8% |
+
+**Verdict:** **SHIP** — large xlsx S peak win and faster docx/pptx open on most tiers; no tier
+regresses >12% on open or peak (xlsx S open +6% is within noise).

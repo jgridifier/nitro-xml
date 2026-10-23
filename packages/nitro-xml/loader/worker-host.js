@@ -67,26 +67,42 @@ const n = name || this._name;
 if (n && !isSupportedExtension(n)) throw unsupportedFormatError();
 this._name = n;
 const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-this._originalBytes = new Uint8Array(u8);
+this._originalBytes = null;
 this._ro = opts.readonly !== false;
 this._viewerReloadAttempted = false;
 this._editRecoveryAttempted = false;
 this._journal = null;
-return this._openBytes(u8, n, opts);
+const opened = await this._openBytes(u8, n, opts);
+if (this._ro) {
+void this._ensureOriginalBytes().catch(() => {});
+}
+return opened;
+}
+async _ensureOriginalBytes() {
+if (this._originalBytes) return this._originalBytes;
+const msg = await this._request("original-bytes", () => {
+this._worker.postMessage({ type: "original-bytes" });
+});
+const raw = msg.bytes instanceof Uint8Array ? msg.bytes : new Uint8Array(msg.bytes);
+this._originalBytes = new Uint8Array(raw);
+return this._originalBytes;
 }
 async _ej() {
-if (this._journal || this._ro || !this._originalBytes) return this._journal;
+if (this._journal || this._ro) return this._journal;
+const bytes = await this._ensureOriginalBytes();
+if (!bytes) return this._journal;
 const { createJournal } = await import("./lazy/journal.js");
-return (this._journal = createJournal(this._originalBytes));
+return (this._journal = createJournal(bytes));
 }
 async reloadOnce() {
 if (this._viewerReloadAttempted) {
 throw Object.assign(new Error(VIEWER_RECOVERY_FAILED_MESSAGE), { code: "viewer_recovery_exhausted" });
 }
-if (!this._originalBytes) throw Object.assign(new Error("no bytes"), { code: "viewer_recovery_failed" });
+const snapshot = await this._ensureOriginalBytes();
+if (!snapshot) throw Object.assign(new Error("no bytes"), { code: "viewer_recovery_failed" });
 this._viewerReloadAttempted = true;
 this._swapWorker();
-await this._openBytes(new Uint8Array(this._originalBytes), this._name, { readonly: this._ro });
+await this._openBytes(new Uint8Array(snapshot), this._name, { readonly: this._ro });
 return this;
 }
 async recoverEditOnce() {
@@ -94,6 +110,11 @@ if (this._editRecoveryAttempted) {
 throw Object.assign(new Error(EDITOR_RECOVERY_FAILED_MESSAGE), {
 code: "editor_recovery_exhausted",
 });
+}
+try {
+await this._ensureOriginalBytes();
+} catch {
+throw Object.assign(new Error("no bytes"), { code: "editor_recovery_failed" });
 }
 await this._ej();
 if (!this._journal) {

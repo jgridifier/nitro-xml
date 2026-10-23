@@ -44,8 +44,8 @@ describe("edit recover with deferred journal (#445)", () => {
     assert.equal(shown, 0);
   });
 
-  it("does not attempt edit recover without retained originals", async () => {
-    // Catches: edit-mode crash with no snapshot still must surface an error.
+  it("surfaces an error when recoverEditOnce cannot fetch originals", async () => {
+    // Catches: edit-mode crash with no WASM snapshot still must not silently succeed.
     const { ViewerElement } = await import("../element.js");
     let recovered = 0;
     let shown = 0;
@@ -57,7 +57,7 @@ describe("edit recover with deferred journal (#445)", () => {
       _editRecoveryAttempted: false,
       async recoverEditOnce() {
         recovered++;
-        return this;
+        throw Object.assign(new Error("no bytes"), { code: "editor_recovery_failed" });
       },
     };
     el._clr = () => {};
@@ -69,7 +69,7 @@ describe("edit recover with deferred journal (#445)", () => {
 
     el._fail({ code: "worker_crashed" });
     await new Promise((r) => setTimeout(r, 0));
-    assert.equal(recovered, 0);
+    assert.equal(recovered, 1);
     assert.equal(shown, 1);
   });
 });

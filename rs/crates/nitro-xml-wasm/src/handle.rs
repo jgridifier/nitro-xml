@@ -899,6 +899,12 @@ impl Handle {
         self.bytes.len()
     }
 
+    /// Copy of the held package bytes (for host crash recovery / edit journal).
+    #[wasm_bindgen(js_name = takePackageBytes)]
+    pub fn take_package_bytes(&self) -> Vec<u8> {
+        self.bytes.as_ref().to_vec()
+    }
+
     /// Non-fatal warnings accumulated while opening or querying.
     pub fn warnings(&self) -> Array {
         let out = Array::new();

@@ -164,6 +164,12 @@ if (!handle) throw new Error("no document");
 unlockChrome();
 self.postMessage({type:"editor-key",result:handle.editorKey(msg.key||"",!!msg.ctrl,!!msg.meta,!!msg.alt,!!msg.shift,!!msg.mac)});
 break;
+case "original-bytes": {
+if (!handle) throw new Error("no document");
+const bytes = new Uint8Array(handle.takePackageBytes());
+self.postMessage({ type: "original-bytes", bytes }, [bytes.buffer]);
+break;
+}
 case "save":{
 if (!handle) throw new Error("no document");
 const bytes=new Uint8Array(handle.saveDocument());

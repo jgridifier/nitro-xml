@@ -32,6 +32,7 @@ describe("defer journal until first edit", () => {
     empty._ro = false;
     empty._originalBytes = null;
     empty._journal = null;
+    empty._ensureOriginalBytes = async () => null;
     await empty._ej();
     assert.equal(empty._journal, null);
   });

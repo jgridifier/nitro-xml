@@ -521,6 +521,12 @@ impl<'a> Presentation<'a> {
         self.slides.get(index).and_then(|s| s.as_ref())
     }
 
+    /// True when every slide part is parsed (viewer soft-share `ensure_edit` gate).
+    pub fn all_slides_loaded(&self) -> bool {
+        let n = self.slide_count();
+        n > 0 && (0..n).all(|i| self.slide_if_loaded(i).is_some())
+    }
+
     pub fn ensure_all_slides(&mut self) -> Result<(), Error> {
         for i in 0..self.slide_paths.len() {
             if self.slides[i].is_none() {

@@ -32,14 +32,19 @@ pub struct PptxEditor {
 impl PptxEditor {
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
         let host = PptxHost::open(bytes)?;
-        Ok(Self {
+        Ok(Self::from_opened_host(host, bytes))
+    }
+
+    /// Editor shell around a host already built from the open package (wasm soft-share).
+    pub fn from_opened_host(host: PptxHost, bytes: &[u8]) -> Self {
+        Self {
             session: EditSession::new(host, EditHistory::new()),
             commands: PptxCommandSurface::new(false),
             selection: SelectionState::new(0),
             original: bytes.to_vec(),
             active_tab: "home".to_string(),
             read_only: false,
-        })
+        }
     }
 
     /// Build an editor around an existing host (tests / in-memory fixtures).

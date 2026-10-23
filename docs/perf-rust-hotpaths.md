@@ -696,3 +696,50 @@ truncated so we do not replace `PrintSession` on the edit path.
 
 **Verdict:** **SHIP** — large docx S/M writable-open win; wasm peak floors unchanged; no
 demoted fixtures or budget edits.
+
+## Slice 25: pptx soft-share `ensure_edit` (reuse viewer `Presentation`)
+
+**Goal:** first `setReadOnly(false)` / `ensure_edit` no longer runs a second
+`Presentation::open` + `PptxHost::open` zip pass when the viewer already holds the deck.
+Lazy slides are finished via `ensure_all_slides` on the existing `Presentation` only.
+
+**Rust:** `PptxHost::from_presentation`; `PptxEditor::from_opened_host`; wasm `ensure_edit`
+builds the edit host from `PptxState::pres` (handle package `Arc` unchanged).
+
+**A/B** (`origin/main` `6400240` vs `cursor/perf-pptx-ensure-edit-soft-share-4e30` on this box):
+
+### Native `PptxHost` build (primary — release, n=21 medians)
+
+Viewer already holds a fully loaded `Presentation` (`ensure_all_slides` done). Soft-share
+times only `from_presentation`; baseline is `PptxHost::open` (second zip parse).
+
+| Tier | fixture | `PptxHost::open` | `from_presentation` | Δ |
+|---|---|--:|--:|---|
+| pptx S | slides_10 | 0.827 ms | **0.006 ms** | **−99%** |
+| pptx M | slides_50 | 3.238 ms | **0.027 ms** | **−99%** |
+| pptx L | slides_200 | 12.166 ms | **0.097 ms** | **−99%** |
+
+### Peak memory (`peak-mem.mjs --runs=7`, wasm open ms / peak MiB)
+
+Cold open does not call `ensure_edit` — expect flat (paired-run noise only).
+
+| Format×tier | before | after | Δ |
+|---|---:|---:|---|
+| pptx S | 17.2 / 4.4 | 17.1 / 4.4 | flat |
+| pptx M | 20.0 / 6.6 | 18.0 / 6.3 | noise |
+| pptx L | 23.0 / 16.9 | 22.2 / 16.9 | noise |
+| xlsx/docx | within noise | within noise | — |
+
+### Edit (`EDIT_SAMPLES=21`, `measure-edit-latency.mjs`)
+
+Sample0 is warm after unlock soft-share (same pattern as xlsx #457); p50 flat:
+
+| Scenario×tier | before p50 | after p50 |
+|---|---:|---:|
+| edit-pptx-text pptx S | 3.2 ms | 3.3 ms |
+| edit-pptx-text pptx L | 10.5 ms | 10.8 ms |
+| edit-bold pptx S | 3.0 ms | 2.8 ms |
+| edit-bold pptx L | 10.9 ms | 10.5 ms |
+
+**Verdict:** **SHIP** — ensure_edit host build ~100× faster when the viewer deck is loaded; cold
+peak-mem / warm edit p50 flat as expected. Completes soft-share trilogy with xlsx #457 / docx #462.

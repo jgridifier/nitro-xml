@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! Wasm glue for the pptx editor session: open, chrome commands, headless edits, save.
 
+use nitro_xml_pptx::edit::host::PptxHost;
 use nitro_xml_pptx::editor::PptxEditor;
 use nitro_xml_pptx::save_pptx;
 use serde_json::Value;
@@ -47,7 +48,10 @@ impl PptxState {
             self.sync_editor_selection();
             return Ok(());
         }
-        let mut edit = PptxEditor::open(bytes)?;
+        // Reuse the viewer `Presentation` (no second `Presentation::open`). When slides are
+        // not all parsed yet, `from_presentation` finishes lazy loads on this deck only.
+        let host = PptxHost::from_presentation(&mut self.pres)?;
+        let mut edit = PptxEditor::from_opened_host(host, bytes);
         edit.set_read_only(false);
         let slide = self.active as u32;
         let _ = edit.set_slide(slide);
@@ -625,4 +629,33 @@ fn shape_plain(el: &nitro_xml_pptx::edit::host::EditableElement) -> String {
         return text.to_owned();
     }
     el.text_segments.iter().map(|s| s.text.as_str()).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use std::sync::Arc;
+
+    #[test]
+    fn catches_ensure_edit_reuses_viewer_presentation_not_second_open() {
+        // Catches: ensure_edit calling PptxHost::open / second Presentation::open while the
+        // viewer already holds the package Arc (duplicate zip parse + peak heap).
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/pptx/slides_10.pptx");
+        let bytes: Arc<[u8]> = Arc::from(std::fs::read(&path).expect("fixture"));
+        let mut state = PptxState::open(Arc::clone(&bytes)).expect("viewer open");
+        state
+            .pres
+            .ensure_all_slides()
+            .expect("preload slides for soft-share gate");
+        assert!(state.pres.all_slides_loaded());
+        state.ensure_edit(bytes.as_ref()).expect("ensure_edit");
+        let edit = state.edit.as_ref().expect("edit session");
+        assert_eq!(
+            edit.slide_count(),
+            state.pres.slide_count(),
+            "host slide count must match viewer deck"
+        );
+    }
 }

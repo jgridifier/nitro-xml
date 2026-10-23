@@ -640,12 +640,12 @@ Entered **`@betteroffice/docx@0.4.3`** (Apache-2.0) in the docx parse race — R
 times load+init+first paint (800×480, DPR 1). **xlsx** and **pptx** are entered for `nitro-xml` vs
 `upstream-ts`; docx deferred (#23). Equivalence unchanged from [#390](https://github.com/jgridifier/nitro-xml/pull/390).
 
-**Published** `docs/scoreboard/data/first-paint-latest.json` at tip **`a352f03`** (tiers
+**Published** `docs/scoreboard/data/first-paint-latest.json` at tip **`642a7dd`** (tiers
 **S/M/L/XL**, 3 timed + 1 warmup, `--timeout=600000`; remasure 2026-10-23 after
-#413/#417/#422/#426/#431/#435). Archive:
-`perf/scoreboard/results/render/2026-10-23-a352f03.json`. Draft **#113** / stub
-`scoreboard.sh` (#39) **untouched**. Prior published tip was **`c08b73d`**
-(`2026-10-22-c08b73d.json`).
+#443 wasm-opt `-O1` + #445 defer edit journal + #444/#442/#440). Archive:
+`perf/scoreboard/results/render/2026-10-23-642a7dd.json`. Draft **#113** / stub
+`scoreboard.sh` (#39) **untouched**. Prior published tip was **`a352f03`**
+(`2026-10-23-a352f03.json`). Parked **#415** untouched.
 
 Harness note (from #413, still in effect): Nitro adapters no longer call host
 `initCore` (that double-instantiated wasm vs the worker); they use
@@ -653,14 +653,14 @@ Harness note (from #413, still in effect): Nitro adapters no longer call host
 
 | Format | Tier | Nitro median (ms) | TS median (ms) | Comparable | W/L |
 |--------|------|------------------:|---------------:|:----------:|:---:|
-| xlsx | S | 187 | 817 | yes | **W** |
-| xlsx | M | 211 | 1014 | yes | **W** |
-| xlsx | L | 273 | 2232 | yes | **W** |
-| xlsx | XL | 332 | 2426 | yes | **W** |
-| pptx | S | 186 | 644 | yes | **W** |
-| pptx | M | 192 | 685 | yes | **W** |
-| pptx | L | 198 | 868 | yes | **W** |
-| pptx | XL | 221 | 890 | yes | **W** |
+| xlsx | S | 173 | 799 | yes | **W** |
+| xlsx | M | 177 | 958 | yes | **W** |
+| xlsx | L | 282 | 2288 | yes | **W** |
+| xlsx | XL | 320 | 2305 | yes | **W** |
+| pptx | S | 183 | 615 | yes | **W** |
+| pptx | M | 188 | 676 | yes | **W** |
+| pptx | L | 191 | 862 | yes | **W** |
+| pptx | XL | 223 | 913 | yes | **W** |
 
 Nitro **8W/0L** on comparable cells (pptx Nitro pixels **0.044%** vs 0.5% limit).
 
@@ -683,8 +683,8 @@ Published `parse-latest.json` and `first-paint-latest.json` are real measured ti
 | Item | Issue / PR | Notes |
 |------|------------|-------|
 | Flip WASM-beats-TS to **enforce** | **#8**, **#19**, **#27**; docx **#23** | Tip readiness: **xlsx/docx/pptx READY** with known-loss exceptions still printed as LOSS (xlsx S + docx S/M peak_mem; [Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)). Jared flips `PERF_GATE_MODE=enforce` + required checks; agents do not |
-| xlsx S peak_mem LOSS | compile floor (measured; **known-loss**) | Tip **`a352f03`**: **2.693** [2.559, 3.308] still **LOSS**. Accepted for M1 ([comment](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)). Does not block enforce readiness |
-| Docx S/M peak_mem LOSSes | compile floor (measured; **known-loss**) | Tip **`a352f03`**: S **5.052** / M **2.415** still **LOSS**. Accepted for M1 ([comment](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)). Does not block enforce readiness |
+| xlsx S peak_mem LOSS | compile floor (measured; **known-loss**) | Tip **`2397944`** (post-#443 `-O1` / #444): **2.951** [2.594, 3.469] still **LOSS**. Accepted for M1 ([comment](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)). Does not block enforce readiness |
+| Docx S/M peak_mem LOSSes | compile floor (measured; **known-loss**) | Tip **`2397944`** (post-#443 `-O1` / #444): S **4.069** / M **2.050** still **LOSS**. Accepted for M1 ([comment](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)). Does not block enforce readiness |
 | xlsx S openDocument | done (clear WIN) | [#360](https://github.com/jgridifier/nitro-xml/pull/360); tip CI upper ≪ 1 |
 | Scoreboard CI gate (reproducible) | draft **#113**, **#39** | Pages `parse-latest.json` + `first-paint-latest.json` have real Nitro tip data; CI stub / #113 still open |
 | Keep `crash-recovery` / `perf-beats-ts` in branch-protection required checks | Jared / Chief of Staff | Agents do not edit branch protection; add `perf-beats-ts` only after enforce |

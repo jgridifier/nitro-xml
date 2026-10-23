@@ -57,6 +57,11 @@ impl DocxState {
         self.session.ensure_body_complete(bytes)
     }
 
+    /// True when the print session already holds the full body (soft-share `ensure_edit`).
+    pub(crate) fn viewer_model_complete(&self) -> bool {
+        !self.pending_body_complete && !self.session.body_truncated
+    }
+
     pub fn page_count(&self) -> usize {
         self.session.result.pages.len()
     }

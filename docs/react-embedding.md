@@ -42,6 +42,10 @@ identified the xlsx M editable-upgrade cost; that probe is not shipped.
 
 **Hottest bucket (xlsx):** most of the open “chrome” time is **`setReadOnly(false)`** (~200 ms on M), not `loadEditorChrome` / cell encode. Follow-up #320 defers the editable upgrade until after first paint.
 
+**Docx (post–#457):** when the print session body is already complete, `ensure_edit` reuses
+`DocumentModel` and only re-reads `word/document.xml` from the zip — see Slice 24 in
+`docs/perf-rust-hotpaths.md` (~40–50% lower writable-open ms on docx S/M fixtures).
+
 Reproduce:
 
 ```bash

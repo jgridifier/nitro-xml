@@ -106,6 +106,7 @@ pub fn read_package_first_view(
     )
 }
 
+#[inline(never)]
 pub fn read_package_with_opts(
     bytes: &[u8],
     opts: BodyViewOpts,
@@ -398,6 +399,7 @@ pub fn get_media<'a>(doc: &'a mut LoadedDocument<'a>, part_name: &str) -> Option
     doc.media_cache.get(part_name).map(|v| v.as_slice())
 }
 
+#[inline(never)]
 pub fn parse_blocks_from_container(
     container: &Element,
     id_prefix: &str,
@@ -407,6 +409,7 @@ pub fn parse_blocks_from_container(
 }
 
 /// Like [`parse_blocks_from_container`], optionally stopping after N hard page breaks.
+#[inline(never)]
 pub fn parse_blocks_from_container_limited(
     container: &Element,
     id_prefix: &str,
@@ -432,6 +435,7 @@ struct ParseState<'a> {
 }
 
 impl<'a> ParseState<'a> {
+    #[inline(never)]
     fn parse_container_limited(
         &self,
         container: &Element,
@@ -490,6 +494,7 @@ impl<'a> ParseState<'a> {
         (blocks, stats)
     }
 
+    #[inline(never)]
     fn parse_table(
         &self,
         node: &Element,
@@ -510,6 +515,7 @@ impl<'a> ParseState<'a> {
         parse_table(node, id, &mut parse_para)
     }
 
+    #[inline(never)]
     fn parse_paragraph(
         &self,
         node: &Element,
@@ -573,6 +579,7 @@ struct DocumentPartsResult {
     warnings: Vec<String>,
 }
 
+#[inline(never)]
 fn parse_document_parts(
     pkg: &mut Package<'_>,
     body: &Element,
@@ -707,6 +714,7 @@ fn part_context(
     }))
 }
 
+#[inline(never)]
 fn resolve_slots(
     pkg: &mut Package<'_>,
     relationships: &IndexMap<String, Relationship>,

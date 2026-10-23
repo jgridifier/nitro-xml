@@ -13,6 +13,7 @@ use crate::revisions::run_format_revision;
 use crate::run_properties::parse_direct_run_properties;
 use crate::xml_util::{first_w, get_w, named_mc_choice, named_w, text_content, ElementExt};
 
+#[inline(never)]
 pub fn parse_run(node: &Element, revision: Option<Value>, ctx: Option<&DrawingContext>) -> Value {
     let props = first_w(Some(node), "rPr");
     let content = run_content(node);

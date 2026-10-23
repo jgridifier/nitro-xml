@@ -12,6 +12,7 @@ use crate::simple_types::{
 };
 use crate::xml_util::{children_w, first_w, get_w, named_w, ElementExt};
 
+#[inline(never)]
 pub fn parse_table(
     node: &Element,
     id: &str,
@@ -109,6 +110,7 @@ pub fn parse_table(
     table
 }
 
+#[inline(never)]
 fn parse_cell(
     cell: &Element,
     parse_paragraph: &mut dyn FnMut(&Element, &str) -> Value,

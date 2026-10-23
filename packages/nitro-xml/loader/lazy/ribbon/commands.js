@@ -103,6 +103,17 @@ const FONT = {
     metrics,
   ],
 };
+const pptxFont = {
+  g: "Font",
+  rows: [
+    [
+      ...FONT.rows[0],
+      it("home.small-caps", "smallCaps", "Small caps", "Small caps"),
+    ],
+    FONT.rows[1],
+    FONT.rows[2],
+  ],
+};
 const wordFont = {
   g: "Font",
   rows: [
@@ -237,7 +248,7 @@ export function tabsFor(format, unit, edit) {
       ? { Home: [...XLSX_HOME.slice(0, 5), nav(unit), XLSX_HOME[5]] }
       : format === "pptx" && edit
         ? {
-            Home: [...officeHome.slice(0, 2), lists, drawing, arrange, ...officeHome.slice(2)],
+            Home: [officeHome[0], pptxFont, lists, drawing, arrange, ...officeHome.slice(2)],
             Insert: [
               {
                 g: "Slides",

@@ -45,6 +45,7 @@ describe("Office ribbon manifests", () => {
       "home.italic",
       "home.underline",
       "home.strikethrough",
+      "home.small-caps",
       "home.align-left",
       "home.align-center",
       "home.align-right",
@@ -119,6 +120,7 @@ describe("Office ribbon manifests", () => {
       "home.bullets",
       "home.numbering",
       "home.strikethrough",
+      "home.small-caps",
       "home.indent",
       "home.outdent",
       "home.line-spacing",
@@ -224,6 +226,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(bound.includes("home.align-justify"));
     assert.ok(bound.includes("home.numbering"));
     assert.ok(bound.includes("home.strikethrough"));
+    assert.ok(!bound.includes("home.small-caps"));
+    assert.ok(ids(tabsFor("pptx", "Slide", true)).includes("home.small-caps"));
     assert.ok(bound.includes("home.highlight"));
     assert.ok(bound.includes("home.bullets"));
     assert.ok(bound.includes("home.indent"));

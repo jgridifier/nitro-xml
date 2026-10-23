@@ -300,6 +300,36 @@ mod tests {
     }
 
     #[test]
+    fn catches_small_caps_dropped_on_slide_save() {
+        // Catches: a slide save that omits a:rPr/@cap="small", so reopen draws the run at full cap height.
+        use crate::edit::host::TextStylePatch;
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        host.set_text_style(
+            0,
+            None,
+            Some(0),
+            TextStylePatch {
+                small_caps: Some(true),
+                ..TextStylePatch::default()
+            },
+        )
+        .expect("small caps");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save");
+        let xml = slide_xml(&saved, "ppt/slides/slide1.xml");
+        assert!(
+            xml.contains("cap=\"small\""),
+            "saved slide dropped cap=small: {xml}"
+        );
+        let again = PptxHost::open(&saved).expect("reopen");
+        let el = &again.slides[0].elements[0];
+        assert!(
+            el.text_segments.iter().any(|s| s.small_caps),
+            "reopened shape lost small caps"
+        );
+    }
+
+    #[test]
     fn catches_indent_spacing_baseline_and_typeface_dropped_on_slide_save() {
         // Catches: a slide save that omits a:pPr/@marL, a:lnSpc/a:spcPct, a:rPr/@baseline, or a:latin/@typeface.
         use crate::edit::host::TextStylePatch;

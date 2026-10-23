@@ -67,6 +67,7 @@ pub fn ribbon_html(
             surface,
             false,
         ));
+        html.push_str(&button("home.small-caps", "Small Caps", surface, false));
         html.push_str(&button("home.align-left", "Align Left", surface, false));
         html.push_str(&button("home.align-center", "Center", surface, false));
         html.push_str(&button("home.align-right", "Align Right", surface, false));

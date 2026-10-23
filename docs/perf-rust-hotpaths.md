@@ -489,3 +489,37 @@ growth MiB; baseline wasm pkg at `3a9765a`, branch `6c44241`):
 **Verdict:** ship — clear xlsx S peak_mem and open wins with M/L peak improvements, no material
 regression.
 
+## Slice 18: skip `chrome_rest_html` on formula-only xlsx edits (issue #30)
+
+Follow-up to Slice 12 (`hf` formula-bar delta): when `dirty_chrome_rest` is clear and cached
+`last_chrome_rest` matches, `chrome_delta_from_ui` emits `hf` without calling `chrome_rest_html`
+or `ShellUi::to_json` for the chrome HTML comparison. `build_chrome_payload` omits `ui.chromeHtml`
+on formula-only / unchanged deltas (host uses `hf`/`h`). `applyEdit` avoids a second
+`refresh_formula_bar` before `chrome_payload`.
+
+**A/B** (`main` a352f03 vs branch tip c24c674; React embed `measure-edit-latency.mjs`,
+`EDIT_SAMPLES=40`, `peak-mem.mjs --runs=7`):
+
+| Scenario | main p50 | branch p50 | Δ |
+|---|--:|--:|--:|
+| xlsx S `edit-cell` (setCellInput) | 9.70 ms | 8.10 ms | **−16%** |
+| xlsx L `edit-cell` | 18.10 ms | 11.70 ms | **−35%** |
+| xlsx S/L `edit-bold` | 10.20 / 10.30 ms | 8.50 / 8.60 ms | **−17% / −16%** |
+| pptx S `edit-pptx-text` (control) | 5.20 ms | 3.00 ms | NOISE |
+| docx S/L `edit-bold` (control) | 17.50 / 39.20 ms | 17.60 / 39.20 ms | flat |
+
+**Cold open (wasm median load ms / peak MiB, same harness):**
+
+| Fixture | main load | branch load | main peak | branch peak |
+|---|--:|--:|--:|--:|
+| xlsx S | 26.34 | 23.83 | 16.24 | 15.08 |
+| xlsx M | 41.83 | 43.81 | 17.46 | 18.58 |
+| xlsx L | 26.26 | 29.15 | 22.29 | 22.91 |
+| docx S | 21.13 | 19.73 | 12.51 | 11.79 |
+| pptx S | 19.89 | 19.27 | 5.00 | 4.97 |
+
+Open path unchanged by design; spread above is single-box noise (no fixture >~12% load and
+~9% peak on wasm). Unit test `formula_only_chrome_skips_chrome_rest_html_build` catches
+edit-path regressions.
+
+**Verdict:** ship — clear React embed xlsx edit-cell win (S and L), no material open regression.

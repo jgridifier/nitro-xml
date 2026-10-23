@@ -32,7 +32,7 @@ fn process_frame_pptx(handle: &mut Handle) {
         let idx = pptx.active as u32;
         if handle.shell.nav_index != idx {
             handle.shell.nav_index = idx;
-            handle.shell.dirty_ui = true;
+            handle.shell.touch_chrome_rest();
         }
     }
 }
@@ -44,7 +44,7 @@ fn process_frame_docx(handle: &mut Handle) {
         let idx = docx.active as u32;
         if handle.shell.nav_index != idx {
             handle.shell.nav_index = idx;
-            handle.shell.dirty_ui = true;
+            handle.shell.touch_chrome_rest();
         }
     }
 }
@@ -273,14 +273,14 @@ impl Handle {
             }
         }
         self.refresh_formula_bar();
-        self.shell.dirty_ui = true;
+        self.shell.touch_chrome_rest();
     }
 
     /// Lazy-load editor chrome: register command stubs and enable ribbon HTML.
     #[wasm_bindgen(js_name = loadEditorChrome)]
     pub fn load_editor_chrome(&mut self) {
         self.editor.load();
-        self.shell.dirty_ui = true;
+        self.shell.touch_chrome_rest();
     }
 
     /// Match a keyboard event against the shortcut table; returns JSON `{command?, action?}` or `{}`.
@@ -361,7 +361,7 @@ impl Handle {
         let t1 = now_ms();
         process_frame(self);
         self.shell.diagnostics.paint_ms = now_ms() - t1;
-        self.shell.dirty_ui = true;
+        self.shell.touch_chrome_rest();
         Ok(())
     }
 
@@ -402,7 +402,7 @@ impl Handle {
         let t1 = now_ms();
         process_frame(self);
         self.shell.diagnostics.paint_ms = now_ms() - t1;
-        self.shell.dirty_ui = true;
+        self.shell.touch_chrome_rest();
         Ok(())
     }
 
@@ -426,7 +426,7 @@ impl Handle {
         let t1 = now_ms();
         process_frame(self);
         self.shell.diagnostics.paint_ms = now_ms() - t1;
-        self.shell.dirty_ui = true;
+        self.shell.touch_chrome_rest();
         Ok(())
     }
 
@@ -882,7 +882,7 @@ impl Handle {
                 self.shell
                     .diagnostics
                     .ingest_warning(FONT_SUBSTITUTION_CODE, &message, None);
-                self.shell.dirty_ui = true;
+                self.shell.touch_chrome_rest();
                 self.warnings.push(Warning::new(
                     FONT_SUBSTITUTION_CODE.to_owned(),
                     message,
@@ -1267,7 +1267,7 @@ impl Handle {
             // Defer paint to the host tick's prepareFrame. applyEdit+tick used to
             // process_frame twice per cell edit (edit-to-screen lag on React embeds).
             self.refresh_formula_bar();
-            return Ok(self.chrome_payload(false));
+            return Ok(self.chrome_payload_after_formula_refresh(false));
         }
         self.apply_office_edit(spec)
     }
@@ -1309,7 +1309,7 @@ impl Handle {
             }
             // Same as applyEdit: paint on the next prepareFrame/tick, not here.
             self.refresh_formula_bar();
-            self.shell.dirty_ui = true;
+            self.shell.touch_ui();
         }
         let selection = self.xlsx.as_ref().and_then(|x| x.selection_ref_now());
         let mut payload: serde_json::Value =
@@ -1332,11 +1332,18 @@ enum ChromeDelta {
 
 impl Handle {
     fn chrome_delta_from_ui(&mut self) -> ChromeDelta {
-        let ui = ShellUi::to_json(&self.shell, &self.editor);
-        let full = ui.get("chromeHtml").and_then(|v| v.as_str()).unwrap_or("");
         let formula = self.editor.formula_html().to_owned();
+        if let Some(rest) = self.last_chrome_rest.clone() {
+            if !self.shell.dirty_chrome_rest {
+                let full = format!("{rest}{formula}");
+                return self.take_chrome_delta(&full, &formula, &rest);
+            }
+        }
+        // Build rest once; do not go through ShellUi::to_json (that would rebuild rest+formula).
         let rest = chrome_rest_html(&self.shell, &self.editor);
-        self.take_chrome_delta(full, &formula, &rest)
+        let full = format!("{rest}{formula}");
+        self.shell.dirty_chrome_rest = false;
+        self.take_chrome_delta(&full, &formula, &rest)
     }
 
     fn insert_chrome_delta(map: &mut serde_json::Map<String, Value>, delta: ChromeDelta) {
@@ -1494,7 +1501,7 @@ impl Handle {
             self.sync_office_tabs();
             process_frame(self);
             self.refresh_formula_bar();
-            self.shell.dirty_ui = true;
+            self.shell.touch_chrome_rest();
             if let Some(obj) = payload.as_object_mut() {
                 Self::insert_chrome_delta(obj, self.chrome_delta_from_ui());
             }
@@ -1530,6 +1537,7 @@ impl Handle {
             self.sync_office_tabs();
             process_frame(self);
         }
+        self.shell.touch_chrome_rest();
         Ok(self.chrome_payload(save))
     }
 
@@ -1555,10 +1563,23 @@ impl Handle {
     }
 
     fn chrome_payload(&mut self, save: bool) -> String {
-        self.refresh_formula_bar();
-        let ui = ShellUi::to_json(&self.shell, &self.editor);
+        self.build_chrome_payload(save, true)
+    }
+
+    fn chrome_payload_after_formula_refresh(&mut self, save: bool) -> String {
+        self.build_chrome_payload(save, false)
+    }
+
+    fn build_chrome_payload(&mut self, save: bool, refresh_formula: bool) -> String {
+        if refresh_formula {
+            self.refresh_formula_bar();
+        }
+        let delta = self.chrome_delta_from_ui();
+        // Formula-only / unchanged: host already has chrome from `hf`/`h`; skip ~50KB chromeHtml.
+        let include_chrome_html = matches!(delta, ChromeDelta::Full(_));
+        let ui = ShellUi::to_json_with_chrome(&self.shell, &self.editor, include_chrome_html);
         let mut out = serde_json::Map::new();
-        Self::insert_chrome_delta(&mut out, self.chrome_delta_from_ui());
+        Self::insert_chrome_delta(&mut out, delta);
         out.insert("ui".into(), ui);
         out.insert("save".into(), serde_json::json!(save));
         out.insert(
@@ -1666,6 +1687,7 @@ impl Handle {
         if !save {
             process_frame(self);
         }
+        self.shell.touch_chrome_rest();
         let mut payload = self.chrome_payload(save);
         if let Some(text) = copied {
             if let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&payload) {
@@ -1709,7 +1731,7 @@ impl Handle {
             self.shell
                 .diagnostics
                 .ingest_warning(FONT_SUBSTITUTION_CODE, &message, None);
-            self.shell.dirty_ui = true;
+            self.shell.touch_chrome_rest();
             self.warnings.push(Warning::new(
                 FONT_SUBSTITUTION_CODE.to_owned(),
                 message,
@@ -1816,7 +1838,7 @@ impl Handle {
         } else {
             Some(0)
         };
-        self.shell.dirty_ui = true;
+        self.shell.touch_chrome_rest();
     }
 
     fn copy_docx_plain(&self) -> String {
@@ -1831,7 +1853,7 @@ impl Handle {
         let hit = self.docx.as_ref().and_then(|d| d.hyperlink_at(row, col));
         let Some(hit) = hit else {
             self.shell.pending_hyperlink = None;
-            self.shell.dirty_ui = true;
+            self.shell.touch_chrome_rest();
             return Ok(());
         };
         if let Some(page) = hit.page {
@@ -1847,7 +1869,7 @@ impl Handle {
             }
         }
         self.shell.pending_hyperlink = Some(hit.pending);
-        self.shell.dirty_ui = true;
+        self.shell.touch_chrome_rest();
         Ok(())
     }
 
@@ -2120,6 +2142,71 @@ mod tests {
         Handle::insert_chrome_delta(&mut out, d);
         assert!(out.get("h").is_none());
         assert_eq!(out.get("hf").and_then(|v| v.as_str()), Some(f2));
+    }
+
+    #[test]
+    fn formula_only_chrome_skips_chrome_rest_html_build() {
+        // Catches: formula-only chrome path still allocated full chrome_rest_html.
+        use crate::shell::{
+            chrome_rest_html_calls, chrome_rest_html_calls_lock, chrome_rest_html_calls_reset,
+        };
+
+        let _guard = chrome_rest_html_calls_lock();
+        let mut h = Handle::new(Vec::new());
+        h.editor.load();
+        h.editor.set_read_only(false);
+        let rest = "<ribbon>static</ribbon>";
+        h.last_chrome_rest = Some(rest.to_string());
+        h.last_formula_html = Some("<div class=\"xfb\">=1</div>".into());
+        h.last_chrome_html = Some(format!("{rest}<div class=\"xfb\">=1</div>"));
+        h.shell.dirty_chrome_rest = false;
+        h.editor
+            .set_formula_html("<div class=\"xfb\">=12</div>".into());
+
+        chrome_rest_html_calls_reset();
+        let delta = h.chrome_delta_from_ui();
+        assert!(matches!(delta, ChromeDelta::Formula(_)));
+        assert_eq!(chrome_rest_html_calls(), 0);
+
+        h.shell.dirty_chrome_rest = true;
+        chrome_rest_html_calls_reset();
+        let _ = h.chrome_delta_from_ui();
+        assert!(chrome_rest_html_calls() >= 1);
+    }
+
+    #[test]
+    fn formula_only_chrome_payload_omits_ui_chrome_html() {
+        // Catches: formula-only applyEdit payload still embedded full ui.chromeHtml (~50KB).
+        use crate::shell::{
+            chrome_rest_html_calls, chrome_rest_html_calls_lock, chrome_rest_html_calls_reset,
+        };
+
+        let _guard = chrome_rest_html_calls_lock();
+        let mut h = Handle::new(Vec::new());
+        h.editor.load();
+        h.editor.set_read_only(false);
+        let rest = "<ribbon>static</ribbon>";
+        h.last_chrome_rest = Some(rest.to_string());
+        h.last_formula_html = Some("<div class=\"xfb\">=1</div>".into());
+        h.last_chrome_html = Some(format!("{rest}<div class=\"xfb\">=1</div>"));
+        h.shell.dirty_chrome_rest = false;
+        h.editor
+            .set_formula_html("<div class=\"xfb\">=99</div>".into());
+
+        chrome_rest_html_calls_reset();
+        let raw = h.chrome_payload_after_formula_refresh(false);
+        assert_eq!(chrome_rest_html_calls(), 0);
+        let v: serde_json::Value = serde_json::from_str(&raw).expect("json");
+        assert_eq!(
+            v.get("hf").and_then(|x| x.as_str()),
+            Some("<div class=\"xfb\">=99</div>")
+        );
+        assert!(v.get("h").is_none());
+        assert!(v
+            .pointer("/ui/chromeHtml")
+            .and_then(|x| x.as_str())
+            .is_none());
+        assert!(v.pointer("/ui/zoom").is_some());
     }
 
     #[test]

@@ -27,8 +27,38 @@ const PPTX_NAV: &str = "|ArrowRight:nav-next|ArrowLeft:nav-prev|PageDown:nav-nex
 
 /// Stage-6 shell plus optional editor ribbon (ribbon above toolbar when edit mode)
 /// and any open dialog/menu overlay (#54).
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(test)]
+use std::sync::{Mutex, MutexGuard};
+
+#[cfg(test)]
+static CHROME_REST_HTML_CALLS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static CHROME_REST_HTML_CALLS_LOCK: Mutex<()> = Mutex::new(());
+
+/// Hold across reset → call → assert so parallel tests cannot interleave the counter.
+#[cfg(test)]
+pub fn chrome_rest_html_calls_lock() -> MutexGuard<'static, ()> {
+    CHROME_REST_HTML_CALLS_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
+#[cfg(test)]
+pub fn chrome_rest_html_calls_reset() {
+    CHROME_REST_HTML_CALLS.store(0, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+pub fn chrome_rest_html_calls() -> usize {
+    CHROME_REST_HTML_CALLS.load(Ordering::Relaxed)
+}
+
 /// Ribbon, toolbar/find/tabs shell, and overlay — everything except the formula bar.
 pub fn chrome_rest_html(state: &ShellState, editor: &EditorChrome) -> String {
+    #[cfg(test)]
+    CHROME_REST_HTML_CALLS.fetch_add(1, Ordering::Relaxed);
     // Empty office ribbon keeps the xlsx Home ribbon byte-for-byte.
     let ribbon = if editor.office_ribbon().is_empty() {
         editor.ribbon_html()

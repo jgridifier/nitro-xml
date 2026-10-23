@@ -118,7 +118,7 @@ pub fn apply_action(state: &mut ShellState, action: &ShellAction) -> ShellAction
         ShellAction::FindClose => state.close_find(),
         ShellAction::FindQuery(q) => {
             state.find.query = q.clone();
-            state.dirty_ui = true;
+            state.touch_chrome_rest();
             // Matches filled by handle after search.
         }
         ShellAction::FindOpts {
@@ -127,7 +127,7 @@ pub fn apply_action(state: &mut ShellState, action: &ShellAction) -> ShellAction
         } => {
             state.find.case_sensitive = *case_sensitive;
             state.find.match_entire = *match_entire;
-            state.dirty_ui = true;
+            state.touch_chrome_rest();
         }
         ShellAction::FindNext => {
             if !state.find.matches.is_empty() {
@@ -138,7 +138,7 @@ pub fn apply_action(state: &mut ShellState, action: &ShellAction) -> ShellAction
                     out.navigate_sheet = Some(m.sheet);
                     out.scroll_to = Some((m.row, m.col));
                 }
-                state.dirty_ui = true;
+                state.touch_chrome_rest();
             }
         }
         ShellAction::FindPrev => {
@@ -154,14 +154,14 @@ pub fn apply_action(state: &mut ShellState, action: &ShellAction) -> ShellAction
                     out.navigate_sheet = Some(m.sheet);
                     out.scroll_to = Some((m.row, m.col));
                 }
-                state.dirty_ui = true;
+                state.touch_chrome_rest();
             }
         }
         ShellAction::Sheet(i) => {
             state.nav_index = *i;
             out.navigate_sheet = Some(*i);
             out.reopen_paint = true;
-            state.dirty_ui = true;
+            state.touch_chrome_rest();
         }
         ShellAction::NavNext => {
             if let Some(i) = state
@@ -174,7 +174,7 @@ pub fn apply_action(state: &mut ShellState, action: &ShellAction) -> ShellAction
                     state.nav_index = next;
                     out.navigate_sheet = Some(next);
                     out.reopen_paint = true;
-                    state.dirty_ui = true;
+                    state.touch_chrome_rest();
                 }
             }
         }
@@ -189,22 +189,22 @@ pub fn apply_action(state: &mut ShellState, action: &ShellAction) -> ShellAction
                     state.nav_index = prev;
                     out.navigate_sheet = Some(prev);
                     out.reopen_paint = true;
-                    state.dirty_ui = true;
+                    state.touch_chrome_rest();
                 }
             }
         }
         ShellAction::Copy => {
             // Text filled by handle.
-            state.dirty_ui = true;
+            state.touch_ui();
         }
         ShellAction::DiagnosticsToggle => state.toggle_diagnostics(),
         ShellAction::SelectRef(r) => {
             state.selection_ref = r.clone();
-            state.dirty_ui = true;
+            state.touch_ui();
         }
         ShellAction::HyperlinkAt { .. } => {
             // Pending link filled by handle.
-            state.dirty_ui = true;
+            state.touch_ui();
         }
     }
     out

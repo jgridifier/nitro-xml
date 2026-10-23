@@ -13,6 +13,10 @@ mod ui;
 
 pub use actions::{apply_action, ShellAction};
 pub use chrome::chrome_rest_html;
+#[cfg(test)]
+pub use chrome::{
+    chrome_rest_html_calls, chrome_rest_html_calls_lock, chrome_rest_html_calls_reset,
+};
 pub use diagnostics::open_diagnostic_code;
 pub use state::{cap_chars, push_text_hits, FindMatch, FormatKind, PendingHyperlink, ShellState};
 pub use ui::ShellUi;

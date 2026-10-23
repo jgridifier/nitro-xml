@@ -705,7 +705,7 @@ mod tests {
         let section = &host.sections.as_ref().unwrap()[0];
         assert_eq!(section["pageWidthTwips"], 11906);
         assert_eq!(section["pageHeightTwips"], 16838);
-        assert!(section.get("orientation").is_none());
+        assert_eq!(section["orientation"], "portrait");
         let page = host.page.as_ref().unwrap();
         assert_eq!(page["width"], 11906.0 / 15.0);
         assert_eq!(page["height"], 16838.0 / 15.0);

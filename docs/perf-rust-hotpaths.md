@@ -489,23 +489,22 @@ growth MiB; baseline wasm pkg at `3a9765a`, branch `6c44241`):
 **Verdict:** ship — clear xlsx S peak_mem and open wins with M/L peak improvements, no material
 regression.
 
+## Slice 18: skip `chrome_rest_html` on formula-only xlsx edits (issue #30)
 
-A/B vs main (21 sessions × 21 samples, `edit-cell`):
+Follow-up to Slice 12 (`hf` formula-bar delta): when `dirty_chrome_rest` is clear and cached
+`last_chrome_rest` matches, `chrome_delta_from_ui` emits `hf` without calling `chrome_rest_html`
+or `ShellUi::to_json` for the chrome HTML comparison. `build_chrome_payload` omits `ui.chromeHtml`
+on formula-only / unchanged deltas (host uses `hf`/`h`). `applyEdit` avoids a second
+`refresh_formula_bar` before `chrome_payload`.
+
+**A/B** (prior tip vs then-main; re-measure on current `main` after rebase — pending in PR):
 
 | Fixture | main p50 | branch p50 | verdict | ratio [95% CI] |
 |---|--:|--:|---|--:|
-| xlsx S | 10.50 ms | 7.30 ms | WIN | [0.657, 0.733] |
-| xlsx L | 13.40 ms | 9.50 ms | NOISE | [0.644, 6.209] |
-| xlsx S heap | — | — | NOISE | — |
-| xlsx L heap | 17.53 MiB | 17.00 MiB | WIN | [0.940, 0.989] |
+| xlsx S edit-cell | 10.50 ms | 7.30 ms | WIN | [0.657, 0.733] |
+| xlsx L edit-cell | 13.40 ms | 9.50 ms | NOISE | [0.644, 6.209] |
+| xlsx L edit heap | 17.53 MiB | 17.00 MiB | WIN | [0.940, 0.989] |
 | pptx S (control) | 3.00 ms | 2.90 ms | NOISE | — |
-| pptx S heap | — | — | NOISE | — |
 
-## Slice 13: skip `chrome_rest_html` on formula-only xlsx edits (issue #30)
-
-Follow-up to Slice 12 (#378): when `dirty_chrome_rest` is clear and cached `last_chrome_rest`
-matches, `chrome_delta_from_ui` emits `hf` without calling `chrome_rest_html`.
-`build_chrome_payload` omits `ui.chromeHtml` on formula-only / unchanged deltas (host uses
-`hf`/`h`). Slow path builds rest once (no double `to_json` + `chrome_rest_html`).
-`applyEdit` avoids a second `refresh_formula_bar`. Open load/peak vs main are flat (NOISE);
-edit-cell A/B after omit-chromeHtml pending.
+Open load/peak vs main expected flat (NOISE); unit test
+`formula_only_chrome_skips_chrome_rest_html_build` catches regressions.

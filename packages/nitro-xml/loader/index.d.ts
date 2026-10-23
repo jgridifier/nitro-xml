@@ -72,6 +72,8 @@ export class WorkerDocument {
   save(): Promise<Uint8Array>;
   applyEdit(spec: string): Promise<string>;
   editorKey(ev: unknown, mac?: boolean): Promise<string>;
+  /** Resolves after first editable paint + soft-share unlock (no-op when read-only). */
+  whenEditReady(): Promise<void>;
 }
 
 export function defineNitroXml(): void;

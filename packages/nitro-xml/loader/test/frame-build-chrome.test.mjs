@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import { buildAndPostFrame } from "../lazy/frame-build.js";
 
 describe("frame-build pending editor chrome", () => {
-  it("unlocks editable mode before posting the first frame", async () => {
-    // Catches: posting the first paint frame before setReadOnly(false) so
-    // waitFirstPaint returns and sample0 races soft-share ensure_edit (~1s).
+  it("posts the first frame before soft-share unlock and edit-ready", async () => {
+    // Catches: await setReadOnly before postMessage so embed first-paint L (~1s)
+    // includes ensure_edit; paint must post first, then unlock + edit-ready.
     const calls = [];
     const handle = {
       t: true,
@@ -37,17 +37,18 @@ describe("frame-build pending editor chrome", () => {
     };
     const workerSelf = {
       _pendingEditorChrome: 1,
-      postMessage() {
-        calls.push(["postMessage"]);
+      postMessage(msg) {
+        calls.push(["postMessage", msg && msg.type]);
       },
     };
     await buildAndPostFrame(handle, workerSelf, { type: "frame" });
     assert.equal(workerSelf._pendingEditorChrome, 0);
     assert.deepEqual(calls, [
+      ["prepareFrame"],
+      ["postMessage", "frame"],
       ["setReadOnly", false],
       ["loadEditorChrome"],
-      ["prepareFrame"],
-      ["postMessage"],
+      ["postMessage", "er"],
     ]);
   });
 });

@@ -22,6 +22,22 @@ function isSpreadsheet(doc) {
 export function patch(WorkerDocument) {
   if (WorkerDocument._nxPark) return;
   WorkerDocument._nxPark = 1;
+  WorkerDocument.prototype.whenEditReady = function () {
+    return this._eP || Promise.resolve();
+  };
+  // Eager-free edit-ready: arm on first tick (lazy), resolve on worker `er`
+  // after soft-share. Installed before take-frame so `er` cannot race the wrap.
+  const origOnMessage = WorkerDocument.prototype._onMessage;
+  WorkerDocument.prototype._onMessage = function (msg) {
+    if (msg && msg.type === "er") {
+      if (this._eR) {
+        this._eR();
+        this._eR = null;
+      }
+      return;
+    }
+    return origOnMessage.call(this, msg);
+  };
 
   const origEdit = WorkerDocument.prototype.applyEdit;
   const origTick = WorkerDocument.prototype.tick;
@@ -29,6 +45,7 @@ export function patch(WorkerDocument) {
   const origSa = WorkerDocument.prototype.shellAction;
 
   async function mutFrame(doc, fields) {
+    if (doc._eR) await doc._eP;
     const msg = await doc._request("mut-frame", () => {
       doc._worker.postMessage({ type: "mut-frame", ...fields });
     });
@@ -42,6 +59,7 @@ export function patch(WorkerDocument) {
   }
 
   async function flushEditQueue(doc) {
+    if (doc._eR) await doc._eP;
     // Host rAF ticks (element._tick) often overlap mut-frame. Waiting here stops
     // a concurrent take-frame/prepareFrame that rebuilds CellIndex over cells_1m.
     if (doc._ef) {

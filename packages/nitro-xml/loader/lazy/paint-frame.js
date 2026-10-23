@@ -36,34 +36,6 @@ export async function paintFrame(doc, frame) {
     doc._measureCount = measureCount | 0;
     doc._outlineCount = outlineCount | 0;
     doc._t = frame.t !== false;
-    if (measureCount > 0 && measureReqs) {
-      const ctx = doc._measureCtx();
-      const widths = fillMeasureWidths(
-        ctx,
-        measureCount,
-        (i) => (strings && strings[measureReqs.fonts[i]]) || "sans-serif",
-        (i) => measureReqs.sizes[i],
-        (i) => (strings && strings[measureReqs.texts[i]]) || "",
-      );
-      await doc._request("measure-acked", () => {
-        doc._worker.postMessage({ type: "measure-results", widths }, [widths.buffer]);
-      });
-    }
-    if (outlineCount > 0 && outlineReqs) {
-      const { answerWorkerOutlines } = await import("./glyph-outline.js");
-      await answerWorkerOutlines(
-        doc._measureCtx(),
-        outlineReqs,
-        outlineCount,
-        strings,
-        (n, packed) =>
-          doc._request("outline-acked", () => {
-            doc._worker.postMessage({ type: "outline-results", count: n, packed }, [
-              packed.buffer,
-            ]);
-          }),
-      );
-    }
     const drawCtx =
       doc._canvas && doc._canvas.getContext ? doc._canvas.getContext("2d") : null;
     const resolve = (id) => (strings && strings[id]) || "";
@@ -83,6 +55,51 @@ export async function paintFrame(doc, frame) {
           nodes: doc._nodes,
         });
     doc._queueLayout(layoutReqs, layoutCount || 0);
+    const needRefine =
+      (measureCount > 0 && measureReqs) || (outlineCount > 0 && outlineReqs);
+    if (needRefine) {
+      void (async () => {
+        try {
+          if (measureCount > 0 && measureReqs) {
+            const ctx = doc._measureCtx();
+            const widths = fillMeasureWidths(
+              ctx,
+              measureCount,
+              (i) => (strings && strings[measureReqs.fonts[i]]) || "sans-serif",
+              (i) => measureReqs.sizes[i],
+              (i) => (strings && strings[measureReqs.texts[i]]) || "",
+            );
+            await doc._request("measure-acked", () => {
+              doc._worker.postMessage({ type: "measure-results", widths }, [
+                widths.buffer,
+              ]);
+            });
+          }
+          if (outlineCount > 0 && outlineReqs) {
+            const { answerWorkerOutlines } = await import("./glyph-outline.js");
+            await answerWorkerOutlines(
+              doc._measureCtx(),
+              outlineReqs,
+              outlineCount,
+              strings,
+              (n, packed) =>
+                doc._request("outline-acked", () => {
+                  doc._worker.postMessage(
+                    { type: "outline-results", count: n, packed },
+                    [packed.buffer],
+                  );
+                }),
+            );
+          }
+          doc._rt = (doc._rt | 0) + 1;
+          if (doc._rt > 0 && doc._rt <= 6) void doc.tick().catch(() => {});
+        } catch {
+          /* disposed */
+        }
+      })();
+    } else {
+      doc._rt = 0;
+    }
     return {
       ...result,
       measured: measureCount | 0,

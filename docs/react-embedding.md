@@ -105,6 +105,39 @@ transferred open buffer after `Handle.new`. Bench: `node measure-open-mem.mjs`
 
 \*xlsx L paint-wait noise on a single run; open ms still improved (73 → 60).
 
+## Paint before soft-share + apply-before-measure (embed open)
+
+Worker posts the first editable `take-frame` **before** `setReadOnly(false)` /
+`loadEditorChrome`, then signals `{ type: "er" }` after soft-share. Host applies
+the command buffer (and chrome) before awaiting measure/outline acks; timed
+edits await `_eP` / `whenEditReady()` so sample0 does not race materialise.
+
+`measure-open-mem.mjs` on this VM after rebase onto `main` @ `3a9765a` (median of
+3 cold runs per cell; `before` = main, `after` = paint-before tip). Cold WASM
+`peak-mem.mjs` (`--runs=7`) is unchanged between tips — same `nitro_xml_wasm_bg.wasm`
+bytes; only loader/embed ordering differs.
+
+| Format | Tier | mount→paint before | after | open before | after | paint before | after | heap peak before | after |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| xlsx | S | 298 ms | 330 ms | 126 ms | 166 ms | 138 ms | 172 ms | 5.5 MiB | 6.2 MiB |
+| xlsx | M | 343 ms | 353 ms | 142 ms | 183 ms | 194 ms | 205 ms | 6.9 MiB | 6.7 MiB |
+| xlsx | L | **909 ms** | **996 ms** | 127 ms | 124 ms | **797 ms** | **886 ms** | 15.6 MiB | 15.6 MiB |
+| docx | S | 194 ms | 219 ms | 108 ms | 128 ms | 87 ms | 88 ms | 5.6 MiB | 5.6 MiB |
+| docx | M | 198 ms | 270 ms | 113 ms | 136 ms | 79 ms | 125 ms | 6.8 MiB | 6.3 MiB |
+| docx | L | 303 ms | 280 ms | 185 ms | 138 ms | 109 ms | 141 ms | 10.6 MiB | 10.8 MiB |
+| pptx | S | 159 ms | 218 ms | 90 ms | 152 ms | 71 ms | 83 ms | 5.9 MiB | 5.5 MiB |
+| pptx | M | 160 ms | 168 ms | 93 ms | 101 ms | 64 ms | 66 ms | 6.6 MiB | 6.4 MiB |
+| pptx | L | 207 ms | 187 ms | 128 ms | 100 ms | 89 ms | 88 ms | 11.1 MiB | 11.0 MiB |
+
+`measure-edit-latency.mjs` (`EDIT_SAMPLES=20`, after): xlsx cell S p50 **8.9 ms**,
+L p50 **16.1 ms** (barrier after open; first-paint path unchanged).
+
+Follow-up on tip: measure/outline refine is fire-and-forget after apply (eager
+brotli **17390 / 17408 B** with `er` / `whenEditReady` in lazy tick+wp). xlsx L
+paint-wait remains ~0.8–0.9 s class on this VM (high harness variance on S/M);
+soft-share is off the first frame, but host DOM apply / tick still dominate
+`waitFirstPaint`.
+
 ## Landed cuts
 
 | PR | Change |
@@ -119,6 +152,7 @@ transferred open buffer after `Handle.new`. Bench: `node measure-open-mem.mjs`
 | (this) | Module-seeded preload; no host `initCore`; drop open bytes after `Handle.new` |
 | (this) | xlsx edit keys: WASM `hf` formula-bar delta (~1–2 KB) vs full `h`; lazy loader patches `.xfb` |
 | (this) | xlsx mut-frame: drop dead CanvasTextMeasure payloads (sticky `_nxPainted`) |
+| (this) | Paint-before-soft-share + host apply-before-measure + `er` / `_eP` edit barrier |
 
 Stay out of xlsx grid paint / StringTable encode (separate track). Keep eager
 loader ≤ 17 408 B brotli (new JS under `loader/lazy/`). No budget, threshold,

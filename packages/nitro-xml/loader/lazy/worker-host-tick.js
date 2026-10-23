@@ -13,6 +13,14 @@ export async function tickBody(doc) {
     const { patch } = await import("./wp.js");
     patch(doc.constructor);
   }
+  // Editable open: wait for worker `er` (posted after soft-share) before edits.
+  // Arm before take-frame so the `er` handler wrap is live when soft-share finishes.
+  if (!doc._ro && !doc._eArmed) {
+    doc._eArmed = 1;
+    doc._eP = new Promise((r) => {
+      doc._eR = r;
+    });
+  }
   doc._events.flushNow();
   const layoutReads = await doc._flushPendingLayout();
   const frame = await doc._request("frame", () => {
@@ -32,34 +40,6 @@ export async function tickBody(doc) {
   doc._measureCount = measureCount | 0;
   doc._outlineCount = outlineCount | 0;
   doc._t = frame.t !== false;
-  if (measureCount > 0 && measureReqs) {
-    const ctx = doc._measureCtx();
-    const widths = fillMeasureWidths(
-      ctx,
-      measureCount,
-      (i) => (strings && strings[measureReqs.fonts[i]]) || "sans-serif",
-      (i) => measureReqs.sizes[i],
-      (i) => (strings && strings[measureReqs.texts[i]]) || "",
-    );
-    await doc._request("measure-acked", () => {
-      doc._worker.postMessage({ type: "measure-results", widths }, [widths.buffer]);
-    });
-  }
-  if (outlineCount > 0 && outlineReqs) {
-    const { answerWorkerOutlines } = await import("./glyph-outline.js");
-    await answerWorkerOutlines(
-      doc._measureCtx(),
-      outlineReqs,
-      outlineCount,
-      strings,
-      (n, packed) =>
-        doc._request("outline-acked", () => {
-          doc._worker.postMessage({ type: "outline-results", count: n, packed }, [
-            packed.buffer,
-          ]);
-        }),
-    );
-  }
   const drawCtx =
     doc._canvas && doc._canvas.getContext ? doc._canvas.getContext("2d") : null;
   const resolve = (id) => (strings && strings[id]) || "";
@@ -77,9 +57,53 @@ export async function tickBody(doc) {
     nodes: doc._nodes,
   });
   doc._queueLayout(layoutReqs, layoutCount || 0);
-  // Measured widths only land in the next frame; bounded so unmeasurable text cannot spin.
-  doc._rt = measureCount > 0 ? (doc._rt | 0) + 1 : 0;
-  if (doc._rt > 0 && doc._rt <= 6) void doc.tick().catch(() => {});
+  // Refine measures/outlines after apply without blocking first-paint: waitFirstPaint
+  // only observes DOM between ticks, so awaiting measure-acked here kept ~0.6s on
+  // cells_1m even after apply-before-measure. Fire-and-forget + bounded re-tick.
+  const needRefine = (measureCount > 0 && measureReqs) || (outlineCount > 0 && outlineReqs);
+  if (needRefine) {
+    void (async () => {
+      try {
+        if (measureCount > 0 && measureReqs) {
+          const ctx = doc._measureCtx();
+          const widths = fillMeasureWidths(
+            ctx,
+            measureCount,
+            (i) => (strings && strings[measureReqs.fonts[i]]) || "sans-serif",
+            (i) => measureReqs.sizes[i],
+            (i) => (strings && strings[measureReqs.texts[i]]) || "",
+          );
+          await doc._request("measure-acked", () => {
+            doc._worker.postMessage({ type: "measure-results", widths }, [
+              widths.buffer,
+            ]);
+          });
+        }
+        if (outlineCount > 0 && outlineReqs) {
+          const { answerWorkerOutlines } = await import("./glyph-outline.js");
+          await answerWorkerOutlines(
+            doc._measureCtx(),
+            outlineReqs,
+            outlineCount,
+            strings,
+            (n, packed) =>
+              doc._request("outline-acked", () => {
+                doc._worker.postMessage(
+                  { type: "outline-results", count: n, packed },
+                  [packed.buffer],
+                );
+              }),
+          );
+        }
+        doc._rt = (doc._rt | 0) + 1;
+        if (doc._rt > 0 && doc._rt <= 6) void doc.tick().catch(() => {});
+      } catch {
+        /* disposed */
+      }
+    })();
+  } else {
+    doc._rt = 0;
+  }
   return {
     ...result,
     measured: measureCount || 0,

@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: MIT
-import { takePrewarmedWorker, prewarmWorker } from "./bootstrap.js";
-import { applyCommandBuffer } from "./apply.js";
+import { takePrewarmedWorker, prewarmWorker, unsupportedFormatError } from "./bootstrap.js";
 import { createEventCoalescer } from "./events.js";
 import {
   isSupportedExtension,
   VIEWER_RECOVERY_FAILED_MESSAGE,
   EDITOR_RECOVERY_FAILED_MESSAGE,
 } from "./formats.js";
-import { unsupportedFormatError } from "./bootstrap.js";
 import { getDefaultFontSource } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
-import { fillMeasureWidths } from "./measure.js";
 export class WorkerDocument {
 constructor(opts = {}) {
 this._canvas = opts.canvas || null;

@@ -43,17 +43,7 @@ export function chromeFromResult(result) {
 }
 
 export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
-  // Editable open: finish soft-share ensure_edit *before* posting the first
-  // frame so waitFirstPaint cannot return and start timed edits while the
-  // worker is still materialising (that race put ~1s back into sample0).
-  if (workerSelf._pendingEditorChrome === 1) {
-    workerSelf._pendingEditorChrome = 0;
-    await new Promise((r) => setTimeout(r, 0));
-    try {
-      handle.setReadOnly(false);
-      handle.loadEditorChrome();
-    } catch {}
-  }
+  const pendingChrome = workerSelf._pendingEditorChrome === 1;
   if (handle.t !== false || workerSelf._openFrameApplied) handle.prepareFrame();
   else workerSelf._openFrameApplied = true;
   let chromeHtml =
@@ -148,4 +138,15 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
     },
     transfer,
   );
+  // Paint first so embed waitFirstPaint excludes soft-share; then unlock + signal
+  // edit-ready so timed edits never race ensure_edit materialise.
+  if (pendingChrome) {
+    workerSelf._pendingEditorChrome = 0;
+    await new Promise((r) => setTimeout(r, 0));
+    try {
+      handle.setReadOnly(false);
+      handle.loadEditorChrome();
+    } catch {}
+    workerSelf.postMessage({ type: "er" });
+  }
 }

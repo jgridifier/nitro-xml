@@ -180,6 +180,7 @@ function ScenarioRunner({ cfg }) {
           const el = await waitEl();
           const editTier = tier || "S";
           await openInElement(el, fmt, editTier);
+          if (el.document?.whenEditReady) await el.document.whenEditReady();
           const n = smoke ? 3 : samples || 50;
           let kind = "cell";
           if (scenario === "edit-docx-text") kind = "docx";

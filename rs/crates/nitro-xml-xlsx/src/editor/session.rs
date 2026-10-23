@@ -55,6 +55,10 @@ impl EditorSession {
         &self.session.host
     }
 
+    pub fn host_mut(&mut self) -> &mut XlsxHost {
+        &mut self.session.host
+    }
+
     pub fn cell(&self) -> &CellEditor {
         &self.cell
     }

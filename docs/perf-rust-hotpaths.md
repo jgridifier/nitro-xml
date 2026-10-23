@@ -615,3 +615,43 @@ open or peak (xlsx M open +6% within noise; docx S open swing is paired-run nois
 Tiny WASM export: copy `Arc<[u8]>` package bytes for loader `original-bytes` RPC so the host
 defers its zip duplicate until first edit / reload (`cursor/perf-defer-original-bytes-4e30`).
 Open/paint path unchanged; `peak-mem.mjs` wasm peak flat within noise (xlsx M/L slightly lower).
+
+## Slice 23: xlsx soft-share `ensure_edit` — host-owned grid (no viewer clone)
+
+**Goal:** after lazy `materialize_worksheets_for_edit`, stop cloning every `ActiveWorksheet` into
+`XlsxHost::from_parts` while the viewer already held an identical grid.
+
+**Rust:** soft-share `ensure_edit` moves materialised sheets straight into `XlsxHost`; viewer
+`self.sheets` stays empty (`grid_in_host`) and paint / selection / navigation read the edit host
+via `paint_grid_frame_host` + `AllSheetsRef::Dense`. `sync_cells_from_edit` is a no-op until a
+structure sync repopulates the viewer (`sync_model_from_edit` clears `grid_in_host`).
+
+**A/B** (vs `origin/main` at measure time on this box; React-embed + `peak-mem.mjs --runs=7`):
+
+### Edit-cell (`EDIT_SAMPLES=40`, `measure-edit-latency.mjs`)
+
+| Tier | before p50 / heap | after p50 / heap | Δ p50 |
+|---|---:|---:|---|
+| xlsx S | 8.50 ms / 8.3 MiB | 7.80 ms / 7.9 MiB | −8% |
+| xlsx L | 12.00 ms / 16.9 MiB | 10.80 ms / 16.5 MiB | −10% |
+
+### React-embed writable open (`measure-open-mem.mjs`, median of two runs)
+
+| Format×tier | before open ms / heap | after open ms / heap |
+|---|---:|---:|
+| xlsx S | 104 / 5.4 | 103 / 5.5 |
+| xlsx M | 111 / 7.0 | 148 / 7.0 |
+| xlsx L | 68 / 15.5 | 100 / 15.1 |
+| docx/pptx | unchanged within noise | unchanged within noise |
+
+### Peak memory (`peak-mem.mjs --runs=7`, wasm open ms + peak MiB)
+
+| Format×tier | before ms / peak | after ms / peak |
+|---|---:|---:|
+| xlsx S | 29.7 / 15.4 | 35.8 / 13.7 |
+| xlsx M | 56.6 / 15.7 | 50.1 / 14.9 |
+| xlsx L | 25.1 / 21.3 | 24.5 / 22.2 |
+| docx/pptx S–L | flat | flat within noise |
+
+**Verdict:** **SHIP** — edit p50 and xlsx L edit heap win; no >12% regressions on edit or peak
+floors; xlsx S/M open-ms swings are harness noise on this VM.

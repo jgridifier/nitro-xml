@@ -12,7 +12,6 @@ use crate::sheet_access::{
     dump_value_to_cell_value, get_cell, is_cell_error, range_contains, CellIndex,
 };
 use crate::styles::style_at;
-use crate::view::sparkline_data::sparkline_view_at;
 use crate::view::style_view::{borders_view, fill_view, font_view, merge_border, merge_font};
 use crate::view::types::{BordersView, CellView, FillView, FontView, RichRun};
 use crate::view::units::INDENT_PX_PER_LEVEL;
@@ -125,7 +124,7 @@ fn display_text(
 pub struct CellViewOptions<'a> {
     pub indent_px: Option<f64>,
     pub sheet_index: Option<usize>,
-    pub all_sheets: Option<&'a [Option<ActiveWorksheet>]>,
+    pub all_sheets: Option<crate::view::sheets_ref::AllSheetsRef<'a>>,
     /// Skip `sheet.merges` scan for overflow (caller already excluded covered cells).
     pub not_in_merge: bool,
     /// Optional O(1) comment lookup for the paint frame (#30 build_items).
@@ -413,7 +412,13 @@ pub fn cell_view_with_cf_cache(
     if let (Some(sheet_index), Some(all_sheets)) = (sheet_index, all_sheets) {
         // Skip host-map build when this sheet has no sparklines (#30).
         if !all_sheets.is_empty() && !sheet.sparkline_groups.is_empty() {
-            if let Some(sp) = sparkline_view_at(workbook, all_sheets, sheet_index, row, col) {
+            if let Some(sp) = crate::view::sparkline_data::sparkline_view_at_ref(
+                workbook,
+                all_sheets,
+                sheet_index,
+                row,
+                col,
+            ) {
                 view.sparkline = Some(sp);
             }
         }

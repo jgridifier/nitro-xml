@@ -17,8 +17,9 @@ use std::sync::Arc;
 
 use nitro_xml_xlsx::{
     cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook_meta, open_first_view_arc,
-    paint_grid_frame, parse_all_worksheets, parse_range, parse_worksheet_at, search_workbook,
-    visible_sheets_json, FirstView, GridPaintViewport, SearchOptions, ViewportRect, WorkbookSlice,
+    paint_grid_frame, paint_grid_frame_host, parse_all_worksheets, parse_range, parse_worksheet_at,
+    search_workbook, visible_sheets_json, FirstView, GridPaintViewport, SearchOptions,
+    ViewportRect, WorkbookSlice,
 };
 use serde_json::Value;
 const DEFAULT_W: i32 = 800;
@@ -47,6 +48,8 @@ pub struct XlsxState {
     /// Defer `ensure_sheet_complete` until the next frame so first paint stays O(viewport).
     /// Set after the first paint when the active sheet is still truncated.
     pending_tail_complete: bool,
+    /// Edit host owns the full grid; viewer `sheets` slots stay empty until a structure sync.
+    pub(crate) grid_in_host: bool,
 }
 
 impl XlsxState {
@@ -85,9 +88,28 @@ impl XlsxState {
                 // Apply after the host Resize so reveal uses the real stage size.
                 pending_view_scroll: true,
                 pending_tail_complete: false,
+                grid_in_host: false,
             },
             warnings,
         ))
+    }
+
+    /// Mutable worksheet for navigation / selection (viewer slot or edit host when [`grid_in_host`]).
+    pub(crate) fn sheet_mut(&mut self, index: usize) -> Option<&mut ActiveWorksheet> {
+        if self.grid_in_host {
+            return self
+                .edit
+                .as_mut()
+                .and_then(|e| e.host_mut().sheets.get_mut(index));
+        }
+        self.sheets.get_mut(index)?.as_mut()
+    }
+
+    pub(crate) fn sheet_ref(&self, index: usize) -> Option<&ActiveWorksheet> {
+        if self.grid_in_host {
+            return self.edit.as_ref().and_then(|e| e.host().sheets.get(index));
+        }
+        self.sheets.get(index)?.as_ref()
     }
 
     /// True when the active sheet's post-`sheetData` shell (merges/CF/DV) is loaded.
@@ -422,20 +444,34 @@ impl XlsxState {
         let hints = self.editor_paint_hints();
         let active = self.active;
         let workbook = &self.workbook;
-        let sheets_ref = &self.sheets;
-        let sheet = sheets_ref[active].as_ref().expect("parsed");
         let mut intern = |s: &str| strings.intern(s);
-        paint_grid_frame(
-            commands,
-            &mut intern,
-            measures,
-            workbook,
-            sheet,
-            active,
-            sheets_ref,
-            &viewport,
-            &hints,
-        );
+        if self.grid_in_host {
+            let host_sheets = &self.edit.as_ref().expect("grid_in_host").host().sheets;
+            paint_grid_frame_host(
+                commands,
+                &mut intern,
+                measures,
+                workbook,
+                host_sheets,
+                active,
+                &viewport,
+                &hints,
+            );
+        } else {
+            let sheets_ref = &self.sheets;
+            let sheet = sheets_ref[active].as_ref().expect("parsed");
+            paint_grid_frame(
+                commands,
+                &mut intern,
+                measures,
+                workbook,
+                sheet,
+                active,
+                sheets_ref,
+                &viewport,
+                &hints,
+            );
+        }
     }
 
     fn editor_paint_hints(&self) -> EditorPaintHints {
@@ -589,7 +625,7 @@ impl XlsxState {
         let _ = self.ensure_merges_ready();
         let active = self.active;
         let zoom = self.zoom_pct;
-        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let sheet = self.sheet_mut(active)?;
         let metrics = grid_metrics(sheet, zoom);
         let current = sheet
             .view
@@ -617,7 +653,7 @@ impl XlsxState {
         let active = self.active;
         let lazy = self.lazy.is_some();
         let (current, region) = {
-            let sheet = self.sheets.get(active)?.as_ref()?;
+            let sheet = self.sheet_ref(active)?;
             let current = sheet
                 .view
                 .selection
@@ -643,7 +679,7 @@ impl XlsxState {
             }
             (current, region)
         };
-        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let sheet = self.sheet_mut(active)?;
         let next = match region {
             Some(range) => SheetSelection {
                 active: current.active,
@@ -665,7 +701,7 @@ impl XlsxState {
     fn commit_selection(&mut self, at: CellAddress, extend: bool) -> Option<String> {
         let _ = self.ensure_merges_ready();
         let active = self.active;
-        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let sheet = self.sheet_mut(active)?;
         let next = if extend {
             let current = sheet
                 .view
@@ -682,7 +718,7 @@ impl XlsxState {
     }
 
     fn active_sheet(&self) -> Option<&ActiveWorksheet> {
-        self.sheets.get(self.active)?.as_ref()
+        self.sheet_ref(self.active)
     }
 
     pub fn sheets_json(&self) -> Value {

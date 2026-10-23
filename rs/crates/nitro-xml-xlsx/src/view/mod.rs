@@ -12,6 +12,7 @@ pub mod fake_measure;
 pub mod metrics;
 pub mod number_fit;
 pub mod sheet_queries;
+pub mod sheets_ref;
 pub mod sparkline_data;
 pub mod sparkline_view;
 pub mod style_view;

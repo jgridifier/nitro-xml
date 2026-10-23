@@ -36,14 +36,15 @@ impl XlsxState {
                 .lazy_first_view_mut()
                 .expect("lazy first view")
                 .materialize_worksheets_for_edit()?;
-            self.install_materialized_for_edit(workbook, sheets)?;
-            let host_sheets = self
-                .sheets
-                .iter()
-                .map(|s| s.as_ref().expect("materialized sheet slot").clone())
-                .collect();
-            let host = XlsxHost::from_parts(self.workbook.clone(), host_sheets)?;
+            let host = XlsxHost::from_parts(workbook, sheets)?;
             self.edit = Some(EditorSession::from_host(host));
+            self.workbook = self.edit.as_ref().expect("edit").host().workbook.clone();
+            self.sheets = vec![None; self.workbook.sheets.len()];
+            self.grid_in_host = true;
+            let active_sheet = self.workbook.active_sheet as usize;
+            if self.active >= self.sheets.len() {
+                self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
+            }
         } else {
             self.edit = Some(EditorSession::open(bytes)?);
             self.sync_model_from_edit();
@@ -75,6 +76,7 @@ impl XlsxState {
         }
         self.workbook = workbook;
         self.sheets = viewer_sheets;
+        self.grid_in_host = false;
         if self.active >= self.sheets.len() {
             self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
         }
@@ -108,6 +110,7 @@ impl XlsxState {
         }
         self.workbook = workbook;
         self.sheets = sheets;
+        self.grid_in_host = false;
         if self.active >= self.sheets.len() {
             self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
         }
@@ -115,6 +118,9 @@ impl XlsxState {
 
     /// Patch styles + the addressed cells only (keeps viewer sheet `cells` vec identity).
     fn sync_cells_from_edit(&mut self, sheet: u32, coords: &[(u32, u32)]) {
+        if self.grid_in_host {
+            return;
+        }
         let Some(edit) = self.edit.as_ref() else {
             return;
         };
@@ -145,9 +151,7 @@ impl XlsxState {
     pub fn selection_target(&self) -> SelectionTarget {
         let sheet = self.active as u32;
         let sel = self
-            .sheets
-            .get(self.active)
-            .and_then(|s| s.as_ref())
+            .sheet_ref(self.active)
             .and_then(|s| s.view.selection.as_ref());
         match sel {
             Some(sel) => {
@@ -402,7 +406,7 @@ impl XlsxState {
 
     fn nudge_active(&mut self, d_row: i32, d_col: i32) -> Option<String> {
         let active = self.active;
-        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let sheet = self.sheet_mut(active)?;
         let current = sheet
             .view
             .selection
@@ -563,7 +567,7 @@ mod tests {
         h.set_read_only(false);
         h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"full-grid"}"#)
             .expect("edit");
-        let viewer = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+        let viewer = h.xlsx.as_ref().unwrap().sheet_ref(0).expect("sheet0");
         let host = h.xlsx.as_ref().unwrap().edit.as_ref().unwrap().host();
         assert_eq!(viewer.cells.len(), open_count);
         assert!(viewer.cells.len() > viewport_cells);
@@ -586,8 +590,11 @@ mod tests {
             h.xlsx.as_ref().unwrap().edit.is_some(),
             "edit session must open without process_frame"
         );
-        let n = h.xlsx.as_ref().unwrap().sheets[0]
+        let n = h
+            .xlsx
             .as_ref()
+            .unwrap()
+            .sheet_ref(0)
             .map(|s| s.cells.len())
             .unwrap_or(0);
         assert!(n > 900, "expected full 1k sheet after ensure_edit, got {n}");
@@ -675,7 +682,7 @@ mod tests {
             x.lazy_is_some_for_test(),
             "lazy first view must stay alive on ensure_edit (heap-neutral path)"
         );
-        let sh = x.sheets[0].as_ref().expect("sheet0");
+        let sh = x.sheet_ref(0).expect("sheet0");
         assert_eq!(
             sh.cell_pos.synced_len(),
             sh.cells.len(),
@@ -707,7 +714,7 @@ mod tests {
             h.apply_edit(&spec).expect("edit");
         }
 
-        let viewer = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+        let viewer = h.xlsx.as_ref().unwrap().sheet_ref(0).expect("sheet0");
         assert_eq!(viewer.cell_pos.synced_len(), viewer.cells.len());
         let host = h.xlsx.as_ref().unwrap().edit.as_ref().unwrap().host();
         assert_eq!(
@@ -744,14 +751,14 @@ mod tests {
         h.set_read_only(false);
 
         let (ptr_before, len_before) = {
-            let sh = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+            let sh = h.xlsx.as_ref().unwrap().sheet_ref(0).expect("sheet0");
             (sh.cells.as_ptr(), sh.cells.len())
         };
 
         h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"sync-probe"}"#)
             .expect("edit");
 
-        let sh = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+        let sh = h.xlsx.as_ref().unwrap().sheet_ref(0).expect("sheet0");
         assert_eq!(
             sh.cells.as_ptr(),
             ptr_before,

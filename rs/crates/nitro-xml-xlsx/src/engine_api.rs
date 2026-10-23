@@ -38,7 +38,7 @@ fn displayed_text(
 ) -> String {
     let opts = CellViewOptions {
         sheet_index: Some(sheet_index),
-        all_sheets: Some(all_sheets),
+        all_sheets: Some(crate::view::sheets_ref::AllSheetsRef::Sparse(all_sheets)),
         ..CellViewOptions::default()
     };
     cell_view(workbook, sheet, index, row, col, opts).text

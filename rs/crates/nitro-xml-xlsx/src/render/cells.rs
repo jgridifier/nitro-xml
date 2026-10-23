@@ -638,7 +638,7 @@ pub fn paint<I: StringIntern>(
     workbook: &WorkbookSlice,
     sheet: &ActiveWorksheet,
     sheet_index: usize,
-    all_sheets: &[Option<ActiveWorksheet>],
+    all_sheets: crate::view::sheets_ref::AllSheetsRef<'_>,
     metrics: &crate::view::metrics::GridMetrics,
     viewport: &GridPaintViewport,
     hints: &EditorPaintHints,

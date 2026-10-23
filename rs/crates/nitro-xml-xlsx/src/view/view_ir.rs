@@ -77,7 +77,7 @@ fn sheet_view_ir(
         workbook,
         sheet,
         sheet_index,
-        all_sheets,
+        all_sheets: crate::view::sheets_ref::AllSheetsRef::Sparse(all_sheets),
         index: &index,
         metrics: &metrics,
         zoom,

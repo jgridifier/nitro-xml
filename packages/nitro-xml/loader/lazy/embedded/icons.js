@@ -35,6 +35,7 @@ export const ICONS = {
   moderateMargins: '<path d="M4 4h16v16H4zM7 6h10v12H7z"/>',
   wideMargins: '<path d="M4 4h16v16H4zM10 6h4v12H10z"/>',
   pageA4: '<path d="M6 2h12v20H6zM8 6h8M8 10h5"/>',
+  pageLegal: '<path d="M7 1h10v22H7zM9 5h6M9 9h4"/>',
   pageBreakBefore: '<path d="M6 3h8l4 4v6H6zM14 3v4h4M6 15h12v6H6zM12 11v4M10 13l2 2 2-2"/>',
   strike: '<path d="M4 12h16M16 6.5C15 5 13.5 4.5 12 4.5c-2.5 0-4 1.3-4 3 0 1.5 1 2.5 4 3.5M8 17c1 1.6 2.5 2.5 4.5 2.5 2.5 0 4-1.3 4-3 0-1-.5-1.8-1.5-2.5"/>',
   grow: '<path d="M4 19l5-13 5 13M6 14h6M18 10V4M15 7l3-3 3 3"/>',

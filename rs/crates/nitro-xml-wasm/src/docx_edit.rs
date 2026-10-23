@@ -649,6 +649,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.page-legal",
+                    label: "Legal",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.page-break-before",
                     label: "Page Break Before",
                     enabled: true,
@@ -835,6 +840,7 @@ fn canonical_command(id: &str) -> &str {
         "home.moderate-margins" => "moderate-margins",
         "home.wide-margins" => "wide-margins",
         "home.page-a4" => "page-a4",
+        "home.page-legal" => "page-legal",
         "home.page-break-before" => "page-break-before",
         "home.space-before" => "space-before",
         "home.space-after" => "space-after",

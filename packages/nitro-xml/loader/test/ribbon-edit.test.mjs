@@ -182,6 +182,7 @@ describe("Office ribbon manifests", () => {
       "home.moderate-margins",
       "home.wide-margins",
       "home.page-a4",
+      "home.page-legal",
       "home.page-break-before",
       "home.space-before",
       "home.space-after",
@@ -251,6 +252,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.wide-margins"));
     assert.ok(bound.includes("home.page-a4"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.page-a4"));
+    assert.ok(bound.includes("home.page-legal"));
+    assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.page-legal"));
     assert.ok(bound.includes("home.page-break-before"));
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.page-break-before"));
     assert.ok(bound.includes("home.space-before"));

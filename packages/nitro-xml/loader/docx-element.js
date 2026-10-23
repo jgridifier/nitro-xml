@@ -9,8 +9,6 @@ export class NitroDocxElement extends ShellViewerElement {
     return !!n && P.test(n);
   }
   async _ao() {
-    // Start the caret module before shellAction("ui"). The page paints during that
-    // round trip; a click in the gap used to find no listener (WebKit's first load).
     if (!this._readonly) import("./lazy/docx-caret.js").then((m) => m.attach(this)).catch(() => {});
     await super._ao();
   }

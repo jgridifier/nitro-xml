@@ -52,7 +52,9 @@ impl PptxState {
         // Reuse the viewer `Presentation` (no second `Presentation::open`). When slides are
         // not all parsed yet, `from_presentation` finishes lazy loads on this deck only.
         let host = PptxHost::from_presentation(&mut self.pres)?;
-        let mut edit = PptxEditor::from_opened_host(host, bytes);
+        debug_assert_eq!(bytes, self.package_arc().as_ref());
+        let mut edit =
+            PptxEditor::from_opened_host(host, std::sync::Arc::clone(self.package_arc()));
         edit.set_read_only(false);
         let slide = self.active as u32;
         let _ = edit.set_slide(slide);
@@ -656,12 +658,18 @@ mod tests {
             .ensure_all_slides()
             .expect("preload slides for soft-share gate");
         assert!(state.pres.all_slides_loaded());
+        let refs_after_open = Arc::strong_count(&bytes);
         state.ensure_edit(bytes.as_ref()).expect("ensure_edit");
         let edit = state.edit.as_ref().expect("edit session");
         assert_eq!(
             edit.slide_count(),
             state.pres.slide_count(),
             "host slide count must match viewer deck"
+        );
+        assert_eq!(
+            Arc::strong_count(&bytes),
+            refs_after_open + 1,
+            "ensure_edit must retain one more Arc ref on the package, not a duplicate Vec"
         );
     }
 }

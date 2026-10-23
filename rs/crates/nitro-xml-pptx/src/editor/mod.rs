@@ -11,6 +11,8 @@ pub use ribbon::{ribbon_html, slide_nav_html};
 pub use selection::SelectionState;
 pub use shortcuts::{find_shortcut, matches_keys, KeyEvent, Shortcut, ShortcutMatch, SHORTCUTS};
 
+use std::sync::Arc;
+
 use nitro_xml_opc::edit::{ChangeKind, EditError, EditHistory, EditScope, EditSession};
 use serde_json::Value;
 
@@ -23,25 +25,27 @@ pub struct PptxEditor {
     pub session: EditSession<PptxHost, EditHistory>,
     pub commands: PptxCommandSurface,
     pub selection: SelectionState,
-    /// Package bytes the writer overlays dirty slides onto (#87).
-    original: Vec<u8>,
+    /// Package bytes the writer overlays dirty slides onto (#87). Shared with the wasm
+    /// viewer `Arc` on `from_opened_host` so unlock does not duplicate the zip buffer.
+    original: Arc<[u8]>,
     active_tab: String,
     read_only: bool,
 }
 
 impl PptxEditor {
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
-        let host = PptxHost::open(bytes)?;
-        Ok(Self::from_opened_host(host, bytes))
+        let original: Arc<[u8]> = Arc::from(bytes);
+        let host = PptxHost::open(original.as_ref())?;
+        Ok(Self::from_opened_host(host, original))
     }
 
     /// Editor shell around a host already built from the open package (wasm soft-share).
-    pub fn from_opened_host(host: PptxHost, bytes: &[u8]) -> Self {
+    pub fn from_opened_host(host: PptxHost, original: Arc<[u8]>) -> Self {
         Self {
             session: EditSession::new(host, EditHistory::new()),
             commands: PptxCommandSurface::new(false),
             selection: SelectionState::new(0),
-            original: bytes.to_vec(),
+            original,
             active_tab: "home".to_string(),
             read_only: false,
         }
@@ -54,7 +58,7 @@ impl PptxEditor {
             session: EditSession::new(host, EditHistory::new()),
             commands: PptxCommandSurface::new(false),
             selection: SelectionState::new(0),
-            original: Vec::new(),
+            original: Arc::from([]),
             active_tab: "home".to_string(),
             read_only: false,
         }
@@ -148,8 +152,8 @@ impl PptxEditor {
         if self.original.is_empty() {
             return Err("pptx editor save needs package bytes from open()".into());
         }
-        let bytes = save_pptx(&self.session.host, &self.original)?;
-        self.original = bytes.clone();
+        let bytes = save_pptx(&self.session.host, self.original.as_ref())?;
+        self.original = Arc::from(bytes.clone());
         self.session.host.dirty_parts.clear();
         self.session.host.structure_dirty = false;
         for slide in &mut self.session.host.slides {
@@ -170,8 +174,9 @@ impl PptxEditor {
             return Ok(());
         }
         let index = self.selection.slide_index;
-        let next = crate::write::next_layout_override(&self.original, &self.session.host, index)
-            .map_err(|message| EditError::Other { message })?;
+        let next =
+            crate::write::next_layout_override(self.original.as_ref(), &self.session.host, index)
+                .map_err(|message| EditError::Other { message })?;
         let Some(next) = next else {
             return Ok(());
         };
@@ -189,7 +194,7 @@ impl PptxEditor {
     }
 
     pub fn original_bytes(&self) -> &[u8] {
-        &self.original
+        self.original.as_ref()
     }
 
     pub fn match_shortcut(&self, event: &KeyEvent, mac: bool) -> Option<ShortcutMatch> {

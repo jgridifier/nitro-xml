@@ -48,6 +48,10 @@ impl PptxState {
     /// `Presentation` keeps a `Package` borrow for lazy slide loads; we hold the
     /// `Arc` for the life of this state and transmute the borrow to `'static`
     /// (same owning-ref pattern as a leaked box, without the extra allocation).
+    pub(crate) fn package_arc(&self) -> &std::sync::Arc<[u8]> {
+        &self.package_bytes
+    }
+
     pub fn open(bytes: std::sync::Arc<[u8]>) -> Result<Self, String> {
         let slice: &[u8] = bytes.as_ref();
         // SAFETY: `package_bytes` is stored in this struct and dropped only after

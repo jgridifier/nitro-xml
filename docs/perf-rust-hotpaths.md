@@ -743,3 +743,62 @@ Sample0 is warm after unlock soft-share (same pattern as xlsx #457); p50 flat:
 
 **Verdict:** **SHIP** — ensure_edit host build ~100× faster when the viewer deck is loaded; cold
 peak-mem / warm edit p50 flat as expected. Completes soft-share trilogy with xlsx #457 / docx #462.
+
+## Slice 26: pptx editor `original` shares handle `Arc<[u8]>` (no `to_vec` on `ensure_edit`)
+
+**Goal:** after soft-share (#466), `PptxEditor::from_opened_host` still did `bytes.to_vec()` for the
+writer baseline, duplicating the full zip while the viewer already holds the same package `Arc`. Share
+one buffer for view + edit save overlay.
+
+**Rust:** `PptxEditor::original` is `Arc<[u8]>`; `from_opened_host(host, Arc<[u8]>)`; wasm
+`ensure_edit` clones `PptxState::package_arc()` into the editor. `save()` still returns a fresh
+`Vec` to callers; only the retained baseline is Arc-backed.
+
+**A/B** (`origin/main` `61c5195` vs `cursor/perf-pptx-arc-original-4e30` on this box):
+
+### Peak memory (`peak-mem.mjs --runs=5`, wasm open ms / peak MiB)
+
+| Format×tier | before | after | Δ |
+|---|---:|---:|---|
+| xlsx S | 22.3 / 13.9 | 19.5 / 12.7 | noise |
+| xlsx M | 332.5 / 16.5 | 315.4 / 16.3 | noise |
+| xlsx L | 2428.0 / 21.6 | 2411.9 / 22.9 | noise |
+| docx S | 18.9 / 11.0 | 22.5 / 10.9 | noise |
+| docx M | 27.9 / 12.9 | 27.2 / 12.8 | noise |
+| docx L | 77.1 / 16.2 | 78.6 / 16.2 | noise |
+| pptx S | 66.7 / 4.3 | 65.4 / 4.4 | noise |
+| pptx M | 133.1 / 6.5 | 130.7 / 6.3 | noise |
+| pptx L | 266.0 / 16.5 | 263.4 / 17.0 | noise |
+
+Cold open does not build the editor — expect flat wasm peak (V8 compile floor dominates S/M).
+
+### React embed open (`measure-open-mem.mjs`, mount→paint / heap peak MiB)
+
+| Format×tier | before | after |
+|---|---|---|
+| xlsx S | 183.1 / 5.8 | 198.3 / 6.1 |
+| xlsx M | 281.4 / 7.1 | 231.0 / 7.3 |
+| xlsx L | 702.9 / 15.6 | 704.1 / 15.5 |
+| docx S | 137.5 / 5.5 | 142.6 / 5.6 |
+| docx M | 140.5 / 6.2 | 158.1 / 6.3 |
+| docx L | 199.3 / 10.8 | 179.6 / 10.3 |
+| pptx S | 119.1 / 5.4 | 135.6 / 5.3 |
+| pptx M | 132.9 / 6.7 | 131.9 / 6.7 |
+| pptx L | 148.4 / 11.0 | 158.1 / 11.1 |
+
+Read-only first-paint path unchanged; within run-to-run noise.
+
+### Edit (`EDIT_SAMPLES=21`, `measure-edit-latency.mjs`, p50 ms / heap peak MiB)
+
+| Scenario×tier | before | after |
+|---|---|---|
+| edit-pptx-text pptx S | 3.1 / 5.8 | 3.4 / 5.8 |
+| edit-pptx-text pptx L | 10.6 / 12.0 | 10.7 / 12.0 |
+| edit-bold pptx S | 2.8 / 6.1 | 2.7 / 6.0 |
+| edit-bold pptx L | 10.5 / 11.8 | 10.6 / 11.8 |
+
+Warm edit p50 flat. Structural win: one fewer full-package allocation for the lifetime of the edit
+session (~2.5 MiB for pptx L fixture bytes vs a second resident `Vec`).
+
+**Verdict:** **SHIP** — removes duplicate zip buffer on writable unlock; wasm size unchanged
+(brotli loader untouched); cold peak / edit latency flat as expected.

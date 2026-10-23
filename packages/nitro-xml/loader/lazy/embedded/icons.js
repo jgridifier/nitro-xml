@@ -32,6 +32,7 @@ export const ICONS = {
   shade: '<path d="M5 14c0-4 3-8 7-8s7 4 7 8H5zM8 16h8M9 19h6"/>',
   landscape: '<path d="M3 7h14l4 4v6H3zM17 7v4h4"/>',
   narrowMargins: '<path d="M4 4h16v16H4zM8 8h8v8H8z"/>',
+  moderateMargins: '<path d="M4 4h16v16H4zM7 6h10v12H7z"/>',
   wideMargins: '<path d="M4 4h16v16H4zM10 6h4v12H10z"/>',
   pageA4: '<path d="M6 2h12v20H6zM8 6h8M8 10h5"/>',
   pageBreakBefore: '<path d="M6 3h8l4 4v6H6zM14 3v4h4M6 15h12v6H6zM12 11v4M10 13l2 2 2-2"/>',

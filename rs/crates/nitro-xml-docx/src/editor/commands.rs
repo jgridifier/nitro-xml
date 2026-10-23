@@ -25,7 +25,8 @@ use crate::edit::host::DocxHost;
 use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bullet_list};
 use crate::edit::register_docx_command_registry;
 use crate::edit::section::{
-    toggle_narrow_margins, toggle_page_a4, toggle_page_landscape, toggle_wide_margins,
+    toggle_moderate_margins, toggle_narrow_margins, toggle_page_a4, toggle_page_landscape,
+    toggle_wide_margins,
 };
 use crate::edit::table::{
     delete_table, delete_table_column, delete_table_row, insert_table, insert_table_column,
@@ -89,6 +90,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("border-dot", "Dotted Border", None, true),
     word_cmd!("landscape", "Landscape", None, true),
     word_cmd!("narrow-margins", "Narrow Margins", None, true),
+    word_cmd!("moderate-margins", "Moderate Margins", None, true),
     word_cmd!("wide-margins", "Wide Margins", None, true),
     word_cmd!("page-a4", "A4", None, true),
     word_cmd!("space-before", "Space Before", None, true),
@@ -587,6 +589,19 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         toggle_narrow_margins(h)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "moderate-margins" => {
+                session.run(
+                    String::from("moderate-margins"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        toggle_moderate_margins(h)?;
                         Ok(())
                     },
                 )?;

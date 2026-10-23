@@ -634,6 +634,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.moderate-margins",
+                    label: "Moderate Margins",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.wide-margins",
                     label: "Wide Margins",
                     enabled: true,
@@ -827,6 +832,7 @@ fn canonical_command(id: &str) -> &str {
         "home.border-dot" => "border-dot",
         "home.landscape" => "landscape",
         "home.narrow-margins" => "narrow-margins",
+        "home.moderate-margins" => "moderate-margins",
         "home.wide-margins" => "wide-margins",
         "home.page-a4" => "page-a4",
         "home.page-break-before" => "page-break-before",

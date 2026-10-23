@@ -154,9 +154,7 @@ impl XlsxState {
         let _ = self.ensure_merges_ready();
         let range = parse_range(range_ref).ok_or_else(|| format!("invalid range {range_ref}"))?;
         let sheet = self
-            .sheets
-            .get_mut(self.active)
-            .and_then(|s| s.as_mut())
+            .sheet_mut(self.active)
             .ok_or_else(|| "no active sheet".to_string())?;
         let selection = SheetSelection {
             active: range.start,
@@ -203,9 +201,7 @@ impl XlsxState {
 
     /// Painted selection as an A1 ref (`1:1048576` for the whole sheet).
     pub fn selection_ref_now(&self) -> Option<String> {
-        self.sheets
-            .get(self.active)
-            .and_then(|s| s.as_ref())
+        self.sheet_ref(self.active)
             .and_then(|s| s.view.selection.as_ref())
             .map(selection_ref)
     }

@@ -509,6 +509,7 @@ pub fn editor_key_json(effect: EditorKeyEffect, selection: Option<String>) -> St
 #[cfg(test)]
 mod tests {
     use crate::handle::Handle;
+    use crate::xlsx_edit::EditorKeyEffect;
     use nitro_xml_xlsx::model::DumpCellValue;
     use std::path::PathBuf;
 
@@ -742,6 +743,40 @@ mod tests {
             DumpCellValue::String(s) => assert_eq!(s, "sync-probe"),
             other => panic!("expected string at A1, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn catches_grid_in_host_selection_ref_now_stays_on_host_after_enter_nudge() {
+        // Catches: grid_in_host selection_ref_now stays on host after Enter nudge (keypath.click-then-type)
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_1k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_1k");
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_1k.xlsx").expect("open");
+        h.load_editor_chrome();
+        h.set_read_only(false);
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"warm"}"#)
+            .expect("ensure_edit");
+        let xlsx = h.xlsx.as_mut().expect("xlsx");
+        assert!(
+            xlsx.grid_in_host,
+            "precondition: lazy soft-share leaves selection on the edit host"
+        );
+        xlsx.apply_selection_ref("G7").expect("G7");
+        assert_eq!(xlsx.selection_ref_now().as_deref(), Some("G7"));
+        let effect = xlsx
+            .editor_key("k", false, false, false, false, false)
+            .expect("type");
+        assert!(matches!(effect, EditorKeyEffect::Handled));
+        let effect = xlsx
+            .editor_key("Enter", false, false, false, false, false)
+            .expect("enter");
+        assert!(matches!(effect, EditorKeyEffect::Move { row: 1, col: 0 }));
+        assert_eq!(
+            xlsx.selection_ref_now().as_deref(),
+            Some("G8"),
+            "shell selection_ref must follow host nudge after commit"
+        );
     }
 
     #[test]

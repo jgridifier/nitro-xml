@@ -541,6 +541,65 @@ pub fn toggle_paragraph_dashed_border(
     Ok(())
 }
 
+/// Toggle a dotted bottom rule (`w:val="dotted"`). A dotted line is removed; anything else,
+/// including a single or dashed style rule, becomes a 1.5 pt dotted black rule. A styled dotted
+/// rule, including `dotDash`, is cleared with `w:val="nil"` because the painter maps any style
+/// containing "dot" to a dotted line. Other sides on the effective border are kept.
+pub fn toggle_paragraph_dotted_border(
+    host: &mut DocxHost,
+    block_index: usize,
+) -> Result<(), EditError> {
+    let (styled, direct, is_dotted) = {
+        let style_id = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?
+            .get("style")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
+        let styled = style_paragraph_borders(host, style_id.as_deref());
+        let direct = host
+            .paragraph(block_index)
+            .map_err(|e| EditError::Other { message: e })?
+            .get("borders")
+            .and_then(|b| b.as_object())
+            .cloned();
+        let effective = direct.clone().unwrap_or_else(|| styled.clone());
+        let is_dotted = border_side_is_dotted(&effective, "bottom");
+        (styled, direct, is_dotted)
+    };
+    let mut next = direct.unwrap_or_else(|| styled.clone());
+    if is_dotted {
+        if border_side_is_dotted(&styled, "bottom") {
+            next.insert("bottom".into(), json!({ "style": "nil" }));
+        } else {
+            next.remove("bottom");
+        }
+    } else {
+        next.insert(
+            "bottom".into(),
+            json!({
+                "style": "dotted",
+                "sizeEighthPoints": PARAGRAPH_BORDER_SZ,
+                "spacePoints": PARAGRAPH_BORDER_SPACE,
+                "color": "000000",
+            }),
+        );
+    }
+    let block = host
+        .paragraph_mut(block_index)
+        .map_err(|e| EditError::Other { message: e })?;
+    let obj = block.as_object_mut().ok_or_else(|| EditError::Other {
+        message: format!("paragraph {block_index} is not an object"),
+    })?;
+    if next.is_empty() || next == styled {
+        obj.remove("borders");
+    } else {
+        obj.insert("borders".into(), Value::Object(next));
+    }
+    host.mark_touched(block_index);
+    Ok(())
+}
+
 fn border_side_style<'a>(borders: &'a Map<String, Value>, side: &str) -> &'a str {
     borders
         .get(side)
@@ -553,6 +612,13 @@ fn border_side_style<'a>(borders: &'a Map<String, Value>, side: &str) -> &'a str
 fn border_side_is_dashed(borders: &Map<String, Value>, side: &str) -> bool {
     let style = border_side_style(borders, side).to_ascii_lowercase();
     style.contains("dash") && !style.contains("dot")
+}
+
+/// The print painter maps any style containing "dot" to a dotted line, before it maps "dash".
+fn border_side_is_dotted(borders: &Map<String, Value>, side: &str) -> bool {
+    border_side_style(borders, side)
+        .to_ascii_lowercase()
+        .contains("dot")
 }
 
 fn style_page_break_before(host: &DocxHost, style_id: Option<&str>) -> bool {
@@ -1707,6 +1773,84 @@ mod tests {
         }));
         toggle_paragraph_dashed_border(&mut host, 0).unwrap();
         assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "dashed");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["color"], "000000");
+    }
+
+    #[test]
+    fn catches_dotted_border_leaving_w_pbdr_off_an_unbordered_paragraph() {
+        // Catches: Dotted border leaving borders unset, so save omits w:pBdr.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        toggle_paragraph_dotted_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "dotted");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["sizeEighthPoints"], 12);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_paragraph_dotted_border(&mut host, 0).unwrap();
+        assert!(host.blocks[0].get("borders").is_none());
+    }
+
+    #[test]
+    fn catches_dotted_border_on_a_styled_dot_dash_rule_writing_nil() {
+        // Catches: Dotted border on a style whose bottom is dotDash leaving that dotted rule in place. The painter maps any style containing "dot" to dotted.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Heading1",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Heading1": { "id": "Heading1", "formatting": { "borders": {
+                "bottom": { "style": "dotDash", "sizeEighthPoints": 8, "color": "4F81BD" }
+            } } } }
+        }));
+        toggle_paragraph_dotted_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "nil");
+        toggle_paragraph_dotted_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "dotted");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["sizeEighthPoints"], 12);
+    }
+
+    #[test]
+    fn catches_dotted_border_replacing_a_styled_single_bottom_and_keeping_left() {
+        // Catches: Dotted border on a title whose style has a single bottom and a left rule dropping the left rule.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "borders": {
+                "bottom": { "style": "single", "sizeEighthPoints": 8, "spacePoints": 4, "color": "4F81BD" },
+                "left": { "style": "single", "sizeEighthPoints": 4, "color": "FF0000" }
+            } } } }
+        }));
+        toggle_paragraph_dotted_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "dotted");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["color"], "000000");
+        assert_eq!(host.blocks[0]["borders"]["left"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["left"]["color"], "FF0000");
+    }
+
+    #[test]
+    fn catches_dotted_border_replacing_a_styled_dashed_rule() {
+        // Catches: Dotted border treating w:val="dashed" as already dotted.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "borders": {
+                "bottom": { "style": "dashed", "sizeEighthPoints": 12, "color": "000000" }
+            } } } }
+        }));
+        toggle_paragraph_dotted_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "dotted");
         assert_eq!(host.blocks[0]["borders"]["bottom"]["color"], "000000");
     }
 

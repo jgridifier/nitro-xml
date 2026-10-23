@@ -93,6 +93,7 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
         html.push_str(&button("border-right", "Right Border", surface, false));
         html.push_str(&button("border-double", "Double Border", surface, false));
         html.push_str(&button("border-dash", "Dashed Border", surface, false));
+        html.push_str(&button("border-dot", "Dotted Border", surface, false));
         html.push_str(&button(
             "page-break-before",
             "Page Break Before",

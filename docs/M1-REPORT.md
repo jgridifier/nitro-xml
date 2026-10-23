@@ -586,21 +586,23 @@ Self-contained Nitro WASM **parse adapters** landed in
 [#384](https://github.com/jgridifier/nitro-xml/pull/384)): calamine-style shims +
 `competitors.json` **entered**.
 
-**Published** `docs/scoreboard/data/parse-latest.json` (tip **`453e2e0`**, method knobs
-warmup=2 / runs=7, all entered competitors; **not invented**): Nitro status **`entered`**.
-Archive: `perf/scoreboard/results/parse/2026-10-22-453e2e0.json`. Draft
-[#113](https://github.com/jgridifier/nitro-xml/pull/113) / stub `scoreboard.sh` (#39)
-**untouched** — CI reproducible gate still open.
+**Published** `docs/scoreboard/data/parse-latest.json` (tip **`3a9765a`**, method knobs
+warmup=2 / runs=7, all entered competitors including **betteroffice-docx**; **not invented**):
+Nitro status **`entered`**. Archive: `perf/scoreboard/results/parse/2026-10-23-3a9765a.json`.
+Prior published tip was **`453e2e0`**. Draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) /
+stub `scoreboard.sh` (#39) **untouched** — CI reproducible gate still open.
 
 | Format | Nitro comparable | Geomean vs TS | Nitro W/L | Errors |
 |--------|-----------------:|--------------:|:---------:|-------:|
-| xlsx | **30/30** | **0.255** | **30W/0L** | 0 |
-| docx | **30/30** | **0.204** | **30W/0L** | 0 |
-| pptx | **30/30** | **0.085** | **30W/0L** | 0 |
+| xlsx | **30/30** | **0.252** | **30W/0L** | 0 |
+| docx | **30/30** | **0.197** | **30W/0L** | 0 |
+| pptx | **30/30** | **0.086** | **30W/0L** | 0 |
 
 **Totals:** Nitro **90W/0L**, **90/90** comparable. Equivalence: timed `parse()` only; xlsx Nitro is
 `load_workbook_meta` + `parse_all_worksheets` (one pass per sheet) vs TS `loadWorkbook` (see #388).
 Losses for other entrants kept in the published JSON (e.g. exceljs / mammoth).
+**betteroffice-docx** on this tip: **21/30** comparable, geomean **0.187**, **21W/0L** (nine NC —
+drawings / fields / content-controls / revisions).
 
 #### Tip nitro↔upstream parse remasure (`09a82b3`, 2026-10-22)
 
@@ -619,24 +621,15 @@ Archive: `perf/scoreboard/results/parse/2026-10-22-09a82b3-nitro-upstream.json`.
 **Totals:** Nitro **90W/0L**, **90/90** comparable on tip. Median-of-medians: xlsx **6.48** ms
 (vs TS 18.82), docx **4.16** (vs 16.50), pptx **4.67** (vs 59.28).
 
-#### BetterOffice docx parse entrant (`b0eca79`)
+#### BetterOffice docx parse entrant (`b0eca79` → published in tip `3a9765a`)
 
 Entered **`@betteroffice/docx@0.4.3`** (Apache-2.0) in the docx parse race — Rust/WASM
 `parseDocx` with opc+parse wasm only (layout/edit unused). Adapter:
-`perf/scoreboard/adapters/js/betteroffice-docx.mjs`. Does **not** touch draft
-[#113](https://github.com/jgridifier/nitro-xml/pull/113) / `parse-latest.json`.
-
-Local race on tip **`b0eca79`** (warmup=1 / runs=3), archive
-`perf/scoreboard/results/parse/2026-10-22-b0eca79-betteroffice-docx.json`:
-
-| Entrant | Comparable | Geomean vs TS | W/L |
-|---------|-----------:|--------------:|:---:|
-| betteroffice-docx | **21/30** | **0.219** | **21W/0L** |
-| nitro-xml (same tip, prior remasure) | 30/30 | ~0.24–0.26 | 30W/0L |
-
-Nine files **not comparable** (drawings / fields / content-control / revision edge
-cases — same class of diffs as docx-preview / mammoth). Losses still shown as
-prominently as wins when present; this tip had **0** losses on comparable cells.
+`perf/scoreboard/adapters/js/betteroffice-docx.mjs`. First entry race on tip
+**`b0eca79`** (warmup=1 / runs=3): **21/30** comparable, geomean **0.219**, **21W/0L**
+(archive `2026-10-22-b0eca79-betteroffice-docx.json`). Now included in published
+`parse-latest.json` at tip **`3a9765a`** (method 2+7; see table above). Draft
+[#113](https://github.com/jgridifier/nitro-xml/pull/113) **untouched**.
 
 **Render-to-first-paint** ([#41](https://github.com/jgridifier/nitro-xml/issues/41) closed): `perf/scoreboard/races/render/`
 times load+init+first paint (800×480, DPR 1). **xlsx** and **pptx** are entered for `nitro-xml` vs
@@ -703,7 +696,7 @@ Published `parse-latest.json` and `first-paint-latest.json` are real measured ti
 - [x] Bundle / loader sizes recorded (loader **16.69 / 17 KB**; wasm sizes above)
 - [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S clear WIN after #352** (CI upper 0.321; peak-mem LOSSes kept on xlsx/docx S); **#23 left open** (docx arm deferred)
 - [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped; post-#352 matrix **14/18 WIN**
-- [x] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; published `parse-latest.json` Nitro **entered**, tip **90W/0L** (method 2+7); tip nitro↔upstream remasure on **`09a82b3`** still **90W/0L** (archive `2026-10-22-09a82b3-nitro-upstream.json`); published `first-paint-latest.json` tip **`c08b73d`** / #413 **8W/0L** S–XL; peak_mem standings keep xlsx S + docx S/M as **LOSS** with known-loss exception ([Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)); CI `scoreboard` job / draft **#113** still open (not required for Pages data)
+- [x] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; published `parse-latest.json` Nitro **entered**, tip **`3a9765a`** **90W/0L** (method 2+7, includes betteroffice-docx **21W/0L**); tip nitro↔upstream remasure on **`09a82b3`** still **90W/0L**; published `first-paint-latest.json` tip **`c08b73d`** / #413 **8W/0L** S–XL; peak_mem standings keep xlsx S + docx S/M as **LOSS** with known-loss exception ([Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)); CI `scoreboard` job / draft **#113** still open (not required for Pages data)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
 - [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27** (+ docx **#23**); tip readiness **READY** for xlsx/docx/pptx with documented known-loss exceptions still printed as LOSS; Jared flips workflow env (agents do not)
 

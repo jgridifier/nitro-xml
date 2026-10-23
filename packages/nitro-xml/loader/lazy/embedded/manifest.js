@@ -92,6 +92,7 @@ export const MANIFEST = {
           cmd("home.border-left", "borderLeft", "Left border", "Toggle the paragraph left border"),
           cmd("home.border-right", "borderRight", "Right border", "Toggle the paragraph right border"),
           cmd("home.border-double", "borderDouble", "Double border", "Toggle a double paragraph bottom border"),
+          cmd("home.border-dash", "borderDash", "Dashed border", "Toggle a dashed paragraph bottom border"),
           cmd("home.page-break-before", "pageBreakBefore", "Page break before", "Start this paragraph on a new page"),
           cmd("home.space-before", "spaceBefore", "Space before", "Add 12 pt space before the paragraph"),
           cmd("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),

@@ -590,22 +590,23 @@ Self-contained Nitro WASM **parse adapters** landed in
 [#384](https://github.com/jgridifier/nitro-xml/pull/384)): calamine-style shims +
 `competitors.json` **entered**.
 
-**Published** `docs/scoreboard/data/parse-latest.json` (tip **`3a9765a`**, method knobs
-warmup=2 / runs=7, all entered competitors including **betteroffice-docx**; **not invented**):
-Nitro status **`entered`**. Archive: `perf/scoreboard/results/parse/2026-10-23-3a9765a.json`.
-Prior published tip was **`453e2e0`**. Draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) /
+**Published** `docs/scoreboard/data/parse-latest.json` (tip **`892f06a`**, method knobs
+warmup=2 / runs=7, all entered competitors including **betteroffice-docx**; **not invented**;
+remasure 2026-10-23 after #430/#439/#437/#433):
+Nitro status **`entered`**. Archive: `perf/scoreboard/results/parse/2026-10-23-892f06a.json`.
+Prior published tip was **`3a9765a`**. Draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) /
 stub `scoreboard.sh` (#39) **untouched** — CI reproducible gate still open.
 
 | Format | Nitro comparable | Geomean vs TS | Nitro W/L | Errors |
 |--------|-----------------:|--------------:|:---------:|-------:|
-| xlsx | **30/30** | **0.252** | **30W/0L** | 0 |
-| docx | **30/30** | **0.197** | **30W/0L** | 0 |
-| pptx | **30/30** | **0.086** | **30W/0L** | 0 |
+| xlsx | **30/30** | **0.253** | **30W/0L** | 0 |
+| docx | **30/30** | **0.206** | **30W/0L** | 0 |
+| pptx | **30/30** | **0.084** | **30W/0L** | 0 |
 
 **Totals:** Nitro **90W/0L**, **90/90** comparable. Equivalence: timed `parse()` only; xlsx Nitro is
 `load_workbook_meta` + `parse_all_worksheets` (one pass per sheet) vs TS `loadWorkbook` (see #388).
 Losses for other entrants kept in the published JSON (e.g. exceljs / mammoth).
-**betteroffice-docx** on this tip: **21/30** comparable, geomean **0.187**, **21W/0L** (nine NC —
+**betteroffice-docx** on this tip: **21/30** comparable, geomean **0.193**, **21W/0L** (nine NC —
 drawings / fields / content-controls / revisions).
 
 #### Tip nitro↔upstream parse remasure (`09a82b3`, 2026-10-22)

@@ -525,6 +525,55 @@ fn restore_open_page_size(host: &mut DocxHost) -> Result<(), EditError> {
     Ok(())
 }
 
+const LEGAL_SHORT_TWIPS: i64 = 12240;
+const LEGAL_LONG_TWIPS: i64 = 20160;
+
+/// Switch section 0 to US Legal, or restore the page size from open.
+///
+/// Print layout reads `pageWidthTwips` / `pageHeightTwips`. The writer reads
+/// `host.page` width and height in CSS pixels. A landscape page keeps the long
+/// side as the width. Restoring the open snapshot makes a second click clean,
+/// so save returns the original package bytes.
+pub fn toggle_page_legal(host: &mut DocxHost) -> Result<(), EditError> {
+    let already = {
+        let section = section_mut(host, 0)?;
+        let (width, height) = legal_twips(section_is_landscape(section));
+        page_twips(section, "pageWidthTwips") == width
+            && page_twips(section, "pageHeightTwips") == height
+    };
+    if already {
+        restore_open_page_size(host)
+    } else {
+        apply_legal(host)
+    }
+}
+
+fn legal_twips(landscape: bool) -> (i64, i64) {
+    if landscape {
+        (LEGAL_LONG_TWIPS, LEGAL_SHORT_TWIPS)
+    } else {
+        (LEGAL_SHORT_TWIPS, LEGAL_LONG_TWIPS)
+    }
+}
+
+fn apply_legal(host: &mut DocxHost) -> Result<(), EditError> {
+    let (width, height) = {
+        let section = section_mut(host, 0)?;
+        let pair = legal_twips(section_is_landscape(section));
+        if let Some(obj) = section.as_object_mut() {
+            obj.insert("pageWidthTwips".into(), json!(pair.0));
+            obj.insert("pageHeightTwips".into(), json!(pair.1));
+        }
+        pair
+    };
+    let page = host.page.get_or_insert_with(|| json!({}));
+    if let Some(obj) = page.as_object_mut() {
+        obj.insert("width".into(), json!(width as f64 / 15.0));
+        obj.insert("height".into(), json!(height as f64 / 15.0));
+    }
+    Ok(())
+}
+
 /// Set column count on a section.
 pub fn set_section_columns(
     host: &mut DocxHost,
@@ -907,6 +956,66 @@ mod tests {
         );
         assert_eq!(host.page.as_ref().unwrap()["orientation"], "landscape");
         toggle_page_a4(&mut host).unwrap();
+        assert_eq!(host.sections.as_ref().unwrap()[0]["pageWidthTwips"], 15840);
+        assert_eq!(host.sections.as_ref().unwrap()[0]["pageHeightTwips"], 12240);
+        assert_eq!(host.page.as_ref().unwrap()["width"], 1056.0);
+        assert_eq!(host.page.as_ref().unwrap()["height"], 816.0);
+        assert!(!host.is_dirty());
+    }
+
+    #[test]
+    fn catches_legal_leaving_pg_sz_on_letter() {
+        // Catches: Legal leaving w:pgSz at US Letter, so the reopened page stays 8.5 by 11 inches.
+        let bytes = include_bytes!("../../../../../fixtures/generated/docx/pages_10.docx");
+        let mut host = DocxHost::open(bytes.as_slice()).expect("open");
+        assert!(!host.is_dirty());
+        toggle_page_legal(&mut host).unwrap();
+        assert!(host.is_dirty());
+        let section = &host.sections.as_ref().unwrap()[0];
+        assert_eq!(section["pageWidthTwips"], 12240);
+        assert_eq!(section["pageHeightTwips"], 20160);
+        assert_eq!(section["orientation"], "portrait");
+        let page = host.page.as_ref().unwrap();
+        assert_eq!(page["width"], 816.0);
+        assert_eq!(page["height"], 1344.0);
+        assert!(page.get("orientation").is_none());
+        let saved = crate::save_docx(&host, bytes.as_slice()).expect("save");
+        assert_ne!(saved.as_slice(), bytes.as_slice());
+        let mut pkg = nitro_xml_opc::opc::Package::open(&saved).expect("pkg");
+        let xml = pkg
+            .text("word/document.xml")
+            .expect("read")
+            .expect("document.xml");
+        assert!(xml.contains("w:w=\"12240\""), "width left letter: {xml}");
+        assert!(xml.contains("w:h=\"20160\""), "height stayed letter");
+        assert!(!xml.contains("w:orient="), "portrait Legal gained w:orient");
+        toggle_page_legal(&mut host).unwrap();
+        assert!(!host.is_dirty(), "second Legal click left the host dirty");
+        let restored = crate::save_docx(&host, bytes.as_slice()).expect("save restored");
+        assert_eq!(restored.as_slice(), bytes.as_slice());
+    }
+
+    #[test]
+    fn catches_legal_on_a_landscape_page_keeping_the_wide_side() {
+        // Catches: Legal on a landscape page writing the short side as the width, so the page flips back to portrait.
+        let mut host = DocxHost::stub(vec![]);
+        host.sections = Some(json!([{
+            "orientation": "landscape",
+            "pageWidthTwips": 15840,
+            "pageHeightTwips": 12240
+        }]));
+        host.base_sections = host.sections.clone();
+        host.page = Some(json!({ "width": 1056.0, "height": 816.0, "orientation": "landscape" }));
+        host.base_page = host.page.clone();
+        toggle_page_legal(&mut host).unwrap();
+        assert_eq!(host.sections.as_ref().unwrap()[0]["pageWidthTwips"], 20160);
+        assert_eq!(host.sections.as_ref().unwrap()[0]["pageHeightTwips"], 12240);
+        assert_eq!(
+            host.sections.as_ref().unwrap()[0]["orientation"],
+            "landscape"
+        );
+        assert_eq!(host.page.as_ref().unwrap()["orientation"], "landscape");
+        toggle_page_legal(&mut host).unwrap();
         assert_eq!(host.sections.as_ref().unwrap()[0]["pageWidthTwips"], 15840);
         assert_eq!(host.sections.as_ref().unwrap()[0]["pageHeightTwips"], 12240);
         assert_eq!(host.page.as_ref().unwrap()["width"], 1056.0);

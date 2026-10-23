@@ -26,7 +26,7 @@ use crate::edit::numbering::{apply_numbering, ensure_list_definition, toggle_bul
 use crate::edit::register_docx_command_registry;
 use crate::edit::section::{
     toggle_moderate_margins, toggle_narrow_margins, toggle_page_a4, toggle_page_landscape,
-    toggle_wide_margins,
+    toggle_page_legal, toggle_wide_margins,
 };
 use crate::edit::table::{
     delete_table, delete_table_column, delete_table_row, insert_table, insert_table_column,
@@ -93,6 +93,7 @@ pub const DOCX_EDITOR_COMMANDS: &[CommandMeta] = &[
     word_cmd!("moderate-margins", "Moderate Margins", None, true),
     word_cmd!("wide-margins", "Wide Margins", None, true),
     word_cmd!("page-a4", "A4", None, true),
+    word_cmd!("page-legal", "Legal", None, true),
     word_cmd!("space-before", "Space Before", None, true),
     word_cmd!("shading", "Shade", None, true),
     word_cmd!("page-break-before", "Page Break Before", None, true),
@@ -628,6 +629,19 @@ impl DocxCommandSurface {
                     vec![EditScope::Workbook],
                     |h| {
                         toggle_page_a4(h)?;
+                        Ok(())
+                    },
+                )?;
+                schedule_relayout(print_edit);
+                Ok(())
+            }
+            "page-legal" => {
+                session.run(
+                    String::from("page-legal"),
+                    ChangeKind::Format,
+                    vec![EditScope::Workbook],
+                    |h| {
+                        toggle_page_legal(h)?;
                         Ok(())
                     },
                 )?;

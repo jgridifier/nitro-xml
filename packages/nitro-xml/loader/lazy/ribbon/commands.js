@@ -133,6 +133,7 @@ const wordFont = {
       it("home.moderate-margins", "moderateMargins", "Moderate margins", "Set the side margins to three quarters of an inch"),
       it("home.wide-margins", "wideMargins", "Wide margins", "Widen the side margins to two inches"),
       it("home.page-a4", "pageA4", "A4", "Switch the page size to A4"),
+      it("home.page-legal", "pageLegal", "Legal", "Switch the page size to US Legal"),
       it("home.page-break-before", "pageBreakBefore", "Page break before", "Start this paragraph on a new page"),
       it("home.space-before", "spaceBefore", "Space before", "Add 12 pt space before the paragraph"),
       it("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),

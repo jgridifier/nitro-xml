@@ -134,6 +134,7 @@ fn track_move_range(item: &Element, moves: &mut OpenMoves) -> bool {
     true
 }
 
+#[inline(never)]
 pub fn collect_paragraph_runs(
     node: &Element,
     collector: &mut dyn RunCollector,

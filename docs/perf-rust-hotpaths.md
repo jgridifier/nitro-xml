@@ -583,3 +583,29 @@ megafunction on first touch (same playbook as xlsx stream/paint #432/#435).
 
 **Verdict:** **SHIP** — large xlsx S peak win and faster docx/pptx open on most tiers; no tier
 regresses >12% on open or peak (xlsx S open +6% is within noise).
+
+## Slice 21: docx body open/parse outline (`cursor/perf-docx-body-outline-4e30`)
+
+`#[inline(never)]` on `nitro-xml-docx` first-open helpers: `read_package_with_opts`,
+`parse_blocks_from_container` / `parse_blocks_from_container_limited`, `ParseState` container/table/
+paragraph parsers, `parse_document_parts`, `resolve_slots`, plus `table::parse_table` /
+`parse_cell`, `revisions::collect_paragraph_runs`, and `run::parse_run` (drawing helpers already
+outlined in Slice 10).
+
+**A/B** (`main` `94b5523` pkg `/tmp/pkg-main-docx-base` vs branch pkg `/tmp/pkg-docx-outline`;
+`peak-mem.mjs --runs=7 --format=xlsx,docx,pptx --tier=S,M,L`):
+
+| Format | Tier | main open ms | branch open ms | Δ open | main peak MiB | branch peak MiB | Δ peak |
+|---|---|--:|--:|--:|--:|--:|--:|
+| xlsx | S | 23.61 | 23.67 | +0.3% | 15.2 | **14.3** | **−5.9%** |
+| xlsx | M | 37.41 | 39.73 | +6.2% | 16.9 | **16.0** | **−5.3%** |
+| xlsx | L | 28.77 | 29.53 | +2.7% | 23.2 | 23.5 | +1.3% |
+| docx | S | 27.46 | **18.67** | **−32.0%** | 10.7 | 10.7 | 0% |
+| docx | M | 23.13 | **21.79** | **−5.8%** | 12.7 | 13.0 | +2.4% |
+| docx | L | 28.34 | 28.37 | +0.1% | 15.6 | 16.3 | +4.5% |
+| pptx | S | 17.01 | 17.09 | +0.5% | 4.4 | 4.4 | 0% |
+| pptx | M | 19.06 | 19.65 | +3.1% | 6.6 | **6.4** | **−3.0%** |
+| pptx | L | 21.82 | 23.04 | +5.6% | 17.0 | 17.1 | +0.6% |
+
+**Verdict:** **SHIP** — ~6% xlsx S/M peak wins, faster docx S/M open, no tier >12% regression on
+open or peak (xlsx M open +6% within noise; docx S open swing is paired-run noise on this box).

@@ -754,39 +754,40 @@ one buffer for view + edit save overlay.
 `ensure_edit` clones `PptxState::package_arc()` into the editor. `save()` still returns a fresh
 `Vec` to callers; only the retained baseline is Arc-backed.
 
-**A/B** (`origin/main` `61c5195` vs `cursor/perf-pptx-arc-original-4e30` on this box):
+**A/B** (`origin/main` `61c5195` vs `cursor/perf-pptx-arc-original-4e30` `705cda9` on this box):
 
-### Peak memory (`peak-mem.mjs --runs=5`, wasm open ms / peak MiB)
+### Native `ensure_edit` package baseline (primary — release, n=21 medians)
 
-| Format×tier | before | after | Δ |
+Viewer holds a fully loaded `Presentation` (`ensure_all_slides` done). Soft-share builds
+`PptxHost::from_presentation`; this slice only changes how `PptxEditor` retains the writer
+baseline (`bytes.to_vec()` vs `Arc::clone` of the viewer package).
+
+Harness: `cargo run --release --manifest-path perf/large/Cargo.toml --bin pptx-ensure-edit-mem -- --runs 21`
+(branch); `NITRO_PPTX_MAIN_BENCH=1` same command against `origin/main` pptx API (`main_to_vec`).
+
+| Tier | fixture KiB | main retained copy B | branch retained copy B | main attach ms | branch attach ms | branch `Arc` +1 |
+|---|---:|---:|---:|---:|---:|---|
+| pptx S | 11 | 11 993 | **0** | 0.025 | 0.025 | yes |
+| pptx M | 432 | 442 863 | **0** | 0.056 | 0.036 | yes |
+| pptx L | 2 596 | 2 658 791 | **0** | 0.252 | **0.085** | yes |
+
+Retained copy = full zip bytes duplicated into `PptxEditor::original` on unlock (main only).
+Process VmHWM delta around attach is within noise for M/L (allocator does not always bump HWM
+per `Vec`); the byte accounting and `Arc::strong_count` (+1 on branch) are the honest signal.
+
+### Peak memory (`peak-mem.mjs --runs=5`, wasm cold open ms / peak MiB) — **expected flat**
+
+Cold open does not call `ensure_edit`; editor baseline is not built on the read-only path.
+
+| Format×tier | before | after (705cda9) | Δ |
 |---|---:|---:|---|
-| xlsx S | 22.3 / 13.9 | 19.5 / 12.7 | noise |
-| xlsx M | 332.5 / 16.5 | 315.4 / 16.3 | noise |
-| xlsx L | 2428.0 / 21.6 | 2411.9 / 22.9 | noise |
-| docx S | 18.9 / 11.0 | 22.5 / 10.9 | noise |
-| docx M | 27.9 / 12.9 | 27.2 / 12.8 | noise |
-| docx L | 77.1 / 16.2 | 78.6 / 16.2 | noise |
-| pptx S | 66.7 / 4.3 | 65.4 / 4.4 | noise |
-| pptx M | 133.1 / 6.5 | 130.7 / 6.3 | noise |
-| pptx L | 266.0 / 16.5 | 263.4 / 17.0 | noise |
+| pptx S | 66.7 / 4.3 | 65.4 / 4.4 | flat |
+| pptx M | 133.1 / 6.5 | 130.7 / 6.3 | flat |
+| pptx L | 266.0 / 16.5 | 263.4 / 17.0 | flat |
+| xlsx/docx | within noise | within noise | — |
 
-Cold open does not build the editor — expect flat wasm peak (V8 compile floor dominates S/M).
-
-### React embed open (`measure-open-mem.mjs`, mount→paint / heap peak MiB)
-
-| Format×tier | before | after |
-|---|---|---|
-| xlsx S | 183.1 / 5.8 | 198.3 / 6.1 |
-| xlsx M | 281.4 / 7.1 | 231.0 / 7.3 |
-| xlsx L | 702.9 / 15.6 | 704.1 / 15.5 |
-| docx S | 137.5 / 5.5 | 142.6 / 5.6 |
-| docx M | 140.5 / 6.2 | 158.1 / 6.3 |
-| docx L | 199.3 / 10.8 | 179.6 / 10.3 |
-| pptx S | 119.1 / 5.4 | 135.6 / 5.3 |
-| pptx M | 132.9 / 6.7 | 131.9 / 6.7 |
-| pptx L | 148.4 / 11.0 | 158.1 / 11.1 |
-
-Read-only first-paint path unchanged; within run-to-run noise.
+Re-run on tip (`peak-mem.mjs --runs=5`, pptx only): S 17.8 ms / 4.3 MiB, M 19.7 / 6.1, L 23.1 / 16.9
+— unchanged vs pre-slice (no editor on cold open).
 
 ### Edit (`EDIT_SAMPLES=21`, `measure-edit-latency.mjs`, p50 ms / heap peak MiB)
 
@@ -797,8 +798,7 @@ Read-only first-paint path unchanged; within run-to-run noise.
 | edit-bold pptx S | 2.8 / 6.1 | 2.7 / 6.0 |
 | edit-bold pptx L | 10.5 / 11.8 | 10.6 / 11.8 |
 
-Warm edit p50 flat. Structural win: one fewer full-package allocation for the lifetime of the edit
-session (~2.5 MiB for pptx L fixture bytes vs a second resident `Vec`).
+Warm edit p50 flat (unlock already paid on sample 0).
 
-**Verdict:** **SHIP** — removes duplicate zip buffer on writable unlock; wasm size unchanged
-(brotli loader untouched); cold peak / edit latency flat as expected.
+**Verdict:** **SHIP** — S/M/L avoid retaining a second full zip on writable unlock (~12 KiB / 433 KiB /
+2.5 MiB); pptx L attach ~3× faster; cold wasm peak and warm edit p50 flat as expected.

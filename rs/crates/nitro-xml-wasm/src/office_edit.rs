@@ -527,6 +527,34 @@ mod tests {
     }
 
     #[test]
+    fn catches_small_caps_leaving_cap_off_the_saved_slide() {
+        // Catches: Small caps leaving a:rPr/@cap off the saved run, or undoing as more than one step.
+        let mut pptx = open_editable(PPTX, "slides.pptx");
+        let strip = pptx.pptx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.small-caps\""));
+        pptx.shell_action("cmd", "home.small-caps")
+            .expect("small caps");
+        let saved = pptx.save_document().expect("save");
+        assert_ne!(saved, PPTX);
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen");
+        assert!(
+            again
+                .session
+                .host
+                .slides
+                .iter()
+                .flat_map(|s| s.elements.iter())
+                .any(|e| e.text_segments.iter().any(|seg| seg.small_caps)),
+            "small caps missing after reopen"
+        );
+        assert!(again
+            .ribbon_html()
+            .contains("data-command=\"home.small-caps\""));
+        pptx.shell_action("cmd", "edit.undo").expect("undo");
+        assert_eq!(pptx.save_document().expect("undone"), PPTX);
+    }
+
+    #[test]
     fn catches_indent_spacing_script_font_and_word_bullets_missing_after_reopen_or_undo() {
         // Catches: indent, line spacing, subscript/superscript, or font name never reaching the saved package, or undo failing to restore it. Word bullets too.
         let mut pptx = open_editable(PPTX, "slides.pptx");

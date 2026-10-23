@@ -530,6 +530,7 @@ fn style_authored(style: &TextStyleSnap) -> bool {
         || style.italic
         || style.underline.is_some()
         || style.strike.is_some()
+        || style.small_caps.is_some()
         || style.baseline.is_some()
         || style.typeface.is_some()
         || style.font_size.is_some()
@@ -542,6 +543,9 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
         .map(str::to_owned);
     let previous_strike = child_ref(run, "rPr", ns::A)
         .and_then(|rpr| attr(rpr, "strike"))
+        .map(str::to_owned);
+    let previous_cap = child_ref(run, "rPr", ns::A)
+        .and_then(|rpr| attr(rpr, "cap"))
         .map(str::to_owned);
     let previous_baseline = child_ref(run, "rPr", ns::A)
         .and_then(|rpr| attr(rpr, "baseline"))
@@ -580,6 +584,15 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
         None => {
             if let Some(strike) = previous_strike {
                 set_attr(&mut rpr, "strike", &strike);
+            }
+        }
+    }
+    match style.small_caps {
+        Some(true) => set_attr(&mut rpr, "cap", "small"),
+        Some(false) => {}
+        None => {
+            if let Some(cap) = previous_cap {
+                set_attr(&mut rpr, "cap", &cap);
             }
         }
     }

@@ -65,6 +65,13 @@ const font = {
     cmd("home.font-name", "font", "Font", "Set the font name"),
   ],
 };
+const pptxFont = {
+  id: "Font",
+  items: [
+    ...font.items,
+    cmd("home.small-caps", "smallCaps", "Small caps", "Small caps"),
+  ],
+};
 const align = {
   id: "Alignment",
   items: [
@@ -155,7 +162,7 @@ export const MANIFEST = {
     groups: [
       file,
       editorClip,
-      font,
+      pptxFont,
       align,
       {
         id: "Lists",

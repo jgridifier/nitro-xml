@@ -96,6 +96,7 @@ export const MANIFEST = {
           cmd("home.border-dot", "borderDot", "Dotted border", "Toggle a dotted paragraph bottom border"),
           cmd("home.landscape", "landscape", "Landscape", "Toggle landscape page orientation"),
           cmd("home.narrow-margins", "narrowMargins", "Narrow margins", "Narrow the page margins to half an inch"),
+          cmd("home.wide-margins", "wideMargins", "Wide margins", "Widen the side margins to two inches"),
           cmd("home.page-break-before", "pageBreakBefore", "Page break before", "Start this paragraph on a new page"),
           cmd("home.space-before", "spaceBefore", "Space before", "Add 12 pt space before the paragraph"),
           cmd("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),

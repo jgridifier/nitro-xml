@@ -1840,6 +1840,65 @@ mod tests {
     }
 
     #[test]
+    fn catches_landscape_leaving_pg_sz_portrait_on_the_saved_document() {
+        // Catches: Landscape leaving w:pgSz portrait, or undoing as more than one step.
+        let dims = |bytes: &[u8]| {
+            let h = open_editable(bytes, "pages.docx");
+            let section = &h
+                .docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .sections
+                .as_ref()
+                .unwrap()[0];
+            (
+                section.get("pageWidthTwips").and_then(|v| v.as_i64()),
+                section.get("pageHeightTwips").and_then(|v| v.as_i64()),
+                section
+                    .get("orientation")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+            )
+        };
+        let mut h = open_editable(DOCX, "pages.docx");
+        let start = dims(DOCX);
+        assert!(start.0.unwrap() < start.1.unwrap());
+        h.shell_action("cmd", "home.landscape").expect("landscape");
+        let saved = h.save_document().expect("save landscape");
+        assert_ne!(saved, DOCX);
+        let after = dims(&saved);
+        assert_eq!(after.0, start.1);
+        assert_eq!(after.1, start.0);
+        assert_eq!(after.2.as_deref(), Some("landscape"));
+        h.shell_action("cmd", "edit.undo").expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
+
+        let strip = h.docx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.landscape\""));
+        let home = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .ribbon_html();
+        assert!(home.contains("data-command=\"landscape\""));
+        let pptx = open_editable(PPTX, "slides.pptx");
+        assert!(!pptx
+            .pptx
+            .as_ref()
+            .unwrap()
+            .ribbon_html()
+            .contains("home.landscape"));
+    }
+
+    #[test]
     fn catches_top_border_leaving_w_pbdr_off_the_saved_paragraph() {
         // Catches: Top border leaving w:pBdr off the saved paragraph, or undoing as more than one step.
         let marks = |bytes: &[u8]| {

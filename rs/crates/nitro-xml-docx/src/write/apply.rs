@@ -95,6 +95,14 @@ fn find_body_mut(root: &mut Element) -> Result<&mut Element, String> {
     Err("w:body not found".into())
 }
 
+fn set_page_size(sz: &mut Element, page: &Value, width: f64, height: f64) {
+    set_w_attr(sz, "w", &twips(width));
+    set_w_attr(sz, "h", &twips(height));
+    if page.get("orientation").and_then(|v| v.as_str()) == Some("landscape") {
+        set_w_attr(sz, "orient", "landscape");
+    }
+}
+
 fn patch_page_section(body: &mut Element, page: &Value) -> Result<(), String> {
     let width = page.get("width").and_then(|v| v.as_f64()).unwrap_or(612.0);
     let height = page.get("height").and_then(|v| v.as_f64()).unwrap_or(792.0);
@@ -132,12 +140,10 @@ fn patch_page_section(body: &mut Element, page: &Value) -> Result<(), String> {
     };
 
     if let Some(sz) = first_w_mut(section, "pgSz") {
-        set_w_attr(sz, "w", &twips(width));
-        set_w_attr(sz, "h", &twips(height));
+        set_page_size(sz, page, width, height);
     } else {
         let mut size = make_w("pgSz");
-        set_w_attr(&mut size, "w", &twips(width));
-        set_w_attr(&mut size, "h", &twips(height));
+        set_page_size(&mut size, page, width, height);
         section.children.push(Node::Element(size));
     }
 

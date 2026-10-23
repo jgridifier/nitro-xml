@@ -1840,6 +1840,64 @@ mod tests {
     }
 
     #[test]
+    fn catches_moderate_margins_leaving_w_pg_mar_sides_at_one_inch_on_the_saved_document() {
+        // Catches: Moderate margins leaving w:pgMar left and right at one inch, or undoing as more than one step.
+        let margins = |bytes: &[u8]| {
+            let h = open_editable(bytes, "pages.docx");
+            let section = &h
+                .docx
+                .as_ref()
+                .unwrap()
+                .edit
+                .as_ref()
+                .unwrap()
+                .session
+                .host
+                .sections
+                .as_ref()
+                .unwrap()[0];
+            (
+                section.get("marginTopTwips").and_then(|v| v.as_i64()),
+                section.get("marginRightTwips").and_then(|v| v.as_i64()),
+                section.get("marginBottomTwips").and_then(|v| v.as_i64()),
+                section.get("marginLeftTwips").and_then(|v| v.as_i64()),
+            )
+        };
+        let mut h = open_editable(DOCX, "pages.docx");
+        let start = margins(DOCX);
+        assert_eq!(start, (Some(1440), Some(1440), Some(1440), Some(1440)));
+        h.shell_action("cmd", "home.moderate-margins")
+            .expect("moderate margins");
+        let saved = h.save_document().expect("save moderate margins");
+        assert_ne!(saved, DOCX);
+        assert_eq!(
+            margins(&saved),
+            (Some(1440), Some(1080), Some(1440), Some(1080))
+        );
+        h.shell_action("cmd", "edit.undo").expect("undo");
+        assert_eq!(h.save_document().expect("undone"), DOCX);
+
+        let strip = h.docx.as_ref().unwrap().ribbon_html();
+        assert!(strip.contains("data-g=\"home.moderate-margins\""));
+        let home = h
+            .docx
+            .as_ref()
+            .unwrap()
+            .edit
+            .as_ref()
+            .unwrap()
+            .ribbon_html();
+        assert!(home.contains("data-command=\"moderate-margins\""));
+        let pptx = open_editable(PPTX, "slides.pptx");
+        assert!(!pptx
+            .pptx
+            .as_ref()
+            .unwrap()
+            .ribbon_html()
+            .contains("home.moderate-margins"));
+    }
+
+    #[test]
     fn catches_page_break_before_leaving_the_flag_off_the_saved_paragraph() {
         // Catches: Page break before leaving w:pageBreakBefore off the saved paragraph, or undoing as more than one step.
         let marks = |bytes: &[u8]| {

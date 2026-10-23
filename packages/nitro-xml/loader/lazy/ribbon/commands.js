@@ -130,6 +130,7 @@ const wordFont = {
       it("home.border-dot", "borderDot", "Dotted border", "Toggle a dotted paragraph bottom border"),
       it("home.landscape", "landscape", "Landscape", "Toggle landscape page orientation"),
       it("home.narrow-margins", "narrowMargins", "Narrow margins", "Narrow the page margins to half an inch"),
+      it("home.moderate-margins", "moderateMargins", "Moderate margins", "Set the side margins to three quarters of an inch"),
       it("home.wide-margins", "wideMargins", "Wide margins", "Widen the side margins to two inches"),
       it("home.page-a4", "pageA4", "A4", "Switch the page size to A4"),
       it("home.page-break-before", "pageBreakBefore", "Page break before", "Start this paragraph on a new page"),

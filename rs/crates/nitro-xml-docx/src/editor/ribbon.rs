@@ -55,6 +55,7 @@ pub fn ribbon_html(surface: &DocxCommandSurface, active_tab: &str) -> String {
             false,
         ));
         html.push_str(&button("caps", "All Caps", surface, false));
+        html.push_str(&button("small-caps", "Small Caps", surface, false));
         html.push_str(&button("hidden", "Hidden", surface, false));
         html.push_str(&button("expand-spacing", "Expand", surface, false));
         html.push_str(&button("condense-spacing", "Condense", surface, false));

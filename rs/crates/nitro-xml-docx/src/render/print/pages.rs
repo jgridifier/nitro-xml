@@ -400,6 +400,9 @@ fn style_fragment<I: StringIntern>(dom: &mut Dom<'_, I>, el: u32, fragment: &Lay
     if let Some(ligatures) = &fragment.ligatures {
         dom.style(el, "font-variant-ligatures", &ligature_css(ligatures));
     }
+    if fragment.small_caps == Some(true) {
+        dom.style(el, "font-variant", "small-caps");
+    }
     let mut lines: Vec<&str> = Vec::new();
     if fragment.underline == Some(true) {
         lines.push("underline");
@@ -566,5 +569,84 @@ mod tests {
             intern.0.iter().filter(|s| s.len() < 8).collect::<Vec<_>>()
         );
         assert!(intern.0.iter().any(|s| s == "dve-print-line"));
+    }
+
+    #[test]
+    fn catches_small_caps_painting_lowercase_at_full_size() {
+        // Catches: Small caps leaving the painted run in mixed case at full size, so lowercase letters stay tall.
+        let block = json!({
+            "kind": "paragraph",
+            "blockId": "p1",
+            "yPx": 0.0,
+            "heightPx": 20.0,
+            "lines": [{
+                "yPx": 0.0,
+                "heightPx": 20.0,
+                "fragments": [{
+                    "text": "Hi",
+                    "xPx": 1.0,
+                    "widthPx": 12.0,
+                    "runIndex": 0,
+                    "smallCaps": true
+                }],
+                "sourceStart": 0,
+                "sourceEnd": 2
+            }]
+        });
+        let result = LayoutResult {
+            pages: vec![LayoutPageBox {
+                index: 0,
+                section_index: 0,
+                section_indices: None,
+                page_in_section: 0,
+                width_px: 100.0,
+                height_px: 100.0,
+                margin_top_px: 10.0,
+                margin_right_px: 10.0,
+                margin_bottom_px: 10.0,
+                margin_left_px: 10.0,
+                columns: vec![crate::layout::LayoutColumnBox {
+                    x_px: 0.0,
+                    width_px: 80.0,
+                    blocks: vec![block],
+                    section_index: None,
+                    start_y_px: None,
+                    end_y_px: None,
+                    separator: None,
+                }],
+                column_separator: None,
+                floats: None,
+                footnotes: None,
+            }],
+            approximations: Vec::new(),
+        };
+        let lines = Vec::new();
+        let borders = Vec::new();
+        let suppressed = HashSet::new();
+        let urls = HashMap::new();
+        let charts = HashMap::new();
+        let palettes = HashMap::new();
+        let chart_svg_cache = HashMap::new();
+        let options = PrintLayoutOptions {
+            line_numbers: &lines,
+            page_borders: &borders,
+            suppressed_line_number_paragraphs: &suppressed,
+            picture_urls: &urls,
+            chart_spaces: &charts,
+            chart_color_palettes: &palettes,
+            model: None,
+            review_mode: ReviewDisplayMode::All,
+            now: PrintNow::default(),
+            page_color: None,
+            zoom: 1.0,
+            current_page: Some(0),
+            chart_svg_cache: &chart_svg_cache,
+        };
+        let mut buf = CommandBuffer::new();
+        let mut intern = Rec(Vec::new());
+        paint_print_layout(&mut buf, &mut intern, &result, &options);
+        assert!(intern.0.iter().any(|s| s == "Hi"));
+        assert!(intern.0.iter().any(|s| s == "font-variant"));
+        assert!(intern.0.iter().any(|s| s == "small-caps"));
     }
 }

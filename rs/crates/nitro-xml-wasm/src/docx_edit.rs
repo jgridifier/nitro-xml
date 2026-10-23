@@ -515,6 +515,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.small-caps",
+                    label: "Small Caps",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.hidden",
                     label: "Hidden",
                     enabled: true,
@@ -821,6 +826,7 @@ fn canonical_command(id: &str) -> &str {
         "home.underline" => "underline",
         "home.double-underline" => "double-underline",
         "home.caps" => "caps",
+        "home.small-caps" => "small-caps",
         "home.hidden" => "hidden",
         "home.expand-spacing" => "expand-spacing",
         "home.condense-spacing" => "condense-spacing",

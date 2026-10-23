@@ -978,6 +978,53 @@ pub fn toggle_caps(
     let on = effective_caps(host, block_index, run_index);
     let mut patch = serde_json::Map::new();
     patch.insert("caps".into(), json!(!on));
+    if !on && effective_small_caps(host, block_index, run_index) {
+        patch.insert("smallCaps".into(), json!(false));
+    }
+    set_run_formatting(host, block_index, run_index, &patch)
+}
+
+/// Direct `w:smallCaps`, or the style chain when the run does not set it.
+pub fn effective_small_caps(host: &DocxHost, block_index: usize, run_index: usize) -> bool {
+    let block = host.paragraph(block_index).ok();
+    let style_id = block
+        .and_then(|b| b.get("style"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let run = block
+        .and_then(|b| b.get("runs"))
+        .and_then(|r| r.as_array())
+        .and_then(|runs| runs.get(run_index))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let resolved = resolve_run_formatting(
+        &run,
+        RunFormattingContext {
+            paragraph_style_id: style_id,
+            paragraph_catalog: host.paragraph_styles.clone(),
+            run_catalog: host.character_styles.clone(),
+        },
+    );
+    resolved
+        .get("smallCaps")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// Toggle small caps from the effective value.
+/// Turning it on clears all caps, so the painter still has lowercase letters to shrink.
+/// A styled small-caps run with no direct `w:smallCaps` writes `false` (`w:smallCaps w:val="0"`).
+pub fn toggle_small_caps(
+    host: &mut DocxHost,
+    block_index: usize,
+    run_index: usize,
+) -> Result<(), EditError> {
+    let on = effective_small_caps(host, block_index, run_index);
+    let mut patch = serde_json::Map::new();
+    patch.insert("smallCaps".into(), json!(!on));
+    if !on && effective_caps(host, block_index, run_index) {
+        patch.insert("caps".into(), json!(false));
+    }
     set_run_formatting(host, block_index, run_index, &patch)
 }
 
@@ -1089,6 +1136,7 @@ pub fn set_run_formatting(
             "verticalAlign",
             "fontFamily",
             "caps",
+            "smallCaps",
             "vanish",
             "characterSpacingTwips",
             "textScalePercent",
@@ -1368,6 +1416,35 @@ mod tests {
         toggle_caps(&mut host, 0, 0).unwrap();
         assert_eq!(host.blocks[0]["runs"][0]["caps"], false);
         assert!(!effective_caps(&host, 0, 0));
+    }
+
+    #[test]
+    fn catches_small_caps_leaving_small_caps_unset_on_a_sentence_case_run() {
+        // Catches: Small caps leaving smallCaps unset on a sentence-case run, so save omits w:smallCaps.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        toggle_small_caps(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["smallCaps"], true);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        assert!(host.blocks[0]["runs"][0].get("caps").is_none());
+        toggle_small_caps(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["smallCaps"], false);
+    }
+
+    #[test]
+    fn catches_small_caps_on_an_all_caps_run_leaving_the_letters_uppercase() {
+        // Catches: Small caps on an all-caps run leaving caps true, so the painter has no lowercase letters to shrink.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi", "caps": true }],
+        })]);
+        toggle_small_caps(&mut host, 0, 0).unwrap();
+        assert_eq!(host.blocks[0]["runs"][0]["smallCaps"], true);
+        assert_eq!(host.blocks[0]["runs"][0]["caps"], false);
     }
 
     #[test]

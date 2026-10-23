@@ -180,6 +180,7 @@ mod tests {
             underline: None,
             strike: None,
             highlight: None,
+            small_caps: None,
             script: None,
             top_px: None,
             box_height_px: None,

@@ -414,6 +414,16 @@ fn toggle_paragraph_border_side(
     Ok(())
 }
 
+/// Toggle the paragraph right border. A visible rule is removed; anything else becomes a
+/// 1.5 pt single black rule. A styled rule is cleared with `w:val="nil"` so it does not stick.
+/// Other sides on the effective border are kept.
+pub fn toggle_paragraph_right_border(
+    host: &mut DocxHost,
+    block_index: usize,
+) -> Result<(), EditError> {
+    toggle_paragraph_border_side(host, block_index, "right")
+}
+
 /// Toggle a double bottom rule. A double line is removed; anything else, including a single
 /// style rule, becomes a 1.5 pt double black rule. A styled double rule is cleared with
 /// `w:val="nil"`. Other sides on the effective border are kept.
@@ -1649,5 +1659,62 @@ mod tests {
         assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "single");
         assert_eq!(host.blocks[0]["borders"]["bottom"]["color"], "4F81BD");
         assert_eq!(host.blocks[0]["borders"]["top"]["style"], "single");
+    }
+
+    #[test]
+    fn catches_right_border_leaving_w_pbdr_off_an_unbordered_paragraph() {
+        // Catches: Right border leaving borders unset, so save omits w:pBdr.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        toggle_paragraph_right_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["right"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["right"]["sizeEighthPoints"], 12);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_paragraph_right_border(&mut host, 0).unwrap();
+        assert!(host.blocks[0].get("borders").is_none());
+    }
+
+    #[test]
+    fn catches_right_border_on_a_styled_right_rule_writing_nil() {
+        // Catches: Right border on a heading whose style rule is already on leaving that rule in place.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Heading1",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Heading1": { "id": "Heading1", "formatting": { "borders": {
+                "right": { "style": "single", "sizeEighthPoints": 8, "color": "4F81BD" }
+            } } } }
+        }));
+        toggle_paragraph_right_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["right"]["style"], "nil");
+        toggle_paragraph_right_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["right"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["right"]["sizeEighthPoints"], 12);
+    }
+
+    #[test]
+    fn catches_right_border_dropping_a_styled_bottom_rule() {
+        // Catches: Right border on a title whose style has a bottom rule dropping that bottom rule.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "borders": {
+                "bottom": { "style": "single", "sizeEighthPoints": 8, "spacePoints": 4, "color": "4F81BD" }
+            } } } }
+        }));
+        toggle_paragraph_right_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["color"], "4F81BD");
+        assert_eq!(host.blocks[0]["borders"]["right"]["style"], "single");
     }
 }

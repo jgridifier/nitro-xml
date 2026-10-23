@@ -629,6 +629,11 @@ impl DocxState {
                     enabled: true,
                 },
                 RibbonItem {
+                    id: "home.narrow-margins",
+                    label: "Narrow Margins",
+                    enabled: true,
+                },
+                RibbonItem {
                     id: "home.page-break-before",
                     label: "Page Break Before",
                     enabled: true,
@@ -811,6 +816,7 @@ fn canonical_command(id: &str) -> &str {
         "home.border-dash" => "border-dash",
         "home.border-dot" => "border-dot",
         "home.landscape" => "landscape",
+        "home.narrow-margins" => "narrow-margins",
         "home.page-break-before" => "page-break-before",
         "home.space-before" => "space-before",
         "home.space-after" => "space-after",

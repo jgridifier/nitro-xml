@@ -129,6 +129,7 @@ const wordFont = {
       it("home.border-dash", "borderDash", "Dashed border", "Toggle a dashed paragraph bottom border"),
       it("home.border-dot", "borderDot", "Dotted border", "Toggle a dotted paragraph bottom border"),
       it("home.landscape", "landscape", "Landscape", "Toggle landscape page orientation"),
+      it("home.narrow-margins", "narrowMargins", "Narrow margins", "Narrow the page margins to half an inch"),
       it("home.page-break-before", "pageBreakBefore", "Page break before", "Start this paragraph on a new page"),
       it("home.space-before", "spaceBefore", "Space before", "Add 12 pt space before the paragraph"),
       it("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),

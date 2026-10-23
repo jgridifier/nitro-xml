@@ -696,3 +696,34 @@ truncated so we do not replace `PrintSession` on the edit path.
 
 **Verdict:** **SHIP** — large docx S/M writable-open win; wasm peak floors unchanged; no
 demoted fixtures or budget edits.
+
+## Slice 25: pptx soft-share `ensure_edit` (reuse viewer `Presentation`)
+
+**Goal:** first `setReadOnly(false)` / `ensure_edit` no longer runs a second
+`Presentation::open` + `PptxHost::open` zip pass when the viewer already holds the deck.
+Lazy slides are finished via `ensure_all_slides` on the existing `Presentation` only.
+
+**Rust:** `PptxHost::from_presentation`; `PptxEditor::from_opened_host`; wasm `ensure_edit`
+builds the edit host from `PptxState::pres` (handle package `Arc` unchanged).
+
+**A/B** (`origin/main` `6400240` vs `cursor/perf-pptx-ensure-edit-soft-share-4e30` on this box):
+
+### React-embed writable open (`measure-open-mem.mjs`, open ms / heap peak MiB)
+
+| Format×tier | before | after | Δ open |
+|---|---:|---:|---:|
+| (fill after measure) | | | |
+
+### Peak memory (`peak-mem.mjs --runs=7`, wasm open ms / peak MiB)
+
+| Format×tier | before | after | Δ |
+|---|---:|---:|---|
+| (fill after measure) | | | |
+
+### Edit (`EDIT_SAMPLES=21`, `measure-edit-latency.mjs`)
+
+| Scenario×tier | before p50 | after p50 |
+|---|---:|---:|
+| (fill after measure) | | | |
+
+**Verdict:** (fill after measure)

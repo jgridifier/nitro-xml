@@ -46,6 +46,10 @@ identified the xlsx M editable-upgrade cost; that probe is not shipped.
 `DocumentModel` and only re-reads `word/document.xml` from the zip — see Slice 24 in
 `docs/perf-rust-hotpaths.md` (~40–50% lower writable-open ms on docx S/M fixtures).
 
+**Pptx (post–soft-share):** `ensure_edit` builds `PptxHost` from the viewer
+`Presentation` (`from_presentation`) instead of a second `Presentation::open` — Slice 25 in
+`docs/perf-rust-hotpaths.md`.
+
 Reproduce:
 
 ```bash

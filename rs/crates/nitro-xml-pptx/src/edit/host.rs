@@ -239,6 +239,12 @@ impl PptxHost {
     /// so element indexes match the TS `PptxHandler` slide list.
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
         let mut pres = Presentation::open(bytes).map_err(|e| e.to_string())?;
+        Self::from_presentation(&mut pres)
+    }
+
+    /// Edit host from an already-open [`Presentation`] (viewer soft-share `ensure_edit`).
+    /// Parses any slide parts not loaded yet; does not re-open the zip.
+    pub fn from_presentation(pres: &mut Presentation) -> Result<Self, String> {
         pres.ensure_all_slides().map_err(|e| e.to_string())?;
         let count = pres.slide_count();
         let mut slides = Vec::with_capacity(count);
@@ -1042,5 +1048,27 @@ impl EditHost for PptxHost {
 
     fn as_any_ref(&self) -> &dyn Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn catches_from_presentation_matches_open_host() {
+        // Catches: ensure_edit soft-share building a different slide list than PptxHost::open.
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/pptx/slides_10.pptx");
+        let bytes = std::fs::read(&path).expect("fixture");
+        let from_open = PptxHost::open(&bytes).expect("open");
+        let mut pres = Presentation::open(&bytes).expect("pres");
+        let from_pres = PptxHost::from_presentation(&mut pres).expect("from_presentation");
+        assert_eq!(from_pres.slides.len(), from_open.slides.len());
+        for (a, b) in from_pres.slides.iter().zip(from_open.slides.iter()) {
+            assert_eq!(a.path, b.path);
+            assert_eq!(a.elements.len(), b.elements.len());
+        }
     }
 }

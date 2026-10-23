@@ -8,6 +8,7 @@ use crate::model::SparklineGroup;
 use crate::model::{ActiveWorksheet, CellRange, DumpCellValue, WorkbookSlice};
 use crate::sheet_access::{get_cell, CellIndex};
 use crate::sparklines::sheet_sparkline_groups;
+use crate::view::sheets_ref::AllSheetsRef;
 use crate::view::sparkline_view::{sparkline_scale, sparkline_view, SparklineData, SparklineView};
 
 const MAX_POINTS: usize = 10_000;
@@ -35,17 +36,13 @@ fn hosts(sheet: &ActiveWorksheet) -> HashMap<u64, HostEntry> {
     index
 }
 
-fn sheet_by_index(sheets: &[Option<ActiveWorksheet>], index: usize) -> Option<&ActiveWorksheet> {
-    sheets.get(index).and_then(|o| o.as_ref())
-}
-
 fn sheet_by_name<'a>(
     workbook: &WorkbookSlice,
-    sheets: &'a [Option<ActiveWorksheet>],
+    sheets: AllSheetsRef<'a>,
     name: &str,
 ) -> Option<&'a ActiveWorksheet> {
     let idx = workbook.sheets.iter().position(|s| s.name == name)?;
-    sheet_by_index(sheets, idx)
+    sheets.get(idx)
 }
 
 fn normalize_range(range: CellRange) -> CellRange {
@@ -64,7 +61,7 @@ fn normalize_range(range: CellRange) -> CellRange {
 /// Resolves `Sheet1!$A$1:$E$1`, `'My sheet'!A1:E1` or an unqualified range on `sheet`.
 pub fn resolve_sparkline_range<'a>(
     workbook: &WorkbookSlice,
-    sheets: &'a [Option<ActiveWorksheet>],
+    sheets: AllSheetsRef<'a>,
     sheet: &'a ActiveWorksheet,
     formula: &str,
 ) -> Option<(&'a ActiveWorksheet, CellRange)> {
@@ -146,7 +143,7 @@ fn read_sparkline_values(
 
 fn group_data(
     workbook: &WorkbookSlice,
-    sheets: &[Option<ActiveWorksheet>],
+    sheets: AllSheetsRef<'_>,
     sheet: &ActiveWorksheet,
     group: &SparklineGroup,
 ) -> Vec<SparklineData> {
@@ -211,7 +208,23 @@ pub fn sparkline_view_at(
     row: u32,
     col: u32,
 ) -> Option<SparklineView> {
-    let sheet = sheet_by_index(sheets, sheet_index)?;
+    sparkline_view_at_ref(
+        workbook,
+        AllSheetsRef::Sparse(sheets),
+        sheet_index,
+        row,
+        col,
+    )
+}
+
+pub fn sparkline_view_at_ref(
+    workbook: &WorkbookSlice,
+    sheets: AllSheetsRef<'_>,
+    sheet_index: usize,
+    row: u32,
+    col: u32,
+) -> Option<SparklineView> {
+    let sheet = sheets.get(sheet_index)?;
     let host_map = hosts(sheet);
     let entry = host_map.get(&cell_key(row, col))?;
     let group = &entry.group;

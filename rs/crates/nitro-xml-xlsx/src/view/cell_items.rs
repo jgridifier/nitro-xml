@@ -13,6 +13,7 @@ use crate::view::cell_view::{
 use crate::view::metrics::GridMetrics;
 use crate::view::number_fit::fit_number;
 use crate::view::sheet_queries::overflow_extent;
+use crate::view::sheets_ref::AllSheetsRef;
 use crate::view::text_measure::TextMeasure;
 use crate::view::types::{CellItem, CellView};
 
@@ -38,7 +39,7 @@ pub struct BuildInput<'a> {
     pub workbook: &'a WorkbookSlice,
     pub sheet: &'a ActiveWorksheet,
     pub sheet_index: usize,
-    pub all_sheets: &'a [Option<ActiveWorksheet>],
+    pub all_sheets: AllSheetsRef<'a>,
     pub index: &'a CellIndex,
     pub metrics: &'a GridMetrics,
     pub zoom: f64,

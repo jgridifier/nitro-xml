@@ -4,9 +4,8 @@
 use nitro_xml_xlsx::address::{format_address, MAX_COL, MAX_ROW};
 use nitro_xml_xlsx::edit::XlsxHost;
 use nitro_xml_xlsx::editor::{ChromeEffect, EditorSession, SelectionTarget};
-use nitro_xml_xlsx::model::{ActiveWorksheet, CellAddress, SheetSelection};
+use nitro_xml_xlsx::model::{CellAddress, SheetSelection};
 use nitro_xml_xlsx::render::{select_cell, selection_ref};
-use nitro_xml_xlsx::WorkbookSlice;
 use serde_json::Value;
 
 use crate::text::{apply_key, cut_plain, KeyAction, KeyEvent, TextField};
@@ -36,14 +35,15 @@ impl XlsxState {
                 .lazy_first_view_mut()
                 .expect("lazy first view")
                 .materialize_worksheets_for_edit()?;
-            self.install_materialized_for_edit(workbook, sheets)?;
-            let host_sheets = self
-                .sheets
-                .iter()
-                .map(|s| s.as_ref().expect("materialized sheet slot").clone())
-                .collect();
-            let host = XlsxHost::from_parts(self.workbook.clone(), host_sheets)?;
+            let host = XlsxHost::from_parts(workbook, sheets)?;
             self.edit = Some(EditorSession::from_host(host));
+            self.workbook = self.edit.as_ref().expect("edit").host().workbook.clone();
+            self.sheets = vec![None; self.workbook.sheets.len()];
+            self.grid_in_host = true;
+            let active_sheet = self.workbook.active_sheet as usize;
+            if self.active >= self.sheets.len() {
+                self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
+            }
         } else {
             self.edit = Some(EditorSession::open(bytes)?);
             self.sync_model_from_edit();
@@ -51,37 +51,7 @@ impl XlsxState {
         Ok(())
     }
 
-    /// Viewer grid from lazy materialize (one host clone). Skips `sync_model_from_edit`.
-    fn install_materialized_for_edit(
-        &mut self,
-        workbook: WorkbookSlice,
-        sheets: Vec<ActiveWorksheet>,
-    ) -> Result<(), String> {
-        let active_sheet = workbook.active_sheet as usize;
-        let sels: Vec<Option<SheetSelection>> = self
-            .sheets
-            .iter()
-            .map(|s| s.as_ref().and_then(|sh| sh.view.selection.clone()))
-            .collect();
-        let mut viewer_sheets: Vec<Option<ActiveWorksheet>> =
-            sheets.into_iter().map(Some).collect();
-        for (i, sel) in sels.into_iter().enumerate() {
-            if let (Some(sel), Some(Some(sh))) = (sel, viewer_sheets.get_mut(i)) {
-                sh.view.selection = Some(sel);
-            }
-        }
-        for sh in viewer_sheets.iter_mut().flatten() {
-            sh.ensure_cell_pos();
-        }
-        self.workbook = workbook;
-        self.sheets = viewer_sheets;
-        if self.active >= self.sheets.len() {
-            self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
-        }
-        Ok(())
-    }
-
-    /// Full host→viewer copy. Required after structure edits and on first `ensure_edit`.
+    /// Full host→viewer copy. Required after structure edits and on first `ensure_edit` from bytes (non-lazy).
     /// Cell typing must not use this: cloning every DumpCell on cells_100k/1m is ~150 ms/edit.
     pub fn sync_model_from_edit(&mut self) {
         let Some(edit) = self.edit.as_ref() else {
@@ -108,6 +78,7 @@ impl XlsxState {
         }
         self.workbook = workbook;
         self.sheets = sheets;
+        self.grid_in_host = false;
         if self.active >= self.sheets.len() {
             self.active = active_sheet.min(self.sheets.len().saturating_sub(1));
         }
@@ -115,6 +86,9 @@ impl XlsxState {
 
     /// Patch styles + the addressed cells only (keeps viewer sheet `cells` vec identity).
     fn sync_cells_from_edit(&mut self, sheet: u32, coords: &[(u32, u32)]) {
+        if self.grid_in_host {
+            return;
+        }
         let Some(edit) = self.edit.as_ref() else {
             return;
         };
@@ -145,9 +119,7 @@ impl XlsxState {
     pub fn selection_target(&self) -> SelectionTarget {
         let sheet = self.active as u32;
         let sel = self
-            .sheets
-            .get(self.active)
-            .and_then(|s| s.as_ref())
+            .sheet_ref(self.active)
             .and_then(|s| s.view.selection.as_ref());
         match sel {
             Some(sel) => {
@@ -402,7 +374,7 @@ impl XlsxState {
 
     fn nudge_active(&mut self, d_row: i32, d_col: i32) -> Option<String> {
         let active = self.active;
-        let sheet = self.sheets.get_mut(active)?.as_mut()?;
+        let sheet = self.sheet_mut(active)?;
         let current = sheet
             .view
             .selection
@@ -537,6 +509,7 @@ pub fn editor_key_json(effect: EditorKeyEffect, selection: Option<String>) -> St
 #[cfg(test)]
 mod tests {
     use crate::handle::Handle;
+    use crate::xlsx_edit::EditorKeyEffect;
     use nitro_xml_xlsx::model::DumpCellValue;
     use std::path::PathBuf;
 
@@ -563,7 +536,7 @@ mod tests {
         h.set_read_only(false);
         h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"full-grid"}"#)
             .expect("edit");
-        let viewer = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+        let viewer = h.xlsx.as_ref().unwrap().sheet_ref(0).expect("sheet0");
         let host = h.xlsx.as_ref().unwrap().edit.as_ref().unwrap().host();
         assert_eq!(viewer.cells.len(), open_count);
         assert!(viewer.cells.len() > viewport_cells);
@@ -586,8 +559,11 @@ mod tests {
             h.xlsx.as_ref().unwrap().edit.is_some(),
             "edit session must open without process_frame"
         );
-        let n = h.xlsx.as_ref().unwrap().sheets[0]
+        let n = h
+            .xlsx
             .as_ref()
+            .unwrap()
+            .sheet_ref(0)
             .map(|s| s.cells.len())
             .unwrap_or(0);
         assert!(n > 900, "expected full 1k sheet after ensure_edit, got {n}");
@@ -675,7 +651,7 @@ mod tests {
             x.lazy_is_some_for_test(),
             "lazy first view must stay alive on ensure_edit (heap-neutral path)"
         );
-        let sh = x.sheets[0].as_ref().expect("sheet0");
+        let sh = x.sheet_ref(0).expect("sheet0");
         assert_eq!(
             sh.cell_pos.synced_len(),
             sh.cells.len(),
@@ -707,7 +683,7 @@ mod tests {
             h.apply_edit(&spec).expect("edit");
         }
 
-        let viewer = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+        let viewer = h.xlsx.as_ref().unwrap().sheet_ref(0).expect("sheet0");
         assert_eq!(viewer.cell_pos.synced_len(), viewer.cells.len());
         let host = h.xlsx.as_ref().unwrap().edit.as_ref().unwrap().host();
         assert_eq!(
@@ -744,14 +720,14 @@ mod tests {
         h.set_read_only(false);
 
         let (ptr_before, len_before) = {
-            let sh = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+            let sh = h.xlsx.as_ref().unwrap().sheet_ref(0).expect("sheet0");
             (sh.cells.as_ptr(), sh.cells.len())
         };
 
         h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"sync-probe"}"#)
             .expect("edit");
 
-        let sh = h.xlsx.as_ref().unwrap().sheets[0].as_ref().expect("sheet0");
+        let sh = h.xlsx.as_ref().unwrap().sheet_ref(0).expect("sheet0");
         assert_eq!(
             sh.cells.as_ptr(),
             ptr_before,
@@ -767,6 +743,40 @@ mod tests {
             DumpCellValue::String(s) => assert_eq!(s, "sync-probe"),
             other => panic!("expected string at A1, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn catches_grid_in_host_selection_ref_now_stays_on_host_after_enter_nudge() {
+        // Catches: grid_in_host selection_ref_now stays on host after Enter nudge (keypath.click-then-type)
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_1k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_1k");
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_1k.xlsx").expect("open");
+        h.load_editor_chrome();
+        h.set_read_only(false);
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"warm"}"#)
+            .expect("ensure_edit");
+        let xlsx = h.xlsx.as_mut().expect("xlsx");
+        assert!(
+            xlsx.grid_in_host,
+            "precondition: lazy soft-share leaves selection on the edit host"
+        );
+        xlsx.apply_selection_ref("G7").expect("G7");
+        assert_eq!(xlsx.selection_ref_now().as_deref(), Some("G7"));
+        let effect = xlsx
+            .editor_key("k", false, false, false, false, false)
+            .expect("type");
+        assert!(matches!(effect, EditorKeyEffect::Handled));
+        let effect = xlsx
+            .editor_key("Enter", false, false, false, false, false)
+            .expect("enter");
+        assert!(matches!(effect, EditorKeyEffect::Move { row: 1, col: 0 }));
+        assert_eq!(
+            xlsx.selection_ref_now().as_deref(),
+            Some("G8"),
+            "shell selection_ref must follow host nudge after commit"
+        );
     }
 
     #[test]

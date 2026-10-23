@@ -31,6 +31,7 @@ use nitro_xml_render::measure::MeasureBatch;
 use crate::intern::StringIntern;
 use crate::model::{ActiveWorksheet, WorkbookSlice};
 use crate::view::metrics::{create_grid_metrics, GridMetricsOptions};
+use crate::view::sheets_ref::AllSheetsRef;
 
 pub struct GridPaintViewport {
     pub scroll_x: i32,
@@ -94,7 +95,52 @@ pub fn paint_grid_frame<I: StringIntern>(
         workbook,
         sheet,
         sheet_index,
-        all_sheets,
+        AllSheetsRef::Sparse(all_sheets),
+        &metrics,
+        viewport,
+        hints,
+    );
+    drawings::paint(buf, intern, measures, workbook, sheet, &metrics);
+    selection::paint(buf, intern, &chrome, sheet, &metrics, viewport);
+    headers::paint(buf, intern, &chrome, sheet, &metrics, viewport);
+    cond_format::paint(buf);
+}
+
+/// Like [`paint_grid_frame`] but reads cross-sheet data from a dense edit-host grid (no viewer clone).
+#[allow(clippy::too_many_arguments)]
+pub fn paint_grid_frame_host<I: StringIntern>(
+    buf: &mut CommandBuffer,
+    intern: &mut I,
+    measures: &mut MeasureBatch,
+    workbook: &WorkbookSlice,
+    all_sheets: &[ActiveWorksheet],
+    sheet_index: usize,
+    viewport: &GridPaintViewport,
+    hints: &EditorPaintHints,
+) {
+    let sheet = all_sheets
+        .get(sheet_index)
+        .expect("paint_grid_frame_host: sheet index");
+    let metrics = create_grid_metrics(
+        sheet,
+        GridMetricsOptions {
+            zoom: viewport.zoom_pct,
+            ..GridMetricsOptions::default()
+        },
+    );
+    buf.begin();
+    buf.reserve(128 * 1024);
+    let chrome = paint_encode::ChromeKeys::new(intern);
+    grid::paint_frame(buf, intern, &chrome, sheet, viewport, &metrics);
+    gridlines::paint(buf, intern, &chrome, sheet, &metrics, viewport);
+    cells::paint(
+        buf,
+        intern,
+        measures,
+        workbook,
+        sheet,
+        sheet_index,
+        AllSheetsRef::Dense(all_sheets),
         &metrics,
         viewport,
         hints,

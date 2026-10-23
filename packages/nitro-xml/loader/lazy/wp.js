@@ -76,6 +76,7 @@ export function patch(WorkerDocument) {
       releaseFlush = r;
     });
     try {
+      if (doc._ej) await doc._ej();
       const last = q[q.length - 1];
       for (let i = 0; i < q.length - 1; i++) {
         const e = q[i];
@@ -89,6 +90,9 @@ export function patch(WorkerDocument) {
         // All formats: coalesce + mut-frame on the last edit (xlsx paint deferred in Rust).
         if (doc._worker && typeof doc._request === "function") {
           const result = await mutFrame(doc, { op: "a", spec: last.spec });
+          if (doc._journal && !doc._replayingJournal && last.spec) {
+            doc._journal.append({ spec: String(last.spec) });
+          }
           const frame = doc._xf;
           doc._xf = null;
           if (frame && frame.commands) {

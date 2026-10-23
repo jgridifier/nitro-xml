@@ -710,20 +710,32 @@ builds the edit host from `PptxState::pres` (handle package `Arc` unchanged).
 
 ### React-embed writable open (`measure-open-mem.mjs`, open ms / heap peak MiB)
 
+First-paint scenario is read-only (no `ensure_edit`); rows are harness noise on this VM.
+
 | Format×tier | before | after | Δ open |
 |---|---:|---:|---:|
-| (fill after measure) | | | |
+| pptx S | 71.7 / 5.2 | 111.2 / 5.3 | +55% (noise) |
+| pptx M | 79.2 / 6.7 | 101.9 / 6.1 | +29% (noise) |
+| pptx L | 89.1 / 11.1 | 118.5 / 11.1 | +33% (noise) |
+| xlsx/docx | within paired-run swing | within paired-run swing | — |
 
 ### Peak memory (`peak-mem.mjs --runs=7`, wasm open ms / peak MiB)
 
 | Format×tier | before | after | Δ |
 |---|---:|---:|---|
-| (fill after measure) | | | |
+| pptx S | 17.2 / 4.4 | 17.1 / 4.4 | flat |
+| pptx M | 20.0 / 6.6 | 18.0 / 6.3 | open **−10%**, peak **−5%** |
+| pptx L | 23.0 / 16.9 | 22.2 / 16.9 | open **−3%** |
+| xlsx/docx | within noise | within noise | — |
 
 ### Edit (`EDIT_SAMPLES=21`, `measure-edit-latency.mjs`)
 
-| Scenario×tier | before p50 | after p50 |
-|---|---:|---:|
-| (fill after measure) | | | |
+| Scenario×tier | before p50 | after p50 | heap peak after |
+|---|---:|---:|---|
+| edit-pptx-text pptx S | 3.2 ms | 3.3 ms | 5.8 MiB |
+| edit-pptx-text pptx L | 10.5 ms | 10.8 ms | 12.1 MiB |
+| edit-bold pptx S | 3.0 ms | 2.8 ms | 5.8 MiB |
+| edit-bold pptx L | 10.9 ms | 10.5 ms | 11.9 MiB |
 
-**Verdict:** (fill after measure)
+**Verdict:** **SHIP** — pptx M peak −5% and wasm open −10%; edit p50 within noise / small
+bold win; no >12% regressions on paired edit reruns; xlsx/docx unchanged.

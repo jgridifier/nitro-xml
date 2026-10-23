@@ -59,7 +59,10 @@ and **pptx** (any unsupported kind counts as a failing parity item).
 | CI `crash-recovery` job gates on every PR (no path filters) | **Met** | `.github/workflows/ci.yml` job has no `paths:` / `paths-ignore:`; default **10** deterministic flake iterations (`NITRO_CRASH_FLAKE_RUNS`) |
 | Stub `NOT IMPLEMENTED` removed from `scripts/ci/crash_recovery.sh` | **Met** | Job is live; ask Jared / Chief of Staff to keep it in branch-protection required checks |
 
-Local flakiness proof (harness tip **`94b5523`**, post-#445/#448/#449): **10/10** flake iterations × 3 formats = **30/30** happy-path+undo and **30/30** negative controls (`bash scripts/ci/crash_recovery.sh`).
+Local flakiness proof (harness tip **`6400240`**, post-#454 defer originalBytes +
+#450 edit-recover + #457/#462 soft-share ensure_edit): **10/10** flake iterations × 3
+formats = **30/30** happy-path+undo and **30/30** negative controls
+(`bash scripts/ci/crash_recovery.sh` → **PASS**).
 
 ---
 
@@ -666,7 +669,7 @@ Harness note (from #413, still in effect): Nitro adapters no longer call host
 
 Nitro **8W/0L** on comparable cells (pptx Nitro pixels **0.044%** vs 0.5% limit).
 
-**Crash recovery** on tip **`94b5523`**: `bash scripts/ci/crash_recovery.sh` → **PASS** (default **10** flake iterations × 3 formats; post-#445 defer-journal edit-recover gate fix).
+**Crash recovery** on tip **`6400240`**: `bash scripts/ci/crash_recovery.sh` → **PASS** (default **10** flake iterations × 3 formats; post-#454/#450/#457/#462).
 
 **M1 gate still open:** CI `scoreboard` job stub (#39) + draft **#113** (reproducible gate; not the Pages data file); **`perf-beats-ts` enforce** (#8) — tip readiness: **xlsx/docx/pptx READY** with documented known-loss exceptions still printed as **LOSS** (xlsx S + docx S/M peak_mem; [Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)). Leftover agent-facing work: Jared flips `PERF_GATE_MODE=enforce` + required-check wiring (agents do not).
 

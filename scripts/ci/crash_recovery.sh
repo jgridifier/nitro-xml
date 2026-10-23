@@ -30,7 +30,9 @@ echo "$VIEWER_SUMMARY"
 echo "crash-recovery: loader journal + edit-recover unit tests"
 node --test \
   "$ROOT/packages/nitro-xml/loader/test/journal.test.mjs" \
-  "$ROOT/packages/nitro-xml/loader/test/edit-recover.test.mjs"
+  "$ROOT/packages/nitro-xml/loader/test/edit-recover.test.mjs" \
+  "$ROOT/packages/nitro-xml/loader/test/edit-recover-defer.test.mjs" \
+  "$ROOT/packages/nitro-xml/loader/test/defer-journal.test.mjs"
 
 echo "crash-recovery: editor journal + TS oracle (crash injection, xlsx/docx/pptx)"
 EDITOR_SEED="${NITRO_EDITOR_CRASH_SEED:-62}"
@@ -48,7 +50,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo "$EDITOR_SUMMARY"
     echo ""
     echo "Writer carry / dirty-parts replay: TODO #69."
-    echo "M1 report metrics: TODO #30 (M1-REPORT.md)."
+    echo "M1 report: docs/M1-REPORT.md §2 (crash recovery ACs)."
   } >> "$GITHUB_STEP_SUMMARY"
 fi
 

@@ -466,3 +466,26 @@ growth MiB; baseline wasm pkg at `e6ff241`, branch `1da4223`):
 
 **Verdict:** ship — clear xlsx S peak_mem win with faster S open and no material M/L regression.
 
+## Slice 17: xlsx S TurboFan peak — `#[inline(never)]` on cell paint helpers
+
+**Change:** `paint_one_cell` and cold viewport chrome (`paint_cell_data_bar`, `paint_cell_icon`,
+`paint_cell_rich_runs`, `paint_cell_diagonal`, `paint_cell_marks`) in
+[`cells.rs`](rs/crates/nitro-xml-xlsx/src/render/cells.rs) are outlined so V8 does not compile
+per-cell DOM/command-buffer work into the `paint()` loop on first open (follow-on to Slice 16 /
+#432 stream outline).
+
+**A/B** (`peak-mem.mjs --runs=9 --format=xlsx --tier=S,M,L`, wasm median open ms + post-init VmHWM
+growth MiB; baseline wasm pkg at `3a9765a`, branch `6c44241`):
+
+| Tier | baseline load ms | branch load ms | Δ load | baseline peak MiB | branch peak MiB | Δ peak |
+|---|--:|--:|--:|--:|--:|--:|
+| S | 31.64 | 25.91 | **−18%** | 16.92 | 15.52 | **−8%** |
+| M | 66.33 | 57.26 | **−14%** | 19.82 | 18.05 | **−9%** |
+| L | 38.54 | 29.21 | **−24%** | 24.13 | 22.78 | **−6%** |
+
+**docx S spot-check** (same method, wasm only): baseline 24.76 ms / 13.05 MiB vs branch 26.75 ms /
+14.39 MiB — within single-box noise; change is xlsx-only.
+
+**Verdict:** ship — clear xlsx S peak_mem and open wins with M/L peak improvements, no material
+regression.
+

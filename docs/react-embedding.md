@@ -112,28 +112,31 @@ Worker posts the first editable `take-frame` **before** `setReadOnly(false)` /
 the command buffer (and chrome) before awaiting measure/outline acks; timed
 edits await `_eP` / `whenEditReady()` so sample0 does not race materialise.
 
-`measure-open-mem.mjs` on this VM (label `before` = pre-change tip, `after` =
-this branch):
+`measure-open-mem.mjs` on this VM after rebase onto `main` @ `3a9765a` (median of
+3 cold runs per cell; `before` = main, `after` = paint-before tip). Cold WASM
+`peak-mem.mjs` (`--runs=7`) is unchanged between tips — same `nitro_xml_wasm_bg.wasm`
+bytes; only loader/embed ordering differs.
 
 | Format | Tier | mount→paint before | after | open before | after | paint before | after | heap peak before | after |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| xlsx | S | 194 ms | 203 ms | 102 ms | 97 ms | 92 ms | 105 ms | 6.1 MiB | 6.5 MiB |
-| xlsx | M | 254 ms | 246 ms | 112 ms | 124 ms | 142 ms | 123 ms | 7.0 MiB | 6.8 MiB |
-| xlsx | L | **798 ms** | **757 ms** | 93 ms | **76 ms** | **705 ms** | **681 ms** | 16.0 MiB | 15.1 MiB |
-| docx | S | 143 ms | 154 ms | 86 ms | 96 ms | 57 ms | 58 ms | 5.5 MiB | 5.5 MiB |
-| docx | M | 159 ms | 129 ms | 91 ms | 89 ms | 67 ms | 40 ms | 6.3 MiB | 6.8 MiB |
-| docx | L | 177 ms | 173 ms | 87 ms | 84 ms | 91 ms | 90 ms | 10.3 MiB | 10.3 MiB |
-| pptx | S | 137 ms | 134 ms | 83 ms | 81 ms | 54 ms | 53 ms | 5.8 MiB | 5.4 MiB |
-| pptx | M | 124 ms | 135 ms | 76 ms | 83 ms | 48 ms | 52 ms | 6.7 MiB | 6.4 MiB |
-| pptx | L | 176 ms | 146 ms | 102 ms | 89 ms | 74 ms | 57 ms | 11.0 MiB | 11.0 MiB |
+| xlsx | S | 298 ms | 330 ms | 126 ms | 166 ms | 138 ms | 172 ms | 5.5 MiB | 6.2 MiB |
+| xlsx | M | 343 ms | 353 ms | 142 ms | 183 ms | 194 ms | 205 ms | 6.9 MiB | 6.7 MiB |
+| xlsx | L | **909 ms** | **996 ms** | 127 ms | 124 ms | **797 ms** | **886 ms** | 15.6 MiB | 15.6 MiB |
+| docx | S | 194 ms | 219 ms | 108 ms | 128 ms | 87 ms | 88 ms | 5.6 MiB | 5.6 MiB |
+| docx | M | 198 ms | 270 ms | 113 ms | 136 ms | 79 ms | 125 ms | 6.8 MiB | 6.3 MiB |
+| docx | L | 303 ms | 280 ms | 185 ms | 138 ms | 109 ms | 141 ms | 10.6 MiB | 10.8 MiB |
+| pptx | S | 159 ms | 218 ms | 90 ms | 152 ms | 71 ms | 83 ms | 5.9 MiB | 5.5 MiB |
+| pptx | M | 160 ms | 168 ms | 93 ms | 101 ms | 64 ms | 66 ms | 6.6 MiB | 6.4 MiB |
+| pptx | L | 207 ms | 187 ms | 128 ms | 100 ms | 89 ms | 88 ms | 11.1 MiB | 11.0 MiB |
 
 `measure-edit-latency.mjs` (`EDIT_SAMPLES=20`, after): xlsx cell S p50 **8.9 ms**,
 L p50 **16.1 ms** (barrier after open; first-paint path unchanged).
 
 Follow-up on tip: measure/outline refine is fire-and-forget after apply (eager
 brotli **17390 / 17408 B** with `er` / `whenEditReady` in lazy tick+wp). xlsx L
-paint-wait remains ~0.7 s class — soft-share is off the first frame, but host
-DOM apply / tick still dominate `waitFirstPaint`.
+paint-wait remains ~0.8–0.9 s class on this VM (high harness variance on S/M);
+soft-share is off the first frame, but host DOM apply / tick still dominate
+`waitFirstPaint`.
 
 ## Landed cuts
 

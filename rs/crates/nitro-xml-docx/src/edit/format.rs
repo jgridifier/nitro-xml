@@ -345,6 +345,24 @@ pub fn toggle_paragraph_top_border(
     host: &mut DocxHost,
     block_index: usize,
 ) -> Result<(), EditError> {
+    toggle_paragraph_border_side(host, block_index, "top")
+}
+
+/// Toggle the paragraph left border. A visible rule is removed; anything else becomes a
+/// 1.5 pt single black rule. A styled rule is cleared with `w:val="nil"` so it does not stick.
+/// Other sides on the effective border are kept.
+pub fn toggle_paragraph_left_border(
+    host: &mut DocxHost,
+    block_index: usize,
+) -> Result<(), EditError> {
+    toggle_paragraph_border_side(host, block_index, "left")
+}
+
+fn toggle_paragraph_border_side(
+    host: &mut DocxHost,
+    block_index: usize,
+    side: &str,
+) -> Result<(), EditError> {
     let (styled, direct, visible) = {
         let style_id = host
             .paragraph(block_index)
@@ -360,19 +378,19 @@ pub fn toggle_paragraph_top_border(
             .and_then(|b| b.as_object())
             .cloned();
         let effective = direct.clone().unwrap_or_else(|| styled.clone());
-        let visible = border_side_visible(&effective, "top");
+        let visible = border_side_visible(&effective, side);
         (styled, direct, visible)
     };
     let mut next = direct.unwrap_or_else(|| styled.clone());
     if visible {
-        if border_side_visible(&styled, "top") {
-            next.insert("top".into(), json!({ "style": "nil" }));
+        if border_side_visible(&styled, side) {
+            next.insert(side.into(), json!({ "style": "nil" }));
         } else {
-            next.remove("top");
+            next.remove(side);
         }
     } else {
         next.insert(
-            "top".into(),
+            side.into(),
             json!({
                 "style": "single",
                 "sizeEighthPoints": PARAGRAPH_BORDER_SZ,
@@ -1355,6 +1373,63 @@ mod tests {
         assert_eq!(host.blocks[0]["borders"]["left"]["style"], "single");
         assert_eq!(host.blocks[0]["borders"]["left"]["color"], "FF0000");
         assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "single");
+    }
+
+    #[test]
+    fn catches_left_border_leaving_w_pbdr_off_an_unbordered_paragraph() {
+        // Catches: Left border leaving borders unset, so save omits w:pBdr.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        toggle_paragraph_left_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["left"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["left"]["sizeEighthPoints"], 12);
+        assert_eq!(host.blocks[0]["runs"][0]["text"], "Hi");
+        toggle_paragraph_left_border(&mut host, 0).unwrap();
+        assert!(host.blocks[0].get("borders").is_none());
+    }
+
+    #[test]
+    fn catches_left_border_on_a_styled_left_rule_writing_nil() {
+        // Catches: Left border on a heading whose style rule is already on leaving that rule in place.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Heading1",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Heading1": { "id": "Heading1", "formatting": { "borders": {
+                "left": { "style": "single", "sizeEighthPoints": 8, "color": "4F81BD" }
+            } } } }
+        }));
+        toggle_paragraph_left_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["left"]["style"], "nil");
+        toggle_paragraph_left_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["left"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["left"]["sizeEighthPoints"], 12);
+    }
+
+    #[test]
+    fn catches_left_border_dropping_a_styled_bottom_rule() {
+        // Catches: Left border on a title whose style has a bottom rule dropping that bottom rule.
+        let mut host = DocxHost::stub(vec![json!({
+            "type": "paragraph",
+            "id": "p0",
+            "style": "Title",
+            "runs": [{ "text": "Hi" }],
+        })]);
+        host.paragraph_styles = Some(json!({
+            "styles": { "Title": { "formatting": { "borders": {
+                "bottom": { "style": "single", "sizeEighthPoints": 8, "spacePoints": 4, "color": "4F81BD" }
+            } } } }
+        }));
+        toggle_paragraph_left_border(&mut host, 0).unwrap();
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["style"], "single");
+        assert_eq!(host.blocks[0]["borders"]["bottom"]["color"], "4F81BD");
+        assert_eq!(host.blocks[0]["borders"]["left"]["style"], "single");
     }
 
     #[test]

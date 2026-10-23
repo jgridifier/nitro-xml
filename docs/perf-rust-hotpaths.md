@@ -69,9 +69,9 @@ in `nitro-xml-xlsx`:
 Gates run locally: `scripts/ci/rust.sh` (fmt, clippy -D warnings, all tests incl. numfmt oracle) and
 `bun parity/run --ci` (xlsx worksheet/view-IR/engine/shell 48/48, docx 34/34, pptx 120/120, chart).
 
-### Release-profile and wasm-opt trade-offs (measured, not applied here)
+### Release-profile and wasm-opt trade-offs
 
-`docs/PRODUCT_SPEC.md` section 5 pins `opt-level=3` + `wasm-opt -O3`, so changing them is a spec decision. Measured on
+`docs/PRODUCT_SPEC.md` section 5 pins `opt-level=3` + `wasm-opt -O1` (Jared 2026-10-20; see **Slice 19**). Earlier probe on
 the post-slice code, xlsx S (isolated process, median of 7 processes), first-open peak RSS (`/proc` VmHWM, Node base 50.8 MiB):
 
 | Build | wasm bytes | xlsx S ms | xlsx M ms | RSS after first open |
@@ -89,10 +89,9 @@ the post-slice code, xlsx S (isolated process, median of 7 processes), first-ope
 | opt-level 3, packages pptx/docx/render/regex/serde_json at `s`, `-O1` | 6,168,026 | 3.98 | 15.5 | 94.0 MiB |
 
 Reading: `wasm-opt -O3`'s inlining costs ~20 MiB of first-open memory and about 1 ms of cold time against `-O1`
-(and `-O3` takes ~170 s vs ~25 s in CI), with no throughput benefit (M, L, docx, pptx are equal). Compressed size
-is flat (brotli 1.64 MB either way). `opt-level=s` is faster cold on xlsx S but ~45% slower on 100k-cell parse
-(still ~13x faster than TS), so it is a product call. Recommended follow-up (needs Jared's sign-off on the spec
-line): `wasm-opt -O1`.
+(and `-O3` takes ~170 s vs ~25 s in CI), with no throughput benefit (M, L, docx, pptx are equal). Brotli wasm is
+slightly smaller on `-O1` despite larger raw bytes (Slice 19). `opt-level=s` is faster cold on xlsx S but ~45% slower
+on 100k-cell parse (still ~13x faster than TS), so it is a product call.
 
 ### Memory floor (next slices)
 
@@ -523,3 +522,39 @@ Open path unchanged by design; spread above is single-box noise (no fixture >~12
 edit-path regressions.
 
 **Verdict:** ship — clear React embed xlsx edit-cell win (S and L), no material open regression.
+
+## Slice 19: wasm-opt `-O3` → `-O1` (keep #352 one-caller inline cap)
+
+Release `wasm-opt` level drops from `-O3` to `-O1` (`docs/PRODUCT_SPEC.md` §5; Jared 2026-10-20) while
+keeping `--one-caller-inline-max-function-size=1500`. Less aggressive shrink reduces V8 TurboFan
+compile zone on cold open without changing fixture thresholds or `perf/budgets.json`.
+
+**A/B** (`main` `892f06a` vs branch `1fd3dfe`; sequential `peak-mem.mjs --runs=9` on one box — no
+parallel peak jobs; `bash scripts/build-wasm.sh` → `/tmp/pkg-main-o3` vs `/tmp/pkg-o1`):
+
+| Build | raw wasm | brotli wasm |
+|---|--:|--:|
+| `-O3` (main) | 6,907,756 | 1,685,320 |
+| `-O1` (branch) | 7,094,215 | **1,661,076** (−24 KB) |
+
+**Cold open — wasm median ms / post-init peak MiB** (same harness; paired-run medians in parentheses):
+
+| Format | Tier | O3 open | O1 open | Δ open | O3 peak | O1 peak | Δ peak |
+|---|---|--:|--:|--:|--:|--:|--:|
+| xlsx | S | 25.83 | 26.00 | +0.6% | 15.27 | 14.36 | **−6.0%** |
+| xlsx | M | 39.34 | 40.88 | +3.9% | 16.93 | 16.06 | **−5.1%** |
+| xlsx | L | 26.99 | 30.00 | +11.2% | 22.36 | 22.65 | +1.3% |
+| docx | S | 23.36 | 20.68 | **−11.5%** | 13.18 | 10.52 | **−20.2%** |
+| docx | M | 26.07 | 22.62 | **−13.2%** | 14.88 | 13.26 | **−10.8%** |
+| docx | L | 32.07 | 29.87 | **−6.8%** | 19.23 | 16.91 | **−12.1%** |
+| pptx | S | 19.48 | 17.51 | **−10.1%** | 4.99 | 4.45 | **−10.7%** |
+| pptx | M | 19.27 | 19.08 | −1.0% | 6.65 | 6.54 | **−1.6%** |
+| pptx | L | 24.26 | 23.12 | **−4.7%** | 18.83 | 17.19 | **−8.7%** |
+
+Paired medians of the nine wasm samples per cell: xlsx M/L open +9.7% / +9.2% (peak flat); docx
+S/M peak −25% / −10%; pptx S peak −12%. Gate-shaped wasm-vs-TS verdicts on `-O1` match `-O3` on
+every tier (no new LOSS vs TS from this flag alone).
+
+**Verdict:** **SHIP** — clear multi-fixture peak_mem win (8/9 tiers, docx/pptx also faster open);
+trade xlsx M/L cold open (~10%) for ~1–2 MiB less post-init peak on small/medium fixtures and
+~2–3 MiB on docx tiers. Recommend merge `cursor/perf-wasm-opt-O1-4e30`.

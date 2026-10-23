@@ -107,7 +107,7 @@ Already done or decided upstream of this spec:
   - No long task over 200 ms.
 - **Bundle and startup:** hard budget. The initial payload (wasm plus loader JS, brotli) is smaller than TS's for the same format.
   - There is a per-format KB ceiling, fixed at R0, that can only ratchet down. The ceiling covers fonts and shaping data.
-  - Release builds use `opt-level=3`, LTO, `codegen-units=1` and `wasm-opt -O3`.
+  - Release builds use `opt-level=3`, LTO, `codegen-units=1` and `wasm-opt -O1` (approved Jared 2026-10-20; keep `--one-caller-inline-max-function-size=1500` from #352).
   - Size and time-to-interactive are both gated. The editor module loads only on edit.
 - **Loader JS budget:** a separate KB ceiling for hand-written plus generated glue JS, fixed at R0 and ratchet-down only.
 - **Renderer and editor-surface gates** (from the stage that introduces each surface):

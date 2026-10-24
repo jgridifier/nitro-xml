@@ -3286,6 +3286,40 @@ mod tests {
         assert_eq!(h.save_document().expect("undone layout"), layout);
     }
 
+    #[test]
+    fn catches_dashed_outline_leaving_prst_dash_off_the_saved_slide() {
+        // Catches: Dashed outline leaving a:prstDash off the saved slide, so reopen paints a solid stroke.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        let ui = h.shell_action("ui", "").expect("ui");
+        assert!(
+            ui.contains("home.shape-dash"),
+            "dashed outline is missing from the ribbon"
+        );
+        h.shell_action("cmd", "home.shape-dash").expect("dash");
+        let dashed = h.save_document().expect("dashed");
+        assert_ne!(dashed, PPTX);
+        assert_eq!(reopened_dash(&dashed).as_deref(), Some("dash"));
+        h.shell_action("cmd", "home.shape-dash").expect("solid");
+        let solid = h.save_document().expect("solid");
+        assert_eq!(reopened_dash(&solid), None);
+        assert_ne!(solid, dashed);
+        h.shell_action("cmd", "edit.undo").expect("undo solid");
+        assert_eq!(h.save_document().expect("dashed again"), dashed);
+        h.shell_action("cmd", "edit.undo").expect("undo dash");
+        assert_eq!(h.save_document().expect("undone"), PPTX);
+    }
+
+    fn reopened_dash(bytes: &[u8]) -> Option<String> {
+        let mut pres = nitro_xml_pptx::Presentation::open(bytes).expect("reopen");
+        let slide = pres.slide(0).expect("slide");
+        let path = slide.path.clone();
+        slide
+            .elements
+            .iter()
+            .find(|el| el.id.starts_with(&path))
+            .and_then(|el| el.stroke_dash.clone())
+    }
+
     fn reopened_paint(bytes: &[u8]) -> String {
         let mut pres = nitro_xml_pptx::Presentation::open(bytes).expect("reopen");
         let slide = pres.slide(0).expect("slide");

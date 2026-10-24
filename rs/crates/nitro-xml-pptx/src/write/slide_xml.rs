@@ -282,8 +282,13 @@ fn apply_element(shape: &mut Element, el: &EditableElement) {
     if let Some(mode) = el.fill_mode.as_deref() {
         apply_fill(shape, mode, el.fill_color.as_deref());
     }
-    if el.stroke_color.is_some() || el.stroke_width.is_some() {
-        apply_line(shape, el.stroke_color.as_deref(), el.stroke_width);
+    if el.stroke_color.is_some() || el.stroke_width.is_some() || el.stroke_dash.is_some() {
+        apply_line(
+            shape,
+            el.stroke_color.as_deref(),
+            el.stroke_width,
+            el.stroke_dash.as_deref(),
+        );
     }
     let authored = el.text_style.as_ref().is_some_and(style_authored);
     if el.text.is_some() || authored {
@@ -373,7 +378,7 @@ fn apply_fill(shape: &mut Element, mode: &str, color: Option<&str>) {
     insert_before_line(sp_pr, node);
 }
 
-fn apply_line(shape: &mut Element, color: Option<&str>, width: Option<f64>) {
+fn apply_line(shape: &mut Element, color: Option<&str>, width: Option<f64>, dash: Option<&str>) {
     let sp_pr = ensure_child(shape, "spPr", ns::P);
     remove_children(sp_pr, ns::A, &["ln"]);
     let mut ln = elem(ns::A, "ln");
@@ -387,6 +392,14 @@ fn apply_line(shape: &mut Element, color: Option<&str>, width: Option<f64>) {
         set_attr(&mut clr, "val", &hex_val(color));
         fill.children.push(Node::Element(clr));
         ln.children.push(Node::Element(fill));
+    }
+    if let Some(dash) = dash.filter(|token| {
+        let token = token.trim();
+        !token.is_empty() && !token.eq_ignore_ascii_case("solid")
+    }) {
+        let mut node = elem(ns::A, "prstDash");
+        set_attr(&mut node, "val", dash.trim());
+        ln.children.push(Node::Element(node));
     }
     sp_pr.children.push(Node::Element(ln));
 }

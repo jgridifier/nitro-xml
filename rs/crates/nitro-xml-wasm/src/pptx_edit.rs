@@ -35,6 +35,7 @@ const SHAPE_COMMANDS: &[&str] = &[
     "home.font-name",
     "home.shape-fill",
     "home.shape-outline",
+    "home.shape-dash",
     "home.duplicate",
     "home.delete",
     "home.bring-forward",
@@ -517,6 +518,11 @@ impl PptxState {
                 RibbonItem {
                     id: "home.shape-outline",
                     label: "Outline",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.shape-dash",
+                    label: "Dashed Outline",
                     enabled: true,
                 },
                 RibbonItem {

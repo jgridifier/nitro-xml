@@ -95,6 +95,7 @@ pub fn ribbon_html(
         html.push_str("<section class=\"pve-ribbon-group\" aria-label=\"Drawing\">");
         html.push_str(&button("home.shape-fill", "Fill", surface, false));
         html.push_str(&button("home.shape-outline", "Outline", surface, false));
+        html.push_str(&button("home.shape-dash", "Dashed Outline", surface, false));
         html.push_str(&button("home.duplicate", "Duplicate", surface, false));
         html.push_str(&button("home.delete", "Delete", surface, false));
         html.push_str(&button(

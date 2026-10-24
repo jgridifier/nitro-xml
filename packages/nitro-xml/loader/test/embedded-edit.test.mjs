@@ -22,7 +22,7 @@ describe("embedded pptx and docx toolbars", () => {
     const bound = cmds("pptx");
     assert.ok(bound.length >= 12);
     for (const id of bound) assert.ok(pptxRibbon.includes(`id: "${id}"`), `${id} is not on the pptx ribbon`);
-    for (const id of ["file.save", "edit.undo", "edit.redo", "home.cut", "home.copy", "home.paste", "home.bold", "home.strikethrough", "home.double-strike", "home.small-caps", "home.caps", "home.font-size", "home.grow-font", "home.shrink-font", "home.font-color", "home.font-name", "home.indent", "home.outdent", "home.line-spacing", "home.subscript", "home.superscript", "home.shape-fill", "home.shape-outline", "home.layout", "home.align-justify", "home.bullets", "home.numbering", "insert.slide", "insert.duplicate-slide", "insert.move-slide-up", "insert.move-slide-down", "insert.text-box", "insert.shape", "insert.picture", "home.duplicate", "home.delete", "home.bring-forward", "home.send-backward", "home.bring-to-front", "home.send-to-back", "home.group", "home.ungroup", "home.delete-slide", "insert.table", "table.insert-row", "table.delete-column", "table.cell-text", "table.delete"]) {
+    for (const id of ["file.save", "edit.undo", "edit.redo", "home.cut", "home.copy", "home.paste", "home.bold", "home.strikethrough", "home.double-strike", "home.small-caps", "home.caps", "home.font-size", "home.grow-font", "home.shrink-font", "home.font-color", "home.font-name", "home.indent", "home.outdent", "home.line-spacing", "home.subscript", "home.superscript", "home.shape-fill", "home.shape-outline", "home.shape-dash", "home.layout", "home.align-justify", "home.bullets", "home.numbering", "insert.slide", "insert.duplicate-slide", "insert.move-slide-up", "insert.move-slide-down", "insert.text-box", "insert.shape", "insert.picture", "home.duplicate", "home.delete", "home.bring-forward", "home.send-backward", "home.bring-to-front", "home.send-to-back", "home.group", "home.ungroup", "home.delete-slide", "insert.table", "table.insert-row", "table.delete-column", "table.cell-text", "table.delete"]) {
       assert.ok(bound.includes(id), `missing embedded pptx command ${id}`);
     }
   });
@@ -42,6 +42,8 @@ describe("embedded pptx and docx toolbars", () => {
     assert.ok(!bound.includes("home.ungroup"));
     assert.ok(cmds("pptx").includes("home.caps"));
     assert.ok(cmds("pptx").includes("home.double-strike"));
+    assert.ok(cmds("pptx").includes("home.shape-dash"));
+    assert.ok(!bound.includes("home.shape-dash"));
     assert.ok(!cmds("pptx").includes("home.hidden"));
     assert.ok(!cmds("pptx").includes("home.border-bottom"));
     assert.ok(!cmds("pptx").includes("home.border-top"));

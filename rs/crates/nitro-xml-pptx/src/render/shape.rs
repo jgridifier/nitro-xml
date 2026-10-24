@@ -560,6 +560,29 @@ mod tests {
     }
 
     #[test]
+    fn catches_dash_preset_painting_a_solid_stroke() {
+        // Catches: a:prstDash val="dash" drawn as a solid SVG stroke or a solid CSS border.
+        let mut el = shape_el(None);
+        el.stroke_dash = Some("dash".to_owned());
+        let intern = paint_shape(&el);
+        assert!(
+            intern
+                .0
+                .iter()
+                .any(|s| s.contains("stroke-dasharray=\"8 4\"")),
+            "centred dash must set stroke-dasharray, got {:?}",
+            intern.0
+        );
+        el.stroke_line_align = Some("in".to_owned());
+        let inset = paint_shape(&el);
+        assert!(
+            inset.0.iter().any(|s| s == "2px dashed #4472C4"),
+            "inset dash must use a dashed CSS border, got {:?}",
+            inset.0
+        );
+    }
+
+    #[test]
     fn catches_pattern_stroke_overlay_uses_svg_pattern_paint_server() {
         // Catches: a:ln/a:pattFill flattened to solid strokeColor so hatching disappears.
         let mut el = shape_el(None);

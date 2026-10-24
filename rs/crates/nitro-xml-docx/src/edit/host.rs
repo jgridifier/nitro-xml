@@ -20,7 +20,10 @@ pub struct DocxHost {
     pub format: String,
     pub blocks: Vec<Value>,
     /// Model at open time (TS `binding.base.blocks` for save identity).
+    /// Empty while [`Self::base_blocks_ready`] is false — live `blocks` is still the open snapshot.
     pub base_blocks: Vec<Value>,
+    /// When false, skip the open-time `blocks` clone; materialize on first edit / undo capture.
+    pub base_blocks_ready: bool,
     /// Original `word/document.xml` text for in-place block rewrite (#80).
     pub source_document_xml: String,
     pub numbering_catalog: Option<Value>,
@@ -50,6 +53,7 @@ impl DocxHost {
             format: "docx".into(),
             blocks,
             base_blocks,
+            base_blocks_ready: true,
             source_document_xml: r#"<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body/></w:document>"#.into(),
             numbering_catalog: None,
             paragraph_styles: None,
@@ -62,6 +66,14 @@ impl DocxHost {
             comments: None,
             comments_touched: false,
             touched: BTreeSet::new(),
+        }
+    }
+
+    /// Clone live `blocks` into `base_blocks` once, before the first mutating edit or undo capture.
+    pub fn ensure_base_blocks(&mut self) {
+        if !self.base_blocks_ready {
+            self.base_blocks = self.blocks.clone();
+            self.base_blocks_ready = true;
         }
     }
 
@@ -83,13 +95,15 @@ impl DocxHost {
     /// Edit host from an already-loaded [`DocumentModel`] (viewer / print session soft-share).
     /// Only re-opens the zip for `word/document.xml` text — no second body parse.
     pub fn from_document_model(model: &DocumentModel, source_document_xml: String) -> Self {
+        // Slice 30: one blocks clone for live; defer base_blocks until first edit.
         let blocks = model.blocks.clone();
         let sections = model.sections.as_ref().map(|s| json!(s));
         let page = Some(model.page.clone());
         Self {
             format: model.format.clone(),
-            blocks: blocks.clone(),
-            base_blocks: blocks,
+            blocks,
+            base_blocks: Vec::new(),
+            base_blocks_ready: false,
             source_document_xml,
             numbering_catalog: model.numbering_catalog.clone(),
             paragraph_styles: model.paragraph_styles.clone(),
@@ -162,9 +176,12 @@ impl DocxHost {
 
     /// True when the live model differs from the package-open snapshot (TS save dirty check).
     pub fn is_dirty(&self) -> bool {
-        !blocks_json_equal(&self.blocks, &self.base_blocks)
-            || self.page != self.base_page
-            || self.sections != self.base_sections
+        let blocks_dirty = if self.base_blocks_ready {
+            !blocks_json_equal(&self.blocks, &self.base_blocks)
+        } else {
+            false
+        };
+        blocks_dirty || self.page != self.base_page || self.sections != self.base_sections
     }
 
     pub fn mark_touched(&mut self, block: usize) {
@@ -178,6 +195,7 @@ impl DocxHost {
     }
 
     pub fn paragraph_mut(&mut self, block_index: usize) -> Result<&mut Value, String> {
+        self.ensure_base_blocks();
         let block = self
             .blocks
             .get_mut(block_index)
@@ -202,6 +220,7 @@ impl DocxHost {
     }
 
     pub fn table_mut(&mut self, block_index: usize) -> Result<&mut Value, String> {
+        self.ensure_base_blocks();
         let block = self
             .blocks
             .get_mut(block_index)
@@ -211,6 +230,12 @@ impl DocxHost {
             return Err(format!("block {block_index} is not a table (got {ty})"));
         }
         Ok(block)
+    }
+
+    /// Mutable access to the block list (structure edits). Snapshots `base_blocks` first.
+    pub fn blocks_mut(&mut self) -> &mut Vec<Value> {
+        self.ensure_base_blocks();
+        &mut self.blocks
     }
 
     /// Differential dump: touched paragraphs only (edit-parity model compare).
@@ -250,10 +275,17 @@ impl DocxHost {
     }
 
     fn state_json(&self) -> Value {
+        // Before the first edit, live blocks are the open snapshot — emit them as baseBlocks
+        // so undo restore materializes a real base without forcing a clone at open.
+        let base_blocks = if self.base_blocks_ready {
+            &self.base_blocks
+        } else {
+            &self.blocks
+        };
         json!({
             "format": self.format,
             "blocks": self.blocks,
-            "baseBlocks": self.base_blocks,
+            "baseBlocks": base_blocks,
             "sourceDocumentXml": self.source_document_xml,
             "numberingCatalog": self.numbering_catalog,
             "paragraphStyles": self.paragraph_styles,
@@ -282,6 +314,10 @@ impl DocxHost {
             .unwrap_or_default();
         if let Some(arr) = v.get("baseBlocks").and_then(|x| x.as_array()) {
             self.base_blocks = arr.clone();
+            self.base_blocks_ready = true;
+        } else {
+            self.base_blocks = self.blocks.clone();
+            self.base_blocks_ready = true;
         }
         if let Some(s) = v.get("sourceDocumentXml").and_then(|x| x.as_str()) {
             self.source_document_xml = s.to_owned();

@@ -594,23 +594,23 @@ Self-contained Nitro WASM **parse adapters** landed in
 [#384](https://github.com/jgridifier/nitro-xml/pull/384)): calamine-style shims +
 `competitors.json` **entered**.
 
-**Published** `docs/scoreboard/data/parse-latest.json` (tip **`b2ae2ec`**, method knobs
+**Published** `docs/scoreboard/data/parse-latest.json` (tip **`ec49fb8`**, method knobs
 warmup=2 / runs=7, all entered competitors including **betteroffice-docx**; **not invented**;
-remasure 2026-10-23 after #457 soft-share + #460/#453/#456):
-Nitro status **`entered`**. Archive: `perf/scoreboard/results/parse/2026-10-23-b2ae2ec.json`.
-Prior published tip was **`bbbea70`**. Draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) /
+remasure 2026-10-24 after #472 enforce-readiness + soft-share trilogy + #468/#469):
+Nitro status **`entered`**. Archive: `perf/scoreboard/results/parse/2026-10-24-ec49fb8.json`.
+Prior published tip was **`b2ae2ec`**. Draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) /
 stub `scoreboard.sh` (#39) **untouched** — CI reproducible gate still open.
 
 | Format | Nitro comparable | Geomean vs TS | Nitro W/L | Errors |
 |--------|-----------------:|--------------:|:---------:|-------:|
-| xlsx | **30/30** | **0.246** | **30W/0L** | 0 |
-| docx | **30/30** | **0.201** | **30W/0L** | 0 |
-| pptx | **30/30** | **0.088** | **30W/0L** | 0 |
+| xlsx | **30/30** | **0.252** | **30W/0L** | 0 |
+| docx | **30/30** | **0.196** | **30W/0L** | 0 |
+| pptx | **30/30** | **0.087** | **30W/0L** | 0 |
 
 **Totals:** Nitro **90W/0L**, **90/90** comparable. Equivalence: timed `parse()` only; xlsx Nitro is
 `load_workbook_meta` + `parse_all_worksheets` (one pass per sheet) vs TS `loadWorkbook` (see #388).
 Losses for other entrants kept in the published JSON (e.g. exceljs / mammoth).
-**betteroffice-docx** on this tip: **21/30** comparable, geomean **0.193**, **21W/0L** (nine NC —
+**betteroffice-docx** on this tip: **21/30** comparable, geomean **0.188**, **21W/0L** (nine NC —
 drawings / fields / content-controls / revisions).
 
 #### Tip nitro↔upstream parse remasure (`09a82b3`, 2026-10-22)
@@ -706,7 +706,7 @@ Published `parse-latest.json` and `first-paint-latest.json` are real measured ti
 - [x] Bundle / loader sizes recorded (loader **16.69 / 17 KB**; wasm sizes above)
 - [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S clear WIN after #352** (CI upper 0.321; peak-mem LOSSes kept on xlsx/docx S); **#23 left open** (docx arm deferred)
 - [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped; post-#352 matrix **14/18 WIN**
-- [x] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; published `parse-latest.json` Nitro **entered**, tip **`b2ae2ec`** **90W/0L** (method 2+7, includes betteroffice-docx **21W/0L**); tip nitro↔upstream remasure on **`09a82b3`** still **90W/0L**; published `first-paint-latest.json` tip **`61c5195`** **8W/0L** S–XL (remasure after soft-share #457/#462/#466 + #464); peak_mem standings keep xlsx S + docx S/M as **LOSS** with known-loss exception ([Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)); CI `scoreboard` job / draft **#113** still open (not required for Pages data)
+- [x] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; published `parse-latest.json` Nitro **entered**, tip **`ec49fb8`** **90W/0L** (method 2+7, includes betteroffice-docx **21W/0L**); tip nitro↔upstream remasure on **`09a82b3`** still **90W/0L**; published `first-paint-latest.json` tip **`61c5195`** **8W/0L** S–XL (remasure after soft-share #457/#462/#466 + #464); peak_mem standings keep xlsx S + docx S/M as **LOSS** with known-loss exception ([Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)); CI `scoreboard` job / draft **#113** still open (not required for Pages data)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
 - [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27** (+ docx **#23**); tip readiness **READY** for xlsx/docx/pptx with documented known-loss exceptions still printed as LOSS; Jared flips workflow env (agents do not)
 

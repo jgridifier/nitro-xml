@@ -73,8 +73,9 @@ impl DocxHost {
             .source_document_xml
             .take()
             .ok_or_else(|| "word/document.xml cache missing after read_package".to_string())?;
-        Ok(Self::from_document_model(
-            &loaded.model,
+        // Slice 29: move remaining model fields — `loaded` is discarded after open.
+        Ok(Self::from_document_model_owned(
+            loaded.model,
             source_document_xml,
         ))
     }
@@ -99,6 +100,31 @@ impl DocxHost {
             base_page: page,
             even_and_odd_headers: model.even_and_odd_headers,
             comments: model.comments.clone(),
+            comments_touched: false,
+            touched: BTreeSet::new(),
+        }
+    }
+
+    /// Like [`Self::from_document_model`], but consumes the model (headless `open` path).
+    /// Still clones once for `base_*` snapshots; skips the extra clone of every field from `&model`.
+    pub fn from_document_model_owned(model: DocumentModel, source_document_xml: String) -> Self {
+        let blocks = model.blocks;
+        let sections = model.sections.map(|s| json!(s));
+        let page = Some(model.page);
+        Self {
+            format: model.format,
+            blocks: blocks.clone(),
+            base_blocks: blocks,
+            source_document_xml,
+            numbering_catalog: model.numbering_catalog,
+            paragraph_styles: model.paragraph_styles,
+            character_styles: model.character_styles,
+            sections: sections.clone(),
+            base_sections: sections,
+            page: page.clone(),
+            base_page: page,
+            even_and_odd_headers: model.even_and_odd_headers,
+            comments: model.comments,
             comments_touched: false,
             touched: BTreeSet::new(),
         }

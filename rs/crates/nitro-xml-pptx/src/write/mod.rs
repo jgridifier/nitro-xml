@@ -891,6 +891,81 @@ mod tests {
         );
     }
 
+    #[test]
+    fn catches_dashed_outline_painting_a_solid_line() {
+        // Catches: Dashed outline leaving a:prstDash off the saved slide, so reopen paints a solid stroke.
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut editor = crate::editor::PptxEditor::open(bytes.as_slice()).expect("open");
+        let id = editor.session.host.slides[0].elements[0].id.clone();
+        editor.select_elements(std::iter::once(id));
+        editor
+            .dispatch_command("home.shape-dash", &serde_json::Value::Null)
+            .expect("dash");
+        let dashed = save_pptx(&editor.session.host, bytes.as_slice()).expect("save dash");
+        assert_ne!(dashed.as_slice(), bytes.as_slice());
+        let dash_xml = part_text(&dashed, "ppt/slides/slide1.xml");
+        assert!(
+            dash_xml.contains("<a:prstDash") && dash_xml.contains("val=\"dash\""),
+            "saved slide has no dashed outline: {dash_xml}"
+        );
+        assert_eq!(reopened_dash(&dashed).as_deref(), Some("dash"));
+        editor
+            .dispatch_command("home.shape-dash", &serde_json::Value::Null)
+            .expect("solid");
+        let solid = save_pptx(&editor.session.host, bytes.as_slice()).expect("save solid");
+        let solid_xml = part_text(&solid, "ppt/slides/slide1.xml");
+        assert!(
+            !solid_xml.contains("prstDash"),
+            "toggling dashed outline left the dash on the slide: {solid_xml}"
+        );
+        assert!(
+            solid_xml.contains("val=\"00B050\""),
+            "solid toggle dropped the outline: {solid_xml}"
+        );
+        assert_eq!(reopened_dash(&solid), None);
+        editor
+            .dispatch_command("edit.undo", &serde_json::Value::Null)
+            .expect("undo solid");
+        assert_eq!(
+            save_pptx(&editor.session.host, bytes.as_slice())
+                .expect("dashed again")
+                .as_slice(),
+            dashed.as_slice()
+        );
+        editor
+            .dispatch_command("home.shape-outline", &serde_json::Value::Null)
+            .expect("outline clears dash");
+        let outlined = save_pptx(&editor.session.host, bytes.as_slice()).expect("outline");
+        let outlined_xml = part_text(&outlined, "ppt/slides/slide1.xml");
+        assert!(
+            !outlined_xml.contains("prstDash") && outlined_xml.contains("val=\"00B050\""),
+            "outline left the dash in place: {outlined_xml}"
+        );
+        editor
+            .dispatch_command("edit.undo", &serde_json::Value::Null)
+            .expect("undo outline");
+        editor
+            .dispatch_command("edit.undo", &serde_json::Value::Null)
+            .expect("undo dash");
+        assert_eq!(
+            save_pptx(&editor.session.host, bytes.as_slice())
+                .expect("undone")
+                .as_slice(),
+            bytes.as_slice()
+        );
+    }
+
+    fn reopened_dash(bytes: &[u8]) -> Option<String> {
+        let mut pres = crate::Presentation::open(bytes).expect("reopen");
+        let slide = pres.slide(0).expect("slide");
+        let path = slide.path.clone();
+        slide
+            .elements
+            .iter()
+            .find(|el| el.id.starts_with(&path))
+            .and_then(|el| el.stroke_dash.clone())
+    }
+
     // Catches: Layout dirtying a one-layout deck, or a multi-layout change dropping
     // the other slide relationships, or undo failing to restore the original bytes.
     #[test]

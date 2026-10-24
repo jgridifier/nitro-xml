@@ -66,6 +66,7 @@ describe("Office ribbon manifests", () => {
       "home.superscript",
       "home.shape-fill",
       "home.shape-outline",
+      "home.shape-dash",
       "home.layout",
       "insert.text-box",
       "insert.shape",
@@ -133,6 +134,7 @@ describe("Office ribbon manifests", () => {
       "home.font-name",
       "home.shape-fill",
       "home.shape-outline",
+      "home.shape-dash",
       "home.layout",
       "home.group",
       "home.ungroup",
@@ -279,6 +281,8 @@ describe("Office ribbon manifests", () => {
     assert.ok(!ids(tabsFor("pptx", "Slide", true)).includes("home.double-underline"));
     assert.ok(bound.includes("home.caps"));
     assert.ok(ids(tabsFor("pptx", "Slide", true)).includes("home.caps"));
+    assert.ok(!bound.includes("home.shape-dash"));
+    assert.ok(ids(tabsFor("pptx", "Slide", true)).includes("home.shape-dash"));
     assert.ok(bound.includes("home.small-caps"));
     assert.ok(bound.includes("home.double-strike"));
     assert.ok(ids(tabsFor("pptx", "Slide", true)).includes("home.double-strike"));

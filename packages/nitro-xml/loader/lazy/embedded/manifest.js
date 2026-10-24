@@ -180,6 +180,7 @@ export const MANIFEST = {
         items: [
           cmd("home.shape-fill", "fill", "Fill", "Shape fill"),
           cmd("home.shape-outline", "outline", "Outline", "Shape outline"),
+          cmd("home.shape-double", "borderDouble", "Double outline", "Double shape outline"),
         ],
       },
       {

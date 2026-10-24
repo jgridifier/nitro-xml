@@ -134,6 +134,9 @@ pub struct EditableElement {
     pub stroke_color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stroke_width: Option<f64>,
+    /// Authored `a:ln/@cmpd` (`dbl`). Omitted when the line is a single stroke.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_compound: Option<String>,
     #[serde(default)]
     pub children: Vec<EditableElement>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -185,6 +188,7 @@ impl EditableElement {
             fill_mode: None,
             stroke_color: None,
             stroke_width: None,
+            stroke_compound: None,
             children: Vec::new(),
             shape_type: None,
             source_sp_index: None,
@@ -218,8 +222,21 @@ impl EditableElement {
         patch_shape_fill(&mut self.fill_color, &mut self.fill_mode, color, mode);
     }
 
-    pub fn patch_line(&mut self, color: Option<Option<String>>, width: Option<f64>) {
+    /// `compound`: `None` leaves it, `Some(None)` clears it, `Some(Some(token))` sets it.
+    /// `sng` and an empty token clear it so the rewritten line stays a single stroke.
+    pub fn patch_line(
+        &mut self,
+        color: Option<Option<String>>,
+        width: Option<f64>,
+        compound: Option<Option<String>>,
+    ) {
         patch_shape_line(&mut self.stroke_color, &mut self.stroke_width, color, width);
+        if let Some(next) = compound {
+            self.stroke_compound = next.filter(|token| {
+                let token = token.trim();
+                !token.is_empty() && !token.eq_ignore_ascii_case("sng")
+            });
+        }
     }
 }
 
@@ -427,6 +444,7 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
         },
         stroke_color: None,
         stroke_width: None,
+        stroke_compound: None,
         children: el
             .children
             .as_ref()
@@ -949,10 +967,11 @@ impl PptxHost {
         element_index: Option<u32>,
         color: Option<Option<String>>,
         width: Option<f64>,
+        compound: Option<Option<String>>,
     ) -> Result<(), String> {
         let slide = self.slide_mut(slide_index)?;
         let idx = Self::resolve_index(slide, element_id, element_index)?;
-        slide.elements[idx].patch_line(color, width);
+        slide.elements[idx].patch_line(color, width, compound);
         self.touch(slide_index)
     }
 

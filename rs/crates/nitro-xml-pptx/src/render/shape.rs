@@ -560,6 +560,32 @@ mod tests {
     }
 
     #[test]
+    fn catches_double_outline_painting_one_stroke() {
+        // Catches: a:ln/@cmpd="dbl" drawn as one SVG stroke or a solid CSS border.
+        let mut el = shape_el(None);
+        el.stroke_compound_line = Some("dbl".to_owned());
+        let intern = paint_shape(&el);
+        let svg = intern
+            .0
+            .iter()
+            .find(|s| s.contains("pptx-vanilla-gradient-outline"))
+            .map(String::as_str)
+            .unwrap_or("");
+        assert_eq!(
+            svg.matches("<path ").count(),
+            2,
+            "double outline must paint two strands, got {svg}"
+        );
+        el.stroke_line_align = Some("in".to_owned());
+        let inset = paint_shape(&el);
+        assert!(
+            inset.0.iter().any(|s| s == "2px double #4472C4"),
+            "inset double outline must use a double CSS border, got {:?}",
+            inset.0
+        );
+    }
+
+    #[test]
     fn catches_pattern_stroke_overlay_uses_svg_pattern_paint_server() {
         // Catches: a:ln/a:pattFill flattened to solid strokeColor so hatching disappears.
         let mut el = shape_el(None);

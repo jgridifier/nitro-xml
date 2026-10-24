@@ -282,8 +282,13 @@ fn apply_element(shape: &mut Element, el: &EditableElement) {
     if let Some(mode) = el.fill_mode.as_deref() {
         apply_fill(shape, mode, el.fill_color.as_deref());
     }
-    if el.stroke_color.is_some() || el.stroke_width.is_some() {
-        apply_line(shape, el.stroke_color.as_deref(), el.stroke_width);
+    if el.stroke_color.is_some() || el.stroke_width.is_some() || el.stroke_compound.is_some() {
+        apply_line(
+            shape,
+            el.stroke_color.as_deref(),
+            el.stroke_width,
+            el.stroke_compound.as_deref(),
+        );
     }
     let authored = el.text_style.as_ref().is_some_and(style_authored);
     if el.text.is_some() || authored {
@@ -373,13 +378,24 @@ fn apply_fill(shape: &mut Element, mode: &str, color: Option<&str>) {
     insert_before_line(sp_pr, node);
 }
 
-fn apply_line(shape: &mut Element, color: Option<&str>, width: Option<f64>) {
+fn apply_line(
+    shape: &mut Element,
+    color: Option<&str>,
+    width: Option<f64>,
+    compound: Option<&str>,
+) {
     let sp_pr = ensure_child(shape, "spPr", ns::P);
     remove_children(sp_pr, ns::A, &["ln"]);
     let mut ln = elem(ns::A, "ln");
     if let Some(width) = width {
         let w = (width * EMU_PER_PIXEL as f64).round() as i64;
         set_attr(&mut ln, "w", &w.to_string());
+    }
+    if let Some(compound) = compound.filter(|token| {
+        let token = token.trim();
+        !token.is_empty() && !token.eq_ignore_ascii_case("sng")
+    }) {
+        set_attr(&mut ln, "cmpd", compound.trim());
     }
     if let Some(color) = color {
         let mut fill = elem(ns::A, "solidFill");

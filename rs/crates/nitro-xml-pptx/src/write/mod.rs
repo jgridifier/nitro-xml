@@ -891,6 +891,81 @@ mod tests {
         );
     }
 
+    #[test]
+    fn catches_double_outline_painting_a_single_stroke() {
+        // Catches: Double outline leaving a:ln/@cmpd off the saved slide, so reopen paints one stroke.
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut editor = crate::editor::PptxEditor::open(bytes.as_slice()).expect("open");
+        let id = editor.session.host.slides[0].elements[0].id.clone();
+        editor.select_elements(std::iter::once(id));
+        editor
+            .dispatch_command("home.shape-double", &serde_json::Value::Null)
+            .expect("double");
+        let doubled = save_pptx(&editor.session.host, bytes.as_slice()).expect("save double");
+        assert_ne!(doubled.as_slice(), bytes.as_slice());
+        let double_xml = part_text(&doubled, "ppt/slides/slide1.xml");
+        assert!(
+            double_xml.contains("cmpd=\"dbl\""),
+            "saved slide has no double outline: {double_xml}"
+        );
+        assert_eq!(reopened_compound(&doubled).as_deref(), Some("dbl"));
+        editor
+            .dispatch_command("home.shape-double", &serde_json::Value::Null)
+            .expect("single");
+        let single = save_pptx(&editor.session.host, bytes.as_slice()).expect("save single");
+        let single_xml = part_text(&single, "ppt/slides/slide1.xml");
+        assert!(
+            !single_xml.contains("cmpd="),
+            "toggling double outline left cmpd on the slide: {single_xml}"
+        );
+        assert!(
+            single_xml.contains("val=\"00B050\""),
+            "single toggle dropped the outline: {single_xml}"
+        );
+        assert_eq!(reopened_compound(&single), None);
+        editor
+            .dispatch_command("edit.undo", &serde_json::Value::Null)
+            .expect("undo single");
+        assert_eq!(
+            save_pptx(&editor.session.host, bytes.as_slice())
+                .expect("doubled again")
+                .as_slice(),
+            doubled.as_slice()
+        );
+        editor
+            .dispatch_command("home.shape-outline", &serde_json::Value::Null)
+            .expect("outline clears double");
+        let outlined = save_pptx(&editor.session.host, bytes.as_slice()).expect("outline");
+        let outlined_xml = part_text(&outlined, "ppt/slides/slide1.xml");
+        assert!(
+            !outlined_xml.contains("cmpd=") && outlined_xml.contains("val=\"00B050\""),
+            "outline left the double stroke in place: {outlined_xml}"
+        );
+        editor
+            .dispatch_command("edit.undo", &serde_json::Value::Null)
+            .expect("undo outline");
+        editor
+            .dispatch_command("edit.undo", &serde_json::Value::Null)
+            .expect("undo double");
+        assert_eq!(
+            save_pptx(&editor.session.host, bytes.as_slice())
+                .expect("undone")
+                .as_slice(),
+            bytes.as_slice()
+        );
+    }
+
+    fn reopened_compound(bytes: &[u8]) -> Option<String> {
+        let mut pres = crate::Presentation::open(bytes).expect("reopen");
+        let slide = pres.slide(0).expect("slide");
+        let path = slide.path.clone();
+        slide
+            .elements
+            .iter()
+            .find(|el| el.id.starts_with(&path))
+            .and_then(|el| el.stroke_compound_line.clone())
+    }
+
     // Catches: Layout dirtying a one-layout deck, or a multi-layout change dropping
     // the other slide relationships, or undo failing to restore the original bytes.
     #[test]

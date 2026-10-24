@@ -9,7 +9,7 @@
 // paragraph space before and after, paragraph shading, paragraph bottom, top, left, and right borders, double, dashed, and dotted bottom borders, page break before,
 // hanging indent, first-line indent, double underline, all caps, hidden text, script, font name,
 // Word bullets, insert shape, duplicate,
-// delete, z-order (one step and all the way), shape fill, outline, and slide layout are listed
+// delete, z-order (one step and all the way), shape fill, outline, double outline, and slide layout are listed
 // only after they change the saved package.
 //   i icon · l label · t tooltip · o op · a op arg · x op sent while pressed · p toggle · n tab step
 //   c editor cmd id · d diagnostics toggle · s slide-pane toggle (host) · m dropdown entries · r readout
@@ -34,6 +34,7 @@ const drawing = {
   rows: [[
     it("home.shape-fill", "fill", "Fill", "Shape fill"),
     it("home.shape-outline", "outline", "Outline", "Shape outline"),
+    it("home.shape-double", "borderDouble", "Double outline", "Double shape outline"),
   ]],
 };
 const arrange = {

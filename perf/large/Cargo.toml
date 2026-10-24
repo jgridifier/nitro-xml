@@ -27,3 +27,7 @@ path = "src/docx_ensure_edit_mem.rs"
 [[bin]]
 name = "docx-host-open-mem"
 path = "src/docx_host_open_mem.rs"
+
+[[bin]]
+name = "docx-from-model-mem"
+path = "src/docx_from_model_mem.rs"

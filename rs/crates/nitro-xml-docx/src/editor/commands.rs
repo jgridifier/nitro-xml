@@ -1108,6 +1108,7 @@ pub fn register_editor_commands(registry: &mut CommandRegistry) {
 }
 
 fn insert_page_break(host: &mut DocxHost, at: usize) -> Result<(), EditError> {
+    host.ensure_base_blocks();
     let at = at.min(host.blocks.len());
     let id = format!("page-break-{at}-{}", host.blocks.len());
     host.blocks.insert(

@@ -51,6 +51,7 @@ pub fn split_paragraph(
     block_index: usize,
     offset: usize,
 ) -> Result<(), EditError> {
+    host.ensure_base_blocks();
     let block = host
         .paragraph(block_index)
         .map_err(|e| EditError::Other { message: e })?;
@@ -116,6 +117,7 @@ pub fn split_paragraph(
 
 /// Join paragraph `block_index + 1` into `block_index` (top-level paragraphs only).
 pub fn join_paragraph(host: &mut DocxHost, block_index: usize) -> Result<(), EditError> {
+    host.ensure_base_blocks();
     if block_index + 1 >= host.blocks.len() {
         return Err(EditError::Other {
             message: "no next paragraph to join".into(),
@@ -292,6 +294,7 @@ pub fn split_paragraph_runs(
     block_index: usize,
     offset: usize,
 ) -> Result<(), EditError> {
+    host.ensure_base_blocks();
     let block = host
         .paragraph(block_index)
         .map_err(|e| EditError::Other { message: e })?

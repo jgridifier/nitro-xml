@@ -859,3 +859,33 @@ Viewer/wasm open already retains the xml via #471; this slice only changes headl
 
 **Verdict:** **SHIP** — native headless open ~7% faster (skips second zip inflate after #471
 already paid the cache); complements soft-share unlock. No wasm or budget changes.
+
+## Slice 30: defer `DocxHost::base_blocks` until first edit
+
+**Goal:** `from_document_model` (soft-share `ensure_edit` unlock and headless open) cloned the full
+block list twice — once for live `blocks`, once for `base_blocks`. Defer the base clone until the
+first mutating edit / structure change; `is_dirty` treats a pending base as clean. Undo `capture`
+emits live blocks as `baseBlocks` when still pending.
+
+**Rust:** `base_blocks_ready` + `ensure_base_blocks`; called from `paragraph_mut` / `table_mut` and
+structure edits in text/table/commands.
+
+**A/B** (`origin/main` `b96b184` vs tip of `cursor/perf-docx-defer-base-snap-4e30`;
+`docx-from-model-mem --runs 21` — soft-share unlock path):
+
+| Tier | main `from_document_model` ms | branch ms | Δ |
+|---|---:|---:|---|
+| docx S | 0.016 | **0.008** | **−50%** |
+| docx M | 0.096 | **0.049** | **−49%** |
+| docx L | 0.375 | **0.245** | **−35%** |
+
+### Full `DocxHost::open` (`docx-host-open-mem`) — mostly flat
+
+Zip/parse dominate; clone savings are within noise on this VM (~±2%).
+
+### Peak memory (`peak-mem.mjs`) — **expected flat / slightly lower on unlock**
+
+Cold viewer peak unchanged (no host yet). Soft-share unlock peak drops by one blocks-list copy
+until first edit.
+
+**Verdict:** **SHIP** — soft-share unlock ~35–50% faster on from_document_model; no budget changes.

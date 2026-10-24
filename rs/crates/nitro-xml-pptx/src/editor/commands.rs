@@ -104,6 +104,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("home.font-name", "Font", None, true),
     pptx_cmd!("home.shape-fill", "Shape Fill", None, true),
     pptx_cmd!("home.shape-outline", "Shape Outline", None, true),
+    pptx_cmd!("home.shape-double", "Double Outline", None, true),
     pptx_cmd!("home.layout", "Layout", None, true),
     pptx_cmd!("home.duplicate", "Duplicate", Some("Ctrl+D"), true),
     pptx_cmd!("home.delete", "Delete", Some("Delete"), true),
@@ -532,6 +533,7 @@ impl PptxCommandSurface {
                     .is_some_and(|e| {
                         same_hex(e.stroke_color.as_deref(), SHAPE_OUTLINE)
                             && e.stroke_width == Some(SHAPE_OUTLINE_PX)
+                            && e.stroke_compound.is_none()
                     });
                 if already {
                     return Ok(());
@@ -541,6 +543,31 @@ impl PptxCommandSurface {
                     "elementId": element_id,
                     "strokeColor": SHAPE_OUTLINE,
                     "strokeWidth": SHAPE_OUTLINE_PX,
+                    "strokeCompound": Value::Null,
+                });
+                self.run_shape_op("setShapeLine", &patch, session)
+            }
+            "home.shape-double" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: "home.shape-double needs a selected shape".into(),
+                })?;
+                let slide = selection.slide_index;
+                let already = session
+                    .host
+                    .slide(slide)
+                    .ok()
+                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+                    .is_some_and(|e| {
+                        e.stroke_compound.as_deref() == Some("dbl")
+                            && same_hex(e.stroke_color.as_deref(), SHAPE_OUTLINE)
+                            && e.stroke_width == Some(SHAPE_OUTLINE_PX)
+                    });
+                let patch = json!({
+                    "slideIndex": slide,
+                    "elementId": element_id,
+                    "strokeColor": SHAPE_OUTLINE,
+                    "strokeWidth": SHAPE_OUTLINE_PX,
+                    "strokeCompound": if already { Value::Null } else { json!("dbl") },
                 });
                 self.run_shape_op("setShapeLine", &patch, session)
             }

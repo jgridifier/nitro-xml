@@ -3286,6 +3286,40 @@ mod tests {
         assert_eq!(h.save_document().expect("undone layout"), layout);
     }
 
+    #[test]
+    fn catches_double_outline_leaving_cmpd_off_the_saved_slide() {
+        // Catches: Double outline leaving a:ln/@cmpd off the saved slide, so reopen paints one stroke.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        let ui = h.shell_action("ui", "").expect("ui");
+        assert!(
+            ui.contains("home.shape-double"),
+            "double outline is missing from the ribbon"
+        );
+        h.shell_action("cmd", "home.shape-double").expect("double");
+        let doubled = h.save_document().expect("doubled");
+        assert_ne!(doubled, PPTX);
+        assert_eq!(reopened_compound(&doubled).as_deref(), Some("dbl"));
+        h.shell_action("cmd", "home.shape-double").expect("single");
+        let single = h.save_document().expect("single");
+        assert_eq!(reopened_compound(&single), None);
+        assert_ne!(single, doubled);
+        h.shell_action("cmd", "edit.undo").expect("undo single");
+        assert_eq!(h.save_document().expect("doubled again"), doubled);
+        h.shell_action("cmd", "edit.undo").expect("undo double");
+        assert_eq!(h.save_document().expect("undone"), PPTX);
+    }
+
+    fn reopened_compound(bytes: &[u8]) -> Option<String> {
+        let mut pres = nitro_xml_pptx::Presentation::open(bytes).expect("reopen");
+        let slide = pres.slide(0).expect("slide");
+        let path = slide.path.clone();
+        slide
+            .elements
+            .iter()
+            .find(|el| el.id.starts_with(&path))
+            .and_then(|el| el.stroke_compound_line.clone())
+    }
+
     fn reopened_paint(bytes: &[u8]) -> String {
         let mut pres = nitro_xml_pptx::Presentation::open(bytes).expect("reopen");
         let slide = pres.slide(0).expect("slide");

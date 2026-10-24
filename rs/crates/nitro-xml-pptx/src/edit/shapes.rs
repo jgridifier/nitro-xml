@@ -797,6 +797,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                 arg_u32_opt(args, "elementIndex"),
                 arg_nullable_string(args, "strokeColor"),
                 arg_f64_opt(args, "strokeWidth"),
+                arg_nullable_string(args, "strokeCompound"),
             )
             .map_err(map_err)?;
             Ok(change(h, slide, ChangeKind::Format, "setShapeLine"))

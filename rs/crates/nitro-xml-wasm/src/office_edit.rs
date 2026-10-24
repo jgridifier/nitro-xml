@@ -1276,7 +1276,6 @@ mod tests {
             .unwrap()
             .ribbon_html();
         assert!(home.contains("data-command=\"small-caps\""));
-<<<<<<< HEAD
         let pptx = open_editable(PPTX, "slides.pptx");
         assert!(pptx
             .pptx
@@ -1284,10 +1283,6 @@ mod tests {
             .unwrap()
             .ribbon_html()
             .contains("home.small-caps"));
-=======
-        // Pptx also exposes home.small-caps after #465; slide save/undo covered by
-        // catches_small_caps_leaving_cap_off_the_saved_slide.
->>>>>>> bdd14ae (fix(wasm): drop stale pptx-no-small-caps assert after #465)
     }
 
     #[test]

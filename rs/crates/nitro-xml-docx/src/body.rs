@@ -64,6 +64,8 @@ pub struct DocumentModel {
     pub track_formatting: Option<bool>,
     pub track_moves: Option<bool>,
     pub media_part_names: Vec<String>,
+    /// Raw `word/document.xml` retained from package open (avoids a second zip read on edit soft-share).
+    pub source_document_xml: Option<String>,
 }
 
 pub struct LoadedDocument<'a> {
@@ -133,14 +135,13 @@ pub fn read_package_with_opts(
         }
     }
     .to_string();
-    let document = {
-        let doc_xml = pkg
-            .take_text("word/document.xml")?
-            .ok_or_else(|| OpcError::MissingPart {
-                name: "word/document.xml".into(),
-            })?;
-        parse_xml_str(&doc_xml)?
-    };
+    let doc_xml = pkg
+        .take_text("word/document.xml")?
+        .ok_or_else(|| OpcError::MissingPart {
+            name: "word/document.xml".into(),
+        })?;
+    let source_document_xml = doc_xml.clone();
+    let document = parse_xml_str(&doc_xml)?;
     let body =
         crate::xml_util::first_body(&document.root).ok_or_else(|| OpcError::MissingPart {
             name: "w:body".into(),
@@ -360,6 +361,7 @@ pub fn read_package_with_opts(
         track_formatting,
         track_moves,
         media_part_names: image_part_names.into_iter().collect(),
+        source_document_xml: Some(source_document_xml),
     };
 
     // Layout labels need title / undrawn family; full chartSpace parse is #28.
@@ -887,5 +889,26 @@ mod tests {
                 "{part} should not stay in Package text_cache after body parse"
             );
         }
+    }
+
+    #[test]
+    fn catches_edit_soft_share_reuses_cached_document_xml() {
+        // Catches: ensure_edit soft-share re-opening the zip for word/document.xml when the print
+        // session already parsed the package.
+        use crate::edit::host::DocxHost;
+        let bytes = include_bytes!("../../../../fixtures/generated/docx/pages_10.docx");
+        let loaded = read_package(bytes).expect("open");
+        let xml = loaded
+            .model
+            .source_document_xml
+            .as_deref()
+            .expect("model retains document xml");
+        let host = DocxHost::from_document_model_with_xml(
+            &loaded.model,
+            loaded.model.source_document_xml.clone(),
+            &[],
+        )
+        .expect("host without zip bytes when xml cached");
+        assert_eq!(host.source_document_xml, xml);
     }
 }

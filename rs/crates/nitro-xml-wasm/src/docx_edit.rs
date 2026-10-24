@@ -58,7 +58,8 @@ impl DocxState {
             return Ok(());
         }
         let host = if self.viewer_model_complete() {
-            DocxHost::from_document_model_bytes(&self.session.model, bytes)?
+            let cached_xml = self.session.model.source_document_xml.take();
+            DocxHost::from_document_model_with_xml(&self.session.model, cached_xml, bytes)?
         } else {
             DocxHost::open(bytes)?
         };

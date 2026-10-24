@@ -509,6 +509,7 @@ mod incremental_layout_tests {
             track_formatting: None,
             track_moves: None,
             media_part_names: Vec::new(),
+            source_document_xml: None,
         }
     }
 

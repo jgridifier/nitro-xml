@@ -101,7 +101,23 @@ impl DocxHost {
 
     /// Like [`Self::from_document_model`], loading `word/document.xml` from `bytes`.
     pub fn from_document_model_bytes(model: &DocumentModel, bytes: &[u8]) -> Result<Self, String> {
-        let source_document_xml = Self::source_document_xml_from_package(bytes)?;
+        Self::from_document_model_with_xml(model, model.source_document_xml.clone(), bytes)
+    }
+
+    /// Soft-share path: pass `cached_document_xml` from [`DocumentModel::source_document_xml`]
+    /// (e.g. after `take()`) to skip a second zip read of `word/document.xml`.
+    pub fn from_document_model_with_xml(
+        model: &DocumentModel,
+        cached_document_xml: Option<String>,
+        bytes: &[u8],
+    ) -> Result<Self, String> {
+        let source_document_xml = if let Some(xml) = cached_document_xml {
+            xml
+        } else if let Some(xml) = &model.source_document_xml {
+            xml.clone()
+        } else {
+            Self::source_document_xml_from_package(bytes)?
+        };
         Ok(Self::from_document_model(model, source_document_xml))
     }
 

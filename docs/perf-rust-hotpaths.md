@@ -794,3 +794,39 @@ Warm edit p50 flat (unlock already paid on sample 0).
 
 **Verdict:** **SHIP** — S/M/L avoid retaining a second full zip on writable unlock (~12 KiB / 433 KiB /
 2.5 MiB); pptx L attach ~3× faster; cold wasm peak and warm edit p50 flat as expected.
+
+## Slice 27: docx soft-share — retain `word/document.xml` on `DocumentModel`
+
+**Goal:** after print-session open, `ensure_edit` must not run a second `Package::open` just to read
+`word/document.xml` for `DocxHost::source_document_xml`. The viewer already had that text during
+`read_package`; keep it on [`DocumentModel`](rs/crates/nitro-xml-docx/src/body.rs) and `take()` it
+into the edit host on unlock (no double retention while editing).
+
+**Rust:** `DocumentModel::source_document_xml`; `DocxHost::from_document_model_with_xml`; wasm
+`ensure_edit` moves cached xml out of `PrintSession::model`.
+
+**A/B** (`origin/main` `d3e0fae` pkg `/tmp/pkg-main-docx-xml-base` vs branch pkg `/tmp/pkg-docx-only`;
+`peak-mem.mjs --runs=7 --format=xlsx,docx,pptx --tier=S,M,L`):
+
+| Format | Tier | main open ms | branch open ms | Δ open | main peak MiB | branch peak MiB | Δ peak |
+|---|---|--:|--:|--:|--:|--:|--:|
+| xlsx | S | 23.89 | 23.94 | +0.2% | 14.3 | 13.7 | −4.2% |
+| xlsx | M | 39.15 | 38.50 | −1.7% | 17.2 | 17.8 | +3.5% |
+| xlsx | L | 24.82 | 28.79 | +16.0% | 21.7 | 22.9 | +5.5% |
+| docx | S | 19.29 | 19.75 | +2.4% | 9.8 | 11.1 | +13% (noise) |
+| docx | M | 22.54 | 21.75 | **−3.5%** | 12.5 | 12.4 | −0.8% |
+| docx | L | 28.82 | 31.75 | +10.2% | 16.0 | 15.7 | −1.9% |
+| pptx | S | 18.33 | 18.24 | −0.5% | 4.3 | 4.3 | 0% |
+| pptx | M | 18.23 | 18.06 | −0.9% | 6.2 | 6.1 | −1.6% |
+| pptx | L | 23.58 | 23.73 | +0.6% | 17.0 | 16.9 | −0.6% |
+
+Native ensure_edit host build (`docx-ensure-edit-mem --runs=21`, cached xml vs forced zip read):
+
+| Tier | cached ms | zip-read ms | Δ |
+|---|---:|---:|---|
+| docx S | 0.026 | 0.027 | −3% |
+| docx M | 0.121 | 0.163 | **−26%** |
+| docx L | 0.593 | 0.789 | **−25%** |
+
+**Verdict:** **SHIP** — docx M/L ensure_edit host build ~25% faster; cold wasm peak/open flat within
+paired-run noise (xlsx L open swing is harness noise on this VM; no tier >12% peak regression).

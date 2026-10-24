@@ -859,3 +859,29 @@ Viewer/wasm open already retains the xml via #471; this slice only changes headl
 
 **Verdict:** **SHIP** — native headless open ~7% faster (skips second zip inflate after #471
 already paid the cache); complements soft-share unlock. No wasm or budget changes.
+
+## Slice 29: `DocxHost::open` — consume `DocumentModel` (skip field clones)
+
+**Goal:** headless `DocxHost::open` cloned every `DocumentModel` field into the host even though
+`LoadedDocument` is discarded immediately after. Move fields via `from_document_model_owned`; keep
+the `&DocumentModel` soft-share path unchanged (print session still needs the model).
+
+**Rust:** `DocxHost::from_document_model_owned`; `open` takes xml (#474) then moves the model.
+Soft-share still calls `from_document_model`.
+
+**A/B** (remeasured vs `origin/main` `b96b184` post-#474;
+`docx-host-open-mem --runs 21`; consecutive warm pair):
+
+| Tier | fixture KiB | main `DocxHost::open` ms | branch ms | Δ |
+|---|---:|---:|---:|---|
+| docx S | 2 | 0.634 | **0.605** | **−4.6%** |
+| docx M | 394 | 1.341 | **1.251** | **−6.7%** |
+| docx L | 2,446 | 4.754 | **4.287** | **−9.8%** |
+
+### Peak memory (`peak-mem.mjs`) — **expected flat**
+
+Viewer/wasm soft-share still clones; headless open peak briefly lower (no discarded clone) but cold
+wasm peak unchanged within noise.
+
+**Verdict:** **SHIP** — native headless open ~5–10% faster after #474 by moving instead of cloning
+the model; no wasm or budget changes.

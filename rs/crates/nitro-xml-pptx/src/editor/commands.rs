@@ -84,6 +84,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("home.underline", "Underline", Some("Ctrl+U"), true),
     pptx_cmd!("home.strikethrough", "Strikethrough", Some("Ctrl+5"), true),
     pptx_cmd!("home.small-caps", "Small Caps", None, true),
+    pptx_cmd!("home.caps", "All Caps", None, true),
     pptx_cmd!("home.align-left", "Align Left", None, true),
     pptx_cmd!("home.align-center", "Center", None, true),
     pptx_cmd!("home.align-right", "Align Right", None, true),
@@ -286,28 +287,31 @@ impl PptxCommandSurface {
                     message: "home.small-caps needs a selected shape".into(),
                 })?;
                 let slide = selection.slide_index;
-                let current = session
-                    .host
-                    .slide(slide)
-                    .ok()
-                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
-                    .and_then(|e| {
-                        e.text_style
-                            .as_ref()
-                            .and_then(|ts| ts.small_caps)
-                            .or_else(|| {
-                                e.text_segments
-                                    .iter()
-                                    .find(|seg| seg.small_caps)
-                                    .map(|_| true)
-                            })
-                    })
-                    .unwrap_or(false);
-                let patch = json!({
+                let (small_on, all_on) = shape_cap_flags(session, slide, element_id);
+                let mut patch = json!({
                     "slideIndex": slide,
                     "elementId": element_id,
-                    "smallCaps": !current,
+                    "smallCaps": !small_on,
                 });
+                if !small_on && all_on {
+                    patch["allCaps"] = json!(false);
+                }
+                self.run_shape_op("setShapeTextStyle", &patch, session)
+            }
+            "home.caps" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: "home.caps needs a selected shape".into(),
+                })?;
+                let slide = selection.slide_index;
+                let (small_on, all_on) = shape_cap_flags(session, slide, element_id);
+                let mut patch = json!({
+                    "slideIndex": slide,
+                    "elementId": element_id,
+                    "allCaps": !all_on,
+                });
+                if !all_on && small_on {
+                    patch["smallCaps"] = json!(false);
+                }
                 self.run_shape_op("setShapeTextStyle", &patch, session)
             }
             "home.align-left" | "home.align-center" | "home.align-right" | "home.align-justify" => {
@@ -991,6 +995,45 @@ fn merge_selection_args(id: &str, args: &Value, selection: &SelectionState) -> V
         }
     }
     Value::Object(map)
+}
+
+/// `(small caps on, all caps on)` for the selected shape. Style wins; else a segment flag.
+fn shape_cap_flags(
+    session: &EditSession<PptxHost, EditHistory>,
+    slide: u32,
+    element_id: &str,
+) -> (bool, bool) {
+    session
+        .host
+        .slide(slide)
+        .ok()
+        .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+        .map(|e| {
+            let small = e
+                .text_style
+                .as_ref()
+                .and_then(|ts| ts.small_caps)
+                .or_else(|| {
+                    e.text_segments
+                        .iter()
+                        .find(|seg| seg.small_caps)
+                        .map(|_| true)
+                })
+                .unwrap_or(false);
+            let all = e
+                .text_style
+                .as_ref()
+                .and_then(|ts| ts.all_caps)
+                .or_else(|| {
+                    e.text_segments
+                        .iter()
+                        .find(|seg| seg.all_caps)
+                        .map(|_| true)
+                })
+                .unwrap_or(false);
+            (small, all)
+        })
+        .unwrap_or((false, false))
 }
 
 pub fn register_editor_commands(registry: &mut CommandRegistry) {

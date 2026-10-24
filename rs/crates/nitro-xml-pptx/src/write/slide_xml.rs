@@ -531,6 +531,7 @@ fn style_authored(style: &TextStyleSnap) -> bool {
         || style.underline.is_some()
         || style.strike.is_some()
         || style.small_caps.is_some()
+        || style.all_caps.is_some()
         || style.baseline.is_some()
         || style.typeface.is_some()
         || style.font_size.is_some()
@@ -587,10 +588,13 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
             }
         }
     }
-    match style.small_caps {
-        Some(true) => set_attr(&mut rpr, "cap", "small"),
-        Some(false) => {}
-        None => {
+    // One `@cap`. All caps wins when both are authored on; either `Some(false)`
+    // drops the attribute unless the other flag is `Some(true)`.
+    match (style.all_caps, style.small_caps) {
+        (Some(true), _) => set_attr(&mut rpr, "cap", "all"),
+        (_, Some(true)) => set_attr(&mut rpr, "cap", "small"),
+        (Some(false), _) | (_, Some(false)) => {}
+        (None, None) => {
             if let Some(cap) = previous_cap {
                 set_attr(&mut rpr, "cap", &cap);
             }

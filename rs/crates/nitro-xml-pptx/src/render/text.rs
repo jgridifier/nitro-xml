@@ -2179,6 +2179,38 @@ mod tests {
     }
 
     #[test]
+    fn catches_all_caps_painting_sentence_case() {
+        // Catches: a:rPr/@cap="all" painting in sentence case instead of text-transform uppercase.
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(18.0),
+            font_family: None,
+            font_bold: false,
+            font_italic: false,
+            font_kern_hundredths: None,
+            text_caps: Some("all"),
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: None,
+            paragraphs: None,
+            text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
+            body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
+            compat_line_spacing: false,
+        });
+        assert!(
+            intern.0.iter().any(|s| s == "text-transform"),
+            "missing text-transform, got {:?}",
+            intern.0
+        );
+        assert!(intern.0.iter().any(|s| s == "uppercase"));
+    }
+
+    #[test]
     fn text_outline_without_solid_color_uses_current_color() {
         // Catches: Selamat-like ln with no solid stroke color never gets currentColor text-stroke.
         let intern = paint_with(TextBodyPaint {

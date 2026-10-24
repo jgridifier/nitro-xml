@@ -87,6 +87,7 @@ pub fn parse_editor_text(tx: &Element) -> EditorText {
                 underline: run.underline.unwrap_or(false),
                 strike: xml_runs.get(ri).is_some_and(|el| run_has_strike(el)),
                 small_caps: xml_runs.get(ri).is_some_and(|el| run_small_caps(el)),
+                all_caps: xml_runs.get(ri).is_some_and(|el| run_all_caps(el)),
                 font_size: run.size_pt.map(pt_to_px),
                 color: run.color.as_ref().and_then(css_srgb),
                 baseline: xml_runs.get(ri).and_then(|el| run_baseline(el)),
@@ -139,6 +140,12 @@ fn run_small_caps(run: &Element) -> bool {
     child_local(run, "rPr", ns::A)
         .and_then(|rpr| attr(rpr, "cap"))
         .is_some_and(|value| value.eq_ignore_ascii_case("small"))
+}
+
+fn run_all_caps(run: &Element) -> bool {
+    child_local(run, "rPr", ns::A)
+        .and_then(|rpr| attr(rpr, "cap"))
+        .is_some_and(|value| value.eq_ignore_ascii_case("all"))
 }
 
 fn run_baseline(run: &Element) -> Option<i32> {
@@ -427,6 +434,7 @@ fn toggle_paragraph(
         underline: marker_style.underline,
         strike: marker_style.strike,
         small_caps: marker_style.small_caps,
+        all_caps: marker_style.all_caps,
         font_size: marker_style.font_size,
         color: marker_style.color,
         align,

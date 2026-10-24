@@ -70,6 +70,7 @@ const pptxFont = {
   items: [
     ...font.items,
     cmd("home.small-caps", "smallCaps", "Small caps", "Small caps"),
+    cmd("home.caps", "caps", "All caps", "All caps"),
   ],
 };
 const align = {

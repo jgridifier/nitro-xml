@@ -331,4 +331,34 @@ mod tests {
             .expect("slide1");
         assert!(xml.contains("Saved via editor"), "{xml}");
     }
+
+    #[test]
+    fn catches_all_caps_leaving_small_caps_set_on_the_shape() {
+        // Catches: All Caps leaving small caps set on the shape, so the next save keeps cap="small".
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut editor = PptxEditor::open(bytes.as_slice()).expect("open");
+        let id = editor.session.host.slides[0].elements[0].id.clone();
+        editor.select_elements(vec![id]);
+        editor
+            .dispatch_command("home.small-caps", &Value::Null)
+            .expect("small caps");
+        editor
+            .dispatch_command("home.caps", &Value::Null)
+            .expect("all caps");
+        let style = editor.session.host.slides[0].elements[0]
+            .text_style
+            .as_ref()
+            .expect("style");
+        assert_eq!(style.all_caps, Some(true));
+        assert_eq!(style.small_caps, Some(false));
+        editor
+            .dispatch_command("home.small-caps", &Value::Null)
+            .expect("small caps again");
+        let style = editor.session.host.slides[0].elements[0]
+            .text_style
+            .as_ref()
+            .expect("style");
+        assert_eq!(style.small_caps, Some(true));
+        assert_eq!(style.all_caps, Some(false));
+    }
 }

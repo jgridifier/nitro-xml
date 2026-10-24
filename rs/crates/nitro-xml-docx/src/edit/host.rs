@@ -66,8 +66,13 @@ impl DocxHost {
     }
 
     pub fn open(bytes: &[u8]) -> Result<Self, String> {
-        let loaded = read_package(bytes).map_err(|e| e.to_string())?;
-        let source_document_xml = Self::source_document_xml_from_package(bytes)?;
+        let mut loaded = read_package(bytes).map_err(|e| e.to_string())?;
+        // Slice 28: reuse DocumentModel cache from #471 — no second Package::open.
+        let source_document_xml = loaded
+            .model
+            .source_document_xml
+            .take()
+            .ok_or_else(|| "word/document.xml cache missing after read_package".to_string())?;
         Ok(Self::from_document_model(
             &loaded.model,
             source_document_xml,

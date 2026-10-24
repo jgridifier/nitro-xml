@@ -30,11 +30,10 @@ pub fn dump_docx_styles(bytes: &[u8]) -> Result<String, String> {
         .unwrap_or_else(|| json!({ "styles": {}, "warnings": [] }));
     let numbering_catalog = model.numbering_catalog.clone();
 
-    let doc_xml = loaded
-        .package
-        .text("word/document.xml")
-        .map_err(|e| e.to_string())?
-        .ok_or("missing word/document.xml")?;
+    let doc_xml = model
+        .source_document_xml
+        .as_deref()
+        .ok_or("word/document.xml cache missing after read_package")?;
     let document = nitro_xml_opc::xml::parse_xml_str(doc_xml).map_err(|e| e.to_string())?;
     let body = first_body(&document.root).ok_or("DOCX document.xml has no w:body")?;
 

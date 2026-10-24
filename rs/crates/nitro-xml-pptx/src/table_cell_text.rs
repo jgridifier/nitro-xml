@@ -21,6 +21,7 @@ pub(crate) struct CellRun {
     pub italic: bool,
     pub underline: bool,
     pub strikethrough: bool,
+    pub double_strike: bool,
     pub font_size: Option<f64>,
     pub color: Option<String>,
     pub font_family: Option<String>,
@@ -97,7 +98,9 @@ fn apply_run_props(run: &mut CellRun, r_pr: &Element, color: &dyn Fn(&Element) -
     run.bold = flag(r_pr, "b");
     run.italic = flag(r_pr, "i");
     run.underline = attr(r_pr, "u").is_some_and(|u| u != "none");
-    run.strikethrough = attr(r_pr, "strike").is_some_and(|s| !s.is_empty() && s != "noStrike");
+    let strike = attr(r_pr, "strike");
+    run.strikethrough = strike.is_some_and(|s| !s.is_empty() && s != "noStrike");
+    run.double_strike = strike.is_some_and(|s| s.eq_ignore_ascii_case("dblStrike"));
     run.font_size = size_pt(Some(r_pr));
     if let Some(fill) = child_local(r_pr, "solidFill", ns::A) {
         run.color = color(fill);
@@ -551,6 +554,9 @@ pub(crate) fn run_css(run: &CellRun, exact_spacing: bool) -> Vec<(&'static str, 
     if !deco.is_empty() {
         css.push(("text-decoration", deco.join(" ")));
     }
+    if run.double_strike {
+        css.push(("text-decoration-style", "double".into()));
+    }
     if run.character_spacing != 0 {
         css.push((
             "letter-spacing",
@@ -604,5 +610,27 @@ mod tests {
 <a:p><a:r><a:rPr sz="1000"/><a:t>A</a:t></a:r></a:p></a:txBody></a:tc>"#,
         );
         assert!(paragraph_blocks(&plain, "A").is_none());
+    }
+
+    #[test]
+    fn catches_double_strike_painting_a_table_cell_as_one_line() {
+        // Catches: a table cell a:rPr/@strike="dblStrike" painting as one line.
+        let rich = cell(
+            r#"<a:tc xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:txBody><a:bodyPr/>
+<a:p><a:r><a:rPr strike="dblStrike"/><a:t>A</a:t></a:r></a:p></a:txBody></a:tc>"#,
+        );
+        let run = rich
+            .runs
+            .as_ref()
+            .and_then(|runs| runs.first())
+            .expect("run");
+        assert!(run.double_strike);
+        let css = run_css(run, false);
+        assert!(css
+            .iter()
+            .any(|(k, v)| *k == "text-decoration" && v.contains("line-through")));
+        assert!(css
+            .iter()
+            .any(|(k, v)| *k == "text-decoration-style" && v == "double"));
     }
 }

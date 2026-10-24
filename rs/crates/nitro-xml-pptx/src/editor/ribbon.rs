@@ -67,6 +67,12 @@ pub fn ribbon_html(
             surface,
             false,
         ));
+        html.push_str(&button(
+            "home.double-strike",
+            "Double Strikethrough",
+            surface,
+            false,
+        ));
         html.push_str(&button("home.small-caps", "Small Caps", surface, false));
         html.push_str(&button("home.caps", "All Caps", surface, false));
         html.push_str(&button("home.align-left", "Align Left", surface, false));

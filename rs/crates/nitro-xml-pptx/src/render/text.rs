@@ -1154,7 +1154,13 @@ fn append_paint_run<I: StringIntern>(
         if run_line_height_zero {
             set_style(ctx, base, "line-height", "0");
         }
-        apply_run_decoration(ctx, base, run_model.underline, run_model.strikethrough);
+        apply_run_decoration(
+            ctx,
+            base,
+            run_model.underline,
+            run_model.strikethrough,
+            run_model.double_strike,
+        );
         if should_emit_gdi_tracking_for_run(&display_text, run_model.underline) {
             apply_gdi_metric_letter_spacing(
                 ctx,
@@ -1455,7 +1461,13 @@ fn paint_run_span_styles<I: StringIntern>(
         };
         set_style(ctx, run, "word-break", wb);
     }
-    apply_run_decoration(ctx, run, run_model.underline, run_model.strikethrough);
+    apply_run_decoration(
+        ctx,
+        run,
+        run_model.underline,
+        run_model.strikethrough,
+        run_model.double_strike,
+    );
     if emit_gdi_tracking {
         apply_gdi_metric_letter_spacing(
             ctx,
@@ -1514,7 +1526,9 @@ fn apply_run_decoration<I: StringIntern>(
     run: u32,
     underline: bool,
     strike: bool,
+    double_strike: bool,
 ) {
+    let strike = strike || double_strike;
     if !underline && !strike {
         return;
     }
@@ -1524,7 +1538,10 @@ fn apply_run_decoration<I: StringIntern>(
         _ => "underline",
     };
     set_style(ctx, run, "text-decoration-line", line);
-    if underline {
+    if double_strike {
+        // `text-decoration-style` applies to every line, including an underline.
+        set_style(ctx, run, "text-decoration-style", "double");
+    } else if underline {
         set_style(ctx, run, "text-decoration-style", "solid");
         set_style(ctx, run, "text-decoration-thickness", "1px");
     }
@@ -1679,7 +1696,13 @@ fn paint_css_tab_run<I: StringIntern>(
         set_style(ctx, run, "font-family", VISUAL_HOST_RUN_FONT_STACK);
     }
     paint_run_typography(ctx, run, paint, size, stack);
-    apply_run_decoration(ctx, run, run_model.underline, run_model.strikethrough);
+    apply_run_decoration(
+        ctx,
+        run,
+        run_model.underline,
+        run_model.strikethrough,
+        run_model.double_strike,
+    );
     if should_emit_gdi_tracking_for_run(display_text, run_model.underline) {
         apply_gdi_metric_letter_spacing(
             ctx,
@@ -1755,7 +1778,13 @@ fn paint_tabbed_run<I: StringIntern>(
             set_style(ctx, piece, "font-family", VISUAL_HOST_RUN_FONT_STACK);
         }
         paint_run_typography(ctx, piece, paint, size, stack);
-        apply_run_decoration(ctx, piece, run_model.underline, run_model.strikethrough);
+        apply_run_decoration(
+            ctx,
+            piece,
+            run_model.underline,
+            run_model.strikethrough,
+            run_model.double_strike,
+        );
         if should_emit_gdi_tracking_for_run(text, run_model.underline) {
             apply_gdi_metric_letter_spacing(
                 ctx,
@@ -2208,6 +2237,51 @@ mod tests {
             intern.0
         );
         assert!(intern.0.iter().any(|s| s == "uppercase"));
+    }
+
+    #[test]
+    fn catches_double_strike_painting_one_line() {
+        // Catches: a:rPr/@strike="dblStrike" painting as one line instead of text-decoration-style double.
+        let doc = nitro_xml_opc::xml::parse_xml_str(
+            r#"<p:txBody xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:bodyPr/><a:p><a:r><a:rPr strike="dblStrike"/><a:t>Hi</a:t></a:r></a:p></p:txBody>"#,
+        )
+        .expect("xml");
+        let paras = crate::text_layout::parse_text_paint_paragraphs(&doc.root);
+        assert!(
+            paras
+                .first()
+                .and_then(|p| p.runs.first())
+                .is_some_and(|run| run.double_strike),
+            "dblStrike did not mark the paint run"
+        );
+        let intern = paint_with(TextBodyPaint {
+            text_color: None,
+            font_size_px: Some(18.0),
+            font_family: None,
+            font_bold: false,
+            font_italic: false,
+            font_kern_hundredths: None,
+            text_caps: None,
+            text_stroke_width_px: None,
+            text_stroke_color: None,
+            layout: None,
+            paragraphs: Some(&paras),
+            text_shadow: None,
+            geom_rect_padding: TextBodyRectPadding::default(),
+            presentation_kinsoku: false,
+            body_box_height_px: None,
+            text_warp_preset: None,
+            text_warp_adj: None,
+            text_warp_adj2: None,
+            compat_line_spacing: false,
+        });
+        assert!(
+            intern.0.iter().any(|s| s == "line-through"),
+            "missing line-through, got {:?}",
+            intern.0
+        );
+        assert!(intern.0.iter().any(|s| s == "text-decoration-style"));
+        assert!(intern.0.iter().any(|s| s == "double"));
     }
 
     #[test]

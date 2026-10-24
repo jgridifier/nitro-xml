@@ -83,6 +83,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("home.italic", "Italic", Some("Ctrl+I"), true),
     pptx_cmd!("home.underline", "Underline", Some("Ctrl+U"), true),
     pptx_cmd!("home.strikethrough", "Strikethrough", Some("Ctrl+5"), true),
+    pptx_cmd!("home.double-strike", "Double Strikethrough", None, true),
     pptx_cmd!("home.small-caps", "Small Caps", None, true),
     pptx_cmd!("home.caps", "All Caps", None, true),
     pptx_cmd!("home.align-left", "Align Left", None, true),
@@ -263,23 +264,31 @@ impl PptxCommandSurface {
                     message: "home.strikethrough needs a selected shape".into(),
                 })?;
                 let slide = selection.slide_index;
-                let current = session
-                    .host
-                    .slide(slide)
-                    .ok()
-                    .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
-                    .and_then(|e| {
-                        e.text_style
-                            .as_ref()
-                            .and_then(|ts| ts.strike)
-                            .or_else(|| e.text_segments.iter().find(|seg| seg.strike).map(|_| true))
-                    })
-                    .unwrap_or(false);
-                let patch = json!({
+                let (single, double) = shape_strike_flags(session, slide, element_id);
+                let mut patch = json!({
                     "slideIndex": slide,
                     "elementId": element_id,
-                    "strike": !current,
+                    "strike": !single,
                 });
+                if !single && double {
+                    patch["doubleStrike"] = json!(false);
+                }
+                self.run_shape_op("setShapeTextStyle", &patch, session)
+            }
+            "home.double-strike" => {
+                let element_id = selection.primary_id().ok_or_else(|| EditError::Other {
+                    message: "home.double-strike needs a selected shape".into(),
+                })?;
+                let slide = selection.slide_index;
+                let (single, double) = shape_strike_flags(session, slide, element_id);
+                let mut patch = json!({
+                    "slideIndex": slide,
+                    "elementId": element_id,
+                    "doubleStrike": !double,
+                });
+                if !double && single {
+                    patch["strike"] = json!(false);
+                }
                 self.run_shape_op("setShapeTextStyle", &patch, session)
             }
             "home.small-caps" => {
@@ -1032,6 +1041,40 @@ fn shape_cap_flags(
                 })
                 .unwrap_or(false);
             (small, all)
+        })
+        .unwrap_or((false, false))
+}
+
+/// `(single strikethrough on, double strikethrough on)` for the selected shape.
+fn shape_strike_flags(
+    session: &EditSession<PptxHost, EditHistory>,
+    slide: u32,
+    element_id: &str,
+) -> (bool, bool) {
+    session
+        .host
+        .slide(slide)
+        .ok()
+        .and_then(|s| s.elements.iter().find(|e| e.id == element_id))
+        .map(|e| {
+            let single = e
+                .text_style
+                .as_ref()
+                .and_then(|ts| ts.strike)
+                .or_else(|| e.text_segments.iter().find(|seg| seg.strike).map(|_| true))
+                .unwrap_or(false);
+            let double = e
+                .text_style
+                .as_ref()
+                .and_then(|ts| ts.double_strike)
+                .or_else(|| {
+                    e.text_segments
+                        .iter()
+                        .find(|seg| seg.double_strike)
+                        .map(|_| true)
+                })
+                .unwrap_or(false);
+            (single, double)
         })
         .unwrap_or((false, false))
 }

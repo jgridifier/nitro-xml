@@ -14,6 +14,7 @@ const SHAPE_COMMANDS: &[&str] = &[
     "home.italic",
     "home.underline",
     "home.strikethrough",
+    "home.double-strike",
     "home.small-caps",
     "home.caps",
     "home.align-left",
@@ -411,6 +412,11 @@ impl PptxState {
                 RibbonItem {
                     id: "home.strikethrough",
                     label: "Strikethrough",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.double-strike",
+                    label: "Double Strikethrough",
                     enabled: true,
                 },
                 RibbonItem {

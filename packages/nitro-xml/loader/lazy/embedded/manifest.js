@@ -71,6 +71,7 @@ const pptxFont = {
     ...font.items,
     cmd("home.small-caps", "smallCaps", "Small caps", "Small caps"),
     cmd("home.caps", "caps", "All caps", "All caps"),
+    cmd("home.double-strike", "doubleStrike", "Double strikethrough", "Double strikethrough"),
   ],
 };
 const align = {

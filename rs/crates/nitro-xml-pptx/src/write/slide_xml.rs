@@ -530,6 +530,7 @@ fn style_authored(style: &TextStyleSnap) -> bool {
         || style.italic
         || style.underline.is_some()
         || style.strike.is_some()
+        || style.double_strike.is_some()
         || style.small_caps.is_some()
         || style.all_caps.is_some()
         || style.baseline.is_some()
@@ -579,10 +580,13 @@ fn upsert_rpr(run: &mut Element, style: &TextStyleSnap) {
             }
         }
     }
-    match style.strike {
-        Some(true) => set_attr(&mut rpr, "strike", "sngStrike"),
-        Some(false) => {}
-        None => {
+    // One `@strike`. Double strikethrough wins when both are authored on;
+    // either `Some(false)` drops the attribute unless the other flag is `Some(true)`.
+    match (style.double_strike, style.strike) {
+        (Some(true), _) => set_attr(&mut rpr, "strike", "dblStrike"),
+        (_, Some(true)) => set_attr(&mut rpr, "strike", "sngStrike"),
+        (Some(false), _) | (_, Some(false)) => {}
+        (None, None) => {
             if let Some(strike) = previous_strike {
                 set_attr(&mut rpr, "strike", &strike);
             }

@@ -110,6 +110,7 @@ const pptxFont = {
       ...FONT.rows[0],
       it("home.small-caps", "smallCaps", "Small caps", "Small caps"),
       it("home.caps", "caps", "All caps", "All caps"),
+      it("home.double-strike", "doubleStrike", "Double strikethrough", "Double strikethrough"),
     ],
     FONT.rows[1],
     FONT.rows[2],

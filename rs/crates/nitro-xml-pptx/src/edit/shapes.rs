@@ -45,9 +45,13 @@ pub struct TextStyleSnap {
     /// `Some` means the edit authored `a:rPr/@u` (`sng` or absent). `None` leaves the file's underline alone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub underline: Option<bool>,
-    /// `Some` means the edit authored `a:rPr/@strike` (`sngStrike` or absent).
+    /// `Some` means the edit authored `a:rPr/@strike="sngStrike"` (or absent).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strike: Option<bool>,
+    /// `Some` means the edit authored `a:rPr/@strike="dblStrike"` (or absent).
+    /// Double strikethrough wins when both flags are `Some(true)`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub double_strike: Option<bool>,
     /// `Some` means the edit authored `a:rPr/@cap="small"` (or absent).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub small_caps: Option<bool>,
@@ -94,6 +98,9 @@ pub struct TextSegmentSnap {
     pub underline: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub strike: bool,
+    /// `a:rPr/@strike="dblStrike"`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub double_strike: bool,
     /// `a:rPr/@cap="small"`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub small_caps: bool,
@@ -149,6 +156,7 @@ impl TextSegmentSnap {
             italic: self.italic,
             underline: self.underline,
             strike: self.strike,
+            double_strike: self.double_strike,
             small_caps: self.small_caps,
             all_caps: self.all_caps,
             font_size: self.font_size,
@@ -194,6 +202,7 @@ pub fn remap_text_to_segments(
                 italic: break_style.map(|s| s.italic).unwrap_or(false),
                 underline: break_style.map(|s| s.underline).unwrap_or(false),
                 strike: break_style.map(|s| s.strike).unwrap_or(false),
+                double_strike: break_style.map(|s| s.double_strike).unwrap_or(false),
                 small_caps: break_style.map(|s| s.small_caps).unwrap_or(false),
                 all_caps: break_style.map(|s| s.all_caps).unwrap_or(false),
                 font_size: break_style.and_then(|s| s.font_size),
@@ -229,6 +238,7 @@ fn remap_paragraph(
             italic: first.italic,
             underline: first.underline,
             strike: first.strike,
+            double_strike: first.double_strike,
             small_caps: first.small_caps,
             all_caps: first.all_caps,
             font_size: first.font_size,
@@ -251,6 +261,7 @@ fn remap_paragraph(
             italic: first.italic,
             underline: first.underline,
             strike: first.strike,
+            double_strike: first.double_strike,
             small_caps: first.small_caps,
             all_caps: first.all_caps,
             font_size: first.font_size,
@@ -291,6 +302,7 @@ fn remap_paragraph(
                 italic: orig_seg.italic,
                 underline: orig_seg.underline,
                 strike: orig_seg.strike,
+                double_strike: orig_seg.double_strike,
                 small_caps: orig_seg.small_caps,
                 all_caps: orig_seg.all_caps,
                 font_size: orig_seg.font_size,
@@ -326,6 +338,7 @@ fn remap_paragraph(
             italic: first.italic,
             underline: first.underline,
             strike: first.strike,
+            double_strike: first.double_strike,
             small_caps: first.small_caps,
             all_caps: first.all_caps,
             font_size: first.font_size,
@@ -637,6 +650,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                     color: color.as_deref(),
                     underline: arg_bool_opt(args, "underline"),
                     strike: arg_bool_opt(args, "strike"),
+                    double_strike: arg_bool_opt(args, "doubleStrike"),
                     small_caps: arg_bool_opt(args, "smallCaps"),
                     all_caps: arg_bool_opt(args, "allCaps"),
                     baseline: args

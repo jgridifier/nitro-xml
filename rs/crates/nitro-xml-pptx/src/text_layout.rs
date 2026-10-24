@@ -374,6 +374,8 @@ pub struct TextPaintRun {
     pub rtl: Option<bool>,
     pub underline: bool,
     pub strikethrough: bool,
+    /// `a:rPr/@strike="dblStrike"`. Still sets `strikethrough` so the line is drawn.
+    pub double_strike: bool,
     pub ruby: Option<TextPaintRuby>,
     /// `a:fld/@type` or inherited header/footer field tag (paint substitution).
     pub field_type: Option<String>,
@@ -907,6 +909,7 @@ fn collect_paint_runs(
                         rtl: None,
                         underline: false,
                         strikethrough: false,
+                        double_strike: false,
                         ruby: None,
                         field_type: None,
                         run_font_family: None,
@@ -949,6 +952,7 @@ fn collect_paint_runs(
                     rtl: r_pr.and_then(|rp| parse_optional_bool_attr(attr(rp, "rtl"))),
                     underline: false,
                     strikethrough: false,
+                    double_strike: false,
                     ruby: None,
                     field_type: None,
                     run_font_family: resolved.font_family,
@@ -980,6 +984,7 @@ fn collect_paint_runs(
                 let rtl = r_pr.and_then(|rp| parse_optional_bool_attr(attr(rp, "rtl")));
                 let underline = r_pr.map(rpr_has_underline).unwrap_or(false);
                 let strikethrough = r_pr.map(rpr_has_strike).unwrap_or(false);
+                let double_strike = r_pr.map(rpr_has_double_strike).unwrap_or(false);
                 let hyperlink_click = r_pr
                     .map(|rp| child_local(rp, "hlinkClick", ns::A).is_some())
                     .unwrap_or(false);
@@ -1018,6 +1023,7 @@ fn collect_paint_runs(
                     rtl,
                     underline: underline || hyperlink_click,
                     strikethrough,
+                    double_strike,
                     ruby,
                     field_type,
                     run_font_family: resolved.font_family,
@@ -1375,6 +1381,10 @@ fn rpr_has_underline(rpr: &Element) -> bool {
 
 fn rpr_has_strike(rpr: &Element) -> bool {
     attr(rpr, "strike").is_some_and(|value| !value.is_empty() && value != "noStrike")
+}
+
+fn rpr_has_double_strike(rpr: &Element) -> bool {
+    attr(rpr, "strike").is_some_and(|value| value.eq_ignore_ascii_case("dblStrike"))
 }
 
 fn parse_tab_stops(p_pr: &Element) -> Vec<TextPaintTabStop> {

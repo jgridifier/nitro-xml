@@ -54,6 +54,7 @@ pub struct TextStylePatch<'a> {
     pub color: Option<&'a str>,
     pub underline: Option<bool>,
     pub strike: Option<bool>,
+    pub double_strike: Option<bool>,
     pub small_caps: Option<bool>,
     pub all_caps: Option<bool>,
     pub baseline: Option<i32>,
@@ -377,6 +378,7 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
             color: editor.and_then(|e| e.color.clone()),
             underline: None,
             strike: None,
+            double_strike: None,
             small_caps: None,
             all_caps: None,
             baseline: None,
@@ -660,6 +662,9 @@ impl PptxHost {
             if let Some(strike) = patch.strike {
                 style.strike = Some(strike);
             }
+            if let Some(double_strike) = patch.double_strike {
+                style.double_strike = Some(double_strike);
+            }
             if let Some(small_caps) = patch.small_caps {
                 style.small_caps = Some(small_caps);
             }
@@ -687,6 +692,14 @@ impl PptxHost {
                     continue;
                 }
                 seg.strike = strike;
+            }
+        }
+        if let Some(double_strike) = patch.double_strike {
+            for seg in &mut el.text_segments {
+                if seg.is_paragraph_break || seg.is_line_break {
+                    continue;
+                }
+                seg.double_strike = double_strike;
             }
         }
         if let Some(small_caps) = patch.small_caps {

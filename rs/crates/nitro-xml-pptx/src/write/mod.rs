@@ -300,6 +300,87 @@ mod tests {
     }
 
     #[test]
+    fn catches_double_strike_dropped_on_slide_save() {
+        // Catches: a slide save that omits a:rPr/@strike="dblStrike", so reopen draws one line.
+        use crate::edit::host::TextStylePatch;
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        host.set_text_style(
+            0,
+            None,
+            Some(0),
+            TextStylePatch {
+                double_strike: Some(true),
+                ..TextStylePatch::default()
+            },
+        )
+        .expect("double strike");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save");
+        let xml = slide_xml(&saved, "ppt/slides/slide1.xml");
+        assert!(
+            xml.contains("strike=\"dblStrike\""),
+            "saved slide dropped dblStrike: {xml}"
+        );
+        let again = PptxHost::open(&saved).expect("reopen");
+        let el = &again.slides[0].elements[0];
+        assert!(
+            el.text_segments.iter().any(|s| s.double_strike),
+            "reopened shape lost double strikethrough"
+        );
+    }
+
+    #[test]
+    fn catches_double_strike_and_single_strike_both_written_on_one_attr() {
+        // Catches: double strikethrough and single strikethrough both surviving on one a:rPr/@strike.
+        use crate::edit::host::TextStylePatch;
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut host = PptxHost::open(bytes.as_slice()).expect("open");
+        host.set_text_style(
+            0,
+            None,
+            Some(0),
+            TextStylePatch {
+                double_strike: Some(true),
+                strike: Some(false),
+                ..TextStylePatch::default()
+            },
+        )
+        .expect("double");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save");
+        let xml = slide_xml(&saved, "ppt/slides/slide1.xml");
+        assert!(
+            xml.contains("strike=\"dblStrike\""),
+            "missing dblStrike: {xml}"
+        );
+        assert!(
+            !xml.contains("strike=\"sngStrike\""),
+            "kept sngStrike: {xml}"
+        );
+
+        host.set_text_style(
+            0,
+            None,
+            Some(0),
+            TextStylePatch {
+                double_strike: Some(false),
+                strike: Some(true),
+                ..TextStylePatch::default()
+            },
+        )
+        .expect("single");
+        let saved = save_pptx(&host, bytes.as_slice()).expect("save single");
+        let xml = slide_xml(&saved, "ppt/slides/slide1.xml");
+        assert!(
+            xml.contains("strike=\"sngStrike\""),
+            "missing sngStrike: {xml}"
+        );
+        assert!(
+            !xml.contains("strike=\"dblStrike\""),
+            "kept dblStrike: {xml}"
+        );
+    }
+
+    #[test]
     fn catches_small_caps_dropped_on_slide_save() {
         // Catches: a slide save that omits a:rPr/@cap="small", so reopen draws the run at full cap height.
         use crate::edit::host::TextStylePatch;

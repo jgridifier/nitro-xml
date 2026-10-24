@@ -361,4 +361,34 @@ mod tests {
         assert_eq!(style.small_caps, Some(true));
         assert_eq!(style.all_caps, Some(false));
     }
+
+    #[test]
+    fn catches_double_strike_leaving_single_strike_set_on_the_shape() {
+        // Catches: Double strikethrough leaving single strikethrough set, so the next save keeps strike="sngStrike".
+        let bytes = include_bytes!("../../../../../fixtures/generated/pptx/slides_10.pptx");
+        let mut editor = PptxEditor::open(bytes.as_slice()).expect("open");
+        let id = editor.session.host.slides[0].elements[0].id.clone();
+        editor.select_elements(vec![id]);
+        editor
+            .dispatch_command("home.strikethrough", &Value::Null)
+            .expect("strike");
+        editor
+            .dispatch_command("home.double-strike", &Value::Null)
+            .expect("double strike");
+        let style = editor.session.host.slides[0].elements[0]
+            .text_style
+            .as_ref()
+            .expect("style");
+        assert_eq!(style.double_strike, Some(true));
+        assert_eq!(style.strike, Some(false));
+        editor
+            .dispatch_command("home.strikethrough", &Value::Null)
+            .expect("strike again");
+        let style = editor.session.host.slides[0].elements[0]
+            .text_style
+            .as_ref()
+            .expect("style");
+        assert_eq!(style.strike, Some(true));
+        assert_eq!(style.double_strike, Some(false));
+    }
 }

@@ -117,6 +117,7 @@ export const MANIFEST = {
           cmd("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
           cmd("home.caps", "caps", "All caps", "All caps"),
           cmd("home.small-caps", "smallCaps", "Small caps", "Small caps"),
+          cmd("home.double-strike", "doubleStrike", "Double strikethrough", "Double strikethrough"),
           cmd("home.hidden", "hidden", "Hidden", "Hidden text"),
           cmd("home.expand-spacing", "expandSpacing", "Expand", "Expand character spacing"),
           cmd("home.condense-spacing", "condenseSpacing", "Condense", "Condense character spacing"),

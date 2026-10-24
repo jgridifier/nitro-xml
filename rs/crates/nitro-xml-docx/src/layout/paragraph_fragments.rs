@@ -43,6 +43,7 @@ pub fn build_fragments(
             strike: run.and_then(|r| r.strike),
             highlight: run.and_then(|r| r.highlight.clone()),
             small_caps: run.and_then(|r| r.small_caps),
+            double_strike: run.and_then(|r| r.double_strike),
             script: run.and_then(|r| r.script.clone()),
             top_px: None,
             box_height_px: None,

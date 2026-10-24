@@ -45,6 +45,8 @@ pub struct LayoutFragment {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub small_caps: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub double_strike: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub script: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_px: Option<f64>,

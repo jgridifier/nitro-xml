@@ -645,12 +645,12 @@ Entered **`@betteroffice/docx@0.4.3`** (Apache-2.0) in the docx parse race — R
 times load+init+first paint (800×480, DPR 1). **xlsx** and **pptx** are entered for `nitro-xml` vs
 `upstream-ts`; docx deferred (#23). Equivalence unchanged from [#390](https://github.com/jgridifier/nitro-xml/pull/390).
 
-**Published** `docs/scoreboard/data/first-paint-latest.json` at tip **`b2dcc3c`** (tiers
+**Published** `docs/scoreboard/data/first-paint-latest.json` at tip **`61c5195`** (tiers
 **S/M/L/XL**, 3 timed + 1 warmup, `--timeout=600000`; remasure 2026-10-23 after
-#454 defer host originalBytes + #455 parse-latest + #451). Archive:
-`perf/scoreboard/results/render/2026-10-23-b2dcc3c.json`. Draft **#113** / stub
-`scoreboard.sh` (#39) **untouched**. Prior published tip was **`642a7dd`**
-(`2026-10-23-642a7dd.json`). Parked **#415** untouched.
+soft-share #457/#462/#466 + #464/#465/#461). Archive:
+`perf/scoreboard/results/render/2026-10-23-61c5195.json`. Draft **#113** / stub
+`scoreboard.sh` (#39) **untouched**. Prior published tip was **`b2dcc3c`**
+(`2026-10-23-b2dcc3c.json`). Parked **#415** untouched.
 
 Harness note (from #413, still in effect): Nitro adapters no longer call host
 `initCore` (that double-instantiated wasm vs the worker); they use
@@ -658,14 +658,14 @@ Harness note (from #413, still in effect): Nitro adapters no longer call host
 
 | Format | Tier | Nitro median (ms) | TS median (ms) | Comparable | W/L |
 |--------|------|------------------:|---------------:|:----------:|:---:|
-| xlsx | S | 170 | 778 | yes | **W** |
-| xlsx | M | 204 | 978 | yes | **W** |
-| xlsx | L | 285 | 2301 | yes | **W** |
-| xlsx | XL | 339 | 2207 | yes | **W** |
-| pptx | S | 179 | 638 | yes | **W** |
-| pptx | M | 189 | 679 | yes | **W** |
-| pptx | L | 187 | 878 | yes | **W** |
-| pptx | XL | 237 | 897 | yes | **W** |
+| xlsx | S | 183 | 752 | yes | **W** |
+| xlsx | M | 194 | 942 | yes | **W** |
+| xlsx | L | 277 | 2264 | yes | **W** |
+| xlsx | XL | 339 | 2364 | yes | **W** |
+| pptx | S | 183 | 636 | yes | **W** |
+| pptx | M | 195 | 700 | yes | **W** |
+| pptx | L | 205 | 932 | yes | **W** |
+| pptx | XL | 247 | 1059 | yes | **W** |
 
 Nitro **8W/0L** on comparable cells (pptx Nitro pixels **0.044%** vs 0.5% limit).
 
@@ -707,7 +707,7 @@ Published `parse-latest.json` and `first-paint-latest.json` are real measured ti
 - [x] Bundle / loader sizes recorded (loader **16.69 / 17 KB**; wasm sizes above)
 - [x] Per-format×tier **TS vs WASM** cold-open medians + 95% bootstrap CIs recorded (§5.3), **including xlsx S clear WIN after #352** (CI upper 0.321; peak-mem LOSSes kept on xlsx/docx S); **#23 left open** (docx arm deferred)
 - [x] CI gate scripts real in **report mode** (§5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342)) — bar unchanged; LOSSes posted; enforce not flipped; post-#352 matrix **14/18 WIN**
-- [x] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; published `parse-latest.json` Nitro **entered**, tip **`b2ae2ec`** **90W/0L** (method 2+7, includes betteroffice-docx **21W/0L**); tip nitro↔upstream remasure on **`09a82b3`** still **90W/0L**; published `first-paint-latest.json` tip **`b2dcc3c`** **8W/0L** S–XL (remasure after #454/#455/#451); peak_mem standings keep xlsx S + docx S/M as **LOSS** with known-loss exception ([Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)); CI `scoreboard` job / draft **#113** still open (not required for Pages data)
+- [x] Scoreboard standings including losses — adapters **#299/#329/#388/#384**; published `parse-latest.json` Nitro **entered**, tip **`b2ae2ec`** **90W/0L** (method 2+7, includes betteroffice-docx **21W/0L**); tip nitro↔upstream remasure on **`09a82b3`** still **90W/0L**; published `first-paint-latest.json` tip **`61c5195`** **8W/0L** S–XL (remasure after soft-share #457/#462/#466 + #464); peak_mem standings keep xlsx S + docx S/M as **LOSS** with known-loss exception ([Jared](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)); CI `scoreboard` job / draft **#113** still open (not required for Pages data)
 - [ ] `crash-recovery` / `perf-beats-ts` added to branch-protection required checks — **Jared / Chief of Staff only** (add `perf-beats-ts` only after `PERF_GATE_MODE=enforce`)
 - [ ] Flip `perf-beats-ts` to **enforce** — **#8 / #19 / #27** (+ docx **#23**); tip readiness **READY** for xlsx/docx/pptx with documented known-loss exceptions still printed as LOSS; Jared flips workflow env (agents do not)
 

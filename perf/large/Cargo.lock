@@ -143,7 +143,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-docx"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "indexmap",
  "nitro-xml-opc",
@@ -166,9 +166,10 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-opc"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "indexmap",
+ "memchr",
  "quick-xml",
  "serde",
  "serde_json",
@@ -177,7 +178,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-pptx"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "indexmap",
  "nitro-xml-opc",
@@ -190,7 +191,7 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-render"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "flate2",
  "nitro-xml-opc",
@@ -201,9 +202,10 @@ dependencies = [
 
 [[package]]
 name = "nitro-xml-xlsx"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "libc",
+ "memchr",
  "nitro-xml-opc",
  "nitro-xml-render",
  "quick-xml",

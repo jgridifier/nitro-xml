@@ -15,3 +15,7 @@ nitro-xml-opc = { path = "../../rs/crates/nitro-xml-opc" }
 [[bin]]
 name = "baseline"
 path = "src/baseline.rs"
+
+[[bin]]
+name = "pptx-ensure-edit-mem"
+path = "src/pptx_ensure_edit_mem.rs"

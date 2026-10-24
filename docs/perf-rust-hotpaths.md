@@ -743,3 +743,54 @@ Sample0 is warm after unlock soft-share (same pattern as xlsx #457); p50 flat:
 
 **Verdict:** **SHIP** — ensure_edit host build ~100× faster when the viewer deck is loaded; cold
 peak-mem / warm edit p50 flat as expected. Completes soft-share trilogy with xlsx #457 / docx #462.
+
+## Slice 26: pptx editor `original` shares handle `Arc<[u8]>` (no `to_vec` on `ensure_edit`)
+
+**Goal:** after soft-share (#466), `PptxEditor::from_opened_host` still did `bytes.to_vec()` for the
+writer baseline, duplicating the full zip while the viewer already holds the same package `Arc`. Share
+one buffer for view + edit save overlay.
+
+**Rust:** `PptxEditor::original` is `Arc<[u8]>`; `from_opened_host(host, Arc<[u8]>)`; wasm
+`ensure_edit` clones `PptxState::package_arc()` into the editor. `save()` still returns a fresh
+`Vec` to callers; only the retained baseline is Arc-backed.
+
+**A/B** (`origin/main` `61c5195` vs tip of `cursor/perf-pptx-arc-original-4e30` on this box):
+
+### Native `ensure_edit` package baseline (primary — release, n=21 medians)
+
+Viewer holds a fully loaded `Presentation` (`ensure_all_slides` done). Soft-share builds
+`PptxHost::from_presentation`; this slice only changes how `PptxEditor` retains the writer
+baseline (`bytes.to_vec()` vs `Arc::clone` of the viewer package).
+
+Harness: `cargo run --release --manifest-path perf/large/Cargo.toml --bin pptx-ensure-edit-mem -- --runs 21`
+(branch); `NITRO_PPTX_MAIN_BENCH=1` same command against `origin/main` pptx API (`main_to_vec`).
+
+| Tier | fixture KiB | main retained copy B | branch retained copy B | main attach ms | branch attach ms | branch `Arc` +1 |
+|---|---:|---:|---:|---:|---:|---|
+| pptx S | 11 | 11,993 | **0** | 0.025 | 0.025 | yes |
+| pptx M | 432 | 442,863 | **0** | 0.056 | 0.036 | yes |
+| pptx L | 2,596 | 2,658,791 | **0** | 0.252 | **0.085** | yes |
+
+Retained copy = full zip bytes duplicated into `PptxEditor::original` on unlock (main only).
+Process VmHWM delta around attach is within noise for M/L (allocator does not always bump HWM
+per `Vec`); the byte accounting and `Arc::strong_count` (+1 on branch) are the honest signal.
+
+### Peak memory (`peak-mem.mjs --runs=5`, wasm open ms / peak MiB) — **expected flat**
+
+Cold open does not call `ensure_edit`; editor baseline is not built on the read-only path.
+Tip re-run (pptx only): S **17.8 ms / 4.3 MiB**, M **19.7 / 6.1**, L **23.1 / 16.9** — same class
+as main cold opens (no material Δ from Arc plumbing).
+
+### Edit (`EDIT_SAMPLES=21`, `measure-edit-latency.mjs`, p50 ms / heap peak MiB)
+
+| Scenario×tier | before | after |
+|---|---|---|
+| edit-pptx-text pptx S | 3.1 / 5.8 | 3.4 / 5.8 |
+| edit-pptx-text pptx L | 10.6 / 12.0 | 10.7 / 12.0 |
+| edit-bold pptx S | 2.8 / 6.1 | 2.7 / 6.0 |
+| edit-bold pptx L | 10.5 / 11.8 | 10.6 / 11.8 |
+
+Warm edit p50 flat (unlock already paid on sample 0).
+
+**Verdict:** **SHIP** — S/M/L avoid retaining a second full zip on writable unlock (~12 KiB / 433 KiB /
+2.5 MiB); pptx L attach ~3× faster; cold wasm peak and warm edit p50 flat as expected.

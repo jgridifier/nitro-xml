@@ -15,6 +15,7 @@ const SHAPE_COMMANDS: &[&str] = &[
     "home.underline",
     "home.strikethrough",
     "home.small-caps",
+    "home.caps",
     "home.align-left",
     "home.align-center",
     "home.align-right",
@@ -415,6 +416,11 @@ impl PptxState {
                 RibbonItem {
                     id: "home.small-caps",
                     label: "Small Caps",
+                    enabled: true,
+                },
+                RibbonItem {
+                    id: "home.caps",
+                    label: "All Caps",
                     enabled: true,
                 },
                 RibbonItem {

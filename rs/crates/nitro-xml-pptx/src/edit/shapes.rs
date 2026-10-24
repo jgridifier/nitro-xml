@@ -48,9 +48,13 @@ pub struct TextStyleSnap {
     /// `Some` means the edit authored `a:rPr/@strike` (`sngStrike` or absent).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strike: Option<bool>,
-    /// `Some` means the edit authored `a:rPr/@cap` (`small` or absent).
+    /// `Some` means the edit authored `a:rPr/@cap="small"` (or absent).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub small_caps: Option<bool>,
+    /// `Some` means the edit authored `a:rPr/@cap="all"` (or absent).
+    /// All caps wins when both flags are `Some(true)`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub all_caps: Option<bool>,
     /// `a:rPr/@baseline` in hundredths of a percent. `Some(0)` clears it; `None` leaves the file alone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub baseline: Option<i32>,
@@ -93,6 +97,9 @@ pub struct TextSegmentSnap {
     /// `a:rPr/@cap="small"`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub small_caps: bool,
+    /// `a:rPr/@cap="all"`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub all_caps: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font_size: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -143,6 +150,7 @@ impl TextSegmentSnap {
             underline: self.underline,
             strike: self.strike,
             small_caps: self.small_caps,
+            all_caps: self.all_caps,
             font_size: self.font_size,
             color: self.color.clone(),
             baseline: self.baseline,
@@ -187,6 +195,7 @@ pub fn remap_text_to_segments(
                 underline: break_style.map(|s| s.underline).unwrap_or(false),
                 strike: break_style.map(|s| s.strike).unwrap_or(false),
                 small_caps: break_style.map(|s| s.small_caps).unwrap_or(false),
+                all_caps: break_style.map(|s| s.all_caps).unwrap_or(false),
                 font_size: break_style.and_then(|s| s.font_size),
                 color: break_style.and_then(|s| s.color.clone()),
                 baseline: break_style.and_then(|s| s.baseline),
@@ -221,6 +230,7 @@ fn remap_paragraph(
             underline: first.underline,
             strike: first.strike,
             small_caps: first.small_caps,
+            all_caps: first.all_caps,
             font_size: first.font_size,
             color: first.color.clone(),
             baseline: first.baseline,
@@ -242,6 +252,7 @@ fn remap_paragraph(
             underline: first.underline,
             strike: first.strike,
             small_caps: first.small_caps,
+            all_caps: first.all_caps,
             font_size: first.font_size,
             color: first.color.clone(),
             baseline: first.baseline,
@@ -281,6 +292,7 @@ fn remap_paragraph(
                 underline: orig_seg.underline,
                 strike: orig_seg.strike,
                 small_caps: orig_seg.small_caps,
+                all_caps: orig_seg.all_caps,
                 font_size: orig_seg.font_size,
                 color: orig_seg.color.clone(),
                 baseline: orig_seg.baseline,
@@ -315,6 +327,7 @@ fn remap_paragraph(
             underline: first.underline,
             strike: first.strike,
             small_caps: first.small_caps,
+            all_caps: first.all_caps,
             font_size: first.font_size,
             color: first.color.clone(),
             baseline: first.baseline,
@@ -625,6 +638,7 @@ pub fn register_shape_commands(registry: &mut CommandRegistry) {
                     underline: arg_bool_opt(args, "underline"),
                     strike: arg_bool_opt(args, "strike"),
                     small_caps: arg_bool_opt(args, "smallCaps"),
+                    all_caps: arg_bool_opt(args, "allCaps"),
                     baseline: args
                         .get("baseline")
                         .and_then(|v| v.as_i64())

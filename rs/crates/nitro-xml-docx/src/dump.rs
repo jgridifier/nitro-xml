@@ -142,6 +142,7 @@ pub fn dump_docx_layout_after_edit(bytes: &[u8], script_json: &str) -> Result<St
         track_formatting: None,
         track_moves: None,
         media_part_names: Vec::new(),
+        source_document_xml: None,
     };
     let measurer = create_fake_measurer();
     let opts = LayoutReviewOptions::default();
@@ -172,6 +173,7 @@ pub fn dump_docx_layout_after_edit(bytes: &[u8], script_json: &str) -> Result<St
             track_formatting: None,
             track_moves: None,
             media_part_names: Vec::new(),
+            source_document_xml: None,
         };
         layout_document_model(&base_model, &measurer, opts.clone())
     };

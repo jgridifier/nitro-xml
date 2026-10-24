@@ -19,3 +19,7 @@ path = "src/baseline.rs"
 [[bin]]
 name = "pptx-ensure-edit-mem"
 path = "src/pptx_ensure_edit_mem.rs"
+
+[[bin]]
+name = "docx-ensure-edit-mem"
+path = "src/docx_ensure_edit_mem.rs"

@@ -1004,6 +1004,7 @@ mod chart_part_name_tests {
             track_formatting: None,
             track_moves: None,
             media_part_names: Vec::new(),
+            source_document_xml: None,
         };
         let mut notes = Vec::new();
         let input = adapt_document_model(

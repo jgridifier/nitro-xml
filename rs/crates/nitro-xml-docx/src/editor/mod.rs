@@ -178,6 +178,7 @@ fn document_model_from_host(host: &DocxHost) -> crate::body::DocumentModel {
         track_formatting: None,
         track_moves: None,
         media_part_names: Vec::new(),
+        source_document_xml: Some(host.source_document_xml.clone()),
     }
 }
 

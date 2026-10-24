@@ -60,6 +60,7 @@ fn clone_model(model: &DocumentModel) -> DocumentModel {
         track_formatting: model.track_formatting,
         track_moves: model.track_moves,
         media_part_names: model.media_part_names.clone(),
+        source_document_xml: model.source_document_xml.clone(),
     }
 }
 

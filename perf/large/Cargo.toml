@@ -23,3 +23,7 @@ path = "src/pptx_ensure_edit_mem.rs"
 [[bin]]
 name = "docx-ensure-edit-mem"
 path = "src/docx_ensure_edit_mem.rs"
+
+[[bin]]
+name = "docx-host-open-mem"
+path = "src/docx_host_open_mem.rs"

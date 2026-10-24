@@ -830,3 +830,32 @@ Native ensure_edit host build (`docx-ensure-edit-mem --runs=21`, cached xml vs f
 
 **Verdict:** **SHIP** — docx M/L ensure_edit host build ~25% faster; cold wasm peak/open flat within
 paired-run noise (xlsx L open swing is harness noise on this VM; no tier >12% peak regression).
+
+
+## Slice 28: `DocxHost::open` — take cached `document.xml` (no second zip)
+
+**Goal:** headless `DocxHost::open` (parity edit harness, non-wasm paths) still ran a second
+`Package::open` only to copy `word/document.xml` for the writer baseline, even after #471 retained
+that text on [`DocumentModel`](rs/crates/nitro-xml-docx/src/body.rs). `take()` the cache into the
+host; `dump_docx_styles` reads the same field instead of re-inflating the part.
+
+**Rust:** `DocxHost::open` takes `model.source_document_xml`; dump reuses it. No second retention on
+`LoadedDocument`.
+
+**A/B** (remeasured on this box vs `origin/main` `04d48ba` after #471;
+`cargo run --release --manifest-path perf/large/Cargo.toml --bin docx-host-open-mem -- --runs 21`;
+consecutive warm pair):
+
+| Tier | fixture KiB | main `DocxHost::open` ms | branch ms | Δ |
+|---|---:|---:|---:|---|
+| docx S | 2 | 0.777 | **0.725** | **−6.7%** |
+| docx M | 394 | 1.674 | **1.564** | **−6.6%** |
+| docx L | 2,446 | 5.926 | **5.480** | **−7.5%** |
+
+### Peak memory (`peak-mem.mjs`) — **expected flat**
+
+Viewer/wasm open already retains the xml via #471; this slice only changes headless
+`DocxHost::open` / dump reuse. Cold peak unchanged within noise (no new retention).
+
+**Verdict:** **SHIP** — native headless open ~7% faster (skips second zip inflate after #471
+already paid the cache); complements soft-share unlock. No wasm or budget changes.

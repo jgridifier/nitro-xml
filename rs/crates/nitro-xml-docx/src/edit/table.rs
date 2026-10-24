@@ -93,6 +93,7 @@ pub fn insert_table(
     rows: usize,
     cols: usize,
 ) -> Result<usize, EditError> {
+    host.ensure_base_blocks();
     let rows = rows.max(1);
     let cols = cols.max(1);
     let at = at.min(host.blocks.len());
@@ -124,6 +125,7 @@ pub fn insert_table(
 
 /// Remove a whole table block. The writer drops the matching `w:tbl`.
 pub fn delete_table(host: &mut DocxHost, block_index: usize) -> Result<(), EditError> {
+    host.ensure_base_blocks();
     let ty = host
         .blocks
         .get(block_index)

@@ -86,6 +86,12 @@ pub fn map_chrome_command(id: &str, target: &SelectionTarget, host: &XlsxHost) -
                 "Delete Sheet",
             );
         }
+        "cells.insert-rows"
+        | "cells.delete-rows"
+        | "cells.insert-columns"
+        | "cells.delete-columns" => {
+            return shift_op(id, target);
+        }
         _ => {}
     }
 
@@ -101,6 +107,42 @@ pub fn map_chrome_command(id: &str, target: &SelectionTarget, host: &XlsxHost) -
         }),
         false,
         "Format",
+    )
+}
+
+/// Insert or delete the rows/columns the selection spans (Excel: Insert/Delete Sheet Rows/Columns).
+/// Insert puts as many blank lines before the first selected one as the selection covers.
+fn shift_op(id: &str, target: &SelectionTarget) -> MappedCommand {
+    let range = parse_range(&target.range).unwrap_or_else(|| {
+        let a = CellAddress {
+            row: target.row,
+            col: target.col,
+        };
+        crate::model::CellRange { start: a, end: a }
+    });
+    let (rows, insert) = (id.ends_with("rows"), id.starts_with("cells.insert"));
+    let (at, count) = if rows {
+        (
+            range.start.row,
+            range.end.row.saturating_sub(range.start.row) + 1,
+        )
+    } else {
+        (
+            range.start.col,
+            range.end.col.saturating_sub(range.start.col) + 1,
+        )
+    };
+    let (cmd, label) = match (rows, insert) {
+        (true, true) => ("insertRows", "Insert Sheet Rows"),
+        (true, false) => ("deleteRows", "Delete Sheet Rows"),
+        (false, true) => ("insertColumns", "Insert Sheet Columns"),
+        (false, false) => ("deleteColumns", "Delete Sheet Columns"),
+    };
+    op(
+        cmd,
+        json!({ "sheet": target.sheet, "at": at, "count": count }),
+        true,
+        label,
     )
 }
 

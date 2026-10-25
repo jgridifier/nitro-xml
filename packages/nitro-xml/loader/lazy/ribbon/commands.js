@@ -223,6 +223,15 @@ const XLSX_HOME = [
       [it("home.accounting", "accounting", "Accounting number format"), it("home.percent", "percent", "Percent style"), it("home.comma", "comma", "Comma style")],
     ],
   },
+  {
+    g: "Cells",
+    big: [
+      it("cells.insert-rows", "rowAdd", "Insert rows", "Insert sheet rows above the selection"),
+      it("cells.delete-rows", "rowDel", "Delete rows", "Delete the selected sheet rows"),
+      it("cells.insert-columns", "colAdd", "Insert columns", "Insert sheet columns left of the selection"),
+      it("cells.delete-columns", "colDel", "Delete columns", "Delete the selected sheet columns"),
+    ],
+  },
   { g: "Sheets", big: [it("sheet.insert", "sheetAdd", "Insert sheet"), it("sheet.delete", "sheetDel", "Delete sheet")] },
   { g: "Editing", big: [it("home.clear-contents", "clear", "Clear", "Clear contents"), find.big[0]] },
 ];
@@ -249,7 +258,7 @@ export function tabsFor(format, unit, edit) {
   const officeHome = [editorClip, FONT, nav(unit), find];
   const tabs =
     format === "xlsx" && edit
-      ? { Home: [...XLSX_HOME.slice(0, 5), nav(unit), XLSX_HOME[5]] }
+      ? { Home: [...XLSX_HOME.slice(0, 6), nav(unit), XLSX_HOME[6]] }
       : format === "pptx" && edit
         ? {
             Home: [officeHome[0], pptxFont, lists, drawing, arrange, ...officeHome.slice(2)],

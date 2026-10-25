@@ -263,7 +263,17 @@ export const MANIFEST = {
           cmd("home.accounting", "accounting", "Accounting", "Accounting number format"),
         ],
       },
-      { id: "Cells", items: [cmd("sheet.insert", "sheetAdd", "Insert sheet"), cmd("sheet.delete", "sheetDel", "Delete sheet")] },
+      {
+        id: "Cells",
+        items: [
+          cmd("cells.insert-rows", "rowAdd", "Insert rows", "Insert sheet rows above the selection"),
+          cmd("cells.delete-rows", "rowDel", "Delete rows", "Delete the selected sheet rows"),
+          cmd("cells.insert-columns", "colAdd", "Insert columns", "Insert sheet columns left of the selection"),
+          cmd("cells.delete-columns", "colDel", "Delete columns", "Delete the selected sheet columns"),
+          cmd("sheet.insert", "sheetAdd", "Insert sheet"),
+          cmd("sheet.delete", "sheetDel", "Delete sheet"),
+        ],
+      },
       { id: "Editing", items: [cmd("home.clear-contents", "clear", "Clear", "Clear contents"), find] },
       view,
     ],

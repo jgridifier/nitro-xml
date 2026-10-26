@@ -189,6 +189,44 @@ const CHECKS = [
 			return (await text(page, d)) === origD ? null : `Escape after dblclick-edit changed "${origD}" to "${await text(page, d)}"`;
 		},
 	},
+	{
+		id: 'xlsx.fill-handle-series-and-undo',
+		// Catches: no fill handle / dragging it doing nothing, a series not extended (1,3 -> 5,7), or the fill taking more than one undo step.
+		fn: async (page) => {
+			const g = await settledGrid(page);
+			const c = (r) => at(g, 12, r);
+			const [o12, o13] = [await text(page, c(12)), await text(page, c(13))];
+			await page.mouse.click(c(10).x, c(10).y);
+			await page.keyboard.type('1');
+			await page.keyboard.press('Enter');
+			await page.keyboard.type('3');
+			await page.keyboard.press('Enter');
+			await sleep(page, 300);
+			if ((await text(page, c(11))) !== '3') return `typed fixture missing: A="${await text(page, c(10))}" B="${await text(page, c(11))}"`;
+			await page.mouse.move(c(10).x, c(10).y);
+			await page.mouse.down();
+			await page.mouse.move(c(11).x, c(11).y, { steps: 4 });
+			await page.mouse.up();
+			await sleep(page, 300);
+			const hx = g.cols[12][0] + g.cols[12][1], hy = g.rows[11][0] + g.rows[11][1];
+			const handle = await inEl(page, 'xlsx', (el, sr) => !!sr.querySelector('.xg-handle'));
+			if (!handle) return 'no .xg-handle painted on the selection corner';
+			await page.mouse.move(hx - 1, hy - 1);
+			await page.mouse.down();
+			await page.mouse.move(c(12).x, c(12).y, { steps: 4 });
+			await page.mouse.move(c(13).x, c(13).y, { steps: 4 });
+			const preview = await inEl(page, 'xlsx', (el, sr) => !!sr.querySelector('.xg-fill-preview'));
+			await page.mouse.up();
+			if (!preview) return 'no dashed .xg-fill-preview while dragging';
+			if (!(await until(page, async () => (await text(page, c(13))) === '7'))) return `fill: rows 12..14 = "${await text(page, c(12))}","${await text(page, c(13))}", want 5,7`;
+			if ((await text(page, c(12))) !== '5') return `fill: row 13 = "${await text(page, c(12))}", want 5`;
+			if ((await selection(page)) !== 'M11:M14') return `selection after fill = ${await selection(page)}, want M11:M14`;
+			await ribbon(page, 'Undo').click();
+			if (!(await until(page, async () => (await text(page, c(12))) === o12 && (await text(page, c(13))) === o13))) return `one Undo left filled cells: "${await text(page, c(12))}","${await text(page, c(13))}", want "${o12}","${o13}"`;
+			if ((await text(page, c(11))) !== '3') return 'undo removed the source cells too';
+			return null;
+		},
+	},
 ];
 
 export async function runXlsxEditChecks(browserNames) {

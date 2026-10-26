@@ -25,6 +25,27 @@ use serde_json::Value;
 const DEFAULT_W: i32 = 800;
 const DEFAULT_H: i32 = 600;
 
+/// Fill-handle drag: `src` is the selection being extended, `to` the pending extension.
+struct FillDrag {
+    src: CellRange,
+    to: Option<(&'static str, u32)>,
+}
+
+impl FillDrag {
+    /// The block the fill will occupy (source plus extension).
+    fn area(&self) -> CellRange {
+        let mut r = self.src.clone();
+        match self.to {
+            Some(("down", n)) => r.end.row += n,
+            Some(("up", n)) => r.start.row -= n.min(r.start.row),
+            Some(("right", n)) => r.end.col += n,
+            Some(("left", n)) => r.start.col -= n.min(r.start.col),
+            _ => {}
+        }
+        r
+    }
+}
+
 pub struct XlsxState {
     pub workbook: WorkbookSlice,
     pub sheets: Vec<Option<ActiveWorksheet>>,
@@ -37,6 +58,8 @@ pub struct XlsxState {
     pub zoom_pct: Option<f64>,
     /// Last cell visited while a primary-button cell drag is active.
     drag: Option<(u32, u32)>,
+    /// In-flight fill-handle drag (#fill): the source block and the area it will cover.
+    fill: Option<FillDrag>,
     /// Viewport-sized workbook. `None` after a search or hyperlink lookup upgrades to the full
     /// full materialise path (those need every cell, not the painted window).
     lazy: Option<FirstView>,
@@ -86,6 +109,7 @@ impl XlsxState {
                 viewport_h: DEFAULT_H,
                 zoom_pct: None,
                 drag: None,
+                fill: None,
                 lazy: Some(first),
                 edit: None,
                 // Apply after the host Resize so reveal uses the real stage size.
@@ -490,9 +514,19 @@ impl XlsxState {
         } else {
             None
         };
+        let single = self
+            .active_sheet()
+            .and_then(|s| s.view.selection.as_ref())
+            .is_some_and(|sel| sel.ranges.len() == 1);
         EditorPaintHints {
             stale,
             edit: edit_overlay,
+            fill_handle: single,
+            fill_preview: self
+                .fill
+                .as_ref()
+                .filter(|f| f.to.is_some())
+                .map(FillDrag::area),
         }
     }
 
@@ -556,6 +590,11 @@ impl XlsxState {
                 {
                     let _ = self.commit_live_edit();
                 }
+                if let Some(src) = self.fill_handle_at(px, py) {
+                    self.fill = Some(FillDrag { src, to: None });
+                    self.drag = None;
+                    return None;
+                }
                 let hit = {
                     let zoom = self.zoom_pct;
                     let scroll_x = self.scroll_x;
@@ -577,6 +616,12 @@ impl XlsxState {
                 };
                 self.drag = Some((at.row, at.col));
                 self.commit_selection(at, mods & MOD_SHIFT != 0)
+            }
+            1 if self.fill.is_some() => self.fill_move(px, py),
+            2 if self.fill.is_some() => self.fill_finish(),
+            3 if self.fill.is_some() => {
+                self.fill = None;
+                self.selection_text()
             }
             1 => {
                 let (last_row, last_col) = self.drag?;
@@ -603,6 +648,117 @@ impl XlsxState {
             }
             _ => None,
         }
+    }
+
+    /// The selection block when `(px, py)` lands on its fill handle (editable sheet, one range).
+    fn fill_handle_at(&self, px: i32, py: i32) -> Option<CellRange> {
+        self.edit.as_ref()?;
+        let sheet = self.active_sheet()?;
+        let sel = sheet.view.selection.as_ref()?;
+        let [range] = sel.ranges.as_slice() else {
+            return None;
+        };
+        let metrics = grid_metrics(sheet, self.zoom_pct);
+        let input = grid_hit_input(
+            &metrics,
+            sheet,
+            self.scroll_x,
+            self.scroll_y,
+            self.viewport_w,
+            self.viewport_h,
+        );
+        let x = metrics.col_left(range.end.col + 1);
+        let y = metrics.row_top(range.end.row + 1);
+        let vx = input.header_w + x
+            - if range.end.col < input.frozen_cols {
+                0
+            } else {
+                self.scroll_x.max(0)
+            };
+        let vy = input.header_h + y
+            - if range.end.row < input.frozen_rows {
+                0
+            } else {
+                self.scroll_y.max(0)
+            };
+        let r = nitro_xml_xlsx::render::FILL_HANDLE_PX / 2 + 2;
+        ((px - vx).abs() <= r && (py - vy).abs() <= r).then(|| range.clone())
+    }
+
+    fn selection_text(&self) -> Option<String> {
+        self.active_sheet()?
+            .view
+            .selection
+            .as_ref()
+            .map(selection_ref)
+    }
+
+    /// Dragging the handle: extend along the axis the pointer left the block on furthest.
+    fn fill_move(&mut self, px: i32, py: i32) -> Option<String> {
+        let src = self.fill.as_ref()?.src.clone();
+        let (row, col) = {
+            let sheet = self.active_sheet()?;
+            let metrics = grid_metrics(sheet, self.zoom_pct);
+            let input = grid_hit_input(
+                &metrics,
+                sheet,
+                self.scroll_x,
+                self.scroll_y,
+                self.viewport_w,
+                self.viewport_h,
+            );
+            clamped_hit(&input, px, py)
+        };
+        let dr = if row > src.end.row {
+            (row - src.end.row, "down")
+        } else {
+            (src.start.row.saturating_sub(row), "up")
+        };
+        let dc = if col > src.end.col {
+            (col - src.end.col, "right")
+        } else {
+            (src.start.col.saturating_sub(col), "left")
+        };
+        let to = match (dr.0, dc.0) {
+            (0, 0) => None,
+            (r, c) if r >= c => Some((dr.1, r)),
+            (_, c) => Some((dc.1, c)),
+        };
+        let fill = self.fill.as_mut()?;
+        if fill.to == to {
+            return None;
+        }
+        fill.to = to;
+        // Repaint for the preview outline.
+        self.selection_text()
+    }
+
+    /// Release: one `fillRange` command (one undo step), then select the filled block.
+    fn fill_finish(&mut self) -> Option<String> {
+        let fill = self.fill.take()?;
+        let (dir, count) = fill.to?;
+        let sheet = self.active as u32;
+        let args = serde_json::json!({
+            "command": "fillRange", "sheet": sheet,
+            "range": nitro_xml_xlsx::address::format_range(&fill.src),
+            "direction": dir, "count": count,
+        });
+        self.apply_raw_edit(&args.to_string()).ok()?;
+        let area = fill.area();
+        let active_sheet = self.sheet_mut(self.active)?;
+        let active = active_sheet
+            .view
+            .selection
+            .as_ref()
+            .map_or(area.start, |s| s.active);
+        let next = SheetSelection {
+            active,
+            anchor: area.start,
+            ranges: vec![area],
+        };
+        let text = selection_ref(&next);
+        active_sheet.view.selection = Some(next);
+        Some(text)
     }
 
     fn on_key(&mut self, key: &str, mods: u8) -> Option<String> {

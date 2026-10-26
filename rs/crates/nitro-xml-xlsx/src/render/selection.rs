@@ -10,12 +10,16 @@ use crate::render::grid::{OVERLAY_ID, OVERLAY_TOP_ID};
 use crate::render::paint_encode::{place_style_attr, ChromeKeys};
 use crate::render::selection_ops::paint_selection;
 use crate::render::viewport::visible_cells_for_host;
-use crate::render::GridPaintViewport;
+use crate::render::{EditorPaintHints, GridPaintViewport};
 use crate::sheet_access::merge_at;
 use crate::view::metrics::GridMetrics;
 
 const OUTLINE_ID: u32 = 6_000;
 const ACTIVE_ID: u32 = 6_001;
+const HANDLE_ID: u32 = 6_002;
+const PREVIEW_ID: u32 = 6_003;
+/// Fill handle square, centred on the selection's bottom-right corner.
+pub const FILL_HANDLE_PX: i32 = 7;
 
 #[allow(clippy::too_many_arguments)] // mirrors upstream place(node, x, y, w, h) plus buf/intern/id/class
 fn place_box<I: StringIntern>(
@@ -64,6 +68,7 @@ pub fn paint<I: StringIntern>(
     sheet: &ActiveWorksheet,
     metrics: &GridMetrics,
     viewport: &GridPaintViewport,
+    hints: &EditorPaintHints,
 ) {
     let sizes = header_sizes(sheet, metrics, metrics.last_row);
     let vis = visible_cells_for_host(metrics, viewport, sizes.w, sizes.h);
@@ -122,6 +127,20 @@ pub fn paint<I: StringIntern>(
 
     let outline_class = intern.intern("xg-outline");
     let active_class = intern.intern("xg-active");
+    let handle_class = intern.intern("xg-handle");
+    let preview_class = intern.intern("xg-fill-preview");
+    let preview_box = hints
+        .fill_preview
+        .as_ref()
+        .map(|r| range_box(metrics, r, u32::MAX - 1, u32::MAX - 1));
+    let handle_at = outline_box
+        .filter(|_| hints.fill_handle && hints.fill_preview.is_none())
+        .map(|(l, t, w, h)| {
+            (
+                l + w - FILL_HANDLE_PX / 2 - 1,
+                t + h - FILL_HANDLE_PX / 2 - 1,
+            )
+        });
 
     // Upstream paints the overlay in every visible quadrant; each clips its part.
     let mut parents = vec![OVERLAY_ID];
@@ -142,6 +161,34 @@ pub fn paint<I: StringIntern>(
                 top,
                 w,
                 h,
+            );
+        }
+        if let Some((left, top, w, h)) = preview_box {
+            place_box(
+                buf,
+                intern,
+                keys,
+                PREVIEW_ID + id_off,
+                parent,
+                preview_class,
+                left,
+                top,
+                w,
+                h,
+            );
+        }
+        if let Some((left, top)) = handle_at {
+            place_box(
+                buf,
+                intern,
+                keys,
+                HANDLE_ID + id_off,
+                parent,
+                handle_class,
+                left,
+                top,
+                FILL_HANDLE_PX,
+                FILL_HANDLE_PX,
             );
         }
         if let Some((left, top, w, h)) = active_box {

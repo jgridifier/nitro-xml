@@ -10,7 +10,7 @@ pub mod structure;
 pub mod style_patch;
 
 pub use cells::register_cell_commands;
-pub use fill::register_fill_commands;
+pub use fill::{fill_area, register_fill_commands};
 pub use host::XlsxHost;
 pub use shift::register_shift_commands;
 pub use structure::register_structure_commands;

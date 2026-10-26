@@ -4,15 +4,34 @@
 use nitro_xml_opc::edit::{ChangeKind, ChangeSet, Command, CommandRegistry, EditError};
 use serde_json::Value;
 
-use crate::address::parse_range;
+use crate::address::{format_range, parse_range};
 use crate::editor::cell_input_text;
 use crate::formula_translate::translate_formula;
+use crate::model::{CellAddress, CellRange};
 
 use super::cells::{ensure_cell, host_mut, sheet_err, write_input};
 
-const DAYS: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS: [&str; 7] = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+];
 const MONTHS: [&str; 12] = [
-    "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
     "December",
 ];
 
@@ -42,13 +61,21 @@ fn name_index(list: &[&str], s: &str) -> Option<(usize, usize, bool)> {
     let l = s.to_lowercase();
     list.iter().enumerate().find_map(|(i, n)| {
         let n = n.to_lowercase();
-        (l == n || (l.len() == 3 && n.starts_with(&l))).then_some((i, if l == n { 0 } else { 3 }, s.chars().all(|c| !c.is_lowercase())))
+        (l == n || (l.len() == 3 && n.starts_with(&l))).then_some((
+            i,
+            if l == n { 0 } else { 3 },
+            s.chars().all(|c| !c.is_lowercase()),
+        ))
     })
 }
 
 fn cased(name: &str, short: usize, upper: bool) -> String {
     let n = if short > 0 { &name[..short] } else { name };
-    if upper { n.to_uppercase() } else { n.to_owned() }
+    if upper {
+        n.to_uppercase()
+    } else {
+        n.to_owned()
+    }
 }
 
 /// Text for the `i`-th cell past the end of `src` (already ordered along the fill direction).
@@ -64,17 +91,29 @@ pub fn fill_line(src: &[String], n: usize, dir: i32, vertical: bool) -> Vec<Stri
         let step = (nums[k - 1] - nums[0]) / (k - 1) as f64;
         let linear = nums.windows(2).all(|w| (w[1] - w[0] - step).abs() < 1e-9);
         if linear {
-            return (1..=n).map(|i| fmt_num(nums[k - 1] + step * i as f64)).collect();
+            return (1..=n)
+                .map(|i| fmt_num(nums[k - 1] + step * i as f64))
+                .collect();
         }
     }
     // Text + trailing number ("Item 1", "Q1"), step 1 for a lone cell else the constant difference.
     let tails: Vec<_> = src.iter().filter_map(|s| split_tail(s)).collect();
     if tails.len() == k && tails.iter().all(|t| t.0 == tails[0].0) {
-        let step = if k == 1 { dir as i64 } else { (tails[k - 1].1 - tails[0].1) / (k as i64 - 1) };
+        let step = if k == 1 {
+            dir as i64
+        } else {
+            (tails[k - 1].1 - tails[0].1) / (k as i64 - 1)
+        };
         let linear = tails.windows(2).all(|w| w[1].1 - w[0].1 == step);
         if linear {
             let (prefix, last, width) = (tails[0].0, tails[k - 1].1, tails[k - 1].2);
-            let pad = if tails[k - 1].2 > 1 && src[k - 1].ends_with(&format!("{:0w$}", last, w = width)) { width } else { 0 };
+            let pad = if tails[k - 1].2 > 1
+                && src[k - 1].ends_with(&format!("{:0w$}", last, w = width))
+            {
+                width
+            } else {
+                0
+            };
             return (1..=n as i64)
                 .map(|i| format!("{prefix}{:0w$}", (last + step * i).max(0), w = pad))
                 .collect();
@@ -86,7 +125,13 @@ pub fn fill_line(src: &[String], n: usize, dir: i32, vertical: bool) -> Vec<Stri
             if let Some((idx, short, upper)) = name_index(list, &src[0]) {
                 let len = list.len() as i64;
                 return (1..=n as i64)
-                    .map(|i| cased(list[(idx as i64 + dir as i64 * i).rem_euclid(len) as usize], short, upper))
+                    .map(|i| {
+                        cased(
+                            list[(idx as i64 + dir as i64 * i).rem_euclid(len) as usize],
+                            short,
+                            upper,
+                        )
+                    })
                     .collect();
             }
         }
@@ -107,55 +152,128 @@ pub fn fill_line(src: &[String], n: usize, dir: i32, vertical: bool) -> Vec<Stri
         .collect()
 }
 
+/// Largest filled block (cells) whose absences an undo snapshot can record.
+const MAX_FILL_CELLS: u64 = 4_096;
+
+/// Parsed `fillRange` args: normalized source block, direction and the (capped) number of lines to add.
+fn fill_args(args: &Value) -> Option<(CellRange, &str, i64)> {
+    let mut range = parse_range(args.get("range")?.as_str()?)?;
+    let (r0, r1) = (
+        range.start.row.min(range.end.row),
+        range.start.row.max(range.end.row),
+    );
+    let (c0, c1) = (
+        range.start.col.min(range.end.col),
+        range.start.col.max(range.end.col),
+    );
+    range = CellRange {
+        start: CellAddress { row: r0, col: c0 },
+        end: CellAddress { row: r1, col: c1 },
+    };
+    let dir = args
+        .get("direction")
+        .and_then(Value::as_str)
+        .unwrap_or("down");
+    let vertical = matches!(dir, "down" | "up");
+    let (span, cross) = if vertical {
+        (r1 - r0 + 1, c1 - c0 + 1)
+    } else {
+        (c1 - c0 + 1, r1 - r0 + 1)
+    };
+    let room = (MAX_FILL_CELLS / cross as u64).saturating_sub(span as u64) as i64;
+    let count = (args
+        .get("count")
+        .and_then(Value::as_u64)
+        .unwrap_or(0)
+        .min(100_000) as i64)
+        .min(room);
+    Some((range, dir, count))
+}
+
+/// The block a `fillRange` rewrites (source plus extension); the undo scope.
+pub fn fill_area(args: &Value) -> Option<CellRange> {
+    let (mut r, dir, count) = fill_args(args)?;
+    let count = count as u32;
+    match dir {
+        "down" => r.end.row += count,
+        "up" => r.start.row -= count.min(r.start.row),
+        "right" => r.end.col += count,
+        _ => r.start.col -= count.min(r.start.col),
+    }
+    Some(r)
+}
+
 pub fn register_fill_commands(registry: &mut CommandRegistry) {
-    registry.register(Command::stub("fillRange", "fillRange").with_runner(|host, args| {
-        let h = host_mut(host)?;
-        let sheet = args.get("sheet").and_then(Value::as_u64).unwrap_or(0) as u32;
-        let err = |m: &str| EditError::Other { message: m.into() };
-        let range = parse_range(args.get("range").and_then(Value::as_str).ok_or_else(|| err("fillRange missing range"))?)
-            .ok_or_else(|| err("fillRange bad range"))?;
-        let dir = args.get("direction").and_then(Value::as_str).unwrap_or("down");
-        let count = args.get("count").and_then(Value::as_u64).unwrap_or(0).min(100_000) as i64;
-        let (r0, r1) = (range.start.row.min(range.end.row), range.start.row.max(range.end.row));
-        let (c0, c1) = (range.start.col.min(range.end.col), range.start.col.max(range.end.col));
-        let vertical = matches!(dir, "down" | "up");
-        let sign: i32 = if matches!(dir, "down" | "right") { 1 } else { -1 };
-        let lines = if vertical { c0..=c1 } else { r0..=r1 };
-        for line in lines {
-            let cell = |along: u32| if vertical { (along, line) } else { (line, along) };
-            let (lo, hi) = if vertical { (r0, r1) } else { (c0, c1) };
-            let along: Vec<u32> = if sign > 0 { (lo..=hi).collect() } else { (lo..=hi).rev().collect() };
-            let ws = h.sheet(sheet).map_err(sheet_err)?;
-            let src: Vec<String> = along
-                .iter()
-                .map(|&a| {
+    registry.register(
+        Command::stub("fillRange", "fillRange").with_runner(|host, args| {
+            let h = host_mut(host)?;
+            let sheet = args.get("sheet").and_then(Value::as_u64).unwrap_or(0) as u32;
+            let err = |m: &str| EditError::Other { message: m.into() };
+            let (range, dir, count) = fill_args(args).ok_or_else(|| err("fillRange bad range"))?;
+            let (r0, r1) = (
+                range.start.row.min(range.end.row),
+                range.start.row.max(range.end.row),
+            );
+            let (c0, c1) = (
+                range.start.col.min(range.end.col),
+                range.start.col.max(range.end.col),
+            );
+            let vertical = matches!(dir, "down" | "up");
+            let sign: i32 = if matches!(dir, "down" | "right") {
+                1
+            } else {
+                -1
+            };
+            let lines = if vertical { c0..=c1 } else { r0..=r1 };
+            for line in lines {
+                let cell = |along: u32| {
+                    if vertical {
+                        (along, line)
+                    } else {
+                        (line, along)
+                    }
+                };
+                let (lo, hi) = if vertical { (r0, r1) } else { (c0, c1) };
+                let along: Vec<u32> = if sign > 0 {
+                    (lo..=hi).collect()
+                } else {
+                    (lo..=hi).rev().collect()
+                };
+                let ws = h.sheet(sheet).map_err(sheet_err)?;
+                let src: Vec<String> = along
+                    .iter()
+                    .map(|&a| {
+                        let (r, c) = cell(a);
+                        cell_input_text(&h.workbook, ws, r, c)
+                    })
+                    .collect();
+                let styles: Vec<Option<u32>> = along
+                    .iter()
+                    .map(|&a| {
+                        let (r, c) = cell(a);
+                        ws.cells
+                            .iter()
+                            .find(|x| x.row == r && x.col == c)
+                            .and_then(|x| x.style_id)
+                    })
+                    .collect();
+                let edge = *along.last().unwrap() as i64;
+                let n = if sign > 0 { count } else { count.min(edge) } as usize;
+                let out = fill_line(&src, n, sign, vertical);
+                for (i, text) in out.iter().enumerate() {
+                    let a = (edge + sign as i64 * (i as i64 + 1)) as u32;
                     let (r, c) = cell(a);
-                    cell_input_text(&h.workbook, ws, r, c)
-                })
-                .collect();
-            let styles: Vec<Option<u32>> = along
-                .iter()
-                .map(|&a| {
-                    let (r, c) = cell(a);
-                    ws.cells.iter().find(|x| x.row == r && x.col == c).and_then(|x| x.style_id)
-                })
-                .collect();
-            let edge = *along.last().unwrap() as i64;
-            let n = if sign > 0 { count } else { count.min(edge) } as usize;
-            let out = fill_line(&src, n, sign, vertical);
-            for (i, text) in out.iter().enumerate() {
-                let a = (edge + sign as i64 * (i as i64 + 1)) as u32;
-                let (r, c) = cell(a);
-                write_input(h, sheet, r, c, text)?;
-                if let Some(id) = styles[(src.len() + i) % src.len()] {
-                    let ws = h.sheet_mut(sheet).map_err(sheet_err)?;
-                    ensure_cell(ws, r, c).style_id = Some(id);
+                    write_input(h, sheet, r, c, text)?;
+                    if let Some(id) = styles[(src.len() + i) % src.len()] {
+                        let ws = h.sheet_mut(sheet).map_err(sheet_err)?;
+                        ensure_cell(ws, r, c).style_id = Some(id);
+                    }
                 }
             }
-        }
-        h.dirty_sheets.insert(sheet);
-        Ok(ChangeSet::new(ChangeKind::Cells, "fillRange").with_sheet(sheet))
-    }));
+            h.dirty_sheets.insert(sheet);
+            Ok(ChangeSet::new(ChangeKind::Cells, "fillRange").with_sheet(sheet))
+        }),
+    );
 }
 
 #[cfg(test)]
@@ -177,14 +295,23 @@ mod tests {
 
     #[test]
     fn catches_text_suffix_and_weekday_series_copying() {
-        assert_eq!(fill_line(&s(&["Item 08"]), 2, 1, true), s(&["Item 09", "Item 10"]));
-        assert_eq!(fill_line(&s(&["Sat"]), 3, 1, true), s(&["Sun", "Mon", "Tue"]));
+        assert_eq!(
+            fill_line(&s(&["Item 08"]), 2, 1, true),
+            s(&["Item 09", "Item 10"])
+        );
+        assert_eq!(
+            fill_line(&s(&["Sat"]), 3, 1, true),
+            s(&["Sun", "Mon", "Tue"])
+        );
         assert_eq!(fill_line(&s(&["Mar"]), 2, -1, true), s(&["Feb", "Jan"]));
     }
 
     #[test]
     fn catches_filled_formula_keeping_its_original_references() {
-        assert_eq!(fill_line(&s(&["=A1*$B$1"]), 2, 1, true), s(&["=A2*$B$1", "=A3*$B$1"]));
+        assert_eq!(
+            fill_line(&s(&["=A1*$B$1"]), 2, 1, true),
+            s(&["=A2*$B$1", "=A3*$B$1"])
+        );
         assert_eq!(fill_line(&s(&["=A1+1"]), 1, 1, false), s(&["=B1+1"]));
         assert_eq!(fill_line(&s(&["=A2+1"]), 1, -1, true), s(&["=A1+1"]));
     }

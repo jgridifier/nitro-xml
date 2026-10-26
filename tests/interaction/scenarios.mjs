@@ -720,14 +720,16 @@ S('pptx.drag-move', ['pptx'], 'S1', 'Dragging a shape moves it (live feedback du
 S('pptx.resize-handles', ['pptx'], 'S1', 'Corner handle drag resizes the shape; cursor shows resize', async (ctx) => {
 	const { page } = ctx;
 	const r = await pptxText(page, 0);
-	const b0 = await shapeBoxOf(page, 0);
-	await page.mouse.click(r.x + r.w / 2, midY(r)); await sleep(page, 300);
-	const hx = b0.x + b0.w, hy = b0.y + b0.h;
-	const cursor = await page.evaluate(([x, y]) => { const sr = document.querySelector('nitro-pptx').shadowRoot; const t = sr.elementFromPoint(x - 1, y - 1); return t && getComputedStyle(t).cursor; }, [hx, hy]);
-	await page.mouse.move(hx, hy); await page.mouse.down(); await page.mouse.move(hx + 60, hy + 40, { steps: 8 }); await page.mouse.up(); await sleep(page, 500);
-	const b1 = await shapeBoxOf(page, 0);
-	const d = `size ${Math.round(b0.w)}x${Math.round(b0.h)} -> ${Math.round(b1.w)}x${Math.round(b1.h)}, cursor=${cursor}`;
-	return b1.w > b0.w + 30 ? pass(d) : fail(d);
+	await page.mouse.click(r.x + r.w / 2, midY(r)); await sleep(page, 400);
+	const grab = () => inEl(page, 'pptx', (el, sr) => { const h = sr.querySelector('[data-handle=se]'); if (!h) return null; const b = h.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, cursor: getComputedStyle(h).cursor }; });
+	const sel = () => inEl(page, 'pptx', (el, sr) => { const b = sr.querySelector('.pptx-sel').getBoundingClientRect(); return { w: b.width, h: b.height }; });
+	const h = await grab();
+	if (!h) return fail('no resize handle after selecting a shape');
+	const b0 = await sel();
+	await page.mouse.move(h.x, h.y); await page.mouse.down(); await page.mouse.move(h.x + 60, h.y + 40, { steps: 8 }); await page.mouse.up(); await sleep(page, 600);
+	const b1 = await sel();
+	const d = `size ${Math.round(b0.w)}x${Math.round(b0.h)} -> ${Math.round(b1.w)}x${Math.round(b1.h)}, cursor=${h.cursor}`;
+	return b1.w > b0.w + 30 && /resize/.test(h.cursor) ? pass(d) : fail(d);
 });
 
 S('pptx.text-edit', ['pptx'], 'S1', 'Double-click a shape enters text edit; typing changes its text', async (ctx) => {

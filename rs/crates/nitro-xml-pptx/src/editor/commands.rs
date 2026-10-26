@@ -129,6 +129,7 @@ pub const PPTX_EDITOR_COMMANDS: &[CommandMeta] = &[
     pptx_cmd!("insert.duplicate-slide", "Duplicate Slide", None, true),
     pptx_cmd!("insert.move-slide-up", "Move Slide Up", None, true),
     pptx_cmd!("insert.move-slide-down", "Move Slide Down", None, true),
+    pptx_cmd!("insert.move-slide-to", "Move Slide To", None, true),
     pptx_cmd!("home.delete-slide", "Delete Slide", None, true),
 ];
 
@@ -764,19 +765,33 @@ impl PptxCommandSurface {
             | "table.delete-row"
             | "table.insert-column"
             | "table.delete-column" => dispatch_table_structure(id, selection, session),
-            "insert.move-slide-up" | "insert.move-slide-down" => {
-                let from = selection.slide_index;
+            "insert.move-slide-up" | "insert.move-slide-down" | "insert.move-slide-to" => {
                 let len = session.host.slides.len() as u32;
-                let to = if id == "insert.move-slide-up" {
-                    if from == 0 {
+                let arg = |k: &str| args.get(k).and_then(|v| v.as_u64()).map(|n| n as u32);
+                let (from, to) = if id == "insert.move-slide-to" {
+                    // Thumbnail drag: explicit `from` / `to` slide indexes.
+                    let (Some(from), Some(to)) = (arg("from"), arg("to")) else {
+                        return Err(EditError::Other {
+                            message: "insert.move-slide-to needs `from` and `to`".into(),
+                        });
+                    };
+                    if from >= len || to >= len || from == to {
                         return Ok(());
                     }
-                    from - 1
+                    (from, to)
                 } else {
-                    if from + 1 >= len {
-                        return Ok(());
+                    let from = selection.slide_index;
+                    if id == "insert.move-slide-up" {
+                        if from == 0 {
+                            return Ok(());
+                        }
+                        (from, from - 1)
+                    } else {
+                        if from + 1 >= len {
+                            return Ok(());
+                        }
+                        (from, from + 1)
                     }
-                    from + 1
                 };
                 session.run(
                     id.to_string(),

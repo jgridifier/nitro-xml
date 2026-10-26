@@ -2625,6 +2625,28 @@ mod tests {
     }
 
     #[test]
+    fn catches_pptx_thumbnail_drag_reorder_lost_on_save() {
+        // Catches: a slide-pane drag whose reorder only moves the thumbnail, not the saved slide order.
+        let mut h = open_editable(PPTX, "slides.pptx");
+        let paths: Vec<String> = h.pptx.as_ref().unwrap().pres.slide_paths().to_vec();
+        h.apply_edit(r#"{"command":"insert.move-slide-to","from":0,"to":2}"#)
+            .expect("move slide 0 to 2");
+        let saved = h.save_document().expect("save move");
+        let again = nitro_xml_pptx::editor::PptxEditor::open(&saved).expect("reopen move");
+        let got: Vec<String> = again
+            .session
+            .host
+            .slides
+            .iter()
+            .map(|s| s.path.clone())
+            .collect();
+        assert_eq!(got[2], paths[0]);
+        assert_eq!(got[0], paths[1]);
+        h.shell_action("cmd", "edit.undo").expect("undo move");
+        assert_eq!(h.save_document().expect("undone move"), PPTX);
+    }
+
+    #[test]
     fn catches_pptx_reorder_and_table_edits_missing_after_reopen() {
         // Catches: move-slide and table row/column edits that vanish on save, or undo that keeps them.
         let mut h = open_editable(PPTX, "slides.pptx");

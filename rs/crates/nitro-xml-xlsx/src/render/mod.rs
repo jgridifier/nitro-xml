@@ -18,6 +18,7 @@ pub use geometry::{
     clamped_hit, col_at_x, header_sizes, hit, row_at_y, scroll_to_reveal, Hit, HitArea, HitInput,
 };
 pub use navigate::{arrow_origin, navigate_arrow, Arrow};
+pub use selection::FILL_HANDLE_PX;
 pub use selection_ops::{
     all_range, current_region, current_region_or_all, extend_selection, moving_end, select_cell,
     selection_ref,
@@ -58,6 +59,10 @@ pub struct EditOverlay {
 pub struct EditorPaintHints {
     pub stale: Vec<(u32, u32)>,
     pub edit: Option<EditOverlay>,
+    /// Paint the fill handle on the selection's corner (editable sheets only).
+    pub fill_handle: bool,
+    /// Dashed outline of the area an in-flight fill drag will cover.
+    pub fill_preview: Option<crate::model::CellRange>,
 }
 
 /// Build one frame's command buffer for the cell grid (X1–X6).
@@ -101,7 +106,7 @@ pub fn paint_grid_frame<I: StringIntern>(
         hints,
     );
     drawings::paint(buf, intern, measures, workbook, sheet, &metrics);
-    selection::paint(buf, intern, &chrome, sheet, &metrics, viewport);
+    selection::paint(buf, intern, &chrome, sheet, &metrics, viewport, hints);
     headers::paint(buf, intern, &chrome, sheet, &metrics, viewport);
     cond_format::paint(buf);
 }
@@ -146,7 +151,7 @@ pub fn paint_grid_frame_host<I: StringIntern>(
         hints,
     );
     drawings::paint(buf, intern, measures, workbook, sheet, &metrics);
-    selection::paint(buf, intern, &chrome, sheet, &metrics, viewport);
+    selection::paint(buf, intern, &chrome, sheet, &metrics, viewport, hints);
     headers::paint(buf, intern, &chrome, sheet, &metrics, viewport);
     cond_format::paint(buf);
 }

@@ -19,7 +19,7 @@ use crate::styles::style_at;
 use super::host::XlsxHost;
 use super::style_patch::{apply_style_patch, style_patch_from_value, StylePatch};
 
-fn host_mut(host: &mut dyn Any) -> Result<&mut XlsxHost, EditError> {
+pub(super) fn host_mut(host: &mut dyn Any) -> Result<&mut XlsxHost, EditError> {
     host.downcast_mut::<XlsxHost>()
         .ok_or_else(|| EditError::Other {
             message: "expected XlsxHost".into(),
@@ -135,7 +135,7 @@ fn json_to_cell_value(v: &Value) -> Result<CellValue, EditError> {
     }
 }
 
-fn sheet_err(e: String) -> EditError {
+pub(super) fn sheet_err(e: String) -> EditError {
     EditError::Other { message: e }
 }
 

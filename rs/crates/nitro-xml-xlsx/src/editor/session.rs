@@ -9,9 +9,10 @@ use nitro_xml_opc::edit::{
 };
 use serde_json::Value;
 
-use crate::address::format_address;
+use crate::address::{format_address, format_range};
 use crate::edit::{
-    register_cell_commands, register_shift_commands, register_structure_commands, XlsxHost,
+    fill_area, register_cell_commands, register_fill_commands, register_shift_commands,
+    register_structure_commands, XlsxHost,
 };
 use crate::model::CellAddress;
 use crate::write::save_xlsx;
@@ -45,6 +46,7 @@ impl EditorSession {
     pub fn from_host(host: XlsxHost) -> Self {
         let mut registry = CommandRegistry::new();
         register_cell_commands(&mut registry);
+        register_fill_commands(&mut registry);
         register_structure_commands(&mut registry);
         register_shift_commands(&mut registry);
         Self {
@@ -241,6 +243,12 @@ fn op_meta(id: &str, args: &Value, structure: bool) -> (ChangeKind, Vec<EditScop
     if structure || matches!(id, "addSheet" | "renameSheet" | "deleteSheet") {
         return (ChangeKind::Sheets, vec![EditScope::Workbook]);
     }
+    if id == "fillRange" {
+        let ranges = fill_area(args)
+            .map(|r| vec![format_range(&r)])
+            .unwrap_or_default();
+        return (ChangeKind::Cells, vec![EditScope::Cells { sheet, ranges }]);
+    }
     let kind = if id == "applyStyle" {
         ChangeKind::Format
     } else {
@@ -291,6 +299,7 @@ mod tests {
     use super::*;
     use crate::render::{paint_grid_frame_with_hints, EditorPaintHints, GridPaintViewport};
     use crate::styles::style_at;
+    use serde_json::json;
     use std::path::Path;
 
     fn cells_1k() -> Vec<u8> {
@@ -335,6 +344,7 @@ mod tests {
         let hints = EditorPaintHints {
             stale: stale.clone(),
             edit: None,
+            ..EditorPaintHints::default()
         };
         let mut strings = Vec::new();
         let mut intern = |s: &str| {
@@ -445,5 +455,44 @@ mod tests {
             num(c1),
             "undo restores the inserted state"
         );
+    }
+
+    #[test]
+    fn fill_range_is_one_undo_step_and_extends_the_series() {
+        // Catches: a fill-handle drag leaving partial cells on undo, or taking several undo steps.
+        let bytes = cells_1k();
+        let mut session = EditorSession::open(&bytes).expect("open");
+        let at = |s: &EditorSession, r: u32| {
+            let t = s.input_text(0, r, 20);
+            t.strip_suffix(".0").map_or(t.clone(), str::to_owned)
+        };
+        session
+            .apply_raw(
+                "setCellInput",
+                json!({"sheet":0,"row":0,"col":20,"text":"1"}),
+            )
+            .unwrap();
+        session
+            .apply_raw(
+                "setCellInput",
+                json!({"sheet":0,"row":1,"col":20,"text":"3"}),
+            )
+            .unwrap();
+        session
+            .apply_raw(
+                "fillRange",
+                json!({"sheet":0,"range":"U1:U2","direction":"down","count":2}),
+            )
+            .unwrap();
+        assert_eq!((at(&session, 2), at(&session, 3)), ("5".into(), "7".into()));
+        let target = SelectionTarget {
+            sheet: 0,
+            row: 0,
+            col: 20,
+            range: "U1".into(),
+        };
+        session.dispatch_chrome("edit.undo", &target).unwrap();
+        assert_eq!((at(&session, 2), at(&session, 3)), ("".into(), "".into()));
+        assert_eq!(at(&session, 1), "3");
     }
 }

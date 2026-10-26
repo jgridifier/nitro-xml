@@ -10,6 +10,7 @@ import { CANVAS_CSS, CSS, SHADOW_CSS } from "./style.js";
 import { QAT, officeCommandHidden, tabsFor } from "./commands.js";
 import { trackDirty } from "./dirty.js";
 import { createThumbs } from "./thumbs.js";
+import { attachThumbDrag } from "./thumb-drag.js";
 
 const APPS = {
   xlsx: { name: "Excel", tile: "X", unit: "Sheet", noun: "workbook", ext: ".xlsx,.xlsm,.xltx,.xltm" },
@@ -488,6 +489,20 @@ ${
     );
     for (const b of pl.children) io.observe(b);
   }
+  // Reorder: apply the edit, follow the moved slide, and re-seed the thumbnail renderer.
+  let docName = "";
+  async function moveSlide(from, to) {
+    const d = o.el._d;
+    if (!d || !edit) return;
+    await d.applyEdit(JSON.stringify({ command: "insert.move-slide-to", from, to }));
+    await o.el.shellAction("sheet", String(to));
+    track && track.touch();
+    thumbs.reorder(from, to, await d.save(), docName);
+    const pl = $(".pl");
+    if (pl) pl.dataset.sig = "";
+    sync();
+  }
+  thumbs && $(".pl") && attachThumbDrag($(".pl"), { enabled: () => edit && !!o.el._d, move: (a, b) => void moveSlide(a, b).catch((e) => console.error("moveSlide", e && e.message || e)) });
   const thumbSize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => thumbs && $$(".pl .th[data-live]").forEach((b) => thumbs.fit(b)));
   thumbs && $(".pl") && thumbSize && thumbSize.observe($(".pl"));
 
@@ -609,6 +624,7 @@ ${
     /** Hand the opened file to the thumbnail renderer (pptx pane). */
     opened(bytes, name) {
       if (!thumbs) return;
+      docName = name;
       thumbs.start(bytes, name);
       const pl = $(".pl");
       if (pl) {

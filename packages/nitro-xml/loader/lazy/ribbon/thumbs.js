@@ -12,6 +12,7 @@ export function createThumbs(TAG = "nitro-pptx") {
   let queue = Promise.resolve();
   let gen = 0;
   const cache = new Map();
+  const done = new Set(); // slides whose thumbnail rendered
 
   function start(bytes, name) {
     stop();
@@ -28,6 +29,7 @@ export function createThumbs(TAG = "nitro-pptx") {
   function stop() {
     gen++;
     cache.clear();
+    done.clear();
     ready = null;
     queue = Promise.resolve();
     if (host) {
@@ -57,6 +59,7 @@ export function createThumbs(TAG = "nitro-pptx") {
       if (!ready || !(await ready) || mine !== gen) return null;
       const slide = await paint(g);
       if (!slide || mine !== gen) return null;
+      done.add(String(g));
       const w = parseFloat(slide.style.width) || 1280;
       const h = parseFloat(slide.style.height) || 720;
       const clone = slide.cloneNode(true);
@@ -97,5 +100,19 @@ export function createThumbs(TAG = "nitro-pptx") {
     if (s) s.style.transform = `scale(${k})`;
   }
 
-  return { start, stop, render, mount, fit };
+  /**
+   * A slide moved: reopen the hidden host on the reordered bytes and carry over the thumbnails
+   * already rendered, under their new positions.
+   */
+  function reorder(from, to, bytes, name) {
+    const at = (g) => (g === from ? to : from < to ? (g > from && g <= to ? g - 1 : g) : g >= to && g < from ? g + 1 : g);
+    const kept = [...cache].filter(([g]) => done.has(String(g))).map(([g, job]) => [String(at(Number(g))), job]);
+    start(bytes, name);
+    for (const [g, job] of kept) {
+      cache.set(g, job);
+      done.add(g);
+    }
+  }
+
+  return { start, stop, render, mount, fit, reorder };
 }

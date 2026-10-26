@@ -115,6 +115,7 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .pane button .n{width:18px;text-align:right;color:var(--mut);padding-top:2px;font-variant-numeric:tabular-nums}
 .pane button .th{position:relative;flex:1;min-width:0;aspect-ratio:16/9;display:grid;place-items:center;background:#fff;color:#605e5c;border:1px solid #c8c6c4;border-radius:2px;font-size:11px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .pane button .ph{padding:0 6px;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.pane .pl{user-select:none}.pane button[data-drag]{opacity:.55}.pane button[data-ins=before]{box-shadow:inset 0 3px 0 var(--acc)}.pane button[data-ins=after]{box-shadow:inset 0 -3px 0 var(--acc)}
 .pane button[aria-current=true]{background:color-mix(in srgb,var(--acc) 12%,transparent)}
 .pane button[aria-current=true] .th{border:2px solid var(--acc)}
 .pane button[aria-current=true] .n{color:var(--acc);font-weight:600}

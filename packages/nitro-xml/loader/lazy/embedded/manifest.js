@@ -265,6 +265,7 @@ export const MANIFEST = {
       },
       {
         id: "Cells",
+        lo: true,
         items: [
           cmd("cells.insert-rows", "rowAdd", "Insert rows", "Insert sheet rows above the selection"),
           cmd("cells.delete-rows", "rowDel", "Delete rows", "Delete the selected sheet rows"),

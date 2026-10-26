@@ -3,12 +3,14 @@
 //! Undo/redo uses the shared [`EditHistory`] (#64).
 
 pub mod cells;
+pub mod fill;
 pub mod host;
 pub mod shift;
 pub mod structure;
 pub mod style_patch;
 
 pub use cells::register_cell_commands;
+pub use fill::register_fill_commands;
 pub use host::XlsxHost;
 pub use shift::register_shift_commands;
 pub use structure::register_structure_commands;

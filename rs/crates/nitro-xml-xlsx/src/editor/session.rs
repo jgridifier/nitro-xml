@@ -11,7 +11,8 @@ use serde_json::Value;
 
 use crate::address::format_address;
 use crate::edit::{
-    register_cell_commands, register_shift_commands, register_structure_commands, XlsxHost,
+    register_cell_commands, register_fill_commands, register_shift_commands, register_structure_commands,
+    XlsxHost,
 };
 use crate::model::CellAddress;
 use crate::write::save_xlsx;
@@ -45,6 +46,7 @@ impl EditorSession {
     pub fn from_host(host: XlsxHost) -> Self {
         let mut registry = CommandRegistry::new();
         register_cell_commands(&mut registry);
+        register_fill_commands(&mut registry);
         register_structure_commands(&mut registry);
         register_shift_commands(&mut registry);
         Self {

@@ -12,7 +12,7 @@ Host apps that embed `<nitro-xlsx>`, `<nitro-docx>` or `<nitro-pptx>` want one s
 | Attribute | `<nitro-pptx mode="embedded" src="deck.pptx">` (`mode="full"` or absent = today's UI) |
 | JS option | `el.mode = "embedded"` (property reflects the attribute; can be set before or after connect, and toggled at runtime) |
 | Events | unchanged (`nitro-save`, `nitro-copy`, `nitro-find`, `nitro-hyperlink`); the toolbar only calls the existing `shellAction(op, arg)` entry point |
-| Parts | `part="embedded-toolbar"`, `part="embedded-group"`, `part="embedded-button"` so hosts can theme with `::part`; CSS custom properties `--nx-accent`, `--nx-bg`, `--nx-fg`, `--nx-border` |
+| Parts | `part="embedded-toolbar"`, `part="embedded-group"`, `part="embedded-button"` so hosts can theme with `::part`; `theme` attribute/property and `--nx-*` tokens; see [theme.md](theme.md) |
 
 `readonly` keeps its meaning. With `readonly` (the default) only view/clipboard-read groups appear; editing groups appear when `readonly="false"` **and** the format's editor is wired to the WASM handle.
 

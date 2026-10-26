@@ -87,7 +87,12 @@ export class ViewerElement extends HTMLElement {
   mode: string;
   readonly: boolean;
 }
-export class ShellViewerElement extends ViewerElement {}
+/** Chrome theme: a built-in name, or `--nx-*` tokens (`"--nx-accent"` or short `accent`). See docs/theme.md. */
+export type NitroTheme = "office" | "quiet" | "dark" | Record<string, string>;
+export class ShellViewerElement extends ViewerElement {
+  /** Sets `data-theme` and the `--nx-*` variables on the element. A string attribute may also hold JSON tokens. */
+  theme: NitroTheme | null;
+}
 export class NitroXmlElement extends ShellViewerElement {}
 
 export function defineNitroXlsx(): void;

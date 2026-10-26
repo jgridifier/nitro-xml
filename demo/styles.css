@@ -6,9 +6,7 @@ html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--fg); font: 14px/1.5 "Segoe UI", "Segoe UI Variable Text", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
 .demo-root { height: 100%; display: flex; }
 .demo-root > .ox { flex: 1; min-width: 0; }
-.stage nitro-xlsx, .stage nitro-docx, .stage nitro-pptx { display: flex; flex-direction: column; min-height: 0; --nx-accent: #185abd; --nx-bg: var(--ox-st, #f3f2f1); --nx-fg: var(--ox-fg, #242424); --nx-border: var(--ox-bd, #e1dfdd); }
-.stage nitro-xlsx { --nx-accent: #107c41; }
-.stage nitro-pptx { --nx-accent: #c43e1c; }
+.stage nitro-xlsx, .stage nitro-docx, .stage nitro-pptx { display: flex; flex-direction: column; min-height: 0; }
 /* landing */
 .home { display: flex; flex-direction: column; min-height: 100%; height: auto; }
 .hd { display: flex; align-items: center; gap: 6px; padding: 10px 20px; }

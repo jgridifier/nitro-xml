@@ -14,6 +14,7 @@ same way it skips `loader/test/`.
 | `ribbon/*.js` | Demo host dynamic-`import()`s `mountOffice` (title bar, ribbon tabs, slide pane, status bar, drop zone) around an element; uses only `shellAction`. See `docs/ux-revision.md`. |
 | `ribbon/commands.js`, `dirty.js`, `thumbs.js` | Same host import: per-format ribbon manifest (only engine-mapped command ids), unsaved-changes tracking for writable xlsx, lazy slide thumbnails for pptx. |
 | `embedded/*.js` | Shell element has `mode="embedded"` (dynamic `import()` from `ShellViewerElement._em`). Single-row simplified-ribbon toolbar; see `docs/embedded-mode.md`. |
+| `theme.js` | Element `theme` attribute/property or `mountOffice({ theme })`: applies `data-theme` + `--nx-*` tokens to the host (`docs/theme.md`). |
 | `preload.js` | Host `preload()` — compile+cache wasm, hand Module to worker, prewarm (no host `initCore`; React embed). |
 | `wp.js` | Microtask `applyEdit` coalesce + **mut-frame** edit+paint for docx/pptx (one worker RT); xlsx keeps coalesce + separate tick. |
 | `frame-build.js` | Worker frame export shared by `take-frame` and `mut-frame` (moved off eager budget). |

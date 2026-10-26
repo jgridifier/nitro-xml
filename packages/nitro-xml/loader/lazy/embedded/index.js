@@ -35,7 +35,7 @@ function build(host, spec) {
   const reads = [];
   let html = "";
   spec.groups.forEach((g, gi) => {
-    html += `<div class="nx-g" role="group" aria-label="${esc(g.id)}" part="embedded-group" data-g="${gi}"${g.lo ? " data-lo" : ""}><div class="nx-row">`;
+    html += `<div class="nx-g" role="group" aria-label="${esc(g.id)}" part="embedded-group" data-g="${gi}"><div class="nx-row">`;
     for (const it of g.items) {
       if (it.r) html += `<span class="nx-r" data-r="${it.r}" role="status"></span>`;
       else {
@@ -116,9 +116,7 @@ function build(host, spec) {
     more.hidden = false;
     // Spill from the right, keeping the first group and View as long as possible.
     const live = groups.filter((g) => !g.hidden);
-    // Groups flagged `lo` (rarely needed, e.g. row/column edits) spill before the rest so Find and View stay on the bar.
-    const mid = live.slice(1, -1).reverse();
-    const order = [...mid.filter((g) => "lo" in g.dataset), ...mid.filter((g) => !("lo" in g.dataset)), ...live.slice(-1)];
+    const order = [...live.slice(1, -1).reverse(), ...live.slice(-1)];
     const moved = new Set();
     for (const g of order) {
       if (!over() || g === live[0]) break;

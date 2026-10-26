@@ -23,6 +23,10 @@ via `actions/deploy-pages` when the repo variable `PAGES_DEPLOY=actions` is set.
 Until then Pages still serves the legacy **/docs** branch path and will not pick up
 this demo (or the WASM payload).
 
+## Theme
+
+Demos default to the `quiet` theme; append `?theme=office` (or `dark`) to any demo URL, or use the *Office look* link in the title bar. Hosts pass a custom theme as `theme: { accent: "#0b6e4f" }`; see `docs/theme.md`.
+
 ## Editing
 
 The **xlsx** demos open writable (`readonly="false"`): ribbon commands, typing, Save (downloads the edited

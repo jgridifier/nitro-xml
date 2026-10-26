@@ -291,10 +291,11 @@ export class ShellViewerElement extends ViewerElement {
     this._wp = 1;
   }
   static get observedAttributes() {
-    return ["src", "readonly", "mode"];
+    return ["src", "readonly", "mode", "theme"];
   }
   attributeChangedCallback(n, _, v) {
     if (n == "readonly") this._readonly = v != "false";
+    if (n == "theme") this._tm(v);
     if (n == "mode") {
       if (v == "embedded") import("./lazy/preload.js").then((m) => m.preload()).catch(() => {});
       if (this._ch) this._em();
@@ -305,6 +306,16 @@ export class ShellViewerElement extends ViewerElement {
   }
   set mode(v) {
     this.setAttribute("mode", v);
+  }
+  get theme() {
+    return this._th;
+  }
+  set theme(v) {
+    this._tm(v);
+  }
+  _tm(v) {
+    this._th = v;
+    import("./lazy/theme.js").then((m) => m.applyTheme(this, v));
   }
   async _em() {
     const e = this.mode == "embedded";

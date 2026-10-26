@@ -5,6 +5,7 @@
 // enabled/pressed/readout state is mirrored from the Rust chrome (host._ch), which stays the
 // single source of truth. The frame hides the Rust toolbar/tab strip with injected shadow CSS;
 // nothing in the element's default mode changes.
+import { applyTheme } from "../theme.js";
 import { ICONS } from "./icons.js";
 import { CANVAS_CSS, CSS, SHADOW_CSS } from "./style.js";
 import { QAT, officeCommandHidden, tabsFor } from "./commands.js";
@@ -23,24 +24,26 @@ const svg = (i) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => "&#" + c.charCodeAt(0) + ";");
 const plain = (t) => t.replace(/ \(.*/, "");
 
+/** Persisted/system preference when the host passes no theme: `dark` or the familiar `office` skin. */
 export function getTheme() {
   try {
     const t = localStorage.getItem("nitro-theme");
-    if (t) return t;
+    if (t === "dark" || t === "office") return t;
   } catch {}
-  return matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "office";
 }
 export function setTheme(t) {
-  document.documentElement.dataset.theme = t;
+  document.documentElement.dataset.theme = t === "dark" ? "dark" : "light";
   try {
-    localStorage.setItem("nitro-theme", t);
+    localStorage.setItem("nitro-theme", t === "dark" ? "dark" : "office");
   } catch {}
-  document.querySelectorAll(".ox").forEach((o) => (o.dataset.theme = t));
+  document.querySelectorAll(".ox").forEach((o) => applyTheme(o, t));
 }
 
 /**
  * @param {{ container: HTMLElement, el: HTMLElement, format: 'xlsx'|'docx'|'pptx', chrome?: boolean,
  *   mode: 'full'|'embedded', links?: [string,string][], onMode: (m:string)=>void,
+ *   theme?: 'office'|'quiet'|'dark'|Record<string,string> (docs/theme.md; default: saved/system light|dark),
  *   onFile: (f:File)=>void, onSample: ()=>void, onClose?: ()=>void, edit?: boolean }} o
  *   edit: the element is writable and the format's editor is wired to the handle (xlsx today).
  */
@@ -58,7 +61,8 @@ export function mountOffice(o) {
   const root = document.createElement("div");
   root.className = "ox";
   root.dataset.app = o.format;
-  root.dataset.theme = getTheme();
+  const base = o.theme ?? getTheme();
+  applyTheme(root, base);
   const style = document.createElement("style");
   style.textContent = CSS;
 
@@ -223,7 +227,13 @@ ${
     if (t.classList.contains("rgc")) return group(t.parentElement, !t.parentElement.dataset.open);
     if (t.dataset.mode) return o.onMode(t.dataset.mode);
     if (t.dataset.q === "open") return pick.click();
-    if (t.dataset.q === "theme") return setTheme(root.dataset.theme === "dark" ? "light" : "dark");
+    if (t.dataset.q === "theme") {
+      const dark = root.dataset.theme !== "dark";
+      const next = dark ? "dark" : base === "dark" ? "office" : base;
+      if (o.theme === undefined) return setTheme(next);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      return void applyTheme(root, next);
+    }
     if (t.closest(".dm")) {
       const m = byKey.get(t.dataset.k);
       dropdown(false, true);

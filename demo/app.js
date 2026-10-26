@@ -38,7 +38,10 @@ export async function boot(opts) {
     import(LOADER + "index.js"),
     import(LOADER + "lazy/ribbon/index.js"),
   ]);
-  office.setTheme(office.getTheme());
+  // Demos default to the Nitro Quiet skin; `?theme=office|quiet|dark` switches it (docs/theme.md).
+  const asked = new URLSearchParams(location.search).get("theme");
+  const theme = ["office", "quiet", "dark"].includes(asked) ? asked : "quiet";
+  document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
   await loader.initCore({ fontSource: false });
   loader[DEFINE[format]]();
 
@@ -157,10 +160,12 @@ export async function boot(opts) {
       el: makeEl(),
       format,
       mode,
+      theme,
       chrome: mode === "full",
       edit: EDITABLE[format],
       links: [
         ["./index.html", "All demos"],
+        [`?theme=${theme === "quiet" ? "office" : "quiet"}`, theme === "quiet" ? "Office look" : "Quiet look"],
         ["https://github.com/jgridifier/nitro-xml", "GitHub"],
       ],
       async onMode(m) {
@@ -169,7 +174,7 @@ export async function boot(opts) {
         const carry = ui?.dirty ? await ui.snapshot() : null;
         if (carry) lastBytes = carry.buffer.slice(carry.byteOffset, carry.byteOffset + carry.byteLength);
         mode = m;
-        history.replaceState(null, "", `./${format}-${m === "embedded" ? "embedded" : "full"}.html`);
+        history.replaceState(null, "", `./${format}-${m === "embedded" ? "embedded" : "full"}.html${location.search}`);
         mount();
         if (lastBytes) {
           await openBytes(lastBytes, lastName);

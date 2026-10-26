@@ -81,6 +81,42 @@ const CHECKS = [
 			return null;
 		},
 	},
+	{
+		id: 'xlsx.tab-navigation',
+		// Catches: Tab not moving the active cell, WebKit focus leaving the grid on Tab (every later key dead), Enter after a Tab run not returning to the start column, Ctrl+Home doing nothing.
+		fn: async (page) => {
+			const g = await settledGrid(page);
+			const p = at(g, 1, 1);
+			await page.mouse.click(p.x, p.y);
+			await sleep(page, 200);
+			const seq = [];
+			for (const k of ['Tab', 'Tab', 'Shift+Tab', 'ArrowDown', 'ArrowRight']) {
+				const prev = await selection(page);
+				await page.keyboard.press(k);
+				await until(page, async () => (await selection(page)) !== prev, 1500);
+				seq.push(await selection(page));
+			}
+			const want = ['C2', 'D2', 'C2', 'C3', 'D3'];
+			if (seq.join() !== want.join()) return `got ${seq.join(' ')}; want ${want.join(' ')}`;
+			// Type across a row with Tab, then Enter returns to the first column of the run.
+			const q = at(g, 6, 19);
+			await page.mouse.click(q.x, q.y);
+			await sleep(page, 200);
+			await page.keyboard.type('a'); await page.keyboard.press('Tab');
+			await page.keyboard.type('b'); await page.keyboard.press('Tab');
+			await page.keyboard.type('c'); await page.keyboard.press('Enter');
+			if (!(await until(page, async () => (await selection(page)) === 'G21'))) return `after a,Tab,b,Tab,c,Enter selection=${await selection(page)}, want G21`;
+			await sleep(page, 300);
+			// Row 21 may have scrolled into view; read the cell back from the current geometry.
+			const g2 = await geom(page);
+			const rowIdx = await inEl(page, 'xlsx', (el, sr) => [...sr.querySelectorAll('.xg-hdr-row .xg-hd')].findIndex((e) => e.textContent.trim() === '20'));
+			const h20 = rowIdx < 0 ? null : await text(page, at(g2, 7, rowIdx));
+			if (h20 !== 'b') return `H20 should hold "b", has ${JSON.stringify(h20)}`;
+			await page.keyboard.press('Control+Home');
+			if (!(await until(page, async () => (await selection(page)) === 'A1'))) return `Ctrl+Home selection=${await selection(page)}`;
+			return null;
+		},
+	},
 ];
 
 export async function runXlsxEditChecks(browserNames) {

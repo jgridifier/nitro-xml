@@ -133,7 +133,9 @@ export function attach(el) {
     // synchronously (the async handler cannot). Dead keys have key "Dead" and keep composing.
     // Alt / AltGr / Option chords produce text the editor path ignores: leave those to beforeinput.
     const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
-    if ((plain && [...e.key].length === 1) || keyOwned) e.preventDefault();
+    // Tab / Shift+Tab move the active cell (editorKey), so the browser must not also move focus
+    // (WebKit dropped every later key once focus left the grid); the async editorKey reply is too late.
+    if ((plain && [...e.key].length === 1) || keyOwned || (plain && e.key === "Tab" && el.localName === "nitro-xlsx")) e.preventDefault();
   });
 
   // ---- beforeinput: soft keyboards, dictation, autocorrect, native edit commands ----

@@ -268,7 +268,7 @@ impl XlsxState {
         match effect {
             Surface::Commit => {
                 self.formula_commit()?;
-                let (row, col) = nudge_for(key, shift);
+                let (row, col) = self.nav_for(key, shift, &target);
                 if row != 0 || col != 0 {
                     let _ = self.nudge_active(row, col);
                 }
@@ -338,8 +338,21 @@ impl XlsxState {
         alt: bool,
         target: &SelectionTarget,
     ) -> Result<EditorKeyEffect, String> {
+        if (ctrl || meta) && !alt && !shift && key == "Home" {
+            // Ctrl+Home: back to A1 with the view scrolled home.
+            self.tab_trail = None;
+            self.scroll_x = 0;
+            self.scroll_y = 0;
+            let _ = self.nudge_active(-(target.row as i32), -(target.col as i32));
+            return Ok(EditorKeyEffect::Handled);
+        }
         if alt || ctrl || meta {
             return Ok(EditorKeyEffect::Ignored);
+        }
+        if key == "Tab" || key == "Enter" {
+            let (row, col) = self.nav_for(key, shift, target);
+            let _ = self.nudge_active(row, col);
+            return Ok(EditorKeyEffect::Move { row, col });
         }
         if key == "F2" {
             let edit = self.edit.as_mut().expect("edit");
@@ -361,11 +374,6 @@ impl XlsxState {
             self.sync_cells_from_edit(target.sheet, &[(target.row, target.col)]);
             return Ok(EditorKeyEffect::Handled);
         }
-        if key == "Enter" {
-            let row = if shift { -1 } else { 1 };
-            let _ = self.nudge_active(row, 0);
-            return Ok(EditorKeyEffect::Move { row, col: 0 });
-        }
         if is_printable(key) {
             let edit = self.edit.as_mut().expect("edit");
             edit.begin_edit(target, Some(key.to_owned()))
@@ -373,6 +381,30 @@ impl XlsxState {
             return Ok(EditorKeyEffect::Handled);
         }
         Ok(EditorKeyEffect::Ignored)
+    }
+
+    /// Row/col step for Enter / Tab, tracking the Tab trail so Enter returns to the column the
+    /// run of Tabs started in.
+    fn nav_for(&mut self, key: &str, shift: bool, target: &SelectionTarget) -> (i32, i32) {
+        let origin = self
+            .tab_trail
+            .filter(|&(_, r, c)| r == target.row && c == target.col)
+            .map(|(o, _, _)| o);
+        let (row, mut col) = nudge_for(key, shift);
+        match key {
+            "Tab" => {
+                let next = (target.col as i32 + col).clamp(0, MAX_COL as i32) as u32;
+                self.tab_trail = Some((origin.unwrap_or(target.col), target.row, next));
+            }
+            "Enter" if !shift => {
+                if let Some(o) = origin {
+                    col = o as i32 - target.col as i32;
+                }
+                self.tab_trail = None;
+            }
+            _ => self.tab_trail = None,
+        }
+        (row, col)
     }
 
     fn adopt_host_active_sheet(&mut self) {
@@ -791,6 +823,48 @@ mod tests {
             Some("G8"),
             "shell selection_ref must follow host nudge after commit"
         );
+    }
+
+    #[test]
+    fn catches_tab_not_moving_and_enter_not_returning_to_the_tab_origin_column() {
+        // Catches: Tab/Shift+Tab ignored while no cell is being edited (WebKit then lost focus),
+        // and Enter after typing across a row landing under the last cell instead of the first.
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_1k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_1k");
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_1k.xlsx").expect("open");
+        h.load_editor_chrome();
+        h.set_read_only(false);
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"warm"}"#)
+            .expect("ensure_edit");
+        let xlsx = h.xlsx.as_mut().expect("xlsx");
+        xlsx.apply_selection_ref("G20").expect("G20");
+        let key = |x: &mut crate::xlsx::XlsxState, k: &str, shift: bool| {
+            x.editor_key(k, shift, false, false, false, false).expect(k)
+        };
+        assert!(matches!(
+            key(xlsx, "Tab", false),
+            EditorKeyEffect::Move { row: 0, col: 1 }
+        ));
+        assert_eq!(xlsx.selection_ref_now().as_deref(), Some("H20"));
+        key(xlsx, "x", false);
+        key(xlsx, "Tab", false);
+        assert_eq!(xlsx.selection_ref_now().as_deref(), Some("I20"));
+        key(xlsx, "Tab", true);
+        assert_eq!(xlsx.selection_ref_now().as_deref(), Some("H20"));
+        key(xlsx, "Tab", false);
+        assert!(matches!(
+            key(xlsx, "Enter", false),
+            EditorKeyEffect::Move { row: 1, col: -2 }
+        ));
+        assert_eq!(xlsx.selection_ref_now().as_deref(), Some("G21"));
+        // A plain Enter with no Tab run stays in its column.
+        assert!(matches!(
+            key(xlsx, "Enter", false),
+            EditorKeyEffect::Move { row: 1, col: 0 }
+        ));
+        assert_eq!(xlsx.selection_ref_now().as_deref(), Some("G22"));
     }
 
     #[test]

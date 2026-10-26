@@ -50,6 +50,9 @@ pub struct XlsxState {
     pending_tail_complete: bool,
     /// Edit host owns the full grid; viewer `sheets` slots stay empty until a structure sync.
     pub(crate) grid_in_host: bool,
+    /// `(origin col, row, col)` of the last Tab move. Enter returns to the origin column while
+    /// the active cell is still where that Tab left it (Excel's type-across-a-row-then-Enter).
+    pub(crate) tab_trail: Option<(u32, u32, u32)>,
 }
 
 impl XlsxState {
@@ -89,6 +92,7 @@ impl XlsxState {
                 pending_view_scroll: true,
                 pending_tail_complete: false,
                 grid_in_host: false,
+                tab_trail: None,
             },
             warnings,
         ))

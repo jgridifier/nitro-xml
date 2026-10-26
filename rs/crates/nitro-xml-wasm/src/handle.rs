@@ -1520,7 +1520,7 @@ impl Handle {
         Ok(payload.to_string())
     }
 
-    fn apply_office_edit(&mut self, spec: &str) -> Result<String, JsValue> {
+    pub(crate) fn apply_office_edit(&mut self, spec: &str) -> Result<String, JsValue> {
         let effect = if let Some(pptx) = self.pptx.as_mut() {
             pptx.ensure_edit(&self.bytes)
                 .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;

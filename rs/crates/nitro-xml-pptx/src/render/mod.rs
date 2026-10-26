@@ -57,7 +57,10 @@ pub use context::StringIntern;
 pub use field_substitution::FieldSubstitutionContext;
 pub use print::print_slide_html;
 pub use raster_export::export_slide_png;
-pub use selection::{contains_id, copy_text, hit_top_level, top_level_ids};
+pub use selection::{
+    contains_id, copy_text, handle_centers, hit_top_level, rotate_about, top_level_ids,
+    SelectionBox, HANDLE_PX, RESIZE_HANDLES, ROTATE_STEM_PX,
+};
 pub use smartart3d::paint as paint_smartart3d;
 pub use svg_export::export_slide_svg;
 pub use three_host::is_available as webgl_host_available;
@@ -78,6 +81,10 @@ pub struct SlidePaintViewport {
     pub viewport_h: i32,
     /// Top-level element ids to outline (`.pptx-sel`).
     pub selected_ids: Vec<String>,
+    /// Geometry overrides for shapes mid-drag; the outline follows, the shape repaints on commit.
+    pub live: Vec<SelectionBox>,
+    /// Draw resize / rotate handles (editable decks only).
+    pub handles: bool,
 }
 
 impl Default for SlidePaintViewport {
@@ -88,6 +95,8 @@ impl Default for SlidePaintViewport {
             viewport_w: 800,
             viewport_h: 600,
             selected_ids: Vec::new(),
+            live: Vec::new(),
+            handles: false,
         }
     }
 }
@@ -152,7 +161,13 @@ pub fn paint_slide_frame<I: StringIntern>(
             field_ctx,
             slide_autofit,
         );
-        stage::paint_slide_stage(&mut ctx, slide, &viewport.selected_ids);
+        stage::paint_slide_stage(
+            &mut ctx,
+            slide,
+            &viewport.selected_ids,
+            &viewport.live,
+            viewport.handles,
+        );
         ctx.layout_read_records
     };
     sp_autofit.slide_mut(slide_index).finish_frame(records);

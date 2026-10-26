@@ -166,6 +166,29 @@ const CHECKS = [
 			return null;
 		},
 	},
+	{
+		id: 'xlsx.dblclick-edit-in-place',
+		// Catches: double-click replacing the cell (typing started from empty) instead of editing the existing text with the caret at its end.
+		fn: async (page) => {
+			const g = await settledGrid(page);
+			const c = at(g, 0, 1);
+			const orig = (await text(page, c)).split('|')[0];
+			await page.mouse.dblclick(c.x, c.y);
+			await sleep(page, 300);
+			await page.keyboard.type('Z');
+			await page.keyboard.press('Enter');
+			if (!(await until(page, async () => (await text(page, c)).includes(orig + 'Z')))) return `"${orig}" -> "${await text(page, c)}", want "${orig}Z"`;
+			// Escape cancels the in-place edit and keeps the original.
+			const d = at(g, 0, 2);
+			const origD = await text(page, d);
+			await page.mouse.dblclick(d.x, d.y);
+			await sleep(page, 300);
+			await page.keyboard.type('QQ');
+			await page.keyboard.press('Escape');
+			await sleep(page, 400);
+			return (await text(page, d)) === origD ? null : `Escape after dblclick-edit changed "${origD}" to "${await text(page, d)}"`;
+		},
+	},
 ];
 
 export async function runXlsxEditChecks(browserNames) {

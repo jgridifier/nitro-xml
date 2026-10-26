@@ -130,6 +130,17 @@ export function attach(el) {
   v.addEventListener("click", (e) => focus(e.pointerType === "touch"));
   v.addEventListener("focus", () => focus(false));
 
+  // Excel: double-clicking a cell edits it in place with the caret after the existing text (the second
+  // click only re-selects the cell, so it must not replace the content). Same path as F2.
+  if (el.localName === "nitro-xlsx") {
+    v.addEventListener("dblclick", (e) => {
+      if (!editable() || e.button !== 0) return;
+      // Cells sit under the pointer-transparent grid layer, so hit-test by point (headers are not cells).
+      const onCell = sr.elementsFromPoint(e.clientX, e.clientY).some((n) => n.classList.contains("xg-c") || n.classList.contains("xg-tx"));
+      if (onCell) void enqueue(() => key("F2").then(() => el._tick()));
+    });
+  }
+
   // ---- keys: stop the textarea double-inserting what the keydown path already handles ----
   ta.addEventListener("keydown", (e) => {
     if (composing || e.isComposing || e.keyCode === 229) {

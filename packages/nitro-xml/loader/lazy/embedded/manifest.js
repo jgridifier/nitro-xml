@@ -231,7 +231,7 @@ export const MANIFEST = {
     label: "Workbook tools",
     groups: [
       { id: "File", items: [cmd("file.save", "save", "Save", "Save (Ctrl+S)", 0, 1), cmd("edit.undo", "undo", "Undo", "Undo (Ctrl+Z)", 0, 1), cmd("edit.redo", "redo", "Redo", "Redo (Ctrl+Y)", 0, 1)] },
-      copy,
+      { id: "Clipboard", items: [cmd("home.cut", "cut", "Cut", "Cut (Ctrl+X)"), copy.items[0], cmd("home.paste", "paste", "Paste", "Paste (Ctrl+V)")] },
       {
         id: "Font",
         items: [

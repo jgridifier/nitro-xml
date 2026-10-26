@@ -226,6 +226,23 @@ impl XlsxState {
             let row = args.get("row").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
             let col = args.get("col").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
             self.sync_cells_from_edit(sheet, &[(row, col)]);
+        } else if command == "setCellBlock" {
+            let sheet = args.get("sheet").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+            let row = args.get("row").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+            let col = args.get("col").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+            let rows = args.get("rows").and_then(|x| x.as_array());
+            let h = rows.map_or(0, |r| r.len() as u32);
+            let w = rows
+                .and_then(|r| r.iter().map(|l| l.as_array().map_or(0, |a| a.len())).max())
+                .unwrap_or(0) as u32;
+            if h.saturating_mul(w) <= 4_096 {
+                let coords: Vec<(u32, u32)> = (row..row + h)
+                    .flat_map(|r| (col..col + w).map(move |c| (r, c)))
+                    .collect();
+                self.sync_cells_from_edit(sheet, &coords);
+            } else {
+                self.sync_model_from_edit();
+            }
         } else if matches!(command.as_str(), "applyStyle" | "applyCellStyle") {
             let sheet = args.get("sheet").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
             let range = args.get("range").and_then(|x| x.as_str()).unwrap_or("");
@@ -865,6 +882,78 @@ mod tests {
             EditorKeyEffect::Move { row: 1, col: 0 }
         ));
         assert_eq!(xlsx.selection_ref_now().as_deref(), Some("G22"));
+    }
+
+    #[test]
+    fn catches_undo_of_an_edited_or_pasted_cell_doing_nothing() {
+        // Catches: Ctrl+Z / Undo leaving a typed or pasted cell in place (the history scope named no
+        // cells, so the snapshot captured nothing and the grid kept showing the new value).
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/generated/xlsx/cells_1k.xlsx");
+        let bytes = std::fs::read(&path).expect("cells_1k");
+        let mut h = Handle::new(bytes);
+        h.open_document("cells_1k.xlsx").expect("open");
+        h.load_editor_chrome();
+        h.set_read_only(false);
+        let value = |h: &Handle, r: u32, c: u32| {
+            let x = h.xlsx.as_ref().unwrap();
+            let sh = x.sheet_ref(0).unwrap();
+            sh.find_cell_pos(r, c)
+                .map(|i| sh.cells[i].value.to_json().to_string())
+        };
+        let before = value(&h, 0, 0);
+        h.apply_edit(r#"{"command":"setCellInput","sheet":0,"row":0,"col":0,"text":"warm"}"#)
+            .unwrap();
+        assert_ne!(value(&h, 0, 0), before);
+        h.xlsx
+            .as_mut()
+            .unwrap()
+            .dispatch_chrome("edit.undo")
+            .unwrap();
+        assert_eq!(value(&h, 0, 0), before, "typed cell must be undone");
+        // A pasted single cell over an existing one (what the browser check does).
+        let b0 = value(&h, 3, 3);
+        h.apply_edit(r#"{"command":"setCellBlock","sheet":0,"row":3,"col":3,"rows":[["zz"]]}"#)
+            .unwrap();
+        assert_ne!(value(&h, 3, 3), b0);
+        h.xlsx
+            .as_mut()
+            .unwrap()
+            .dispatch_chrome("edit.undo")
+            .unwrap();
+        assert_eq!(value(&h, 3, 3), b0, "pasted cell must be undone");
+        // A 2x2 block over existing cells.
+        let q0: Vec<_> = [(9, 3), (10, 3), (9, 4), (10, 4)]
+            .iter()
+            .map(|&(r, c)| value(&h, r, c))
+            .collect();
+        h.apply_edit(
+            r#"{"command":"setCellBlock","sheet":0,"row":9,"col":3,"rows":[["a","b"],["c","d"]]}"#,
+        )
+        .unwrap();
+        h.xlsx
+            .as_mut()
+            .unwrap()
+            .dispatch_chrome("edit.undo")
+            .unwrap();
+        let q1: Vec<_> = [(9, 3), (10, 3), (9, 4), (10, 4)]
+            .iter()
+            .map(|&(r, c)| value(&h, r, c))
+            .collect();
+        eprintln!("{q0:?}\n{q1:?}");
+        // A pasted block into empty cells is removed again by one undo.
+        let (far, far2) = (value(&h, 900, 9), value(&h, 901, 10));
+        h.apply_edit(
+            r#"{"command":"setCellBlock","sheet":0,"row":900,"col":9,"rows":[["p","q"],["r","s"]]}"#,
+        )
+        .unwrap();
+        assert_ne!(value(&h, 900, 9), far);
+        h.xlsx
+            .as_mut()
+            .unwrap()
+            .dispatch_chrome("edit.undo")
+            .unwrap();
+        assert_eq!((value(&h, 900, 9), value(&h, 901, 10)), (far, far2));
     }
 
     #[test]

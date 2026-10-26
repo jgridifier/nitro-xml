@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use nitro_xml_opc::edit::{ChangeKind, ChangeSet, Command, CommandRegistry, EditError};
 use serde_json::Value;
 
-use crate::address::parse_range;
+use crate::address::{parse_range, MAX_COL, MAX_ROW};
 use crate::model::{ActiveWorksheet, CellRange, DumpCell, DumpCellValue};
 use crate::numfmt::{parse_cell_input, CellValue, FormatOptions};
 use crate::styles::style_at;
@@ -342,6 +342,37 @@ pub fn register_cell_commands(registry: &mut CommandRegistry) {
                     })?;
             write_input(h, sheet, row, col, text)?;
             Ok(ChangeSet::new(ChangeKind::Cells, "setCellInput").with_sheet(sheet))
+        }),
+    );
+    // One undo step for a pasted or cleared block (`rows` is a grid of cell input texts).
+    registry.register(
+        Command::stub("setCellBlock", "setCellBlock").with_runner(|host, args| {
+            let h = host_mut(host)?;
+            let sheet = arg_u32(args, "sheet")?;
+            let row = arg_u32(args, "row")?;
+            let col = arg_u32(args, "col")?;
+            let rows =
+                args.get("rows")
+                    .and_then(|v| v.as_array())
+                    .ok_or_else(|| EditError::Other {
+                        message: "setCellBlock missing rows".into(),
+                    })?;
+            for (dr, line) in rows.iter().enumerate() {
+                let cells = line.as_array().ok_or_else(|| EditError::Other {
+                    message: "setCellBlock rows must be arrays".into(),
+                })?;
+                for (dc, cell) in cells.iter().enumerate() {
+                    let text = cell.as_str().ok_or_else(|| EditError::Other {
+                        message: "setCellBlock cells must be strings".into(),
+                    })?;
+                    let (r, c) = (row + dr as u32, col + dc as u32);
+                    if r > MAX_ROW || c > MAX_COL {
+                        continue;
+                    }
+                    write_input(h, sheet, r, c, text)?;
+                }
+            }
+            Ok(ChangeSet::new(ChangeKind::Cells, "setCellBlock").with_sheet(sheet))
         }),
     );
     registry.register(

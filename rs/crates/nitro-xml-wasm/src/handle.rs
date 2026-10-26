@@ -608,6 +608,11 @@ impl Handle {
         ) {
             return self.editor_chrome_op(op);
         }
+        // Pointer events flushed just before a selection read (copy, ui) must act first, as in
+        // editorKey: Ctrl+V right after a click would otherwise paste at the old selection.
+        if matches!(op, "copy" | "ui" | "") && self.events.len() > 0 {
+            process_frame(self);
+        }
         if op == "cmd" {
             return self.dispatch_chrome_command(arg);
         }

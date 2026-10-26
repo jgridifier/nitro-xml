@@ -117,6 +117,55 @@ const CHECKS = [
 			return null;
 		},
 	},
+	{
+		id: 'xlsx.clipboard-cut-paste',
+		// Catches: Ctrl+X not removing the source, Ctrl+V / ribbon Paste doing nothing or pasting a block cell by cell (several undo steps), ribbon Cut/Paste missing.
+		fn: async (page) => {
+			const g = await settledGrid(page);
+			const drag = async (a, b) => {
+				await page.mouse.move(a.x, a.y);
+				await page.mouse.down();
+				await page.mouse.move(b.x, b.y, { steps: 4 });
+				await page.mouse.up();
+				await sleep(page, 250);
+			};
+			const [a2, a3, b2, b3] = [at(g, 0, 1), at(g, 0, 2), at(g, 1, 1), at(g, 1, 2)];
+			const src = [await text(page, a2), await text(page, a3), await text(page, b2), await text(page, b3)];
+			if (src.some((t) => !t)) return `fixture block A2:B3 has empty cells: ${JSON.stringify(src)}`;
+			const d10 = at(g, 3, 9), d11 = at(g, 3, 10), e10 = at(g, 4, 9), e11 = at(g, 4, 10);
+			const dest = () => Promise.all([d10, d11, e10, e11].map((p) => text(page, p)));
+			const orig = await dest();
+			// Keyboard: copy a 2x2 block, paste elsewhere, source intact.
+			await drag(a2, b3);
+			await page.keyboard.press('Control+c');
+			await sleep(page, 400);
+			await page.mouse.click(d10.x, d10.y);
+			await sleep(page, 200);
+			await page.keyboard.press('Control+v');
+			if (!(await until(page, async () => (await dest()).join() === [src[0], src[1], src[2], src[3]].join()))) return `Ctrl+V block: dest=${JSON.stringify(await dest())}, want ${JSON.stringify(src)}`;
+			// One undo reverts the whole block.
+			await page.keyboard.press('Control+z');
+			if (!(await until(page, async () => (await dest()).join() === orig.join()))) return `a single Ctrl+Z should revert the whole pasted block: orig=${JSON.stringify(orig)} dest=${JSON.stringify(await dest())}`;
+			// Keyboard cut + paste moves the block.
+			await drag(a2, b3);
+			await page.keyboard.press('Control+x');
+			if (!(await until(page, async () => !(await text(page, a2)) && !(await text(page, b3))))) return `Ctrl+X left the source: ${await text(page, a2)}`;
+			await page.mouse.click(d10.x, d10.y);
+			await sleep(page, 200);
+			await page.keyboard.press('Control+v');
+			if (!(await until(page, async () => (await dest()).join() === src.join()))) return `cut+paste dest=${JSON.stringify(await dest())}, want ${JSON.stringify(src)}`;
+			// Ribbon: Cut and Paste buttons.
+			await drag(d10, e11);
+			await ribbon(page, 'Cut').click();
+			if (!(await until(page, async () => !(await text(page, d10)) && !(await text(page, e11))))) return 'ribbon Cut left the source';
+			const f14 = at(g, 5, 13), g15 = at(g, 6, 14);
+			await page.mouse.click(f14.x, f14.y);
+			await sleep(page, 200);
+			await ribbon(page, 'Paste').click();
+			if (!(await until(page, async () => (await text(page, f14)) === src[0] && (await text(page, g15)) === src[3]))) return `ribbon Paste F14="${await text(page, f14)}" G15="${await text(page, g15)}"`;
+			return null;
+		},
+	},
 ];
 
 export async function runXlsxEditChecks(browserNames) {
@@ -131,7 +180,7 @@ export async function runXlsxEditChecks(browserNames) {
 				for (const c of CHECKS.filter((x) => x.id.includes(only))) {
 					const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
 					if (name === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-					const page = await context.newPage();
+					const page = await context.newPage(); if (process.env.XLSXEDIT_DEBUG) { page.on('console', (m) => console.log('console:', m.text())); page.on('pageerror', (e) => console.log('pageerror:', String(e).slice(0, 300))); }
 					let msg;
 					try {
 						await openDemo(page, server.url, 'xlsx');

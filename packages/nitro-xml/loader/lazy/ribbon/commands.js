@@ -201,7 +201,7 @@ export const QAT = [
 ];
 
 const XLSX_HOME = [
-  { g: "Clipboard", big: [copy] },
+  { g: "Clipboard", big: [it("home.cut", "cut", "Cut", "Cut (Ctrl+X)"), copy, it("home.paste", "paste", "Paste", "Paste (Ctrl+V)")] },
   {
     g: "Font",
     rows: [

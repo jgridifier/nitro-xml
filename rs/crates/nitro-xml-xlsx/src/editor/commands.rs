@@ -57,6 +57,9 @@ pub fn map_chrome_command(id: &str, target: &SelectionTarget, host: &XlsxHost) -
         "file.save" => return MappedCommand::Save,
         "edit.undo" => return MappedCommand::Undo,
         "edit.redo" => return MappedCommand::Redo,
+        // Cut and Paste need the browser clipboard; the loader runs them (setCellBlock) and
+        // this arm only records that the ids are known to the editor.
+        "home.cut" | "home.paste" => return MappedCommand::Unmapped,
         "home.clear-contents" => {
             return op(
                 "setCellInput",

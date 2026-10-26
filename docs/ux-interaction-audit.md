@@ -50,6 +50,8 @@ Suspect: `element.js` `_bx` is keydown-only; no `beforeinput`/composition listen
 Scenarios `pptx.select-shape`, `pptx.drag-move`, `pptx.resize-handles`, `pptx.text-edit` (passes only in the weak sense that text lands). Shots: `before-pptx-select-no-handles.png`, `before-pptx-drag-no-move.png`.
 Suspect: `pptx.rs:192` handles `Pointer` type 0 only; no move/up/drag state; `pptx_edit.rs` has the shape-edit commands but nothing drives them from pointer input.
 
+**Status (ux/pptx-interaction):** fixed for editable decks. `pptx_drag.rs` drives move, 8-handle resize (also rotated shapes, Shift keeps aspect) and rotate (Shift snaps to 15 degrees) from the pointer stream and commits one undoable `patchShapeGeometry` per shape on release; Shift/Ctrl-click toggles multi-select and a drag moves the whole selection; Escape cancels; arrows nudge 8 px (Ctrl: 1 px) and still turn slides with nothing selected. Left: no in-shape caret (the model edits whole-shape text, typing still appends), no touch drag (needs `touch-action:none`, see the touch rows), drag edits are not in the crash-recovery journal (same as typed keys).
+
 **S2-3. PPTX slide thumbnails cannot be drag-reordered.** Drag thumbnail 1 below thumbnail 3: order unchanged, no `draggable`. Click-to-navigate works. Scenario `pptx.thumb-drag-reorder`. Shot: `before-pptx-thumb-reorder-noop.png`. Suspect: `loader/lazy/ribbon/index.js` thumbnail pane (~L410-430, `thumbs.js`); needs a reorder edit op in the pptx editor.
 
 **S2-4. XLSX: double-click replaces the cell instead of editing it.** Double-click `A2` ("row-1"), type `Z`, Enter: the cell becomes `Z` (Excel: `row-1Z`, caret at end). There is no click-count in the pointer event, so the second click is just another select. `F2` + Escape works. Scenario `xlsx.dblclick-edit`. Shot: `before-xlsx-dblclick-replaces-text.png`. Suspect: `events.rs` Pointer encoding has no click count; `xlsx.rs on_pointer`.
@@ -72,7 +74,7 @@ Suspect: `pptx.rs:192` handles `Pointer` type 0 only; no move/up/drag state; `pp
 
 **S3-3. Intermittent stale DOM while typing fast in pptx** (1 of 4 runs: model has all 20 characters, `.dom` does not after 2 s; local chromium only). Scenario `pptx.rapid-typing`. Probably the frame/measure race in `worker-host-tick.js tickBody` under load; needs a stress repro.
 
-**S3-4. Selection feedback is weak on dark fills.** The pptx selected-shape outline is 1 px and nearly invisible on the dark title slide (see `before-pptx-select-no-handles.png`).
+**S3-4. Selection feedback is weak on dark fills.** The pptx selected-shape outline is 1 px and nearly invisible on the dark title slide (see `before-pptx-select-no-handles.png`). *Fixed:* 2 screen-px blue stroke with a white hairline on both sides plus white handles (`render/selection.rs`).
 
 ## What already works (keep when refactoring)
 

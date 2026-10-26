@@ -41,7 +41,7 @@ export function trackDirty(el, onChange) {
     timer = setTimeout(check, 350);
   };
   // Typed edits go through the element's key handler, so listen for key and clipboard activity too.
-  const evs = ["keyup", "input", "paste", "cut"];
+  const evs = ["keyup", "input", "paste", "cut", "pointerup"];
   for (const e of evs) el.addEventListener(e, touch);
   return {
     async rebase() {

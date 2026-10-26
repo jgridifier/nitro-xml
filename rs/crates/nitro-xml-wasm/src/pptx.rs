@@ -40,6 +40,13 @@ pub struct PptxState {
     pub(crate) text_clip: String,
     /// Shape or picture captured by home.copy. Paste inserts this, not just its text.
     pub(crate) shape_clip: Option<nitro_xml_pptx::edit::host::EditableElement>,
+    /// The deck is editable, so selections draw handles and drags commit.
+    pub(crate) interactive: bool,
+    pub(crate) drag: Option<crate::pptx_drag::Drag>,
+    /// Geometry of shapes mid-drag; only the selection chrome follows it.
+    pub(crate) live: Vec<nitro_xml_pptx::render::SelectionBox>,
+    /// Edit specs queued by a finished drag; `process_frame` applies them.
+    pub(crate) pending_edits: Vec<String>,
 }
 
 impl PptxState {
@@ -71,6 +78,10 @@ impl PptxState {
             edit: None,
             text_clip: String::new(),
             shape_clip: None,
+            interactive: false,
+            drag: None,
+            live: Vec::new(),
+            pending_edits: Vec::new(),
         })
     }
 
@@ -126,7 +137,7 @@ impl PptxState {
         }
     }
 
-    fn effective_scale(&self) -> f64 {
+    pub(crate) fn effective_scale(&self) -> f64 {
         if self.scale > 0.0 {
             return self.scale;
         }
@@ -134,7 +145,7 @@ impl PptxState {
         fit_slide_scale(w, h, self.viewport_w, self.viewport_h)
     }
 
-    fn hit_id(&mut self, x: f32, y: f32) -> Option<String> {
+    pub(crate) fn hit_id(&mut self, x: f32, y: f32) -> Option<String> {
         let scale = self.effective_scale();
         if scale <= f64::EPSILON {
             return None;
@@ -153,6 +164,8 @@ impl PptxState {
             viewport_w: self.viewport_w,
             viewport_h: self.viewport_h,
             selected_ids: self.selected_ids.clone(),
+            live: self.live.clone(),
+            handles: self.interactive,
         }
     }
 
@@ -202,16 +215,17 @@ impl PptxState {
             Event::Pointer {
                 type_,
                 button,
+                buttons,
                 x,
                 y,
+                mods,
                 ..
-            } if *type_ == 0 && *button == 0 => {
-                match self.hit_id(*x, *y) {
-                    Some(id) => self.selected_ids = vec![id],
-                    None => self.selected_ids.clear(),
-                }
-                true
-            }
+            } => match *type_ {
+                0 if *button == 0 => self.pointer_down(*x, *y, *mods),
+                1 => self.pointer_move(*x, *y, *buttons, *mods),
+                2 => self.pointer_up(),
+                _ => false,
+            },
             Event::Keyboard {
                 type_,
                 key_id,
@@ -224,6 +238,9 @@ impl PptxState {
                 let key = strings.resolve(*key_id).unwrap_or("");
                 let ctrl = mods & (MOD_CTRL | MOD_META) != 0;
                 let shift = mods & MOD_SHIFT != 0;
+                if key == "Escape" && self.cancel_drag() {
+                    return true;
+                }
                 if ctrl && !shift && (key == "a" || key == "A") {
                     self.select_all();
                     return true;
@@ -347,6 +364,10 @@ pub fn is_pptx_extension(name: &str) -> bool {
 
 pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
     let events: Vec<Event> = handle.events.pending_snapshot();
+    let editable = !handle.editor.read_only();
+    if let Some(ref mut pptx) = handle.pptx {
+        pptx.interactive = editable;
+    }
     let selection = if let Some(ref mut pptx) = handle.pptx {
         pptx.process_events(&events, &handle.strings)
     } else {
@@ -359,6 +380,18 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         }
     }
     handle.events.drain();
+    // A finished drag commits through the edit path, which repaints the whole frame.
+    let edits = handle
+        .pptx
+        .as_mut()
+        .map(PptxState::take_pending_edits)
+        .unwrap_or_default();
+    if !edits.is_empty() {
+        for spec in &edits {
+            let _ = handle.apply_office_edit(spec);
+        }
+        return;
+    }
     if let Some(ref mut pptx) = handle.pptx {
         pptx.apply_shell_zoom(handle.shell.zoom_pct);
         pptx.paint(

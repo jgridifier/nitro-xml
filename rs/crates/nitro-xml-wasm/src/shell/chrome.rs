@@ -66,8 +66,10 @@ pub fn chrome_rest_html(state: &ShellState, editor: &EditorChrome) -> String {
         editor.office_ribbon().to_owned()
     };
     let overlay = editor.overlay_html();
-    // An editable docx keeps Left/Right for the caret; page keys still turn pages.
-    let arrows = !(state.format == FormatKind::Docx && !editor.read_only());
+    // An editable docx keeps Left/Right for the caret, and an editable pptx for nudging the
+    // selected shape (with none selected they still turn the slide); page keys always turn pages.
+    let arrows =
+        !(matches!(state.format, FormatKind::Docx | FormatKind::Pptx) && !editor.read_only());
     let shell = chrome_html_with(state, arrows);
     format!("{ribbon}{shell}{overlay}")
 }

@@ -16,6 +16,8 @@ pub fn paint_slide_stage<I: StringIntern>(
     ctx: &mut PaintContext<'_, I>,
     slide: &Slide,
     selected: &[String],
+    live: &[selection::SelectionBox],
+    handles: bool,
 ) {
     stage_root_styles(
         ctx.buffer,
@@ -38,5 +40,5 @@ pub fn paint_slide_stage<I: StringIntern>(
     for (i, kind) in slide.other_kinds.iter().enumerate() {
         placeholder::paint_other_kind(ctx, kind, i, STAGE_ROOT_ID, ctx.canvas_w, ctx.canvas_h);
     }
-    selection::paint(ctx, slide, selected);
+    selection::paint(ctx, slide, selected, live, handles);
 }

@@ -2098,6 +2098,8 @@ mod tests {
                 viewport_w: 800,
                 viewport_h: 600,
                 selected_ids: Vec::new(),
+                live: Vec::new(),
+                handles: false,
             },
         )
         .unwrap();
@@ -2249,6 +2251,8 @@ mod tests {
                 viewport_w: 960,
                 viewport_h: 540,
                 selected_ids: Vec::new(),
+                live: Vec::new(),
+                handles: false,
             },
         )
         .unwrap();
@@ -2404,6 +2408,8 @@ mod tests {
                 viewport_w: 960,
                 viewport_h: 540,
                 selected_ids: Vec::new(),
+                live: Vec::new(),
+                handles: false,
             },
         )
         .unwrap();

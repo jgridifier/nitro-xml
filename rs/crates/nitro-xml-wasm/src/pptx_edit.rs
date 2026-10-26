@@ -287,6 +287,7 @@ impl PptxState {
         let vh = self.viewport_h;
         let scale = self.scale;
         let edit = self.edit.take();
+        let interactive = self.interactive;
         let clip = self.text_clip.clone();
         let shape_clip = self.shape_clip.clone();
         let opened = Self::open(std::sync::Arc::<[u8]>::from(bytes));
@@ -300,6 +301,7 @@ impl PptxState {
         next.edit = edit;
         next.text_clip = clip;
         next.shape_clip = shape_clip;
+        next.interactive = interactive;
         next.viewport_w = vw;
         next.viewport_h = vh;
         next.scale = scale;
@@ -320,6 +322,25 @@ impl PptxState {
         meta: bool,
         alt: bool,
     ) -> Result<bool, String> {
+        if !meta && !alt && key.starts_with("Arrow") {
+            let Some(specs) = self.nudge(key, ctrl) else {
+                // Nothing to nudge: Left/Right keep turning slides.
+                let step: isize = match key {
+                    "ArrowRight" => 1,
+                    "ArrowLeft" => -1,
+                    _ => return Ok(false),
+                };
+                let next = self.active.saturating_add_signed(step);
+                if next == self.active || self.set_active_slide(next).is_err() {
+                    return Ok(false);
+                }
+                return Ok(true);
+            };
+            for spec in &specs {
+                self.apply_raw_edit(spec)?;
+            }
+            return Ok(true);
+        }
         if ctrl || meta || alt || !is_text_key(key) {
             return Ok(false);
         }

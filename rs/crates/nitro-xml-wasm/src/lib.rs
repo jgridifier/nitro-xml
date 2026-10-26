@@ -25,6 +25,7 @@ mod events;
 mod handle;
 mod office_edit;
 mod pptx;
+mod pptx_drag;
 mod pptx_edit;
 mod shell;
 mod text;

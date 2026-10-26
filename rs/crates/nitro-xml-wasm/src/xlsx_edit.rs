@@ -156,6 +156,14 @@ impl XlsxState {
 
     pub fn dispatch_chrome(&mut self, id: &str) -> Result<ChromeEffect, String> {
         let target = self.selection_target();
+        // Insert/Delete Rows/Columns keep the selection on the same cells (the engine shifts it with the content).
+        let keep_selection = id
+            .starts_with("cells.")
+            .then(|| {
+                self.sheet_ref(self.active)
+                    .and_then(|s| s.view.selection.clone())
+            })
+            .flatten();
         let edit = self
             .edit
             .as_mut()
@@ -168,6 +176,12 @@ impl XlsxState {
             if structure {
                 self.sync_model_from_edit();
                 self.adopt_host_active_sheet();
+                if let Some(sel) = keep_selection {
+                    let active = self.active;
+                    if let Some(sheet) = self.sheet_mut(active) {
+                        sheet.view.selection = Some(sel);
+                    }
+                }
             } else {
                 // Bold / number-format etc.: sync the active cell (selection), not the grid.
                 self.sync_cells_from_edit(target.sheet, &[(target.row, target.col)]);

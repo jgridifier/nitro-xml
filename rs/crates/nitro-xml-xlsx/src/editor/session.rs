@@ -10,7 +10,9 @@ use nitro_xml_opc::edit::{
 use serde_json::Value;
 
 use crate::address::format_address;
-use crate::edit::{register_cell_commands, register_structure_commands, XlsxHost};
+use crate::edit::{
+    register_cell_commands, register_shift_commands, register_structure_commands, XlsxHost,
+};
 use crate::model::CellAddress;
 use crate::write::save_xlsx;
 
@@ -44,6 +46,7 @@ impl EditorSession {
         let mut registry = CommandRegistry::new();
         register_cell_commands(&mut registry);
         register_structure_commands(&mut registry);
+        register_shift_commands(&mut registry);
         Self {
             session: EditSession::new(host, EditHistory::new()),
             registry,
@@ -145,7 +148,16 @@ impl EditorSession {
 
     /// Direct #66/#67 op (`setCellInput`, `applyStyle`, `addSheet`, …).
     pub fn apply_raw(&mut self, id: &str, args: Value) -> Result<(), EditError> {
-        let structure = matches!(id, "addSheet" | "renameSheet" | "deleteSheet");
+        let structure = matches!(
+            id,
+            "addSheet"
+                | "renameSheet"
+                | "deleteSheet"
+                | "insertRows"
+                | "deleteRows"
+                | "insertColumns"
+                | "deleteColumns"
+        );
         self.apply_op(id, args, id, structure)
     }
 
@@ -354,5 +366,53 @@ mod tests {
             style_at(&host.workbook.styles, id).font.bold
         };
         assert_eq!(undone == Some(true), before == Some(true));
+    }
+
+    #[test]
+    fn ribbon_insert_delete_rows_and_columns_span_the_selection_and_undo() {
+        // Catches: ribbon Insert/Delete Sheet Rows/Columns left unmapped (dead button) or acting on one line when several are selected.
+        let bytes = cells_1k();
+        let mut session = EditorSession::open(&bytes).expect("open");
+        let at = |s: &EditorSession, r: u32, c: u32| s.input_text(0, r, c);
+        let (a1, a3, c1) = (at(&session, 0, 0), at(&session, 2, 0), at(&session, 0, 2));
+        let rows = SelectionTarget {
+            sheet: 0,
+            row: 0,
+            col: 0,
+            range: "A1:B2".into(),
+        };
+        let eff = session
+            .dispatch_chrome("cells.insert-rows", &rows)
+            .expect("insert");
+        assert_eq!(eff, ChromeEffect::Applied { structure: true });
+        assert_eq!(at(&session, 2, 0), a1, "two rows inserted above A1");
+        assert_eq!(at(&session, 0, 0), "");
+        session
+            .dispatch_chrome("cells.delete-rows", &rows)
+            .expect("delete");
+        assert_eq!(at(&session, 0, 0), a1);
+        assert_eq!(at(&session, 2, 0), a3);
+        let cols = SelectionTarget {
+            sheet: 0,
+            row: 0,
+            col: 0,
+            range: "A1:B2".into(),
+        };
+        session
+            .dispatch_chrome("cells.insert-columns", &cols)
+            .expect("insert col");
+        assert_eq!(at(&session, 0, 4), c1, "two columns inserted left of A");
+        session
+            .dispatch_chrome("cells.delete-columns", &cols)
+            .expect("delete col");
+        assert_eq!(at(&session, 0, 2), c1);
+        session.dispatch_chrome("edit.undo", &cols).expect("undo");
+        // Undo re-serialises numbers ("3.0" -> "3"), so compare values, not text.
+        let num = |t: String| t.parse::<f64>().ok();
+        assert_eq!(
+            num(at(&session, 0, 4)),
+            num(c1),
+            "undo restores the inserted state"
+        );
     }
 }

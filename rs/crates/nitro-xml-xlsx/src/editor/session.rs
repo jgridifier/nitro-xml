@@ -246,13 +246,44 @@ fn op_meta(id: &str, args: &Value, structure: bool) -> (ChangeKind, Vec<EditScop
     } else {
         ChangeKind::Cells
     };
-    (
-        kind,
-        vec![EditScope::Cells {
-            sheet,
-            ranges: Vec::new(),
-        }],
-    )
+    // The history snapshot only covers the ranges named here; an empty scope captured nothing,
+    // so Undo of a typed or pasted cell did nothing.
+    let num = |k: &str| args.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
+    let ranges = match id {
+        "setCellInput" | "setCellValue" => vec![format!("R{}C{}", num("row"), num("col"))],
+        "applyStyle" | "applyCellStyle" => args
+            .get("range")
+            .and_then(|v| v.as_str())
+            .map(|r| vec![r.to_owned()])
+            .unwrap_or_default(),
+        "setCellBlock" => {
+            let rows = args.get("rows").and_then(|v| v.as_array());
+            let h = rows.map_or(0, |r| r.len() as u64);
+            let w = rows
+                .and_then(|r| {
+                    r.iter()
+                        .map(|l| l.as_array().map_or(0, |a| a.len() as u64))
+                        .max()
+                })
+                .unwrap_or(0);
+            if h == 0 || w == 0 {
+                Vec::new()
+            } else if h * w > 4_096 {
+                // Too many cells for per-cell absences: fall back to the whole-workbook snapshot.
+                return (kind, vec![EditScope::Workbook]);
+            } else {
+                let (r0, c0) = (num("row") as u32, num("col") as u32);
+                let a = CellAddress { row: r0, col: c0 };
+                let b = CellAddress {
+                    row: r0 + h as u32 - 1,
+                    col: c0 + w as u32 - 1,
+                };
+                vec![format!("{}:{}", format_address(&a), format_address(&b))]
+            }
+        }
+        _ => Vec::new(),
+    };
+    (kind, vec![EditScope::Cells { sheet, ranges }])
 }
 
 #[cfg(test)]

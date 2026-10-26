@@ -226,7 +226,11 @@ export function patch(WorkerDocument) {
       isSpreadsheet(this) ||
       !(this._worker && typeof this._request === "function")
     ) {
-      return origSa.call(this, op, arg);
+      const r = await origSa.call(this, op, arg);
+      // Undo/redo rewrite cells behind the sticky `_nxPainted` grid (set by an earlier applyEdit
+      // mut-frame); without this the next tick short-circuits and the old values stay on screen.
+      if (op === "cmd" && /^edit\./.test(arg)) this._nxPainted = 0;
+      return r;
     }
     const result = await mutFrameAndPaint(this, {
       op: "s",

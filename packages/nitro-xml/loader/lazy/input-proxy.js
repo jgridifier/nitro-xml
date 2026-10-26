@@ -45,6 +45,15 @@ export function topLeft(ref) {
   return { row: +m[2] - 1, col: col - 1 };
 }
 
+/** A1 / A1:B2 -> { r0, c0, r1, c1 } (0-based, normalised); null for whole-row/column or unparsable refs. */
+export function rangeOf(ref) {
+  const [a, b] = String(ref || "").split(":");
+  const p = topLeft(a);
+  const q = b === undefined ? p : topLeft(b);
+  if (!p || !q) return null;
+  return { r0: Math.min(p.row, q.row), c0: Math.min(p.col, q.col), r1: Math.max(p.row, q.row), c1: Math.max(p.col, q.col) };
+}
+
 export function attach(el) {
   if (el._nxp) return;
   const sr = el.shadowRoot;
@@ -189,7 +198,46 @@ export function attach(el) {
   });
 
   // ---- clipboard ----
-  const copyOut = () => el.shellAction("copy");
+  let lastCopy = ""; // fallback for ribbon Paste when the browser denies clipboard reads
+  const copyOut = async () => {
+    el._d && el._d._events && el._d._events.flushNow && el._d._events.flushNow();
+    const r = await el.shellAction("copy");
+    if (r && r.c != null) lastCopy = r.c;
+    return r;
+  };
+  const isXlsx = el.localName === "nitro-xlsx";
+  const editingCell = () => !!sr.querySelector(".xfb-editing");
+  /** Active sheet index and selection range of the workbook, from the shell UI snapshot. */
+  const sel = async () => {
+    // A click/drag just before Ctrl+V or Cut is still queued in the loader until the next frame.
+    el._d && el._d._events && el._d._events.flushNow && el._d._events.flushNow();
+    const ui = (await el.shellAction("ui")).ui || {};
+    const tab = (ui.tabs || []).find((t) => t.active);
+    return { rg: rangeOf(ui.selection), sheet: tab ? tab.index : 0 };
+  };
+  /** One undoable setCellBlock for a grid of cell input texts. */
+  const writeBlock = async (sheet, row, col, rows) => {
+    const d = el.document;
+    if (!d || !d.applyEdit) return;
+    const last = await d.applyEdit(JSON.stringify({ command: "setCellBlock", sheet, row, col, rows }));
+    let patch = null;
+    try {
+      patch = last && JSON.parse(last);
+    } catch {
+      /* chrome payload is optional */
+    }
+    if (patch && el._ch) applyChromePatch(el._ch, patch);
+    el._tick();
+  };
+  /** Cut: copy the selection, then clear it in a single undo step (Ctrl+X, ribbon Cut, context menu). */
+  const cutCells = () =>
+    enqueue(async () => {
+      // Both requests go out before any later click is flushed, so the cleared cells are the ones cut.
+      const [, { rg, sheet }] = await Promise.all([copyOut(), sel()]);
+      if (!rg || (rg.r1 - rg.r0 + 1) * (rg.c1 - rg.c0 + 1) > 100000) return;
+      const rows = Array.from({ length: rg.r1 - rg.r0 + 1 }, () => Array(rg.c1 - rg.c0 + 1).fill(""));
+      await writeBlock(sheet, rg.r0, rg.c0, rows);
+    });
   ta.addEventListener("copy", (e) => {
     if (!editable()) return;
     e.preventDefault();
@@ -198,44 +246,51 @@ export function attach(el) {
   ta.addEventListener("cut", (e) => {
     if (!editable()) return;
     e.preventDefault();
+    if (isXlsx) {
+      // While a cell is being edited Ctrl+X already cut text inside the editor.
+      if (!editingCell()) void cutCells();
+      return;
+    }
     const viaKey = performance.now() - cutKeyAt < 400; // Ctrl+X already reached the keydown path
     void copyOut().then(() => !viaKey && enqueue(() => key("Delete").then(() => el._tick())));
   });
   ta.addEventListener("paste", (e) => {
     if (!editable()) return;
     e.preventDefault();
-    const text = e.clipboardData && e.clipboardData.getData("text/plain");
+    const text = (e.clipboardData && e.clipboardData.getData("text/plain")) || (isXlsx ? lastCopy : "");
     if (text) void pasteText(text);
   });
   const pasteText = (text) =>
     enqueue(async () => {
-      const d = el.document;
-      if (el.localName === "nitro-xlsx") {
-        const ui = (await el.shellAction("ui")).ui || {};
-        const at = topLeft(ui.selection);
-        const tab = (ui.tabs || []).find((t) => t.active);
-        if (!at || !d.applyEdit) return;
-        const rows = parseTsv(text);
-        let last = null;
-        for (let r = 0; r < rows.length; r++) {
-          for (let c = 0; c < rows[r].length; c++) {
-            last = await d.applyEdit(
-              JSON.stringify({ command: "setCellInput", sheet: tab ? tab.index : 0, row: at.row + r, col: at.col + c, text: rows[r][c] }),
-            );
-          }
+      if (isXlsx) {
+        if (editingCell()) {
+          for (const k of keysOf(text.replace(/\r?\n[\s\S]*$/, ""))) await key(k);
+          el._tick();
+          return;
         }
-        let patch = null;
-        try {
-          patch = last && JSON.parse(last);
-        } catch {
-          /* chrome payload is optional */
-        }
-        if (patch && el._ch) applyChromePatch(el._ch, patch);
-        el._tick();
+        const { rg, sheet } = await sel();
+        if (rg) await writeBlock(sheet, rg.r0, rg.c0, parseTsv(text));
         return;
       }
       for (const k of keysOf(text)) await key(k);
       el._tick();
     });
   el._nxpPaste = pasteText;
+  if (isXlsx) {
+    // Ribbon / embedded toolbar Cut and Paste arrive as shellAction("cmd", id); they need the browser clipboard.
+    const shell = el.shellAction.bind(el);
+    el.shellAction = async (op, arg) => {
+      if (op === "cmd" && arg === "home.cut") return void (await cutCells());
+      if (op === "cmd" && arg === "home.paste") {
+        let text = "";
+        try {
+          text = await navigator.clipboard.readText();
+        } catch {
+          /* denied or unsupported: fall back to the last in-app copy */
+        }
+        return void (await pasteText(text || lastCopy));
+      }
+      return shell(op, arg);
+    };
+  }
 }

@@ -5,7 +5,7 @@ use nitro_xml_opc::edit::{ChangeKind, ChangeSet, Command, CommandRegistry, EditE
 use serde_json::Value;
 
 use crate::address::parse_range;
-use crate::editor::input_text::cell_input_text;
+use crate::editor::cell_input_text;
 use crate::formula_translate::translate_formula;
 
 use super::cells::{ensure_cell, host_mut, sheet_err, write_input};

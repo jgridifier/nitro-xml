@@ -14,19 +14,21 @@
     <!-- ?engine=ts|wasm&fixture=<id from perf/fixtures.json>. Result: window.__perf (see perf/README.md). -->
     <div id="stage"></div>
     <script type="module">
-      import { engine, mark, run, loadFixture, waitFrames, until, deepFind } from './common.js';
+      import { engine, mark, marks, run, loadFixture, waitFrames, until, deepFind, deepFindAll, timedStep } from './common.js';
 
       // Target: docx Print Layout. Done when the first page sheet is in the DOM and a frame has been presented.
-      // Layout is eager in both engines, so `pages` (sheets rendered) is reported alongside.
+      // Layout is eager in both engines, so `pages` (sheets rendered) is reported alongside. full_render: a scripted
+      // jump through the pages to the last one (at most MAX_JUMPS evenly spread); each jump is timed (page-jump latency).
+      const MAX_JUMPS = 60;
       run('docx', async () => {
         const stage = document.getElementById('stage');
-        let pages = 0;
+        let pages = 0, host, fx, jump, sig;
         if (engine === 'ts') {
           // Public API: <docx-editor> from ooxml-ui/docx; bytes in via load(), view switched to Print Layout via the status bar.
           const { registerDocxEditor } = await import('/perf/dist/ts/docx.js');
           registerDocxEditor();
           mark('engine_ready');
-          const fx = await loadFixture('docx');
+          fx = await loadFixture('docx');
           const el = document.createElement('docx-editor');
           el.setAttribute('readonly', '');
           stage.replaceChildren(el);
@@ -38,19 +40,26 @@
             new CustomEvent('office-status-activate', { detail: { id: 'print' }, bubbles: true, composed: true }),
           );
           await el.load(fx.bytes);
+          mark('parse_end');
+          host = el;
           const first = await until(() => deepFind(el, '.dve-print-page'), 'docx print-layout page');
           pages = first.parentElement.querySelectorAll('.dve-print-page').length;
+          const scroller = deepFind(el, '.dve-canvas');
+          jump = (i) => deepFindAll(el, '.dve-print-page')[i]?.scrollIntoView({ block: 'start' });
+          sig = () => String(Math.round(scroller.scrollTop));
         } else {
           // Public API: <nitro-docx> from the nitro-xml loader (WASM engine).
           const { defineNitroDocx } = await import('/packages/nitro-xml/loader/index.js');
           defineNitroDocx();
           mark('engine_ready');
-          const fx = await loadFixture('docx');
+          fx = await loadFixture('docx');
           const el = document.createElement('nitro-docx');
           el.setAttribute('readonly', '');
           stage.replaceChildren(el);
           mark('render_start');
           await el.loadFile(new File([fx.bytes], fx.name));
+          mark('parse_end');
+          host = el;
           el.document?.pushEvent({ kind: 6, time_ms: performance.now(), width: el.clientWidth, height: el.clientHeight, dpr: devicePixelRatio || 1 });
           await until(async () => {
             el._tick?.();
@@ -58,10 +67,38 @@
             const dom = el.shadowRoot?.querySelector('.dom');
             return dom && dom.childElementCount > 0;
           }, 'nitro-docx page paint');
+          pages = el.shadowRoot.querySelectorAll('.dve-print-page').length;
+          // Page jump = the PageDown key (KeyId 8) through the public event path; the view signature is the page text.
+          const dom = el.shadowRoot.querySelector('.dom');
+          jump = async () => {
+            el.document.pushEvent({ kind: 4, time_ms: performance.now(), key_id: 8, code_id: 8, type: 0, mods: 0 });
+            await el.document.tick();
+          };
+          sig = () => dom.textContent;
         }
         await waitFrames(2);
         mark('first_paint');
-        return { pages };
+
+        const total = fx.meta.pages ?? pages;
+        const targets = total <= MAX_JUMPS ? Array.from({ length: Math.max(0, total - 1) }, (_, i) => i + 1) : Array.from({ length: MAX_JUMPS }, (_, i) => Math.round(((i + 1) * (total - 1)) / MAX_JUMPS));
+        const steps = [];
+        for (const t of targets) {
+          // First step gets a short timeout: an engine that cannot move between pages yet fails fast.
+          const t0 = performance.now();
+          const ms = await timedStep(() => jump(t), sig, { timeout: steps.length ? 3000 : 1000 });
+          if (ms === null) {
+            // TODO(#33): wasm docx renders one page and has no page navigation until the renderer port lands.
+            mark('full_render');
+            marks.full_render = t0; // nothing more to lay out; do not count the timeout
+            break;
+          }
+          steps.push(ms);
+        }
+        if (marks.full_render === undefined) {
+          await waitFrames(2);
+          mark('full_render');
+        }
+        return { pages, jumps: steps.length, steps };
       });
     </script>
   </body>

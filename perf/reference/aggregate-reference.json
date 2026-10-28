@@ -1,0 +1,9 @@
+{
+  "$comment": "Known answers for perf/stats.mjs on aggregate-reference.jsonl. median/p95/min/max/mean are derived by hand (linear-interpolation percentiles: 1..100 -> median 50.5, p95 at index 0.95*(n-1) = 94.05 -> 95 + 0.05*(96-95) = 95.05). median_ci95 is the seeded (seed 1, 2000 resamples) percentile bootstrap, recorded from the first implementation; the constant dataset must collapse to [42,42] and the five-point set must span its range.",
+  "tolerance": 1e-9,
+  "expected": [
+    { "fixture": "ref-1to100", "engine": "ts", "mode": "cold", "metrics": { "first_render_ms": { "n": 100, "min": 1, "median": 50.5, "p95": 95.05, "max": 100, "mean": 50.5, "median_ci95": [41, 60.5] } } },
+    { "fixture": "ref-const", "engine": "wasm", "mode": "cold", "metrics": { "first_render_ms": { "n": 20, "median": 42, "p95": 42, "median_ci95": [42, 42] } } },
+    { "fixture": "ref-five", "engine": "wasm", "mode": "cold", "metrics": { "first_render_ms": { "n": 5, "median": 30, "p95": 48, "mean": 30, "median_ci95": [10, 50] } } }
+  ]
+}

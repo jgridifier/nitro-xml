@@ -8,6 +8,9 @@
  *                     [--cpu-throttle 1|4] [--fixtures xlsx-S,docx,M,...] [--memory]
  *                     [--out file.json] [--chrome /path/to/chrome] [--timeout ms]
  *
+ *   Besides the summary JSON (--out), one JSON line per (fixture, engine, mode, iteration) goes to the
+ *   same path with .jsonl; `node perf/aggregate.mjs <file>.jsonl` gives median, p95 and bootstrap CI.
+ *
  *   cold  A new browser context per iteration; HTTP cache disabled over CDP and by the server
  *         (no-store), which also removes the V8 script and WASM compiled-code caches (both live in the
  *         HTTP cache); the browser process is shared but contexts do not share cache or storage.
@@ -21,6 +24,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { startServer } from './server.mjs';
+import { summarize } from './stats.mjs';
+import { collectSizes } from './sizes.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');
@@ -83,21 +88,10 @@ for (const e of ENGINES) {
   }
 }
 
-// ---- stats ----------------------------------------------------------------------------------
-const sorted = (xs) => [...xs].sort((a, b) => a - b);
-const pct = (xs, p) => {
-  const a = sorted(xs);
-  const i = (a.length - 1) * p;
-  const lo = Math.floor(i);
-  return a[lo] + (a[Math.ceil(i)] - a[lo]) * (i - lo);
-};
-const summarize = (xs) =>
-  xs.length
-    ? { n: xs.length, min: Math.min(...xs), median: pct(xs, 0.5), p95: pct(xs, 0.95), max: Math.max(...xs), mean: xs.reduce((s, x) => s + x, 0) / xs.length }
-    : null;
-
 // ---- one load -------------------------------------------------------------------------------
 const HEAP = ['JSHeapUsedSize', 'JSHeapTotalSize'];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const HEAP_SAMPLE_MS = 10;
 
 async function loadOnce(context, origin, fx, engine, { cacheDisabled }) {
   const page = await context.newPage();
@@ -116,9 +110,24 @@ async function loadOnce(context, origin, fx, engine, { cacheDisabled }) {
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 300)));
 
+    // Peak JS heap: Runtime.getHeapUsage every 10 ms from before navigation until the run is done, keeping the max.
+    let sampling = true;
+    const heap = { peak: 0, samples: 0 };
+    const sampler = (async () => {
+      while (sampling) {
+        try {
+          const u = await cdp.send('Runtime.getHeapUsage');
+          heap.peak = Math.max(heap.peak, u.usedSize);
+          heap.samples++;
+        } catch {}
+        await sleep(HEAP_SAMPLE_MS);
+      }
+    })();
     const url = `${origin}/perf/pages/${fx.format}.html?engine=${engine}&fixture=${fx.id}`;
     await page.goto(url, { waitUntil: 'commit', timeout: TIMEOUT });
     await page.waitForFunction(() => window.__perf?.done === true, null, { timeout: TIMEOUT, polling: 50 });
+    sampling = false;
+    await sampler;
     const res = await page.evaluate(() => window.__perf);
     if (res.error) throw new Error(`${fx.id}/${engine}: ${res.error}${errors.length ? ` | pageerror: ${errors[0]}` : ''}`);
 
@@ -128,7 +137,17 @@ async function loadOnce(context, origin, fx, engine, { cacheDisabled }) {
       fetch_ms: m.fixture_ready - m.engine_ready,
       render_ms: m.first_paint - m.render_start,
       first_paint_ms: m.first_paint,
+      // issue #7 marks: bytes-ready -> parse-end -> first-render -> full-render
+      bytes_ready_ms: m.bytes_ready,
+      parse_ms: m.parse_end - m.bytes_ready,
+      parse_end_ms: m.parse_end,
+      first_render_ms: m.first_render,
+      full_render_ms: m.full_render,
+      ...Object.fromEntries(Object.entries(res.extra).filter(([, v]) => typeof v === 'number' || v === null)),
+      peak_heap_used_bytes: heap.peak,
+      heap_samples: heap.samples,
     };
+    const stepLatencies = res.extra.step_latencies_ms ?? null;
     if (m.all_slides !== undefined) {
       sample.all_slides_ms = m.all_slides;
       sample.all_slides_render_ms = m.all_slides - m.render_start;
@@ -145,7 +164,12 @@ async function loadOnce(context, origin, fx, engine, { cacheDisabled }) {
         }
       });
     }
-    return { sample, detail: res.detail, net };
+    // Retained memory: force a GC, then the live JS heap.
+    try {
+      await cdp.send('HeapProfiler.collectGarbage');
+      sample.retained_heap_used_bytes = (await cdp.send('Runtime.getHeapUsage')).usedSize;
+    } catch {}
+    return { sample, stepLatencies, detail: res.detail, net };
   } finally {
     await page.close().catch(() => {});
   }
@@ -183,6 +207,7 @@ const newContext = () => browser.newContext({ viewport: VIEWPORT, deviceScaleFac
 
 const results = [];
 const failures = [];
+const rows = []; // one per (fixture, engine, mode, iteration), written as JSONL
 const summary = {
   chrome: chromeVersion,
   playwright: JSON.parse(readFileSync(join(here, 'node_modules/playwright-core/package.json'), 'utf8')).version,
@@ -198,6 +223,9 @@ const summary = {
 };
 console.log(`chrome ${summary.chrome} · playwright ${summary.playwright} · ${MODE} x${ITERATIONS} · cpu-throttle ${THROTTLE}x`);
 
+const addRow = (fx, engine, iteration, r) =>
+  rows.push({ fixture: fx.id, format: fx.format, tier: fx.tier, engine, mode: MODE, cpuThrottle: THROTTLE, iteration, chrome: chromeVersion, metrics: r.sample, step_latencies_ms: r.stepLatencies, detail: r.detail });
+
 let blockedTotal = 0;
 for (const fx of fixtures) {
   for (const engine of ENGINES) {
@@ -211,6 +239,7 @@ for (const fx of fixtures) {
           try {
             const r = await loadOnce(context, origin, fx, engine, { cacheDisabled: true });
             samples.push(r.sample);
+            addRow(fx, engine, i, r);
             detail = r.detail;
             cacheHits += r.net.fromCache;
             blockedTotal += r.net.blocked;
@@ -225,6 +254,7 @@ for (const fx of fixtures) {
           for (let i = 0; i < ITERATIONS; i++) {
             const r = await loadOnce(context, origin, fx, engine, { cacheDisabled: false });
             samples.push(r.sample);
+            addRow(fx, engine, i, r);
             detail = r.detail;
             blockedTotal += r.net.blocked;
           }
@@ -238,7 +268,7 @@ for (const fx of fixtures) {
       continue;
     }
     if (MODE === 'cold' && cacheHits) failures.push({ fixture: fx.id, engine, error: `cold run served ${cacheHits} responses from cache` });
-    const keys = Object.keys(samples[0]);
+    const keys = [...new Set(samples.flatMap((x) => Object.keys(x)))];
     const stats = Object.fromEntries(keys.map((k) => [k, summarize(samples.map((s) => s[k]).filter((v) => typeof v === 'number'))]));
     results.push({ fixture: fx.id, format: fx.format, tier: fx.tier, engine, detail, stats, samples });
   }
@@ -249,19 +279,24 @@ await server.close();
 
 // ---- report ---------------------------------------------------------------------------------
 const f1 = (x) => (x == null ? '-' : x.toFixed(1));
-console.log(`\nfixture    engine  first_paint ms (median / p95)   render ms (median)   all_slides ms (median)   heap MiB`);
+const mib = (x) => (x == null ? '-' : (x / 1048576).toFixed(1));
+console.log(`\nfixture    engine  first_render ms (median / p95)  full_render  parse  TBT ms  long  peak heap MiB  retained  wasm MiB  step ms (med / p95)`);
 for (const r of results) {
   const s = r.stats;
+  const m = (k) => s[k]?.median;
   console.log(
-    `${r.fixture.padEnd(10)} ${r.engine.padEnd(7)} ${`${f1(s.first_paint_ms.median)} / ${f1(s.first_paint_ms.p95)}`.padEnd(30)} ${f1(s.render_ms.median).padEnd(20)} ${f1(s.all_slides_ms?.median).padEnd(24)} ${f1(s.JSHeapUsedSize.median / 1048576)}`,
+    `${r.fixture.padEnd(10)} ${r.engine.padEnd(7)} ${`${f1(m('first_render_ms'))} / ${f1(s.first_render_ms.p95)}`.padEnd(30)} ${f1(m('full_render_ms')).padEnd(12)} ${f1(m('parse_ms')).padEnd(6)} ${f1(m('tbt_ms')).padEnd(7)} ${String(m('long_task_count') ?? '-').padEnd(5)} ${mib(m('peak_heap_used_bytes')).padEnd(14)} ${mib(m('retained_heap_used_bytes')).padEnd(9)} ${mib(m('linear_memory_full_render')).padEnd(9)} ${f1(m('step_median_ms'))} / ${f1(m('step_p95_ms'))}`,
   );
 }
 if (blockedTotal) console.warn(`\nWARNING: ${blockedTotal} non-localhost request(s) were blocked; a host tried to reach the network.`);
 
 const outFile = args.out ? String(args.out) : join(here, 'results', `${summary.date.replace(/[:.]/g, '-')}-${MODE}-${ENGINES.join('+')}.json`);
 mkdirSync(dirname(outFile), { recursive: true });
-writeFileSync(outFile, JSON.stringify({ ...summary, blockedRequests: blockedTotal, results, failures }, null, 2));
-console.log(`\nwrote ${outFile.replace(repo + '/', '')}`);
+const { sizes, missing } = collectSizes();
+writeFileSync(outFile, JSON.stringify({ ...summary, blockedRequests: blockedTotal, sizes, sizesMissing: missing, results, failures }, null, 2));
+const jsonlFile = outFile.replace(/\.json$/, '') + '.jsonl';
+writeFileSync(jsonlFile, rows.map((r) => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''));
+console.log(`\nwrote ${outFile.replace(repo + '/', '')} and ${jsonlFile.replace(repo + '/', '')} (${rows.length} iteration rows)`);
 if (failures.length) {
   console.error(`${failures.length} failure(s)`);
   process.exit(1);

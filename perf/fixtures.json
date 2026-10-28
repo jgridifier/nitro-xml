@@ -1,0 +1,17 @@
+{
+  "$comment": "Perf corpus (#6): id -> generated fixture. Tiers match fixtures/manifest.json (S<100KB, M<1MB, L<10MB, XL>=10MB). Missing files (the L/XL tiers are generated on demand by fixtures/gen) are skipped with a warning, never silently substituted. `slides` is the slide count the pptx all-slides target walks.",
+  "fixtures": [
+    { "id": "xlsx-S", "format": "xlsx", "tier": "S", "path": "fixtures/generated/xlsx/cells_1k.xlsx" },
+    { "id": "xlsx-M", "format": "xlsx", "tier": "M", "path": "fixtures/generated/xlsx/cells_100k.xlsx" },
+    { "id": "xlsx-L", "format": "xlsx", "tier": "L", "path": "fixtures/generated/xlsx/cells_1m.xlsx" },
+    { "id": "xlsx-XL", "format": "xlsx", "tier": "XL", "path": "fixtures/generated/xlsx/xl_a.xlsx" },
+    { "id": "docx-S", "format": "docx", "tier": "S", "path": "fixtures/generated/docx/pages_10.docx" },
+    { "id": "docx-M", "format": "docx", "tier": "M", "path": "fixtures/generated/docx/pages_100.docx" },
+    { "id": "docx-L", "format": "docx", "tier": "L", "path": "fixtures/generated/docx/pages_500.docx" },
+    { "id": "docx-XL", "format": "docx", "tier": "XL", "path": "fixtures/generated/docx/xl_a.docx" },
+    { "id": "pptx-S", "format": "pptx", "tier": "S", "path": "fixtures/generated/pptx/slides_10.pptx", "slides": 10 },
+    { "id": "pptx-M", "format": "pptx", "tier": "M", "path": "fixtures/generated/pptx/slides_50.pptx", "slides": 50 },
+    { "id": "pptx-L", "format": "pptx", "tier": "L", "path": "fixtures/generated/pptx/slides_200.pptx", "slides": 200 },
+    { "id": "pptx-XL", "format": "pptx", "tier": "XL", "path": "fixtures/generated/pptx/xl_a.pptx" }
+  ]
+}

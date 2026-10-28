@@ -1,63 +1,61 @@
 <!DOCTYPE html>
+<!-- SPDX-License-Identifier: MIT -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Nitro XML — xlsx viewer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nitro XML perf host: xlsx</title>
     <style>
-      html,
-      body {
-        margin: 0;
-        height: 100%;
-        font: 14px system-ui, sans-serif;
-      }
-      header {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-        padding: 0.5rem 1rem;
-        border-bottom: 1px solid #ddd;
-      }
-      nitro-xlsx {
-        display: block;
-        height: calc(100% - 3rem);
-      }
+      html, body { margin: 0; height: 100%; background: #fff; font: 14px system-ui, sans-serif; }
+      #stage { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+      #stage > * { display: block; width: 100%; height: 100%; }
     </style>
   </head>
   <body>
-    <header>
-      <label>
-        Open
-        <input type="file" id="pick" accept=".xlsx,.xlsm,.xltx,.xltm" />
-      </label>
-      <span id="hint">Load a workbook or set <code>?src=</code> to a fixture URL.</span>
-    </header>
-    <nitro-xlsx readonly id="viewer"></nitro-xlsx>
+    <!-- ?engine=ts|wasm&fixture=<id from perf/fixtures.json>. Result: window.__perf (see perf/README.md). -->
+    <div id="stage"></div>
     <script type="module">
-      import { defineNitroXlsx } from "../../packages/nitro-xml/loader/index.js";
+      import { engine, mark, run, loadFixture, waitFrames, until, deepFind } from './common.js';
 
-      defineNitroXlsx();
-      const viewer = document.getElementById("viewer");
-      const pick = document.getElementById("pick");
-      const hint = document.getElementById("hint");
-
-      pick.addEventListener("change", () => {
-        const f = pick.files && pick.files[0];
-        if (!f) return;
-        hint.textContent = f.name;
-        viewer.loadFile(f).catch((e) => {
-          hint.textContent = e.message || String(e);
-        });
+      // Target: xlsx first viewport. Done when the first grid cells are in the DOM and a frame has been presented.
+      run('xlsx', async () => {
+        const stage = document.getElementById('stage');
+        if (engine === 'ts') {
+          // Public API: <xlsx-editor> from ooxml-ui/xlsx, bytes in via load().
+          const { defineXlsxEditor } = await import('/perf/dist/ts/xlsx.js');
+          defineXlsxEditor();
+          mark('engine_ready');
+          const fx = await loadFixture('xlsx');
+          const el = document.createElement('xlsx-editor');
+          el.setAttribute('read-only', '');
+          el.setAttribute('file-name', fx.name);
+          stage.replaceChildren(el);
+          mark('render_start');
+          await el.load(fx.bytes, fx.name);
+          await until(() => deepFind(el, '.xg-c, .xg-cells > *'), 'xlsx grid cells');
+        } else {
+          // Public API: <nitro-xlsx> from the nitro-xml loader (WASM engine).
+          const { defineNitroXlsx } = await import('/packages/nitro-xml/loader/index.js');
+          defineNitroXlsx();
+          mark('engine_ready');
+          const fx = await loadFixture('xlsx');
+          const el = document.createElement('nitro-xlsx');
+          el.setAttribute('readonly', '');
+          stage.replaceChildren(el);
+          mark('render_start');
+          await el.loadFile(new File([fx.bytes], fx.name));
+          const dpr = devicePixelRatio || 1;
+          el.document?.pushEvent({ kind: 6, time_ms: performance.now(), width: el.clientWidth, height: el.clientHeight, dpr });
+          await until(async () => {
+            el._tick?.();
+            while (el._raf) await waitFrames(1);
+            const dom = el.shadowRoot?.querySelector('.dom');
+            return dom && dom.childElementCount > 0;
+          }, 'nitro-xlsx grid paint');
+        }
+        await waitFrames(2);
+        mark('first_paint');
+        return {};
       });
-
-      const params = new URLSearchParams(location.search);
-      const src = params.get("src");
-      if (src) {
-        hint.textContent = src;
-        viewer.loadUrl(src).catch((e) => {
-          hint.textContent = e.message || String(e);
-        });
-      }
     </script>
   </body>
 </html>

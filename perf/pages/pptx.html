@@ -1,51 +1,83 @@
 <!DOCTYPE html>
+<!-- SPDX-License-Identifier: MIT -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Nitro XML — pptx viewer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nitro XML perf host: pptx</title>
     <style>
-      html,
-      body {
-        margin: 0;
-        height: 100%;
-        font: 14px system-ui, sans-serif;
-      }
-      header {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-        padding: 0.5rem 1rem;
-        border-bottom: 1px solid #ddd;
-      }
-      nitro-pptx {
-        display: block;
-        height: calc(100% - 3rem);
-      }
+      html, body { margin: 0; height: 100%; background: #fff; font: 14px system-ui, sans-serif; }
+      #stage { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+      #stage > * { display: block; width: 100%; height: 100%; }
     </style>
   </head>
   <body>
-    <header>
-      <label>
-        Open
-        <input type="file" id="pick" accept=".pptx,.pptm,.potx,.potm" />
-      </label>
-      <span id="hint">Arrow keys change slides. Set <code>?src=</code> to a fixture URL.</span>
-    </header>
-    <nitro-pptx readonly id="viewer" tabindex="0"></nitro-pptx>
+    <!-- ?engine=ts|wasm&fixture=<id from perf/fixtures.json>. Result: window.__perf (see perf/README.md). -->
+    <div id="stage"></div>
     <script type="module">
-      import { defineNitroPptx } from "../../packages/nitro-xml/loader/index.js";
+      import { engine, mark, run, loadFixture, waitFrames, until, deepFind } from './common.js';
 
-      defineNitroPptx();
-      const viewer = document.getElementById("viewer");
-      const pick = document.getElementById("pick");
-      pick.addEventListener("change", () => {
-        const f = pick.files && pick.files[0];
-        if (f) viewer.loadFile(f).catch(console.error);
+      // Targets: pptx slide 1 (`first_paint`) and every slide in order (`all_slides`).
+      run('pptx', async () => {
+        const stage = document.getElementById('stage');
+        let slides = 0;
+        if (engine === 'ts') {
+          // Public API: createPptxViewer from pptx-vanilla-viewer (drives createRenderController); load() via bytes.
+          const { createPptxViewer } = await import('/perf/dist/ts/pptx.js');
+          mark('engine_ready');
+          const fx = await loadFixture('pptx');
+          let loaded;
+          const onLoad = new Promise((r) => (loaded = r));
+          let failed;
+          const onErr = new Promise((_, rej) => (failed = rej));
+          const host = document.createElement('div');
+          stage.replaceChildren(host);
+          mark('render_start');
+          const viewer = createPptxViewer(host, {
+            source: fx.bytes.buffer,
+            onLoad: (info) => loaded(info),
+            onError: (msg) => failed(new Error(msg)),
+          });
+          const info = await Promise.race([onLoad, onErr]);
+          slides = info.slideCount;
+          await until(() => deepFind(host, '[data-pptx-element="true"]'), 'pptx slide 1 elements');
+          await waitFrames(2);
+          mark('first_paint');
+          for (let i = 1; i < slides; i++) {
+            viewer.goToSlide(i);
+            await waitFrames(1);
+          }
+          await waitFrames(2);
+          mark('all_slides');
+        } else {
+          // Public API: <nitro-pptx> from the nitro-xml loader (WASM engine); slides advance via the keyboard path.
+          const { defineNitroPptx } = await import('/packages/nitro-xml/loader/index.js');
+          defineNitroPptx();
+          mark('engine_ready');
+          const fx = await loadFixture('pptx');
+          slides = fx.meta.slides ?? 0; // TODO(#7): read slide count from the loader once it exposes one.
+          const el = document.createElement('nitro-pptx');
+          el.setAttribute('readonly', '');
+          stage.replaceChildren(el);
+          mark('render_start');
+          await el.loadFile(new File([fx.bytes], fx.name));
+          el.document?.pushEvent({ kind: 6, time_ms: performance.now(), width: el.clientWidth, height: el.clientHeight, dpr: devicePixelRatio || 1 });
+          const paint = async () => {
+            await el.document?.tick();
+            return el.shadowRoot?.querySelector('.dom')?.childElementCount > 0;
+          };
+          await until(paint, 'nitro-pptx slide 1 paint');
+          await waitFrames(2);
+          mark('first_paint');
+          for (let i = 1; i < slides; i++) {
+            el.document.pushEvent({ kind: 4, time_ms: performance.now(), key: 'ArrowRight', code: 'ArrowRight', type: 0, mods: 0 });
+            await el.document.tick();
+            await waitFrames(1);
+          }
+          await waitFrames(2);
+          mark('all_slides');
+        }
+        return { slides };
       });
-      const params = new URLSearchParams(location.search);
-      const src = params.get("src");
-      if (src) viewer.loadUrl(src).catch(console.error);
     </script>
   </body>
 </html>

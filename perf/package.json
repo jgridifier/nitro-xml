@@ -1,0 +1,15 @@
+{
+  "name": "nitro-xml-perf-harness",
+  "private": true,
+  "description": "Local perf harness (#6): COOP/COEP server + Playwright/CDP runner. Test/bench only, never shipped.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build:ts": "node build-ts.mjs",
+    "serve": "node server.mjs",
+    "run": "node run.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.64.0"
+  }
+}

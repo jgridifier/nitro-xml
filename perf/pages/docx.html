@@ -1,51 +1,68 @@
 <!DOCTYPE html>
+<!-- SPDX-License-Identifier: MIT -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Nitro XML — docx viewer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nitro XML perf host: docx</title>
     <style>
-      html,
-      body {
-        margin: 0;
-        height: 100%;
-        font: 14px system-ui, sans-serif;
-      }
-      header {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-        padding: 0.5rem 1rem;
-        border-bottom: 1px solid #ddd;
-      }
-      nitro-docx {
-        display: block;
-        height: calc(100% - 3rem);
-      }
+      html, body { margin: 0; height: 100%; background: #fff; font: 14px system-ui, sans-serif; }
+      #stage { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+      #stage > * { display: block; width: 100%; height: 100%; }
     </style>
   </head>
   <body>
-    <header>
-      <label>
-        Open
-        <input type="file" id="pick" accept=".docx,.docm,.dotx,.dotm" />
-      </label>
-      <span id="hint">Arrow keys change pages. Set <code>?src=</code> to a fixture URL.</span>
-    </header>
-    <nitro-docx readonly id="viewer" tabindex="0"></nitro-docx>
+    <!-- ?engine=ts|wasm&fixture=<id from perf/fixtures.json>. Result: window.__perf (see perf/README.md). -->
+    <div id="stage"></div>
     <script type="module">
-      import { defineNitroDocx } from "../../packages/nitro-xml/loader/index.js";
+      import { engine, mark, run, loadFixture, waitFrames, until, deepFind } from './common.js';
 
-      defineNitroDocx();
-      const viewer = document.getElementById("viewer");
-      const pick = document.getElementById("pick");
-      pick.addEventListener("change", () => {
-        const f = pick.files && pick.files[0];
-        if (f) viewer.loadFile(f).catch(console.error);
+      // Target: docx Print Layout. Done when the first page sheet is in the DOM and a frame has been presented.
+      // Layout is eager in both engines, so `pages` (sheets rendered) is reported alongside.
+      run('docx', async () => {
+        const stage = document.getElementById('stage');
+        let pages = 0;
+        if (engine === 'ts') {
+          // Public API: <docx-editor> from ooxml-ui/docx; bytes in via load(), view switched to Print Layout via the status bar.
+          const { registerDocxEditor } = await import('/perf/dist/ts/docx.js');
+          registerDocxEditor();
+          mark('engine_ready');
+          const fx = await loadFixture('docx');
+          const el = document.createElement('docx-editor');
+          el.setAttribute('readonly', '');
+          stage.replaceChildren(el);
+          await until(() => deepFind(el, 'office-ui-status-bar'), 'docx status bar');
+          mark('render_start');
+          // Print Layout is not an attribute; it is the status-bar view toggle, whose
+          // `office-status-activate` event is the same one its Print Layout button emits.
+          deepFind(el, 'office-ui-status-bar').dispatchEvent(
+            new CustomEvent('office-status-activate', { detail: { id: 'print' }, bubbles: true, composed: true }),
+          );
+          await el.load(fx.bytes);
+          const first = await until(() => deepFind(el, '.dve-print-page'), 'docx print-layout page');
+          pages = first.parentElement.querySelectorAll('.dve-print-page').length;
+        } else {
+          // Public API: <nitro-docx> from the nitro-xml loader (WASM engine).
+          const { defineNitroDocx } = await import('/packages/nitro-xml/loader/index.js');
+          defineNitroDocx();
+          mark('engine_ready');
+          const fx = await loadFixture('docx');
+          const el = document.createElement('nitro-docx');
+          el.setAttribute('readonly', '');
+          stage.replaceChildren(el);
+          mark('render_start');
+          await el.loadFile(new File([fx.bytes], fx.name));
+          el.document?.pushEvent({ kind: 6, time_ms: performance.now(), width: el.clientWidth, height: el.clientHeight, dpr: devicePixelRatio || 1 });
+          await until(async () => {
+            el._tick?.();
+            while (el._raf) await waitFrames(1);
+            const dom = el.shadowRoot?.querySelector('.dom');
+            return dom && dom.childElementCount > 0;
+          }, 'nitro-docx page paint');
+        }
+        await waitFrames(2);
+        mark('first_paint');
+        return { pages };
       });
-      const params = new URLSearchParams(location.search);
-      const src = params.get("src");
-      if (src) viewer.loadUrl(src).catch(console.error);
     </script>
   </body>
 </html>

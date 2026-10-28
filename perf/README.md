@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
-# Perf harness (#6): server and Playwright/CDP runner
+# Perf harness (#6, #7): server, Playwright/CDP runner and metrics
 
 Drives real Chromium against the fixed corpus with an engine switch: `ts` (the upstream TypeScript
 engine, test-only baseline, built from the pinned `ChristopherVR/ooxml @ e66aaec`) and `wasm` (the Nitro
@@ -49,7 +49,7 @@ the harness needs only JS), and judges success by the emitted files.
 | `--iterations N` | 10 cold, 20 warm | measured loads per fixture and engine (the warm-up is extra) |
 | `--cpu-throttle 1\|4` | `1` | CDP `Emulation.setCPUThrottlingRate` |
 | `--fixtures a,b,..` | all | ids from `fixtures.json` (`xlsx-S`), formats (`docx`) or tiers (`M`) |
-| `--memory` | off | also report `performance.measureUserAgentSpecificMemory` (needs the COOP/COEP headers; takes up to 20 s per load) |
+| `--memory` | off | also report `performance.measureUserAgentSpecificMemory` after `full_render` (needs the COOP/COEP headers; takes up to 20 s per load) |
 | `--out file.json` | `perf/results/<date>-<mode>-<engines>.json` | result file (`results/` is git-ignored) |
 | `--chrome path` | Playwright Chromium | browser binary |
 | `--timeout ms` | 120000 | per-load limit |
@@ -121,11 +121,68 @@ loader exposes none; read it from the loader once it does. Memory-per-document g
 `perf-data` and regression thresholds are `#8`; XL-tier runs and the other stages' gates are not part of
 this harness.
 
+## Metrics (#7)
+
+Every load reports the same metrics for both engines. `run.mjs` writes the summary JSON (`--out`) and,
+next to it, a `.jsonl` with **one object per (fixture, engine, mode, iteration)**; `aggregate.mjs` turns
+that into median, p95 and a bootstrap CI (see below).
+
+| Metric (JSON key) | What it is |
+|---|---|
+| `bytes_ready_ms`, `parse_end_ms`, `first_render_ms`, `full_render_ms` | The marks, ms since navigation start: `bytes-ready` (fixture bytes in memory) -> `parse-end` (the engine's load/open promise resolved) -> `first-render` (first page, slide or viewport in the DOM, then a double `requestAnimationFrame`) -> `full-render`. `parse_ms` = `parse_end - bytes_ready`. `first_render` is the #6 `first_paint`; `all_slides` is pptx `full_render`. |
+| full-render target | xlsx: first viewport, then a scripted scroll in 600 px steps until the last used row (`lastRow` in `fixtures.json`) is on screen. docx: page jumps through the document to the last page (at most 60, evenly spread). pptx: every slide in order. |
+| `long_task_count`, `long_task_total_ms`, `tbt_ms` | `PerformanceObserver({type:'longtask', buffered:true})` over the whole load until `full_render`: count, summed duration, and total blocking time (sum of time over 50 ms per task). |
+| `tti_ms` | Time to interactive, simplified: `first_render`, or the end of the last long task between `first_render` and `full_render` if later. TODO(#8): a quiet-window definition once thresholds are set. |
+| `peak_heap_used_bytes` | CDP `Runtime.getHeapUsage` every 10 ms from before navigation until done; the max `usedSize`. `heap_samples` counts the samples. |
+| `retained_heap_used_bytes` | `HeapProfiler.collectGarbage`, then `Runtime.getHeapUsage` after the run. |
+| `uamem_bytes` | `performance.measureUserAgentSpecificMemory()` after `full_render` (cross-origin isolated page; only with `--memory`, up to 20 s per load). `null` where unavailable. |
+| `linear_memory_parse_end`, `linear_memory_full_render` | wasm only: `memory.buffer.byteLength` of the `memory` export of nitro-xml-wasm, read in the loader's worker at `parse_end` and at `full_render`. Linear memory never shrinks, so the last value is the peak. See "How wasm memory is read". |
+| `wasm_fetch_ms`, `wasm_transfer_bytes`, `wasm_from_cache`, `wasm_instantiate_ms`, `wasm_ready_ms` | wasm only: the `.wasm` resource timing (`transferSize` 0 means cached), the summed wall time of `WebAssembly.compileStreaming`/`instantiateStreaming`/`instantiate` (the streamed fetch is inside it), and when the last one finished. Cold runs have no HTTP or code cache; warm runs reuse the cached module. These are all inside `first_render_ms`, which counts from navigation start. |
+| `step_count`, `step_median_ms`, `step_p95_ms`, `step_unsupported`; JSONL `step_latencies_ms` | Scroll / page-jump / slide-change latency per step: from before the action until the view changed (a `MessageChannel` poll, not a frame) plus a double `requestAnimationFrame`, so it includes the engine's work and the paint. xlsx: one 600 px scroll (ts: `.xg-scroller.scrollTop`; wasm: a wheel event). docx: jump to page N (ts: `scrollIntoView`; wasm: the PageDown key). pptx: next slide (ts: `goToSlide`; wasm: ArrowRight). The view change is detected by row headers (xlsx), scroll position (docx ts), or text (the others). |
+| `sizes` (summary JSON), `node perf/sizes.mjs` | Raw, gzip (9) and brotli (11) of the ts bundles in `dist/ts/`, and for wasm the `.wasm`, the wasm-bindgen glue and the loader JS. |
+
+Known gaps, recorded rather than hidden:
+
+- **wasm docx has no page navigation yet** (it renders page 1 only). The page-jump step times out on the
+  first jump, so `step_*` is empty for it and `full_render` equals `first_render`; `TODO(#33)` in `docx.html`.
+- **#6 correction:** the `wasm` pptx host sent `key:` strings, which the event codec reads as key id 0, so it
+  never advanced a slide and `all_slides` measured no slide changes. It now sends `KeyId.ArrowRight`
+  and fails if a slide does not render. The wasm `all_slides` numbers are therefore higher than in #6 runs.
+- docx/xlsx `full_render` for the L and XL tiers needs `lastRow` or `pages` in `fixtures.json`, or the
+  scroll runs until the view stops changing.
+
+### How wasm memory is read
+
+The engine lives in the loader's worker, so the page cannot see its `memory`. For `engine=wasm` the host
+replaces `window.Worker` (before the loader is imported) with a subclass that starts each worker through a
+blob wrapper: `import "pages/worker-probe.js"; import "<loader worker.js>";`. The probe registers a
+`message` listener before the loader's `onmessage`, answers `{type:'perf:memory'}` with
+`bootstrap.getWasmMemory().buffer.byteLength`, and stops that message from reaching the loader. The loader
+and the wasm package are not modified, so the shipped loader budget is unaffected, and the probe only
+exists on the perf pages.
+
+### Aggregation and the reference dataset
+
+```bash
+node perf/aggregate.mjs perf/results/<run>.jsonl [--out summary.json]   # median, p95, bootstrap CI95 per metric
+node perf/aggregate.mjs --check                                         # recompute the reference, compare
+node --test perf/test/                                                  # same check as a test
+```
+
+`stats.mjs` has the median, p95 (linear interpolation) and a seeded percentile bootstrap (2000 resamples,
+95 %), so the same JSONL always gives the same CI. `reference/aggregate-reference.jsonl` is a recorded
+dataset with known answers in `reference/aggregate-reference.json`: median and p95 of 1..100 (50.5 and 95.05),
+a constant series, and a five-point series, derived by hand; the CI values are the recorded output of the
+seeded bootstrap.
+
 ## Files
 
 | Path | Role |
 |---|---|
-| `run.mjs` | runner and the documented entrypoint |
+| `run.mjs` | runner and the documented entrypoint (CDP collectors: heap sampler, retained heap, `uamem`) |
+| `aggregate.mjs`, `stats.mjs`, `reference/`, `test/` | median / p95 / bootstrap CI over the JSONL, and its known-answer check |
+| `sizes.mjs` | raw / gzip / brotli sizes per engine |
+| `pages/instrument.js`, `pages/worker-probe.js` | long tasks, step latency, wasm memory and timing probes |
 | `server.mjs` | COOP/COEP static server (`startServer()` is imported by the runner) |
 | `build-ts.mjs` | builds the TS-engine bundles into `perf/dist/ts/` from the upstream pin |
 | `hosts/ts-*.mjs` | bundle entries that re-export the upstream public entry points |

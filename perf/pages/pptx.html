@@ -14,12 +14,14 @@
     <!-- ?engine=ts|wasm&fixture=<id from perf/fixtures.json>. Result: window.__perf (see perf/README.md). -->
     <div id="stage"></div>
     <script type="module">
-      import { engine, mark, run, loadFixture, waitFrames, until, deepFind } from './common.js';
+      import { engine, mark, run, loadFixture, waitFrames, until, deepFind, timedStep } from './common.js';
+      import { EventKind, KeyId } from '/packages/nitro-xml/loader/events.js';
 
       // Targets: pptx slide 1 (`first_paint`) and every slide in order (`all_slides`).
       run('pptx', async () => {
         const stage = document.getElementById('stage');
-        let slides = 0;
+        let slides = 0, change, sig;
+        const steps = [];
         if (engine === 'ts') {
           // Public API: createPptxViewer from pptx-vanilla-viewer (drives createRenderController); load() via bytes.
           const { createPptxViewer } = await import('/perf/dist/ts/pptx.js');
@@ -38,16 +40,13 @@
             onError: (msg) => failed(new Error(msg)),
           });
           const info = await Promise.race([onLoad, onErr]);
+          mark('parse_end');
           slides = info.slideCount;
           await until(() => deepFind(host, '[data-pptx-element="true"]'), 'pptx slide 1 elements');
           await waitFrames(2);
           mark('first_paint');
-          for (let i = 1; i < slides; i++) {
-            viewer.goToSlide(i);
-            await waitFrames(1);
-          }
-          await waitFrames(2);
-          mark('all_slides');
+          sig = () => host.textContent;
+          change = (i) => viewer.goToSlide(i);
         } else {
           // Public API: <nitro-pptx> from the nitro-xml loader (WASM engine); slides advance via the keyboard path.
           const { defineNitroPptx } = await import('/packages/nitro-xml/loader/index.js');
@@ -60,6 +59,7 @@
           stage.replaceChildren(el);
           mark('render_start');
           await el.loadFile(new File([fx.bytes], fx.name));
+          mark('parse_end');
           el.document?.pushEvent({ kind: 6, time_ms: performance.now(), width: el.clientWidth, height: el.clientHeight, dpr: devicePixelRatio || 1 });
           const paint = async () => {
             await el.document?.tick();
@@ -68,15 +68,23 @@
           await until(paint, 'nitro-pptx slide 1 paint');
           await waitFrames(2);
           mark('first_paint');
-          for (let i = 1; i < slides; i++) {
-            el.document.pushEvent({ kind: 4, time_ms: performance.now(), key: 'ArrowRight', code: 'ArrowRight', type: 0, mods: 0 });
+          const dom = el.shadowRoot.querySelector('.dom');
+          sig = () => dom.textContent;
+          // The key path takes key ids (loader/events.js KeyId); #6 sent `key:` strings, which the event codec reads as id 0 and
+          // never advanced the slide, so the wasm all_slides time of #6 was not a walk through the deck.
+          change = async () => {
+            el.document.pushEvent({ kind: EventKind.Keyboard, time_ms: performance.now(), key_id: KeyId.ArrowRight, code_id: KeyId.ArrowRight, type: 0, mods: 0 });
             await el.document.tick();
-            await waitFrames(1);
-          }
-          await waitFrames(2);
-          mark('all_slides');
+          };
         }
-        return { slides };
+        for (let i = 1; i < slides; i++) {
+          const ms = await timedStep(() => change(i), sig);
+          if (ms === null) throw new Error(`slide ${i + 1} did not render after the slide-change action`);
+          steps.push(ms);
+        }
+        await waitFrames(2);
+        mark('all_slides');
+        return { slides, steps };
       });
     </script>
   </body>

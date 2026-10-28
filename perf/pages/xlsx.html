@@ -14,35 +14,43 @@
     <!-- ?engine=ts|wasm&fixture=<id from perf/fixtures.json>. Result: window.__perf (see perf/README.md). -->
     <div id="stage"></div>
     <script type="module">
-      import { engine, mark, run, loadFixture, waitFrames, until, deepFind } from './common.js';
+      import { engine, mark, run, loadFixture, waitFrames, until, deepFind, deepFindAll, timedStep } from './common.js';
 
-      // Target: xlsx first viewport. Done when the first grid cells are in the DOM and a frame has been presented.
+      // Target: xlsx first viewport (first_render), then a scripted scroll to the last used row (full_render);
+      // every scroll step is timed (scroll latency). `lastRow` comes from fixtures.json; without it the scroll
+      // runs until the view stops changing.
+      const STEP_PX = 600;
       run('xlsx', async () => {
         const stage = document.getElementById('stage');
+        let host, scrollBy, fx;
         if (engine === 'ts') {
           // Public API: <xlsx-editor> from ooxml-ui/xlsx, bytes in via load().
           const { defineXlsxEditor } = await import('/perf/dist/ts/xlsx.js');
           defineXlsxEditor();
           mark('engine_ready');
-          const fx = await loadFixture('xlsx');
+          fx = await loadFixture('xlsx');
           const el = document.createElement('xlsx-editor');
           el.setAttribute('read-only', '');
           el.setAttribute('file-name', fx.name);
           stage.replaceChildren(el);
           mark('render_start');
           await el.load(fx.bytes, fx.name);
+          mark('parse_end');
           await until(() => deepFind(el, '.xg-c, .xg-cells > *'), 'xlsx grid cells');
+          host = el;
+          scrollBy = (dy) => { deepFind(el, '.xg-scroller').scrollTop += dy; };
         } else {
           // Public API: <nitro-xlsx> from the nitro-xml loader (WASM engine).
           const { defineNitroXlsx } = await import('/packages/nitro-xml/loader/index.js');
           defineNitroXlsx();
           mark('engine_ready');
-          const fx = await loadFixture('xlsx');
+          fx = await loadFixture('xlsx');
           const el = document.createElement('nitro-xlsx');
           el.setAttribute('readonly', '');
           stage.replaceChildren(el);
           mark('render_start');
           await el.loadFile(new File([fx.bytes], fx.name));
+          mark('parse_end');
           const dpr = devicePixelRatio || 1;
           el.document?.pushEvent({ kind: 6, time_ms: performance.now(), width: el.clientWidth, height: el.clientHeight, dpr });
           await until(async () => {
@@ -51,10 +59,29 @@
             const dom = el.shadowRoot?.querySelector('.dom');
             return dom && dom.childElementCount > 0;
           }, 'nitro-xlsx grid paint');
+          host = el;
+          scrollBy = async (dy) => {
+            el.document.pushEvent({ kind: 3, time_ms: performance.now(), x: 400, y: 300, dx: 0, dy });
+            await el.document.tick();
+          };
         }
         await waitFrames(2);
         mark('first_paint');
-        return {};
+
+        // Row header numbers on screen: the view signature, and how far the scroll got.
+        const rows = () => deepFindAll(host, '.xg-hbox-row .xg-hd').map((e) => parseInt(e.textContent, 10)).filter(Number.isFinite);
+        const sig = () => rows().join(',');
+        const lastRow = fx.meta.lastRow;
+        const steps = [];
+        for (let i = 0; i < 100000; i++) {
+          if (lastRow && Math.max(...rows()) >= lastRow) break;
+          const ms = await timedStep(() => scrollBy(STEP_PX), sig);
+          if (ms === null) break; // bottom of the sheet, or the engine did not scroll
+          steps.push(ms);
+        }
+        await waitFrames(2);
+        mark('full_render');
+        return { lastRowSeen: Math.max(0, ...rows()), steps };
       });
     </script>
   </body>

@@ -20,6 +20,11 @@ else
 fi
 
 (cd perf && npm ci --silent)
+# run.mjs launches Playwright's chromium channel; install the build matching perf/'s pinned playwright-core
+# (other jobs install via parity/visual's Playwright, which may pin a different chromium revision).
+echo "perf_history: installing Playwright chromium"
+( cd perf && npx --no-install playwright-core install --with-deps chromium ) \
+  || ( cd perf && npx --no-install playwright-core install chromium )
 # run.mjs needs perf/dist/ts/*.js (upstream TS bundles); build them once (bun is installed by perf.sh).
 export PATH="$HOME/.bun/bin:$PATH"
 if [ ! -f perf/dist/ts/xlsx.js ] || [ ! -f perf/dist/ts/docx.js ] || [ ! -f perf/dist/ts/pptx.js ]; then

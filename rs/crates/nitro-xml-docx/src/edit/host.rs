@@ -129,6 +129,7 @@ impl DocxHost {
             format: model.format,
             blocks: blocks.clone(),
             base_blocks: blocks,
+            base_blocks_ready: true,
             source_document_xml,
             numbering_catalog: model.numbering_catalog,
             paragraph_styles: model.paragraph_styles,

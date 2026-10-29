@@ -1,0 +1,14 @@
+{
+  "$comment": "Regression gate thresholds (#8). A metric regresses only if BOTH rel (fraction of baseline median) AND abs (metric units; bytes for memory/size, ms for time) are exceeded. First matching class wins; metrics matching no class (counts) are not gated. 'disarmed' cells are report-only: shown in the PR table, never fail. Baseline = median of the last `baseline_n` main entries with the same key and the same host+Chrome.",
+  "baseline_n": 5,
+  "classes": [
+    { "name": "tbt", "match": "^tbt_ms$", "rel": 0.15, "abs": 20 },
+    { "name": "size", "match": "^(wasm|js)_gzip_bytes$", "rel": 0.03, "abs": 10240 },
+    { "name": "memory", "match": "^(peak_heap_used_bytes|retained_heap_used_bytes|JSHeapUsedSize|JSHeapTotalSize|wasm_memory_bytes|peak_wasm_memory_bytes)$", "rel": 0.10, "abs": 2097152 },
+    { "name": "time", "match": "_ms$", "rel": 0.10, "abs": 5 }
+  ],
+  "headline": ["first_paint_ms", "tti_ms", "parse_ms", "tbt_ms", "peak_heap_used_bytes", "step_median_ms"],
+  "disarmed": [
+    { "fixture_id": "xlsx-M", "mode": "warm", "cpu_throttle": 1, "metric": "tti_ms", "reason": "do-not-arm: bimodal and unexplained (see perf/BASELINE.md)" }
+  ]
+}

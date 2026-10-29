@@ -10,7 +10,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { summarize } from './stats.mjs';
+import { median, p95, summarize } from './stats.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -29,6 +29,35 @@ export function aggregate(rows) {
       if (xs.length) metrics[k] = summarize(xs);
     }
     return { fixture: g.fixture, engine: g.engine, mode: g.mode, cpuThrottle: g.cpuThrottle, iterations: g.samples.length, metrics };
+  });
+}
+
+/**
+ * Collapse raw run rows into history entries (#8): one per (engine, fixture, mode, cpu_throttle) with
+ * {median, p95, min, max} per metric. `meta` carries commit, date, branch, runner, host, fixture_sha256 (id -> sha).
+ */
+export function toHistoryEntries(rows, meta) {
+  return aggregate(rows).map((g) => {
+    const raw = rows.find((r) => r.fixture === g.fixture && r.engine === g.engine && r.mode === g.mode && (r.cpuThrottle ?? 1) === g.cpuThrottle);
+    const metrics = {};
+    for (const [k, s] of Object.entries(g.metrics)) metrics[k] = { median: s.median, p95: s.p95, min: s.min, max: s.max };
+    return {
+      commit: meta.commit,
+      date: meta.date,
+      branch: meta.branch,
+      engine: g.engine,
+      fixture_id: g.fixture,
+      fixture_sha256: meta.fixture_sha256?.[g.fixture] ?? null,
+      mode: g.mode,
+      cpu_throttle: g.cpuThrottle,
+      chrome_version: raw?.chrome ?? meta.host?.chrome_version ?? null,
+      runner: meta.runner,
+      host: { ...meta.host, chrome_version: raw?.chrome ?? meta.host?.chrome_version ?? null },
+      ...(meta.ci_job ? { ci_job: meta.ci_job } : {}),
+      ...(meta.seeded ? { seeded: true } : {}),
+      n: g.iterations,
+      metrics,
+    };
   });
 }
 

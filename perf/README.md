@@ -199,3 +199,21 @@ seeded bootstrap.
   it is reported separately from `render_ms`.
 - Gates and thresholds live in `perf/budgets.json` and `scripts/ci/perf*.sh`; this harness does not
   change or arm them.
+
+## History and regression gate (#8)
+
+`perf/history.jsonl`: one JSON line per (commit, engine, fixture_id, mode, cpu_throttle, host) with `commit`, `date`,
+`branch`, `engine`, `fixture_id`, `fixture_sha256`, `mode`, `cpu_throttle`, `chrome_version`, `runner`, `host`
+(`{kind: box|ci, id, os, cpu, cores, chrome_version}`), `n` and `metrics.<name> = {median, p95, min, max}`. CI keeps the
+live copy on the `perf-data` branch (main stays clean); the copy committed here is the seed.
+
+- `node perf/gate.mjs --current cur.jsonl --history perf/history.jsonl`: baseline = median of the last 5 main entries
+  with the same key **and the same host + Chrome**; a metric fails only if it exceeds both the relative and the absolute
+  threshold in `thresholds.json`. A different host or Chrome version is reported `incomparable` (neither pass nor fail).
+  WASM-vs-TS comparisons need the same host+Chrome or the same CI job (`enginesComparable`).
+- `disarmed` in `thresholds.json` lists report-only cells (currently xlsx-M warm 1x `tti_ms`, bimodal and unexplained).
+- Override: label `perf-regression-accepted` plus a `perf-regression-accepted: <reason>` line in the PR body; the gate
+  logs it in the job summary and writes `override.json`, which `record` appends to history.
+- PRs never append; `perf.sh record` on main does (`scripts/ci/perf_history.sh`).
+- **Reseed** (e.g. a newer full-corpus baseline): `node perf/history-append.mjs --reseed --from perf/baselines/ts-<sha>.jsonl`
+  (drops old `seeded` entries; commit from the file name; `--host-id` overrides the fingerprint id, derived from this machine).

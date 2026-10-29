@@ -20,6 +20,12 @@ else
 fi
 
 (cd perf && npm ci --silent)
+# run.mjs needs perf/dist/ts/*.js (upstream TS bundles); build them once (bun is installed by perf.sh).
+export PATH="$HOME/.bun/bin:$PATH"
+if [ ! -f perf/dist/ts/xlsx.js ] || [ ! -f perf/dist/ts/docx.js ] || [ ! -f perf/dist/ts/pptx.js ]; then
+  git submodule update --init --depth 1 upstream
+  node perf/build-ts.mjs
+fi
 RUNS="$OUT/runs.jsonl"; : >"$RUNS"
 throttles=(1); [ "$mode" = record ] && throttles=(1 4)
 [ "$mode" = record ] && FIX="${PERF_HISTORY_FIXTURES:-$FIX,xlsx-L,docx-L,pptx-L}"

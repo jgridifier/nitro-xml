@@ -10,7 +10,7 @@ import struct
 import time
 import zipfile
 from pathlib import Path
-from typing import Mapping
+from typing import Iterable, Mapping, Union
 from zlib import crc32
 
 # DOS epoch used by every generated package so two runs are byte-identical.
@@ -44,26 +44,48 @@ def tiny_png(width: int = 8, height: int = 8, rgb: tuple[int, int, int] = (0, 12
     )
 
 
-def write_ooxml(path: Path, members: Mapping[str, bytes]) -> bytes:
-    """Write an OOXML package and return its bytes. Members are stored sorted."""
+def noise_png(width: int, height: int, rng) -> bytes:
+    """Deterministic RGB PNG of seeded noise: a real, decodable, effectively incompressible image."""
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", crc32(tag + data) & 0xFFFFFFFF)
+
+    stride = width * 3
+    raw = b"".join(b"\x00" + rng.getrandbits(8 * stride).to_bytes(stride, "little") for _ in range(height))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", __import__("zlib").compress(raw, 6))
+        + chunk(b"IEND", b"")
+    )
+
+
+Member = Union[bytes, Iterable[bytes]]
+
+
+def write_ooxml(path: Path, members: Mapping[str, Member]) -> None:
+    """Write an OOXML package. Members are stored sorted; a member may be bytes or an iterable of
+    bytes chunks (streamed, so multi-million-cell parts never sit in memory as one string)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+    with path.open("wb") as fh, zipfile.ZipFile(fh, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
         for name in sorted(members):
             info = zipfile.ZipInfo(filename=name, date_time=_ZIP_DATE)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.create_system = 3  # Unix
             info.external_attr = 0o644 << 16
-            zf.writestr(info, members[name])
-    data = buf.getvalue()
-    path.write_bytes(data)
+            body = members[name]
+            if isinstance(body, bytes):
+                zf.writestr(info, body)
+            else:
+                with zf.open(info, "w") as out:
+                    for piece in body:
+                        out.write(piece)
     # Touch mtime to a fixed value so directory listings stay stable in tests.
     fixed = time.mktime(_ZIP_DATE + (0, 0, -1))
     Path(path).touch()
     import os
 
     os.utime(path, (fixed, fixed))
-    return data
 
 
 def content_types(overrides: list[tuple[str, str]], defaults: list[tuple[str, str]] | None = None) -> bytes:

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from workloads import gen_docx_workload, gen_pptx_workload, gen_xlsx_workload
 from ooxml_zip import (
     app_props,
     content_types,
@@ -272,6 +273,92 @@ def gen_docx_pages(path: Path, n_pages: int, *, tables: bool, images: bool, pad:
     write_ooxml(path, members)
 
 
+def pptx_scaffold() -> dict:
+    """Static master/layout/theme parts plus their rels, shared by the S/M and L/XL pptx builders."""
+    master = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+        '<p:cSld><p:bg><p:bgRef idx="1001"><a:schemeClr val="bg1"/></p:bgRef></p:bg>'
+        '<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>'
+        "</p:spTree></p:cSld>"
+        '<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" '
+        'accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>'
+        '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>'
+        "</p:sldMaster>"
+    ).encode("utf-8")
+    layout = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank" preserve="1">'
+        '<p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
+        "<p:grpSpPr/></p:spTree></p:cSld>"
+        '<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>'
+    ).encode("utf-8")
+    theme = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="nitro">'
+        "<a:themeElements><a:clrScheme name=\"nitro\">"
+        '<a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>'
+        '<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>'
+        '<a:dk2><a:srgbClr val="1F497D"/></a:dk2><a:lt2><a:srgbClr val="EEECE1"/></a:lt2>'
+        '<a:accent1><a:srgbClr val="4F81BD"/></a:accent1><a:accent2><a:srgbClr val="C0504D"/></a:accent2>'
+        '<a:accent3><a:srgbClr val="9BBB59"/></a:accent3><a:accent4><a:srgbClr val="8064A2"/></a:accent4>'
+        '<a:accent5><a:srgbClr val="4BACC6"/></a:accent5><a:accent6><a:srgbClr val="F79646"/></a:accent6>'
+        '<a:hlink><a:srgbClr val="0000FF"/></a:hlink><a:folHlink><a:srgbClr val="800080"/></a:folHlink>'
+        "</a:clrScheme>"
+        '<a:fontScheme name="nitro"><a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>'
+        '<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>'
+        '<a:fmtScheme name="nitro"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+        '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'
+        '<a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>'
+        '<a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>'
+        '<a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>'
+        '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle>'
+        '<a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>'
+        '<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+        '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+        "</a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>"
+    ).encode("utf-8")
+    static_overrides = [
+        ("/ppt/presentation.xml", "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"),
+        ("/ppt/slideMasters/slideMaster1.xml", "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"),
+        ("/ppt/slideLayouts/slideLayout1.xml", "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"),
+        ("/ppt/theme/theme1.xml", "application/vnd.openxmlformats-officedocument.theme+xml"),
+        ("/docProps/core.xml", "application/vnd.openxmlformats-package.core-properties+xml"),
+        ("/docProps/app.xml", "application/vnd.openxmlformats-officedocument.extended-properties+xml"),
+    ]
+    pres_rels = [
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>',
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>',
+    ]
+    members = {
+        "_rels/.rels": rels_root(
+            "ppt/presentation.xml",
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+        ),
+        "ppt/slideMasters/slideMaster1.xml": master,
+        "ppt/slideMasters/_rels/slideMaster1.xml.rels": (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'
+            '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>'
+            "</Relationships>"
+        ).encode("utf-8"),
+        "ppt/slideLayouts/slideLayout1.xml": layout,
+        "ppt/slideLayouts/_rels/slideLayout1.xml.rels": (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>'
+            "</Relationships>"
+        ).encode("utf-8"),
+        "ppt/theme/theme1.xml": theme,
+    }
+    return {"master": master, "layout": layout, "theme": theme, "overrides": static_overrides, "pres_rels": pres_rels, "members": members}
+
+
 def gen_pptx_slides(path: Path, n_slides: int, *, pad: int) -> None:
     """n_slides of title text; optional binary pad for L/XL tiers."""
     overrides = [
@@ -325,54 +412,9 @@ def gen_pptx_slides(path: Path, n_slides: int, *, pad: int) -> None:
         "</p:presentation>"
     ).encode("utf-8")
 
-    # Minimal master/layout/theme stubs.
-    master = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
-        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
-        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
-        '<p:cSld><p:bg><p:bgRef idx="1001"><a:schemeClr val="bg1"/></p:bgRef></p:bg>'
-        '<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>'
-        "</p:spTree></p:cSld>"
-        '<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" '
-        'accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>'
-        '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>'
-        "</p:sldMaster>"
-    ).encode("utf-8")
-    layout = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
-        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
-        'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank" preserve="1">'
-        '<p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
-        "<p:grpSpPr/></p:spTree></p:cSld>"
-        '<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>'
-    ).encode("utf-8")
-    theme = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="nitro">'
-        "<a:themeElements><a:clrScheme name=\"nitro\">"
-        '<a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>'
-        '<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>'
-        '<a:dk2><a:srgbClr val="1F497D"/></a:dk2><a:lt2><a:srgbClr val="EEECE1"/></a:lt2>'
-        '<a:accent1><a:srgbClr val="4F81BD"/></a:accent1><a:accent2><a:srgbClr val="C0504D"/></a:accent2>'
-        '<a:accent3><a:srgbClr val="9BBB59"/></a:accent3><a:accent4><a:srgbClr val="8064A2"/></a:accent4>'
-        '<a:accent5><a:srgbClr val="4BACC6"/></a:accent5><a:accent6><a:srgbClr val="F79646"/></a:accent6>'
-        '<a:hlink><a:srgbClr val="0000FF"/></a:hlink><a:folHlink><a:srgbClr val="800080"/></a:folHlink>'
-        "</a:clrScheme>"
-        '<a:fontScheme name="nitro"><a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>'
-        '<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>'
-        '<a:fmtScheme name="nitro"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
-        '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'
-        '<a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>'
-        '<a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>'
-        '<a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>'
-        '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle>'
-        '<a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>'
-        '<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
-        '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
-        "</a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>"
-    ).encode("utf-8")
+    scaffold = pptx_scaffold()
+    master, layout, theme = scaffold["master"], scaffold["layout"], scaffold["theme"]
+
 
     members.update(
         {
@@ -468,55 +510,6 @@ RECIPES: dict[str, dict] = {
         "features": ["generated", "cells-100k", "perf-tier"],
         "build": lambda p: gen_xlsx_cells(p, 120_000, merges=True, shared_extra=100, pad=350_000),
     },
-    "gen-xlsx-cells-1m": {
-        "format": "xlsx",
-        "relpath": "xlsx/cells_1m.xlsx",
-        "tier_hint": "L",
-        "features": ["generated", "cells-1m", "shared-strings", "styles", "merges", "conditional-formats", "perf-tier", "painter:X3"],
-        "build": lambda p: gen_xlsx_cells(p, 1_000_000, merges=True, shared_extra=1000, pad=0),
-        "on_demand": True,
-    },
-    "gen-xlsx-cells-1m-pad-l": {
-        "format": "xlsx",
-        "relpath": "xlsx/cells_1m_pad_l.xlsx",
-        "tier_hint": "L",
-        "features": ["generated", "cells-1m", "perf-tier"],
-        "build": lambda p: gen_xlsx_cells(p, 1_000_000, merges=False, shared_extra=0, pad=2_000_000),
-        "on_demand": True,
-    },
-    "gen-xlsx-cells-1m-pad-l2": {
-        "format": "xlsx",
-        "relpath": "xlsx/cells_1m_pad_l2.xlsx",
-        "tier_hint": "L",
-        "features": ["generated", "cells-1m", "perf-tier"],
-        "build": lambda p: gen_xlsx_cells(p, 1_000_000, merges=True, shared_extra=2000, pad=4_000_000),
-        "on_demand": True,
-    },
-    "gen-xlsx-xl-a": {
-        "format": "xlsx",
-        "relpath": "xlsx/xl_a.xlsx",
-        "tier_hint": "XL",
-        "features": ["generated", "cells-1m", "perf-tier"],
-        "build": lambda p: gen_xlsx_cells(p, 1_000_000, merges=True, shared_extra=5000, pad=12_000_000),
-        "on_demand": True,
-    },
-    "gen-xlsx-xl-b": {
-        "format": "xlsx",
-        "relpath": "xlsx/xl_b.xlsx",
-        "tier_hint": "XL",
-        "features": ["generated", "cells-1m", "perf-tier"],
-        "build": lambda p: gen_xlsx_cells(p, 1_000_000, merges=False, shared_extra=8000, pad=14_000_000),
-        "on_demand": True,
-    },
-    "gen-xlsx-xl-c": {
-        "format": "xlsx",
-        "relpath": "xlsx/xl_c.xlsx",
-        "tier_hint": "XL",
-        "features": ["generated", "cells-1m", "perf-tier"],
-        "build": lambda p: gen_xlsx_cells(p, 1_000_000, merges=True, shared_extra=10000, pad=16_000_000),
-        "on_demand": True,
-    },
-    # docx
     "gen-docx-pages-10": {
         "format": "docx",
         "relpath": "docx/pages_10.docx",
@@ -559,55 +552,6 @@ RECIPES: dict[str, dict] = {
         "features": ["generated", "pages-100", "perf-tier"],
         "build": lambda p: gen_docx_pages(p, 120, tables=False, images=True, pad=700_000),
     },
-    "gen-docx-pages-500": {
-        "format": "docx",
-        "relpath": "docx/pages_500.docx",
-        "tier_hint": "L",
-        "features": ["generated", "pages-500", "tables", "images", "perf-tier"],
-        "build": lambda p: gen_docx_pages(p, 500, tables=True, images=True, pad=2_500_000),
-        "on_demand": True,
-    },
-    "gen-docx-pages-500-b": {
-        "format": "docx",
-        "relpath": "docx/pages_500_b.docx",
-        "tier_hint": "L",
-        "features": ["generated", "pages-500", "perf-tier"],
-        "build": lambda p: gen_docx_pages(p, 500, tables=True, images=False, pad=4_000_000),
-        "on_demand": True,
-    },
-    "gen-docx-pages-500-c": {
-        "format": "docx",
-        "relpath": "docx/pages_500_c.docx",
-        "tier_hint": "L",
-        "features": ["generated", "pages-500", "perf-tier"],
-        "build": lambda p: gen_docx_pages(p, 500, tables=False, images=True, pad=6_000_000),
-        "on_demand": True,
-    },
-    "gen-docx-xl-a": {
-        "format": "docx",
-        "relpath": "docx/xl_a.docx",
-        "tier_hint": "XL",
-        "features": ["generated", "pages-500", "perf-tier"],
-        "build": lambda p: gen_docx_pages(p, 500, tables=True, images=True, pad=12_000_000),
-        "on_demand": True,
-    },
-    "gen-docx-xl-b": {
-        "format": "docx",
-        "relpath": "docx/xl_b.docx",
-        "tier_hint": "XL",
-        "features": ["generated", "pages-500", "perf-tier"],
-        "build": lambda p: gen_docx_pages(p, 500, tables=True, images=False, pad=14_000_000),
-        "on_demand": True,
-    },
-    "gen-docx-xl-c": {
-        "format": "docx",
-        "relpath": "docx/xl_c.docx",
-        "tier_hint": "XL",
-        "features": ["generated", "pages-500", "perf-tier"],
-        "build": lambda p: gen_docx_pages(p, 500, tables=False, images=True, pad=16_000_000),
-        "on_demand": True,
-    },
-    # pptx
     "gen-pptx-slides-10": {
         "format": "pptx",
         "relpath": "pptx/slides_10.pptx",
@@ -650,55 +594,66 @@ RECIPES: dict[str, dict] = {
         "features": ["generated", "slides-50", "perf-tier"],
         "build": lambda p: gen_pptx_slides(p, 60, pad=700_000),
     },
-    "gen-pptx-slides-200": {
-        "format": "pptx",
-        "relpath": "pptx/slides_200.pptx",
-        "tier_hint": "L",
-        "features": ["generated", "slides-200", "perf-tier"],
-        "build": lambda p: gen_pptx_slides(p, 200, pad=2_500_000),
-        "on_demand": True,
-    },
-    "gen-pptx-slides-200-b": {
-        "format": "pptx",
-        "relpath": "pptx/slides_200_b.pptx",
-        "tier_hint": "L",
-        "features": ["generated", "slides-200", "perf-tier"],
-        "build": lambda p: gen_pptx_slides(p, 200, pad=4_000_000),
-        "on_demand": True,
-    },
-    "gen-pptx-slides-200-c": {
-        "format": "pptx",
-        "relpath": "pptx/slides_200_c.pptx",
-        "tier_hint": "L",
-        "features": ["generated", "slides-200", "perf-tier"],
-        "build": lambda p: gen_pptx_slides(p, 220, pad=6_000_000),
-        "on_demand": True,
-    },
-    "gen-pptx-xl-a": {
-        "format": "pptx",
-        "relpath": "pptx/xl_a.pptx",
-        "tier_hint": "XL",
-        "features": ["generated", "slides-200", "perf-tier"],
-        "build": lambda p: gen_pptx_slides(p, 200, pad=12_000_000),
-        "on_demand": True,
-    },
-    "gen-pptx-xl-b": {
-        "format": "pptx",
-        "relpath": "pptx/xl_b.pptx",
-        "tier_hint": "XL",
-        "features": ["generated", "slides-200", "perf-tier"],
-        "build": lambda p: gen_pptx_slides(p, 200, pad=14_000_000),
-        "on_demand": True,
-    },
-    "gen-pptx-xl-c": {
-        "format": "pptx",
-        "relpath": "pptx/xl_c.pptx",
-        "tier_hint": "XL",
-        "features": ["generated", "slides-200", "perf-tier"],
-        "build": lambda p: gen_pptx_slides(p, 200, pad=16_000_000),
-        "on_demand": True,
-    },
+
 }
+
+
+# L/XL tiers (on-demand, gitignored): size comes from real, referenced content (workloads.py), never
+# from a filler part. File names keep their legacy tier labels (cells_1m, pages_500, slides_200,
+# xl_*) because perf/, parity/ and .gitignore reference them; the true counts live in each
+# recipe's `content` dict, in its features, and in fixtures/gen/README.md.
+def _real(rid: str, fmt: str, relpath: str, tier: str, content: dict, builder, extra: list[str] | None = None) -> None:
+    feats = ["generated", "perf-tier", "real-content"] + (extra or [])
+    feats += [f"{k}-{v}" for k, v in content.items() if k in ("sheets", "pages", "slides")]
+    RECIPES[rid] = {
+        "format": fmt,
+        "relpath": relpath,
+        "tier_hint": tier,
+        "features": feats,
+        "content": content,
+        "build": lambda p, _b=builder, _c=content: _b(p, label=rid, **_c),
+        "on_demand": True,
+    }
+
+
+XLSX_REAL = {
+    # id: (relpath, tier, sheets, rows/sheet, shared strings)
+    "gen-xlsx-cells-1m": ("xlsx/cells_1m.xlsx", "L", 1, 31_000, 20_000),
+    "gen-xlsx-cells-1m-pad-l": ("xlsx/cells_1m_pad_l.xlsx", "L", 2, 20_900, 50_000),
+    "gen-xlsx-cells-1m-pad-l2": ("xlsx/cells_1m_pad_l2.xlsx", "L", 3, 17_250, 100_000),
+    "gen-xlsx-xl-a": ("xlsx/xl_a.xlsx", "XL", 4, 24_700, 150_000),
+    "gen-xlsx-xl-b": ("xlsx/xl_b.xlsx", "XL", 4, 27_200, 200_000),
+    "gen-xlsx-xl-c": ("xlsx/xl_c.xlsx", "XL", 5, 23_700, 250_000),
+}
+for _rid, (_rel, _tier, _sheets, _rows, _sst) in XLSX_REAL.items():
+    _real(_rid, "xlsx", _rel, _tier, {"sheets": _sheets, "rows": _rows, "cols": 20, "sst_n": _sst}, gen_xlsx_workload,
+          [f"cells-{_sheets * _rows * 20}", f"shared-strings-{_sst}"]
+          + (["merges", "conditional-formats", "painter:X3"] if _rid == "gen-xlsx-cells-1m" else []))
+
+DOCX_REAL = {
+    # id: (relpath, tier, pages, image_px, n_images)
+    "gen-docx-pages-500": ("docx/pages_500.docx", "L", 1_200, 96, 20),
+    "gen-docx-pages-500-b": ("docx/pages_500_b.docx", "L", 2_000, 96, 30),
+    "gen-docx-pages-500-c": ("docx/pages_500_c.docx", "L", 3_000, 128, 24),
+    "gen-docx-xl-a": ("docx/xl_a.docx", "XL", 5_000, 160, 50),
+    "gen-docx-xl-b": ("docx/xl_b.docx", "XL", 6_000, 160, 58),
+    "gen-docx-xl-c": ("docx/xl_c.docx", "XL", 7_000, 192, 44),
+}
+for _rid, (_rel, _tier, _pages, _px, _n) in DOCX_REAL.items():
+    _real(_rid, "docx", _rel, _tier, {"pages": _pages, "image_px": _px, "n_images": _n}, gen_docx_workload,
+          ["tables", f"images-{min(_n, _pages // 10)}"])
+
+PPTX_REAL = {
+    # id: (relpath, tier, slides, image_px, n_images)
+    "gen-pptx-slides-200": ("pptx/slides_200.pptx", "L", 1_000, 128, 25),
+    "gen-pptx-slides-200-b": ("pptx/slides_200_b.pptx", "L", 1_500, 128, 42),
+    "gen-pptx-slides-200-c": ("pptx/slides_200_c.pptx", "L", 2_000, 160, 44),
+    "gen-pptx-xl-a": ("pptx/xl_a.pptx", "XL", 4_000, 192, 60),
+    "gen-pptx-xl-b": ("pptx/xl_b.pptx", "XL", 5_000, 192, 65),
+    "gen-pptx-xl-c": ("pptx/xl_c.pptx", "XL", 6_000, 224, 52),
+}
+for _rid, (_rel, _tier, _slides, _px, _n) in PPTX_REAL.items():
+    _real(_rid, "pptx", _rel, _tier, {"slides": _slides, "image_px": _px, "n_images": _n}, gen_pptx_workload, [f"images-{min(_n, _slides)}"])
 
 
 def build_recipe(recipe_id: str, *, force: bool = False) -> Path:

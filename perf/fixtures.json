@@ -7,11 +7,11 @@
     { "id": "xlsx-XL", "format": "xlsx", "tier": "XL", "path": "fixtures/generated/xlsx/xl_a.xlsx" },
     { "id": "docx-S", "format": "docx", "tier": "S", "path": "fixtures/generated/docx/pages_10.docx", "pages": 10 },
     { "id": "docx-M", "format": "docx", "tier": "M", "path": "fixtures/generated/docx/pages_100.docx", "pages": 100 },
-    { "id": "docx-L", "format": "docx", "tier": "L", "path": "fixtures/generated/docx/pages_500.docx", "pages": 500 },
+    { "id": "docx-L", "format": "docx", "tier": "L", "path": "fixtures/generated/docx/pages_500.docx", "pages": 1200 },
     { "id": "docx-XL", "format": "docx", "tier": "XL", "path": "fixtures/generated/docx/xl_a.docx" },
     { "id": "pptx-S", "format": "pptx", "tier": "S", "path": "fixtures/generated/pptx/slides_10.pptx", "slides": 10 },
     { "id": "pptx-M", "format": "pptx", "tier": "M", "path": "fixtures/generated/pptx/slides_50.pptx", "slides": 50 },
-    { "id": "pptx-L", "format": "pptx", "tier": "L", "path": "fixtures/generated/pptx/slides_200.pptx", "slides": 200 },
+    { "id": "pptx-L", "format": "pptx", "tier": "L", "path": "fixtures/generated/pptx/slides_200.pptx", "slides": 1000 },
     { "id": "pptx-XL", "format": "pptx", "tier": "XL", "path": "fixtures/generated/pptx/xl_a.pptx" }
   ]
 }

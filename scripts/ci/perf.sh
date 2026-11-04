@@ -11,9 +11,9 @@
 # M1 known-loss cells (xlsx S + docx S/M peak_mem; Jared comment on #30) stay LOSS with
 # numbers and do not fail enforce — see perf_beats_ts.sh.
 #
-# Definition of done for #8 history/thresholds slice: append to perf-data and wire
-# regression-vs-main. This script already deletes the stub and runs the WASM-beats-TS
-# measurements via perf_beats_ts.sh. Agents never edit .github/workflows/.
+# #8: after the WASM-beats-TS measurements, perf_history.sh runs the run.mjs harness, gates PRs
+# against the last 5 main entries (perf/gate.mjs) and, on record, appends to perf-data.
+# PERF_HISTORY=0 skips it. Agents never edit .github/workflows/.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
@@ -200,7 +200,7 @@ if (readiness.length) {
   );
 }
 lines.push(
-  "TODO(#8): perf-data branch append, regression-vs-main thresholds, 4× CPU, XL, scroll/view-query, browser first-paint (fetch/compile/instantiate).",
+  "TODO(#8 follow-up): XL tier, scroll/view-query and wasm-memory metrics in the history gate.",
 );
 process.stdout.write(lines.join("\n") + "\n");
 JS
@@ -209,25 +209,11 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   cat "$OUT_DIR/rollup.md" >> "$GITHUB_STEP_SUMMARY"
 fi
 
-if [ "$mode" = "record" ]; then
-  # Persist JSON bundle for later perf-data ingestion (append not wired yet — TODO(#8)).
-  manifest="$OUT_DIR/record-manifest.json"
-  node -e '
-    const fs = require("fs");
-    const out = process.argv[1];
-    const sha = process.argv[2];
-    const files = fs.readdirSync(out).filter((f) => f.endsWith(".json"));
-    fs.writeFileSync(out + "/record-manifest.json", JSON.stringify({
-      schema: 1,
-      mode: "record",
-      sha,
-      when: new Date().toISOString(),
-      note: "TODO(#8): append to perf-data branch; this artifact is local/CI-only for now",
-      files,
-    }, null, 2) + "\n");
-  ' "$OUT_DIR" "$SHA"
-  echo "perf.sh record: wrote $manifest (perf-data append TODO(#8))"
+history_status=0
+if [ "${PERF_HISTORY:-1}" = "1" ]; then
+  bash "$ROOT/scripts/ci/perf_history.sh" "$mode" "$OUT_DIR" || history_status=1
 fi
+[ "$history_status" -eq 0 ] || overall_status=1
 
 if [ "$overall_status" -ne 0 ]; then
   # Non-zero from perf_beats_ts is either ENFORCE LOSSes or an infra/setup error

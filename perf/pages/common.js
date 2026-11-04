@@ -24,6 +24,8 @@ const memory = {};
 export const mark = (name) => {
   marks[name] = performance.now();
   if (ALIAS[name]) marks[ALIAS[name]] = marks[name];
+  // Every host starts its scripted interaction (xlsx scroll, docx page jumps, pptx slide walk) right after first_paint.
+  if (name === 'first_paint') marks.interact_start = marks[name];
   performance.mark(`perf:${name}`);
   if (engine === 'wasm' && (name === 'parse_end' || name === 'full_render' || name === 'all_slides')) {
     memory[ALIAS[name] ?? name] = requestWasmMemory();
@@ -70,8 +72,12 @@ export async function until(probe, what, limit = 600) {
 
 export async function loadFixture(expectFormat) {
   if (!fixtureId) throw new Error('perf host: ?fixture=<id> is required');
+  // Fixture lookup: the perf corpus (perf/fixtures.json) by id, else the runner's `--corpus manifest` rows, which
+  // pass path (and the lastRow / pages / slides hints) in the URL.
   const { fixtures } = await (await fetch('/perf/fixtures.json')).json();
-  const meta = fixtures.find((f) => f.id === fixtureId);
+  const path = params.get('path');
+  const hint = Object.fromEntries(['lastRow', 'pages', 'slides'].filter((k) => params.get(k)).map((k) => [k, Number(params.get(k))]));
+  const meta = path ? { id: fixtureId, format: expectFormat, path, ...hint } : fixtures.find((f) => f.id === fixtureId);
   if (!meta || meta.format !== expectFormat) throw new Error(`perf host: unknown ${expectFormat} fixture "${fixtureId}"`);
   const url = `/${meta.path}`;
   const res = await fetch(url);
@@ -95,11 +101,13 @@ export async function run(expectFormat, body) {
       ...wasmSummary(),
     } : {};
     const { steps: _s, ...rest } = detail;
+    rest.long_tasks = lt.entries.map((t) => [Math.round(t.start), Math.round(t.duration)]); // [start, duration] ms; diagnostics for tti / tbt
     window.__perf = {
       ...window.__perf, done: true, marks, detail: rest,
       extra: {
         long_task_count: lt.count, long_task_total_ms: lt.total_ms, tbt_ms: lt.tbt_ms,
-        tti_ms: timeToInteractive(marks.first_render, marks.full_render, lt),
+        tti_ms: timeToInteractive(marks.first_render, marks.interact_start, lt),
+        tti_with_interaction_ms: timeToInteractive(marks.first_render, marks.full_render + 100, lt), // pre-#10 definition, kept for comparison
         ...(steps ?? {}), ...wasm,
       },
     };

@@ -143,8 +143,13 @@ export function stepSummary(steps) {
   };
 }
 
-/** Time-to-interactive: first render, or the end of the last long task up to full render if later. */
-export function timeToInteractive(firstRender, fullRender, lt) {
-  const ends = lt.entries.map((t) => t.start + t.duration).filter((e) => e > firstRender && e <= fullRender + 100);
+/**
+ * Time-to-interactive: first render, or the end of the last long task up to `until` if later. `until` is where the
+ * harness's own scripted interaction begins (mark interact_start): long tasks the scroll / page jumps / slide walk
+ * cause are measured by step latency and TBT, not by TTI. Counting them made xlsx-M warm TTI bimodal (#10): each
+ * scroll step is ~50-70 ms of work, so whether one crossed the 50 ms long-task line decided between ~0.9 s and ~8 s.
+ */
+export function timeToInteractive(firstRender, until, lt) {
+  const ends = lt.entries.map((t) => t.start + t.duration).filter((e) => e > firstRender && e <= until);
   return Math.max(firstRender, ...ends);
 }

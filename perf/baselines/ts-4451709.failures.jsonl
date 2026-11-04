@@ -1,0 +1,202 @@
+{"mode":"cold","cpuThrottle":1,"fixture":"real-docx-poi-Bug54849","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-docx-poi-bug65649","engine":"ts","error":"real-docx-poi-bug65649/ts: RangeError: Invalid content for node tableRow: <>\n    at qb.checkContent (http://127.0.0.1:43981/perf/dist/ts/docx.js:5696:5747)\n    at qb.createChecked (http://127.0.0.1:43981/perf/dist/ts/docx.js:5696:5180)\n    at Gb.node (http://127.0.0.1:43981/perf/dist/ts/docx.js:5696:9011)\n    at http://127.0.0.1:43981/perf/dist/ts/docx.js:5717:183172\n    at Array.map (<anonymous>)\n    at Xue (http://127.0.0.1:43981/perf/dist/ts/docx.js:5717:182285)\n    at http://127.0.0.1:43981/perf/dist/ts/docx.js:5717:186759\n    at Array.map (<anonymous>)\n    at O0 (http://127.0.0.1:43981/perf/dist/ts/docx.js:5717:186701)\n    at Nc (http://127.0.0.1:43981/perf/dist/ts/docx.js:8361:20360)"}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-docx-poi-drawing","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"upstream-fb3af3f7b5f7","engine":"ts","error":"upstream-fb3af3f7b5f7/ts: PasswordRequiredError: This document is password protected. Enter the password to open it.\n    at Z2 (http://127.0.0.1:37483/perf/dist/ts/docx.js:5717:44464)\n    at pye.load (http://127.0.0.1:37483/perf/dist/ts/docx.js:8361:28445)\n    at http://127.0.0.1:37483/perf/pages/docx.html?engine=ts&fixture=upstream-fb3af3f7b5f7&path=fixtures%2Fupstream%2Fdocx%2Ffb3af3f7b5f7_word-encrypted.docx:42:20\n    at async run (http://127.0.0.1:37483/perf/pages/common.js:94:20)"}
+{"mode":"cold","cpuThrottle":1,"fixture":"gen-pptx-placeholder","engine":"ts","error":"gen-pptx-placeholder/ts: Error: perf host: timed out waiting for pptx slide 1 elements\n    at until (http://127.0.0.1:42983/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:42983/perf/pages/pptx.html?engine=ts&fixture=gen-pptx-placeholder&path=fixtures%2Fgenerated%2Fpptx%2Fpainter_placeholder.pptx:45:11\n    at async run (http://127.0.0.1:42983/perf/pages/common.js:94:20)"}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-pptx-poi-bug59273","engine":"ts","error":"real-pptx-poi-bug59273/ts: Error: perf host: timed out waiting for pptx slide 1 elements\n    at until (http://127.0.0.1:40437/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:40437/perf/pages/pptx.html?engine=ts&fixture=real-pptx-poi-bug59273&path=fixtures%2Freal%2Fpptx%2Fpoi-bug59273.potx:45:11\n    at async run (http://127.0.0.1:40437/perf/pages/common.js:94:20)"}
+{"mode":"cold","cpuThrottle":1,"fixture":"bidi-arabic-hebrew-mixed","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"bidi-rtl-sheet","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"gen-xlsx-cells-100k-b","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"gen-xlsx-cells-100k-c","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"gen-xlsx-cells-1k-merges","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"gen-xlsx-cells-1k-pad-s","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-45540_classic_Footer","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-45540_classic_Header","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-45544","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-46535","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-47813","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-49156","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-50096","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-56644","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-57181","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-57893-many-merges","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-61652","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-62629_target","engine":"ts","error":"real-xlsx-poi-62629_target/ts: Error: perf host: timed out waiting for xlsx grid cells\n    at until (http://127.0.0.1:36721/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:36721/perf/pages/xlsx.html?engine=ts&fixture=real-xlsx-poi-62629_target&path=fixtures%2Freal%2Fxlsx%2Fpoi-62629_target.xlsm:39:11\n    at async run (http://127.0.0.1:36721/perf/pages/common.js:94:20)"}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-ConditionalFormattingSamples","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-DataTableCities","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-DateFormatTests","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-ExcelPivotTableSample","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-ExcelWithAttachments","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-FormulaEvalTestData_Copy","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-NewStyleConditionalFormattings","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-StructuredRefs-lots-with-lookups","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-WithChartSheet","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-WithEmbeded","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-bug64512_embed","engine":"ts","error":"real-xlsx-poi-bug64512_embed/ts: Error: perf host: timed out waiting for xlsx grid cells\n    at until (http://127.0.0.1:43351/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:43351/perf/pages/xlsx.html?engine=ts&fixture=real-xlsx-poi-bug64512_embed&path=fixtures%2Freal%2Fxlsx%2Fpoi-bug64512_embed.xlsx:39:11\n    at async run (http://127.0.0.1:43351/perf/pages/common.js:94:20)"}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-dataValidationTableRange","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-no_drawing_patriarch","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-poi-test","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-python-pptx-shp-embedded-xlsx","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-usgov-census-NST-EST2024-POP","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-usgov-eia-MER-T01.01","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"upstream-fd8fbde7846d","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"real-xlsx-usgov-fhwa-2022-vm1","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"upstream-1a304a300451","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"upstream-2ad922a2a025","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"upstream-2f38830758e8","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"upstream-3fdae3824dde","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"upstream-8b581ee14978","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"upstream-9ed0ab63f8de","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":1,"fixture":"upstream-e899e84e6209","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-docx-poi-bug65649","engine":"ts","error":"real-docx-poi-bug65649/ts: RangeError: Invalid content for node tableRow: <>\n    at qb.checkContent (http://127.0.0.1:34909/perf/dist/ts/docx.js:5696:5747)\n    at qb.createChecked (http://127.0.0.1:34909/perf/dist/ts/docx.js:5696:5180)\n    at Gb.node (http://127.0.0.1:34909/perf/dist/ts/docx.js:5696:9011)\n    at http://127.0.0.1:34909/perf/dist/ts/docx.js:5717:183172\n    at Array.map (<anonymous>)\n    at Xue (http://127.0.0.1:34909/perf/dist/ts/docx.js:5717:182285)\n    at http://127.0.0.1:34909/perf/dist/ts/docx.js:5717:186759\n    at Array.map (<anonymous>)\n    at O0 (http://127.0.0.1:34909/perf/dist/ts/docx.js:5717:186701)\n    at Nc (http://127.0.0.1:34909/perf/dist/ts/docx.js:8361:20360)"}
+{"mode":"cold","cpuThrottle":4,"fixture":"upstream-fb3af3f7b5f7","engine":"ts","error":"upstream-fb3af3f7b5f7/ts: PasswordRequiredError: This document is password protected. Enter the password to open it.\n    at Z2 (http://127.0.0.1:44225/perf/dist/ts/docx.js:5717:44464)\n    at pye.load (http://127.0.0.1:44225/perf/dist/ts/docx.js:8361:28445)\n    at http://127.0.0.1:44225/perf/pages/docx.html?engine=ts&fixture=upstream-fb3af3f7b5f7&path=fixtures%2Fupstream%2Fdocx%2Ffb3af3f7b5f7_word-encrypted.docx:42:20\n    at async run (http://127.0.0.1:44225/perf/pages/common.js:94:20)"}
+{"mode":"cold","cpuThrottle":4,"fixture":"gen-pptx-equation","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"gen-pptx-placeholder","engine":"ts","error":"gen-pptx-placeholder/ts: Error: perf host: timed out waiting for pptx slide 1 elements\n    at until (http://127.0.0.1:37095/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:37095/perf/pages/pptx.html?engine=ts&fixture=gen-pptx-placeholder&path=fixtures%2Fgenerated%2Fpptx%2Fpainter_placeholder.pptx:45:11\n    at async run (http://127.0.0.1:37095/perf/pages/common.js:94:20)"}
+{"mode":"cold","cpuThrottle":4,"fixture":"gen-pptx-slides-10-c","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-pptx-poi-bug59273","engine":"ts","error":"real-pptx-poi-bug59273/ts: Error: perf host: timed out waiting for pptx slide 1 elements\n    at until (http://127.0.0.1:37455/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:37455/perf/pages/pptx.html?engine=ts&fixture=real-pptx-poi-bug59273&path=fixtures%2Freal%2Fpptx%2Fpoi-bug59273.potx:45:11\n    at async run (http://127.0.0.1:37455/perf/pages/common.js:94:20)"}
+{"mode":"cold","cpuThrottle":4,"fixture":"bidi-arabic-hebrew-mixed","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"bidi-rtl-sheet","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"gen-xlsx-cells-100k-b","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"gen-xlsx-cells-100k-c","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"gen-xlsx-cells-1k-merges","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"gen-xlsx-cells-1k-pad-s","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-45540_classic_Footer","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-45540_classic_Header","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-45544","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-46535","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-47813","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-49156","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-50096","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-56644","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-57181","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-57893-many-merges","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-61652","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-62629_target","engine":"ts","error":"real-xlsx-poi-62629_target/ts: Error: perf host: timed out waiting for xlsx grid cells\n    at until (http://127.0.0.1:44905/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:44905/perf/pages/xlsx.html?engine=ts&fixture=real-xlsx-poi-62629_target&path=fixtures%2Freal%2Fxlsx%2Fpoi-62629_target.xlsm:39:11\n    at async run (http://127.0.0.1:44905/perf/pages/common.js:94:20)"}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-ConditionalFormattingSamples","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-DataTableCities","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-DateFormatTests","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-ExcelPivotTableSample","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-ExcelWithAttachments","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-FormulaEvalTestData_Copy","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-NewStyleConditionalFormattings","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-StructuredRefs-lots-with-lookups","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-WithChartSheet","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-WithEmbeded","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-bug64512_embed","engine":"ts","error":"real-xlsx-poi-bug64512_embed/ts: Error: perf host: timed out waiting for xlsx grid cells\n    at until (http://127.0.0.1:37413/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:37413/perf/pages/xlsx.html?engine=ts&fixture=real-xlsx-poi-bug64512_embed&path=fixtures%2Freal%2Fxlsx%2Fpoi-bug64512_embed.xlsx:39:11\n    at async run (http://127.0.0.1:37413/perf/pages/common.js:94:20)"}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-dataValidationTableRange","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-no_drawing_patriarch","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-poi-test","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-python-pptx-shp-embedded-xlsx","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-usgov-census-NST-EST2024-POP","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-usgov-eia-MER-T01.01","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"upstream-fd8fbde7846d","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"real-xlsx-usgov-fhwa-2022-vm1","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"upstream-1a304a300451","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"upstream-2ad922a2a025","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"upstream-2f38830758e8","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"upstream-3fdae3824dde","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"upstream-8b581ee14978","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"upstream-9ed0ab63f8de","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"cold","cpuThrottle":4,"fixture":"upstream-e899e84e6209","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-docx-poi-bug65649","engine":"ts","error":"real-docx-poi-bug65649/ts: RangeError: Invalid content for node tableRow: <>\n    at qb.checkContent (http://127.0.0.1:33457/perf/dist/ts/docx.js:5696:5747)\n    at qb.createChecked (http://127.0.0.1:33457/perf/dist/ts/docx.js:5696:5180)\n    at Gb.node (http://127.0.0.1:33457/perf/dist/ts/docx.js:5696:9011)\n    at http://127.0.0.1:33457/perf/dist/ts/docx.js:5717:183172\n    at Array.map (<anonymous>)\n    at Xue (http://127.0.0.1:33457/perf/dist/ts/docx.js:5717:182285)\n    at http://127.0.0.1:33457/perf/dist/ts/docx.js:5717:186759\n    at Array.map (<anonymous>)\n    at O0 (http://127.0.0.1:33457/perf/dist/ts/docx.js:5717:186701)\n    at Nc (http://127.0.0.1:33457/perf/dist/ts/docx.js:8361:20360)"}
+{"mode":"warm","cpuThrottle":1,"fixture":"upstream-fb3af3f7b5f7","engine":"ts","error":"upstream-fb3af3f7b5f7/ts: PasswordRequiredError: This document is password protected. Enter the password to open it.\n    at Z2 (http://127.0.0.1:40895/perf/dist/ts/docx.js:5717:44464)\n    at pye.load (http://127.0.0.1:40895/perf/dist/ts/docx.js:8361:28445)\n    at http://127.0.0.1:40895/perf/pages/docx.html?engine=ts&fixture=upstream-fb3af3f7b5f7&path=fixtures%2Fupstream%2Fdocx%2Ffb3af3f7b5f7_word-encrypted.docx:42:20\n    at async run (http://127.0.0.1:40895/perf/pages/common.js:94:20)"}
+{"mode":"warm","cpuThrottle":1,"fixture":"gen-pptx-placeholder","engine":"ts","error":"gen-pptx-placeholder/ts: Error: perf host: timed out waiting for pptx slide 1 elements\n    at until (http://127.0.0.1:40599/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:40599/perf/pages/pptx.html?engine=ts&fixture=gen-pptx-placeholder&path=fixtures%2Fgenerated%2Fpptx%2Fpainter_placeholder.pptx:45:11\n    at async run (http://127.0.0.1:40599/perf/pages/common.js:94:20)"}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-pptx-poi-bug59273","engine":"ts","error":"real-pptx-poi-bug59273/ts: Error: perf host: timed out waiting for pptx slide 1 elements\n    at until (http://127.0.0.1:33427/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:33427/perf/pages/pptx.html?engine=ts&fixture=real-pptx-poi-bug59273&path=fixtures%2Freal%2Fpptx%2Fpoi-bug59273.potx:45:11\n    at async run (http://127.0.0.1:33427/perf/pages/common.js:94:20)"}
+{"mode":"warm","cpuThrottle":1,"fixture":"bidi-arabic-hebrew-mixed","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"bidi-rtl-sheet","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"gen-xlsx-cells-100k-b","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"gen-xlsx-cells-100k-c","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"gen-xlsx-cells-1k-merges","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"gen-xlsx-cells-1k-pad-s","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-45540_classic_Footer","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-45540_classic_Header","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-45544","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-46535","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-47813","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-49156","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-50096","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-56644","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-57181","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-57893-many-merges","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-61652","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-62629_target","engine":"ts","error":"real-xlsx-poi-62629_target/ts: Error: perf host: timed out waiting for xlsx grid cells\n    at until (http://127.0.0.1:37431/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:37431/perf/pages/xlsx.html?engine=ts&fixture=real-xlsx-poi-62629_target&path=fixtures%2Freal%2Fxlsx%2Fpoi-62629_target.xlsm:39:11\n    at async run (http://127.0.0.1:37431/perf/pages/common.js:94:20)"}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-ConditionalFormattingSamples","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-DataTableCities","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-DateFormatTests","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-ExcelPivotTableSample","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-ExcelWithAttachments","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-FormulaEvalTestData_Copy","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-NewStyleConditionalFormattings","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-StructuredRefs-lots-with-lookups","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-WithChartSheet","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-WithEmbeded","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-bug64512_embed","engine":"ts","error":"real-xlsx-poi-bug64512_embed/ts: Error: perf host: timed out waiting for xlsx grid cells\n    at until (http://127.0.0.1:40115/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:40115/perf/pages/xlsx.html?engine=ts&fixture=real-xlsx-poi-bug64512_embed&path=fixtures%2Freal%2Fxlsx%2Fpoi-bug64512_embed.xlsx:39:11\n    at async run (http://127.0.0.1:40115/perf/pages/common.js:94:20)"}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-dataValidationTableRange","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-no_drawing_patriarch","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-poi-test","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-python-pptx-shp-embedded-xlsx","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-usgov-census-NST-EST2024-POP","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-usgov-eia-MER-T01.01","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"upstream-fd8fbde7846d","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"real-xlsx-usgov-fhwa-2022-vm1","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"upstream-1a304a300451","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"upstream-2ad922a2a025","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"upstream-2f38830758e8","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"upstream-3fdae3824dde","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"upstream-8b581ee14978","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"upstream-9ed0ab63f8de","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":1,"fixture":"upstream-e899e84e6209","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"gen-docx-pages-100","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-docx-poi-60316.dotx","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-docx-poi-bug65649","engine":"ts","error":"real-docx-poi-bug65649/ts: RangeError: Invalid content for node tableRow: <>\n    at qb.checkContent (http://127.0.0.1:42075/perf/dist/ts/docx.js:5696:5747)\n    at qb.createChecked (http://127.0.0.1:42075/perf/dist/ts/docx.js:5696:5180)\n    at Gb.node (http://127.0.0.1:42075/perf/dist/ts/docx.js:5696:9011)\n    at http://127.0.0.1:42075/perf/dist/ts/docx.js:5717:183172\n    at Array.map (<anonymous>)\n    at Xue (http://127.0.0.1:42075/perf/dist/ts/docx.js:5717:182285)\n    at http://127.0.0.1:42075/perf/dist/ts/docx.js:5717:186759\n    at Array.map (<anonymous>)\n    at O0 (http://127.0.0.1:42075/perf/dist/ts/docx.js:5717:186701)\n    at Nc (http://127.0.0.1:42075/perf/dist/ts/docx.js:8361:20360)"}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-fb3af3f7b5f7","engine":"ts","error":"upstream-fb3af3f7b5f7/ts: PasswordRequiredError: This document is password protected. Enter the password to open it.\n    at Z2 (http://127.0.0.1:46797/perf/dist/ts/docx.js:5717:44464)\n    at pye.load (http://127.0.0.1:46797/perf/dist/ts/docx.js:8361:28445)\n    at http://127.0.0.1:46797/perf/pages/docx.html?engine=ts&fixture=upstream-fb3af3f7b5f7&path=fixtures%2Fupstream%2Fdocx%2Ffb3af3f7b5f7_word-encrypted.docx:42:20\n    at async run (http://127.0.0.1:46797/perf/pages/common.js:94:20)"}
+{"mode":"warm","cpuThrottle":4,"fixture":"gen-pptx-placeholder","engine":"ts","error":"gen-pptx-placeholder/ts: Error: perf host: timed out waiting for pptx slide 1 elements\n    at until (http://127.0.0.1:35065/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:35065/perf/pages/pptx.html?engine=ts&fixture=gen-pptx-placeholder&path=fixtures%2Fgenerated%2Fpptx%2Fpainter_placeholder.pptx:45:11\n    at async run (http://127.0.0.1:35065/perf/pages/common.js:94:20)"}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-pptx-poi-bug59273","engine":"ts","error":"real-pptx-poi-bug59273/ts: Error: perf host: timed out waiting for pptx slide 1 elements\n    at until (http://127.0.0.1:45287/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:45287/perf/pages/pptx.html?engine=ts&fixture=real-pptx-poi-bug59273&path=fixtures%2Freal%2Fpptx%2Fpoi-bug59273.potx:45:11\n    at async run (http://127.0.0.1:45287/perf/pages/common.js:94:20)"}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-38aa694fb4a5","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-49a48af6d18d","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-88e14cba7830","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-a344b2f3f55d","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"bidi-arabic-hebrew-mixed","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"bidi-rtl-sheet","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"gen-xlsx-cells-100k-b","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"gen-xlsx-cells-100k-c","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"gen-xlsx-cells-1k-merges","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"gen-xlsx-cells-1k-pad-s","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-45540_classic_Footer","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-45540_classic_Header","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-45544","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-46535","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-47813","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-49156","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-50096","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-56644","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-57181","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-57893-many-merges","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-61652","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-62629_target","engine":"ts","error":"real-xlsx-poi-62629_target/ts: Error: perf host: timed out waiting for xlsx grid cells\n    at until (http://127.0.0.1:46741/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:46741/perf/pages/xlsx.html?engine=ts&fixture=real-xlsx-poi-62629_target&path=fixtures%2Freal%2Fxlsx%2Fpoi-62629_target.xlsm:39:11\n    at async run (http://127.0.0.1:46741/perf/pages/common.js:94:20)"}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-ConditionalFormattingSamples","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-DataTableCities","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-DateFormatTests","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-ExcelPivotTableSample","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-ExcelWithAttachments","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-FormulaEvalTestData_Copy","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-NewStyleConditionalFormattings","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-StructuredRefs-lots-with-lookups","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-WithChartSheet","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-WithEmbeded","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-bug64512_embed","engine":"ts","error":"real-xlsx-poi-bug64512_embed/ts: Error: perf host: timed out waiting for xlsx grid cells\n    at until (http://127.0.0.1:32933/perf/pages/common.js:70:9)\n    at async http://127.0.0.1:32933/perf/pages/xlsx.html?engine=ts&fixture=real-xlsx-poi-bug64512_embed&path=fixtures%2Freal%2Fxlsx%2Fpoi-bug64512_embed.xlsx:39:11\n    at async run (http://127.0.0.1:32933/perf/pages/common.js:94:20)"}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-dataValidationTableRange","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-no_drawing_patriarch","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-poi-test","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-python-pptx-shp-embedded-xlsx","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-usgov-census-NST-EST2024-POP","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-usgov-eia-MER-T01.01","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-fd8fbde7846d","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"real-xlsx-usgov-fhwa-2022-vm1","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-1a304a300451","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-2ad922a2a025","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-2f38830758e8","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-3fdae3824dde","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-8b581ee14978","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-9ed0ab63f8de","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}
+{"mode":"warm","cpuThrottle":4,"fixture":"upstream-e899e84e6209","engine":"ts","error":"page.waitForFunction: Timeout 120000ms exceeded."}

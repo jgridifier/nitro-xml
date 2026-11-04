@@ -73,7 +73,9 @@
         const sig = () => rows().join(',');
         const lastRow = fx.meta.lastRow;
         const steps = [];
-        for (let i = 0; i < 100000; i++) {
+        // Without a lastRow hint (manifest fixtures) the used range is unknown and the grid is far taller than any
+        // sheet, so bound the scroll to the 166 steps of the 100k-row xlsx-M plus margin instead of scrolling for minutes.
+        for (let i = 0; i < (lastRow ? 100000 : 200); i++) {
           if (lastRow && Math.max(...rows()) >= lastRow) break;
           const ms = await timedStep(() => scrollBy(STEP_PX), sig);
           if (ms === null) break; // bottom of the sheet, or the engine did not scroll

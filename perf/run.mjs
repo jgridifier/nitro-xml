@@ -6,7 +6,7 @@
  *
  *   node perf/run.mjs [--engine ts|wasm|ts,wasm] [--mode cold|warm] [--iterations N]
  *                     [--cpu-throttle 1|4] [--fixtures xlsx-S,docx,M,...] [--memory]
- *                     [--out file.json] [--chrome /path/to/chrome] [--timeout ms]
+ *                     [--corpus perf|manifest] [--out file.json] [--chrome /path/to/chrome] [--timeout ms]
  *
  *   Besides the summary JSON (--out), one JSON line per (fixture, engine, mode, iteration) goes to the
  *   same path with .jsonl; `node perf/aggregate.mjs <file>.jsonl` gives median, p95 and bootstrap CI.
@@ -26,6 +26,7 @@ import { chromium } from 'playwright-core';
 import { startServer } from './server.mjs';
 import { summarize } from './stats.mjs';
 import { collectSizes } from './sizes.mjs';
+import { hostFingerprint } from './host.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');
@@ -43,7 +44,7 @@ function parseArgs(argv) {
   return out;
 }
 const args = parseArgs(process.argv.slice(2));
-const KNOWN = ['engine', 'mode', 'iterations', 'cpu-throttle', 'fixtures', 'memory', 'out', 'chrome', 'timeout', 'help'];
+const KNOWN = ['list', 'corpus', 'engine', 'mode', 'iterations', 'cpu-throttle', 'fixtures', 'memory', 'out', 'chrome', 'timeout', 'help'];
 for (const k of Object.keys(args)) if (!KNOWN.includes(k)) throw new Error(`unknown flag --${k} (see perf/README.md)`);
 if (args.help) {
   console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('/**\n')[1].split('*/')[0].replace(/^ \* ?/gm, ''));
@@ -63,19 +64,43 @@ const TIMEOUT = Number(args.timeout ?? 120000);
 const VIEWPORT = { width: 1280, height: 800 };
 
 // ---- fixtures -------------------------------------------------------------------------------
-const corpus = JSON.parse(readFileSync(join(here, 'fixtures.json'), 'utf8')).fixtures;
+const perfCorpus = JSON.parse(readFileSync(join(here, 'fixtures.json'), 'utf8')).fixtures;
+const CORPUS = args.corpus ?? 'perf';
+if (!['perf', 'manifest'].includes(CORPUS)) throw new Error('--corpus must be perf or manifest');
+// --corpus manifest: every S/M xlsx/docx/pptx row of fixtures/manifest.json that exists on disk under fixtures/
+// (the server serves nothing else). Rows keep their manifest id; the scroll/page/slide-count hints of the same
+// path in perf/fixtures.json carry over, and the pages walk to the end of the document without one.
+function manifestCorpus() {
+  const rows = JSON.parse(readFileSync(join(repo, 'fixtures/manifest.json'), 'utf8')).fixtures;
+  const hints = new Map(perfCorpus.map((f) => [f.path, f]));
+  const taken = new Map();
+  for (const r of rows) taken.set(r.id, (taken.get(r.id) ?? 0) + 1);
+  return rows
+    .filter((r) => ['xlsx', 'docx', 'pptx'].includes(r.format) && ['S', 'M'].includes(r.tier) && r.path.startsWith('fixtures/') && r.redistributable !== false)
+    .map((r) => {
+      const h = hints.get(r.path) ?? {};
+      // manifest ids are not unique across extensions (poi-60316 .docx and .dotx); keep rows distinct
+      const id = taken.get(r.id) > 1 ? `${r.id}.${r.path.split('.').pop()}` : r.id;
+      return { id, format: r.format, tier: r.tier, path: r.path, bytes: r.bytes, source: r.source, ...(h.lastRow && { lastRow: h.lastRow }), ...(h.pages && { pages: h.pages }), ...(h.slides && { slides: h.slides }) };
+    });
+}
+const corpus = CORPUS === 'manifest' ? manifestCorpus() : perfCorpus;
 // Selector tokens: fixture id (xlsx-S), format (docx), or tier (M).
 const tokens = args.fixtures ? String(args.fixtures).split(',') : null;
 const selected = corpus.filter(
   (f) => !tokens || tokens.some((t) => t === f.id || t === f.format || t === f.tier),
 );
-if (!selected.length) throw new Error(`--fixtures ${args.fixtures} matched nothing in perf/fixtures.json`);
+if (!selected.length) throw new Error(`--fixtures ${args.fixtures} matched nothing in the corpus`);
 const fixtures = selected.filter((f) => {
   const ok = existsSync(join(repo, f.path));
   if (!ok) console.warn(`skip ${f.id}: ${f.path} not generated (fixtures/gen)`);
   return ok;
 });
 if (!fixtures.length) throw new Error('no selected fixture exists on disk');
+if (args.list) {
+  console.log(fixtures.map((f) => f.id).join('\n'));
+  process.exit(0);
+}
 
 // ---- engine prerequisites -------------------------------------------------------------------
 for (const e of ENGINES) {
@@ -123,7 +148,8 @@ async function loadOnce(context, origin, fx, engine, { cacheDisabled }) {
         await sleep(HEAP_SAMPLE_MS);
       }
     })();
-    const url = `${origin}/perf/pages/${fx.format}.html?engine=${engine}&fixture=${fx.id}`;
+    const hint = ['lastRow', 'pages', 'slides'].filter((k) => fx[k]).map((k) => `&${k}=${fx[k]}`).join('');
+    const url = `${origin}/perf/pages/${fx.format}.html?engine=${engine}&fixture=${encodeURIComponent(fx.id)}&path=${encodeURIComponent(fx.path)}${hint}`;
     await page.goto(url, { waitUntil: 'commit', timeout: TIMEOUT });
     await page.waitForFunction(() => window.__perf?.done === true, null, { timeout: TIMEOUT, polling: 50 });
     sampling = false;
@@ -214,6 +240,8 @@ const summary = {
   node: process.version,
   platform: `${platform()} ${release()}`,
   cpu: `${cpus()[0]?.model ?? 'unknown'} x${cpus().length}`,
+  host: hostFingerprint(chromeVersion),
+  corpus: CORPUS,
   mode: MODE,
   iterations: ITERATIONS,
   cpuThrottle: THROTTLE,
@@ -224,7 +252,7 @@ const summary = {
 console.log(`chrome ${summary.chrome} · playwright ${summary.playwright} · ${MODE} x${ITERATIONS} · cpu-throttle ${THROTTLE}x`);
 
 const addRow = (fx, engine, iteration, r) =>
-  rows.push({ fixture: fx.id, format: fx.format, tier: fx.tier, engine, mode: MODE, cpuThrottle: THROTTLE, iteration, chrome: chromeVersion, metrics: r.sample, step_latencies_ms: r.stepLatencies, detail: r.detail });
+  rows.push({ fixture: fx.id, format: fx.format, tier: fx.tier, engine, mode: MODE, cpuThrottle: THROTTLE, iteration, chrome: chromeVersion, host: summary.host, metrics: r.sample, step_latencies_ms: r.stepLatencies, detail: r.detail });
 
 let blockedTotal = 0;
 for (const fx of fixtures) {

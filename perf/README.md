@@ -48,6 +48,7 @@ the harness needs only JS), and judges success by the emitted files.
 | `--mode cold\|warm` | `cold` | see below |
 | `--iterations N` | 10 cold, 20 warm | measured loads per fixture and engine (the warm-up is extra) |
 | `--cpu-throttle 1\|4` | `1` | CDP `Emulation.setCPUThrottlingRate` |
+| `--corpus perf\|manifest` | `perf` | `perf` = the 12 ids of `fixtures.json`; `manifest` = every S/M xlsx/docx/pptx row of `fixtures/manifest.json` present on disk (#10), keeping manifest ids |
 | `--fixtures a,b,..` | all | ids from `fixtures.json` (`xlsx-S`), formats (`docx`) or tiers (`M`) |
 | `--memory` | off | also report `performance.measureUserAgentSpecificMemory` after `full_render` (needs the COOP/COEP headers; takes up to 20 s per load) |
 | `--out file.json` | `perf/results/<date>-<mode>-<engines>.json` | result file (`results/` is git-ignored) |
@@ -56,6 +57,8 @@ the harness needs only JS), and judges success by the emitted files.
 
 Missing fixtures (the L and XL tiers are generated on demand by `fixtures/gen`) are skipped with a
 warning, never substituted. The process exits non-zero if any load fails.
+
+Every result row and the summary JSON carry a `host` fingerprint (`host.mjs`): `kind` (`box`, or `ci` when `GITHUB_ACTIONS`/`CI` is set), a stable `id` (`box-<hash of hostname>`, or `ci-<RUNNER_NAME>-<arch>`), `os`, `cpu_model`, `cores`, `memory_gb`, `chrome_version`, `node`.
 
 ### Modes
 
@@ -132,7 +135,7 @@ that into median, p95 and a bootstrap CI (see below).
 | `bytes_ready_ms`, `parse_end_ms`, `first_render_ms`, `full_render_ms` | The marks, ms since navigation start: `bytes-ready` (fixture bytes in memory) -> `parse-end` (the engine's load/open promise resolved) -> `first-render` (first page, slide or viewport in the DOM, then a double `requestAnimationFrame`) -> `full-render`. `parse_ms` = `parse_end - bytes_ready`. `first_render` is the #6 `first_paint`; `all_slides` is pptx `full_render`. |
 | full-render target | xlsx: first viewport, then a scripted scroll in 600 px steps until the last used row (`lastRow` in `fixtures.json`) is on screen. docx: page jumps through the document to the last page (at most 60, evenly spread). pptx: every slide in order. |
 | `long_task_count`, `long_task_total_ms`, `tbt_ms` | `PerformanceObserver({type:'longtask', buffered:true})` over the whole load until `full_render`: count, summed duration, and total blocking time (sum of time over 50 ms per task). |
-| `tti_ms` | Time to interactive, simplified: `first_render`, or the end of the last long task between `first_render` and `full_render` if later. TODO(#8): a quiet-window definition once thresholds are set. |
+| `tti_ms` | Time to interactive, simplified: `first_render`, or the end of the last long task between `first_render` and the start of the scripted interaction (`interact_start`, right after `first_paint`) if later. Long tasks caused by the harness's own scroll / page jumps / slide walk are excluded (they are in `tbt_ms` and the step latencies); `tti_with_interaction_ms` is the old definition (up to `full_render`). TODO(#8): a quiet-window definition once thresholds are set. |
 | `peak_heap_used_bytes` | CDP `Runtime.getHeapUsage` every 10 ms from before navigation until done; the max `usedSize`. `heap_samples` counts the samples. |
 | `retained_heap_used_bytes` | `HeapProfiler.collectGarbage`, then `Runtime.getHeapUsage` after the run. |
 | `uamem_bytes` | `performance.measureUserAgentSpecificMemory()` after `full_render` (cross-origin isolated page; only with `--memory`, up to 20 s per load). `null` where unavailable. |

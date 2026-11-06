@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- SPDX-License-Identifier: MIT; generated 2026-11-06T01:38:12.420Z by scripts/ci/gen-perf-dashboard.mjs -->
+<!-- SPDX-License-Identifier: MIT; generated 2026-11-06T11:30:32.661Z by scripts/ci/gen-perf-dashboard.mjs -->
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Nitro XML · Perf Scoreboard</title>
@@ -44,12 +44,12 @@ td{border-top:1px solid var(--rule);padding:4px 8px;vertical-align:middle;white-
 </header>
 <main>
 <div class="note">
-  <strong>1 commit tracked</strong> &middot;
-  6 fixtures &middot;
-  latest commit <code>7ce81c1</code> (2026-10-28) &middot;
-  Chrome 156.0.8078.4 &middot; Intel(R) Xeon(R) Processor, 8 cores, linux 6.12.94+ &middot;
+  <strong>2 commits tracked</strong> &middot;
+  240 fixtures &middot;
+  latest commit <code>4451709</code> (2026-11-04) &middot;
+  Chrome 156.0.8078.4 &middot; Intel(R) Xeon(R) Processor, 8 cores, Debian GNU/Linux 13 (trixie) (linux 6.12.94+) &middot;
   Engine: <strong>ts</strong> = upstream ChristopherVR/ooxml @ e66aaec; <strong>wasm</strong> = Nitro XML Rust/WASM (not yet measured) &middot;
-  Losses vs TS shown as prominently as wins. Cross-host rows ⚠ are not directly comparable. &middot;
+  Losses vs TS shown as prominently as wins. Cross-host rows ⚠ are not directly comparable. ⟳ = post-scroll-fix rerun (scroll capped 200 steps; <code>full_render_ms</code> and scroll step metrics not comparable with hinted fixtures). &middot;
   <a href="baseline/">Full TS baseline report</a>
 </div>
 
@@ -68,20 +68,350 @@ td{border-top:1px solid var(--rule);padding:4px 8px;vertical-align:middle;white-
 </tr></thead>
 <tbody>
 <tr>
-  <td>xlsx-S</td><td class="r">S</td>
-  <td class="r">785</td><td class="r">2,344</td>
-  <td class="r">125</td><td class="r">17.7</td>
-  <td class="r">697</td>
+  <td>bidi-arabic-hebrew-mixed</td><td class="r">S</td>
+  <td class="r" title="p95: 1521 ms · n=10">765</td><td class="r" title="p95: 2127 ms">2,020</td>
+  <td class="r">107</td><td class="r">15.0</td>
+  <td class="r" title="p95: 1987 ms">713</td>
   
-  <td><span class="spark-dot" title="xlsx-S TS first_paint cold 1× at 2026-10-28: 785 ms">•</span></td>
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="bidi-arabic-hebrew-mixed TS first_paint cold 1× at 2026-11-04: 765 ms">•</span></td>
 </tr>
 <tr>
-  <td>xlsx-M</td><td class="r">M</td>
-  <td class="r">990</td><td class="r">3,006</td>
-  <td class="r">345</td><td class="r">80.8</td>
-  <td class="r">946</td>
+  <td>bidi-rtl-sheet</td><td class="r">S</td>
+  <td class="r" title="p95: 865 ms · n=10">737</td><td class="r" title="p95: 2292 ms">2,094</td>
+  <td class="r">97</td><td class="r">15.6</td>
+  <td class="r" title="p95: 788 ms">681</td>
   
-  <td><span class="spark-dot" title="xlsx-M TS first_paint cold 1× at 2026-10-28: 990 ms">•</span></td>
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="bidi-rtl-sheet TS first_paint cold 1× at 2026-11-04: 737 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-1k</td><td class="r">S</td>
+  <td class="r" title="p95: 969 ms · n=10">841</td><td class="r" title="p95: 2410 ms">2,162</td>
+  <td class="r">130</td><td class="r">16.5</td>
+  <td class="r" title="p95: 733 ms">690</td>
+  
+  <td><span class="spark-dot" title="gen-xlsx-cells-1k TS first_paint cold 1× at 2026-11-04: 841 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-1k-merges</td><td class="r">S</td>
+  <td class="r" title="p95: 808 ms · n=10">756</td><td class="r" title="p95: 11009 ms">2,522</td>
+  <td class="r">120</td><td class="r">17.4</td>
+  <td class="r" title="p95: 1967 ms">773</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="gen-xlsx-cells-1k-merges TS first_paint cold 1× at 2026-11-04: 756 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-1k-pad-s</td><td class="r">S</td>
+  <td class="r" title="p95: 775 ms · n=10">752</td><td class="r" title="p95: 2554 ms">2,268</td>
+  <td class="r">118</td><td class="r">18.7</td>
+  <td class="r" title="p95: 864 ms">738</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="gen-xlsx-cells-1k-pad-s TS first_paint cold 1× at 2026-11-04: 752 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-45540_classic_Footer</td><td class="r">S</td>
+  <td class="r" title="p95: 1104 ms · n=6">773</td><td class="r" title="p95: 2313 ms">2,313</td>
+  <td class="r">142</td><td class="r">18.1</td>
+  <td class="r" title="p95: 1056 ms">761</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-45540_classic_Footer TS first_paint cold 1× at 2026-11-04: 773 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-45540_classic_Header</td><td class="r">S</td>
+  <td class="r" title="p95: 1603 ms · n=10">946</td><td class="r" title="p95: 2769 ms">2,430</td>
+  <td class="r">160</td><td class="r">19.1</td>
+  <td class="r" title="p95: 1101 ms">765</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-45540_classic_Header TS first_paint cold 1× at 2026-11-04: 946 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-45544</td><td class="r">S</td>
+  <td class="r" title="p95: 937 ms · n=10">822</td><td class="r" title="p95: 2964 ms">2,351</td>
+  <td class="r">152</td><td class="r">19.3</td>
+  <td class="r" title="p95: 1087 ms">773</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-45544 TS first_paint cold 1× at 2026-11-04: 822 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-47813</td><td class="r">S</td>
+  <td class="r" title="p95: 5854 ms · n=10">803</td><td class="r" title="p95: 2196 ms">2,180</td>
+  <td class="r">149</td><td class="r">22.7</td>
+  <td class="r" title="p95: 1611 ms">776</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-47813 TS first_paint cold 1× at 2026-11-04: 803 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-49156</td><td class="r">S</td>
+  <td class="r" title="p95: 837 ms · n=10">729</td><td class="r" title="p95: 11511 ms">2,601</td>
+  <td class="r">120</td><td class="r">17.4</td>
+  <td class="r" title="p95: 784 ms">731</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-49156 TS first_paint cold 1× at 2026-11-04: 729 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-50096</td><td class="r">S</td>
+  <td class="r" title="p95: 779 ms · n=7">716</td><td class="r" title="p95: 2361 ms">2,231</td>
+  <td class="r">107</td><td class="r">19.0</td>
+  <td class="r" title="p95: 958 ms">752</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-50096 TS first_paint cold 1× at 2026-11-04: 716 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-56644</td><td class="r">S</td>
+  <td class="r" title="p95: 2875 ms · n=10">937</td><td class="r" title="p95: 2749 ms">2,401</td>
+  <td class="r">155</td><td class="r">18.6</td>
+  <td class="r" title="p95: 1805 ms">786</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-56644 TS first_paint cold 1× at 2026-11-04: 937 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-61652</td><td class="r">S</td>
+  <td class="r" title="p95: 1681 ms · n=10">857</td><td class="r" title="p95: 2583 ms">2,380</td>
+  <td class="r">129</td><td class="r">16.4</td>
+  <td class="r" title="p95: 1051 ms">677</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-61652 TS first_paint cold 1× at 2026-11-04: 857 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-DataTableCities</td><td class="r">S</td>
+  <td class="r" title="p95: 803 ms · n=9">756</td><td class="r" title="p95: 2741 ms">2,498</td>
+  <td class="r">127</td><td class="r">18.7</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-DataTableCities TS first_paint cold 1× at 2026-11-04: 756 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-DateFormatTests</td><td class="r">S</td>
+  <td class="r" title="p95: 1921 ms · n=10">981</td><td class="r" title="p95: 2966 ms">2,614</td>
+  <td class="r">144</td><td class="r">19.5</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-DateFormatTests TS first_paint cold 1× at 2026-11-04: 981 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-ExcelPivotTableSample</td><td class="r">S</td>
+  <td class="r" title="p95: 940 ms · n=10">784</td><td class="r" title="p95: 2637 ms">2,444</td>
+  <td class="r">111</td><td class="r">17.3</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-ExcelPivotTableSample TS first_paint cold 1× at 2026-11-04: 784 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-ExcelWithAttachments</td><td class="r">S</td>
+  <td class="r" title="p95: 2299 ms · n=10">1,720</td><td class="r" title="p95: 2818 ms">2,525</td>
+  <td class="r">289</td><td class="r">17.9</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-ExcelWithAttachments TS first_paint cold 1× at 2026-11-04: 1720 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-FormulaEvalTestData_Copy</td><td class="r">S</td>
+  <td class="r" title="p95: 2595 ms · n=10">2,204</td><td class="r" title="p95: 3114 ms">2,775</td>
+  <td class="r">563</td><td class="r">24.7</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-FormulaEvalTestData_Copy TS first_paint cold 1× at 2026-11-04: 2204 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-NewStyleConditionalFormattings</td><td class="r">S</td>
+  <td class="r" title="p95: 2120 ms · n=10">796</td><td class="r" title="p95: 3128 ms">2,493</td>
+  <td class="r">130</td><td class="r">16.8</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-NewStyleConditionalFormattings TS first_paint cold 1× at 2026-11-04: 796 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-test</td><td class="r">S</td>
+  <td class="r" title="p95: 2476 ms · n=10">1,965</td><td class="r" title="p95: 2366 ms">2,122</td>
+  <td class="r">267</td><td class="r">16.5</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-test TS first_paint cold 1× at 2026-11-04: 1965 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-WithChartSheet</td><td class="r">S</td>
+  <td class="r" title="p95: 890 ms · n=9">745</td><td class="r" title="p95: 2589 ms">2,336</td>
+  <td class="r">113</td><td class="r">18.2</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-WithChartSheet TS first_paint cold 1× at 2026-11-04: 745 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-WithEmbeded</td><td class="r">S</td>
+  <td class="r" title="p95: 747 ms · n=1">747</td><td class="r" title="p95: 2726 ms">2,512</td>
+  <td class="r">153</td><td class="r">28.5</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <svg width="60" height="18" title="2026-11-04: 747 ms
+2026-11-04: 938 ms" aria-label="real-xlsx-poi-WithEmbeded TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,17.0 60.0,1.0"/><circle cx="60.0" cy="1.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>real-xlsx-python-pptx-shp-embedded-xlsx</td><td class="r">S</td>
+  <td class="r" title="p95: 816 ms · n=10">771</td><td class="r" title="p95: 3033 ms">2,536</td>
+  <td class="r">103</td><td class="r">15.4</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-python-pptx-shp-embedded-xlsx TS first_paint cold 1× at 2026-11-04: 771 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-usgov-census-NST-EST2024-POP</td><td class="r">S</td>
+  <td class="r" title="p95: 744 ms · n=1">744</td><td class="r" title="p95: 3187 ms">2,749</td>
+  <td class="r">128</td><td class="r">21.6</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <svg width="60" height="18" title="2026-11-04: 744 ms
+2026-11-04: 852 ms" aria-label="real-xlsx-usgov-census-NST-EST2024-POP TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,17.0 60.0,1.0"/><circle cx="60.0" cy="1.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>real-xlsx-usgov-eia-MER-T01.01</td><td class="r">S</td>
+  <td class="r" title="p95: 878 ms · n=10">815</td><td class="r" title="p95: 3347 ms">2,600</td>
+  <td class="r">154</td><td class="r">23.8</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-usgov-eia-MER-T01.01 TS first_paint cold 1× at 2026-11-04: 815 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-usgov-fhwa-2022-vm1</td><td class="r">S</td>
+  <td class="r" title="p95: 876 ms · n=10">795</td><td class="r" title="p95: 3113 ms">2,954</td>
+  <td class="r">150</td><td class="r">20.3</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-usgov-fhwa-2022-vm1 TS first_paint cold 1× at 2026-11-04: 795 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-1a304a300451</td><td class="r">S</td>
+  <td class="r" title="p95: 760 ms · n=10">751</td><td class="r" title="p95: 2768 ms">2,431</td>
+  <td class="r">97</td><td class="r">16.6</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="upstream-1a304a300451 TS first_paint cold 1× at 2026-11-04: 751 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-2ad922a2a025</td><td class="r">S</td>
+  <td class="r" title="p95: 775 ms · n=10">737</td><td class="r" title="p95: 2780 ms">2,317</td>
+  <td class="r">129</td><td class="r">19.9</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="upstream-2ad922a2a025 TS first_paint cold 1× at 2026-11-04: 737 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-2f38830758e8</td><td class="r">S</td>
+  <td class="r" title="p95: 803 ms · n=10">720</td><td class="r" title="p95: 2380 ms">2,074</td>
+  <td class="r">111</td><td class="r">17.8</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="upstream-2f38830758e8 TS first_paint cold 1× at 2026-11-04: 720 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-3fdae3824dde</td><td class="r">S</td>
+  <td class="r" title="p95: 798 ms · n=10">709</td><td class="r" title="p95: 2267 ms">2,046</td>
+  <td class="r">111</td><td class="r">18.5</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="upstream-3fdae3824dde TS first_paint cold 1× at 2026-11-04: 709 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-8b581ee14978</td><td class="r">S</td>
+  <td class="r" title="p95: 761 ms · n=10">721</td><td class="r" title="p95: 2018 ms">1,971</td>
+  <td class="r">105</td><td class="r">17.8</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="upstream-8b581ee14978 TS first_paint cold 1× at 2026-11-04: 721 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-9ed0ab63f8de</td><td class="r">S</td>
+  <td class="r" title="p95: 786 ms · n=10">736</td><td class="r" title="p95: 2182 ms">2,054</td>
+  <td class="r">117</td><td class="r">18.3</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="upstream-9ed0ab63f8de TS first_paint cold 1× at 2026-11-04: 736 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-fd8fbde7846d</td><td class="r">S</td>
+  <td class="r" title="p95: 771 ms · n=10">744</td><td class="r" title="p95: 2715 ms">2,452</td>
+  <td class="r">96</td><td class="r">15.8</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="upstream-fd8fbde7846d TS first_paint cold 1× at 2026-11-04: 744 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-100k</td><td class="r">M</td>
+  <td class="r" title="p95: 1080 ms · n=10">1,007</td><td class="r" title="p95: 3760 ms">3,083</td>
+  <td class="r">355</td><td class="r">75.3</td>
+  <td class="r" title="p95: 1063 ms">950</td>
+  
+  <td><span class="spark-dot" title="gen-xlsx-cells-100k TS first_paint cold 1× at 2026-11-04: 1007 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-100k-b</td><td class="r">M</td>
+  <td class="r" title="p95: 1758 ms · n=10">1,048</td><td class="r" title="p95: 2944 ms">2,944</td>
+  <td class="r">356</td><td class="r">79.8</td>
+  <td class="r" title="p95: 2178 ms">929</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="gen-xlsx-cells-100k-b TS first_paint cold 1× at 2026-11-04: 1048 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-100k-c</td><td class="r">M</td>
+  <td class="r" title="p95: 1066 ms · n=10">1,034</td><td class="r" title="p95: 3054 ms">3,040</td>
+  <td class="r">380</td><td class="r">90.0</td>
+  <td class="r" title="p95: 1118 ms">964</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="gen-xlsx-cells-100k-c TS first_paint cold 1× at 2026-11-04: 1034 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-46535</td><td class="r">M</td>
+  <td class="r" title="p95: 1194 ms · n=3">1,048</td><td class="r" title="p95: 2619 ms">2,414</td>
+  <td class="r">250</td><td class="r">23.7</td>
+  <td class="r" title="p95: 1216 ms">780</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-46535 TS first_paint cold 1× at 2026-11-04: 1048 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-57181</td><td class="r">M</td>
+  <td class="r" title="p95: 1112 ms · n=10">1,023</td><td class="r" title="p95: 3598 ms">3,004</td>
+  <td class="r">314</td><td class="r">149.0</td>
+  <td class="r" title="p95: 1133 ms">917</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-57181 TS first_paint cold 1× at 2026-11-04: 1023 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-57893-many-merges</td><td class="r">M</td>
+  <td class="r" title="p95: 1378 ms · n=1">1,378</td><td class="r" title="p95: 3870 ms">3,537</td>
+  <td class="r">639</td><td class="r">115.6</td>
+  <td class="r" title="p95: 1507 ms">1,058</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-57893-many-merges TS first_paint cold 1× at 2026-11-04: 1378 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-ConditionalFormattingSamples</td><td class="r">M</td>
+  <td class="r" title="p95: 1224 ms · n=10">988</td><td class="r" title="p95: 3421 ms">3,156</td>
+  <td class="r">256</td><td class="r">18.9</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-ConditionalFormattingSamples TS first_paint cold 1× at 2026-11-04: 988 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-dataValidationTableRange</td><td class="r">M</td>
+  <td class="r" title="p95: 1090 ms · n=10">917</td><td class="r" title="p95: 3423 ms">3,226</td>
+  <td class="r">239</td><td class="r">20.2</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-dataValidationTableRange TS first_paint cold 1× at 2026-11-04: 917 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-no_drawing_patriarch</td><td class="r">M</td>
+  <td class="r" title="p95: 4370 ms · n=10">3,738</td><td class="r" title="p95: 5330 ms">5,003</td>
+  <td class="r">1,968</td><td class="r">68.2</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-no_drawing_patriarch TS first_paint cold 1× at 2026-11-04: 3738 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-StructuredRefs-lots-with-lookups</td><td class="r">M</td>
+  <td class="r" title="p95: 1158 ms · n=10">1,021</td><td class="r" title="p95: 4855 ms">3,808</td>
+  <td class="r">322</td><td class="r">39.1</td>
+  <td class="r">—</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-xlsx-poi-StructuredRefs-lots-with-lookups TS first_paint cold 1× at 2026-11-04: 1021 ms">•</span></td>
 </tr>
 </tbody>
 </table></div>
@@ -101,20 +431,639 @@ td{border-top:1px solid var(--rule);padding:4px 8px;vertical-align:middle;white-
 </tr></thead>
 <tbody>
 <tr>
-  <td>docx-S</td><td class="r">S</td>
-  <td class="r">459</td><td class="r">1,120</td>
-  <td class="r">109</td><td class="r">10.6</td>
-  <td class="r">436</td>
+  <td>bidi-arabic-hebrew-paragraphs</td><td class="r">S</td>
+  <td class="r" title="p95: 567 ms · n=10">467</td><td class="r" title="p95: 1490 ms">1,129</td>
+  <td class="r">106</td><td class="r">8.4</td>
+  <td class="r" title="p95: 458 ms">443</td>
   
-  <td><span class="spark-dot" title="docx-S TS first_paint cold 1× at 2026-10-28: 459 ms">•</span></td>
+  <td><span class="spark-dot" title="bidi-arabic-hebrew-paragraphs TS first_paint cold 1× at 2026-11-04: 467 ms">•</span></td>
 </tr>
 <tr>
-  <td>docx-M</td><td class="r">M</td>
-  <td class="r">487</td><td class="r">1,303</td>
-  <td class="r">133</td><td class="r">10.4</td>
-  <td class="r">480</td>
+  <td>gen-docx-equation</td><td class="r">S</td>
+  <td class="r" title="p95: 472 ms · n=10">452</td><td class="r" title="p95: 1082 ms">1,009</td>
+  <td class="r">102</td><td class="r">7.8</td>
+  <td class="r" title="p95: 1853 ms">437</td>
   
-  <td><span class="spark-dot" title="docx-M TS first_paint cold 1× at 2026-10-28: 487 ms">•</span></td>
+  <td><span class="spark-dot" title="gen-docx-equation TS first_paint cold 1× at 2026-11-04: 452 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-docx-line-numbers</td><td class="r">S</td>
+  <td class="r" title="p95: 485 ms · n=10">455</td><td class="r" title="p95: 1073 ms">1,016</td>
+  <td class="r">99</td><td class="r">7.8</td>
+  <td class="r" title="p95: 660 ms">478</td>
+  
+  <td><span class="spark-dot" title="gen-docx-line-numbers TS first_paint cold 1× at 2026-11-04: 455 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-docx-page-borders</td><td class="r">S</td>
+  <td class="r" title="p95: 456 ms · n=10">443</td><td class="r" title="p95: 1240 ms">1,035</td>
+  <td class="r">97</td><td class="r">7.7</td>
+  <td class="r" title="p95: 531 ms">449</td>
+  
+  <td><span class="spark-dot" title="gen-docx-page-borders TS first_paint cold 1× at 2026-11-04: 443 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-docx-pages-10</td><td class="r">S</td>
+  <td class="r" title="p95: 463 ms · n=10">447</td><td class="r" title="p95: 1069 ms">1,046</td>
+  <td class="r">104</td><td class="r">10.6</td>
+  <td class="r" title="p95: 485 ms">451</td>
+  
+  <td><span class="spark-dot" title="gen-docx-pages-10 TS first_paint cold 1× at 2026-11-04: 447 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-docx-pages-10-b</td><td class="r">S</td>
+  <td class="r" title="p95: 458 ms · n=10">448</td><td class="r" title="p95: 1129 ms">1,030</td>
+  <td class="r">101</td><td class="r">9.8</td>
+  <td class="r" title="p95: 515 ms">444</td>
+  
+  <td><span class="spark-dot" title="gen-docx-pages-10-b TS first_paint cold 1× at 2026-11-04: 448 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-docx-pages-10-c</td><td class="r">S</td>
+  <td class="r" title="p95: 468 ms · n=10">458</td><td class="r" title="p95: 1053 ms">1,023</td>
+  <td class="r">106</td><td class="r">9.3</td>
+  <td class="r" title="p95: 485 ms">444</td>
+  
+  <td><span class="spark-dot" title="gen-docx-pages-10-c TS first_paint cold 1× at 2026-11-04: 458 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-45690</td><td class="r">S</td>
+  <td class="r" title="p95: 701 ms · n=10">643</td><td class="r" title="p95: 1557 ms">1,434</td>
+  <td class="r">263</td><td class="r">21.5</td>
+  <td class="r" title="p95: 671 ms">626</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-45690 TS first_paint cold 1× at 2026-11-04: 643 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-58067</td><td class="r">S</td>
+  <td class="r" title="p95: 517 ms · n=10">468</td><td class="r" title="p95: 1085 ms">1,062</td>
+  <td class="r">121</td><td class="r">8.4</td>
+  <td class="r" title="p95: 468 ms">442</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-58067 TS first_paint cold 1× at 2026-11-04: 468 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-60158</td><td class="r">S</td>
+  <td class="r" title="p95: 495 ms · n=10">478</td><td class="r" title="p95: 1110 ms">1,038</td>
+  <td class="r">118</td><td class="r">9.3</td>
+  <td class="r" title="p95: 542 ms">453</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-60158 TS first_paint cold 1× at 2026-11-04: 478 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-60316.docx</td><td class="r">S</td>
+  <td class="r" title="p95: 526 ms · n=10">514</td><td class="r" title="p95: 1099 ms">993</td>
+  <td class="r">152</td><td class="r">10.4</td>
+  <td class="r" title="p95: 501 ms">484</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-60316.docx TS first_paint cold 1× at 2026-11-04: 514 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-60316.dotx</td><td class="r">S</td>
+  <td class="r" title="p95: 562 ms · n=10">508</td><td class="r" title="p95: 1184 ms">1,023</td>
+  <td class="r">145</td><td class="r">9.6</td>
+  <td class="r" title="p95: 546 ms">472</td>
+  
+  <td><svg width="60" height="18" title="2026-11-04: 508 ms
+2026-11-04: 516 ms" aria-label="real-docx-poi-60316.dotx TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,17.0 60.0,1.0"/><circle cx="60.0" cy="1.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>real-docx-poi-60329</td><td class="r">S</td>
+  <td class="r" title="p95: 542 ms · n=10">512</td><td class="r" title="p95: 1189 ms">1,007</td>
+  <td class="r">151</td><td class="r">10.8</td>
+  <td class="r" title="p95: 561 ms">494</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-60329 TS first_paint cold 1× at 2026-11-04: 512 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-61470</td><td class="r">S</td>
+  <td class="r" title="p95: 596 ms · n=10">535</td><td class="r" title="p95: 1092 ms">1,053</td>
+  <td class="r">139</td><td class="r">8.7</td>
+  <td class="r" title="p95: 470 ms">435</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-61470 TS first_paint cold 1× at 2026-11-04: 535 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-61745</td><td class="r">S</td>
+  <td class="r" title="p95: 567 ms · n=10">505</td><td class="r" title="p95: 1055 ms">966</td>
+  <td class="r">144</td><td class="r">10.7</td>
+  <td class="r" title="p95: 516 ms">482</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-61745 TS first_paint cold 1× at 2026-11-04: 505 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-Bug54849</td><td class="r">S</td>
+  <td class="r" title="p95: 550 ms · n=4">519</td><td class="r" title="p95: 1144 ms">1,097</td>
+  <td class="r">151</td><td class="r">10.2</td>
+  <td class="r" title="p95: 502 ms">480</td>
+  
+  <td><svg width="60" height="18" title="2026-11-04: 519 ms
+2026-11-04: 516 ms" aria-label="real-docx-poi-Bug54849 TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,1.0 60.0,17.0"/><circle cx="60.0" cy="17.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>real-docx-poi-delins</td><td class="r">S</td>
+  <td class="r" title="p95: 3579 ms · n=10">1,001</td><td class="r" title="p95: 1072 ms">1,044</td>
+  <td class="r">311</td><td class="r">15.4</td>
+  <td class="r" title="p95: 551 ms">508</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-delins TS first_paint cold 1× at 2026-11-04: 1001 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-drawing</td><td class="r">S</td>
+  <td class="r" title="p95: 1274 ms · n=10">1,109</td><td class="r" title="p95: 2425 ms">1,469</td>
+  <td class="r">281</td><td class="r">14.2</td>
+  <td class="r" title="p95: 1244 ms">1,104</td>
+  
+  <td><span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> <span class="spark-dot" title="real-docx-poi-drawing TS first_paint cold 1× at 2026-11-04: 1109 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-endnotes</td><td class="r">S</td>
+  <td class="r" title="p95: 517 ms · n=10">497</td><td class="r" title="p95: 1132 ms">1,099</td>
+  <td class="r">124</td><td class="r">10.4</td>
+  <td class="r" title="p95: 497 ms">461</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-endnotes TS first_paint cold 1× at 2026-11-04: 497 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-form_footnotes</td><td class="r">S</td>
+  <td class="r" title="p95: 763 ms · n=10">675</td><td class="r" title="p95: 1345 ms">1,328</td>
+  <td class="r">230</td><td class="r">17.0</td>
+  <td class="r" title="p95: 681 ms">632</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-form_footnotes TS first_paint cold 1× at 2026-11-04: 675 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-SimpleMacro</td><td class="r">S</td>
+  <td class="r" title="p95: 509 ms · n=10">474</td><td class="r" title="p95: 1031 ms">1,004</td>
+  <td class="r">113</td><td class="r">8.7</td>
+  <td class="r" title="p95: 509 ms">467</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-SimpleMacro TS first_paint cold 1× at 2026-11-04: 474 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-testComment</td><td class="r">S</td>
+  <td class="r" title="p95: 531 ms · n=10">490</td><td class="r" title="p95: 1117 ms">1,048</td>
+  <td class="r">123</td><td class="r">10.2</td>
+  <td class="r" title="p95: 494 ms">469</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-testComment TS first_paint cold 1× at 2026-11-04: 490 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-blk-paras-and-tables</td><td class="r">S</td>
+  <td class="r" title="p95: 2341 ms · n=10">904</td><td class="r" title="p95: 1133 ms">1,078</td>
+  <td class="r">250</td><td class="r">9.9</td>
+  <td class="r" title="p95: 515 ms">478</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-blk-paras-and-tables TS first_paint cold 1× at 2026-11-04: 904 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-comments-rich-para</td><td class="r">S</td>
+  <td class="r" title="p95: 866 ms · n=10">648</td><td class="r" title="p95: 1123 ms">1,084</td>
+  <td class="r">201</td><td class="r">11.3</td>
+  <td class="r" title="p95: 3767 ms">508</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-comments-rich-para TS first_paint cold 1× at 2026-11-04: 648 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-doc-access-sections</td><td class="r">S</td>
+  <td class="r" title="p95: 643 ms · n=10">551</td><td class="r" title="p95: 9500 ms">1,350</td>
+  <td class="r">144</td><td class="r">9.5</td>
+  <td class="r" title="p95: 524 ms">475</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-doc-access-sections TS first_paint cold 1× at 2026-11-04: 551 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-hdr-header-footer</td><td class="r">S</td>
+  <td class="r" title="p95: 652 ms · n=10">527</td><td class="r" title="p95: 1338 ms">1,189</td>
+  <td class="r">138</td><td class="r">10.7</td>
+  <td class="r" title="p95: 557 ms">481</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-hdr-header-footer TS first_paint cold 1× at 2026-11-04: 527 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-sct-first-page-hdrftr</td><td class="r">S</td>
+  <td class="r" title="p95: 532 ms · n=10">485</td><td class="r" title="p95: 1232 ms">1,172</td>
+  <td class="r">126</td><td class="r">11.4</td>
+  <td class="r" title="p95: 557 ms">469</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-sct-first-page-hdrftr TS first_paint cold 1× at 2026-11-04: 485 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-sct-inner-content</td><td class="r">S</td>
+  <td class="r" title="p95: 560 ms · n=10">497</td><td class="r" title="p95: 1325 ms">1,232</td>
+  <td class="r">126</td><td class="r">9.8</td>
+  <td class="r" title="p95: 498 ms">469</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-sct-inner-content TS first_paint cold 1× at 2026-11-04: 497 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-sct-section-props</td><td class="r">S</td>
+  <td class="r" title="p95: 515 ms · n=10">485</td><td class="r" title="p95: 1390 ms">1,188</td>
+  <td class="r">117</td><td class="r">11.0</td>
+  <td class="r" title="p95: 460 ms">445</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-sct-section-props TS first_paint cold 1× at 2026-11-04: 485 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-tbl-cell-access</td><td class="r">S</td>
+  <td class="r" title="p95: 522 ms · n=10">494</td><td class="r" title="p95: 1219 ms">1,166</td>
+  <td class="r">120</td><td class="r">10.4</td>
+  <td class="r" title="p95: 479 ms">458</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-tbl-cell-access TS first_paint cold 1× at 2026-11-04: 494 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-tbl-cell-props</td><td class="r">S</td>
+  <td class="r" title="p95: 548 ms · n=10">510</td><td class="r" title="p95: 1195 ms">1,151</td>
+  <td class="r">139</td><td class="r">8.6</td>
+  <td class="r" title="p95: 463 ms">447</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-tbl-cell-props TS first_paint cold 1× at 2026-11-04: 510 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-tbl-on-off-props</td><td class="r">S</td>
+  <td class="r" title="p95: 523 ms · n=10">475</td><td class="r" title="p95: 1147 ms">1,109</td>
+  <td class="r">114</td><td class="r">10.9</td>
+  <td class="r" title="p95: 478 ms">451</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-tbl-on-off-props TS first_paint cold 1× at 2026-11-04: 475 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-080e7a9ed483</td><td class="r">S</td>
+  <td class="r" title="p95: 607 ms · n=10">543</td><td class="r" title="p95: 1125 ms">1,032</td>
+  <td class="r">160</td><td class="r">10.6</td>
+  <td class="r" title="p95: 493 ms">475</td>
+  
+  <td><span class="spark-dot" title="upstream-080e7a9ed483 TS first_paint cold 1× at 2026-11-04: 543 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-0bb200a07072</td><td class="r">S</td>
+  <td class="r" title="p95: 561 ms · n=10">498</td><td class="r" title="p95: 1220 ms">1,037</td>
+  <td class="r">131</td><td class="r">9.1</td>
+  <td class="r" title="p95: 485 ms">460</td>
+  
+  <td><span class="spark-dot" title="upstream-0bb200a07072 TS first_paint cold 1× at 2026-11-04: 498 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-0f300490ff19</td><td class="r">S</td>
+  <td class="r" title="p95: 551 ms · n=10">499</td><td class="r" title="p95: 1174 ms">1,135</td>
+  <td class="r">127</td><td class="r">8.5</td>
+  <td class="r" title="p95: 480 ms">453</td>
+  
+  <td><span class="spark-dot" title="upstream-0f300490ff19 TS first_paint cold 1× at 2026-11-04: 499 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-1692c4faac3f</td><td class="r">S</td>
+  <td class="r" title="p95: 504 ms · n=10">491</td><td class="r" title="p95: 1154 ms">1,134</td>
+  <td class="r">126</td><td class="r">9.7</td>
+  <td class="r" title="p95: 485 ms">457</td>
+  
+  <td><span class="spark-dot" title="upstream-1692c4faac3f TS first_paint cold 1× at 2026-11-04: 491 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-1b612449941b</td><td class="r">S</td>
+  <td class="r" title="p95: 602 ms · n=10">531</td><td class="r" title="p95: 1372 ms">1,115</td>
+  <td class="r">142</td><td class="r">8.7</td>
+  <td class="r" title="p95: 472 ms">458</td>
+  
+  <td><span class="spark-dot" title="upstream-1b612449941b TS first_paint cold 1× at 2026-11-04: 531 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-2286e4c70c12</td><td class="r">S</td>
+  <td class="r" title="p95: 529 ms · n=10">499</td><td class="r" title="p95: 1166 ms">1,117</td>
+  <td class="r">152</td><td class="r">11.1</td>
+  <td class="r" title="p95: 496 ms">477</td>
+  
+  <td><span class="spark-dot" title="upstream-2286e4c70c12 TS first_paint cold 1× at 2026-11-04: 499 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-29be1efc9c3d</td><td class="r">S</td>
+  <td class="r" title="p95: 492 ms · n=10">472</td><td class="r" title="p95: 1168 ms">1,121</td>
+  <td class="r">123</td><td class="r">10.3</td>
+  <td class="r" title="p95: 477 ms">458</td>
+  
+  <td><span class="spark-dot" title="upstream-29be1efc9c3d TS first_paint cold 1× at 2026-11-04: 472 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-32cff54a4770</td><td class="r">S</td>
+  <td class="r" title="p95: 558 ms · n=10">478</td><td class="r" title="p95: 1168 ms">1,103</td>
+  <td class="r">128</td><td class="r">10.1</td>
+  <td class="r" title="p95: 490 ms">456</td>
+  
+  <td><span class="spark-dot" title="upstream-32cff54a4770 TS first_paint cold 1× at 2026-11-04: 478 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-3bba00c30a63</td><td class="r">S</td>
+  <td class="r" title="p95: 511 ms · n=10">468</td><td class="r" title="p95: 1108 ms">1,078</td>
+  <td class="r">122</td><td class="r">8.6</td>
+  <td class="r" title="p95: 474 ms">456</td>
+  
+  <td><span class="spark-dot" title="upstream-3bba00c30a63 TS first_paint cold 1× at 2026-11-04: 468 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-3c4c6a9cf4af</td><td class="r">S</td>
+  <td class="r" title="p95: 489 ms · n=10">472</td><td class="r" title="p95: 1165 ms">1,115</td>
+  <td class="r">123</td><td class="r">9.1</td>
+  <td class="r" title="p95: 474 ms">451</td>
+  
+  <td><span class="spark-dot" title="upstream-3c4c6a9cf4af TS first_paint cold 1× at 2026-11-04: 472 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-3d223dd77c43</td><td class="r">S</td>
+  <td class="r" title="p95: 488 ms · n=10">476</td><td class="r" title="p95: 1389 ms">1,148</td>
+  <td class="r">134</td><td class="r">10.5</td>
+  <td class="r" title="p95: 483 ms">465</td>
+  
+  <td><span class="spark-dot" title="upstream-3d223dd77c43 TS first_paint cold 1× at 2026-11-04: 476 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-40b102dde450</td><td class="r">S</td>
+  <td class="r" title="p95: 456 ms · n=10">447</td><td class="r" title="p95: 1242 ms">1,178</td>
+  <td class="r">99</td><td class="r">8.2</td>
+  <td class="r" title="p95: 456 ms">435</td>
+  
+  <td><span class="spark-dot" title="upstream-40b102dde450 TS first_paint cold 1× at 2026-11-04: 447 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-550ae83cbef3</td><td class="r">S</td>
+  <td class="r" title="p95: 487 ms · n=10">471</td><td class="r" title="p95: 1187 ms">1,160</td>
+  <td class="r">124</td><td class="r">9.1</td>
+  <td class="r" title="p95: 512 ms">459</td>
+  
+  <td><span class="spark-dot" title="upstream-550ae83cbef3 TS first_paint cold 1× at 2026-11-04: 471 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-5cc31b4c9d7f</td><td class="r">S</td>
+  <td class="r" title="p95: 538 ms · n=10">476</td><td class="r" title="p95: 1175 ms">1,109</td>
+  <td class="r">128</td><td class="r">8.6</td>
+  <td class="r" title="p95: 480 ms">450</td>
+  
+  <td><span class="spark-dot" title="upstream-5cc31b4c9d7f TS first_paint cold 1× at 2026-11-04: 476 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-6273dd165e65</td><td class="r">S</td>
+  <td class="r" title="p95: 512 ms · n=10">470</td><td class="r" title="p95: 1151 ms">1,127</td>
+  <td class="r">123</td><td class="r">8.6</td>
+  <td class="r" title="p95: 457 ms">442</td>
+  
+  <td><span class="spark-dot" title="upstream-6273dd165e65 TS first_paint cold 1× at 2026-11-04: 470 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-6b3e72a4117c</td><td class="r">S</td>
+  <td class="r" title="p95: 476 ms · n=10">457</td><td class="r" title="p95: 1177 ms">1,146</td>
+  <td class="r">113</td><td class="r">9.0</td>
+  <td class="r" title="p95: 459 ms">441</td>
+  
+  <td><span class="spark-dot" title="upstream-6b3e72a4117c TS first_paint cold 1× at 2026-11-04: 457 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-6bf50c3ab07a</td><td class="r">S</td>
+  <td class="r" title="p95: 515 ms · n=10">473</td><td class="r" title="p95: 1150 ms">1,059</td>
+  <td class="r">124</td><td class="r">9.8</td>
+  <td class="r" title="p95: 474 ms">453</td>
+  
+  <td><span class="spark-dot" title="upstream-6bf50c3ab07a TS first_paint cold 1× at 2026-11-04: 473 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-6f5fb53227d1</td><td class="r">S</td>
+  <td class="r" title="p95: 483 ms · n=10">468</td><td class="r" title="p95: 1160 ms">1,082</td>
+  <td class="r">120</td><td class="r">8.7</td>
+  <td class="r" title="p95: 466 ms">452</td>
+  
+  <td><span class="spark-dot" title="upstream-6f5fb53227d1 TS first_paint cold 1× at 2026-11-04: 468 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-76e15769e470</td><td class="r">S</td>
+  <td class="r" title="p95: 503 ms · n=10">474</td><td class="r" title="p95: 1175 ms">1,049</td>
+  <td class="r">126</td><td class="r">10.4</td>
+  <td class="r" title="p95: 469 ms">453</td>
+  
+  <td><span class="spark-dot" title="upstream-76e15769e470 TS first_paint cold 1× at 2026-11-04: 474 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-78718f952976</td><td class="r">S</td>
+  <td class="r" title="p95: 513 ms · n=10">484</td><td class="r" title="p95: 1216 ms">1,147</td>
+  <td class="r">128</td><td class="r">8.7</td>
+  <td class="r" title="p95: 478 ms">459</td>
+  
+  <td><span class="spark-dot" title="upstream-78718f952976 TS first_paint cold 1× at 2026-11-04: 484 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-855d0845e0a3</td><td class="r">S</td>
+  <td class="r" title="p95: 487 ms · n=10">470</td><td class="r" title="p95: 1218 ms">1,109</td>
+  <td class="r">122</td><td class="r">8.6</td>
+  <td class="r" title="p95: 495 ms">457</td>
+  
+  <td><span class="spark-dot" title="upstream-855d0845e0a3 TS first_paint cold 1× at 2026-11-04: 470 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-909716f36698</td><td class="r">S</td>
+  <td class="r" title="p95: 487 ms · n=10">460</td><td class="r" title="p95: 6198 ms">1,148</td>
+  <td class="r">119</td><td class="r">9.0</td>
+  <td class="r" title="p95: 486 ms">458</td>
+  
+  <td><span class="spark-dot" title="upstream-909716f36698 TS first_paint cold 1× at 2026-11-04: 460 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-9815f4cd7f0c</td><td class="r">S</td>
+  <td class="r" title="p95: 488 ms · n=10">470</td><td class="r" title="p95: 1158 ms">1,097</td>
+  <td class="r">124</td><td class="r">8.6</td>
+  <td class="r" title="p95: 1672 ms">452</td>
+  
+  <td><span class="spark-dot" title="upstream-9815f4cd7f0c TS first_paint cold 1× at 2026-11-04: 470 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-988079b295a0</td><td class="r">S</td>
+  <td class="r" title="p95: 485 ms · n=10">468</td><td class="r" title="p95: 10018 ms">1,270</td>
+  <td class="r">117</td><td class="r">8.6</td>
+  <td class="r" title="p95: 462 ms">444</td>
+  
+  <td><span class="spark-dot" title="upstream-988079b295a0 TS first_paint cold 1× at 2026-11-04: 468 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-a448854a0a41</td><td class="r">S</td>
+  <td class="r" title="p95: 541 ms · n=10">469</td><td class="r" title="p95: 4255 ms">1,263</td>
+  <td class="r">123</td><td class="r">9.7</td>
+  <td class="r" title="p95: 1683 ms">453</td>
+  
+  <td><span class="spark-dot" title="upstream-a448854a0a41 TS first_paint cold 1× at 2026-11-04: 469 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-af08a8c3fa8a</td><td class="r">S</td>
+  <td class="r" title="p95: 536 ms · n=10">473</td><td class="r" title="p95: 1235 ms">1,156</td>
+  <td class="r">122</td><td class="r">9.0</td>
+  <td class="r" title="p95: 465 ms">446</td>
+  
+  <td><span class="spark-dot" title="upstream-af08a8c3fa8a TS first_paint cold 1× at 2026-11-04: 473 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-b55bb79d882f</td><td class="r">S</td>
+  <td class="r" title="p95: 475 ms · n=10">459</td><td class="r" title="p95: 1254 ms">1,154</td>
+  <td class="r">111</td><td class="r">10.3</td>
+  <td class="r" title="p95: 2587 ms">457</td>
+  
+  <td><span class="spark-dot" title="upstream-b55bb79d882f TS first_paint cold 1× at 2026-11-04: 459 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-b925c014f155</td><td class="r">S</td>
+  <td class="r" title="p95: 486 ms · n=10">469</td><td class="r" title="p95: 1260 ms">1,178</td>
+  <td class="r">120</td><td class="r">9.4</td>
+  <td class="r" title="p95: 582 ms">502</td>
+  
+  <td><span class="spark-dot" title="upstream-b925c014f155 TS first_paint cold 1× at 2026-11-04: 469 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-b964914b1e51</td><td class="r">S</td>
+  <td class="r" title="p95: 570 ms · n=10">523</td><td class="r" title="p95: 1286 ms">1,271</td>
+  <td class="r">176</td><td class="r">13.8</td>
+  <td class="r" title="p95: 541 ms">501</td>
+  
+  <td><span class="spark-dot" title="upstream-b964914b1e51 TS first_paint cold 1× at 2026-11-04: 523 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-bdfae0732058</td><td class="r">S</td>
+  <td class="r" title="p95: 524 ms · n=10">481</td><td class="r" title="p95: 1201 ms">1,134</td>
+  <td class="r">132</td><td class="r">10.2</td>
+  <td class="r" title="p95: 504 ms">455</td>
+  
+  <td><span class="spark-dot" title="upstream-bdfae0732058 TS first_paint cold 1× at 2026-11-04: 481 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-c5fb4971e483</td><td class="r">S</td>
+  <td class="r" title="p95: 529 ms · n=10">479</td><td class="r" title="p95: 1190 ms">1,059</td>
+  <td class="r">125</td><td class="r">10.1</td>
+  <td class="r" title="p95: 473 ms">444</td>
+  
+  <td><span class="spark-dot" title="upstream-c5fb4971e483 TS first_paint cold 1× at 2026-11-04: 479 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-d3a6896f9b3b</td><td class="r">S</td>
+  <td class="r" title="p95: 500 ms · n=10">491</td><td class="r" title="p95: 1208 ms">1,090</td>
+  <td class="r">129</td><td class="r">8.7</td>
+  <td class="r" title="p95: 500 ms">439</td>
+  
+  <td><span class="spark-dot" title="upstream-d3a6896f9b3b TS first_paint cold 1× at 2026-11-04: 491 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-d3f43e83fa1c</td><td class="r">S</td>
+  <td class="r" title="p95: 485 ms · n=10">458</td><td class="r" title="p95: 1255 ms">1,168</td>
+  <td class="r">117</td><td class="r">9.0</td>
+  <td class="r" title="p95: 478 ms">451</td>
+  
+  <td><span class="spark-dot" title="upstream-d3f43e83fa1c TS first_paint cold 1× at 2026-11-04: 458 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-e8c1eeb1c1fc</td><td class="r">S</td>
+  <td class="r" title="p95: 502 ms · n=10">475</td><td class="r" title="p95: 1249 ms">1,110</td>
+  <td class="r">128</td><td class="r">8.6</td>
+  <td class="r" title="p95: 471 ms">441</td>
+  
+  <td><span class="spark-dot" title="upstream-e8c1eeb1c1fc TS first_paint cold 1× at 2026-11-04: 475 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-ea1f61c3afec</td><td class="r">S</td>
+  <td class="r" title="p95: 529 ms · n=10">482</td><td class="r" title="p95: 1144 ms">1,079</td>
+  <td class="r">123</td><td class="r">9.0</td>
+  <td class="r" title="p95: 538 ms">443</td>
+  
+  <td><span class="spark-dot" title="upstream-ea1f61c3afec TS first_paint cold 1× at 2026-11-04: 482 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-ee04bf55d0ca</td><td class="r">S</td>
+  <td class="r" title="p95: 509 ms · n=10">485</td><td class="r" title="p95: 1187 ms">1,079</td>
+  <td class="r">127</td><td class="r">9.7</td>
+  <td class="r" title="p95: 478 ms">452</td>
+  
+  <td><span class="spark-dot" title="upstream-ee04bf55d0ca TS first_paint cold 1× at 2026-11-04: 485 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-eec2ebea615c</td><td class="r">S</td>
+  <td class="r" title="p95: 577 ms · n=10">535</td><td class="r" title="p95: 1405 ms">1,199</td>
+  <td class="r">172</td><td class="r">13.8</td>
+  <td class="r" title="p95: 516 ms">488</td>
+  
+  <td><span class="spark-dot" title="upstream-eec2ebea615c TS first_paint cold 1× at 2026-11-04: 535 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-f7dc2db85d04</td><td class="r">S</td>
+  <td class="r" title="p95: 489 ms · n=10">471</td><td class="r" title="p95: 1364 ms">1,208</td>
+  <td class="r">117</td><td class="r">10.9</td>
+  <td class="r" title="p95: 487 ms">450</td>
+  
+  <td><span class="spark-dot" title="upstream-f7dc2db85d04 TS first_paint cold 1× at 2026-11-04: 471 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-fcbf74492e08</td><td class="r">S</td>
+  <td class="r" title="p95: 612 ms · n=10">588</td><td class="r" title="p95: 1408 ms">1,250</td>
+  <td class="r">169</td><td class="r">13.9</td>
+  <td class="r" title="p95: 656 ms">565</td>
+  
+  <td><span class="spark-dot" title="upstream-fcbf74492e08 TS first_paint cold 1× at 2026-11-04: 588 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-fd702db2416c</td><td class="r">S</td>
+  <td class="r" title="p95: 576 ms · n=10">505</td><td class="r" title="p95: 1284 ms">1,113</td>
+  <td class="r">136</td><td class="r">10.9</td>
+  <td class="r" title="p95: 508 ms">465</td>
+  
+  <td><span class="spark-dot" title="upstream-fd702db2416c TS first_paint cold 1× at 2026-11-04: 505 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-docx-pages-100</td><td class="r">M</td>
+  <td class="r" title="p95: 537 ms · n=10">497</td><td class="r" title="p95: 1248 ms">1,217</td>
+  <td class="r">134</td><td class="r">10.4</td>
+  <td class="r" title="p95: 501 ms">470</td>
+  
+  <td><svg width="60" height="18" title="2026-11-04: 497 ms
+2026-11-04: 506 ms" aria-label="gen-docx-pages-100 TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,17.0 60.0,1.0"/><circle cx="60.0" cy="1.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>gen-docx-pages-100-b</td><td class="r">M</td>
+  <td class="r" title="p95: 606 ms · n=10">495</td><td class="r" title="p95: 1510 ms">1,261</td>
+  <td class="r">136</td><td class="r">11.2</td>
+  <td class="r" title="p95: 1081 ms">495</td>
+  
+  <td><span class="spark-dot" title="gen-docx-pages-100-b TS first_paint cold 1× at 2026-11-04: 495 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-docx-pages-100-c</td><td class="r">M</td>
+  <td class="r" title="p95: 527 ms · n=10">499</td><td class="r" title="p95: 1428 ms">1,258</td>
+  <td class="r">135</td><td class="r">10.8</td>
+  <td class="r" title="p95: 566 ms">491</td>
+  
+  <td><span class="spark-dot" title="gen-docx-pages-100-c TS first_paint cold 1× at 2026-11-04: 499 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-chartex</td><td class="r">M</td>
+  <td class="r" title="p95: 570 ms · n=10">512</td><td class="r" title="p95: 1084 ms">1,047</td>
+  <td class="r">162</td><td class="r">12.4</td>
+  <td class="r" title="p95: 529 ms">505</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-chartex TS first_paint cold 1× at 2026-11-04: 512 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-poi-WordWithAttachments</td><td class="r">M</td>
+  <td class="r" title="p95: 555 ms · n=10">519</td><td class="r" title="p95: 1048 ms">1,032</td>
+  <td class="r">154</td><td class="r">10.0</td>
+  <td class="r" title="p95: 564 ms">496</td>
+  
+  <td><span class="spark-dot" title="real-docx-poi-WordWithAttachments TS first_paint cold 1× at 2026-11-04: 519 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-having-images</td><td class="r">M</td>
+  <td class="r" title="p95: 575 ms · n=10">503</td><td class="r" title="p95: 1296 ms">1,244</td>
+  <td class="r">144</td><td class="r">8.3</td>
+  <td class="r" title="p95: 537 ms">475</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-having-images TS first_paint cold 1× at 2026-11-04: 503 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-shp-inline-shape-access</td><td class="r">M</td>
+  <td class="r" title="p95: 587 ms · n=10">521</td><td class="r" title="p95: 1194 ms">1,060</td>
+  <td class="r">151</td><td class="r">11.6</td>
+  <td class="r" title="p95: 618 ms">515</td>
+  
+  <td><span class="spark-dot" title="real-docx-python-docx-shp-inline-shape-access TS first_paint cold 1× at 2026-11-04: 521 ms">•</span></td>
 </tr>
 </tbody>
 </table></div>
@@ -134,23 +1083,909 @@ td{border-top:1px solid var(--rule);padding:4px 8px;vertical-align:middle;white-
 </tr></thead>
 <tbody>
 <tr>
-  <td>pptx-S</td><td class="r">S</td>
-  <td class="r">1,387</td><td class="r">4,524</td>
-  <td class="r">576</td><td class="r">63.4</td>
-  <td class="r">1,279</td>
+  <td>bidi-arabic-hebrew-slides</td><td class="r">S</td>
+  <td class="r" title="p95: 1518 ms · n=10">1,376</td><td class="r" title="p95: 4632 ms">4,412</td>
+  <td class="r">578</td><td class="r">36.4</td>
+  <td class="r" title="p95: 1367 ms">1,233</td>
   
-  <td><span class="spark-dot" title="pptx-S TS first_paint cold 1× at 2026-10-28: 1387 ms">•</span></td>
+  <td><span class="spark-dot" title="bidi-arabic-hebrew-slides TS first_paint cold 1× at 2026-11-04: 1376 ms">•</span></td>
 </tr>
 <tr>
-  <td>pptx-M</td><td class="r">M</td>
-  <td class="r">1,336</td><td class="r">5,001</td>
-  <td class="r">597</td><td class="r">43.8</td>
-  <td class="r">1,349</td>
+  <td>gen-pptx-activex</td><td class="r">S</td>
+  <td class="r" title="p95: 1322 ms · n=10">1,245</td><td class="r" title="p95: 4904 ms">4,492</td>
+  <td class="r">500</td><td class="r">36.1</td>
+  <td class="r" title="p95: 1229 ms">1,197</td>
   
-  <td><span class="spark-dot" title="pptx-M TS first_paint cold 1× at 2026-10-28: 1336 ms">•</span></td>
+  <td><span class="spark-dot" title="gen-pptx-activex TS first_paint cold 1× at 2026-11-04: 1245 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-pptx-equation</td><td class="r">S</td>
+  <td class="r" title="p95: 1284 ms · n=10">1,242</td><td class="r" title="p95: 4650 ms">4,394</td>
+  <td class="r">519</td><td class="r">36.3</td>
+  <td class="r" title="p95: 1262 ms">1,205</td>
+  
+  <td><svg width="60" height="18" title="2026-11-04: 1242 ms
+2026-11-04: 1259 ms" aria-label="gen-pptx-equation TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,17.0 60.0,1.0"/><circle cx="60.0" cy="1.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>gen-pptx-model3d</td><td class="r">S</td>
+  <td class="r" title="p95: 1315 ms · n=10">1,263</td><td class="r" title="p95: 14160 ms">5,114</td>
+  <td class="r">518</td><td class="r">36.1</td>
+  <td class="r" title="p95: 1238 ms">1,191</td>
+  
+  <td><span class="spark-dot" title="gen-pptx-model3d TS first_paint cold 1× at 2026-11-04: 1263 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-pptx-notes-print</td><td class="r">S</td>
+  <td class="r" title="p95: 1369 ms · n=10">1,274</td><td class="r" title="p95: 6491 ms">5,433</td>
+  <td class="r">516</td><td class="r">36.3</td>
+  <td class="r" title="p95: 1336 ms">1,194</td>
+  
+  <td><span class="spark-dot" title="gen-pptx-notes-print TS first_paint cold 1× at 2026-11-04: 1274 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-10</td><td class="r">S</td>
+  <td class="r" title="p95: 1571 ms · n=10">1,425</td><td class="r" title="p95: 9318 ms">5,601</td>
+  <td class="r">614</td><td class="r">63.3</td>
+  <td class="r" title="p95: 5023 ms">1,287</td>
+  
+  <td><span class="spark-dot" title="gen-pptx-slides-10 TS first_paint cold 1× at 2026-11-04: 1425 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-10-b</td><td class="r">S</td>
+  <td class="r" title="p95: 1536 ms · n=10">1,374</td><td class="r" title="p95: 5041 ms">4,637</td>
+  <td class="r">583</td><td class="r">63.2</td>
+  <td class="r" title="p95: 1305 ms">1,241</td>
+  
+  <td><span class="spark-dot" title="gen-pptx-slides-10-b TS first_paint cold 1× at 2026-11-04: 1374 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-10-c</td><td class="r">S</td>
+  <td class="r" title="p95: 1326 ms · n=10">1,293</td><td class="r" title="p95: 4976 ms">4,620</td>
+  <td class="r">563</td><td class="r">60.7</td>
+  <td class="r" title="p95: 1307 ms">1,231</td>
+  
+  <td><svg width="60" height="18" title="2026-11-04: 1293 ms
+2026-11-04: 1344 ms" aria-label="gen-pptx-slides-10-c TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,17.0 60.0,1.0"/><circle cx="60.0" cy="1.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>gen-pptx-zoom</td><td class="r">S</td>
+  <td class="r" title="p95: 1329 ms · n=10">1,276</td><td class="r" title="p95: 5087 ms">4,711</td>
+  <td class="r">528</td><td class="r">41.5</td>
+  <td class="r" title="p95: 1357 ms">1,197</td>
+  
+  <td><span class="spark-dot" title="gen-pptx-zoom TS first_paint cold 1× at 2026-11-04: 1276 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-51187</td><td class="r">S</td>
+  <td class="r" title="p95: 1461 ms · n=10">1,375</td><td class="r" title="p95: 5060 ms">4,899</td>
+  <td class="r">615</td><td class="r">44.2</td>
+  <td class="r" title="p95: 1400 ms">1,306</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-51187 TS first_paint cold 1× at 2026-11-04: 1375 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-bug68703</td><td class="r">S</td>
+  <td class="r" title="p95: 7776 ms · n=10">1,519</td><td class="r" title="p95: 5395 ms">5,098</td>
+  <td class="r">702</td><td class="r">43.8</td>
+  <td class="r" title="p95: 2064 ms">1,437</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-bug68703 TS first_paint cold 1× at 2026-11-04: 1519 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-EmbeddedAudio</td><td class="r">S</td>
+  <td class="r" title="p95: 1510 ms · n=10">1,431</td><td class="r" title="p95: 5230 ms">5,012</td>
+  <td class="r">636</td><td class="r">43.5</td>
+  <td class="r" title="p95: 1314 ms">1,269</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-EmbeddedAudio TS first_paint cold 1× at 2026-11-04: 1431 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-SimpleMacro</td><td class="r">S</td>
+  <td class="r" title="p95: 57627 ms · n=10">1,421</td><td class="r" title="p95: 5342 ms">4,965</td>
+  <td class="r">619</td><td class="r">42.3</td>
+  <td class="r" title="p95: 1315 ms">1,251</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-SimpleMacro TS first_paint cold 1× at 2026-11-04: 1421 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-with_japanese</td><td class="r">S</td>
+  <td class="r" title="p95: 1709 ms · n=10">1,390</td><td class="r" title="p95: 5145 ms">4,842</td>
+  <td class="r">652</td><td class="r">40.5</td>
+  <td class="r" title="p95: 1467 ms">1,374</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-with_japanese TS first_paint cold 1× at 2026-11-04: 1390 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-charts</td><td class="r">S</td>
+  <td class="r" title="p95: 1465 ms · n=10">1,277</td><td class="r" title="p95: 5087 ms">4,692</td>
+  <td class="r">539</td><td class="r">44.1</td>
+  <td class="r" title="p95: 1397 ms">1,317</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-cht-charts TS first_paint cold 1× at 2026-11-04: 1277 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-shp-access-chart</td><td class="r">S</td>
+  <td class="r" title="p95: 1364 ms · n=10">1,265</td><td class="r" title="p95: 5274 ms">4,761</td>
+  <td class="r">549</td><td class="r">40.2</td>
+  <td class="r" title="p95: 1757 ms">1,348</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-shp-access-chart TS first_paint cold 1× at 2026-11-04: 1265 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-shp-common-props</td><td class="r">S</td>
+  <td class="r" title="p95: 1412 ms · n=10">1,291</td><td class="r" title="p95: 12023 ms">4,776</td>
+  <td class="r">578</td><td class="r">44.3</td>
+  <td class="r" title="p95: 1463 ms">1,361</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-shp-common-props TS first_paint cold 1× at 2026-11-04: 1291 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-test_slides</td><td class="r">S</td>
+  <td class="r" title="p95: 1419 ms · n=10">1,340</td><td class="r" title="p95: 6246 ms">5,716</td>
+  <td class="r">583</td><td class="r">45.5</td>
+  <td class="r" title="p95: 1684 ms">1,380</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-test_slides TS first_paint cold 1× at 2026-11-04: 1340 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-txt-font-typeface</td><td class="r">S</td>
+  <td class="r" title="p95: 1310 ms · n=10">1,279</td><td class="r" title="p95: 5773 ms">5,467</td>
+  <td class="r">545</td><td class="r">42.7</td>
+  <td class="r" title="p95: 1430 ms">1,367</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-txt-font-typeface TS first_paint cold 1× at 2026-11-04: 1279 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-091abf411e47</td><td class="r">S</td>
+  <td class="r" title="p95: 1417 ms · n=10">1,379</td><td class="r" title="p95: 12725 ms">6,169</td>
+  <td class="r">665</td><td class="r">64.0</td>
+  <td class="r" title="p95: 1603 ms">1,483</td>
+  
+  <td><span class="spark-dot" title="upstream-091abf411e47 TS first_paint cold 1× at 2026-11-04: 1379 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-098b900e8f10</td><td class="r">S</td>
+  <td class="r" title="p95: 1431 ms · n=10">1,388</td><td class="r" title="p95: 6566 ms">5,651</td>
+  <td class="r">652</td><td class="r">47.4</td>
+  <td class="r" title="p95: 1702 ms">1,489</td>
+  
+  <td><span class="spark-dot" title="upstream-098b900e8f10 TS first_paint cold 1× at 2026-11-04: 1388 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-0c4571a8c30e</td><td class="r">S</td>
+  <td class="r" title="p95: 1346 ms · n=10">1,303</td><td class="r" title="p95: 5438 ms">5,235</td>
+  <td class="r">576</td><td class="r">49.3</td>
+  <td class="r" title="p95: 1496 ms">1,412</td>
+  
+  <td><span class="spark-dot" title="upstream-0c4571a8c30e TS first_paint cold 1× at 2026-11-04: 1303 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-0c7e49afbe04</td><td class="r">S</td>
+  <td class="r" title="p95: 1376 ms · n=10">1,293</td><td class="r" title="p95: 5215 ms">4,951</td>
+  <td class="r">555</td><td class="r">39.9</td>
+  <td class="r" title="p95: 1567 ms">1,388</td>
+  
+  <td><span class="spark-dot" title="upstream-0c7e49afbe04 TS first_paint cold 1× at 2026-11-04: 1293 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-0d9a8eaf2de4</td><td class="r">S</td>
+  <td class="r" title="p95: 1467 ms · n=10">1,406</td><td class="r" title="p95: 55683 ms">5,919</td>
+  <td class="r">696</td><td class="r">67.3</td>
+  <td class="r" title="p95: 4305 ms">1,679</td>
+  
+  <td><span class="spark-dot" title="upstream-0d9a8eaf2de4 TS first_paint cold 1× at 2026-11-04: 1406 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-165297e1d546</td><td class="r">S</td>
+  <td class="r" title="p95: 1272 ms · n=10">1,239</td><td class="r" title="p95: 17453 ms">5,826</td>
+  <td class="r">516</td><td class="r">39.4</td>
+  <td class="r" title="p95: 2765 ms">1,888</td>
+  
+  <td><span class="spark-dot" title="upstream-165297e1d546 TS first_paint cold 1× at 2026-11-04: 1239 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-169be9b132ef</td><td class="r">S</td>
+  <td class="r" title="p95: 1300 ms · n=10">1,220</td><td class="r" title="p95: 5909 ms">5,446</td>
+  <td class="r">508</td><td class="r">36.7</td>
+  <td class="r" title="p95: 1376 ms">1,330</td>
+  
+  <td><span class="spark-dot" title="upstream-169be9b132ef TS first_paint cold 1× at 2026-11-04: 1220 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-1abd9b12cb19</td><td class="r">S</td>
+  <td class="r" title="p95: 1400 ms · n=10">1,350</td><td class="r" title="p95: 6014 ms">5,667</td>
+  <td class="r">594</td><td class="r">58.4</td>
+  <td class="r" title="p95: 1497 ms">1,404</td>
+  
+  <td><span class="spark-dot" title="upstream-1abd9b12cb19 TS first_paint cold 1× at 2026-11-04: 1350 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-1b3ce5863e04</td><td class="r">S</td>
+  <td class="r" title="p95: 1325 ms · n=10">1,244</td><td class="r" title="p95: 31236 ms">5,847</td>
+  <td class="r">512</td><td class="r">43.1</td>
+  <td class="r" title="p95: 1507 ms">1,346</td>
+  
+  <td><span class="spark-dot" title="upstream-1b3ce5863e04 TS first_paint cold 1× at 2026-11-04: 1244 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-1e19dbff1286</td><td class="r">S</td>
+  <td class="r" title="p95: 1280 ms · n=10">1,253</td><td class="r" title="p95: 5934 ms">5,253</td>
+  <td class="r">532</td><td class="r">41.3</td>
+  <td class="r" title="p95: 1671 ms">1,422</td>
+  
+  <td><span class="spark-dot" title="upstream-1e19dbff1286 TS first_paint cold 1× at 2026-11-04: 1253 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-21343018c511</td><td class="r">S</td>
+  <td class="r" title="p95: 1336 ms · n=10">1,303</td><td class="r" title="p95: 5492 ms">5,279</td>
+  <td class="r">587</td><td class="r">39.7</td>
+  <td class="r" title="p95: 1573 ms">1,423</td>
+  
+  <td><span class="spark-dot" title="upstream-21343018c511 TS first_paint cold 1× at 2026-11-04: 1303 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-25ceccfae63d</td><td class="r">S</td>
+  <td class="r" title="p95: 1398 ms · n=10">1,252</td><td class="r" title="p95: 5381 ms">4,952</td>
+  <td class="r">527</td><td class="r">42.6</td>
+  <td class="r" title="p95: 3406 ms">2,468</td>
+  
+  <td><span class="spark-dot" title="upstream-25ceccfae63d TS first_paint cold 1× at 2026-11-04: 1252 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-2b363b2c9b04</td><td class="r">S</td>
+  <td class="r" title="p95: 1378 ms · n=10">1,275</td><td class="r" title="p95: 5328 ms">5,032</td>
+  <td class="r">529</td><td class="r">43.1</td>
+  <td class="r" title="p95: 1647 ms">1,529</td>
+  
+  <td><span class="spark-dot" title="upstream-2b363b2c9b04 TS first_paint cold 1× at 2026-11-04: 1275 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-332cb27502fe</td><td class="r">S</td>
+  <td class="r" title="p95: 1698 ms · n=10">1,300</td><td class="r" title="p95: 5309 ms">5,119</td>
+  <td class="r">542</td><td class="r">41.1</td>
+  <td class="r" title="p95: 1442 ms">1,237</td>
+  
+  <td><span class="spark-dot" title="upstream-332cb27502fe TS first_paint cold 1× at 2026-11-04: 1300 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-3858c1c9d869</td><td class="r">S</td>
+  <td class="r" title="p95: 1445 ms · n=10">1,365</td><td class="r" title="p95: 5531 ms">5,123</td>
+  <td class="r">617</td><td class="r">47.9</td>
+  <td class="r" title="p95: 1508 ms">1,351</td>
+  
+  <td><span class="spark-dot" title="upstream-3858c1c9d869 TS first_paint cold 1× at 2026-11-04: 1365 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-38aa694fb4a5</td><td class="r">S</td>
+  <td class="r" title="p95: 1370 ms · n=10">1,328</td><td class="r" title="p95: 5787 ms">5,145</td>
+  <td class="r">593</td><td class="r">47.4</td>
+  <td class="r" title="p95: 1510 ms">1,407</td>
+  
+  <td><svg width="60" height="18" title="2026-11-04: 1328 ms
+2026-11-04: 1483 ms" aria-label="upstream-38aa694fb4a5 TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,17.0 60.0,1.0"/><circle cx="60.0" cy="1.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>upstream-38fb1b1e8f76</td><td class="r">S</td>
+  <td class="r" title="p95: 1352 ms · n=10">1,282</td><td class="r" title="p95: 5038 ms">4,743</td>
+  <td class="r">571</td><td class="r">45.4</td>
+  <td class="r" title="p95: 1419 ms">1,264</td>
+  
+  <td><span class="spark-dot" title="upstream-38fb1b1e8f76 TS first_paint cold 1× at 2026-11-04: 1282 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-3a09e4b3e925</td><td class="r">S</td>
+  <td class="r" title="p95: 1328 ms · n=10">1,319</td><td class="r" title="p95: 5117 ms">4,757</td>
+  <td class="r">612</td><td class="r">45.9</td>
+  <td class="r" title="p95: 2440 ms">1,294</td>
+  
+  <td><span class="spark-dot" title="upstream-3a09e4b3e925 TS first_paint cold 1× at 2026-11-04: 1319 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-3e787d01c5f7</td><td class="r">S</td>
+  <td class="r" title="p95: 1277 ms · n=10">1,237</td><td class="r" title="p95: 4659 ms">4,404</td>
+  <td class="r">520</td><td class="r">39.5</td>
+  <td class="r" title="p95: 4166 ms">1,239</td>
+  
+  <td><span class="spark-dot" title="upstream-3e787d01c5f7 TS first_paint cold 1× at 2026-11-04: 1237 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-4143514daf03</td><td class="r">S</td>
+  <td class="r" title="p95: 1290 ms · n=10">1,252</td><td class="r" title="p95: 5032 ms">4,486</td>
+  <td class="r">520</td><td class="r">40.5</td>
+  <td class="r" title="p95: 1893 ms">1,541</td>
+  
+  <td><span class="spark-dot" title="upstream-4143514daf03 TS first_paint cold 1× at 2026-11-04: 1252 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-4647c93fad68</td><td class="r">S</td>
+  <td class="r" title="p95: 1352 ms · n=10">1,278</td><td class="r" title="p95: 5503 ms">5,202</td>
+  <td class="r">566</td><td class="r">45.6</td>
+  <td class="r" title="p95: 1502 ms">1,335</td>
+  
+  <td><span class="spark-dot" title="upstream-4647c93fad68 TS first_paint cold 1× at 2026-11-04: 1278 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-482c93bc4882</td><td class="r">S</td>
+  <td class="r" title="p95: 1403 ms · n=10">1,335</td><td class="r" title="p95: 5666 ms">5,311</td>
+  <td class="r">622</td><td class="r">42.0</td>
+  <td class="r" title="p95: 1569 ms">1,405</td>
+  
+  <td><span class="spark-dot" title="upstream-482c93bc4882 TS first_paint cold 1× at 2026-11-04: 1335 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-49a48af6d18d</td><td class="r">S</td>
+  <td class="r" title="p95: 1305 ms · n=10">1,235</td><td class="r" title="p95: 5485 ms">4,878</td>
+  <td class="r">509</td><td class="r">43.1</td>
+  <td class="r" title="p95: 1438 ms">1,332</td>
+  
+  <td><svg width="60" height="18" title="2026-11-04: 1235 ms
+2026-11-04: 1399 ms" aria-label="upstream-49a48af6d18d TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,17.0 60.0,1.0"/><circle cx="60.0" cy="1.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>upstream-4a678fd44484</td><td class="r">S</td>
+  <td class="r" title="p95: 1339 ms · n=10">1,273</td><td class="r" title="p95: 5504 ms">4,781</td>
+  <td class="r">565</td><td class="r">53.1</td>
+  <td class="r" title="p95: 1284 ms">1,247</td>
+  
+  <td><span class="spark-dot" title="upstream-4a678fd44484 TS first_paint cold 1× at 2026-11-04: 1273 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-51edb06a949d</td><td class="r">S</td>
+  <td class="r" title="p95: 1349 ms · n=10">1,250</td><td class="r" title="p95: 4912 ms">4,651</td>
+  <td class="r">542</td><td class="r">42.0</td>
+  <td class="r" title="p95: 2386 ms">1,236</td>
+  
+  <td><span class="spark-dot" title="upstream-51edb06a949d TS first_paint cold 1× at 2026-11-04: 1250 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-55531661e868</td><td class="r">S</td>
+  <td class="r" title="p95: 1331 ms · n=10">1,279</td><td class="r" title="p95: 4958 ms">4,636</td>
+  <td class="r">569</td><td class="r">44.8</td>
+  <td class="r" title="p95: 4629 ms">1,492</td>
+  
+  <td><span class="spark-dot" title="upstream-55531661e868 TS first_paint cold 1× at 2026-11-04: 1279 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-57de458fae91</td><td class="r">S</td>
+  <td class="r" title="p95: 1437 ms · n=10">1,366</td><td class="r" title="p95: 5107 ms">4,901</td>
+  <td class="r">639</td><td class="r">51.9</td>
+  <td class="r" title="p95: 1956 ms">1,618</td>
+  
+  <td><span class="spark-dot" title="upstream-57de458fae91 TS first_paint cold 1× at 2026-11-04: 1366 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-64fe025bb96d</td><td class="r">S</td>
+  <td class="r" title="p95: 1382 ms · n=10">1,331</td><td class="r" title="p95: 5572 ms">5,085</td>
+  <td class="r">594</td><td class="r">39.5</td>
+  <td class="r" title="p95: 1661 ms">1,328</td>
+  
+  <td><span class="spark-dot" title="upstream-64fe025bb96d TS first_paint cold 1× at 2026-11-04: 1331 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-6fbe45df1cb3</td><td class="r">S</td>
+  <td class="r" title="p95: 1373 ms · n=10">1,303</td><td class="r" title="p95: 5255 ms">4,947</td>
+  <td class="r">569</td><td class="r">49.6</td>
+  <td class="r" title="p95: 1559 ms">1,328</td>
+  
+  <td><span class="spark-dot" title="upstream-6fbe45df1cb3 TS first_paint cold 1× at 2026-11-04: 1303 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-717fb7735aa7</td><td class="r">S</td>
+  <td class="r" title="p95: 1389 ms · n=10">1,314</td><td class="r" title="p95: 5032 ms">4,766</td>
+  <td class="r">579</td><td class="r">39.4</td>
+  <td class="r" title="p95: 1527 ms">1,298</td>
+  
+  <td><span class="spark-dot" title="upstream-717fb7735aa7 TS first_paint cold 1× at 2026-11-04: 1314 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-73913b502a2e</td><td class="r">S</td>
+  <td class="r" title="p95: 1384 ms · n=10">1,324</td><td class="r" title="p95: 5150 ms">5,018</td>
+  <td class="r">583</td><td class="r">52.8</td>
+  <td class="r" title="p95: 1457 ms">1,325</td>
+  
+  <td><span class="spark-dot" title="upstream-73913b502a2e TS first_paint cold 1× at 2026-11-04: 1324 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-7bb23ba0b604</td><td class="r">S</td>
+  <td class="r" title="p95: 1335 ms · n=10">1,301</td><td class="r" title="p95: 4980 ms">4,723</td>
+  <td class="r">546</td><td class="r">41.2</td>
+  <td class="r" title="p95: 1449 ms">1,261</td>
+  
+  <td><span class="spark-dot" title="upstream-7bb23ba0b604 TS first_paint cold 1× at 2026-11-04: 1301 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-7cc22f8e5927</td><td class="r">S</td>
+  <td class="r" title="p95: 1319 ms · n=10">1,246</td><td class="r" title="p95: 4547 ms">4,325</td>
+  <td class="r">500</td><td class="r">35.8</td>
+  <td class="r" title="p95: 1225 ms">1,185</td>
+  
+  <td><span class="spark-dot" title="upstream-7cc22f8e5927 TS first_paint cold 1× at 2026-11-04: 1246 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-80e6e30ea597</td><td class="r">S</td>
+  <td class="r" title="p95: 1383 ms · n=10">1,332</td><td class="r" title="p95: 4787 ms">4,634</td>
+  <td class="r">554</td><td class="r">41.0</td>
+  <td class="r" title="p95: 1355 ms">1,227</td>
+  
+  <td><span class="spark-dot" title="upstream-80e6e30ea597 TS first_paint cold 1× at 2026-11-04: 1332 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-88e14cba7830</td><td class="r">S</td>
+  <td class="r" title="p95: 1327 ms · n=10">1,242</td><td class="r" title="p95: 4779 ms">4,634</td>
+  <td class="r">516</td><td class="r">43.1</td>
+  <td class="r" title="p95: 3057 ms">1,256</td>
+  
+  <td><svg width="60" height="18" title="2026-11-04: 1242 ms
+2026-11-04: 1303 ms" aria-label="upstream-88e14cba7830 TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,17.0 60.0,1.0"/><circle cx="60.0" cy="1.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>upstream-8bbf3d67bd63</td><td class="r">S</td>
+  <td class="r" title="p95: 1293 ms · n=10">1,271</td><td class="r" title="p95: 5272 ms">4,849</td>
+  <td class="r">519</td><td class="r">43.1</td>
+  <td class="r" title="p95: 2003 ms">1,349</td>
+  
+  <td><span class="spark-dot" title="upstream-8bbf3d67bd63 TS first_paint cold 1× at 2026-11-04: 1271 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-913ecd7c7c8a</td><td class="r">S</td>
+  <td class="r" title="p95: 1434 ms · n=10">1,337</td><td class="r" title="p95: 4995 ms">4,543</td>
+  <td class="r">558</td><td class="r">39.1</td>
+  <td class="r" title="p95: 1527 ms">1,306</td>
+  
+  <td><span class="spark-dot" title="upstream-913ecd7c7c8a TS first_paint cold 1× at 2026-11-04: 1337 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-959ab2f5bac7</td><td class="r">S</td>
+  <td class="r" title="p95: 1296 ms · n=10">1,250</td><td class="r" title="p95: 5008 ms">4,662</td>
+  <td class="r">530</td><td class="r">40.0</td>
+  <td class="r" title="p95: 1391 ms">1,235</td>
+  
+  <td><span class="spark-dot" title="upstream-959ab2f5bac7 TS first_paint cold 1× at 2026-11-04: 1250 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-9f78c22429d9</td><td class="r">S</td>
+  <td class="r" title="p95: 1244 ms · n=10">1,217</td><td class="r" title="p95: 4798 ms">4,700</td>
+  <td class="r">497</td><td class="r">36.1</td>
+  <td class="r" title="p95: 1318 ms">1,203</td>
+  
+  <td><span class="spark-dot" title="upstream-9f78c22429d9 TS first_paint cold 1× at 2026-11-04: 1217 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-a0806b09c73d</td><td class="r">S</td>
+  <td class="r" title="p95: 1285 ms · n=10">1,231</td><td class="r" title="p95: 4860 ms">4,583</td>
+  <td class="r">527</td><td class="r">40.7</td>
+  <td class="r" title="p95: 1278 ms">1,220</td>
+  
+  <td><span class="spark-dot" title="upstream-a0806b09c73d TS first_paint cold 1× at 2026-11-04: 1231 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-a10c83ff4127</td><td class="r">S</td>
+  <td class="r" title="p95: 1484 ms · n=10">1,348</td><td class="r" title="p95: 5124 ms">5,062</td>
+  <td class="r">633</td><td class="r">60.3</td>
+  <td class="r" title="p95: 3120 ms">1,352</td>
+  
+  <td><span class="spark-dot" title="upstream-a10c83ff4127 TS first_paint cold 1× at 2026-11-04: 1348 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-a344b2f3f55d</td><td class="r">S</td>
+  <td class="r" title="p95: 1383 ms · n=10">1,318</td><td class="r" title="p95: 4953 ms">4,796</td>
+  <td class="r">588</td><td class="r">45.5</td>
+  <td class="r" title="p95: 3134 ms">1,326</td>
+  
+  <td><svg width="60" height="18" title="2026-11-04: 1318 ms
+2026-11-04: 1336 ms" aria-label="upstream-a344b2f3f55d TS first_paint cold 1×" role="img" style="vertical-align:middle;overflow:visible"><polyline fill="none" stroke="var(--navy)" stroke-width="1.5" points="0.0,17.0 60.0,1.0"/><circle cx="60.0" cy="1.0" r="2.5" fill="var(--navy)"/></svg></td>
+</tr>
+<tr>
+  <td>upstream-a4b1b68c66c7</td><td class="r">S</td>
+  <td class="r" title="p95: 1832 ms · n=10">1,285</td><td class="r" title="p95: 4790 ms">4,690</td>
+  <td class="r">540</td><td class="r">39.9</td>
+  <td class="r" title="p95: 1771 ms">1,326</td>
+  
+  <td><span class="spark-dot" title="upstream-a4b1b68c66c7 TS first_paint cold 1× at 2026-11-04: 1285 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-a61f509fcab9</td><td class="r">S</td>
+  <td class="r" title="p95: 1465 ms · n=10">1,427</td><td class="r" title="p95: 5099 ms">4,853</td>
+  <td class="r">637</td><td class="r">39.6</td>
+  <td class="r" title="p95: 1410 ms">1,300</td>
+  
+  <td><span class="spark-dot" title="upstream-a61f509fcab9 TS first_paint cold 1× at 2026-11-04: 1427 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-a734ca765129</td><td class="r">S</td>
+  <td class="r" title="p95: 1580 ms · n=10">1,304</td><td class="r" title="p95: 4986 ms">4,787</td>
+  <td class="r">554</td><td class="r">43.1</td>
+  <td class="r" title="p95: 1411 ms">1,242</td>
+  
+  <td><span class="spark-dot" title="upstream-a734ca765129 TS first_paint cold 1× at 2026-11-04: 1304 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-a8fa453c5023</td><td class="r">S</td>
+  <td class="r" title="p95: 1553 ms · n=10">1,443</td><td class="r" title="p95: 5154 ms">4,924</td>
+  <td class="r">663</td><td class="r">45.3</td>
+  <td class="r" title="p95: 1391 ms">1,291</td>
+  
+  <td><span class="spark-dot" title="upstream-a8fa453c5023 TS first_paint cold 1× at 2026-11-04: 1443 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-af1bd691bad1</td><td class="r">S</td>
+  <td class="r" title="p95: 1513 ms · n=10">1,356</td><td class="r" title="p95: 5059 ms">4,853</td>
+  <td class="r">591</td><td class="r">49.8</td>
+  <td class="r" title="p95: 1426 ms">1,240</td>
+  
+  <td><span class="spark-dot" title="upstream-af1bd691bad1 TS first_paint cold 1× at 2026-11-04: 1356 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-b2aa81e78d15</td><td class="r">S</td>
+  <td class="r" title="p95: 1299 ms · n=10">1,263</td><td class="r" title="p95: 5230 ms">4,893</td>
+  <td class="r">538</td><td class="r">41.6</td>
+  <td class="r" title="p95: 1319 ms">1,221</td>
+  
+  <td><span class="spark-dot" title="upstream-b2aa81e78d15 TS first_paint cold 1× at 2026-11-04: 1263 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-b2b71a866c2e</td><td class="r">S</td>
+  <td class="r" title="p95: 1476 ms · n=10">1,369</td><td class="r" title="p95: 39665 ms">5,043</td>
+  <td class="r">616</td><td class="r">47.4</td>
+  <td class="r" title="p95: 1292 ms">1,249</td>
+  
+  <td><span class="spark-dot" title="upstream-b2b71a866c2e TS first_paint cold 1× at 2026-11-04: 1369 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-b332135c13c6</td><td class="r">S</td>
+  <td class="r" title="p95: 1272 ms · n=10">1,243</td><td class="r" title="p95: 19952 ms">5,434</td>
+  <td class="r">505</td><td class="r">36.8</td>
+  <td class="r" title="p95: 1261 ms">1,172</td>
+  
+  <td><span class="spark-dot" title="upstream-b332135c13c6 TS first_paint cold 1× at 2026-11-04: 1243 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-b6c7dfcf4428</td><td class="r">S</td>
+  <td class="r" title="p95: 1476 ms · n=10">1,347</td><td class="r" title="p95: 5502 ms">5,186</td>
+  <td class="r">560</td><td class="r">51.4</td>
+  <td class="r" title="p95: 1261 ms">1,203</td>
+  
+  <td><span class="spark-dot" title="upstream-b6c7dfcf4428 TS first_paint cold 1× at 2026-11-04: 1347 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-bd16f101c6d5</td><td class="r">S</td>
+  <td class="r" title="p95: 1276 ms · n=10">1,255</td><td class="r" title="p95: 6295 ms">4,865</td>
+  <td class="r">526</td><td class="r">39.5</td>
+  <td class="r" title="p95: 1244 ms">1,176</td>
+  
+  <td><span class="spark-dot" title="upstream-bd16f101c6d5 TS first_paint cold 1× at 2026-11-04: 1255 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-be4aaa835c68</td><td class="r">S</td>
+  <td class="r" title="p95: 1424 ms · n=10">1,297</td><td class="r" title="p95: 4822 ms">4,523</td>
+  <td class="r">544</td><td class="r">42.8</td>
+  <td class="r" title="p95: 1517 ms">1,240</td>
+  
+  <td><span class="spark-dot" title="upstream-be4aaa835c68 TS first_paint cold 1× at 2026-11-04: 1297 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-c55ed898215f</td><td class="r">S</td>
+  <td class="r" title="p95: 1392 ms · n=10">1,262</td><td class="r" title="p95: 4662 ms">4,455</td>
+  <td class="r">500</td><td class="r">35.8</td>
+  <td class="r" title="p95: 1235 ms">1,176</td>
+  
+  <td><span class="spark-dot" title="upstream-c55ed898215f TS first_paint cold 1× at 2026-11-04: 1262 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-c8a1d6b58292</td><td class="r">S</td>
+  <td class="r" title="p95: 1355 ms · n=10">1,281</td><td class="r" title="p95: 5187 ms">4,687</td>
+  <td class="r">532</td><td class="r">40.8</td>
+  <td class="r" title="p95: 1233 ms">1,196</td>
+  
+  <td><span class="spark-dot" title="upstream-c8a1d6b58292 TS first_paint cold 1× at 2026-11-04: 1281 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-d173badb4435</td><td class="r">S</td>
+  <td class="r" title="p95: 1305 ms · n=10">1,279</td><td class="r" title="p95: 4911 ms">4,795</td>
+  <td class="r">555</td><td class="r">44.6</td>
+  <td class="r" title="p95: 1293 ms">1,219</td>
+  
+  <td><span class="spark-dot" title="upstream-d173badb4435 TS first_paint cold 1× at 2026-11-04: 1279 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-d34691128d6a</td><td class="r">S</td>
+  <td class="r" title="p95: 1489 ms · n=10">1,315</td><td class="r" title="p95: 46785 ms">5,850</td>
+  <td class="r">564</td><td class="r">52.1</td>
+  <td class="r" title="p95: 1249 ms">1,209</td>
+  
+  <td><span class="spark-dot" title="upstream-d34691128d6a TS first_paint cold 1× at 2026-11-04: 1315 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-d38cba8bfc42</td><td class="r">S</td>
+  <td class="r" title="p95: 1330 ms · n=10">1,268</td><td class="r" title="p95: 5742 ms">4,906</td>
+  <td class="r">520</td><td class="r">36.2</td>
+  <td class="r" title="p95: 1252 ms">1,186</td>
+  
+  <td><span class="spark-dot" title="upstream-d38cba8bfc42 TS first_paint cold 1× at 2026-11-04: 1268 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-d64f9e91a815</td><td class="r">S</td>
+  <td class="r" title="p95: 1357 ms · n=10">1,316</td><td class="r" title="p95: 6245 ms">4,883</td>
+  <td class="r">565</td><td class="r">39.8</td>
+  <td class="r" title="p95: 1841 ms">1,186</td>
+  
+  <td><span class="spark-dot" title="upstream-d64f9e91a815 TS first_paint cold 1× at 2026-11-04: 1316 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-dbc4432fdc19</td><td class="r">S</td>
+  <td class="r" title="p95: 1465 ms · n=10">1,377</td><td class="r" title="p95: 5518 ms">5,033</td>
+  <td class="r">626</td><td class="r">58.8</td>
+  <td class="r" title="p95: 1751 ms">1,476</td>
+  
+  <td><span class="spark-dot" title="upstream-dbc4432fdc19 TS first_paint cold 1× at 2026-11-04: 1377 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-e0dce36d2088</td><td class="r">S</td>
+  <td class="r" title="p95: 1401 ms · n=10">1,295</td><td class="r" title="p95: 11544 ms">5,391</td>
+  <td class="r">548</td><td class="r">44.0</td>
+  <td class="r" title="p95: 1730 ms">1,303</td>
+  
+  <td><span class="spark-dot" title="upstream-e0dce36d2088 TS first_paint cold 1× at 2026-11-04: 1295 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-e21bb6ce7505</td><td class="r">S</td>
+  <td class="r" title="p95: 1426 ms · n=10">1,298</td><td class="r" title="p95: 6090 ms">4,798</td>
+  <td class="r">569</td><td class="r">40.8</td>
+  <td class="r" title="p95: 1369 ms">1,240</td>
+  
+  <td><span class="spark-dot" title="upstream-e21bb6ce7505 TS first_paint cold 1× at 2026-11-04: 1298 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-e3dab827b836</td><td class="r">S</td>
+  <td class="r" title="p95: 1323 ms · n=10">1,286</td><td class="r" title="p95: 6359 ms">4,756</td>
+  <td class="r">551</td><td class="r">42.7</td>
+  <td class="r" title="p95: 1284 ms">1,232</td>
+  
+  <td><span class="spark-dot" title="upstream-e3dab827b836 TS first_paint cold 1× at 2026-11-04: 1286 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-e5e3a918a510</td><td class="r">S</td>
+  <td class="r" title="p95: 1392 ms · n=10">1,343</td><td class="r" title="p95: 5719 ms">5,133</td>
+  <td class="r">581</td><td class="r">48.7</td>
+  <td class="r" title="p95: 1321 ms">1,257</td>
+  
+  <td><span class="spark-dot" title="upstream-e5e3a918a510 TS first_paint cold 1× at 2026-11-04: 1343 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-ea86d831d24d</td><td class="r">S</td>
+  <td class="r" title="p95: 1315 ms · n=10">1,269</td><td class="r" title="p95: 4657 ms">4,396</td>
+  <td class="r">519</td><td class="r">41.0</td>
+  <td class="r" title="p95: 1176 ms">1,155</td>
+  
+  <td><span class="spark-dot" title="upstream-ea86d831d24d TS first_paint cold 1× at 2026-11-04: 1269 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-f374280d2eb7</td><td class="r">S</td>
+  <td class="r" title="p95: 1358 ms · n=10">1,315</td><td class="r" title="p95: 4925 ms">4,729</td>
+  <td class="r">576</td><td class="r">42.8</td>
+  <td class="r" title="p95: 1259 ms">1,204</td>
+  
+  <td><span class="spark-dot" title="upstream-f374280d2eb7 TS first_paint cold 1× at 2026-11-04: 1315 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-f3a23e347a28</td><td class="r">S</td>
+  <td class="r" title="p95: 1326 ms · n=10">1,239</td><td class="r" title="p95: 4873 ms">4,575</td>
+  <td class="r">514</td><td class="r">36.1</td>
+  <td class="r" title="p95: 1163 ms">1,137</td>
+  
+  <td><span class="spark-dot" title="upstream-f3a23e347a28 TS first_paint cold 1× at 2026-11-04: 1239 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-f4fd46dfe4ec</td><td class="r">S</td>
+  <td class="r" title="p95: 1382 ms · n=10">1,324</td><td class="r" title="p95: 25830 ms">4,894</td>
+  <td class="r">581</td><td class="r">41.5</td>
+  <td class="r" title="p95: 1383 ms">1,237</td>
+  
+  <td><span class="spark-dot" title="upstream-f4fd46dfe4ec TS first_paint cold 1× at 2026-11-04: 1324 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-f8f44b2075eb</td><td class="r">S</td>
+  <td class="r" title="p95: 1376 ms · n=10">1,305</td><td class="r" title="p95: 6200 ms">4,563</td>
+  <td class="r">549</td><td class="r">40.3</td>
+  <td class="r" title="p95: 1304 ms">1,231</td>
+  
+  <td><span class="spark-dot" title="upstream-f8f44b2075eb TS first_paint cold 1× at 2026-11-04: 1305 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-50</td><td class="r">M</td>
+  <td class="r" title="p95: 1452 ms · n=10">1,364</td><td class="r" title="p95: 6567 ms">5,705</td>
+  <td class="r">607</td><td class="r">48.8</td>
+  <td class="r" title="p95: 15566 ms">1,301</td>
+  
+  <td><span class="spark-dot" title="gen-pptx-slides-50 TS first_paint cold 1× at 2026-11-04: 1364 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-50-b</td><td class="r">M</td>
+  <td class="r" title="p95: 1626 ms · n=10">1,452</td><td class="r" title="p95: 9126 ms">5,238</td>
+  <td class="r">649</td><td class="r">48.6</td>
+  <td class="r" title="p95: 1962 ms">1,499</td>
+  
+  <td><span class="spark-dot" title="gen-pptx-slides-50-b TS first_paint cold 1× at 2026-11-04: 1452 ms">•</span></td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-50-c</td><td class="r">M</td>
+  <td class="r" title="p95: 1848 ms · n=10">1,459</td><td class="r" title="p95: 5521 ms">5,149</td>
+  <td class="r">657</td><td class="r">56.3</td>
+  <td class="r" title="p95: 1391 ms">1,356</td>
+  
+  <td><span class="spark-dot" title="gen-pptx-slides-50-c TS first_paint cold 1× at 2026-11-04: 1459 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-45541_Footer</td><td class="r">M</td>
+  <td class="r" title="p95: 1639 ms · n=10">1,547</td><td class="r" title="p95: 5927 ms">5,611</td>
+  <td class="r">766</td><td class="r">31.5</td>
+  <td class="r" title="p95: 1493 ms">1,421</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-45541_Footer TS first_paint cold 1× at 2026-11-04: 1547 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-45541_Header</td><td class="r">M</td>
+  <td class="r" title="p95: 1624 ms · n=10">1,593</td><td class="r" title="p95: 6016 ms">5,657</td>
+  <td class="r">799</td><td class="r">31.6</td>
+  <td class="r" title="p95: 1474 ms">1,422</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-45541_Header TS first_paint cold 1× at 2026-11-04: 1593 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-45545_Comment</td><td class="r">M</td>
+  <td class="r" title="p95: 1608 ms · n=10">1,544</td><td class="r" title="p95: 5963 ms">5,611</td>
+  <td class="r">762</td><td class="r">31.5</td>
+  <td class="r" title="p95: 1667 ms">1,522</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-45545_Comment TS first_paint cold 1× at 2026-11-04: 1544 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-60810</td><td class="r">M</td>
+  <td class="r" title="p95: 2028 ms · n=10">1,919</td><td class="r" title="p95: 7458 ms">7,005</td>
+  <td class="r">1,120</td><td class="r">72.0</td>
+  <td class="r" title="p95: 1829 ms">1,747</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-60810 TS first_paint cold 1× at 2026-11-04: 1919 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-bug62513</td><td class="r">M</td>
+  <td class="r" title="p95: 3729 ms · n=10">1,695</td><td class="r" title="p95: 6738 ms">6,029</td>
+  <td class="r">864</td><td class="r">53.2</td>
+  <td class="r" title="p95: 2280 ms">1,633</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-bug62513 TS first_paint cold 1× at 2026-11-04: 1695 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-bug64693</td><td class="r">M</td>
+  <td class="r" title="p95: 1784 ms · n=10">1,590</td><td class="r" title="p95: 6518 ms">5,971</td>
+  <td class="r">782</td><td class="r">61.5</td>
+  <td class="r" title="p95: 3364 ms">1,637</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-bug64693 TS first_paint cold 1× at 2026-11-04: 1590 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-keyframes</td><td class="r">M</td>
+  <td class="r" title="p95: 2169 ms · n=10">1,985</td><td class="r" title="p95: 9107 ms">6,841</td>
+  <td class="r">1,133</td><td class="r">72.2</td>
+  <td class="r" title="p95: 2076 ms">1,829</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-keyframes TS first_paint cold 1× at 2026-11-04: 1985 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-poi-PPTWithAttachments</td><td class="r">M</td>
+  <td class="r" title="p95: 1515 ms · n=10">1,414</td><td class="r" title="p95: 5486 ms">5,319</td>
+  <td class="r">673</td><td class="r">55.1</td>
+  <td class="r" title="p95: 1400 ms">1,333</td>
+  
+  <td><span class="spark-dot" title="real-pptx-poi-PPTWithAttachments TS first_paint cold 1× at 2026-11-04: 1414 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-act-props</td><td class="r">M</td>
+  <td class="r" title="p95: 1643 ms · n=10">1,334</td><td class="r" title="p95: 5314 ms">5,100</td>
+  <td class="r">608</td><td class="r">44.8</td>
+  <td class="r" title="p95: 1673 ms">1,375</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-act-props TS first_paint cold 1× at 2026-11-04: 1334 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-axis-props</td><td class="r">M</td>
+  <td class="r" title="p95: 1403 ms · n=10">1,377</td><td class="r" title="p95: 5156 ms">5,040</td>
+  <td class="r">630</td><td class="r">63.3</td>
+  <td class="r" title="p95: 1558 ms">1,436</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-cht-axis-props TS first_paint cold 1× at 2026-11-04: 1377 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-category-access</td><td class="r">M</td>
+  <td class="r" title="p95: 1345 ms · n=10">1,302</td><td class="r" title="p95: 17917 ms">5,594</td>
+  <td class="r">564</td><td class="r">63.0</td>
+  <td class="r" title="p95: 1507 ms">1,354</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-cht-category-access TS first_paint cold 1× at 2026-11-04: 1302 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-chart-props</td><td class="r">M</td>
+  <td class="r" title="p95: 1380 ms · n=10">1,288</td><td class="r" title="p95: 6305 ms">5,720</td>
+  <td class="r">568</td><td class="r">49.9</td>
+  <td class="r" title="p95: 11791 ms">1,420</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-cht-chart-props TS first_paint cold 1× at 2026-11-04: 1288 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-datalabels</td><td class="r">M</td>
+  <td class="r" title="p95: 1401 ms · n=10">1,339</td><td class="r" title="p95: 39646 ms">5,262</td>
+  <td class="r">596</td><td class="r">49.3</td>
+  <td class="r" title="p95: 1510 ms">1,379</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-cht-datalabels TS first_paint cold 1× at 2026-11-04: 1339 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-series</td><td class="r">M</td>
+  <td class="r" title="p95: 1445 ms · n=10">1,397</td><td class="r" title="p95: 6360 ms">5,089</td>
+  <td class="r">665</td><td class="r">34.7</td>
+  <td class="r" title="p95: 1532 ms">1,421</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-cht-series TS first_paint cold 1× at 2026-11-04: 1397 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-ph-populated-placeholders</td><td class="r">M</td>
+  <td class="r" title="p95: 1401 ms · n=10">1,353</td><td class="r" title="p95: 5189 ms">4,946</td>
+  <td class="r">611</td><td class="r">69.6</td>
+  <td class="r" title="p95: 1714 ms">1,457</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-ph-populated-placeholders TS first_paint cold 1× at 2026-11-04: 1353 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-shp-movie-props</td><td class="r">M</td>
+  <td class="r" title="p95: 1379 ms · n=10">1,273</td><td class="r" title="p95: 13292 ms">5,415</td>
+  <td class="r">540</td><td class="r">40.5</td>
+  <td class="r" title="p95: 2156 ms">1,379</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-shp-movie-props TS first_paint cold 1× at 2026-11-04: 1273 ms">•</span></td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-shp-shapes</td><td class="r">M</td>
+  <td class="r" title="p95: 1414 ms · n=10">1,341</td><td class="r" title="p95: 6191 ms">5,736</td>
+  <td class="r">604</td><td class="r">49.0</td>
+  <td class="r" title="p95: 3462 ms">1,704</td>
+  
+  <td><span class="spark-dot" title="real-pptx-python-pptx-shp-shapes TS first_paint cold 1× at 2026-11-04: 1341 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-25297a56a758</td><td class="r">M</td>
+  <td class="r" title="p95: 1751 ms · n=10">1,667</td><td class="r" title="p95: 7131 ms">6,943</td>
+  <td class="r">956</td><td class="r">77.4</td>
+  <td class="r" title="p95: 4987 ms">2,004</td>
+  
+  <td><span class="spark-dot" title="upstream-25297a56a758 TS first_paint cold 1× at 2026-11-04: 1667 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-2789ff8d6772</td><td class="r">M</td>
+  <td class="r" title="p95: 2133 ms · n=10">1,531</td><td class="r" title="p95: 59677 ms">6,480</td>
+  <td class="r">801</td><td class="r">41.6</td>
+  <td class="r" title="p95: 1983 ms">1,593</td>
+  
+  <td><span class="spark-dot" title="upstream-2789ff8d6772 TS first_paint cold 1× at 2026-11-04: 1531 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-db668adb7e73</td><td class="r">M</td>
+  <td class="r" title="p95: 1565 ms · n=10">1,485</td><td class="r" title="p95: 6047 ms">5,634</td>
+  <td class="r">726</td><td class="r">53.1</td>
+  <td class="r" title="p95: 3511 ms">1,660</td>
+  
+  <td><span class="spark-dot" title="upstream-db668adb7e73 TS first_paint cold 1× at 2026-11-04: 1485 ms">•</span></td>
+</tr>
+<tr>
+  <td>upstream-f7015eebee2e</td><td class="r">M</td>
+  <td class="r" title="p95: 1512 ms · n=10">1,442</td><td class="r" title="p95: 7106 ms">6,006</td>
+  <td class="r">689</td><td class="r">45.9</td>
+  <td class="r" title="p95: 1453 ms">1,392</td>
+  
+  <td><span class="spark-dot" title="upstream-f7015eebee2e TS first_paint cold 1× at 2026-11-04: 1442 ms">•</span></td>
 </tr>
 </tbody>
 </table></div>
-<p class="gen">Generated 2026-11-06T01:38:12.420Z &middot; source: <code>perf/history.jsonl</code> &rarr; <code>scripts/ci/gen-perf-dashboard.mjs</code> &rarr; assembled by <code>scripts/ci/pages.sh</code></p>
+<p class="gen">Generated 2026-11-06T11:30:32.661Z &middot; source: <code>perf/history.jsonl</code> &rarr; <code>scripts/ci/gen-perf-dashboard.mjs</code> &rarr; assembled by <code>scripts/ci/pages.sh</code></p>
 </main>
 </body></html>

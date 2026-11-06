@@ -31,14 +31,54 @@ const mv = (r, key) => r?.metrics?.[key]?.median ?? null;
 
 const FORMATS = ['xlsx', 'docx', 'pptx'];
 const TIERS = ['S', 'M', 'L', 'XL'];
+
+// Build format/tier lookup from explicit fields (new rows) or infer from fixture_id prefix (legacy seeded rows).
+const fixtureFormatMap = new Map(); // fixture_id -> format
+const fixtureTierMap   = new Map(); // fixture_id -> tier
+for (const r of rows) {
+  if (r.format && !fixtureFormatMap.has(r.fixture_id)) fixtureFormatMap.set(r.fixture_id, r.format);
+  if (r.tier   && !fixtureTierMap.has(r.fixture_id))   fixtureTierMap.set(r.fixture_id, r.tier);
+}
+
+function fixtureFormat(fid) {
+  if (fixtureFormatMap.has(fid)) return fixtureFormatMap.get(fid);
+  return FORMATS.find(fmt => fid.startsWith(fmt + '-')) ?? null;
+}
+function fixtureTier(fid) {
+  if (fixtureTierMap.has(fid)) return fixtureTierMap.get(fid);
+  const fmt = fixtureFormat(fid);
+  if (fmt) { const t = fid.slice(fmt.length + 1); if (TIERS.includes(t)) return t; }
+  return null;
+}
+
+// Only include tier-aggregate rows (fixture_id = "fmt-TIER") and per-fixture rows with known format.
+// Exclude legacy format-tier aggregate rows when per-fixture rows for the same format+tier exist.
 const allFixtures = [...new Set(rows.map(r => r.fixture_id))];
+
+// Detect which format+tier pairs have per-fixture rows (non-aggregate)
+const tierHasPerFixture = new Set(); // "fmt|tier"
+for (const fid of allFixtures) {
+  const fmt = fixtureFormat(fid), tier = fixtureTier(fid);
+  if (!fmt || !tier) continue;
+  const isTierAggregate = fid === `${fmt}-${tier}`;
+  if (!isTierAggregate) tierHasPerFixture.add(`${fmt}|${tier}`);
+}
 
 const fixturesByFmt = Object.fromEntries(FORMATS.map(fmt => [
   fmt,
   allFixtures
-    .filter(f => f.startsWith(fmt + '-'))
+    .filter(fid => {
+      const f = fixtureFormat(fid);
+      if (f !== fmt) return false;
+      const tier = fixtureTier(fid);
+      if (!tier) return false;
+      // If per-fixture rows exist for this format+tier, skip the legacy tier-aggregate row
+      const isTierAggregate = fid === `${fmt}-${tier}`;
+      if (isTierAggregate && tierHasPerFixture.has(`${fmt}|${tier}`)) return false;
+      return true;
+    })
     .sort((a, b) => {
-      const ta = a.slice(fmt.length + 1), tb = b.slice(fmt.length + 1);
+      const ta = fixtureTier(a) ?? '', tb = fixtureTier(b) ?? '';
       const d = TIERS.indexOf(ta) - TIERS.indexOf(tb);
       return d !== 0 ? d : a.localeCompare(b);
     }),
@@ -95,7 +135,7 @@ function fmtSection(fmt) {
   const hasWasm = fixtures.some(fid => get(fid, 'wasm', 'cold', 1));
 
   const tableRows = fixtures.map(fid => {
-    const tier = fid.slice(fmt.length + 1);
+    const tier = fixtureTier(fid) ?? fid.slice(fmt.length + 1);
     const ts1  = get(fid, 'ts', 'cold', 1);
     const ts4  = get(fid, 'ts', 'cold', 4);
     const tsW1 = get(fid, 'ts', 'warm', 1);
@@ -110,12 +150,29 @@ function fmtSection(fmt) {
     const wasmFp  = mv(w1, 'first_paint_ms');
     const wasmTti = mv(wW1, 'tti_ms');
 
+    // p95 for confidence tooltip
+    const tsFpP95   = ts1?.metrics?.first_paint_ms?.p95 ?? null;
+    const tsFp4P95  = ts4?.metrics?.first_paint_ms?.p95 ?? null;
+    const tsTtiP95  = tsW1?.metrics?.tti_ms?.p95 ?? null;
+    const tsN       = ts1?.n ?? null;
+    const p95title  = (med, p95, n) => {
+      if (med == null) return '';
+      const parts = [];
+      if (p95 != null) parts.push(`p95: ${Math.round(p95)} ms`);
+      if (n != null) parts.push(`n=${n}`);
+      return parts.length ? ` title="${parts.join(' · ')}"` : '';
+    };
+
     const spark = sparkSvg(trendPoints(fid, 'ts', 'first_paint_ms'), `${fid} TS first_paint cold 1×`);
 
     // Cross-host flag: if rows for this fixture span more than one host id, mark not comparable
     const hostIds = new Set(rows.filter(r => r.fixture_id === fid).map(r => r.host?.id ?? '').filter(Boolean));
     const crossHost = hostIds.size > 1
       ? `<span class="muted" title="data from ${hostIds.size} different machines — not directly comparable">⚠&nbsp;cross-host</span> ` : '';
+    // Rerun indicator: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures
+    const isRerun = ts1?.rerun === true || ts4?.rerun === true || tsW1?.rerun === true;
+    const rerunMark = isRerun
+      ? `<span class="muted" title="post-scroll-fix rerun: scroll capped at 200 steps — full_render_ms and scroll step metrics not comparable with hinted fixtures; first_paint is comparable">⟳</span> ` : '';
 
     const wasmCols = hasWasm
       ? `<td class="r">${fmtMs(wasmFp)}</td><td class="r">${fmtMs(wasmTti)}</td><td>${ratioCell(wasmFp, tsFp)}</td>`
@@ -123,11 +180,11 @@ function fmtSection(fmt) {
 
     return `<tr>
   <td>${h(fid)}</td><td class="r">${h(tier)}</td>
-  <td class="r">${fmtMs(tsFp)}</td><td class="r">${fmtMs(tsFp4)}</td>
+  <td class="r"${p95title(tsFp, tsFpP95, tsN)}>${fmtMs(tsFp)}</td><td class="r"${p95title(tsFp4, tsFp4P95, null)}>${fmtMs(tsFp4)}</td>
   <td class="r">${fmtMs(tsParse)}</td><td class="r">${fmtMiB(tsHeap)}</td>
-  <td class="r">${fmtMs(tsTti)}</td>
+  <td class="r"${p95title(tsTti, tsTtiP95, null)}>${fmtMs(tsTti)}</td>
   ${wasmCols}
-  <td>${crossHost}${spark}</td>
+  <td>${rerunMark}${crossHost}${spark}</td>
 </tr>`;
   }).join('\n');
 
@@ -214,7 +271,7 @@ td{border-top:1px solid var(--rule);padding:4px 8px;vertical-align:middle;white-
   latest commit <code>${h((latestRow?.commit ?? '—').slice(0, 7))}</code> (${h((latestRow?.date ?? '').slice(0, 10))}) &middot;
   Chrome ${h(chrome)} &middot; ${h(hostDesc)} &middot;
   Engine: <strong>ts</strong> = upstream ChristopherVR/ooxml @ e66aaec; <strong>wasm</strong> = Nitro XML Rust/WASM (not yet measured) &middot;
-  Losses vs TS shown as prominently as wins. Cross-host rows ⚠ are not directly comparable. &middot;
+  Losses vs TS shown as prominently as wins. Cross-host rows ⚠ are not directly comparable. ⟳ = post-scroll-fix rerun (scroll capped 200 steps; <code>full_render_ms</code> and scroll step metrics not comparable with hinted fixtures). &middot;
   <a href="baseline/">Full TS baseline report</a>
 </div>
 ${sections}

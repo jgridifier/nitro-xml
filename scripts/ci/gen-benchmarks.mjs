@@ -37,14 +37,50 @@ const mv = (r, key) => r?.metrics?.[key]?.median ?? null;
 const FORMATS = ['xlsx', 'docx', 'pptx'];
 const FORMAT_LABEL = { xlsx: 'Excel (.xlsx)', docx: 'Word (.docx)', pptx: 'PowerPoint (.pptx)' };
 const TIERS = ['S', 'M', 'L', 'XL'];
+
+// Build format/tier lookup from explicit fields (new rows) or infer from fixture_id prefix (legacy seeded rows).
+const fixtureFormatMap = new Map();
+const fixtureTierMap   = new Map();
+for (const r of rows) {
+  if (r.format && !fixtureFormatMap.has(r.fixture_id)) fixtureFormatMap.set(r.fixture_id, r.format);
+  if (r.tier   && !fixtureTierMap.has(r.fixture_id))   fixtureTierMap.set(r.fixture_id, r.tier);
+}
+
+function fixtureFormat(fid) {
+  if (fixtureFormatMap.has(fid)) return fixtureFormatMap.get(fid);
+  return FORMATS.find(fmt => fid.startsWith(fmt + '-')) ?? null;
+}
+function fixtureTier(fid) {
+  if (fixtureTierMap.has(fid)) return fixtureTierMap.get(fid);
+  const fmt = fixtureFormat(fid);
+  if (fmt) { const t = fid.slice(fmt.length + 1); if (TIERS.includes(t)) return t; }
+  return null;
+}
+
 const allFixtures = [...new Set(rows.map(r => r.fixture_id))];
+
+// If per-fixture rows exist for a format+tier, skip the legacy tier-aggregate row
+const tierHasPerFixture = new Set();
+for (const fid of allFixtures) {
+  const fmt = fixtureFormat(fid), tier = fixtureTier(fid);
+  if (!fmt || !tier) continue;
+  if (fid !== `${fmt}-${tier}`) tierHasPerFixture.add(`${fmt}|${tier}`);
+}
 
 const fixturesByFmt = Object.fromEntries(FORMATS.map(fmt => [
   fmt,
   allFixtures
-    .filter(f => f.startsWith(fmt + '-'))
+    .filter(fid => {
+      const f = fixtureFormat(fid);
+      if (f !== fmt) return false;
+      const tier = fixtureTier(fid);
+      if (!tier) return false;
+      const isTierAggregate = fid === `${fmt}-${tier}`;
+      if (isTierAggregate && tierHasPerFixture.has(`${fmt}|${tier}`)) return false;
+      return true;
+    })
     .sort((a, b) => {
-      const ta = a.slice(fmt.length + 1), tb = b.slice(fmt.length + 1);
+      const ta = fixtureTier(a) ?? '', tb = fixtureTier(b) ?? '';
       const d = TIERS.indexOf(ta) - TIERS.indexOf(tb);
       return d !== 0 ? d : a.localeCompare(b);
     }),
@@ -73,7 +109,7 @@ function comparisonTable(fmt) {
 
   // Build row data
   const tableData = fixtures.map(fid => {
-    const tier = fid.slice(fmt.length + 1);
+    const tier = fixtureTier(fid) ?? fid.slice(fmt.length + 1);
     const ts1 = get(fid, 'ts', 'cold', 1);
     const w1  = get(fid, 'wasm', 'cold', 1);
     const tsFp   = mv(ts1, 'first_paint_ms');
@@ -280,7 +316,7 @@ ${compSections}
   <dt>Host</dt>
   <dd>${h(hostCpu)}, ${hostCores} logical cores, ${h(hostOs)}; runner: ${h(latestRow?.runner ?? 'unknown')}</dd>
   <dt>Timing</dt>
-  <dd><code>first_paint_ms</code>: navigation start to first painted frame (PerformancePaintTiming "first-paint"); <code>parse_ms</code>: engine parse call only; <code>tti_ms</code> (warm): time to interactive after first paint (harness interaction start, to avoid counting harness scroll steps)</dd>
+  <dd><code>first_paint_ms</code>: navigation start to first painted frame (PerformancePaintTiming "first-paint"); <code>parse_ms</code>: engine parse call only; <code>tti_ms</code> (warm): time to interactive, measured as the harness interaction start (immediately after first_paint) so that harness scroll and page-walk steps do not inflate the metric — this corrects an earlier bimodal p95 on xlsx-M warm 1× (see <a href="../perf/baseline/">TS baseline report §xlsx-M warm 1× TTI</a> for the full investigation)</dd>
   <dt>Memory</dt>
   <dd>JS heap size via <code>performance.memory.usedJSHeapSize</code> after a cold parse with the model retained. This is an approximate lower bound — it does not include off-heap WASM linear memory, which is reported separately when WASM data exists.</dd>
   <dt>Fairness</dt>

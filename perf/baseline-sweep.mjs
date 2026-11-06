@@ -18,6 +18,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { logBoxConditions } from './box-conditions.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const a = {};
@@ -32,8 +33,14 @@ const CELLS = [['cold', 1], ['cold', 4], ['warm', 1], ['warm', 4]];
 if (a.merge) {
   const files = readdirSync(dir).filter((f) => f.endsWith('.jsonl') && f !== 'failures.jsonl').sort();
   const lines = files.flatMap((f) => readFileSync(join(dir, f), 'utf8').split('\n').filter(Boolean));
-  writeFileSync(resolve(a.merge), lines.join('\n') + '\n');
-  console.log(`merged ${files.length} chunk files, ${lines.length} rows -> ${a.merge}`);
+  const outPath = resolve(a.merge);
+  writeFileSync(outPath, lines.join('\n') + '\n');
+  // Also copy failures.jsonl alongside the merged output for use by assemble-combined.mjs.
+  const failSrc = join(dir, 'failures.jsonl');
+  const failDst = outPath.replace(/\.jsonl$/, '.failures.jsonl');
+  if (existsSync(failSrc)) writeFileSync(failDst, readFileSync(failSrc));
+  else writeFileSync(failDst, '');
+  console.log(`merged ${files.length} chunk files, ${lines.length} rows -> ${outPath}`);
   process.exit(0);
 }
 
@@ -50,15 +57,30 @@ const runChunk = (mode, thr, n, ids) =>
   new Promise((done) => {
     const out = join(dir, `${mode}-${thr}x-${String(n).padStart(3, '0')}.json`);
     if (existsSync(out.replace(/\.json$/, '.jsonl'))) return done();
+    logBoxConditions({ fixture_id: ids[0] ?? null, mode, cpu: thr });
     const t0 = Date.now();
-    const p = spawn('node', [join(here, 'run.mjs'), '--corpus', 'manifest', '--engine', 'ts', '--mode', mode, '--cpu-throttle', String(thr), '--fixtures', ids.join(','), '--out', out], {
+    const timeoutMs = a.timeout ? Number(a.timeout) : 120000;
+    const extraArgs = [
+      '--timeout', String(timeoutMs),
+      ...(a.iterations ? ['--iterations', String(a.iterations)] : []),
+    ];
+    const p = spawn('node', [join(here, 'run.mjs'), '--corpus', 'manifest', '--engine', 'ts', '--mode', mode, '--cpu-throttle', String(thr), '--fixtures', ids.join(','), '--out', out, ...extraArgs], {
       env: { ...process.env, PERF_CONCURRENT_RUNS: String(WORKERS) },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    // Wall-clock kill: Playwright waitForFunction timeout doesn't fire when JS is synchronous.
+    // Allow each fixture × iteration up to timeout, plus 60s overhead, then kill.
+    const iterCount = a.iterations ? Number(a.iterations) : (mode === 'cold' ? 10 : 20);
+    const killMs = ids.length * iterCount * (timeoutMs + 1000) + 60000;
+    const killTimer = setTimeout(() => {
+      console.error(`${new Date().toISOString()} SIGKILL chunk ${n} (stuck >${(killMs / 60000).toFixed(1)}min)`);
+      p.kill('SIGKILL');
+    }, killMs);
     let err = '';
     p.stderr.on('data', (d) => (err += d));
     p.stdout.on('data', () => {});
     p.on('close', (code) => {
+      clearTimeout(killTimer);
       // run.mjs exits 1 when some fixture failed but still writes the rows of those that passed
       const failed = existsSync(out) ? JSON.parse(readFileSync(out, 'utf8')).failures : [{ error: err.slice(-400) }];
       for (const f of failed) appendFileSync(join(dir, 'failures.jsonl'), JSON.stringify({ mode, cpuThrottle: thr, ...f }) + '\n');

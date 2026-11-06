@@ -24,6 +24,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { startServer } from './server.mjs';
+import { logBoxConditions } from './box-conditions.mjs';
 import { summarize } from './stats.mjs';
 import { collectSizes } from './sizes.mjs';
 import { hostFingerprint } from './host.mjs';
@@ -76,7 +77,7 @@ function manifestCorpus() {
   const taken = new Map();
   for (const r of rows) taken.set(r.id, (taken.get(r.id) ?? 0) + 1);
   return rows
-    .filter((r) => ['xlsx', 'docx', 'pptx'].includes(r.format) && ['S', 'M'].includes(r.tier) && r.path.startsWith('fixtures/') && r.redistributable !== false)
+    .filter((r) => ['xlsx', 'docx', 'pptx'].includes(r.format) && ['S', 'M', 'L', 'XL'].includes(r.tier) && r.path.startsWith('fixtures/') && r.redistributable !== false)
     .map((r) => {
       const h = hints.get(r.path) ?? {};
       // manifest ids are not unique across extensions (poi-60316 .docx and .dotx); keep rows distinct
@@ -256,6 +257,7 @@ const addRow = (fx, engine, iteration, r) =>
 
 let blockedTotal = 0;
 for (const fx of fixtures) {
+  logBoxConditions({ fixture_id: fx.id, mode: MODE, cpu: THROTTLE });
   for (const engine of ENGINES) {
     const samples = [];
     let detail = null;

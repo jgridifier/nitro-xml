@@ -7,6 +7,7 @@
 - 📄 **Plan:** https://jgridifier.github.io/nitro-xml/ ([docs/PLAN.md](docs/PLAN.md))
 - 📐 **Product spec and gates:** [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) (source of every parity, perf, bundle, accessibility and editor gate)
 - 🗂️ **Board:** https://github.com/users/jgridifier/projects/2 (view **Ready now** for claimable work)
+- 📊 **Benchmarks:** https://jgridifier.github.io/nitro-xml/benchmarks/ (WASM vs TS; not yet measured — shell live, numbers pending #10)
 
 ## What it is
 

@@ -1,0 +1,156 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT; generated 2026-11-06T01:38:12.420Z by scripts/ci/gen-perf-dashboard.mjs -->
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nitro XML · Perf Scoreboard</title>
+<style>
+:root{--navy:#0b1f3a;--ink:#000;--paper:#fff;--muted:#555;--rule:#c9d3e3;--tint:#e8eef7}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,sans-serif;color:var(--ink);background:var(--paper)}
+header{background:var(--navy);color:#fff;padding:1rem 1.25rem}
+header h1{margin:0;font-size:1.3rem}
+header nav{margin-top:.35rem;font-size:.88rem}
+header nav a{color:#fff;margin-right:1rem}
+main{max-width:1120px;margin:0 auto;padding:.75rem 1rem 3rem}
+h2{color:var(--navy);border-bottom:2px solid var(--navy);padding-bottom:.2rem;margin-top:2rem}
+.scroll{overflow-x:auto;border:1px solid var(--navy);margin:.6rem 0}
+table{border-collapse:collapse;width:100%;font-size:.82rem}
+th{background:var(--navy);color:#fff;padding:5px 8px;text-align:left;white-space:nowrap}
+td{border-top:1px solid var(--rule);padding:4px 8px;vertical-align:middle;white-space:nowrap}
+.r{text-align:right;font-variant-numeric:tabular-nums}
+.win{color:#1a7f37;font-weight:600}
+.loss{color:#c0392b;font-weight:600}
+.muted{color:var(--muted)}
+.note{background:var(--tint);border-left:4px solid var(--navy);padding:8px 12px;margin:.6rem 0;font-size:.9rem}
+.note-sm{padding:5px 10px;font-size:.85rem;margin:.35rem 0}
+.spark-dot{color:var(--navy);font-size:1.1rem;line-height:1}
+.gen{font-size:.78rem;color:var(--muted);margin-top:2rem}
+@media(prefers-color-scheme:dark){
+  :root{--paper:#06101f;--ink:#e8eef7;--rule:#1e3050;--tint:#0d1e35;--muted:#9db6dc}
+  tr:nth-child(even) td{background:#0a1829}
+  .win{color:#4caf50}
+}
+</style>
+</head><body>
+<header>
+  <h1>Nitro XML &middot; Perf Scoreboard</h1>
+  <nav>
+    <a href="../">Plan</a>
+    <a href="../scoreboard/">Scoreboard vs alternatives</a>
+    <a href="baseline/">TS baseline detail</a>
+    <a href="../benchmarks/">Public benchmarks</a>
+    <a href="https://github.com/jgridifier/nitro-xml">Repo</a>
+  </nav>
+</header>
+<main>
+<div class="note">
+  <strong>1 commit tracked</strong> &middot;
+  6 fixtures &middot;
+  latest commit <code>7ce81c1</code> (2026-10-28) &middot;
+  Chrome 156.0.8078.4 &middot; Intel(R) Xeon(R) Processor, 8 cores, linux 6.12.94+ &middot;
+  Engine: <strong>ts</strong> = upstream ChristopherVR/ooxml @ e66aaec; <strong>wasm</strong> = Nitro XML Rust/WASM (not yet measured) &middot;
+  Losses vs TS shown as prominently as wins. Cross-host rows ⚠ are not directly comparable. &middot;
+  <a href="baseline/">Full TS baseline report</a>
+</div>
+
+<h2>xlsx</h2>
+<p class="note note-sm">WASM engine not yet measured — WASM columns will appear once data exists.</p>
+<div class="scroll"><table>
+<thead><tr>
+  <th>Fixture</th><th>Tier</th>
+  <th title="cold 1× CPU — time from navigation start to first painted frame (ms)">TS first_paint cold 1×</th>
+  <th title="cold 4× CPU throttle — same metric at 4× slowdown">TS first_paint cold 4×</th>
+  <th title="cold 1× CPU — engine parse time (ms)">TS parse cold 1×</th>
+  <th title="cold 1× CPU — JS heap after parse (MiB)">TS heap (MiB)</th>
+  <th title="warm 1× CPU — time to interactive after first paint (ms)">TS TTI warm 1×</th>
+  
+  <th title="last-N cold 1× first_paint trend">Trend (TS first_paint)</th>
+</tr></thead>
+<tbody>
+<tr>
+  <td>xlsx-S</td><td class="r">S</td>
+  <td class="r">785</td><td class="r">2,344</td>
+  <td class="r">125</td><td class="r">17.7</td>
+  <td class="r">697</td>
+  
+  <td><span class="spark-dot" title="xlsx-S TS first_paint cold 1× at 2026-10-28: 785 ms">•</span></td>
+</tr>
+<tr>
+  <td>xlsx-M</td><td class="r">M</td>
+  <td class="r">990</td><td class="r">3,006</td>
+  <td class="r">345</td><td class="r">80.8</td>
+  <td class="r">946</td>
+  
+  <td><span class="spark-dot" title="xlsx-M TS first_paint cold 1× at 2026-10-28: 990 ms">•</span></td>
+</tr>
+</tbody>
+</table></div>
+
+<h2>docx</h2>
+<p class="note note-sm">WASM engine not yet measured — WASM columns will appear once data exists.</p>
+<div class="scroll"><table>
+<thead><tr>
+  <th>Fixture</th><th>Tier</th>
+  <th title="cold 1× CPU — time from navigation start to first painted frame (ms)">TS first_paint cold 1×</th>
+  <th title="cold 4× CPU throttle — same metric at 4× slowdown">TS first_paint cold 4×</th>
+  <th title="cold 1× CPU — engine parse time (ms)">TS parse cold 1×</th>
+  <th title="cold 1× CPU — JS heap after parse (MiB)">TS heap (MiB)</th>
+  <th title="warm 1× CPU — time to interactive after first paint (ms)">TS TTI warm 1×</th>
+  
+  <th title="last-N cold 1× first_paint trend">Trend (TS first_paint)</th>
+</tr></thead>
+<tbody>
+<tr>
+  <td>docx-S</td><td class="r">S</td>
+  <td class="r">459</td><td class="r">1,120</td>
+  <td class="r">109</td><td class="r">10.6</td>
+  <td class="r">436</td>
+  
+  <td><span class="spark-dot" title="docx-S TS first_paint cold 1× at 2026-10-28: 459 ms">•</span></td>
+</tr>
+<tr>
+  <td>docx-M</td><td class="r">M</td>
+  <td class="r">487</td><td class="r">1,303</td>
+  <td class="r">133</td><td class="r">10.4</td>
+  <td class="r">480</td>
+  
+  <td><span class="spark-dot" title="docx-M TS first_paint cold 1× at 2026-10-28: 487 ms">•</span></td>
+</tr>
+</tbody>
+</table></div>
+
+<h2>pptx</h2>
+<p class="note note-sm">WASM engine not yet measured — WASM columns will appear once data exists.</p>
+<div class="scroll"><table>
+<thead><tr>
+  <th>Fixture</th><th>Tier</th>
+  <th title="cold 1× CPU — time from navigation start to first painted frame (ms)">TS first_paint cold 1×</th>
+  <th title="cold 4× CPU throttle — same metric at 4× slowdown">TS first_paint cold 4×</th>
+  <th title="cold 1× CPU — engine parse time (ms)">TS parse cold 1×</th>
+  <th title="cold 1× CPU — JS heap after parse (MiB)">TS heap (MiB)</th>
+  <th title="warm 1× CPU — time to interactive after first paint (ms)">TS TTI warm 1×</th>
+  
+  <th title="last-N cold 1× first_paint trend">Trend (TS first_paint)</th>
+</tr></thead>
+<tbody>
+<tr>
+  <td>pptx-S</td><td class="r">S</td>
+  <td class="r">1,387</td><td class="r">4,524</td>
+  <td class="r">576</td><td class="r">63.4</td>
+  <td class="r">1,279</td>
+  
+  <td><span class="spark-dot" title="pptx-S TS first_paint cold 1× at 2026-10-28: 1387 ms">•</span></td>
+</tr>
+<tr>
+  <td>pptx-M</td><td class="r">M</td>
+  <td class="r">1,336</td><td class="r">5,001</td>
+  <td class="r">597</td><td class="r">43.8</td>
+  <td class="r">1,349</td>
+  
+  <td><span class="spark-dot" title="pptx-M TS first_paint cold 1× at 2026-10-28: 1336 ms">•</span></td>
+</tr>
+</tbody>
+</table></div>
+<p class="gen">Generated 2026-11-06T01:38:12.420Z &middot; source: <code>perf/history.jsonl</code> &rarr; <code>scripts/ci/gen-perf-dashboard.mjs</code> &rarr; assembled by <code>scripts/ci/pages.sh</code></p>
+</main>
+</body></html>

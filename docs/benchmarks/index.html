@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- SPDX-License-Identifier: MIT; generated 2026-11-06T01:38:13.009Z by scripts/ci/gen-benchmarks.mjs -->
+<!-- SPDX-License-Identifier: MIT; generated 2026-11-06T11:30:32.782Z by scripts/ci/gen-benchmarks.mjs -->
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -68,7 +68,7 @@ dl.method dd{margin:0}
 <main>
 
 <div class="note">
-  <strong>Status (2026-10-28):</strong>
+  <strong>Status (2026-11-04):</strong>
   The Rust/WASM engine has not yet reached a full open-to-first-paint path.
   All WASM vs TS cells are <em>not yet measured</em>; no provisional numbers are shown.
   The measurement PR for WASM numbers is tracked separately in issue <a href="https://github.com/jgridifier/nitro-xml/issues/10">#10</a>.
@@ -96,7 +96,7 @@ Unmeasured cells are labelled <em>not yet measured</em> and are never replaced b
 
 <h3>Excel (.xlsx)</h3>
 <div class="scroll"><table>
-<caption>Excel (.xlsx) — first_paint cold 1× CPU; TS baseline at <code>7ce81c1</code></caption>
+<caption>Excel (.xlsx) — first_paint cold 1× CPU; TS baseline at <code>4451709</code></caption>
 <thead><tr>
   <th>Fixture</th><th>Tier</th>
   <th title="upstream TS engine, cold load, 1× CPU (ms)">TS first_paint (ms)</th>
@@ -107,17 +107,304 @@ Unmeasured cells are labelled <em>not yet measured</em> and are never replaced b
 </tr></thead>
 <tbody>
 <tr>
-  <td>xlsx-S</td><td class="tier">S</td>
-  <td class="r num">785 ms</td>
-  <td class="r num">125 ms</td>
-  <td class="r num">17.7 MiB</td>
+  <td>bidi-arabic-hebrew-mixed</td><td class="tier">S</td>
+  <td class="r num">765 ms</td>
+  <td class="r num">107 ms</td>
+  <td class="r num">15.0 MiB</td>
   <td class="na" colspan="2">not yet measured</td>
 </tr>
 <tr>
-  <td>xlsx-M</td><td class="tier">M</td>
-  <td class="r num">990 ms</td>
-  <td class="r num">345 ms</td>
-  <td class="r num">80.8 MiB</td>
+  <td>bidi-rtl-sheet</td><td class="tier">S</td>
+  <td class="r num">737 ms</td>
+  <td class="r num">97 ms</td>
+  <td class="r num">15.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-1k</td><td class="tier">S</td>
+  <td class="r num">841 ms</td>
+  <td class="r num">130 ms</td>
+  <td class="r num">16.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-1k-merges</td><td class="tier">S</td>
+  <td class="r num">756 ms</td>
+  <td class="r num">120 ms</td>
+  <td class="r num">17.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-1k-pad-s</td><td class="tier">S</td>
+  <td class="r num">752 ms</td>
+  <td class="r num">118 ms</td>
+  <td class="r num">18.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-45540_classic_Footer</td><td class="tier">S</td>
+  <td class="r num">773 ms</td>
+  <td class="r num">142 ms</td>
+  <td class="r num">18.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-45540_classic_Header</td><td class="tier">S</td>
+  <td class="r num">946 ms</td>
+  <td class="r num">160 ms</td>
+  <td class="r num">19.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-45544</td><td class="tier">S</td>
+  <td class="r num">822 ms</td>
+  <td class="r num">152 ms</td>
+  <td class="r num">19.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-47813</td><td class="tier">S</td>
+  <td class="r num">803 ms</td>
+  <td class="r num">149 ms</td>
+  <td class="r num">22.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-49156</td><td class="tier">S</td>
+  <td class="r num">729 ms</td>
+  <td class="r num">120 ms</td>
+  <td class="r num">17.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-50096</td><td class="tier">S</td>
+  <td class="r num">716 ms</td>
+  <td class="r num">107 ms</td>
+  <td class="r num">19.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-56644</td><td class="tier">S</td>
+  <td class="r num">937 ms</td>
+  <td class="r num">155 ms</td>
+  <td class="r num">18.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-61652</td><td class="tier">S</td>
+  <td class="r num">857 ms</td>
+  <td class="r num">129 ms</td>
+  <td class="r num">16.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-DataTableCities</td><td class="tier">S</td>
+  <td class="r num">756 ms</td>
+  <td class="r num">127 ms</td>
+  <td class="r num">18.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-DateFormatTests</td><td class="tier">S</td>
+  <td class="r num">981 ms</td>
+  <td class="r num">144 ms</td>
+  <td class="r num">19.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-ExcelPivotTableSample</td><td class="tier">S</td>
+  <td class="r num">784 ms</td>
+  <td class="r num">111 ms</td>
+  <td class="r num">17.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-ExcelWithAttachments</td><td class="tier">S</td>
+  <td class="r num">1,720 ms</td>
+  <td class="r num">289 ms</td>
+  <td class="r num">17.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-FormulaEvalTestData_Copy</td><td class="tier">S</td>
+  <td class="r num">2,204 ms</td>
+  <td class="r num">563 ms</td>
+  <td class="r num">24.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-NewStyleConditionalFormattings</td><td class="tier">S</td>
+  <td class="r num">796 ms</td>
+  <td class="r num">130 ms</td>
+  <td class="r num">16.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-test</td><td class="tier">S</td>
+  <td class="r num">1,965 ms</td>
+  <td class="r num">267 ms</td>
+  <td class="r num">16.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-WithChartSheet</td><td class="tier">S</td>
+  <td class="r num">745 ms</td>
+  <td class="r num">113 ms</td>
+  <td class="r num">18.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-WithEmbeded</td><td class="tier">S</td>
+  <td class="r num">747 ms</td>
+  <td class="r num">153 ms</td>
+  <td class="r num">28.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-python-pptx-shp-embedded-xlsx</td><td class="tier">S</td>
+  <td class="r num">771 ms</td>
+  <td class="r num">103 ms</td>
+  <td class="r num">15.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-usgov-census-NST-EST2024-POP</td><td class="tier">S</td>
+  <td class="r num">744 ms</td>
+  <td class="r num">128 ms</td>
+  <td class="r num">21.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-usgov-eia-MER-T01.01</td><td class="tier">S</td>
+  <td class="r num">815 ms</td>
+  <td class="r num">154 ms</td>
+  <td class="r num">23.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-usgov-fhwa-2022-vm1</td><td class="tier">S</td>
+  <td class="r num">795 ms</td>
+  <td class="r num">150 ms</td>
+  <td class="r num">20.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-1a304a300451</td><td class="tier">S</td>
+  <td class="r num">751 ms</td>
+  <td class="r num">97 ms</td>
+  <td class="r num">16.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-2ad922a2a025</td><td class="tier">S</td>
+  <td class="r num">737 ms</td>
+  <td class="r num">129 ms</td>
+  <td class="r num">19.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-2f38830758e8</td><td class="tier">S</td>
+  <td class="r num">720 ms</td>
+  <td class="r num">111 ms</td>
+  <td class="r num">17.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-3fdae3824dde</td><td class="tier">S</td>
+  <td class="r num">709 ms</td>
+  <td class="r num">111 ms</td>
+  <td class="r num">18.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-8b581ee14978</td><td class="tier">S</td>
+  <td class="r num">721 ms</td>
+  <td class="r num">105 ms</td>
+  <td class="r num">17.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-9ed0ab63f8de</td><td class="tier">S</td>
+  <td class="r num">736 ms</td>
+  <td class="r num">117 ms</td>
+  <td class="r num">18.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-fd8fbde7846d</td><td class="tier">S</td>
+  <td class="r num">744 ms</td>
+  <td class="r num">96 ms</td>
+  <td class="r num">15.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-100k</td><td class="tier">M</td>
+  <td class="r num">1,007 ms</td>
+  <td class="r num">355 ms</td>
+  <td class="r num">75.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-100k-b</td><td class="tier">M</td>
+  <td class="r num">1,048 ms</td>
+  <td class="r num">356 ms</td>
+  <td class="r num">79.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-xlsx-cells-100k-c</td><td class="tier">M</td>
+  <td class="r num">1,034 ms</td>
+  <td class="r num">380 ms</td>
+  <td class="r num">90.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-46535</td><td class="tier">M</td>
+  <td class="r num">1,048 ms</td>
+  <td class="r num">250 ms</td>
+  <td class="r num">23.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-57181</td><td class="tier">M</td>
+  <td class="r num">1,023 ms</td>
+  <td class="r num">314 ms</td>
+  <td class="r num">149.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-57893-many-merges</td><td class="tier">M</td>
+  <td class="r num">1,378 ms</td>
+  <td class="r num">639 ms</td>
+  <td class="r num">115.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-ConditionalFormattingSamples</td><td class="tier">M</td>
+  <td class="r num">988 ms</td>
+  <td class="r num">256 ms</td>
+  <td class="r num">18.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-dataValidationTableRange</td><td class="tier">M</td>
+  <td class="r num">917 ms</td>
+  <td class="r num">239 ms</td>
+  <td class="r num">20.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-no_drawing_patriarch</td><td class="tier">M</td>
+  <td class="r num">3,738 ms</td>
+  <td class="r num">1,968 ms</td>
+  <td class="r num">68.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-xlsx-poi-StructuredRefs-lots-with-lookups</td><td class="tier">M</td>
+  <td class="r num">1,021 ms</td>
+  <td class="r num">322 ms</td>
+  <td class="r num">39.1 MiB</td>
   <td class="na" colspan="2">not yet measured</td>
 </tr>
 </tbody>
@@ -125,7 +412,7 @@ Unmeasured cells are labelled <em>not yet measured</em> and are never replaced b
 
 <h3>Word (.docx)</h3>
 <div class="scroll"><table>
-<caption>Word (.docx) — first_paint cold 1× CPU; TS baseline at <code>7ce81c1</code></caption>
+<caption>Word (.docx) — first_paint cold 1× CPU; TS baseline at <code>4451709</code></caption>
 <thead><tr>
   <th>Fixture</th><th>Tier</th>
   <th title="upstream TS engine, cold load, 1× CPU (ms)">TS first_paint (ms)</th>
@@ -136,17 +423,556 @@ Unmeasured cells are labelled <em>not yet measured</em> and are never replaced b
 </tr></thead>
 <tbody>
 <tr>
-  <td>docx-S</td><td class="tier">S</td>
-  <td class="r num">459 ms</td>
-  <td class="r num">109 ms</td>
+  <td>bidi-arabic-hebrew-paragraphs</td><td class="tier">S</td>
+  <td class="r num">467 ms</td>
+  <td class="r num">106 ms</td>
+  <td class="r num">8.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-docx-equation</td><td class="tier">S</td>
+  <td class="r num">452 ms</td>
+  <td class="r num">102 ms</td>
+  <td class="r num">7.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-docx-line-numbers</td><td class="tier">S</td>
+  <td class="r num">455 ms</td>
+  <td class="r num">99 ms</td>
+  <td class="r num">7.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-docx-page-borders</td><td class="tier">S</td>
+  <td class="r num">443 ms</td>
+  <td class="r num">97 ms</td>
+  <td class="r num">7.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-docx-pages-10</td><td class="tier">S</td>
+  <td class="r num">447 ms</td>
+  <td class="r num">104 ms</td>
   <td class="r num">10.6 MiB</td>
   <td class="na" colspan="2">not yet measured</td>
 </tr>
 <tr>
-  <td>docx-M</td><td class="tier">M</td>
-  <td class="r num">487 ms</td>
-  <td class="r num">133 ms</td>
+  <td>gen-docx-pages-10-b</td><td class="tier">S</td>
+  <td class="r num">448 ms</td>
+  <td class="r num">101 ms</td>
+  <td class="r num">9.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-docx-pages-10-c</td><td class="tier">S</td>
+  <td class="r num">458 ms</td>
+  <td class="r num">106 ms</td>
+  <td class="r num">9.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-45690</td><td class="tier">S</td>
+  <td class="r num">643 ms</td>
+  <td class="r num">263 ms</td>
+  <td class="r num">21.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-58067</td><td class="tier">S</td>
+  <td class="r num">468 ms</td>
+  <td class="r num">121 ms</td>
+  <td class="r num">8.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-60158</td><td class="tier">S</td>
+  <td class="r num">478 ms</td>
+  <td class="r num">118 ms</td>
+  <td class="r num">9.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-60316.docx</td><td class="tier">S</td>
+  <td class="r num">514 ms</td>
+  <td class="r num">152 ms</td>
   <td class="r num">10.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-60316.dotx</td><td class="tier">S</td>
+  <td class="r num">508 ms</td>
+  <td class="r num">145 ms</td>
+  <td class="r num">9.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-60329</td><td class="tier">S</td>
+  <td class="r num">512 ms</td>
+  <td class="r num">151 ms</td>
+  <td class="r num">10.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-61470</td><td class="tier">S</td>
+  <td class="r num">535 ms</td>
+  <td class="r num">139 ms</td>
+  <td class="r num">8.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-61745</td><td class="tier">S</td>
+  <td class="r num">505 ms</td>
+  <td class="r num">144 ms</td>
+  <td class="r num">10.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-Bug54849</td><td class="tier">S</td>
+  <td class="r num">519 ms</td>
+  <td class="r num">151 ms</td>
+  <td class="r num">10.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-delins</td><td class="tier">S</td>
+  <td class="r num">1,001 ms</td>
+  <td class="r num">311 ms</td>
+  <td class="r num">15.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-drawing</td><td class="tier">S</td>
+  <td class="r num">1,109 ms</td>
+  <td class="r num">281 ms</td>
+  <td class="r num">14.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-endnotes</td><td class="tier">S</td>
+  <td class="r num">497 ms</td>
+  <td class="r num">124 ms</td>
+  <td class="r num">10.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-form_footnotes</td><td class="tier">S</td>
+  <td class="r num">675 ms</td>
+  <td class="r num">230 ms</td>
+  <td class="r num">17.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-SimpleMacro</td><td class="tier">S</td>
+  <td class="r num">474 ms</td>
+  <td class="r num">113 ms</td>
+  <td class="r num">8.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-testComment</td><td class="tier">S</td>
+  <td class="r num">490 ms</td>
+  <td class="r num">123 ms</td>
+  <td class="r num">10.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-blk-paras-and-tables</td><td class="tier">S</td>
+  <td class="r num">904 ms</td>
+  <td class="r num">250 ms</td>
+  <td class="r num">9.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-comments-rich-para</td><td class="tier">S</td>
+  <td class="r num">648 ms</td>
+  <td class="r num">201 ms</td>
+  <td class="r num">11.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-doc-access-sections</td><td class="tier">S</td>
+  <td class="r num">551 ms</td>
+  <td class="r num">144 ms</td>
+  <td class="r num">9.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-hdr-header-footer</td><td class="tier">S</td>
+  <td class="r num">527 ms</td>
+  <td class="r num">138 ms</td>
+  <td class="r num">10.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-sct-first-page-hdrftr</td><td class="tier">S</td>
+  <td class="r num">485 ms</td>
+  <td class="r num">126 ms</td>
+  <td class="r num">11.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-sct-inner-content</td><td class="tier">S</td>
+  <td class="r num">497 ms</td>
+  <td class="r num">126 ms</td>
+  <td class="r num">9.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-sct-section-props</td><td class="tier">S</td>
+  <td class="r num">485 ms</td>
+  <td class="r num">117 ms</td>
+  <td class="r num">11.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-tbl-cell-access</td><td class="tier">S</td>
+  <td class="r num">494 ms</td>
+  <td class="r num">120 ms</td>
+  <td class="r num">10.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-tbl-cell-props</td><td class="tier">S</td>
+  <td class="r num">510 ms</td>
+  <td class="r num">139 ms</td>
+  <td class="r num">8.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-tbl-on-off-props</td><td class="tier">S</td>
+  <td class="r num">475 ms</td>
+  <td class="r num">114 ms</td>
+  <td class="r num">10.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-080e7a9ed483</td><td class="tier">S</td>
+  <td class="r num">543 ms</td>
+  <td class="r num">160 ms</td>
+  <td class="r num">10.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-0bb200a07072</td><td class="tier">S</td>
+  <td class="r num">498 ms</td>
+  <td class="r num">131 ms</td>
+  <td class="r num">9.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-0f300490ff19</td><td class="tier">S</td>
+  <td class="r num">499 ms</td>
+  <td class="r num">127 ms</td>
+  <td class="r num">8.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-1692c4faac3f</td><td class="tier">S</td>
+  <td class="r num">491 ms</td>
+  <td class="r num">126 ms</td>
+  <td class="r num">9.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-1b612449941b</td><td class="tier">S</td>
+  <td class="r num">531 ms</td>
+  <td class="r num">142 ms</td>
+  <td class="r num">8.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-2286e4c70c12</td><td class="tier">S</td>
+  <td class="r num">499 ms</td>
+  <td class="r num">152 ms</td>
+  <td class="r num">11.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-29be1efc9c3d</td><td class="tier">S</td>
+  <td class="r num">472 ms</td>
+  <td class="r num">123 ms</td>
+  <td class="r num">10.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-32cff54a4770</td><td class="tier">S</td>
+  <td class="r num">478 ms</td>
+  <td class="r num">128 ms</td>
+  <td class="r num">10.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-3bba00c30a63</td><td class="tier">S</td>
+  <td class="r num">468 ms</td>
+  <td class="r num">122 ms</td>
+  <td class="r num">8.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-3c4c6a9cf4af</td><td class="tier">S</td>
+  <td class="r num">472 ms</td>
+  <td class="r num">123 ms</td>
+  <td class="r num">9.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-3d223dd77c43</td><td class="tier">S</td>
+  <td class="r num">476 ms</td>
+  <td class="r num">134 ms</td>
+  <td class="r num">10.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-40b102dde450</td><td class="tier">S</td>
+  <td class="r num">447 ms</td>
+  <td class="r num">99 ms</td>
+  <td class="r num">8.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-550ae83cbef3</td><td class="tier">S</td>
+  <td class="r num">471 ms</td>
+  <td class="r num">124 ms</td>
+  <td class="r num">9.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-5cc31b4c9d7f</td><td class="tier">S</td>
+  <td class="r num">476 ms</td>
+  <td class="r num">128 ms</td>
+  <td class="r num">8.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-6273dd165e65</td><td class="tier">S</td>
+  <td class="r num">470 ms</td>
+  <td class="r num">123 ms</td>
+  <td class="r num">8.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-6b3e72a4117c</td><td class="tier">S</td>
+  <td class="r num">457 ms</td>
+  <td class="r num">113 ms</td>
+  <td class="r num">9.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-6bf50c3ab07a</td><td class="tier">S</td>
+  <td class="r num">473 ms</td>
+  <td class="r num">124 ms</td>
+  <td class="r num">9.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-6f5fb53227d1</td><td class="tier">S</td>
+  <td class="r num">468 ms</td>
+  <td class="r num">120 ms</td>
+  <td class="r num">8.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-76e15769e470</td><td class="tier">S</td>
+  <td class="r num">474 ms</td>
+  <td class="r num">126 ms</td>
+  <td class="r num">10.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-78718f952976</td><td class="tier">S</td>
+  <td class="r num">484 ms</td>
+  <td class="r num">128 ms</td>
+  <td class="r num">8.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-855d0845e0a3</td><td class="tier">S</td>
+  <td class="r num">470 ms</td>
+  <td class="r num">122 ms</td>
+  <td class="r num">8.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-909716f36698</td><td class="tier">S</td>
+  <td class="r num">460 ms</td>
+  <td class="r num">119 ms</td>
+  <td class="r num">9.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-9815f4cd7f0c</td><td class="tier">S</td>
+  <td class="r num">470 ms</td>
+  <td class="r num">124 ms</td>
+  <td class="r num">8.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-988079b295a0</td><td class="tier">S</td>
+  <td class="r num">468 ms</td>
+  <td class="r num">117 ms</td>
+  <td class="r num">8.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-a448854a0a41</td><td class="tier">S</td>
+  <td class="r num">469 ms</td>
+  <td class="r num">123 ms</td>
+  <td class="r num">9.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-af08a8c3fa8a</td><td class="tier">S</td>
+  <td class="r num">473 ms</td>
+  <td class="r num">122 ms</td>
+  <td class="r num">9.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-b55bb79d882f</td><td class="tier">S</td>
+  <td class="r num">459 ms</td>
+  <td class="r num">111 ms</td>
+  <td class="r num">10.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-b925c014f155</td><td class="tier">S</td>
+  <td class="r num">469 ms</td>
+  <td class="r num">120 ms</td>
+  <td class="r num">9.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-b964914b1e51</td><td class="tier">S</td>
+  <td class="r num">523 ms</td>
+  <td class="r num">176 ms</td>
+  <td class="r num">13.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-bdfae0732058</td><td class="tier">S</td>
+  <td class="r num">481 ms</td>
+  <td class="r num">132 ms</td>
+  <td class="r num">10.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-c5fb4971e483</td><td class="tier">S</td>
+  <td class="r num">479 ms</td>
+  <td class="r num">125 ms</td>
+  <td class="r num">10.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-d3a6896f9b3b</td><td class="tier">S</td>
+  <td class="r num">491 ms</td>
+  <td class="r num">129 ms</td>
+  <td class="r num">8.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-d3f43e83fa1c</td><td class="tier">S</td>
+  <td class="r num">458 ms</td>
+  <td class="r num">117 ms</td>
+  <td class="r num">9.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-e8c1eeb1c1fc</td><td class="tier">S</td>
+  <td class="r num">475 ms</td>
+  <td class="r num">128 ms</td>
+  <td class="r num">8.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-ea1f61c3afec</td><td class="tier">S</td>
+  <td class="r num">482 ms</td>
+  <td class="r num">123 ms</td>
+  <td class="r num">9.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-ee04bf55d0ca</td><td class="tier">S</td>
+  <td class="r num">485 ms</td>
+  <td class="r num">127 ms</td>
+  <td class="r num">9.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-eec2ebea615c</td><td class="tier">S</td>
+  <td class="r num">535 ms</td>
+  <td class="r num">172 ms</td>
+  <td class="r num">13.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-f7dc2db85d04</td><td class="tier">S</td>
+  <td class="r num">471 ms</td>
+  <td class="r num">117 ms</td>
+  <td class="r num">10.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-fcbf74492e08</td><td class="tier">S</td>
+  <td class="r num">588 ms</td>
+  <td class="r num">169 ms</td>
+  <td class="r num">13.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-fd702db2416c</td><td class="tier">S</td>
+  <td class="r num">505 ms</td>
+  <td class="r num">136 ms</td>
+  <td class="r num">10.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-docx-pages-100</td><td class="tier">M</td>
+  <td class="r num">497 ms</td>
+  <td class="r num">134 ms</td>
+  <td class="r num">10.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-docx-pages-100-b</td><td class="tier">M</td>
+  <td class="r num">495 ms</td>
+  <td class="r num">136 ms</td>
+  <td class="r num">11.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-docx-pages-100-c</td><td class="tier">M</td>
+  <td class="r num">499 ms</td>
+  <td class="r num">135 ms</td>
+  <td class="r num">10.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-chartex</td><td class="tier">M</td>
+  <td class="r num">512 ms</td>
+  <td class="r num">162 ms</td>
+  <td class="r num">12.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-poi-WordWithAttachments</td><td class="tier">M</td>
+  <td class="r num">519 ms</td>
+  <td class="r num">154 ms</td>
+  <td class="r num">10.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-having-images</td><td class="tier">M</td>
+  <td class="r num">503 ms</td>
+  <td class="r num">144 ms</td>
+  <td class="r num">8.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-docx-python-docx-shp-inline-shape-access</td><td class="tier">M</td>
+  <td class="r num">521 ms</td>
+  <td class="r num">151 ms</td>
+  <td class="r num">11.6 MiB</td>
   <td class="na" colspan="2">not yet measured</td>
 </tr>
 </tbody>
@@ -154,7 +980,7 @@ Unmeasured cells are labelled <em>not yet measured</em> and are never replaced b
 
 <h3>PowerPoint (.pptx)</h3>
 <div class="scroll"><table>
-<caption>PowerPoint (.pptx) — first_paint cold 1× CPU; TS baseline at <code>7ce81c1</code></caption>
+<caption>PowerPoint (.pptx) — first_paint cold 1× CPU; TS baseline at <code>4451709</code></caption>
 <thead><tr>
   <th>Fixture</th><th>Tier</th>
   <th title="upstream TS engine, cold load, 1× CPU (ms)">TS first_paint (ms)</th>
@@ -165,17 +991,787 @@ Unmeasured cells are labelled <em>not yet measured</em> and are never replaced b
 </tr></thead>
 <tbody>
 <tr>
-  <td>pptx-S</td><td class="tier">S</td>
-  <td class="r num">1,387 ms</td>
-  <td class="r num">576 ms</td>
-  <td class="r num">63.4 MiB</td>
+  <td>bidi-arabic-hebrew-slides</td><td class="tier">S</td>
+  <td class="r num">1,376 ms</td>
+  <td class="r num">578 ms</td>
+  <td class="r num">36.4 MiB</td>
   <td class="na" colspan="2">not yet measured</td>
 </tr>
 <tr>
-  <td>pptx-M</td><td class="tier">M</td>
-  <td class="r num">1,336 ms</td>
-  <td class="r num">597 ms</td>
+  <td>gen-pptx-activex</td><td class="tier">S</td>
+  <td class="r num">1,245 ms</td>
+  <td class="r num">500 ms</td>
+  <td class="r num">36.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-pptx-equation</td><td class="tier">S</td>
+  <td class="r num">1,242 ms</td>
+  <td class="r num">519 ms</td>
+  <td class="r num">36.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-pptx-model3d</td><td class="tier">S</td>
+  <td class="r num">1,263 ms</td>
+  <td class="r num">518 ms</td>
+  <td class="r num">36.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-pptx-notes-print</td><td class="tier">S</td>
+  <td class="r num">1,274 ms</td>
+  <td class="r num">516 ms</td>
+  <td class="r num">36.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-10</td><td class="tier">S</td>
+  <td class="r num">1,425 ms</td>
+  <td class="r num">614 ms</td>
+  <td class="r num">63.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-10-b</td><td class="tier">S</td>
+  <td class="r num">1,374 ms</td>
+  <td class="r num">583 ms</td>
+  <td class="r num">63.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-10-c</td><td class="tier">S</td>
+  <td class="r num">1,293 ms</td>
+  <td class="r num">563 ms</td>
+  <td class="r num">60.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-pptx-zoom</td><td class="tier">S</td>
+  <td class="r num">1,276 ms</td>
+  <td class="r num">528 ms</td>
+  <td class="r num">41.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-51187</td><td class="tier">S</td>
+  <td class="r num">1,375 ms</td>
+  <td class="r num">615 ms</td>
+  <td class="r num">44.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-bug68703</td><td class="tier">S</td>
+  <td class="r num">1,519 ms</td>
+  <td class="r num">702 ms</td>
   <td class="r num">43.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-EmbeddedAudio</td><td class="tier">S</td>
+  <td class="r num">1,431 ms</td>
+  <td class="r num">636 ms</td>
+  <td class="r num">43.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-SimpleMacro</td><td class="tier">S</td>
+  <td class="r num">1,421 ms</td>
+  <td class="r num">619 ms</td>
+  <td class="r num">42.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-with_japanese</td><td class="tier">S</td>
+  <td class="r num">1,390 ms</td>
+  <td class="r num">652 ms</td>
+  <td class="r num">40.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-charts</td><td class="tier">S</td>
+  <td class="r num">1,277 ms</td>
+  <td class="r num">539 ms</td>
+  <td class="r num">44.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-shp-access-chart</td><td class="tier">S</td>
+  <td class="r num">1,265 ms</td>
+  <td class="r num">549 ms</td>
+  <td class="r num">40.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-shp-common-props</td><td class="tier">S</td>
+  <td class="r num">1,291 ms</td>
+  <td class="r num">578 ms</td>
+  <td class="r num">44.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-test_slides</td><td class="tier">S</td>
+  <td class="r num">1,340 ms</td>
+  <td class="r num">583 ms</td>
+  <td class="r num">45.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-txt-font-typeface</td><td class="tier">S</td>
+  <td class="r num">1,279 ms</td>
+  <td class="r num">545 ms</td>
+  <td class="r num">42.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-091abf411e47</td><td class="tier">S</td>
+  <td class="r num">1,379 ms</td>
+  <td class="r num">665 ms</td>
+  <td class="r num">64.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-098b900e8f10</td><td class="tier">S</td>
+  <td class="r num">1,388 ms</td>
+  <td class="r num">652 ms</td>
+  <td class="r num">47.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-0c4571a8c30e</td><td class="tier">S</td>
+  <td class="r num">1,303 ms</td>
+  <td class="r num">576 ms</td>
+  <td class="r num">49.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-0c7e49afbe04</td><td class="tier">S</td>
+  <td class="r num">1,293 ms</td>
+  <td class="r num">555 ms</td>
+  <td class="r num">39.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-0d9a8eaf2de4</td><td class="tier">S</td>
+  <td class="r num">1,406 ms</td>
+  <td class="r num">696 ms</td>
+  <td class="r num">67.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-165297e1d546</td><td class="tier">S</td>
+  <td class="r num">1,239 ms</td>
+  <td class="r num">516 ms</td>
+  <td class="r num">39.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-169be9b132ef</td><td class="tier">S</td>
+  <td class="r num">1,220 ms</td>
+  <td class="r num">508 ms</td>
+  <td class="r num">36.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-1abd9b12cb19</td><td class="tier">S</td>
+  <td class="r num">1,350 ms</td>
+  <td class="r num">594 ms</td>
+  <td class="r num">58.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-1b3ce5863e04</td><td class="tier">S</td>
+  <td class="r num">1,244 ms</td>
+  <td class="r num">512 ms</td>
+  <td class="r num">43.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-1e19dbff1286</td><td class="tier">S</td>
+  <td class="r num">1,253 ms</td>
+  <td class="r num">532 ms</td>
+  <td class="r num">41.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-21343018c511</td><td class="tier">S</td>
+  <td class="r num">1,303 ms</td>
+  <td class="r num">587 ms</td>
+  <td class="r num">39.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-25ceccfae63d</td><td class="tier">S</td>
+  <td class="r num">1,252 ms</td>
+  <td class="r num">527 ms</td>
+  <td class="r num">42.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-2b363b2c9b04</td><td class="tier">S</td>
+  <td class="r num">1,275 ms</td>
+  <td class="r num">529 ms</td>
+  <td class="r num">43.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-332cb27502fe</td><td class="tier">S</td>
+  <td class="r num">1,300 ms</td>
+  <td class="r num">542 ms</td>
+  <td class="r num">41.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-3858c1c9d869</td><td class="tier">S</td>
+  <td class="r num">1,365 ms</td>
+  <td class="r num">617 ms</td>
+  <td class="r num">47.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-38aa694fb4a5</td><td class="tier">S</td>
+  <td class="r num">1,328 ms</td>
+  <td class="r num">593 ms</td>
+  <td class="r num">47.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-38fb1b1e8f76</td><td class="tier">S</td>
+  <td class="r num">1,282 ms</td>
+  <td class="r num">571 ms</td>
+  <td class="r num">45.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-3a09e4b3e925</td><td class="tier">S</td>
+  <td class="r num">1,319 ms</td>
+  <td class="r num">612 ms</td>
+  <td class="r num">45.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-3e787d01c5f7</td><td class="tier">S</td>
+  <td class="r num">1,237 ms</td>
+  <td class="r num">520 ms</td>
+  <td class="r num">39.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-4143514daf03</td><td class="tier">S</td>
+  <td class="r num">1,252 ms</td>
+  <td class="r num">520 ms</td>
+  <td class="r num">40.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-4647c93fad68</td><td class="tier">S</td>
+  <td class="r num">1,278 ms</td>
+  <td class="r num">566 ms</td>
+  <td class="r num">45.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-482c93bc4882</td><td class="tier">S</td>
+  <td class="r num">1,335 ms</td>
+  <td class="r num">622 ms</td>
+  <td class="r num">42.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-49a48af6d18d</td><td class="tier">S</td>
+  <td class="r num">1,235 ms</td>
+  <td class="r num">509 ms</td>
+  <td class="r num">43.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-4a678fd44484</td><td class="tier">S</td>
+  <td class="r num">1,273 ms</td>
+  <td class="r num">565 ms</td>
+  <td class="r num">53.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-51edb06a949d</td><td class="tier">S</td>
+  <td class="r num">1,250 ms</td>
+  <td class="r num">542 ms</td>
+  <td class="r num">42.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-55531661e868</td><td class="tier">S</td>
+  <td class="r num">1,279 ms</td>
+  <td class="r num">569 ms</td>
+  <td class="r num">44.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-57de458fae91</td><td class="tier">S</td>
+  <td class="r num">1,366 ms</td>
+  <td class="r num">639 ms</td>
+  <td class="r num">51.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-64fe025bb96d</td><td class="tier">S</td>
+  <td class="r num">1,331 ms</td>
+  <td class="r num">594 ms</td>
+  <td class="r num">39.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-6fbe45df1cb3</td><td class="tier">S</td>
+  <td class="r num">1,303 ms</td>
+  <td class="r num">569 ms</td>
+  <td class="r num">49.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-717fb7735aa7</td><td class="tier">S</td>
+  <td class="r num">1,314 ms</td>
+  <td class="r num">579 ms</td>
+  <td class="r num">39.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-73913b502a2e</td><td class="tier">S</td>
+  <td class="r num">1,324 ms</td>
+  <td class="r num">583 ms</td>
+  <td class="r num">52.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-7bb23ba0b604</td><td class="tier">S</td>
+  <td class="r num">1,301 ms</td>
+  <td class="r num">546 ms</td>
+  <td class="r num">41.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-7cc22f8e5927</td><td class="tier">S</td>
+  <td class="r num">1,246 ms</td>
+  <td class="r num">500 ms</td>
+  <td class="r num">35.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-80e6e30ea597</td><td class="tier">S</td>
+  <td class="r num">1,332 ms</td>
+  <td class="r num">554 ms</td>
+  <td class="r num">41.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-88e14cba7830</td><td class="tier">S</td>
+  <td class="r num">1,242 ms</td>
+  <td class="r num">516 ms</td>
+  <td class="r num">43.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-8bbf3d67bd63</td><td class="tier">S</td>
+  <td class="r num">1,271 ms</td>
+  <td class="r num">519 ms</td>
+  <td class="r num">43.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-913ecd7c7c8a</td><td class="tier">S</td>
+  <td class="r num">1,337 ms</td>
+  <td class="r num">558 ms</td>
+  <td class="r num">39.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-959ab2f5bac7</td><td class="tier">S</td>
+  <td class="r num">1,250 ms</td>
+  <td class="r num">530 ms</td>
+  <td class="r num">40.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-9f78c22429d9</td><td class="tier">S</td>
+  <td class="r num">1,217 ms</td>
+  <td class="r num">497 ms</td>
+  <td class="r num">36.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-a0806b09c73d</td><td class="tier">S</td>
+  <td class="r num">1,231 ms</td>
+  <td class="r num">527 ms</td>
+  <td class="r num">40.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-a10c83ff4127</td><td class="tier">S</td>
+  <td class="r num">1,348 ms</td>
+  <td class="r num">633 ms</td>
+  <td class="r num">60.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-a344b2f3f55d</td><td class="tier">S</td>
+  <td class="r num">1,318 ms</td>
+  <td class="r num">588 ms</td>
+  <td class="r num">45.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-a4b1b68c66c7</td><td class="tier">S</td>
+  <td class="r num">1,285 ms</td>
+  <td class="r num">540 ms</td>
+  <td class="r num">39.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-a61f509fcab9</td><td class="tier">S</td>
+  <td class="r num">1,427 ms</td>
+  <td class="r num">637 ms</td>
+  <td class="r num">39.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-a734ca765129</td><td class="tier">S</td>
+  <td class="r num">1,304 ms</td>
+  <td class="r num">554 ms</td>
+  <td class="r num">43.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-a8fa453c5023</td><td class="tier">S</td>
+  <td class="r num">1,443 ms</td>
+  <td class="r num">663 ms</td>
+  <td class="r num">45.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-af1bd691bad1</td><td class="tier">S</td>
+  <td class="r num">1,356 ms</td>
+  <td class="r num">591 ms</td>
+  <td class="r num">49.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-b2aa81e78d15</td><td class="tier">S</td>
+  <td class="r num">1,263 ms</td>
+  <td class="r num">538 ms</td>
+  <td class="r num">41.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-b2b71a866c2e</td><td class="tier">S</td>
+  <td class="r num">1,369 ms</td>
+  <td class="r num">616 ms</td>
+  <td class="r num">47.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-b332135c13c6</td><td class="tier">S</td>
+  <td class="r num">1,243 ms</td>
+  <td class="r num">505 ms</td>
+  <td class="r num">36.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-b6c7dfcf4428</td><td class="tier">S</td>
+  <td class="r num">1,347 ms</td>
+  <td class="r num">560 ms</td>
+  <td class="r num">51.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-bd16f101c6d5</td><td class="tier">S</td>
+  <td class="r num">1,255 ms</td>
+  <td class="r num">526 ms</td>
+  <td class="r num">39.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-be4aaa835c68</td><td class="tier">S</td>
+  <td class="r num">1,297 ms</td>
+  <td class="r num">544 ms</td>
+  <td class="r num">42.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-c55ed898215f</td><td class="tier">S</td>
+  <td class="r num">1,262 ms</td>
+  <td class="r num">500 ms</td>
+  <td class="r num">35.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-c8a1d6b58292</td><td class="tier">S</td>
+  <td class="r num">1,281 ms</td>
+  <td class="r num">532 ms</td>
+  <td class="r num">40.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-d173badb4435</td><td class="tier">S</td>
+  <td class="r num">1,279 ms</td>
+  <td class="r num">555 ms</td>
+  <td class="r num">44.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-d34691128d6a</td><td class="tier">S</td>
+  <td class="r num">1,315 ms</td>
+  <td class="r num">564 ms</td>
+  <td class="r num">52.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-d38cba8bfc42</td><td class="tier">S</td>
+  <td class="r num">1,268 ms</td>
+  <td class="r num">520 ms</td>
+  <td class="r num">36.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-d64f9e91a815</td><td class="tier">S</td>
+  <td class="r num">1,316 ms</td>
+  <td class="r num">565 ms</td>
+  <td class="r num">39.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-dbc4432fdc19</td><td class="tier">S</td>
+  <td class="r num">1,377 ms</td>
+  <td class="r num">626 ms</td>
+  <td class="r num">58.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-e0dce36d2088</td><td class="tier">S</td>
+  <td class="r num">1,295 ms</td>
+  <td class="r num">548 ms</td>
+  <td class="r num">44.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-e21bb6ce7505</td><td class="tier">S</td>
+  <td class="r num">1,298 ms</td>
+  <td class="r num">569 ms</td>
+  <td class="r num">40.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-e3dab827b836</td><td class="tier">S</td>
+  <td class="r num">1,286 ms</td>
+  <td class="r num">551 ms</td>
+  <td class="r num">42.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-e5e3a918a510</td><td class="tier">S</td>
+  <td class="r num">1,343 ms</td>
+  <td class="r num">581 ms</td>
+  <td class="r num">48.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-ea86d831d24d</td><td class="tier">S</td>
+  <td class="r num">1,269 ms</td>
+  <td class="r num">519 ms</td>
+  <td class="r num">41.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-f374280d2eb7</td><td class="tier">S</td>
+  <td class="r num">1,315 ms</td>
+  <td class="r num">576 ms</td>
+  <td class="r num">42.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-f3a23e347a28</td><td class="tier">S</td>
+  <td class="r num">1,239 ms</td>
+  <td class="r num">514 ms</td>
+  <td class="r num">36.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-f4fd46dfe4ec</td><td class="tier">S</td>
+  <td class="r num">1,324 ms</td>
+  <td class="r num">581 ms</td>
+  <td class="r num">41.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-f8f44b2075eb</td><td class="tier">S</td>
+  <td class="r num">1,305 ms</td>
+  <td class="r num">549 ms</td>
+  <td class="r num">40.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-50</td><td class="tier">M</td>
+  <td class="r num">1,364 ms</td>
+  <td class="r num">607 ms</td>
+  <td class="r num">48.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-50-b</td><td class="tier">M</td>
+  <td class="r num">1,452 ms</td>
+  <td class="r num">649 ms</td>
+  <td class="r num">48.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>gen-pptx-slides-50-c</td><td class="tier">M</td>
+  <td class="r num">1,459 ms</td>
+  <td class="r num">657 ms</td>
+  <td class="r num">56.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-45541_Footer</td><td class="tier">M</td>
+  <td class="r num">1,547 ms</td>
+  <td class="r num">766 ms</td>
+  <td class="r num">31.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-45541_Header</td><td class="tier">M</td>
+  <td class="r num">1,593 ms</td>
+  <td class="r num">799 ms</td>
+  <td class="r num">31.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-45545_Comment</td><td class="tier">M</td>
+  <td class="r num">1,544 ms</td>
+  <td class="r num">762 ms</td>
+  <td class="r num">31.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-60810</td><td class="tier">M</td>
+  <td class="r num">1,919 ms</td>
+  <td class="r num">1,120 ms</td>
+  <td class="r num">72.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-bug62513</td><td class="tier">M</td>
+  <td class="r num">1,695 ms</td>
+  <td class="r num">864 ms</td>
+  <td class="r num">53.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-bug64693</td><td class="tier">M</td>
+  <td class="r num">1,590 ms</td>
+  <td class="r num">782 ms</td>
+  <td class="r num">61.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-keyframes</td><td class="tier">M</td>
+  <td class="r num">1,985 ms</td>
+  <td class="r num">1,133 ms</td>
+  <td class="r num">72.2 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-poi-PPTWithAttachments</td><td class="tier">M</td>
+  <td class="r num">1,414 ms</td>
+  <td class="r num">673 ms</td>
+  <td class="r num">55.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-act-props</td><td class="tier">M</td>
+  <td class="r num">1,334 ms</td>
+  <td class="r num">608 ms</td>
+  <td class="r num">44.8 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-axis-props</td><td class="tier">M</td>
+  <td class="r num">1,377 ms</td>
+  <td class="r num">630 ms</td>
+  <td class="r num">63.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-category-access</td><td class="tier">M</td>
+  <td class="r num">1,302 ms</td>
+  <td class="r num">564 ms</td>
+  <td class="r num">63.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-chart-props</td><td class="tier">M</td>
+  <td class="r num">1,288 ms</td>
+  <td class="r num">568 ms</td>
+  <td class="r num">49.9 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-datalabels</td><td class="tier">M</td>
+  <td class="r num">1,339 ms</td>
+  <td class="r num">596 ms</td>
+  <td class="r num">49.3 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-cht-series</td><td class="tier">M</td>
+  <td class="r num">1,397 ms</td>
+  <td class="r num">665 ms</td>
+  <td class="r num">34.7 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-ph-populated-placeholders</td><td class="tier">M</td>
+  <td class="r num">1,353 ms</td>
+  <td class="r num">611 ms</td>
+  <td class="r num">69.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-shp-movie-props</td><td class="tier">M</td>
+  <td class="r num">1,273 ms</td>
+  <td class="r num">540 ms</td>
+  <td class="r num">40.5 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>real-pptx-python-pptx-shp-shapes</td><td class="tier">M</td>
+  <td class="r num">1,341 ms</td>
+  <td class="r num">604 ms</td>
+  <td class="r num">49.0 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-25297a56a758</td><td class="tier">M</td>
+  <td class="r num">1,667 ms</td>
+  <td class="r num">956 ms</td>
+  <td class="r num">77.4 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-2789ff8d6772</td><td class="tier">M</td>
+  <td class="r num">1,531 ms</td>
+  <td class="r num">801 ms</td>
+  <td class="r num">41.6 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-db668adb7e73</td><td class="tier">M</td>
+  <td class="r num">1,485 ms</td>
+  <td class="r num">726 ms</td>
+  <td class="r num">53.1 MiB</td>
+  <td class="na" colspan="2">not yet measured</td>
+</tr>
+<tr>
+  <td>upstream-f7015eebee2e</td><td class="tier">M</td>
+  <td class="r num">1,442 ms</td>
+  <td class="r num">689 ms</td>
+  <td class="r num">45.9 MiB</td>
   <td class="na" colspan="2">not yet measured</td>
 </tr>
 </tbody>
@@ -188,9 +1784,9 @@ Unmeasured cells are labelled <em>not yet measured</em> and are never replaced b
   <dt>Browser</dt>
   <dd>Google Chrome (headless) 156.0.8078.4 via Playwright; cross-origin-isolated page (COOP/COEP on the perf harness only — not required by the shipped package)</dd>
   <dt>Host</dt>
-  <dd>Intel(R) Xeon(R) Processor, 8 logical cores, linux 6.12.94+; runner: local</dd>
+  <dd>Intel(R) Xeon(R) Processor, 8 logical cores, Debian GNU/Linux 13 (trixie) (linux 6.12.94+); runner: local</dd>
   <dt>Timing</dt>
-  <dd><code>first_paint_ms</code>: navigation start to first painted frame (PerformancePaintTiming "first-paint"); <code>parse_ms</code>: engine parse call only; <code>tti_ms</code> (warm): time to interactive after first paint (harness interaction start, to avoid counting harness scroll steps)</dd>
+  <dd><code>first_paint_ms</code>: navigation start to first painted frame (PerformancePaintTiming "first-paint"); <code>parse_ms</code>: engine parse call only; <code>tti_ms</code> (warm): time to interactive, measured as the harness interaction start (immediately after first_paint) so that harness scroll and page-walk steps do not inflate the metric — this corrects an earlier bimodal p95 on xlsx-M warm 1× (see <a href="../perf/baseline/">TS baseline report §xlsx-M warm 1× TTI</a> for the full investigation)</dd>
   <dt>Memory</dt>
   <dd>JS heap size via <code>performance.memory.usedJSHeapSize</code> after a cold parse with the model retained. This is an approximate lower bound — it does not include off-heap WASM linear memory, which is reported separately when WASM data exists.</dd>
   <dt>Fairness</dt>
@@ -210,6 +1806,6 @@ Unmeasured cells are labelled <em>not yet measured</em> and are never replaced b
 </div>
 <p class="note">The <code>nitro-xml</code> npm package is not yet published. This page will be updated when it is.</p>
 
-<p class="gen">Generated 2026-11-06T01:38:13.009Z &middot; TS baseline commit <code>7ce81c1</code> &middot; <code>scripts/ci/gen-benchmarks.mjs</code> via <code>scripts/ci/pages.sh</code></p>
+<p class="gen">Generated 2026-11-06T11:30:32.782Z &middot; TS baseline commit <code>4451709</code> &middot; <code>scripts/ci/gen-benchmarks.mjs</code> via <code>scripts/ci/pages.sh</code></p>
 </main>
 </body></html>

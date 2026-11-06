@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Assembles the Pages site into _site/:
-#   /           plan (docs/)
-#   /demo/      live WASM demos (normal + embedded × xlsx/docx/pptx)
-#   /perf/      scoreboard slot (filled by the dashboard issue / #9)
+#   /             plan (docs/)
+#   /demo/        live WASM demos (normal + embedded × xlsx/docx/pptx)
+#   /perf/        perf scoreboard dashboard (generated from perf/history.jsonl; #9)
+#   /benchmarks/  public benchmark page shell (#495)
 #
 # Called by .github/workflows/pages.yml. Agents must not edit that workflow —
 # ask Jared to set Pages source to "GitHub Actions" and repo variable
@@ -38,7 +39,26 @@ test -f _site/demo/samples/sample.pptx
 test -f _site/demo/nitro-xml/pkg/nitro_xml_wasm_bg.wasm
 test -f _site/demo/nitro-xml/loader/index.js
 
-msg="pages: plan + /demo/ (wasm $(du -h _site/demo/nitro-xml/pkg/nitro_xml_wasm_bg.wasm | awk '{print $1}')) assembled; scoreboard TODO(#9)"
+# --- Perf scoreboard dashboard (#9) ---
+# Reads perf/history.jsonl (or the override supplied via PERF_HISTORY) and generates
+# _site/perf/index.html. Never edits .github/workflows/.
+HIST="${PERF_HISTORY:-$ROOT/perf/history.jsonl}"
+if [ -f "$HIST" ]; then
+  mkdir -p _site/perf
+  node "$ROOT/scripts/ci/gen-perf-dashboard.mjs" "$HIST" _site/perf/index.html
+  echo "pages: perf dashboard written to _site/perf/index.html"
+else
+  echo "pages: perf/history.jsonl not found; skipping dashboard"
+fi
+
+# --- Public benchmarks page shell (#495) ---
+mkdir -p _site/benchmarks
+# Pass history if it exists; gen-benchmarks.mjs shows "not yet measured" if rows are absent.
+_BENCH_HIST="$( [ -f "$HIST" ] && echo "$HIST" || echo /dev/null )"
+node "$ROOT/scripts/ci/gen-benchmarks.mjs" "$_BENCH_HIST" _site/benchmarks/index.html
+echo "pages: benchmarks page written to _site/benchmarks/index.html"
+
+msg="pages: plan + /demo/ (wasm $(du -h _site/demo/nitro-xml/pkg/nitro_xml_wasm_bg.wasm | awk '{print $1}')) + /perf/ dashboard + /benchmarks/ shell assembled"
 echo "$msg"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   echo "$msg" >> "$GITHUB_STEP_SUMMARY"

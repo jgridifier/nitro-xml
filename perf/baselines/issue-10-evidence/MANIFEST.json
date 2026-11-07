@@ -9,6 +9,17 @@
   "bearer": 0,
   "jwt": 0
  },
+ "history_correction": {
+  "snapshot": "history-lxl-pre-host-fix.jsonl",
+  "pre_fix_history_sha256": "3e30e7a2a861e1041d1e33d43bbc670e7fa9820df6708a00836e8b34b68edefd",
+  "pre_fix_history_lines": 994,
+  "corrected_line_range": [
+   953,
+   994
+  ],
+  "corrected_by": "perf/correct-lxl-history-host.mjs",
+  "host_source": "perf/baselines/ts-lxl-8961e71.jsonl (row.host, identical in the 18 chunk result files)"
+ },
  "files": [
   {
    "file": "cell-evidence.json",
@@ -100,6 +111,18 @@
    "source": "perf/results/lxl-sweep/warm-4x-004.json",
    "source_sha256": "4cbcc0cdb7dfa574e82b5ad265bc66e598be43dfa312e7838022356728547b70",
    "kind": "extract (metadata + failures[] verbatim)"
+  },
+  {
+   "file": "history-lxl-pre-host-fix.jsonl",
+   "bytes": 115519,
+   "sha256": "06674e6d79e7b599bc4dc23ce8cda4b7e5dd9b53c3ede24fb4bea34b7ea8b95d",
+   "source": "perf/history.jsonl (git 0d59e36, lines 953-994, before the host correction)",
+   "source_sha256": "3e30e7a2a861e1041d1e33d43bbc670e7fa9820df6708a00836e8b34b68edefd",
+   "kind": "verbatim copy of 42 lines of the pre-correction history",
+   "source_lines": [
+    953,
+    994
+   ]
   },
   {
    "file": "operator-events.jsonl",

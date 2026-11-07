@@ -32,6 +32,7 @@ const pub = (p) => p.replace(homedir(), '~').replace(root + '/', '');
 // README.md is hand-written and kept; everything else is regenerated
 for (const d of ['raw', 'extracts']) { rmSync(join(out, d), { recursive: true, force: true }); mkdirSync(join(out, d), { recursive: true }); }
 for (const f of ['MANIFEST.json', 'cell-evidence.json', 'operator-events.jsonl']) rmSync(join(out, f), { force: true });
+// history-lxl-pre-host-fix.jsonl is an audit snapshot written once by perf/correct-lxl-history-host.mjs; it is kept and re-registered below
 
 const files = []; // manifest rows
 const addFile = (rel, content, source, extra = {}) => {
@@ -149,11 +150,20 @@ const cells = prov.cells.map((c) => ({
 }));
 addFile('cell-evidence.json', JSON.stringify({ note: 'one row per classified cell (S/M and L/XL); evidence points into this directory', cells }, null, 1) + '\n', { path: join(here, 'baselines/failure-provenance.json'), kind: 'derived mapping from failure-provenance.json' });
 
+// pre-correction snapshot of the 42 L/XL history lines (see correct-lxl-history-host.mjs)
+const snapPath = join(out, 'history-lxl-pre-host-fix.jsonl');
+const PRE_FIX_HISTORY_SHA = '3e30e7a2a861e1041d1e33d43bbc670e7fa9820df6708a00836e8b34b68edefd'; // perf/history.jsonl at 0d59e36, 994 lines
+if (existsSync(snapPath)) {
+  const buf = readFileSync(snapPath);
+  files.push({ file: 'history-lxl-pre-host-fix.jsonl', bytes: buf.length, sha256: sha(buf), source: 'perf/history.jsonl (git 0d59e36, lines 953-994, before the host correction)', source_sha256: PRE_FIX_HISTORY_SHA, kind: 'verbatim copy of 42 lines of the pre-correction history', source_lines: [953, 994] });
+}
+const historyCorrection = { snapshot: 'history-lxl-pre-host-fix.jsonl', pre_fix_history_sha256: PRE_FIX_HISTORY_SHA, pre_fix_history_lines: 994, corrected_line_range: [953, 994], corrected_by: 'perf/correct-lxl-history-host.mjs', host_source: 'perf/baselines/ts-lxl-8961e71.jsonl (row.host, identical in the 18 chunk result files)' };
 writeFileSync(join(out, 'MANIFEST.json'), JSON.stringify({
   schema: 'issue-10-evidence/1',
   note: 'sha256 of each file in this directory, where it came from, and the sha256 of that original (so the extract can be re-derived from the originals).',
   originals_are_gitignored: 'perf/results/lxl-sweep/*, and the operator transcript outside the repo; they are not edited by this tooling',
   redactions,
+  history_correction: historyCorrection,
   files: files.sort((a, b) => a.file.localeCompare(b.file)),
 }, null, 1) + '\n');
 console.log(`wrote ${relative(root, out)}: ${files.length} files + MANIFEST.json; ${cells.length} cells; redactions ${JSON.stringify(redactions)}`);

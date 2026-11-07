@@ -61,7 +61,7 @@ Every n, median and p95 below belongs to one protocol group: runs with the ident
 | P4faa41 | rerun=false, concurrent_runs=1 | 124 | 42 | 15 | false | 1 | box-4467396174 | v20.19.2 | not recorded |
 | Pb8f044 | rerun=true, concurrent_runs=2 | 1521 | 129 | 51 | true | 2 | box-4467396174 | v20.19.2 | not recorded |
 
-Fixture-cells measured under more than one group in the main dataset: real-xlsx-poi-WithEmbeded cold 1x (P22e9d3 n=1 + Pb8f044 n=10); real-xlsx-usgov-census-NST-EST2024-POP cold 1x (P22e9d3 n=1 + Pb8f044 n=10); gen-xlsx-cells-100k-b cold 4x (P22e9d3 n=1 + Pb8f044 n=10); real-xlsx-poi-45540_classic_Footer cold 4x (P22e9d3 n=1 + Pb8f044 n=10). History entries for the L/XL sweep record the host of the machine that appended them (not the host of the run), so their gate-side group ids differ from the report's for those cells; the per-cell n agrees (checked by `perf/test/consistency.test.mjs`).
+Fixture-cells measured under more than one group in the main dataset: real-xlsx-poi-WithEmbeded cold 1x (P22e9d3 n=1 + Pb8f044 n=10); real-xlsx-usgov-census-NST-EST2024-POP cold 1x (P22e9d3 n=1 + Pb8f044 n=10); gen-xlsx-cells-100k-b cold 4x (P22e9d3 n=1 + Pb8f044 n=10); real-xlsx-poi-45540_classic_Footer cold 4x (P22e9d3 n=1 + Pb8f044 n=10). The history entries of the L/XL sweep carry the measuring host recovered from these same rows (`host_import_recorded` keeps what the importing machine had written, `provenance.host` names the source rows), so the report, the gate and the inventory use the same group id for every cell (`perf/test/consistency.test.mjs`).
 
 ## Corpus coverage
 

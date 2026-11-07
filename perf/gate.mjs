@@ -16,6 +16,8 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { median } from './stats.mjs';
+import { isUnknown } from './unknown.mjs';
+import { createHash } from 'node:crypto';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -68,6 +70,8 @@ function disarmedReason(e, metric, th) {
  *   host.node                      Node version of the runner
  *   host.concurrent_runs           runs sharing the machine (the sweep used 2; 3-way moved first_paint ~7%)
  * Not in the key: commit/date/branch (what is compared across), n (sample count varies with timeouts), runner.
+ * A field the source run did not record is the explicit UNKNOWN marker (unknown.mjs): it never matches anything, itself included,
+ * so such an entry has no comparable baseline and is never a baseline.
  * Recorded nowhere, so not usable: iterations design, playwright version, viewport, scroll cap per run.
  */
 export const PROTOCOL_FIELDS = [
@@ -76,8 +80,16 @@ export const PROTOCOL_FIELDS = [
 ];
 const pick = (e, path) => path.split('.').reduce((o, k) => o?.[k], e);
 export const protocolOf = (e) => Object.fromEntries(PROTOCOL_FIELDS.map((f) => [f, f === 'rerun' ? !!e.rerun : pick(e, f) ?? null]));
-export const protocolId = (e) => JSON.stringify(protocolOf(e));
-export const protocolDiff = (a, b) => PROTOCOL_FIELDS.filter((f) => JSON.stringify(protocolOf(a)[f]) !== JSON.stringify(protocolOf(b)[f]));
+/** Fields the source run did not record (explicit UNKNOWN marker, see unknown.mjs). */
+export const unknownFields = (e) => PROTOCOL_FIELDS.filter((f) => isUnknown(protocolOf(e)[f]));
+/**
+ * An entry with any unknown protocol field has a protocol id that is unique to that entry (a digest of the whole entry),
+ * so unknown never matches anything, including another unknown; baselineFor also refuses it explicitly.
+ */
+export const protocolId = (e) => (unknownFields(e).length
+  ? JSON.stringify({ unknown: unknownFields(e), entry: createHash('sha256').update(JSON.stringify(e)).digest('hex') })
+  : JSON.stringify(protocolOf(e)));
+export const protocolDiff = (a, b) => PROTOCOL_FIELDS.filter((f) => JSON.stringify(protocolOf(a)[f]) !== JSON.stringify(protocolOf(b)[f]) || isUnknown(protocolOf(a)[f]) || isUnknown(protocolOf(b)[f]));
 
 /**
  * Baseline entries for `cur`: last N main entries with the same key, another commit and the IDENTICAL protocol key.
@@ -86,7 +98,7 @@ export const protocolDiff = (a, b) => PROTOCOL_FIELDS.filter((f) => JSON.stringi
 export function baselineFor(cur, history, n) {
   const sameKey = history.filter((h) => h.branch === 'main' && keyOf(h) === keyOf(cur) && h.commit !== cur.commit);
   const id = protocolId(cur);
-  const comparable = sameKey.filter((h) => protocolId(h) === id);
+  const comparable = unknownFields(cur).length ? [] : sameKey.filter((h) => !unknownFields(h).length && protocolId(h) === id);
   const nearest = sameKey.length ? sameKey[sameKey.length - 1] : null;
   return { comparable: comparable.slice(-n), anyKey: sameKey.length, differs: nearest ? protocolDiff(cur, nearest) : [] };
 }

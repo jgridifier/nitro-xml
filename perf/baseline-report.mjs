@@ -205,7 +205,7 @@ T(['group', 'distinguishing fields', 'samples', 'fixture-cells', 'fixtures', 're
   return [gid, glabels.get(gid), samples, cellsN, new Set(ent.map((f) => f.id)).size, p.rerun, p['host.concurrent_runs'], p['host.id'], p['host.node'], p.fixture_sha256 ?? 'not recorded'];
 }));
 const mixed = [...cellsOfId.keys()].flatMap((id) => cellNames.filter((c) => fixtures.filter((f) => f.id === id && f.cells.has(c)).length > 1).map((c) => `${id} ${c} (${fixtures.filter((f) => f.id === id && f.cells.has(c)).map((f) => `${f.gid} n=${f.cells.get(c).n}`).join(' + ')})`));
-P(`Fixture-cells measured under more than one group in the main dataset: ${mixed.length ? mixed.join('; ') : 'none'}. History entries for the L/XL sweep record the host of the machine that appended them (not the host of the run), so their gate-side group ids differ from the report's for those cells; the per-cell n agrees (checked by \`perf/test/consistency.test.mjs\`).`);
+P(`Fixture-cells measured under more than one group in the main dataset: ${mixed.length ? mixed.join('; ') : 'none'}. The history entries of the L/XL sweep carry the measuring host recovered from these same rows (\`host_import_recorded\` keeps what the importing machine had written, \`provenance.host\` names the source rows), so the report, the gate and the inventory use the same group id for every cell (\`perf/test/consistency.test.mjs\`).`);
 H(2, 'Corpus coverage');
 T(['format', 'tier', 'in manifest', 'measured', 'excluded (failed or incomplete)'], coverage.map((c) => [c.fm, c.t, c.manifest, c.measured, c.bad]));
 P('"in manifest" includes rows that are not redistributable and so not on disk (`upstream-noredist-*`), which cannot be measured.');

@@ -16,6 +16,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { classifyRawRow, STATUSES } from './provenance.mjs';
+import { sourceHost } from './aggregate.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -110,6 +111,31 @@ const provTotals = {};
 for (const c of prov.cells) { const k = `${c.source} ${c.status}`; provTotals[k] = (provTotals[k] ?? 0) + 1; }
 if (prov.cells.length !== ce.length) bad(`cell count ${ce.length} != provenance ${prov.cells.length}`);
 for (const k of new Set([...Object.keys(derived), ...Object.keys(provTotals)])) if ((derived[k] ?? 0) !== (provTotals[k] ?? 0)) bad(`total ${k}: derived ${derived[k] ?? 0}, provenance ${provTotals[k] ?? 0}`);
+
+// 5. history host correction: only the 42 L/XL lines changed, the pre-correction lines are preserved, and the new host is
+// exactly what the committed source rows record
+const hc = manifest.history_correction;
+if (!hc) bad('MANIFEST.history_correction missing');
+else {
+  const snap = read(hc.snapshot).split('\n').filter(Boolean);
+  const histLines = readFileSync(join(here, 'history.jsonl'), 'utf8').split('\n');
+  const [lo, hi] = hc.corrected_line_range;
+  if (snap.length !== hi - lo + 1) bad(`snapshot has ${snap.length} lines, expected ${hi - lo + 1}`);
+  const rebuilt = [...histLines.slice(0, lo - 1), ...snap, ...histLines.slice(hi)].join('\n');
+  if (sha(rebuilt) !== hc.pre_fix_history_sha256) bad('history.jsonl with the snapshot put back does not hash to the recorded pre-correction file: some other line changed');
+  const src = readFileSync(join(root, 'perf/baselines/ts-lxl-8961e71.jsonl'), 'utf8').split('\n');
+  histLines.forEach((l, i) => {
+    if (!l) return;
+    const e = JSON.parse(l);
+    const inRange = i + 1 >= lo && i + 1 <= hi;
+    if (!inRange) { if (e.host_import_recorded || e.provenance?.host) bad(`history line ${i + 1} outside the corrected range carries host provenance`); return; }
+    const old = JSON.parse(snap[i + 1 - lo]);
+    if (JSON.stringify(e.host_import_recorded) !== JSON.stringify(old.host)) bad(`history line ${i + 1}: host_import_recorded != recorded pre-correction host`);
+    const rowsAt = (e.provenance?.host?.source_row_lines ?? []).map((n) => JSON.parse(src[n - 1]));
+    if (rowsAt.length !== e.n || rowsAt.some((r) => r.fixture !== e.fixture_id || r.mode !== e.mode)) bad(`history line ${i + 1}: source rows do not match the entry`);
+    else if (JSON.stringify(sourceHost(rowsAt[0])) !== JSON.stringify(e.host)) bad(`history line ${i + 1}: host != host recorded by its source rows`);
+  });
+}
 
 const byStatus = Object.fromEntries(STATUSES.map((s) => [s, Object.entries(derived).filter(([k]) => k.endsWith(` ${s}`)).reduce((n, [, v]) => n + v, 0)]));
 console.log(`files ${manifest.files.length} (+MANIFEST, README); cells ${ce.length}; re-derived totals:`, derived);

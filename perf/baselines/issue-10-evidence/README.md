@@ -14,6 +14,7 @@ Claude session transcript. This directory is the minimal, committed part of that
 | `extracts/<chunk>.json` (8) | chunk result files that list failures | `meta` + `failures[]` verbatim; the large per-iteration arrays (`results[]`) are dropped and replaced by an index of fixture ids |
 | `extracts/warm-1x-001.gen-pptx-slides-200-b.row.jsonl` | the single sample row of the partially measured cell | one line verbatim (`source_lines` in the manifest) |
 | `extracts/markers.json` | the six 0-byte marker files that make the sweep skip a chunk, with source mtimes | listing only |
+| `history-lxl-pre-host-fix.jsonl` | the 42 L/XL lines of `perf/history.jsonl` exactly as first appended (importing machine's host), before the host correction | verbatim copy of lines 953-994 of the file with sha256 `3e30e7a2...edefd` (see `MANIFEST.json` `history_correction`) |
 | `operator-events.jsonl` | 11 Bash commands (sweep launches, `kill`, marker creation, annotation appends) and their results, with source timestamp and transcript line | extract of the transcript; no assistant or user prose |
 
 ## Redactions and exclusions
@@ -48,5 +49,6 @@ Rebuild (needs the originals): `node perf/build-issue10-evidence.mjs`, then `nod
   but the 4x timeouts cannot be split into TS slowness vs box pressure from this data.
 - **No main-branch L/XL regression baseline.** The L/XL history entries carry branch `issue-10-lxl-real`, record no fixture hash, and the gate only
   baselines main entries with an identical protocol key, so L/XL rows are `no comparable baseline` until appended from main.
+- **History host correction.** The verifier puts the snapshot back into `perf/history.jsonl` and requires the pre-correction file hash, so it proves no other history line changed; it also requires each corrected host to equal what its source rows in `perf/baselines/ts-lxl-8961e71.jsonl` record. `date` and `runner` of those entries are still the importer's (not protocol fields).
 - **S/M evidence** is the raw harness failure rows only (written from completed chunk results); the S/M operator transcript was not audited for kills.
 - Marker mtimes show when a marker was created (e.g. `cold-4x-002.jsonl` was created at 02:07:37Z, after that chunk had already started at 02:02Z, so it skipped nothing).

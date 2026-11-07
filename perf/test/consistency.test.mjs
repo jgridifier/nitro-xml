@@ -25,9 +25,8 @@ const FOUR = [
 test('report, gate key and history agree on per-group n in every cell', () => {
   // Catches: the report (rows) and the gate/inventory (history) grouping samples differently, e.g. pooling in one of them
   assert.deepEqual(nMismatches(report, gate), []);
-  // group ids are identical wherever history records the run's own host (everything except the L/XL sweep entries)
+  // group ids are identical in every cell, L/XL included (their history host is the measuring host recovered from the rows)
   for (const [k, m] of report) {
-    if (['L', 'XL'].includes(info(k.split('|')[0]).tier)) continue;
     assert.deepEqual([...m.keys()].sort(), [...gate.get(k).keys()].sort(), k);
   }
 });

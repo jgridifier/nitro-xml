@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { median, p95, summarize } from './stats.mjs';
+import { UNKNOWN } from './unknown.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -32,15 +33,33 @@ export function aggregate(rows) {
   });
 }
 
+/** Host fields of a history entry, in the order of the S/M entries. */
+const HOST_FIELDS = ['kind', 'id', 'os', 'arch', 'cpu', 'cores', 'memory_gb', 'chrome_version', 'node', 'concurrent_runs'];
+
+/**
+ * The host of the SOURCE run, from the raw result row only (row.host, written by run.mjs on the machine that measured).
+ * A field the row does not record is UNKNOWN, never filled from the importing machine. `cpu` is row.host.cpu_model.
+ */
+export function sourceHost(raw) {
+  const h = raw?.host ?? {};
+  const get = (f) => (f === 'cpu' ? h.cpu ?? h.cpu_model : f === 'chrome_version' ? h.chrome_version ?? raw?.chrome : h[f]);
+  return Object.fromEntries(HOST_FIELDS.map((f) => [f, get(f) ?? UNKNOWN]));
+}
+
 /**
  * Collapse raw run rows into history entries (#8): one per (engine, fixture, mode, cpu_throttle) with
  * {median, p95, min, max} per metric. `meta` carries commit, date, branch, runner, host, fixture_sha256 (id -> sha).
+ * `meta.host` is the IMPORTING machine and never becomes the entry's host: the entry's host is the source run's
+ * (sourceHost), unknown fields stay UNKNOWN, and the importer's host is kept in `host_import_recorded` only when it differs.
  */
 export function toHistoryEntries(rows, meta) {
   return aggregate(rows).map((g) => {
     const raw = rows.find((r) => r.fixture === g.fixture && r.engine === g.engine && r.mode === g.mode && (r.cpuThrottle ?? 1) === g.cpuThrottle);
     const metrics = {};
     for (const [k, s] of Object.entries(g.metrics)) metrics[k] = { median: s.median, p95: s.p95, min: s.min, max: s.max };
+    const host = sourceHost(raw);
+    const importer = meta.host ? { ...meta.host } : null;
+    const same = importer && HOST_FIELDS.filter((f) => f !== 'chrome_version').every((f) => JSON.stringify(host[f]) === JSON.stringify(importer[f]));
     return {
       commit: meta.commit,
       date: meta.date,
@@ -50,9 +69,10 @@ export function toHistoryEntries(rows, meta) {
       fixture_sha256: meta.fixture_sha256?.[g.fixture] ?? null,
       mode: g.mode,
       cpu_throttle: g.cpuThrottle,
-      chrome_version: raw?.chrome ?? meta.host?.chrome_version ?? null,
+      chrome_version: host.chrome_version,
       runner: meta.runner,
-      host: { ...meta.host, chrome_version: raw?.chrome ?? meta.host?.chrome_version ?? null },
+      host,
+      ...(importer && !same ? { host_import_recorded: importer } : {}),
       ...(meta.ci_job ? { ci_job: meta.ci_job } : {}),
       ...(meta.seeded ? { seeded: true } : {}),
       n: g.iterations,

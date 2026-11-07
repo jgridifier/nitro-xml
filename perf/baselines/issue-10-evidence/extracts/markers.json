@@ -1,0 +1,53 @@
+{
+ "note": "0-byte files that make baseline-sweep.mjs skip a chunk; created by the operator (see operator-events.jsonl), not by the harness",
+ "markers": [
+  {
+   "marker": "cold-4x-002.jsonl",
+   "bytes": 0,
+   "source": "perf/results/lxl-sweep/cold-4x-002.jsonl",
+   "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "mtime_utc": "2026-11-06T02:07:37.976Z",
+   "has_result_json": false
+  },
+  {
+   "marker": "warm-1x-000.jsonl",
+   "bytes": 0,
+   "source": "perf/results/lxl-sweep/warm-1x-000.jsonl",
+   "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "mtime_utc": "2026-11-06T11:42:19.984Z",
+   "has_result_json": false
+  },
+  {
+   "marker": "warm-1x-002.jsonl",
+   "bytes": 0,
+   "source": "perf/results/lxl-sweep/warm-1x-002.jsonl",
+   "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "mtime_utc": "2026-11-06T02:07:37.980Z",
+   "has_result_json": false
+  },
+  {
+   "marker": "warm-4x-000.jsonl",
+   "bytes": 0,
+   "source": "perf/results/lxl-sweep/warm-4x-000.jsonl",
+   "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "mtime_utc": "2026-11-06T11:42:19.984Z",
+   "has_result_json": false
+  },
+  {
+   "marker": "warm-4x-001.jsonl",
+   "bytes": 0,
+   "source": "perf/results/lxl-sweep/warm-4x-001.jsonl",
+   "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "mtime_utc": "2026-11-06T11:42:19.984Z",
+   "has_result_json": false
+  },
+  {
+   "marker": "warm-4x-002.jsonl",
+   "bytes": 0,
+   "source": "perf/results/lxl-sweep/warm-4x-002.jsonl",
+   "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "mtime_utc": "2026-11-06T02:07:37.984Z",
+   "has_result_json": false
+  }
+ ]
+}

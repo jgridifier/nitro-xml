@@ -1,0 +1,3796 @@
+{
+ "note": "one row per classified cell (S/M and L/XL); evidence points into this directory",
+ "cells": [
+  {
+   "fixture": "gen-docx-pages-500",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "cold-4x-000",
+   "evidence": [
+    {
+     "file": "extracts/cold-4x-000.json",
+     "pointer": "failures[fixture=gen-docx-pages-500]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 7
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-pages-500",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "operator_aborted",
+   "chunk": "warm-1x-000",
+   "evidence": [
+    {
+     "file": "raw/box-conditions.jsonl",
+     "line": 56
+    },
+    {
+     "file": "raw/sweep.log",
+     "line": 14
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2307
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-pages-500",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-000",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-000.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-pages-500-b",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "cold-4x-000",
+   "evidence": [
+    {
+     "file": "extracts/cold-4x-000.json",
+     "pointer": "failures[fixture=gen-docx-pages-500-b]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 8
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-pages-500-b",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "operator_aborted",
+   "chunk": "warm-1x-000",
+   "evidence": [
+    {
+     "file": "raw/box-conditions.jsonl",
+     "line": 58
+    },
+    {
+     "file": "raw/sweep.log",
+     "line": 14
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2307
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-pages-500-b",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-000",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-000.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-pages-500-c",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "cold-4x-000",
+   "evidence": [
+    {
+     "file": "extracts/cold-4x-000.json",
+     "pointer": "failures[fixture=gen-docx-pages-500-c]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 9
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-pages-500-c",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "operator_aborted",
+   "chunk": "warm-1x-000",
+   "evidence": [
+    {
+     "file": "raw/box-conditions.jsonl",
+     "line": 59
+    },
+    {
+     "file": "raw/sweep.log",
+     "line": 14
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2307
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-pages-500-c",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-000",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-000.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-a",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "observed_error",
+   "chunk": "cold-1x-000",
+   "evidence": [
+    {
+     "file": "extracts/cold-1x-000.json",
+     "pointer": "failures[fixture=gen-docx-xl-a]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 1
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-a",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_error",
+   "chunk": "cold-4x-000",
+   "evidence": [
+    {
+     "file": "extracts/cold-4x-000.json",
+     "pointer": "failures[fixture=gen-docx-xl-a]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 10
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-a",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-1x-000",
+   "evidence": [
+    {
+     "file": "raw/sweep.log",
+     "line": 14
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2307
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-a",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-000",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-000.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-b",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "observed_error",
+   "chunk": "cold-1x-001",
+   "evidence": [
+    {
+     "file": "extracts/cold-1x-001.json",
+     "pointer": "failures[fixture=gen-docx-xl-b]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-b",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_error",
+   "chunk": "cold-4x-001",
+   "evidence": [
+    {
+     "file": "extracts/cold-4x-001.json",
+     "pointer": "failures[fixture=gen-docx-xl-b]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 11
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-b",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "observed_error",
+   "chunk": "warm-1x-001",
+   "evidence": [
+    {
+     "file": "extracts/warm-1x-001.json",
+     "pointer": "failures[fixture=gen-docx-xl-b]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 41
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-b",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-001",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-001.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-c",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "observed_error",
+   "chunk": "cold-1x-001",
+   "evidence": [
+    {
+     "file": "extracts/cold-1x-001.json",
+     "pointer": "failures[fixture=gen-docx-xl-c]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 3
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-c",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_error",
+   "chunk": "cold-4x-001",
+   "evidence": [
+    {
+     "file": "extracts/cold-4x-001.json",
+     "pointer": "failures[fixture=gen-docx-xl-c]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 12
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-c",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "observed_error",
+   "chunk": "warm-1x-001",
+   "evidence": [
+    {
+     "file": "extracts/warm-1x-001.json",
+     "pointer": "failures[fixture=gen-docx-xl-c]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 42
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-xl-c",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-001",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-001.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-slides-200",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "cold-4x-001",
+   "evidence": [
+    {
+     "file": "extracts/cold-4x-001.json",
+     "pointer": "failures[fixture=gen-pptx-slides-200]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 13
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-slides-200",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-001",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-001.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-slides-200-b",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "cold-4x-001",
+   "evidence": [
+    {
+     "file": "extracts/cold-4x-001.json",
+     "pointer": "failures[fixture=gen-pptx-slides-200-b]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 14
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-slides-200-b",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "warm-1x-001",
+   "evidence": [
+    {
+     "file": "extracts/warm-1x-001.json",
+     "pointer": "failures[fixture=gen-pptx-slides-200-b]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 43
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-slides-200-b",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-001",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-001.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2295
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-slides-200-c",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "cold-4x-002",
+   "evidence": [
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 15
+    },
+    {
+     "file": "raw/box-conditions.jsonl",
+     "line": 41
+    },
+    {
+     "file": "raw/box-conditions.jsonl",
+     "line": 43
+    },
+    {
+     "file": "raw/sweep.log",
+     "line": 10
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-slides-200-c",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-1x-002",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-1x-002.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2089
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-slides-200-c",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-002",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-002.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2089
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-a",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "cold-1x-002",
+   "evidence": [
+    {
+     "file": "extracts/cold-1x-002.json",
+     "pointer": "failures[fixture=gen-pptx-xl-a]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-a",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "operator_aborted",
+   "chunk": "cold-4x-002",
+   "evidence": [
+    {
+     "file": "raw/box-conditions.jsonl",
+     "line": 43
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2104
+    },
+    {
+     "file": "raw/sweep.log",
+     "line": 10
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-a",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-1x-002",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-1x-002.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2089
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-a",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-002",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-002.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2089
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-b",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "cold-1x-002",
+   "evidence": [
+    {
+     "file": "extracts/cold-1x-002.json",
+     "pointer": "failures[fixture=gen-pptx-xl-b]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 5
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-b",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "cold-4x-002",
+   "evidence": [
+    {
+     "file": "raw/sweep.log",
+     "line": 10
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2104
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-b",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-1x-002",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-1x-002.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2089
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-b",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-002",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-002.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2089
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-c",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "cold-1x-002",
+   "evidence": [
+    {
+     "file": "extracts/cold-1x-002.json",
+     "pointer": "failures[fixture=gen-pptx-xl-c]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 6
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-c",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "cold-4x-002",
+   "evidence": [
+    {
+     "file": "raw/sweep.log",
+     "line": 10
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2104
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-c",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-1x-002",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-1x-002.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2089
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-xl-c",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "not_run",
+   "chunk": "warm-4x-002",
+   "evidence": [
+    {
+     "file": "extracts/markers.json",
+     "marker": "warm-4x-002.jsonl"
+    },
+    {
+     "file": "operator-events.jsonl",
+     "transcript_line": 2089
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-xl-a",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "cold-4x-004",
+   "evidence": [
+    {
+     "file": "extracts/cold-4x-004.json",
+     "pointer": "failures[fixture=gen-xlsx-xl-a]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 27
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-xl-a",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "lxl-sweep",
+   "status": "observed_timeout",
+   "chunk": "warm-4x-004",
+   "evidence": [
+    {
+     "file": "extracts/warm-4x-004.json",
+     "pointer": "failures[fixture=gen-xlsx-xl-a]"
+    },
+    {
+     "file": "raw/ts-lxl-8961e71.failures.jsonl",
+     "line": 44
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-placeholder",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 3
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-placeholder",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 16
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-placeholder",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 25
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-100k-c",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 18
+    }
+   ]
+  },
+  {
+   "fixture": "real-docx-poi-bug65649",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 1
+    }
+   ]
+  },
+  {
+   "fixture": "real-docx-poi-bug65649",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-rerun",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 14
+    }
+   ]
+  },
+  {
+   "fixture": "real-docx-poi-bug65649",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 23
+    }
+   ]
+  },
+  {
+   "fixture": "real-pptx-poi-bug59273",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "fixture": "real-pptx-poi-bug59273",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 17
+    }
+   ]
+  },
+  {
+   "fixture": "real-pptx-poi-bug59273",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 26
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45540_classic_Footer",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 5
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-46535",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 6
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-47813",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 19
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-50096",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 7
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-57893-many-merges",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 8
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-62629_target",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 9
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-62629_target",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 20
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-62629_target",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 27
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-bug64512_embed",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 12
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-bug64512_embed",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 21
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-DataTableCities",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 10
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-WithChartSheet",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 11
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-e899e84e6209",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 13
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-e899e84e6209",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-rerun",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 22
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fb3af3f7b5f7",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fb3af3f7b5f7",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-rerun",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 15
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fb3af3f7b5f7",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-rerun",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.rerun-failures.jsonl",
+     "line": 24
+    }
+   ]
+  },
+  {
+   "fixture": "bidi-arabic-hebrew-mixed",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 7
+    }
+   ]
+  },
+  {
+   "fixture": "bidi-arabic-hebrew-mixed",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 57
+    }
+   ]
+  },
+  {
+   "fixture": "bidi-arabic-hebrew-mixed",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 105
+    }
+   ]
+  },
+  {
+   "fixture": "bidi-arabic-hebrew-mixed",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 159
+    }
+   ]
+  },
+  {
+   "fixture": "bidi-rtl-sheet",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 8
+    }
+   ]
+  },
+  {
+   "fixture": "bidi-rtl-sheet",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 58
+    }
+   ]
+  },
+  {
+   "fixture": "bidi-rtl-sheet",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 106
+    }
+   ]
+  },
+  {
+   "fixture": "bidi-rtl-sheet",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 160
+    }
+   ]
+  },
+  {
+   "fixture": "gen-docx-pages-100",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 149
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-equation",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 53
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-placeholder",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 5
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-placeholder",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 54
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-placeholder",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 103
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-placeholder",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 153
+    }
+   ]
+  },
+  {
+   "fixture": "gen-pptx-slides-10-c",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 55
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-100k-b",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 9
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-100k-b",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 59
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-100k-b",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 107
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-100k-b",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 161
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-100k-c",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 10
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-100k-c",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 60
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-100k-c",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 108
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-100k-c",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 162
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-1k-merges",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 11
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-1k-merges",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 61
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-1k-merges",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 109
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-1k-merges",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 163
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-1k-pad-s",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 12
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-1k-pad-s",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 62
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-1k-pad-s",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 110
+    }
+   ]
+  },
+  {
+   "fixture": "gen-xlsx-cells-1k-pad-s",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 164
+    }
+   ]
+  },
+  {
+   "fixture": "real-docx-poi-60316.dotx",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 150
+    }
+   ]
+  },
+  {
+   "fixture": "real-docx-poi-Bug54849",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 1
+    }
+   ]
+  },
+  {
+   "fixture": "real-docx-poi-bug65649",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "fixture": "real-docx-poi-bug65649",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 51
+    }
+   ]
+  },
+  {
+   "fixture": "real-docx-poi-bug65649",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 101
+    }
+   ]
+  },
+  {
+   "fixture": "real-docx-poi-bug65649",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 151
+    }
+   ]
+  },
+  {
+   "fixture": "real-docx-poi-drawing",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 3
+    }
+   ]
+  },
+  {
+   "fixture": "real-pptx-poi-bug59273",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 6
+    }
+   ]
+  },
+  {
+   "fixture": "real-pptx-poi-bug59273",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 56
+    }
+   ]
+  },
+  {
+   "fixture": "real-pptx-poi-bug59273",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 104
+    }
+   ]
+  },
+  {
+   "fixture": "real-pptx-poi-bug59273",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 154
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45540_classic_Footer",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 13
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45540_classic_Footer",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 63
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45540_classic_Footer",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 111
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45540_classic_Footer",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 165
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45540_classic_Header",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 14
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45540_classic_Header",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 64
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45540_classic_Header",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 112
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45540_classic_Header",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 166
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45544",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 15
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45544",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 65
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45544",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 113
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-45544",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 167
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-46535",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 16
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-46535",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 66
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-46535",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 114
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-46535",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 168
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-47813",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 17
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-47813",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 67
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-47813",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 115
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-47813",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 169
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-49156",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 18
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-49156",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 68
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-49156",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 116
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-49156",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 170
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-50096",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 19
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-50096",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 69
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-50096",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 117
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-50096",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 171
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-56644",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 20
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-56644",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 70
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-56644",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 118
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-56644",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 172
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-57181",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 21
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-57181",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 71
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-57181",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 119
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-57181",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 173
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-57893-many-merges",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 22
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-57893-many-merges",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 72
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-57893-many-merges",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 120
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-57893-many-merges",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 174
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-61652",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 23
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-61652",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 73
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-61652",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 121
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-61652",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 175
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-62629_target",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 24
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-62629_target",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 74
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-62629_target",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 122
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-62629_target",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 176
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-bug64512_embed",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 35
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-bug64512_embed",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 85
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-bug64512_embed",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 133
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-bug64512_embed",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 187
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ConditionalFormattingSamples",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 25
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ConditionalFormattingSamples",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 75
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ConditionalFormattingSamples",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 123
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ConditionalFormattingSamples",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 177
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-DataTableCities",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 26
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-DataTableCities",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 76
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-DataTableCities",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 124
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-DataTableCities",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 178
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-dataValidationTableRange",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 36
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-dataValidationTableRange",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 86
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-dataValidationTableRange",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 134
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-dataValidationTableRange",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 188
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-DateFormatTests",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 27
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-DateFormatTests",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 77
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-DateFormatTests",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 125
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-DateFormatTests",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 179
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ExcelPivotTableSample",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 28
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ExcelPivotTableSample",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 78
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ExcelPivotTableSample",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 126
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ExcelPivotTableSample",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 180
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ExcelWithAttachments",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 29
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ExcelWithAttachments",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 79
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ExcelWithAttachments",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 127
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-ExcelWithAttachments",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 181
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-FormulaEvalTestData_Copy",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 30
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-FormulaEvalTestData_Copy",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 80
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-FormulaEvalTestData_Copy",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 128
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-FormulaEvalTestData_Copy",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 182
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-NewStyleConditionalFormattings",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 31
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-NewStyleConditionalFormattings",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 81
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-NewStyleConditionalFormattings",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 129
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-NewStyleConditionalFormattings",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 183
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-no_drawing_patriarch",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 37
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-no_drawing_patriarch",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 87
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-no_drawing_patriarch",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 135
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-no_drawing_patriarch",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 189
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-StructuredRefs-lots-with-lookups",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 32
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-StructuredRefs-lots-with-lookups",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 82
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-StructuredRefs-lots-with-lookups",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 130
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-StructuredRefs-lots-with-lookups",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 184
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-test",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 38
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-test",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 88
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-test",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 136
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-test",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 190
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-WithChartSheet",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 33
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-WithChartSheet",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 83
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-WithChartSheet",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 131
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-WithChartSheet",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 185
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-WithEmbeded",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 34
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-WithEmbeded",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 84
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-WithEmbeded",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 132
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-poi-WithEmbeded",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 186
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-python-pptx-shp-embedded-xlsx",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 39
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-python-pptx-shp-embedded-xlsx",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 89
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-python-pptx-shp-embedded-xlsx",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 137
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-python-pptx-shp-embedded-xlsx",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 191
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-census-NST-EST2024-POP",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 40
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-census-NST-EST2024-POP",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 90
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-census-NST-EST2024-POP",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 138
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-census-NST-EST2024-POP",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 192
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-eia-MER-T01.01",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 41
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-eia-MER-T01.01",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 91
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-eia-MER-T01.01",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 139
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-eia-MER-T01.01",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 193
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-fhwa-2022-vm1",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 43
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-fhwa-2022-vm1",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 93
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-fhwa-2022-vm1",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 141
+    }
+   ]
+  },
+  {
+   "fixture": "real-xlsx-usgov-fhwa-2022-vm1",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 195
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-1a304a300451",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 44
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-1a304a300451",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 94
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-1a304a300451",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 142
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-1a304a300451",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 196
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-2ad922a2a025",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 45
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-2ad922a2a025",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 95
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-2ad922a2a025",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 143
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-2ad922a2a025",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 197
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-2f38830758e8",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 46
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-2f38830758e8",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 96
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-2f38830758e8",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 144
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-2f38830758e8",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 198
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-38aa694fb4a5",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 155
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-3fdae3824dde",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 47
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-3fdae3824dde",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 97
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-3fdae3824dde",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 145
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-3fdae3824dde",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 199
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-49a48af6d18d",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 156
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-88e14cba7830",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 157
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-8b581ee14978",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 48
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-8b581ee14978",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 98
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-8b581ee14978",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 146
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-8b581ee14978",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 200
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-9ed0ab63f8de",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 49
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-9ed0ab63f8de",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 99
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-9ed0ab63f8de",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 147
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-9ed0ab63f8de",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 201
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-a344b2f3f55d",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 158
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-e899e84e6209",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 50
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-e899e84e6209",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 100
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-e899e84e6209",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 148
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-e899e84e6209",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 202
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fb3af3f7b5f7",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fb3af3f7b5f7",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 52
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fb3af3f7b5f7",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 102
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fb3af3f7b5f7",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_error",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 152
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fd8fbde7846d",
+   "mode": "cold",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 42
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fd8fbde7846d",
+   "mode": "cold",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 92
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fd8fbde7846d",
+   "mode": "warm",
+   "cpu_throttle": 1,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 140
+    }
+   ]
+  },
+  {
+   "fixture": "upstream-fd8fbde7846d",
+   "mode": "warm",
+   "cpu_throttle": 4,
+   "source": "sm-sweep",
+   "status": "observed_timeout",
+   "evidence": [
+    {
+     "file": "raw/ts-4451709.failures.jsonl",
+     "line": 194
+    }
+   ]
+  }
+ ]
+}

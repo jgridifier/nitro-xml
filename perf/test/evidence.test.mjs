@@ -31,3 +31,9 @@ test('verifier rejects a changed file and a claim the evidence does not support'
   assert.match(r.stderr, /sha256 mismatch cell-evidence\.json/);
   assert.match(r.stderr, /claimed observed_timeout, evidence derives not_run/);
 });
+
+test('cell inventory is current and reconciles with the verifier totals', () => {
+  // Catches: ISSUE-10-CELL-INVENTORY.md drifting from history/provenance, or its totals disagreeing with the verifier
+  const r = spawnSync('node', [join(here, '../gen-cell-inventory.mjs'), '--check'], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+});

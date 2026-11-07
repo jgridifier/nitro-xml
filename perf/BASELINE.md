@@ -31,7 +31,7 @@
 | host 2: node | v20.19.2 |
 | host 2: concurrent_runs | 1 |
 
-Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95` over the iterations of one fixture; per-tier cells are `median (min..max)` over the fixtures of the tier of each fixture's median. Cells: mode (cold/warm) x CPU throttle (1x/4x).
+Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95 (n=samples)` over the iterations of one fixture, p95 being the empirical 95th percentile (not a confidence interval); per-tier cells are `median (min..max)` over the fixtures of the tier of each fixture's median. Cells: mode (cold/warm) x CPU throttle (1x/4x).
 
 ## Status
 
@@ -43,9 +43,13 @@ Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95` ove
 
 - Two runs shared the machine at a time (`concurrent_runs` in the host fingerprint), on disjoint fixtures of the same cell, to fit the sweep in time; a 3-way concurrency check on this box moved the median first_paint of a small xlsx by about 7%, so absolute numbers sit slightly above a serial run. Compare like with like (same host, same `concurrent_runs`).
 
-## Sample counts and the minimum-n rule
+## Sample counts, p95 and what is not claimed
 
-Every per-cell number is shown with its sample count n (finite samples of that metric in that cell, warm-up excluded). **Rule: no speed number, ranking, tier aggregate or 95% CI is reported for a cell with n < 5 or with no samples; it shows `insufficient samples (n=N)` or `no samples` instead.** Tier aggregates leave out fixtures below the threshold and say how many were omitted. The raw samples stay in the jsonl and history. This does not change any perf gate, budget or threshold. The L/XL sweep ran 3 iterations per cell (cold n=3, warm n=3 after one discarded warm-up), so **no L/XL cell currently meets the rule**; L/XL numbers are not claimed until they are re-measured with n >= 5.
+Every number in a cell is printed with its sample count n (finite samples of that metric in that cell, warm-up excluded). **Measured medians are always shown.** A cell with fewer samples than the harness design count (cold 10, warm 20; `perf/run.mjs` defaults) is labelled `thin sample`; a cell with none shows `no samples`. No existing code defines a smaller cut-off, so none is invented here.
+
+**p95** in this report is the empirical 95th percentile of the cell's samples (linear interpolation, `perf/stats.mjs`); with a thin sample it is close to the maximum. It is **not** a 95% confidence interval. This report computes **no 95% confidence interval** (the seeded bootstrap in `stats.mjs` is not used here) and makes **no speed-win or WASM-vs-TS claim**: it is a descriptive TS baseline. Rankings only include fixtures whose cell is not thin. The raw samples are in the jsonl and history; this changes no perf gate, budget or threshold.
+
+The L/XL sweep ran 3 iterations per cell (cold n=3, warm n=3 after one discarded warm-up), so every measured L/XL cell below is a thin sample.
 
 ## Corpus coverage
 
@@ -70,19 +74,19 @@ Every per-cell number is shown with its sample count n (finite samples of that m
 
 | format | tier | fixtures | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| xlsx | S | 28 | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2346 (2346..2346) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| xlsx | M | 7 | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4/7 fixtures omitted (n<5 or no samples) | 3109 (3109..3109) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| xlsx | L | 3 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| xlsx | XL | 2 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| docx | S | 70 | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (995..1501) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| docx | M | 7 | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20 |
-| pptx | S | 86 | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4749 (4103..6316) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| xlsx | S | 28 | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18 fixtures no samples | 2346 (2346..2346) n=20, 27 fixtures no samples |
+| xlsx | M | 7 | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4 fixtures no samples | 2732 (2356..3109) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| xlsx | L | 3 | 2278 (1831..2763) n=3, thin sample in 3/3 fixtures | 7791 (6120..9767) n=3, thin sample in 3/3 fixtures | 2272 (1833..2841) n=3, thin sample in 3/3 fixtures | 9108 (7063..12098) n=3, thin sample in 3/3 fixtures |
+| xlsx | XL | 2 | 5738 (5612..5864) n=3, thin sample in 2/2 fixtures | 21611 (18639..24583) n=3, thin sample in 2/2 fixtures | 5288 (5171..5405) n=3, thin sample in 2/2 fixtures | 23660 (22094..25226) n=3, thin sample in 2/2 fixtures |
+| docx | S | 70 | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (951..1501) n=1–20, thin sample in 1/70 fixtures |
+| docx | M | 7 | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20, thin sample in 1/7 fixtures |
+| pptx | S | 86 | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4750 (4103..6316) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
 | pptx | M | 24 | 1447 (1273..1985) n=10 | 5623 (4946..7005) n=10 | 1429 (1301..2004) n=20 | 5053 (4383..6941) n=20 |
-| pptx | L | 3 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| pptx | L | 3 | 2098 (1621..3204) n=3, thin sample in 3/3 fixtures | 8465 (5798..13097) n=3, thin sample in 3/3 fixtures | 2385 (1624..3408) n=3, thin sample in 3/3 fixtures | 7726 (5596..16317) n=3, thin sample in 3/3 fixtures |
 
 ## Rankings (individual fixtures)
 
-**5 slowest fixtures** (cold 1x first_paint median; only fixtures with n >= 5 in that cell are ranked, so n=3 L/XL fixtures are not ranked here):
+**5 slowest fixtures** (cold 1x first_paint median, descriptive ordering of this run only). Fixtures whose cold 1x cell is a thin sample (n < 10) or has no samples are not ranked, so the n=3 L/XL fixtures are absent from these two lists; their medians are in the per-fixture tables with n:
 
 | # | fixture | format | tier | bytes | first_paint_ms | n |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -96,11 +100,11 @@ Every per-cell number is shown with its sample count n (finite samples of that m
 
 | # | fixture | format | tier | bytes | JSHeapUsedSize (MiB) | n |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | real-xlsx-poi-57181 | xlsx | M | 334727 | 0 | 10 |
-| 2 | gen-xlsx-cells-100k-b | xlsx | M | 704900 | 0 | 10 |
-| 3 | upstream-25297a56a758 | pptx | M | 251735 | 0 | 10 |
-| 4 | gen-xlsx-cells-100k | xlsx | M | 503874 | 0 | 10 |
-| 5 | real-pptx-poi-keyframes | pptx | M | 389330 | 0 | 10 |
+| 1 | real-xlsx-poi-57181 | xlsx | M | 334727 | 149 | 10 |
+| 2 | gen-xlsx-cells-100k-b | xlsx | M | 704900 | 79.8 | 10 |
+| 3 | upstream-25297a56a758 | pptx | M | 251735 | 77.4 | 10 |
+| 4 | gen-xlsx-cells-100k | xlsx | M | 503874 | 75.3 | 10 |
+| 5 | real-pptx-poi-keyframes | pptx | M | 389330 | 72.2 | 10 |
 
 ## xlsx-M warm 1x TTI: bimodal p95 (investigated)
 
@@ -251,234 +255,234 @@ Status per cell is in `perf/baselines/failure-provenance.json` (one evidence poi
 
 | metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2346 (2346..2346) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| parse_ms | 129 (95.5..563) n=10–11 | 558 (405..948) n=10 | 120 (93.9..139) n=20, 18/28 fixtures omitted (n<5 or no samples) | 542 (542..542) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| first_render_ms | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2346 (2346..2346) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| full_render_ms | 10820 (928..12619) n=10–11 | 12659 (2324..14019) n=10 | 10795 (773..10943) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2524 (2524..2524) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| tbt_ms | 285 (250..1141) n=10–11 | 1604 (1380..1958) n=10 | 264 (237..304) n=20, 18/28 fixtures omitted (n<5 or no samples) | 1677 (1677..1677) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| JSHeapUsedSize (MiB) | 17.8 (15..24.7) n=10–11 | 18.6 (16.4..26.2) n=10 | 17.2 (14.6..25.3) n=20, 18/28 fixtures omitted (n<5 or no samples) | 17.7 (17.7..17.7) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| first_paint_ms | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18 fixtures no samples | 2346 (2346..2346) n=20, 27 fixtures no samples |
+| parse_ms | 129 (95.5..563) n=10–11 | 558 (405..948) n=10 | 120 (93.9..139) n=20, 18 fixtures no samples | 542 (542..542) n=20, 27 fixtures no samples |
+| first_render_ms | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18 fixtures no samples | 2346 (2346..2346) n=20, 27 fixtures no samples |
+| full_render_ms | 10820 (928..12619) n=10–11 | 12659 (2324..14019) n=10 | 10795 (773..10943) n=20, 18 fixtures no samples | 2524 (2524..2524) n=20, 27 fixtures no samples |
+| tbt_ms | 285 (250..1141) n=10–11 | 1604 (1380..1958) n=10 | 264 (237..304) n=20, 18 fixtures no samples | 1677 (1677..1677) n=20, 27 fixtures no samples |
+| JSHeapUsedSize (MiB) | 17.8 (15..24.7) n=10–11 | 18.6 (16.4..26.2) n=10 | 17.2 (14.6..25.3) n=20, 18 fixtures no samples | 17.7 (17.7..17.7) n=20, 27 fixtures no samples |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 33.3 (24.7..50.1) n=10–11 | 32.3 (24.4..49) n=10 | 33.4 (24.7..50.5) n=20, 18/28 fixtures omitted (n<5 or no samples) | 24.5 (24.5..24.5) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| bytes_ready_ms | 654 (590..1656) n=10–11 | 1784 (1550..2062) n=10 | 600 (564..637) n=20, 18/28 fixtures omitted (n<5 or no samples) | 1729 (1729..1729) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| engine_ms | 646 (585..1641) n=10–11 | 1765 (1538..2030) n=10 | 597 (558..632) n=20, 18/28 fixtures omitted (n<5 or no samples) | 1716 (1716..1716) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| fetch_ms | 6 (5..18.9) n=10–11 | 18.5 (10.6..31.4) n=10 | 3.2 (2.9..3.7) n=20, 18/28 fixtures omitted (n<5 or no samples) | 10.6 (10.6..10.6) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| heap_samples | 874 (40..891) n=10–11 | 631 (37..758) n=10 | 881 (35..904) n=20, 18/28 fixtures omitted (n<5 or no samples) | 39.5 (39.5..39.5) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| long_task_count | 2 (2..3.5) n=10–11 | 4 (3..13.5) n=10 | 2 (2..3) n=20, 18/28 fixtures omitted (n<5 or no samples) | 5 (5..5) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| long_task_total_ms | 397 (350..1322) n=10–11 | 1806 (1559..2609) n=10 | 367 (338..443) n=20, 18/28 fixtures omitted (n<5 or no samples) | 1959 (1959..1959) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| parse_end_ms | 776 (702..2164) n=10–11 | 2397 (1955..2857) n=10 | 723 (666..779) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2289 (2289..2289) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| peak_heap_used_MiB | 23.4 (18.2..34.7) n=10–11 | 22.8 (18.6..34.2) n=10 | 23.7 (17.9..32.6) n=20, 18/28 fixtures omitted (n<5 or no samples) | 18.6 (18.6..18.6) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| render_ms | 77.3 (56.3..398) n=10–11 | 327 (196..772) n=10 | 75.4 (52.7..94.2) n=20, 18/28 fixtures omitted (n<5 or no samples) | 352 (352..352) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| retained_heap_used_MiB | 14.6 (13.1..18.3) n=10–11 | 14.6 (13.1..18.3) n=10 | 14.9 (13.1..17.5) n=20, 18/28 fixtures omitted (n<5 or no samples) | 13.1 (13.1..13.1) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| step_count | 200 (1..200) n=10–11 | 200 (1..200) n=10 | 200 (1..200) n=20, 18/28 fixtures omitted (n<5 or no samples) | 1 (1..1) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| step_median_ms | 49.6 (48.5..49.7) n=10–11 | 49.1 (48.5..122) n=10 | 49.7 (47.6..49.7) n=20, 18/28 fixtures omitted (n<5 or no samples) | 132 (132..132) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| step_p95_ms | 50 (48.5..65.7) n=10–11 | 56.5 (49.6..122) n=10 | 50 (47.6..50.1) n=20, 18/28 fixtures omitted (n<5 or no samples) | 132 (132..132) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| step_unsupported | 0 (0..0) n=10–11 | 0 (0..0) n=10 | 0 (0..0) n=20, 18/28 fixtures omitted (n<5 or no samples) | 0 (0..0) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| tti_ms | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2346 (2346..2346) n=20, 27/28 fixtures omitted (n<5 or no samples) |
-| tti_with_interaction_ms | 795 (709..2494) n=10–11 | 3583 (2016..11599) n=10 | 758 (686..1049) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2479 (2479..2479) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| JSHeapTotalSize (MiB) | 33.3 (24.7..50.1) n=10–11 | 32.3 (24.4..49) n=10 | 33.4 (24.7..50.5) n=20, 18 fixtures no samples | 24.5 (24.5..24.5) n=20, 27 fixtures no samples |
+| bytes_ready_ms | 654 (590..1656) n=10–11 | 1784 (1550..2062) n=10 | 600 (564..637) n=20, 18 fixtures no samples | 1729 (1729..1729) n=20, 27 fixtures no samples |
+| engine_ms | 646 (585..1641) n=10–11 | 1765 (1538..2030) n=10 | 597 (558..632) n=20, 18 fixtures no samples | 1716 (1716..1716) n=20, 27 fixtures no samples |
+| fetch_ms | 6 (5..18.9) n=10–11 | 18.5 (10.6..31.4) n=10 | 3.2 (2.9..3.7) n=20, 18 fixtures no samples | 10.6 (10.6..10.6) n=20, 27 fixtures no samples |
+| heap_samples | 874 (40..891) n=10–11 | 631 (37..758) n=10 | 881 (35..904) n=20, 18 fixtures no samples | 39.5 (39.5..39.5) n=20, 27 fixtures no samples |
+| long_task_count | 2 (2..3.5) n=10–11 | 4 (3..13.5) n=10 | 2 (2..3) n=20, 18 fixtures no samples | 5 (5..5) n=20, 27 fixtures no samples |
+| long_task_total_ms | 397 (350..1322) n=10–11 | 1806 (1559..2609) n=10 | 367 (338..443) n=20, 18 fixtures no samples | 1959 (1959..1959) n=20, 27 fixtures no samples |
+| parse_end_ms | 776 (702..2164) n=10–11 | 2397 (1955..2857) n=10 | 723 (666..779) n=20, 18 fixtures no samples | 2289 (2289..2289) n=20, 27 fixtures no samples |
+| peak_heap_used_MiB | 23.4 (18.2..34.7) n=10–11 | 22.8 (18.6..34.2) n=10 | 23.7 (17.9..32.6) n=20, 18 fixtures no samples | 18.6 (18.6..18.6) n=20, 27 fixtures no samples |
+| render_ms | 77.3 (56.3..398) n=10–11 | 327 (196..772) n=10 | 75.4 (52.7..94.2) n=20, 18 fixtures no samples | 352 (352..352) n=20, 27 fixtures no samples |
+| retained_heap_used_MiB | 14.6 (13.1..18.3) n=10–11 | 14.6 (13.1..18.3) n=10 | 14.9 (13.1..17.5) n=20, 18 fixtures no samples | 13.1 (13.1..13.1) n=20, 27 fixtures no samples |
+| step_count | 200 (1..200) n=10–11 | 200 (1..200) n=10 | 200 (1..200) n=20, 18 fixtures no samples | 1 (1..1) n=20, 27 fixtures no samples |
+| step_median_ms | 49.6 (48.5..49.7) n=10–11 | 49.1 (48.5..122) n=10 | 49.7 (47.6..49.7) n=20, 18 fixtures no samples | 132 (132..132) n=20, 27 fixtures no samples |
+| step_p95_ms | 50 (48.5..65.7) n=10–11 | 56.5 (49.6..122) n=10 | 50 (47.6..50.1) n=20, 18 fixtures no samples | 132 (132..132) n=20, 27 fixtures no samples |
+| step_unsupported | 0 (0..0) n=10–11 | 0 (0..0) n=10 | 0 (0..0) n=20, 18 fixtures no samples | 0 (0..0) n=20, 27 fixtures no samples |
+| tti_ms | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18 fixtures no samples | 2346 (2346..2346) n=20, 27 fixtures no samples |
+| tti_with_interaction_ms | 795 (709..2494) n=10–11 | 3583 (2016..11599) n=10 | 758 (686..1049) n=20, 18 fixtures no samples | 2479 (2479..2479) n=20, 27 fixtures no samples |
 
 ### xlsx M: 7 fixtures
 
 | metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4/7 fixtures omitted (n<5 or no samples) | 3109 (3109..3109) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| parse_ms | 322 (239..1968) n=10 | 1260 (1134..3066) n=10–11 | 325 (286..337) n=20, 4/7 fixtures omitted (n<5 or no samples) | 1330 (1330..1330) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| first_render_ms | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4/7 fixtures omitted (n<5 or no samples) | 3109 (3109..3109) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| full_render_ms | 11075 (9511..16285) n=10 | 20661 (13477..26654) n=10–11 | 11016 (9371..11088) n=20, 4/7 fixtures omitted (n<5 or no samples) | 27243 (27243..27243) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| tbt_ms | 462 (376..2549) n=10 | 4953 (2093..11102) n=10–11 | 429 (404..440) n=20, 4/7 fixtures omitted (n<5 or no samples) | 12167 (12167..12167) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| JSHeapUsedSize (MiB) | 68.2 (18.9..149) n=10 | 65.7 (18.7..143) n=10–11 | 84.1 (77.8..146) n=20, 4/7 fixtures omitted (n<5 or no samples) | 72.2 (72.2..72.2) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| first_paint_ms | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4 fixtures no samples | 2732 (2356..3109) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| parse_ms | 322 (239..1968) n=10 | 1260 (1134..3066) n=10–11 | 325 (286..337) n=20, 4 fixtures no samples | 1065 (800..1330) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| first_render_ms | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4 fixtures no samples | 2732 (2356..3109) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| full_render_ms | 11075 (9511..16285) n=10 | 20661 (13477..26654) n=10–11 | 11016 (9371..11088) n=20, 4 fixtures no samples | 32251 (27243..37260) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| tbt_ms | 462 (376..2549) n=10 | 4953 (2093..11102) n=10–11 | 429 (404..440) n=20, 4 fixtures no samples | 12132 (12097..12167) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| JSHeapUsedSize (MiB) | 68.2 (18.9..149) n=10 | 65.7 (18.7..143) n=10–11 | 84.1 (77.8..146) n=20, 4 fixtures no samples | 45.1 (17.9..72.2) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 117 (35.5..199) n=10 | 113 (35.8..191) n=10–11 | 128 (126..193) n=20, 4/7 fixtures omitted (n<5 or no samples) | 125 (125..125) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| bytes_ready_ms | 675 (625..1699) n=10 | 1760 (1645..2074) n=10–11 | 597 (578..618) n=20, 4/7 fixtures omitted (n<5 or no samples) | 1706 (1706..1706) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| engine_ms | 669 (617..1670) n=10 | 1738 (1619..2036) n=10–11 | 591 (570..614) n=20, 4/7 fixtures omitted (n<5 or no samples) | 1681 (1681..1681) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| fetch_ms | 8.7 (6.6..25.7) n=10 | 26.5 (17.3..38.8) n=10–11 | 5.9 (4.9..7) n=20, 4/7 fixtures omitted (n<5 or no samples) | 21.2 (21.2..21.2) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| heap_samples | 674 (486..893) n=10 | 509 (403..629) n=10–11 | 655 (495..718) n=20, 4/7 fixtures omitted (n<5 or no samples) | 395 (395..395) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| long_task_count | 3.5 (3..9.5) n=10 | 65.5 (4.5..203) n=10–11 | 3 (3..3.5) n=20, 4/7 fixtures omitted (n<5 or no samples) | 171 (171..171) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| long_task_total_ms | 662 (526..2999) n=10 | 8228 (2374..19602) n=10–11 | 594 (554..595) n=20, 4/7 fixtures omitted (n<5 or no samples) | 20648 (20648..20648) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| parse_end_ms | 1000 (907..3702) n=10 | 3100 (2892..4948) n=10–11 | 916 (897..935) n=20, 4/7 fixtures omitted (n<5 or no samples) | 3041 (3041..3041) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| peak_heap_used_MiB | 93.5 (25.2..170) n=10 | 87.7 (24.3..163) n=10–11 | 96.2 (92..156) n=20, 4/7 fixtures omitted (n<5 or no samples) | 88.1 (88.1..88.1) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| render_ms | 284 (182..1854) n=10 | 1065 (952..2841) n=10–11 | 282 (251..297) n=20, 4/7 fixtures omitted (n<5 or no samples) | 1152 (1152..1152) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| retained_heap_used_MiB | 57.5 (15.3..129) n=10 | 57.5 (15.3..129) n=10–11 | 66 (65.9..129) n=20, 4/7 fixtures omitted (n<5 or no samples) | 66 (66..66) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| step_count | 200 (166..200) n=10 | 200 (166..200) n=10–11 | 200 (166..200) n=20, 4/7 fixtures omitted (n<5 or no samples) | 166 (166..166) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| step_median_ms | 49.5 (48.9..61.8) n=10 | 68.5 (48.9..128) n=10–11 | 49.4 (48.9..49.6) n=20, 4/7 fixtures omitted (n<5 or no samples) | 133 (133..133) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| step_p95_ms | 52.8 (49.8..84.4) n=10 | 127 (59.7..178) n=10–11 | 54.3 (50.8..55.5) n=20, 4/7 fixtures omitted (n<5 or no samples) | 179 (179..179) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10–11 | 0 (0..0) n=20, 4/7 fixtures omitted (n<5 or no samples) | 0 (0..0) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| tti_ms | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4/7 fixtures omitted (n<5 or no samples) | 3109 (3109..3109) n=20, 6/7 fixtures omitted (n<5 or no samples) |
-| tti_with_interaction_ms | 1107 (917..14580) n=10 | 20126 (3388..25501) n=10–11 | 954 (935..2612) n=20, 4/7 fixtures omitted (n<5 or no samples) | 27175 (27175..27175) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| JSHeapTotalSize (MiB) | 117 (35.5..199) n=10 | 113 (35.8..191) n=10–11 | 128 (126..193) n=20, 4 fixtures no samples | 72.9 (21.3..125) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| bytes_ready_ms | 675 (625..1699) n=10 | 1760 (1645..2074) n=10–11 | 597 (578..618) n=20, 4 fixtures no samples | 1619 (1531..1706) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| engine_ms | 669 (617..1670) n=10 | 1738 (1619..2036) n=10–11 | 591 (570..614) n=20, 4 fixtures no samples | 1595 (1509..1681) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| fetch_ms | 8.7 (6.6..25.7) n=10 | 26.5 (17.3..38.8) n=10–11 | 5.9 (4.9..7) n=20, 4 fixtures no samples | 21.7 (21.2..22.2) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| heap_samples | 674 (486..893) n=10 | 509 (403..629) n=10–11 | 655 (495..718) n=20, 4 fixtures no samples | 1100 (395..1805) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| long_task_count | 3.5 (3..9.5) n=10 | 65.5 (4.5..203) n=10–11 | 3 (3..3.5) n=20, 4 fixtures no samples | 88 (5..171) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| long_task_total_ms | 662 (526..2999) n=10 | 8228 (2374..19602) n=10–11 | 594 (554..595) n=20, 4 fixtures no samples | 16498 (12347..20648) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| parse_end_ms | 1000 (907..3702) n=10 | 3100 (2892..4948) n=10–11 | 916 (897..935) n=20, 4 fixtures no samples | 2686 (2331..3041) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| peak_heap_used_MiB | 93.5 (25.2..170) n=10 | 87.7 (24.3..163) n=10–11 | 96.2 (92..156) n=20, 4 fixtures no samples | 57.6 (27.1..88.1) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| render_ms | 284 (182..1854) n=10 | 1065 (952..2841) n=10–11 | 282 (251..297) n=20, 4 fixtures no samples | 878 (604..1152) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| retained_heap_used_MiB | 57.5 (15.3..129) n=10 | 57.5 (15.3..129) n=10–11 | 66 (65.9..129) n=20, 4 fixtures no samples | 41.8 (17.5..66) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| step_count | 200 (166..200) n=10 | 200 (166..200) n=10–11 | 200 (166..200) n=20, 4 fixtures no samples | 326 (166..486) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| step_median_ms | 49.5 (48.9..61.8) n=10 | 68.5 (48.9..128) n=10–11 | 49.4 (48.9..49.6) n=20, 4 fixtures no samples | 90.9 (49.1..133) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| step_p95_ms | 52.8 (49.8..84.4) n=10 | 127 (59.7..178) n=10–11 | 54.3 (50.8..55.5) n=20, 4 fixtures no samples | 115 (50..179) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10–11 | 0 (0..0) n=20, 4 fixtures no samples | 0 (0..0) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| tti_ms | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4 fixtures no samples | 2732 (2356..3109) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
+| tti_with_interaction_ms | 1107 (917..14580) n=10 | 20126 (3388..25501) n=10–11 | 954 (935..2612) n=20, 4 fixtures no samples | 32202 (27175..37229) n=1–20, thin sample in 1/2 fixtures, 5 fixtures no samples |
 
 ### xlsx L: 3 fixtures
 
 | metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| parse_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| first_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| full_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| tbt_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| JSHeapUsedSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| first_paint_ms | 2278 (1831..2763) n=3, thin sample in 3/3 fixtures | 7791 (6120..9767) n=3, thin sample in 3/3 fixtures | 2272 (1833..2841) n=3, thin sample in 3/3 fixtures | 9108 (7063..12098) n=3, thin sample in 3/3 fixtures |
+| parse_ms | 1647 (1177..2112) n=3, thin sample in 3/3 fixtures | 6069 (4386..7883) n=3, thin sample in 3/3 fixtures | 1625 (1177..2186) n=3, thin sample in 3/3 fixtures | 7038 (4991..9895) n=3, thin sample in 3/3 fixtures |
+| first_render_ms | 2278 (1831..2763) n=3, thin sample in 3/3 fixtures | 7791 (6120..9767) n=3, thin sample in 3/3 fixtures | 2272 (1833..2841) n=3, thin sample in 3/3 fixtures | 9108 (7063..12098) n=3, thin sample in 3/3 fixtures |
+| full_render_ms | 12750 (12354..13190) n=3, thin sample in 3/3 fixtures | 38932 (38538..41037) n=3, thin sample in 3/3 fixtures | 13792 (12630..13952) n=3, thin sample in 3/3 fixtures | 46344 (43087..58912) n=3, thin sample in 3/3 fixtures |
+| tbt_ms | 1571 (1192..1997) n=3, thin sample in 3/3 fixtures | 20894 (20444..23146) n=3, thin sample in 3/3 fixtures | 2097 (1238..2132) n=3, thin sample in 3/3 fixtures | 27113 (24613..38248) n=3, thin sample in 3/3 fixtures |
+| JSHeapUsedSize (MiB) | 135 (111..145) n=3, thin sample in 3/3 fixtures | 123 (112..139) n=3, thin sample in 3/3 fixtures | 134 (112..142) n=3, thin sample in 3/3 fixtures | 129 (118..138) n=3, thin sample in 3/3 fixtures |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| bytes_ready_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| engine_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| fetch_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| heap_samples | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| long_task_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| long_task_total_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| parse_end_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| peak_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| retained_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_median_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_p95_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_unsupported | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| tti_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| tti_with_interaction_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| JSHeapTotalSize (MiB) | 188 (173..199) n=3, thin sample in 3/3 fixtures | 182 (173..201) n=3, thin sample in 3/3 fixtures | 189 (174..202) n=3, thin sample in 3/3 fixtures | 179 (171..200) n=3, thin sample in 3/3 fixtures |
+| bytes_ready_ms | 640 (630..642) n=3, thin sample in 3/3 fixtures | 1721 (1720..1811) n=3, thin sample in 3/3 fixtures | 643 (635..645) n=3, thin sample in 3/3 fixtures | 2059 (2002..2135) n=3, thin sample in 3/3 fixtures |
+| engine_ms | 587 (580..591) n=3, thin sample in 3/3 fixtures | 1590 (1559..1599) n=3, thin sample in 3/3 fixtures | 575 (570..587) n=3, thin sample in 3/3 fixtures | 1895 (1730..1905) n=3, thin sample in 3/3 fixtures |
+| fetch_ms | 50.3 (31.8..53) n=3, thin sample in 3/3 fixtures | 158 (122..193) n=3, thin sample in 3/3 fixtures | 43.5 (37.2..47.5) n=3, thin sample in 3/3 fixtures | 223 (154..239) n=3, thin sample in 3/3 fixtures |
+| heap_samples | 498 (492..522) n=3, thin sample in 3/3 fixtures | 517 (500..528) n=3, thin sample in 3/3 fixtures | 501 (482..507) n=3, thin sample in 3/3 fixtures | 517 (517..543) n=3, thin sample in 3/3 fixtures |
+| long_task_count | 4 (3..5) n=3, thin sample in 3/3 fixtures | 206 (205..206) n=3, thin sample in 3/3 fixtures | 7 (6..15) n=3, thin sample in 3/3 fixtures | 209 (208..211) n=3, thin sample in 3/3 fixtures |
+| long_task_total_ms | 1735 (1442..2186) n=3, thin sample in 3/3 fixtures | 31144 (30694..33446) n=3, thin sample in 3/3 fixtures | 2482 (1538..2897) n=3, thin sample in 3/3 fixtures | 37563 (34939..48798) n=3, thin sample in 3/3 fixtures |
+| parse_end_ms | 2264 (1818..2743) n=3, thin sample in 3/3 fixtures | 7725 (6062..9709) n=3, thin sample in 3/3 fixtures | 2259 (1820..2828) n=3, thin sample in 3/3 fixtures | 9040 (7000..12030) n=3, thin sample in 3/3 fixtures |
+| peak_heap_used_MiB | 329 (264..449) n=3, thin sample in 3/3 fixtures | 395 (328..426) n=3, thin sample in 3/3 fixtures | 402 (331..447) n=3, thin sample in 3/3 fixtures | 327 (239..425) n=3, thin sample in 3/3 fixtures |
+| render_ms | 1607 (1125..2080) n=3, thin sample in 3/3 fixtures | 5882 (4203..7732) n=3, thin sample in 3/3 fixtures | 1589 (1122..2149) n=3, thin sample in 3/3 fixtures | 6839 (4808..9688) n=3, thin sample in 3/3 fixtures |
+| retained_heap_used_MiB | 111 (100..122) n=3, thin sample in 3/3 fixtures | 111 (100..122) n=3, thin sample in 3/3 fixtures | 111 (100..122) n=3, thin sample in 3/3 fixtures | 111 (100..122) n=3, thin sample in 3/3 fixtures |
+| step_count | 200 (200..200) n=3, thin sample in 3/3 fixtures | 200 (200..200) n=3, thin sample in 3/3 fixtures | 200 (200..200) n=3, thin sample in 3/3 fixtures | 200 (200..200) n=3, thin sample in 3/3 fixtures |
+| step_median_ms | 49.5 (49.4..49.5) n=3, thin sample in 3/3 fixtures | 148 (147..152) n=3, thin sample in 3/3 fixtures | 49.6 (49.5..50) n=3, thin sample in 3/3 fixtures | 178 (173..198) n=3, thin sample in 3/3 fixtures |
+| step_p95_ms | 66 (66..66.1) n=3, thin sample in 3/3 fixtures | 197 (180..199) n=3, thin sample in 3/3 fixtures | 66.9 (66.3..84.1) n=3, thin sample in 3/3 fixtures | 221 (212..268) n=3, thin sample in 3/3 fixtures |
+| step_unsupported | 0 (0..0) n=3, thin sample in 3/3 fixtures | 0 (0..0) n=3, thin sample in 3/3 fixtures | 0 (0..0) n=3, thin sample in 3/3 fixtures | 0 (0..0) n=3, thin sample in 3/3 fixtures |
+| tti_ms | 2278 (1831..2763) n=3, thin sample in 3/3 fixtures | 7791 (6120..9767) n=3, thin sample in 3/3 fixtures | 2272 (1833..2841) n=3, thin sample in 3/3 fixtures | 9108 (7063..12098) n=3, thin sample in 3/3 fixtures |
+| tti_with_interaction_ms | 6500 (2278..7584) n=3, thin sample in 3/3 fixtures | 38891 (38487..40982) n=3, thin sample in 3/3 fixtures | 11371 (9324..13174) n=3, thin sample in 3/3 fixtures | 46298 (43036..58863) n=3, thin sample in 3/3 fixtures |
 
 ### xlsx XL: 2 fixtures
 
 | metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| parse_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| first_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| full_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| tbt_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| JSHeapUsedSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| first_paint_ms | 5738 (5612..5864) n=3, thin sample in 2/2 fixtures | 21611 (18639..24583) n=3, thin sample in 2/2 fixtures | 5288 (5171..5405) n=3, thin sample in 2/2 fixtures | 23660 (22094..25226) n=3, thin sample in 2/2 fixtures |
+| parse_ms | 4997 (4889..5105) n=3, thin sample in 2/2 fixtures | 19450 (16460..22441) n=3, thin sample in 2/2 fixtures | 4583 (4480..4686) n=3, thin sample in 2/2 fixtures | 21244 (20050..22438) n=3, thin sample in 2/2 fixtures |
+| first_render_ms | 5738 (5612..5864) n=3, thin sample in 2/2 fixtures | 21611 (18639..24583) n=3, thin sample in 2/2 fixtures | 5288 (5171..5405) n=3, thin sample in 2/2 fixtures | 23660 (22094..25226) n=3, thin sample in 2/2 fixtures |
+| full_render_ms | 18011 (16122..19900) n=3, thin sample in 2/2 fixtures | 59796 (48966..70627) n=3, thin sample in 2/2 fixtures | 16239 (16197..16282) n=3, thin sample in 2/2 fixtures | 66722 (59133..74311) n=3, thin sample in 2/2 fixtures |
+| tbt_ms | 5333 (4460..6206) n=3, thin sample in 2/2 fixtures | 41612 (32531..50693) n=3, thin sample in 2/2 fixtures | 4377 (4233..4520) n=3, thin sample in 2/2 fixtures | 45753 (38483..53022) n=3, thin sample in 2/2 fixtures |
+| JSHeapUsedSize (MiB) | 202 (196..209) n=3, thin sample in 2/2 fixtures | 193 (189..197) n=3, thin sample in 2/2 fixtures | 205 (204..206) n=3, thin sample in 2/2 fixtures | 197 (189..204) n=3, thin sample in 2/2 fixtures |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| bytes_ready_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| engine_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| fetch_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| heap_samples | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| long_task_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| long_task_total_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| parse_end_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| peak_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| retained_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_median_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_p95_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_unsupported | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| tti_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| tti_with_interaction_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| JSHeapTotalSize (MiB) | 289 (277..301) n=3, thin sample in 2/2 fixtures | 296 (264..327) n=3, thin sample in 2/2 fixtures | 292 (291..293) n=3, thin sample in 2/2 fixtures | 320 (303..336) n=3, thin sample in 2/2 fixtures |
+| bytes_ready_ms | 727 (710..745) n=3, thin sample in 2/2 fixtures | 1923 (1722..2124) n=3, thin sample in 2/2 fixtures | 678 (672..685) n=3, thin sample in 2/2 fixtures | 2361 (2051..2671) n=3, thin sample in 2/2 fixtures |
+| engine_ms | 632 (615..650) n=3, thin sample in 2/2 fixtures | 1635 (1563..1706) n=3, thin sample in 2/2 fixtures | 597 (582..613) n=3, thin sample in 2/2 fixtures | 1874 (1754..1994) n=3, thin sample in 2/2 fixtures |
+| fetch_ms | 115 (79.7..150) n=3, thin sample in 2/2 fixtures | 289 (158..420) n=3, thin sample in 2/2 fixtures | 78.7 (54.6..103) n=3, thin sample in 2/2 fixtures | 494 (275..713) n=3, thin sample in 2/2 fixtures |
+| heap_samples | 551 (545..556) n=3, thin sample in 2/2 fixtures | 663 (646..679) n=3, thin sample in 2/2 fixtures | 519 (519..519) n=3, thin sample in 2/2 fixtures | 648 (647..648) n=3, thin sample in 2/2 fixtures |
+| long_task_count | 13.5 (4..23) n=3, thin sample in 2/2 fixtures | 208 (207..209) n=3, thin sample in 2/2 fixtures | 9 (8..10) n=3, thin sample in 2/2 fixtures | 211 (208..213) n=3, thin sample in 2/2 fixtures |
+| long_task_total_ms | 6007 (4658..7356) n=3, thin sample in 2/2 fixtures | 50686 (40428..60943) n=3, thin sample in 2/2 fixtures | 4827 (4633..5020) n=3, thin sample in 2/2 fixtures | 56253 (48833..63672) n=3, thin sample in 2/2 fixtures |
+| parse_end_ms | 5724 (5598..5850) n=3, thin sample in 2/2 fixtures | 21556 (18584..24529) n=3, thin sample in 2/2 fixtures | 5275 (5159..5392) n=3, thin sample in 2/2 fixtures | 23570 (22030..25109) n=3, thin sample in 2/2 fixtures |
+| peak_heap_used_MiB | 607 (587..627) n=3, thin sample in 2/2 fixtures | 622 (408..837) n=3, thin sample in 2/2 fixtures | 590 (559..620) n=3, thin sample in 2/2 fixtures | 502 (429..574) n=3, thin sample in 2/2 fixtures |
+| render_ms | 4947 (4844..5050) n=3, thin sample in 2/2 fixtures | 19297 (16309..22285) n=3, thin sample in 2/2 fixtures | 4535 (4440..4629) n=3, thin sample in 2/2 fixtures | 21010 (19828..22193) n=3, thin sample in 2/2 fixtures |
+| retained_heap_used_MiB | 180 (175..185) n=3, thin sample in 2/2 fixtures | 180 (175..185) n=3, thin sample in 2/2 fixtures | 180 (175..185) n=3, thin sample in 2/2 fixtures | 180 (175..185) n=3, thin sample in 2/2 fixtures |
+| step_count | 200 (200..200) n=3, thin sample in 2/2 fixtures | 200 (200..200) n=3, thin sample in 2/2 fixtures | 200 (200..200) n=3, thin sample in 2/2 fixtures | 200 (200..200) n=3, thin sample in 2/2 fixtures |
+| step_median_ms | 50.7 (49.5..51.9) n=3, thin sample in 2/2 fixtures | 149 (148..149) n=3, thin sample in 2/2 fixtures | 49.7 (49.6..49.8) n=3, thin sample in 2/2 fixtures | 192 (170..215) n=3, thin sample in 2/2 fixtures |
+| step_p95_ms | 74.4 (66.1..82.7) n=3, thin sample in 2/2 fixtures | 200 (194..206) n=3, thin sample in 2/2 fixtures | 67.2 (66.4..68) n=3, thin sample in 2/2 fixtures | 275 (222..329) n=3, thin sample in 2/2 fixtures |
+| step_unsupported | 0 (0..0) n=3, thin sample in 2/2 fixtures | 0 (0..0) n=3, thin sample in 2/2 fixtures | 0 (0..0) n=3, thin sample in 2/2 fixtures | 0 (0..0) n=3, thin sample in 2/2 fixtures |
+| tti_ms | 5738 (5612..5864) n=3, thin sample in 2/2 fixtures | 21611 (18639..24583) n=3, thin sample in 2/2 fixtures | 5288 (5171..5405) n=3, thin sample in 2/2 fixtures | 23660 (22094..25226) n=3, thin sample in 2/2 fixtures |
+| tti_with_interaction_ms | 14645 (10136..19154) n=3, thin sample in 2/2 fixtures | 59489 (48911..70067) n=3, thin sample in 2/2 fixtures | 14254 (12323..16185) n=3, thin sample in 2/2 fixtures | 66671 (59083..74260) n=3, thin sample in 2/2 fixtures |
 
 ### docx S: 70 fixtures
 
 | metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (995..1501) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| parse_ms | 125 (96.9..311) n=10 | 534 (386..1004) n=10 | 122 (98.5..264) n=20 | 501 (394..1061) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| first_render_ms | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (995..1501) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| full_render_ms | 526 (476..1032) n=10 | 1148 (994..1688) n=10 | 493 (468..844) n=20 | 1139 (1022..1739) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| tbt_ms | 55.5 (47..250) n=10 | 547 (482..1048) n=10 | 52.5 (44..126) n=20 | 530 (491..1082) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| JSHeapUsedSize (MiB) | 9.7 (7.7..21.5) n=10 | 9.4 (7.6..20.7) n=10 | 9.7 (7.7..21.5) n=20 | 9.1 (7.7..20.8) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| first_paint_ms | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (951..1501) n=1–20, thin sample in 1/70 fixtures |
+| parse_ms | 125 (96.9..311) n=10 | 534 (386..1004) n=10 | 122 (98.5..264) n=20 | 503 (394..1061) n=1–20, thin sample in 1/70 fixtures |
+| first_render_ms | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (951..1501) n=1–20, thin sample in 1/70 fixtures |
+| full_render_ms | 526 (476..1032) n=10 | 1148 (994..1688) n=10 | 493 (468..844) n=20 | 1139 (972..1739) n=1–20, thin sample in 1/70 fixtures |
+| tbt_ms | 55.5 (47..250) n=10 | 547 (482..1048) n=10 | 52.5 (44..126) n=20 | 529 (481..1082) n=1–20, thin sample in 1/70 fixtures |
+| JSHeapUsedSize (MiB) | 9.7 (7.7..21.5) n=10 | 9.4 (7.6..20.7) n=10 | 9.7 (7.7..21.5) n=20 | 9.1 (7.7..20.8) n=1–20, thin sample in 1/70 fixtures |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 16.6 (12.1..50.2) n=10 | 16.4 (12.1..44) n=10 | 16.6 (12.1..49.7) n=20 | 16.6 (12.1..44.3) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| bytes_ready_ms | 164 (151..391) n=10 | 444 (406..589) n=10 | 144 (131..171) n=20 | 425 (406..603) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| engine_ms | 159 (146..379) n=10 | 434 (398..575) n=10 | 141 (129..167) n=20 | 415 (398..591) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| fetch_ms | 4.6 (3.6..9.4) n=10 | 10.1 (8..15.5) n=10 | 2.8 (2.2..3.3) n=20 | 8.7 (7.8..12.2) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| heap_samples | 33 (29..63) n=10 | 29 (20..53.5) n=10 | 31.8 (28..64) n=20 | 30 (20..53) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| long_task_count | 2 (2..4) n=10 | 3 (2..7) n=10 | 2 (2..4) n=20 | 3 (2..7) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| long_task_total_ms | 156 (147..400) n=10 | 706 (582..1398) n=10 | 153 (144..326) n=20 | 679 (595..1432) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| parse_end_ms | 289 (254..778) n=10 | 989 (820..1417) n=10 | 265 (245..413) n=20 | 932 (815..1482) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| peak_heap_used_MiB | 10.9 (8.3..27.5) n=10 | 11 (8.4..26.7) n=10 | 10.9 (8.3..27.5) n=20 | 11 (8.3..26.8) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| render_ms | 239 (211..412) n=10 | 342 (261..737) n=10 | 237 (214..404) n=20 | 365 (275..756) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| retained_heap_used_MiB | 6.7 (6.1..10.1) n=10 | 6.8 (6.1..10.1) n=10 | 6.7 (6.1..10.1) n=20 | 6.7 (6.1..10.1) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| step_count | 0 (0..11) n=10 | 0 (0..11) n=10 | 0 (0..11) n=20 | 0 (0..11) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| step_median_ms | 33.2 (32.9..34.7) n=10, 51/70 fixtures omitted (n<5 or no samples) | 33.3 (32.8..33.3) n=6–10, 63/70 fixtures omitted (n<5 or no samples) | 33.2 (33.1..35) n=20, 51/70 fixtures omitted (n<5 or no samples) | 33.1 (32.7..33.3) n=10–20, 57/70 fixtures omitted (n<5 or no samples) |
-| step_p95_ms | 33.3 (32.9..34.7) n=10, 51/70 fixtures omitted (n<5 or no samples) | 33.9 (32.8..34.6) n=6–10, 63/70 fixtures omitted (n<5 or no samples) | 33.3 (33.1..35) n=20, 51/70 fixtures omitted (n<5 or no samples) | 33.1 (32.7..34.7) n=10–20, 57/70 fixtures omitted (n<5 or no samples) |
-| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| tti_ms | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (995..1501) n=20, 1/70 fixtures omitted (n<5 or no samples) |
-| tti_with_interaction_ms | 478 (443..1001) n=10 | 1112 (966..1674) n=10 | 456 (435..632) n=20 | 1097 (995..1703) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| JSHeapTotalSize (MiB) | 16.6 (12.1..50.2) n=10 | 16.4 (12.1..44) n=10 | 16.6 (12.1..49.7) n=20 | 16.6 (12.1..44.3) n=1–20, thin sample in 1/70 fixtures |
+| bytes_ready_ms | 164 (151..391) n=10 | 444 (406..589) n=10 | 144 (131..171) n=20 | 425 (393..603) n=1–20, thin sample in 1/70 fixtures |
+| engine_ms | 159 (146..379) n=10 | 434 (398..575) n=10 | 141 (129..167) n=20 | 415 (385..591) n=1–20, thin sample in 1/70 fixtures |
+| fetch_ms | 4.6 (3.6..9.4) n=10 | 10.1 (8..15.5) n=10 | 2.8 (2.2..3.3) n=20 | 8.7 (7.8..12.2) n=1–20, thin sample in 1/70 fixtures |
+| heap_samples | 33 (29..63) n=10 | 29 (20..53.5) n=10 | 31.8 (28..64) n=20 | 30 (20..53) n=1–20, thin sample in 1/70 fixtures |
+| long_task_count | 2 (2..4) n=10 | 3 (2..7) n=10 | 2 (2..4) n=20 | 3 (2..7) n=1–20, thin sample in 1/70 fixtures |
+| long_task_total_ms | 156 (147..400) n=10 | 706 (582..1398) n=10 | 153 (144..326) n=20 | 679 (595..1432) n=1–20, thin sample in 1/70 fixtures |
+| parse_end_ms | 289 (254..778) n=10 | 989 (820..1417) n=10 | 265 (245..413) n=20 | 936 (815..1482) n=1–20, thin sample in 1/70 fixtures |
+| peak_heap_used_MiB | 10.9 (8.3..27.5) n=10 | 11 (8.4..26.7) n=10 | 10.9 (8.3..27.5) n=20 | 11 (8.3..26.8) n=1–20, thin sample in 1/70 fixtures |
+| render_ms | 239 (211..412) n=10 | 342 (261..737) n=10 | 237 (214..404) n=20 | 365 (275..756) n=1–20, thin sample in 1/70 fixtures |
+| retained_heap_used_MiB | 6.7 (6.1..10.1) n=10 | 6.8 (6.1..10.1) n=10 | 6.7 (6.1..10.1) n=20 | 6.7 (6.1..10.1) n=1–20, thin sample in 1/70 fixtures |
+| step_count | 0 (0..11) n=10 | 0 (0..11) n=10 | 0 (0..11) n=20 | 0 (0..11) n=1–20, thin sample in 1/70 fixtures |
+| step_median_ms | 33.2 (32.9..34.7) n=10, 51 fixtures no samples | 33.2 (32.8..33.6) n=1–10, thin sample in 8/11 fixtures, 59 fixtures no samples | 33.2 (33.1..35) n=20, 51 fixtures no samples | 33.1 (32.7..33.3) n=10–20, thin sample in 10/13 fixtures, 57 fixtures no samples |
+| step_p95_ms | 33.3 (32.9..34.7) n=10, 51 fixtures no samples | 33.6 (32.8..34.6) n=1–10, thin sample in 8/11 fixtures, 59 fixtures no samples | 33.3 (33.1..35) n=20, 51 fixtures no samples | 33.1 (32.7..34.7) n=10–20, thin sample in 10/13 fixtures, 57 fixtures no samples |
+| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=1–20, thin sample in 1/70 fixtures |
+| tti_ms | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (951..1501) n=1–20, thin sample in 1/70 fixtures |
+| tti_with_interaction_ms | 478 (443..1001) n=10 | 1112 (966..1674) n=10 | 456 (435..632) n=20 | 1097 (951..1703) n=1–20, thin sample in 1/70 fixtures |
 
 ### docx M: 7 fixtures
 
 | metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20 |
-| parse_ms | 144 (134..162) n=10 | 563 (512..624) n=10 | 141 (129..164) n=20 | 539 (472..683) n=19–20 |
-| first_render_ms | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20 |
-| full_render_ms | 612 (537..2534) n=10 | 1277 (1052..3334) n=10 | 605 (508..2531) n=20 | 1189 (1067..3350) n=19–20 |
-| tbt_ms | 60 (57..66.5) n=10 | 615 (529..684) n=10 | 59.5 (53..73) n=20 | 637 (497..708) n=19–20 |
-| JSHeapUsedSize (MiB) | 10.8 (8.3..12.4) n=10 | 11.1 (8.3..12.4) n=10 | 11.6 (8.3..12.3) n=20 | 10.9 (8.3..12.4) n=19–20 |
+| first_paint_ms | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20, thin sample in 1/7 fixtures |
+| parse_ms | 144 (134..162) n=10 | 563 (512..624) n=10 | 141 (129..164) n=20 | 539 (472..683) n=19–20, thin sample in 1/7 fixtures |
+| first_render_ms | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20, thin sample in 1/7 fixtures |
+| full_render_ms | 612 (537..2534) n=10 | 1277 (1052..3334) n=10 | 605 (508..2531) n=20 | 1189 (1067..3350) n=19–20, thin sample in 1/7 fixtures |
+| tbt_ms | 60 (57..66.5) n=10 | 615 (529..684) n=10 | 59.5 (53..73) n=20 | 637 (497..708) n=19–20, thin sample in 1/7 fixtures |
+| JSHeapUsedSize (MiB) | 10.8 (8.3..12.4) n=10 | 11.1 (8.3..12.4) n=10 | 11.6 (8.3..12.3) n=20 | 10.9 (8.3..12.4) n=19–20, thin sample in 1/7 fixtures |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 19.1 (15.1..19.4) n=10 | 18.7 (14.3..19.3) n=10 | 19.1 (15..19.3) n=20 | 19.1 (14.6..19.1) n=19–20 |
-| bytes_ready_ms | 167 (164..183) n=10 | 433 (408..506) n=10 | 154 (147..161) n=20 | 428 (410..452) n=19–20 |
-| engine_ms | 161 (154..177) n=10 | 415 (397..492) n=10 | 149 (142..158) n=20 | 417 (400..432) n=19–20 |
-| fetch_ms | 5.8 (4.9..9) n=10 | 13.2 (10.1..21.5) n=10 | 3.7 (3.2..6.5) n=20 | 11.5 (9.6..21.7) n=19–20 |
-| heap_samples | 40 (30.5..199) n=10 | 32 (20..145) n=10 | 38 (28..205) n=20 | 31 (21.5..145) n=19–20 |
-| long_task_count | 2 (2..2) n=10 | 3 (3..4) n=10 | 2 (2..2) n=20 | 3 (3..4) n=19–20 |
-| long_task_total_ms | 160 (157..167) n=10 | 765 (679..884) n=10 | 160 (153..173) n=20 | 787 (647..919) n=19–20 |
-| parse_end_ms | 310 (300..333) n=10 | 995 (940..1067) n=10 | 300 (277..328) n=20 | 991 (886..1120) n=19–20 |
-| peak_heap_used_MiB | 12.9 (11.2..13.8) n=10 | 12.4 (11.2..13.4) n=10 | 12.9 (11..13.7) n=20 | 12.4 (11.2..13.5) n=19–20 |
-| render_ms | 251 (245..274) n=10 | 391 (323..515) n=10 | 258 (240..274) n=20 | 381 (342..518) n=19–20 |
-| retained_heap_used_MiB | 7.7 (6.6..8.3) n=10 | 7.7 (6.6..8.3) n=10 | 7.7 (6.6..8.3) n=20 | 7.9 (6.6..8.3) n=19–20 |
-| step_count | 2 (0..60) n=10 | 0 (0..60) n=10 | 2 (0..60) n=20 | 0 (0..60) n=19–20 |
-| step_median_ms | 33.3 (33.2..33.3) n=10, 3/7 fixtures omitted (n<5 or no samples) | 33.3 (33.3..33.4) n=10, 4/7 fixtures omitted (n<5 or no samples) | 33.3 (33.2..33.3) n=19–20, 3/7 fixtures omitted (n<5 or no samples) | 33.3 (33.3..33.3) n=19–20, 4/7 fixtures omitted (n<5 or no samples) |
-| step_p95_ms | 33.7 (33.3..33.7) n=10, 3/7 fixtures omitted (n<5 or no samples) | 38.7 (37.5..39.8) n=10, 4/7 fixtures omitted (n<5 or no samples) | 33.6 (33.4..33.8) n=19–20, 3/7 fixtures omitted (n<5 or no samples) | 37.8 (37.3..39.3) n=19–20, 4/7 fixtures omitted (n<5 or no samples) |
-| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=19–20 |
-| tti_ms | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20 |
-| tti_with_interaction_ms | 503 (495..521) n=10 | 1217 (1032..1282) n=10 | 496 (470..515) n=20 | 1165 (1044..1293) n=19–20 |
+| JSHeapTotalSize (MiB) | 19.1 (15.1..19.4) n=10 | 18.7 (14.3..19.3) n=10 | 19.1 (15..19.3) n=20 | 19.1 (14.6..19.1) n=19–20, thin sample in 1/7 fixtures |
+| bytes_ready_ms | 167 (164..183) n=10 | 433 (408..506) n=10 | 154 (147..161) n=20 | 428 (410..452) n=19–20, thin sample in 1/7 fixtures |
+| engine_ms | 161 (154..177) n=10 | 415 (397..492) n=10 | 149 (142..158) n=20 | 417 (400..432) n=19–20, thin sample in 1/7 fixtures |
+| fetch_ms | 5.8 (4.9..9) n=10 | 13.2 (10.1..21.5) n=10 | 3.7 (3.2..6.5) n=20 | 11.5 (9.6..21.7) n=19–20, thin sample in 1/7 fixtures |
+| heap_samples | 40 (30.5..199) n=10 | 32 (20..145) n=10 | 38 (28..205) n=20 | 31 (21.5..145) n=19–20, thin sample in 1/7 fixtures |
+| long_task_count | 2 (2..2) n=10 | 3 (3..4) n=10 | 2 (2..2) n=20 | 3 (3..4) n=19–20, thin sample in 1/7 fixtures |
+| long_task_total_ms | 160 (157..167) n=10 | 765 (679..884) n=10 | 160 (153..173) n=20 | 787 (647..919) n=19–20, thin sample in 1/7 fixtures |
+| parse_end_ms | 310 (300..333) n=10 | 995 (940..1067) n=10 | 300 (277..328) n=20 | 991 (886..1120) n=19–20, thin sample in 1/7 fixtures |
+| peak_heap_used_MiB | 12.9 (11.2..13.8) n=10 | 12.4 (11.2..13.4) n=10 | 12.9 (11..13.7) n=20 | 12.4 (11.2..13.5) n=19–20, thin sample in 1/7 fixtures |
+| render_ms | 251 (245..274) n=10 | 391 (323..515) n=10 | 258 (240..274) n=20 | 381 (342..518) n=19–20, thin sample in 1/7 fixtures |
+| retained_heap_used_MiB | 7.7 (6.6..8.3) n=10 | 7.7 (6.6..8.3) n=10 | 7.7 (6.6..8.3) n=20 | 7.9 (6.6..8.3) n=19–20, thin sample in 1/7 fixtures |
+| step_count | 2 (0..60) n=10 | 0 (0..60) n=10 | 2 (0..60) n=20 | 0 (0..60) n=19–20, thin sample in 1/7 fixtures |
+| step_median_ms | 33.3 (33.2..33.3) n=10, 3 fixtures no samples | 33.3 (33.3..33.4) n=10, 4 fixtures no samples | 33.3 (33.2..33.3) n=19–20, thin sample in 1/4 fixtures, 3 fixtures no samples | 33.3 (33.3..33.3) n=19–20, thin sample in 1/3 fixtures, 4 fixtures no samples |
+| step_p95_ms | 33.7 (33.3..33.7) n=10, 3 fixtures no samples | 38.7 (37.5..39.8) n=10, 4 fixtures no samples | 33.6 (33.4..33.8) n=19–20, thin sample in 1/4 fixtures, 3 fixtures no samples | 37.8 (37.3..39.3) n=19–20, thin sample in 1/3 fixtures, 4 fixtures no samples |
+| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=19–20, thin sample in 1/7 fixtures |
+| tti_ms | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20, thin sample in 1/7 fixtures |
+| tti_with_interaction_ms | 503 (495..521) n=10 | 1217 (1032..1282) n=10 | 496 (470..515) n=20 | 1165 (1044..1293) n=19–20, thin sample in 1/7 fixtures |
 
 ### pptx S: 86 fixtures
 
 | metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4749 (4103..6316) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| parse_ms | 559 (497..702) n=10 | 2619 (2130..3606) n=10 | 561 (468..1141) n=20 | 2519 (2029..3769) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| first_render_ms | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4749 (4103..6316) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| full_render_ms | 1337 (1241..2238) n=10 | 4973 (4373..9680) n=10 | 1332 (1164..2706) n=20 | 4856 (4170..8805) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| tbt_ms | 713 (668..856) n=10 | 3866 (3503..6531) n=10 | 695 (646..1598) n=20 | 3786 (3264..5777) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| JSHeapUsedSize (MiB) | 42.7 (35.8..67.3) n=10 | 42.1 (30.8..65) n=10 | 42.7 (35.8..65.3) n=20 | 41.8 (30.9..65.1) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| all_slides_ms | 1337 (1241..2238) n=10 | 4973 (4373..9680) n=10 | 1332 (1164..2706) n=20 | 4856 (4170..8805) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| first_paint_ms | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4750 (4103..6316) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| parse_ms | 559 (497..702) n=10 | 2619 (2130..3606) n=10 | 561 (468..1141) n=20 | 2538 (2029..3769) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| first_render_ms | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4750 (4103..6316) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| full_render_ms | 1337 (1241..2238) n=10 | 4973 (4373..9680) n=10 | 1332 (1164..2706) n=20 | 4857 (4170..8805) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| tbt_ms | 713 (668..856) n=10 | 3866 (3503..6531) n=10 | 695 (646..1598) n=20 | 3784 (3264..5777) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| JSHeapUsedSize (MiB) | 42.7 (35.8..67.3) n=10 | 42.1 (30.8..65) n=10 | 42.7 (35.8..65.3) n=20 | 41.9 (30.9..65.1) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| all_slides_ms | 1337 (1241..2238) n=10 | 4973 (4373..9680) n=10 | 1332 (1164..2706) n=20 | 4857 (4170..8805) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 69.5 (67.9..111) n=10 | 69.5 (67.6..118) n=10 | 69.7 (67.9..112) n=20 | 69.6 (67.7..117) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| all_slides_render_ms | 607 (528..1506) n=10 | 2741 (2214..7354) n=10 | 612 (502..1682) n=20 | 2670 (2138..6674) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| bytes_ready_ms | 725 (696..793) n=10 | 2203 (2074..2838) n=10 | 708 (659..1351) n=20 | 2153 (1945..2457) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| engine_ms | 719 (689..787) n=10 | 2188 (2060..2822) n=10 | 702 (657..1346) n=20 | 2141 (1933..2444) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| fetch_ms | 5.5 (4.6..6.9) n=10 | 13.5 (11.9..17.5) n=10 | 3.2 (2.7..6.9) n=20 | 11.8 (9.9..15.9) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| heap_samples | 38.5 (35..71) n=10 | 55.5 (45..115) n=10 | 38.5 (33..77) n=20 | 55 (46..112) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| long_task_count | 3 (3..3) n=10 | 5 (4..24) n=10 | 3 (3..4.5) n=20 | 5 (4..24) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| long_task_total_ms | 863 (818..1006) n=10 | 4100 (3744..7731) n=10 | 847 (796..1898) n=20 | 4014 (3507..6986) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| parse_end_ms | 1288 (1211..1509) n=10 | 4824 (4279..6129) n=10 | 1282 (1130..2447) n=20 | 4702 (4073..6241) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| peak_heap_used_MiB | 48 (41.3..77.5) n=10 | 48.2 (38.5..78.8) n=10 | 47.9 (41.3..77.4) n=20 | 48.3 (38.6..78.8) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| render_ms | 570 (503..712) n=10 | 2671 (2177..3647) n=10 | 569 (475..1155) n=20 | 2569 (2062..3852) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| retained_heap_used_MiB | 27.5 (26.1..31.4) n=10 | 27.5 (26.1..31.5) n=10 | 27.5 (26.1..31.4) n=20 | 27.5 (26.1..31.5) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| step_count | 0 (0..19) n=10 | 0 (0..19) n=10 | 0 (0..19) n=20 | 0 (0..19) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| step_median_ms | 46.3 (37.6..57.3) n=10, 65/86 fixtures omitted (n<5 or no samples) | 192 (165..241) n=10, 65/86 fixtures omitted (n<5 or no samples) | 49.8 (34.7..74) n=20, 65/86 fixtures omitted (n<5 or no samples) | 175 (160..240) n=20, 65/86 fixtures omitted (n<5 or no samples) |
-| step_p95_ms | 52.4 (45.7..59) n=10, 65/86 fixtures omitted (n<5 or no samples) | 202 (166..261) n=10, 65/86 fixtures omitted (n<5 or no samples) | 53.8 (45.2..84.8) n=20, 65/86 fixtures omitted (n<5 or no samples) | 193 (164..257) n=20, 65/86 fixtures omitted (n<5 or no samples) |
-| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| tti_ms | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4749 (4103..6316) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
-| tti_with_interaction_ms | 1299 (1217..1519) n=10 | 4958 (4372..9675) n=10 | 1292 (1137..2629) n=20 | 4848 (4164..8762) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| JSHeapTotalSize (MiB) | 69.5 (67.9..111) n=10 | 69.5 (67.6..118) n=10 | 69.7 (67.9..112) n=20 | 69.7 (67.7..117) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| all_slides_render_ms | 607 (528..1506) n=10 | 2741 (2214..7354) n=10 | 612 (502..1682) n=20 | 2675 (2138..6674) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| bytes_ready_ms | 725 (696..793) n=10 | 2203 (2074..2838) n=10 | 708 (659..1351) n=20 | 2154 (1945..2457) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| engine_ms | 719 (689..787) n=10 | 2188 (2060..2822) n=10 | 702 (657..1346) n=20 | 2141 (1933..2444) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| fetch_ms | 5.5 (4.6..6.9) n=10 | 13.5 (11.9..17.5) n=10 | 3.2 (2.7..6.9) n=20 | 11.8 (9.9..15.9) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| heap_samples | 38.5 (35..71) n=10 | 55.5 (45..115) n=10 | 38.5 (33..77) n=20 | 55 (46..112) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| long_task_count | 3 (3..3) n=10 | 5 (4..24) n=10 | 3 (3..4.5) n=20 | 5 (4..24) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| long_task_total_ms | 863 (818..1006) n=10 | 4100 (3744..7731) n=10 | 847 (796..1898) n=20 | 4012 (3507..6986) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| parse_end_ms | 1288 (1211..1509) n=10 | 4824 (4279..6129) n=10 | 1282 (1130..2447) n=20 | 4702 (4073..6241) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| peak_heap_used_MiB | 48 (41.3..77.5) n=10 | 48.2 (38.5..78.8) n=10 | 47.9 (41.3..77.4) n=20 | 48.3 (38.6..78.8) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| render_ms | 570 (503..712) n=10 | 2671 (2177..3647) n=10 | 569 (475..1155) n=20 | 2581 (2062..3852) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| retained_heap_used_MiB | 27.5 (26.1..31.4) n=10 | 27.5 (26.1..31.5) n=10 | 27.5 (26.1..31.4) n=20 | 27.5 (26.1..31.5) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| step_count | 0 (0..19) n=10 | 0 (0..19) n=10 | 0 (0..19) n=20 | 0 (0..19) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| step_median_ms | 46.3 (37.6..57.3) n=10, 65 fixtures no samples | 192 (165..241) n=10, 65 fixtures no samples | 49.8 (34.7..74) n=20, 65 fixtures no samples | 175 (160..240) n=20, 65 fixtures no samples |
+| step_p95_ms | 52.4 (45.7..59) n=10, 65 fixtures no samples | 202 (166..261) n=10, 65 fixtures no samples | 53.8 (45.2..84.8) n=20, 65 fixtures no samples | 193 (164..257) n=20, 65 fixtures no samples |
+| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| tti_ms | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4750 (4103..6316) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
+| tti_with_interaction_ms | 1299 (1217..1519) n=10 | 4958 (4372..9675) n=10 | 1292 (1137..2629) n=20 | 4851 (4164..8762) n=2–20, thin sample in 3/85 fixtures, 1 fixtures no samples |
 
 ### pptx M: 24 fixtures
 
@@ -509,8 +513,8 @@ Other metrics:
 | render_ms | 679 (550..1186) n=10 | 3274 (2801..4784) n=10 | 707 (597..1171) n=20 | 2931 (2320..4778) n=20 |
 | retained_heap_used_MiB | 30.6 (26.7..35.6) n=10 | 30.6 (26.7..35.7) n=10 | 30.6 (26.7..35.6) n=20 | 30.6 (26.7..35.7) n=20 |
 | step_count | 9 (0..59) n=10 | 9 (0..59) n=10 | 9 (0..59) n=20 | 9 (0..59) n=20 |
-| step_median_ms | 47.2 (39.9..54.1) n=10, 2/24 fixtures omitted (n<5 or no samples) | 211 (170..249) n=10, 2/24 fixtures omitted (n<5 or no samples) | 49.6 (39.3..63.4) n=20, 2/24 fixtures omitted (n<5 or no samples) | 181 (160..231) n=20, 2/24 fixtures omitted (n<5 or no samples) |
-| step_p95_ms | 54.5 (47..75.1) n=10, 2/24 fixtures omitted (n<5 or no samples) | 236 (186..352) n=10, 2/24 fixtures omitted (n<5 or no samples) | 57.9 (51.2..71.8) n=20, 2/24 fixtures omitted (n<5 or no samples) | 219 (176..297) n=20, 2/24 fixtures omitted (n<5 or no samples) |
+| step_median_ms | 47.2 (39.9..54.1) n=10, 2 fixtures no samples | 211 (170..249) n=10, 2 fixtures no samples | 49.6 (39.3..63.4) n=20, 2 fixtures no samples | 181 (160..231) n=20, 2 fixtures no samples |
+| step_p95_ms | 54.5 (47..75.1) n=10, 2 fixtures no samples | 236 (186..352) n=10, 2 fixtures no samples | 57.9 (51.2..71.8) n=20, 2 fixtures no samples | 219 (176..297) n=20, 2 fixtures no samples |
 | step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=20 |
 | tti_ms | 1447 (1273..1985) n=10 | 5623 (4946..7005) n=10 | 1429 (1301..2004) n=20 | 5053 (4383..6941) n=20 |
 | tti_with_interaction_ms | 1451 (1273..2466) n=10 | 6901 (5415..18269) n=10 | 1443 (1312..2948) n=20 | 6586 (4383..16621) n=20 |
@@ -519,40 +523,40 @@ Other metrics:
 
 | metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| parse_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| first_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| full_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| tbt_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| JSHeapUsedSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| all_slides_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| first_paint_ms | 2098 (1621..3204) n=3, thin sample in 3/3 fixtures | 8465 (5798..13097) n=3, thin sample in 3/3 fixtures | 2385 (1624..3408) n=3, thin sample in 3/3 fixtures | 7726 (5596..16317) n=3, thin sample in 3/3 fixtures |
+| parse_ms | 1352 (834..2461) n=3, thin sample in 3/3 fixtures | 6056 (3634..10734) n=3, thin sample in 3/3 fixtures | 1602 (901..2676) n=3, thin sample in 3/3 fixtures | 5503 (3470..13662) n=3, thin sample in 3/3 fixtures |
+| first_render_ms | 2098 (1621..3204) n=3, thin sample in 3/3 fixtures | 8465 (5798..13097) n=3, thin sample in 3/3 fixtures | 2385 (1624..3408) n=3, thin sample in 3/3 fixtures | 7726 (5596..16317) n=3, thin sample in 3/3 fixtures |
+| full_render_ms | 4329 (1999..9066) n=3, thin sample in 3/3 fixtures | 17892 (7062..39459) n=3, thin sample in 3/3 fixtures | 4841 (2068..9252) n=3, thin sample in 3/3 fixtures | 16790 (6844..53123) n=3, thin sample in 3/3 fixtures |
+| tbt_ms | 946 (763..1121) n=3, thin sample in 3/3 fixtures | 10163 (4272..18670) n=3, thin sample in 3/3 fixtures | 1146 (826..1174) n=3, thin sample in 3/3 fixtures | 9199 (4313..29043) n=3, thin sample in 3/3 fixtures |
+| JSHeapUsedSize (MiB) | 97.6 (52.6..103) n=3, thin sample in 3/3 fixtures | 96.2 (43.9..99.1) n=3, thin sample in 3/3 fixtures | 101 (52.6..106) n=3, thin sample in 3/3 fixtures | 96.8 (43.9..97.4) n=3, thin sample in 3/3 fixtures |
+| all_slides_ms | 4329 (1999..9066) n=3, thin sample in 3/3 fixtures | 17892 (7062..39459) n=3, thin sample in 3/3 fixtures | 4841 (2068..9252) n=3, thin sample in 3/3 fixtures | 16790 (6844..53123) n=3, thin sample in 3/3 fixtures |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| all_slides_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| bytes_ready_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| engine_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| fetch_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| heap_samples | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| long_task_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| long_task_total_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| parse_end_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| peak_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| retained_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_median_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_p95_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| step_unsupported | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| tti_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| tti_with_interaction_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| JSHeapTotalSize (MiB) | 157 (129..159) n=3, thin sample in 3/3 fixtures | 151 (131..155) n=3, thin sample in 3/3 fixtures | 158 (130..160) n=3, thin sample in 3/3 fixtures | 151 (134..156) n=3, thin sample in 3/3 fixtures |
+| all_slides_render_ms | 3608 (1235..8343) n=3, thin sample in 3/3 fixtures | 15503 (4956..37365) n=3, thin sample in 3/3 fixtures | 4007 (1351..8528) n=3, thin sample in 3/3 fixtures | 14548 (4847..50538) n=3, thin sample in 3/3 fixtures |
+| bytes_ready_ms | 735 (722..743) n=3, thin sample in 3/3 fixtures | 2190 (2106..2314) n=3, thin sample in 3/3 fixtures | 802 (717..834) n=3, thin sample in 3/3 fixtures | 2098 (2061..2584) n=3, thin sample in 3/3 fixtures |
+| engine_ms | 725 (711..729) n=3, thin sample in 3/3 fixtures | 2155 (2064..2278) n=3, thin sample in 3/3 fixtures | 792 (706..824) n=3, thin sample in 3/3 fixtures | 2056 (1968..2514) n=3, thin sample in 3/3 fixtures |
+| fetch_ms | 11.9 (11..13.6) n=3, thin sample in 3/3 fixtures | 38.1 (36.9..42.3) n=3, thin sample in 3/3 fixtures | 10.6 (9.5..12.5) n=3, thin sample in 3/3 fixtures | 41.5 (32.3..69.9) n=3, thin sample in 3/3 fixtures |
+| heap_samples | 158 (67..371) n=3, thin sample in 3/3 fixtures | 277 (121..672) n=3, thin sample in 3/3 fixtures | 164 (69..379) n=3, thin sample in 3/3 fixtures | 277 (121..775) n=3, thin sample in 3/3 fixtures |
+| long_task_count | 5 (3..8) n=3, thin sample in 3/3 fixtures | 56 (13..191) n=3, thin sample in 3/3 fixtures | 7 (4..7) n=3, thin sample in 3/3 fixtures | 57 (13..224) n=3, thin sample in 3/3 fixtures |
+| long_task_total_ms | 1196 (957..1471) n=3, thin sample in 3/3 fixtures | 12963 (4926..28370) n=3, thin sample in 3/3 fixtures | 1496 (1026..1524) n=3, thin sample in 3/3 fixtures | 12036 (4963..40243) n=3, thin sample in 3/3 fixtures |
+| parse_end_ms | 2074 (1597..3196) n=3, thin sample in 3/3 fixtures | 8365 (5740..13048) n=3, thin sample in 3/3 fixtures | 2349 (1613..3400) n=3, thin sample in 3/3 fixtures | 7597 (5544..16246) n=3, thin sample in 3/3 fixtures |
+| peak_heap_used_MiB | 116 (112..125) n=3, thin sample in 3/3 fixtures | 109 (108..122) n=3, thin sample in 3/3 fixtures | 116 (105..126) n=3, thin sample in 3/3 fixtures | 109 (108..122) n=3, thin sample in 3/3 fixtures |
+| render_ms | 1376 (858..2469) n=3, thin sample in 3/3 fixtures | 6193 (3691..10783) n=3, thin sample in 3/3 fixtures | 1637 (915..2685) n=3, thin sample in 3/3 fixtures | 5601 (3526..13732) n=3, thin sample in 3/3 fixtures |
+| retained_heap_used_MiB | 42.9 (39.2..56) n=3, thin sample in 3/3 fixtures | 42.9 (39.2..56) n=3, thin sample in 3/3 fixtures | 42.9 (39.2..56) n=3, thin sample in 3/3 fixtures | 42.9 (39.2..56) n=3, thin sample in 3/3 fixtures |
+| step_count | 47 (7..111) n=3, thin sample in 3/3 fixtures | 47 (7..111) n=3, thin sample in 3/3 fixtures | 47 (7..111) n=3, thin sample in 3/3 fixtures | 47 (7..111) n=3, thin sample in 3/3 fixtures |
+| step_median_ms | 49.2 (46.4..50) n=3, thin sample in 3/3 fixtures | 192 (166..234) n=3, thin sample in 3/3 fixtures | 49.5 (48.8..50.5) n=3, thin sample in 3/3 fixtures | 179 (175..314) n=3, thin sample in 3/3 fixtures |
+| step_p95_ms | 59.2 (52..63.9) n=3, thin sample in 3/3 fixtures | 243 (218..306) n=3, thin sample in 3/3 fixtures | 67.1 (64.3..68) n=3, thin sample in 3/3 fixtures | 231 (219..457) n=3, thin sample in 3/3 fixtures |
+| step_unsupported | 0 (0..0) n=3, thin sample in 3/3 fixtures | 0 (0..0) n=3, thin sample in 3/3 fixtures | 0 (0..0) n=3, thin sample in 3/3 fixtures | 0 (0..0) n=3, thin sample in 3/3 fixtures |
+| tti_ms | 2098 (1621..3204) n=3, thin sample in 3/3 fixtures | 8465 (5798..13097) n=3, thin sample in 3/3 fixtures | 2385 (1624..3408) n=3, thin sample in 3/3 fixtures | 7726 (5596..16317) n=3, thin sample in 3/3 fixtures |
+| tti_with_interaction_ms | 2339 (1674..7766) n=3, thin sample in 3/3 fixtures | 17856 (7005..39394) n=3, thin sample in 3/3 fixtures | 3756 (1904..7664) n=3, thin sample in 3/3 fixtures | 16724 (6796..53089) n=3, thin sample in 3/3 fixtures |
 
 ## Every fixture
 
-first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize median (MiB) and warm 1x tti_ms median, each with its n. A cell with n < 5 or no samples shows no number. The full metric set per iteration is in the jsonl.
+first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize median (MiB) and warm 1x tti_ms median, each with its n. A cell below the design count is labelled thin sample; a cell with none shows no samples. The full metric set per iteration is in the jsonl.
 
 ### xlsx S
 
@@ -594,7 +598,7 @@ first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize med
 | gen-xlsx-cells-100k | 503874 | 1007 / 1080 (n=10) | 3083 / 3760 (n=10) | 950 / 1063 (n=20) | 3109 / 3575 (n=20) | 75.3 (n=10) | 950 (n=20) |
 | gen-xlsx-cells-100k-b | 704900 | 1048 / 1758 (n=10) | 2944 / 3104 (n=11) | 929 / 2178 (n=20) | no samples | 79.8 (n=10) | 929 (n=20) |
 | real-xlsx-poi-57181 | 334727 | 1023 / 1112 (n=10) | 3004 / 3598 (n=10) | 917 / 1133 (n=20) | no samples | 149 (n=10) | 917 (n=20) |
-| real-xlsx-poi-ConditionalFormattingSamples | 654688 | 988 / 1224 (n=10) | 3156 / 3421 (n=10) | no samples | insufficient samples (n=1) | 18.9 (n=10) | no samples |
+| real-xlsx-poi-ConditionalFormattingSamples | 654688 | 988 / 1224 (n=10) | 3156 / 3421 (n=10) | no samples | 2356 / 2356 (n=1, thin sample) | 18.9 (n=10) | no samples |
 | real-xlsx-poi-dataValidationTableRange | 116554 | 917 / 1090 (n=10) | 3226 / 3423 (n=10) | no samples | no samples | 20.2 (n=10) | no samples |
 | real-xlsx-poi-no_drawing_patriarch | 672414 | 3738 / 4370 (n=10) | 5003 / 5330 (n=10) | no samples | no samples | 68.2 (n=10) | no samples |
 | real-xlsx-poi-StructuredRefs-lots-with-lookups | 325446 | 1021 / 1158 (n=10) | 3808 / 4855 (n=10) | no samples | no samples | 39.1 (n=10) | no samples |
@@ -603,16 +607,16 @@ first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize med
 
 | fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-xlsx-cells-1m | 5047589 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| gen-xlsx-cells-1m-pad-l | 7066140 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| gen-xlsx-cells-1m-pad-l2 | 9128751 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| gen-xlsx-cells-1m | 5047589 | 1831 / 1880 (n=3, thin sample) | 6120 / 6477 (n=3, thin sample) | 1833 / 2119 (n=3, thin sample) | 7063 / 7868 (n=3, thin sample) | 111 (n=3, thin sample) | 1833 (n=3, thin sample) |
+| gen-xlsx-cells-1m-pad-l | 7066140 | 2278 / 2341 (n=3, thin sample) | 7791 / 7934 (n=3, thin sample) | 2272 / 2429 (n=3, thin sample) | 9108 / 9244 (n=3, thin sample) | 135 (n=3, thin sample) | 2272 (n=3, thin sample) |
+| gen-xlsx-cells-1m-pad-l2 | 9128751 | 2763 / 2779 (n=3, thin sample) | 9767 / 9842 (n=3, thin sample) | 2841 / 2847 (n=3, thin sample) | 12098 / 16234 (n=3, thin sample) | 145 (n=3, thin sample) | 2841 (n=3, thin sample) |
 
 ### xlsx XL
 
 | fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-xlsx-xl-b | 19232925 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| gen-xlsx-xl-c | 21285768 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| gen-xlsx-xl-b | 19232925 | 5864 / 7307 (n=3, thin sample) | 18639 / 23513 (n=3, thin sample) | 5171 / 5864 (n=3, thin sample) | 25226 / 26860 (n=3, thin sample) | 196 (n=3, thin sample) | 5171 (n=3, thin sample) |
+| gen-xlsx-xl-c | 21285768 | 5612 / 5894 (n=3, thin sample) | 24583 / 29921 (n=3, thin sample) | 5405 / 5599 (n=3, thin sample) | 22094 / 67599 (n=3, thin sample) | 209 (n=3, thin sample) | 5405 (n=3, thin sample) |
 
 ### docx S
 
@@ -629,7 +633,7 @@ first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize med
 | real-docx-poi-58067 | 28709 | 468 / 517 (n=10) | 1062 / 1085 (n=10) | 442 / 468 (n=20) | 1063 / 1113 (n=20) | 8.4 (n=10) | 442 (n=20) |
 | real-docx-poi-60158 | 15617 | 478 / 495 (n=10) | 1038 / 1110 (n=10) | 453 / 542 (n=20) | 1039 / 1133 (n=20) | 9.3 (n=10) | 453 (n=20) |
 | real-docx-poi-60316.docx | 59583 | 514 / 526 (n=10) | 993 / 1099 (n=10) | 484 / 501 (n=20) | 1023 / 1073 (n=20) | 10.4 (n=10) | 484 (n=20) |
-| real-docx-poi-60316.dotx | 59583 | 508 / 562 (n=10) | 1023 / 1184 (n=10) | 472 / 546 (n=20) | insufficient samples (n=1) | 9.6 (n=10) | 472 (n=20) |
+| real-docx-poi-60316.dotx | 59583 | 508 / 562 (n=10) | 1023 / 1184 (n=10) | 472 / 546 (n=20) | 951 / 951 (n=1, thin sample) | 9.6 (n=10) | 472 (n=20) |
 | real-docx-poi-60329 | 31124 | 512 / 542 (n=10) | 1007 / 1189 (n=10) | 494 / 561 (n=20) | 1014 / 1096 (n=20) | 10.8 (n=10) | 494 (n=20) |
 | real-docx-poi-61470 | 12523 | 535 / 596 (n=10) | 1053 / 1092 (n=10) | 435 / 470 (n=20) | 1112 / 1255 (n=20) | 8.7 (n=10) | 435 (n=20) |
 | real-docx-poi-61745 | 37030 | 505 / 567 (n=10) | 966 / 1055 (n=10) | 482 / 516 (n=20) | 995 / 1039 (n=20) | 10.7 (n=10) | 482 (n=20) |
@@ -693,7 +697,7 @@ first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize med
 
 | fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-docx-pages-100 | 403491 | 497 / 537 (n=10) | 1217 / 1248 (n=10) | 470 / 501 (n=20) | 1221 / 1287 (n=19) | 10.4 (n=10) | 470 (n=20) |
+| gen-docx-pages-100 | 403491 | 497 / 537 (n=10) | 1217 / 1248 (n=10) | 470 / 501 (n=20) | 1221 / 1287 (n=19, thin sample) | 10.4 (n=10) | 470 (n=20) |
 | gen-docx-pages-100-b | 603043 | 495 / 606 (n=10) | 1261 / 1510 (n=10) | 495 / 1081 (n=20) | 1291 / 1447 (n=20) | 11.2 (n=10) | 495 (n=20) |
 | gen-docx-pages-100-c | 703586 | 499 / 527 (n=10) | 1258 / 1428 (n=10) | 491 / 566 (n=20) | 1267 / 1388 (n=20) | 10.8 (n=10) | 491 (n=20) |
 | real-docx-poi-chartex | 133304 | 512 / 570 (n=10) | 1047 / 1084 (n=10) | 505 / 529 (n=20) | 1044 / 1102 (n=20) | 12.4 (n=10) | 505 (n=20) |
@@ -737,7 +741,7 @@ first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize med
 | upstream-2b363b2c9b04 | 16112 | 1275 / 1378 (n=10) | 5032 / 5328 (n=10) | 1529 / 1647 (n=20) | 4698 / 5291 (n=20) | 43.1 (n=10) | 1529 (n=20) |
 | upstream-332cb27502fe | 16329 | 1300 / 1698 (n=10) | 5119 / 5309 (n=10) | 1237 / 1442 (n=20) | 4630 / 4926 (n=20) | 41.1 (n=10) | 1237 (n=20) |
 | upstream-3858c1c9d869 | 52788 | 1365 / 1445 (n=10) | 5123 / 5531 (n=10) | 1351 / 1508 (n=20) | 5044 / 5313 (n=20) | 47.9 (n=10) | 1351 (n=20) |
-| upstream-38aa694fb4a5 | 34531 | 1328 / 1370 (n=10) | 5145 / 5787 (n=10) | 1407 / 1510 (n=20) | insufficient samples (n=2) | 47.4 (n=10) | 1407 (n=20) |
+| upstream-38aa694fb4a5 | 34531 | 1328 / 1370 (n=10) | 5145 / 5787 (n=10) | 1407 / 1510 (n=20) | 4851 / 4856 (n=2, thin sample) | 47.4 (n=10) | 1407 (n=20) |
 | upstream-38fb1b1e8f76 | 33810 | 1282 / 1352 (n=10) | 4743 / 5038 (n=10) | 1264 / 1419 (n=20) | 4839 / 14197 (n=20) | 45.4 (n=10) | 1264 (n=20) |
 | upstream-3a09e4b3e925 | 38668 | 1319 / 1328 (n=10) | 4757 / 5117 (n=10) | 1294 / 2440 (n=20) | 5266 / 6730 (n=20) | 45.9 (n=10) | 1294 (n=20) |
 | upstream-3e787d01c5f7 | 15985 | 1237 / 1277 (n=10) | 4404 / 4659 (n=10) | 1239 / 4166 (n=20) | 4760 / 8295 (n=20) | 39.5 (n=10) | 1239 (n=20) |
@@ -756,14 +760,14 @@ first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize med
 | upstream-7bb23ba0b604 | 16324 | 1301 / 1335 (n=10) | 4723 / 4980 (n=10) | 1261 / 1449 (n=20) | 4721 / 5009 (n=20) | 41.2 (n=10) | 1261 (n=20) |
 | upstream-7cc22f8e5927 | 11932 | 1246 / 1319 (n=10) | 4325 / 4547 (n=10) | 1185 / 1225 (n=20) | 4770 / 25346 (n=20) | 35.8 (n=10) | 1185 (n=20) |
 | upstream-80e6e30ea597 | 17004 | 1332 / 1383 (n=10) | 4634 / 4787 (n=10) | 1227 / 1355 (n=20) | 5013 / 5317 (n=20) | 41 (n=10) | 1227 (n=20) |
-| upstream-88e14cba7830 | 16077 | 1242 / 1327 (n=10) | 4634 / 4779 (n=10) | 1256 / 3057 (n=20) | 4953 / 5277 (n=17) | 43.1 (n=10) | 1256 (n=20) |
+| upstream-88e14cba7830 | 16077 | 1242 / 1327 (n=10) | 4634 / 4779 (n=10) | 1256 / 3057 (n=20) | 4953 / 5277 (n=17, thin sample) | 43.1 (n=10) | 1256 (n=20) |
 | upstream-8bbf3d67bd63 | 16144 | 1271 / 1293 (n=10) | 4849 / 5272 (n=10) | 1349 / 2003 (n=20) | 4988 / 12574 (n=20) | 43.1 (n=10) | 1349 (n=20) |
 | upstream-913ecd7c7c8a | 16128 | 1337 / 1434 (n=10) | 4543 / 4995 (n=10) | 1306 / 1527 (n=20) | 4380 / 4726 (n=20) | 39.1 (n=10) | 1306 (n=20) |
 | upstream-959ab2f5bac7 | 16227 | 1250 / 1296 (n=10) | 4662 / 5008 (n=10) | 1235 / 1391 (n=20) | 4410 / 4792 (n=20) | 40 (n=10) | 1235 (n=20) |
 | upstream-9f78c22429d9 | 4491 | 1217 / 1244 (n=10) | 4700 / 4798 (n=10) | 1203 / 1318 (n=20) | 4573 / 5073 (n=20) | 36.1 (n=10) | 1203 (n=20) |
 | upstream-a0806b09c73d | 17857 | 1231 / 1285 (n=10) | 4583 / 4860 (n=10) | 1220 / 1278 (n=20) | 5172 / 25341 (n=20) | 40.7 (n=10) | 1220 (n=20) |
 | upstream-a10c83ff4127 | 76424 | 1348 / 1484 (n=10) | 5062 / 5124 (n=10) | 1352 / 3120 (n=20) | 5453 / 5804 (n=20) | 60.3 (n=10) | 1352 (n=20) |
-| upstream-a344b2f3f55d | 50597 | 1318 / 1383 (n=10) | 4796 / 4953 (n=10) | 1326 / 3134 (n=20) | 5096 / 5430 (n=12) | 45.5 (n=10) | 1326 (n=20) |
+| upstream-a344b2f3f55d | 50597 | 1318 / 1383 (n=10) | 4796 / 4953 (n=10) | 1326 / 3134 (n=20) | 5096 / 5430 (n=12, thin sample) | 45.5 (n=10) | 1326 (n=20) |
 | upstream-a4b1b68c66c7 | 16604 | 1285 / 1832 (n=10) | 4690 / 4790 (n=10) | 1326 / 1771 (n=20) | 5011 / 10060 (n=20) | 39.9 (n=10) | 1326 (n=20) |
 | upstream-a61f509fcab9 | 44381 | 1427 / 1465 (n=10) | 4853 / 5099 (n=10) | 1300 / 1410 (n=20) | 4686 / 5154 (n=20) | 39.6 (n=10) | 1300 (n=20) |
 | upstream-a734ca765129 | 16064 | 1304 / 1580 (n=10) | 4787 / 4986 (n=10) | 1242 / 1411 (n=20) | 4623 / 5290 (n=20) | 43.1 (n=10) | 1242 (n=20) |
@@ -825,6 +829,6 @@ first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize med
 
 | fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| real-pptx-poi-customGeo | 1046067 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| real-pptx-python-pptx-cht-chart-type | 1393564 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
-| upstream-61fc791e15c0 | 1078208 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| real-pptx-poi-customGeo | 1046067 | 2098 / 2344 (n=3, thin sample) | 8465 / 8536 (n=3, thin sample) | 2385 / 2697 (n=3, thin sample) | 7726 / 8086 (n=3, thin sample) | 97.6 (n=3, thin sample) | 2385 (n=3, thin sample) |
+| real-pptx-python-pptx-cht-chart-type | 1393564 | 1621 / 1669 (n=3, thin sample) | 5798 / 5826 (n=3, thin sample) | 1624 / 2063 (n=3, thin sample) | 5596 / 5768 (n=3, thin sample) | 52.6 (n=3, thin sample) | 1624 (n=3, thin sample) |
+| upstream-61fc791e15c0 | 1078208 | 3204 / 3461 (n=3, thin sample) | 13097 / 13208 (n=3, thin sample) | 3408 / 4211 (n=3, thin sample) | 16317 / 31155 (n=3, thin sample) | 103 (n=3, thin sample) | 3408 (n=3, thin sample) |

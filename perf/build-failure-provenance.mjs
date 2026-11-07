@@ -27,6 +27,20 @@ const rel = (p) => relative(root, p);
 const sha = (p) => createHash('sha256').update(readFileSync(p)).digest('hex');
 const lines = (f) => readFileSync(f, 'utf8').split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => l.trim()).map(([n, l]) => [n, JSON.parse(l)]);
 
+// --verify: re-hash every evidence file listed in the committed provenance file and exit 1 on any mismatch.
+if (argv.includes('--verify')) {
+  const j = JSON.parse(readFileSync(outFile, 'utf8'));
+  let bad = 0;
+  for (const [f, v] of Object.entries(j.evidence_files)) {
+    const abs = f.startsWith('~/') ? join(homedir(), f.slice(2)) : join(root, f);
+    const got = existsSync(abs) ? sha(abs) : 'MISSING';
+    const ok = got === v.sha256;
+    if (!ok) bad++;
+    console.log(`${ok ? 'ok      ' : 'MISMATCH'} ${f}${ok ? '' : `  recorded ${v.sha256} now ${got}`}`);
+  }
+  process.exit(bad ? 1 : 0);
+}
+
 const cells = [];
 const files = new Map(); // evidence file -> sha256 (so edits to the evidence are detectable)
 const track = (p, tracked) => { files.set(p, { sha256: sha(p), tracked }); };

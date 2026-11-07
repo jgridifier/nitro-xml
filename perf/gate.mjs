@@ -54,11 +54,18 @@ function disarmedReason(e, metric, th) {
   return d ? d.reason ?? 'disarmed' : null;
 }
 
-/** Baseline entries for `cur`: last N main entries, same key, other commits, same env. */
+/**
+ * Baseline entries for `cur`: last N main entries, same key, other commits, same env.
+ * Entries carry an explicit harness-run marker, `rerun` (true = the supplemental fixed-harness re-run of the same
+ * commit; absent/false = the original sweep). The two are different harness runs of one key and are never pooled:
+ * the pool is the entries with the same marker as `cur`; only when there are none is the other class used (so a
+ * key that exists only as a re-run, e.g. the promoted xlsx fixtures, still gets a baseline), still unpooled.
+ */
 export function baselineFor(cur, history, n) {
   const sameKey = history.filter((h) => h.branch === 'main' && keyOf(h) === keyOf(cur) && h.commit !== cur.commit);
   const comparable = sameKey.filter((h) => sameEnv(h, cur));
-  return { comparable: comparable.slice(-n), anyKey: sameKey.length };
+  const sameRun = comparable.filter((h) => !!h.rerun === !!cur.rerun);
+  return { comparable: (sameRun.length ? sameRun : comparable).slice(-n), anyKey: sameKey.length };
 }
 
 /** Returns rows: {entry, metric, status: pass|fail|report-only|no-baseline|incomparable, base, cur, delta, note}. */

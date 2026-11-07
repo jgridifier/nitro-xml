@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { median, p95 } from '../stats.mjs';
-import { MIN_N, STATUSES, classifyRawRow, indexProvenance, statusFor, cellText, aggregateText, insufficient } from '../provenance.mjs';
+import { DESIGN_N, STATUSES, classifyRawRow, indexProvenance, statusFor, cellText, medianText, aggregateText, nLabel } from '../provenance.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (rel) => readFileSync(join(here, '..', rel), 'utf8');
@@ -37,28 +37,26 @@ test('a later source overrides an earlier one for the same cell', () => {
   assert.equal(statusFor(prov, 'a', 'cold', 1), 'observed_error');
 });
 
-test('cellText gives no number below MIN_N', () => {
-  // Catches: a median/p95 (or CI) being claimed from n=3 samples
+test('thin cells keep their measured median and are labelled, never suppressed', () => {
+  // Catches: an invented n cut-off hiding measured medians, or n=3 passing as a normal sample
   const few = [100, 200, 300];
-  const t = cellText(few, median, p95, fmt);
-  assert.equal(t, 'insufficient samples (n=3)');
-  assert.doesNotMatch(t, /\d{3}/);
-  assert.equal(cellText(undefined, median, p95, fmt), 'no samples');
-  assert.equal(cellText([], median, p95, fmt), 'no samples');
-  const ok = cellText([1, 2, 3, 4, 5], median, p95, fmt);
-  assert.match(ok, /^3 \/ 5 \(n=5\)$/);
-  assert.equal(MIN_N, 5);
+  assert.equal(cellText(few, median, p95, fmt, 'cold'), '200 / 290 (n=3, thin sample)');
+  assert.equal(cellText(few, median, p95, fmt, 'warm'), '200 / 290 (n=3, thin sample)');
+  assert.equal(cellText(Array.from({ length: 10 }, (_, i) => i), median, p95, fmt, 'cold'), '5 / 9 (n=10)');
+  assert.equal(cellText(Array.from({ length: 10 }, (_, i) => i), median, p95, fmt, 'warm'), '5 / 9 (n=10, thin sample)'); // warm design is 20
+  assert.equal(cellText(undefined, median, p95, fmt, 'cold'), 'no samples');
+  assert.equal(cellText([], median, p95, fmt, 'warm'), 'no samples');
+  assert.equal(medianText(few, median, fmt, 'cold'), '200 (n=3, thin sample)');
+  assert.deepEqual(DESIGN_N, { cold: 10, warm: 20 }); // the harness defaults in perf/run.mjs, not a new threshold
+  assert.equal(nLabel(0, 'cold'), 'no samples');
 });
 
-test('aggregateText leaves out thin fixtures and reports n', () => {
-  // Catches: a tier aggregate silently averaging in a fixture with 3 samples
-  const full = [10, 11, 12, 13, 14];
-  const items = [{ vals: full }, { vals: [1, 2, 3] }];
-  const t = aggregateText(items, median, fmt);
-  assert.match(t, /^12 \(12\.\.12\) n=5, 1\/2 fixtures omitted/);
-  assert.match(aggregateText([{ vals: [1, 2, 3] }], median, fmt), /^insufficient samples \(n=3\)$/);
-  assert.equal(aggregateText([{ vals: undefined }], median, fmt), '-');
-  assert.equal(insufficient(0), 'no samples');
+test('aggregateText shows every fixture, the n range and how many are thin', () => {
+  // Catches: dropping thin fixtures from an aggregate, or hiding that it rests on n=3
+  const ten = Array.from({ length: 10 }, (_, i) => 10 + i);
+  const t = aggregateText([{ vals: ten }, { vals: [1, 2, 3] }, { vals: undefined }], median, fmt, 'cold');
+  assert.match(t, /^\d+ \(2\.\.15\) n=3–10, thin sample in 1\/2 fixtures, 1 fixtures no samples$/);
+  assert.equal(aggregateText([{ vals: undefined }], median, fmt, 'cold'), 'no samples');
 });
 
 test('failure-provenance.json: every cell has a valid status and an evidence pointer', () => {
@@ -86,15 +84,18 @@ test('never-started cells are not recorded as timeouts', () => {
   assert.equal(by('gen-docx-pages-500', 'cold', 4), 'observed_timeout');
 });
 
-test('BASELINE.md shows status per cell, n, and the min-n rule', () => {
-  // Catches: the report going back to one "timeout" label for cells that were never run, or showing n<5 numbers
+test('BASELINE.md shows status per cell, n, thin labels, and makes no CI or win claim', () => {
+  // Catches: the report going back to one "timeout" label for never-run cells, an invented n cut-off, or a CI/win claim
   const md = read('BASELINE.md');
-  const row = (id) => md.split('\n').find((l) => l.startsWith(`| ${id} |`) && l.includes('observed') || l.startsWith(`| ${id} |`) && l.includes('not run'));
-  const xl = row('gen-pptx-xl-a');
-  assert.match(xl, /\| observed timeout \| operator aborted \| not run \| not run \|/);
-  const pages = row('gen-docx-pages-500');
-  assert.match(pages, /\| ok \(n=3\) \| observed timeout \| operator aborted \| not run \|/);
-  assert.match(md, /no speed number, ranking, tier aggregate or 95% CI is reported for a cell with n < 5/);
-  assert.match(md, /insufficient samples \(n=3\)/);
+  const row = (id) => md.split('\n').find((l) => l.startsWith(`| ${id} |`) && /observed|not run/.test(l));
+  assert.match(row('gen-pptx-xl-a'), /\| observed timeout \| operator aborted \| not run \| not run \|/);
+  assert.match(row('gen-docx-pages-500'), /\| ok \(n=3\) \| observed timeout \| operator aborted \| not run \|/);
+  assert.match(md, /n=3, thin sample/);
+  assert.doesNotMatch(md, /insufficient samples|n < 5|minimum-n/);
+  assert.match(md, /empirical 95th percentile/);
+  assert.match(md, /computes \*\*no 95% confidence interval\*\* /);
+  assert.match(md, /no speed-win or WASM-vs-TS claim/);
   assert.doesNotMatch(md, /pending #117/);
+  // every table cell with a p95 carries an n
+  for (const l of md.split('\n').filter((x) => / \/ [\d.]+ \(/.test(x))) assert.match(l, /\(n=\d+/);
 });

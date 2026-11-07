@@ -97,3 +97,23 @@ test('noise: gating the same data twice passes', () => {
   assert.equal(rows.filter((r) => r.status === 'fail').length, 0);
   assert.ok(rows.some((r) => r.status === 'pass'));
 });
+
+test('original sweep and fixed-harness re-run of one key are never pooled', () => {
+  // Catches: the original (unbounded-scroll harness) entry and its scroll-fix re-run entry of the same commit being
+  // median-pooled, so each of them "regressed" against the mean of both (8 keys failed the self-gate in history.jsonl)
+  const orig = ent('c1', 750, { rerun: false });
+  const fixed = ent('c1', 940, { rerun: true });
+  const h = [orig, fixed];
+  assert.equal(status(evaluate([{ ...orig, commit: 'x' }], h, th)), 'pass'); // orig vs orig only
+  assert.equal(status(evaluate([{ ...fixed, commit: 'x' }], h, th)), 'pass'); // fixed vs fixed only
+  assert.equal(evaluate([{ ...fixed, commit: 'x' }], h, th)[0].base, 940);
+});
+
+test('a key that only has re-run entries is still baselined (not pooled with anything)', () => {
+  // Catches: promoted xlsx fixtures (re-run entries only) losing their baseline when the new entry has no rerun marker
+  const h = [ent('c1', 940, { rerun: true })];
+  const rows = evaluate([ent('cur', 940)], h, th);
+  assert.equal(rows[0].base, 940);
+  assert.equal(status(rows), 'pass');
+  assert.equal(status(evaluate([ent('cur', 1400)], h, th)), 'fail'); // thresholds unchanged: still gates
+});

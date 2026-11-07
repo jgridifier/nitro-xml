@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 /**
- * Failure provenance and per-cell sample-count rules for the TS baseline report (#10).
+ * Failure provenance and per-cell sample-count labelling for the TS baseline report (#10).
  *
  * A "cell" is (fixture, mode, cpuThrottle). Every excluded cell has exactly one status:
  *   observed_timeout  the harness actually hit its own timeout during a run
@@ -22,8 +22,12 @@ export const STATUS_LABEL = {
   unknown: 'unknown',
 };
 
-/** Below this many samples a cell gets no speed number, ranking or CI ("insufficient samples"). */
-export const MIN_N = 5;
+/**
+ * Design sample count per cell: the harness defaults (perf/run.mjs: "Defaults: 10 iterations cold, 20 warm",
+ * also perf/baseline-sweep.mjs). A cell with fewer samples is labelled "thin sample"; nothing is suppressed
+ * and no new threshold is introduced.
+ */
+export const DESIGN_N = { cold: 10, warm: 20 };
 
 export const cellKey = (fixture, mode, cpu) => `${fixture}|${mode}|${cpu ?? 1}`;
 
@@ -61,16 +65,24 @@ export function statusFor(prov, fixture, mode, cpu) {
 /** Number of finite samples behind one metric of one cell: `vals` is the array of numbers. */
 export const sampleN = (vals) => (vals ? vals.length : 0);
 
-export const insufficient = (n) => (n > 0 ? `insufficient samples (n=${n})` : 'no samples');
+export const isThin = (n, mode) => n > 0 && n < (DESIGN_N[mode] ?? DESIGN_N.cold);
+/** `n=10`, or `n=3, thin sample` when below the design count; `no samples` when none. */
+export const nLabel = (n, mode) => (n === 0 ? 'no samples' : isThin(n, mode) ? `n=${n}, thin sample` : `n=${n}`);
 
 /**
- * Text for a per-fixture cell metric: `median / p95 (n=N)`, or `insufficient samples (n=N)` / `no samples`.
- * `med` and `p95` are only evaluated when n >= MIN_N, so a suppressed cell can never leak a number.
+ * Per-fixture cell: `median / p95 (n=N[, thin sample])`, or `no samples`. p95 is the empirical 95th
+ * percentile of the samples (stats.mjs, linear interpolation); it is not a confidence interval.
  */
-export function cellText(vals, med, p95, fmt, minN = MIN_N) {
+export function cellText(vals, med, p95, fmt, mode) {
   const n = sampleN(vals);
-  if (n < minN) return insufficient(n);
-  return `${fmt(med(vals))} / ${fmt(p95(vals))} (n=${n})`;
+  if (!n) return 'no samples';
+  return `${fmt(med(vals))} / ${fmt(p95(vals))} (${nLabel(n, mode)})`;
+}
+
+/** Median only, with n. */
+export function medianText(vals, med, fmt, mode) {
+  const n = sampleN(vals);
+  return n ? `${fmt(med(vals))} (${nLabel(n, mode)})` : 'no samples';
 }
 
 /** n range text for a set of per-fixture sample counts. */
@@ -81,17 +93,14 @@ export const nRangeText = (ns) => {
 };
 
 /**
- * Tier aggregate cell: median (min..max) over the per-fixture medians of fixtures with n >= MIN_N in the cell.
- * Fixtures below MIN_N are left out and counted; with none left the cell is `insufficient samples`.
- * `items` = [{ vals }] (one per fixture of the tier).
+ * Tier aggregate cell: median (min..max) over the per-fixture medians (descriptive, not a claim), with the
+ * range of n over the contributing fixtures and how many of them are thin. `items` = [{ vals }].
  */
-export function aggregateText(items, med, fmt, minN = MIN_N) {
-  const ok = items.filter((i) => sampleN(i.vals) >= minN);
-  if (!ok.length) {
-    const ns = items.map((i) => sampleN(i.vals));
-    return ns.some((n) => n > 0) ? `insufficient samples (${nRangeText(ns.filter((n) => n > 0))})` : '-';
-  }
-  const ms = ok.map((i) => med(i.vals));
-  const left = items.length - ok.length;
-  return `${fmt(med(ms))} (${fmt(Math.min(...ms))}..${fmt(Math.max(...ms))}) ${nRangeText(ok.map((i) => sampleN(i.vals)))}${left ? `, ${left}/${items.length} fixtures omitted (n<${minN} or no samples)` : ''}`;
+export function aggregateText(items, med, fmt, mode) {
+  const have = items.filter((i) => sampleN(i.vals) > 0);
+  if (!have.length) return 'no samples';
+  const ms = have.map((i) => med(i.vals));
+  const thin = have.filter((i) => isThin(sampleN(i.vals), mode)).length;
+  const missing = items.length - have.length;
+  return `${fmt(med(ms))} (${fmt(Math.min(...ms))}..${fmt(Math.max(...ms))}) ${nRangeText(have.map((i) => sampleN(i.vals)))}${thin ? `, thin sample in ${thin}/${have.length} fixtures` : ''}${missing ? `, ${missing} fixtures no samples` : ''}`;
 }

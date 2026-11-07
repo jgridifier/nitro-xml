@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { median, p95 } from './stats.mjs';
-import { MIN_N, STATUSES, STATUS_LABEL, loadProvenance, statusFor, sampleN, insufficient, cellText, aggregateText } from './provenance.mjs';
+import { DESIGN_N, STATUSES, STATUS_LABEL, loadProvenance, statusFor, sampleN, isThin, cellText, medianText, aggregateText } from './provenance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 if (!process.argv[2]) throw new Error('usage: node perf/baseline-report.mjs perf/baselines/ts-<commit>.jsonl [failures.jsonl]');
@@ -63,13 +63,16 @@ const rerunBy = group(rerunRows);
 const chromes = [...new Set(rows.map((r) => r.chrome))].sort();
 const hostKey = (h) => JSON.stringify(h ?? null);
 const hosts = [...new Map(rows.map((r) => [hostKey(r.host), r.host])).values()].filter(Boolean);
-// Per-cell sample rule: n = number of finite samples of the metric in the cell; below MIN_N (or none) there is no
-// speed number, ranking, aggregate or CI for that cell, only the n.
+// Per-cell sample labelling: n = number of finite samples of the metric in the cell. Medians (and p95 where shown)
+// are always printed with n; a cell below the harness design count (DESIGN_N) is labelled "thin sample". No CI is
+// computed here and no speed-win claim is made.
+const modeOf = (cell) => cell.split(' ')[0];
 const valsOf = (f, cell, k) => f.cells.get(cell)?.vals[k]?.map((v) => v / disp(k)[1]);
 const nOf = (f, cell, k = 'first_paint_ms') => sampleN(valsOf(f, cell, k));
-const statQ = (f, cell, k, fn) => { const xs = valsOf(f, cell, k); return sampleN(xs) >= MIN_N ? fn(xs) : undefined; };
-const mp = (f, cell, k) => cellText(valsOf(f, cell, k), median, p95, fmt);
-const mOnly = (f, cell, k) => { const xs = valsOf(f, cell, k); return sampleN(xs) >= MIN_N ? `${fmt(median(xs))} (n=${sampleN(xs)})` : insufficient(sampleN(xs)); };
+const stat = (f, cell, k, fn) => { const xs = valsOf(f, cell, k); return xs?.length ? fn(xs) : undefined; };
+const mp = (f, cell, k) => cellText(valsOf(f, cell, k), median, p95, fmt, modeOf(cell));
+const mOnly = (f, cell, k) => medianText(valsOf(f, cell, k), median, fmt, modeOf(cell));
+const thinCell = (f, cell, k = 'first_paint_ms') => isThin(nOf(f, cell, k), modeOf(cell));
 // Accept fixtures that have at least cold 1x + cold 4x so xlsx rerun-promoted rows (missing warm 4x) are included.
 const complete = (f) => f.cells.has('cold 1x') && f.cells.has('cold 4x');
 const fixtures = [...byFixture.values()].sort((a, b) => FORMATS.indexOf(a.format) - FORMATS.indexOf(b.format) || TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.id.localeCompare(b.id));
@@ -113,14 +116,14 @@ const coverage = FORMATS.flatMap((fm) => TIERS.map((t) => {
 }));
 
 // ---- rankings (individual fixtures, cold 1x)
-const rank = (k) => kept.map((f) => [f, statQ(f, 'cold 1x', k, median)]).filter(([, v]) => v !== undefined).sort((a, b) => b[1] - a[1]).slice(0, 5);
-const rankRows = (xs, k) => xs.map(([f, v], i) => [i + 1, f.id, f.format, f.tier, bytesOf(f) ?? '-', fmt(v / disp(k)[1]), nOf(f, 'cold 1x', k)]);
+const rank = (k) => kept.filter((f) => !thinCell(f, 'cold 1x', k)).map((f) => [f, stat(f, 'cold 1x', k, median)]).filter(([, v]) => v !== undefined).sort((a, b) => b[1] - a[1]).slice(0, 5);
+const rankRows = (xs, k) => xs.map(([f, v], i) => [i + 1, f.id, f.format, f.tier, bytesOf(f) ?? '-', fmt(v), nOf(f, 'cold 1x', k)]);
 const slowest = rank('first_paint_ms');
 const hungriest = rank('JSHeapUsedSize');
 
 // ---- xlsx-M warm 1x TTI (the #10 finding): old definition vs fixed, per fixture, from the same samples
 const ttiRows = kept.filter((f) => f.format === 'xlsx' && f.tier === 'M').map((f) => [f.id, mp(f, 'warm 1x', 'tti_with_interaction_ms'), mp(f, 'warm 1x', 'tti_ms'), mp(f, 'warm 1x', 'first_paint_ms')]);
-const bimodal = kept.filter((f) => f.format === 'xlsx' && f.tier === 'M').filter((f) => statQ(f, 'warm 1x', 'tti_ms', p95) > 3 * statQ(f, 'warm 1x', 'tti_ms', median)).map((f) => f.id);
+const bimodal = kept.filter((f) => f.format === 'xlsx' && f.tier === 'M').filter((f) => !thinCell(f, 'warm 1x', 'tti_ms')).filter((f) => stat(f, 'warm 1x', 'tti_ms', p95) > 3 * stat(f, 'warm 1x', 'tti_ms', median)).map((f) => f.id);
 const perfM = byFixture.get('gen-xlsx-cells-100k'); // = xlsx-M of perf/fixtures.json
 
 // ---- tier aggregates: median / min..max over fixtures of the per-fixture median
@@ -129,7 +132,7 @@ const tierKeys = (fs) => {
   for (const f of fs) for (const c of f.cells.values()) for (const k of Object.keys(c.vals)) all.add(k);
   return { prim: PRIMARY.filter((k) => all.has(k)), rest: [...all].filter((k) => !PRIMARY.includes(k)).sort() };
 };
-const tierBody = (fs, ks) => ks.map((k) => [disp(k)[0], ...cellNames.map((c) => aggregateText(fs.map((f) => ({ vals: valsOf(f, c, k) })), median, fmt))]);
+const tierBody = (fs, ks) => ks.map((k) => [disp(k)[0], ...cellNames.map((c) => aggregateText(fs.map((f) => ({ vals: valsOf(f, c, k) })), median, fmt, modeOf(c)))]);
 
 // ---- document model: blocks rendered to Markdown and HTML
 // Compute actual iteration range per mode so the runner line is accurate for mixed-n datasets.
@@ -168,14 +171,16 @@ const T = (head, body) => doc.push({ head, body });
 
 H(1, 'TypeScript engine baseline (#10)');
 T(['Item', 'Value'], header);
-P('Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95` over the iterations of one fixture; per-tier cells are `median (min..max)` over the fixtures of the tier of each fixture\'s median. Cells: mode (cold/warm) x CPU throttle (1x/4x).');
+P('Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95 (n=samples)` over the iterations of one fixture, p95 being the empirical 95th percentile (not a confidence interval); per-tier cells are `median (min..max)` over the fixtures of the tier of each fixture\'s median. Cells: mode (cold/warm) x CPU throttle (1x/4x).');
 H(2, 'Status');
 P(`- ${NOTE2}`);
 P(`- Corpus: every S/M/L/XL xlsx/docx/pptx row of \`fixtures/manifest.json\` that exists on disk under \`fixtures/\` (the demo/ copies of the same bytes are not re-measured). ${short.length ? `**Fewer than 3 measured fixtures for: ${short.map((c) => `${c.fm} ${c.t} (${c.measured})`).join(', ')}.**` : 'Every tier of every format has at least 3 measured fixtures.'}`);
 P(`- Fixture ids are the manifest ids; the six ids of the first baseline map to \`gen-xlsx-cells-1k\` (xlsx-S), \`gen-xlsx-cells-100k\` (xlsx-M), \`gen-docx-pages-10\` (docx-S), \`gen-docx-pages-100\` (docx-M), \`gen-pptx-slides-10\` (pptx-S), \`gen-pptx-slides-50\` (pptx-M).`);
 P(`- Two runs shared the machine at a time (\`concurrent_runs\` in the host fingerprint), on disjoint fixtures of the same cell, to fit the sweep in time; a 3-way concurrency check on this box moved the median first_paint of a small xlsx by about 7%, so absolute numbers sit slightly above a serial run. Compare like with like (same host, same \`concurrent_runs\`).`);
-H(2, 'Sample counts and the minimum-n rule');
-P(`Every per-cell number is shown with its sample count n (finite samples of that metric in that cell, warm-up excluded). **Rule: no speed number, ranking, tier aggregate or 95% CI is reported for a cell with n < ${MIN_N} or with no samples; it shows \`insufficient samples (n=N)\` or \`no samples\` instead.** Tier aggregates leave out fixtures below the threshold and say how many were omitted. The raw samples stay in the jsonl and history. This does not change any perf gate, budget or threshold. The L/XL sweep ran 3 iterations per cell (cold n=3, warm n=3 after one discarded warm-up), so **no L/XL cell currently meets the rule**; L/XL numbers are not claimed until they are re-measured with n >= ${MIN_N}.`);
+H(2, 'Sample counts, p95 and what is not claimed');
+P(`Every number in a cell is printed with its sample count n (finite samples of that metric in that cell, warm-up excluded). **Measured medians are always shown.** A cell with fewer samples than the harness design count (cold ${DESIGN_N.cold}, warm ${DESIGN_N.warm}; \`perf/run.mjs\` defaults) is labelled \`thin sample\`; a cell with none shows \`no samples\`. No existing code defines a smaller cut-off, so none is invented here.`);
+P('**p95** in this report is the empirical 95th percentile of the cell\'s samples (linear interpolation, `perf/stats.mjs`); with a thin sample it is close to the maximum. It is **not** a 95% confidence interval. This report computes **no 95% confidence interval** (the seeded bootstrap in `stats.mjs` is not used here) and makes **no speed-win or WASM-vs-TS claim**: it is a descriptive TS baseline. Rankings only include fixtures whose cell is not thin. The raw samples are in the jsonl and history; this changes no perf gate, budget or threshold.');
+P('The L/XL sweep ran 3 iterations per cell (cold n=3, warm n=3 after one discarded warm-up), so every measured L/XL cell below is a thin sample.');
 H(2, 'Corpus coverage');
 T(['format', 'tier', 'in manifest', 'measured', 'excluded (failed or incomplete)'], coverage.map((c) => [c.fm, c.t, c.manifest, c.measured, c.bad]));
 P('"in manifest" includes rows that are not redistributable and so not on disk (`upstream-noredist-*`), which cannot be measured.');
@@ -183,10 +188,10 @@ H(2, 'Headline: first_paint median per tier (ms)');
 T(['format', 'tier', 'fixtures', ...cellNames], FORMATS.flatMap((fm) => TIERS.map((t) => {
   const fs = kept.filter((f) => f.format === fm && f.tier === t);
   if (!fs.length) return null;
-  return [fm, t, fs.length, ...cellNames.map((c) => aggregateText(fs.map((f) => ({ vals: valsOf(f, c, 'first_paint_ms') })), median, fmt))];
+  return [fm, t, fs.length, ...cellNames.map((c) => aggregateText(fs.map((f) => ({ vals: valsOf(f, c, 'first_paint_ms') })), median, fmt, modeOf(c)))];
 }).filter(Boolean)));
 H(2, 'Rankings (individual fixtures)');
-P(`**5 slowest fixtures** (cold 1x first_paint median; only fixtures with n >= ${MIN_N} in that cell are ranked, so n=3 L/XL fixtures are not ranked here):`);
+P(`**5 slowest fixtures** (cold 1x first_paint median, descriptive ordering of this run only). Fixtures whose cold 1x cell is a thin sample (n < ${DESIGN_N.cold}) or has no samples are not ranked, so the n=3 L/XL fixtures are absent from these two lists; their medians are in the per-fixture tables with n:`);
 T(['#', 'fixture', 'format', 'tier', 'bytes', 'first_paint_ms', 'n'], rankRows(slowest, 'first_paint_ms'));
 P('**5 most memory-hungry fixtures** (cold 1x JSHeapUsedSize median):');
 T(['#', 'fixture', 'format', 'tier', 'bytes', 'JSHeapUsedSize (MiB)', 'n'], rankRows(hungriest, 'JSHeapUsedSize'));
@@ -260,7 +265,7 @@ for (const fm of FORMATS) for (const t of TIERS) {
   if (rest.length) { P('Other metrics:'); T(['metric', ...cellNames], tierBody(fs, rest)); }
 }
 H(2, 'Every fixture');
-P(`first_paint \`median / p95 (n=samples)\` per cell, then cold 1x JSHeapUsedSize median (MiB) and warm 1x tti_ms median, each with its n. A cell with n < ${MIN_N} or no samples shows no number. The full metric set per iteration is in the jsonl.`);
+P(`first_paint \`median / p95 (n=samples)\` per cell, then cold 1x JSHeapUsedSize median (MiB) and warm 1x tti_ms median, each with its n. A cell below the design count is labelled thin sample; a cell with none shows no samples. The full metric set per iteration is in the jsonl.`);
 for (const fm of FORMATS) for (const t of TIERS) {
   const fs = kept.filter((f) => f.format === fm && f.tier === t);
   if (!fs.length) continue;

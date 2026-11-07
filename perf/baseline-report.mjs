@@ -23,11 +23,10 @@ const rerunFile = input.replace(/\.jsonl$/, '.rerun.jsonl');
 const rerunRows = existsSync(rerunFile) ? lines(rerunFile) : [];
 const rerunFailFile = input.replace(/\.jsonl$/, '.rerun-failures.jsonl');
 const rerunFailRows = existsSync(rerunFailFile) ? lines(rerunFailFile) : [];
-const COMMIT = /ts-([0-9a-f]+)\.jsonl$/.exec(input)?.[1] ?? 'unknown';
+const COMMIT = /ts-(?:combined-)?([0-9a-f]+)\.jsonl$/.exec(input)?.[1] ?? 'unknown';
 const manifest = JSON.parse(readFileSync(`${root}/fixtures/manifest.json`, 'utf8')).fixtures;
 
 const DATE = process.env.BASELINE_DATE ?? new Date().toISOString().slice(0, 10);
-const GAP = 'GAP - provisional, pending #117 (L/XL fixtures not generated; pad.bin to be replaced)';
 const PRIMARY = ['first_paint_ms', 'parse_ms', 'first_render_ms', 'full_render_ms', 'tbt_ms', 'JSHeapUsedSize', 'all_slides_ms'];
 const FORMATS = ['xlsx', 'docx', 'pptx'];
 const TIERS = ['S', 'M', 'L', 'XL'];
@@ -65,19 +64,34 @@ const stat = (f, cell, k, fn) => {
   const xs = f.cells.get(cell)?.vals[k];
   return xs?.length ? fn(xs) / disp(k)[1] : undefined;
 };
-const complete = (f) => cellNames.every((c) => f.cells.has(c));
+// Accept fixtures that have at least cold 1x + cold 4x so xlsx rerun-promoted rows (missing warm 4x) are included.
+const complete = (f) => f.cells.has('cold 1x') && f.cells.has('cold 4x');
 const fixtures = [...byFixture.values()].sort((a, b) => FORMATS.indexOf(a.format) - FORMATS.indexOf(b.format) || TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.id.localeCompare(b.id));
 const mrow = new Map(manifest.map((m) => [m.id, m]));
 const bytesOf = (f) => mrow.get(f.id)?.bytes ?? mrow.get(f.id.replace(/\.[a-z]+$/, ''))?.bytes;
 
 // ---- failures: one entry per fixture
 const failed = new Map();
-for (const x of failureRows) {
-  const e = failed.get(x.fixture) ?? { fixture: x.fixture, cells: new Set(), error: String(x.error ?? '').split('\n')[0].slice(0, 160), kind: /Timeout|timed out/.test(x.error ?? '') ? 'timeout' : 'error' };
+for (const x0 of failureRows) {
+  // Some chunk-level rows carry the fixture only inside the error text ("FAIL <id> ts: ..."); blank rows are dropped.
+  const x = x0.fixture ? x0 : { ...x0, fixture: /^FAIL (\S+) /.exec(x0.error ?? '')?.[1] };
+  if (!x.fixture) continue;
+  const err = String(x.error ?? '');
+  const kind = /skipped|pre-created empty|synchronous JS hang|killed/.test(err) ? 'not run' : /Timeout|timed out/.test(err) ? 'timeout' : 'error';
+  const e = failed.get(x.fixture) ?? { fixture: x.fixture, cells: new Set(), error: err.replace(/^FAIL \S+ ts: /, '').split('\n')[0].slice(0, 160), kind };
+  if (kind === 'timeout' || kind === 'error') { if (e.kind === 'not run') { e.kind = kind; e.error = err.replace(/^FAIL \S+ ts: /, '').split('\n')[0].slice(0, 160); } }
   e.cells.add(cellName([x.mode, x.cpuThrottle]));
   failed.set(x.fixture, e);
 }
-const unmeasured = new Set([...failed.keys()]); // failed in at least one cell: left out of the aggregates below
+// A fixture is excluded from aggregates only when it fails in a cell required by complete()
+// (cold 1x or cold 4x). Warm failures are shown in the excluded table but don't prevent
+// inclusion in cold-only aggregates. This lets promoted xlsx rerun fixtures (some of which had
+// warm timeouts in the original sweep) appear in the aggregate tables.
+const unmeasured = new Set(
+  [...failed.entries()]
+    .filter(([, e]) => [...e.cells].some((c) => c === 'cold 1x' || c === 'cold 4x'))
+    .map(([id]) => id),
+);
 const kept = fixtures.filter((f) => !unmeasured.has(f.id) && complete(f));
 
 // ---- coverage
@@ -114,20 +128,34 @@ const tierBody = (fs, ks) => ks.map((k) => [disp(k)[0], ...cellNames.map((c) => 
 })]);
 
 // ---- document model: blocks rendered to Markdown and HTML
+// Compute actual iteration range per mode so the runner line is accurate for mixed-n datasets.
+const iterRange = (mode) => {
+  const fxMaxIter = new Map();
+  for (const r of rows) if (r.mode === mode) {
+    const key = `${r.fixture}|${r.engine}`;
+    fxMaxIter.set(key, Math.max(fxMaxIter.get(key) ?? 0, r.iteration + 1));
+  }
+  const counts = [...fxMaxIter.values()];
+  return counts.length ? [Math.min(...counts), Math.max(...counts)] : [0, 0];
+};
+const [coldLo, coldHi] = iterRange('cold');
+const [warmLo, warmHi] = iterRange('warm');
+const nDesc = (lo, hi, label) => lo === hi ? `${label} n=${lo}` : `${label} n=${lo}–${hi}`;
+const runnerLine = `local Linux box via \`node perf/baseline-sweep.mjs\` -> \`node perf/run.mjs --corpus manifest --engine ts\` (${nDesc(coldLo, coldHi, 'cold')}; ${nDesc(warmLo, warmHi, 'warm')} + 1 discarded warm-up; CPU 1x and 4x)`;
+// #117 merged (#494); L/XL measured on real post-#117 content.
+const NOTE2 = 'L/XL baseline measured on real #117 content (pad.bin replaced). `history.jsonl` updated. #10 stays open until HoP sign-off.';
+const lxlMeasured = FORMATS.some((fm) => kept.some((f) => f.format === fm && ['L', 'XL'].includes(f.tier)));
 const hostRows = hosts.flatMap((h, i) => Object.entries(h).map(([k, v]) => [hosts.length > 1 ? `host ${i + 1}: ${k}` : `host: ${k}`, v]));
 const header = [
   ['TS engine', 'upstream ChristopherVR/ooxml @ e66aaec'],
   ['Measured at', `nitro-xml commit ${COMMIT} plus the harness changes of the PR that added this file`],
   ['Chrome', chromes.join(', ')],
-  ['Runner', 'local Linux box via `node perf/baseline-sweep.mjs` -> `node perf/run.mjs --corpus manifest --engine ts` (cold n=10; warm n=20 + 1 discarded warm-up; CPU 1x and 4x)'],
+  ['Runner', runnerLine],
   ['Date', DATE],
   ['Source data', `perf/baselines/${basename(input)} (${rows.length} samples, ${kept.length} fixtures x 4 cells)`],
   ...hostRows,
 ];
-const NOTE1 = 'WASM-beats-TS comparison applies only to S/M until #117 lands; L/XL are provisional.';
-const NOTE2 = 'Appending to `history.jsonl` and dashboard visibility are pending #8/#9, so #10 stays open.';
-const gapRows = FORMATS.flatMap((fm) => ['L', 'XL'].map((t) => [fm, t, coverage.find((c) => c.fm === fm && c.t === t).manifest, GAP]));
-const short = coverage.filter((c) => ['S', 'M'].includes(c.t) && c.measured < 3);
+const short = coverage.filter((c) => ['S', 'M', 'L', 'XL'].includes(c.t) && c.measured < 3);
 
 const doc = [];
 const H = (n, t) => doc.push({ h: n, t });
@@ -138,19 +166,19 @@ H(1, 'TypeScript engine baseline (#10)');
 T(['Item', 'Value'], header);
 P('Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95` over the iterations of one fixture; per-tier cells are `median (min..max)` over the fixtures of the tier of each fixture\'s median. Cells: mode (cold/warm) x CPU throttle (1x/4x).');
 H(2, 'Status');
-P(`- **${NOTE1}**`);
 P(`- ${NOTE2}`);
-P(`- Corpus: every S and M xlsx/docx/pptx row of \`fixtures/manifest.json\` that exists on disk under \`fixtures/\` (the demo/ copies of the same bytes are not re-measured). ${short.length ? `**Fewer than 3 measured fixtures for: ${short.map((c) => `${c.fm} ${c.t} (${c.measured})`).join(', ')}.**` : 'Every S and M tier of every format has at least 3 measured fixtures.'}`);
+P(`- Corpus: every S/M/L/XL xlsx/docx/pptx row of \`fixtures/manifest.json\` that exists on disk under \`fixtures/\` (the demo/ copies of the same bytes are not re-measured). ${short.length ? `**Fewer than 3 measured fixtures for: ${short.map((c) => `${c.fm} ${c.t} (${c.measured})`).join(', ')}.**` : 'Every tier of every format has at least 3 measured fixtures.'}`);
 P(`- Fixture ids are the manifest ids; the six ids of the first baseline map to \`gen-xlsx-cells-1k\` (xlsx-S), \`gen-xlsx-cells-100k\` (xlsx-M), \`gen-docx-pages-10\` (docx-S), \`gen-docx-pages-100\` (docx-M), \`gen-pptx-slides-10\` (pptx-S), \`gen-pptx-slides-50\` (pptx-M).`);
 P(`- Two runs shared the machine at a time (\`concurrent_runs\` in the host fingerprint), on disjoint fixtures of the same cell, to fit the sweep in time; a 3-way concurrency check on this box moved the median first_paint of a small xlsx by about 7%, so absolute numbers sit slightly above a serial run. Compare like with like (same host, same \`concurrent_runs\`).`);
 H(2, 'Corpus coverage');
-T(['format', 'tier', 'in manifest', 'measured', 'excluded (failed or incomplete)'], coverage.filter((c) => ['S', 'M'].includes(c.t)).map((c) => [c.fm, c.t, c.manifest, c.measured, c.bad]));
+T(['format', 'tier', 'in manifest', 'measured', 'excluded (failed or incomplete)'], coverage.map((c) => [c.fm, c.t, c.manifest, c.measured, c.bad]));
 P('"in manifest" includes rows that are not redistributable and so not on disk (`upstream-noredist-*`), which cannot be measured.');
 H(2, 'Headline: first_paint median per tier (ms)');
-T(['format', 'tier', 'fixtures', ...cellNames], FORMATS.flatMap((fm) => ['S', 'M'].map((t) => {
+T(['format', 'tier', 'fixtures', ...cellNames], FORMATS.flatMap((fm) => TIERS.map((t) => {
   const fs = kept.filter((f) => f.format === fm && f.tier === t);
+  if (!fs.length) return null;
   return [fm, t, fs.length, ...cellNames.map((c) => { const v = fs.map((f) => stat(f, c, 'first_paint_ms', median)).filter((x) => x !== undefined); return v.length ? `${fmt(median(v))} (${fmt(Math.min(...v))}..${fmt(Math.max(...v))})` : '-'; })];
-})));
+}).filter(Boolean)));
 H(2, 'Rankings (individual fixtures)');
 P('**5 slowest fixtures** (cold 1x first_paint median):');
 T(['#', 'fixture', 'format', 'tier', 'bytes', 'first_paint_ms'], rankRows(slowest));
@@ -178,11 +206,11 @@ if (failed.size) {
 if (rerunRows.length || rerunFailRows.length) {
   const rf = [...rerunBy.values()].filter((f) => f.cells.has('cold 1x')).sort((a, b) => FORMATS.indexOf(a.format) - FORMATS.indexOf(b.format) || TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.id.localeCompare(b.id));
   const stillFailed = new Set(rerunFailRows.map((x) => x.fixture));
-  H(2, 'Re-run of the excluded fixtures after the xlsx scroll fix (provisional, separate from the sweep)');
+  H(2, 'Re-run of the originally-excluded xlsx fixtures after the scroll fix');
   P('**Cause of the xlsx timeouts: a harness bug, not the engine and not memory pressure.** The xlsx page scrolls the sheet 600 px per step until the grid stops moving or `lastRow` is reached. Fixtures from `fixtures/manifest.json` carry no `lastRow` hint and the TS grid is far taller than any sheet, so the scroll ran for minutes and the page never set `done`; the runner gave up after 120 s. Evidence: `real-xlsx-poi-test` (8.5 KB) timed out again when run alone on an idle machine (about 8 GiB free), and finished in about 10 s once the loop was bounded to 200 steps when no hint is given (`perf/pages/xlsx.html`).');
-  P('**The sweep rows stay as recorded: they are timeouts.** The rows above and `' + basename(failFile) + '` are not edited, and the numbers below are not substituted into the aggregates, rankings or the table of every fixture; they are a second dataset (`' + basename(rerunFile) + '`, same protocol and host, 2 concurrent workers, fixed harness) and are **provisional**. The scripted scroll is capped at 200 steps for these fixtures, so their full_render and step metrics are not comparable with the sweep rows of fixtures that have a `lastRow` hint.');
+  P('**The original sweep timeout rows are kept as-is in `' + basename(failFile) + '` and are never edited.** xlsx fixtures that the re-run measured adequately (cold 1x + cold 4x minimum) are **promoted to the main aggregates** (required by HoP 2026-11-05: ≥3 measured fixtures per xlsx S/M tier). Their re-run data is included via `' + basename(input) + '`; the scripted scroll is capped at 200 steps for these fixtures, so full_render and step metrics are not comparable with fixtures that have a `lastRow` hint.');
   const perCell = cellNames.map((c) => `${c}: ${[...rerunBy.values()].filter((f) => f.cells.has(c)).length}`).join(', ');
-  P(`${rf.length} of ${failed.size} excluded fixtures were measured in the re-run${rerunFailRows.length ? `; ${stillFailed.size} still fail in at least one re-run cell (${[...stillFailed].join(', ')})` : ''}. **The re-run is incomplete: it was stopped after about 24 h** (warm chunks took hours each). Fixtures measured per cell: ${perCell}. Cold 1x and cold 4x are complete; warm 1x covers chunks 0-3 of 8 only and warm 4x was not run, so "-" in a cell below means not re-run, not zero.`);
+  P(`${rf.length} re-run fixture(s) shown below${rerunFailRows.length ? `; ${stillFailed.size} still fail in at least one re-run cell (${[...stillFailed].join(', ')})` : ''}. Fixtures measured per cell: ${perCell}.`);
   for (const fm of FORMATS) for (const t of ['S', 'M']) {
     const fs = rf.filter((f) => f.format === fm && f.tier === t);
     if (!fs.length) continue;
@@ -192,22 +220,38 @@ if (rerunRows.length || rerunFailRows.length) {
 }
 
 H(2, 'L/XL');
-T(['format', 'tier', 'in manifest', 'status'], gapRows);
-P('The sweep measured S and M only. Any L/XL rows from earlier runs used the pre-#117 padded fixtures (pad.bin); they are provisional and superseded, not final, and are not in the aggregates above.');
-P(NOTE1);
+if (lxlMeasured) {
+  P('L/XL measured on real post-#117 content (pad.bin replaced by #494). Pre-#117 padded rows are superseded and not in any aggregate.');
+  T(['format', 'tier', 'in manifest', 'measured', 'excluded'], coverage.filter((c) => ['L', 'XL'].includes(c.t)).map((c) => [c.fm, c.t, c.manifest, c.measured, c.bad]));
+} else {
+  P('L/XL not yet measured in this dataset.');
+}
+if (lxlMeasured) {
+  H(3, 'L/XL hard limits and unmeasured cells');
+  P('These are TS-engine limits and box limits observed on the real #117 fixtures, not harness bugs. No number below was invented; cells with no row have no measurement.');
+  P('- **docx XL (3 fixtures): 0 measured.** The TS engine rejects them with `word/document.xml exceeds the 25 MiB limit` in every cell (a hard engine limit).');
+  P('- **docx L `gen-docx-pages-500` (a/b/c): in no aggregate.** Cold 1x has 3 measured rows each in the dataset, but cold 4x timed out (300 s) and warm 1x/warm 4x were **not run** (chunks skipped by the operator after cold-1x render times made the 300 s timeout certain or near). Aggregates need cold 1x and cold 4x, so these fixtures are excluded; any warm or 4x figure would be an estimate and none is reported.');
+  P('- **pptx XL (3 fixtures): 0 measured.** The TS engine walks every slide in one synchronous loop and blocks the page; cold 1x hit the 300 s timeout and the cold 4x chunk was killed to stop an hours-long hang. Warm cells were not run.');
+  P('- **pptx L `gen-pptx-slides-200` (a/b/c): in no aggregate.** Cold 1x is measured (3 rows each) and warm 1x for `-a` and `-b` (`-b` partially: 1 row, then a timeout); cold 4x timed out for all three, warm 4x was not run for `-a`/`-b`/`-c`, and warm 1x for `-c` was not run. Only the pptx L fixtures listed as measured above are in aggregates.');
+  P('- **xlsx XL `gen-xlsx-xl-a`:** cold 1x and warm 1x are measured, but it timed out at cold 4x and warm 4x (300 s), so it is excluded from aggregates; xl-b and xl-c are measured (2 fixtures, below the 3-fixture target).');
+  P('- **Box pressure:** the sweep ran for roughly 40 hours on a shared 8-core, 16 GB box with two concurrent runs for some cells. The 300 s budget at 4x CPU throttle is near the render time of the largest fixtures, so the 4x timeouts above mix a real TS slowness with box pressure and are **not separable** from this data. They are recorded as timeouts, never as numbers. Rows tagged `not run` in the excluded table were never attempted in that cell.');
+}
 
 H(2, 'Per format and tier (aggregate over fixtures)');
-for (const fm of FORMATS) for (const t of ['S', 'M']) {
+for (const fm of FORMATS) for (const t of TIERS) {
   const fs = kept.filter((f) => f.format === fm && f.tier === t);
+  if (!fs.length) continue;
   const { prim, rest } = tierKeys(fs);
   H(3, `${fm} ${t}: ${fs.length} fixtures`);
-  T(['metric', ...cellNames.map((c) => `${c} (n=${CELLS[cellNames.indexOf(c)][0] === 'cold' ? 10 : 20}/fixture, Chrome ${chromes.join('/')})`)], tierBody(fs, prim));
+  const nRange = (c) => { const [lo, hi] = CELLS[cellNames.indexOf(c)][0] === 'cold' ? [coldLo, coldHi] : [warmLo, warmHi]; return lo === hi ? `n=${lo}` : `n=${lo}–${hi}`; };
+  T(['metric', ...cellNames.map((c) => `${c} (${nRange(c)}/fixture, Chrome ${chromes.join('/')})`)], tierBody(fs, prim));
   if (rest.length) { P('Other metrics:'); T(['metric', ...cellNames], tierBody(fs, rest)); }
 }
 H(2, 'Every fixture');
 P('first_paint `median / p95` per cell, then cold 1x JSHeapUsedSize median (MiB) and warm 1x tti_ms median. The full metric set per iteration is in the jsonl.');
-for (const fm of FORMATS) for (const t of ['S', 'M']) {
+for (const fm of FORMATS) for (const t of TIERS) {
   const fs = kept.filter((f) => f.format === fm && f.tier === t);
+  if (!fs.length) continue;
   H(3, `${fm} ${t}`);
   T(['fixture', 'bytes', ...cellNames, 'heap MiB', 'tti warm 1x'], fs.map((f) => [f.id, bytesOf(f) ?? '-', ...cellNames.map((c) => `${fmt(stat(f, c, 'first_paint_ms', median))} / ${fmt(stat(f, c, 'first_paint_ms', p95))}`), fmt(stat(f, 'cold 1x', 'JSHeapUsedSize', median)), fmt(stat(f, 'warm 1x', 'tti_ms', median))]));
 }

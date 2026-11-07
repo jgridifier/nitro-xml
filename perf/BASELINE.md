@@ -5,31 +5,39 @@
 | Item | Value |
 | --- | ---: |
 | TS engine | upstream ChristopherVR/ooxml @ e66aaec |
-| Measured at | nitro-xml commit 4451709 plus the harness changes of the PR that added this file |
+| Measured at | nitro-xml commit 8961e71 plus the harness changes of the PR that added this file |
 | Chrome | 156.0.8078.4 |
-| Runner | local Linux box via `node perf/baseline-sweep.mjs` -> `node perf/run.mjs --corpus manifest --engine ts` (cold n=10; warm n=20 + 1 discarded warm-up; CPU 1x and 4x) |
-| Date | 2026-11-04 |
-| Source data | perf/baselines/ts-4451709.jsonl (11493 samples, 183 fixtures x 4 cells) |
-| host: kind | box |
-| host: id | box-4467396174 |
-| host: os | Debian GNU/Linux 13 (trixie) (linux 6.12.94+) |
-| host: arch | x64 |
-| host: cpu_model | Intel(R) Xeon(R) Processor |
-| host: cores | 8 |
-| host: memory_gb | 16 |
-| host: chrome_version | 156.0.8078.4 |
-| host: node | v20.19.2 |
-| host: concurrent_runs | 2 |
+| Runner | local Linux box via `node perf/baseline-sweep.mjs` -> `node perf/run.mjs --corpus manifest --engine ts` (cold n=3–10; warm n=1–20 + 1 discarded warm-up; CPU 1x and 4x) |
+| Date | 2026-11-06 |
+| Source data | perf/baselines/ts-combined-8961e71.jsonl (12738 samples, 230 fixtures x 4 cells) |
+| host 1: kind | box |
+| host 1: id | box-4467396174 |
+| host 1: os | Debian GNU/Linux 13 (trixie) (linux 6.12.94+) |
+| host 1: arch | x64 |
+| host 1: cpu_model | Intel(R) Xeon(R) Processor |
+| host 1: cores | 8 |
+| host 1: memory_gb | 16 |
+| host 1: chrome_version | 156.0.8078.4 |
+| host 1: node | v20.19.2 |
+| host 1: concurrent_runs | 2 |
+| host 2: kind | box |
+| host 2: id | box-4467396174 |
+| host 2: os | Debian GNU/Linux 13 (trixie) (linux 6.12.94+) |
+| host 2: arch | x64 |
+| host 2: cpu_model | Intel(R) Xeon(R) Processor |
+| host 2: cores | 8 |
+| host 2: memory_gb | 16 |
+| host 2: chrome_version | 156.0.8078.4 |
+| host 2: node | v20.19.2 |
+| host 2: concurrent_runs | 1 |
 
 Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95` over the iterations of one fixture; per-tier cells are `median (min..max)` over the fixtures of the tier of each fixture's median. Cells: mode (cold/warm) x CPU throttle (1x/4x).
 
 ## Status
 
-- **WASM-beats-TS comparison applies only to S/M until #117 lands; L/XL are provisional.**
+- L/XL baseline measured on real #117 content (pad.bin replaced). `history.jsonl` updated. #10 stays open until HoP sign-off.
 
-- Appending to `history.jsonl` and dashboard visibility are pending #8/#9, so #10 stays open.
-
-- Corpus: every S and M xlsx/docx/pptx row of `fixtures/manifest.json` that exists on disk under `fixtures/` (the demo/ copies of the same bytes are not re-measured). **Fewer than 3 measured fixtures for: xlsx S (1), xlsx M (1).**
+- Corpus: every S/M/L/XL xlsx/docx/pptx row of `fixtures/manifest.json` that exists on disk under `fixtures/` (the demo/ copies of the same bytes are not re-measured). **Fewer than 3 measured fixtures for: xlsx XL (2), docx L (0), docx XL (0), pptx XL (0).**
 
 - Fixture ids are the manifest ids; the six ids of the first baseline map to `gen-xlsx-cells-1k` (xlsx-S), `gen-xlsx-cells-100k` (xlsx-M), `gen-docx-pages-10` (docx-S), `gen-docx-pages-100` (docx-M), `gen-pptx-slides-10` (pptx-S), `gen-pptx-slides-50` (pptx-M).
 
@@ -39,12 +47,18 @@ Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95` ove
 
 | format | tier | in manifest | measured | excluded (failed or incomplete) |
 | --- | ---: | ---: | ---: | ---: |
-| xlsx | S | 37 | 1 | 35 |
-| xlsx | M | 10 | 1 | 9 |
-| docx | S | 74 | 69 | 4 |
-| docx | M | 8 | 6 | 2 |
-| pptx | S | 104 | 82 | 7 |
+| xlsx | S | 37 | 28 | 8 |
+| xlsx | M | 10 | 7 | 3 |
+| xlsx | L | 3 | 3 | 0 |
+| xlsx | XL | 3 | 2 | 1 |
+| docx | S | 74 | 70 | 3 |
+| docx | M | 8 | 7 | 1 |
+| docx | L | 3 | 0 | 3 |
+| docx | XL | 3 | 0 | 3 |
+| pptx | S | 104 | 86 | 3 |
 | pptx | M | 25 | 24 | 1 |
+| pptx | L | 6 | 3 | 3 |
+| pptx | XL | 3 | 0 | 3 |
 
 "in manifest" includes rows that are not redistributable and so not on disk (`upstream-noredist-*`), which cannot be measured.
 
@@ -52,12 +66,15 @@ Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95` ove
 
 | format | tier | fixtures | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| xlsx | S | 1 | 841 (841..841) | 2162 (2162..2162) | 690 (690..690) | 2346 (2346..2346) |
-| xlsx | M | 1 | 1007 (1007..1007) | 3083 (3083..3083) | 950 (950..950) | 3109 (3109..3109) |
-| docx | S | 69 | 478 (443..1001) | 1113 (966..1434) | 456 (435..632) | 1097 (995..1501) |
-| docx | M | 6 | 508 (495..521) | 1152 (1032..1261) | 495 (475..515) | 1125 (1044..1291) |
-| pptx | S | 82 | 1299 (1217..1519) | 4893 (4325..6169) | 1278 (1137..2468) | 4734 (4103..6316) |
+| xlsx | S | 28 | 789 (709..2204) | 2431 (1971..2954) | 735 (677..786) | 2346 (2346..2346) |
+| xlsx | M | 7 | 1021 (917..3738) | 3156 (2944..5003) | 929 (917..950) | 2732 (2356..3109) |
+| xlsx | L | 3 | 2278 (1831..2763) | 7791 (6120..9767) | 2272 (1833..2841) | 9108 (7063..12098) |
+| xlsx | XL | 2 | 5738 (5612..5864) | 21611 (18639..24583) | 5288 (5171..5405) | 23660 (22094..25226) |
+| docx | S | 70 | 478 (443..1001) | 1112 (966..1434) | 456 (435..632) | 1097 (951..1501) |
+| docx | M | 7 | 503 (495..521) | 1217 (1032..1261) | 495 (470..515) | 1165 (1044..1291) |
+| pptx | S | 86 | 1299 (1217..1519) | 4888 (4325..6169) | 1289 (1137..2468) | 4750 (4103..6316) |
 | pptx | M | 24 | 1447 (1273..1985) | 5623 (4946..7005) | 1429 (1301..2004) | 5053 (4383..6941) |
+| pptx | L | 3 | 2098 (1621..3204) | 8465 (5798..13097) | 2385 (1624..3408) | 7726 (5596..16317) |
 
 ## Rankings (individual fixtures)
 
@@ -65,21 +82,21 @@ Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95` ove
 
 | # | fixture | format | tier | bytes | first_paint_ms |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | real-pptx-poi-keyframes | pptx | M | 389330 | 1985 |
-| 2 | real-pptx-poi-60810 | pptx | M | 874522 | 1919 |
-| 3 | real-pptx-poi-bug62513 | pptx | M | 384775 | 1695 |
-| 4 | upstream-25297a56a758 | pptx | M | 251735 | 1667 |
-| 5 | real-pptx-poi-45541_Header | pptx | M | 308041 | 1593 |
+| 1 | gen-xlsx-xl-b | xlsx | XL | 19232925 | 5864 |
+| 2 | gen-xlsx-xl-c | xlsx | XL | 21285768 | 5612 |
+| 3 | real-xlsx-poi-no_drawing_patriarch | xlsx | M | 672414 | 3738 |
+| 4 | upstream-61fc791e15c0 | pptx | L | 1078208 | 3204 |
+| 5 | gen-xlsx-cells-1m-pad-l2 | xlsx | L | 9128751 | 2763 |
 
 **5 most memory-hungry fixtures** (cold 1x JSHeapUsedSize median):
 
 | # | fixture | format | tier | bytes | JSHeapUsedSize (MiB) |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | upstream-25297a56a758 | pptx | M | 251735 | 77.4 |
-| 2 | gen-xlsx-cells-100k | xlsx | M | 503874 | 75.3 |
-| 3 | real-pptx-poi-keyframes | pptx | M | 389330 | 72.2 |
-| 4 | real-pptx-poi-60810 | pptx | M | 874522 | 72 |
-| 5 | real-pptx-python-pptx-ph-populated-placeholders | pptx | M | 172254 | 69.6 |
+| 1 | gen-xlsx-xl-c | xlsx | XL | 21285768 | 209 |
+| 2 | gen-xlsx-xl-b | xlsx | XL | 19232925 | 196 |
+| 3 | real-xlsx-poi-57181 | xlsx | M | 334727 | 149 |
+| 4 | gen-xlsx-cells-1m-pad-l2 | xlsx | L | 9128751 | 145 |
+| 5 | gen-xlsx-cells-1m-pad-l | xlsx | L | 7066140 | 135 |
 
 ## xlsx-M warm 1x TTI: bimodal p95 (investigated)
 
@@ -94,14 +111,20 @@ The first baseline (7ce81c1) had xlsx-M warm 1x `tti_ms` median 946 ms but p95 8
 | xlsx-M fixture (warm 1x) | old TTI median | old TTI p95 | fixed TTI median | fixed TTI p95 | first_paint median | first_paint p95 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | gen-xlsx-cells-100k | 954 | 6305 | 950 | 1063 | 950 | 1063 |
+| gen-xlsx-cells-100k-b | 2612 | 19324 | 929 | 2178 | 929 | 2178 |
+| real-xlsx-poi-57181 | 935 | 17826 | 917 | 1133 | 917 | 1133 |
+| real-xlsx-poi-ConditionalFormattingSamples | - | - | - | - | - | - |
+| real-xlsx-poi-dataValidationTableRange | - | - | - | - | - | - |
+| real-xlsx-poi-no_drawing_patriarch | - | - | - | - | - | - |
+| real-xlsx-poi-StructuredRefs-lots-with-lookups | - | - | - | - | - | - |
 
-After the fix no measured xlsx-M fixture (1 in the sweep aggregates) has a warm 1x TTI p95 above 3x its median; no cell is flagged unexplained/do-not-arm, but this rests on 1 fixture(s) because the other xlsx-M timeouts are excluded. Remaining spread is first_paint noise on this shared box. Note that TTI is now close to first_render by construction (the harness starts interacting right after first_paint); a quiet-window TTI is still TODO(#8).
+After the fix no measured xlsx-M fixture (7 in the sweep aggregates) has a warm 1x TTI p95 above 3x its median; no cell is flagged unexplained/do-not-arm, but this rests on 7 fixture(s) because the other xlsx-M timeouts are excluded. Remaining spread is first_paint noise on this shared box. Note that TTI is now close to first_render by construction (the harness starts interacting right after first_paint); a quiet-window TTI is still TODO(#8).
 
 ## Excluded fixtures
 
 The TS engine (or the harness page) failed these fixtures; they are not part of any number above. Failures are TS-engine behaviour recorded as data, not harness faults, unless noted.
 
-56 of 58 excluded fixtures are **timeouts** (the page did not finish within 120 s, or a host wait expired); the rest are TS-engine errors. Timed-out rows stay in this history marked as timeouts (`ts-4451709.failures.jsonl` has every failed chunk row, one per fixture and cell); they are never replaced by re-run numbers.
+33 of 38 excluded fixtures are **timeouts** (the page did not finish within 120 s, or a host wait expired); the rest are TS-engine errors. Timed-out rows stay in this history marked as timeouts (`ts-combined-8961e71.failures.jsonl` has every failed chunk row, one per fixture and cell); they are never replaced by re-run numbers.
 
 | fixture | kind | cells failed | first error line |
 | --- | ---: | ---: | ---: |
@@ -111,49 +134,8 @@ The TS engine (or the harness page) failed these fixtures; they are not part of 
 | upstream-fb3af3f7b5f7 | error | cold 1x, cold 4x, warm 1x, warm 4x | upstream-fb3af3f7b5f7/ts: PasswordRequiredError: This document is password protected. Enter the password to open it. |
 | gen-pptx-placeholder | timeout | cold 1x, cold 4x, warm 1x, warm 4x | gen-pptx-placeholder/ts: Error: perf host: timed out waiting for pptx slide 1 elements |
 | real-pptx-poi-bug59273 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | real-pptx-poi-bug59273/ts: Error: perf host: timed out waiting for pptx slide 1 elements |
-| bidi-arabic-hebrew-mixed | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| bidi-rtl-sheet | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| gen-xlsx-cells-100k-b | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| gen-xlsx-cells-100k-c | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| gen-xlsx-cells-1k-merges | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| gen-xlsx-cells-1k-pad-s | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-45540_classic_Footer | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-45540_classic_Header | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-45544 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-46535 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-47813 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-49156 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-50096 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-56644 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-57181 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-57893-many-merges | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-61652 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
 | real-xlsx-poi-62629_target | timeout | cold 1x, cold 4x, warm 1x, warm 4x | real-xlsx-poi-62629_target/ts: Error: perf host: timed out waiting for xlsx grid cells |
-| real-xlsx-poi-ConditionalFormattingSamples | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-DataTableCities | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-DateFormatTests | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-ExcelPivotTableSample | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-ExcelWithAttachments | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-FormulaEvalTestData_Copy | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-NewStyleConditionalFormattings | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-StructuredRefs-lots-with-lookups | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-WithChartSheet | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-WithEmbeded | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
 | real-xlsx-poi-bug64512_embed | timeout | cold 1x, cold 4x, warm 1x, warm 4x | real-xlsx-poi-bug64512_embed/ts: Error: perf host: timed out waiting for xlsx grid cells |
-| real-xlsx-poi-dataValidationTableRange | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-no_drawing_patriarch | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-test | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-python-pptx-shp-embedded-xlsx | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-usgov-census-NST-EST2024-POP | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-usgov-eia-MER-T01.01 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-fd8fbde7846d | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-usgov-fhwa-2022-vm1 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-1a304a300451 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-2ad922a2a025 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-2f38830758e8 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-3fdae3824dde | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-8b581ee14978 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-9ed0ab63f8de | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
 | upstream-e899e84e6209 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
 | gen-pptx-equation | timeout | cold 4x | page.waitForFunction: Timeout 120000ms exceeded. |
 | gen-pptx-slides-10-c | timeout | cold 4x | page.waitForFunction: Timeout 120000ms exceeded. |
@@ -163,67 +145,37 @@ The TS engine (or the harness page) failed these fixtures; they are not part of 
 | upstream-49a48af6d18d | timeout | warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
 | upstream-88e14cba7830 | timeout | warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
 | upstream-a344b2f3f55d | timeout | warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-45540_classic_Footer | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-46535 | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-50096 | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-57893-many-merges | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-DataTableCities | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-WithChartSheet | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
+| gen-xlsx-cells-100k-c | timeout | cold 4x | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-47813 | timeout | cold 4x | page.waitForFunction: Timeout 120000ms exceeded. |
+| gen-docx-xl-a | error | cold 1x, cold 4x, warm 1x, warm 4x | gen-docx-xl-a/ts: Error: word/document.xml exceeds the 25 MiB limit |
+| gen-docx-xl-b | error | cold 1x, cold 4x, warm 4x, warm 1x | gen-docx-xl-b/ts: Error: word/document.xml exceeds the 25 MiB limit |
+| gen-docx-xl-c | error | cold 1x, cold 4x, warm 4x, warm 1x | gen-docx-xl-c/ts: Error: word/document.xml exceeds the 25 MiB limit |
+| gen-pptx-xl-a | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-pptx-xl-b | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-pptx-xl-c | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-docx-pages-500 | timeout | cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-docx-pages-500-b | timeout | cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-docx-pages-500-c | timeout | cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-pptx-slides-200 | timeout | cold 4x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-pptx-slides-200-b | timeout | cold 4x, warm 4x, warm 1x | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-pptx-slides-200-c | timeout | cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-xlsx-xl-a | timeout | cold 4x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
 
 **Were the timeouts memory pressure?** No evidence of it. The same fixtures timed out in every cell, cold and warm, with about 8 GiB free, and re-running alone on an idle machine reproduced the xlsx timeouts; the cause was the unbounded scroll loop in the xlsx host page (see the re-run section below). The docx/pptx rows are different: `real-docx-poi-Bug54849` and `real-docx-poi-drawing` timed out in the sweep and, where they were re-measured, finished, so their cause is **unexplained** (contention or flakiness is possible, not shown). `gen-pptx-placeholder` and `real-pptx-poi-bug59273` never render slide 1, `real-docx-poi-bug65649` throws in the TS engine, and `upstream-fb3af3f7b5f7` is password protected.
 
-## Re-run of the excluded fixtures after the xlsx scroll fix (provisional, separate from the sweep)
+## Re-run of the originally-excluded xlsx fixtures after the scroll fix
 
 **Cause of the xlsx timeouts: a harness bug, not the engine and not memory pressure.** The xlsx page scrolls the sheet 600 px per step until the grid stops moving or `lastRow` is reached. Fixtures from `fixtures/manifest.json` carry no `lastRow` hint and the TS grid is far taller than any sheet, so the scroll ran for minutes and the page never set `done`; the runner gave up after 120 s. Evidence: `real-xlsx-poi-test` (8.5 KB) timed out again when run alone on an idle machine (about 8 GiB free), and finished in about 10 s once the loop was bounded to 200 steps when no hint is given (`perf/pages/xlsx.html`).
 
-**The sweep rows stay as recorded: they are timeouts.** The rows above and `ts-4451709.failures.jsonl` are not edited, and the numbers below are not substituted into the aggregates, rankings or the table of every fixture; they are a second dataset (`ts-4451709.rerun.jsonl`, same protocol and host, 2 concurrent workers, fixed harness) and are **provisional**. The scripted scroll is capped at 200 steps for these fixtures, so their full_render and step metrics are not comparable with the sweep rows of fixtures that have a `lastRow` hint.
+**The original sweep timeout rows are kept as-is in `ts-combined-8961e71.failures.jsonl` and are never edited.** xlsx fixtures that the re-run measured adequately (cold 1x + cold 4x minimum) are **promoted to the main aggregates** (required by HoP 2026-11-05: ≥3 measured fixtures per xlsx S/M tier). Their re-run data is included via `ts-combined-8961e71.jsonl`; the scripted scroll is capped at 200 steps for these fixtures, so full_render and step metrics are not comparable with fixtures that have a `lastRow` hint.
 
-51 of 58 excluded fixtures were measured in the re-run; 15 still fail in at least one re-run cell (real-docx-poi-bug65649, upstream-fb3af3f7b5f7, gen-pptx-placeholder, real-pptx-poi-bug59273, real-xlsx-poi-45540_classic_Footer, real-xlsx-poi-46535, real-xlsx-poi-50096, real-xlsx-poi-57893-many-merges, real-xlsx-poi-62629_target, real-xlsx-poi-DataTableCities, real-xlsx-poi-WithChartSheet, real-xlsx-poi-bug64512_embed, upstream-e899e84e6209, gen-xlsx-cells-100k-c, real-xlsx-poi-47813). **The re-run is incomplete: it was stopped after about 24 h** (warm chunks took hours each). Fixtures measured per cell: cold 1x: 51, cold 4x: 51, warm 1x: 27, warm 4x: 0. Cold 1x and cold 4x are complete; warm 1x covers chunks 0-3 of 8 only and warm 4x was not run, so "-" in a cell below means not re-run, not zero.
-
-### re-run xlsx S: 32 fixtures
-
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| bidi-arabic-hebrew-mixed | 3169 | 765 / 1521 | 2020 / 2127 | 713 / 1987 | - / - | 15 |
-| bidi-rtl-sheet | 3128 | 737 / 865 | 2094 / 2292 | 681 / 788 | - / - | 15.6 |
-| gen-xlsx-cells-1k-merges | 8204 | 756 / 808 | 2522 / 11009 | 773 / 1967 | - / - | 17.4 |
-| gen-xlsx-cells-1k-pad-s | 48160 | 752 / 775 | 2268 / 2554 | 738 / 864 | - / - | 18.7 |
-| real-xlsx-poi-45540_classic_Footer | 40199 | 773 / 1104 | 2534 / 2866 | 761 / 1056 | - / - | 18.1 |
-| real-xlsx-poi-45540_classic_Header | 40213 | 946 / 1603 | 2430 / 2769 | 765 / 1101 | - / - | 19.1 |
-| real-xlsx-poi-45544 | 43042 | 822 / 937 | 2351 / 2964 | 773 / 1087 | - / - | 19.3 |
-| real-xlsx-poi-47813 | 54880 | 803 / 5854 | 2180 / 2196 | 776 / 1611 | - / - | 22.7 |
-| real-xlsx-poi-49156 | 25064 | 729 / 837 | 2601 / 11511 | 731 / 784 | - / - | 17.4 |
-| real-xlsx-poi-50096 | 12391 | 716 / 779 | 2231 / 2361 | 752 / 958 | - / - | 19 |
-| real-xlsx-poi-56644 | 34412 | 937 / 2875 | 2401 / 2749 | 786 / 1805 | - / - | 18.6 |
-| real-xlsx-poi-61652 | 17614 | 857 / 1681 | 2380 / 2583 | 677 / 1051 | - / - | 16.4 |
-| real-xlsx-poi-DataTableCities | 23936 | 756 / 803 | 2498 / 2741 | - / - | - / - | 18.7 |
-| real-xlsx-poi-DateFormatTests | 12394 | 981 / 1921 | 2614 / 2966 | - / - | - / - | 19.5 |
-| real-xlsx-poi-ExcelPivotTableSample | 19460 | 784 / 940 | 2444 / 2637 | - / - | - / - | 17.3 |
-| real-xlsx-poi-ExcelWithAttachments | 62646 | 1720 / 2299 | 2525 / 2818 | - / - | - / - | 17.9 |
-| real-xlsx-poi-FormulaEvalTestData_Copy | 65011 | 2204 / 2595 | 2775 / 3114 | - / - | - / - | 24.7 |
-| real-xlsx-poi-NewStyleConditionalFormattings | 13378 | 796 / 2120 | 2493 / 3128 | - / - | - / - | 16.8 |
-| real-xlsx-poi-test | 8566 | 1965 / 2476 | 2122 / 2366 | - / - | - / - | 16.5 |
-| real-xlsx-poi-WithChartSheet | 30333 | 745 / 890 | 2336 / 2589 | - / - | - / - | 18.2 |
-| real-xlsx-poi-WithEmbeded | 23668 | 938 / 1678 | 2512 / 2726 | - / - | - / - | 16.2 |
-| real-xlsx-python-pptx-shp-embedded-xlsx | 8250 | 771 / 816 | 2536 / 3033 | - / - | - / - | 15.4 |
-| real-xlsx-usgov-census-NST-EST2024-POP | 15507 | 852 / 946 | 2749 / 3187 | - / - | - / - | 17.4 |
-| real-xlsx-usgov-eia-MER-T01.01 | 77207 | 815 / 878 | 2600 / 3347 | - / - | - / - | 23.8 |
-| real-xlsx-usgov-fhwa-2022-vm1 | 35960 | 795 / 876 | 2954 / 3113 | - / - | - / - | 20.3 |
-| upstream-1a304a300451 | 6530 | 751 / 760 | 2431 / 2768 | - / - | - / - | 16.6 |
-| upstream-2ad922a2a025 | 23408 | 737 / 775 | 2317 / 2780 | - / - | - / - | 19.9 |
-| upstream-2f38830758e8 | 11258 | 720 / 803 | 2074 / 2380 | - / - | - / - | 17.8 |
-| upstream-3fdae3824dde | 6608 | 709 / 798 | 2046 / 2267 | - / - | - / - | 18.5 |
-| upstream-8b581ee14978 | 8648 | 721 / 761 | 1971 / 2018 | - / - | - / - | 17.8 |
-| upstream-9ed0ab63f8de | 16193 | 736 / 786 | 2054 / 2182 | - / - | - / - | 18.3 |
-| upstream-fd8fbde7846d | 4884 | 744 / 771 | 2452 / 2715 | - / - | - / - | 15.8 |
-
-### re-run xlsx M: 9 fixtures
-
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-xlsx-cells-100k-b | 704900 | 1048 / 1758 | 2958 / 3106 | 929 / 2178 | - / - | 79.8 |
-| gen-xlsx-cells-100k-c | 954235 | 1034 / 1066 | 3040 / 3054 | 964 / 1118 | - / - | 90 |
-| real-xlsx-poi-46535 | 313321 | 1048 / 1194 | 2414 / 2619 | 780 / 1216 | - / - | 23.7 |
-| real-xlsx-poi-57181 | 334727 | 1023 / 1112 | 3004 / 3598 | 917 / 1133 | - / - | 149 |
-| real-xlsx-poi-57893-many-merges | 848912 | 1378 / 1378 | 3537 / 3870 | 1058 / 1507 | - / - | 116 |
-| real-xlsx-poi-ConditionalFormattingSamples | 654688 | 988 / 1224 | 3156 / 3421 | - / - | - / - | 18.9 |
-| real-xlsx-poi-dataValidationTableRange | 116554 | 917 / 1090 | 3226 / 3423 | - / - | - / - | 20.2 |
-| real-xlsx-poi-no_drawing_patriarch | 672414 | 3738 / 4370 | 5003 / 5330 | - / - | - / - | 68.2 |
-| real-xlsx-poi-StructuredRefs-lots-with-lookups | 325446 | 1021 / 1158 | 3808 / 4855 | - / - | - / - | 39.1 |
+10 re-run fixture(s) shown below; 4 still fail in at least one re-run cell (real-docx-poi-bug65649, upstream-fb3af3f7b5f7, gen-pptx-placeholder, real-pptx-poi-bug59273). Fixtures measured per cell: cold 1x: 10, cold 4x: 10, warm 1x: 10, warm 4x: 0.
 
 ### re-run docx S: 3 fixtures
 
@@ -252,191 +204,271 @@ The TS engine (or the harness page) failed these fixtures; they are not part of 
 
 ## L/XL
 
-| format | tier | in manifest | status |
-| --- | ---: | ---: | ---: |
-| xlsx | L | 3 | GAP - provisional, pending #117 (L/XL fixtures not generated; pad.bin to be replaced) |
-| xlsx | XL | 3 | GAP - provisional, pending #117 (L/XL fixtures not generated; pad.bin to be replaced) |
-| docx | L | 3 | GAP - provisional, pending #117 (L/XL fixtures not generated; pad.bin to be replaced) |
-| docx | XL | 3 | GAP - provisional, pending #117 (L/XL fixtures not generated; pad.bin to be replaced) |
-| pptx | L | 6 | GAP - provisional, pending #117 (L/XL fixtures not generated; pad.bin to be replaced) |
-| pptx | XL | 3 | GAP - provisional, pending #117 (L/XL fixtures not generated; pad.bin to be replaced) |
+L/XL measured on real post-#117 content (pad.bin replaced by #494). Pre-#117 padded rows are superseded and not in any aggregate.
 
-The sweep measured S and M only. Any L/XL rows from earlier runs used the pre-#117 padded fixtures (pad.bin); they are provisional and superseded, not final, and are not in the aggregates above.
+| format | tier | in manifest | measured | excluded |
+| --- | ---: | ---: | ---: | ---: |
+| xlsx | L | 3 | 3 | 0 |
+| xlsx | XL | 3 | 2 | 1 |
+| docx | L | 3 | 0 | 3 |
+| docx | XL | 3 | 0 | 3 |
+| pptx | L | 6 | 3 | 3 |
+| pptx | XL | 3 | 0 | 3 |
 
-WASM-beats-TS comparison applies only to S/M until #117 lands; L/XL are provisional.
+### L/XL hard limits and unmeasured cells
+
+These are TS-engine limits and box limits observed on the real #117 fixtures, not harness bugs. No number below was invented; cells with no row have no measurement.
+
+- **docx XL (3 fixtures): 0 measured.** The TS engine rejects them with `word/document.xml exceeds the 25 MiB limit` in every cell (a hard engine limit).
+
+- **docx L `gen-docx-pages-500` (a/b/c): in no aggregate.** Cold 1x has 3 measured rows each in the dataset, but cold 4x timed out (300 s) and warm 1x/warm 4x were **not run** (chunks skipped by the operator after cold-1x render times made the 300 s timeout certain or near). Aggregates need cold 1x and cold 4x, so these fixtures are excluded; any warm or 4x figure would be an estimate and none is reported.
+
+- **pptx XL (3 fixtures): 0 measured.** The TS engine walks every slide in one synchronous loop and blocks the page; cold 1x hit the 300 s timeout and the cold 4x chunk was killed to stop an hours-long hang. Warm cells were not run.
+
+- **pptx L `gen-pptx-slides-200` (a/b/c): in no aggregate.** Cold 1x is measured (3 rows each) and warm 1x for `-a` and `-b` (`-b` partially: 1 row, then a timeout); cold 4x timed out for all three, warm 4x was not run for `-a`/`-b`/`-c`, and warm 1x for `-c` was not run. Only the pptx L fixtures listed as measured above are in aggregates.
+
+- **xlsx XL `gen-xlsx-xl-a`:** cold 1x and warm 1x are measured, but it timed out at cold 4x and warm 4x (300 s), so it is excluded from aggregates; xl-b and xl-c are measured (2 fixtures, below the 3-fixture target).
+
+- **Box pressure:** the sweep ran for roughly 40 hours on a shared 8-core, 16 GB box with two concurrent runs for some cells. The 300 s budget at 4x CPU throttle is near the render time of the largest fixtures, so the 4x timeouts above mix a real TS slowness with box pressure and are **not separable** from this data. They are recorded as timeouts, never as numbers. Rows tagged `not run` in the excluded table were never attempted in that cell.
 
 ## Per format and tier (aggregate over fixtures)
 
-### xlsx S: 1 fixtures
+### xlsx S: 28 fixtures
 
-| metric | cold 1x (n=10/fixture, Chrome 156.0.8078.4) | cold 4x (n=10/fixture, Chrome 156.0.8078.4) | warm 1x (n=20/fixture, Chrome 156.0.8078.4) | warm 4x (n=20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 841 (841..841) | 2162 (2162..2162) | 690 (690..690) | 2346 (2346..2346) |
-| parse_ms | 130 (130..130) | 502 (502..502) | 111 (111..111) | 542 (542..542) |
-| first_render_ms | 841 (841..841) | 2162 (2162..2162) | 690 (690..690) | 2346 (2346..2346) |
-| full_render_ms | 928 (928..928) | 2324 (2324..2324) | 773 (773..773) | 2524 (2524..2524) |
-| tbt_ms | 287 (287..287) | 1543 (1543..1543) | 237 (237..237) | 1677 (1677..1677) |
-| JSHeapUsedSize (MiB) | 16.5 (16.5..16.5) | 17.7 (17.7..17.7) | 16.6 (16.6..16.6) | 17.7 (17.7..17.7) |
+| first_paint_ms | 789 (709..2204) | 2431 (1971..2954) | 735 (677..786) | 2346 (2346..2346) |
+| parse_ms | 129 (95.5..563) | 558 (405..948) | 120 (93.9..139) | 542 (542..542) |
+| first_render_ms | 789 (709..2204) | 2431 (1971..2954) | 735 (677..786) | 2346 (2346..2346) |
+| full_render_ms | 10820 (928..12619) | 12659 (2324..14019) | 10795 (773..10943) | 2524 (2524..2524) |
+| tbt_ms | 285 (250..1141) | 1604 (1380..1958) | 264 (237..304) | 1677 (1677..1677) |
+| JSHeapUsedSize (MiB) | 17.8 (15..24.7) | 18.6 (16.4..26.2) | 17.2 (14.6..25.3) | 17.7 (17.7..17.7) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 24.7 (24.7..24.7) | 24.4 (24.4..24.4) | 24.7 (24.7..24.7) | 24.5 (24.5..24.5) |
-| bytes_ready_ms | 688 (688..688) | 1610 (1610..1610) | 564 (564..564) | 1729 (1729..1729) |
-| engine_ms | 681 (681..681) | 1597 (1597..1597) | 558 (558..558) | 1716 (1716..1716) |
-| fetch_ms | 6.5 (6.5..6.5) | 10.6 (10.6..10.6) | 2.9 (2.9..2.9) | 10.6 (10.6..10.6) |
-| heap_samples | 40 (40..40) | 37 (37..37) | 35 (35..35) | 39.5 (39.5..39.5) |
-| long_task_count | 2 (2..2) | 4 (4..4) | 2 (2..2) | 5 (5..5) |
-| long_task_total_ms | 408 (408..408) | 1743 (1743..1743) | 338 (338..338) | 1959 (1959..1959) |
-| parse_end_ms | 827 (827..827) | 2111 (2111..2111) | 677 (677..677) | 2289 (2289..2289) |
-| peak_heap_used_MiB | 18.2 (18.2..18.2) | 18.6 (18.6..18.6) | 17.9 (17.9..17.9) | 18.6 (18.6..18.6) |
-| render_ms | 88.9 (88.9..88.9) | 325 (325..325) | 71.9 (71.9..71.9) | 352 (352..352) |
-| retained_heap_used_MiB | 13.1 (13.1..13.1) | 13.1 (13.1..13.1) | 13.1 (13.1..13.1) | 13.1 (13.1..13.1) |
-| step_count | 1 (1..1) | 1 (1..1) | 1 (1..1) | 1 (1..1) |
-| step_median_ms | 48.5 (48.5..48.5) | 122 (122..122) | 47.6 (47.6..47.6) | 132 (132..132) |
-| step_p95_ms | 48.5 (48.5..48.5) | 122 (122..122) | 47.6 (47.6..47.6) | 132 (132..132) |
+| JSHeapTotalSize (MiB) | 33.3 (24.7..50.1) | 32.3 (24.4..49) | 33.4 (24.7..50.5) | 24.5 (24.5..24.5) |
+| bytes_ready_ms | 654 (590..1656) | 1784 (1550..2062) | 600 (564..637) | 1729 (1729..1729) |
+| engine_ms | 646 (585..1641) | 1765 (1538..2030) | 597 (558..632) | 1716 (1716..1716) |
+| fetch_ms | 6 (5..18.9) | 18.5 (10.6..31.4) | 3.2 (2.9..3.7) | 10.6 (10.6..10.6) |
+| heap_samples | 874 (40..891) | 631 (37..758) | 881 (35..904) | 39.5 (39.5..39.5) |
+| long_task_count | 2 (2..3.5) | 4 (3..13.5) | 2 (2..3) | 5 (5..5) |
+| long_task_total_ms | 397 (350..1322) | 1806 (1559..2609) | 367 (338..443) | 1959 (1959..1959) |
+| parse_end_ms | 776 (702..2164) | 2397 (1955..2857) | 723 (666..779) | 2289 (2289..2289) |
+| peak_heap_used_MiB | 23.4 (18.2..34.7) | 22.8 (18.6..34.2) | 23.7 (17.9..32.6) | 18.6 (18.6..18.6) |
+| render_ms | 77.3 (56.3..398) | 327 (196..772) | 75.4 (52.7..94.2) | 352 (352..352) |
+| retained_heap_used_MiB | 14.6 (13.1..18.3) | 14.6 (13.1..18.3) | 14.9 (13.1..17.5) | 13.1 (13.1..13.1) |
+| step_count | 200 (1..200) | 200 (1..200) | 200 (1..200) | 1 (1..1) |
+| step_median_ms | 49.6 (48.5..49.7) | 49.1 (48.5..122) | 49.7 (47.6..49.7) | 132 (132..132) |
+| step_p95_ms | 50 (48.5..65.7) | 56.5 (49.6..122) | 50 (47.6..50.1) | 132 (132..132) |
 | step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 841 (841..841) | 2162 (2162..2162) | 690 (690..690) | 2346 (2346..2346) |
-| tti_with_interaction_ms | 841 (841..841) | 2277 (2277..2277) | 690 (690..690) | 2479 (2479..2479) |
+| tti_ms | 789 (709..2204) | 2431 (1971..2954) | 735 (677..786) | 2346 (2346..2346) |
+| tti_with_interaction_ms | 795 (709..2494) | 3583 (2016..11599) | 758 (686..1049) | 2479 (2479..2479) |
 
-### xlsx M: 1 fixtures
+### xlsx M: 7 fixtures
 
-| metric | cold 1x (n=10/fixture, Chrome 156.0.8078.4) | cold 4x (n=10/fixture, Chrome 156.0.8078.4) | warm 1x (n=20/fixture, Chrome 156.0.8078.4) | warm 4x (n=20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 1007 (1007..1007) | 3083 (3083..3083) | 950 (950..950) | 3109 (3109..3109) |
-| parse_ms | 355 (355..355) | 1306 (1306..1306) | 337 (337..337) | 1330 (1330..1330) |
-| first_render_ms | 1007 (1007..1007) | 3083 (3083..3083) | 950 (950..950) | 3109 (3109..3109) |
-| full_render_ms | 9511 (9511..9511) | 25550 (25550..25550) | 9371 (9371..9371) | 27243 (27243..27243) |
-| tbt_ms | 490 (490..490) | 11102 (11102..11102) | 440 (440..440) | 12167 (12167..12167) |
-| JSHeapUsedSize (MiB) | 75.3 (75.3..75.3) | 74.6 (74.6..74.6) | 77.8 (77.8..77.8) | 72.2 (72.2..72.2) |
+| first_paint_ms | 1021 (917..3738) | 3156 (2944..5003) | 929 (917..950) | 2732 (2356..3109) |
+| parse_ms | 322 (239..1968) | 1260 (1134..3066) | 325 (286..337) | 1065 (800..1330) |
+| first_render_ms | 1021 (917..3738) | 3156 (2944..5003) | 929 (917..950) | 2732 (2356..3109) |
+| full_render_ms | 11075 (9511..16285) | 20661 (13477..26654) | 11016 (9371..11088) | 32251 (27243..37260) |
+| tbt_ms | 462 (376..2549) | 4953 (2093..11102) | 429 (404..440) | 12132 (12097..12167) |
+| JSHeapUsedSize (MiB) | 68.2 (18.9..149) | 65.7 (18.7..143) | 84.1 (77.8..146) | 45.1 (17.9..72.2) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 126 (126..126) | 124 (124..124) | 126 (126..126) | 125 (125..125) |
-| bytes_ready_ms | 625 (625..625) | 1711 (1711..1711) | 597 (597..597) | 1706 (1706..1706) |
-| engine_ms | 617 (617..617) | 1687 (1687..1687) | 591 (591..591) | 1681 (1681..1681) |
-| fetch_ms | 8.6 (8.6..8.6) | 20.6 (20.6..20.6) | 5.9 (5.9..5.9) | 21.2 (21.2..21.2) |
-| heap_samples | 486 (486..486) | 403 (403..403) | 495 (495..495) | 395 (395..395) |
-| long_task_count | 3 (3..3) | 171 (171..171) | 3 (3..3) | 171 (171..171) |
-| long_task_total_ms | 668 (668..668) | 19602 (19602..19602) | 595 (595..595) | 20648 (20648..20648) |
-| parse_end_ms | 992 (992..992) | 3025 (3025..3025) | 935 (935..935) | 3041 (3041..3041) |
-| peak_heap_used_MiB | 93.5 (93.5..93.5) | 87.7 (87.7..87.7) | 92 (92..92) | 88.1 (88.1..88.1) |
-| render_ms | 317 (317..317) | 1118 (1118..1118) | 297 (297..297) | 1152 (1152..1152) |
-| retained_heap_used_MiB | 66 (66..66) | 66.1 (66.1..66.1) | 66 (66..66) | 66 (66..66) |
-| step_count | 166 (166..166) | 166 (166..166) | 166 (166..166) | 166 (166..166) |
-| step_median_ms | 48.9 (48.9..48.9) | 128 (128..128) | 48.9 (48.9..48.9) | 133 (133..133) |
-| step_p95_ms | 63.2 (63.2..63.2) | 178 (178..178) | 54.3 (54.3..54.3) | 179 (179..179) |
+| JSHeapTotalSize (MiB) | 117 (35.5..199) | 113 (35.8..191) | 128 (126..193) | 72.9 (21.3..125) |
+| bytes_ready_ms | 675 (625..1699) | 1760 (1645..2074) | 597 (578..618) | 1619 (1531..1706) |
+| engine_ms | 669 (617..1670) | 1738 (1619..2036) | 591 (570..614) | 1595 (1509..1681) |
+| fetch_ms | 8.7 (6.6..25.7) | 26.5 (17.3..38.8) | 5.9 (4.9..7) | 21.7 (21.2..22.2) |
+| heap_samples | 674 (486..893) | 509 (403..629) | 655 (495..718) | 1100 (395..1805) |
+| long_task_count | 3.5 (3..9.5) | 65.5 (4.5..203) | 3 (3..3.5) | 88 (5..171) |
+| long_task_total_ms | 662 (526..2999) | 8228 (2374..19602) | 594 (554..595) | 16498 (12347..20648) |
+| parse_end_ms | 1000 (907..3702) | 3100 (2892..4948) | 916 (897..935) | 2686 (2331..3041) |
+| peak_heap_used_MiB | 93.5 (25.2..170) | 87.7 (24.3..163) | 96.2 (92..156) | 57.6 (27.1..88.1) |
+| render_ms | 284 (182..1854) | 1065 (952..2841) | 282 (251..297) | 878 (604..1152) |
+| retained_heap_used_MiB | 57.5 (15.3..129) | 57.5 (15.3..129) | 66 (65.9..129) | 41.8 (17.5..66) |
+| step_count | 200 (166..200) | 200 (166..200) | 200 (166..200) | 326 (166..486) |
+| step_median_ms | 49.5 (48.9..61.8) | 68.5 (48.9..128) | 49.4 (48.9..49.6) | 90.9 (49.1..133) |
+| step_p95_ms | 52.8 (49.8..84.4) | 127 (59.7..178) | 54.3 (50.8..55.5) | 115 (50..179) |
 | step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 1007 (1007..1007) | 3083 (3083..3083) | 950 (950..950) | 3109 (3109..3109) |
-| tti_with_interaction_ms | 1049 (1049..1049) | 25501 (25501..25501) | 954 (954..954) | 27175 (27175..27175) |
+| tti_ms | 1021 (917..3738) | 3156 (2944..5003) | 929 (917..950) | 2732 (2356..3109) |
+| tti_with_interaction_ms | 1107 (917..14580) | 20126 (3388..25501) | 954 (935..2612) | 32202 (27175..37229) |
 
-### docx S: 69 fixtures
+### xlsx L: 3 fixtures
 
-| metric | cold 1x (n=10/fixture, Chrome 156.0.8078.4) | cold 4x (n=10/fixture, Chrome 156.0.8078.4) | warm 1x (n=20/fixture, Chrome 156.0.8078.4) | warm 4x (n=20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 478 (443..1001) | 1113 (966..1434) | 456 (435..632) | 1097 (995..1501) |
-| parse_ms | 124 (96.9..311) | 528 (386..1004) | 122 (98.5..264) | 501 (394..1061) |
-| first_render_ms | 478 (443..1001) | 1113 (966..1434) | 456 (435..632) | 1097 (995..1501) |
-| full_render_ms | 525 (476..1032) | 1155 (994..1688) | 493 (468..844) | 1139 (1022..1739) |
-| tbt_ms | 55.5 (47..250) | 548 (482..1048) | 52.5 (44..126) | 530 (491..1082) |
+| first_paint_ms | 2278 (1831..2763) | 7791 (6120..9767) | 2272 (1833..2841) | 9108 (7063..12098) |
+| parse_ms | 1647 (1177..2112) | 6069 (4386..7883) | 1625 (1177..2186) | 7038 (4991..9895) |
+| first_render_ms | 2278 (1831..2763) | 7791 (6120..9767) | 2272 (1833..2841) | 9108 (7063..12098) |
+| full_render_ms | 12750 (12354..13190) | 38932 (38538..41037) | 13792 (12630..13952) | 46344 (43087..58912) |
+| tbt_ms | 1571 (1192..1997) | 20894 (20444..23146) | 2097 (1238..2132) | 27113 (24613..38248) |
+| JSHeapUsedSize (MiB) | 135 (111..145) | 123 (112..139) | 134 (112..142) | 129 (118..138) |
+
+Other metrics:
+
+| metric | cold 1x | cold 4x | warm 1x | warm 4x |
+| --- | ---: | ---: | ---: | ---: |
+| JSHeapTotalSize (MiB) | 188 (173..199) | 182 (173..201) | 189 (174..202) | 179 (171..200) |
+| bytes_ready_ms | 640 (630..642) | 1721 (1720..1811) | 643 (635..645) | 2059 (2002..2135) |
+| engine_ms | 587 (580..591) | 1590 (1559..1599) | 575 (570..587) | 1895 (1730..1905) |
+| fetch_ms | 50.3 (31.8..53) | 158 (122..193) | 43.5 (37.2..47.5) | 223 (154..239) |
+| heap_samples | 498 (492..522) | 517 (500..528) | 501 (482..507) | 517 (517..543) |
+| long_task_count | 4 (3..5) | 206 (205..206) | 7 (6..15) | 209 (208..211) |
+| long_task_total_ms | 1735 (1442..2186) | 31144 (30694..33446) | 2482 (1538..2897) | 37563 (34939..48798) |
+| parse_end_ms | 2264 (1818..2743) | 7725 (6062..9709) | 2259 (1820..2828) | 9040 (7000..12030) |
+| peak_heap_used_MiB | 329 (264..449) | 395 (328..426) | 402 (331..447) | 327 (239..425) |
+| render_ms | 1607 (1125..2080) | 5882 (4203..7732) | 1589 (1122..2149) | 6839 (4808..9688) |
+| retained_heap_used_MiB | 111 (100..122) | 111 (100..122) | 111 (100..122) | 111 (100..122) |
+| step_count | 200 (200..200) | 200 (200..200) | 200 (200..200) | 200 (200..200) |
+| step_median_ms | 49.5 (49.4..49.5) | 148 (147..152) | 49.6 (49.5..50) | 178 (173..198) |
+| step_p95_ms | 66 (66..66.1) | 197 (180..199) | 66.9 (66.3..84.1) | 221 (212..268) |
+| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
+| tti_ms | 2278 (1831..2763) | 7791 (6120..9767) | 2272 (1833..2841) | 9108 (7063..12098) |
+| tti_with_interaction_ms | 6500 (2278..7584) | 38891 (38487..40982) | 11371 (9324..13174) | 46298 (43036..58863) |
+
+### xlsx XL: 2 fixtures
+
+| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| --- | ---: | ---: | ---: | ---: |
+| first_paint_ms | 5738 (5612..5864) | 21611 (18639..24583) | 5288 (5171..5405) | 23660 (22094..25226) |
+| parse_ms | 4997 (4889..5105) | 19450 (16460..22441) | 4583 (4480..4686) | 21244 (20050..22438) |
+| first_render_ms | 5738 (5612..5864) | 21611 (18639..24583) | 5288 (5171..5405) | 23660 (22094..25226) |
+| full_render_ms | 18011 (16122..19900) | 59796 (48966..70627) | 16239 (16197..16282) | 66722 (59133..74311) |
+| tbt_ms | 5333 (4460..6206) | 41612 (32531..50693) | 4377 (4233..4520) | 45753 (38483..53022) |
+| JSHeapUsedSize (MiB) | 202 (196..209) | 193 (189..197) | 205 (204..206) | 197 (189..204) |
+
+Other metrics:
+
+| metric | cold 1x | cold 4x | warm 1x | warm 4x |
+| --- | ---: | ---: | ---: | ---: |
+| JSHeapTotalSize (MiB) | 289 (277..301) | 296 (264..327) | 292 (291..293) | 320 (303..336) |
+| bytes_ready_ms | 727 (710..745) | 1923 (1722..2124) | 678 (672..685) | 2361 (2051..2671) |
+| engine_ms | 632 (615..650) | 1635 (1563..1706) | 597 (582..613) | 1874 (1754..1994) |
+| fetch_ms | 115 (79.7..150) | 289 (158..420) | 78.7 (54.6..103) | 494 (275..713) |
+| heap_samples | 551 (545..556) | 663 (646..679) | 519 (519..519) | 648 (647..648) |
+| long_task_count | 13.5 (4..23) | 208 (207..209) | 9 (8..10) | 211 (208..213) |
+| long_task_total_ms | 6007 (4658..7356) | 50686 (40428..60943) | 4827 (4633..5020) | 56253 (48833..63672) |
+| parse_end_ms | 5724 (5598..5850) | 21556 (18584..24529) | 5275 (5159..5392) | 23570 (22030..25109) |
+| peak_heap_used_MiB | 607 (587..627) | 622 (408..837) | 590 (559..620) | 502 (429..574) |
+| render_ms | 4947 (4844..5050) | 19297 (16309..22285) | 4535 (4440..4629) | 21010 (19828..22193) |
+| retained_heap_used_MiB | 180 (175..185) | 180 (175..185) | 180 (175..185) | 180 (175..185) |
+| step_count | 200 (200..200) | 200 (200..200) | 200 (200..200) | 200 (200..200) |
+| step_median_ms | 50.7 (49.5..51.9) | 149 (148..149) | 49.7 (49.6..49.8) | 192 (170..215) |
+| step_p95_ms | 74.4 (66.1..82.7) | 200 (194..206) | 67.2 (66.4..68) | 275 (222..329) |
+| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
+| tti_ms | 5738 (5612..5864) | 21611 (18639..24583) | 5288 (5171..5405) | 23660 (22094..25226) |
+| tti_with_interaction_ms | 14645 (10136..19154) | 59489 (48911..70067) | 14254 (12323..16185) | 66671 (59083..74260) |
+
+### docx S: 70 fixtures
+
+| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| --- | ---: | ---: | ---: | ---: |
+| first_paint_ms | 478 (443..1001) | 1112 (966..1434) | 456 (435..632) | 1097 (951..1501) |
+| parse_ms | 125 (96.9..311) | 534 (386..1004) | 122 (98.5..264) | 503 (394..1061) |
+| first_render_ms | 478 (443..1001) | 1112 (966..1434) | 456 (435..632) | 1097 (951..1501) |
+| full_render_ms | 526 (476..1032) | 1148 (994..1688) | 493 (468..844) | 1139 (972..1739) |
+| tbt_ms | 55.5 (47..250) | 547 (482..1048) | 52.5 (44..126) | 529 (481..1082) |
 | JSHeapUsedSize (MiB) | 9.7 (7.7..21.5) | 9.4 (7.6..20.7) | 9.7 (7.7..21.5) | 9.1 (7.7..20.8) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 16.6 (12.1..50.2) | 16.3 (12.1..44) | 16.6 (12.1..49.7) | 16.6 (12.1..44.3) |
-| bytes_ready_ms | 164 (151..391) | 444 (406..589) | 145 (131..171) | 425 (406..603) |
-| engine_ms | 159 (146..379) | 434 (398..575) | 141 (129..167) | 415 (398..591) |
-| fetch_ms | 4.6 (3.6..9.4) | 10 (8..15.5) | 2.8 (2.2..3.3) | 8.7 (7.8..12.2) |
-| heap_samples | 33 (29..63) | 29 (20..53.5) | 31.5 (28..64) | 30 (20..53) |
+| JSHeapTotalSize (MiB) | 16.6 (12.1..50.2) | 16.4 (12.1..44) | 16.6 (12.1..49.7) | 16.6 (12.1..44.3) |
+| bytes_ready_ms | 164 (151..391) | 444 (406..589) | 144 (131..171) | 425 (393..603) |
+| engine_ms | 159 (146..379) | 434 (398..575) | 141 (129..167) | 415 (385..591) |
+| fetch_ms | 4.6 (3.6..9.4) | 10.1 (8..15.5) | 2.8 (2.2..3.3) | 8.7 (7.8..12.2) |
+| heap_samples | 33 (29..63) | 29 (20..53.5) | 31.8 (28..64) | 30 (20..53) |
 | long_task_count | 2 (2..4) | 3 (2..7) | 2 (2..4) | 3 (2..7) |
-| long_task_total_ms | 156 (147..400) | 709 (582..1398) | 153 (144..326) | 679 (595..1432) |
-| parse_end_ms | 289 (254..778) | 988 (820..1417) | 265 (245..413) | 932 (815..1482) |
+| long_task_total_ms | 156 (147..400) | 706 (582..1398) | 153 (144..326) | 679 (595..1432) |
+| parse_end_ms | 289 (254..778) | 989 (820..1417) | 265 (245..413) | 936 (815..1482) |
 | peak_heap_used_MiB | 10.9 (8.3..27.5) | 11 (8.4..26.7) | 10.9 (8.3..27.5) | 11 (8.3..26.8) |
-| render_ms | 239 (211..412) | 345 (261..737) | 237 (214..404) | 365 (275..756) |
+| render_ms | 239 (211..412) | 342 (261..737) | 237 (214..404) | 365 (275..756) |
 | retained_heap_used_MiB | 6.7 (6.1..10.1) | 6.8 (6.1..10.1) | 6.7 (6.1..10.1) | 6.7 (6.1..10.1) |
 | step_count | 0 (0..11) | 0 (0..11) | 0 (0..11) | 0 (0..11) |
 | step_median_ms | 33.2 (32.9..34.7) | 33.2 (32.8..33.6) | 33.2 (33.1..35) | 33.1 (32.7..33.3) |
 | step_p95_ms | 33.3 (32.9..34.7) | 33.6 (32.8..34.6) | 33.3 (33.1..35) | 33.1 (32.7..34.7) |
 | step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 478 (443..1001) | 1113 (966..1434) | 456 (435..632) | 1097 (995..1501) |
-| tti_with_interaction_ms | 478 (443..1001) | 1113 (966..1674) | 456 (435..632) | 1097 (995..1703) |
+| tti_ms | 478 (443..1001) | 1112 (966..1434) | 456 (435..632) | 1097 (951..1501) |
+| tti_with_interaction_ms | 478 (443..1001) | 1112 (966..1674) | 456 (435..632) | 1097 (951..1703) |
 
-### docx M: 6 fixtures
+### docx M: 7 fixtures
 
-| metric | cold 1x (n=10/fixture, Chrome 156.0.8078.4) | cold 4x (n=10/fixture, Chrome 156.0.8078.4) | warm 1x (n=20/fixture, Chrome 156.0.8078.4) | warm 4x (n=20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 508 (495..521) | 1152 (1032..1261) | 495 (475..515) | 1125 (1044..1291) |
-| parse_ms | 147 (135..162) | 569 (512..624) | 148 (129..164) | 584 (472..683) |
-| first_render_ms | 508 (495..521) | 1152 (1032..1261) | 495 (475..515) | 1125 (1044..1291) |
-| full_render_ms | 583 (537..2532) | 1179 (1052..3334) | 577 (508..2531) | 1146 (1067..3350) |
-| tbt_ms | 61.8 (57..66.5) | 580 (529..684) | 60.5 (56..73) | 611 (497..708) |
-| JSHeapUsedSize (MiB) | 11 (8.3..12.4) | 11.1 (8.3..12.4) | 11.2 (8.3..12.3) | 11 (8.3..12.4) |
+| first_paint_ms | 503 (495..521) | 1217 (1032..1261) | 495 (470..515) | 1165 (1044..1291) |
+| parse_ms | 144 (134..162) | 563 (512..624) | 141 (129..164) | 539 (472..683) |
+| first_render_ms | 503 (495..521) | 1217 (1032..1261) | 495 (470..515) | 1165 (1044..1291) |
+| full_render_ms | 612 (537..2534) | 1277 (1052..3334) | 605 (508..2531) | 1189 (1067..3350) |
+| tbt_ms | 60 (57..66.5) | 615 (529..684) | 59.5 (53..73) | 637 (497..708) |
+| JSHeapUsedSize (MiB) | 10.8 (8.3..12.4) | 11.1 (8.3..12.4) | 11.6 (8.3..12.3) | 10.9 (8.3..12.4) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 19.1 (15.1..19.4) | 18.6 (14.3..19.3) | 19.1 (15..19.3) | 18.8 (14.6..19.1) |
-| bytes_ready_ms | 170 (164..183) | 430 (408..506) | 155 (149..161) | 435 (410..452) |
-| engine_ms | 164 (154..177) | 414 (397..492) | 150 (145..158) | 418 (400..432) |
-| fetch_ms | 5.7 (4.9..9) | 12.3 (10.1..21.5) | 3.6 (3.2..6.5) | 11.5 (9.6..21.7) |
-| heap_samples | 38 (30.5..198) | 28.8 (20..144) | 35.3 (28..205) | 28 (21.5..142) |
+| JSHeapTotalSize (MiB) | 19.1 (15.1..19.4) | 18.7 (14.3..19.3) | 19.1 (15..19.3) | 19.1 (14.6..19.1) |
+| bytes_ready_ms | 167 (164..183) | 433 (408..506) | 154 (147..161) | 428 (410..452) |
+| engine_ms | 161 (154..177) | 415 (397..492) | 149 (142..158) | 417 (400..432) |
+| fetch_ms | 5.8 (4.9..9) | 13.2 (10.1..21.5) | 3.7 (3.2..6.5) | 11.5 (9.6..21.7) |
+| heap_samples | 40 (30.5..199) | 32 (20..145) | 38 (28..205) | 31 (21.5..145) |
 | long_task_count | 2 (2..2) | 3 (3..4) | 2 (2..2) | 3 (3..4) |
-| long_task_total_ms | 162 (157..167) | 730 (679..884) | 161 (156..173) | 761 (647..919) |
-| parse_end_ms | 318 (300..333) | 1016 (958..1067) | 303 (281..328) | 1013 (886..1120) |
-| peak_heap_used_MiB | 12.9 (11.2..13.8) | 12 (11.2..13.4) | 12.8 (11..13.7) | 12 (11.2..13.5) |
-| render_ms | 256 (245..274) | 370 (323..515) | 260 (240..274) | 376 (342..518) |
-| retained_heap_used_MiB | 7.7 (6.6..8.3) | 7.8 (6.6..8.3) | 7.7 (6.6..8.3) | 7.9 (6.6..8.3) |
-| step_count | 1 (0..60) | 0 (0..60) | 1 (0..60) | 0 (0..60) |
-| step_median_ms | 33.3 (33.2..33.3) | 33.4 (33.3..33.4) | 33.3 (33.2..33.3) | 33.3 (33.3..33.3) |
-| step_p95_ms | 33.7 (33.3..33.7) | 39.3 (38.7..39.8) | 33.6 (33.4..33.8) | 38.3 (37.3..39.3) |
+| long_task_total_ms | 160 (157..167) | 765 (679..884) | 160 (153..173) | 787 (647..919) |
+| parse_end_ms | 310 (300..333) | 995 (940..1067) | 300 (277..328) | 991 (886..1120) |
+| peak_heap_used_MiB | 12.9 (11.2..13.8) | 12.4 (11.2..13.4) | 12.9 (11..13.7) | 12.4 (11.2..13.5) |
+| render_ms | 251 (245..274) | 391 (323..515) | 258 (240..274) | 381 (342..518) |
+| retained_heap_used_MiB | 7.7 (6.6..8.3) | 7.7 (6.6..8.3) | 7.7 (6.6..8.3) | 7.9 (6.6..8.3) |
+| step_count | 2 (0..60) | 0 (0..60) | 2 (0..60) | 0 (0..60) |
+| step_median_ms | 33.3 (33.2..33.3) | 33.3 (33.3..33.4) | 33.3 (33.2..33.3) | 33.3 (33.3..33.3) |
+| step_p95_ms | 33.7 (33.3..33.7) | 38.7 (37.5..39.8) | 33.6 (33.4..33.8) | 37.8 (37.3..39.3) |
 | step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 508 (495..521) | 1152 (1032..1261) | 495 (475..515) | 1125 (1044..1291) |
-| tti_with_interaction_ms | 508 (495..521) | 1152 (1032..1282) | 497 (475..515) | 1125 (1044..1293) |
+| tti_ms | 503 (495..521) | 1217 (1032..1261) | 495 (470..515) | 1165 (1044..1291) |
+| tti_with_interaction_ms | 503 (495..521) | 1217 (1032..1282) | 496 (470..515) | 1165 (1044..1293) |
 
-### pptx S: 82 fixtures
+### pptx S: 86 fixtures
 
-| metric | cold 1x (n=10/fixture, Chrome 156.0.8078.4) | cold 4x (n=10/fixture, Chrome 156.0.8078.4) | warm 1x (n=20/fixture, Chrome 156.0.8078.4) | warm 4x (n=20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 1299 (1217..1519) | 4893 (4325..6169) | 1278 (1137..2468) | 4734 (4103..6316) |
-| parse_ms | 559 (497..702) | 2624 (2130..3606) | 559 (468..1141) | 2496 (2029..3769) |
-| first_render_ms | 1299 (1217..1519) | 4893 (4325..6169) | 1278 (1137..2468) | 4734 (4103..6316) |
-| full_render_ms | 1337 (1241..2238) | 4974 (4373..9680) | 1329 (1164..2706) | 4855 (4170..8805) |
-| tbt_ms | 713 (677..856) | 3877 (3503..6531) | 694 (646..1598) | 3781 (3264..5777) |
-| JSHeapUsedSize (MiB) | 42.5 (35.8..67.3) | 41.7 (30.8..65) | 42.5 (35.8..65.3) | 41.8 (30.9..65.1) |
-| all_slides_ms | 1337 (1241..2238) | 4974 (4373..9680) | 1329 (1164..2706) | 4855 (4170..8805) |
+| first_paint_ms | 1299 (1217..1519) | 4888 (4325..6169) | 1289 (1137..2468) | 4750 (4103..6316) |
+| parse_ms | 559 (497..702) | 2619 (2130..3606) | 561 (468..1141) | 2538 (2029..3769) |
+| first_render_ms | 1299 (1217..1519) | 4888 (4325..6169) | 1289 (1137..2468) | 4750 (4103..6316) |
+| full_render_ms | 1337 (1241..2238) | 4973 (4373..9680) | 1332 (1164..2706) | 4857 (4170..8805) |
+| tbt_ms | 713 (668..856) | 3866 (3503..6531) | 695 (646..1598) | 3784 (3264..5777) |
+| JSHeapUsedSize (MiB) | 42.7 (35.8..67.3) | 42.1 (30.8..65) | 42.7 (35.8..65.3) | 41.9 (30.9..65.1) |
+| all_slides_ms | 1337 (1241..2238) | 4973 (4373..9680) | 1332 (1164..2706) | 4857 (4170..8805) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 69.5 (67.9..111) | 69.5 (67.6..118) | 69.7 (67.9..112) | 69.6 (67.7..117) |
-| all_slides_render_ms | 607 (528..1506) | 2753 (2214..7354) | 612 (502..1682) | 2664 (2138..6674) |
-| bytes_ready_ms | 726 (696..793) | 2212 (2074..2838) | 705 (659..1351) | 2153 (1945..2457) |
-| engine_ms | 720 (689..787) | 2198 (2060..2822) | 699 (657..1346) | 2139 (1933..2444) |
-| fetch_ms | 5.4 (4.6..6.9) | 13.5 (11.9..17.5) | 3.2 (2.7..6.9) | 11.7 (9.9..15.9) |
+| JSHeapTotalSize (MiB) | 69.5 (67.9..111) | 69.5 (67.6..118) | 69.7 (67.9..112) | 69.7 (67.7..117) |
+| all_slides_render_ms | 607 (528..1506) | 2741 (2214..7354) | 612 (502..1682) | 2675 (2138..6674) |
+| bytes_ready_ms | 725 (696..793) | 2203 (2074..2838) | 708 (659..1351) | 2154 (1945..2457) |
+| engine_ms | 719 (689..787) | 2188 (2060..2822) | 702 (657..1346) | 2141 (1933..2444) |
+| fetch_ms | 5.5 (4.6..6.9) | 13.5 (11.9..17.5) | 3.2 (2.7..6.9) | 11.8 (9.9..15.9) |
 | heap_samples | 38.5 (35..71) | 55.5 (45..115) | 38.5 (33..77) | 55 (46..112) |
 | long_task_count | 3 (3..3) | 5 (4..24) | 3 (3..4.5) | 5 (4..24) |
-| long_task_total_ms | 863 (827..1006) | 4105 (3744..7731) | 845 (796..1898) | 4008 (3507..6986) |
-| parse_end_ms | 1288 (1211..1509) | 4828 (4279..6129) | 1270 (1130..2447) | 4684 (4073..6241) |
-| peak_heap_used_MiB | 48.2 (41.3..77.5) | 48.4 (38.5..78.8) | 48.1 (41.3..77.4) | 48.5 (38.6..78.8) |
-| render_ms | 570 (503..712) | 2671 (2177..3647) | 567 (475..1155) | 2551 (2062..3852) |
+| long_task_total_ms | 863 (818..1006) | 4100 (3744..7731) | 847 (796..1898) | 4012 (3507..6986) |
+| parse_end_ms | 1288 (1211..1509) | 4824 (4279..6129) | 1282 (1130..2447) | 4702 (4073..6241) |
+| peak_heap_used_MiB | 48 (41.3..77.5) | 48.2 (38.5..78.8) | 47.9 (41.3..77.4) | 48.3 (38.6..78.8) |
+| render_ms | 570 (503..712) | 2671 (2177..3647) | 569 (475..1155) | 2581 (2062..3852) |
 | retained_heap_used_MiB | 27.5 (26.1..31.4) | 27.5 (26.1..31.5) | 27.5 (26.1..31.4) | 27.5 (26.1..31.5) |
 | step_count | 0 (0..19) | 0 (0..19) | 0 (0..19) | 0 (0..19) |
 | step_median_ms | 46.3 (37.6..57.3) | 192 (165..241) | 49.8 (34.7..74) | 175 (160..240) |
 | step_p95_ms | 52.4 (45.7..59) | 202 (166..261) | 53.8 (45.2..84.8) | 193 (164..257) |
 | step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 1299 (1217..1519) | 4893 (4325..6169) | 1278 (1137..2468) | 4734 (4103..6316) |
-| tti_with_interaction_ms | 1299 (1217..1519) | 4966 (4372..9675) | 1280 (1137..2629) | 4842 (4164..8762) |
+| tti_ms | 1299 (1217..1519) | 4888 (4325..6169) | 1289 (1137..2468) | 4750 (4103..6316) |
+| tti_with_interaction_ms | 1299 (1217..1519) | 4958 (4372..9675) | 1292 (1137..2629) | 4851 (4164..8762) |
 
 ### pptx M: 24 fixtures
 
-| metric | cold 1x (n=10/fixture, Chrome 156.0.8078.4) | cold 4x (n=10/fixture, Chrome 156.0.8078.4) | warm 1x (n=20/fixture, Chrome 156.0.8078.4) | warm 4x (n=20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
 | first_paint_ms | 1447 (1273..1985) | 5623 (4946..7005) | 1429 (1301..2004) | 5053 (4383..6941) |
 | parse_ms | 669 (540..1133) | 3230 (2701..4663) | 696 (587..1160) | 2880 (2236..4643) |
@@ -469,6 +501,41 @@ Other metrics:
 | tti_ms | 1447 (1273..1985) | 5623 (4946..7005) | 1429 (1301..2004) | 5053 (4383..6941) |
 | tti_with_interaction_ms | 1451 (1273..2466) | 6901 (5415..18269) | 1443 (1312..2948) | 6586 (4383..16621) |
 
+### pptx L: 3 fixtures
+
+| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| --- | ---: | ---: | ---: | ---: |
+| first_paint_ms | 2098 (1621..3204) | 8465 (5798..13097) | 2385 (1624..3408) | 7726 (5596..16317) |
+| parse_ms | 1352 (834..2461) | 6056 (3634..10734) | 1602 (901..2676) | 5503 (3470..13662) |
+| first_render_ms | 2098 (1621..3204) | 8465 (5798..13097) | 2385 (1624..3408) | 7726 (5596..16317) |
+| full_render_ms | 4329 (1999..9066) | 17892 (7062..39459) | 4841 (2068..9252) | 16790 (6844..53123) |
+| tbt_ms | 946 (763..1121) | 10163 (4272..18670) | 1146 (826..1174) | 9199 (4313..29043) |
+| JSHeapUsedSize (MiB) | 97.6 (52.6..103) | 96.2 (43.9..99.1) | 101 (52.6..106) | 96.8 (43.9..97.4) |
+| all_slides_ms | 4329 (1999..9066) | 17892 (7062..39459) | 4841 (2068..9252) | 16790 (6844..53123) |
+
+Other metrics:
+
+| metric | cold 1x | cold 4x | warm 1x | warm 4x |
+| --- | ---: | ---: | ---: | ---: |
+| JSHeapTotalSize (MiB) | 157 (129..159) | 151 (131..155) | 158 (130..160) | 151 (134..156) |
+| all_slides_render_ms | 3608 (1235..8343) | 15503 (4956..37365) | 4007 (1351..8528) | 14548 (4847..50538) |
+| bytes_ready_ms | 735 (722..743) | 2190 (2106..2314) | 802 (717..834) | 2098 (2061..2584) |
+| engine_ms | 725 (711..729) | 2155 (2064..2278) | 792 (706..824) | 2056 (1968..2514) |
+| fetch_ms | 11.9 (11..13.6) | 38.1 (36.9..42.3) | 10.6 (9.5..12.5) | 41.5 (32.3..69.9) |
+| heap_samples | 158 (67..371) | 277 (121..672) | 164 (69..379) | 277 (121..775) |
+| long_task_count | 5 (3..8) | 56 (13..191) | 7 (4..7) | 57 (13..224) |
+| long_task_total_ms | 1196 (957..1471) | 12963 (4926..28370) | 1496 (1026..1524) | 12036 (4963..40243) |
+| parse_end_ms | 2074 (1597..3196) | 8365 (5740..13048) | 2349 (1613..3400) | 7597 (5544..16246) |
+| peak_heap_used_MiB | 116 (112..125) | 109 (108..122) | 116 (105..126) | 109 (108..122) |
+| render_ms | 1376 (858..2469) | 6193 (3691..10783) | 1637 (915..2685) | 5601 (3526..13732) |
+| retained_heap_used_MiB | 42.9 (39.2..56) | 42.9 (39.2..56) | 42.9 (39.2..56) | 42.9 (39.2..56) |
+| step_count | 47 (7..111) | 47 (7..111) | 47 (7..111) | 47 (7..111) |
+| step_median_ms | 49.2 (46.4..50) | 192 (166..234) | 49.5 (48.8..50.5) | 179 (175..314) |
+| step_p95_ms | 59.2 (52..63.9) | 243 (218..306) | 67.1 (64.3..68) | 231 (219..457) |
+| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
+| tti_ms | 2098 (1621..3204) | 8465 (5798..13097) | 2385 (1624..3408) | 7726 (5596..16317) |
+| tti_with_interaction_ms | 2339 (1674..7766) | 17856 (7005..39394) | 3756 (1904..7664) | 16724 (6796..53089) |
+
 ## Every fixture
 
 first_paint `median / p95` per cell, then cold 1x JSHeapUsedSize median (MiB) and warm 1x tti_ms median. The full metric set per iteration is in the jsonl.
@@ -477,13 +544,61 @@ first_paint `median / p95` per cell, then cold 1x JSHeapUsedSize median (MiB) an
 
 | fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| bidi-arabic-hebrew-mixed | 3169 | 765 / 1521 | 2020 / 2127 | 713 / 1987 | - / - | 15 | 713 |
+| bidi-rtl-sheet | 3128 | 737 / 865 | 2094 / 2292 | 681 / 788 | - / - | 15.6 | 681 |
 | gen-xlsx-cells-1k | 8012 | 841 / 969 | 2162 / 2410 | 690 / 733 | 2346 / 2479 | 16.5 | 690 |
+| gen-xlsx-cells-1k-merges | 8204 | 756 / 808 | 2522 / 11009 | 773 / 1967 | - / - | 17.4 | 773 |
+| gen-xlsx-cells-1k-pad-s | 48160 | 752 / 775 | 2268 / 2554 | 738 / 864 | - / - | 18.7 | 738 |
+| real-xlsx-poi-45540_classic_Header | 40213 | 946 / 1603 | 2430 / 2769 | 765 / 1101 | - / - | 19.1 | 765 |
+| real-xlsx-poi-45544 | 43042 | 822 / 937 | 2351 / 2964 | 773 / 1087 | - / - | 19.3 | 773 |
+| real-xlsx-poi-49156 | 25064 | 729 / 837 | 2601 / 11511 | 731 / 784 | - / - | 17.4 | 731 |
+| real-xlsx-poi-56644 | 34412 | 937 / 2875 | 2401 / 2749 | 786 / 1805 | - / - | 18.6 | 786 |
+| real-xlsx-poi-61652 | 17614 | 857 / 1681 | 2380 / 2583 | 677 / 1051 | - / - | 16.4 | 677 |
+| real-xlsx-poi-DateFormatTests | 12394 | 981 / 1921 | 2614 / 2966 | - / - | - / - | 19.5 | - |
+| real-xlsx-poi-ExcelPivotTableSample | 19460 | 784 / 940 | 2444 / 2637 | - / - | - / - | 17.3 | - |
+| real-xlsx-poi-ExcelWithAttachments | 62646 | 1720 / 2299 | 2525 / 2818 | - / - | - / - | 17.9 | - |
+| real-xlsx-poi-FormulaEvalTestData_Copy | 65011 | 2204 / 2595 | 2775 / 3114 | - / - | - / - | 24.7 | - |
+| real-xlsx-poi-NewStyleConditionalFormattings | 13378 | 796 / 2120 | 2493 / 3128 | - / - | - / - | 16.8 | - |
+| real-xlsx-poi-test | 8566 | 1965 / 2476 | 2122 / 2366 | - / - | - / - | 16.5 | - |
+| real-xlsx-poi-WithEmbeded | 23668 | 887 / 1621 | 2512 / 2726 | - / - | - / - | 17.2 | - |
+| real-xlsx-python-pptx-shp-embedded-xlsx | 8250 | 771 / 816 | 2536 / 3033 | - / - | - / - | 15.4 | - |
+| real-xlsx-usgov-census-NST-EST2024-POP | 15507 | 837 / 944 | 2749 / 3187 | - / - | - / - | 18 | - |
+| real-xlsx-usgov-eia-MER-T01.01 | 77207 | 815 / 878 | 2600 / 3347 | - / - | - / - | 23.8 | - |
+| real-xlsx-usgov-fhwa-2022-vm1 | 35960 | 795 / 876 | 2954 / 3113 | - / - | - / - | 20.3 | - |
+| upstream-1a304a300451 | 6530 | 751 / 760 | 2431 / 2768 | - / - | - / - | 16.6 | - |
+| upstream-2ad922a2a025 | 23408 | 737 / 775 | 2317 / 2780 | - / - | - / - | 19.9 | - |
+| upstream-2f38830758e8 | 11258 | 720 / 803 | 2074 / 2380 | - / - | - / - | 17.8 | - |
+| upstream-3fdae3824dde | 6608 | 709 / 798 | 2046 / 2267 | - / - | - / - | 18.5 | - |
+| upstream-8b581ee14978 | 8648 | 721 / 761 | 1971 / 2018 | - / - | - / - | 17.8 | - |
+| upstream-9ed0ab63f8de | 16193 | 736 / 786 | 2054 / 2182 | - / - | - / - | 18.3 | - |
+| upstream-fd8fbde7846d | 4884 | 744 / 771 | 2452 / 2715 | - / - | - / - | 15.8 | - |
 
 ### xlsx M
 
 | fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | gen-xlsx-cells-100k | 503874 | 1007 / 1080 | 3083 / 3760 | 950 / 1063 | 3109 / 3575 | 75.3 | 950 |
+| gen-xlsx-cells-100k-b | 704900 | 1048 / 1758 | 2944 / 3104 | 929 / 2178 | - / - | 79.8 | 929 |
+| real-xlsx-poi-57181 | 334727 | 1023 / 1112 | 3004 / 3598 | 917 / 1133 | - / - | 149 | 917 |
+| real-xlsx-poi-ConditionalFormattingSamples | 654688 | 988 / 1224 | 3156 / 3421 | - / - | 2356 / 2356 | 18.9 | - |
+| real-xlsx-poi-dataValidationTableRange | 116554 | 917 / 1090 | 3226 / 3423 | - / - | - / - | 20.2 | - |
+| real-xlsx-poi-no_drawing_patriarch | 672414 | 3738 / 4370 | 5003 / 5330 | - / - | - / - | 68.2 | - |
+| real-xlsx-poi-StructuredRefs-lots-with-lookups | 325446 | 1021 / 1158 | 3808 / 4855 | - / - | - / - | 39.1 | - |
+
+### xlsx L
+
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| gen-xlsx-cells-1m | 5047589 | 1831 / 1880 | 6120 / 6477 | 1833 / 2119 | 7063 / 7868 | 111 | 1833 |
+| gen-xlsx-cells-1m-pad-l | 7066140 | 2278 / 2341 | 7791 / 7934 | 2272 / 2429 | 9108 / 9244 | 135 | 2272 |
+| gen-xlsx-cells-1m-pad-l2 | 9128751 | 2763 / 2779 | 9767 / 9842 | 2841 / 2847 | 12098 / 16234 | 145 | 2841 |
+
+### xlsx XL
+
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| gen-xlsx-xl-b | 19232925 | 5864 / 7307 | 18639 / 23513 | 5171 / 5864 | 25226 / 26860 | 196 | 5171 |
+| gen-xlsx-xl-c | 21285768 | 5612 / 5894 | 24583 / 29921 | 5405 / 5599 | 22094 / 67599 | 209 | 5405 |
 
 ### docx S
 
@@ -500,6 +615,7 @@ first_paint `median / p95` per cell, then cold 1x JSHeapUsedSize median (MiB) an
 | real-docx-poi-58067 | 28709 | 468 / 517 | 1062 / 1085 | 442 / 468 | 1063 / 1113 | 8.4 | 442 |
 | real-docx-poi-60158 | 15617 | 478 / 495 | 1038 / 1110 | 453 / 542 | 1039 / 1133 | 9.3 | 453 |
 | real-docx-poi-60316.docx | 59583 | 514 / 526 | 993 / 1099 | 484 / 501 | 1023 / 1073 | 10.4 | 484 |
+| real-docx-poi-60316.dotx | 59583 | 508 / 562 | 1023 / 1184 | 472 / 546 | 951 / 951 | 9.6 | 472 |
 | real-docx-poi-60329 | 31124 | 512 / 542 | 1007 / 1189 | 494 / 561 | 1014 / 1096 | 10.8 | 494 |
 | real-docx-poi-61470 | 12523 | 535 / 596 | 1053 / 1092 | 435 / 470 | 1112 / 1255 | 8.7 | 435 |
 | real-docx-poi-61745 | 37030 | 505 / 567 | 966 / 1055 | 482 / 516 | 995 / 1039 | 10.7 | 482 |
@@ -563,6 +679,7 @@ first_paint `median / p95` per cell, then cold 1x JSHeapUsedSize median (MiB) an
 
 | fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| gen-docx-pages-100 | 403491 | 497 / 537 | 1217 / 1248 | 470 / 501 | 1221 / 1287 | 10.4 | 470 |
 | gen-docx-pages-100-b | 603043 | 495 / 606 | 1261 / 1510 | 495 / 1081 | 1291 / 1447 | 11.2 | 495 |
 | gen-docx-pages-100-c | 703586 | 499 / 527 | 1258 / 1428 | 491 / 566 | 1267 / 1388 | 10.8 | 491 |
 | real-docx-poi-chartex | 133304 | 512 / 570 | 1047 / 1084 | 505 / 529 | 1044 / 1102 | 12.4 | 505 |
@@ -606,12 +723,14 @@ first_paint `median / p95` per cell, then cold 1x JSHeapUsedSize median (MiB) an
 | upstream-2b363b2c9b04 | 16112 | 1275 / 1378 | 5032 / 5328 | 1529 / 1647 | 4698 / 5291 | 43.1 | 1529 |
 | upstream-332cb27502fe | 16329 | 1300 / 1698 | 5119 / 5309 | 1237 / 1442 | 4630 / 4926 | 41.1 | 1237 |
 | upstream-3858c1c9d869 | 52788 | 1365 / 1445 | 5123 / 5531 | 1351 / 1508 | 5044 / 5313 | 47.9 | 1351 |
+| upstream-38aa694fb4a5 | 34531 | 1328 / 1370 | 5145 / 5787 | 1407 / 1510 | 4851 / 4856 | 47.4 | 1407 |
 | upstream-38fb1b1e8f76 | 33810 | 1282 / 1352 | 4743 / 5038 | 1264 / 1419 | 4839 / 14197 | 45.4 | 1264 |
 | upstream-3a09e4b3e925 | 38668 | 1319 / 1328 | 4757 / 5117 | 1294 / 2440 | 5266 / 6730 | 45.9 | 1294 |
 | upstream-3e787d01c5f7 | 15985 | 1237 / 1277 | 4404 / 4659 | 1239 / 4166 | 4760 / 8295 | 39.5 | 1239 |
 | upstream-4143514daf03 | 16972 | 1252 / 1290 | 4486 / 5032 | 1541 / 1893 | 5073 / 11940 | 40.5 | 1541 |
 | upstream-4647c93fad68 | 35581 | 1278 / 1352 | 5202 / 5503 | 1335 / 1502 | 4793 / 5233 | 45.6 | 1335 |
 | upstream-482c93bc4882 | 4878 | 1335 / 1403 | 5311 / 5666 | 1405 / 1569 | 5094 / 5360 | 42 | 1405 |
+| upstream-49a48af6d18d | 16095 | 1235 / 1305 | 4878 / 5485 | 1332 / 1438 | - / - | 43.1 | 1332 |
 | upstream-4a678fd44484 | 34775 | 1273 / 1339 | 4781 / 5504 | 1247 / 1284 | 4785 / 11733 | 53.1 | 1247 |
 | upstream-51edb06a949d | 16496 | 1250 / 1349 | 4651 / 4912 | 1236 / 2386 | 5043 / 6578 | 42 | 1236 |
 | upstream-55531661e868 | 33941 | 1279 / 1331 | 4636 / 4958 | 1492 / 4629 | 5015 / 8171 | 44.8 | 1492 |
@@ -623,12 +742,14 @@ first_paint `median / p95` per cell, then cold 1x JSHeapUsedSize median (MiB) an
 | upstream-7bb23ba0b604 | 16324 | 1301 / 1335 | 4723 / 4980 | 1261 / 1449 | 4721 / 5009 | 41.2 | 1261 |
 | upstream-7cc22f8e5927 | 11932 | 1246 / 1319 | 4325 / 4547 | 1185 / 1225 | 4770 / 25346 | 35.8 | 1185 |
 | upstream-80e6e30ea597 | 17004 | 1332 / 1383 | 4634 / 4787 | 1227 / 1355 | 5013 / 5317 | 41 | 1227 |
+| upstream-88e14cba7830 | 16077 | 1242 / 1327 | 4634 / 4779 | 1256 / 3057 | 4953 / 5277 | 43.1 | 1256 |
 | upstream-8bbf3d67bd63 | 16144 | 1271 / 1293 | 4849 / 5272 | 1349 / 2003 | 4988 / 12574 | 43.1 | 1349 |
 | upstream-913ecd7c7c8a | 16128 | 1337 / 1434 | 4543 / 4995 | 1306 / 1527 | 4380 / 4726 | 39.1 | 1306 |
 | upstream-959ab2f5bac7 | 16227 | 1250 / 1296 | 4662 / 5008 | 1235 / 1391 | 4410 / 4792 | 40 | 1235 |
 | upstream-9f78c22429d9 | 4491 | 1217 / 1244 | 4700 / 4798 | 1203 / 1318 | 4573 / 5073 | 36.1 | 1203 |
 | upstream-a0806b09c73d | 17857 | 1231 / 1285 | 4583 / 4860 | 1220 / 1278 | 5172 / 25341 | 40.7 | 1220 |
 | upstream-a10c83ff4127 | 76424 | 1348 / 1484 | 5062 / 5124 | 1352 / 3120 | 5453 / 5804 | 60.3 | 1352 |
+| upstream-a344b2f3f55d | 50597 | 1318 / 1383 | 4796 / 4953 | 1326 / 3134 | 5096 / 5430 | 45.5 | 1326 |
 | upstream-a4b1b68c66c7 | 16604 | 1285 / 1832 | 4690 / 4790 | 1326 / 1771 | 5011 / 10060 | 39.9 | 1326 |
 | upstream-a61f509fcab9 | 44381 | 1427 / 1465 | 4853 / 5099 | 1300 / 1410 | 4686 / 5154 | 39.6 | 1300 |
 | upstream-a734ca765129 | 16064 | 1304 / 1580 | 4787 / 4986 | 1242 / 1411 | 4623 / 5290 | 43.1 | 1242 |
@@ -685,3 +806,11 @@ first_paint `median / p95` per cell, then cold 1x JSHeapUsedSize median (MiB) an
 | upstream-2789ff8d6772 | 288760 | 1531 / 2133 | 6480 / 59677 | 1593 / 1983 | 5926 / 6415 | 41.6 | 1593 |
 | upstream-db668adb7e73 | 104741 | 1485 / 1565 | 5634 / 6047 | 1660 / 3511 | 5140 / 5442 | 53.1 | 1660 |
 | upstream-f7015eebee2e | 154673 | 1442 / 1512 | 6006 / 7106 | 1392 / 1453 | 4918 / 5138 | 45.9 | 1392 |
+
+### pptx L
+
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| real-pptx-poi-customGeo | 1046067 | 2098 / 2344 | 8465 / 8536 | 2385 / 2697 | 7726 / 8086 | 97.6 | 2385 |
+| real-pptx-python-pptx-cht-chart-type | 1393564 | 1621 / 1669 | 5798 / 5826 | 1624 / 2063 | 5596 / 5768 | 52.6 | 1624 |
+| upstream-61fc791e15c0 | 1078208 | 3204 / 3461 | 13097 / 13208 | 3408 / 4211 | 16317 / 31155 | 103 | 3408 |

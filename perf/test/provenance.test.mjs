@@ -89,7 +89,7 @@ test('BASELINE.md shows status per cell, n, thin labels, and makes no CI or win 
   const md = read('BASELINE.md');
   const row = (id) => md.split('\n').find((l) => l.startsWith(`| ${id} |`) && /observed|not run/.test(l));
   assert.match(row('gen-pptx-xl-a'), /\| observed timeout \| operator aborted \| not run \| not run \|/);
-  assert.match(row('gen-docx-pages-500'), /\| ok \(n=3\) \| observed timeout \| operator aborted \| not run \|/);
+  assert.match(row('gen-docx-pages-500'), /\| ok \(n=3 P\w+\) \| observed timeout \| operator aborted \| not run \|/);
   assert.match(md, /n=3, thin sample/);
   assert.doesNotMatch(md, /insufficient samples|n < 5|minimum-n/);
   assert.match(md, /empirical 95th percentile/);

@@ -38,9 +38,9 @@ const lxlFails = readJsonl(lxlFailFile);
 // Warm 4x rows (new measurement for xlsx rerun completeness)
 const warm4xRows = warm4xFile ? readJsonl(warm4xFile) : [];
 
-// Include ALL xlsx S/M rerun rows — many fixtures are partial (1 cell) in the main sweep;
-// the rerun adds the missing cells. The report aggregates by (fixture, mode, cpu) so duplicates
-// for the same cell just add extra samples, which is harmless.
+// Include ALL xlsx S/M rerun rows — many fixtures are partial (1 cell) in the main sweep; the rerun adds the missing
+// cells. A cell that has both an original and a re-run row is two protocol groups (rerun flag differs): the report
+// (baseline-report.mjs, protocol-rows.mjs) keeps them as separate rows and never adds their samples.
 const manifest = JSON.parse(readFileSync(join(root, 'fixtures/manifest.json'), 'utf8')).fixtures;
 const xlsxSmIds = new Set(manifest.filter((m) => m.format === 'xlsx' && ['S', 'M'].includes(m.tier)).map((m) => m.id));
 const promotedRerunRows = rerunRows.filter((r) => xlsxSmIds.has(r.fixture));

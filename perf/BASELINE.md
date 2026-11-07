@@ -43,6 +43,10 @@ Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95` ove
 
 - Two runs shared the machine at a time (`concurrent_runs` in the host fingerprint), on disjoint fixtures of the same cell, to fit the sweep in time; a 3-way concurrency check on this box moved the median first_paint of a small xlsx by about 7%, so absolute numbers sit slightly above a serial run. Compare like with like (same host, same `concurrent_runs`).
 
+## Sample counts and the minimum-n rule
+
+Every per-cell number is shown with its sample count n (finite samples of that metric in that cell, warm-up excluded). **Rule: no speed number, ranking, tier aggregate or 95% CI is reported for a cell with n < 5 or with no samples; it shows `insufficient samples (n=N)` or `no samples` instead.** Tier aggregates leave out fixtures below the threshold and say how many were omitted. The raw samples stay in the jsonl and history. This does not change any perf gate, budget or threshold. The L/XL sweep ran 3 iterations per cell (cold n=3, warm n=3 after one discarded warm-up), so **no L/XL cell currently meets the rule**; L/XL numbers are not claimed until they are re-measured with n >= 5.
+
 ## Corpus coverage
 
 | format | tier | in manifest | measured | excluded (failed or incomplete) |
@@ -66,37 +70,37 @@ Times are ms unless noted; heap is MiB. Per-fixture cells are `median / p95` ove
 
 | format | tier | fixtures | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| xlsx | S | 28 | 789 (709..2204) | 2431 (1971..2954) | 735 (677..786) | 2346 (2346..2346) |
-| xlsx | M | 7 | 1021 (917..3738) | 3156 (2944..5003) | 929 (917..950) | 2732 (2356..3109) |
-| xlsx | L | 3 | 2278 (1831..2763) | 7791 (6120..9767) | 2272 (1833..2841) | 9108 (7063..12098) |
-| xlsx | XL | 2 | 5738 (5612..5864) | 21611 (18639..24583) | 5288 (5171..5405) | 23660 (22094..25226) |
-| docx | S | 70 | 478 (443..1001) | 1112 (966..1434) | 456 (435..632) | 1097 (951..1501) |
-| docx | M | 7 | 503 (495..521) | 1217 (1032..1261) | 495 (470..515) | 1165 (1044..1291) |
-| pptx | S | 86 | 1299 (1217..1519) | 4888 (4325..6169) | 1289 (1137..2468) | 4750 (4103..6316) |
-| pptx | M | 24 | 1447 (1273..1985) | 5623 (4946..7005) | 1429 (1301..2004) | 5053 (4383..6941) |
-| pptx | L | 3 | 2098 (1621..3204) | 8465 (5798..13097) | 2385 (1624..3408) | 7726 (5596..16317) |
+| xlsx | S | 28 | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2346 (2346..2346) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| xlsx | M | 7 | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4/7 fixtures omitted (n<5 or no samples) | 3109 (3109..3109) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| xlsx | L | 3 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| xlsx | XL | 2 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| docx | S | 70 | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (995..1501) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| docx | M | 7 | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20 |
+| pptx | S | 86 | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4749 (4103..6316) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| pptx | M | 24 | 1447 (1273..1985) n=10 | 5623 (4946..7005) n=10 | 1429 (1301..2004) n=20 | 5053 (4383..6941) n=20 |
+| pptx | L | 3 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
 
 ## Rankings (individual fixtures)
 
-**5 slowest fixtures** (cold 1x first_paint median):
+**5 slowest fixtures** (cold 1x first_paint median; only fixtures with n >= 5 in that cell are ranked, so n=3 L/XL fixtures are not ranked here):
 
-| # | fixture | format | tier | bytes | first_paint_ms |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | gen-xlsx-xl-b | xlsx | XL | 19232925 | 5864 |
-| 2 | gen-xlsx-xl-c | xlsx | XL | 21285768 | 5612 |
-| 3 | real-xlsx-poi-no_drawing_patriarch | xlsx | M | 672414 | 3738 |
-| 4 | upstream-61fc791e15c0 | pptx | L | 1078208 | 3204 |
-| 5 | gen-xlsx-cells-1m-pad-l2 | xlsx | L | 9128751 | 2763 |
+| # | fixture | format | tier | bytes | first_paint_ms | n |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | real-xlsx-poi-no_drawing_patriarch | xlsx | M | 672414 | 3738 | 10 |
+| 2 | real-xlsx-poi-FormulaEvalTestData_Copy | xlsx | S | 65011 | 2204 | 10 |
+| 3 | real-pptx-poi-keyframes | pptx | M | 389330 | 1985 | 10 |
+| 4 | real-xlsx-poi-test | xlsx | S | 8566 | 1965 | 10 |
+| 5 | real-pptx-poi-60810 | pptx | M | 874522 | 1919 | 10 |
 
 **5 most memory-hungry fixtures** (cold 1x JSHeapUsedSize median):
 
-| # | fixture | format | tier | bytes | JSHeapUsedSize (MiB) |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | gen-xlsx-xl-c | xlsx | XL | 21285768 | 209 |
-| 2 | gen-xlsx-xl-b | xlsx | XL | 19232925 | 196 |
-| 3 | real-xlsx-poi-57181 | xlsx | M | 334727 | 149 |
-| 4 | gen-xlsx-cells-1m-pad-l2 | xlsx | L | 9128751 | 145 |
-| 5 | gen-xlsx-cells-1m-pad-l | xlsx | L | 7066140 | 135 |
+| # | fixture | format | tier | bytes | JSHeapUsedSize (MiB) | n |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | real-xlsx-poi-57181 | xlsx | M | 334727 | 0 | 10 |
+| 2 | gen-xlsx-cells-100k-b | xlsx | M | 704900 | 0 | 10 |
+| 3 | upstream-25297a56a758 | pptx | M | 251735 | 0 | 10 |
+| 4 | gen-xlsx-cells-100k | xlsx | M | 503874 | 0 | 10 |
+| 5 | real-pptx-poi-keyframes | pptx | M | 389330 | 0 | 10 |
 
 ## xlsx-M warm 1x TTI: bimodal p95 (investigated)
 
@@ -108,66 +112,76 @@ The first baseline (7ce81c1) had xlsx-M warm 1x `tti_ms` median 946 ms but p95 8
 
 - Fix: `tti_ms` now ends at `interact_start` (the moment the scripted interaction begins, right after first_paint) for all three hosts, so tasks caused by the harness's own scroll / page jumps / slide walk no longer count (they remain in `tbt_ms`, `long_task_*` and the step latencies). The old definition is kept as `tti_with_interaction_ms`.
 
-| xlsx-M fixture (warm 1x) | old TTI median | old TTI p95 | fixed TTI median | fixed TTI p95 | first_paint median | first_paint p95 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-xlsx-cells-100k | 954 | 6305 | 950 | 1063 | 950 | 1063 |
-| gen-xlsx-cells-100k-b | 2612 | 19324 | 929 | 2178 | 929 | 2178 |
-| real-xlsx-poi-57181 | 935 | 17826 | 917 | 1133 | 917 | 1133 |
-| real-xlsx-poi-ConditionalFormattingSamples | - | - | - | - | - | - |
-| real-xlsx-poi-dataValidationTableRange | - | - | - | - | - | - |
-| real-xlsx-poi-no_drawing_patriarch | - | - | - | - | - | - |
-| real-xlsx-poi-StructuredRefs-lots-with-lookups | - | - | - | - | - | - |
+| xlsx-M fixture (warm 1x) | old TTI median / p95 | fixed TTI median / p95 | first_paint median / p95 |
+| --- | ---: | ---: | ---: |
+| gen-xlsx-cells-100k | 954 / 6305 (n=20) | 950 / 1063 (n=20) | 950 / 1063 (n=20) |
+| gen-xlsx-cells-100k-b | 2612 / 19324 (n=20) | 929 / 2178 (n=20) | 929 / 2178 (n=20) |
+| real-xlsx-poi-57181 | 935 / 17826 (n=20) | 917 / 1133 (n=20) | 917 / 1133 (n=20) |
+| real-xlsx-poi-ConditionalFormattingSamples | no samples | no samples | no samples |
+| real-xlsx-poi-dataValidationTableRange | no samples | no samples | no samples |
+| real-xlsx-poi-no_drawing_patriarch | no samples | no samples | no samples |
+| real-xlsx-poi-StructuredRefs-lots-with-lookups | no samples | no samples | no samples |
 
 After the fix no measured xlsx-M fixture (7 in the sweep aggregates) has a warm 1x TTI p95 above 3x its median; no cell is flagged unexplained/do-not-arm, but this rests on 7 fixture(s) because the other xlsx-M timeouts are excluded. Remaining spread is first_paint noise on this shared box. Note that TTI is now close to first_render by construction (the harness starts interacting right after first_paint); a quiet-window TTI is still TODO(#8).
 
 ## Excluded fixtures
 
-The TS engine (or the harness page) failed these fixtures; they are not part of any number above. Failures are TS-engine behaviour recorded as data, not harness faults, unless noted.
+The TS engine (or the harness page) failed these fixtures, or a cell was never run; they are not part of any number above. Every excluded cell has exactly one status from `perf/baselines/failure-provenance.json` (evidence pointer per cell; raw failure files are never edited):
 
-33 of 38 excluded fixtures are **timeouts** (the page did not finish within 120 s, or a host wait expired); the rest are TS-engine errors. Timed-out rows stay in this history marked as timeouts (`ts-combined-8961e71.failures.jsonl` has every failed chunk row, one per fixture and cell); they are never replaced by re-run numbers.
+- **observed timeout**: the harness actually hit its own timeout during a run (120 s for S/M, 300 s for L/XL).
 
-| fixture | kind | cells failed | first error line |
-| --- | ---: | ---: | ---: |
-| real-docx-poi-Bug54849 | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-docx-poi-bug65649 | error | cold 1x, cold 4x, warm 1x, warm 4x | real-docx-poi-bug65649/ts: RangeError: Invalid content for node tableRow: <> |
-| real-docx-poi-drawing | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-fb3af3f7b5f7 | error | cold 1x, cold 4x, warm 1x, warm 4x | upstream-fb3af3f7b5f7/ts: PasswordRequiredError: This document is password protected. Enter the password to open it. |
-| gen-pptx-placeholder | timeout | cold 1x, cold 4x, warm 1x, warm 4x | gen-pptx-placeholder/ts: Error: perf host: timed out waiting for pptx slide 1 elements |
-| real-pptx-poi-bug59273 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | real-pptx-poi-bug59273/ts: Error: perf host: timed out waiting for pptx slide 1 elements |
-| real-xlsx-poi-62629_target | timeout | cold 1x, cold 4x, warm 1x, warm 4x | real-xlsx-poi-62629_target/ts: Error: perf host: timed out waiting for xlsx grid cells |
-| real-xlsx-poi-bug64512_embed | timeout | cold 1x, cold 4x, warm 1x, warm 4x | real-xlsx-poi-bug64512_embed/ts: Error: perf host: timed out waiting for xlsx grid cells |
-| upstream-e899e84e6209 | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| gen-pptx-equation | timeout | cold 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| gen-pptx-slides-10-c | timeout | cold 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| gen-docx-pages-100 | timeout | warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-docx-poi-60316.dotx | timeout | warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-38aa694fb4a5 | timeout | warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-49a48af6d18d | timeout | warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-88e14cba7830 | timeout | warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| upstream-a344b2f3f55d | timeout | warm 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-45540_classic_Footer | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-46535 | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-50096 | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-57893-many-merges | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-DataTableCities | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-WithChartSheet | timeout | cold 1x | page.waitForFunction: Timeout 120000ms exceeded. |
-| gen-xlsx-cells-100k-c | timeout | cold 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| real-xlsx-poi-47813 | timeout | cold 4x | page.waitForFunction: Timeout 120000ms exceeded. |
-| gen-docx-xl-a | error | cold 1x, cold 4x, warm 1x, warm 4x | gen-docx-xl-a/ts: Error: word/document.xml exceeds the 25 MiB limit |
-| gen-docx-xl-b | error | cold 1x, cold 4x, warm 4x, warm 1x | gen-docx-xl-b/ts: Error: word/document.xml exceeds the 25 MiB limit |
-| gen-docx-xl-c | error | cold 1x, cold 4x, warm 4x, warm 1x | gen-docx-xl-c/ts: Error: word/document.xml exceeds the 25 MiB limit |
-| gen-pptx-xl-a | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
-| gen-pptx-xl-b | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
-| gen-pptx-xl-c | timeout | cold 1x, cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
-| gen-docx-pages-500 | timeout | cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
-| gen-docx-pages-500-b | timeout | cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
-| gen-docx-pages-500-c | timeout | cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
-| gen-pptx-slides-200 | timeout | cold 4x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
-| gen-pptx-slides-200-b | timeout | cold 4x, warm 4x, warm 1x | page.waitForFunction: Timeout 300000ms exceeded. |
-| gen-pptx-slides-200-c | timeout | cold 4x, warm 1x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
-| gen-xlsx-xl-a | timeout | cold 4x, warm 4x | page.waitForFunction: Timeout 300000ms exceeded. |
+- **observed error**: the run finished with an error (engine limit, throw, password); not a timeout.
 
-**Were the timeouts memory pressure?** No evidence of it. The same fixtures timed out in every cell, cold and warm, with about 8 GiB free, and re-running alone on an idle machine reproduced the xlsx timeouts; the cause was the unbounded scroll loop in the xlsx host page (see the re-run section below). The docx/pptx rows are different: `real-docx-poi-Bug54849` and `real-docx-poi-drawing` timed out in the sweep and, where they were re-measured, finished, so their cause is **unexplained** (contention or flakiness is possible, not shown). `gen-pptx-placeholder` and `real-pptx-poi-bug59273` never render slide 1, `real-docx-poi-bug65649` throws in the TS engine, and `upstream-fb3af3f7b5f7` is password protected.
+- **operator aborted**: the process was killed by the operator before the cell finished; no result was saved and no timeout was observed.
+
+- **not run**: the cell was never started. This includes cells skipped because a timeout was *predicted*; a predicted timeout is not a measured failure.
+
+- **unknown**: provenance not determinable (also the fallback for a cell with no provenance record). Never guessed.
+
+Excluded cells by status (89 cells of 38 fixtures): observed timeout 50, observed error 16, operator aborted 4, not run 19, unknown 0. 38 excluded fixtures; 33 have at least one observed timeout. Timed-out rows stay in the history as timeouts (`ts-combined-8961e71.failures.jsonl` has every failed chunk row); they are never replaced by re-run numbers. In the table, `ok (n=N)` is a measured cell and `-` a cell that has neither samples nor a failure record.
+
+| fixture | cold 1x | cold 4x | warm 1x | warm 4x | first error line (observed cells only) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| real-docx-poi-Bug54849 | observed timeout | ok (n=10) | ok (n=20) | ok (n=20) | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-docx-poi-bug65649 | observed error | observed error | observed error | observed error | real-docx-poi-bug65649/ts: RangeError: Invalid content for node tableRow: <> |
+| real-docx-poi-drawing | observed timeout | ok (n=10) | ok (n=20) | ok (n=20) | page.waitForFunction: Timeout 120000ms exceeded. |
+| upstream-fb3af3f7b5f7 | observed error | observed error | observed error | observed error | upstream-fb3af3f7b5f7/ts: PasswordRequiredError: This document is password protected. Enter the password to open it. |
+| gen-pptx-placeholder | observed timeout | observed timeout | observed timeout | observed timeout | gen-pptx-placeholder/ts: Error: perf host: timed out waiting for pptx slide 1 elements |
+| real-pptx-poi-bug59273 | observed timeout | observed timeout | observed timeout | observed timeout | real-pptx-poi-bug59273/ts: Error: perf host: timed out waiting for pptx slide 1 elements |
+| real-xlsx-poi-62629_target | observed timeout | observed timeout | observed timeout | observed timeout | real-xlsx-poi-62629_target/ts: Error: perf host: timed out waiting for xlsx grid cells |
+| real-xlsx-poi-bug64512_embed | observed timeout | observed timeout | observed timeout | observed timeout | real-xlsx-poi-bug64512_embed/ts: Error: perf host: timed out waiting for xlsx grid cells |
+| upstream-e899e84e6209 | observed timeout | observed timeout | observed timeout | observed timeout | page.waitForFunction: Timeout 120000ms exceeded. |
+| gen-pptx-equation | ok (n=10) | observed timeout | ok (n=20) | ok (n=20) | page.waitForFunction: Timeout 120000ms exceeded. |
+| gen-pptx-slides-10-c | ok (n=10) | observed timeout | ok (n=20) | ok (n=20) | page.waitForFunction: Timeout 120000ms exceeded. |
+| gen-docx-pages-100 | ok (n=10) | ok (n=10) | ok (n=20) | observed timeout | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-docx-poi-60316.dotx | ok (n=10) | ok (n=10) | ok (n=20) | observed timeout | page.waitForFunction: Timeout 120000ms exceeded. |
+| upstream-38aa694fb4a5 | ok (n=10) | ok (n=10) | ok (n=20) | observed timeout | page.waitForFunction: Timeout 120000ms exceeded. |
+| upstream-49a48af6d18d | ok (n=10) | ok (n=10) | ok (n=20) | observed timeout | page.waitForFunction: Timeout 120000ms exceeded. |
+| upstream-88e14cba7830 | ok (n=10) | ok (n=10) | ok (n=20) | observed timeout | page.waitForFunction: Timeout 120000ms exceeded. |
+| upstream-a344b2f3f55d | ok (n=10) | ok (n=10) | ok (n=20) | observed timeout | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-45540_classic_Footer | observed timeout | ok (n=11) | ok (n=20) | - | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-46535 | observed timeout | ok (n=10) | ok (n=20) | - | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-50096 | observed timeout | ok (n=10) | ok (n=20) | - | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-57893-many-merges | observed timeout | ok (n=10) | ok (n=20) | - | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-DataTableCities | observed timeout | ok (n=10) | - | - | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-WithChartSheet | observed timeout | ok (n=10) | - | - | page.waitForFunction: Timeout 120000ms exceeded. |
+| gen-xlsx-cells-100k-c | ok (n=10) | observed timeout | ok (n=20) | - | page.waitForFunction: Timeout 120000ms exceeded. |
+| real-xlsx-poi-47813 | ok (n=10) | observed timeout | ok (n=20) | - | page.waitForFunction: Timeout 120000ms exceeded. |
+| gen-docx-xl-a | observed error | observed error | not run | not run | gen-docx-xl-a/ts: Error: word/document.xml exceeds the 25 MiB limit |
+| gen-docx-xl-b | observed error | observed error | observed error | not run | gen-docx-xl-b/ts: Error: word/document.xml exceeds the 25 MiB limit |
+| gen-docx-xl-c | observed error | observed error | observed error | not run | gen-docx-xl-c/ts: Error: word/document.xml exceeds the 25 MiB limit |
+| gen-pptx-xl-a | observed timeout | operator aborted | not run | not run | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-pptx-xl-b | observed timeout | not run | not run | not run | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-pptx-xl-c | observed timeout | not run | not run | not run | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-docx-pages-500 | ok (n=3) | observed timeout | operator aborted | not run | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-docx-pages-500-b | ok (n=3) | observed timeout | operator aborted | not run | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-docx-pages-500-c | ok (n=3) | observed timeout | operator aborted | not run | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-pptx-slides-200 | ok (n=3) | observed timeout | ok (n=3) | not run | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-pptx-slides-200-b | ok (n=3) | observed timeout | observed timeout | not run | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-pptx-slides-200-c | ok (n=3) | observed timeout | not run | not run | page.waitForFunction: Timeout 300000ms exceeded. |
+| gen-xlsx-xl-a | ok (n=3) | observed timeout | ok (n=3) | observed timeout | page.waitForFunction: Timeout 300000ms exceeded. |
+
+**S/M rows: were the timeouts memory pressure?** No evidence of it. The same fixtures timed out in every cell, cold and warm, with about 8 GiB free, and re-running alone on an idle machine reproduced the xlsx timeouts; the cause was the unbounded scroll loop in the xlsx host page (see the re-run section below). The docx/pptx rows are different: `real-docx-poi-Bug54849` and `real-docx-poi-drawing` timed out in the sweep and, where they were re-measured, finished, so their cause is **unexplained** (contention or flakiness is possible, not shown). `gen-pptx-placeholder` and `real-pptx-poi-bug59273` never render slide 1, `real-docx-poi-bug65649` throws in the TS engine, and `upstream-fb3af3f7b5f7` is password protected. For the S/M rows the status comes from the raw harness failure rows only (written from completed chunk results); the S/M operator transcript was not audited for kills.
 
 ## Re-run of the originally-excluded xlsx fixtures after the scroll fix
 
@@ -179,28 +193,28 @@ The TS engine (or the harness page) failed these fixtures; they are not part of 
 
 ### re-run docx S: 3 fixtures
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| real-docx-poi-60316.dotx | 59583 | 516 / 541 | 1166 / 1199 | 468 / 509 | - / - | 9.6 |
-| real-docx-poi-Bug54849 | 27566 | 516 / 551 | 1138 / 1242 | 457 / 534 | - / - | 10.3 |
-| real-docx-poi-drawing | 95247 | 1109 / 1274 | 1583 / 3167 | 988 / 1125 | - / - | 14.2 |
+| real-docx-poi-60316.dotx | 59583 | 516 / 541 (n=10) | 1166 / 1199 (n=10) | 468 / 509 (n=20) | no samples | 9.6 (n=10) |
+| real-docx-poi-Bug54849 | 27566 | 516 / 551 (n=10) | 1138 / 1242 (n=10) | 457 / 534 (n=20) | no samples | 10.3 (n=10) |
+| real-docx-poi-drawing | 95247 | 1109 / 1274 (n=10) | 1583 / 3167 (n=10) | 988 / 1125 (n=20) | no samples | 14.2 (n=10) |
 
 ### re-run docx M: 1 fixtures
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-docx-pages-100 | 403491 | 506 / 545 | 1322 / 1434 | 458 / 505 | - / - | 11.4 |
+| gen-docx-pages-100 | 403491 | 506 / 545 (n=10) | 1322 / 1434 (n=10) | 458 / 505 (n=20) | no samples | 11.4 (n=10) |
 
 ### re-run pptx S: 6 fixtures
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-pptx-equation | 5143 | 1259 / 1341 | 4300 / 5413 | 1197 / 1381 | - / - | 36.2 |
-| gen-pptx-slides-10-c | 75979 | 1344 / 1476 | 4585 / 4839 | 1227 / 1435 | - / - | 60.7 |
-| upstream-38aa694fb4a5 | 34531 | 1483 / 1591 | 4734 / 5175 | 1318 / 1458 | - / - | 47.4 |
-| upstream-49a48af6d18d | 16095 | 1399 / 1495 | 4480 / 5329 | 1211 / 1473 | - / - | 43.1 |
-| upstream-88e14cba7830 | 16077 | 1303 / 1377 | 4348 / 4531 | 1235 / 1349 | - / - | 43 |
-| upstream-a344b2f3f55d | 50597 | 1336 / 1379 | 4740 / 4929 | 1267 / 1403 | - / - | 45.5 |
+| gen-pptx-equation | 5143 | 1259 / 1341 (n=10) | 4300 / 5413 (n=10) | 1197 / 1381 (n=20) | no samples | 36.2 (n=10) |
+| gen-pptx-slides-10-c | 75979 | 1344 / 1476 (n=10) | 4585 / 4839 (n=10) | 1227 / 1435 (n=20) | no samples | 60.7 (n=10) |
+| upstream-38aa694fb4a5 | 34531 | 1483 / 1591 (n=10) | 4734 / 5175 (n=10) | 1318 / 1458 (n=20) | no samples | 47.4 (n=10) |
+| upstream-49a48af6d18d | 16095 | 1399 / 1495 (n=10) | 4480 / 5329 (n=10) | 1211 / 1473 (n=20) | no samples | 43.1 (n=10) |
+| upstream-88e14cba7830 | 16077 | 1303 / 1377 (n=10) | 4348 / 4531 (n=10) | 1235 / 1349 (n=20) | no samples | 43 (n=10) |
+| upstream-a344b2f3f55d | 50597 | 1336 / 1379 (n=10) | 4740 / 4929 (n=10) | 1267 / 1403 (n=20) | no samples | 45.5 (n=10) |
 
 ## L/XL
 
@@ -217,600 +231,600 @@ L/XL measured on real post-#117 content (pad.bin replaced by #494). Pre-#117 pad
 
 ### L/XL hard limits and unmeasured cells
 
-These are TS-engine limits and box limits observed on the real #117 fixtures, not harness bugs. No number below was invented; cells with no row have no measurement.
+Status per cell is in `perf/baselines/failure-provenance.json` (one evidence pointer per cell). Cells with no row have no measurement; nothing below is an estimate.
 
-- **docx XL (3 fixtures): 0 measured.** The TS engine rejects them with `word/document.xml exceeds the 25 MiB limit` in every cell (a hard engine limit).
+- **docx XL (3 fixtures): 0 measured.** **Observed error** at cold 1x, cold 4x and (b, c) warm 1x: `word/document.xml exceeds the 25 MiB limit`, a hard TS-engine limit. The warm 4x cells (a, b, c) and warm 1x for `-a` were **not run**; the limit is observed only in the cells that ran.
 
-- **docx L `gen-docx-pages-500` (a/b/c): in no aggregate.** Cold 1x has 3 measured rows each in the dataset, but cold 4x timed out (300 s) and warm 1x/warm 4x were **not run** (chunks skipped by the operator after cold-1x render times made the 300 s timeout certain or near). Aggregates need cold 1x and cold 4x, so these fixtures are excluded; any warm or 4x figure would be an estimate and none is reported.
+- **docx L `gen-docx-pages-500` (a/b/c): in no aggregate.** Cold 1x has 3 measured rows each. Cold 4x: **observed timeout** (300 s). Warm 1x: **operator aborted**: the chunk ran about 6.6 h and was killed with `kill -9`; the result file is written only at the end, so nothing was saved and no timeout was observed (whether any iteration finished is not determinable). Warm 4x: **not run**. The "render avg 226 s" style notes in the raw failures file are predictions with no raw source.
 
-- **pptx XL (3 fixtures): 0 measured.** The TS engine walks every slide in one synchronous loop and blocks the page; cold 1x hit the 300 s timeout and the cold 4x chunk was killed to stop an hours-long hang. Warm cells were not run.
+- **pptx XL (3 fixtures): 0 measured.** Cold 1x: **observed timeout** (300 s) for a, b, c. Cold 4x: `-a` **operator aborted** (killed about 23 s after it started), `-b` and `-c` **not run** (the chunk was killed first). Warm 1x and warm 4x: **not run** (predicted hang). That the TS engine blocks the page in a synchronous slide loop is an operator inference from the cold 1x timeouts, not something the data shows.
 
-- **pptx L `gen-pptx-slides-200` (a/b/c): in no aggregate.** Cold 1x is measured (3 rows each) and warm 1x for `-a` and `-b` (`-b` partially: 1 row, then a timeout); cold 4x timed out for all three, warm 4x was not run for `-a`/`-b`/`-c`, and warm 1x for `-c` was not run. Only the pptx L fixtures listed as measured above are in aggregates.
+- **pptx L `gen-pptx-slides-200` (a/b/c): in no aggregate.** Cold 1x measured (3 rows each). Cold 4x: **observed timeout** for all three (for `-c` from the harness FAIL line and the 301 s gap between per-fixture start samples). Warm 1x: `-a` measured, `-b` one sample then an **observed timeout** (n=1), `-c` **not run**. Warm 4x: **not run** for all three.
 
-- **xlsx XL `gen-xlsx-xl-a`:** cold 1x and warm 1x are measured, but it timed out at cold 4x and warm 4x (300 s), so it is excluded from aggregates; xl-b and xl-c are measured (2 fixtures, below the 3-fixture target).
+- **xlsx XL `gen-xlsx-xl-a`:** cold 1x and warm 1x measured (n=3); cold 4x and warm 4x **observed timeout** (300 s), so it is excluded from aggregates. xl-b and xl-c are measured (2 fixtures, below the 3-fixture target).
 
-- **Box pressure:** the sweep ran for roughly 40 hours on a shared 8-core, 16 GB box with two concurrent runs for some cells. The 300 s budget at 4x CPU throttle is near the render time of the largest fixtures, so the 4x timeouts above mix a real TS slowness with box pressure and are **not separable** from this data. They are recorded as timeouts, never as numbers. Rows tagged `not run` in the excluded table were never attempted in that cell.
+- **Box pressure:** the sweep ran for roughly 40 hours on a shared 8-core, 16 GB box (`perf/baselines/box-conditions.jsonl` records load and free memory at each fixture start; load average reached 241 when the pptx XL cold 4x run started). The 4x observed timeouts therefore mix real TS slowness with box pressure and are **not separable** from this data. They are recorded as timeouts, never as numbers.
 
 ## Per format and tier (aggregate over fixtures)
 
 ### xlsx S: 28 fixtures
 
-| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 789 (709..2204) | 2431 (1971..2954) | 735 (677..786) | 2346 (2346..2346) |
-| parse_ms | 129 (95.5..563) | 558 (405..948) | 120 (93.9..139) | 542 (542..542) |
-| first_render_ms | 789 (709..2204) | 2431 (1971..2954) | 735 (677..786) | 2346 (2346..2346) |
-| full_render_ms | 10820 (928..12619) | 12659 (2324..14019) | 10795 (773..10943) | 2524 (2524..2524) |
-| tbt_ms | 285 (250..1141) | 1604 (1380..1958) | 264 (237..304) | 1677 (1677..1677) |
-| JSHeapUsedSize (MiB) | 17.8 (15..24.7) | 18.6 (16.4..26.2) | 17.2 (14.6..25.3) | 17.7 (17.7..17.7) |
+| first_paint_ms | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2346 (2346..2346) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| parse_ms | 129 (95.5..563) n=10–11 | 558 (405..948) n=10 | 120 (93.9..139) n=20, 18/28 fixtures omitted (n<5 or no samples) | 542 (542..542) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| first_render_ms | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2346 (2346..2346) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| full_render_ms | 10820 (928..12619) n=10–11 | 12659 (2324..14019) n=10 | 10795 (773..10943) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2524 (2524..2524) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| tbt_ms | 285 (250..1141) n=10–11 | 1604 (1380..1958) n=10 | 264 (237..304) n=20, 18/28 fixtures omitted (n<5 or no samples) | 1677 (1677..1677) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| JSHeapUsedSize (MiB) | 17.8 (15..24.7) n=10–11 | 18.6 (16.4..26.2) n=10 | 17.2 (14.6..25.3) n=20, 18/28 fixtures omitted (n<5 or no samples) | 17.7 (17.7..17.7) n=20, 27/28 fixtures omitted (n<5 or no samples) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 33.3 (24.7..50.1) | 32.3 (24.4..49) | 33.4 (24.7..50.5) | 24.5 (24.5..24.5) |
-| bytes_ready_ms | 654 (590..1656) | 1784 (1550..2062) | 600 (564..637) | 1729 (1729..1729) |
-| engine_ms | 646 (585..1641) | 1765 (1538..2030) | 597 (558..632) | 1716 (1716..1716) |
-| fetch_ms | 6 (5..18.9) | 18.5 (10.6..31.4) | 3.2 (2.9..3.7) | 10.6 (10.6..10.6) |
-| heap_samples | 874 (40..891) | 631 (37..758) | 881 (35..904) | 39.5 (39.5..39.5) |
-| long_task_count | 2 (2..3.5) | 4 (3..13.5) | 2 (2..3) | 5 (5..5) |
-| long_task_total_ms | 397 (350..1322) | 1806 (1559..2609) | 367 (338..443) | 1959 (1959..1959) |
-| parse_end_ms | 776 (702..2164) | 2397 (1955..2857) | 723 (666..779) | 2289 (2289..2289) |
-| peak_heap_used_MiB | 23.4 (18.2..34.7) | 22.8 (18.6..34.2) | 23.7 (17.9..32.6) | 18.6 (18.6..18.6) |
-| render_ms | 77.3 (56.3..398) | 327 (196..772) | 75.4 (52.7..94.2) | 352 (352..352) |
-| retained_heap_used_MiB | 14.6 (13.1..18.3) | 14.6 (13.1..18.3) | 14.9 (13.1..17.5) | 13.1 (13.1..13.1) |
-| step_count | 200 (1..200) | 200 (1..200) | 200 (1..200) | 1 (1..1) |
-| step_median_ms | 49.6 (48.5..49.7) | 49.1 (48.5..122) | 49.7 (47.6..49.7) | 132 (132..132) |
-| step_p95_ms | 50 (48.5..65.7) | 56.5 (49.6..122) | 50 (47.6..50.1) | 132 (132..132) |
-| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 789 (709..2204) | 2431 (1971..2954) | 735 (677..786) | 2346 (2346..2346) |
-| tti_with_interaction_ms | 795 (709..2494) | 3583 (2016..11599) | 758 (686..1049) | 2479 (2479..2479) |
+| JSHeapTotalSize (MiB) | 33.3 (24.7..50.1) n=10–11 | 32.3 (24.4..49) n=10 | 33.4 (24.7..50.5) n=20, 18/28 fixtures omitted (n<5 or no samples) | 24.5 (24.5..24.5) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| bytes_ready_ms | 654 (590..1656) n=10–11 | 1784 (1550..2062) n=10 | 600 (564..637) n=20, 18/28 fixtures omitted (n<5 or no samples) | 1729 (1729..1729) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| engine_ms | 646 (585..1641) n=10–11 | 1765 (1538..2030) n=10 | 597 (558..632) n=20, 18/28 fixtures omitted (n<5 or no samples) | 1716 (1716..1716) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| fetch_ms | 6 (5..18.9) n=10–11 | 18.5 (10.6..31.4) n=10 | 3.2 (2.9..3.7) n=20, 18/28 fixtures omitted (n<5 or no samples) | 10.6 (10.6..10.6) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| heap_samples | 874 (40..891) n=10–11 | 631 (37..758) n=10 | 881 (35..904) n=20, 18/28 fixtures omitted (n<5 or no samples) | 39.5 (39.5..39.5) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| long_task_count | 2 (2..3.5) n=10–11 | 4 (3..13.5) n=10 | 2 (2..3) n=20, 18/28 fixtures omitted (n<5 or no samples) | 5 (5..5) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| long_task_total_ms | 397 (350..1322) n=10–11 | 1806 (1559..2609) n=10 | 367 (338..443) n=20, 18/28 fixtures omitted (n<5 or no samples) | 1959 (1959..1959) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| parse_end_ms | 776 (702..2164) n=10–11 | 2397 (1955..2857) n=10 | 723 (666..779) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2289 (2289..2289) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| peak_heap_used_MiB | 23.4 (18.2..34.7) n=10–11 | 22.8 (18.6..34.2) n=10 | 23.7 (17.9..32.6) n=20, 18/28 fixtures omitted (n<5 or no samples) | 18.6 (18.6..18.6) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| render_ms | 77.3 (56.3..398) n=10–11 | 327 (196..772) n=10 | 75.4 (52.7..94.2) n=20, 18/28 fixtures omitted (n<5 or no samples) | 352 (352..352) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| retained_heap_used_MiB | 14.6 (13.1..18.3) n=10–11 | 14.6 (13.1..18.3) n=10 | 14.9 (13.1..17.5) n=20, 18/28 fixtures omitted (n<5 or no samples) | 13.1 (13.1..13.1) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| step_count | 200 (1..200) n=10–11 | 200 (1..200) n=10 | 200 (1..200) n=20, 18/28 fixtures omitted (n<5 or no samples) | 1 (1..1) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| step_median_ms | 49.6 (48.5..49.7) n=10–11 | 49.1 (48.5..122) n=10 | 49.7 (47.6..49.7) n=20, 18/28 fixtures omitted (n<5 or no samples) | 132 (132..132) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| step_p95_ms | 50 (48.5..65.7) n=10–11 | 56.5 (49.6..122) n=10 | 50 (47.6..50.1) n=20, 18/28 fixtures omitted (n<5 or no samples) | 132 (132..132) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| step_unsupported | 0 (0..0) n=10–11 | 0 (0..0) n=10 | 0 (0..0) n=20, 18/28 fixtures omitted (n<5 or no samples) | 0 (0..0) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| tti_ms | 789 (709..2204) n=10–11 | 2431 (1971..2954) n=10 | 735 (677..786) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2346 (2346..2346) n=20, 27/28 fixtures omitted (n<5 or no samples) |
+| tti_with_interaction_ms | 795 (709..2494) n=10–11 | 3583 (2016..11599) n=10 | 758 (686..1049) n=20, 18/28 fixtures omitted (n<5 or no samples) | 2479 (2479..2479) n=20, 27/28 fixtures omitted (n<5 or no samples) |
 
 ### xlsx M: 7 fixtures
 
-| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 1021 (917..3738) | 3156 (2944..5003) | 929 (917..950) | 2732 (2356..3109) |
-| parse_ms | 322 (239..1968) | 1260 (1134..3066) | 325 (286..337) | 1065 (800..1330) |
-| first_render_ms | 1021 (917..3738) | 3156 (2944..5003) | 929 (917..950) | 2732 (2356..3109) |
-| full_render_ms | 11075 (9511..16285) | 20661 (13477..26654) | 11016 (9371..11088) | 32251 (27243..37260) |
-| tbt_ms | 462 (376..2549) | 4953 (2093..11102) | 429 (404..440) | 12132 (12097..12167) |
-| JSHeapUsedSize (MiB) | 68.2 (18.9..149) | 65.7 (18.7..143) | 84.1 (77.8..146) | 45.1 (17.9..72.2) |
+| first_paint_ms | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4/7 fixtures omitted (n<5 or no samples) | 3109 (3109..3109) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| parse_ms | 322 (239..1968) n=10 | 1260 (1134..3066) n=10–11 | 325 (286..337) n=20, 4/7 fixtures omitted (n<5 or no samples) | 1330 (1330..1330) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| first_render_ms | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4/7 fixtures omitted (n<5 or no samples) | 3109 (3109..3109) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| full_render_ms | 11075 (9511..16285) n=10 | 20661 (13477..26654) n=10–11 | 11016 (9371..11088) n=20, 4/7 fixtures omitted (n<5 or no samples) | 27243 (27243..27243) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| tbt_ms | 462 (376..2549) n=10 | 4953 (2093..11102) n=10–11 | 429 (404..440) n=20, 4/7 fixtures omitted (n<5 or no samples) | 12167 (12167..12167) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| JSHeapUsedSize (MiB) | 68.2 (18.9..149) n=10 | 65.7 (18.7..143) n=10–11 | 84.1 (77.8..146) n=20, 4/7 fixtures omitted (n<5 or no samples) | 72.2 (72.2..72.2) n=20, 6/7 fixtures omitted (n<5 or no samples) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 117 (35.5..199) | 113 (35.8..191) | 128 (126..193) | 72.9 (21.3..125) |
-| bytes_ready_ms | 675 (625..1699) | 1760 (1645..2074) | 597 (578..618) | 1619 (1531..1706) |
-| engine_ms | 669 (617..1670) | 1738 (1619..2036) | 591 (570..614) | 1595 (1509..1681) |
-| fetch_ms | 8.7 (6.6..25.7) | 26.5 (17.3..38.8) | 5.9 (4.9..7) | 21.7 (21.2..22.2) |
-| heap_samples | 674 (486..893) | 509 (403..629) | 655 (495..718) | 1100 (395..1805) |
-| long_task_count | 3.5 (3..9.5) | 65.5 (4.5..203) | 3 (3..3.5) | 88 (5..171) |
-| long_task_total_ms | 662 (526..2999) | 8228 (2374..19602) | 594 (554..595) | 16498 (12347..20648) |
-| parse_end_ms | 1000 (907..3702) | 3100 (2892..4948) | 916 (897..935) | 2686 (2331..3041) |
-| peak_heap_used_MiB | 93.5 (25.2..170) | 87.7 (24.3..163) | 96.2 (92..156) | 57.6 (27.1..88.1) |
-| render_ms | 284 (182..1854) | 1065 (952..2841) | 282 (251..297) | 878 (604..1152) |
-| retained_heap_used_MiB | 57.5 (15.3..129) | 57.5 (15.3..129) | 66 (65.9..129) | 41.8 (17.5..66) |
-| step_count | 200 (166..200) | 200 (166..200) | 200 (166..200) | 326 (166..486) |
-| step_median_ms | 49.5 (48.9..61.8) | 68.5 (48.9..128) | 49.4 (48.9..49.6) | 90.9 (49.1..133) |
-| step_p95_ms | 52.8 (49.8..84.4) | 127 (59.7..178) | 54.3 (50.8..55.5) | 115 (50..179) |
-| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 1021 (917..3738) | 3156 (2944..5003) | 929 (917..950) | 2732 (2356..3109) |
-| tti_with_interaction_ms | 1107 (917..14580) | 20126 (3388..25501) | 954 (935..2612) | 32202 (27175..37229) |
+| JSHeapTotalSize (MiB) | 117 (35.5..199) n=10 | 113 (35.8..191) n=10–11 | 128 (126..193) n=20, 4/7 fixtures omitted (n<5 or no samples) | 125 (125..125) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| bytes_ready_ms | 675 (625..1699) n=10 | 1760 (1645..2074) n=10–11 | 597 (578..618) n=20, 4/7 fixtures omitted (n<5 or no samples) | 1706 (1706..1706) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| engine_ms | 669 (617..1670) n=10 | 1738 (1619..2036) n=10–11 | 591 (570..614) n=20, 4/7 fixtures omitted (n<5 or no samples) | 1681 (1681..1681) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| fetch_ms | 8.7 (6.6..25.7) n=10 | 26.5 (17.3..38.8) n=10–11 | 5.9 (4.9..7) n=20, 4/7 fixtures omitted (n<5 or no samples) | 21.2 (21.2..21.2) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| heap_samples | 674 (486..893) n=10 | 509 (403..629) n=10–11 | 655 (495..718) n=20, 4/7 fixtures omitted (n<5 or no samples) | 395 (395..395) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| long_task_count | 3.5 (3..9.5) n=10 | 65.5 (4.5..203) n=10–11 | 3 (3..3.5) n=20, 4/7 fixtures omitted (n<5 or no samples) | 171 (171..171) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| long_task_total_ms | 662 (526..2999) n=10 | 8228 (2374..19602) n=10–11 | 594 (554..595) n=20, 4/7 fixtures omitted (n<5 or no samples) | 20648 (20648..20648) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| parse_end_ms | 1000 (907..3702) n=10 | 3100 (2892..4948) n=10–11 | 916 (897..935) n=20, 4/7 fixtures omitted (n<5 or no samples) | 3041 (3041..3041) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| peak_heap_used_MiB | 93.5 (25.2..170) n=10 | 87.7 (24.3..163) n=10–11 | 96.2 (92..156) n=20, 4/7 fixtures omitted (n<5 or no samples) | 88.1 (88.1..88.1) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| render_ms | 284 (182..1854) n=10 | 1065 (952..2841) n=10–11 | 282 (251..297) n=20, 4/7 fixtures omitted (n<5 or no samples) | 1152 (1152..1152) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| retained_heap_used_MiB | 57.5 (15.3..129) n=10 | 57.5 (15.3..129) n=10–11 | 66 (65.9..129) n=20, 4/7 fixtures omitted (n<5 or no samples) | 66 (66..66) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| step_count | 200 (166..200) n=10 | 200 (166..200) n=10–11 | 200 (166..200) n=20, 4/7 fixtures omitted (n<5 or no samples) | 166 (166..166) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| step_median_ms | 49.5 (48.9..61.8) n=10 | 68.5 (48.9..128) n=10–11 | 49.4 (48.9..49.6) n=20, 4/7 fixtures omitted (n<5 or no samples) | 133 (133..133) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| step_p95_ms | 52.8 (49.8..84.4) n=10 | 127 (59.7..178) n=10–11 | 54.3 (50.8..55.5) n=20, 4/7 fixtures omitted (n<5 or no samples) | 179 (179..179) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10–11 | 0 (0..0) n=20, 4/7 fixtures omitted (n<5 or no samples) | 0 (0..0) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| tti_ms | 1021 (917..3738) n=10 | 3156 (2944..5003) n=10–11 | 929 (917..950) n=20, 4/7 fixtures omitted (n<5 or no samples) | 3109 (3109..3109) n=20, 6/7 fixtures omitted (n<5 or no samples) |
+| tti_with_interaction_ms | 1107 (917..14580) n=10 | 20126 (3388..25501) n=10–11 | 954 (935..2612) n=20, 4/7 fixtures omitted (n<5 or no samples) | 27175 (27175..27175) n=20, 6/7 fixtures omitted (n<5 or no samples) |
 
 ### xlsx L: 3 fixtures
 
-| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 2278 (1831..2763) | 7791 (6120..9767) | 2272 (1833..2841) | 9108 (7063..12098) |
-| parse_ms | 1647 (1177..2112) | 6069 (4386..7883) | 1625 (1177..2186) | 7038 (4991..9895) |
-| first_render_ms | 2278 (1831..2763) | 7791 (6120..9767) | 2272 (1833..2841) | 9108 (7063..12098) |
-| full_render_ms | 12750 (12354..13190) | 38932 (38538..41037) | 13792 (12630..13952) | 46344 (43087..58912) |
-| tbt_ms | 1571 (1192..1997) | 20894 (20444..23146) | 2097 (1238..2132) | 27113 (24613..38248) |
-| JSHeapUsedSize (MiB) | 135 (111..145) | 123 (112..139) | 134 (112..142) | 129 (118..138) |
+| first_paint_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| parse_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| first_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| full_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| tbt_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| JSHeapUsedSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 188 (173..199) | 182 (173..201) | 189 (174..202) | 179 (171..200) |
-| bytes_ready_ms | 640 (630..642) | 1721 (1720..1811) | 643 (635..645) | 2059 (2002..2135) |
-| engine_ms | 587 (580..591) | 1590 (1559..1599) | 575 (570..587) | 1895 (1730..1905) |
-| fetch_ms | 50.3 (31.8..53) | 158 (122..193) | 43.5 (37.2..47.5) | 223 (154..239) |
-| heap_samples | 498 (492..522) | 517 (500..528) | 501 (482..507) | 517 (517..543) |
-| long_task_count | 4 (3..5) | 206 (205..206) | 7 (6..15) | 209 (208..211) |
-| long_task_total_ms | 1735 (1442..2186) | 31144 (30694..33446) | 2482 (1538..2897) | 37563 (34939..48798) |
-| parse_end_ms | 2264 (1818..2743) | 7725 (6062..9709) | 2259 (1820..2828) | 9040 (7000..12030) |
-| peak_heap_used_MiB | 329 (264..449) | 395 (328..426) | 402 (331..447) | 327 (239..425) |
-| render_ms | 1607 (1125..2080) | 5882 (4203..7732) | 1589 (1122..2149) | 6839 (4808..9688) |
-| retained_heap_used_MiB | 111 (100..122) | 111 (100..122) | 111 (100..122) | 111 (100..122) |
-| step_count | 200 (200..200) | 200 (200..200) | 200 (200..200) | 200 (200..200) |
-| step_median_ms | 49.5 (49.4..49.5) | 148 (147..152) | 49.6 (49.5..50) | 178 (173..198) |
-| step_p95_ms | 66 (66..66.1) | 197 (180..199) | 66.9 (66.3..84.1) | 221 (212..268) |
-| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 2278 (1831..2763) | 7791 (6120..9767) | 2272 (1833..2841) | 9108 (7063..12098) |
-| tti_with_interaction_ms | 6500 (2278..7584) | 38891 (38487..40982) | 11371 (9324..13174) | 46298 (43036..58863) |
+| JSHeapTotalSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| bytes_ready_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| engine_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| fetch_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| heap_samples | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| long_task_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| long_task_total_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| parse_end_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| peak_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| retained_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_median_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_p95_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_unsupported | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| tti_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| tti_with_interaction_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
 
 ### xlsx XL: 2 fixtures
 
-| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 5738 (5612..5864) | 21611 (18639..24583) | 5288 (5171..5405) | 23660 (22094..25226) |
-| parse_ms | 4997 (4889..5105) | 19450 (16460..22441) | 4583 (4480..4686) | 21244 (20050..22438) |
-| first_render_ms | 5738 (5612..5864) | 21611 (18639..24583) | 5288 (5171..5405) | 23660 (22094..25226) |
-| full_render_ms | 18011 (16122..19900) | 59796 (48966..70627) | 16239 (16197..16282) | 66722 (59133..74311) |
-| tbt_ms | 5333 (4460..6206) | 41612 (32531..50693) | 4377 (4233..4520) | 45753 (38483..53022) |
-| JSHeapUsedSize (MiB) | 202 (196..209) | 193 (189..197) | 205 (204..206) | 197 (189..204) |
+| first_paint_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| parse_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| first_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| full_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| tbt_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| JSHeapUsedSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 289 (277..301) | 296 (264..327) | 292 (291..293) | 320 (303..336) |
-| bytes_ready_ms | 727 (710..745) | 1923 (1722..2124) | 678 (672..685) | 2361 (2051..2671) |
-| engine_ms | 632 (615..650) | 1635 (1563..1706) | 597 (582..613) | 1874 (1754..1994) |
-| fetch_ms | 115 (79.7..150) | 289 (158..420) | 78.7 (54.6..103) | 494 (275..713) |
-| heap_samples | 551 (545..556) | 663 (646..679) | 519 (519..519) | 648 (647..648) |
-| long_task_count | 13.5 (4..23) | 208 (207..209) | 9 (8..10) | 211 (208..213) |
-| long_task_total_ms | 6007 (4658..7356) | 50686 (40428..60943) | 4827 (4633..5020) | 56253 (48833..63672) |
-| parse_end_ms | 5724 (5598..5850) | 21556 (18584..24529) | 5275 (5159..5392) | 23570 (22030..25109) |
-| peak_heap_used_MiB | 607 (587..627) | 622 (408..837) | 590 (559..620) | 502 (429..574) |
-| render_ms | 4947 (4844..5050) | 19297 (16309..22285) | 4535 (4440..4629) | 21010 (19828..22193) |
-| retained_heap_used_MiB | 180 (175..185) | 180 (175..185) | 180 (175..185) | 180 (175..185) |
-| step_count | 200 (200..200) | 200 (200..200) | 200 (200..200) | 200 (200..200) |
-| step_median_ms | 50.7 (49.5..51.9) | 149 (148..149) | 49.7 (49.6..49.8) | 192 (170..215) |
-| step_p95_ms | 74.4 (66.1..82.7) | 200 (194..206) | 67.2 (66.4..68) | 275 (222..329) |
-| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 5738 (5612..5864) | 21611 (18639..24583) | 5288 (5171..5405) | 23660 (22094..25226) |
-| tti_with_interaction_ms | 14645 (10136..19154) | 59489 (48911..70067) | 14254 (12323..16185) | 66671 (59083..74260) |
+| JSHeapTotalSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| bytes_ready_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| engine_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| fetch_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| heap_samples | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| long_task_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| long_task_total_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| parse_end_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| peak_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| retained_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_median_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_p95_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_unsupported | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| tti_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| tti_with_interaction_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
 
 ### docx S: 70 fixtures
 
-| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 478 (443..1001) | 1112 (966..1434) | 456 (435..632) | 1097 (951..1501) |
-| parse_ms | 125 (96.9..311) | 534 (386..1004) | 122 (98.5..264) | 503 (394..1061) |
-| first_render_ms | 478 (443..1001) | 1112 (966..1434) | 456 (435..632) | 1097 (951..1501) |
-| full_render_ms | 526 (476..1032) | 1148 (994..1688) | 493 (468..844) | 1139 (972..1739) |
-| tbt_ms | 55.5 (47..250) | 547 (482..1048) | 52.5 (44..126) | 529 (481..1082) |
-| JSHeapUsedSize (MiB) | 9.7 (7.7..21.5) | 9.4 (7.6..20.7) | 9.7 (7.7..21.5) | 9.1 (7.7..20.8) |
+| first_paint_ms | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (995..1501) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| parse_ms | 125 (96.9..311) n=10 | 534 (386..1004) n=10 | 122 (98.5..264) n=20 | 501 (394..1061) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| first_render_ms | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (995..1501) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| full_render_ms | 526 (476..1032) n=10 | 1148 (994..1688) n=10 | 493 (468..844) n=20 | 1139 (1022..1739) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| tbt_ms | 55.5 (47..250) n=10 | 547 (482..1048) n=10 | 52.5 (44..126) n=20 | 530 (491..1082) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| JSHeapUsedSize (MiB) | 9.7 (7.7..21.5) n=10 | 9.4 (7.6..20.7) n=10 | 9.7 (7.7..21.5) n=20 | 9.1 (7.7..20.8) n=20, 1/70 fixtures omitted (n<5 or no samples) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 16.6 (12.1..50.2) | 16.4 (12.1..44) | 16.6 (12.1..49.7) | 16.6 (12.1..44.3) |
-| bytes_ready_ms | 164 (151..391) | 444 (406..589) | 144 (131..171) | 425 (393..603) |
-| engine_ms | 159 (146..379) | 434 (398..575) | 141 (129..167) | 415 (385..591) |
-| fetch_ms | 4.6 (3.6..9.4) | 10.1 (8..15.5) | 2.8 (2.2..3.3) | 8.7 (7.8..12.2) |
-| heap_samples | 33 (29..63) | 29 (20..53.5) | 31.8 (28..64) | 30 (20..53) |
-| long_task_count | 2 (2..4) | 3 (2..7) | 2 (2..4) | 3 (2..7) |
-| long_task_total_ms | 156 (147..400) | 706 (582..1398) | 153 (144..326) | 679 (595..1432) |
-| parse_end_ms | 289 (254..778) | 989 (820..1417) | 265 (245..413) | 936 (815..1482) |
-| peak_heap_used_MiB | 10.9 (8.3..27.5) | 11 (8.4..26.7) | 10.9 (8.3..27.5) | 11 (8.3..26.8) |
-| render_ms | 239 (211..412) | 342 (261..737) | 237 (214..404) | 365 (275..756) |
-| retained_heap_used_MiB | 6.7 (6.1..10.1) | 6.8 (6.1..10.1) | 6.7 (6.1..10.1) | 6.7 (6.1..10.1) |
-| step_count | 0 (0..11) | 0 (0..11) | 0 (0..11) | 0 (0..11) |
-| step_median_ms | 33.2 (32.9..34.7) | 33.2 (32.8..33.6) | 33.2 (33.1..35) | 33.1 (32.7..33.3) |
-| step_p95_ms | 33.3 (32.9..34.7) | 33.6 (32.8..34.6) | 33.3 (33.1..35) | 33.1 (32.7..34.7) |
-| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 478 (443..1001) | 1112 (966..1434) | 456 (435..632) | 1097 (951..1501) |
-| tti_with_interaction_ms | 478 (443..1001) | 1112 (966..1674) | 456 (435..632) | 1097 (951..1703) |
+| JSHeapTotalSize (MiB) | 16.6 (12.1..50.2) n=10 | 16.4 (12.1..44) n=10 | 16.6 (12.1..49.7) n=20 | 16.6 (12.1..44.3) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| bytes_ready_ms | 164 (151..391) n=10 | 444 (406..589) n=10 | 144 (131..171) n=20 | 425 (406..603) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| engine_ms | 159 (146..379) n=10 | 434 (398..575) n=10 | 141 (129..167) n=20 | 415 (398..591) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| fetch_ms | 4.6 (3.6..9.4) n=10 | 10.1 (8..15.5) n=10 | 2.8 (2.2..3.3) n=20 | 8.7 (7.8..12.2) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| heap_samples | 33 (29..63) n=10 | 29 (20..53.5) n=10 | 31.8 (28..64) n=20 | 30 (20..53) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| long_task_count | 2 (2..4) n=10 | 3 (2..7) n=10 | 2 (2..4) n=20 | 3 (2..7) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| long_task_total_ms | 156 (147..400) n=10 | 706 (582..1398) n=10 | 153 (144..326) n=20 | 679 (595..1432) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| parse_end_ms | 289 (254..778) n=10 | 989 (820..1417) n=10 | 265 (245..413) n=20 | 932 (815..1482) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| peak_heap_used_MiB | 10.9 (8.3..27.5) n=10 | 11 (8.4..26.7) n=10 | 10.9 (8.3..27.5) n=20 | 11 (8.3..26.8) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| render_ms | 239 (211..412) n=10 | 342 (261..737) n=10 | 237 (214..404) n=20 | 365 (275..756) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| retained_heap_used_MiB | 6.7 (6.1..10.1) n=10 | 6.8 (6.1..10.1) n=10 | 6.7 (6.1..10.1) n=20 | 6.7 (6.1..10.1) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| step_count | 0 (0..11) n=10 | 0 (0..11) n=10 | 0 (0..11) n=20 | 0 (0..11) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| step_median_ms | 33.2 (32.9..34.7) n=10, 51/70 fixtures omitted (n<5 or no samples) | 33.3 (32.8..33.3) n=6–10, 63/70 fixtures omitted (n<5 or no samples) | 33.2 (33.1..35) n=20, 51/70 fixtures omitted (n<5 or no samples) | 33.1 (32.7..33.3) n=10–20, 57/70 fixtures omitted (n<5 or no samples) |
+| step_p95_ms | 33.3 (32.9..34.7) n=10, 51/70 fixtures omitted (n<5 or no samples) | 33.9 (32.8..34.6) n=6–10, 63/70 fixtures omitted (n<5 or no samples) | 33.3 (33.1..35) n=20, 51/70 fixtures omitted (n<5 or no samples) | 33.1 (32.7..34.7) n=10–20, 57/70 fixtures omitted (n<5 or no samples) |
+| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| tti_ms | 478 (443..1001) n=10 | 1112 (966..1434) n=10 | 456 (435..632) n=20 | 1097 (995..1501) n=20, 1/70 fixtures omitted (n<5 or no samples) |
+| tti_with_interaction_ms | 478 (443..1001) n=10 | 1112 (966..1674) n=10 | 456 (435..632) n=20 | 1097 (995..1703) n=20, 1/70 fixtures omitted (n<5 or no samples) |
 
 ### docx M: 7 fixtures
 
-| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 503 (495..521) | 1217 (1032..1261) | 495 (470..515) | 1165 (1044..1291) |
-| parse_ms | 144 (134..162) | 563 (512..624) | 141 (129..164) | 539 (472..683) |
-| first_render_ms | 503 (495..521) | 1217 (1032..1261) | 495 (470..515) | 1165 (1044..1291) |
-| full_render_ms | 612 (537..2534) | 1277 (1052..3334) | 605 (508..2531) | 1189 (1067..3350) |
-| tbt_ms | 60 (57..66.5) | 615 (529..684) | 59.5 (53..73) | 637 (497..708) |
-| JSHeapUsedSize (MiB) | 10.8 (8.3..12.4) | 11.1 (8.3..12.4) | 11.6 (8.3..12.3) | 10.9 (8.3..12.4) |
+| first_paint_ms | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20 |
+| parse_ms | 144 (134..162) n=10 | 563 (512..624) n=10 | 141 (129..164) n=20 | 539 (472..683) n=19–20 |
+| first_render_ms | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20 |
+| full_render_ms | 612 (537..2534) n=10 | 1277 (1052..3334) n=10 | 605 (508..2531) n=20 | 1189 (1067..3350) n=19–20 |
+| tbt_ms | 60 (57..66.5) n=10 | 615 (529..684) n=10 | 59.5 (53..73) n=20 | 637 (497..708) n=19–20 |
+| JSHeapUsedSize (MiB) | 10.8 (8.3..12.4) n=10 | 11.1 (8.3..12.4) n=10 | 11.6 (8.3..12.3) n=20 | 10.9 (8.3..12.4) n=19–20 |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 19.1 (15.1..19.4) | 18.7 (14.3..19.3) | 19.1 (15..19.3) | 19.1 (14.6..19.1) |
-| bytes_ready_ms | 167 (164..183) | 433 (408..506) | 154 (147..161) | 428 (410..452) |
-| engine_ms | 161 (154..177) | 415 (397..492) | 149 (142..158) | 417 (400..432) |
-| fetch_ms | 5.8 (4.9..9) | 13.2 (10.1..21.5) | 3.7 (3.2..6.5) | 11.5 (9.6..21.7) |
-| heap_samples | 40 (30.5..199) | 32 (20..145) | 38 (28..205) | 31 (21.5..145) |
-| long_task_count | 2 (2..2) | 3 (3..4) | 2 (2..2) | 3 (3..4) |
-| long_task_total_ms | 160 (157..167) | 765 (679..884) | 160 (153..173) | 787 (647..919) |
-| parse_end_ms | 310 (300..333) | 995 (940..1067) | 300 (277..328) | 991 (886..1120) |
-| peak_heap_used_MiB | 12.9 (11.2..13.8) | 12.4 (11.2..13.4) | 12.9 (11..13.7) | 12.4 (11.2..13.5) |
-| render_ms | 251 (245..274) | 391 (323..515) | 258 (240..274) | 381 (342..518) |
-| retained_heap_used_MiB | 7.7 (6.6..8.3) | 7.7 (6.6..8.3) | 7.7 (6.6..8.3) | 7.9 (6.6..8.3) |
-| step_count | 2 (0..60) | 0 (0..60) | 2 (0..60) | 0 (0..60) |
-| step_median_ms | 33.3 (33.2..33.3) | 33.3 (33.3..33.4) | 33.3 (33.2..33.3) | 33.3 (33.3..33.3) |
-| step_p95_ms | 33.7 (33.3..33.7) | 38.7 (37.5..39.8) | 33.6 (33.4..33.8) | 37.8 (37.3..39.3) |
-| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 503 (495..521) | 1217 (1032..1261) | 495 (470..515) | 1165 (1044..1291) |
-| tti_with_interaction_ms | 503 (495..521) | 1217 (1032..1282) | 496 (470..515) | 1165 (1044..1293) |
+| JSHeapTotalSize (MiB) | 19.1 (15.1..19.4) n=10 | 18.7 (14.3..19.3) n=10 | 19.1 (15..19.3) n=20 | 19.1 (14.6..19.1) n=19–20 |
+| bytes_ready_ms | 167 (164..183) n=10 | 433 (408..506) n=10 | 154 (147..161) n=20 | 428 (410..452) n=19–20 |
+| engine_ms | 161 (154..177) n=10 | 415 (397..492) n=10 | 149 (142..158) n=20 | 417 (400..432) n=19–20 |
+| fetch_ms | 5.8 (4.9..9) n=10 | 13.2 (10.1..21.5) n=10 | 3.7 (3.2..6.5) n=20 | 11.5 (9.6..21.7) n=19–20 |
+| heap_samples | 40 (30.5..199) n=10 | 32 (20..145) n=10 | 38 (28..205) n=20 | 31 (21.5..145) n=19–20 |
+| long_task_count | 2 (2..2) n=10 | 3 (3..4) n=10 | 2 (2..2) n=20 | 3 (3..4) n=19–20 |
+| long_task_total_ms | 160 (157..167) n=10 | 765 (679..884) n=10 | 160 (153..173) n=20 | 787 (647..919) n=19–20 |
+| parse_end_ms | 310 (300..333) n=10 | 995 (940..1067) n=10 | 300 (277..328) n=20 | 991 (886..1120) n=19–20 |
+| peak_heap_used_MiB | 12.9 (11.2..13.8) n=10 | 12.4 (11.2..13.4) n=10 | 12.9 (11..13.7) n=20 | 12.4 (11.2..13.5) n=19–20 |
+| render_ms | 251 (245..274) n=10 | 391 (323..515) n=10 | 258 (240..274) n=20 | 381 (342..518) n=19–20 |
+| retained_heap_used_MiB | 7.7 (6.6..8.3) n=10 | 7.7 (6.6..8.3) n=10 | 7.7 (6.6..8.3) n=20 | 7.9 (6.6..8.3) n=19–20 |
+| step_count | 2 (0..60) n=10 | 0 (0..60) n=10 | 2 (0..60) n=20 | 0 (0..60) n=19–20 |
+| step_median_ms | 33.3 (33.2..33.3) n=10, 3/7 fixtures omitted (n<5 or no samples) | 33.3 (33.3..33.4) n=10, 4/7 fixtures omitted (n<5 or no samples) | 33.3 (33.2..33.3) n=19–20, 3/7 fixtures omitted (n<5 or no samples) | 33.3 (33.3..33.3) n=19–20, 4/7 fixtures omitted (n<5 or no samples) |
+| step_p95_ms | 33.7 (33.3..33.7) n=10, 3/7 fixtures omitted (n<5 or no samples) | 38.7 (37.5..39.8) n=10, 4/7 fixtures omitted (n<5 or no samples) | 33.6 (33.4..33.8) n=19–20, 3/7 fixtures omitted (n<5 or no samples) | 37.8 (37.3..39.3) n=19–20, 4/7 fixtures omitted (n<5 or no samples) |
+| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=19–20 |
+| tti_ms | 503 (495..521) n=10 | 1217 (1032..1261) n=10 | 495 (470..515) n=20 | 1165 (1044..1291) n=19–20 |
+| tti_with_interaction_ms | 503 (495..521) n=10 | 1217 (1032..1282) n=10 | 496 (470..515) n=20 | 1165 (1044..1293) n=19–20 |
 
 ### pptx S: 86 fixtures
 
-| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 1299 (1217..1519) | 4888 (4325..6169) | 1289 (1137..2468) | 4750 (4103..6316) |
-| parse_ms | 559 (497..702) | 2619 (2130..3606) | 561 (468..1141) | 2538 (2029..3769) |
-| first_render_ms | 1299 (1217..1519) | 4888 (4325..6169) | 1289 (1137..2468) | 4750 (4103..6316) |
-| full_render_ms | 1337 (1241..2238) | 4973 (4373..9680) | 1332 (1164..2706) | 4857 (4170..8805) |
-| tbt_ms | 713 (668..856) | 3866 (3503..6531) | 695 (646..1598) | 3784 (3264..5777) |
-| JSHeapUsedSize (MiB) | 42.7 (35.8..67.3) | 42.1 (30.8..65) | 42.7 (35.8..65.3) | 41.9 (30.9..65.1) |
-| all_slides_ms | 1337 (1241..2238) | 4973 (4373..9680) | 1332 (1164..2706) | 4857 (4170..8805) |
+| first_paint_ms | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4749 (4103..6316) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| parse_ms | 559 (497..702) n=10 | 2619 (2130..3606) n=10 | 561 (468..1141) n=20 | 2519 (2029..3769) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| first_render_ms | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4749 (4103..6316) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| full_render_ms | 1337 (1241..2238) n=10 | 4973 (4373..9680) n=10 | 1332 (1164..2706) n=20 | 4856 (4170..8805) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| tbt_ms | 713 (668..856) n=10 | 3866 (3503..6531) n=10 | 695 (646..1598) n=20 | 3786 (3264..5777) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| JSHeapUsedSize (MiB) | 42.7 (35.8..67.3) n=10 | 42.1 (30.8..65) n=10 | 42.7 (35.8..65.3) n=20 | 41.8 (30.9..65.1) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| all_slides_ms | 1337 (1241..2238) n=10 | 4973 (4373..9680) n=10 | 1332 (1164..2706) n=20 | 4856 (4170..8805) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 69.5 (67.9..111) | 69.5 (67.6..118) | 69.7 (67.9..112) | 69.7 (67.7..117) |
-| all_slides_render_ms | 607 (528..1506) | 2741 (2214..7354) | 612 (502..1682) | 2675 (2138..6674) |
-| bytes_ready_ms | 725 (696..793) | 2203 (2074..2838) | 708 (659..1351) | 2154 (1945..2457) |
-| engine_ms | 719 (689..787) | 2188 (2060..2822) | 702 (657..1346) | 2141 (1933..2444) |
-| fetch_ms | 5.5 (4.6..6.9) | 13.5 (11.9..17.5) | 3.2 (2.7..6.9) | 11.8 (9.9..15.9) |
-| heap_samples | 38.5 (35..71) | 55.5 (45..115) | 38.5 (33..77) | 55 (46..112) |
-| long_task_count | 3 (3..3) | 5 (4..24) | 3 (3..4.5) | 5 (4..24) |
-| long_task_total_ms | 863 (818..1006) | 4100 (3744..7731) | 847 (796..1898) | 4012 (3507..6986) |
-| parse_end_ms | 1288 (1211..1509) | 4824 (4279..6129) | 1282 (1130..2447) | 4702 (4073..6241) |
-| peak_heap_used_MiB | 48 (41.3..77.5) | 48.2 (38.5..78.8) | 47.9 (41.3..77.4) | 48.3 (38.6..78.8) |
-| render_ms | 570 (503..712) | 2671 (2177..3647) | 569 (475..1155) | 2581 (2062..3852) |
-| retained_heap_used_MiB | 27.5 (26.1..31.4) | 27.5 (26.1..31.5) | 27.5 (26.1..31.4) | 27.5 (26.1..31.5) |
-| step_count | 0 (0..19) | 0 (0..19) | 0 (0..19) | 0 (0..19) |
-| step_median_ms | 46.3 (37.6..57.3) | 192 (165..241) | 49.8 (34.7..74) | 175 (160..240) |
-| step_p95_ms | 52.4 (45.7..59) | 202 (166..261) | 53.8 (45.2..84.8) | 193 (164..257) |
-| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 1299 (1217..1519) | 4888 (4325..6169) | 1289 (1137..2468) | 4750 (4103..6316) |
-| tti_with_interaction_ms | 1299 (1217..1519) | 4958 (4372..9675) | 1292 (1137..2629) | 4851 (4164..8762) |
+| JSHeapTotalSize (MiB) | 69.5 (67.9..111) n=10 | 69.5 (67.6..118) n=10 | 69.7 (67.9..112) n=20 | 69.6 (67.7..117) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| all_slides_render_ms | 607 (528..1506) n=10 | 2741 (2214..7354) n=10 | 612 (502..1682) n=20 | 2670 (2138..6674) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| bytes_ready_ms | 725 (696..793) n=10 | 2203 (2074..2838) n=10 | 708 (659..1351) n=20 | 2153 (1945..2457) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| engine_ms | 719 (689..787) n=10 | 2188 (2060..2822) n=10 | 702 (657..1346) n=20 | 2141 (1933..2444) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| fetch_ms | 5.5 (4.6..6.9) n=10 | 13.5 (11.9..17.5) n=10 | 3.2 (2.7..6.9) n=20 | 11.8 (9.9..15.9) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| heap_samples | 38.5 (35..71) n=10 | 55.5 (45..115) n=10 | 38.5 (33..77) n=20 | 55 (46..112) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| long_task_count | 3 (3..3) n=10 | 5 (4..24) n=10 | 3 (3..4.5) n=20 | 5 (4..24) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| long_task_total_ms | 863 (818..1006) n=10 | 4100 (3744..7731) n=10 | 847 (796..1898) n=20 | 4014 (3507..6986) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| parse_end_ms | 1288 (1211..1509) n=10 | 4824 (4279..6129) n=10 | 1282 (1130..2447) n=20 | 4702 (4073..6241) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| peak_heap_used_MiB | 48 (41.3..77.5) n=10 | 48.2 (38.5..78.8) n=10 | 47.9 (41.3..77.4) n=20 | 48.3 (38.6..78.8) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| render_ms | 570 (503..712) n=10 | 2671 (2177..3647) n=10 | 569 (475..1155) n=20 | 2569 (2062..3852) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| retained_heap_used_MiB | 27.5 (26.1..31.4) n=10 | 27.5 (26.1..31.5) n=10 | 27.5 (26.1..31.4) n=20 | 27.5 (26.1..31.5) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| step_count | 0 (0..19) n=10 | 0 (0..19) n=10 | 0 (0..19) n=20 | 0 (0..19) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| step_median_ms | 46.3 (37.6..57.3) n=10, 65/86 fixtures omitted (n<5 or no samples) | 192 (165..241) n=10, 65/86 fixtures omitted (n<5 or no samples) | 49.8 (34.7..74) n=20, 65/86 fixtures omitted (n<5 or no samples) | 175 (160..240) n=20, 65/86 fixtures omitted (n<5 or no samples) |
+| step_p95_ms | 52.4 (45.7..59) n=10, 65/86 fixtures omitted (n<5 or no samples) | 202 (166..261) n=10, 65/86 fixtures omitted (n<5 or no samples) | 53.8 (45.2..84.8) n=20, 65/86 fixtures omitted (n<5 or no samples) | 193 (164..257) n=20, 65/86 fixtures omitted (n<5 or no samples) |
+| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| tti_ms | 1299 (1217..1519) n=10 | 4888 (4325..6169) n=10 | 1289 (1137..2468) n=20 | 4749 (4103..6316) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
+| tti_with_interaction_ms | 1299 (1217..1519) n=10 | 4958 (4372..9675) n=10 | 1292 (1137..2629) n=20 | 4848 (4164..8762) n=12–20, 2/86 fixtures omitted (n<5 or no samples) |
 
 ### pptx M: 24 fixtures
 
-| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 1447 (1273..1985) | 5623 (4946..7005) | 1429 (1301..2004) | 5053 (4383..6941) |
-| parse_ms | 669 (540..1133) | 3230 (2701..4663) | 696 (587..1160) | 2880 (2236..4643) |
-| first_render_ms | 1447 (1273..1985) | 5623 (4946..7005) | 1429 (1301..2004) | 5053 (4383..6941) |
-| full_render_ms | 1797 (1300..4081) | 6966 (5443..18350) | 1889 (1411..3814) | 6636 (4410..16689) |
-| tbt_ms | 738 (684..1158) | 4857 (4099..11162) | 779 (705..1044) | 4508 (3472..9472) |
-| JSHeapUsedSize (MiB) | 49.6 (31.5..77.4) | 50.5 (29.5..69.4) | 49.5 (31.5..77.4) | 48.6 (29.5..73.6) |
-| all_slides_ms | 1797 (1300..4081) | 6966 (5443..18350) | 1889 (1411..3814) | 6636 (4410..16689) |
+| first_paint_ms | 1447 (1273..1985) n=10 | 5623 (4946..7005) n=10 | 1429 (1301..2004) n=20 | 5053 (4383..6941) n=20 |
+| parse_ms | 669 (540..1133) n=10 | 3230 (2701..4663) n=10 | 696 (587..1160) n=20 | 2880 (2236..4643) n=20 |
+| first_render_ms | 1447 (1273..1985) n=10 | 5623 (4946..7005) n=10 | 1429 (1301..2004) n=20 | 5053 (4383..6941) n=20 |
+| full_render_ms | 1797 (1300..4081) n=10 | 6966 (5443..18350) n=10 | 1889 (1411..3814) n=20 | 6636 (4410..16689) n=20 |
+| tbt_ms | 738 (684..1158) n=10 | 4857 (4099..11162) n=10 | 779 (705..1044) n=20 | 4508 (3472..9472) n=20 |
+| JSHeapUsedSize (MiB) | 49.6 (31.5..77.4) n=10 | 50.5 (29.5..69.4) n=10 | 49.5 (31.5..77.4) n=20 | 48.6 (29.5..73.6) n=20 |
+| all_slides_ms | 1797 (1300..4081) n=10 | 6966 (5443..18350) n=10 | 1889 (1411..3814) n=20 | 6636 (4410..16689) n=20 |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 107 (68.7..128) | 113 (68..129) | 107 (68.5..127) | 112 (68.2..129) |
-| all_slides_render_ms | 1061 (577..3280) | 4589 (2854..15550) | 1139 (634..3100) | 4493 (2343..14475) |
-| bytes_ready_ms | 733 (701..798) | 2266 (2114..2549) | 739 (693..917) | 2093 (1993..2231) |
-| engine_ms | 724 (694..786) | 2248 (2096..2525) | 734 (689..911) | 2073 (1976..2206) |
-| fetch_ms | 7.4 (5.2..10.8) | 19.1 (14.9..33.1) | 4.9 (3.6..8.6) | 17.5 (12.6..30) |
-| heap_samples | 57.5 (37.5..132) | 93.3 (55..203) | 60 (39..129) | 91.5 (49..201) |
-| long_task_count | 3 (3..7) | 14 (4..66) | 3 (3..7) | 14.5 (4..66) |
-| long_task_total_ms | 900 (834..1514) | 5455 (4349..14537) | 936 (858..1423) | 5233 (3672..12772) |
-| parse_end_ms | 1436 (1263..1957) | 5581 (4889..6882) | 1420 (1294..1986) | 5006 (4300..6807) |
-| peak_heap_used_MiB | 75.7 (41.2..88.7) | 75.9 (40.7..88.7) | 76.1 (41.2..88.1) | 75.9 (48.8..87.8) |
-| render_ms | 679 (550..1186) | 3274 (2801..4784) | 707 (597..1171) | 2931 (2320..4778) |
-| retained_heap_used_MiB | 30.6 (26.7..35.6) | 30.6 (26.7..35.7) | 30.6 (26.7..35.6) | 30.6 (26.7..35.7) |
-| step_count | 9 (0..59) | 9 (0..59) | 9 (0..59) | 9 (0..59) |
-| step_median_ms | 47.2 (39.9..54.1) | 211 (170..249) | 49.6 (39.3..63.4) | 181 (160..231) |
-| step_p95_ms | 54.5 (47..75.1) | 236 (186..352) | 57.9 (51.2..71.8) | 219 (176..297) |
-| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 1447 (1273..1985) | 5623 (4946..7005) | 1429 (1301..2004) | 5053 (4383..6941) |
-| tti_with_interaction_ms | 1451 (1273..2466) | 6901 (5415..18269) | 1443 (1312..2948) | 6586 (4383..16621) |
+| JSHeapTotalSize (MiB) | 107 (68.7..128) n=10 | 113 (68..129) n=10 | 107 (68.5..127) n=20 | 112 (68.2..129) n=20 |
+| all_slides_render_ms | 1061 (577..3280) n=10 | 4589 (2854..15550) n=10 | 1139 (634..3100) n=20 | 4493 (2343..14475) n=20 |
+| bytes_ready_ms | 733 (701..798) n=10 | 2266 (2114..2549) n=10 | 739 (693..917) n=20 | 2093 (1993..2231) n=20 |
+| engine_ms | 724 (694..786) n=10 | 2248 (2096..2525) n=10 | 734 (689..911) n=20 | 2073 (1976..2206) n=20 |
+| fetch_ms | 7.4 (5.2..10.8) n=10 | 19.1 (14.9..33.1) n=10 | 4.9 (3.6..8.6) n=20 | 17.5 (12.6..30) n=20 |
+| heap_samples | 57.5 (37.5..132) n=10 | 93.3 (55..203) n=10 | 60 (39..129) n=20 | 91.5 (49..201) n=20 |
+| long_task_count | 3 (3..7) n=10 | 14 (4..66) n=10 | 3 (3..7) n=20 | 14.5 (4..66) n=20 |
+| long_task_total_ms | 900 (834..1514) n=10 | 5455 (4349..14537) n=10 | 936 (858..1423) n=20 | 5233 (3672..12772) n=20 |
+| parse_end_ms | 1436 (1263..1957) n=10 | 5581 (4889..6882) n=10 | 1420 (1294..1986) n=20 | 5006 (4300..6807) n=20 |
+| peak_heap_used_MiB | 75.7 (41.2..88.7) n=10 | 75.9 (40.7..88.7) n=10 | 76.1 (41.2..88.1) n=20 | 75.9 (48.8..87.8) n=20 |
+| render_ms | 679 (550..1186) n=10 | 3274 (2801..4784) n=10 | 707 (597..1171) n=20 | 2931 (2320..4778) n=20 |
+| retained_heap_used_MiB | 30.6 (26.7..35.6) n=10 | 30.6 (26.7..35.7) n=10 | 30.6 (26.7..35.6) n=20 | 30.6 (26.7..35.7) n=20 |
+| step_count | 9 (0..59) n=10 | 9 (0..59) n=10 | 9 (0..59) n=20 | 9 (0..59) n=20 |
+| step_median_ms | 47.2 (39.9..54.1) n=10, 2/24 fixtures omitted (n<5 or no samples) | 211 (170..249) n=10, 2/24 fixtures omitted (n<5 or no samples) | 49.6 (39.3..63.4) n=20, 2/24 fixtures omitted (n<5 or no samples) | 181 (160..231) n=20, 2/24 fixtures omitted (n<5 or no samples) |
+| step_p95_ms | 54.5 (47..75.1) n=10, 2/24 fixtures omitted (n<5 or no samples) | 236 (186..352) n=10, 2/24 fixtures omitted (n<5 or no samples) | 57.9 (51.2..71.8) n=20, 2/24 fixtures omitted (n<5 or no samples) | 219 (176..297) n=20, 2/24 fixtures omitted (n<5 or no samples) |
+| step_unsupported | 0 (0..0) n=10 | 0 (0..0) n=10 | 0 (0..0) n=20 | 0 (0..0) n=20 |
+| tti_ms | 1447 (1273..1985) n=10 | 5623 (4946..7005) n=10 | 1429 (1301..2004) n=20 | 5053 (4383..6941) n=20 |
+| tti_with_interaction_ms | 1451 (1273..2466) n=10 | 6901 (5415..18269) n=10 | 1443 (1312..2948) n=20 | 6586 (4383..16621) n=20 |
 
 ### pptx L: 3 fixtures
 
-| metric | cold 1x (n=3–10/fixture, Chrome 156.0.8078.4) | cold 4x (n=3–10/fixture, Chrome 156.0.8078.4) | warm 1x (n=1–20/fixture, Chrome 156.0.8078.4) | warm 4x (n=1–20/fixture, Chrome 156.0.8078.4) |
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
 | --- | ---: | ---: | ---: | ---: |
-| first_paint_ms | 2098 (1621..3204) | 8465 (5798..13097) | 2385 (1624..3408) | 7726 (5596..16317) |
-| parse_ms | 1352 (834..2461) | 6056 (3634..10734) | 1602 (901..2676) | 5503 (3470..13662) |
-| first_render_ms | 2098 (1621..3204) | 8465 (5798..13097) | 2385 (1624..3408) | 7726 (5596..16317) |
-| full_render_ms | 4329 (1999..9066) | 17892 (7062..39459) | 4841 (2068..9252) | 16790 (6844..53123) |
-| tbt_ms | 946 (763..1121) | 10163 (4272..18670) | 1146 (826..1174) | 9199 (4313..29043) |
-| JSHeapUsedSize (MiB) | 97.6 (52.6..103) | 96.2 (43.9..99.1) | 101 (52.6..106) | 96.8 (43.9..97.4) |
-| all_slides_ms | 4329 (1999..9066) | 17892 (7062..39459) | 4841 (2068..9252) | 16790 (6844..53123) |
+| first_paint_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| parse_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| first_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| full_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| tbt_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| JSHeapUsedSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| all_slides_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
 
 Other metrics:
 
 | metric | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: |
-| JSHeapTotalSize (MiB) | 157 (129..159) | 151 (131..155) | 158 (130..160) | 151 (134..156) |
-| all_slides_render_ms | 3608 (1235..8343) | 15503 (4956..37365) | 4007 (1351..8528) | 14548 (4847..50538) |
-| bytes_ready_ms | 735 (722..743) | 2190 (2106..2314) | 802 (717..834) | 2098 (2061..2584) |
-| engine_ms | 725 (711..729) | 2155 (2064..2278) | 792 (706..824) | 2056 (1968..2514) |
-| fetch_ms | 11.9 (11..13.6) | 38.1 (36.9..42.3) | 10.6 (9.5..12.5) | 41.5 (32.3..69.9) |
-| heap_samples | 158 (67..371) | 277 (121..672) | 164 (69..379) | 277 (121..775) |
-| long_task_count | 5 (3..8) | 56 (13..191) | 7 (4..7) | 57 (13..224) |
-| long_task_total_ms | 1196 (957..1471) | 12963 (4926..28370) | 1496 (1026..1524) | 12036 (4963..40243) |
-| parse_end_ms | 2074 (1597..3196) | 8365 (5740..13048) | 2349 (1613..3400) | 7597 (5544..16246) |
-| peak_heap_used_MiB | 116 (112..125) | 109 (108..122) | 116 (105..126) | 109 (108..122) |
-| render_ms | 1376 (858..2469) | 6193 (3691..10783) | 1637 (915..2685) | 5601 (3526..13732) |
-| retained_heap_used_MiB | 42.9 (39.2..56) | 42.9 (39.2..56) | 42.9 (39.2..56) | 42.9 (39.2..56) |
-| step_count | 47 (7..111) | 47 (7..111) | 47 (7..111) | 47 (7..111) |
-| step_median_ms | 49.2 (46.4..50) | 192 (166..234) | 49.5 (48.8..50.5) | 179 (175..314) |
-| step_p95_ms | 59.2 (52..63.9) | 243 (218..306) | 67.1 (64.3..68) | 231 (219..457) |
-| step_unsupported | 0 (0..0) | 0 (0..0) | 0 (0..0) | 0 (0..0) |
-| tti_ms | 2098 (1621..3204) | 8465 (5798..13097) | 2385 (1624..3408) | 7726 (5596..16317) |
-| tti_with_interaction_ms | 2339 (1674..7766) | 17856 (7005..39394) | 3756 (1904..7664) | 16724 (6796..53089) |
+| JSHeapTotalSize (MiB) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| all_slides_render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| bytes_ready_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| engine_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| fetch_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| heap_samples | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| long_task_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| long_task_total_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| parse_end_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| peak_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| render_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| retained_heap_used_MiB | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_count | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_median_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_p95_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| step_unsupported | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| tti_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| tti_with_interaction_ms | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
 
 ## Every fixture
 
-first_paint `median / p95` per cell, then cold 1x JSHeapUsedSize median (MiB) and warm 1x tti_ms median. The full metric set per iteration is in the jsonl.
+first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize median (MiB) and warm 1x tti_ms median, each with its n. A cell with n < 5 or no samples shows no number. The full metric set per iteration is in the jsonl.
 
 ### xlsx S
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| bidi-arabic-hebrew-mixed | 3169 | 765 / 1521 | 2020 / 2127 | 713 / 1987 | - / - | 15 | 713 |
-| bidi-rtl-sheet | 3128 | 737 / 865 | 2094 / 2292 | 681 / 788 | - / - | 15.6 | 681 |
-| gen-xlsx-cells-1k | 8012 | 841 / 969 | 2162 / 2410 | 690 / 733 | 2346 / 2479 | 16.5 | 690 |
-| gen-xlsx-cells-1k-merges | 8204 | 756 / 808 | 2522 / 11009 | 773 / 1967 | - / - | 17.4 | 773 |
-| gen-xlsx-cells-1k-pad-s | 48160 | 752 / 775 | 2268 / 2554 | 738 / 864 | - / - | 18.7 | 738 |
-| real-xlsx-poi-45540_classic_Header | 40213 | 946 / 1603 | 2430 / 2769 | 765 / 1101 | - / - | 19.1 | 765 |
-| real-xlsx-poi-45544 | 43042 | 822 / 937 | 2351 / 2964 | 773 / 1087 | - / - | 19.3 | 773 |
-| real-xlsx-poi-49156 | 25064 | 729 / 837 | 2601 / 11511 | 731 / 784 | - / - | 17.4 | 731 |
-| real-xlsx-poi-56644 | 34412 | 937 / 2875 | 2401 / 2749 | 786 / 1805 | - / - | 18.6 | 786 |
-| real-xlsx-poi-61652 | 17614 | 857 / 1681 | 2380 / 2583 | 677 / 1051 | - / - | 16.4 | 677 |
-| real-xlsx-poi-DateFormatTests | 12394 | 981 / 1921 | 2614 / 2966 | - / - | - / - | 19.5 | - |
-| real-xlsx-poi-ExcelPivotTableSample | 19460 | 784 / 940 | 2444 / 2637 | - / - | - / - | 17.3 | - |
-| real-xlsx-poi-ExcelWithAttachments | 62646 | 1720 / 2299 | 2525 / 2818 | - / - | - / - | 17.9 | - |
-| real-xlsx-poi-FormulaEvalTestData_Copy | 65011 | 2204 / 2595 | 2775 / 3114 | - / - | - / - | 24.7 | - |
-| real-xlsx-poi-NewStyleConditionalFormattings | 13378 | 796 / 2120 | 2493 / 3128 | - / - | - / - | 16.8 | - |
-| real-xlsx-poi-test | 8566 | 1965 / 2476 | 2122 / 2366 | - / - | - / - | 16.5 | - |
-| real-xlsx-poi-WithEmbeded | 23668 | 887 / 1621 | 2512 / 2726 | - / - | - / - | 17.2 | - |
-| real-xlsx-python-pptx-shp-embedded-xlsx | 8250 | 771 / 816 | 2536 / 3033 | - / - | - / - | 15.4 | - |
-| real-xlsx-usgov-census-NST-EST2024-POP | 15507 | 837 / 944 | 2749 / 3187 | - / - | - / - | 18 | - |
-| real-xlsx-usgov-eia-MER-T01.01 | 77207 | 815 / 878 | 2600 / 3347 | - / - | - / - | 23.8 | - |
-| real-xlsx-usgov-fhwa-2022-vm1 | 35960 | 795 / 876 | 2954 / 3113 | - / - | - / - | 20.3 | - |
-| upstream-1a304a300451 | 6530 | 751 / 760 | 2431 / 2768 | - / - | - / - | 16.6 | - |
-| upstream-2ad922a2a025 | 23408 | 737 / 775 | 2317 / 2780 | - / - | - / - | 19.9 | - |
-| upstream-2f38830758e8 | 11258 | 720 / 803 | 2074 / 2380 | - / - | - / - | 17.8 | - |
-| upstream-3fdae3824dde | 6608 | 709 / 798 | 2046 / 2267 | - / - | - / - | 18.5 | - |
-| upstream-8b581ee14978 | 8648 | 721 / 761 | 1971 / 2018 | - / - | - / - | 17.8 | - |
-| upstream-9ed0ab63f8de | 16193 | 736 / 786 | 2054 / 2182 | - / - | - / - | 18.3 | - |
-| upstream-fd8fbde7846d | 4884 | 744 / 771 | 2452 / 2715 | - / - | - / - | 15.8 | - |
+| bidi-arabic-hebrew-mixed | 3169 | 765 / 1521 (n=10) | 2020 / 2127 (n=10) | 713 / 1987 (n=20) | no samples | 15 (n=10) | 713 (n=20) |
+| bidi-rtl-sheet | 3128 | 737 / 865 (n=10) | 2094 / 2292 (n=10) | 681 / 788 (n=20) | no samples | 15.6 (n=10) | 681 (n=20) |
+| gen-xlsx-cells-1k | 8012 | 841 / 969 (n=10) | 2162 / 2410 (n=10) | 690 / 733 (n=20) | 2346 / 2479 (n=20) | 16.5 (n=10) | 690 (n=20) |
+| gen-xlsx-cells-1k-merges | 8204 | 756 / 808 (n=10) | 2522 / 11009 (n=10) | 773 / 1967 (n=20) | no samples | 17.4 (n=10) | 773 (n=20) |
+| gen-xlsx-cells-1k-pad-s | 48160 | 752 / 775 (n=10) | 2268 / 2554 (n=10) | 738 / 864 (n=20) | no samples | 18.7 (n=10) | 738 (n=20) |
+| real-xlsx-poi-45540_classic_Header | 40213 | 946 / 1603 (n=10) | 2430 / 2769 (n=10) | 765 / 1101 (n=20) | no samples | 19.1 (n=10) | 765 (n=20) |
+| real-xlsx-poi-45544 | 43042 | 822 / 937 (n=10) | 2351 / 2964 (n=10) | 773 / 1087 (n=20) | no samples | 19.3 (n=10) | 773 (n=20) |
+| real-xlsx-poi-49156 | 25064 | 729 / 837 (n=10) | 2601 / 11511 (n=10) | 731 / 784 (n=20) | no samples | 17.4 (n=10) | 731 (n=20) |
+| real-xlsx-poi-56644 | 34412 | 937 / 2875 (n=10) | 2401 / 2749 (n=10) | 786 / 1805 (n=20) | no samples | 18.6 (n=10) | 786 (n=20) |
+| real-xlsx-poi-61652 | 17614 | 857 / 1681 (n=10) | 2380 / 2583 (n=10) | 677 / 1051 (n=20) | no samples | 16.4 (n=10) | 677 (n=20) |
+| real-xlsx-poi-DateFormatTests | 12394 | 981 / 1921 (n=10) | 2614 / 2966 (n=10) | no samples | no samples | 19.5 (n=10) | no samples |
+| real-xlsx-poi-ExcelPivotTableSample | 19460 | 784 / 940 (n=10) | 2444 / 2637 (n=10) | no samples | no samples | 17.3 (n=10) | no samples |
+| real-xlsx-poi-ExcelWithAttachments | 62646 | 1720 / 2299 (n=10) | 2525 / 2818 (n=10) | no samples | no samples | 17.9 (n=10) | no samples |
+| real-xlsx-poi-FormulaEvalTestData_Copy | 65011 | 2204 / 2595 (n=10) | 2775 / 3114 (n=10) | no samples | no samples | 24.7 (n=10) | no samples |
+| real-xlsx-poi-NewStyleConditionalFormattings | 13378 | 796 / 2120 (n=10) | 2493 / 3128 (n=10) | no samples | no samples | 16.8 (n=10) | no samples |
+| real-xlsx-poi-test | 8566 | 1965 / 2476 (n=10) | 2122 / 2366 (n=10) | no samples | no samples | 16.5 (n=10) | no samples |
+| real-xlsx-poi-WithEmbeded | 23668 | 887 / 1621 (n=11) | 2512 / 2726 (n=10) | no samples | no samples | 17.2 (n=11) | no samples |
+| real-xlsx-python-pptx-shp-embedded-xlsx | 8250 | 771 / 816 (n=10) | 2536 / 3033 (n=10) | no samples | no samples | 15.4 (n=10) | no samples |
+| real-xlsx-usgov-census-NST-EST2024-POP | 15507 | 837 / 944 (n=11) | 2749 / 3187 (n=10) | no samples | no samples | 18 (n=11) | no samples |
+| real-xlsx-usgov-eia-MER-T01.01 | 77207 | 815 / 878 (n=10) | 2600 / 3347 (n=10) | no samples | no samples | 23.8 (n=10) | no samples |
+| real-xlsx-usgov-fhwa-2022-vm1 | 35960 | 795 / 876 (n=10) | 2954 / 3113 (n=10) | no samples | no samples | 20.3 (n=10) | no samples |
+| upstream-1a304a300451 | 6530 | 751 / 760 (n=10) | 2431 / 2768 (n=10) | no samples | no samples | 16.6 (n=10) | no samples |
+| upstream-2ad922a2a025 | 23408 | 737 / 775 (n=10) | 2317 / 2780 (n=10) | no samples | no samples | 19.9 (n=10) | no samples |
+| upstream-2f38830758e8 | 11258 | 720 / 803 (n=10) | 2074 / 2380 (n=10) | no samples | no samples | 17.8 (n=10) | no samples |
+| upstream-3fdae3824dde | 6608 | 709 / 798 (n=10) | 2046 / 2267 (n=10) | no samples | no samples | 18.5 (n=10) | no samples |
+| upstream-8b581ee14978 | 8648 | 721 / 761 (n=10) | 1971 / 2018 (n=10) | no samples | no samples | 17.8 (n=10) | no samples |
+| upstream-9ed0ab63f8de | 16193 | 736 / 786 (n=10) | 2054 / 2182 (n=10) | no samples | no samples | 18.3 (n=10) | no samples |
+| upstream-fd8fbde7846d | 4884 | 744 / 771 (n=10) | 2452 / 2715 (n=10) | no samples | no samples | 15.8 (n=10) | no samples |
 
 ### xlsx M
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-xlsx-cells-100k | 503874 | 1007 / 1080 | 3083 / 3760 | 950 / 1063 | 3109 / 3575 | 75.3 | 950 |
-| gen-xlsx-cells-100k-b | 704900 | 1048 / 1758 | 2944 / 3104 | 929 / 2178 | - / - | 79.8 | 929 |
-| real-xlsx-poi-57181 | 334727 | 1023 / 1112 | 3004 / 3598 | 917 / 1133 | - / - | 149 | 917 |
-| real-xlsx-poi-ConditionalFormattingSamples | 654688 | 988 / 1224 | 3156 / 3421 | - / - | 2356 / 2356 | 18.9 | - |
-| real-xlsx-poi-dataValidationTableRange | 116554 | 917 / 1090 | 3226 / 3423 | - / - | - / - | 20.2 | - |
-| real-xlsx-poi-no_drawing_patriarch | 672414 | 3738 / 4370 | 5003 / 5330 | - / - | - / - | 68.2 | - |
-| real-xlsx-poi-StructuredRefs-lots-with-lookups | 325446 | 1021 / 1158 | 3808 / 4855 | - / - | - / - | 39.1 | - |
+| gen-xlsx-cells-100k | 503874 | 1007 / 1080 (n=10) | 3083 / 3760 (n=10) | 950 / 1063 (n=20) | 3109 / 3575 (n=20) | 75.3 (n=10) | 950 (n=20) |
+| gen-xlsx-cells-100k-b | 704900 | 1048 / 1758 (n=10) | 2944 / 3104 (n=11) | 929 / 2178 (n=20) | no samples | 79.8 (n=10) | 929 (n=20) |
+| real-xlsx-poi-57181 | 334727 | 1023 / 1112 (n=10) | 3004 / 3598 (n=10) | 917 / 1133 (n=20) | no samples | 149 (n=10) | 917 (n=20) |
+| real-xlsx-poi-ConditionalFormattingSamples | 654688 | 988 / 1224 (n=10) | 3156 / 3421 (n=10) | no samples | insufficient samples (n=1) | 18.9 (n=10) | no samples |
+| real-xlsx-poi-dataValidationTableRange | 116554 | 917 / 1090 (n=10) | 3226 / 3423 (n=10) | no samples | no samples | 20.2 (n=10) | no samples |
+| real-xlsx-poi-no_drawing_patriarch | 672414 | 3738 / 4370 (n=10) | 5003 / 5330 (n=10) | no samples | no samples | 68.2 (n=10) | no samples |
+| real-xlsx-poi-StructuredRefs-lots-with-lookups | 325446 | 1021 / 1158 (n=10) | 3808 / 4855 (n=10) | no samples | no samples | 39.1 (n=10) | no samples |
 
 ### xlsx L
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-xlsx-cells-1m | 5047589 | 1831 / 1880 | 6120 / 6477 | 1833 / 2119 | 7063 / 7868 | 111 | 1833 |
-| gen-xlsx-cells-1m-pad-l | 7066140 | 2278 / 2341 | 7791 / 7934 | 2272 / 2429 | 9108 / 9244 | 135 | 2272 |
-| gen-xlsx-cells-1m-pad-l2 | 9128751 | 2763 / 2779 | 9767 / 9842 | 2841 / 2847 | 12098 / 16234 | 145 | 2841 |
+| gen-xlsx-cells-1m | 5047589 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| gen-xlsx-cells-1m-pad-l | 7066140 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| gen-xlsx-cells-1m-pad-l2 | 9128751 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
 
 ### xlsx XL
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-xlsx-xl-b | 19232925 | 5864 / 7307 | 18639 / 23513 | 5171 / 5864 | 25226 / 26860 | 196 | 5171 |
-| gen-xlsx-xl-c | 21285768 | 5612 / 5894 | 24583 / 29921 | 5405 / 5599 | 22094 / 67599 | 209 | 5405 |
+| gen-xlsx-xl-b | 19232925 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| gen-xlsx-xl-c | 21285768 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
 
 ### docx S
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| bidi-arabic-hebrew-paragraphs | 2555 | 467 / 567 | 1129 / 1490 | 443 / 458 | 1096 / 1254 | 8.4 | 443 |
-| gen-docx-equation | 2356 | 452 / 472 | 1009 / 1082 | 437 / 1853 | 1038 / 1157 | 7.8 | 437 |
-| gen-docx-line-numbers | 2335 | 455 / 485 | 1016 / 1073 | 478 / 660 | 1001 / 1128 | 7.8 | 478 |
-| gen-docx-page-borders | 2371 | 443 / 456 | 1035 / 1240 | 449 / 531 | 999 / 1072 | 7.7 | 449 |
-| gen-docx-pages-10 | 2945 | 447 / 463 | 1046 / 1069 | 451 / 485 | 1024 / 1075 | 10.6 | 451 |
-| gen-docx-pages-10-b | 32551 | 448 / 458 | 1030 / 1129 | 444 / 515 | 1047 / 1095 | 9.8 | 444 |
-| gen-docx-pages-10-c | 52622 | 458 / 468 | 1023 / 1053 | 444 / 485 | 1058 / 1093 | 9.3 | 444 |
-| real-docx-poi-45690 | 49596 | 643 / 701 | 1434 / 1557 | 626 / 671 | 1501 / 1562 | 21.5 | 626 |
-| real-docx-poi-58067 | 28709 | 468 / 517 | 1062 / 1085 | 442 / 468 | 1063 / 1113 | 8.4 | 442 |
-| real-docx-poi-60158 | 15617 | 478 / 495 | 1038 / 1110 | 453 / 542 | 1039 / 1133 | 9.3 | 453 |
-| real-docx-poi-60316.docx | 59583 | 514 / 526 | 993 / 1099 | 484 / 501 | 1023 / 1073 | 10.4 | 484 |
-| real-docx-poi-60316.dotx | 59583 | 508 / 562 | 1023 / 1184 | 472 / 546 | 951 / 951 | 9.6 | 472 |
-| real-docx-poi-60329 | 31124 | 512 / 542 | 1007 / 1189 | 494 / 561 | 1014 / 1096 | 10.8 | 494 |
-| real-docx-poi-61470 | 12523 | 535 / 596 | 1053 / 1092 | 435 / 470 | 1112 / 1255 | 8.7 | 435 |
-| real-docx-poi-61745 | 37030 | 505 / 567 | 966 / 1055 | 482 / 516 | 995 / 1039 | 10.7 | 482 |
-| real-docx-poi-delins | 17720 | 1001 / 3579 | 1044 / 1072 | 508 / 551 | 1062 / 1100 | 15.4 | 508 |
-| real-docx-poi-endnotes | 13553 | 497 / 517 | 1099 / 1132 | 461 / 497 | 1177 / 1271 | 10.4 | 461 |
-| real-docx-poi-form_footnotes | 27824 | 675 / 763 | 1328 / 1345 | 632 / 681 | 1344 / 1418 | 17 | 632 |
-| real-docx-poi-SimpleMacro | 15517 | 474 / 509 | 1004 / 1031 | 467 / 509 | 1046 / 1136 | 8.7 | 467 |
-| real-docx-poi-testComment | 65298 | 490 / 531 | 1048 / 1117 | 469 / 494 | 1056 / 1106 | 10.2 | 469 |
-| real-docx-python-docx-blk-paras-and-tables | 15649 | 904 / 2341 | 1078 / 1133 | 478 / 515 | 1100 / 1176 | 9.9 | 478 |
-| real-docx-python-docx-comments-rich-para | 20023 | 648 / 866 | 1084 / 1123 | 508 / 3767 | 1076 / 1152 | 11.3 | 508 |
-| real-docx-python-docx-doc-access-sections | 25591 | 551 / 643 | 1350 / 9500 | 475 / 524 | 1044 / 1066 | 9.5 | 475 |
-| real-docx-python-docx-hdr-header-footer | 18079 | 527 / 652 | 1189 / 1338 | 481 / 557 | 1072 / 1117 | 10.7 | 481 |
-| real-docx-python-docx-sct-first-page-hdrftr | 14849 | 485 / 532 | 1172 / 1232 | 469 / 557 | 1097 / 1180 | 11.4 | 469 |
-| real-docx-python-docx-sct-inner-content | 12051 | 497 / 560 | 1232 / 1325 | 469 / 498 | 1135 / 3502 | 9.8 | 469 |
-| real-docx-python-docx-sct-section-props | 28168 | 485 / 515 | 1188 / 1390 | 445 / 460 | 1220 / 1351 | 11 | 445 |
-| real-docx-python-docx-tbl-cell-access | 36051 | 494 / 522 | 1166 / 1219 | 458 / 479 | 1144 / 1242 | 10.4 | 458 |
-| real-docx-python-docx-tbl-cell-props | 13773 | 510 / 548 | 1151 / 1195 | 447 / 463 | 1116 / 1255 | 8.6 | 447 |
-| real-docx-python-docx-tbl-on-off-props | 16017 | 475 / 523 | 1109 / 1147 | 451 / 478 | 1155 / 1303 | 10.9 | 451 |
-| upstream-080e7a9ed483 | 20536 | 543 / 607 | 1032 / 1125 | 475 / 493 | 1063 / 1330 | 10.6 | 475 |
-| upstream-0bb200a07072 | 13527 | 498 / 561 | 1037 / 1220 | 460 / 485 | 1098 / 1178 | 9.1 | 460 |
-| upstream-0f300490ff19 | 66656 | 499 / 551 | 1135 / 1174 | 453 / 480 | 1100 / 1205 | 8.5 | 453 |
-| upstream-1692c4faac3f | 13467 | 491 / 504 | 1134 / 1154 | 457 / 485 | 1121 / 1203 | 9.7 | 457 |
-| upstream-1b612449941b | 13471 | 531 / 602 | 1115 / 1372 | 458 / 472 | 1099 / 1128 | 8.7 | 458 |
-| upstream-2286e4c70c12 | 27897 | 499 / 529 | 1117 / 1166 | 477 / 496 | 1087 / 1144 | 11.1 | 477 |
-| upstream-29be1efc9c3d | 13470 | 472 / 492 | 1121 / 1168 | 458 / 477 | 1144 / 1262 | 10.3 | 458 |
-| upstream-32cff54a4770 | 13550 | 478 / 558 | 1103 / 1168 | 456 / 490 | 1128 / 1165 | 10.1 | 456 |
-| upstream-3bba00c30a63 | 13372 | 468 / 511 | 1078 / 1108 | 456 / 474 | 1108 / 1147 | 8.6 | 456 |
-| upstream-3c4c6a9cf4af | 13487 | 472 / 489 | 1115 / 1165 | 451 / 474 | 1100 / 1157 | 9.1 | 451 |
-| upstream-3d223dd77c43 | 20392 | 476 / 488 | 1148 / 1389 | 465 / 483 | 1019 / 1063 | 10.5 | 465 |
-| upstream-40b102dde450 | 3025 | 447 / 456 | 1178 / 1242 | 435 / 456 | 1054 / 1116 | 8.2 | 435 |
-| upstream-550ae83cbef3 | 13385 | 471 / 487 | 1160 / 1187 | 459 / 512 | 1156 / 4608 | 9.1 | 459 |
-| upstream-5cc31b4c9d7f | 13319 | 476 / 538 | 1109 / 1175 | 450 / 480 | 1094 / 1193 | 8.6 | 450 |
-| upstream-6273dd165e65 | 13442 | 470 / 512 | 1127 / 1151 | 442 / 457 | 1110 / 1190 | 8.6 | 442 |
-| upstream-6b3e72a4117c | 13993 | 457 / 476 | 1146 / 1177 | 441 / 459 | 1104 / 1158 | 9 | 441 |
-| upstream-6bf50c3ab07a | 17006 | 473 / 515 | 1059 / 1150 | 453 / 474 | 1091 / 3822 | 9.8 | 453 |
-| upstream-6f5fb53227d1 | 14311 | 468 / 483 | 1082 / 1160 | 452 / 466 | 1107 / 1210 | 8.7 | 452 |
-| upstream-76e15769e470 | 13564 | 474 / 503 | 1049 / 1175 | 453 / 469 | 1116 / 1214 | 10.4 | 453 |
-| upstream-78718f952976 | 13421 | 484 / 513 | 1147 / 1216 | 459 / 478 | 1109 / 1154 | 8.7 | 459 |
-| upstream-855d0845e0a3 | 14271 | 470 / 487 | 1109 / 1218 | 457 / 495 | 1104 / 1164 | 8.6 | 457 |
-| upstream-909716f36698 | 13414 | 460 / 487 | 1148 / 6198 | 458 / 486 | 1100 / 1137 | 9 | 458 |
-| upstream-9815f4cd7f0c | 13329 | 470 / 488 | 1097 / 1158 | 452 / 1672 | 1078 / 1154 | 8.6 | 452 |
-| upstream-988079b295a0 | 13390 | 468 / 485 | 1270 / 10018 | 444 / 462 | 1069 / 1151 | 8.6 | 444 |
-| upstream-a448854a0a41 | 13540 | 469 / 541 | 1263 / 4255 | 453 / 1683 | 1060 / 1122 | 9.7 | 453 |
-| upstream-af08a8c3fa8a | 13416 | 473 / 536 | 1156 / 1235 | 446 / 465 | 1079 / 1129 | 9 | 446 |
-| upstream-b55bb79d882f | 12787 | 459 / 475 | 1154 / 1254 | 457 / 2587 | 1054 / 1106 | 10.3 | 457 |
-| upstream-b925c014f155 | 13472 | 469 / 486 | 1178 / 1260 | 502 / 582 | 1112 / 1190 | 9.4 | 502 |
-| upstream-b964914b1e51 | 27723 | 523 / 570 | 1271 / 1286 | 501 / 541 | 1086 / 1152 | 13.8 | 501 |
-| upstream-bdfae0732058 | 13451 | 481 / 524 | 1134 / 1201 | 455 / 504 | 1097 / 2187 | 10.2 | 455 |
-| upstream-c5fb4971e483 | 13465 | 479 / 529 | 1059 / 1190 | 444 / 473 | 1116 / 5373 | 10.1 | 444 |
-| upstream-d3a6896f9b3b | 13346 | 491 / 500 | 1090 / 1208 | 439 / 500 | 1412 / 1498 | 8.7 | 439 |
-| upstream-d3f43e83fa1c | 13994 | 458 / 485 | 1168 / 1255 | 451 / 478 | 1040 / 1099 | 9 | 451 |
-| upstream-e8c1eeb1c1fc | 13346 | 475 / 502 | 1110 / 1249 | 441 / 471 | 1078 / 2174 | 8.6 | 441 |
-| upstream-ea1f61c3afec | 13436 | 482 / 529 | 1079 / 1144 | 443 / 538 | 1083 / 5099 | 9 | 443 |
-| upstream-ee04bf55d0ca | 13472 | 485 / 509 | 1079 / 1187 | 452 / 478 | 1398 / 2356 | 9.7 | 452 |
-| upstream-eec2ebea615c | 27724 | 535 / 577 | 1199 / 1405 | 488 / 516 | 1323 / 1747 | 13.8 | 488 |
-| upstream-f7dc2db85d04 | 7808 | 471 / 489 | 1208 / 1364 | 450 / 487 | 1281 / 1353 | 10.9 | 450 |
-| upstream-fcbf74492e08 | 17383 | 588 / 612 | 1250 / 1408 | 565 / 656 | 1360 / 1504 | 13.9 | 565 |
-| upstream-fd702db2416c | 13821 | 505 / 576 | 1113 / 1284 | 465 / 508 | 1139 / 1259 | 10.9 | 465 |
+| bidi-arabic-hebrew-paragraphs | 2555 | 467 / 567 (n=10) | 1129 / 1490 (n=10) | 443 / 458 (n=20) | 1096 / 1254 (n=20) | 8.4 (n=10) | 443 (n=20) |
+| gen-docx-equation | 2356 | 452 / 472 (n=10) | 1009 / 1082 (n=10) | 437 / 1853 (n=20) | 1038 / 1157 (n=20) | 7.8 (n=10) | 437 (n=20) |
+| gen-docx-line-numbers | 2335 | 455 / 485 (n=10) | 1016 / 1073 (n=10) | 478 / 660 (n=20) | 1001 / 1128 (n=20) | 7.8 (n=10) | 478 (n=20) |
+| gen-docx-page-borders | 2371 | 443 / 456 (n=10) | 1035 / 1240 (n=10) | 449 / 531 (n=20) | 999 / 1072 (n=20) | 7.7 (n=10) | 449 (n=20) |
+| gen-docx-pages-10 | 2945 | 447 / 463 (n=10) | 1046 / 1069 (n=10) | 451 / 485 (n=20) | 1024 / 1075 (n=20) | 10.6 (n=10) | 451 (n=20) |
+| gen-docx-pages-10-b | 32551 | 448 / 458 (n=10) | 1030 / 1129 (n=10) | 444 / 515 (n=20) | 1047 / 1095 (n=20) | 9.8 (n=10) | 444 (n=20) |
+| gen-docx-pages-10-c | 52622 | 458 / 468 (n=10) | 1023 / 1053 (n=10) | 444 / 485 (n=20) | 1058 / 1093 (n=20) | 9.3 (n=10) | 444 (n=20) |
+| real-docx-poi-45690 | 49596 | 643 / 701 (n=10) | 1434 / 1557 (n=10) | 626 / 671 (n=20) | 1501 / 1562 (n=20) | 21.5 (n=10) | 626 (n=20) |
+| real-docx-poi-58067 | 28709 | 468 / 517 (n=10) | 1062 / 1085 (n=10) | 442 / 468 (n=20) | 1063 / 1113 (n=20) | 8.4 (n=10) | 442 (n=20) |
+| real-docx-poi-60158 | 15617 | 478 / 495 (n=10) | 1038 / 1110 (n=10) | 453 / 542 (n=20) | 1039 / 1133 (n=20) | 9.3 (n=10) | 453 (n=20) |
+| real-docx-poi-60316.docx | 59583 | 514 / 526 (n=10) | 993 / 1099 (n=10) | 484 / 501 (n=20) | 1023 / 1073 (n=20) | 10.4 (n=10) | 484 (n=20) |
+| real-docx-poi-60316.dotx | 59583 | 508 / 562 (n=10) | 1023 / 1184 (n=10) | 472 / 546 (n=20) | insufficient samples (n=1) | 9.6 (n=10) | 472 (n=20) |
+| real-docx-poi-60329 | 31124 | 512 / 542 (n=10) | 1007 / 1189 (n=10) | 494 / 561 (n=20) | 1014 / 1096 (n=20) | 10.8 (n=10) | 494 (n=20) |
+| real-docx-poi-61470 | 12523 | 535 / 596 (n=10) | 1053 / 1092 (n=10) | 435 / 470 (n=20) | 1112 / 1255 (n=20) | 8.7 (n=10) | 435 (n=20) |
+| real-docx-poi-61745 | 37030 | 505 / 567 (n=10) | 966 / 1055 (n=10) | 482 / 516 (n=20) | 995 / 1039 (n=20) | 10.7 (n=10) | 482 (n=20) |
+| real-docx-poi-delins | 17720 | 1001 / 3579 (n=10) | 1044 / 1072 (n=10) | 508 / 551 (n=20) | 1062 / 1100 (n=20) | 15.4 (n=10) | 508 (n=20) |
+| real-docx-poi-endnotes | 13553 | 497 / 517 (n=10) | 1099 / 1132 (n=10) | 461 / 497 (n=20) | 1177 / 1271 (n=20) | 10.4 (n=10) | 461 (n=20) |
+| real-docx-poi-form_footnotes | 27824 | 675 / 763 (n=10) | 1328 / 1345 (n=10) | 632 / 681 (n=20) | 1344 / 1418 (n=20) | 17 (n=10) | 632 (n=20) |
+| real-docx-poi-SimpleMacro | 15517 | 474 / 509 (n=10) | 1004 / 1031 (n=10) | 467 / 509 (n=20) | 1046 / 1136 (n=20) | 8.7 (n=10) | 467 (n=20) |
+| real-docx-poi-testComment | 65298 | 490 / 531 (n=10) | 1048 / 1117 (n=10) | 469 / 494 (n=20) | 1056 / 1106 (n=20) | 10.2 (n=10) | 469 (n=20) |
+| real-docx-python-docx-blk-paras-and-tables | 15649 | 904 / 2341 (n=10) | 1078 / 1133 (n=10) | 478 / 515 (n=20) | 1100 / 1176 (n=20) | 9.9 (n=10) | 478 (n=20) |
+| real-docx-python-docx-comments-rich-para | 20023 | 648 / 866 (n=10) | 1084 / 1123 (n=10) | 508 / 3767 (n=20) | 1076 / 1152 (n=20) | 11.3 (n=10) | 508 (n=20) |
+| real-docx-python-docx-doc-access-sections | 25591 | 551 / 643 (n=10) | 1350 / 9500 (n=10) | 475 / 524 (n=20) | 1044 / 1066 (n=20) | 9.5 (n=10) | 475 (n=20) |
+| real-docx-python-docx-hdr-header-footer | 18079 | 527 / 652 (n=10) | 1189 / 1338 (n=10) | 481 / 557 (n=20) | 1072 / 1117 (n=20) | 10.7 (n=10) | 481 (n=20) |
+| real-docx-python-docx-sct-first-page-hdrftr | 14849 | 485 / 532 (n=10) | 1172 / 1232 (n=10) | 469 / 557 (n=20) | 1097 / 1180 (n=20) | 11.4 (n=10) | 469 (n=20) |
+| real-docx-python-docx-sct-inner-content | 12051 | 497 / 560 (n=10) | 1232 / 1325 (n=10) | 469 / 498 (n=20) | 1135 / 3502 (n=20) | 9.8 (n=10) | 469 (n=20) |
+| real-docx-python-docx-sct-section-props | 28168 | 485 / 515 (n=10) | 1188 / 1390 (n=10) | 445 / 460 (n=20) | 1220 / 1351 (n=20) | 11 (n=10) | 445 (n=20) |
+| real-docx-python-docx-tbl-cell-access | 36051 | 494 / 522 (n=10) | 1166 / 1219 (n=10) | 458 / 479 (n=20) | 1144 / 1242 (n=20) | 10.4 (n=10) | 458 (n=20) |
+| real-docx-python-docx-tbl-cell-props | 13773 | 510 / 548 (n=10) | 1151 / 1195 (n=10) | 447 / 463 (n=20) | 1116 / 1255 (n=20) | 8.6 (n=10) | 447 (n=20) |
+| real-docx-python-docx-tbl-on-off-props | 16017 | 475 / 523 (n=10) | 1109 / 1147 (n=10) | 451 / 478 (n=20) | 1155 / 1303 (n=20) | 10.9 (n=10) | 451 (n=20) |
+| upstream-080e7a9ed483 | 20536 | 543 / 607 (n=10) | 1032 / 1125 (n=10) | 475 / 493 (n=20) | 1063 / 1330 (n=20) | 10.6 (n=10) | 475 (n=20) |
+| upstream-0bb200a07072 | 13527 | 498 / 561 (n=10) | 1037 / 1220 (n=10) | 460 / 485 (n=20) | 1098 / 1178 (n=20) | 9.1 (n=10) | 460 (n=20) |
+| upstream-0f300490ff19 | 66656 | 499 / 551 (n=10) | 1135 / 1174 (n=10) | 453 / 480 (n=20) | 1100 / 1205 (n=20) | 8.5 (n=10) | 453 (n=20) |
+| upstream-1692c4faac3f | 13467 | 491 / 504 (n=10) | 1134 / 1154 (n=10) | 457 / 485 (n=20) | 1121 / 1203 (n=20) | 9.7 (n=10) | 457 (n=20) |
+| upstream-1b612449941b | 13471 | 531 / 602 (n=10) | 1115 / 1372 (n=10) | 458 / 472 (n=20) | 1099 / 1128 (n=20) | 8.7 (n=10) | 458 (n=20) |
+| upstream-2286e4c70c12 | 27897 | 499 / 529 (n=10) | 1117 / 1166 (n=10) | 477 / 496 (n=20) | 1087 / 1144 (n=20) | 11.1 (n=10) | 477 (n=20) |
+| upstream-29be1efc9c3d | 13470 | 472 / 492 (n=10) | 1121 / 1168 (n=10) | 458 / 477 (n=20) | 1144 / 1262 (n=20) | 10.3 (n=10) | 458 (n=20) |
+| upstream-32cff54a4770 | 13550 | 478 / 558 (n=10) | 1103 / 1168 (n=10) | 456 / 490 (n=20) | 1128 / 1165 (n=20) | 10.1 (n=10) | 456 (n=20) |
+| upstream-3bba00c30a63 | 13372 | 468 / 511 (n=10) | 1078 / 1108 (n=10) | 456 / 474 (n=20) | 1108 / 1147 (n=20) | 8.6 (n=10) | 456 (n=20) |
+| upstream-3c4c6a9cf4af | 13487 | 472 / 489 (n=10) | 1115 / 1165 (n=10) | 451 / 474 (n=20) | 1100 / 1157 (n=20) | 9.1 (n=10) | 451 (n=20) |
+| upstream-3d223dd77c43 | 20392 | 476 / 488 (n=10) | 1148 / 1389 (n=10) | 465 / 483 (n=20) | 1019 / 1063 (n=20) | 10.5 (n=10) | 465 (n=20) |
+| upstream-40b102dde450 | 3025 | 447 / 456 (n=10) | 1178 / 1242 (n=10) | 435 / 456 (n=20) | 1054 / 1116 (n=20) | 8.2 (n=10) | 435 (n=20) |
+| upstream-550ae83cbef3 | 13385 | 471 / 487 (n=10) | 1160 / 1187 (n=10) | 459 / 512 (n=20) | 1156 / 4608 (n=20) | 9.1 (n=10) | 459 (n=20) |
+| upstream-5cc31b4c9d7f | 13319 | 476 / 538 (n=10) | 1109 / 1175 (n=10) | 450 / 480 (n=20) | 1094 / 1193 (n=20) | 8.6 (n=10) | 450 (n=20) |
+| upstream-6273dd165e65 | 13442 | 470 / 512 (n=10) | 1127 / 1151 (n=10) | 442 / 457 (n=20) | 1110 / 1190 (n=20) | 8.6 (n=10) | 442 (n=20) |
+| upstream-6b3e72a4117c | 13993 | 457 / 476 (n=10) | 1146 / 1177 (n=10) | 441 / 459 (n=20) | 1104 / 1158 (n=20) | 9 (n=10) | 441 (n=20) |
+| upstream-6bf50c3ab07a | 17006 | 473 / 515 (n=10) | 1059 / 1150 (n=10) | 453 / 474 (n=20) | 1091 / 3822 (n=20) | 9.8 (n=10) | 453 (n=20) |
+| upstream-6f5fb53227d1 | 14311 | 468 / 483 (n=10) | 1082 / 1160 (n=10) | 452 / 466 (n=20) | 1107 / 1210 (n=20) | 8.7 (n=10) | 452 (n=20) |
+| upstream-76e15769e470 | 13564 | 474 / 503 (n=10) | 1049 / 1175 (n=10) | 453 / 469 (n=20) | 1116 / 1214 (n=20) | 10.4 (n=10) | 453 (n=20) |
+| upstream-78718f952976 | 13421 | 484 / 513 (n=10) | 1147 / 1216 (n=10) | 459 / 478 (n=20) | 1109 / 1154 (n=20) | 8.7 (n=10) | 459 (n=20) |
+| upstream-855d0845e0a3 | 14271 | 470 / 487 (n=10) | 1109 / 1218 (n=10) | 457 / 495 (n=20) | 1104 / 1164 (n=20) | 8.6 (n=10) | 457 (n=20) |
+| upstream-909716f36698 | 13414 | 460 / 487 (n=10) | 1148 / 6198 (n=10) | 458 / 486 (n=20) | 1100 / 1137 (n=20) | 9 (n=10) | 458 (n=20) |
+| upstream-9815f4cd7f0c | 13329 | 470 / 488 (n=10) | 1097 / 1158 (n=10) | 452 / 1672 (n=20) | 1078 / 1154 (n=20) | 8.6 (n=10) | 452 (n=20) |
+| upstream-988079b295a0 | 13390 | 468 / 485 (n=10) | 1270 / 10018 (n=10) | 444 / 462 (n=20) | 1069 / 1151 (n=20) | 8.6 (n=10) | 444 (n=20) |
+| upstream-a448854a0a41 | 13540 | 469 / 541 (n=10) | 1263 / 4255 (n=10) | 453 / 1683 (n=20) | 1060 / 1122 (n=20) | 9.7 (n=10) | 453 (n=20) |
+| upstream-af08a8c3fa8a | 13416 | 473 / 536 (n=10) | 1156 / 1235 (n=10) | 446 / 465 (n=20) | 1079 / 1129 (n=20) | 9 (n=10) | 446 (n=20) |
+| upstream-b55bb79d882f | 12787 | 459 / 475 (n=10) | 1154 / 1254 (n=10) | 457 / 2587 (n=20) | 1054 / 1106 (n=20) | 10.3 (n=10) | 457 (n=20) |
+| upstream-b925c014f155 | 13472 | 469 / 486 (n=10) | 1178 / 1260 (n=10) | 502 / 582 (n=20) | 1112 / 1190 (n=20) | 9.4 (n=10) | 502 (n=20) |
+| upstream-b964914b1e51 | 27723 | 523 / 570 (n=10) | 1271 / 1286 (n=10) | 501 / 541 (n=20) | 1086 / 1152 (n=20) | 13.8 (n=10) | 501 (n=20) |
+| upstream-bdfae0732058 | 13451 | 481 / 524 (n=10) | 1134 / 1201 (n=10) | 455 / 504 (n=20) | 1097 / 2187 (n=20) | 10.2 (n=10) | 455 (n=20) |
+| upstream-c5fb4971e483 | 13465 | 479 / 529 (n=10) | 1059 / 1190 (n=10) | 444 / 473 (n=20) | 1116 / 5373 (n=20) | 10.1 (n=10) | 444 (n=20) |
+| upstream-d3a6896f9b3b | 13346 | 491 / 500 (n=10) | 1090 / 1208 (n=10) | 439 / 500 (n=20) | 1412 / 1498 (n=20) | 8.7 (n=10) | 439 (n=20) |
+| upstream-d3f43e83fa1c | 13994 | 458 / 485 (n=10) | 1168 / 1255 (n=10) | 451 / 478 (n=20) | 1040 / 1099 (n=20) | 9 (n=10) | 451 (n=20) |
+| upstream-e8c1eeb1c1fc | 13346 | 475 / 502 (n=10) | 1110 / 1249 (n=10) | 441 / 471 (n=20) | 1078 / 2174 (n=20) | 8.6 (n=10) | 441 (n=20) |
+| upstream-ea1f61c3afec | 13436 | 482 / 529 (n=10) | 1079 / 1144 (n=10) | 443 / 538 (n=20) | 1083 / 5099 (n=20) | 9 (n=10) | 443 (n=20) |
+| upstream-ee04bf55d0ca | 13472 | 485 / 509 (n=10) | 1079 / 1187 (n=10) | 452 / 478 (n=20) | 1398 / 2356 (n=20) | 9.7 (n=10) | 452 (n=20) |
+| upstream-eec2ebea615c | 27724 | 535 / 577 (n=10) | 1199 / 1405 (n=10) | 488 / 516 (n=20) | 1323 / 1747 (n=20) | 13.8 (n=10) | 488 (n=20) |
+| upstream-f7dc2db85d04 | 7808 | 471 / 489 (n=10) | 1208 / 1364 (n=10) | 450 / 487 (n=20) | 1281 / 1353 (n=20) | 10.9 (n=10) | 450 (n=20) |
+| upstream-fcbf74492e08 | 17383 | 588 / 612 (n=10) | 1250 / 1408 (n=10) | 565 / 656 (n=20) | 1360 / 1504 (n=20) | 13.9 (n=10) | 565 (n=20) |
+| upstream-fd702db2416c | 13821 | 505 / 576 (n=10) | 1113 / 1284 (n=10) | 465 / 508 (n=20) | 1139 / 1259 (n=20) | 10.9 (n=10) | 465 (n=20) |
 
 ### docx M
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-docx-pages-100 | 403491 | 497 / 537 | 1217 / 1248 | 470 / 501 | 1221 / 1287 | 10.4 | 470 |
-| gen-docx-pages-100-b | 603043 | 495 / 606 | 1261 / 1510 | 495 / 1081 | 1291 / 1447 | 11.2 | 495 |
-| gen-docx-pages-100-c | 703586 | 499 / 527 | 1258 / 1428 | 491 / 566 | 1267 / 1388 | 10.8 | 491 |
-| real-docx-poi-chartex | 133304 | 512 / 570 | 1047 / 1084 | 505 / 529 | 1044 / 1102 | 12.4 | 505 |
-| real-docx-poi-WordWithAttachments | 144959 | 519 / 555 | 1032 / 1048 | 496 / 564 | 1165 / 1244 | 10 | 496 |
-| real-docx-python-docx-having-images | 132875 | 503 / 575 | 1244 / 1296 | 475 / 537 | 1068 / 1186 | 8.3 | 475 |
-| real-docx-python-docx-shp-inline-shape-access | 122610 | 521 / 587 | 1060 / 1194 | 515 / 618 | 1085 / 1250 | 11.6 | 515 |
+| gen-docx-pages-100 | 403491 | 497 / 537 (n=10) | 1217 / 1248 (n=10) | 470 / 501 (n=20) | 1221 / 1287 (n=19) | 10.4 (n=10) | 470 (n=20) |
+| gen-docx-pages-100-b | 603043 | 495 / 606 (n=10) | 1261 / 1510 (n=10) | 495 / 1081 (n=20) | 1291 / 1447 (n=20) | 11.2 (n=10) | 495 (n=20) |
+| gen-docx-pages-100-c | 703586 | 499 / 527 (n=10) | 1258 / 1428 (n=10) | 491 / 566 (n=20) | 1267 / 1388 (n=20) | 10.8 (n=10) | 491 (n=20) |
+| real-docx-poi-chartex | 133304 | 512 / 570 (n=10) | 1047 / 1084 (n=10) | 505 / 529 (n=20) | 1044 / 1102 (n=20) | 12.4 (n=10) | 505 (n=20) |
+| real-docx-poi-WordWithAttachments | 144959 | 519 / 555 (n=10) | 1032 / 1048 (n=10) | 496 / 564 (n=20) | 1165 / 1244 (n=20) | 10 (n=10) | 496 (n=20) |
+| real-docx-python-docx-having-images | 132875 | 503 / 575 (n=10) | 1244 / 1296 (n=10) | 475 / 537 (n=20) | 1068 / 1186 (n=20) | 8.3 (n=10) | 475 (n=20) |
+| real-docx-python-docx-shp-inline-shape-access | 122610 | 521 / 587 (n=10) | 1060 / 1194 (n=10) | 515 / 618 (n=20) | 1085 / 1250 (n=20) | 11.6 (n=10) | 515 (n=20) |
 
 ### pptx S
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| bidi-arabic-hebrew-slides | 5326 | 1376 / 1518 | 4412 / 4632 | 1233 / 1367 | 4886 / 5266 | 36.4 | 1233 |
-| gen-pptx-activex | 5876 | 1245 / 1322 | 4492 / 4904 | 1197 / 1229 | 4605 / 25017 | 36.1 | 1197 |
-| gen-pptx-model3d | 5434 | 1263 / 1315 | 5114 / 14160 | 1191 / 1238 | 4103 / 4563 | 36.1 | 1191 |
-| gen-pptx-notes-print | 6408 | 1274 / 1369 | 5433 / 6491 | 1194 / 1336 | 4170 / 4330 | 36.3 | 1194 |
-| gen-pptx-slides-10 | 11993 | 1425 / 1571 | 5601 / 9318 | 1287 / 5023 | 4866 / 6079 | 63.3 | 1287 |
-| gen-pptx-slides-10-b | 52143 | 1374 / 1536 | 4637 / 5041 | 1241 / 1305 | 4679 / 6374 | 63.2 | 1241 |
-| gen-pptx-zoom | 6048 | 1276 / 1329 | 4711 / 5087 | 1197 / 1357 | 4709 / 5296 | 41.5 | 1197 |
-| real-pptx-poi-51187 | 45681 | 1375 / 1461 | 4899 / 5060 | 1306 / 1400 | 4747 / 5078 | 44.2 | 1306 |
-| real-pptx-poi-bug68703 | 60711 | 1519 / 7776 | 5098 / 5395 | 1437 / 2064 | 4396 / 4477 | 43.8 | 1437 |
-| real-pptx-poi-EmbeddedAudio | 90047 | 1431 / 1510 | 5012 / 5230 | 1269 / 1314 | 5143 / 5699 | 43.5 | 1269 |
-| real-pptx-poi-SimpleMacro | 41578 | 1421 / 57627 | 4965 / 5342 | 1251 / 1315 | 4845 / 5508 | 42.3 | 1251 |
-| real-pptx-poi-with_japanese | 48011 | 1390 / 1709 | 4842 / 5145 | 1374 / 1467 | 4981 / 20080 | 40.5 | 1374 |
-| real-pptx-python-pptx-cht-charts | 77751 | 1277 / 1465 | 4692 / 5087 | 1317 / 1397 | 4140 / 4475 | 44.1 | 1317 |
-| real-pptx-python-pptx-shp-access-chart | 80038 | 1265 / 1364 | 4761 / 5274 | 1348 / 1757 | 4527 / 4790 | 40.2 | 1348 |
-| real-pptx-python-pptx-shp-common-props | 81639 | 1291 / 1412 | 4776 / 12023 | 1361 / 1463 | 4610 / 4800 | 44.3 | 1361 |
-| real-pptx-python-pptx-test_slides | 38616 | 1340 / 1419 | 5716 / 6246 | 1380 / 1684 | 4689 / 4950 | 45.5 | 1380 |
-| real-pptx-python-pptx-txt-font-typeface | 25817 | 1279 / 1310 | 5467 / 5773 | 1367 / 1430 | 5039 / 19183 | 42.7 | 1367 |
-| upstream-091abf411e47 | 77574 | 1379 / 1417 | 6169 / 12725 | 1483 / 1603 | 5119 / 5506 | 64 | 1483 |
-| upstream-098b900e8f10 | 49972 | 1388 / 1431 | 5651 / 6566 | 1489 / 1702 | 5146 / 6158 | 47.4 | 1489 |
-| upstream-0c4571a8c30e | 35968 | 1303 / 1346 | 5235 / 5438 | 1412 / 1496 | 4601 / 4942 | 49.3 | 1412 |
-| upstream-0c7e49afbe04 | 16244 | 1293 / 1376 | 4951 / 5215 | 1388 / 1567 | 4255 / 4585 | 39.9 | 1388 |
-| upstream-0d9a8eaf2de4 | 89162 | 1406 / 1467 | 5919 / 55683 | 1679 / 4305 | 6316 / 8539 | 67.3 | 1679 |
-| upstream-165297e1d546 | 16072 | 1239 / 1272 | 5826 / 17453 | 1888 / 2765 | 5121 / 5933 | 39.4 | 1888 |
-| upstream-169be9b132ef | 5904 | 1220 / 1300 | 5446 / 5909 | 1330 / 1376 | 4586 / 18965 | 36.7 | 1330 |
-| upstream-1abd9b12cb19 | 40866 | 1350 / 1400 | 5667 / 6014 | 1404 / 1497 | 4850 / 5454 | 58.4 | 1404 |
-| upstream-1b3ce5863e04 | 16089 | 1244 / 1325 | 5847 / 31236 | 1346 / 1507 | 4691 / 4946 | 43.1 | 1346 |
-| upstream-1e19dbff1286 | 17695 | 1253 / 1280 | 5253 / 5934 | 1422 / 1671 | 4675 / 24714 | 41.3 | 1422 |
-| upstream-21343018c511 | 44607 | 1303 / 1336 | 5279 / 5492 | 1423 / 1573 | 4579 / 5209 | 39.7 | 1423 |
-| upstream-25ceccfae63d | 17929 | 1252 / 1398 | 4952 / 5381 | 2468 / 3406 | 5119 / 5443 | 42.6 | 2468 |
-| upstream-2b363b2c9b04 | 16112 | 1275 / 1378 | 5032 / 5328 | 1529 / 1647 | 4698 / 5291 | 43.1 | 1529 |
-| upstream-332cb27502fe | 16329 | 1300 / 1698 | 5119 / 5309 | 1237 / 1442 | 4630 / 4926 | 41.1 | 1237 |
-| upstream-3858c1c9d869 | 52788 | 1365 / 1445 | 5123 / 5531 | 1351 / 1508 | 5044 / 5313 | 47.9 | 1351 |
-| upstream-38aa694fb4a5 | 34531 | 1328 / 1370 | 5145 / 5787 | 1407 / 1510 | 4851 / 4856 | 47.4 | 1407 |
-| upstream-38fb1b1e8f76 | 33810 | 1282 / 1352 | 4743 / 5038 | 1264 / 1419 | 4839 / 14197 | 45.4 | 1264 |
-| upstream-3a09e4b3e925 | 38668 | 1319 / 1328 | 4757 / 5117 | 1294 / 2440 | 5266 / 6730 | 45.9 | 1294 |
-| upstream-3e787d01c5f7 | 15985 | 1237 / 1277 | 4404 / 4659 | 1239 / 4166 | 4760 / 8295 | 39.5 | 1239 |
-| upstream-4143514daf03 | 16972 | 1252 / 1290 | 4486 / 5032 | 1541 / 1893 | 5073 / 11940 | 40.5 | 1541 |
-| upstream-4647c93fad68 | 35581 | 1278 / 1352 | 5202 / 5503 | 1335 / 1502 | 4793 / 5233 | 45.6 | 1335 |
-| upstream-482c93bc4882 | 4878 | 1335 / 1403 | 5311 / 5666 | 1405 / 1569 | 5094 / 5360 | 42 | 1405 |
-| upstream-49a48af6d18d | 16095 | 1235 / 1305 | 4878 / 5485 | 1332 / 1438 | - / - | 43.1 | 1332 |
-| upstream-4a678fd44484 | 34775 | 1273 / 1339 | 4781 / 5504 | 1247 / 1284 | 4785 / 11733 | 53.1 | 1247 |
-| upstream-51edb06a949d | 16496 | 1250 / 1349 | 4651 / 4912 | 1236 / 2386 | 5043 / 6578 | 42 | 1236 |
-| upstream-55531661e868 | 33941 | 1279 / 1331 | 4636 / 4958 | 1492 / 4629 | 5015 / 8171 | 44.8 | 1492 |
-| upstream-57de458fae91 | 41985 | 1366 / 1437 | 4901 / 5107 | 1618 / 1956 | 5589 / 7586 | 51.9 | 1618 |
-| upstream-64fe025bb96d | 43088 | 1331 / 1382 | 5085 / 5572 | 1328 / 1661 | 4828 / 5494 | 39.5 | 1328 |
-| upstream-6fbe45df1cb3 | 36256 | 1303 / 1373 | 4947 / 5255 | 1328 / 1559 | 4867 / 5166 | 49.6 | 1328 |
-| upstream-717fb7735aa7 | 42687 | 1314 / 1389 | 4766 / 5032 | 1298 / 1527 | 4676 / 4941 | 39.4 | 1298 |
-| upstream-73913b502a2e | 36270 | 1324 / 1384 | 5018 / 5150 | 1325 / 1457 | 4647 / 5044 | 52.8 | 1325 |
-| upstream-7bb23ba0b604 | 16324 | 1301 / 1335 | 4723 / 4980 | 1261 / 1449 | 4721 / 5009 | 41.2 | 1261 |
-| upstream-7cc22f8e5927 | 11932 | 1246 / 1319 | 4325 / 4547 | 1185 / 1225 | 4770 / 25346 | 35.8 | 1185 |
-| upstream-80e6e30ea597 | 17004 | 1332 / 1383 | 4634 / 4787 | 1227 / 1355 | 5013 / 5317 | 41 | 1227 |
-| upstream-88e14cba7830 | 16077 | 1242 / 1327 | 4634 / 4779 | 1256 / 3057 | 4953 / 5277 | 43.1 | 1256 |
-| upstream-8bbf3d67bd63 | 16144 | 1271 / 1293 | 4849 / 5272 | 1349 / 2003 | 4988 / 12574 | 43.1 | 1349 |
-| upstream-913ecd7c7c8a | 16128 | 1337 / 1434 | 4543 / 4995 | 1306 / 1527 | 4380 / 4726 | 39.1 | 1306 |
-| upstream-959ab2f5bac7 | 16227 | 1250 / 1296 | 4662 / 5008 | 1235 / 1391 | 4410 / 4792 | 40 | 1235 |
-| upstream-9f78c22429d9 | 4491 | 1217 / 1244 | 4700 / 4798 | 1203 / 1318 | 4573 / 5073 | 36.1 | 1203 |
-| upstream-a0806b09c73d | 17857 | 1231 / 1285 | 4583 / 4860 | 1220 / 1278 | 5172 / 25341 | 40.7 | 1220 |
-| upstream-a10c83ff4127 | 76424 | 1348 / 1484 | 5062 / 5124 | 1352 / 3120 | 5453 / 5804 | 60.3 | 1352 |
-| upstream-a344b2f3f55d | 50597 | 1318 / 1383 | 4796 / 4953 | 1326 / 3134 | 5096 / 5430 | 45.5 | 1326 |
-| upstream-a4b1b68c66c7 | 16604 | 1285 / 1832 | 4690 / 4790 | 1326 / 1771 | 5011 / 10060 | 39.9 | 1326 |
-| upstream-a61f509fcab9 | 44381 | 1427 / 1465 | 4853 / 5099 | 1300 / 1410 | 4686 / 5154 | 39.6 | 1300 |
-| upstream-a734ca765129 | 16064 | 1304 / 1580 | 4787 / 4986 | 1242 / 1411 | 4623 / 5290 | 43.1 | 1242 |
-| upstream-a8fa453c5023 | 46597 | 1443 / 1553 | 4924 / 5154 | 1291 / 1391 | 4992 / 7859 | 45.3 | 1291 |
-| upstream-af1bd691bad1 | 17878 | 1356 / 1513 | 4853 / 5059 | 1240 / 1426 | 4637 / 5871 | 49.8 | 1240 |
-| upstream-b2aa81e78d15 | 17488 | 1263 / 1299 | 4893 / 5230 | 1221 / 1319 | 4622 / 5064 | 41.6 | 1221 |
-| upstream-b2b71a866c2e | 34546 | 1369 / 1476 | 5043 / 39665 | 1249 / 1292 | 4951 / 9925 | 47.4 | 1249 |
-| upstream-b332135c13c6 | 5294 | 1243 / 1272 | 5434 / 19952 | 1172 / 1261 | 4468 / 5226 | 36.8 | 1172 |
-| upstream-b6c7dfcf4428 | 19255 | 1347 / 1476 | 5186 / 5502 | 1203 / 1261 | 4535 / 4864 | 51.4 | 1203 |
-| upstream-bd16f101c6d5 | 16013 | 1255 / 1276 | 4865 / 6295 | 1176 / 1244 | 4820 / 18056 | 39.5 | 1176 |
-| upstream-be4aaa835c68 | 16254 | 1297 / 1424 | 4523 / 4822 | 1240 / 1517 | 4658 / 14006 | 42.8 | 1240 |
-| upstream-c55ed898215f | 12453 | 1262 / 1392 | 4455 / 4662 | 1176 / 1235 | 4372 / 5433 | 35.8 | 1176 |
-| upstream-c8a1d6b58292 | 16883 | 1281 / 1355 | 4687 / 5187 | 1196 / 1233 | 4571 / 4952 | 40.8 | 1196 |
-| upstream-d173badb4435 | 32186 | 1279 / 1305 | 4795 / 4911 | 1219 / 1293 | 4852 / 9734 | 44.6 | 1219 |
-| upstream-d34691128d6a | 18971 | 1315 / 1489 | 5850 / 46785 | 1209 / 1249 | 4605 / 5239 | 52.1 | 1209 |
-| upstream-d38cba8bfc42 | 10936 | 1268 / 1330 | 4906 / 5742 | 1186 / 1252 | 4382 / 4952 | 36.2 | 1186 |
-| upstream-d64f9e91a815 | 11015 | 1316 / 1357 | 4883 / 6245 | 1186 / 1841 | 4884 / 19515 | 39.8 | 1186 |
-| upstream-dbc4432fdc19 | 48181 | 1377 / 1465 | 5033 / 5518 | 1476 / 1751 | 4813 / 5204 | 58.8 | 1476 |
-| upstream-e0dce36d2088 | 17065 | 1295 / 1401 | 5391 / 11544 | 1303 / 1730 | 4435 / 4704 | 44 | 1303 |
-| upstream-e21bb6ce7505 | 17977 | 1298 / 1426 | 4798 / 6090 | 1240 / 1369 | 4412 / 4565 | 40.8 | 1240 |
-| upstream-e3dab827b836 | 16518 | 1286 / 1323 | 4756 / 6359 | 1232 / 1284 | 4352 / 4558 | 42.7 | 1232 |
-| upstream-e5e3a918a510 | 34992 | 1343 / 1392 | 5133 / 5719 | 1257 / 1321 | 4750 / 5362 | 48.7 | 1257 |
-| upstream-ea86d831d24d | 11782 | 1269 / 1315 | 4396 / 4657 | 1155 / 1176 | 5035 / 22585 | 41 | 1155 |
-| upstream-f374280d2eb7 | 20277 | 1315 / 1358 | 4729 / 4925 | 1204 / 1259 | 4948 / 6263 | 42.8 | 1204 |
-| upstream-f3a23e347a28 | 11356 | 1239 / 1326 | 4575 / 4873 | 1137 / 1163 | 4680 / 4936 | 36.1 | 1137 |
-| upstream-f4fd46dfe4ec | 17445 | 1324 / 1382 | 4894 / 25830 | 1237 / 1383 | 4567 / 4788 | 41.5 | 1237 |
-| upstream-f8f44b2075eb | 17247 | 1305 / 1376 | 4563 / 6200 | 1231 / 1304 | 4384 / 4753 | 40.3 | 1231 |
+| bidi-arabic-hebrew-slides | 5326 | 1376 / 1518 (n=10) | 4412 / 4632 (n=10) | 1233 / 1367 (n=20) | 4886 / 5266 (n=20) | 36.4 (n=10) | 1233 (n=20) |
+| gen-pptx-activex | 5876 | 1245 / 1322 (n=10) | 4492 / 4904 (n=10) | 1197 / 1229 (n=20) | 4605 / 25017 (n=20) | 36.1 (n=10) | 1197 (n=20) |
+| gen-pptx-model3d | 5434 | 1263 / 1315 (n=10) | 5114 / 14160 (n=10) | 1191 / 1238 (n=20) | 4103 / 4563 (n=20) | 36.1 (n=10) | 1191 (n=20) |
+| gen-pptx-notes-print | 6408 | 1274 / 1369 (n=10) | 5433 / 6491 (n=10) | 1194 / 1336 (n=20) | 4170 / 4330 (n=20) | 36.3 (n=10) | 1194 (n=20) |
+| gen-pptx-slides-10 | 11993 | 1425 / 1571 (n=10) | 5601 / 9318 (n=10) | 1287 / 5023 (n=20) | 4866 / 6079 (n=20) | 63.3 (n=10) | 1287 (n=20) |
+| gen-pptx-slides-10-b | 52143 | 1374 / 1536 (n=10) | 4637 / 5041 (n=10) | 1241 / 1305 (n=20) | 4679 / 6374 (n=20) | 63.2 (n=10) | 1241 (n=20) |
+| gen-pptx-zoom | 6048 | 1276 / 1329 (n=10) | 4711 / 5087 (n=10) | 1197 / 1357 (n=20) | 4709 / 5296 (n=20) | 41.5 (n=10) | 1197 (n=20) |
+| real-pptx-poi-51187 | 45681 | 1375 / 1461 (n=10) | 4899 / 5060 (n=10) | 1306 / 1400 (n=20) | 4747 / 5078 (n=20) | 44.2 (n=10) | 1306 (n=20) |
+| real-pptx-poi-bug68703 | 60711 | 1519 / 7776 (n=10) | 5098 / 5395 (n=10) | 1437 / 2064 (n=20) | 4396 / 4477 (n=20) | 43.8 (n=10) | 1437 (n=20) |
+| real-pptx-poi-EmbeddedAudio | 90047 | 1431 / 1510 (n=10) | 5012 / 5230 (n=10) | 1269 / 1314 (n=20) | 5143 / 5699 (n=20) | 43.5 (n=10) | 1269 (n=20) |
+| real-pptx-poi-SimpleMacro | 41578 | 1421 / 57627 (n=10) | 4965 / 5342 (n=10) | 1251 / 1315 (n=20) | 4845 / 5508 (n=20) | 42.3 (n=10) | 1251 (n=20) |
+| real-pptx-poi-with_japanese | 48011 | 1390 / 1709 (n=10) | 4842 / 5145 (n=10) | 1374 / 1467 (n=20) | 4981 / 20080 (n=20) | 40.5 (n=10) | 1374 (n=20) |
+| real-pptx-python-pptx-cht-charts | 77751 | 1277 / 1465 (n=10) | 4692 / 5087 (n=10) | 1317 / 1397 (n=20) | 4140 / 4475 (n=20) | 44.1 (n=10) | 1317 (n=20) |
+| real-pptx-python-pptx-shp-access-chart | 80038 | 1265 / 1364 (n=10) | 4761 / 5274 (n=10) | 1348 / 1757 (n=20) | 4527 / 4790 (n=20) | 40.2 (n=10) | 1348 (n=20) |
+| real-pptx-python-pptx-shp-common-props | 81639 | 1291 / 1412 (n=10) | 4776 / 12023 (n=10) | 1361 / 1463 (n=20) | 4610 / 4800 (n=20) | 44.3 (n=10) | 1361 (n=20) |
+| real-pptx-python-pptx-test_slides | 38616 | 1340 / 1419 (n=10) | 5716 / 6246 (n=10) | 1380 / 1684 (n=20) | 4689 / 4950 (n=20) | 45.5 (n=10) | 1380 (n=20) |
+| real-pptx-python-pptx-txt-font-typeface | 25817 | 1279 / 1310 (n=10) | 5467 / 5773 (n=10) | 1367 / 1430 (n=20) | 5039 / 19183 (n=20) | 42.7 (n=10) | 1367 (n=20) |
+| upstream-091abf411e47 | 77574 | 1379 / 1417 (n=10) | 6169 / 12725 (n=10) | 1483 / 1603 (n=20) | 5119 / 5506 (n=20) | 64 (n=10) | 1483 (n=20) |
+| upstream-098b900e8f10 | 49972 | 1388 / 1431 (n=10) | 5651 / 6566 (n=10) | 1489 / 1702 (n=20) | 5146 / 6158 (n=20) | 47.4 (n=10) | 1489 (n=20) |
+| upstream-0c4571a8c30e | 35968 | 1303 / 1346 (n=10) | 5235 / 5438 (n=10) | 1412 / 1496 (n=20) | 4601 / 4942 (n=20) | 49.3 (n=10) | 1412 (n=20) |
+| upstream-0c7e49afbe04 | 16244 | 1293 / 1376 (n=10) | 4951 / 5215 (n=10) | 1388 / 1567 (n=20) | 4255 / 4585 (n=20) | 39.9 (n=10) | 1388 (n=20) |
+| upstream-0d9a8eaf2de4 | 89162 | 1406 / 1467 (n=10) | 5919 / 55683 (n=10) | 1679 / 4305 (n=20) | 6316 / 8539 (n=20) | 67.3 (n=10) | 1679 (n=20) |
+| upstream-165297e1d546 | 16072 | 1239 / 1272 (n=10) | 5826 / 17453 (n=10) | 1888 / 2765 (n=20) | 5121 / 5933 (n=20) | 39.4 (n=10) | 1888 (n=20) |
+| upstream-169be9b132ef | 5904 | 1220 / 1300 (n=10) | 5446 / 5909 (n=10) | 1330 / 1376 (n=20) | 4586 / 18965 (n=20) | 36.7 (n=10) | 1330 (n=20) |
+| upstream-1abd9b12cb19 | 40866 | 1350 / 1400 (n=10) | 5667 / 6014 (n=10) | 1404 / 1497 (n=20) | 4850 / 5454 (n=20) | 58.4 (n=10) | 1404 (n=20) |
+| upstream-1b3ce5863e04 | 16089 | 1244 / 1325 (n=10) | 5847 / 31236 (n=10) | 1346 / 1507 (n=20) | 4691 / 4946 (n=20) | 43.1 (n=10) | 1346 (n=20) |
+| upstream-1e19dbff1286 | 17695 | 1253 / 1280 (n=10) | 5253 / 5934 (n=10) | 1422 / 1671 (n=20) | 4675 / 24714 (n=20) | 41.3 (n=10) | 1422 (n=20) |
+| upstream-21343018c511 | 44607 | 1303 / 1336 (n=10) | 5279 / 5492 (n=10) | 1423 / 1573 (n=20) | 4579 / 5209 (n=20) | 39.7 (n=10) | 1423 (n=20) |
+| upstream-25ceccfae63d | 17929 | 1252 / 1398 (n=10) | 4952 / 5381 (n=10) | 2468 / 3406 (n=20) | 5119 / 5443 (n=20) | 42.6 (n=10) | 2468 (n=20) |
+| upstream-2b363b2c9b04 | 16112 | 1275 / 1378 (n=10) | 5032 / 5328 (n=10) | 1529 / 1647 (n=20) | 4698 / 5291 (n=20) | 43.1 (n=10) | 1529 (n=20) |
+| upstream-332cb27502fe | 16329 | 1300 / 1698 (n=10) | 5119 / 5309 (n=10) | 1237 / 1442 (n=20) | 4630 / 4926 (n=20) | 41.1 (n=10) | 1237 (n=20) |
+| upstream-3858c1c9d869 | 52788 | 1365 / 1445 (n=10) | 5123 / 5531 (n=10) | 1351 / 1508 (n=20) | 5044 / 5313 (n=20) | 47.9 (n=10) | 1351 (n=20) |
+| upstream-38aa694fb4a5 | 34531 | 1328 / 1370 (n=10) | 5145 / 5787 (n=10) | 1407 / 1510 (n=20) | insufficient samples (n=2) | 47.4 (n=10) | 1407 (n=20) |
+| upstream-38fb1b1e8f76 | 33810 | 1282 / 1352 (n=10) | 4743 / 5038 (n=10) | 1264 / 1419 (n=20) | 4839 / 14197 (n=20) | 45.4 (n=10) | 1264 (n=20) |
+| upstream-3a09e4b3e925 | 38668 | 1319 / 1328 (n=10) | 4757 / 5117 (n=10) | 1294 / 2440 (n=20) | 5266 / 6730 (n=20) | 45.9 (n=10) | 1294 (n=20) |
+| upstream-3e787d01c5f7 | 15985 | 1237 / 1277 (n=10) | 4404 / 4659 (n=10) | 1239 / 4166 (n=20) | 4760 / 8295 (n=20) | 39.5 (n=10) | 1239 (n=20) |
+| upstream-4143514daf03 | 16972 | 1252 / 1290 (n=10) | 4486 / 5032 (n=10) | 1541 / 1893 (n=20) | 5073 / 11940 (n=20) | 40.5 (n=10) | 1541 (n=20) |
+| upstream-4647c93fad68 | 35581 | 1278 / 1352 (n=10) | 5202 / 5503 (n=10) | 1335 / 1502 (n=20) | 4793 / 5233 (n=20) | 45.6 (n=10) | 1335 (n=20) |
+| upstream-482c93bc4882 | 4878 | 1335 / 1403 (n=10) | 5311 / 5666 (n=10) | 1405 / 1569 (n=20) | 5094 / 5360 (n=20) | 42 (n=10) | 1405 (n=20) |
+| upstream-49a48af6d18d | 16095 | 1235 / 1305 (n=10) | 4878 / 5485 (n=10) | 1332 / 1438 (n=20) | no samples | 43.1 (n=10) | 1332 (n=20) |
+| upstream-4a678fd44484 | 34775 | 1273 / 1339 (n=10) | 4781 / 5504 (n=10) | 1247 / 1284 (n=20) | 4785 / 11733 (n=20) | 53.1 (n=10) | 1247 (n=20) |
+| upstream-51edb06a949d | 16496 | 1250 / 1349 (n=10) | 4651 / 4912 (n=10) | 1236 / 2386 (n=20) | 5043 / 6578 (n=20) | 42 (n=10) | 1236 (n=20) |
+| upstream-55531661e868 | 33941 | 1279 / 1331 (n=10) | 4636 / 4958 (n=10) | 1492 / 4629 (n=20) | 5015 / 8171 (n=20) | 44.8 (n=10) | 1492 (n=20) |
+| upstream-57de458fae91 | 41985 | 1366 / 1437 (n=10) | 4901 / 5107 (n=10) | 1618 / 1956 (n=20) | 5589 / 7586 (n=20) | 51.9 (n=10) | 1618 (n=20) |
+| upstream-64fe025bb96d | 43088 | 1331 / 1382 (n=10) | 5085 / 5572 (n=10) | 1328 / 1661 (n=20) | 4828 / 5494 (n=20) | 39.5 (n=10) | 1328 (n=20) |
+| upstream-6fbe45df1cb3 | 36256 | 1303 / 1373 (n=10) | 4947 / 5255 (n=10) | 1328 / 1559 (n=20) | 4867 / 5166 (n=20) | 49.6 (n=10) | 1328 (n=20) |
+| upstream-717fb7735aa7 | 42687 | 1314 / 1389 (n=10) | 4766 / 5032 (n=10) | 1298 / 1527 (n=20) | 4676 / 4941 (n=20) | 39.4 (n=10) | 1298 (n=20) |
+| upstream-73913b502a2e | 36270 | 1324 / 1384 (n=10) | 5018 / 5150 (n=10) | 1325 / 1457 (n=20) | 4647 / 5044 (n=20) | 52.8 (n=10) | 1325 (n=20) |
+| upstream-7bb23ba0b604 | 16324 | 1301 / 1335 (n=10) | 4723 / 4980 (n=10) | 1261 / 1449 (n=20) | 4721 / 5009 (n=20) | 41.2 (n=10) | 1261 (n=20) |
+| upstream-7cc22f8e5927 | 11932 | 1246 / 1319 (n=10) | 4325 / 4547 (n=10) | 1185 / 1225 (n=20) | 4770 / 25346 (n=20) | 35.8 (n=10) | 1185 (n=20) |
+| upstream-80e6e30ea597 | 17004 | 1332 / 1383 (n=10) | 4634 / 4787 (n=10) | 1227 / 1355 (n=20) | 5013 / 5317 (n=20) | 41 (n=10) | 1227 (n=20) |
+| upstream-88e14cba7830 | 16077 | 1242 / 1327 (n=10) | 4634 / 4779 (n=10) | 1256 / 3057 (n=20) | 4953 / 5277 (n=17) | 43.1 (n=10) | 1256 (n=20) |
+| upstream-8bbf3d67bd63 | 16144 | 1271 / 1293 (n=10) | 4849 / 5272 (n=10) | 1349 / 2003 (n=20) | 4988 / 12574 (n=20) | 43.1 (n=10) | 1349 (n=20) |
+| upstream-913ecd7c7c8a | 16128 | 1337 / 1434 (n=10) | 4543 / 4995 (n=10) | 1306 / 1527 (n=20) | 4380 / 4726 (n=20) | 39.1 (n=10) | 1306 (n=20) |
+| upstream-959ab2f5bac7 | 16227 | 1250 / 1296 (n=10) | 4662 / 5008 (n=10) | 1235 / 1391 (n=20) | 4410 / 4792 (n=20) | 40 (n=10) | 1235 (n=20) |
+| upstream-9f78c22429d9 | 4491 | 1217 / 1244 (n=10) | 4700 / 4798 (n=10) | 1203 / 1318 (n=20) | 4573 / 5073 (n=20) | 36.1 (n=10) | 1203 (n=20) |
+| upstream-a0806b09c73d | 17857 | 1231 / 1285 (n=10) | 4583 / 4860 (n=10) | 1220 / 1278 (n=20) | 5172 / 25341 (n=20) | 40.7 (n=10) | 1220 (n=20) |
+| upstream-a10c83ff4127 | 76424 | 1348 / 1484 (n=10) | 5062 / 5124 (n=10) | 1352 / 3120 (n=20) | 5453 / 5804 (n=20) | 60.3 (n=10) | 1352 (n=20) |
+| upstream-a344b2f3f55d | 50597 | 1318 / 1383 (n=10) | 4796 / 4953 (n=10) | 1326 / 3134 (n=20) | 5096 / 5430 (n=12) | 45.5 (n=10) | 1326 (n=20) |
+| upstream-a4b1b68c66c7 | 16604 | 1285 / 1832 (n=10) | 4690 / 4790 (n=10) | 1326 / 1771 (n=20) | 5011 / 10060 (n=20) | 39.9 (n=10) | 1326 (n=20) |
+| upstream-a61f509fcab9 | 44381 | 1427 / 1465 (n=10) | 4853 / 5099 (n=10) | 1300 / 1410 (n=20) | 4686 / 5154 (n=20) | 39.6 (n=10) | 1300 (n=20) |
+| upstream-a734ca765129 | 16064 | 1304 / 1580 (n=10) | 4787 / 4986 (n=10) | 1242 / 1411 (n=20) | 4623 / 5290 (n=20) | 43.1 (n=10) | 1242 (n=20) |
+| upstream-a8fa453c5023 | 46597 | 1443 / 1553 (n=10) | 4924 / 5154 (n=10) | 1291 / 1391 (n=20) | 4992 / 7859 (n=20) | 45.3 (n=10) | 1291 (n=20) |
+| upstream-af1bd691bad1 | 17878 | 1356 / 1513 (n=10) | 4853 / 5059 (n=10) | 1240 / 1426 (n=20) | 4637 / 5871 (n=20) | 49.8 (n=10) | 1240 (n=20) |
+| upstream-b2aa81e78d15 | 17488 | 1263 / 1299 (n=10) | 4893 / 5230 (n=10) | 1221 / 1319 (n=20) | 4622 / 5064 (n=20) | 41.6 (n=10) | 1221 (n=20) |
+| upstream-b2b71a866c2e | 34546 | 1369 / 1476 (n=10) | 5043 / 39665 (n=10) | 1249 / 1292 (n=20) | 4951 / 9925 (n=20) | 47.4 (n=10) | 1249 (n=20) |
+| upstream-b332135c13c6 | 5294 | 1243 / 1272 (n=10) | 5434 / 19952 (n=10) | 1172 / 1261 (n=20) | 4468 / 5226 (n=20) | 36.8 (n=10) | 1172 (n=20) |
+| upstream-b6c7dfcf4428 | 19255 | 1347 / 1476 (n=10) | 5186 / 5502 (n=10) | 1203 / 1261 (n=20) | 4535 / 4864 (n=20) | 51.4 (n=10) | 1203 (n=20) |
+| upstream-bd16f101c6d5 | 16013 | 1255 / 1276 (n=10) | 4865 / 6295 (n=10) | 1176 / 1244 (n=20) | 4820 / 18056 (n=20) | 39.5 (n=10) | 1176 (n=20) |
+| upstream-be4aaa835c68 | 16254 | 1297 / 1424 (n=10) | 4523 / 4822 (n=10) | 1240 / 1517 (n=20) | 4658 / 14006 (n=20) | 42.8 (n=10) | 1240 (n=20) |
+| upstream-c55ed898215f | 12453 | 1262 / 1392 (n=10) | 4455 / 4662 (n=10) | 1176 / 1235 (n=20) | 4372 / 5433 (n=20) | 35.8 (n=10) | 1176 (n=20) |
+| upstream-c8a1d6b58292 | 16883 | 1281 / 1355 (n=10) | 4687 / 5187 (n=10) | 1196 / 1233 (n=20) | 4571 / 4952 (n=20) | 40.8 (n=10) | 1196 (n=20) |
+| upstream-d173badb4435 | 32186 | 1279 / 1305 (n=10) | 4795 / 4911 (n=10) | 1219 / 1293 (n=20) | 4852 / 9734 (n=20) | 44.6 (n=10) | 1219 (n=20) |
+| upstream-d34691128d6a | 18971 | 1315 / 1489 (n=10) | 5850 / 46785 (n=10) | 1209 / 1249 (n=20) | 4605 / 5239 (n=20) | 52.1 (n=10) | 1209 (n=20) |
+| upstream-d38cba8bfc42 | 10936 | 1268 / 1330 (n=10) | 4906 / 5742 (n=10) | 1186 / 1252 (n=20) | 4382 / 4952 (n=20) | 36.2 (n=10) | 1186 (n=20) |
+| upstream-d64f9e91a815 | 11015 | 1316 / 1357 (n=10) | 4883 / 6245 (n=10) | 1186 / 1841 (n=20) | 4884 / 19515 (n=20) | 39.8 (n=10) | 1186 (n=20) |
+| upstream-dbc4432fdc19 | 48181 | 1377 / 1465 (n=10) | 5033 / 5518 (n=10) | 1476 / 1751 (n=20) | 4813 / 5204 (n=20) | 58.8 (n=10) | 1476 (n=20) |
+| upstream-e0dce36d2088 | 17065 | 1295 / 1401 (n=10) | 5391 / 11544 (n=10) | 1303 / 1730 (n=20) | 4435 / 4704 (n=20) | 44 (n=10) | 1303 (n=20) |
+| upstream-e21bb6ce7505 | 17977 | 1298 / 1426 (n=10) | 4798 / 6090 (n=10) | 1240 / 1369 (n=20) | 4412 / 4565 (n=20) | 40.8 (n=10) | 1240 (n=20) |
+| upstream-e3dab827b836 | 16518 | 1286 / 1323 (n=10) | 4756 / 6359 (n=10) | 1232 / 1284 (n=20) | 4352 / 4558 (n=20) | 42.7 (n=10) | 1232 (n=20) |
+| upstream-e5e3a918a510 | 34992 | 1343 / 1392 (n=10) | 5133 / 5719 (n=10) | 1257 / 1321 (n=20) | 4750 / 5362 (n=20) | 48.7 (n=10) | 1257 (n=20) |
+| upstream-ea86d831d24d | 11782 | 1269 / 1315 (n=10) | 4396 / 4657 (n=10) | 1155 / 1176 (n=20) | 5035 / 22585 (n=20) | 41 (n=10) | 1155 (n=20) |
+| upstream-f374280d2eb7 | 20277 | 1315 / 1358 (n=10) | 4729 / 4925 (n=10) | 1204 / 1259 (n=20) | 4948 / 6263 (n=20) | 42.8 (n=10) | 1204 (n=20) |
+| upstream-f3a23e347a28 | 11356 | 1239 / 1326 (n=10) | 4575 / 4873 (n=10) | 1137 / 1163 (n=20) | 4680 / 4936 (n=20) | 36.1 (n=10) | 1137 (n=20) |
+| upstream-f4fd46dfe4ec | 17445 | 1324 / 1382 (n=10) | 4894 / 25830 (n=10) | 1237 / 1383 (n=20) | 4567 / 4788 (n=20) | 41.5 (n=10) | 1237 (n=20) |
+| upstream-f8f44b2075eb | 17247 | 1305 / 1376 (n=10) | 4563 / 6200 (n=10) | 1231 / 1304 (n=20) | 4384 / 4753 (n=20) | 40.3 (n=10) | 1231 (n=20) |
 
 ### pptx M
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gen-pptx-slides-50 | 442863 | 1364 / 1452 | 5705 / 6567 | 1301 / 15566 | 4705 / 7294 | 48.8 | 1301 |
-| gen-pptx-slides-50-b | 642923 | 1452 / 1626 | 5238 / 9126 | 1499 / 1962 | 5082 / 23034 | 48.6 | 1499 |
-| gen-pptx-slides-50-c | 750601 | 1459 / 1848 | 5149 / 5521 | 1356 / 1391 | 5199 / 6822 | 56.3 | 1356 |
-| real-pptx-poi-45541_Footer | 307913 | 1547 / 1639 | 5611 / 5927 | 1421 / 1493 | 5566 / 6120 | 31.5 | 1421 |
-| real-pptx-poi-45541_Header | 308041 | 1593 / 1624 | 5657 / 6016 | 1422 / 1474 | 5425 / 14009 | 31.6 | 1422 |
-| real-pptx-poi-45545_Comment | 308394 | 1544 / 1608 | 5611 / 5963 | 1522 / 1667 | 5420 / 12090 | 31.5 | 1522 |
-| real-pptx-poi-60810 | 874522 | 1919 / 2028 | 7005 / 7458 | 1747 / 1829 | 6941 / 8639 | 72 | 1747 |
-| real-pptx-poi-bug62513 | 384775 | 1695 / 3729 | 6029 / 6738 | 1633 / 2280 | 5692 / 7857 | 53.2 | 1633 |
-| real-pptx-poi-bug64693 | 881432 | 1590 / 1784 | 5971 / 6518 | 1637 / 3364 | 5024 / 5903 | 61.5 | 1637 |
-| real-pptx-poi-keyframes | 389330 | 1985 / 2169 | 6841 / 9107 | 1829 / 2076 | 6619 / 10069 | 72.2 | 1829 |
-| real-pptx-poi-PPTWithAttachments | 235317 | 1414 / 1515 | 5319 / 5486 | 1333 / 1400 | 5190 / 5653 | 55.1 | 1333 |
-| real-pptx-python-pptx-act-props | 982098 | 1334 / 1643 | 5100 / 5314 | 1375 / 1673 | 4646 / 5031 | 44.8 | 1375 |
-| real-pptx-python-pptx-cht-axis-props | 366536 | 1377 / 1403 | 5040 / 5156 | 1436 / 1558 | 4806 / 5046 | 63.3 | 1436 |
-| real-pptx-python-pptx-cht-category-access | 222711 | 1302 / 1345 | 5594 / 17917 | 1354 / 1507 | 4635 / 7204 | 63 | 1354 |
-| real-pptx-python-pptx-cht-chart-props | 218303 | 1288 / 1380 | 5720 / 6305 | 1420 / 11791 | 4511 / 5016 | 49.9 | 1420 |
-| real-pptx-python-pptx-cht-datalabels | 243765 | 1339 / 1401 | 5262 / 39646 | 1379 / 1510 | 4426 / 8126 | 49.3 | 1379 |
-| real-pptx-python-pptx-cht-series | 518464 | 1397 / 1445 | 5089 / 6360 | 1421 / 1532 | 5021 / 5551 | 34.7 | 1421 |
-| real-pptx-python-pptx-ph-populated-placeholders | 172254 | 1353 / 1401 | 4946 / 5189 | 1457 / 1714 | 4915 / 19692 | 69.6 | 1457 |
-| real-pptx-python-pptx-shp-movie-props | 684874 | 1273 / 1379 | 5415 / 13292 | 1379 / 2156 | 4383 / 6924 | 40.5 | 1379 |
-| real-pptx-python-pptx-shp-shapes | 125205 | 1341 / 1414 | 5736 / 6191 | 1704 / 3462 | 4560 / 5190 | 49 | 1704 |
-| upstream-25297a56a758 | 251735 | 1667 / 1751 | 6943 / 7131 | 2004 / 4987 | 6065 / 9533 | 77.4 | 2004 |
-| upstream-2789ff8d6772 | 288760 | 1531 / 2133 | 6480 / 59677 | 1593 / 1983 | 5926 / 6415 | 41.6 | 1593 |
-| upstream-db668adb7e73 | 104741 | 1485 / 1565 | 5634 / 6047 | 1660 / 3511 | 5140 / 5442 | 53.1 | 1660 |
-| upstream-f7015eebee2e | 154673 | 1442 / 1512 | 6006 / 7106 | 1392 / 1453 | 4918 / 5138 | 45.9 | 1392 |
+| gen-pptx-slides-50 | 442863 | 1364 / 1452 (n=10) | 5705 / 6567 (n=10) | 1301 / 15566 (n=20) | 4705 / 7294 (n=20) | 48.8 (n=10) | 1301 (n=20) |
+| gen-pptx-slides-50-b | 642923 | 1452 / 1626 (n=10) | 5238 / 9126 (n=10) | 1499 / 1962 (n=20) | 5082 / 23034 (n=20) | 48.6 (n=10) | 1499 (n=20) |
+| gen-pptx-slides-50-c | 750601 | 1459 / 1848 (n=10) | 5149 / 5521 (n=10) | 1356 / 1391 (n=20) | 5199 / 6822 (n=20) | 56.3 (n=10) | 1356 (n=20) |
+| real-pptx-poi-45541_Footer | 307913 | 1547 / 1639 (n=10) | 5611 / 5927 (n=10) | 1421 / 1493 (n=20) | 5566 / 6120 (n=20) | 31.5 (n=10) | 1421 (n=20) |
+| real-pptx-poi-45541_Header | 308041 | 1593 / 1624 (n=10) | 5657 / 6016 (n=10) | 1422 / 1474 (n=20) | 5425 / 14009 (n=20) | 31.6 (n=10) | 1422 (n=20) |
+| real-pptx-poi-45545_Comment | 308394 | 1544 / 1608 (n=10) | 5611 / 5963 (n=10) | 1522 / 1667 (n=20) | 5420 / 12090 (n=20) | 31.5 (n=10) | 1522 (n=20) |
+| real-pptx-poi-60810 | 874522 | 1919 / 2028 (n=10) | 7005 / 7458 (n=10) | 1747 / 1829 (n=20) | 6941 / 8639 (n=20) | 72 (n=10) | 1747 (n=20) |
+| real-pptx-poi-bug62513 | 384775 | 1695 / 3729 (n=10) | 6029 / 6738 (n=10) | 1633 / 2280 (n=20) | 5692 / 7857 (n=20) | 53.2 (n=10) | 1633 (n=20) |
+| real-pptx-poi-bug64693 | 881432 | 1590 / 1784 (n=10) | 5971 / 6518 (n=10) | 1637 / 3364 (n=20) | 5024 / 5903 (n=20) | 61.5 (n=10) | 1637 (n=20) |
+| real-pptx-poi-keyframes | 389330 | 1985 / 2169 (n=10) | 6841 / 9107 (n=10) | 1829 / 2076 (n=20) | 6619 / 10069 (n=20) | 72.2 (n=10) | 1829 (n=20) |
+| real-pptx-poi-PPTWithAttachments | 235317 | 1414 / 1515 (n=10) | 5319 / 5486 (n=10) | 1333 / 1400 (n=20) | 5190 / 5653 (n=20) | 55.1 (n=10) | 1333 (n=20) |
+| real-pptx-python-pptx-act-props | 982098 | 1334 / 1643 (n=10) | 5100 / 5314 (n=10) | 1375 / 1673 (n=20) | 4646 / 5031 (n=20) | 44.8 (n=10) | 1375 (n=20) |
+| real-pptx-python-pptx-cht-axis-props | 366536 | 1377 / 1403 (n=10) | 5040 / 5156 (n=10) | 1436 / 1558 (n=20) | 4806 / 5046 (n=20) | 63.3 (n=10) | 1436 (n=20) |
+| real-pptx-python-pptx-cht-category-access | 222711 | 1302 / 1345 (n=10) | 5594 / 17917 (n=10) | 1354 / 1507 (n=20) | 4635 / 7204 (n=20) | 63 (n=10) | 1354 (n=20) |
+| real-pptx-python-pptx-cht-chart-props | 218303 | 1288 / 1380 (n=10) | 5720 / 6305 (n=10) | 1420 / 11791 (n=20) | 4511 / 5016 (n=20) | 49.9 (n=10) | 1420 (n=20) |
+| real-pptx-python-pptx-cht-datalabels | 243765 | 1339 / 1401 (n=10) | 5262 / 39646 (n=10) | 1379 / 1510 (n=20) | 4426 / 8126 (n=20) | 49.3 (n=10) | 1379 (n=20) |
+| real-pptx-python-pptx-cht-series | 518464 | 1397 / 1445 (n=10) | 5089 / 6360 (n=10) | 1421 / 1532 (n=20) | 5021 / 5551 (n=20) | 34.7 (n=10) | 1421 (n=20) |
+| real-pptx-python-pptx-ph-populated-placeholders | 172254 | 1353 / 1401 (n=10) | 4946 / 5189 (n=10) | 1457 / 1714 (n=20) | 4915 / 19692 (n=20) | 69.6 (n=10) | 1457 (n=20) |
+| real-pptx-python-pptx-shp-movie-props | 684874 | 1273 / 1379 (n=10) | 5415 / 13292 (n=10) | 1379 / 2156 (n=20) | 4383 / 6924 (n=20) | 40.5 (n=10) | 1379 (n=20) |
+| real-pptx-python-pptx-shp-shapes | 125205 | 1341 / 1414 (n=10) | 5736 / 6191 (n=10) | 1704 / 3462 (n=20) | 4560 / 5190 (n=20) | 49 (n=10) | 1704 (n=20) |
+| upstream-25297a56a758 | 251735 | 1667 / 1751 (n=10) | 6943 / 7131 (n=10) | 2004 / 4987 (n=20) | 6065 / 9533 (n=20) | 77.4 (n=10) | 2004 (n=20) |
+| upstream-2789ff8d6772 | 288760 | 1531 / 2133 (n=10) | 6480 / 59677 (n=10) | 1593 / 1983 (n=20) | 5926 / 6415 (n=20) | 41.6 (n=10) | 1593 (n=20) |
+| upstream-db668adb7e73 | 104741 | 1485 / 1565 (n=10) | 5634 / 6047 (n=10) | 1660 / 3511 (n=20) | 5140 / 5442 (n=20) | 53.1 (n=10) | 1660 (n=20) |
+| upstream-f7015eebee2e | 154673 | 1442 / 1512 (n=10) | 6006 / 7106 (n=10) | 1392 / 1453 (n=20) | 4918 / 5138 (n=20) | 45.9 (n=10) | 1392 (n=20) |
 
 ### pptx L
 
-| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB | tti warm 1x |
+| fixture | bytes | cold 1x | cold 4x | warm 1x | warm 4x | heap MiB (cold 1x) | tti warm 1x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| real-pptx-poi-customGeo | 1046067 | 2098 / 2344 | 8465 / 8536 | 2385 / 2697 | 7726 / 8086 | 97.6 | 2385 |
-| real-pptx-python-pptx-cht-chart-type | 1393564 | 1621 / 1669 | 5798 / 5826 | 1624 / 2063 | 5596 / 5768 | 52.6 | 1624 |
-| upstream-61fc791e15c0 | 1078208 | 3204 / 3461 | 13097 / 13208 | 3408 / 4211 | 16317 / 31155 | 103 | 3408 |
+| real-pptx-poi-customGeo | 1046067 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| real-pptx-python-pptx-cht-chart-type | 1393564 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |
+| upstream-61fc791e15c0 | 1078208 | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) | insufficient samples (n=3) |

@@ -50,9 +50,9 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
     const onReadyRef = useRef(onReady);
     const onChangeRef = useRef(onChange);
     const onErrorRef = useRef(onError);
-    onErrorRef.current = onError;
     onReadyRef.current = onReady;
     onChangeRef.current = onChange;
+    onErrorRef.current = onError;
     useImperativeHandle(ref, () => ({
         get element() {
             return elRef.current;
@@ -128,7 +128,9 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
             if (!cancelled)
                 onReadyRef.current?.(el);
         })().catch((err) => {
-            report(err instanceof Error ? err : Object.assign(new Error(String(err?.message || err)), err));
+            report(err instanceof Error ? err : Object.assign(new Error(String(err?.message || err)), { cause: err }, err));
+            if (!cancelled)
+                console.error("NitroViewer:", err);
         });
         return () => {
             cancelled = true;

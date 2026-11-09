@@ -9,9 +9,11 @@ import { applyFontSourceToHandle } from "./font-source.js";
 let handle = null;
 let glue = null;
 let chain = Promise.resolve();
+let _isDirty = false;
 function unlockChrome(op) {
-if (!self._pendingEditorChrome) return;
 if (op === "ui" || op === "zoom-set") return;
+_isDirty = true;
+if (!self._pendingEditorChrome) return;
 self._pendingEditorChrome = 0;
 handle.setReadOnly(false);
 handle.loadEditorChrome();
@@ -42,6 +44,7 @@ handle.free();
 } catch {
 }
 }
+_isDirty = false;
 {
 let bytes =
 msg.bytes instanceof Uint8Array ? msg.bytes : new Uint8Array(msg.bytes);
@@ -164,16 +167,11 @@ if (!handle) throw new Error("no document");
 unlockChrome();
 self.postMessage({type:"editor-key",result:handle.editorKey(msg.key||"",!!msg.ctrl,!!msg.meta,!!msg.alt,!!msg.shift,!!msg.mac)});
 break;
-case "original-bytes": {
+case "original-bytes":
+case "save": {
 if (!handle) throw new Error("no document");
-const bytes = new Uint8Array(handle.takePackageBytes());
-self.postMessage({ type: "original-bytes", bytes }, [bytes.buffer]);
-break;
-}
-case "save":{
-if (!handle) throw new Error("no document");
-const bytes=new Uint8Array(handle.saveDocument());
-self.postMessage({type:"saved",bytes},[bytes.buffer]);
+const { postSave } = await import("./lazy/save.js");
+postSave(handle, self, msg.type, _isDirty);
 break;
 }
 case "apply-edit":
@@ -183,6 +181,7 @@ self.postMessage({type:"apply-edit",result:handle.applyEdit(msg.spec||"")});
 break;
 case "dispose": {
 self._pendingEditorChrome = 0;
+_isDirty = false;
 if (handle) {
 try {
 handle.free();

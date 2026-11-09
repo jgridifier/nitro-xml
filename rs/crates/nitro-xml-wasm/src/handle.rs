@@ -453,14 +453,14 @@ impl Handle {
     /// Open a supported OOXML document (extension hint). Xlsx viewer path loads workbook + first paint.
     #[wasm_bindgen(js_name = openDocument)]
     pub fn open_document(&mut self, name: &str) -> Result<(), JsValue> {
-        nitro_xml_opc::zip::ZipPackage::check_viewer_limits(&self.bytes).map_err(|e| {
+        nitro_xml::opc::zip::ZipPackage::check_viewer_limits(&self.bytes).map_err(|e| {
             let mut error = OoxmlError::with_code(e.kind(), e.to_string());
             if let Some((limit, actual)) = e.sizes() {
                 error.limit = Some(limit as f64);
                 error.actual = Some(actual as f64);
             }
-            if let nitro_xml_opc::zip::ZipError::PartTooLarge { name, .. }
-            | nitro_xml_opc::zip::ZipError::CompressionRatio { name, .. } = e
+            if let nitro_xml::opc::zip::ZipError::PartTooLarge { name, .. }
+            | nitro_xml::opc::zip::ZipError::CompressionRatio { name, .. } = e
             {
                 error.part = Some(name);
             }

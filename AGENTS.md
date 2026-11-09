@@ -16,7 +16,7 @@ Board: https://github.com/users/jgridifier/projects/2 · Plan: https://jgridifie
 1. Take an **unassigned** issue labelled `status:ready` (board view **Ready now**) whose `Depends on #X` issues are **all closed**.
 2. Never take an issue labelled `blocked-m2` (editor milestone, waits for the viewer gate and Jared's go-ahead) or `blocked-redesign` (Jared's post-port renderer redesign), or one assigned to Jared, or the R0 renderer port record #33 (signed off by Head Of Product; Jared can reclaim it). Renderer issues are not claimable until #33 is merged, and they are **straight one-to-one ports** of the upstream painters: same drawing approach, structure and output, fonts and measurement as upstream; the only allowed change is batching each frame's draw/DOM calls into one handoff across the boundary. No redesign inside a port PR.
 3. Prefer the issue's *Suggested agent*, but any agent may take any ready issue. The protocol below is identical for every agent type. **Agent roster (Jared):**
-   - **Primary:** Cursor, Claude Code and Codex. **Codex runs only on the `6.1 sol` model.**
+   - **Primary:** Cursor, Claude Code and Codex. **Codex runs on its default model** (Jared approved 2026-11-04; `6.1 sol` is not available on his ChatGPT account).
    - **OpenCode** (free NVIDIA-hosted models): may be added after evaluation; until Jared adds it here, it does not claim issues.
    - **Grok Build (Grok 4.7):** last-resort overflow, used only once Cursor, Claude Code and Codex are all out of credits.
    - Human Developers may claim any issue.

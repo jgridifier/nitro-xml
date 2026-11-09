@@ -4,8 +4,6 @@ import { createEventCoalescer } from "./events.js";
 import {
   isSupportedExtension,
   checkInputSize,
-  VIEWER_RECOVERY_FAILED_MESSAGE,
-  EDITOR_RECOVERY_FAILED_MESSAGE,
 } from "./formats.js";
 import { getDefaultFontSource } from "./font-source.js";
 import { flushLayoutReadBatch, packLayoutReqs } from "./layout-readback.js";
@@ -75,10 +73,8 @@ this._ro = opts.readonly !== false;
 this._viewerReloadAttempted = false;
 this._editRecoveryAttempted = false;
 this._journal = null;
-// Reject before transferring/copying an oversized compressed package into WASM.
 checkInputSize(u8.byteLength);
 const opened = await this._openBytes(u8, n, opts);
-// Pointer events can commit without going through applyEdit. Arm their journal before exposure.
 if (!this._ro && /\.(pptx|pptm|potx|potm)$/i.test(n)) await this._ej();
 if (this._ro) {
 void this._ensureOriginalBytes().catch((error) => this.onError?.(error));
@@ -102,77 +98,10 @@ const { createJournal } = await import("./lazy/journal.js");
 return (this._journal = createJournal(bytes));
 }
 async reloadOnce() {
-if (this._viewerReloadAttempted) {
-throw Object.assign(new Error(VIEWER_RECOVERY_FAILED_MESSAGE), { code: "viewer_recovery_exhausted" });
-}
-const snapshot = await this._ensureOriginalBytes();
-if (!snapshot) throw Object.assign(new Error("no bytes"), { code: "viewer_recovery_failed" });
-this._viewerReloadAttempted = true;
-this._swapWorker();
-await this._openBytes(new Uint8Array(snapshot), this._name, { readonly: this._ro });
-return this;
+return (await import("./lazy/recovery.js")).reloadOnce.call(this);
 }
 async recoverEditOnce() {
-if (this._editRecoveryAttempted) {
-throw Object.assign(new Error(EDITOR_RECOVERY_FAILED_MESSAGE), {
-code: "editor_recovery_exhausted",
-});
-}
-try {
-await this._ensureOriginalBytes();
-} catch {
-throw Object.assign(new Error("no bytes"), { code: "editor_recovery_failed" });
-}
-await this._ej();
-if (!this._journal) {
-throw Object.assign(new Error("no journal"), { code: "editor_recovery_failed" });
-}
-this._editRecoveryAttempted = true;
-this._swapWorker();
-const journal = this._journal;
-const res = await journal.recover({
-openFresh: async (bytes) => {
-await this._openBytes(bytes, this._name, { readonly: false });
-return this;
-},
-applyOps: async (_session, op) => {
-const spec = typeof op.spec === "string" ? op.spec : JSON.stringify(op);
-this._replayingJournal = true;
-try {
-await this._request("apply-edit", () => {
-this._worker.postMessage({ type: "apply-edit", spec: spec || "" });
-});
-} finally {
-this._replayingJournal = false;
-}
-},
-});
-if (!res.ok) {
-const err =
-res.error instanceof Error
-? res.error
-: Object.assign(new Error(String(res.error || EDITOR_RECOVERY_FAILED_MESSAGE)), {
-cause: res.error,
-});
-err.code = res.lastGoodSave ? "editor_recovery_last_save" : err.code || "editor_recovery_failed";
-err.lastGoodSave = res.lastGoodSave || null;
-throw err;
-}
-this._editRecoveryAttempted = false;
-return this;
-}
-_swapWorker() {
-this._events.flushNow();
-try {
-this._worker.postMessage({ type: "dispose" });
-} catch {
-}
-this._worker.terminate();
-for (const [, p] of this._pending) p.reject(new Error("document replaced"));
-this._pending.clear();
-this._fatalError = null;
-this._worker = this._newWorker(false);
-this._wireWorker();
+return (await import("./lazy/recovery.js")).recoverEditOnce.call(this);
 }
 async _openBytes(buffer, name, opts = {}) {
 const n = name || this._name;
@@ -229,23 +158,7 @@ this._journal.append({ spec: String(spec) });
 return result;
 }
 async matchShortcut(ev, mac) {
-const msg = await this._request("match-shortcut", () => {
-this._worker.postMessage({
-type: "match-shortcut",
-key: ev.key || "",
-code: ev.code || "",
-ctrl: !!ev.ctrlKey,
-meta: !!ev.metaKey,
-alt: !!ev.altKey,
-shift: !!ev.shiftKey,
-mac: !!mac,
-});
-});
-try {
-return JSON.parse(msg.result || "{}");
-} catch {
-return {};
-}
+return (await import("./lazy/shortcut.js")).matchShortcut.call(this, ev, mac);
 }
 pushEvent(ev) {
 this._events.push(ev);
@@ -324,7 +237,6 @@ return this._measureCanvas.getContext("2d");
 _onMessage(msg) {
 if (!msg || !msg.type) return;
 if (msg.type === "geometry-commits") {
-// Writable PowerPoint open ensures the journal before exposure to pointer events.
 if (this._journal && !this._replayingJournal) {
 for (const spec of msg.commits) this._journal.append({ spec });
 }
@@ -349,7 +261,6 @@ p.resolve(msg);
 _request(expect, send) {
 const id = ++this._req;
 return new Promise((resolve, reject) => {
-// Same 120 s ceiling as perf/run.mjs. Host timer can terminate stuck synchronous WASM.
 const started = Date.now();
 const timer = setTimeout(() => {
 const error = Object.assign(new Error(`Worker ${expect} exceeded time budget`), {

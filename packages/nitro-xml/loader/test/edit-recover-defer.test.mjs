@@ -39,8 +39,10 @@ describe("edit recover with deferred journal (#445)", () => {
       shown++;
     };
 
+    let recovery;
+    el._tryEditRecover = () => (recovery = ViewerElement.prototype._tryEditRecover.call(el));
     el._fail({ code: "worker_crashed" });
-    await new Promise((r) => setTimeout(r, 0));
+    await recovery;
     assert.equal(recovered, 1);
     assert.equal(shown, 0);
   });
@@ -69,8 +71,10 @@ describe("edit recover with deferred journal (#445)", () => {
       shown++;
     };
 
+    let recovery;
+    el._tryEditRecover = () => (recovery = ViewerElement.prototype._tryEditRecover.call(el));
     el._fail({ code: "worker_crashed" });
-    await new Promise((r) => setTimeout(r, 0));
+    await recovery;
     assert.equal(recovered, 1);
     assert.equal(shown, 1);
   });

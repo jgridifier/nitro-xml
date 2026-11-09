@@ -201,6 +201,9 @@ self.postMessage({ type: "error", message: `unknown message ${msg.type}` });
 self.postMessage({
 type: "error",
 code: e && e.code,
+limit: e && e.limit,
+actual: e && e.actual,
+part: e && e.part,
 message: (e && e.message) || String(e),
 });
 });

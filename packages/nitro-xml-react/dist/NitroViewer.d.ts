@@ -11,8 +11,13 @@ export type NitroViewerProps = {
     onReady?: (el: HTMLElement) => void;
     /** Fired when `nitro-save` / programmatic save produces bytes. */
     onChange?: (bytes: Uint8Array) => void;
-    /** Fired when open or initialization fails; prevents silent swallowing of load errors. */
-    onError?: (err: Error) => void;
+    /** Open, paint, and save failures, including typed security limits. */
+    onError?: (error: Error & {
+        code?: string;
+        limit?: number;
+        actual?: number;
+        part?: string;
+    }) => void;
     className?: string;
     style?: React.CSSProperties;
 };

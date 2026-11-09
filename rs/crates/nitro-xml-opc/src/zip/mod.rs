@@ -143,6 +143,23 @@ fn is_over_declared(error: &std::io::Error) -> bool {
 }
 
 impl<'a> ZipPackage<'a> {
+    /// Validate viewer security limits before parsing XML or allocating format models.
+    /// The document.xml cap is the React embed's E1 protection (#30).
+    pub fn check_viewer_limits(bytes: &[u8]) -> Result<(), ZipError> {
+        let package = ZipPackage::open(bytes)?;
+        let limit = 25 * 1024 * 1024;
+        if let Some(actual) = package.declared_size("word/document.xml") {
+            if actual > limit {
+                return Err(ZipError::PartTooLarge {
+                    name: "word/document.xml".into(),
+                    limit,
+                    actual,
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// Opens a package with the default limits.
     pub fn open(bytes: &'a [u8]) -> Result<Self, ZipError> {
         Self::open_with_limits(bytes, ZipLimits::default())
@@ -151,7 +168,10 @@ impl<'a> ZipPackage<'a> {
     /// Opens a package, checking the input size and the declared sizes. No part is inflated.
     pub fn open_with_limits(bytes: &'a [u8], limits: ZipLimits) -> Result<Self, ZipError> {
         if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > limits.max_input_bytes {
-            return Err(ZipError::InputTooLarge);
+            return Err(ZipError::InputTooLarge {
+                limit: limits.max_input_bytes,
+                actual: bytes.len() as u64,
+            });
         }
         let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(invalid)?;
 
@@ -167,12 +187,19 @@ impl<'a> ZipPackage<'a> {
         }
 
         if found.len() > limits.max_parts {
-            return Err(ZipError::TooManyParts);
+            return Err(ZipError::TooManyParts {
+                limit: limits.max_parts as u64,
+                actual: found.len() as u64,
+            });
         }
         let mut declared_total: u64 = 0;
         for (name, _, size, compressed) in &found {
             if *size > limits.max_part_bytes {
-                return Err(ZipError::PartTooLarge { name: name.clone() });
+                return Err(ZipError::PartTooLarge {
+                    name: name.clone(),
+                    limit: limits.max_part_bytes,
+                    actual: *size,
+                });
             }
             if exceeds_compression_ratio(
                 *compressed,
@@ -180,12 +207,19 @@ impl<'a> ZipPackage<'a> {
                 limits.max_compression_ratio,
                 limits.min_ratio_check_bytes,
             ) {
-                return Err(ZipError::CompressionRatio { name: name.clone() });
+                return Err(ZipError::CompressionRatio {
+                    name: name.clone(),
+                    limit: limits.max_compression_ratio,
+                    actual: size / compressed.max(&1),
+                });
             }
             declared_total = declared_total.saturating_add(*size);
         }
         if declared_total > limits.max_total_bytes {
-            return Err(ZipError::TotalTooLarge);
+            return Err(ZipError::TotalTooLarge {
+                limit: limits.max_total_bytes,
+                actual: declared_total,
+            });
         }
 
         let mut entries: Vec<Entry> = Vec::with_capacity(found.len());
@@ -365,7 +399,10 @@ impl<'a> ZipPackage<'a> {
         let max_total = self.limits.max_total_bytes;
         // Declared size is already bounded by `max_part_bytes` and the package total at open.
         if self.inflated_total.saturating_add(declared) > max_total {
-            return Err(ZipError::TotalTooLarge);
+            return Err(ZipError::TotalTooLarge {
+                limit: max_total,
+                actual: self.inflated_total.saturating_add(declared),
+            });
         }
         if exceeds_compression_ratio(
             compressed,
@@ -375,6 +412,8 @@ impl<'a> ZipPackage<'a> {
         ) {
             return Err(ZipError::CompressionRatio {
                 name: stored_name.to_owned(),
+                limit: self.limits.max_compression_ratio,
+                actual: declared / compressed.max(1),
             });
         }
         let len = usize::try_from(declared).map_err(|_| mismatch())?;
@@ -470,10 +509,15 @@ impl<'a> ZipPackage<'a> {
             if exceeds_compression_ratio(compressed, produced, max_ratio, min_ratio_bytes) {
                 return Err(ZipError::CompressionRatio {
                     name: stored_name.to_owned(),
+                    limit: max_ratio,
+                    actual: produced / compressed.max(1),
                 });
             }
             if inflated_total.saturating_add(produced) > max_total {
-                return Err(ZipError::TotalTooLarge);
+                return Err(ZipError::TotalTooLarge {
+                    limit: max_total,
+                    actual: inflated_total.saturating_add(produced),
+                });
             }
             produced_total = produced;
             let keep_going = if let Some(chunk) = buf.get(..n) {
@@ -493,6 +537,8 @@ impl<'a> ZipPackage<'a> {
         if exceeds_compression_ratio(compressed, produced_total, max_ratio, min_ratio_bytes) {
             return Err(ZipError::CompressionRatio {
                 name: stored_name.to_owned(),
+                limit: max_ratio,
+                actual: produced_total / compressed.max(1),
             });
         }
         Ok((produced_total, true))
@@ -502,6 +548,22 @@ impl<'a> ZipPackage<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn viewer_rejects_large_document_before_inflation() {
+        // Catches: a small ZIP expanding document.xml past 25 MiB reaching pagination and hanging.
+        let limit = 25 * 1024 * 1024;
+        let payload = vec![0; 28_000]; // Stay below the existing 1000x ratio ceiling.
+        let bytes = include_bytes!("../../../../../fixtures/fuzz/zip/docx-document-over-25mib.zip");
+        let error = ZipPackage::check_viewer_limits(bytes).unwrap_err();
+        assert_eq!(error.kind(), "part_too_large");
+        assert_eq!(
+            error.sizes(),
+            Some((u64::from(limit), u64::from(limit + 1)))
+        );
+        let boundary = stored_zip(&[("word/document.xml", &payload, limit)]);
+        ZipPackage::check_viewer_limits(&boundary).unwrap();
+    }
 
     /// Builds a zip of stored (method 0) entries. Each entry is `(name, data, declared size)`; the
     /// headers record `data.len()` as the compressed size, so `declared` may lie about the content.
@@ -632,7 +694,7 @@ mod tests {
         };
         assert!(matches!(
             ZipPackage::open_with_limits(&bytes, limits),
-            Err(ZipError::TotalTooLarge)
+            Err(ZipError::TotalTooLarge { .. })
         ));
     }
 

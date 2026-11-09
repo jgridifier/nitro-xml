@@ -32,7 +32,8 @@ node --test \
   "$ROOT/packages/nitro-xml/loader/test/journal.test.mjs" \
   "$ROOT/packages/nitro-xml/loader/test/edit-recover.test.mjs" \
   "$ROOT/packages/nitro-xml/loader/test/edit-recover-defer.test.mjs" \
-  "$ROOT/packages/nitro-xml/loader/test/defer-journal.test.mjs"
+  "$ROOT/packages/nitro-xml/loader/test/defer-journal.test.mjs" \
+  "$ROOT/packages/nitro-xml/loader/test/protections.test.mjs"
 
 echo "crash-recovery: editor journal + TS oracle (crash injection, xlsx/docx/pptx)"
 EDITOR_SEED="${NITRO_EDITOR_CRASH_SEED:-62}"

@@ -17,8 +17,8 @@ test("NitroViewerProps declares onError for host error surfacing", () => {
   // onError must be in the type so hosts can react to open/load failures.
   const dts = readFileSync(TYPES_FILE, "utf8");
   assert.ok(
-    dts.includes("onError?: (err: Error) => void"),
-    "NitroViewerProps must include onError?: (err: Error) => void",
+    /onError\?: \(\w+: Error(?: & \{[^}]*\})?\) => void/.test(dts),
+    "NitroViewerProps must expose an Error callback (optionally with security metadata)",
   );
 });
 

@@ -9,30 +9,50 @@ use std::fmt;
 #[non_exhaustive]
 pub enum ZipError {
     /// The compressed input is larger than the input limit (checked before parsing).
-    InputTooLarge,
+    InputTooLarge { limit: u64, actual: u64 },
     /// The zip container could not be opened, parsed or inflated.
     InvalidArchive(String),
     /// More non-directory entries than the part limit.
-    TooManyParts,
+    TooManyParts { limit: u64, actual: u64 },
     /// An entry declares an uncompressed size above the per-part limit.
-    PartTooLarge { name: String },
+    PartTooLarge {
+        name: String,
+        limit: u64,
+        actual: u64,
+    },
     /// The declared or inflated total is above the package limit.
-    TotalTooLarge,
+    TotalTooLarge { limit: u64, actual: u64 },
     /// An entry's declared or inflated size exceeds the compression-ratio cap (zip-bomb).
-    CompressionRatio { name: String },
+    CompressionRatio {
+        name: String,
+        limit: u64,
+        actual: u64,
+    },
     /// An entry inflated to a size other than its declared size.
     SizeMismatch { name: String },
 }
 
 impl ZipError {
+    /// Limit and observed value (bytes, entry count, or ratio).
+    pub fn sizes(&self) -> Option<(u64, u64)> {
+        match self {
+            Self::InputTooLarge { limit, actual }
+            | Self::TooManyParts { limit, actual }
+            | Self::PartTooLarge { limit, actual, .. }
+            | Self::TotalTooLarge { limit, actual }
+            | Self::CompressionRatio { limit, actual, .. } => Some((*limit, *actual)),
+            _ => None,
+        }
+    }
+
     /// A stable tag for the error kind, e.g. `"too_many_parts"`.
     pub fn kind(&self) -> &'static str {
         match self {
-            Self::InputTooLarge => "input_too_large",
+            Self::InputTooLarge { .. } => "input_too_large",
             Self::InvalidArchive(_) => "invalid_archive",
-            Self::TooManyParts => "too_many_parts",
+            Self::TooManyParts { .. } => "too_many_parts",
             Self::PartTooLarge { .. } => "part_too_large",
-            Self::TotalTooLarge => "total_too_large",
+            Self::TotalTooLarge { .. } => "total_too_large",
             Self::CompressionRatio { .. } => "compression_ratio",
             Self::SizeMismatch { .. } => "size_mismatch",
         }
@@ -42,14 +62,16 @@ impl ZipError {
 impl fmt::Display for ZipError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InputTooLarge => write!(f, "package exceeds the compressed input limit"),
+            Self::InputTooLarge { .. } => write!(f, "package exceeds the compressed input limit"),
             Self::InvalidArchive(msg) => write!(f, "not a valid zip package: {msg}"),
-            Self::TooManyParts => write!(f, "package exceeds the part limit"),
-            Self::PartTooLarge { name } => {
+            Self::TooManyParts { .. } => write!(f, "package exceeds the part limit"),
+            Self::PartTooLarge { name, .. } => {
                 write!(f, "part {name} exceeds the uncompressed part size limit")
             }
-            Self::TotalTooLarge => write!(f, "package exceeds the uncompressed content limit"),
-            Self::CompressionRatio { name } => {
+            Self::TotalTooLarge { .. } => {
+                write!(f, "package exceeds the uncompressed content limit")
+            }
+            Self::CompressionRatio { name, .. } => {
                 write!(
                     f,
                     "part {name} exceeds the compression-ratio limit (zip-bomb guard)"

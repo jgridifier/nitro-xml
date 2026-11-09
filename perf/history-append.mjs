@@ -11,26 +11,23 @@
  *   drops every previously seeded entry, then seeds from that file. The commit comes from the file name.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { cpus, hostname, platform, release } from 'node:os';
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { toHistoryEntries, readJsonl } from './aggregate.mjs';
+import { hostFingerprint as hostFingerprintFull } from './host.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, '..');
 
-/** Best-effort host fingerprint; chrome_version is filled per entry from the run rows. */
+/** Best-effort host fingerprint for the importing machine. Uses the same format as run.mjs (host.mjs) so
+ *  same-machine imports produce identical id/os/arch/memory_gb/node/concurrent_runs → host_import_recorded is not set.
+ *  cpu_model → cpu to match the shape that toHistoryEntries / sourceHost reads back from raw rows. */
 export function hostFingerprint({ kind, id } = {}) {
-  const ci = !!process.env.GITHUB_ACTIONS;
-  return {
-    kind: kind ?? (ci ? 'ci' : 'box'),
-    id: id ?? (ci ? process.env.RUNNER_NAME ?? 'github-hosted' : hostname()),
-    os: `${platform()} ${release()}`,
-    cpu: cpus()[0]?.model ?? 'unknown',
-    cores: cpus().length,
-  };
+  const fp = hostFingerprintFull(null); // chrome_version excluded from the same-machine check
+  const { cpu_model, ...rest } = fp;
+  return { ...rest, cpu: cpu_model, ...(kind ? { kind } : {}), ...(id ? { id } : {}) };
 }
 
 function fixtureShas() {

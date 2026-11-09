@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluate, decide, overrideFrom, enginesComparable, regressed, loadEntries } from '../gate.mjs';
+import { evaluate, decide, overrideFrom, enginesComparable, regressed, loadEntries, summaryMarkdown } from '../gate.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const th = JSON.parse(readFileSync(join(here, '../thresholds.json'), 'utf8'));
@@ -42,12 +42,12 @@ test('non-main entries are not baselines and same-commit reruns are skipped', ()
   assert.equal(evaluate([ent('cur', 100)], h, th)[0].base, 100);
 });
 
-test('different host or Chrome is incomparable, never pass or fail', () => {
+test('different host or Chrome has no comparable baseline, never pass or fail', () => {
   // Catches: subtracting numbers measured on different machines/Chrome builds.
   const other = hist(100, 100).map((e) => ({ ...e, host: { ...HOST, id: 'ci-7', kind: 'ci' } }));
-  assert.equal(status(evaluate([ent('cur', 900)], other, th)), 'incomparable');
+  assert.equal(status(evaluate([ent('cur', 900)], other, th)), 'no-comparable-baseline');
   const chrome = hist(100).map((e) => ({ ...e, chrome_version: '157' }));
-  assert.equal(status(evaluate([ent('cur', 900)], chrome, th)), 'incomparable');
+  assert.equal(status(evaluate([ent('cur', 900)], chrome, th)), 'no-comparable-baseline');
   assert.equal(decide(evaluate([ent('cur', 900)], other, th)).ok, true);
   assert.equal(status(evaluate([ent('cur', 900)], [], th)), 'no-baseline');
 });
@@ -96,4 +96,47 @@ test('noise: gating the same data twice passes', () => {
   const rows = evaluate(rerun, seeded, th);
   assert.equal(rows.filter((r) => r.status === 'fail').length, 0);
   assert.ok(rows.some((r) => r.status === 'pass'));
+});
+
+test('matching protocol key is compared', () => {
+  // Catches: the protocol key being so strict that identical-protocol entries are never baselines
+  const h = [ent('c1', 100, { rerun: true, fixture_sha256: 'aa' }), ent('c2', 100, { rerun: true, fixture_sha256: 'aa' })];
+  const rows = evaluate([ent('cur', 100, { rerun: true, fixture_sha256: 'aa' })], h, th);
+  assert.equal(rows[0].base, 100);
+  assert.equal(status(rows), 'pass');
+  assert.equal(status(evaluate([ent('cur', 160, { rerun: true, fixture_sha256: 'aa' })], h, th)), 'fail'); // thresholds unchanged
+});
+
+test('mismatched-only history gives no comparable baseline: not pass, not fail, not counted', () => {
+  // Catches: falling back to another harness run / fixture bytes / host setting and then passing or failing against it
+  const cur = ent('cur', 1000);
+  const cases = {
+    rerun: [ent('c1', 100, { rerun: true })],
+    fixture_sha256: [ent('c1', 100, { fixture_sha256: 'old' })],
+    'host.concurrent_runs': [{ ...ent('c1', 100), host: { ...HOST, concurrent_runs: 2 } }],
+    'host.node': [{ ...ent('c1', 100), host: { ...HOST, node: 'v20' } }],
+    chrome_version: [{ ...ent('c1', 100), chrome_version: '157' }],
+  };
+  for (const [field, h] of Object.entries(cases)) {
+    const rows = evaluate([cur], h, th);
+    assert.equal(status(rows), 'no-comparable-baseline', field);
+    assert.match(rows[0].note, new RegExp(field.replace('.', '\\.')));
+    assert.equal(rows[0].base, null);
+    assert.equal(decide(rows).ok, true);
+  }
+  const md = summaryMarkdown(evaluate([cur], cases.rerun, th), th, { ok: true });
+  assert.match(md, /1 no comparable baseline \(not pass, not regression\)/);
+  assert.match(md, /0 regression\(s\)/);
+});
+
+test('mixed history never pools protocols', () => {
+  // Catches: the original sweep entry and its scroll-fix re-run entry of one commit being median-pooled
+  const orig = ent('c1', 750, { rerun: false });
+  const fixed = ent('c1', 940, { rerun: true });
+  const h = [orig, fixed];
+  assert.equal(evaluate([{ ...orig, commit: 'x' }], h, th)[0].base, 750);
+  assert.equal(evaluate([{ ...fixed, commit: 'x' }], h, th)[0].base, 940);
+  // only the other protocol present: no fallback
+  assert.equal(status(evaluate([ent('cur', 940)], [fixed], th)), 'no-comparable-baseline');
+  assert.equal(status(evaluate([ent('cur', 940, { rerun: true })], [orig], th)), 'no-comparable-baseline');
 });

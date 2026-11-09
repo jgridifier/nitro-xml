@@ -38,9 +38,9 @@ const lxlFails = readJsonl(lxlFailFile);
 // Warm 4x rows (new measurement for xlsx rerun completeness)
 const warm4xRows = warm4xFile ? readJsonl(warm4xFile) : [];
 
-// Include ALL xlsx S/M rerun rows — many fixtures are partial (1 cell) in the main sweep;
-// the rerun adds the missing cells. The report aggregates by (fixture, mode, cpu) so duplicates
-// for the same cell just add extra samples, which is harmless.
+// Include ALL xlsx S/M rerun rows — many fixtures are partial (1 cell) in the main sweep; the rerun adds the missing
+// cells. A cell that has both an original and a re-run row is two protocol groups (rerun flag differs): the report
+// (baseline-report.mjs, protocol-rows.mjs) keeps them as separate rows and never adds their samples.
 const manifest = JSON.parse(readFileSync(join(root, 'fixtures/manifest.json'), 'utf8')).fixtures;
 const xlsxSmIds = new Set(manifest.filter((m) => m.format === 'xlsx' && ['S', 'M'].includes(m.tier)).map((m) => m.id));
 const promotedRerunRows = rerunRows.filter((r) => xlsxSmIds.has(r.fixture));
@@ -81,10 +81,13 @@ writeFileSync(`${outBase}.jsonl`, combinedRows.map((r) => JSON.stringify(r)).joi
 writeFileSync(`${outBase}.failures.jsonl`, combinedFails.map((r) => JSON.stringify(r)).join('\n') + '\n');
 writeFileSync(`${outBase}.rerun.jsonl`, rerunDocxPptxRows.map((r) => JSON.stringify(r)).join('\n') + '\n');
 writeFileSync(`${outBase}.rerun-failures.jsonl`, rerunDocxPptxFails.map((r) => JSON.stringify(r)).join('\n') + '\n');
+// Warm 4x additions: separate file so rerunFlags can verify the combined layout
+const warm4xOut = join(here, `baselines/ts-warm4x-${lxlSha}.jsonl`);
+writeFileSync(warm4xOut, promotedWarm4xRows.map((r) => JSON.stringify(r)).join('\n') + (promotedWarm4xRows.length ? '\n' : ''));
 
 const droppedSmFails = smFails.filter((f) => rerunMeasured.has(f.fixture ?? '')).length;
 console.log(`assembled ts-combined-${lxlSha}:`);
 console.log(`  main:    ${combinedRows.length} rows (${smRows.length} S/M + ${promotedRerunRows.length} promoted-rerun + ${promotedWarm4xRows.length} warm4x + ${lxlRows.length} L/XL)`);
 console.log(`  fails:   ${combinedFails.length} (dropped ${droppedSmFails} original S/M timeout(s) for ${rerunMeasured.size} xlsx fixture(s) now promoted via rerun)`);
 console.log(`  rerun:   ${rerunDocxPptxRows.length} rows (docx/pptx non-promoted)`);
-console.log(`output: ${outBase}.jsonl`);
+console.log(`output: ${outBase}.jsonl${promotedWarm4xRows.length ? ` + ${warm4xOut.replace(join(here, '..') + '/', '')} (${promotedWarm4xRows.length} warm4x row(s))` : ''}`);

@@ -1,0 +1,57 @@
+{
+ "note": "extract of a gitignored chunk result file: metadata and failures[] verbatim; per-iteration arrays omitted",
+ "chunk": "cold-1x-000",
+ "meta": {
+  "chrome": "156.0.8078.4",
+  "playwright": "1.64.0",
+  "node": "v20.19.2",
+  "platform": "linux 6.12.94+",
+  "cpu": "Intel(R) Xeon(R) Processor x8",
+  "host": {
+   "kind": "box",
+   "id": "box-4467396174",
+   "os": "Debian GNU/Linux 13 (trixie) (linux 6.12.94+)",
+   "arch": "x64",
+   "cpu_model": "Intel(R) Xeon(R) Processor",
+   "cores": 8,
+   "memory_gb": 16,
+   "chrome_version": "156.0.8078.4",
+   "node": "v20.19.2",
+   "concurrent_runs": 1
+  },
+  "corpus": "manifest",
+  "mode": "cold",
+  "iterations": 3,
+  "cpuThrottle": 1,
+  "viewport": {
+   "width": 1280,
+   "height": 800
+  },
+  "upstreamPin": "ChristopherVR/ooxml@e66aaec24adc0b68472eae1fc42aa4598e09c352",
+  "date": "2026-11-05T17:05:09.371Z"
+ },
+ "results_index": [
+  {
+   "fixture": "gen-docx-pages-500",
+   "format": "docx",
+   "tier": "L"
+  },
+  {
+   "fixture": "gen-docx-pages-500-b",
+   "format": "docx",
+   "tier": "L"
+  },
+  {
+   "fixture": "gen-docx-pages-500-c",
+   "format": "docx",
+   "tier": "L"
+  }
+ ],
+ "failures": [
+  {
+   "fixture": "gen-docx-xl-a",
+   "engine": "ts",
+   "error": "gen-docx-xl-a/ts: Error: word/document.xml exceeds the 25 MiB limit\n    at cce (http://127.0.0.1:46107/perf/dist/ts/docx.js:5717:2682)\n    at async z2 (http://127.0.0.1:46107/perf/dist/ts/docx.js:5717:7323)\n    at async pye.load (http://127.0.0.1:46107/perf/dist/ts/docx.js:8361:28439)\n    at async http://127.0.0.1:46107/perf/pages/docx.html?engine=ts&fixture=gen-docx-xl-a&path=fixtures%2Fgenerated%2Fdocx%2Fxl_a.docx:42:11\n    at async run (http://127.0.0.1:46107/perf/pages/common.js:94:20)"
+  }
+ ]
+}

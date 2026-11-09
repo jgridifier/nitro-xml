@@ -1,0 +1,196 @@
+{
+ "schema": "issue-10-evidence/1",
+ "note": "sha256 of each file in this directory, where it came from, and the sha256 of that original (so the extract can be re-derived from the originals).",
+ "originals_are_gitignored": "perf/results/lxl-sweep/*, and the operator transcript outside the repo; they are not edited by this tooling",
+ "redactions": {
+  "email": 0,
+  "home_path": 0,
+  "token": 0,
+  "bearer": 0,
+  "jwt": 0
+ },
+ "history_correction": {
+  "snapshot": "history-lxl-pre-host-fix.jsonl",
+  "pre_fix_history_sha256": "739386bfa8bbcaa614c7272a690b1d9f66ba28dd11225a4f2580802b8070d6e0",
+  "pre_fix_history_lines": 997,
+  "corrected_line_range": [
+   953,
+   994
+  ],
+  "corrected_by": "perf/correct-lxl-history-host.mjs",
+  "host_source": "perf/baselines/ts-lxl-8961e71.jsonl (row.host, identical in the 18 chunk result files)"
+ },
+ "files": [
+  {
+   "file": "cell-evidence.json",
+   "bytes": 73097,
+   "sha256": "023704a13a23d1637d5c04215aa2fcbd973101026edb64f0de814d6b0450f1a4",
+   "source": "perf/baselines/failure-provenance.json",
+   "source_sha256": "91e1bbc49adda68156a5fd55c3da20eeea98e864b3c4ce59a60595302c712c90",
+   "kind": "derived mapping from failure-provenance.json"
+  },
+  {
+   "file": "extracts/cold-1x-000.json",
+   "bytes": 1730,
+   "sha256": "4478a7973ec3149632df61aa5a37bfed542811d8656c90ee0783cfd5fbee4eb1",
+   "source": "perf/results/lxl-sweep/cold-1x-000.json",
+   "source_sha256": "15747ec58d089f618d3502609be43871a763d9ec6e8dbe0aed4868b3665093d2",
+   "kind": "extract (metadata + failures[] verbatim)"
+  },
+  {
+   "file": "extracts/cold-1x-001.json",
+   "bytes": 2222,
+   "sha256": "075e94631bea46a515533fc9c2448577c5d82daed49b314ad7a61b2eebead2d5",
+   "source": "perf/results/lxl-sweep/cold-1x-001.json",
+   "source_sha256": "2c06f53b7e935f02e61f6d31db97e7b034a599ebe3e516c53d86d75dda4b8951",
+   "kind": "extract (metadata + failures[] verbatim)"
+  },
+  {
+   "file": "extracts/cold-1x-002.json",
+   "bytes": 1360,
+   "sha256": "d60860dddf27cbd2d73688a5cc94c529d5d8d4f663ade60902c77eb984f42dd8",
+   "source": "perf/results/lxl-sweep/cold-1x-002.json",
+   "source_sha256": "39a226b9c1e203512a0f19e90086d4f3e5e7126bc9db9ced2481fc5ae71eef5a",
+   "kind": "extract (metadata + failures[] verbatim)"
+  },
+  {
+   "file": "extracts/cold-4x-000.json",
+   "bytes": 1867,
+   "sha256": "7ebafd3f89decdf4f1ae9eb9cffd7ef1a7c8f0b796a754d18c5ebf86067c65cc",
+   "source": "perf/results/lxl-sweep/cold-4x-000.json",
+   "source_sha256": "99eb3a25af118bea041a2d8370f9ae892ea3193d25e868c9ae1421f31422ba8b",
+   "kind": "extract (metadata + failures[] verbatim)"
+  },
+  {
+   "file": "extracts/cold-4x-001.json",
+   "bytes": 2313,
+   "sha256": "d10c861b9a503666e57ce9fd19fca5f5e772e139b41d446652e79f85b6efcefb",
+   "source": "perf/results/lxl-sweep/cold-4x-001.json",
+   "source_sha256": "cbd9a66056652343cf146727a1a358b2c7e5cebb72919ab75bc855f7dc62826c",
+   "kind": "extract (metadata + failures[] verbatim)"
+  },
+  {
+   "file": "extracts/cold-4x-004.json",
+   "bytes": 1282,
+   "sha256": "3d95674bc0a923d31f75a8ffa9b806bd9b8982d578a6aa17bc3f1a265c51612c",
+   "source": "perf/results/lxl-sweep/cold-4x-004.json",
+   "source_sha256": "d5f60eb51bc6bea3719b97f4dfab068dbc607cb2af16074363959a911a2bf0c4",
+   "kind": "extract (metadata + failures[] verbatim)"
+  },
+  {
+   "file": "extracts/markers.json",
+   "bytes": 1810,
+   "sha256": "88677e86d7b7512cec57b792c3ed19ba8e387936ac7226f28e0b0cbd189e8d12",
+   "source": "perf/results/lxl-sweep/sweep.log",
+   "source_sha256": "3a46067a39ce6b826652c58f858c615149e82991318f9bb47aaaf5f86fc19449",
+   "kind": "listing of 0-byte marker files"
+  },
+  {
+   "file": "extracts/warm-1x-001.gen-pptx-slides-200-b.row.jsonl",
+   "bytes": 47270,
+   "sha256": "293c713356b41224b6cf4bc2264dfc06a2665ea32dd32eb7dba2f540236186f8",
+   "source": "perf/results/lxl-sweep/warm-1x-001.jsonl",
+   "source_sha256": "ae9a255f800c7ae863fefdf8a2830998b6e7858cbe8cc6888ab059061e40cfe8",
+   "kind": "extract (one row verbatim)",
+   "source_lines": [
+    4
+   ]
+  },
+  {
+   "file": "extracts/warm-1x-001.json",
+   "bytes": 2268,
+   "sha256": "e4fba7f766f5e5e2a3508756692092a33f8f878529724d8b4290f7977e5c9692",
+   "source": "perf/results/lxl-sweep/warm-1x-001.json",
+   "source_sha256": "094a3dca213860536e8625d611db9835697e80c7c8cf11ad3e89747e31e94dde",
+   "kind": "extract (metadata + failures[] verbatim)"
+  },
+  {
+   "file": "extracts/warm-4x-004.json",
+   "bytes": 1282,
+   "sha256": "628eb17eb72642ecba9e0475115aad4e74da5a9fc32c7ef11c31aa9e3296b3f8",
+   "source": "perf/results/lxl-sweep/warm-4x-004.json",
+   "source_sha256": "4cbcc0cdb7dfa574e82b5ad265bc66e598be43dfa312e7838022356728547b70",
+   "kind": "extract (metadata + failures[] verbatim)"
+  },
+  {
+   "file": "history-lxl-pre-host-fix.jsonl",
+   "bytes": 115519,
+   "sha256": "06674e6d79e7b599bc4dc23ce8cda4b7e5dd9b53c3ede24fb4bea34b7ea8b95d",
+   "source": "perf/history.jsonl (git 0d59e36, lines 953-994, before the host correction)",
+   "source_sha256": "3e30e7a2a861e1041d1e33d43bbc670e7fa9820df6708a00836e8b34b68edefd",
+   "kind": "verbatim copy of 42 lines of the pre-correction history",
+   "source_lines": [
+    953,
+    994
+   ]
+  },
+  {
+   "file": "operator-events.jsonl",
+   "bytes": 12284,
+   "sha256": "04af8c7a1d0ea639683d0e952cb8ae9d1ff67b6ca8d158cd1cea992617965107",
+   "source": "~/.claude/projects/-workspace-nitro-xml-work-issue-10-lxl/1e83d572-c74b-4385-a8d7-e42d44880ae2.jsonl",
+   "source_sha256": "7be91da29ba57dae7747f20eb0bd21037a972d161408491d34579d12c5e44536",
+   "kind": "extract (selected Bash commands and their results; no assistant or user prose)",
+   "source_lines": [
+    299,
+    707,
+    732,
+    2089,
+    2101,
+    2104,
+    2121,
+    2286,
+    2295,
+    2298,
+    2307
+   ],
+   "redactions": {
+    "email": 0,
+    "home_path": 0,
+    "token": 0,
+    "bearer": 0,
+    "jwt": 0
+   }
+  },
+  {
+   "file": "raw/box-conditions.jsonl",
+   "bytes": 16718,
+   "sha256": "bda7c666562d991e529e27c52f45faf00dab3b0ef66003d33b4a84f4ca314ea3",
+   "source": "perf/baselines/box-conditions.jsonl",
+   "source_sha256": "bda7c666562d991e529e27c52f45faf00dab3b0ef66003d33b4a84f4ca314ea3",
+   "kind": "verbatim copy"
+  },
+  {
+   "file": "raw/sweep.log",
+   "bytes": 1521,
+   "sha256": "3a46067a39ce6b826652c58f858c615149e82991318f9bb47aaaf5f86fc19449",
+   "source": "perf/results/lxl-sweep/sweep.log",
+   "source_sha256": "3a46067a39ce6b826652c58f858c615149e82991318f9bb47aaaf5f86fc19449",
+   "kind": "verbatim copy"
+  },
+  {
+   "file": "raw/ts-4451709.failures.jsonl",
+   "bytes": 38858,
+   "sha256": "4f31f715b7a1cc0b5826fc4cf2f31e0b255ac9978a17224b6307d220a37a27c4",
+   "source": "perf/baselines/ts-4451709.failures.jsonl",
+   "source_sha256": "4f31f715b7a1cc0b5826fc4cf2f31e0b255ac9978a17224b6307d220a37a27c4",
+   "kind": "verbatim copy"
+  },
+  {
+   "file": "raw/ts-4451709.rerun-failures.jsonl",
+   "bytes": 10806,
+   "sha256": "9797071c7a2c6e7e5ebe85e5b28e9e739294c9329c42a82cc5274e0946fe849e",
+   "source": "perf/baselines/ts-4451709.rerun-failures.jsonl",
+   "source_sha256": "9797071c7a2c6e7e5ebe85e5b28e9e739294c9329c42a82cc5274e0946fe849e",
+   "kind": "verbatim copy"
+  },
+  {
+   "file": "raw/ts-lxl-8961e71.failures.jsonl",
+   "bytes": 9995,
+   "sha256": "fc1cbf32325fd09d77d21d3370c082304bad23df20db9bca83d66ac3db76f56b",
+   "source": "perf/baselines/ts-lxl-8961e71.failures.jsonl",
+   "source_sha256": "fc1cbf32325fd09d77d21d3370c082304bad23df20db9bca83d66ac3db76f56b",
+   "kind": "verbatim copy"
+  }
+ ]
+}

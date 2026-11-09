@@ -212,7 +212,7 @@ live copy on the `perf-data` branch (main stays clean); the copy committed here 
 
 - `node perf/gate.mjs --current cur.jsonl --history perf/history.jsonl`: baseline = median of the last 5 main entries
   with the same key **and the same host + Chrome**; a metric fails only if it exceeds both the relative and the absolute
-  threshold in `thresholds.json`. A different host or Chrome version is reported `incomparable` (neither pass nor fail).
+  threshold in `thresholds.json`. A baseline must have the identical protocol key (`PROTOCOL_FIELDS` in `gate.mjs`: Chrome, `rerun` harness-run marker, fixture sha256, host fields, node, concurrent runs); otherwise the row is `no comparable baseline` (neither pass nor fail, never counted as a regression, never pooled across protocols).
   WASM-vs-TS comparisons need the same host+Chrome or the same CI job (`enginesComparable`).
 - `disarmed` in `thresholds.json` lists report-only cells (currently xlsx-M warm 1x `tti_ms`, bimodal and unexplained).
 - Override: label `perf-regression-accepted` plus a `perf-regression-accepted: <reason>` line in the PR body; the gate

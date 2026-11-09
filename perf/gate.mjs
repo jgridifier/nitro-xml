@@ -9,13 +9,15 @@
  *   env PERF_LABELS (comma list) and PR_BODY: label `perf-regression-accepted` + a reason line
  *   (`perf-regression-accepted: <why>` in the PR body) turns failures into a logged pass.
  *
- * Exit 1 = at least one armed regression (not overridden). "incomparable" (different host or Chrome)
+ * Exit 1 = at least one armed regression (not overridden). "no-comparable-baseline" (same key, different protocol: host, Chrome, harness run, fixture bytes, ...)
  * is reported as its own status; it is neither pass nor fail. PRs never append to history.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { median } from './stats.mjs';
+import { isUnknown } from './unknown.mjs';
+import { createHash } from 'node:crypto';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -54,25 +56,65 @@ function disarmedReason(e, metric, th) {
   return d ? d.reason ?? 'disarmed' : null;
 }
 
-/** Baseline entries for `cur`: last N main entries, same key, other commits, same env. */
+/**
+ * Protocol key: the identifiers a history entry actually records that decide whether two numbers were produced
+ * by the same measurement protocol. Together with keyOf (engine, fixture_id, mode, cpu_throttle) a baseline must
+ * match ALL of them exactly (an identifier missing on both sides counts as equal, missing on one side does not).
+ *   chrome_version                 browser build
+ *   rerun                          explicit harness-run marker: true = the supplemental scroll-fixed re-run of a commit
+ *                                  (bounded xlsx scroll, 200 steps without a lastRow hint), absent/false = original run.
+ *                                  Entries carry no harness version/commit, so this flag is the only recorded proxy
+ *                                  for the harness definition; it is necessary, not shown to be sufficient
+ *   fixture_sha256                 bytes of the fixture (same id can have different bytes, e.g. #117 replaced pad.bin)
+ *   host.kind/id/os/arch/cpu/cores/memory_gb   machine
+ *   host.node                      Node version of the runner
+ *   host.concurrent_runs           runs sharing the machine (the sweep used 2; 3-way moved first_paint ~7%)
+ * Not in the key: commit/date/branch (what is compared across), n (sample count varies with timeouts), runner.
+ * A field the source run did not record is the explicit UNKNOWN marker (unknown.mjs): it never matches anything, itself included,
+ * so such an entry has no comparable baseline and is never a baseline.
+ * Recorded nowhere, so not usable: iterations design, playwright version, viewport, scroll cap per run.
+ */
+export const PROTOCOL_FIELDS = [
+  'chrome_version', 'rerun', 'fixture_sha256',
+  'host.kind', 'host.id', 'host.os', 'host.arch', 'host.cpu', 'host.cores', 'host.memory_gb', 'host.node', 'host.concurrent_runs',
+];
+const pick = (e, path) => path.split('.').reduce((o, k) => o?.[k], e);
+export const protocolOf = (e) => Object.fromEntries(PROTOCOL_FIELDS.map((f) => [f, f === 'rerun' ? !!e.rerun : pick(e, f) ?? null]));
+/** Fields the source run did not record (explicit UNKNOWN marker, see unknown.mjs). */
+export const unknownFields = (e) => PROTOCOL_FIELDS.filter((f) => isUnknown(protocolOf(e)[f]));
+/**
+ * An entry with any unknown protocol field has a protocol id that is unique to that entry (a digest of the whole entry),
+ * so unknown never matches anything, including another unknown; baselineFor also refuses it explicitly.
+ */
+export const protocolId = (e) => (unknownFields(e).length
+  ? JSON.stringify({ unknown: unknownFields(e), entry: createHash('sha256').update(JSON.stringify(e)).digest('hex') })
+  : JSON.stringify(protocolOf(e)));
+export const protocolDiff = (a, b) => PROTOCOL_FIELDS.filter((f) => JSON.stringify(protocolOf(a)[f]) !== JSON.stringify(protocolOf(b)[f]) || isUnknown(protocolOf(a)[f]) || isUnknown(protocolOf(b)[f]));
+
+/**
+ * Baseline entries for `cur`: last N main entries with the same key, another commit and the IDENTICAL protocol key.
+ * Never falls back to a different protocol and never pools different protocols.
+ */
 export function baselineFor(cur, history, n) {
   const sameKey = history.filter((h) => h.branch === 'main' && keyOf(h) === keyOf(cur) && h.commit !== cur.commit);
-  const comparable = sameKey.filter((h) => sameEnv(h, cur));
-  return { comparable: comparable.slice(-n), anyKey: sameKey.length };
+  const id = protocolId(cur);
+  const comparable = unknownFields(cur).length ? [] : sameKey.filter((h) => !unknownFields(h).length && protocolId(h) === id);
+  const nearest = sameKey.length ? sameKey[sameKey.length - 1] : null;
+  return { comparable: comparable.slice(-n), anyKey: sameKey.length, differs: nearest ? protocolDiff(cur, nearest) : [] };
 }
 
-/** Returns rows: {entry, metric, status: pass|fail|report-only|no-baseline|incomparable, base, cur, delta, note}. */
+/** Returns rows: {entry, metric, status: pass|fail|report-only|no-baseline|no-comparable-baseline, base, cur, delta, note}. */
 export function evaluate(current, history, th) {
   const rows = [];
   for (const cur of current) {
-    const { comparable, anyKey } = baselineFor(cur, history, th.baseline_n ?? 5);
+    const { comparable, anyKey, differs } = baselineFor(cur, history, th.baseline_n ?? 5);
     for (const [metric, m] of Object.entries(cur.metrics)) {
       const c = classify(metric, th);
       if (!c) continue;
       const row = { entry: cur, metric, cur: m.median, base: null, delta: null, status: 'pass', note: '' };
       if (!comparable.length) {
-        row.status = anyKey ? 'incomparable' : 'no-baseline';
-        row.note = anyKey ? 'baseline from a different host or Chrome version' : '';
+        row.status = anyKey ? 'no-comparable-baseline' : 'no-baseline';
+        row.note = anyKey ? `same-key entries exist but none with the identical protocol key; latest differs in ${differs.join(', ') || 'nothing recorded'}` : '';
         rows.push(row);
         continue;
       }
@@ -120,14 +162,14 @@ export function summaryMarkdown(rows, th, verdict) {
   const shown = rows.filter((r) => head.has(r.metric) || !['pass', 'no-baseline'].includes(r.status));
   const count = (s) => rows.filter((r) => r.status === s).length;
   const L = [`### perf-gate: ${verdict.ok ? (verdict.overridden ? 'PASS (override)' : 'PASS') : '**FAIL**'}`, ''];
-  L.push(`${count('fail')} regression(s) · ${count('report-only')} report-only · ${count('incomparable')} incomparable · ${count('no-baseline')} no baseline · ${count('pass')} pass`, '');
+  L.push(`${count('fail')} regression(s) · ${count('report-only')} report-only · ${count('no-comparable-baseline')} no comparable baseline (not pass, not regression) · ${count('no-baseline')} no baseline · ${count('pass')} pass`, '');
   if (verdict.overridden) L.push(`> \`perf-regression-accepted\` honoured. Reason: ${verdict.reason}`, '');
   if (verdict.missingReason) L.push('> `perf-regression-accepted` label present but the PR body has no `perf-regression-accepted: <reason>` line; not honoured.', '');
   L.push('| fixture | engine | mode | cpu | metric | baseline | current | delta | status |', '|---|---|---|---:|---|---:|---:|---:|---|');
   for (const r of shown) {
     const e = r.entry;
     const d = r.delta == null ? '—' : `${r.delta >= 0 ? '+' : ''}${(r.delta * 100).toFixed(1)}%`;
-    const st = r.status === 'fail' ? '**FAIL**' : r.status === 'report-only' ? `report-only (${r.note})` : r.status === 'incomparable' ? `incomparable (${r.note})` : r.status;
+    const st = r.status === 'fail' ? '**FAIL**' : r.status === 'report-only' ? `report-only (${r.note})` : r.status === 'no-comparable-baseline' ? `no comparable baseline (${r.note})` : r.status;
     L.push(`| ${e.fixture_id} | ${e.engine} | ${e.mode} | ${e.cpu_throttle}x | ${r.metric} | ${fmt(r.metric, r.base)} | ${fmt(r.metric, r.cur)} | ${d} | ${st} |`);
   }
   return L.join('\n') + '\n';

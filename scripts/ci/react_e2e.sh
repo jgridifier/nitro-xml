@@ -31,22 +31,6 @@ if [ "$TOOLS_STAMP" != "$EXPECTED_STAMP" ]; then
   exit 1
 fi
 
-VALIDATE_OUT="${NITRO_TOOLS_DIR}/ooxml-validate"
-export DOTNET_ROOT="${NITRO_TOOLS_DIR}/dotnet"
-export PATH="${DOTNET_ROOT}:$PATH"
-
-if [ -x "$VALIDATE_OUT/ooxml-validate" ]; then
-  VALIDATE_CMD=("$VALIDATE_OUT/ooxml-validate")
-else
-  VALIDATE_CMD=(dotnet "$VALIDATE_OUT/ooxml-validate.dll")
-fi
-
-SOFFICE=$(command -v soffice || command -v libreoffice || true)
-if [ -z "$SOFFICE" ]; then
-  echo "react-e2e: soffice/libreoffice not on PATH after setup-validators.sh" >&2
-  exit 1
-fi
-
 if ! command -v node >/dev/null 2>&1; then
   echo "react-e2e: node not found" >&2
   exit 1
@@ -92,59 +76,39 @@ fi
 overall_rc=0
 
 validate_file() {
-  local path="$1"
-  local ext="$2"
-  local label="$3"
-
-  if [ ! -f "$path" ]; then
-    echo "react-e2e: FAIL $label output not found at $path" >&2
+  local output="$1" input="$2" ext="$3" label="$4"
+  # PRODUCT_SPEC §5(a): no new validator errors, plus equal reopened unit counts.
+  # Reuse the corpus gate's comparisons; do not hide pre-existing input errors.
+  if ! node --input-type=module - "$input" "$output" "$ext" "$label" <<'JS'
+import { readFileSync } from 'node:fs';
+import { validateOpenXml, errorSubset, libreOfficeReopen } from './parity/roundtrip/validate.mjs';
+const [input, output, ext, label] = process.argv.slice(2);
+const inputBytes = readFileSync(input);
+const outputBytes = readFileSync(output);
+const before = validateOpenXml(input);
+const after = validateOpenXml(output);
+for (const result of [before, after]) {
+  if (result.skipped || result.errors?.some(e =>
+    ['validator-fail', 'validator-non-json', 'package-open'].includes(e.id))) {
+    throw new Error(`react-e2e: validator unavailable or package unreadable: ${JSON.stringify(result)}`);
+  }
+}
+const validation = errorSubset(before.errors, after.errors);
+console.log(`react-e2e: ${label}: input errors=${before.errors.length}, output errors=${after.errors.length}, new errors=${validation.extras.length}`);
+if (!validation.ok) throw new Error(`New Open XML errors: ${JSON.stringify(validation.extras)}`);
+const reopened = libreOfficeReopen(inputBytes, outputBytes, ext);
+console.log(`react-e2e: LibreOffice ${label}: ${JSON.stringify(reopened)}`);
+if (reopened.skipped || !reopened.ok) throw new Error('LibreOffice reopen/count comparison failed');
+JS
+  then
     overall_rc=1
-    return
-  fi
-  echo "react-e2e: ooxml-validate $label"
-  set +e
-  json=$("${VALIDATE_CMD[@]}" "$path" 2>/dev/null)
-  v_rc=$?
-  set -e
-  if [ "$v_rc" -ne 0 ] && [ -z "$json" ]; then
-    echo "react-e2e: FAIL ooxml-validate exited $v_rc for $label" >&2
-    overall_rc=1
-    return
-  fi
-  err_count=$(python3 -c 'import json,sys; a=json.loads(sys.argv[1]); print(len(a))' "$json" 2>/dev/null || echo "-1")
-  if [ "$err_count" = "-1" ]; then
-    echo "react-e2e: FAIL ooxml-validate returned non-JSON for $label" >&2
-    overall_rc=1
-  elif [ "$err_count" -gt 0 ]; then
-    echo "react-e2e: FAIL ooxml-validate found $err_count error(s) in $label: $json" >&2
-    overall_rc=1
-  else
-    echo "react-e2e: ooxml-validate OK (0 errors) for $label"
-  fi
-
-  echo "react-e2e: LibreOffice $label"
-  tmp_dir=$(mktemp -d)
-  trap 'rm -rf "$tmp_dir"' EXIT
-  set +e
-  "$SOFFICE" --headless --norestore --convert-to pdf --outdir "$tmp_dir" "$path" >/dev/null 2>&1
-  lo_rc=$?
-  set -e
-  pdf_count=$(find "$tmp_dir" -name "*.pdf" | wc -l)
-  rm -rf "$tmp_dir"
-  trap - EXIT
-  if [ "$lo_rc" -ne 0 ] || [ "$pdf_count" -eq 0 ]; then
-    echo "react-e2e: FAIL LibreOffice conversion failed (exit=$lo_rc pdf=$pdf_count) for $label" >&2
-    overall_rc=1
-  else
-    echo "react-e2e: LibreOffice OK (pdf produced) for $label"
   fi
 }
 
-# xlsx converts to pdf via LibreOffice as well.
-validate_file "$SAVE_OUT/saved_edit.xlsx"  "xlsx" "edit-save xlsx"
-validate_file "$SAVE_OUT/saved_edit.docx"  "docx" "edit-save docx"
-validate_file "$SAVE_OUT/saved_edit.pptx"  "pptx" "edit-save pptx"
-validate_file "$SAVE_OUT/saved_noop.xlsx"  "xlsx" "noop-save xlsx"
+validate_file "$SAVE_OUT/saved_edit.xlsx" "$EXAMPLE/public/fixtures/cells_1k.xlsx" xlsx "edit-save xlsx"
+validate_file "$SAVE_OUT/saved_edit.docx" "$EXAMPLE/public/fixtures/pages_10.docx" docx "edit-save docx"
+validate_file "$SAVE_OUT/saved_edit.pptx" "$EXAMPLE/public/fixtures/slides_10.pptx" pptx "edit-save pptx"
+validate_file "$SAVE_OUT/saved_noop.xlsx" "$EXAMPLE/public/fixtures/cells_1k.xlsx" xlsx "noop-save xlsx"
 
 # --- Report to GitHub step summary. ---
 {

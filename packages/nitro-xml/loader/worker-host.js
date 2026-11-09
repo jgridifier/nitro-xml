@@ -3,6 +3,7 @@ import { takePrewarmedWorker, prewarmWorker, unsupportedFormatError } from "./bo
 import { createEventCoalescer } from "./events.js";
 import {
   isSupportedExtension,
+  checkInputSize,
   VIEWER_RECOVERY_FAILED_MESSAGE,
   EDITOR_RECOVERY_FAILED_MESSAGE,
 } from "./formats.js";
@@ -58,6 +59,8 @@ _wireWorker() {
 this._worker.onmessage = (ev) => this._onMessage(ev.data);
 this._worker.onerror = () => {
 const err = Object.assign(new Error("Worker crashed"), { code: "worker_crashed" });
+this._fatalError = err;
+if (!this._pending.size) this.onError?.(err);
 for (const [, p] of this._pending) p.reject(err);
 this._pending.clear();
 };
@@ -72,9 +75,13 @@ this._ro = opts.readonly !== false;
 this._viewerReloadAttempted = false;
 this._editRecoveryAttempted = false;
 this._journal = null;
+// Reject before transferring/copying an oversized compressed package into WASM.
+checkInputSize(u8.byteLength);
 const opened = await this._openBytes(u8, n, opts);
+// Pointer events can commit without going through applyEdit. Arm their journal before exposure.
+if (!this._ro && /\.(pptx|pptm|potx|potm)$/i.test(n)) await this._ej();
 if (this._ro) {
-void this._ensureOriginalBytes().catch(() => {});
+void this._ensureOriginalBytes().catch((error) => this.onError?.(error));
 }
 return opened;
 }
@@ -161,7 +168,9 @@ this._worker.postMessage({ type: "dispose" });
 } catch {
 }
 this._worker.terminate();
+for (const [, p] of this._pending) p.reject(new Error("document replaced"));
 this._pending.clear();
+this._fatalError = null;
 this._worker = this._newWorker(false);
 this._wireWorker();
 }
@@ -259,8 +268,12 @@ release();
 }
 dispose() {
 this._events.flushNow();
+for (const [, p] of this._pending) p.reject(new Error("document disposed"));
+this._pending.clear();
 try{this._worker.postMessage({type:"dispose"});}catch{}
-takePrewarmedWorker(this._worker);this._worker=null;
+if (this._fatalError) this._worker?.terminate();
+else takePrewarmedWorker(this._worker);
+this._worker=null;
 }
 async _flushPendingLayout() {
 const reqs = this._pendingLayoutReqs;
@@ -310,9 +323,18 @@ return this._measureCanvas.getContext("2d");
 }
 _onMessage(msg) {
 if (!msg || !msg.type) return;
+if (msg.type === "geometry-commits") {
+// Writable PowerPoint open ensures the journal before exposure to pointer events.
+if (this._journal && !this._replayingJournal) {
+for (const spec of msg.commits) this._journal.append({ spec });
+}
+return;
+}
 if (msg.type === "error") {
+const error = Object.assign(new Error(msg.message), { code: msg.code, limit: msg.limit, actual: msg.actual, part: msg.part });
+if (!this._pending.size) this.onError?.(error);
 for (const [, p] of this._pending) {
-p.reject(Object.assign(new Error(msg.message), { code: msg.code }));
+p.reject(error);
 }
 this._pending.clear();
 return;
@@ -327,8 +349,23 @@ p.resolve(msg);
 _request(expect, send) {
 const id = ++this._req;
 return new Promise((resolve, reject) => {
-this._pending.set(id, { expect, resolve, reject });
+// Same 120 s ceiling as perf/run.mjs. Host timer can terminate stuck synchronous WASM.
+const started = Date.now();
+const timer = setTimeout(() => {
+const error = Object.assign(new Error(`Worker ${expect} exceeded time budget`), {
+code: "NITRO_TIMEOUT", limit: 120000, actual: Date.now() - started,
+});
+this._worker.terminate();
+this._fatalError = error;
+for (const [, p] of this._pending) p.reject(error);
+this._pending.clear();
+}, 120000);
+const finish = (fn) => (value) => { clearTimeout(timer); this._pending.delete(id); fn(value); };
+this._pending.set(id, { expect, resolve: finish(resolve), reject: finish(reject) });
+try {
+if (this._fatalError) throw this._fatalError;
 send();
+} catch (error) { this._pending.get(id)?.reject(error); }
 });
 }
 }

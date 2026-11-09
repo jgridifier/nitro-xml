@@ -189,7 +189,7 @@ export function patch(WorkerDocument) {
         const run = () => {
           doc._nxPoke = 0;
           if (!doc._nxFollow) return;
-          void doc.tick().catch(() => {});
+          void doc.tick().catch((error) => doc.onError?.(error));
         };
         if (typeof queueMicrotask === "function") queueMicrotask(run);
         else Promise.resolve().then(run);

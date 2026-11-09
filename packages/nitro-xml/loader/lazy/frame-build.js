@@ -46,6 +46,11 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
   const pendingChrome = workerSelf._pendingEditorChrome === 1;
   if (handle.t !== false || workerSelf._openFrameApplied) handle.prepareFrame();
   else workerSelf._openFrameApplied = true;
+  const commits = handle.takeGeometryCommits?.() || [];
+  // Send commits before any later paint failure so recovery retains successful edits.
+  if (commits.length) workerSelf.postMessage({ type: "geometry-commits", commits });
+  const geometryError = handle.takeGeometryError?.();
+  if (geometryError) throw geometryError;
   let chromeHtml =
     typeof handle.takeChromeIfDirty === "function"
       ? handle.takeChromeIfDirty() || null
@@ -146,7 +151,7 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
     try {
       handle.setReadOnly(false);
       handle.loadEditorChrome();
-    } catch {}
+    } catch (error) { throw error; }
     workerSelf.postMessage({ type: "er" });
   }
 }

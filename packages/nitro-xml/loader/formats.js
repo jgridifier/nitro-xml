@@ -50,3 +50,11 @@ export function viewerOpenErrorMessage(err) {
   }
   return (err && err.message) || String(err);
 }
+
+/** Mirror MAX_INPUT_BYTES in nitro-xml-opc; reject before reading a Blob or copying to WASM. */
+export function checkInputSize(actual) {
+  const limit = 50 * 1024 * 1024;
+  if (actual > limit) throw Object.assign(new Error("package exceeds the compressed input limit"), {
+    code: "input_too_large", limit, actual,
+  });
+}

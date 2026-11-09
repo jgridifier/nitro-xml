@@ -15,20 +15,23 @@ function tagForName(name) {
         return "nitro-pptx";
     return null;
 }
-async function bytesFromFile(file, fileName) {
+async function bytesFromFile(file, fileName, checkSize) {
     if (typeof file === "string") {
         const res = await fetch(file);
         if (!res.ok)
             throw new Error(`fetch failed: ${res.status}`);
+        checkSize(Number(res.headers.get("content-length")));
         const name = fileName ||
             file.split("?")[0]?.split("#")[0]?.split("/").pop() ||
             "document.xlsx";
         return { bytes: await res.arrayBuffer(), name };
     }
     if (file instanceof Blob) {
+        checkSize(file.size);
         const name = fileName || (file instanceof File ? file.name : "document.xlsx");
         return { bytes: await file.arrayBuffer(), name };
     }
+    checkSize(file.byteLength);
     const name = fileName || "document.xlsx";
     if (file instanceof ArrayBuffer)
         return { bytes: file, name };
@@ -41,11 +44,13 @@ async function bytesFromFile(file, fileName) {
  * Module evaluate does not touch `window` / `document`; custom elements and
  * WASM load only inside `useEffect` on the client.
  */
-export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, editable = false, mode = "embedded", onReady, onChange, className, style, }, ref) {
+export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, editable = false, mode = "embedded", onReady, onChange, onError, className, style, }, ref) {
     const wrapRef = useRef(null);
     const elRef = useRef(null);
     const onReadyRef = useRef(onReady);
     const onChangeRef = useRef(onChange);
+    const onErrorRef = useRef(onError);
+    onErrorRef.current = onError;
     onReadyRef.current = onReady;
     onChangeRef.current = onChange;
     useImperativeHandle(ref, () => ({
@@ -54,8 +59,11 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
         },
         async save() {
             const el = elRef.current;
-            if (!el?.save)
-                throw new Error("NitroViewer: not ready");
+            if (!el?.save) {
+                const error = new Error("NitroViewer: not ready");
+                onErrorRef.current?.(error);
+                throw error;
+            }
             return el.save();
         },
         async applyEdit(spec) {
@@ -72,6 +80,14 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
             return undefined;
         let cancelled = false;
         let el = null;
+        const reported = new WeakSet();
+        const report = (error) => {
+            if (cancelled || reported.has(error))
+                return;
+            reported.add(error);
+            onErrorRef.current?.(error);
+        };
+        const onFailure = (ev) => report(ev.detail);
         let onSave = null;
         (async () => {
             const wrap = wrapRef.current;
@@ -83,7 +99,7 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
             loader.defineNitroXlsx();
             loader.defineNitroDocx();
             loader.defineNitroPptx();
-            const { bytes, name } = await bytesFromFile(file, fileName);
+            const { bytes, name } = await bytesFromFile(file, fileName, loader.checkInputSize);
             if (cancelled)
                 return;
             const tag = tagForName(name);
@@ -103,24 +119,21 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
                     onChangeRef.current?.(detail);
             };
             el.addEventListener("nitro-save", onSave);
+            el.addEventListener("error", onFailure);
             const viewer = el;
             await viewer.loadBuffer(bytes, name);
             if (cancelled)
                 return;
-            try {
-                await viewer.document?.tick?.();
-            }
-            catch {
-                /* paint best-effort */
-            }
+            await viewer.document?.tick?.();
             if (!cancelled)
                 onReadyRef.current?.(el);
         })().catch((err) => {
-            if (!cancelled)
-                console.error("NitroViewer:", err);
+            report(err instanceof Error ? err : Object.assign(new Error(String(err?.message || err)), err));
         });
         return () => {
             cancelled = true;
+            if (el)
+                el.removeEventListener("error", onFailure);
             if (el && onSave)
                 el.removeEventListener("nitro-save", onSave);
             try {

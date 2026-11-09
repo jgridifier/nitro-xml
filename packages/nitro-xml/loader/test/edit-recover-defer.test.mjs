@@ -21,6 +21,7 @@ describe("edit recover with deferred journal (#445)", () => {
     let recovered = 0;
     let shown = 0;
     const el = Object.create(ViewerElement.prototype);
+    el.dispatchEvent = () => true;
     el._readonly = false;
     el._d = {
       _journal: null,
@@ -50,6 +51,7 @@ describe("edit recover with deferred journal (#445)", () => {
     let recovered = 0;
     let shown = 0;
     const el = Object.create(ViewerElement.prototype);
+    el.dispatchEvent = () => true;
     el._readonly = false;
     el._d = {
       _journal: null,

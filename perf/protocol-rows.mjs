@@ -46,7 +46,9 @@ export function rerunFlags(rows, inputPath, manifest) {
   const promoted = rd('ts-4451709.rerun.jsonl').filter((l) => xlsxSM.has(JSON.parse(l).fixture));
   const lxlFile = `ts-lxl-${m[1]}.jsonl`;
   const lxl = existsSync(join(dir, lxlFile)) ? rd(lxlFile) : [];
-  const expect = [...sm.map((l) => [l, false]), ...promoted.map((l) => [l, true]), ...lxl.map((l) => [l, false])];
+  const warm4xFile = `ts-warm4x-${m[1]}.jsonl`;
+  const warm4x = existsSync(join(dir, warm4xFile)) ? rd(warm4xFile) : [];
+  const expect = [...sm.map((l) => [l, false]), ...promoted.map((l) => [l, true]), ...warm4x.map((l) => [l, false]), ...lxl.map((l) => [l, false])];
   if (expect.length !== rows.length) throw new Error(`${basename(inputPath)} is not original + promoted re-run + L/XL (${rows.length} rows vs ${expect.length})`);
   return rows.map((r, i) => {
     if (JSON.stringify(r) !== JSON.stringify(JSON.parse(expect[i][0]))) throw new Error(`${basename(inputPath)} row ${i} differs from its source file; cannot tell which protocol produced it`);

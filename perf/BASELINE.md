@@ -8,8 +8,8 @@
 | Measured at | nitro-xml commit 8961e71 plus the harness changes of the PR that added this file |
 | Chrome | 156.0.8078.4 |
 | Runner | local Linux box via `node perf/baseline-sweep.mjs` -> `node perf/run.mjs --corpus manifest --engine ts` (cold n=1–10; warm n=1–20 + 1 discarded warm-up; CPU 1x and 4x) |
-| Date | 2026-11-06 |
-| Source data | perf/baselines/ts-combined-8961e71.jsonl (12738 samples, 230 fixtures, 234 fixture x protocol-group records, 4 cells) |
+| Date | 2026-11-09 |
+| Source data | perf/baselines/ts-combined-8961e71.jsonl (12798 samples, 230 fixtures, 237 fixture x protocol-group records, 4 cells) |
 | host 1: kind | box |
 | host 1: id | box-4467396174 |
 | host 1: os | Debian GNU/Linux 13 (trixie) (linux 6.12.94+) |
@@ -58,7 +58,7 @@ Every n, median and p95 below belongs to one protocol group: runs with the ident
 | group | distinguishing fields | samples | fixture-cells | fixtures | rerun | concurrent_runs | host.id | node | fixture_sha256 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | P22e9d3 | rerun=false, concurrent_runs=2 | 11493 | 775 | 198 | false | 2 | box-4467396174 | v20.19.2 | not recorded |
-| P4faa41 | rerun=false, concurrent_runs=1 | 124 | 42 | 15 | false | 1 | box-4467396174 | v20.19.2 | not recorded |
+| P4faa41 | rerun=false, concurrent_runs=1 | 184 | 45 | 18 | false | 1 | box-4467396174 | v20.19.2 | not recorded |
 | Pb8f044 | rerun=true, concurrent_runs=2 | 1521 | 129 | 51 | true | 2 | box-4467396174 | v20.19.2 | not recorded |
 
 Fixture-cells measured under more than one group in the main dataset: real-xlsx-poi-WithEmbeded cold 1x (P22e9d3 n=1 + Pb8f044 n=10); real-xlsx-usgov-census-NST-EST2024-POP cold 1x (P22e9d3 n=1 + Pb8f044 n=10); gen-xlsx-cells-100k-b cold 4x (P22e9d3 n=1 + Pb8f044 n=10); real-xlsx-poi-45540_classic_Footer cold 4x (P22e9d3 n=1 + Pb8f044 n=10). The history entries of the L/XL sweep carry the measuring host recovered from these same rows (`host_import_recorded` keeps what the importing machine had written, `provenance.host` names the source rows), so the report, the gate and the inventory use the same group id for every cell (`perf/test/consistency.test.mjs`).
@@ -87,8 +87,10 @@ Fixture-cells measured under more than one group in the main dataset: real-xlsx-
 | format | tier | protocol | fixtures | cold 1x | cold 4x | warm 1x | warm 4x |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | xlsx | S | P22e9d3 | 3 | 747 (744..841) n=1–10, thin sample in 2/3 fixtures | 2162 (2162..2162) n=10, 2 fixtures no samples | 690 (690..690) n=20, 2 fixtures no samples | 2346 (2346..2346) n=20, 2 fixtures no samples |
+| xlsx | S | P4faa41 | 2 | no samples | no samples | no samples | 2048 (2036..2060) n=20 |
 | xlsx | S | Pb8f044 | 27 | 784 (709..2204) n=10 | 2431 (1971..2954) n=10 | 738 (677..786) n=20, 18 fixtures no samples | no samples |
 | xlsx | M | P22e9d3 | 3 | 1007 (1007..1007) n=10, 2 fixtures no samples | 3013 (2944..3083) n=1–10, thin sample in 1/2 fixtures, 1 fixtures no samples | 950 (950..950) n=20, 2 fixtures no samples | 2732 (2356..3109) n=1–20, thin sample in 1/2 fixtures, 1 fixtures no samples |
+| xlsx | M | P4faa41 | 1 | no samples | no samples | no samples | 2722 (2722..2722) n=20 |
 | xlsx | M | Pb8f044 | 6 | 1022 (917..3738) n=10 | 3191 (2958..5003) n=10 | 923 (917..929) n=20, 4 fixtures no samples | no samples |
 | xlsx | L | P4faa41 | 3 | 2278 (1831..2763) n=3, thin sample in 3/3 fixtures | 7791 (6120..9767) n=3, thin sample in 3/3 fixtures | 2272 (1833..2841) n=3, thin sample in 3/3 fixtures | 9108 (7063..12098) n=3, thin sample in 3/3 fixtures |
 | xlsx | XL | P4faa41 | 2 | 5738 (5612..5864) n=3, thin sample in 2/2 fixtures | 21611 (18639..24583) n=3, thin sample in 2/2 fixtures | 5288 (5171..5405) n=3, thin sample in 2/2 fixtures | 23660 (22094..25226) n=3, thin sample in 2/2 fixtures |
@@ -134,6 +136,7 @@ The first baseline (7ce81c1) had xlsx-M warm 1x `tti_ms` median 946 ms but p95 8
 | --- | ---: | ---: | ---: | ---: |
 | gen-xlsx-cells-100k | P22e9d3 | 954 / 6305 (n=20) | 950 / 1063 (n=20) | 950 / 1063 (n=20) |
 | gen-xlsx-cells-100k-b | P22e9d3 | no samples | no samples | no samples |
+| gen-xlsx-cells-100k-b | P4faa41 | no samples | no samples | no samples |
 | gen-xlsx-cells-100k-b | Pb8f044 | 2612 / 19324 (n=20) | 929 / 2178 (n=20) | 929 / 2178 (n=20) |
 | real-xlsx-poi-57181 | Pb8f044 | 935 / 17826 (n=20) | 917 / 1133 (n=20) | 917 / 1133 (n=20) |
 | real-xlsx-poi-ConditionalFormattingSamples | P22e9d3 | no samples | no samples | no samples |
@@ -142,7 +145,7 @@ The first baseline (7ce81c1) had xlsx-M warm 1x `tti_ms` median 946 ms but p95 8
 | real-xlsx-poi-no_drawing_patriarch | Pb8f044 | no samples | no samples | no samples |
 | real-xlsx-poi-StructuredRefs-lots-with-lookups | Pb8f044 | no samples | no samples | no samples |
 
-After the fix no measured xlsx-M fixture (9 in the sweep aggregates) has a warm 1x TTI p95 above 3x its median; no cell is flagged unexplained/do-not-arm, but this rests on 9 fixture(s) because the other xlsx-M timeouts are excluded. Remaining spread is first_paint noise on this shared box. Note that TTI is now close to first_render by construction (the harness starts interacting right after first_paint); a quiet-window TTI is still TODO(#8).
+After the fix no measured xlsx-M fixture (10 in the sweep aggregates) has a warm 1x TTI p95 above 3x its median; no cell is flagged unexplained/do-not-arm, but this rests on 10 fixture(s) because the other xlsx-M timeouts are excluded. Remaining spread is first_paint noise on this shared box. Note that TTI is now close to first_render by construction (the harness starts interacting right after first_paint); a quiet-window TTI is still TODO(#8).
 
 ## Excluded fixtures
 
@@ -300,6 +303,39 @@ Other metrics:
 | tti_ms | 747 (744..841) n=1–10, thin sample in 2/3 fixtures | 2162 (2162..2162) n=10, 2 fixtures no samples | 690 (690..690) n=20, 2 fixtures no samples | 2346 (2346..2346) n=20, 2 fixtures no samples |
 | tti_with_interaction_ms | 44186 (841..52599) n=1–10, thin sample in 2/3 fixtures | 2277 (2277..2277) n=10, 2 fixtures no samples | 690 (690..690) n=20, 2 fixtures no samples | 2479 (2479..2479) n=20, 2 fixtures no samples |
 
+### xlsx S · protocol P4faa41 (rerun=false, concurrent_runs=1): 2 fixtures
+
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
+| --- | ---: | ---: | ---: | ---: |
+| first_paint_ms | no samples | no samples | no samples | 2048 (2036..2060) n=20 |
+| parse_ms | no samples | no samples | no samples | 472 (470..475) n=20 |
+| first_render_ms | no samples | no samples | no samples | 2048 (2036..2060) n=20 |
+| full_render_ms | no samples | no samples | no samples | 12170 (12145..12194) n=20 |
+| tbt_ms | no samples | no samples | no samples | 1462 (1450..1474) n=20 |
+| JSHeapUsedSize (MiB) | no samples | no samples | no samples | 18.4 (17.9..19) n=20 |
+
+Other metrics:
+
+| metric | cold 1x | cold 4x | warm 1x | warm 4x |
+| --- | ---: | ---: | ---: | ---: |
+| JSHeapTotalSize (MiB) | no samples | no samples | no samples | 32.7 (32.6..32.8) n=20 |
+| bytes_ready_ms | no samples | no samples | no samples | 1524 (1504..1543) n=20 |
+| engine_ms | no samples | no samples | no samples | 1514 (1495..1534) n=20 |
+| fetch_ms | no samples | no samples | no samples | 9.7 (9.2..10.2) n=20 |
+| heap_samples | no samples | no samples | no samples | 720 (719..720) n=20 |
+| long_task_count | no samples | no samples | no samples | 4 (4..4) n=20 |
+| long_task_total_ms | no samples | no samples | no samples | 1662 (1650..1674) n=20 |
+| parse_end_ms | no samples | no samples | no samples | 2000 (1986..2014) n=20 |
+| peak_heap_used_MiB | no samples | no samples | no samples | 23 (23..23.1) n=20 |
+| render_ms | no samples | no samples | no samples | 306 (305..307) n=20 |
+| retained_heap_used_MiB | no samples | no samples | no samples | 14.9 (14.9..14.9) n=20 |
+| step_count | no samples | no samples | no samples | 200 (200..200) n=20 |
+| step_median_ms | no samples | no samples | no samples | 48.8 (48.8..48.8) n=20 |
+| step_p95_ms | no samples | no samples | no samples | 49.7 (49.6..49.8) n=20 |
+| step_unsupported | no samples | no samples | no samples | 0 (0..0) n=20 |
+| tti_ms | no samples | no samples | no samples | 2048 (2036..2060) n=20 |
+| tti_with_interaction_ms | no samples | no samples | no samples | 2170 (2145..2195) n=20 |
+
 ### xlsx S · protocol Pb8f044 (rerun=true, concurrent_runs=2): 27 fixtures
 
 | metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
@@ -365,6 +401,39 @@ Other metrics:
 | step_unsupported | 0 (0..0) n=10, 2 fixtures no samples | 0 (0..0) n=1–10, thin sample in 1/2 fixtures, 1 fixtures no samples | 0 (0..0) n=20, 2 fixtures no samples | 0 (0..0) n=1–20, thin sample in 1/2 fixtures, 1 fixtures no samples |
 | tti_ms | 1007 (1007..1007) n=10, 2 fixtures no samples | 3013 (2944..3083) n=1–10, thin sample in 1/2 fixtures, 1 fixtures no samples | 950 (950..950) n=20, 2 fixtures no samples | 2732 (2356..3109) n=1–20, thin sample in 1/2 fixtures, 1 fixtures no samples |
 | tti_with_interaction_ms | 1049 (1049..1049) n=10, 2 fixtures no samples | 44921 (25501..64341) n=1–10, thin sample in 1/2 fixtures, 1 fixtures no samples | 954 (954..954) n=20, 2 fixtures no samples | 32202 (27175..37229) n=1–20, thin sample in 1/2 fixtures, 1 fixtures no samples |
+
+### xlsx M · protocol P4faa41 (rerun=false, concurrent_runs=1): 1 fixtures
+
+| metric | cold 1x (Chrome 156.0.8078.4) | cold 4x (Chrome 156.0.8078.4) | warm 1x (Chrome 156.0.8078.4) | warm 4x (Chrome 156.0.8078.4) |
+| --- | ---: | ---: | ---: | ---: |
+| first_paint_ms | no samples | no samples | no samples | 2722 (2722..2722) n=20 |
+| parse_ms | no samples | no samples | no samples | 1147 (1147..1147) n=20 |
+| first_render_ms | no samples | no samples | no samples | 2722 (2722..2722) n=20 |
+| full_render_ms | no samples | no samples | no samples | 24367 (24367..24367) n=20 |
+| tbt_ms | no samples | no samples | no samples | 8493 (8493..8493) n=20 |
+| JSHeapUsedSize (MiB) | no samples | no samples | no samples | 76.8 (76.8..76.8) n=20 |
+
+Other metrics:
+
+| metric | cold 1x | cold 4x | warm 1x | warm 4x |
+| --- | ---: | ---: | ---: | ---: |
+| JSHeapTotalSize (MiB) | no samples | no samples | no samples | 126 (126..126) n=20 |
+| bytes_ready_ms | no samples | no samples | no samples | 1500 (1500..1500) n=20 |
+| engine_ms | no samples | no samples | no samples | 1474 (1474..1474) n=20 |
+| fetch_ms | no samples | no samples | no samples | 21.4 (21.4..21.4) n=20 |
+| heap_samples | no samples | no samples | no samples | 539 (539..539) n=20 |
+| long_task_count | no samples | no samples | no samples | 170 (170..170) n=20 |
+| long_task_total_ms | no samples | no samples | no samples | 17023 (17023..17023) n=20 |
+| parse_end_ms | no samples | no samples | no samples | 2672 (2672..2672) n=20 |
+| peak_heap_used_MiB | no samples | no samples | no samples | 92 (92..92) n=20 |
+| render_ms | no samples | no samples | no samples | 989 (989..989) n=20 |
+| retained_heap_used_MiB | no samples | no samples | no samples | 65.9 (65.9..65.9) n=20 |
+| step_count | no samples | no samples | no samples | 200 (200..200) n=20 |
+| step_median_ms | no samples | no samples | no samples | 114 (114..114) n=20 |
+| step_p95_ms | no samples | no samples | no samples | 134 (134..134) n=20 |
+| step_unsupported | no samples | no samples | no samples | 0 (0..0) n=20 |
+| tti_ms | no samples | no samples | no samples | 2722 (2722..2722) n=20 |
+| tti_with_interaction_ms | no samples | no samples | no samples | 22628 (22628..22628) n=20 |
 
 ### xlsx M · protocol Pb8f044 (rerun=true, concurrent_runs=2): 6 fixtures
 
@@ -647,7 +716,9 @@ first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize med
 | bidi-arabic-hebrew-mixed | Pb8f044 | 3169 | 765 / 1521 (n=10) | 2020 / 2127 (n=10) | 713 / 1987 (n=20) | no samples | 15 (n=10) | 713 (n=20) |
 | bidi-rtl-sheet | Pb8f044 | 3128 | 737 / 865 (n=10) | 2094 / 2292 (n=10) | 681 / 788 (n=20) | no samples | 15.6 (n=10) | 681 (n=20) |
 | gen-xlsx-cells-1k | P22e9d3 | 8012 | 841 / 969 (n=10) | 2162 / 2410 (n=10) | 690 / 733 (n=20) | 2346 / 2479 (n=20) | 16.5 (n=10) | 690 (n=20) |
+| gen-xlsx-cells-1k-merges | P4faa41 | 8204 | no samples | no samples | no samples | 2036 / 2098 (n=20) | no samples | no samples |
 | gen-xlsx-cells-1k-merges | Pb8f044 | 8204 | 756 / 808 (n=10) | 2522 / 11009 (n=10) | 773 / 1967 (n=20) | no samples | 17.4 (n=10) | 773 (n=20) |
+| gen-xlsx-cells-1k-pad-s | P4faa41 | 48160 | no samples | no samples | no samples | 2060 / 2825 (n=20) | no samples | no samples |
 | gen-xlsx-cells-1k-pad-s | Pb8f044 | 48160 | 752 / 775 (n=10) | 2268 / 2554 (n=10) | 738 / 864 (n=20) | no samples | 18.7 (n=10) | 738 (n=20) |
 | real-xlsx-poi-45540_classic_Header | Pb8f044 | 40213 | 946 / 1603 (n=10) | 2430 / 2769 (n=10) | 765 / 1101 (n=20) | no samples | 19.1 (n=10) | 765 (n=20) |
 | real-xlsx-poi-45544 | Pb8f044 | 43042 | 822 / 937 (n=10) | 2351 / 2964 (n=10) | 773 / 1087 (n=20) | no samples | 19.3 (n=10) | 773 (n=20) |
@@ -681,6 +752,7 @@ first_paint `median / p95 (n=samples)` per cell, then cold 1x JSHeapUsedSize med
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | gen-xlsx-cells-100k | P22e9d3 | 503874 | 1007 / 1080 (n=10) | 3083 / 3760 (n=10) | 950 / 1063 (n=20) | 3109 / 3575 (n=20) | 75.3 (n=10) | 950 (n=20) |
 | gen-xlsx-cells-100k-b | P22e9d3 | 704900 | no samples | 2944 / 2944 (n=1, thin sample) | no samples | no samples | no samples | no samples |
+| gen-xlsx-cells-100k-b | P4faa41 | 704900 | no samples | no samples | no samples | 2722 / 2929 (n=20) | no samples | no samples |
 | gen-xlsx-cells-100k-b | Pb8f044 | 704900 | 1048 / 1758 (n=10) | 2958 / 3106 (n=10) | 929 / 2178 (n=20) | no samples | 79.8 (n=10) | 929 (n=20) |
 | real-xlsx-poi-57181 | Pb8f044 | 334727 | 1023 / 1112 (n=10) | 3004 / 3598 (n=10) | 917 / 1133 (n=20) | no samples | 149 (n=10) | 917 (n=20) |
 | real-xlsx-poi-ConditionalFormattingSamples | P22e9d3 | 654688 | no samples | no samples | no samples | 2356 / 2356 (n=1, thin sample) | no samples | no samples |

@@ -54,11 +54,14 @@ test('the four xlsx cells that used to be added together are split into n=1 and 
   const full = readFileSync(join(perf, 'BASELINE.md'), 'utf8');
   assert.doesNotMatch(full, /n=11/);
   const md = full.slice(full.indexOf('## Every fixture'));
-  for (const id of ['real-xlsx-poi-WithEmbeded', 'gen-xlsx-cells-100k-b']) {
-    const rows = md.split('\n').filter((l) => l.startsWith(`| ${id} | P`));
-    assert.equal(rows.length, 2, id);
-    assert.ok(rows.some((l) => /n=1, thin sample/.test(l)) && rows.some((l) => /\(n=10\)/.test(l)), id);
-  }
+  // real-xlsx-poi-WithEmbeded: 2 protocol groups (P22e9d3 n=1, Pb8f044 n=10)
+  const rowsEmbed = md.split('\n').filter((l) => l.startsWith('| real-xlsx-poi-WithEmbeded | P'));
+  assert.equal(rowsEmbed.length, 2, 'real-xlsx-poi-WithEmbeded');
+  assert.ok(rowsEmbed.some((l) => /n=1, thin sample/.test(l)) && rowsEmbed.some((l) => /\(n=10\)/.test(l)), 'real-xlsx-poi-WithEmbeded');
+  // gen-xlsx-cells-100k-b: 3 protocol groups (P22e9d3 n=1, Pb8f044 n=10, plus P4faa41 warm 4x n=20 added on issue-10-failure-provenance)
+  const rows100k = md.split('\n').filter((l) => l.startsWith('| gen-xlsx-cells-100k-b | P'));
+  assert.equal(rows100k.length, 3, 'gen-xlsx-cells-100k-b');
+  assert.ok(rows100k.some((l) => /n=1, thin sample/.test(l)) && rows100k.some((l) => /\(n=10\)/.test(l)), 'gen-xlsx-cells-100k-b');
   const inv = readFileSync(join(perf, 'baselines/ISSUE-10-CELL-INVENTORY.md'), 'utf8');
   assert.match(inv, /were added together \(n=1 \+ n=10 = 11\)/);
 });

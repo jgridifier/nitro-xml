@@ -86,3 +86,8 @@
 {"timestamp":"2026-11-06T20:04:40.223Z","free_mem_mb":7648,"swap_used_mb":0,"loadavg_1m":0.02,"loadavg_5m":0.82,"loadavg_15m":1.6,"fixture_id":"gen-xlsx-xl-b","mode":"warm","cpu":4}
 {"timestamp":"2026-11-06T21:43:06.533Z","free_mem_mb":11786,"swap_used_mb":0,"loadavg_1m":2.09,"loadavg_5m":2.22,"loadavg_15m":2.02,"fixture_id":"gen-xlsx-xl-c","mode":"warm","cpu":4}
 {"timestamp":"2026-11-06T21:43:07.803Z","free_mem_mb":11535,"swap_used_mb":0,"loadavg_1m":2.09,"loadavg_5m":2.22,"loadavg_15m":2.02,"fixture_id":"gen-xlsx-xl-c","mode":"warm","cpu":4}
+{"timestamp":"2026-11-09T11:20:30.196Z","free_mem_mb":4979,"swap_used_mb":0,"loadavg_1m":0.68,"loadavg_5m":0.78,"loadavg_15m":0.93,"fixture_id":"run-start-warm4x-S","mode":"warm","cpu":4}
+{"timestamp":"2026-11-09T11:20:34.462Z","free_mem_mb":4656,"swap_used_mb":0,"loadavg_1m":0.68,"loadavg_5m":0.78,"loadavg_15m":0.93,"fixture_id":"gen-xlsx-cells-1k-merges","mode":"warm","cpu":4}
+{"timestamp":"2026-11-09T11:24:54.715Z","free_mem_mb":5492,"swap_used_mb":0,"loadavg_1m":1.36,"loadavg_5m":1.28,"loadavg_15m":1.12,"fixture_id":"gen-xlsx-cells-1k-pad-s","mode":"warm","cpu":4}
+{"timestamp":"2026-11-09T11:34:56.607Z","free_mem_mb":8527,"swap_used_mb":0,"loadavg_1m":2.22,"loadavg_5m":2.31,"loadavg_15m":1.63,"fixture_id":"run-start-warm4x-M","mode":"warm","cpu":4}
+{"timestamp":"2026-11-09T11:34:59.708Z","free_mem_mb":10338,"swap_used_mb":0,"loadavg_1m":2.12,"loadavg_5m":2.29,"loadavg_15m":1.62,"fixture_id":"gen-xlsx-cells-100k-b","mode":"warm","cpu":4}

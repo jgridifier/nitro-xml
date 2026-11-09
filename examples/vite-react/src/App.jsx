@@ -30,6 +30,10 @@ export function App() {
     setStatus(`saved:${bytes.byteLength}`);
   }, []);
 
+  const onError = useCallback((err) => {
+    setStatus(`error:${err.message}`);
+  }, []);
+
   async function runEditAndSave() {
     const v = viewerRef.current;
     if (!v) return;
@@ -60,6 +64,21 @@ export function App() {
     setStatus(`saved:${bytes.byteLength}`);
     // also surface for Playwright
     window.__nitroLastSave = bytes;
+  }
+
+  async function runNoopSave() {
+    const v = viewerRef.current;
+    if (!v) return;
+    setStatus("noop-saving");
+    try {
+      const bytes = await v.save();
+      setSavedBytes(bytes.byteLength);
+      setStatus(`noop-saved:${bytes.byteLength}`);
+      window.__nitroLastSave = bytes;
+      window.__nitroNoopSave = bytes;
+    } catch (err) {
+      setStatus(`save-error:${err.message}`);
+    }
   }
 
   return (
@@ -94,6 +113,14 @@ export function App() {
         >
           Edit + save
         </button>
+        <button
+          type="button"
+          data-testid="noop-save"
+          disabled={!ready}
+          onClick={() => void runNoopSave()}
+        >
+          Save (no edit)
+        </button>
       </div>
       <div data-testid="status">
         {status} · savedBytes={savedBytes} · ready={ready ? "yes" : "no"}
@@ -108,6 +135,7 @@ export function App() {
           mode="embedded"
           onReady={onReady}
           onChange={onChange}
+          onError={onError}
           style={{ height: "100%" }}
         />
       </div>

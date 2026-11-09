@@ -41,13 +41,15 @@ async function bytesFromFile(file, fileName) {
  * Module evaluate does not touch `window` / `document`; custom elements and
  * WASM load only inside `useEffect` on the client.
  */
-export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, editable = false, mode = "embedded", onReady, onChange, className, style, }, ref) {
+export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, editable = false, mode = "embedded", onReady, onChange, onError, className, style, }, ref) {
     const wrapRef = useRef(null);
     const elRef = useRef(null);
     const onReadyRef = useRef(onReady);
     const onChangeRef = useRef(onChange);
+    const onErrorRef = useRef(onError);
     onReadyRef.current = onReady;
     onChangeRef.current = onChange;
+    onErrorRef.current = onError;
     useImperativeHandle(ref, () => ({
         get element() {
             return elRef.current;
@@ -116,8 +118,11 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
             if (!cancelled)
                 onReadyRef.current?.(el);
         })().catch((err) => {
-            if (!cancelled)
+            if (!cancelled) {
+                const e = err instanceof Error ? err : Object.assign(new Error(String(err)), { cause: err });
+                onErrorRef.current?.(e);
                 console.error("NitroViewer:", err);
+            }
         });
         return () => {
             cancelled = true;

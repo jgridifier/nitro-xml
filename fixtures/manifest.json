@@ -1,6 +1,18 @@
 {
   "$schema": "manifest.schema.json",
   "version": 1,
+  "security_fixtures": [
+    {
+      "path": "fixtures/fuzz/zip/docx-document-over-25mib.zip",
+      "sha256": "4ca3e1d129ff0b4a3481ccabb0e6d821deee42a902f4870255fd1ecb5ae7d3c8",
+      "bytes": 28132,
+      "source": "generated for E1 #30: stored word/document.xml, 28000 zero payload bytes, local/central declared size 25 MiB + 1",
+      "licence": "MIT",
+      "expected_error": "part_too_large",
+      "limit": 26214400,
+      "actual": 26214401
+    }
+  ],
   "tiers": {
     "S": "<100KB",
     "M": "<1MB",

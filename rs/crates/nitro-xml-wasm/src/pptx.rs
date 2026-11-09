@@ -388,7 +388,13 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
         .unwrap_or_default();
     if !edits.is_empty() {
         for spec in &edits {
-            let _ = handle.apply_office_edit(spec);
+            match handle.apply_office_edit(spec) {
+                Ok(_) => handle.committed_geometry.push(spec.clone()),
+                Err(error) => {
+                    handle.geometry_error = Some(error);
+                    break;
+                }
+            }
         }
         return;
     }

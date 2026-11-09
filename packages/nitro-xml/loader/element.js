@@ -5,6 +5,7 @@ import {
   viewerOpenErrorMessage as openMsg,
   isSupportedExtension as ok,
   ACCEPT,
+  checkInputSize,
 } from "./formats.js";
 import {
   prewarmWorker as pw,
@@ -24,11 +25,11 @@ export class ViewerElement extends HTMLElement {
     this._d = this._ro = this._raf = this._m = this._c = this._r = this._v = null;
   }
   connectedCallback() {
-    if (!ws()) return this._show(UB);
+    if (!ws()) return this._fail(ube());
     this._surf();
     this._bind();
     const s = this.getAttribute("src");
-    if (s) this.loadUrl(s).catch((e) => this._fail(e));
+    if (s) this.loadUrl(s).catch(() => {});
   }
   disconnectedCallback() {
     if (this._raf) cancelAnimationFrame(this._raf);
@@ -40,40 +41,50 @@ export class ViewerElement extends HTMLElement {
     return this._d;
   }
   async loadFile(f, n) {
-    n = n || f.name || "";
-    if (!this._ok(n)) return this._show(UF);
-    await this.loadBuffer(await f.arrayBuffer(), n);
+    try {
+      checkInputSize(f.size);
+      n = n || f.name || "";
+      if (!this._ok(n)) throw Object.assign(new Error(UF), { code: "unsupported_format" });
+      await this.loadBuffer(await f.arrayBuffer(), n);
+    } catch (e) { this._fail(e); throw e; }
   }
   async loadUrl(u) {
-    if (!ws()) throw ube();
-    const n = u.split("?")[0].split("#")[0].split("/").pop() || "";
-    if (!this._ok(n)) return this._show(UF);
-    const r = await fetch(u);
-    if (!r.ok) throw new Error("fetch failed: " + r.status);
-    await this.loadBuffer(await r.arrayBuffer(), n);
+    try {
+      if (!ws()) throw ube();
+      const n = u.split("?")[0].split("#")[0].split("/").pop() || "";
+      if (!this._ok(n)) throw Object.assign(new Error(UF), { code: "unsupported_format" });
+      const r = await fetch(u);
+      if (!r.ok) throw new Error("fetch failed: " + r.status);
+      checkInputSize(Number(r.headers.get("content-length")));
+      await this.loadBuffer(await r.arrayBuffer(), n);
+    } catch (e) { this._fail(e); throw e; }
   }
   async loadBuffer(b, n = "") {
-    if (!ws()) {
-      this._show(UB);
-      throw ube();
-    }
-    if (n && !this._ok(n) && !ok(n)) {
-      this._show(UF);
-      throw Object.assign(new Error(UF), { code: "unsupported_format" });
-    }
-    this._clr();
-    this._surf();
-    this._d && this._d.dispose();
-    const ro = this._readonly !== false;
-    const d = new WD({ canvas: this._c, root: this._r, name: n });
-    d.onChrome = (h) => {
-      if (this._ch && h) this._ch.innerHTML = h;
-    };
-    try { await d.open(b, n, { readonly: ro }); }
-    catch (e) { this._fail(e); throw e; }
-    this._d = d;
-    this._tick();
-    await this._ao();
+    try {
+      if (!ws()) {
+        this._show(UB);
+        throw ube();
+      }
+      if (n && !this._ok(n) && !ok(n)) {
+        this._show(UF);
+        throw Object.assign(new Error(UF), { code: "unsupported_format" });
+      }
+      this._clr();
+      this._surf();
+      this._d && this._d.dispose();
+      this._d = null;
+      const ro = this._readonly !== false;
+      const d = new WD({ canvas: this._c, root: this._r, name: n });
+      d.onError = (e) => this._fail(e);
+      d.onChrome = (h) => {
+        if (this._ch && h) this._ch.innerHTML = h;
+      };
+      try { await d.open(b, n, { readonly: ro }); }
+      catch (e) { d.dispose(); throw e; }
+      this._d = d;
+      this._tick();
+      await this._ao();
+    } catch (e) { this._fail(e); throw e; }
   }
   _ok(n) {
     return !n || ok(n);
@@ -235,7 +246,16 @@ export class ViewerElement extends HTMLElement {
       this._r.style.display = "";
     }
   }
+  _emitError(e) {
+    this._reportedErrors ||= new WeakSet();
+    if (e && typeof e === "object") {
+      if (this._reportedErrors.has(e)) return;
+      this._reportedErrors.add(e);
+    }
+    this.dispatchEvent(new CustomEvent("error", { detail: e, bubbles: true, composed: true }));
+  }
   _fail(e) {
+    this._emitError(e);
     const c = e && e.code;
     if (
       this._readonly !== false &&
@@ -280,6 +300,7 @@ export class ViewerElement extends HTMLElement {
     }
   }
   _showViewerError(e) {
+    this._emitError(e);
     this._show(openMsg(e));
   }
 }
@@ -412,9 +433,11 @@ export class ShellViewerElement extends ViewerElement {
     return bytes;
   }
   async save() {
-    if (this._readonly) throw new Error("read-only");
-    if (!this._d || !this._d.save) throw new Error("no document");
-    return this._d.save();
+    try {
+      if (this._readonly) throw new Error("read-only");
+      if (!this._d || !this._d.save) throw new Error("no document");
+      return await this._d.save();
+    } catch (e) { this._fail(e); throw e; }
   }
   async download(name) {
     const bytes = await this.save();
@@ -426,7 +449,7 @@ export class ShellViewerElement extends ViewerElement {
     const r = await this._d.shellAction(op, arg);
     if (this._ch && r.h != null) this._ch.innerHTML = r.h;
     if (r.save && !this._readonly && this._d && this._d.save) {
-      const bytes = await this._d.save();
+      const bytes = await this.save();
       this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: !0 }));
       this._downloadBytes(bytes);
     }

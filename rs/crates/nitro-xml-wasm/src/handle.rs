@@ -73,6 +73,8 @@ pub struct OoxmlError {
     code: String,
     message: String,
     part: Option<String>,
+    limit: Option<f64>,
+    actual: Option<f64>,
 }
 
 #[wasm_bindgen]
@@ -83,6 +85,8 @@ impl OoxmlError {
             code,
             message,
             part,
+            limit: None,
+            actual: None,
         }
     }
 
@@ -97,6 +101,16 @@ impl OoxmlError {
     }
 
     #[wasm_bindgen(getter)]
+    pub fn limit(&self) -> Option<f64> {
+        self.limit
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn actual(&self) -> Option<f64> {
+        self.actual
+    }
+
+    #[wasm_bindgen(getter)]
     pub fn part(&self) -> Option<String> {
         self.part.clone()
     }
@@ -108,6 +122,8 @@ impl OoxmlError {
             code: code.to_owned(),
             message: message.into(),
             part: None,
+            limit: None,
+            actual: None,
         }
     }
 }
@@ -193,6 +209,8 @@ pub struct Handle {
     /// One package buffer shared with xlsx [`FirstView`](nitro_xml_xlsx::FirstView) (Arc).
     pub(crate) bytes: std::sync::Arc<[u8]>,
     warnings: Vec<Warning>,
+    pub(crate) committed_geometry: Vec<String>,
+    pub(crate) geometry_error: Option<JsValue>,
     font_source: FontSource,
     /// Optional host resolver: `(families: string[]) => string | null`.
     /// When set, overrides the built CSS2 href (mirror / default still apply
@@ -237,6 +255,8 @@ impl Handle {
         Handle {
             bytes: std::sync::Arc::<[u8]>::from(bytes),
             warnings: Vec::new(),
+            committed_geometry: Vec::new(),
+            geometry_error: None,
             font_source: FontSource::default(),
             font_source_resolver: None,
             strings,
@@ -433,6 +453,19 @@ impl Handle {
     /// Open a supported OOXML document (extension hint). Xlsx viewer path loads workbook + first paint.
     #[wasm_bindgen(js_name = openDocument)]
     pub fn open_document(&mut self, name: &str) -> Result<(), JsValue> {
+        nitro_xml_opc::zip::ZipPackage::check_viewer_limits(&self.bytes).map_err(|e| {
+            let mut error = OoxmlError::with_code(e.kind(), e.to_string());
+            if let Some((limit, actual)) = e.sizes() {
+                error.limit = Some(limit as f64);
+                error.actual = Some(actual as f64);
+            }
+            if let nitro_xml_opc::zip::ZipError::PartTooLarge { name, .. }
+            | nitro_xml_opc::zip::ZipError::CompressionRatio { name, .. } = e
+            {
+                error.part = Some(name);
+            }
+            JsValue::from(error)
+        })?;
         if is_xlsx_extension(name) {
             return self.open_xlsx_document();
         }
@@ -452,6 +485,17 @@ impl Handle {
     #[wasm_bindgen(js_name = prepareFrame)]
     pub fn prepare_frame(&mut self) {
         process_frame(self);
+    }
+
+    /// Drain successful pointer commits exactly once for host crash recovery.
+    #[wasm_bindgen(js_name = takeGeometryCommits)]
+    pub fn take_geometry_commits(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.committed_geometry)
+    }
+
+    #[wasm_bindgen(js_name = takeGeometryError)]
+    pub fn take_geometry_error(&mut self) -> JsValue {
+        self.geometry_error.take().unwrap_or(JsValue::UNDEFINED)
     }
 
     /// True when the active xlsx sheet's post-`sheetData` shell (merges/CF/DV) is loaded.

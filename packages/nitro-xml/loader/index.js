@@ -10,6 +10,7 @@ export {
   EDITOR_RECOVERY_LAST_SAVE_MESSAGE,
   extensionOf,
   isSupportedExtension,
+  checkInputSize,
   viewerOpenErrorMessage,
 } from "./formats.js";
 export {

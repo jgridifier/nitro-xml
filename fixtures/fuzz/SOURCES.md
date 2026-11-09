@@ -13,6 +13,7 @@ reproducers found while fuzzing (#30 parser-hardening slice).
 | `xlsx/deep-nest-4096.xlsx` | Worksheet shell with 4095 nested `<n>` under `<worksheet>` (stack depth 4096); must open+paint in WASM browser without trap | MIT (original) |
 | `xlsx/deep-nest-over-max.xlsx` | Same pattern at depth 4097; shell parse hits depth limit — open soft-empty or reject, no trap | MIT (original) |
 | `xml/reject-*.xml`, `xml/fuzz-doctype-reject.xml` | Copied from `fixtures/xml/` (DTD/ENTITY off) | see `fixtures/xml/SOURCES.md` |
+| `zip/docx-document-over-25mib.zip` | E1 #30: word/document.xml declares 25 MiB + 1; reject before inflation. Stored 28,000 zero bytes, declared sizes patched in both headers; manifest records hash and licence. | MIT (original) |
 | `zip/ratio-bomb-11mib.zip` | Declared 11 MiB / 1 compressed byte (above `MIN_RATIO_CHECK_BYTES`, ratio ≫ 1000) | MIT (original) |
 
 ## Legitimate high-compression cases (must open)

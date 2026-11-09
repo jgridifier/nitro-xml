@@ -10,6 +10,7 @@ export const VIEWER_RECOVERY_FAILED_MESSAGE: string;
 export const EDITOR_RECOVERY_FAILED_MESSAGE: string;
 export const EDITOR_RECOVERY_LAST_SAVE_MESSAGE: string;
 
+export function checkInputSize(actual: number): void;
 export function extensionOf(name: string): string;
 export function isSupportedExtension(name: string): boolean;
 export function viewerOpenErrorMessage(err: unknown): string;
@@ -59,9 +60,18 @@ export class DocumentSession {
 }
 
 export function createJournal(...args: unknown[]): unknown;
+/** Size errors retain existing codes; limits are bytes, entry counts, or compression ratios.
+ * NITRO_TIMEOUT uses milliseconds. */
+export interface NitroError extends Error {
+  code?: string;
+  limit?: number;
+  actual?: number;
+  part?: string;
+}
 export class WorkerDocument {
   constructor(opts: { canvas?: HTMLCanvasElement | null; root?: Element | null; name?: string });
   onChrome: ((html: string) => void) | null;
+  onError?: (error: NitroError) => void;
   open(
     bytes: ArrayBuffer | Uint8Array,
     name?: string,
@@ -78,6 +88,8 @@ export class WorkerDocument {
 
 export function defineNitroXml(): void;
 export function defineTag(tag: string, ctor: CustomElementConstructor): void;
+/** Emits bubbling, composed `error` CustomEvents with NitroError in detail.
+ * Failed load/save calls also reject with that error. */
 export class ViewerElement extends HTMLElement {
   loadFile(file: Blob, name?: string): Promise<void>;
   loadUrl(url: string): Promise<void>;

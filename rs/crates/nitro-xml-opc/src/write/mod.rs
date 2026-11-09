@@ -506,6 +506,27 @@ mod tests {
         cursor.into_inner()
     }
 
+    #[test]
+    fn vba_is_opaque_passthrough_on_dirty_save() {
+        // Catches: macro parts being interpreted or rewritten instead of carried as opaque bytes.
+        // Deliberately invalid VBA: no VBA parser or execution engine may be invoked here.
+        let vba = b"\x00\xffnot a VBA project: Auto_Open() Shell(\"must never execute\")";
+        for root in ["xl", "word", "ppt"] {
+            let macro_name = format!("{root}/vbaProject.bin");
+            let main_name = format!("{root}/main.xml");
+            let original = stored_zip(&[(&macro_name, vba), (&main_name, b"<main/>")]);
+            let mut writer = PackageWriter::open(&original).unwrap();
+            writer.replace(&main_name, b"<main edited='1'/>".to_vec());
+            let saved = writer.finish().unwrap();
+            assert_ne!(saved, original);
+            let mut package = ZipPackage::open(&saved).unwrap();
+            assert_eq!(
+                package.read(&macro_name).unwrap().as_deref(),
+                Some(vba.as_slice())
+            );
+        }
+    }
+
     // Catches: no-op save rebuilding the zip and losing byte identity vs the original package.
     #[test]
     fn noop_save_returns_original_bytes() {

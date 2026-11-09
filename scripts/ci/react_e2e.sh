@@ -97,7 +97,8 @@ validate_file() {
   local label="$3"
 
   if [ ! -f "$path" ]; then
-    echo "react-e2e: WARNING: $label output not found at $path (Playwright may have skipped)" >&2
+    echo "react-e2e: FAIL $label output not found at $path" >&2
+    overall_rc=1
     return
   fi
   echo "react-e2e: ooxml-validate $label"

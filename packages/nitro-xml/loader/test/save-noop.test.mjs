@@ -2,6 +2,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { WorkerDocument } from "../worker-host.js";
+import { readFileSync } from "node:fs";
+import { postSave } from "../lazy/save.js";
 import { createJournal } from "../lazy/journal.js";
 
 describe("noop save (worker dirty tracking)", () => {
@@ -62,37 +64,66 @@ describe("noop save (worker dirty tracking)", () => {
     });
   });
 
-  it("worker noop shortcut: isDirty=false → returns _openBytes copy, not saveDocument()", () => {
-    // Catches: worker.js calling handle.saveDocument() on a clean document,
-    // repacking the ZIP and producing bytes that differ from the input.
-    // Directly validates the branching logic added to the 'save' message handler.
-    const original = new Uint8Array([0x50, 0x4b, 3, 4, 10, 20, 30]);
+  it("worker saves edits from every command route and resets on reopen", async () => {
+    // Catches: docx/pptx keyboard and mut-frame edits returning the unopened model
+    // because only apply-edit marked the noop shortcut dirty. A corpus cannot
+    // isolate worker message routing; selection-parity supplies real OOXML cases.
+    const original = new Uint8Array([80, 75, 3, 4]);
+    const edited = new Uint8Array([80, 75, 3, 4, 99]);
     const posted = [];
-
-    function simulateWorkerSave(handle, isDirty, openBytes) {
-      // Mirrors worker.js save handler exactly.
-      if (!isDirty && openBytes) {
-        const copy = new Uint8Array(openBytes);
-        posted.push({ type: "saved", bytes: copy });
-        return;
-      }
-      const bytes = new Uint8Array(handle.saveDocument());
-      posted.push({ type: "saved", bytes });
+    class Handle {
+      constructor(bytes) { this.bytes = bytes; }
+      takePackageBytes() { return this.bytes; }
+      saveDocument() { return edited; }
+      openDocument() {}
+      documentFormat() { return "docx"; }
+      setReadOnly() {}
+      loadEditorChrome() {}
+      applyEdit() {}
+      editorKey() {}
+      shellAction() {}
+      free() {}
     }
-
-    const mockHandle = {
-      saveDocument: () => new Uint8Array([0, 0, 0]),
-    };
-
-    // Noop path: not dirty, openBytes present → original bytes returned
-    simulateWorkerSave(mockHandle, false, original);
-    assert.equal(posted.length, 1);
-    assert.deepEqual([...posted[0].bytes], [...original]);
-    assert.notEqual(posted[0].bytes, original, "must return a copy, not the same reference");
-
-    // Dirty path: dirty → saveDocument() result returned
-    simulateWorkerSave(mockHandle, true, original);
-    assert.equal(posted.length, 2);
-    assert.deepEqual([...posted[1].bytes], [0, 0, 0]);
+    const worker = { postMessage: (msg) => posted.push(msg) };
+    // Execute production routing with only WASM/frame dependencies substituted.
+    const source = readFileSync(new URL("../worker.js", import.meta.url), "utf8")
+      .replace(/import[\s\S]*?from "[^"\n]+";/g, "")
+      .replaceAll("await import(", "await loadModule(");
+    const idle = new Function("self", "initCore", "isSupportedExtension",
+      "applyFontSourceToHandle", "loadModule", source + "\nreturn () => chain;")(
+      worker, async () => ({ glue: { Handle } }), () => true, () => {},
+      async (path) => path.endsWith("save.js") ? { postSave } : {
+        buildAndPostFrame: async () => {},
+      },
+    );
+    async function send(msg) {
+      worker.onmessage({ data: msg });
+      await idle();
+      assert.equal(posted.at(-1)?.type === "error", false, posted.at(-1)?.message);
+    }
+    async function saveEquals(expected) {
+      await send({ type: "save" });
+      assert.deepEqual(posted.at(-1).bytes, expected);
+      assert.notEqual(posted.at(-1).bytes, expected);
+    }
+    for (const command of [
+      { type: "apply-edit" },
+      { type: "editor-key", key: "x" },
+      { type: "sa", op: "insert-text", arg: "x" },
+      { type: "mut-frame", op: "a" },
+      { type: "mut-frame", op: "k", key: "x" },
+      { type: "mut-frame", op: "s", sa: "insert-text", arg: "x" },
+    ]) {
+      await send({ type: "open", bytes: original, name: "test.docx", readonly: false });
+      await send({ type: "editor-chrome" });
+      await send({ type: "sa", op: "ui" });
+      await send({ type: "sa", op: "zoom-set" });
+      await saveEquals(original);
+      await send(command);
+      await saveEquals(edited);
+      await send({ type: "original-bytes" });
+      assert.deepEqual(posted.at(-1).bytes, original);
+      await send({ type: "dispose" });
+    }
   });
 });

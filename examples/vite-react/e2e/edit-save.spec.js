@@ -25,7 +25,7 @@ const FORMATS = ["xlsx", "docx", "pptx"];
 for (const format of FORMATS) {
   test(`opens ${format}, edits once, and saves valid OOXML bytes`, async ({ page }) => {
     await page.goto("/");
-    await page.getByTestId(`format-${format}`).click();
+    if (format !== "xlsx") await page.getByTestId(`format-${format}`).click();
     await expect(page.getByTestId("status")).toContainText("ready=yes", {
       timeout: 90_000,
     });
@@ -62,7 +62,6 @@ test("noop save (xlsx, no edit) returns byte-identical to input fixture", async 
   // Catches: save() repacking the ZIP unnecessarily when no edit applied,
   // producing bytes that differ from the original input (#30/E1).
   await page.goto("/");
-  await page.getByTestId("format-xlsx").click();
   await expect(page.getByTestId("status")).toContainText("ready=yes", {
     timeout: 90_000,
   });
@@ -104,27 +103,8 @@ test("noop save (xlsx, no edit) returns byte-identical to input fixture", async 
 test("onError is called when NitroViewer fails to load (error surfacing)", async ({ page }) => {
   // Catches: NitroViewer swallowing initialization errors silently — hosts
   // cannot display or log load failures (#30/E1).
-  // We trigger a load failure by injecting a 404 URL via page.evaluate.
+  await page.route("**/fixtures/cells_1k.xlsx", (route) => route.abort("failed"));
   await page.goto("/");
-
-  // Inject a broken file URL and observe that the status shows an error,
-  // which only happens if onError is wired and the App forwards it to <status>.
-  await page.evaluate(() => {
-    // Replace the fetch implementation temporarily so the next load errors.
-    const orig = globalThis.fetch;
-    let calls = 0;
-    globalThis.fetch = (...args) => {
-      calls++;
-      if (calls === 1 && String(args[0]).includes("fixtures")) {
-        return Promise.reject(Object.assign(new Error("simulated-fetch-error"), { code: "fetch_fail" }));
-      }
-      return orig(...args);
-    };
-    window.__fetchPatched = true;
-  });
-
-  // Trigger a reload of the xlsx format to fire the broken fetch.
-  await page.getByTestId("format-xlsx").click();
 
   // The error should surface via onError → setStatus → data-testid="status".
   await expect(page.getByTestId("status")).toContainText("error:", {

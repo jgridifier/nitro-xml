@@ -49,6 +49,7 @@ echo "roundtrip: C14N / rels / zip-cd unit tests"
 echo "roundtrip: loader noop-save + error-surfacing unit tests (#30/E1)"
 node --test \
   "$ROOT/packages/nitro-xml/loader/test/save-noop.test.mjs"
+( cd packages/nitro-xml-react && npm ci --no-fund --no-audit && npm run build )
 node --test \
   "$ROOT/packages/nitro-xml-react/test/on-error.mjs"
 

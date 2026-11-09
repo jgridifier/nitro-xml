@@ -9,15 +9,11 @@ import { applyFontSourceToHandle } from "./font-source.js";
 let handle = null;
 let glue = null;
 let chain = Promise.resolve();
-// Noop-save shortcut: when no edit has been applied since open, return the
-// original bytes verbatim instead of calling saveDocument() (which repacks the
-// ZIP and may produce a byte-inequivalent package even with zero semantic changes).
-// Clears on every open; set on first apply-edit.
 let _isDirty = false;
-let _openBytes = null;
 function unlockChrome(op) {
-if (!self._pendingEditorChrome) return;
 if (op === "ui" || op === "zoom-set") return;
+_isDirty = true;
+if (!self._pendingEditorChrome) return;
 self._pendingEditorChrome = 0;
 handle.setReadOnly(false);
 handle.loadEditorChrome();
@@ -48,13 +44,11 @@ handle.free();
 } catch {
 }
 }
-_openBytes = null;
 _isDirty = false;
 {
 let bytes =
 msg.bytes instanceof Uint8Array ? msg.bytes : new Uint8Array(msg.bytes);
 msg.bytes = null;
-_openBytes = new Uint8Array(bytes);
 handle = new glue.Handle(bytes);
 bytes = null;
 }
@@ -173,33 +167,21 @@ if (!handle) throw new Error("no document");
 unlockChrome();
 self.postMessage({type:"editor-key",result:handle.editorKey(msg.key||"",!!msg.ctrl,!!msg.meta,!!msg.alt,!!msg.shift,!!msg.mac)});
 break;
-case "original-bytes": {
+case "original-bytes":
+case "save": {
 if (!handle) throw new Error("no document");
-const bytes = new Uint8Array(handle.takePackageBytes());
-self.postMessage({ type: "original-bytes", bytes }, [bytes.buffer]);
-break;
-}
-case "save":{
-if (!handle) throw new Error("no document");
-if (!_isDirty && _openBytes) {
-const copy = new Uint8Array(_openBytes);
-self.postMessage({type:"saved",bytes:copy},[copy.buffer]);
-break;
-}
-const bytes=new Uint8Array(handle.saveDocument());
-self.postMessage({type:"saved",bytes},[bytes.buffer]);
+const { postSave } = await import("./lazy/save.js");
+postSave(handle, self, msg.type, _isDirty);
 break;
 }
 case "apply-edit":
 if (!handle) throw new Error("no document");
 unlockChrome();
-_isDirty = true;
 self.postMessage({type:"apply-edit",result:handle.applyEdit(msg.spec||"")});
 break;
 case "dispose": {
 self._pendingEditorChrome = 0;
 _isDirty = false;
-_openBytes = null;
 if (handle) {
 try {
 handle.free();

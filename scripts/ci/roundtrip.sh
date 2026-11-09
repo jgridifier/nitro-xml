@@ -46,6 +46,12 @@ echo "roundtrip: building Rust opc_noop_save + opc_touch_save (#65)"
 echo "roundtrip: C14N / rels / zip-cd unit tests"
 ( cd parity/roundtrip && bun test )
 
+echo "roundtrip: loader noop-save + error-surfacing unit tests (#30/E1)"
+node --test \
+  "$ROOT/packages/nitro-xml/loader/test/save-noop.test.mjs"
+node --test \
+  "$ROOT/packages/nitro-xml-react/test/on-error.mjs"
+
 echo "roundtrip: TS-vs-TS + Rust identity-shortcut + Open XML SDK + LibreOffice (#49 / #65 / #48)"
 set +e
 ( cd parity/roundtrip && bun ./run.mjs --ci --engine both )
@@ -83,5 +89,9 @@ if [ "$rc_identity" -ne 0 ] || [ "$rc_touch" -ne 0 ]; then
   echo "roundtrip: FAIL (identity=$rc_identity touch=$rc_touch)" >&2
   exit 1
 fi
+
+echo "roundtrip: running React embed save gate (react_e2e.sh)"
+bash scripts/ci/react_e2e.sh
+
 echo "roundtrip: PASS"
 exit 0

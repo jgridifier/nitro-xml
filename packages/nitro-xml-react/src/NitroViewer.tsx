@@ -21,6 +21,8 @@ export type NitroViewerProps = {
   onReady?: (el: HTMLElement) => void;
   /** Fired when `nitro-save` / programmatic save produces bytes. */
   onChange?: (bytes: Uint8Array) => void;
+  /** Fired when open or initialization fails; prevents silent swallowing of load errors. */
+  onError?: (err: Error) => void;
   className?: string;
   style?: React.CSSProperties;
 };
@@ -86,6 +88,7 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
       mode = "embedded",
       onReady,
       onChange,
+      onError,
       className,
       style,
     },
@@ -95,8 +98,10 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
     const elRef = useRef<HTMLElement | null>(null);
     const onReadyRef = useRef(onReady);
     const onChangeRef = useRef(onChange);
+    const onErrorRef = useRef(onError);
     onReadyRef.current = onReady;
     onChangeRef.current = onChange;
+    onErrorRef.current = onError;
 
     useImperativeHandle(ref, () => ({
       get element() {
@@ -171,7 +176,11 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
         }
         if (!cancelled) onReadyRef.current?.(el);
       })().catch((err) => {
-        if (!cancelled) console.error("NitroViewer:", err);
+        if (!cancelled) {
+          const e = err instanceof Error ? err : Object.assign(new Error(String(err)), { cause: err });
+          onErrorRef.current?.(e);
+          console.error("NitroViewer:", err);
+        }
       });
 
       return () => {

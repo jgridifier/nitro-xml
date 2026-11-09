@@ -9,6 +9,12 @@ import { applyFontSourceToHandle } from "./font-source.js";
 let handle = null;
 let glue = null;
 let chain = Promise.resolve();
+// Noop-save shortcut: when no edit has been applied since open, return the
+// original bytes verbatim instead of calling saveDocument() (which repacks the
+// ZIP and may produce a byte-inequivalent package even with zero semantic changes).
+// Clears on every open; set on first apply-edit.
+let _isDirty = false;
+let _openBytes = null;
 function unlockChrome(op) {
 if (!self._pendingEditorChrome) return;
 if (op === "ui" || op === "zoom-set") return;
@@ -42,10 +48,13 @@ handle.free();
 } catch {
 }
 }
+_openBytes = null;
+_isDirty = false;
 {
 let bytes =
 msg.bytes instanceof Uint8Array ? msg.bytes : new Uint8Array(msg.bytes);
 msg.bytes = null;
+_openBytes = new Uint8Array(bytes);
 handle = new glue.Handle(bytes);
 bytes = null;
 }
@@ -172,6 +181,11 @@ break;
 }
 case "save":{
 if (!handle) throw new Error("no document");
+if (!_isDirty && _openBytes) {
+const copy = new Uint8Array(_openBytes);
+self.postMessage({type:"saved",bytes:copy},[copy.buffer]);
+break;
+}
 const bytes=new Uint8Array(handle.saveDocument());
 self.postMessage({type:"saved",bytes},[bytes.buffer]);
 break;
@@ -179,10 +193,13 @@ break;
 case "apply-edit":
 if (!handle) throw new Error("no document");
 unlockChrome();
+_isDirty = true;
 self.postMessage({type:"apply-edit",result:handle.applyEdit(msg.spec||"")});
 break;
 case "dispose": {
 self._pendingEditorChrome = 0;
+_isDirty = false;
+_openBytes = null;
 if (handle) {
 try {
 handle.free();

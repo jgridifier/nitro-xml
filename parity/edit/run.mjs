@@ -288,6 +288,8 @@ async function main() {
 	if (args.onePerOp) {
 		const seen = new Set();
 		scripts = scripts.filter((s) => {
+			// Keep rejection cases, but also select a saved output for their op's validators.
+			if (String(s.id).includes('negative')) return true;
 			const firstOp = s.ops?.[0]?.op;
 			if (!firstOp || seen.has(firstOp)) return false;
 			seen.add(firstOp);
@@ -598,17 +600,20 @@ async function main() {
 
 	// When NITRO_REQUIRE_VALIDATORS=1 (or --ci from the save gate), treat skipped
 	// validators as failures — missing tools are a CI configuration error, not a pass.
+	// Negative rows (apply correctly rejected) produce no output, so there is nothing to validate.
 	const requireValidators =
 		args.ci ||
 		process.env.NITRO_REQUIRE_VALIDATORS === '1' ||
 		process.env.NITRO_REQUIRE_VALIDATORS === 'true';
 	let validatorSkipBad = false;
 	if (requireValidators) {
-		const ooxmlSkipped = rows.filter((r) => !r.modelOnly && r.validator?.skipped);
-		const loSkipped = rows.filter((r) => !r.modelOnly && r.libreoffice?.skipped);
+		const ooxmlSkipped = rows.filter((r) => !r.modelOnly && !r.negative && r.validator?.skipped);
+		const loSkipped = rows.filter((r) => !r.modelOnly && !r.negative && r.libreoffice?.skipped);
 		if (ooxmlSkipped.length || loSkipped.length) {
 			console.error(
 				`edit-parity: validators required but skipped (openxml=${ooxmlSkipped.length}, lo=${loSkipped.length}); ` +
+					`openxml cases: ${ooxmlSkipped.map((r) => r.id).join(', ') || 'none'}; ` +
+					`lo cases: ${loSkipped.map((r) => r.id).join(', ') || 'none'}; ` +
 					`run scripts/ci/setup-validators.sh`,
 			);
 			validatorSkipBad = true;

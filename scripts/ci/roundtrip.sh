@@ -26,16 +26,9 @@ bash scripts/ci/setup-validators.sh
 export PATH="${NITRO_TOOLS_DIR}/dotnet:$PATH"
 export DOTNET_ROOT="${NITRO_TOOLS_DIR}/dotnet"
 
-# Pinned upstream submodule (TS oracle).
-git submodule update --init --depth 1 upstream
-export UPSTREAM_DIR="$ROOT/upstream"
-if [ "$(git -C "$UPSTREAM_DIR" rev-parse HEAD)" != e66aaec24adc0b68472eae1fc42aa4598e09c352 ]; then
-  echo "roundtrip: upstream not at pin e66aaec" >&2
-  exit 1
-fi
-if [ ! -d "$UPSTREAM_DIR/src/core/node_modules" ] && [ ! -d "$UPSTREAM_DIR/node_modules" ]; then
-  ( cd "$UPSTREAM_DIR" && bun install )
-fi
+# Pinned upstream + ooxml-core dist (editor modules import the `ooxml-core` package name).
+# shellcheck source=ensure-upstream-oracle.sh
+. scripts/ci/ensure-upstream-oracle.sh "$ROOT"
 
 echo "roundtrip: installing harness deps"
 ( cd parity/roundtrip && bun install )

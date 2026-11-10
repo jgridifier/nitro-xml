@@ -109,6 +109,47 @@ validate_file "$SAVE_OUT/saved_edit.xlsx" "$EXAMPLE/public/fixtures/cells_1k.xls
 validate_file "$SAVE_OUT/saved_edit.docx" "$EXAMPLE/public/fixtures/pages_10.docx" docx "edit-save docx"
 validate_file "$SAVE_OUT/saved_edit.pptx" "$EXAMPLE/public/fixtures/slides_10.pptx" pptx "edit-save pptx"
 validate_file "$SAVE_OUT/saved_noop.xlsx" "$EXAMPLE/public/fixtures/cells_1k.xlsx" xlsx "noop-save xlsx"
+validate_file "$SAVE_OUT/saved_noop.docx" "$EXAMPLE/public/fixtures/pages_10.docx" docx "noop-save docx"
+validate_file "$SAVE_OUT/saved_noop.pptx" "$EXAMPLE/public/fixtures/slides_10.pptx" pptx "noop-save pptx"
+
+# --- Part-by-part check: binary parts must not change after an edit (#30/E1). ---
+# Every zip part the edit did not touch must be byte-identical to the input;
+# only the zip container (central-directory offsets) and expected XML parts may differ.
+compare_parts() {
+  local input="$1" output="$2" label="$3"
+  if [ ! -f "$output" ]; then
+    echo "react-e2e: compare-parts: $label: output missing, skipping"
+    return
+  fi
+  if ! node --input-type=module - "$input" "$output" "$label" <<'JS'
+import { readFileSync } from 'node:fs';
+import { comparePackages } from './parity/roundtrip/compare.mjs';
+const [input, output, label] = process.argv.slice(2);
+const inputBytes = new Uint8Array(readFileSync(input));
+const outputBytes = new Uint8Array(readFileSync(output));
+const cmp = await comparePackages(inputBytes, outputBytes);
+// Binary parts (images, fonts, media, theme binaries) must never change on an edit.
+// docProps/thumbnail may legitimately regenerate; everything else is a bug.
+const badBinary = (cmp.losses || []).filter(
+  l => l.category === 'binary' && !/^docProps\/thumbnail\./i.test(l.part || '')
+);
+if (badBinary.length > 0) {
+  console.error(`react-e2e: compare-parts: ${label}: binary parts changed:`);
+  for (const l of badBinary) console.error(`  ${l.part}: ${l.detail}`);
+  process.exit(1);
+}
+const xmlChanged = (cmp.losses || []).filter(l => l.category === 'xml-rewrite').length;
+const docPropsChanged = (cmp.losses || []).filter(l => l.category === 'docProps').length;
+console.log(`react-e2e: compare-parts: ${label}: OK (xml-rewrite=${xmlChanged} docProps=${docPropsChanged} binary-unchanged)`);
+JS
+  then
+    overall_rc=1
+  fi
+}
+
+compare_parts "$EXAMPLE/public/fixtures/cells_1k.xlsx" "$SAVE_OUT/saved_edit.xlsx" "edit-parts xlsx"
+compare_parts "$EXAMPLE/public/fixtures/pages_10.docx" "$SAVE_OUT/saved_edit.docx" "edit-parts docx"
+compare_parts "$EXAMPLE/public/fixtures/slides_10.pptx" "$SAVE_OUT/saved_edit.pptx" "edit-parts pptx"
 
 # --- Report to GitHub step summary. ---
 {

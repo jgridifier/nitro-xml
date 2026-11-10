@@ -35,6 +35,9 @@ node --test \
   "$ROOT/packages/nitro-xml/loader/test/defer-journal.test.mjs" \
   "$ROOT/packages/nitro-xml/loader/test/protections.test.mjs"
 
+echo "crash-recovery: pptx shape drag restore from journal after simulated crash (#30)"
+bun "$ROOT/tests/crash/pptx_drag_restore.test.mjs"
+
 echo "crash-recovery: editor journal + TS oracle (crash injection, xlsx/docx/pptx)"
 EDITOR_SEED="${NITRO_EDITOR_CRASH_SEED:-62}"
 # Default 10 deterministic flake iterations in CI; override with NITRO_CRASH_FLAKE_RUNS.

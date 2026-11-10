@@ -100,6 +100,52 @@ test("noop save (xlsx, no edit) returns byte-identical to input fixture", async 
   }
 });
 
+for (const { format, fixtureUrl } of [
+  { format: "docx", fixtureUrl: "/fixtures/pages_10.docx" },
+  { format: "pptx", fixtureUrl: "/fixtures/slides_10.pptx" },
+]) {
+  test(`noop save (${format}, no edit) returns byte-identical to input fixture`, async ({ page }) => {
+    // Catches: takePackageBytes() for docx/pptx returning re-packed bytes instead of the
+    // original ZIP when no edit has been applied (#30/E1 — xlsx was already covered).
+    await page.goto("/");
+    await page.getByTestId(`format-${format}`).click();
+    await expect(page.getByTestId("status")).toContainText("ready=yes", {
+      timeout: 90_000,
+    });
+
+    await page.getByTestId("noop-save").click();
+    await expect(page.getByTestId("status")).toContainText(/noop-saved:\d+/, {
+      timeout: 60_000,
+    });
+
+    const result = await page.evaluate(async (url) => {
+      const saved = window.__nitroNoopSave;
+      if (!saved) return { match: false, reason: "no saved bytes" };
+      const res = await fetch(url);
+      if (!res.ok) return { match: false, reason: `fetch failed: ${res.status}` };
+      const original = new Uint8Array(await res.arrayBuffer());
+      if (saved.byteLength !== original.byteLength)
+        return {
+          match: false,
+          reason: `length mismatch: saved=${saved.byteLength} original=${original.byteLength}`,
+        };
+      for (let i = 0; i < saved.byteLength; i++) {
+        if (saved[i] !== original[i])
+          return { match: false, reason: `byte differs at offset ${i}` };
+      }
+      return { match: true };
+    }, fixtureUrl);
+    expect(result.match, `noop save mismatch: ${result.reason ?? ""}`).toBe(true);
+
+    const noopArray = await page.evaluate(() =>
+      Array.from(window.__nitroNoopSave ?? []),
+    );
+    if (noopArray.length > 0) {
+      writeSaved(`saved_noop.${format}`, noopArray);
+    }
+  });
+}
+
 test("onError is called when NitroViewer fails to load (error surfacing)", async ({ page }) => {
   // Catches: NitroViewer swallowing initialization errors silently — hosts
   // cannot display or log load failures (#30/E1).

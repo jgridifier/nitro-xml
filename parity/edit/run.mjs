@@ -57,6 +57,7 @@ function parseArgs(argv) {
 		rustXlsx: false,
 		rustPptx: false,
 		negativeControl: false,
+		onePerOp: false,
 	};
 	for (let i = 2; i < argv.length; i++) {
 		const a = argv[i];
@@ -67,9 +68,10 @@ function parseArgs(argv) {
 		else if (a === '--rust-xlsx') out.rustXlsx = true;
 		else if (a === '--rust-pptx') out.rustPptx = true;
 		else if (a === '--negative-control') out.negativeControl = true;
+		else if (a === '--one-per-op') out.onePerOp = true;
 		else if (a === '--help' || a === '-h') {
 			console.log(
-				'Usage: bun run.mjs [--ci] [--format xlsx|docx|pptx] [--id script-id] [--rust-docx] [--rust-xlsx] [--rust-pptx] [--negative-control]',
+				'Usage: bun run.mjs [--ci] [--format xlsx|docx|pptx] [--id script-id] [--rust-docx] [--rust-xlsx] [--rust-pptx] [--negative-control] [--one-per-op]',
 			);
 			process.exit(0);
 		}
@@ -275,10 +277,25 @@ async function main() {
 	assertPin();
 	mkdirSync(OUT, { recursive: true });
 
-	const scripts = loadEditScripts({ format: args.format || undefined, id: args.id || undefined });
+	let scripts = loadEditScripts({ format: args.format || undefined, id: args.id || undefined });
 	if (!scripts.length) {
 		console.error('edit: no scripts matched');
 		process.exit(1);
+	}
+
+	// --one-per-op: pick the first script per distinct primary op, so the CI save gate can
+	// run a lightweight representative subset that covers every supported edit type.
+	if (args.onePerOp) {
+		const seen = new Set();
+		scripts = scripts.filter((s) => {
+			// Keep rejection cases, but also select a saved output for their op's validators.
+			if (String(s.id).includes('negative')) return true;
+			const firstOp = s.ops?.[0]?.op;
+			if (!firstOp || seen.has(firstOp)) return false;
+			seen.add(firstOp);
+			return true;
+		});
+		console.log(`edit-parity: --one-per-op: ${scripts.length} representative scripts`);
 	}
 
 	/** @type {any[]} */
@@ -580,7 +597,30 @@ async function main() {
 		(negativeControlDocx && negativeControlDocx !== 'pass') ||
 		(negativeControlXlsx && negativeControlXlsx !== 'pass') ||
 		(negativeControlPptx && negativeControlPptx !== 'pass');
-	if (failed.length || rustBad || controlBad) process.exit(1);
+
+	// When NITRO_REQUIRE_VALIDATORS=1 (or --ci from the save gate), treat skipped
+	// validators as failures — missing tools are a CI configuration error, not a pass.
+	// Negative rows (apply correctly rejected) produce no output, so there is nothing to validate.
+	const requireValidators =
+		args.ci ||
+		process.env.NITRO_REQUIRE_VALIDATORS === '1' ||
+		process.env.NITRO_REQUIRE_VALIDATORS === 'true';
+	let validatorSkipBad = false;
+	if (requireValidators) {
+		const ooxmlSkipped = rows.filter((r) => !r.modelOnly && !r.negative && r.validator?.skipped);
+		const loSkipped = rows.filter((r) => !r.modelOnly && !r.negative && r.libreoffice?.skipped);
+		if (ooxmlSkipped.length || loSkipped.length) {
+			console.error(
+				`edit-parity: validators required but skipped (openxml=${ooxmlSkipped.length}, lo=${loSkipped.length}); ` +
+					`openxml cases: ${ooxmlSkipped.map((r) => r.id).join(', ') || 'none'}; ` +
+					`lo cases: ${loSkipped.map((r) => r.id).join(', ') || 'none'}; ` +
+					`run scripts/ci/setup-validators.sh`,
+			);
+			validatorSkipBad = true;
+		}
+	}
+
+	if (failed.length || rustBad || controlBad || validatorSkipBad) process.exit(1);
 }
 
 main().catch((e) => {

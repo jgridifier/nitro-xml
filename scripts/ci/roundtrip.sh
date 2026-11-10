@@ -46,9 +46,10 @@ echo "roundtrip: building Rust opc_noop_save + opc_touch_save (#65)"
 echo "roundtrip: C14N / rels / zip-cd unit tests"
 ( cd parity/roundtrip && bun test )
 
-echo "roundtrip: loader noop-save + error-surfacing unit tests (#30/E1)"
+echo "roundtrip: loader noop-save, error-surfacing, and save-gate gap tests (#30/E1)"
 node --test \
-  "$ROOT/packages/nitro-xml/loader/test/save-noop.test.mjs"
+  "$ROOT/packages/nitro-xml/loader/test/save-noop.test.mjs" \
+  "$ROOT/packages/nitro-xml/loader/test/save-gaps.test.mjs"
 ( cd packages/nitro-xml-react && npm ci --no-fund --no-audit && npm run build )
 node --test \
   "$ROOT/packages/nitro-xml-react/test/on-error.mjs"
@@ -88,6 +89,25 @@ cat /tmp/roundtrip-gate-combined.txt
 
 if [ "$rc_identity" -ne 0 ] || [ "$rc_touch" -ne 0 ]; then
   echo "roundtrip: FAIL (identity=$rc_identity touch=$rc_touch)" >&2
+  exit 1
+fi
+
+echo "roundtrip: edit-type validator+LO coverage (one script per op type, #30 save-gate gap)"
+( cd parity/edit && bun install )
+set +e
+( cd parity/edit && NITRO_REQUIRE_VALIDATORS=1 bun ./run.mjs --ci --one-per-op )
+rc_edit_validity=$?
+set -e
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f parity/edit/out/gate-summary.txt ]; then
+  {
+    echo "## Edit-type validator+LO (one-per-op, save-gate #30)"
+    echo '```'
+    cat parity/edit/out/gate-summary.txt
+    echo '```'
+  } >> "$GITHUB_STEP_SUMMARY"
+fi
+if [ "$rc_edit_validity" -ne 0 ]; then
+  echo "roundtrip: edit-type validator FAIL" >&2
   exit 1
 fi
 

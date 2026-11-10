@@ -20,8 +20,9 @@ if ! command -v bun >/dev/null 2>&1; then
   export PATH="$HOME/.bun/bin:$PATH"
 fi
 
-# Validators (#48): soft-skip inside the harness when tools are absent.
-bash scripts/ci/setup-validators.sh || true
+# Validators (#48): required so that per-edit-type LO/Open XML SDK coverage is enforced.
+export NITRO_REQUIRE_VALIDATORS=1
+bash scripts/ci/setup-validators.sh
 
 # Pinned upstream + ooxml-core dist (required for `ooxml-core/pptx` package imports).
 # shellcheck source=ensure-upstream-oracle.sh

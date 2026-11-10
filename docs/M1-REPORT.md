@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # M1 report — Stage 7 gate (#30)
 
-Status: **metrics + TS-vs-WASM tables + live report-mode CI gates** (2026-10-21). Milestone 1
+Status: **metrics + TS-vs-WASM tables + live report-mode CI gates; PR #502 E1 CI perf refresh** (2026-11-10). Milestone 1
 viewer gate record for Nitro XML. Native/WASM/bundle baselines on **`164ac7d`** (#279/#283);
 TS-vs-WASM / peak-mem refreshed on **`b48e0e2`** after peak-mem cut [#352](https://github.com/jgridifier/nitro-xml/pull/352)
 (+ open warmup/runs [#356](https://github.com/jgridifier/nitro-xml/pull/356); prior paint-intern
@@ -727,3 +727,127 @@ Companion to the xlsx S attribution. Measured on main `fd11a8c` and [#359](https
 the LOSS rows are first-touch compile. [#359](https://github.com/jgridifier/nitro-xml/pull/359) is the
 application cut that measurably helps; further docx-heap edits did not clear noise (see
 `docs/perf-rust-hotpaths.md` slice 7).
+
+---
+
+## 5.5 PR #502 CI perf tables — 8a0ffbe / 37c5336
+
+Recorded in `PERF_GATE_MODE=report`; green does not imply all metrics beat TS.
+
+**Runner:** GitHub-hosted `ubuntu-latest` (linux x64), Node.js WASM harness (`initSync`; not
+browser first-paint). No Chrome; no 4× CPU throttle. Baseline-host comparisons across CI
+runs or vs. §5.4 local measurements may be incomparable (different VM state, cold JIT).
+
+**TS baseline relationship:** The in-CI TS medians below are measured via `ts-vs-wasm.mjs`
+(Node.js, cold, S/M/L). The authoritative Chrome-based TS baseline (#10) is at
+`perf/BASELINE.md` (commit `8961e71`, Chrome 156.0.8078.4, linux x64, 2026-11-09,
+S/M/L/XL × cold/warm × 1×/4× CPU); those numbers are **not** directly comparable to the
+Node.js CI rows below.
+
+| Commit | CI run | Perf run |
+|--------|--------|----------|
+| [`8a0ffbe`](https://github.com/jgridifier/nitro-xml/commit/8a0ffbe573efefe0a68054ce59af9f09bce7e5eb) | [42647355833](https://github.com/jgridifier/nitro-xml/actions/runs/42647355833) ✓ | [42647356195](https://github.com/jgridifier/nitro-xml/actions/runs/42647356195) ✓ |
+| [`37c5336`](https://github.com/jgridifier/nitro-xml/commit/37c533655b7e1db2c22ba497b8aed2962b395ced) | [42667414927](https://github.com/jgridifier/nitro-xml/actions/runs/42667414927) ✓ | [42667415096](https://github.com/jgridifier/nitro-xml/actions/runs/42667415096) ✓ |
+
+✓ = confirmed via `gh run list`. *(Note: PR #502 body cited runs 42623263264 and 42623263302
+for its "Main baseline"; those are for headSha `82efcad`, a different commit, not `8a0ffbe`.)*
+
+**Not yet measured:** XL tier, warm runs, browser first-paint (WASM fetch+compile+instantiate),
+≥4× CPU throttle, Chrome-based open+paint. See `perf/BASELINE.md` (#10) for Chrome/4×/warm
+coverage.
+
+### Losses — 37c5336 (listed first)
+
+| Format | Tier | Metric | TS median | WASM median | WASM/TS | 95% CI | Verdict |
+|---|---|---|---:|---:|---:|---|---|
+| docx | S | peak mem (MiB) | 2.2 | 10.8 | 4.870 | [4.420, 6.362] | **LOSS** |
+| docx | M | peak mem (MiB) | 5.9 | 13.3 | 2.272 | [1.996, 2.321] | **LOSS** |
+| xlsx | S | peak mem (MiB) | 5.6 | 15.1 | 2.710 | [2.388, 3.076] | **LOSS** |
+| docx | L | peak mem (MiB) | 182.8 | 210.4 | 1.151 | [1.131, 1.162] | **LOSS** |
+
+docx S/M and xlsx S are known-loss V8 compile-floor exceptions ([Jared,
+2026-10-22](https://github.com/jgridifier/nitro-xml/issues/30#issuecomment-6341154384)).
+**docx L peak mem (1.151×, CI [1.131, 1.162]) is a new LOSS:** prior CI tip `b96b184`
+(§5.4) showed **0.932 WIN**; regression is unattributed as of this draft.
+
+### Losses — 8a0ffbe
+
+| Format | Tier | Metric | TS median | WASM median | WASM/TS | 95% CI | Verdict |
+|---|---|---|---:|---:|---:|---|---|
+| docx | S | peak mem (MiB) | 1.8 | 10.8 | 6.046 | [5.620, 6.501] | **LOSS** |
+| docx | M | peak mem (MiB) | 5.9 | 13.4 | 2.265 | [1.963, 2.469] | **LOSS** |
+| xlsx | S | peak mem (MiB) | 5.7 | 14.8 | 2.606 | [2.505, 3.038] | **LOSS** |
+| docx | L | peak mem (MiB) | 181.9 | 207.7 | 1.142 | [1.106, 1.156] | **LOSS** |
+
+### Full 37c5336 table
+
+| Format | Tier | Metric | TS median | WASM median | WASM/TS | 95% CI | Verdict |
+|---|---|---|---:|---:|---:|---|---|
+| **xlsx** | **S** | **peak mem (MiB)** | **5.6** | **15.1** | **2.710** | **[2.388, 3.076]** | **LOSS** |
+| xlsx | S | openDocument (ms) | 8.50 | 2.78 | 0.327 | [0.268, 0.376] | WIN |
+| xlsx | M | openDocument (ms) | 321.77 | 18.39 | 0.057 | [0.056, 0.058] | WIN |
+| xlsx | L | openDocument (ms) | 1766.40 | 11.33 | 0.006 | [0.006, 0.007] | WIN |
+| xlsx | M | peak mem (MiB) | 129.3 | 16.3 | 0.126 | [0.116, 0.141] | WIN |
+| xlsx | L | peak mem (MiB) | 649.8 | 22.4 | 0.034 | [0.034, 0.036] | WIN |
+| **docx** | **S** | **peak mem (MiB)** | **2.2** | **10.8** | **4.870** | **[4.420, 6.362]** | **LOSS** |
+| **docx** | **M** | **peak mem (MiB)** | **5.9** | **13.3** | **2.272** | **[1.996, 2.321]** | **LOSS** |
+| **docx** | **L** | **peak mem (MiB)** | **182.8** | **210.4** | **1.151** | **[1.131, 1.162]** | **LOSS** |
+| docx | S | openDocument (ms) | 7.40 | 1.90 | 0.256 | [0.248, 0.290] | WIN |
+| docx | M | openDocument (ms) | 25.15 | 2.51 | 0.100 | [0.089, 0.112] | WIN |
+| docx | L | openDocument (ms) | 1688.22 | 830.79 | 0.492 | [0.488, 0.502] | WIN |
+| pptx | S | openDocument (ms) | 29.58 | 0.85 | 0.029 | [0.026, 0.031] | WIN |
+| pptx | M | openDocument (ms) | 103.81 | 1.20 | 0.012 | [0.011, 0.012] | WIN |
+| pptx | L | openDocument (ms) | 1421.85 | 7.44 | 0.005 | [0.005, 0.005] | WIN |
+| pptx | S | peak mem (MiB) | 12.6 | 4.5 | 0.358 | [0.331, 0.397] | WIN |
+| pptx | M | peak mem (MiB) | 26.0 | 6.9 | 0.267 | [0.246, 0.289] | WIN |
+| pptx | L | peak mem (MiB) | 78.1 | 23.9 | 0.306 | [0.284, 0.325] | WIN |
+
+**37c5336 summary:** openDocument WIN 9/9 (all S/M/L). peak mem LOSS 4/18 (xlsx S, docx S/M/L).
+
+### Full 8a0ffbe table
+
+| Format | Tier | Metric | TS median | WASM median | WASM/TS | 95% CI | Verdict |
+|---|---|---|---:|---:|---:|---|---|
+| **xlsx** | **S** | **peak mem (MiB)** | **5.7** | **14.8** | **2.606** | **[2.505, 3.038]** | **LOSS** |
+| xlsx | S | openDocument (ms) | 6.74 | 1.74 | 0.257 | [0.234, 0.303] | WIN |
+| xlsx | M | openDocument (ms) | 247.39 | 12.98 | 0.052 | [0.052, 0.053] | WIN |
+| xlsx | L | openDocument (ms) | 1410.55 | 10.23 | 0.007 | [0.007, 0.007] | WIN |
+| xlsx | M | peak mem (MiB) | 129.1 | 18.0 | 0.139 | [0.128, 0.143] | WIN |
+| xlsx | L | peak mem (MiB) | 648.9 | 23.2 | 0.036 | [0.035, 0.036] | WIN |
+| **docx** | **S** | **peak mem (MiB)** | **1.8** | **10.8** | **6.046** | **[5.620, 6.501]** | **LOSS** |
+| **docx** | **M** | **peak mem (MiB)** | **5.9** | **13.4** | **2.265** | **[1.963, 2.469]** | **LOSS** |
+| **docx** | **L** | **peak mem (MiB)** | **181.9** | **207.7** | **1.142** | **[1.106, 1.156]** | **LOSS** |
+| docx | S | openDocument (ms) | 7.34 | 1.80 | 0.245 | [0.229, 0.266] | WIN |
+| docx | M | openDocument (ms) | 24.72 | 2.34 | 0.095 | [0.085, 0.109] | WIN |
+| docx | L | openDocument (ms) | 1513.38 | 722.24 | 0.477 | [0.472, 0.480] | WIN |
+| pptx | S | openDocument (ms) | 45.12 | 1.21 | 0.027 | [0.025, 0.030] | WIN |
+| pptx | M | openDocument (ms) | 147.72 | 1.60 | 0.011 | [0.011, 0.012] | WIN |
+| pptx | L | openDocument (ms) | 1980.91 | 9.19 | 0.005 | [0.005, 0.005] | WIN |
+| pptx | S | peak mem (MiB) | 13.0 | 4.5 | 0.344 | [0.335, 0.369] | WIN |
+| pptx | M | peak mem (MiB) | 26.8 | 6.7 | 0.249 | [0.242, 0.275] | WIN |
+| pptx | L | peak mem (MiB) | 77.9 | 24.0 | 0.308 | [0.221, 0.322] | WIN |
+
+**8a0ffbe summary:** openDocument WIN 9/9. peak mem LOSS 4/18 (xlsx S, docx S/M/L).
+
+---
+
+## 10. M1 gate status (#30) — 2026-11-10
+
+Gate record for [#30](https://github.com/jgridifier/nitro-xml/issues/30). Items still open
+are marked **In progress**; Jared-only items are flagged.
+
+| #30 item | Status | PR / notes |
+|----------|--------|------------|
+| Fuzz campaign (1 CPU-hour/target, 0 crashes) | **Done** | §4 |
+| Viewer crash recovery (CI crash-injection) | **Done** | §2 |
+| Editor crash recovery (op journal, `recoverEditOnce`) | **Done** | §2; [#276](https://github.com/jgridifier/nitro-xml/pull/276)/[#277](https://github.com/jgridifier/nitro-xml/pull/277)/[#445](https://github.com/jgridifier/nitro-xml/pull/445) |
+| Memory / package size limits (graceful errors) | **Done** | §3; [#268](https://github.com/jgridifier/nitro-xml/issues/268) |
+| Visual parity (hard corpus; 0 unsupported content) | **Done** | §1 |
+| Bundle / loader budget (≤17,408 B brotli) | **Done** | §6; CI confirms 17,399 B on `37c5336` |
+| TS vs WASM perf — report-mode CI gate | **Done** | §5.4 / [#342](https://github.com/jgridifier/nitro-xml/pull/342) |
+| React save test, OOXML validator, LibreOffice check in CI | **Done (merged)** | [#502](https://github.com/jgridifier/nitro-xml/pull/502) |
+| E1: host error events, drag recovery, macro guard, size limits | **Done (merged)** | [#503](https://github.com/jgridifier/nitro-xml/pull/503) |
+| Scoreboard CI gate (reproducible publish) | **In progress** | stub [#39](https://github.com/jgridifier/nitro-xml/issues/39); draft [#113](https://github.com/jgridifier/nitro-xml/pull/113) (do not touch) |
+| `perf-beats-ts` enforce mode | **In progress — Jared flips** | [#8](https://github.com/jgridifier/nitro-xml/issues/8)/[#19](https://github.com/jgridifier/nitro-xml/issues/19)/[#27](https://github.com/jgridifier/nitro-xml/issues/27); docx [#23](https://github.com/jgridifier/nitro-xml/issues/23); tip xlsx/docx/pptx READY with known-loss exceptions |
+| `crash-recovery` / `perf-beats-ts` in branch-protection required checks | **In progress — Jared / Chief of Staff** | agents do not edit branch protection |
+| docx L peak_mem LOSS (1.151×, CI [1.131, 1.162], `37c5336`) | **In progress — unattributed regression** | §5.5; prior tip `b96b184` was 0.932 WIN; not covered by known-loss exception |

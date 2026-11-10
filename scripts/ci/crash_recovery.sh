@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
-# Crash recovery: viewer reload-once in a fresh worker (#30); editor op-journal replay (#62).
+# Crash recovery: viewer reload-once in a fresh worker (#30); editor op-journal replay (#62);
+# Rust worker killed mid-edit, journal replay + writer carry of untouched parts (#30).
 # Job: crash-recovery. Agents never edit .github/workflows/.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -44,13 +45,17 @@ NITRO_CRASH_SEED="$EDITOR_SEED" NITRO_CRASH_FLAKE_RUNS="$FLAKE_RUNS" \
 
 EDITOR_SUMMARY="crash-recovery: editor op-journal replay OK (seed=${EDITOR_SEED} formats=3 flake_runs=${FLAKE_RUNS})"
 echo "$EDITOR_SUMMARY"
+echo "crash-recovery: Rust worker SIGABRT mid-edit, journal replay, writer carry (xlsx/docx/pptx)"
+(cd "$ROOT/rs" && cargo test -p nitro-xml --test crash_injection)
+RUST_SUMMARY="crash-recovery: Rust worker kill + journal replay + untouched-part carry OK (formats=3)"
+echo "$RUST_SUMMARY"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo "## crash-recovery"
     echo "$VIEWER_SUMMARY"
     echo "$EDITOR_SUMMARY"
+    echo "$RUST_SUMMARY"
     echo ""
-    echo "Writer carry / dirty-parts replay: TODO #69."
     echo "M1 report: docs/M1-REPORT.md §2 (crash recovery ACs)."
   } >> "$GITHUB_STEP_SUMMARY"
 fi

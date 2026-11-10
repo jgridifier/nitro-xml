@@ -17,3 +17,6 @@ nitro-xml-opc.workspace = true
 nitro-xml-xlsx.workspace = true
 nitro-xml-docx.workspace = true
 nitro-xml-pptx.workspace = true
+
+[dev-dependencies]
+serde_json = "1"

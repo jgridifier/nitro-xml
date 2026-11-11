@@ -121,17 +121,8 @@ function isExpectedPartChange(script, loss) {
 		if (p === '[Content_Types].xml') return true;
 		// Styles expected only on style edits
 		if (p === 'xl/styles.xml' && ops.some((op) => op === 'applyStyle' || op === 'setCellInput')) return true;
-		// Workbook expected on structure changes (sheets, rows, cols) or formula edits (stale cells).
-		if (p === 'xl/workbook.xml') {
-			const structureOps = new Set([
-				'addSheet', 'deleteSheet', 'renameSheet', 'reorderSheets', 'copySheet',
-				'insertRows', 'insertCols', 'deleteRows', 'deleteCols',
-			]);
-			if (ops.some((op) => structureOps.has(op))) return true;
-			// Formula edits cause stale cells → fullCalcOnLoad → workbook rewritten.
-			const formulaOps = (script.ops || []).filter((o) => o.op === 'setCellInput');
-			if (formulaOps.some((o) => typeof o.text === 'string' && o.text.startsWith('='))) return true;
-		}
+		// Workbook is rewritten on every dirty save (fullCalcOnLoad + sheet refs).
+		if (p === 'xl/workbook.xml') return true;
 		// Dynamic array metadata: legitimately added when insert/delete creates spill ranges.
 		if (p === 'xl/metadata.xml' && ops.some((op) =>
 			op === 'insertRows' || op === 'insertCols' || op === 'deleteRows' || op === 'deleteCols'
@@ -407,6 +398,20 @@ async function main() {
 					// Rust only writes xlsx overhead parts (workbook, rels, styles) when actually changed;
 					// TS always rewrites them. These divergences are expected and correct Rust behaviour.
 					if (script.format === 'xlsx' && isXlsxOverheadLoss(l)) return false;
+					// For xlsx structure-only ops (no cell data edits), TS rewrites all worksheets
+					// even untouched ones; Rust correctly carries clean sheets unchanged.
+					const p = l.part ? String(l.part) : '';
+					const xlsxStructOps = new Set([
+						'addSheet', 'deleteSheet', 'renameSheet', 'reorderSheets', 'copySheet',
+					]);
+					const xlsxDataOps = new Set([
+						'setCellInput', 'applyStyle',
+						'insertRows', 'insertCols', 'deleteRows', 'deleteCols',
+					]);
+					if (script.format === 'xlsx'
+						&& p.startsWith('xl/worksheets/')
+						&& (script.ops || []).some((o) => xlsxStructOps.has(o.op))
+						&& !(script.ops || []).some((o) => xlsxDataOps.has(o.op))) return false;
 					// Rust writes an explicit <a:xfrm> for inherited-geometry shapes when patchShapeGeometry
 					// is applied; TS's materializeInheritedShapeTransform bails without a baseline (same bug,
 					// not yet fixed in TS). Filter slide XML diffs for scripts with this op.

@@ -164,8 +164,8 @@ pub fn save_xlsx_with_options(
             .unwrap_or(0) as u32;
     }
 
-    let has_stale = host.stale.values().any(|cells| !cells.is_empty()) || host.all_formulas_stale;
-    let full_calc = options.full_calc_on_load && has_stale;
+    // Any edit may affect dependent formulas; always set fullCalcOnLoad when saving (matches TS).
+    let full_calc = options.full_calc_on_load;
 
     let mut claimed: HashSet<String> = HashSet::new();
     let mut assigned: Vec<Option<String>> = Vec::with_capacity(host.sheets.len());
@@ -185,6 +185,9 @@ pub fn save_xlsx_with_options(
     let dynamic_cm = dynamic_cm_index(metadata_xml.as_deref());
     let mut strings = SharedStringTable::default();
     let mut dynamic_used = false;
+    // Deletions may orphan SST entries; a full rebuild ensures the SST reflects only
+    // strings still referenced in the workbook after the edit.
+    let has_deletions = host.axis_shifts.iter().any(|s| s.count < 0);
 
     // Reused parts keep their source relationship id, so a raw-copied workbook.xml still resolves.
     let mut plans: Vec<SheetPlan> = Vec::with_capacity(host.sheets.len());
@@ -248,22 +251,41 @@ pub fn save_xlsx_with_options(
     };
     let needs_render =
         |plan: &SheetPlan| plan.special.is_none() && (plan.dirty || plan.reused_rel.is_none());
-    let mut sheet_xml: Vec<Option<String>> = vec![None; plans.len()];
-    for (index, plan) in plans.iter().enumerate() {
-        if needs_render(plan) {
-            sheet_xml[index] = Some(render(index, &plan.part, &mut strings, &mut dynamic_used));
-        }
-    }
-    if !strings.is_empty() {
-        // The rebuilt string table reindexes everything, so clean sheets must be re-rendered too.
+
+    // Probe pass: render only dirty/new sheets to detect whether the SST grows or shrinks.
+    // We discard the probe XML and re-render in the main pass so SST indices are always
+    // assigned in document order (sheet 0 first), matching TS.
+    let needs_full_rebuild = {
+        let mut probe = SharedStringTable::default();
+        let mut probe_dyn = false;
         for (index, plan) in plans.iter().enumerate() {
-            if sheet_xml[index].is_none() && plan.special.is_none() {
+            if needs_render(plan) {
+                render(index, &plan.part, &mut probe, &mut probe_dyn);
+            }
+        }
+        // Full rebuild when: new strings are added (SST indices would change) or rows/cols
+        // were deleted (SST may contain orphaned entries no longer referenced by any cell).
+        !probe.is_empty() || has_deletions
+    };
+
+    let mut sheet_xml: Vec<Option<String>> = vec![None; plans.len()];
+    if needs_full_rebuild {
+        // Render ALL sheets in document order so SST indices match TS.
+        for (index, plan) in plans.iter().enumerate() {
+            if plan.special.is_none() {
+                sheet_xml[index] = Some(render(index, &plan.part, &mut strings, &mut dynamic_used));
+            }
+        }
+    } else {
+        // No SST change: render only dirty/new sheets (unchanged sheets keep original bytes).
+        for (index, plan) in plans.iter().enumerate() {
+            if needs_render(plan) {
                 sheet_xml[index] = Some(render(index, &plan.part, &mut strings, &mut dynamic_used));
             }
         }
     }
+    let did_full_rebuild = needs_full_rebuild;
 
-    let ids_changed = plans.iter().any(|plan| plan.reused_rel.is_none());
     let mut sheet_refs = Vec::with_capacity(host.sheets.len());
     for (index, (plan, xml)) in plans.into_iter().zip(sheet_xml).enumerate() {
         if let Some(xml) = xml {
@@ -300,11 +322,14 @@ pub fn save_xlsx_with_options(
             false,
         );
         keep_parts.insert(out_strings);
-    } else if let Some(rel) = book_rels.iter().find(|r| r.type_ == rt::SHARED_STRINGS) {
-        // Nothing new was added, so the source table stays as written for any clean sheet.
-        rels.keep(rel);
-        keep_parts.insert(out_strings);
+    } else if !did_full_rebuild {
+        // No SST rebuild: carry the original table for clean sheets that still reference it.
+        if let Some(rel) = book_rels.iter().find(|r| r.type_ == rt::SHARED_STRINGS) {
+            rels.keep(rel);
+            keep_parts.insert(out_strings);
+        }
     }
+    // did_full_rebuild && strings.is_empty(): all string cells were deleted; drop the SST.
     let out_styles = styles_part
         .clone()
         .unwrap_or_else(|| "xl/styles.xml".into());
@@ -340,8 +365,8 @@ pub fn save_xlsx_with_options(
         dynamic_used,
     );
 
-    // A plain edit leaves workbook.xml raw; it is rewritten only when its content or sheet ids change.
-    let needs_workbook = host.workbook_dirty || has_stale || ids_changed;
+    // Always rewrite workbook.xml on a dirty save: sets fullCalcOnLoad and updates sheet refs.
+    let needs_workbook = true;
     if needs_workbook {
         let book_ct = if kept_vba {
             CT_WORKBOOK_MACRO
@@ -733,7 +758,8 @@ mod tests {
         assert!(!xml.contains("fullCalcOnLoad"));
     }
 
-    // Catches: a plain-text setCellInput rewrites untouched parts (styles, workbook, theme).
+    // Catches: a plain-text setCellInput rewrites untouched parts (styles, theme).
+    // Note: workbook.xml is always rewritten on any dirty save to set fullCalcOnLoad="1".
     #[test]
     fn text_cell_edit_only_touches_sheet_and_strings() {
         let bytes = cells_1k();
@@ -742,14 +768,28 @@ mod tests {
         let saved = save_xlsx(&host, &bytes).expect("save");
         let mut original = Package::open(&bytes).expect("orig");
         let mut result = Package::open(&saved).expect("result");
-        for name in ["xl/styles.xml", "xl/workbook.xml"] {
-            let orig_text = original.text(name).expect("read orig").expect("present");
-            let result_text = result.text(name).expect("read result").expect("present");
-            assert_eq!(
-                orig_text, result_text,
-                "{name} should not change on plain-text cell edit"
-            );
-        }
+        // Styles must not change on a plain-text edit.
+        let orig_styles = original
+            .text("xl/styles.xml")
+            .expect("read orig styles")
+            .expect("styles present");
+        let result_styles = result
+            .text("xl/styles.xml")
+            .expect("read result styles")
+            .expect("styles present");
+        assert_eq!(
+            orig_styles, result_styles,
+            "xl/styles.xml should not change on plain-text cell edit"
+        );
+        // workbook.xml is rewritten to carry fullCalcOnLoad.
+        let wb_xml = result
+            .text("xl/workbook.xml")
+            .expect("read result workbook")
+            .expect("workbook present");
+        assert!(
+            wb_xml.contains("fullCalcOnLoad=\"1\""),
+            "workbook.xml must set fullCalcOnLoad=\"1\" on any edit"
+        );
         assert!(
             result.text("xl/theme/theme1.xml").expect("read").is_none(),
             "theme must not be added"

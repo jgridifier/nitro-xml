@@ -304,20 +304,16 @@ fn apply_element(shape: &mut Element, el: &EditableElement) {
 /// no own transform (upstream `materializeInheritedShapeTransform` also bails
 /// without an inherited baseline — these generated slides have neither).
 fn apply_xfrm(shape: &mut Element, el: &EditableElement) {
+    // Only update geometry when explicitly requested (patchShapeGeometry). Text/fill/line
+    // edits must leave the existing transform untouched — overwriting with defaults clobbers it.
+    if el.x_emu.is_none() && el.y_emu.is_none() && el.width_emu.is_none() && el.height_emu.is_none()
+    {
+        return;
+    }
     let Some(sp_pr) = child_mut(shape, "spPr", ns::P) else {
         return;
     };
-    // Create xfrm with off/ext only when the caller explicitly set geometry (x_emu/y_emu/
-    // width_emu/height_emu present). Shapes that only have text/fill/line changes go through
-    // apply_element too; those must keep inherited geometry rather than getting a spurious xfrm.
     if child_index(sp_pr, "xfrm", ns::A).is_none() {
-        if el.x_emu.is_none()
-            && el.y_emu.is_none()
-            && el.width_emu.is_none()
-            && el.height_emu.is_none()
-        {
-            return;
-        }
         let mut xfrm_el = elem(ns::A, "xfrm");
         xfrm_el.children.push(Node::Element(elem(ns::A, "off")));
         xfrm_el.children.push(Node::Element(elem(ns::A, "ext")));

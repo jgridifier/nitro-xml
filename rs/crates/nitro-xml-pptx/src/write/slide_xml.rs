@@ -311,7 +311,11 @@ fn apply_xfrm(shape: &mut Element, el: &EditableElement) {
     // width_emu/height_emu present). Shapes that only have text/fill/line changes go through
     // apply_element too; those must keep inherited geometry rather than getting a spurious xfrm.
     if child_index(sp_pr, "xfrm", ns::A).is_none() {
-        if el.x_emu.is_none() && el.y_emu.is_none() && el.width_emu.is_none() && el.height_emu.is_none() {
+        if el.x_emu.is_none()
+            && el.y_emu.is_none()
+            && el.width_emu.is_none()
+            && el.height_emu.is_none()
+        {
             return;
         }
         let mut xfrm_el = elem(ns::A, "xfrm");

@@ -2,12 +2,12 @@
 
 **A Rust → WebAssembly engine that views and edits Word (.docx), Excel (.xlsx) and PowerPoint (.pptx) files entirely in the browser.** Bytes never leave the page. Nitro XML is a port of [ChristopherVR/ooxml](https://github.com/ChristopherVR/ooxml) (Apache-2.0), and its goal is to be the fastest, most efficient, highest-quality OOXML renderer and editor available, beating the original TypeScript engine on every format, at every file size.
 
-**Status: planning, Stage 0 not started.** No engine code exists yet.
+**Status: 0.1.0 E1 release candidate.** Browser viewing/editing is implemented; publication awaits Head of Product PASS. See [release notes](docs/releases/0.1.0.md) for supported edits, remaining UX limits and known performance losses.
 
 - 📄 **Plan:** https://jgridifier.github.io/nitro-xml/ ([docs/PLAN.md](docs/PLAN.md))
 - 📐 **Product spec and gates:** [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md) (source of every parity, perf, bundle, accessibility and editor gate)
 - 🗂️ **Board:** https://github.com/users/jgridifier/projects/2 (view **Ready now** for claimable work)
-- 📊 **Benchmarks:** https://jgridifier.github.io/nitro-xml/benchmarks/ (WASM vs TS; not yet measured — shell live, numbers pending #10)
+- 📊 **Benchmarks:** https://jgridifier.github.io/nitro-xml/benchmarks/ (WASM vs TS; see [M1 report](docs/M1-REPORT.md) for measured results and losses)
 
 ## What it is
 
@@ -46,6 +46,46 @@ npm install @nitro-xml/react react react-dom   # optional React host
 - Eager loader must stay ≤ **17 408 B** brotli (`bash scripts/ci/bundle_budget.sh`).
   React code is a separate package so it cannot grow that budget.
 
+### React editing and host save
+
+```tsx
+import { useRef, useState } from "react";
+import { NitroViewer, type NitroViewerHandle } from "@nitro-xml/react";
+
+export function Editor({ file, fileName, persist }: {
+  file: File | Uint8Array;
+  fileName: string; // e.g. report.docx, budget.xlsx or slides.pptx
+  persist: (bytes: Uint8Array) => Promise<void>;
+}) {
+  const ref = useRef<NitroViewerHandle>(null);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState("");
+  async function save() {
+    try {
+      if (ref.current) await persist(await ref.current.save());
+    } catch (e) { setError(String(e)); }
+  }
+  return <>
+    <button disabled={!ready} onClick={save}>Save</button>
+    <p role="alert">{error}</p>
+    <NitroViewer key={fileName} ref={ref} file={file} fileName={fileName}
+      editable mode="embedded" style={{ height: 600 }}
+      onReady={() => setReady(true)} onError={e => setError(e.message)} />
+  </>;
+}
+```
+
+For Vite production builds, keep dynamically imported worker chunks as ES modules:
+
+```js
+// vite.config.js
+import { defineConfig } from "vite";
+export default defineConfig({ worker: { format: "es" } });
+```
+
+
+`onChange` reports saved bytes, not each keystroke. Mount a new editor for a new document and disable save while it loads. See [release limits and known losses](docs/releases/0.1.0.md).
+
 ## Rust crates (crates.io)
 
 Workspace crates under `rs/crates/` are versioned together (`0.1.0`) for future [crates.io](https://crates.io) publication. Before publishing, run the packaging dry-run (dependency order, `cargo package` verify plus `cargo publish -n`):
@@ -76,7 +116,7 @@ PyPI setup: [docs/RELEASING.md](docs/RELEASING.md).
 - Running macros (never). `vbaProject.bin` and other unknown parts are preserved byte for byte on save.
 - Teams and MCP from upstream.
 - A TypeScript runtime fallback. If WASM cannot run (old browser, CSP blocks wasm, init failure), the component shows an "unsupported browser" message.
-- Framework bindings beyond the web component and the headless API (for now).
+- Framework bindings beyond React, the web component and the headless API (for now).
 - Real-time collaboration and PDF/image export (open questions, default out).
 
 ## Milestones

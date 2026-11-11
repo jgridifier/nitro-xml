@@ -17,7 +17,7 @@ assert.ok(pkg.exports["./wasm"]);
 assert.equal(pkg.publishConfig?.provenance, true);
 const react = JSON.parse(readFileSync("packages/nitro-xml-react/package.json","utf8"));
 assert.equal(react.name, "@nitro-xml/react");
-assert.ok(react.peerDependencies["nitro-xml"]);
+assert.equal(react.dependencies["nitro-xml"], "^0.1.0");
 assert.equal(react.sideEffects, false);
 '
 

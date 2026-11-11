@@ -1,0 +1,23 @@
+{
+  "name": "nitro-xml-packed-consumer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5191 --strictPort",
+    "test": "playwright test",
+    "check:types": "tsc --noEmit --strict --module NodeNext --target ES2022 types.ts --lib ES2022,DOM,ESNext.Disposable"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11",
+    "@playwright/test": "^1.48.0",
+    "typescript": "^5.6.3",
+    "@types/react": "^18.3.12"
+  }
+}

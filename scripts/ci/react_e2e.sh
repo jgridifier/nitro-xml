@@ -167,5 +167,6 @@ if [ "$pw_rc" -ne 0 ] || [ "$overall_rc" -ne 0 ]; then
   echo "react-e2e: FAIL (playwright=$pw_rc validator=$overall_rc)" >&2
   exit 1
 fi
+bash scripts/ci/consumer_smoke.sh
 echo "react-e2e: PASS"
 exit 0

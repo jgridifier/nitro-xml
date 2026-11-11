@@ -3,26 +3,45 @@
 
 SSR-safe React binding for [`nitro-xml`](../nitro-xml/README.md).
 
+After publication: `npm install @nitro-xml/react@0.1.0 nitro-xml@0.1.0 react react-dom`.
+
 ```tsx
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { NitroViewer, type NitroViewerHandle } from "@nitro-xml/react";
 
-export function App({ bytes }: { bytes: ArrayBuffer }) {
+export function Editor({ file, fileName, persist }: {
+  file: File | Uint8Array;
+  fileName: string; // e.g. report.docx, budget.xlsx or slides.pptx
+  persist: (bytes: Uint8Array) => Promise<void>;
+}) {
   const ref = useRef<NitroViewerHandle>(null);
-  return (
-    <NitroViewer
-      ref={ref}
-      file={bytes}
-      fileName="sheet.xlsx"
-      editable
-      mode="embedded"
-      onReady={() => console.log("ready")}
-      onChange={(saved) => console.log("saved", saved.byteLength)}
-      style={{ height: 480 }}
-    />
-  );
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState("");
+  async function save() {
+    try {
+      if (ref.current) await persist(await ref.current.save());
+    } catch (e) { setError(String(e)); }
+  }
+  return <>
+    <button disabled={!ready} onClick={save}>Save</button>
+    <p role="alert">{error}</p>
+    <NitroViewer key={fileName} ref={ref} file={file} fileName={fileName}
+      editable mode="embedded" style={{ height: 600 }}
+      onReady={() => setReady(true)} onError={e => setError(e.message)} />
+  </>;
 }
 ```
+
+For Vite production builds, keep dynamically imported worker chunks as ES modules:
+
+```js
+// vite.config.js
+import { defineConfig } from "vite";
+export default defineConfig({ worker: { format: "es" } });
+```
+
+
+The host persists returned bytes. `onChange` reports saves, not every keystroke. Mount a new editor for a new document and disable save while it loads.
 
 ## Props
 
@@ -41,7 +60,7 @@ RSC / SSR bundles (no `window` at module top level).
 
 ## Peer deps
 
-`react`, `react-dom` (≥18), `nitro-xml` (≥0.1.0).
+`react`, `react-dom` (≥18). Runtime dependency: `nitro-xml ^0.1.0`.
 
 ## Example
 

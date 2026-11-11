@@ -42,8 +42,44 @@ defineNitroPptx();
 
 ## React
 
-See [`@nitro-xml/react`](../nitro-xml-react/README.md) and the Vite example under
-[`examples/vite-react`](../../examples/vite-react/).
+```tsx
+import { useRef, useState } from "react";
+import { NitroViewer, type NitroViewerHandle } from "@nitro-xml/react";
+
+export function Editor({ file, fileName, persist }: {
+  file: File | Uint8Array;
+  fileName: string; // e.g. report.docx, budget.xlsx or slides.pptx
+  persist: (bytes: Uint8Array) => Promise<void>;
+}) {
+  const ref = useRef<NitroViewerHandle>(null);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState("");
+  async function save() {
+    try {
+      if (ref.current) await persist(await ref.current.save());
+    } catch (e) { setError(String(e)); }
+  }
+  return <>
+    <button disabled={!ready} onClick={save}>Save</button>
+    <p role="alert">{error}</p>
+    <NitroViewer key={fileName} ref={ref} file={file} fileName={fileName}
+      editable mode="embedded" style={{ height: 600 }}
+      onReady={() => setReady(true)} onError={e => setError(e.message)} />
+  </>;
+}
+```
+
+For Vite production builds, keep dynamically imported worker chunks as ES modules:
+
+```js
+// vite.config.js
+import { defineConfig } from "vite";
+export default defineConfig({ worker: { format: "es" } });
+```
+
+
+The host owns persistence; `save()` returns bytes and `onChange` reports saves.
+See [0.1.0 release notes](https://github.com/jgridifier/nitro-xml/blob/main/docs/releases/0.1.0.md) for limits and known losses.
 
 ## Loader size gate
 

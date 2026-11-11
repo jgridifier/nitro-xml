@@ -33,4 +33,3 @@ export type NitroViewerHandle = {
  * WASM load only inside `useEffect` on the client.
  */
 export declare const NitroViewer: import("react").ForwardRefExoticComponent<NitroViewerProps & import("react").RefAttributes<NitroViewerHandle>>;
-//# sourceMappingURL=NitroViewer.d.ts.map

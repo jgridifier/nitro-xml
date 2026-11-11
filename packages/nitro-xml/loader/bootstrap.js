@@ -122,8 +122,7 @@ export function prewarmWorker(workerUrl) {
 if (typeof Worker === "undefined") return null;
 if (prewarmedWorker) return prewarmedWorker;
 try {
-const url = workerUrl || new URL("./worker.js", import.meta.url);
-prewarmedWorker = new Worker(url, { type: "module", name: "nitro-xml-prewarm" });
+prewarmedWorker = workerUrl ? new Worker(workerUrl, { type: "module" }) : new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
 prewarmedWorker.postMessage({ type: "prewarm" });
 return prewarmedWorker;
 } catch {

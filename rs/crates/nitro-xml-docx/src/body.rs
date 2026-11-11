@@ -282,14 +282,16 @@ pub fn read_package_with_opts(
         );
     }
 
-    let mut picture_blocks = blocks.clone();
+    // Header/footer/note blocks only; the main blocks are visited in place (a clone doubled
+    // the peak memory on very large bodies).
+    let mut extra_blocks: Vec<Value> = Vec::new();
     if let Some(sections) = &parts.sections {
         for section in sections {
             for key in ["headers", "footers"] {
                 if let Some(slots) = section.get(key).and_then(|v| v.as_object()) {
                     for (_, content) in slots {
                         if let Some(b) = content.get("blocks").and_then(|v| v.as_array()) {
-                            picture_blocks.extend(b.clone());
+                            extra_blocks.extend(b.clone());
                         }
                     }
                 }
@@ -299,38 +301,40 @@ pub fn read_package_with_opts(
     if let Some(notes) = &parts.footnotes {
         for note in notes {
             if let Some(b) = note.get("blocks").and_then(|v| v.as_array()) {
-                picture_blocks.extend(b.clone());
+                extra_blocks.extend(b.clone());
             }
         }
     }
     if let Some(notes) = &parts.endnotes {
         for note in notes {
             if let Some(b) = note.get("blocks").and_then(|v| v.as_array()) {
-                picture_blocks.extend(b.clone());
+                extra_blocks.extend(b.clone());
             }
         }
     }
 
     warnings.extend(image_and_bookmark_warnings(&blocks));
-    warnings.extend(diagram_warnings(&picture_blocks));
+    warnings.extend(diagram_warnings(&[&blocks, &extra_blocks]));
 
     let mut image_part_names = BTreeSet::new();
-    for_each_paragraph(&picture_blocks, &mut |paragraph| {
-        if let Some(runs) = paragraph.get("runs").and_then(|v| v.as_array()) {
-            for run in runs {
-                if let Some(image) = run.get("image") {
-                    if let Some(p) = image.get("partName").and_then(|v| v.as_str()) {
-                        if !p.is_empty() {
+    for group in [&blocks, &extra_blocks] {
+        for_each_paragraph(group, &mut |paragraph| {
+            if let Some(runs) = paragraph.get("runs").and_then(|v| v.as_array()) {
+                for run in runs {
+                    if let Some(image) = run.get("image") {
+                        if let Some(p) = image.get("partName").and_then(|v| v.as_str()) {
+                            if !p.is_empty() {
+                                image_part_names.insert(p.to_string());
+                            }
+                        }
+                        if let Some(p) = image.get("svgPartName").and_then(|v| v.as_str()) {
                             image_part_names.insert(p.to_string());
                         }
                     }
-                    if let Some(p) = image.get("svgPartName").and_then(|v| v.as_str()) {
-                        image_part_names.insert(p.to_string());
-                    }
                 }
             }
-        }
-    });
+        });
+    }
 
     let comments = if let Some(comments_xml) = pkg.take_text("word/comments.xml")? {
         let extended = pkg.take_text("word/commentsExtended.xml")?;

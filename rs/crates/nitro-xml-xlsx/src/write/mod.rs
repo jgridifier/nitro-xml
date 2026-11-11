@@ -61,7 +61,7 @@ const SIG_ORIGIN: &str =
 /// Options for [`save_xlsx_with_options`].
 #[derive(Debug, Clone)]
 pub struct XlsxSaveOptions {
-    /// When true (default), a dirty save sets `calcPr fullCalcOnLoad="1"`.
+    /// When true (default), a save with stale formula cells sets `calcPr fullCalcOnLoad="1"`.
     pub full_calc_on_load: bool,
 }
 
@@ -76,8 +76,9 @@ impl Default for XlsxSaveOptions {
 /// Save `host` over `original` package bytes.
 ///
 /// A host with no dirty sheets, styles, or workbook structure returns `original` unchanged
-/// ([`PackageWriter::finish`] identity shortcut). A dirty save rewrites worksheets, shared
-/// strings, styles, workbook, theme, and relationships, drops `calcChain`, and carries the rest.
+/// ([`PackageWriter::finish`] identity shortcut). A dirty save rewrites only the dirty worksheets,
+/// shared strings when new strings exist, and styles, workbook, or relationships when they changed.
+/// It drops `calcChain` and carries every other part as written.
 pub fn save_xlsx(host: &XlsxHost, original: &[u8]) -> Result<Vec<u8>, String> {
     save_xlsx_with_options(host, original, &XlsxSaveOptions::default())
 }
@@ -131,7 +132,7 @@ pub fn save_xlsx_with_options(
     drop(package);
 
     let mut writer = PackageWriter::open(original).map_err(|e| e.to_string())?;
-    let mut rels = RelSet::new();
+    let mut rels = RelSet::reserving(&book_rels);
     let mut kept_vba = false;
     let mut keep_parts: HashSet<String> = HashSet::new();
     keep_parts.insert(book_part.clone());
@@ -163,6 +164,9 @@ pub fn save_xlsx_with_options(
             .unwrap_or(0) as u32;
     }
 
+    let has_stale = host.stale.values().any(|cells| !cells.is_empty()) || host.all_formulas_stale;
+    let full_calc = options.full_calc_on_load && has_stale;
+
     let mut claimed: HashSet<String> = HashSet::new();
     let mut assigned: Vec<Option<String>> = Vec::with_capacity(host.sheets.len());
     for sheet in &host.sheets {
@@ -181,9 +185,11 @@ pub fn save_xlsx_with_options(
     let dynamic_cm = dynamic_cm_index(metadata_xml.as_deref());
     let mut strings = SharedStringTable::default();
     let mut dynamic_used = false;
-    let mut sheet_refs = Vec::with_capacity(host.sheets.len());
-    for (index, sheet) in host.sheets.iter().enumerate() {
-        let part_name = match assigned[index].clone() {
+
+    // Reused parts keep their source relationship id, so a raw-copied workbook.xml still resolves.
+    let mut plans: Vec<SheetPlan> = Vec::with_capacity(host.sheets.len());
+    for (index, assigned_part) in assigned.iter().enumerate() {
+        let part = match assigned_part.clone() {
             Some(name) => name,
             None => {
                 let name = unique_sheet_name(&source_parts, &claimed);
@@ -191,38 +197,93 @@ pub fn save_xlsx_with_options(
                 name
             }
         };
-        let special = sheet_rel_for_ct(part_ct.get(&part_name).map(String::as_str));
-        if special.is_none() {
-            let shifts: Vec<_> = host
-                .axis_shifts
+        let special = sheet_rel_for_ct(part_ct.get(&part).map(String::as_str));
+        let reused_rel = if assigned_part.is_some() {
+            book_rels
                 .iter()
-                .filter(|rec| rec.sheet == index as u32)
-                .map(|rec| crate::edit::shift::AxisShift {
-                    axis: if rec.row { Axis::Row } else { Axis::Col },
-                    at: rec.at,
-                    count: rec.count,
+                .find(|r| {
+                    is_sheet_rel(&r.type_)
+                        && internal_target(&book_part, r).as_deref() == Some(part.as_str())
                 })
-                .collect();
-            let xml = worksheet_xml(
-                sheet,
-                index as u32 == active,
-                style_count,
-                &mut strings,
-                sheet_sources.get(&part_name).map(String::as_str),
-                SheetWriteExtra {
-                    shifts: &shifts,
-                    dynamic_cm,
-                    dynamic_used: &mut dynamic_used,
-                },
-            );
-            writer.add_text(&part_name, xml, Some(CT_WORKSHEET));
+                .cloned()
+        } else {
+            None
+        };
+        let dirty = host.dirty_sheets.contains(&(index as u32));
+        plans.push(SheetPlan {
+            part,
+            special,
+            reused_rel,
+            dirty,
+        });
+    }
+
+    let render = |index: usize,
+                  part: &str,
+                  strings: &mut SharedStringTable,
+                  dynamic_used: &mut bool|
+     -> String {
+        let shifts: Vec<_> = host
+            .axis_shifts
+            .iter()
+            .filter(|rec| rec.sheet == index as u32)
+            .map(|rec| crate::edit::shift::AxisShift {
+                axis: if rec.row { Axis::Row } else { Axis::Col },
+                at: rec.at,
+                count: rec.count,
+            })
+            .collect();
+        worksheet_xml(
+            &host.sheets[index],
+            index as u32 == active,
+            style_count,
+            strings,
+            sheet_sources.get(part).map(String::as_str),
+            SheetWriteExtra {
+                shifts: &shifts,
+                dynamic_cm,
+                dynamic_used,
+            },
+        )
+    };
+    let needs_render =
+        |plan: &SheetPlan| plan.special.is_none() && (plan.dirty || plan.reused_rel.is_none());
+    let mut sheet_xml: Vec<Option<String>> = vec![None; plans.len()];
+    for (index, plan) in plans.iter().enumerate() {
+        if needs_render(plan) {
+            sheet_xml[index] = Some(render(index, &plan.part, &mut strings, &mut dynamic_used));
         }
-        keep_parts.insert(part_name.clone());
-        let rel_type = special.unwrap_or(rt::WORKSHEET);
-        let rel_id = rels.add(rel_type, relative_target(&book_part, &part_name), false);
+    }
+    if !strings.is_empty() {
+        // The rebuilt string table reindexes everything, so clean sheets must be re-rendered too.
+        for (index, plan) in plans.iter().enumerate() {
+            if sheet_xml[index].is_none() && plan.special.is_none() {
+                sheet_xml[index] = Some(render(index, &plan.part, &mut strings, &mut dynamic_used));
+            }
+        }
+    }
+
+    let ids_changed = plans.iter().any(|plan| plan.reused_rel.is_none());
+    let mut sheet_refs = Vec::with_capacity(host.sheets.len());
+    for (index, (plan, xml)) in plans.into_iter().zip(sheet_xml).enumerate() {
+        if let Some(xml) = xml {
+            writer.add_text(&plan.part, xml, Some(CT_WORKSHEET));
+        }
+        keep_parts.insert(plan.part.clone());
+        let rel_id = match &plan.reused_rel {
+            Some(rel) => {
+                rels.keep(rel);
+                rel.id.clone()
+            }
+            None => rels.add(
+                plan.special.unwrap_or(rt::WORKSHEET),
+                relative_target(&book_part, &plan.part),
+                false,
+            ),
+        };
         sheet_refs.push(SheetRef {
-            name: sheet.name.clone(),
-            sheet_id: sheet.sheet_id,
+            name: host.sheets[index].name.clone(),
+            sheet_id: host.sheets[index].sheet_id,
             state: states[index],
             rel_id,
         });
@@ -239,27 +300,36 @@ pub fn save_xlsx_with_options(
             false,
         );
         keep_parts.insert(out_strings);
+    } else if let Some(rel) = book_rels.iter().find(|r| r.type_ == rt::SHARED_STRINGS) {
+        // Nothing new was added, so the source table stays as written for any clean sheet.
+        rels.keep(rel);
+        keep_parts.insert(out_strings);
     }
     let out_styles = styles_part
         .clone()
         .unwrap_or_else(|| "xl/styles.xml".into());
-    let mut style_writer = StyleWriter::new(
-        &host.workbook.styles,
-        &host.workbook.named_styles,
-        styles_xml.as_deref(),
-    );
-    writer.add_text(&out_styles, style_writer.xml(), Some(CT_STYLES));
-    rels.add(rt::STYLES, relative_target(&book_part, &out_styles), false);
+    if host.styles_dirty || styles_part.is_none() {
+        let mut style_writer = StyleWriter::new(
+            &host.workbook.styles,
+            &host.workbook.named_styles,
+            styles_xml.as_deref(),
+        );
+        writer.add_text(&out_styles, style_writer.xml(), Some(CT_STYLES));
+        rels.add(rt::STYLES, relative_target(&book_part, &out_styles), false);
+    } else if let Some(rel) = book_rels.iter().find(|r| r.type_ == rt::STYLES) {
+        rels.keep(rel);
+    }
     keep_parts.insert(out_styles);
 
-    let out_theme = theme_source_part
-        .clone()
-        .unwrap_or_else(|| "xl/theme/theme1.xml".into());
-    if let Some(xml) = theme_part(&host.workbook.theme, theme_xml.as_deref()) {
-        writer.add_text(&out_theme, xml, Some(CT_THEME));
+    if let Some(theme_name) = theme_source_part.clone() {
+        if let Some(xml) = theme_part(&host.workbook.theme, theme_xml.as_deref()) {
+            writer.add_text(&theme_name, xml, Some(CT_THEME));
+        }
+        if let Some(rel) = book_rels.iter().find(|r| r.type_ == rt::THEME) {
+            rels.keep(rel);
+        }
+        keep_parts.insert(theme_name);
     }
-    rels.add(rt::THEME, relative_target(&book_part, &out_theme), false);
-    keep_parts.insert(out_theme);
 
     write_metadata(
         &mut writer,
@@ -270,47 +340,48 @@ pub fn save_xlsx_with_options(
         dynamic_used,
     );
 
-    let book_ct = if kept_vba {
-        CT_WORKBOOK_MACRO
-    } else {
-        CT_WORKBOOK
-    };
-    writer.add_text(
-        &book_part,
-        workbook_xml(
-            &host.workbook,
-            &sheet_refs,
-            active,
-            workbook_xml_src.as_deref(),
-            options.full_calc_on_load,
-        ),
-        Some(book_ct),
-    );
-    writer.add_text(relationships_part_for(&book_part), rels.xml(), None);
+    // A plain edit leaves workbook.xml raw; it is rewritten only when its content or sheet ids change.
+    let needs_workbook = host.workbook_dirty || has_stale || ids_changed;
+    if needs_workbook {
+        let book_ct = if kept_vba {
+            CT_WORKBOOK_MACRO
+        } else {
+            CT_WORKBOOK
+        };
+        writer.add_text(
+            &book_part,
+            workbook_xml(
+                &host.workbook,
+                &sheet_refs,
+                active,
+                workbook_xml_src.as_deref(),
+                full_calc,
+            ),
+            Some(book_ct),
+        );
+    }
+    if needs_workbook || rels_changed(&rels, &book_rels) {
+        writer.add_text(relationships_part_for(&book_part), rels.xml(), None);
+    }
 
     let mut root = RelSet::new();
-    root.add(rt::OFFICE_DOCUMENT, book_part.clone(), false);
-    root.add(rt::CORE_PROPERTIES, "docProps/core.xml".into(), false);
-    root.add(rt::EXTENDED_PROPERTIES, "docProps/app.xml".into(), false);
     for rel in &root_rels {
-        if is_root_regenerated(&rel.type_) {
-            continue;
-        }
         let target = internal_target("", rel);
         if rel.type_ == SIG_ORIGIN || target.as_deref().is_some_and(is_signature_part) {
             continue;
         }
-        if let Some(target) = target {
-            if target != "docProps/core.xml" && target != "docProps/app.xml" {
-                root.add(
-                    &rel.type_,
-                    rel.target.clone(),
-                    rel.mode == RelMode::External,
-                );
-            }
-        }
+        root.keep(rel);
     }
-    writer.add_text("_rels/.rels", root.xml(), None);
+    if !root
+        .entries
+        .iter()
+        .any(|(_, r)| r.type_ == rt::OFFICE_DOCUMENT)
+    {
+        root.add(rt::OFFICE_DOCUMENT, book_part.clone(), false);
+    }
+    if rels_changed(&root, &root_rels) {
+        writer.add_text("_rels/.rels", root.xml(), None);
+    }
 
     let mut dropped: Vec<String> = Vec::new();
     for rel in &book_rels {
@@ -433,10 +504,6 @@ fn is_sheet_rel(type_: &str) -> bool {
         || type_ == rt::XL_MACROSHEET
 }
 
-fn is_root_regenerated(type_: &str) -> bool {
-    type_ == rt::OFFICE_DOCUMENT || type_ == rt::CORE_PROPERTIES || type_ == rt::EXTENDED_PROPERTIES
-}
-
 fn sheet_rel_for_ct(ct: Option<&str>) -> Option<&'static str> {
     match ct {
         Some(CT_CHARTSHEET) => Some(rt::CHARTSHEET),
@@ -469,20 +536,61 @@ fn unique_sheet_name(reserved: &HashSet<String>, claimed: &HashSet<String>) -> S
     }
 }
 
+/// One worksheet slot in the output, resolved before any XML is rendered.
+struct SheetPlan {
+    part: String,
+    special: Option<&'static str>,
+    /// Source relationship for a reused part; its id is kept so existing references stay valid.
+    reused_rel: Option<Relationship>,
+    dirty: bool,
+}
+
 struct RelItem {
     type_: String,
     target: String,
     external: bool,
 }
 
+/// Semantic comparison of relationships: ids are ignored, type, target and mode are compared.
+fn rels_changed(generated: &RelSet, source: &[Relationship]) -> bool {
+    let mut gen: Vec<(String, String, bool)> = generated
+        .entries
+        .iter()
+        .map(|(_, r)| (r.type_.clone(), r.target.clone(), r.external))
+        .collect();
+    gen.sort();
+    let mut src: Vec<(String, String, bool)> = source
+        .iter()
+        .map(|r| {
+            (
+                r.type_.clone(),
+                r.target.clone(),
+                r.mode == RelMode::External,
+            )
+        })
+        .collect();
+    src.sort();
+    gen != src
+}
+
 struct RelSet {
     entries: Vec<(String, RelItem)>,
+    /// Source ids that are still to be kept; `add` never generates these.
+    reserved: HashSet<String>,
 }
 
 impl RelSet {
     fn new() -> Self {
         Self {
             entries: Vec::new(),
+            reserved: HashSet::new(),
+        }
+    }
+
+    fn reserving(source: &[Relationship]) -> Self {
+        Self {
+            entries: Vec::new(),
+            reserved: source.iter().map(|r| r.id.clone()).collect(),
         }
     }
 
@@ -503,7 +611,7 @@ impl RelSet {
 
     fn add(&mut self, type_: &str, target: String, external: bool) -> String {
         let mut n = self.entries.len() + 1;
-        while self.contains(&format!("rId{n}")) {
+        while self.contains(&format!("rId{n}")) || self.reserved.contains(&format!("rId{n}")) {
             n += 1;
         }
         let id = format!("rId{n}");
@@ -623,5 +731,28 @@ mod tests {
             .expect("read")
             .expect("workbook");
         assert!(!xml.contains("fullCalcOnLoad"));
+    }
+
+    // Catches: a plain-text setCellInput rewrites untouched parts (styles, workbook, theme).
+    #[test]
+    fn text_cell_edit_only_touches_sheet_and_strings() {
+        let bytes = cells_1k();
+        let mut host = XlsxHost::open(&bytes).expect("open");
+        write_input(&mut host, 0, 0, 1, "hello").expect("edit");
+        let saved = save_xlsx(&host, &bytes).expect("save");
+        let mut original = Package::open(&bytes).expect("orig");
+        let mut result = Package::open(&saved).expect("result");
+        for name in ["xl/styles.xml", "xl/workbook.xml"] {
+            let orig_text = original.text(name).expect("read orig").expect("present");
+            let result_text = result.text(name).expect("read result").expect("present");
+            assert_eq!(
+                orig_text, result_text,
+                "{name} should not change on plain-text cell edit"
+            );
+        }
+        assert!(
+            result.text("xl/theme/theme1.xml").expect("read").is_none(),
+            "theme must not be added"
+        );
     }
 }

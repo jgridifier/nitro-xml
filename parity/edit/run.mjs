@@ -85,6 +85,65 @@ function isDocPropsLoss(loss) {
 	return part.startsWith('docProps/') || part.toLowerCase().includes('docprops');
 }
 
+function isXlsxOverheadLoss(loss) {
+	const p = loss.part ? String(loss.part) : '';
+	return p === 'xl/workbook.xml'
+		|| p === 'xl/styles.xml'
+		|| p === 'xl/_rels/workbook.xml.rels'
+		|| p === '_rels/.rels'
+		|| p === '[Content_Types].xml';
+}
+
+/**
+ * Check that only expected parts changed between input and Rust output.
+ * Returns array of unexpected losses (empty = pass).
+ */
+async function checkRustPartIdentity(script, inputBytes, rustBytes) {
+	const cmp = await comparePackages(inputBytes, rustBytes);
+	return (cmp.losses || []).filter((l) => !isExpectedPartChange(script, l));
+}
+
+function isExpectedPartChange(script, loss) {
+	if (isDocPropsLoss(loss)) return true;
+	const p = loss.part ? String(loss.part) : '';
+	const ops = (script.ops || []).map((o) => o.op);
+
+	if (script.format === 'xlsx') {
+		// Sheet XML always expected to change on any xlsx edit
+		if (p.startsWith('xl/worksheets/')) return true;
+		// SharedStrings expected when edit introduces a string value
+		if (p === 'xl/sharedStrings.xml') return true;
+		// Rels expected when parts are added/removed
+		if (p.endsWith('.rels')) return true;
+		// Content types expected when parts are added/removed
+		if (p === '[Content_Types].xml') return true;
+		// Styles expected only on style edits
+		if (p === 'xl/styles.xml' && ops.some((op) => op === 'applyStyle' || op === 'setCellInput')) return true;
+		// Workbook expected on structure changes or formula edits
+		if (
+			p === 'xl/workbook.xml' &&
+			ops.some((op) => op === 'insertRows' || op === 'insertCols' || op === 'deleteRows' || op === 'deleteCols')
+		)
+			return true;
+		// Anything else, including an unexpected new part, is a failure
+		return false;
+	}
+	if (script.format === 'docx') {
+		if (p === 'word/document.xml') return true;
+		if (p.includes('numbering')) return true;
+		if (p.endsWith('.rels')) return true;
+		if (p === '[Content_Types].xml') return true;
+		return false;
+	}
+	if (script.format === 'pptx') {
+		if (p.startsWith('ppt/slides/slide') && p.endsWith('.xml')) return true;
+		if (p.endsWith('.rels')) return true;
+		if (p === '[Content_Types].xml') return true;
+		return false;
+	}
+	return true; // unknown format: allow
+}
+
 async function documentXmlRewritten(inputBytes, outputBytes) {
 	const cmp = await comparePackages(inputBytes, outputBytes);
 	return (cmp.losses || []).some(
@@ -332,7 +391,24 @@ async function main() {
 				const tsOut = await applyAndSave(input, script);
 				const rustOut = saveFn(input, script.path);
 				const cmp = await comparePackages(tsOut, rustOut);
-				const losses = (cmp.losses || []).filter((l) => !isDocPropsLoss(l));
+				const losses = (cmp.losses || []).filter((l) => {
+					if (isDocPropsLoss(l)) return false;
+					// Rust only writes xlsx overhead parts (workbook, rels, styles) when actually changed;
+					// TS always rewrites them. These divergences are expected and correct Rust behaviour.
+					if (script.format === 'xlsx' && isXlsxOverheadLoss(l)) return false;
+					return true;
+				});
+				// Per-part identity: input vs rust output. Fail if unexpected parts changed.
+				const identityLosses = await checkRustPartIdentity(script, input, rustOut);
+				if (identityLosses.length) {
+					failures.push({ id: script.id, losses: identityLosses });
+					const sample = identityLosses
+						.slice(0, 3)
+						.map((l) => `unexpected-change:${l.part || ''} ${l.detail}`)
+						.join(' | ');
+					console.log(`FAIL per-part-identity ${identityLosses.length} (${sample})`);
+					continue;
+				}
 				if (losses.length) {
 					failures.push({ id: script.id, losses });
 					const sample = losses

@@ -27,6 +27,18 @@ for (const entry of cases) {
     const escaped = op.text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     assert.ok(xml.includes(escaped), `Saved XML missing ${op.text}`);
   }
+  // Verify geometry edits persisted (catches: xfrm lost on inherited-geometry shapes).
+  for (const op of entry.ops) {
+    if (op.op === 'patchShapeGeometry') {
+      const EMU_PER_PIXEL = 9525;
+      for (const [key, attr] of [['x', 'x'], ['y', 'y'], ['width', 'cx'], ['height', 'cy']]) {
+        if (typeof op[key] === 'number') {
+          const emu = Math.round(op[key] * EMU_PER_PIXEL).toString();
+          assert.ok(xml.includes(emu), `Saved XML missing ${attr}="${emu}" (from ${key}=${op[key]}px) for ${op.op}`);
+        }
+      }
+    }
+  }
   results.push({ file: name, inputErrors: before.errors, outputErrors: after.errors, newErrors: validation.extras, libreOffice: lo });
   console.log(`${name}: no new OOXML errors; LibreOffice ${lo.expectCount} → ${lo.count}`);
 }

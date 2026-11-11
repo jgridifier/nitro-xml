@@ -138,9 +138,19 @@ if (badBinary.length > 0) {
   for (const l of badBinary) console.error(`  ${l.part}: ${l.detail}`);
   process.exit(1);
 }
+// New parts must not appear after an edit unless they are expected (e.g. a fresh image embed).
+// A spurious part-added (e.g. theme injected on every xlsx save) is a save-correctness bug.
+const badAdded = (cmp.losses || []).filter(
+  l => l.category === 'part-added' && !/^docProps\/thumbnail\./i.test(l.part || '')
+);
+if (badAdded.length > 0) {
+  console.error(`react-e2e: compare-parts: ${label}: unexpected parts added:`);
+  for (const l of badAdded) console.error(`  ${l.part}: ${l.detail}`);
+  process.exit(1);
+}
 const xmlChanged = (cmp.losses || []).filter(l => l.category === 'xml-rewrite').length;
 const docPropsChanged = (cmp.losses || []).filter(l => l.category === 'docProps').length;
-console.log(`react-e2e: compare-parts: ${label}: OK (xml-rewrite=${xmlChanged} docProps=${docPropsChanged} binary-unchanged)`);
+console.log(`react-e2e: compare-parts: ${label}: OK (xml-rewrite=${xmlChanged} docProps=${docPropsChanged} binary-unchanged added=0)`);
 JS
   then
     overall_rc=1

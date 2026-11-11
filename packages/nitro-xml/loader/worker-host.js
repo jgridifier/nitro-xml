@@ -46,11 +46,10 @@ get sheetTailComplete() {
 return this._t !== false;
 }
 _newWorker(prewarm) {
-const url = this._workerUrl || new URL("./worker.js", import.meta.url);
 return (
 (prewarm && takePrewarmedWorker()) ||
 (prewarm && prewarmWorker(this._workerUrl)) ||
-new Worker(url, { type: "module", name: "nitro-xml-doc" })
+(this._workerUrl ? new Worker(this._workerUrl, { type: "module" }) : new Worker(new URL("./worker.js", import.meta.url), { type: "module" }))
 );
 }
 _wireWorker() {

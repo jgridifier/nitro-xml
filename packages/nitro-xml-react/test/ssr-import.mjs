@@ -41,10 +41,10 @@ test("NitroViewer module is importable without DOM globals", async () => {
   }
 });
 
-test("package peerDependencies pin nitro-xml without bundling it", () => {
-  // Catches: shipping wasm inside @nitro-xml/react (must stay a peer of nitro-xml).
+test("package dependencies constrain the matching engine release", () => {
+  // Catches: installing an incompatible engine version alongside the React binding.
   const require = createRequire(import.meta.url);
   const pkg = require("../package.json");
-  assert.ok(pkg.peerDependencies["nitro-xml"]);
+  assert.equal(pkg.dependencies["nitro-xml"], "^0.1.0");
   assert.equal(pkg.sideEffects, false);
 });

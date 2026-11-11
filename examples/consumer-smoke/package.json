@@ -1,0 +1,10 @@
+{
+  "name": "nitro-xml-packed-consumer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": { "build": "vite build", "preview": "vite preview --host 127.0.0.1 --port 5191 --strictPort", "test": "playwright test" },
+  "dependencies": { "react": "^18.3.1", "react-dom": "^18.3.1" },
+  "devDependencies": { "vite": "^5.4.11", "@playwright/test": "^1.48.0" }
+}

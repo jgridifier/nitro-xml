@@ -20,7 +20,7 @@ const cases = ids.map(id => {
 });
 if (process.env.NITRO_HANDCHECK === '1') {
   const base = cases.find(c => c.id === 'xlsx-set-cell-text');
-  cases.push({ ...base, id: 'xlsx-undo-redo', description: 'Set A1 text; undo; redo. A1 must contain the replacement after reopen.',
+  cases.push({ ...base, id: 'xlsx-undo-redo', description: 'Set B1 text; undo; redo. B1 must contain the replacement after reopen.',
     ops: [...base.ops, { op: 'edit.undo' }, { op: 'edit.redo' }] });
 }
 mkdirSync(join(out, 'originals'), { recursive: true });

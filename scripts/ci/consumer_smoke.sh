@@ -13,6 +13,6 @@ node scripts/ci/npm_pack_check.mjs "$NITRO_CONSUMER_OUT"
 (cd packages/nitro-xml-react && npm pack --pack-destination "$WORK/packs" --json > "$WORK/react-pack.json")
 cp examples/consumer-smoke/* "$WORK/app/"
 node scripts/ci/consumer_cases.mjs "$WORK/app" "$NITRO_CONSUMER_OUT"
-(cd "$WORK/app" && npm install --no-fund --no-audit "$WORK/packs/nitro-xml-0.1.0.tgz" "$WORK/packs/nitro-xml-react-0.1.0.tgz" && npm run build && npx playwright install chromium && npm test -- --max-failures=1)
+(cd "$WORK/app" && npm install --no-fund --no-audit "$WORK/packs/nitro-xml-0.1.0.tgz" "$WORK/packs/nitro-xml-react-0.1.0.tgz" && npm run check:types && npm run build && npx playwright install chromium && npm test -- --max-failures=1)
 node scripts/ci/consumer_validate.mjs "$NITRO_CONSUMER_OUT"
 echo "consumer-smoke: PASS (packed packages, production Vite, real React save, Open XML SDK + LibreOffice)"

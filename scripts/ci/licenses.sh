@@ -55,19 +55,53 @@ for b in bad: print('licenses:', b, file=sys.stderr)
 sys.exit(1 if bad else 0)
 PY
 
-# 4. npm production dependencies of packages/* (none until #2 adds the package skeleton).
+# 4. Install the locked production workspace graph in isolation. Local packages
+# must resolve before their first npm release; checking each manifest alone would
+# try to fetch the unpublished nitro-xml dependency of @nitro-xml/react.
 ALLOW='MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;Zlib;Unicode-3.0;Unicode-DFS-2016'
+tmp=$(mktemp -d)
+cp package.json package-lock.json "$tmp/"
 for pkg in packages/*/; do
   [ -f "$pkg/package.json" ] || continue
-  if ! node -e 'const d=require(process.argv[1]).dependencies||{};process.exit(Object.keys(d).length?0:1)' "$ROOT/$pkg/package.json"; then
-    echo "licenses: $pkg has no production dependencies"; continue
-  fi
-  tmp=$(mktemp -d); cp "$pkg/package.json" "$tmp/"
-  ( cd "$tmp" && npm install --omit=dev --ignore-scripts --no-audit --no-fund --no-package-lock >/dev/null \
-    && npx --yes license-checker-rseidelsohn@4 --production --excludePrivatePackages --onlyAllow "$ALLOW" --summary ) \
-    || err "npm production dependency licences in $pkg"
-  rm -rf "$tmp"
+  mkdir -p "$tmp/$pkg"
+  cp "$pkg/package.json" "$tmp/$pkg"
 done
+# license-checker does not traverse npm workspaces by itself. Give its temporary
+# root explicit edges to the already-installed workspace packages.
+if ( cd "$tmp" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null ); then
+  node --input-type=module - "$tmp" <<'JS'
+import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+const root = process.argv[2];
+const pkg = JSON.parse(readFileSync(`${root}/package.json`));
+pkg.version = '0.0.0';
+pkg.dependencies = {};
+for (const dir of readdirSync(`${root}/packages`)) {
+  const local = JSON.parse(readFileSync(`${root}/packages/${dir}/package.json`));
+  pkg.dependencies[local.name] = local.version;
+  // Hoisted production dependencies must also be explicit scan roots.
+  for (const name of Object.keys(local.dependencies || {})) {
+    const dep = JSON.parse(readFileSync(`${root}/node_modules/${name}/package.json`));
+    pkg.dependencies[name] = dep.version;
+  }
+}
+writeFileSync(`${root}/package.json`, JSON.stringify(pkg));
+JS
+  ( cd "$tmp" && npx --yes license-checker-rseidelsohn@4 --production --excludePrivatePackages --onlyAllow "$ALLOW" --json > licenses.json ) \
+    || err "npm production workspace dependency licences"
+  node --input-type=module - "$tmp" <<'JS' || fail=1
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const root = process.argv[2];
+const pkg = JSON.parse(readFileSync(`${root}/package.json`));
+const licenses = JSON.parse(readFileSync(`${root}/licenses.json`));
+for (const [name, version] of Object.entries(pkg.dependencies))
+  assert.ok(licenses[`${name}@${version}`], `license scan missed ${name}`);
+for (const [name, entry] of Object.entries(licenses)) console.log(`licenses: ${name}: ${entry.licenses}`);
+JS
+else
+  err "npm production workspace install"
+fi
+rm -rf "$tmp"
 
 # 5. Fixture corpus: schema + sha256 for every committed redistributable file
 # (L/XL on-demand packages skipped here; full `fixtures/verify` regenerates them).

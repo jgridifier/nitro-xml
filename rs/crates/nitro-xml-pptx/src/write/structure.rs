@@ -159,7 +159,13 @@ pub fn save_with_structure(host: &PptxHost, original: &[u8]) -> Result<Vec<u8>, 
 
     let (pres_out, rels_out) = rewrite_presentation(&pres, &rels, &assigned)?;
     writer.replace("ppt/presentation.xml", pres_out.into_bytes());
-    writer.replace("ppt/_rels/presentation.xml.rels", rels_out.into_bytes());
+    // Reordering slides changes sldIdLst, but not the relationship set. Carry
+    // the source XML when all relationships still resolve to the same targets.
+    let next_rels = parse_relationships(Some(&rels_out)).map_err(|e| e.to_string())?;
+    if next_rels.len() != rels.len() || next_rels.iter().any(|(id, rel)| rels.get(id) != Some(rel))
+    {
+        writer.replace("ppt/_rels/presentation.xml.rels", rels_out.into_bytes());
+    }
     writer.finish().map_err(|e| e.to_string())
 }
 

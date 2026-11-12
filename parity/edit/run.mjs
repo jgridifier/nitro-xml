@@ -44,6 +44,7 @@ const PPTX_SHAPE_OPS = new Set([
 	'ungroupShapes',
 	'setShapeFill',
 	'setShapeLine',
+	'reorderSlide',
 ]);
 
 const HERE = dirname(fileURLToPath(import.meta.url));

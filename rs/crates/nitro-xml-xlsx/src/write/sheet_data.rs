@@ -11,7 +11,7 @@ use crate::model::{ActiveWorksheet, CellAddress, DumpCell, DumpCellValue, RowInf
 use crate::number_format::js_number_string;
 
 use super::dynamic_array::needs_array_evaluation;
-use super::shared_strings::SharedStringTable;
+use super::shared_strings::{rich_string_xml, SharedStringTable};
 use super::xml_out::{attr_bool, attr_f64, attr_str, attr_u32, encode_escapes, escape_text};
 
 const MAX_CELL_TEXT: usize = 32_767;
@@ -74,6 +74,7 @@ fn cell_xml(
     }
     let mut t: Option<&str> = None;
     let mut v = String::new();
+    let mut inline = None;
     match &cell.value {
         DumpCellValue::Number(n) => {
             if n.is_finite() {
@@ -97,6 +98,9 @@ fn cell_xml(
             if cell.formula.is_some() {
                 t = Some("str");
                 v = escape_text(&encode_escapes(&text));
+            } else if strings.inline {
+                t = Some("inlineStr");
+                inline = Some(rich_string_xml(&text, cell.rich_text.as_deref()));
             } else {
                 t = Some("s");
                 let id = strings.id(&text, cell.rich_text.as_deref());
@@ -116,10 +120,12 @@ fn cell_xml(
         attr_str("t", t),
         attr_u32("cm", cm),
     );
-    if f.is_empty() && v.is_empty() && t != Some("str") {
+    if f.is_empty() && v.is_empty() && t != Some("str") && inline.is_none() {
         return format!("<c{attrs}/>");
     }
-    let value = if t == Some("str") || !v.is_empty() {
+    let value = if let Some(body) = inline {
+        format!("<is>{body}</is>")
+    } else if t == Some("str") || !v.is_empty() {
         format!("<v>{v}</v>")
     } else {
         String::new()

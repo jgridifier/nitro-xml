@@ -26,6 +26,7 @@ import { rustDocxSave } from './rust-docx.mjs';
 import { rustXlsxSave } from './rust-xlsx.mjs';
 import { snapshotDocx, stableStringify } from '../undo/snapshot.mjs';
 import { rustPptxSave } from './rust-pptx.mjs';
+import { checkPartIdentity, expectedPptxGeometry, checkReopenedModel } from './persistence.mjs';
 
 /** Shape ops implemented by the #84 host. Scripts that need #85/#86 are soft-skipped. */
 const PPTX_SHAPE_OPS = new Set([
@@ -43,6 +44,7 @@ const PPTX_SHAPE_OPS = new Set([
 	'ungroupShapes',
 	'setShapeFill',
 	'setShapeLine',
+	'reorderSlide',
 ]);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -329,10 +331,35 @@ async function main() {
 			process.stdout.write(`${label}: ${script.id} … `);
 			try {
 				const input = new Uint8Array(readFileSync(fixtureAbs(resolveFixture(script))));
-				const tsOut = await applyAndSave(input, script);
+				let tsOut = await applyAndSave(input, script);
+				if (script.format === 'pptx') tsOut = await expectedPptxGeometry(tsOut, script);
 				const rustOut = saveFn(input, script.path);
-				const cmp = await comparePackages(tsOut, rustOut);
-				const losses = (cmp.losses || []).filter((l) => !isDocPropsLoss(l));
+				// Reopen XLSX through the oracle before XML comparison. The writer keeps
+				// source SST indices; the oracle rebuilds them in sheet order. Comparing
+				// both reopened saves verifies every cell value/style/formula without
+				// forcing unrelated sheets or shared strings to change on disk.
+				const cmp = script.format === 'xlsx'
+					? await comparePackages(
+						await applyAndSave(tsOut, { ...script, ops: [] }),
+						await applyAndSave(rustOut, { ...script, ops: [] }),
+					)
+					: await comparePackages(tsOut, rustOut);
+				const losses = (cmp.losses || []).filter((l) => {
+					if (isDocPropsLoss(l)) return false;
+					return true;
+				});
+				losses.push(...await checkReopenedModel(script.format, tsOut, rustOut));
+				// Per-part identity: input vs rust output. Fail if unexpected parts changed.
+				const identityLosses = await checkPartIdentity(script, input, rustOut);
+				if (identityLosses.length) {
+					failures.push({ id: script.id, losses: identityLosses });
+					const sample = identityLosses
+						.slice(0, 3)
+						.map((l) => `unexpected-change:${l.part || ''} ${l.detail}`)
+						.join(' | ');
+					console.log(`FAIL per-part-identity ${identityLosses.length} (${sample})`);
+					continue;
+				}
 				if (losses.length) {
 					failures.push({ id: script.id, losses });
 					const sample = losses
@@ -389,6 +416,18 @@ async function main() {
 
 	// Each writer's negative control runs when that writer is selected.
 	// With no --rust-* flag, every control runs (same as selecting all three).
+	if (args.negativeControl) {
+		const script = scripts.find(s => !s.modelOnly);
+		const input = new Uint8Array(readFileSync(fixtureAbs(resolveFixture(script))));
+		const zip = await JSZip.loadAsync(input);
+		const part = '_rels/.rels';
+		zip.file(part, (await zip.file(part).async('string')) + '\n');
+		const rewritten = await zip.generateAsync({ type: 'uint8array' });
+		if (!(await checkPartIdentity(script, input, rewritten)).some(l => l.part === part)) {
+			throw new Error('part-identity negative control missed a byte-only rewrite of untouched relationships');
+		}
+		console.log('negative-control part-identity: PASS (byte-only XML rewrite rejected)');
+	}
 	const anyRust = args.rustDocx || args.rustXlsx || args.rustPptx;
 	const runDocxControl = args.negativeControl && (!anyRust || args.rustDocx);
 	const runXlsxControl = args.negativeControl && (!anyRust || args.rustXlsx);
@@ -406,7 +445,8 @@ async function main() {
 		const input = new Uint8Array(readFileSync(fixtureAbs(resolveFixture(script))));
 		const dirty = rustDocxSave(input, script.path, { skipDocumentRewrite: false });
 		const skipped = rustDocxSave(input, script.path, { skipDocumentRewrite: true });
-		const dirtyRewrote = await documentXmlRewritten(input, dirty);
+		const dirtyRewrote = await documentXmlRewritten(input, dirty)
+			&& (await checkReopenedModel('docx', dirty, input)).length > 0;
 		const skipRewrote = await documentXmlRewritten(input, skipped);
 		if (!dirtyRewrote) {
 			negativeControlDocx = 'fail-missing-on-dirty';
@@ -430,7 +470,7 @@ async function main() {
 	let negativeControlXlsx = null;
 	if (runXlsxControl) {
 		const script =
-			scripts.find((s) => s.id === 'xlsx-set-cell-number') ||
+			scripts.find((s) => s.id === 'xlsx-insert-row-formula') ||
 			scripts.find((s) => s.format === 'xlsx');
 		if (!script) {
 			console.error('negative-control xlsx: FAIL (no xlsx script)');
@@ -472,7 +512,8 @@ async function main() {
 		const input = new Uint8Array(readFileSync(fixtureAbs(resolveFixture(script))));
 		const dirty = rustPptxSave(input, script.path, { skipSlideRewrite: false });
 		const skipped = rustPptxSave(input, script.path, { skipSlideRewrite: true });
-		const dirtyRewrote = await slideXmlRewritten(input, dirty);
+		const dirtyRewrote = await slideXmlRewritten(input, dirty)
+			&& (await checkReopenedModel('pptx', dirty, input)).length > 0;
 		const skipRewrote = await slideXmlRewritten(input, skipped);
 		if (!dirtyRewrote) {
 			negativeControlPptx = 'fail-missing-on-dirty';

@@ -300,13 +300,21 @@ fn apply_element(shape: &mut Element, el: &EditableElement) {
     apply_table(shape, el);
 }
 
-/// Write `a:off` / `a:ext` with [`resolve_xfrm_emu`]. No-op when the shape has
-/// no own transform (upstream `materializeInheritedShapeTransform` also bails
-/// without an inherited baseline — these generated slides have neither).
+/// Write `a:off` / `a:ext` with [`resolve_xfrm_emu`]. An explicit geometry edit
+/// materializes a missing transform; unrelated edits preserve inherited geometry.
 fn apply_xfrm(shape: &mut Element, el: &EditableElement) {
     let Some(sp_pr) = child_mut(shape, "spPr", ns::P) else {
         return;
     };
+    if child_index(sp_pr, "xfrm", ns::A).is_none() {
+        if !el.geometry_dirty {
+            return;
+        }
+        let mut xfrm_el = elem(ns::A, "xfrm");
+        xfrm_el.children.push(Node::Element(elem(ns::A, "off")));
+        xfrm_el.children.push(Node::Element(elem(ns::A, "ext")));
+        sp_pr.children.insert(0, Node::Element(xfrm_el));
+    }
     let Some(xfrm) = child_mut(sp_pr, "xfrm", ns::A) else {
         return;
     };
@@ -1282,5 +1290,50 @@ fn push_escaped(text: &str, out: &mut String, attr: bool) {
             '"' if attr => out.push_str("&quot;"),
             _ => out.push(ch),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::edit::host::{EditableElement, EditableSlide};
+
+    // Catches: patchShapeGeometry lost when shape has empty <p:spPr/> (no <a:xfrm>).
+    #[test]
+    fn apply_xfrm_creates_xfrm_when_absent() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+<p:cSld><p:spTree>
+<p:sp><p:spPr/><p:txBody><a:bodyPr/><a:p/></p:txBody></p:sp>
+</p:spTree></p:cSld>
+</p:sld>"#;
+        let mut el = EditableElement::blank("test-id", "shape");
+        el.x = 40.0;
+        el.y = 60.0;
+        el.width = 280.0;
+        el.height = 90.0;
+        el.source_sp_index = Some(0);
+        el.set_box(el.x, el.y, el.width, el.height, el.rotation);
+        let slide = EditableSlide {
+            id: "ppt/slides/slide1.xml".into(),
+            path: "ppt/slides/slide1.xml".into(),
+            notes: None,
+            elements: vec![el],
+            source_slide_id: None,
+            layout_target: None,
+        };
+        let mut next_id = 100i64;
+        let result = rewrite_slide_with_pics(xml, &slide, &mut next_id, &Default::default())
+            .expect("rewrite");
+        // x=40px * 9525 EMU/px = 381000; y=60px * 9525 = 571500
+        assert!(
+            result.contains("<a:off x=\"381000\" y=\"571500\""),
+            "{result}"
+        );
+        assert!(
+            result.contains("<a:ext cx=\"2667000\" cy=\"857250\""),
+            "{result}"
+        );
     }
 }

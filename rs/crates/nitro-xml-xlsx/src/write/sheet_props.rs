@@ -146,7 +146,7 @@ fn pane_and_selection(view: &SheetView) -> (String, Option<&'static str>) {
     (inner, pane)
 }
 
-pub fn sheet_format_xml(sheet: &ActiveWorksheet) -> String {
+pub fn sheet_format_xml(sheet: &ActiveWorksheet, source: Option<&str>) -> String {
     let format = sheet.format.as_ref();
     let row_level = sheet
         .row_info
@@ -183,7 +183,27 @@ pub fn sheet_format_xml(sheet: &ActiveWorksheet) -> String {
         attr_f64("outlineLevelRow", (row_level > 0.0).then_some(row_level)),
         attr_f64("outlineLevelCol", (col_level > 0.0).then_some(col_level)),
     );
-    format!("<sheetFormatPr{attrs}/>")
+    // mergedAttrs in upstream retains unknown/prefixed attributes such as x14ac:dyDescent.
+    let owned = [
+        "baseColWidth",
+        "defaultColWidth",
+        "defaultRowHeight",
+        "customHeight",
+        "zeroHeight",
+        "thickTop",
+        "thickBottom",
+        "outlineLevelRow",
+        "outlineLevelCol",
+    ];
+    static ATTRS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r#"\s+([^\s=]+)\s*=\s*(?:"[^"]*"|'[^']*')"#).expect("constant regex")
+    });
+    let carried: String = ATTRS
+        .captures_iter(source.unwrap_or(""))
+        .filter(|c| !owned.contains(&&c[1]))
+        .map(|c| c[0].to_owned())
+        .collect();
+    format!("<sheetFormatPr{attrs}{carried}/>")
 }
 
 pub fn cols_xml(sheet: &ActiveWorksheet, style_count: usize) -> String {

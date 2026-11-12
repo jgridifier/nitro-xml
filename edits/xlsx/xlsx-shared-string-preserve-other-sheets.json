@@ -1,0 +1,9 @@
+{
+  "id": "xlsx-shared-string-preserve-other-sheets",
+  "format": "xlsx",
+  "fixture": "real-xlsx-poi-DataTableCities",
+  "description": "Append a shared string on the third sheet without reindexing strings or rewriting the first two sheets",
+  "ops": [
+    { "op": "setCellInput", "sheet": 2, "row": 0, "col": 0, "text": "Shared string appended on sheet three" }
+  ]
+}

@@ -91,7 +91,12 @@ pub fn worksheet_xml(
     let mut generated: HashMap<&str, String> = HashMap::new();
     generated.insert("dimension", dimension_xml(sheet));
     generated.insert("sheetViews", sheet_views_xml(sheet, tab_selected));
-    generated.insert("sheetFormatPr", sheet_format_xml(sheet));
+    let source = source_xml.map(direct_child_xml).unwrap_or_default();
+    let source_format = source
+        .iter()
+        .find(|(name, _)| name == "sheetFormatPr")
+        .map(|(_, xml)| xml.as_str());
+    generated.insert("sheetFormatPr", sheet_format_xml(sheet, source_format));
     generated.insert("cols", cols_xml(sheet, style_count));
     generated.insert(
         "sheetData",
@@ -104,7 +109,6 @@ pub fn worksheet_xml(
         ),
     );
     generated.insert("mergeCells", merge_cells_xml(sheet));
-    let source = source_xml.map(direct_child_xml).unwrap_or_default();
     let mut grouped: HashMap<String, Vec<String>> = HashMap::new();
     for (name, xml) in source {
         grouped.entry(name).or_default().push(xml);

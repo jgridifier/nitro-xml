@@ -112,6 +112,9 @@ pub struct EditableElement {
     pub height: f64,
     #[serde(default)]
     pub rotation: f64,
+    /// An explicit geometry edit must materialize an inherited transform on save.
+    #[serde(default)]
+    pub geometry_dirty: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub x_emu: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -177,6 +180,7 @@ impl EditableElement {
             width: 0.0,
             height: 0.0,
             rotation: 0.0,
+            geometry_dirty: false,
             x_emu: None,
             y_emu: None,
             width_emu: None,
@@ -202,6 +206,7 @@ impl EditableElement {
 
     /// Write pixel geometry and refresh stored EMUs (`resolve_xfrm_emu`).
     pub fn set_box(&mut self, x: f64, y: f64, width: f64, height: f64, rotation: f64) {
+        self.geometry_dirty = true;
         self.x = x;
         self.y = y;
         self.width = width;
@@ -425,6 +430,7 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
         width: el.width,
         height: el.height,
         rotation: el.rotation.unwrap_or(0.0),
+        geometry_dirty: false,
         x_emu: el.x_emu,
         y_emu: el.y_emu,
         width_emu: el.width_emu,

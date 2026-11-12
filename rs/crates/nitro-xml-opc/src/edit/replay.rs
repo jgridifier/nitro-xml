@@ -394,7 +394,7 @@ mod tests {
                 n += 1;
             }
         }
-        assert_eq!(n, 101, "expected 101 edit scripts");
+        assert_eq!(n, 102, "expected 102 edit scripts");
     }
 
     #[test]

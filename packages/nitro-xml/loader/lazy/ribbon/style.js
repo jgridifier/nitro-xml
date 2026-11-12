@@ -84,6 +84,8 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .rb.sm.wide{justify-content:space-between;width:100%;min-width:118px;padding:0 6px 0 8px;border-color:var(--bd);background:var(--bg)}
 .rb.sm.wide span{flex:1;text-align:left}
 .rb.dd svg:last-child{width:12px;height:12px;stroke-width:2}
+.rb.sm.dd{padding:0 4px 0 5px;gap:2px;min-width:auto}
+.rb.sm.dd>span{font-size:11px}
 .rb.dd[aria-expanded=true]{background:var(--sel);border-color:var(--acc)}
 .rg .col2{gap:2px;justify-content:flex-start;padding-top:1px}
 .rg .r1{display:flex;align-items:center;gap:1px;min-height:26px}

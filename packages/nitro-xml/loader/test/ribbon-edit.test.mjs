@@ -309,10 +309,11 @@ describe("Office ribbon manifests", () => {
   it("Word ribbon groups match Office conventions: Font is char-only, Picture is own group, Layout tab holds page-setup, nav is on View", () => {
     // Catches: landscape/margin/page-size in Font group; insert.picture buried in Tables; Layout tab missing; prev/next page on Home instead of View.
     const tabs = tabsFor("docx", "Page", true);
-    const groupCmds = (g) => new Set([...g.big, ...g.rows.flat()].map((x) => x.c).filter(Boolean));
-    const groupOps = (g) => new Set([...g.big, ...g.rows.flat()].map((x) => x.o).filter(Boolean));
-    const tabCmds = (t) => new Set((tabs[t] || []).flatMap((g) => [...g.big, ...g.rows.flat()]).map((x) => x.c).filter(Boolean));
-    const tabOps = (t) => new Set((tabs[t] || []).flatMap((g) => [...g.big, ...g.rows.flat()]).map((x) => x.o).filter(Boolean));
+    const flatten = (g) => [...g.big, ...g.rows.flat()].flatMap((x) => [x, ...(x.m || [])]);
+    const groupCmds = (g) => new Set(flatten(g).map((x) => x.c).filter(Boolean));
+    const groupOps = (g) => new Set(flatten(g).map((x) => x.o).filter(Boolean));
+    const tabCmds = (t) => new Set((tabs[t] || []).flatMap((g) => flatten(g)).map((x) => x.c).filter(Boolean));
+    const tabOps = (t) => new Set((tabs[t] || []).flatMap((g) => flatten(g)).map((x) => x.o).filter(Boolean));
 
     // Font group: character formatting only — no alignment, no paragraph props, no page-setup.
     const fontGroup = tabs.Home.find((g) => g.g === "Font");
@@ -363,6 +364,63 @@ describe("Office ribbon manifests", () => {
 
     // pptx must NOT have a Layout tab (page-setup is Word-only).
     assert.ok(!tabsFor("pptx", "Slide", true).Layout, "pptx must not have a Layout tab");
+  });
+
+
+  it("Word and PowerPoint Font and Paragraph groups use at most two rows, with less-common commands in dropdowns", () => {
+    // Catches: a third Font or Paragraph row sneaking back, or effects/borders left as a third row instead of a menu.
+    for (const [format, unit] of [["docx", "Page"], ["pptx", "Slide"]]) {
+      const tabs = tabsFor(format, unit, true);
+      for (const name of ["Font", "Paragraph"]) {
+        const g = tabs.Home.find((x) => x.g === name);
+        assert.ok(g, `${format} Home must have a ${name} group`);
+        assert.ok(g.rows.length <= 2, `${format} ${name} has ${g.rows.length} rows, max is 2`);
+      }
+    }
+    const word = tabsFor("docx", "Page", true);
+    const wordFont = word.Home.find((g) => g.g === "Font");
+    const wordPara = word.Home.find((g) => g.g === "Paragraph");
+    const inMenu = (g, id) => [...g.big, ...g.rows.flat()].some((x) => (x.m || []).some((m) => m.c === id));
+    for (const id of ["home.double-underline", "home.double-strike", "home.caps", "home.small-caps", "home.hidden", "home.expand-spacing", "home.scale-up"]) {
+      assert.ok(inMenu(wordFont, id), `Word Font dropdown must contain ${id}`);
+    }
+    for (const id of ["home.line-spacing", "home.space-before", "home.hanging-indent", "home.shading", "home.border-bottom"]) {
+      assert.ok(inMenu(wordPara, id), `Word Paragraph dropdown must contain ${id}`);
+    }
+    const xlsxFont = tabsFor("xlsx", "Sheet", true).Home.find((g) => g.g === "Font");
+    const xlsxAlign = tabsFor("xlsx", "Sheet", true).Home.find((g) => g.g === "Alignment");
+    assert.ok(xlsxFont.rows.length <= 2, "Excel Font must stay at most 2 rows");
+    assert.ok(xlsxAlign.rows.length <= 2, "Excel Alignment must stay at most 2 rows");
+  });
+
+  it("PowerPoint Home follows Office-like groups: Clipboard, Slides, Font, Paragraph, Drawing, Editing; alignment is not in Font", () => {
+    // Catches: PowerPoint Font still mixing alignment; New Slide left only on Insert; nav-prev left on Home; alignment missing from Paragraph.
+    const tabs = tabsFor("pptx", "Slide", true);
+    const names = tabs.Home.map((g) => g.g);
+    for (const g of ["Clipboard", "Slides", "Font", "Paragraph", "Drawing", "Editing"]) {
+      assert.ok(names.includes(g), `PowerPoint Home must have a ${g} group, got ${names.join(", ")}`);
+    }
+    const flatten = (g) => [...g.big, ...g.rows.flat()].flatMap((x) => [x, ...(x.m || [])]);
+    const fontCmds = new Set(flatten(tabs.Home.find((g) => g.g === "Font")).map((x) => x.c).filter(Boolean));
+    const paraCmds = new Set(flatten(tabs.Home.find((g) => g.g === "Paragraph")).map((x) => x.c).filter(Boolean));
+    for (const a of ["home.align-left", "home.align-center", "home.align-right", "home.align-justify"]) {
+      assert.ok(!fontCmds.has(a), `PowerPoint Font must not contain ${a}`);
+      assert.ok(paraCmds.has(a), `PowerPoint Paragraph must contain ${a}`);
+    }
+    const homeCmds = new Set(tabs.Home.flatMap((g) => flatten(g)).map((x) => x.c).filter(Boolean));
+    const insertCmds = new Set((tabs.Insert || []).flatMap((g) => flatten(g)).map((x) => x.c).filter(Boolean));
+    const homeOps = new Set(tabs.Home.flatMap((g) => flatten(g)).map((x) => x.o).filter(Boolean));
+    const viewOps = new Set((tabs.View || []).flatMap((g) => flatten(g)).map((x) => x.o).filter(Boolean));
+    assert.ok(homeCmds.has("insert.slide"), "New Slide must be on PowerPoint Home");
+    assert.ok(homeCmds.has("home.layout"), "Change layout must be on PowerPoint Home");
+    assert.ok(insertCmds.has("insert.picture"), "Picture must stay on Insert");
+    assert.ok(insertCmds.has("insert.shape"), "Shape must stay on Insert");
+    assert.ok(insertCmds.has("insert.text-box"), "Text Box must stay on Insert");
+    const pictures = tabs.Insert.find((g) => g.g === "Pictures");
+    assert.ok(pictures && flatten(pictures).some((x) => x.c === "insert.picture"), "insert.picture must be in Pictures");
+    assert.ok(!homeOps.has("nav-prev"), "nav-prev must not be on PowerPoint Home");
+    assert.ok(viewOps.has("nav-prev"), "nav-prev must be on PowerPoint View");
+    assert.ok(!tabs.Layout, "PowerPoint must not have a Word Layout tab");
   });
 
   it("drops the Read-only pill for Word and PowerPoint", () => {

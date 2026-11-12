@@ -25,10 +25,7 @@ const nav = (unit) => ({
   ],
 });
 const find = { g: "Editing", big: [{ i: "find", l: "Find", t: "Find (Ctrl+F)", o: "find-open", x: "find-close", p: 1 }] };
-const lists = {
-  g: "Paragraph",
-  rows: [[it("home.bullets", "bullet", "Bullets", "Bulleted list"), it("home.numbering", "numbering", "Numbering", "Numbered list")]],
-};
+const menu = (i, l, items, t) => ({ i, l, t: t || l, m: items });
 const drawing = {
   g: "Drawing",
   rows: [[
@@ -39,25 +36,21 @@ const drawing = {
 };
 const arrange = {
   g: "Arrange",
-  big: [
-    it("home.duplicate", "duplicate", "Duplicate", "Duplicate shape"),
-    it("home.delete", "trash", "Delete", "Delete shape"),
-    it("home.bring-forward", "forward", "Bring Forward"),
-    it("home.send-backward", "back", "Send Backward"),
-    it("home.bring-to-front", "front", "Bring to Front"),
-    it("home.send-to-back", "toBack", "Send to Back"),
-    it("home.group", "group", "Group", "Group the selected shapes"),
-    it("home.ungroup", "ungroup", "Ungroup", "Ungroup the selected shapes"),
+  rows: [
+    [
+      it("home.duplicate", "duplicate", "Duplicate", "Duplicate shape"),
+      it("home.delete", "trash", "Delete", "Delete shape"),
+      it("home.group", "group", "Group", "Group the selected shapes"),
+      it("home.ungroup", "ungroup", "Ungroup", "Ungroup the selected shapes"),
+    ],
+    [
+      it("home.bring-forward", "forward", "Bring Forward"),
+      it("home.send-backward", "back", "Send Backward"),
+      it("home.bring-to-front", "front", "Bring to Front"),
+      it("home.send-to-back", "toBack", "Send to Back"),
+    ],
   ],
 };
-const metrics = [
-  it("home.indent", "indent", "Increase indent"),
-  it("home.outdent", "outdent", "Decrease indent"),
-  it("home.line-spacing", "spacing", "Line spacing", "Cycle line spacing"),
-  it("home.subscript", "subscript", "Subscript"),
-  it("home.superscript", "superscript", "Superscript"),
-  it("home.font-name", "font", "Font", "Set the font name"),
-];
 const wordStyles = {
   g: "Styles",
   rows: [[
@@ -78,111 +71,138 @@ const editorClip = {
   ],
 };
 
-const FONT = {
-  g: "Font",
-  rows: [
-    [
-      it("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
-      it("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
-      it("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
-      it("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
-    ],
-    [
-      it("home.align-left", "left", "Align left"),
-      it("home.align-center", "center", "Center"),
-      it("home.align-right", "right", "Align right"),
-      it("home.align-justify", "justify", "Justify"),
-      it("home.font-size", "grow", "Font size", "Set the font size"),
-      it("home.grow-font", "grow", "Grow font", "Increase the font size"),
-      it("home.shrink-font", "shrink", "Shrink font", "Decrease the font size"),
-      it("home.font-color", "color", "Font color", "Set the font color"),
-    ],
-    metrics,
-  ],
-};
-const pptxFont = {
-  g: "Font",
-  rows: [
-    [
-      ...FONT.rows[0],
-      it("home.small-caps", "smallCaps", "Small caps", "Small caps"),
-      it("home.caps", "caps", "All caps", "All caps"),
-      it("home.double-strike", "doubleStrike", "Double strikethrough", "Double strikethrough"),
-    ],
-    FONT.rows[1],
-    FONT.rows[2],
-  ],
-};
 
-// Word Font group: character formatting only (no alignment, no paragraph props, no page setup).
+// Word / PowerPoint Font: at most two rows (face/size, then emphasis).
+// Less-common effects go in a dropdown. Alignment is not a Font command.
 const wordFont = {
   g: "Font",
   rows: [
-    [
-      it("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
-      it("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
-      it("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
-      it("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
-      it("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
-      it("home.double-strike", "doubleStrike", "Double strikethrough", "Double strikethrough"),
-      it("home.caps", "caps", "All caps", "All caps"),
-      it("home.small-caps", "smallCaps", "Small caps", "Small caps"),
-      it("home.hidden", "hidden", "Hidden", "Hidden text"),
-      it("home.highlight", "highlight", "Highlight", "Text highlight"),
-    ],
     [
       it("home.font-name", "font", "Font", "Set the font name"),
       it("home.font-size", "grow", "Font size", "Set the font size"),
       it("home.grow-font", "grow", "Grow font", "Increase the font size"),
       it("home.shrink-font", "shrink", "Shrink font", "Decrease the font size"),
-      it("home.font-color", "color", "Font color", "Set the font color"),
     ],
     [
+      it("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
+      it("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
+      it("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
+      it("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
       it("home.subscript", "subscript", "Subscript"),
       it("home.superscript", "superscript", "Superscript"),
-      it("home.expand-spacing", "expandSpacing", "Expand", "Expand character spacing"),
-      it("home.condense-spacing", "condenseSpacing", "Condense", "Condense character spacing"),
-      it("home.scale-up", "scaleUp", "Scale up", "Increase character scale"),
-      it("home.scale-down", "scaleDown", "Scale down", "Decrease character scale"),
+      it("home.font-color", "color", "Font color", "Set the font color"),
+      it("home.highlight", "highlight", "Highlight", "Text highlight"),
+      menu("smallCaps", "Effects", [
+        it("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
+        it("home.double-strike", "doubleStrike", "Double strikethrough", "Double strikethrough"),
+        it("home.caps", "caps", "All caps", "All caps"),
+        it("home.small-caps", "smallCaps", "Small caps", "Small caps"),
+        it("home.hidden", "hidden", "Hidden", "Hidden text"),
+        it("home.expand-spacing", "expandSpacing", "Expand", "Expand character spacing"),
+        it("home.condense-spacing", "condenseSpacing", "Condense", "Condense character spacing"),
+        it("home.scale-up", "scaleUp", "Scale up", "Increase character scale"),
+        it("home.scale-down", "scaleDown", "Scale down", "Decrease character scale"),
+      ], "Font effects"),
     ],
   ],
 };
-
-// Word Paragraph group: alignment, bullets/numbering, indents, spacing, shading, borders.
 const wordParagraph = {
   g: "Paragraph",
   rows: [
     [
       it("home.bullets", "bullet", "Bullets", "Bulleted list"),
       it("home.numbering", "numbering", "Numbering", "Numbered list"),
+      it("home.outdent", "outdent", "Decrease indent"),
+      it("home.indent", "indent", "Increase indent"),
+    ],
+    [
       it("home.align-left", "left", "Align left"),
       it("home.align-center", "center", "Center"),
       it("home.align-right", "right", "Align right"),
       it("home.align-justify", "justify", "Justify"),
-      it("home.indent", "indent", "Increase indent"),
-      it("home.outdent", "outdent", "Decrease indent"),
-    ],
-    [
-      it("home.line-spacing", "spacing", "Line spacing", "Cycle line spacing"),
-      it("home.shading", "shade", "Shade", "Shade the paragraph yellow"),
-      it("home.border-bottom", "borderBottom", "Bottom border", "Toggle the paragraph bottom border"),
-      it("home.border-top", "borderTop", "Top border", "Toggle the paragraph top border"),
-      it("home.border-left", "borderLeft", "Left border", "Toggle the paragraph left border"),
-      it("home.border-right", "borderRight", "Right border", "Toggle the paragraph right border"),
-      it("home.border-double", "borderDouble", "Double border", "Toggle a double paragraph bottom border"),
-      it("home.border-dash", "borderDash", "Dashed border", "Toggle a dashed paragraph bottom border"),
-      it("home.border-dot", "borderDot", "Dotted border", "Toggle a dotted paragraph bottom border"),
-    ],
-    [
-      it("home.space-before", "spaceBefore", "Space before", "Add 12 pt space before the paragraph"),
-      it("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),
-      it("home.hanging-indent", "hanging", "Hanging", "Hanging indent, half an inch"),
-      it("home.first-line", "firstLine", "First line", "First line indent, half an inch"),
-      it("home.indent-right", "indentRight", "Increase right", "Increase the right indent by half an inch"),
-      it("home.outdent-right", "outdentRight", "Decrease right", "Decrease the right indent by half an inch"),
+      menu("spacing", "Spacing", [
+        it("home.line-spacing", "spacing", "Line spacing", "Cycle line spacing"),
+        it("home.space-before", "spaceBefore", "Space before", "Add 12 pt space before the paragraph"),
+        it("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),
+        it("home.hanging-indent", "hanging", "Hanging", "Hanging indent, half an inch"),
+        it("home.first-line", "firstLine", "First line", "First line indent, half an inch"),
+        it("home.indent-right", "indentRight", "Increase right", "Increase the right indent by half an inch"),
+        it("home.outdent-right", "outdentRight", "Decrease right", "Decrease the right indent by half an inch"),
+      ], "Spacing and indents"),
+      menu("borderBottom", "Borders", [
+        it("home.shading", "shade", "Shade", "Shade the paragraph yellow"),
+        it("home.border-bottom", "borderBottom", "Bottom border", "Toggle the paragraph bottom border"),
+        it("home.border-top", "borderTop", "Top border", "Toggle the paragraph top border"),
+        it("home.border-left", "borderLeft", "Left border", "Toggle the paragraph left border"),
+        it("home.border-right", "borderRight", "Right border", "Toggle the paragraph right border"),
+        it("home.border-double", "borderDouble", "Double border", "Toggle a double paragraph bottom border"),
+        it("home.border-dash", "borderDash", "Dashed border", "Toggle a dashed paragraph bottom border"),
+        it("home.border-dot", "borderDot", "Dotted border", "Toggle a dotted paragraph bottom border"),
+      ], "Borders and shading"),
     ],
   ],
 };
+const pptxFont = {
+  g: "Font",
+  rows: [
+    [
+      it("home.font-name", "font", "Font", "Set the font name"),
+      it("home.font-size", "grow", "Font size", "Set the font size"),
+      it("home.grow-font", "grow", "Grow font", "Increase the font size"),
+      it("home.shrink-font", "shrink", "Shrink font", "Decrease the font size"),
+    ],
+    [
+      it("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
+      it("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
+      it("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
+      it("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
+      it("home.subscript", "subscript", "Subscript"),
+      it("home.superscript", "superscript", "Superscript"),
+      it("home.font-color", "color", "Font color", "Set the font color"),
+      menu("smallCaps", "Effects", [
+        it("home.small-caps", "smallCaps", "Small caps", "Small caps"),
+        it("home.caps", "caps", "All caps", "All caps"),
+        it("home.double-strike", "doubleStrike", "Double strikethrough", "Double strikethrough"),
+      ], "Font effects"),
+    ],
+  ],
+};
+const pptxParagraph = {
+  g: "Paragraph",
+  rows: [
+    [
+      it("home.bullets", "bullet", "Bullets", "Bulleted list"),
+      it("home.numbering", "numbering", "Numbering", "Numbered list"),
+      it("home.outdent", "outdent", "Decrease indent"),
+      it("home.indent", "indent", "Increase indent"),
+    ],
+    [
+      it("home.align-left", "left", "Align left"),
+      it("home.align-center", "center", "Center"),
+      it("home.align-right", "right", "Align right"),
+      it("home.align-justify", "justify", "Justify"),
+      menu("spacing", "Spacing", [
+        it("home.line-spacing", "spacing", "Line spacing", "Cycle line spacing"),
+      ], "Paragraph spacing"),
+    ],
+  ],
+};
+const pptxSlides = {
+  g: "Slides",
+  big: [it("insert.slide", "slide", "New Slide")],
+  rows: [
+    [
+      it("insert.duplicate-slide", "duplicate", "Duplicate Slide"),
+      it("home.layout", "layout", "Layout", "Change slide layout"),
+      it("home.delete-slide", "trash", "Delete Slide"),
+    ],
+    [
+      it("insert.move-slide-up", "chevUp", "Move Slide Up"),
+      it("insert.move-slide-down", "chevDown", "Move Slide Down"),
+    ],
+  ],
+};
+
 
 const view = (format) => [
   {
@@ -201,7 +221,7 @@ const view = (format) => [
       { i: "diag", l: "Diagnostics", t: "Show or hide load diagnostics", o: "diagnostics-toggle", p: 1, d: 1 },
     ],
   },
-  ...(format === "docx" ? [nav("Page")] : []),
+  ...(format === "docx" ? [nav("Page")] : format === "pptx" ? [nav("Slide")] : []),
 ];
 
 /** Number formats the engine really applies (`home.format-*`). */
@@ -279,28 +299,13 @@ export function officeCommandHidden(format, chromeReady, present) {
 
 export function tabsFor(format, unit, edit) {
   const viewOnly = { Home: [{ g: "Clipboard", big: [copy] }, nav(unit), find] };
-  const officeHome = [editorClip, FONT, nav(unit), find];
   const tabs =
     format === "xlsx" && edit
       ? { Home: [...XLSX_HOME.slice(0, 6), nav(unit), XLSX_HOME[6]] }
       : format === "pptx" && edit
         ? {
-            Home: [officeHome[0], pptxFont, lists, drawing, arrange, ...officeHome.slice(2)],
+            Home: [editorClip, pptxSlides, pptxFont, pptxParagraph, drawing, arrange, find],
             Insert: [
-              {
-                g: "Slides",
-                big: [
-                  it("insert.slide", "slide", "New Slide"),
-                  it("insert.duplicate-slide", "duplicate", "Duplicate Slide"),
-                  it("insert.move-slide-up", "chevUp", "Move Slide Up"),
-                  it("insert.move-slide-down", "chevDown", "Move Slide Down"),
-                  it("insert.text-box", "text", "Text Box"),
-                  it("insert.shape", "shape", "Shape", "Insert a shape"),
-                  it("insert.picture", "picture", "Picture", "Insert a picture"),
-                  it("home.layout", "layout", "Layout", "Change slide layout"),
-                  it("home.delete-slide", "trash", "Delete Slide"),
-                ],
-              },
               {
                 g: "Tables",
                 big: [
@@ -311,6 +316,17 @@ export function tabsFor(format, unit, edit) {
                   it("table.delete-column", "colDel", "Delete Column"),
                   it("table.cell-text", "cellText", "Cell Text", "Set cell text"),
                   it("table.delete", "tableDel", "Delete Table", "Delete the table"),
+                ],
+              },
+              {
+                g: "Pictures",
+                big: [it("insert.picture", "picture", "Picture", "Insert a picture")],
+              },
+              {
+                g: "Illustrations",
+                big: [
+                  it("insert.shape", "shape", "Shape", "Insert a shape"),
+                  it("insert.text-box", "text", "Text Box"),
                 ],
               },
             ],

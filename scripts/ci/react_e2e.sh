@@ -118,45 +118,31 @@ validate_file "$SAVE_OUT/saved_noop.pptx" "$EXAMPLE/public/fixtures/slides_10.pp
 compare_parts() {
   local input="$1" output="$2" label="$3"
   if [ ! -f "$output" ]; then
-    echo "react-e2e: compare-parts: $label: output missing, skipping"
+    echo "react-e2e: compare-parts: $label: output missing" >&2
+    overall_rc=1
     return
   fi
   if ! node --input-type=module - "$input" "$output" "$label" <<'JS'
 import { readFileSync } from 'node:fs';
-import { comparePackages } from './parity/roundtrip/compare.mjs';
+import { checkPartIdentity } from './parity/edit/persistence.mjs';
 const [input, output, label] = process.argv.slice(2);
-const inputBytes = new Uint8Array(readFileSync(input));
-const outputBytes = new Uint8Array(readFileSync(output));
-const cmp = await comparePackages(inputBytes, outputBytes);
-// Binary parts (images, fonts, media, theme binaries) must never change on an edit.
-// docProps/thumbnail may legitimately regenerate; everything else is a bug.
-const badBinary = (cmp.losses || []).filter(
-  l => l.category === 'binary' && !/^docProps\/thumbnail\./i.test(l.part || '')
-);
-if (badBinary.length > 0) {
-  console.error(`react-e2e: compare-parts: ${label}: binary parts changed:`);
-  for (const l of badBinary) console.error(`  ${l.part}: ${l.detail}`);
+const format = input.split('.').pop();
+const ops = format === 'xlsx'
+  ? [{ op: 'setCellInput', sheet: 0, row: 0, col: 0, text: 'NxNpm' }]
+  : format === 'pptx' ? [{ op: 'setShapeText', slideIndex: 0 }] : [{ op: 'setParagraphText', blockIndex: 0 }];
+const losses = await checkPartIdentity({ format, ops }, readFileSync(input), readFileSync(output));
+if (losses.length) {
+  console.error(`react-e2e: ${label}: unexpected package changes`, losses);
   process.exit(1);
 }
-// New parts must not appear after an edit unless they are expected (e.g. a fresh image embed).
-// A spurious part-added (e.g. theme injected on every xlsx save) is a save-correctness bug.
-const badAdded = (cmp.losses || []).filter(
-  l => l.category === 'part-added' && !/^docProps\/thumbnail\./i.test(l.part || '')
-);
-if (badAdded.length > 0) {
-  console.error(`react-e2e: compare-parts: ${label}: unexpected parts added:`);
-  for (const l of badAdded) console.error(`  ${l.part}: ${l.detail}`);
-  process.exit(1);
-}
-const xmlChanged = (cmp.losses || []).filter(l => l.category === 'xml-rewrite').length;
-const docPropsChanged = (cmp.losses || []).filter(l => l.category === 'docProps').length;
-console.log(`react-e2e: compare-parts: ${label}: OK (xml-rewrite=${xmlChanged} docProps=${docPropsChanged} binary-unchanged added=0)`);
+console.log(`react-e2e: ${label}: untouched parts byte-identical`);
 JS
   then
     overall_rc=1
   fi
 }
 
+( cd parity/edit && bun install )
 compare_parts "$EXAMPLE/public/fixtures/cells_1k.xlsx" "$SAVE_OUT/saved_edit.xlsx" "edit-parts xlsx"
 compare_parts "$EXAMPLE/public/fixtures/pages_10.docx" "$SAVE_OUT/saved_edit.docx" "edit-parts docx"
 compare_parts "$EXAMPLE/public/fixtures/slides_10.pptx" "$SAVE_OUT/saved_edit.pptx" "edit-parts pptx"

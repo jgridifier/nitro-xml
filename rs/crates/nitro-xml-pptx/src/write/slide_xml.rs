@@ -300,20 +300,16 @@ fn apply_element(shape: &mut Element, el: &EditableElement) {
     apply_table(shape, el);
 }
 
-/// Write `a:off` / `a:ext` with [`resolve_xfrm_emu`]. No-op when the shape has
-/// no own transform (upstream `materializeInheritedShapeTransform` also bails
-/// without an inherited baseline — these generated slides have neither).
+/// Write `a:off` / `a:ext` with [`resolve_xfrm_emu`]. An explicit geometry edit
+/// materializes a missing transform; unrelated edits preserve inherited geometry.
 fn apply_xfrm(shape: &mut Element, el: &EditableElement) {
-    // Only update geometry when explicitly requested (patchShapeGeometry). Text/fill/line
-    // edits must leave the existing transform untouched — overwriting with defaults clobbers it.
-    if el.x_emu.is_none() && el.y_emu.is_none() && el.width_emu.is_none() && el.height_emu.is_none()
-    {
-        return;
-    }
     let Some(sp_pr) = child_mut(shape, "spPr", ns::P) else {
         return;
     };
     if child_index(sp_pr, "xfrm", ns::A).is_none() {
+        if !el.geometry_dirty {
+            return;
+        }
         let mut xfrm_el = elem(ns::A, "xfrm");
         xfrm_el.children.push(Node::Element(elem(ns::A, "off")));
         xfrm_el.children.push(Node::Element(elem(ns::A, "ext")));
@@ -1318,7 +1314,7 @@ mod tests {
         el.width = 280.0;
         el.height = 90.0;
         el.source_sp_index = Some(0);
-        el.sync_emus();
+        el.set_box(el.x, el.y, el.width, el.height, el.rotation);
         let slide = EditableSlide {
             id: "ppt/slides/slide1.xml".into(),
             path: "ppt/slides/slide1.xml".into(),

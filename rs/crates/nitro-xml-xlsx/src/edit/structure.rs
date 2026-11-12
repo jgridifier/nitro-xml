@@ -309,7 +309,6 @@ pub fn rename_sheet(host: &mut XlsxHost, index: u32, name: &str) -> Result<(), E
     host.sheets[idx].name = name.to_owned();
     sync_workbook_stubs(host);
     host.mark_structure_dirty();
-    host.dirty_sheets.insert(index);
     Ok(())
 }
 

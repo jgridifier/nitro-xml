@@ -48,9 +48,34 @@ pub struct SharedStringTable {
     items: Vec<String>,
     index: HashMap<String, usize>,
     references: usize,
+    source: Option<String>,
+    source_len: usize,
+    pub inline: bool,
 }
 
 impl SharedStringTable {
+    /// Retain source indices so clean worksheets never need rewriting when a string is added.
+    pub fn from_source(source: Option<&str>, palette: Option<&[String]>) -> Self {
+        let mut table = Self {
+            inline: source.is_none(),
+            ..Self::default()
+        };
+        if let Some(xml) = source {
+            for item in crate::shared_strings::parse_shared_strings(Some(xml), palette) {
+                let body = rich_string_xml(&item.text, item.runs.as_deref());
+                table.index.entry(body.clone()).or_insert(table.items.len());
+                table.items.push(body);
+            }
+            table.source_len = table.items.len();
+            table.source = Some(xml.to_owned());
+        }
+        table
+    }
+
+    pub fn grew(&self) -> bool {
+        self.items.len() > self.source_len
+    }
+
     pub fn id(&mut self, text: &str, runs: Option<&[RichTextRun]>) -> usize {
         self.references += 1;
         let body = rich_string_xml(text, runs);
@@ -63,11 +88,55 @@ impl SharedStringTable {
         id
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
-    }
-
     pub fn xml(&self) -> String {
+        if let Some(source) = &self.source {
+            if !self.grew() {
+                return source.clone();
+            }
+            // Counts are optional. Omit them when appending rather than inventing a
+            // reference count for clean sheets (which can also contain inline strings).
+            let counts = regex::Regex::new(r#"\s+(?:count|uniqueCount)\s*=\s*(?:"[^"]*"|'[^']*')"#)
+                .expect("constant regex");
+            let start = source
+                .find("<sst")
+                .or_else(|| source.find(":sst").and_then(|i| source[..i].rfind('<')));
+            if let Some(start) = start {
+                if let Some(end) = source[start..].find('>').map(|i| start + i + 1) {
+                    let opening = counts.replace_all(&source[start..end], "");
+                    let added: String = self.items[self.source_len..]
+                        .iter()
+                        .map(|body| format!("<si xmlns=\"{}\">{body}</si>", ns::X))
+                        .collect();
+                    if opening.ends_with("/>") {
+                        let name = opening[1..]
+                            .split(|c: char| c.is_whitespace() || c == '/')
+                            .next()
+                            .unwrap_or("sst");
+                        return format!(
+                            "{}{}>{added}</{name}>{}",
+                            &source[..start],
+                            opening.trim_end_matches("/>"),
+                            &source[end..]
+                        );
+                    }
+                    if let Some(close) = source.rfind("</") {
+                        let close = super::fragments::direct_child_xml(source)
+                            .iter()
+                            .find(|(name, _)| name == "extLst")
+                            .and_then(|(_, raw)| source.find(raw))
+                            .unwrap_or(close);
+                        return format!(
+                            "{}{}{}{added}{}",
+                            &source[..start],
+                            opening,
+                            &source[end..close],
+                            &source[close..]
+                        );
+                    }
+                }
+            }
+        }
+
         let items: String = self
             .items
             .iter()

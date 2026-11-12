@@ -5,6 +5,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { validateOpenXml, errorSubset, libreOfficeReopen } from '../../parity/roundtrip/validate.mjs';
+import { applyAndSave } from '../../parity/edit/apply.mjs';
+import { checkPartIdentity, expectedPptxGeometry, checkReopenedModel } from '../../parity/edit/persistence.mjs';
 const out = process.argv[2];
 const cases = JSON.parse(readFileSync(join(out, 'cases.json')));
 const results = [];
@@ -21,24 +23,20 @@ for (const entry of cases) {
   assert.ok(validation.ok, JSON.stringify(validation));
   const lo = libreOfficeReopen(readFileSync(input), readFileSync(output), entry.format);
   assert.ok(!lo.skipped && lo.ok, JSON.stringify(lo));
-  // Verify text edits persist in the actual XML, beyond checking ZIP magic.
-  const xml = execFileSync('unzip', ['-p', output, '*.xml'], { maxBuffer: 32 * 1024 * 1024 }).toString();
-  for (const op of entry.ops) if (typeof op.text === 'string' && !op.text.startsWith('=')) {
-    const escaped = op.text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-    assert.ok(xml.includes(escaped), `Saved XML missing ${op.text}`);
-  }
-  // Verify geometry edits persisted (catches: xfrm lost on inherited-geometry shapes).
+  const applied = [], undone = [];
   for (const op of entry.ops) {
-    if (op.op === 'patchShapeGeometry') {
-      const EMU_PER_PIXEL = 9525;
-      for (const [key, attr] of [['x', 'x'], ['y', 'y'], ['width', 'cx'], ['height', 'cy']]) {
-        if (typeof op[key] === 'number') {
-          const emu = Math.round(op[key] * EMU_PER_PIXEL).toString();
-          assert.ok(xml.includes(emu), `Saved XML missing ${attr}="${emu}" (from ${key}=${op[key]}px) for ${op.op}`);
-        }
-      }
-    }
+    if (op.op === 'edit.undo') { undone.push(applied.pop()); continue; }
+    if (op.op === 'edit.redo') { applied.push(undone.pop()); continue; }
+    applied.push(op.op === 'insert.move-slide-to' ? { ...op, op: 'reorderSlide' } : op);
+    undone.length = 0;
   }
+  const script = { ...entry, ops: applied };
+  let expected = await applyAndSave(readFileSync(input), script);
+  if (entry.format === 'pptx') expected = await expectedPptxGeometry(expected, script);
+  assert.deepEqual(await checkReopenedModel(entry.format, expected, readFileSync(output)), [], `${name}: edit lost after save/reopen`);
+  // Reorder only changes presentation.xml; shape and text edits target their own slides.
+  const identityScript = { ...script, ops: script.ops };
+  assert.deepEqual(await checkPartIdentity(identityScript, readFileSync(input), readFileSync(output)), [], `${name}: untouched parts changed`);
   results.push({ file: name, inputErrors: before.errors, outputErrors: after.errors, newErrors: validation.extras, libreOffice: lo });
   console.log(`${name}: no new OOXML errors; LibreOffice ${lo.expectCount} → ${lo.count}`);
 }

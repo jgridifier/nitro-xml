@@ -90,24 +90,28 @@ pub fn for_each_paragraph(blocks: &[serde_json::Value], visit: &mut dyn FnMut(&s
     }
 }
 
-pub fn diagram_warnings(blocks: &[serde_json::Value]) -> Vec<String> {
+pub fn diagram_warnings(groups: &[&[serde_json::Value]]) -> Vec<String> {
     let mut warnings = Vec::new();
     let mut cached = 0usize;
     let mut problems = 0usize;
-    for_each_paragraph(blocks, &mut |paragraph| {
-        if let Some(runs) = paragraph.get("runs").and_then(|v| v.as_array()) {
-            for run in runs {
-                if let Some(diagram) = run.get("image").and_then(|i| i.get("diagram")) {
-                    if diagram.get("rendering").and_then(|v| v.as_str()) == Some("cached-drawing") {
-                        cached += 1;
-                    }
-                    if let Some(issues) = diagram.get("issues").and_then(|v| v.as_array()) {
-                        problems += issues.len();
+    for blocks in groups {
+        for_each_paragraph(blocks, &mut |paragraph| {
+            if let Some(runs) = paragraph.get("runs").and_then(|v| v.as_array()) {
+                for run in runs {
+                    if let Some(diagram) = run.get("image").and_then(|i| i.get("diagram")) {
+                        if diagram.get("rendering").and_then(|v| v.as_str())
+                            == Some("cached-drawing")
+                        {
+                            cached += 1;
+                        }
+                        if let Some(issues) = diagram.get("issues").and_then(|v| v.as_array()) {
+                            problems += issues.len();
+                        }
                     }
                 }
             }
-        }
-    });
+        });
+    }
     if cached > 0 {
         warnings.push(format!(
             "{} SmartArt diagram{} can be drawn from the layout cached in the file; Word layout is not recomputed, so they can differ from Word after edits elsewhere, and their content is not editable. The diagram parts are preserved unchanged on save.",

@@ -4,6 +4,8 @@
 //!
 //! The test binary re-executes itself as the worker (`NITRO_CRASH_WORKER`), so
 //! the kill is a genuine `SIGABRT` of a separate process, not a dropped value.
+//! Unix only: the wasm32 build compiles tests too and has no processes or signals.
+#![cfg(unix)]
 
 use std::collections::BTreeMap;
 use std::fs;

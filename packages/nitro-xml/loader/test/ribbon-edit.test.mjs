@@ -306,6 +306,65 @@ describe("Office ribbon manifests", () => {
     assert.ok(!bound.includes("home.ungroup"));
   });
 
+  it("Word ribbon groups match Office conventions: Font is char-only, Picture is own group, Layout tab holds page-setup, nav is on View", () => {
+    // Catches: landscape/margin/page-size in Font group; insert.picture buried in Tables; Layout tab missing; prev/next page on Home instead of View.
+    const tabs = tabsFor("docx", "Page", true);
+    const groupCmds = (g) => new Set([...g.big, ...g.rows.flat()].map((x) => x.c).filter(Boolean));
+    const groupOps = (g) => new Set([...g.big, ...g.rows.flat()].map((x) => x.o).filter(Boolean));
+    const tabCmds = (t) => new Set((tabs[t] || []).flatMap((g) => [...g.big, ...g.rows.flat()]).map((x) => x.c).filter(Boolean));
+    const tabOps = (t) => new Set((tabs[t] || []).flatMap((g) => [...g.big, ...g.rows.flat()]).map((x) => x.o).filter(Boolean));
+
+    // Font group: character formatting only — no alignment, no paragraph props, no page-setup.
+    const fontGroup = tabs.Home.find((g) => g.g === "Font");
+    assert.ok(fontGroup, "Home tab must have a Font group");
+    const fontCmds = groupCmds(fontGroup);
+    for (const banned of [
+      "home.landscape", "home.narrow-margins", "home.moderate-margins", "home.wide-margins",
+      "home.page-a4", "home.page-legal", "home.page-break-before",
+      "home.align-left", "home.align-center", "home.align-right", "home.align-justify",
+      "home.bullets", "home.numbering", "home.indent", "home.outdent", "home.shading",
+    ]) {
+      assert.ok(!fontCmds.has(banned), `Font group must not contain ${banned}`);
+    }
+
+    // Home tab group order: Clipboard, Font, Paragraph, Styles, Editing (no navigation group).
+    assert.deepEqual(tabs.Home.map((g) => g.g), ["Clipboard", "Font", "Paragraph", "Styles", "Editing"]);
+
+    // insert.picture must be in its own group named "Pictures", not in Tables.
+    const pictureGroup = tabs.Insert.find((g) => g.big.some((x) => x.c === "insert.picture"));
+    assert.ok(pictureGroup, "insert.picture must exist on Insert tab");
+    assert.equal(pictureGroup.g, "Pictures", "insert.picture must be in Pictures group, not Tables");
+    const tablesGroup = tabs.Insert.find((g) => g.g === "Tables");
+    assert.ok(tablesGroup, "Insert tab must have a Tables group");
+    assert.ok(!tablesGroup.big.some((x) => x.c === "insert.picture"), "insert.picture must not be in Tables group");
+
+    // Insert tab must have a Pages group with insert.page-break.
+    const pagesInsertGroup = tabs.Insert.find((g) => g.g === "Pages");
+    assert.ok(pagesInsertGroup, "Insert tab must have a Pages group");
+    assert.ok(pagesInsertGroup.big.some((x) => x.c === "insert.page-break"), "Pages group must contain insert.page-break");
+
+    // Layout tab exists and contains all page-setup commands.
+    assert.ok(tabs.Layout, "Layout tab must exist for docx");
+    const layoutCmds = tabCmds("Layout");
+    for (const pg of [
+      "home.landscape", "home.narrow-margins", "home.moderate-margins", "home.wide-margins",
+      "home.page-a4", "home.page-legal", "home.page-break-before",
+    ]) {
+      assert.ok(layoutCmds.has(pg), `Layout tab must contain ${pg}`);
+    }
+
+    // Navigation (prev/next page) must be on View tab, not Home tab.
+    const homeOps = tabOps("Home");
+    assert.ok(!homeOps.has("nav-prev"), "nav-prev must not be on Home tab for docx");
+    assert.ok(!homeOps.has("nav-next"), "nav-next must not be on Home tab for docx");
+    const viewOps = tabOps("View");
+    assert.ok(viewOps.has("nav-prev"), "nav-prev must be on View tab for docx");
+    assert.ok(viewOps.has("nav-next"), "nav-next must be on View tab for docx");
+
+    // pptx must NOT have a Layout tab (page-setup is Word-only).
+    assert.ok(!tabsFor("pptx", "Slide", true).Layout, "pptx must not have a Layout tab");
+  });
+
   it("drops the Read-only pill for Word and PowerPoint", () => {
     // Catches: the demo still labelling an editable Word or PowerPoint file Read-only.
     const app = readFileSync(new URL("../../../../demo/app.js", import.meta.url), "utf8");

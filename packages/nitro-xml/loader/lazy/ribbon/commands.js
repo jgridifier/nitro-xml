@@ -50,10 +50,6 @@ const arrange = {
     it("home.ungroup", "ungroup", "Ungroup", "Ungroup the selected shapes"),
   ],
 };
-const wordLists = {
-  g: "Paragraph",
-  rows: [[it("home.bullets", "bullet", "Bullets", "Bulleted list"), it("home.numbering", "numbering", "Numbering", "Numbered list")]],
-};
 const metrics = [
   it("home.indent", "indent", "Increase indent"),
   it("home.outdent", "outdent", "Decrease indent"),
@@ -117,25 +113,57 @@ const pptxFont = {
     FONT.rows[2],
   ],
 };
+
+// Word Font group: character formatting only (no alignment, no paragraph props, no page setup).
 const wordFont = {
   g: "Font",
   rows: [
     [
-      ...FONT.rows[0],
+      it("home.bold", "bold", "Bold", "Bold (Ctrl+B)"),
+      it("home.italic", "italic", "Italic", "Italic (Ctrl+I)"),
+      it("home.underline", "underline", "Underline", "Underline (Ctrl+U)"),
       it("home.double-underline", "doubleUnderline", "Double underline", "Double underline"),
+      it("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)"),
+      it("home.double-strike", "doubleStrike", "Double strikethrough", "Double strikethrough"),
       it("home.caps", "caps", "All caps", "All caps"),
       it("home.small-caps", "smallCaps", "Small caps", "Small caps"),
-      it("home.double-strike", "doubleStrike", "Double strikethrough", "Double strikethrough"),
       it("home.hidden", "hidden", "Hidden", "Hidden text"),
+      it("home.highlight", "highlight", "Highlight", "Text highlight"),
+    ],
+    [
+      it("home.font-name", "font", "Font", "Set the font name"),
+      it("home.font-size", "grow", "Font size", "Set the font size"),
+      it("home.grow-font", "grow", "Grow font", "Increase the font size"),
+      it("home.shrink-font", "shrink", "Shrink font", "Decrease the font size"),
+      it("home.font-color", "color", "Font color", "Set the font color"),
+    ],
+    [
+      it("home.subscript", "subscript", "Subscript"),
+      it("home.superscript", "superscript", "Superscript"),
       it("home.expand-spacing", "expandSpacing", "Expand", "Expand character spacing"),
       it("home.condense-spacing", "condenseSpacing", "Condense", "Condense character spacing"),
       it("home.scale-up", "scaleUp", "Scale up", "Increase character scale"),
       it("home.scale-down", "scaleDown", "Scale down", "Decrease character scale"),
-      it("home.highlight", "highlight", "Highlight", "Text highlight"),
     ],
-    FONT.rows[1],
-    FONT.rows[2],
+  ],
+};
+
+// Word Paragraph group: alignment, bullets/numbering, indents, spacing, shading, borders.
+const wordParagraph = {
+  g: "Paragraph",
+  rows: [
     [
+      it("home.bullets", "bullet", "Bullets", "Bulleted list"),
+      it("home.numbering", "numbering", "Numbering", "Numbered list"),
+      it("home.align-left", "left", "Align left"),
+      it("home.align-center", "center", "Center"),
+      it("home.align-right", "right", "Align right"),
+      it("home.align-justify", "justify", "Justify"),
+      it("home.indent", "indent", "Increase indent"),
+      it("home.outdent", "outdent", "Decrease indent"),
+    ],
+    [
+      it("home.line-spacing", "spacing", "Line spacing", "Cycle line spacing"),
       it("home.shading", "shade", "Shade", "Shade the paragraph yellow"),
       it("home.border-bottom", "borderBottom", "Bottom border", "Toggle the paragraph bottom border"),
       it("home.border-top", "borderTop", "Top border", "Toggle the paragraph top border"),
@@ -144,13 +172,8 @@ const wordFont = {
       it("home.border-double", "borderDouble", "Double border", "Toggle a double paragraph bottom border"),
       it("home.border-dash", "borderDash", "Dashed border", "Toggle a dashed paragraph bottom border"),
       it("home.border-dot", "borderDot", "Dotted border", "Toggle a dotted paragraph bottom border"),
-      it("home.landscape", "landscape", "Landscape", "Toggle landscape page orientation"),
-      it("home.narrow-margins", "narrowMargins", "Narrow margins", "Narrow the page margins to half an inch"),
-      it("home.moderate-margins", "moderateMargins", "Moderate margins", "Set the side margins to three quarters of an inch"),
-      it("home.wide-margins", "wideMargins", "Wide margins", "Widen the side margins to two inches"),
-      it("home.page-a4", "pageA4", "A4", "Switch the page size to A4"),
-      it("home.page-legal", "pageLegal", "Legal", "Switch the page size to US Legal"),
-      it("home.page-break-before", "pageBreakBefore", "Page break before", "Start this paragraph on a new page"),
+    ],
+    [
       it("home.space-before", "spaceBefore", "Space before", "Add 12 pt space before the paragraph"),
       it("home.space-after", "spaceAfter", "Space after", "Add 12 pt space after the paragraph"),
       it("home.hanging-indent", "hanging", "Hanging", "Hanging indent, half an inch"),
@@ -161,7 +184,7 @@ const wordFont = {
   ],
 };
 
-const view = (pptx) => [
+const view = (format) => [
   {
     g: "Zoom",
     big: [
@@ -174,10 +197,11 @@ const view = (pptx) => [
   {
     g: "Show",
     big: [
-      ...(pptx ? [{ i: "slides", l: "Slide pane", t: "Show or hide the slide pane", s: 1, p: 1 }] : []),
+      ...(format === "pptx" ? [{ i: "slides", l: "Slide pane", t: "Show or hide the slide pane", s: 1, p: 1 }] : []),
       { i: "diag", l: "Diagnostics", t: "Show or hide load diagnostics", o: "diagnostics-toggle", p: 1, d: 1 },
     ],
   },
+  ...(format === "docx" ? [nav("Page")] : []),
 ];
 
 /** Number formats the engine really applies (`home.format-*`). */
@@ -293,7 +317,7 @@ export function tabsFor(format, unit, edit) {
           }
         : format === "docx" && edit
           ? {
-              Home: [officeHome[0], wordFont, wordStyles, wordLists, ...officeHome.slice(2)],
+              Home: [editorClip, wordFont, wordParagraph, wordStyles, find],
               Insert: [
                 {
                   g: "Pages",
@@ -302,7 +326,6 @@ export function tabsFor(format, unit, edit) {
                 {
                   g: "Tables",
                   big: [
-                    it("insert.picture", "picture", "Picture", "Insert a picture"),
                     it("insert.table", "table", "Table", "Insert a table"),
                     it("table.insert-row", "rowAdd", "Insert Row"),
                     it("table.delete-row", "rowDel", "Delete Row"),
@@ -312,10 +335,33 @@ export function tabsFor(format, unit, edit) {
                     it("table.delete", "tableDel", "Delete Table"),
                   ],
                 },
+                {
+                  g: "Pictures",
+                  big: [it("insert.picture", "picture", "Picture", "Insert a picture")],
+                },
+              ],
+              Layout: [
+                {
+                  g: "Page Setup",
+                  big: [
+                    it("home.landscape", "landscape", "Landscape", "Toggle landscape page orientation"),
+                    it("home.narrow-margins", "narrowMargins", "Narrow margins", "Narrow the page margins to half an inch"),
+                    it("home.moderate-margins", "moderateMargins", "Moderate margins", "Set the side margins to three quarters of an inch"),
+                    it("home.wide-margins", "wideMargins", "Wide margins", "Widen the side margins to two inches"),
+                    it("home.page-a4", "pageA4", "A4", "Switch the page size to A4"),
+                    it("home.page-legal", "pageLegal", "Legal", "Switch the page size to US Legal"),
+                  ],
+                },
+                {
+                  g: "Breaks",
+                  big: [
+                    it("home.page-break-before", "pageBreakBefore", "Page break before", "Start this paragraph on a new page"),
+                  ],
+                },
               ],
             }
           : viewOnly;
-  tabs.View = view(format === "pptx");
+  tabs.View = view(format);
   // Give every control a stable key; groups normalise to { big, rows } lists.
   let n = 0;
   for (const [tab, groups] of Object.entries(tabs)) {

@@ -208,4 +208,6 @@ export const SHADOW_CSS = `
 .v{background:var(--ox-bg,#fff)}
 `;
 /** Page-style formats sit on a gray canvas like Word's; slides and grids keep the document background. */
-export const CANVAS_CSS = ":host{background:var(--ox-canvas,#e6e6e6)}.v{background:var(--ox-canvas,#e6e6e6)}canvas{background:transparent!important}";
+// .dve-print-pages width:fit-content lets margin:0 auto (set by WASM) center pages in the scroll host.
+// Without it, the flex container stretches to 100% and auto margins have no effect.
+export const CANVAS_CSS = ":host{background:var(--ox-canvas,#e6e6e6)}.v{background:var(--ox-canvas,#e6e6e6)}canvas{background:transparent!important}.dve-print-pages{width:fit-content;padding:24px 48px;box-sizing:content-box}";

@@ -307,6 +307,10 @@ export function tabsFor(format, unit, edit) {
             Home: [editorClip, pptxSlides, pptxFont, pptxParagraph, drawing, arrange, find],
             Insert: [
               {
+                g: "Slides",
+                big: [it("insert.slide", "slide", "New Slide")],
+              },
+              {
                 g: "Tables",
                 big: [
                   it("insert.table", "table", "Table", "Insert a table"),

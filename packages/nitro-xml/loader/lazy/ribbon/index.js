@@ -68,7 +68,7 @@ export function mountOffice(o) {
 
   const lbl = (x) => esc(plain(x.t || x.l));
   const btn = (x, size) =>
-    `<button type="button" class="rb ${size}${x.m ? " dd" : ""}${x.wide ? " wide" : ""}" tabindex="-1" aria-label="${lbl(x)}" title="${esc(x.t || x.l)}" data-k="${x.k}"${x.p ? ' aria-pressed="false"' : ""}${x.m ? ' aria-haspopup="menu" aria-expanded="false"' : ""}>${svg(x.i)}${size === "lg" || x.wide ? `<span>${esc(x.l)}</span>` : ""}${x.m ? svg("chevDown") : ""}</button>`;
+    `<button type="button" class="rb ${size}${x.m ? " dd" : ""}${x.wide ? " wide" : ""}" tabindex="-1" aria-label="${lbl(x)}" title="${esc(x.t || x.l)}" data-k="${x.k}"${x.p ? ' aria-pressed="false"' : ""}${x.m ? ' aria-haspopup="menu" aria-expanded="false"' : ""}>${svg(x.i)}${size === "lg" || x.wide || x.m ? `<span>${esc(x.l)}</span>` : ""}${x.m ? svg("chevDown") : ""}</button>`;
   const panel = (name) =>
     tabsSpec[name]
       .map(

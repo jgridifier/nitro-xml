@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 
 use nitro_xml_opc::opc::parse_content_types;
 use nitro_xml_opc::opc::{AllowedFormat, OpcError, Package, Relationship};
-use nitro_xml_opc::xml::{parse_xml_str, Element};
+use nitro_xml_opc::xml::{parse_xml_str, Element, Node};
 
 use crate::breaks::{classify_break, BreakKind};
 use crate::chart_host::resolve_loaded_charts;
@@ -140,12 +140,12 @@ pub fn read_package_with_opts(
         .ok_or_else(|| OpcError::MissingPart {
             name: "word/document.xml".into(),
         })?;
-    let source_document_xml = doc_xml.clone();
-    let document = parse_xml_str(&doc_xml)?;
-    let body =
-        crate::xml_util::first_body(&document.root).ok_or_else(|| OpcError::MissingPart {
-            name: "w:body".into(),
-        })?;
+    let mut document = parse_xml_str(&doc_xml)?;
+    let mut warnings = warnings_for(&document);
+    let has_numbering = !by_name_w(&document.root, "numPr").is_empty();
+    let body = first_body_mut(&mut document.root).ok_or_else(|| OpcError::MissingPart {
+        name: "w:body".into(),
+    })?;
 
     let media_parts: HashSet<String> = pkg.part_names().map(str::to_owned).collect();
     let ct_xml = pkg.text("[Content_Types].xml")?;
@@ -157,9 +157,6 @@ pub fn read_package_with_opts(
         content_types,
         media_parts,
     };
-
-    let (blocks, parse_stats) =
-        parse_blocks_from_container_limited(body, "", Some(&drawings), opts.max_hard_page_breaks);
 
     let sect_children = children_w(body, "sectPr");
     let section = sect_children.last().copied();
@@ -174,7 +171,10 @@ pub fn read_package_with_opts(
         "marginLeft": px(get_w(margins, "left"), 96.0),
     });
 
-    let mut warnings = warnings_for(&document);
+    let (blocks, parse_stats) = ParseState {
+        context: Some(&drawings),
+    }
+    .parse_container_consuming(body, opts.max_hard_page_breaks);
 
     let settings_xml = pkg.take_text("word/settings.xml")?;
 
@@ -235,7 +235,7 @@ pub fn read_package_with_opts(
                 }
             }
         }
-    } else if !by_name_w(&document.root, "numPr").is_empty() {
+    } else if has_numbering {
         warnings.push(
             "Paragraphs reference list numbering, but the package has no word/numbering.xml part; numbering is preserved as paragraph XML but not rendered.".to_string(),
         );
@@ -252,6 +252,8 @@ pub fn read_package_with_opts(
 
     let parts = parse_document_parts(&mut pkg, body, &blocks, &drawings, settings_xml.as_deref())?;
     warnings.extend(parts.warnings);
+    // No later step reads the document tree; release it before scanning the model.
+    drop(document);
 
     if blocks.iter().any(|b| {
         b.get("type").and_then(|v| v.as_str()) == Some("table")
@@ -365,7 +367,7 @@ pub fn read_package_with_opts(
         track_formatting,
         track_moves,
         media_part_names: image_part_names.into_iter().collect(),
-        source_document_xml: Some(source_document_xml),
+        source_document_xml: Some(doc_xml),
     };
 
     // Layout labels need title / undrawn family; full chartSpace parse is #28.
@@ -436,6 +438,65 @@ fn paragraph_element_has_page_break(p: &Element) -> bool {
     false
 }
 
+// Find the same first body as first_body(), while retaining exclusive ownership
+// so parsed subtrees can be released without cloning them.
+fn first_body_mut(el: &mut Element) -> Option<&mut Element> {
+    if named_w(el, "body") {
+        return Some(el);
+    }
+    for node in &mut el.children {
+        if let Node::Element(child) = node {
+            if let Some(body) = first_body_mut(child) {
+                return Some(body);
+            }
+        }
+    }
+    None
+}
+
+// Body parsing needs only paragraph section properties after a block has been
+// converted. Keep the paragraph/table positions for parse_raw_sections, and
+// release run/table subtrees as we go instead of holding two complete models.
+enum ParseNode<'a> {
+    Borrowed(&'a Element),
+    Consumed(&'a mut Element),
+}
+impl std::ops::Deref for ParseNode<'_> {
+    type Target = Element;
+    fn deref(&self) -> &Element {
+        match self {
+            Self::Borrowed(el) => el,
+            Self::Consumed(el) => el,
+        }
+    }
+}
+impl Drop for ParseNode<'_> {
+    fn drop(&mut self) {
+        let Self::Consumed(el) = self else {
+            return;
+        };
+        if named_w(el, "p") {
+            el.children.retain_mut(|node| {
+                let Node::Element(props) = node else {
+                    return false;
+                };
+                if !named_w(props, "pPr") {
+                    return false;
+                }
+                props
+                    .children
+                    .retain(|node| matches!(node, Node::Element(e) if named_w(e, "sectPr")));
+                !props.children.is_empty()
+            });
+            if el.children.is_empty() {
+                el.children = Vec::new();
+            }
+        } else if named_w(el, "tbl") {
+            el.children = Vec::new();
+        }
+    }
+}
+
 struct ParseState<'a> {
     context: Option<&'a DrawingContext>,
 }
@@ -448,18 +509,63 @@ impl<'a> ParseState<'a> {
         id_prefix: &str,
         max_hard_page_breaks: Option<usize>,
     ) -> (Vec<Value>, BodyParseStats) {
-        let mut blocks = Vec::new();
         let field_meta = story_field_results(container);
+        let total_story = container
+            .element_children()
+            .into_iter()
+            .filter(|n| named_w(n, "p") || named_w(n, "tbl"))
+            .count();
+        self.parse_nodes_limited(
+            container
+                .element_children()
+                .into_iter()
+                .map(ParseNode::Borrowed),
+            id_prefix,
+            max_hard_page_breaks,
+            field_meta,
+            total_story,
+        )
+    }
+
+    fn parse_container_consuming(
+        &self,
+        container: &mut Element,
+        max_hard_page_breaks: Option<usize>,
+    ) -> (Vec<Value>, BodyParseStats) {
+        // Metadata keys are addresses of existing run elements. No child buffer
+        // is moved or grown during this pass, so unparsed run addresses stay valid.
+        let field_meta = story_field_results(container);
+        let total_story = container
+            .element_children()
+            .into_iter()
+            .filter(|n| named_w(n, "p") || named_w(n, "tbl"))
+            .count();
+        let nodes = container.children.iter_mut().filter_map(|node| match node {
+            Node::Element(el) => Some(ParseNode::Consumed(el)),
+            Node::Text(_) => None,
+        });
+        self.parse_nodes_limited(nodes, "", max_hard_page_breaks, field_meta, total_story)
+    }
+
+    fn parse_nodes_limited<'b>(
+        &self,
+        nodes: impl Iterator<Item = ParseNode<'b>>,
+        id_prefix: &str,
+        max_hard_page_breaks: Option<usize>,
+        field_meta: HashMap<usize, (Value, Option<Value>)>,
+        total_story: usize,
+    ) -> (Vec<Value>, BodyParseStats) {
+        let mut blocks = Vec::with_capacity(total_story);
         let mut open_comments = Vec::new();
         let mut open_moves = OpenMoves::default();
         let mut index = 0;
         let mut hard_page_breaks_seen = 0usize;
         let mut truncated = false;
-        for node in container.element_children() {
-            if named_w(node, "p") {
-                let is_page_break = paragraph_element_has_page_break(node);
+        for node in nodes {
+            if named_w(&node, "p") {
+                let is_page_break = paragraph_element_has_page_break(&node);
                 blocks.push(self.parse_paragraph(
-                    node,
+                    &node,
                     format!("{}p{}", id_prefix, index),
                     &field_meta,
                     &mut open_comments,
@@ -475,9 +581,9 @@ impl<'a> ParseState<'a> {
                         }
                     }
                 }
-            } else if named_w(node, "tbl") {
+            } else if named_w(&node, "tbl") {
                 let table_id = format!("{}t{}", id_prefix, index);
-                blocks.push(self.parse_table(node, &table_id, &field_meta));
+                blocks.push(self.parse_table(&node, &table_id, &field_meta));
                 index += 1;
             }
         }
@@ -485,11 +591,6 @@ impl<'a> ParseState<'a> {
         // visited as blocks — sectPr is read separately via children_w(body, "sectPr").
         if truncated {
             // Confirm there is more body content beyond the stop point.
-            let total_story = container
-                .element_children()
-                .into_iter()
-                .filter(|n| named_w(n, "p") || named_w(n, "tbl"))
-                .count();
             truncated = blocks.len() < total_story;
         }
         let stats = BodyParseStats {

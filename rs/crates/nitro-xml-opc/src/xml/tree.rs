@@ -139,8 +139,9 @@ impl Clone for Document {
 /// Iteratively clear a deep tree so `Drop` cannot blow the stack on 4096-deep documents.
 impl Drop for Element {
     fn drop(&mut self) {
-        let mut stack = Vec::new();
-        stack.append(&mut self.children);
+        // Reuse the owned child buffer instead of allocating a second buffer
+        // for every subtree released by an incremental model conversion.
+        let mut stack = std::mem::take(&mut self.children);
         while let Some(node) = stack.pop() {
             if let Node::Element(mut el) = node {
                 stack.append(&mut el.children);

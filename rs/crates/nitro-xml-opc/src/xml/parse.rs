@@ -166,7 +166,7 @@ fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlErr
                     ));
                 }
                 if let Some(text) = pending_text.take() {
-                    finished.children.push(Node::Text(text));
+                    append_child(&mut finished, Node::Text(text));
                 }
                 if stack.is_empty() {
                     if root.is_some() {
@@ -178,7 +178,7 @@ fn parse_normalized(xml: &str, options: ParseOptions) -> Result<Document, XmlErr
                     let parent = stack
                         .last_mut()
                         .ok_or_else(|| XmlError::new("parse", "internal stack error"))?;
-                    parent.children.push(Node::Element(finished));
+                    append_child(parent, Node::Element(finished));
                 }
             }
             Event::Text(t) => {
@@ -361,6 +361,9 @@ fn collect_attrs<R: std::io::BufRead>(
                 format!("duplicate attribute {local}"),
             ));
         }
+        if attrs.len() == attrs.capacity() {
+            attrs.reserve_exact(attrs.capacity().max(1));
+        }
         attrs.push(Attr {
             ns,
             local: local.to_owned(),
@@ -377,6 +380,20 @@ fn collect_attrs<R: std::io::BufRead>(
     Ok(attrs)
 }
 
+// Node stores Element inline (88 bytes on 64-bit hosts). Vec's default first
+// allocation reserves four nodes even for the ubiquitous single-child p/r/t
+// chains. Start with one slot, then retain amortized geometric growth for wide
+// elements. This changes capacity only, never the accepted document size.
+fn append_child(parent: &mut Element, child: Node) {
+    if parent.children.len() == parent.children.capacity() {
+        // reserve_exact also avoids Vec's four-slot minimum on the second push.
+        parent
+            .children
+            .reserve_exact(parent.children.capacity().max(1));
+    }
+    parent.children.push(child);
+}
+
 #[inline(never)]
 fn flush_text(
     stack: &mut [Element],
@@ -387,7 +404,7 @@ fn flush_text(
         return Ok(());
     };
     if let Some(top) = stack.last_mut() {
-        top.children.push(Node::Text(text));
+        append_child(top, Node::Text(text));
         Ok(())
     } else if root.is_some() {
         Err(XmlError::new("parse", "text after root element"))
@@ -405,7 +422,7 @@ fn push_child(
 ) -> Result<(), XmlError> {
     flush_text(stack, root, pending)?;
     if let Some(top) = stack.last_mut() {
-        top.children.push(child);
+        append_child(top, child);
         Ok(())
     } else if root.is_none() {
         match child {

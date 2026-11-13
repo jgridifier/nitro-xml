@@ -91,3 +91,16 @@
 {"timestamp":"2026-11-09T11:24:54.715Z","free_mem_mb":5492,"swap_used_mb":0,"loadavg_1m":1.36,"loadavg_5m":1.28,"loadavg_15m":1.12,"fixture_id":"gen-xlsx-cells-1k-pad-s","mode":"warm","cpu":4}
 {"timestamp":"2026-11-09T11:34:56.607Z","free_mem_mb":8527,"swap_used_mb":0,"loadavg_1m":2.22,"loadavg_5m":2.31,"loadavg_15m":1.63,"fixture_id":"run-start-warm4x-M","mode":"warm","cpu":4}
 {"timestamp":"2026-11-09T11:34:59.708Z","free_mem_mb":10338,"swap_used_mb":0,"loadavg_1m":2.12,"loadavg_5m":2.29,"loadavg_15m":1.62,"fixture_id":"gen-xlsx-cells-100k-b","mode":"warm","cpu":4}
+{"timestamp":"2026-11-12T17:40:29.961Z","free_mem_mb":10296,"swap_used_mb":0,"loadavg_1m":5.99,"loadavg_5m":6.89,"loadavg_15m":7.53,"fixture_id":"xlsx-S","mode":"cold","cpu":1}
+{"timestamp":"2026-11-12T17:40:48.255Z","free_mem_mb":10517,"swap_used_mb":0,"loadavg_1m":5.75,"loadavg_5m":6.77,"loadavg_15m":7.47,"fixture_id":"xlsx-M","mode":"cold","cpu":1}
+{"timestamp":"2026-11-12T19:53:29.182Z","free_mem_mb":7307,"swap_used_mb":0,"loadavg_1m":3.24,"loadavg_5m":3.71,"loadavg_15m":3.09,"fixture_id":"xlsx-S","mode":"cold","cpu":1}
+{"timestamp":"2026-11-12T19:53:45.144Z","free_mem_mb":6887,"swap_used_mb":0,"loadavg_1m":3.48,"loadavg_5m":3.73,"loadavg_15m":3.11,"fixture_id":"xlsx-M","mode":"cold","cpu":1}
+{"timestamp":"2026-11-12T19:57:00.734Z","free_mem_mb":6910,"swap_used_mb":0,"loadavg_1m":4.22,"loadavg_5m":3.74,"loadavg_15m":3.22,"fixture_id":"docx-S","mode":"cold","cpu":1}
+{"timestamp":"2026-11-12T19:57:25.280Z","free_mem_mb":6240,"swap_used_mb":0,"loadavg_1m":4.72,"loadavg_5m":3.89,"loadavg_15m":3.28,"fixture_id":"docx-M","mode":"cold","cpu":1}
+{"timestamp":"2026-11-12T19:58:07.161Z","free_mem_mb":5709,"swap_used_mb":0,"loadavg_1m":5.65,"loadavg_5m":4.23,"loadavg_15m":3.42,"fixture_id":"pptx-S","mode":"cold","cpu":1}
+{"timestamp":"2026-11-12T19:58:34.016Z","free_mem_mb":5576,"swap_used_mb":0,"loadavg_1m":5.76,"loadavg_5m":4.36,"loadavg_15m":3.49,"fixture_id":"pptx-M","mode":"cold","cpu":1}
+{"timestamp":"2026-11-12T20:00:30.078Z","free_mem_mb":10544,"swap_used_mb":0,"loadavg_1m":3.73,"loadavg_5m":4.1,"loadavg_15m":3.5,"fixture_id":"xlsx-S","mode":"warm","cpu":1}
+{"timestamp":"2026-11-12T20:01:01.024Z","free_mem_mb":9714,"swap_used_mb":0,"loadavg_1m":4.23,"loadavg_5m":4.18,"loadavg_15m":3.55,"fixture_id":"xlsx-M","mode":"warm","cpu":1}
+{"timestamp":"2026-11-12T20:02:38.255Z","free_mem_mb":10035,"swap_used_mb":0,"loadavg_1m":4.86,"loadavg_5m":4.39,"loadavg_15m":3.68,"fixture_id":"docx-S","mode":"warm","cpu":1}
+{"timestamp":"2026-11-13T00:40:08.274Z","free_mem_mb":9240,"swap_used_mb":0,"loadavg_1m":2.8,"loadavg_5m":2.19,"loadavg_15m":1.77,"fixture_id":"xlsx-S","mode":"cold","cpu":1}
+{"timestamp":"2026-11-13T00:40:24.977Z","free_mem_mb":9006,"swap_used_mb":0,"loadavg_1m":3.17,"loadavg_5m":2.31,"loadavg_15m":1.82,"fixture_id":"xlsx-M","mode":"cold","cpu":1}

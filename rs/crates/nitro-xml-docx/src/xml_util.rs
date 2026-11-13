@@ -8,16 +8,11 @@ pub fn named_w(el: &Element, local: &str) -> bool {
 }
 
 pub fn first_w<'a>(parent: Option<&'a Element>, local: &str) -> Option<&'a Element> {
-    parent?
-        .element_children()
-        .into_iter()
-        .find(|e| named_w(e, local))
+    element_children_iter(parent?).find(|e| named_w(e, local))
 }
 
 pub fn children_w<'a>(parent: &'a Element, local: &str) -> Vec<&'a Element> {
-    parent
-        .element_children()
-        .into_iter()
+    element_children_iter(parent)
         .filter(|e| named_w(e, local))
         .collect()
 }
@@ -47,10 +42,7 @@ pub fn first_ns<'a>(
     namespace: &str,
     local: &str,
 ) -> Option<&'a Element> {
-    parent?
-        .element_children()
-        .into_iter()
-        .find(|e| e.local == local && e.ns.as_deref() == Some(namespace))
+    element_children_iter(parent?).find(|e| e.local == local && e.ns.as_deref() == Some(namespace))
 }
 
 pub fn descendant_ns<'a>(
@@ -61,7 +53,7 @@ pub fn descendant_ns<'a>(
     let parent = parent?;
     let mut stack: Vec<&Element> = vec![parent];
     while let Some(node) = stack.pop() {
-        for child in node.element_children() {
+        for child in element_children_iter(node) {
             if child.local == local && child.ns.as_deref() == Some(namespace) {
                 return Some(child);
             }
@@ -103,8 +95,7 @@ pub fn serialize_element(el: &Element) -> String {
                     out.push(' ');
                     write_attr(attr, out);
                 }
-                let child_els: Vec<_> = frame.el.element_children();
-                if child_els.is_empty() && !has_text(frame.el) {
+                if element_children_iter(frame.el).next().is_none() && !has_text(frame.el) {
                     out.push_str("/>");
                     stack.pop();
                     continue;
@@ -202,9 +193,18 @@ fn collect_named_w<'a>(el: &'a Element, local: &str, out: &mut Vec<&'a Element>)
     if named_w(el, local) {
         out.push(el);
     }
-    for child in el.element_children() {
+    for child in element_children_iter(el) {
         collect_named_w(child, local, out);
     }
+}
+
+// Borrow children for scans; collecting a temporary Vec at every node made
+// repeated whole-document warning scans allocate millions of tiny buffers.
+fn element_children_iter(el: &Element) -> impl Iterator<Item = &Element> {
+    el.children.iter().filter_map(|node| match node {
+        Node::Element(child) => Some(child),
+        Node::Text(_) => None,
+    })
 }
 
 pub trait ElementExt {

@@ -58,6 +58,65 @@ checked-in must-open fixture `fixtures/fuzz/docx/repeated-paragraphs-150k.docx`.
   timeouts that replay in under 2 s). This does **not** satisfy the 1 GiB bar; it only shows
   no other crash class in that hour.
 
+## Part of #30: memory-reduction follow-up (2026-11-12)
+
+A second attempt was made to push `docx_load` under the 1 GiB ASAN limit without a paragraph cap,
+a limit raise, or fixture demotion. All reductions were merged into `docx-load-mem` (Part of #30).
+
+**Optimisations applied (native 150k-paragraph result)**
+
+| Change | File | Native VmHWM |
+|--------|------|-------------|
+| Baseline (clone removal, M1) | `body.rs`, `warnings.rs` | 715 MB |
+| Consuming parse: free XML subtrees after each paragraph/table | `body.rs` | 475 MB |
+| Child-Vec starts at 1 slot, grows geometrically | `opc/xml/parse.rs` | 460 MB |
+| Iterator scan: no temporary Vec per element scan | `xml_util.rs` | 455 MB |
+| Block-accumulator pre-sized to `total_story` | `body.rs` | 452 MB |
+| Non-field run avoids unused `"text"` key alloc | `field_runs.rs` | **435 MB** |
+
+Measured with the custom `docx_load_mem` example (`--bin docx_load_mem`, native release):
+150k-par → VmHWM 435 MB, peak_bytes 310 MB, 8.4 M allocs.
+50k-par → VmHWM 143 MB, peak_bytes 98.8 MB, 2.8 M allocs.
+
+**ASAN fuzz results (two fresh-process replays of `repeated-paragraphs-150k.docx`)**
+
+```
+run 1: peak_rss_mb=1026  live=237449731 B (2531972 chunks)  quarantine=235482563 B (1887636 chunks)
+run 2: peak_rss_mb=1037  live=263221887 B (2461770 chunks)  quarantine=226928039 B (2329107 chunks)
+```
+
+Both runs exceed the 1024 MB limit by 2–13 MB. The ±10 MB variance is ASAN-quarantine
+non-determinism (position in the corpus sequence changes how many freed bytes are queued).
+
+**Root cause: 1 GiB is currently unreachable without a cap**
+
+After consuming parse, the peak live allocation is ~240–265 MB (the JSON model).
+The ASAN overhead alone (shadow memory, redzones, process baseline) adds ~550 MB, putting the
+floor at ~800 MB. The gap between 1 GiB and that floor is consumed by ASAN quarantine
+(~230–235 MB of freed-but-not-returned XML memory).
+
+The quarantine is dominated by ~3 M `String` allocations for XML element local tag names (one per
+node). Each small String has a 32–64-byte ASAN redzone. When `parse_container_consuming` frees
+paragraph subtrees incrementally, those ~3 M Strings flow into ASAN quarantine as ~192 MB of
+redzoned memory that ASAN holds until the quarantine overflows. No amount of live-allocation
+reduction can shrink this — the quarantine is sized to the number of distinct heap allocations freed.
+
+**The fix that would close this finding** is replacing `Element.local: String` with `Arc<str>` and
+interning tag names at parse time. This reduces ~3 M allocations (one per element) to ~50 (one per
+unique tag name, e.g. `"w:p"`, `"w:r"`, `"w:t"`, …). That saves ~192 MB of ASAN redzone/quarantine
+overhead, bringing the ASAN peak to roughly 850 MB — well under 1 GiB.
+
+That refactor touches `Element::new` in `opc/xml/tree.rs`, the parser in `opc/xml/parse.rs`, and
+300+ comparison sites across `nitro-xml-opc`, `nitro-xml-docx`, `nitro-xml-xlsx`, `nitro-xml-pptx`
+and `nitro-xml-render` (mostly through `named_w` and similar helpers). It is a correctness-neutral
+refactor with no behaviour change, but its blast radius is too large for this PR. Opening as a
+follow-up issue.
+
+**Stop condition invoked**: the two ASAN fuzz runs (1026 MB, 1037 MB) confirm the 1 GiB bar is
+unreachable without the `Arc<str>` interning refactor. All reductions that are green (native
+715 MB → 435 MB; correct parse; no regressions) are kept. No paragraph/part cap was added, no fuzz
+memory limit was raised, no fixture was demoted.
+
 ## Non-reproducing artifacts (not bugs)
 
 Every artifact libFuzzer wrote was replayed standalone; the runner kept a crash only when the

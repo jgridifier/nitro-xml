@@ -99,7 +99,9 @@ pub fn story_field_results(container: &Element) -> FieldResultMetadata {
             continue;
         }
         if named_w(element, "r") {
-            let mut run = json!({ "text": "" });
+            // Only field metadata is consumed here. An empty map avoids allocating
+            // a B-tree node and a text key for every ordinary, non-field run.
+            let mut run = Value::Object(serde_json::Map::new());
             tracker.track(element, &mut run);
             if run.get("field").is_some() {
                 let field = run.get("field").cloned().unwrap();

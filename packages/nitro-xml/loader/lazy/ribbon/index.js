@@ -145,6 +145,8 @@ ${
 
   const thumbs = o.format === "pptx" && full ? createThumbs() : null;
   let io = null;
+  let thumbCount = null;
+  let docName = "";
 
   // ---- state mirrored from the Rust chrome ----
   const ch = () => o.el._ch;
@@ -191,6 +193,20 @@ ${
     $(".sb .zl").textContent = zoomTxt;
     const pane = $(".pl");
     if (pane) {
+      // Chrome changes for ribbon commands and keyboard undo/redo alike. Reopen the
+      // thumbnail viewer before queuing indices that may not exist in its old deck.
+      if (thumbs && thumbCount !== null && thumbCount !== tb.length && o.el._d) {
+        const d = o.el._d;
+        // The chrome patch can precede the edit's layout replies. Snapshot after
+        // that frame settles so a layout error cannot reject the pending save.
+        const snapshot = new Promise(requestAnimationFrame).then(async () => {
+          await d._tickLock;
+          return d.save();
+        });
+        thumbs.start(snapshot, docName);
+        pane.dataset.sig = "";
+      }
+      if (thumbCount !== null) thumbCount = tb.length;
       const sig = tb.map((b) => b.dataset.g + b.textContent).join("|");
       if (pane.dataset.sig !== sig) {
         pane.dataset.sig = sig;
@@ -492,7 +508,9 @@ ${
           const box = h.target.querySelector(".th");
           io.unobserve(h.target);
           if (!box || box.dataset.live) continue;
-          thumbs.render(h.target.dataset.g).then((r) => box.isConnected && thumbs.mount(box, r));
+          thumbs.render(h.target.dataset.g)
+            .then((r) => box.isConnected && thumbs.mount(box, r))
+            .catch((e) => console.error("thumbnail", e));
         }
       },
       { root: pl.closest(".pane"), rootMargin: "160px 0px" },
@@ -500,7 +518,6 @@ ${
     for (const b of pl.children) io.observe(b);
   }
   // Reorder: apply the edit, follow the moved slide, and re-seed the thumbnail renderer.
-  let docName = "";
   async function moveSlide(from, to) {
     const d = o.el._d;
     if (!d || !edit) return;
@@ -635,6 +652,7 @@ ${
     opened(bytes, name) {
       if (!thumbs) return;
       docName = name;
+      thumbCount = ch()?.querySelectorAll(".t button").length ?? 0;
       thumbs.start(bytes, name);
       const pl = $(".pl");
       if (pl) {

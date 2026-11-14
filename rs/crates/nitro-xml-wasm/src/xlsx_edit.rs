@@ -114,6 +114,16 @@ impl XlsxState {
                 None => sh.remove_cell_at_coord(row, col),
             }
         }
+        // Recalculation can update dependents on any sheet, including spill cells.
+        for (index, source) in host.sheets.iter().enumerate() {
+            if let Some(Some(view)) = self.sheets.get_mut(index) {
+                for cell in &source.cells {
+                    if cell.formula.is_some() || cell.spill_anchor.is_some() {
+                        view.upsert_dump_cell(cell.clone());
+                    }
+                }
+            }
+        }
     }
 
     pub fn selection_target(&self) -> SelectionTarget {

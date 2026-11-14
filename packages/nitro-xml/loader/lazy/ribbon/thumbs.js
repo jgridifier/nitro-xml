@@ -24,7 +24,14 @@ export function createThumbs(TAG = "nitro-pptx") {
     // Off-screen but laid out: the renderer sizes slides from the host's real box.
     host.style.cssText = "position:fixed;left:-4000px;top:0;width:640px;height:400px;visibility:hidden;pointer-events:none";
     document.body.append(host);
-    ready = host.loadBuffer(bytes.slice(0), name).then(() => mine === gen);
+    const el = host;
+    // Accept a pending save so old jobs are invalidated immediately, before it resolves.
+    ready = Promise.resolve(bytes).then(async (data) => {
+      if (mine !== gen) return false;
+      await el.loadBuffer(data.slice(0), name);
+      return mine === gen;
+    });
+    ready.catch(() => {}); // render() reports load failures; avoid an unobserved rejection.
   }
   function stop() {
     gen++;
@@ -38,10 +45,10 @@ export function createThumbs(TAG = "nitro-pptx") {
     }
   }
 
-  async function paint(g) {
-    const el = host;
+  async function paint(g, el, mine) {
     await el.shellAction("sheet", g);
     for (let i = 0; i < 20; i++) {
+      if (mine !== gen) return null;
       if (el.document) el.document.pushEvent({ kind: 6, time_ms: performance.now(), width: 640, height: 400, dpr: 1 });
       if (typeof el._tick === "function") el._tick();
       await tick(2);
@@ -54,10 +61,12 @@ export function createThumbs(TAG = "nitro-pptx") {
   /** Resolves a ready-to-insert <span> (own shadow root) showing slide `g`, or null. */
   function render(g) {
     if (cache.has(g)) return cache.get(g);
+    const mine = gen;
+    const el = host;
+    const loading = ready;
     const job = queue.then(async () => {
-      const mine = gen;
-      if (!ready || !(await ready) || mine !== gen) return null;
-      const slide = await paint(g);
+      if (mine !== gen || !loading || !(await loading) || mine !== gen) return null;
+      const slide = await paint(g, el, mine);
       if (!slide || mine !== gen) return null;
       done.add(String(g));
       const w = parseFloat(slide.style.width) || 1280;
@@ -73,8 +82,11 @@ export function createThumbs(TAG = "nitro-pptx") {
       clone.style.left = clone.style.top = "0";
       clone.style.transformOrigin = "0 0";
       clone.style.pointerEvents = "none";
-      const css = [...host.shadowRoot.querySelectorAll("style")].filter((s) => s.textContent.includes("pptxv")).map((s) => s.cloneNode(true));
+      const css = [...el.shadowRoot.querySelectorAll("style")].filter((s) => s.textContent.includes("pptxv")).map((s) => s.cloneNode(true));
       return { clone, css, w, h };
+    }).catch((error) => {
+      if (mine !== gen) return null; // A replaced host may reject its in-flight action.
+      throw error;
     });
     // Keep the queue alive if a job fails.
     queue = job.catch(() => null);

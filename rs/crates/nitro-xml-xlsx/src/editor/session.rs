@@ -8,6 +8,7 @@ use nitro_xml_opc::edit::{
     ChangeKind, CommandRegistry, EditError, EditHistory, EditHost, EditScope, EditSession,
 };
 use serde_json::Value;
+use std::sync::Mutex;
 
 use crate::address::{format_address, format_range};
 use crate::edit::{
@@ -21,6 +22,7 @@ use super::cell_editor::CellEditor;
 use super::commands::{map_chrome_command, MappedCommand, SelectionTarget};
 use super::formula_bar::FormulaBarView;
 use super::input_text::cell_input_text;
+use super::session_calc::{SessionCalculator, StepMode};
 
 /// Result of a ribbon, shortcut, or headless chrome command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,6 +37,8 @@ pub struct EditorSession {
     session: EditSession<XlsxHost, EditHistory>,
     registry: CommandRegistry,
     cell: CellEditor,
+    // Box keeps the unopened session small; Mutex preserves Sync for the Python host.
+    calculator: Option<Box<Mutex<SessionCalculator>>>,
 }
 
 impl EditorSession {
@@ -53,6 +57,7 @@ impl EditorSession {
             session: EditSession::new(host, EditHistory::new()),
             registry,
             cell: CellEditor::default(),
+            calculator: None,
         }
     }
 
@@ -126,12 +131,38 @@ impl EditorSession {
         match map_chrome_command(id, target, &self.session.host) {
             MappedCommand::Save => Ok(ChromeEffect::Save),
             MappedCommand::Undo => {
+                let step = self
+                    .session
+                    .history
+                    .done()
+                    .last()
+                    .map(crate::edit::editor_step_from_history);
                 self.session.undo();
+                if let (Some(calc), Some(step)) = (&mut self.calculator, step) {
+                    calc.get_mut().expect("calculator lock").after_step(
+                        &mut self.session.host,
+                        &step,
+                        StepMode::Undo,
+                    );
+                }
                 self.cell.cancel();
                 Ok(ChromeEffect::Applied { structure: true })
             }
             MappedCommand::Redo => {
+                let step = self
+                    .session
+                    .history
+                    .undone()
+                    .last()
+                    .map(crate::edit::editor_step_from_history);
                 self.session.redo();
+                if let (Some(calc), Some(step)) = (&mut self.calculator, step) {
+                    calc.get_mut().expect("calculator lock").after_step(
+                        &mut self.session.host,
+                        &step,
+                        StepMode::Redo,
+                    );
+                }
                 self.cell.cancel();
                 Ok(ChromeEffect::Applied { structure: true })
             }
@@ -229,12 +260,22 @@ impl EditorSession {
         structure: bool,
     ) -> Result<(), EditError> {
         let (kind, scopes) = op_meta(id, &args, structure);
+        // No engine at open: allocate only when a command first needs calculation.
+        let calc = self.calculator.get_or_insert_with(|| {
+            Box::new(Mutex::new(SessionCalculator::from_host(&self.session.host)))
+        });
         let registry = &self.registry;
-        self.session
-            .run(label, kind, scopes, |host| {
-                registry.run(id, host.as_any(), &args).map(|_| ())
-            })
-            .map(|_| ())
+        self.session.run(label, kind, scopes, |host| {
+            registry.run(id, host.as_any(), &args).map(|_| ())
+        })?;
+        if let Some(step) = self.session.history.done().last() {
+            calc.get_mut().expect("calculator lock").after_step(
+                &mut self.session.host,
+                &crate::edit::editor_step_from_history(step),
+                StepMode::Apply,
+            );
+        }
+        Ok(())
     }
 }
 

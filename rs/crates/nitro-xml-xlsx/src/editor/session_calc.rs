@@ -77,6 +77,17 @@ impl SessionCalculator {
         })
     }
 
+    /// Seed lazily from the live editor, including edits made before calculation.
+    pub fn from_host(host: &XlsxHost) -> Self {
+        Self {
+            engine: CalcEngine::from_book(book_seed(host)),
+            enabled: true,
+            stale_graph: false,
+            dirty: Vec::new(),
+            calculated: None,
+        }
+    }
+
     pub fn enabled(&self) -> bool {
         self.enabled
     }

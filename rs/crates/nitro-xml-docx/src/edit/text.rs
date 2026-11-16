@@ -118,16 +118,22 @@ pub fn split_paragraph(
 /// Join paragraph `block_index + 1` into `block_index` (top-level paragraphs only).
 pub fn join_paragraph(host: &mut DocxHost, block_index: usize) -> Result<(), EditError> {
     host.ensure_base_blocks();
-    if block_index + 1 >= host.blocks.len() {
+    join_paragraph_in(&mut host.blocks, block_index)?;
+    host.mark_touched(block_index);
+    Ok(())
+}
+
+fn join_paragraph_in(blocks: &mut Vec<Value>, block_index: usize) -> Result<(), EditError> {
+    if block_index + 1 >= blocks.len() {
         return Err(EditError::Other {
             message: "no next paragraph to join".into(),
         });
     }
-    let left_ty = host.blocks[block_index]
+    let left_ty = blocks[block_index]
         .get("type")
         .and_then(|t| t.as_str())
         .unwrap_or("");
-    let right_ty = host.blocks[block_index + 1]
+    let right_ty = blocks[block_index + 1]
         .get("type")
         .and_then(|t| t.as_str())
         .unwrap_or("");
@@ -136,13 +142,13 @@ pub fn join_paragraph(host: &mut DocxHost, block_index: usize) -> Result<(), Edi
             message: "join requires adjacent paragraphs".into(),
         });
     }
-    let right = host.blocks.remove(block_index + 1);
+    let right = blocks.remove(block_index + 1);
     let right_runs = right
         .get("runs")
         .and_then(|r| r.as_array())
         .cloned()
         .unwrap_or_default();
-    let left = &mut host.blocks[block_index];
+    let left = &mut blocks[block_index];
     if let Some(obj) = left.as_object_mut() {
         let runs = obj
             .entry("runs")
@@ -153,7 +159,6 @@ pub fn join_paragraph(host: &mut DocxHost, block_index: usize) -> Result<(), Edi
             })?;
         runs.extend(right_runs);
     }
-    host.mark_touched(block_index);
     Ok(())
 }
 
@@ -179,9 +184,19 @@ pub fn insert_text(
     offset: usize,
     text: &str,
 ) -> Result<(), EditError> {
-    let block = host
-        .paragraph_mut(block_index)
-        .map_err(|e| EditError::Other { message: e })?;
+    host.ensure_base_blocks();
+    insert_text_in(&mut host.blocks, block_index, offset, text)?;
+    host.mark_touched(block_index);
+    Ok(())
+}
+
+fn insert_text_in(
+    blocks: &mut [Value],
+    block_index: usize,
+    offset: usize,
+    text: &str,
+) -> Result<(), EditError> {
+    let block = paragraph_mut(blocks, block_index)?;
     if block.get("runs").and_then(|r| r.as_array()).is_none() {
         if let Some(obj) = block.as_object_mut() {
             obj.insert("runs".into(), json!([]));
@@ -222,7 +237,6 @@ pub fn insert_text(
         }
         None => runs.push(json!({ "text": text })),
     }
-    host.mark_touched(block_index);
     Ok(())
 }
 
@@ -234,9 +248,19 @@ pub fn delete_text(
     start: usize,
     end: usize,
 ) -> Result<(), EditError> {
-    let block = host
-        .paragraph_mut(block_index)
-        .map_err(|e| EditError::Other { message: e })?;
+    host.ensure_base_blocks();
+    delete_text_in(&mut host.blocks, block_index, start, end)?;
+    host.mark_touched(block_index);
+    Ok(())
+}
+
+fn delete_text_in(
+    blocks: &mut [Value],
+    block_index: usize,
+    start: usize,
+    end: usize,
+) -> Result<(), EditError> {
+    let block = paragraph_mut(blocks, block_index)?;
     let runs = runs_mut(block)?;
     let mut pos = 0usize;
     let mut emptied: Vec<usize> = Vec::new();
@@ -267,13 +291,12 @@ pub fn delete_text(
     for i in emptied.into_iter().rev() {
         runs.remove(i);
     }
-    host.mark_touched(block_index);
     Ok(())
 }
 
-fn unique_block_id(host: &DocxHost, base: &str) -> String {
+fn unique_block_id(blocks: &[Value], base: &str) -> String {
     let taken = |id: &str| {
-        host.blocks
+        blocks
             .iter()
             .any(|b| b.get("id").and_then(|v| v.as_str()) == Some(id))
     };
@@ -295,10 +318,18 @@ pub fn split_paragraph_runs(
     offset: usize,
 ) -> Result<(), EditError> {
     host.ensure_base_blocks();
-    let block = host
-        .paragraph(block_index)
-        .map_err(|e| EditError::Other { message: e })?
-        .clone();
+    split_paragraph_runs_in(&mut host.blocks, block_index, offset)?;
+    host.mark_touched(block_index + 1);
+    host.mark_touched(block_index);
+    Ok(())
+}
+
+fn split_paragraph_runs_in(
+    blocks: &mut Vec<Value>,
+    block_index: usize,
+    offset: usize,
+) -> Result<(), EditError> {
+    let block = paragraph_mut(blocks, block_index)?.clone();
     let runs = block
         .get("runs")
         .and_then(|r| r.as_array())
@@ -351,14 +382,51 @@ pub fn split_paragraph_runs(
         .and_then(|v| v.as_str())
         .unwrap_or("p")
         .to_owned();
-    let new_id = unique_block_id(host, &id);
+    let new_id = unique_block_id(blocks, &id);
     let mut right_para = block;
     right_para["id"] = json!(new_id);
     right_para["runs"] = json!(right);
-    host.blocks[block_index]["runs"] = json!(left);
-    host.blocks.insert(block_index + 1, right_para);
-    host.mark_touched(block_index);
-    host.mark_touched(block_index + 1);
+    blocks[block_index]["runs"] = json!(left);
+    blocks.insert(block_index + 1, right_para);
+    Ok(())
+}
+
+fn paragraph_mut(blocks: &mut [Value], index: usize) -> Result<&mut Value, EditError> {
+    blocks
+        .get_mut(index)
+        .filter(|b| b["type"] == "paragraph")
+        .ok_or_else(|| EditError::Other {
+            message: format!("block {index} is not a paragraph"),
+        })
+}
+
+/// Run text edits on siblings in the addressed cell, keeping history on the whole host.
+fn in_container(
+    host: &mut DocxHost,
+    args: &Value,
+    edit: impl FnOnce(&mut Vec<Value>) -> Result<(), EditError>,
+) -> Result<(), EditError> {
+    let path: Vec<usize> = args
+        .get("containerPath")
+        .map(|v| serde_json::from_value(v.clone()))
+        .transpose()
+        .map_err(|e| EditError::Other {
+            message: e.to_string(),
+        })?
+        .unwrap_or_default();
+    host.ensure_base_blocks();
+    let blocks = super::host::blocks_at_path_mut(&mut host.blocks, &path).ok_or_else(|| {
+        EditError::Other {
+            message: "invalid paragraph container".into(),
+        }
+    })?;
+    let old_len = blocks.len();
+    edit(blocks)?;
+    let grew = blocks.len() > old_len;
+    if path.is_empty() && grew {
+        host.mark_touched(block_index(args)? + 1);
+    }
+    host.mark_touched(path.first().copied().unwrap_or(block_index(args)?));
     Ok(())
 }
 
@@ -391,7 +459,7 @@ pub fn register_text_commands(registry: &mut CommandRegistry) {
                     .ok_or_else(|| EditError::Other {
                         message: "insertText missing text".into(),
                     })?;
-            insert_text(h, bi, offset, text)?;
+            in_container(h, args, |blocks| insert_text_in(blocks, bi, offset, text))?;
             Ok(text_change(format!("insertText {bi}")))
         }),
     );
@@ -399,7 +467,14 @@ pub fn register_text_commands(registry: &mut CommandRegistry) {
         Command::stub("deleteText", "deleteText").with_runner(|host, args| {
             let h = host_mut(host)?;
             let bi = block_index(args)?;
-            delete_text(h, bi, usize_arg(args, "start")?, usize_arg(args, "end")?)?;
+            in_container(h, args, |blocks| {
+                delete_text_in(
+                    blocks,
+                    bi,
+                    usize_arg(args, "start")?,
+                    usize_arg(args, "end")?,
+                )
+            })?;
             Ok(text_change(format!("deleteText {bi}")))
         }),
     );
@@ -407,7 +482,9 @@ pub fn register_text_commands(registry: &mut CommandRegistry) {
         Command::stub("splitParagraph", "splitParagraph").with_runner(|host, args| {
             let h = host_mut(host)?;
             let bi = block_index(args)?;
-            split_paragraph_runs(h, bi, usize_arg(args, "offset")?)?;
+            in_container(h, args, |blocks| {
+                split_paragraph_runs_in(blocks, bi, usize_arg(args, "offset")?)
+            })?;
             Ok(text_change(format!("splitParagraph {bi}")))
         }),
     );
@@ -415,7 +492,7 @@ pub fn register_text_commands(registry: &mut CommandRegistry) {
         Command::stub("joinParagraphs", "joinParagraphs").with_runner(|host, args| {
             let h = host_mut(host)?;
             let bi = block_index(args)?;
-            join_paragraph(h, bi)?;
+            in_container(h, args, |blocks| join_paragraph_in(blocks, bi))?;
             Ok(text_change(format!("joinParagraphs {bi}")))
         }),
     );

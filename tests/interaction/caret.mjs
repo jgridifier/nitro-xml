@@ -50,6 +50,69 @@ const waitCaret = async (page, budgetMs = 1500) => {
 
 const CHECKS = [
 	{
+		id: 'docx.table-cell-click-type',
+		// Catches: table clicks leaving the caret in the body, and cell edits escaping w:tc (#522).
+		fn: async (page) => {
+			const before = await documentXml(page);
+			const body = await line(page, 3);
+			await page.mouse.click(body.x + 100, midY(body));
+			const clickText = async (text) => {
+				const span = page.locator('nitro-docx .dve-print-line').filter({ hasText: text }).first().locator('span').last();
+				await span.evaluate((s) => s.scrollIntoView({ block: "center" }));
+				await sleep(page, 200);
+				const r = await span.boundingBox();
+				await page.mouse.click(r.x + r.width + 2, r.y + r.height / 2);
+				await sleep(page, 200);
+				const caret = await waitCaret(page);
+				const target = await span.boundingBox();
+				if (!caret || Math.abs(caret.x - target.x - target.width) > 1 || caret.y > target.y + target.height / 2 || caret.y + caret.h < target.y + target.height / 2) throw new Error(`caret missed ${text}: ${JSON.stringify({ caret, target })}`);
+			};
+			await clickText('Files opened');
+			await press(page, 'ArrowDown');
+			await press(page, 'ArrowUp');
+			await press(page, 'End');
+			await page.keyboard.type('ZZ', { delay: 60 });
+			await sleep(page, 500);
+			let xml = await documentXml(page);
+			const cells = (x) => [...x.matchAll(/<w:tc[ >][\s\S]*?<\/w:tc>/g)].map((m) => m[0]);
+			const bodyOnly = (xml) => page.evaluate((xml) => {
+				const ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+				const body = new DOMParser().parseFromString(xml, 'application/xml').getElementsByTagNameNS(ns, 'body')[0];
+				const signature = (node) => node.nodeType === 1
+					? [node.namespaceURI, node.localName, Array.from(node.attributes, (a) => [a.namespaceURI, a.localName, a.value]).sort(), Array.from(node.childNodes, signature)]
+					: node.textContent;
+				return JSON.stringify(Array.from(body.children).filter((n) => n.localName !== 'tbl').map(signature));
+			}, xml);
+			const bodyBefore = await bodyOnly(before);
+			if (!cells(xml).some((c) => c.includes('Files openedZZ'))) return 'typing did not land in Files opened cell';
+			if ((await bodyOnly(xml)) !== bodyBefore) return 'cell edit changed the document body';
+			await press(page, 'Control+z');
+			if ((await documentXml(page)) !== before) return 'undo did not restore original XML';
+			await press(page, 'Control+y');
+			await press(page, 'ArrowLeft');
+			await press(page, 'Backspace');
+			await press(page, 'Enter');
+			await page.keyboard.type('Q');
+			await sleep(page, 500);
+			xml = await documentXml(page);
+			const cell = cells(xml).find((c) => c.includes('Files opened'));
+			if (!cell || !cell.includes('QZ') || (cell.match(/<w:p[ >]/g) || []).length !== 2) return 'Enter/arrows/Backspace did not stay in the cell';
+			if ((await bodyOnly(xml)) !== bodyBefore || cells(xml).length !== cells(before).length) return 'cell split changed table/body structure';
+			await clickText('QZ');
+			await press(page, 'Home');
+			await press(page, 'Backspace');
+			if (!cells(await documentXml(page)).some((c) => c.includes('Files opened') && c.includes('QZ') && (c.match(/<w:p[ >]/g) || []).length === 1)) return 'Backspace did not join cell paragraphs';
+			await press(page, 'Home');
+			await press(page, 'Backspace');
+			await press(page, 'ArrowLeft');
+			if ((await bodyOnly(await documentXml(page))) !== bodyBefore) return 'cell-start navigation escaped into body';
+			await clickText('12,400');
+			await page.keyboard.type('X');
+			await sleep(page, 500);
+			return cells(await documentXml(page)).some((c) => c.includes('12,400X')) ? null : 'numeric-cell click missed';
+		},
+	},
+	{
 		id: 'docx.caret-click-type',
 		// Catches: clicks never placing a caret, so typed text always landed at the start of the first paragraph.
 		fn: async (page) => {
@@ -185,7 +248,7 @@ export async function runCaretChecks(browserNames) {
 	const rows = [];
 	try {
 		for (const name of browserNames) {
-			const browser = await pw[name].launch();
+			const browser = await pw[name].launch(name === "chromium" && process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 			try {
 				for (const c of CHECKS) {
 					const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });

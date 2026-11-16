@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! Wasm glue for the docx editor session: open, chrome commands, headless edits, save.
 
-use nitro_xml_docx::edit::host::DocxHost;
+use nitro_xml_docx::edit::host::{blocks_at_path, paragraph_location, DocxHost};
 use nitro_xml_docx::{save_docx, DocxEditor};
 use serde_json::Value;
 
@@ -123,7 +123,7 @@ impl DocxState {
                     "start": 0,
                     "end": text.len(),
                 });
-                self.apply_edit_spec(&spec.to_string())?;
+                self.apply_caret_edit_spec(spec)?;
                 self.set_caret(bi, 0);
                 Ok(OfficeEffect::Clipboard {
                     text: self.text_clip.clone(),
@@ -144,7 +144,7 @@ impl DocxState {
                     "offset": off,
                     "text": clip,
                 });
-                self.apply_edit_spec(&spec.to_string())?;
+                self.apply_caret_edit_spec(spec)?;
                 self.set_caret(bi, off + self.text_clip.len());
                 Ok(OfficeEffect::Applied)
             }
@@ -155,6 +155,13 @@ impl DocxState {
     pub fn apply_raw_edit(&mut self, spec: &str) -> Result<OfficeEffect, String> {
         self.typing = None;
         self.apply_edit_spec(spec)
+    }
+
+    fn apply_caret_edit_spec(&mut self, mut spec: Value) -> Result<OfficeEffect, String> {
+        if let Some(edit) = &self.edit {
+            spec["containerPath"] = serde_json::json!(edit.print.caret.container_path);
+        }
+        self.apply_edit_spec(&spec.to_string())
     }
 
     fn apply_edit_spec(&mut self, spec: &str) -> Result<OfficeEffect, String> {
@@ -287,7 +294,7 @@ impl DocxState {
                     && t.offset == off
                     && Some(t.done_len) == self.done_len()
             });
-        self.apply_edit_spec(&spec.to_string())?;
+        self.apply_caret_edit_spec(spec)?;
         if continues {
             if let Some(edit) = self.edit.as_mut() {
                 edit.session.history.merge_last_into_previous();
@@ -307,10 +314,14 @@ impl DocxState {
         self.edit.as_ref().map(|e| e.session.history.done().len())
     }
 
+    fn caret_blocks(&self) -> Option<&[Value]> {
+        let edit = self.edit.as_ref()?;
+        blocks_at_path(&edit.session.host.blocks, &edit.print.caret.container_path)
+    }
+
     fn block_id(&self, bi: usize) -> String {
-        self.edit
-            .as_ref()
-            .and_then(|e| e.session.host.blocks.get(bi))
+        self.caret_blocks()
+            .and_then(|blocks| blocks.get(bi))
             .and_then(|b| b.get("id"))
             .and_then(|v| v.as_str())
             .unwrap_or("")
@@ -318,9 +329,8 @@ impl DocxState {
     }
 
     fn is_paragraph(&self, bi: usize) -> bool {
-        self.edit
-            .as_ref()
-            .and_then(|e| e.session.host.blocks.get(bi))
+        self.caret_blocks()
+            .and_then(|blocks| blocks.get(bi))
             .and_then(|b| b.get("type"))
             .and_then(|t| t.as_str())
             == Some("paragraph")
@@ -335,9 +345,8 @@ impl DocxState {
     }
 
     fn paragraph_len(&self, bi: usize) -> usize {
-        self.edit
-            .as_ref()
-            .and_then(|e| e.session.host.blocks.get(bi))
+        self.caret_blocks()
+            .and_then(|blocks| blocks.get(bi))
             .map(paragraph_text)
             .map(|t| t.len())
             .unwrap_or(0)
@@ -347,25 +356,15 @@ impl DocxState {
     /// id after undo/redo or structure edits, and falls back to the first paragraph.
     fn caret_paragraph(&mut self) -> Option<(usize, usize, String)> {
         let edit = self.edit.as_mut()?;
-        let blocks = &edit.session.host.blocks;
-        let c = &edit.print.caret;
-        let by_id = (!c.block_id.is_empty())
-            .then(|| {
-                blocks
-                    .iter()
-                    .position(|b| b.get("id").and_then(|v| v.as_str()) == Some(c.block_id.as_str()))
-            })
-            .flatten();
-        let is_para = |i: usize| {
-            blocks
-                .get(i)
-                .and_then(|b| b.get("type"))
-                .and_then(|t| t.as_str())
-                == Some("paragraph")
-        };
-        let bi = by_id
-            .filter(|&i| is_para(i))
-            .or_else(|| is_para(c.block_index).then_some(c.block_index))
+        let c = &mut edit.print.caret;
+        if let Some((path, bi)) = paragraph_location(&edit.session.host.blocks, &c.block_id) {
+            c.container_path = path;
+            c.block_index = bi;
+        }
+        let blocks = blocks_at_path(&edit.session.host.blocks, &c.container_path)?;
+        let is_para = |i: usize| blocks.get(i).is_some_and(|b| b["type"] == "paragraph");
+        let bi = is_para(c.block_index)
+            .then_some(c.block_index)
             .or_else(|| (0..blocks.len()).find(|&i| is_para(i)))?;
         let text = paragraph_text(&blocks[bi]);
         let mut off = c.offset.min(text.len());
@@ -377,15 +376,26 @@ impl DocxState {
 
     fn set_caret(&mut self, bi: usize, off: usize) {
         if let Some(edit) = self.edit.as_mut() {
-            edit.set_caret_block(bi, off);
+            let c = &mut edit.print.caret;
+            c.block_id = blocks_at_path(&edit.session.host.blocks, &c.container_path)
+                .and_then(|blocks| blocks.get(bi))
+                .and_then(|b| b["id"].as_str())
+                .unwrap_or("")
+                .to_owned();
+            c.block_index = bi;
+            c.offset = off;
         }
     }
 
     /// `[block id, chars before the caret, chars in the paragraph]` for the loader's caret overlay.
     pub fn caret_json(&mut self) -> Option<serde_json::Value> {
         let (bi, off, text) = self.caret_paragraph()?;
+        // Saving/reparsing regenerates view ids after a split; map by structural location
+        // while the edit caret retains its stable model id for undo/redo.
+        let path = &self.edit.as_ref()?.print.caret.container_path;
+        let view_id = blocks_at_path(&self.session.model.blocks, path)?.get(bi)?["id"].as_str()?;
         Some(serde_json::json!([
-            self.block_id(bi),
+            view_id,
             text[..off].chars().count(),
             text.chars().count()
         ]))
@@ -400,16 +410,19 @@ impl DocxState {
         shown_before: usize,
         shown_total: usize,
     ) -> bool {
-        let Some(edit) = self.edit.as_ref() else {
+        let Some(edit) = self.edit.as_mut() else {
             return false;
         };
-        let Some(bi) = edit.session.host.blocks.iter().position(|b| {
-            b.get("id").and_then(|v| v.as_str()) == Some(block_id)
-                && b.get("type").and_then(|t| t.as_str()) == Some("paragraph")
-        }) else {
+        let Some((path, bi)) = paragraph_location(&self.session.model.blocks, block_id) else {
             return false;
         };
-        let text = paragraph_text(&edit.session.host.blocks[bi]);
+        let Some(block) =
+            blocks_at_path(&edit.session.host.blocks, &path).and_then(|blocks| blocks.get(bi))
+        else {
+            return false;
+        };
+        let text = paragraph_text(block);
+        edit.print.caret.container_path = path;
         let n = text.chars().count();
         let chars = shown_before
             .saturating_sub(shown_total.saturating_sub(n))

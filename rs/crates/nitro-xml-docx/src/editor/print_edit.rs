@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! Print Layout view mode and click-to-caret (#83).
 
-use crate::edit::host::DocxHost;
+use crate::edit::host::{blocks_at_path, paragraph_location, DocxHost};
 use crate::editor::search::paragraph_plain_text;
 
 /// Word view modes (upstream `pages.setViewMode`).
@@ -15,6 +15,8 @@ pub enum DocxViewMode {
 #[derive(Debug, Clone, Default)]
 pub struct CaretPosition {
     pub block_index: usize,
+    /// Table/row/cell triples locating the paragraph sibling list. Empty for body paragraphs.
+    pub container_path: Vec<usize>,
     pub block_id: String,
     /// UTF-8 byte offset in the paragraph plain text.
     pub offset: usize,
@@ -40,14 +42,8 @@ impl PrintEditState {
         offset: usize,
     ) -> Option<CaretPosition> {
         self.mode = DocxViewMode::Draft;
-        let (bi, block) = host
-            .blocks
-            .iter()
-            .enumerate()
-            .find(|(_, b)| b.get("id").and_then(|id| id.as_str()) == Some(block_id))?;
-        if block.get("type").and_then(|t| t.as_str()) != Some("paragraph") {
-            return None;
-        }
+        let (container_path, bi) = paragraph_location(&host.blocks, block_id)?;
+        let block = &blocks_at_path(&host.blocks, &container_path)?[bi];
         let text = paragraph_plain_text(block);
         let offset = offset.min(text.len());
         let offset = if text.is_char_boundary(offset) {
@@ -61,6 +57,7 @@ impl PrintEditState {
         };
         self.caret = CaretPosition {
             block_index: bi,
+            container_path,
             block_id: block_id.to_string(),
             offset,
         };

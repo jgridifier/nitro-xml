@@ -44,6 +44,71 @@ pub struct DocxHost {
     pub touched: BTreeSet<usize>,
 }
 
+/// Locate a paragraph by stable id, including paragraphs inside table cells.
+/// Each path triple is a table block, row and cell index; the final index is local.
+pub fn paragraph_location(blocks: &[Value], id: &str) -> Option<(Vec<usize>, usize)> {
+    for (bi, block) in blocks.iter().enumerate() {
+        if block["type"] == "paragraph" && block["id"].as_str() == Some(id) {
+            return Some((Vec::new(), bi));
+        }
+        if let Some(rows) = block["rows"].as_array() {
+            for (ri, row) in rows.iter().enumerate() {
+                for (ci, cell) in row.as_array()?.iter().enumerate() {
+                    if let Some(paragraphs) = cell["paragraphs"].as_array() {
+                        if let Some((path, pi)) = paragraph_location(paragraphs, id) {
+                            let mut parent = vec![bi, ri, ci];
+                            parent.extend(path);
+                            return Some((parent, pi));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn blocks_at_path<'a>(blocks: &'a [Value], path: &[usize]) -> Option<&'a [Value]> {
+    if path.is_empty() {
+        return Some(blocks);
+    }
+    let [bi, ri, ci, rest @ ..] = path else {
+        return None;
+    };
+    blocks_at_path(
+        blocks
+            .get(*bi)?
+            .get("rows")?
+            .get(*ri)?
+            .get(*ci)?
+            .get("paragraphs")?
+            .as_array()?,
+        rest,
+    )
+}
+
+pub fn blocks_at_path_mut<'a>(
+    blocks: &'a mut Vec<Value>,
+    path: &[usize],
+) -> Option<&'a mut Vec<Value>> {
+    if path.is_empty() {
+        return Some(blocks);
+    }
+    let [bi, ri, ci, rest @ ..] = path else {
+        return None;
+    };
+    blocks_at_path_mut(
+        blocks
+            .get_mut(*bi)?
+            .get_mut("rows")?
+            .get_mut(*ri)?
+            .get_mut(*ci)?
+            .get_mut("paragraphs")?
+            .as_array_mut()?,
+        rest,
+    )
+}
+
 impl DocxHost {
     /// Minimal host for unit tests (no package binding).
     #[cfg(test)]

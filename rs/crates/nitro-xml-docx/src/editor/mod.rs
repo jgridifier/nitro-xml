@@ -80,6 +80,7 @@ impl DocxEditor {
             .to_string();
         self.print.set_caret(CaretPosition {
             block_index,
+            container_path: Vec::new(),
             block_id,
             offset,
         });

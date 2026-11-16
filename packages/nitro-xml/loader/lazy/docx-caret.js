@@ -125,13 +125,16 @@ export function attach(el) {
   };
 
   const lineAt = (x, y) => {
-    for (const n of sr.elementsFromPoint(x, y)) {
+    const under = sr.elementsFromPoint(x, y);
+    const cell = under.map((n) => n.closest?.(".dve-print-cell")).find(Boolean);
+    const inCell = (l) => !cell || l.closest(".dve-print-cell") === cell;
+    for (const n of under) {
       const l = n.closest && n.closest(".dve-print-line");
-      if (l && l.closest("[data-bid]") && dom.contains(l)) return l;
+      if (l && inCell(l) && l.closest("[data-bid]") && dom.contains(l)) return l;
     }
     let best = null;
     let bd = Infinity;
-    for (const l of linesOf()) {
+    for (const l of linesOf().filter(inCell)) {
       const r = l.getBoundingClientRect();
       if (!r.height) continue;
       const d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
@@ -304,7 +307,10 @@ export function attach(el) {
       if (!nav || e.shiftKey || e.altKey || !caret) return;
       const cmd = e.ctrlKey || e.metaKey;
       if (cmd && (e.key === "ArrowUp" || e.key === "ArrowDown")) return;
-      const lines = linesOf();
+      // Cell paragraphs share a row's y coordinates with neighbouring cells. Resolve
+      // geometry within the caret's own cell so navigation cannot jump across columns.
+      const cell = dom.querySelector(sel(caret.bid))?.closest(".dve-print-cell");
+      const lines = linesOf().filter((l) => !cell || l.closest(".dve-print-cell") === cell);
       const r = rectOf();
       if (!r || !lines.length) return;
       const cy = r.top + r.h / 2;

@@ -372,6 +372,7 @@ const hkRoot = (ch.querySelector && ch.querySelector("[data-hk]")) || ch.firstEl
 for (const p of ((hkRoot && hkRoot.dataset.hk) || "").split("|")) {
 const i = p.indexOf(":");
 if (p.slice(0, i) === k) {
+if (k == "Escape" && this._d.editorKey) return this._d.editorKey(e, mac).then((x) => (x && x.handled ? paintEdit(x) : g("find-close")));
 e.preventDefault();
 return g(p.slice(i + 1));
 }

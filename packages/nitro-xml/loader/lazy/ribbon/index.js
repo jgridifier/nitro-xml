@@ -69,13 +69,15 @@ export function mountOffice(o) {
   const lbl = (x) => esc(plain(x.t || x.l));
   const btn = (x, size) =>
     `<button type="button" class="rb ${size}${x.m ? " dd" : ""}${x.wide ? " wide" : ""}" tabindex="-1" aria-label="${lbl(x)}" title="${esc(x.t || x.l)}" data-k="${x.k}"${x.p ? ' aria-pressed="false"' : ""}${x.m ? ' aria-haspopup="menu" aria-expanded="false"' : ""}>${svg(x.i)}${size === "lg" || x.wide || x.m ? `<span>${esc(x.l)}</span>` : ""}${x.m ? svg("chevDown") : ""}</button>`;
+  const cbHtml = (x) =>
+    `<span class="rcb" data-k="${x.k}" title="${esc(x.t || x.l)}" aria-disabled="true"><input type="text" role="combobox" aria-label="${esc(x.l)}" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" aria-controls="ox-cb-lb" style="width:${x.w}px" /><button type="button" class="rcb-caret" tabindex="-1" aria-hidden="true">${svg("chevDown")}</button></span>`;
   const panel = (name) =>
     tabsSpec[name]
       .map(
         (g) =>
           `<div class="rg" role="group" aria-label="${esc(g.g)}"><button type="button" class="rgc" aria-haspopup="true" aria-expanded="false" aria-label="${esc(g.g)}"><span>${esc(g.g)}</span>${svg("chevDown")}</button><div class="rr">${g.big
             .map((x) => (x.r ? `<span class="rd" data-r="${x.r}" role="status"></span>` : btn(x, "lg")))
-            .join("")}${g.rows.length ? `<div class="col2">${g.rows.map((r) => `<div class="r1">${r.map((x) => btn(x, "sm")).join("")}</div>`).join("")}</div>` : ""}</div><div class="gl" aria-hidden="true">${esc(g.g)}</div></div>`,
+            .join("")}${g.rows.length ? `<div class="col2">${g.rows.map((r) => `<div class="r1">${r.map((x) => x.cb ? cbHtml(x) : btn(x, "sm")).join("")}</div>`).join("")}</div>` : ""}</div><div class="gl" aria-hidden="true">${esc(g.g)}</div></div>`,
       )
       .join("");
   const links = (o.links || []).map(([h, t]) => `<a href="${esc(h)}">${esc(t)}</a>`).join("");
@@ -105,6 +107,7 @@ ${
   <button type="button" role="menuitem" data-f="close">${svg("close")}Close</button>
 </div>
 <div class="dm" role="menu" hidden></div>
+<ul id="ox-cb-lb" role="listbox" hidden></ul>
 <div class="rbn" id="ox-p" role="tabpanel" aria-labelledby="ox-t-Home"><div class="rbn-in" style="display:contents"></div></div></div>`
     : ""
 }
@@ -184,7 +187,28 @@ ${
       r.textContent = r.dataset.r === "zoom" ? zoomTxt : tb.length > 1 ? `${at + 1} of ${tb.length}` : "";
       r.hidden = !r.textContent;
     }
-    for (const g of $$(".rg")) g.hidden = !g.querySelector(".rb:not([hidden]), .rd:not([hidden])");
+    // Sync font combo-box values from the hidden Rust chrome inputs.
+    // DOCX/PPTX chrome strip uses buttons (data-a="cmd" data-g="...") not inputs, so .value
+    // is unavailable; fall back to sensible Office defaults until selection-sync (#53).
+    for (const span of $$(".rbn .rcb")) {
+      const item = byKey.get(span.dataset.k);
+      const inp = span.querySelector("input");
+      if (!inp || inp === document.activeElement) continue;
+      const chromeKey = item && (item.c || item.ck);
+      const chromeEl = chromeKey ? q(`[data-a="cmd"][data-g="${chromeKey}"]`) : null;
+      const chromeVal = chromeEl && chromeEl.tagName === "INPUT" ? (chromeEl.value || "") : null;
+      const fallback = item && item.c === "home.font-name" ? "Calibri"
+        : item && (item.c === "home.font-size" || item.ck === "home.font-size") ? "11"
+        : item && item.ck === "home.font-name" ? "Calibri" : "";
+      const val = chromeVal !== null ? chromeVal : (chromeEl ? fallback : (ch() ? fallback : ""));
+      if (inp.dataset.base !== val || inp.value !== val) { inp.value = val; inp.dataset.base = val; }
+      const dis = !ch();
+      span.setAttribute("aria-disabled", String(dis));
+      inp.disabled = dis;
+      const caret = span.querySelector(".rcb-caret");
+      if (caret) caret.disabled = dis;
+    }
+    for (const g of $$(".rg")) g.hidden = !g.querySelector(".rb:not([hidden]), .rd:not([hidden]), .rcb");
     $("[data-pos]").textContent = tb.length ? `${app.unit} ${at + 1} of ${tb.length}` : "";
     $("[data-find]").textContent = findOpen ? (q(".fs") || {}).textContent || "" : "";
     $(".sb input").value = zoom;
@@ -222,8 +246,29 @@ ${
 
   // ---- events ----
   root.addEventListener("click", (e) => {
+    // Combo-box list item selection.
+    const li = e.target.closest("#ox-cb-lb li");
+    if (li) {
+      const inp = cbLb._for;
+      if (inp) {
+        inp.value = li.dataset.v;
+        inp.dataset.base = li.dataset.v;
+        const rcb = inp.closest(".rcb");
+        const item = rcb && byKey.get(rcb.dataset.k);
+        openComboList(inp, false);
+        if (item && item.c) void (group(null), act("cmd", item.c));
+      }
+      return;
+    }
     const t = e.target.closest("button");
     if (!t || !root.contains(t) || t.disabled || t.hidden) return;
+    // Combo-box caret toggle.
+    if (t.classList.contains("rcb-caret")) {
+      const rcb = t.closest(".rcb");
+      const inp = rcb && rcb.querySelector("input");
+      if (inp) { openComboList(inp, cbLb.hidden || cbLb._for !== inp); inp.focus(); }
+      return;
+    }
     if (t.classList.contains("rgc")) return group(t.parentElement, !t.parentElement.dataset.open);
     if (t.dataset.mode) return o.onMode(t.dataset.mode);
     if (t.dataset.q === "open") return pick.click();
@@ -299,6 +344,41 @@ ${
     dm.querySelector("button").focus();
   }
   document.addEventListener("pointerdown", (e) => dm && !dm.hidden && !e.composedPath().some((n) => n === dm || n === dm._for) && dropdown(false));
+  // Combo-box listbox: single shared popup, filled and positioned per active input.
+  const cbLb = $("#ox-cb-lb");
+  function openComboList(inp, open) {
+    if (!cbLb) return;
+    if (!open) {
+      if (!inp || cbLb._for === inp) {
+        cbLb.hidden = true;
+        cbLb._for = null;
+        if (inp) inp.setAttribute("aria-expanded", "false");
+      }
+      return;
+    }
+    const rcb = inp.closest(".rcb");
+    const item = rcb && byKey.get(rcb.dataset.k);
+    if (!item || !item.list) return;
+    const filter = inp.value.toLowerCase();
+    const opts = item.list.filter((v) => !filter || String(v).toLowerCase().startsWith(filter));
+    cbLb.innerHTML = opts.map((v) => `<li role="option" data-v="${esc(String(v))}"${inp.value === String(v) ? ' aria-selected="true"' : ""}>${esc(String(v))}</li>`).join("");
+    cbLb.setAttribute("aria-label", item.l);
+    const r = inp.getBoundingClientRect();
+    cbLb.style.left = r.left + "px";
+    cbLb.style.top = r.bottom + 2 + "px";
+    cbLb.style.minWidth = r.width + 18 + "px";
+    cbLb.hidden = false;
+    cbLb._for = inp;
+    inp.setAttribute("aria-expanded", "true");
+    // Scroll the matching option into view.
+    const sel = cbLb.querySelector("[aria-selected=true]");
+    if (sel) sel.scrollIntoView({ block: "nearest" });
+  }
+  document.addEventListener("pointerdown", (e) => {
+    if (!cbLb || cbLb.hidden) return;
+    const path = e.composedPath();
+    if (!path.some((n) => n === cbLb || n?.classList?.contains("rcb"))) openComboList(null, false);
+  });
   // Narrow frames (CSS container query) collapse each ribbon group to a chip; its buttons open as a popup.
   function group(g, open) {
     for (const x of $$(".rg[data-open]")) {
@@ -326,6 +406,7 @@ ${
   }
   function selectTab(name, focus) {
     dropdown(false);
+    openComboList(null, false);
     for (const t of $$("[role=tab][data-t]")) {
       const on = t.dataset.t === name;
       t.setAttribute("aria-selected", String(on));
@@ -376,6 +457,38 @@ ${
       menu(false);
       return $(".file").focus();
     }
+    // Combo-box input keyboard handling.
+    if (t.tagName === "INPUT" && t.closest(".rcb")) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        t.value = t.dataset.base || "";
+        openComboList(t, false);
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const focused = cbLb && cbLb._for === t ? cbLb.querySelector("[data-focused=true]") : null;
+        if (focused) { t.value = focused.dataset.v; t.dataset.base = focused.dataset.v; }
+        openComboList(t, false);
+        const rcb = t.closest(".rcb");
+        const item = rcb && byKey.get(rcb.dataset.k);
+        if (item && item.c) void (group(null), act("cmd", item.c));
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (!cbLb || cbLb._for !== t || cbLb.hidden) openComboList(t, true);
+        const items = cbLb ? [...cbLb.querySelectorAll("li")] : [];
+        const focused = cbLb && cbLb.querySelector("[data-focused=true]");
+        const idx = focused ? items.indexOf(focused) : -1;
+        if (focused) delete focused.dataset.focused;
+        const next = items[Math.max(0, Math.min(items.length - 1, idx + (e.key === "ArrowDown" ? 1 : -1)))];
+        if (next) { next.dataset.focused = "true"; next.scrollIntoView({ block: "nearest" }); }
+        return;
+      }
+      e.stopPropagation(); // prevent ribbon left/right navigation while typing
+      return;
+    }
     const stepIn = (list, i, d) => {
       e.preventDefault();
       const n = list[(i + d + list.length) % list.length];
@@ -412,7 +525,13 @@ ${
     for (const b of $$(".rbn .rb")) b.tabIndex = b === cur ? 0 : -1;
   }
   root.addEventListener("focusin", (e) => e.target.classList?.contains("rb") && ((cur = e.target), rove()));
-  root.addEventListener("pointerdown", (e) => e.target.closest(".rb, .dm button, .pane button, .sheets button") && e.preventDefault());
+  // Live-filter the combo listbox as the user types.
+  root.addEventListener("input", (e) => {
+    const inp = e.target;
+    if (inp.tagName !== "INPUT" || !inp.closest(".rcb")) return;
+    if (cbLb && cbLb._for === inp && !cbLb.hidden) openComboList(inp, true);
+  });
+  root.addEventListener("pointerdown", (e) => e.target.closest(".rb, .dm button, .pane button, .sheets button, .rcb-caret") && e.preventDefault());
   const rv = new MutationObserver(rove);
   typeof ResizeObserver !== "undefined" && new ResizeObserver(() => (group(null), rove())).observe(root);
   full && rv.observe($(".rbn-in"), { subtree: true, attributes: true, childList: true, attributeFilter: ["disabled", "hidden"] });

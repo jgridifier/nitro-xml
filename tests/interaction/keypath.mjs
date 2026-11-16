@@ -20,6 +20,41 @@ const selection = async (page) => (await uiState(page, 'xlsx')).selection;
 
 const CHECKS = [
 	{
+		id: 'keypath.typed-formula-value',
+		// Catches: interactive formula commits leaving the grid blank and dependents stale (#517).
+		fn: async (page) => {
+			const type = async (col, row, text) => {
+				const p = at(await geom(page), col, row);
+				await page.mouse.click(p.x, p.y);
+				await page.keyboard.type(text);
+				await page.keyboard.press('Enter');
+				await sleep(page, 500);
+			};
+			const has = async (text) => inEl(page, 'xlsx', (el, sr, text) =>
+				[...sr.querySelectorAll('.xg-c')].some(c => c.textContent === text), text);
+			await type(6, 6, '=12345+2');
+			if (!await has('12347')) return 'typed formula did not display 12347';
+			await type(7, 6, '=G7+1');
+			if (!await has('12348')) return 'dependent formula did not display 12348';
+			await type(6, 6, '23456');
+			if (!await has('23457')) return 'dependent did not update';
+			await page.keyboard.press('Control+z');
+			await sleep(page, 500);
+			if (!await has('12348')) return 'undo did not recalculate dependent';
+			await page.keyboard.press('Control+y');
+			await sleep(page, 500);
+			if (!await has('23457')) return 'redo did not recalculate dependent';
+			await type(8, 6, '=SUM(G7:H7)');
+			if (!await has('46913')) return 'SUM did not display 46913';
+			await type(8, 7, '=1/0');
+			if (!await has('#DIV/0!')) return 'division by zero did not display #DIV/0!';
+			await type(6, 7, '=NO_SUCH_FUNCTION(1)');
+			if (!await has('#NAME?')) return 'unknown function did not display #NAME?';
+			await type(6, 7, '=1+');
+			return await has('#NAME?') ? null : 'parse error did not display #NAME?';
+		},
+	},
+	{
 		id: 'keypath.click-then-key-order',
 		// Catches: a key pressed right after a click acting on the old selection, or sitting unprocessed because the tick request was dropped while another tick was in flight.
 		fn: async (page) => {

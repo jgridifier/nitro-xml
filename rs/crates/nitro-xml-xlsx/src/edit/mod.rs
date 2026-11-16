@@ -211,7 +211,7 @@ fn redo_with_calc(session: &mut EditSession<XlsxHost, EditHistory>, calc: &mut S
     }
 }
 
-fn editor_step_from_history(step: &HistoryStep) -> EditorStep {
+pub(crate) fn editor_step_from_history(step: &HistoryStep) -> EditorStep {
     EditorStep {
         structural: step.structural,
         sheet: step.change.sheet,

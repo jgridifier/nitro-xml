@@ -390,21 +390,35 @@ impl CalcEngine {
                 local_sheet: name.local_sheet,
             })
             .collect();
-        Ok(Self {
-            sheet_names: workbook
-                .sheets
-                .iter()
-                .map(|sheet| sheet.name.clone())
-                .collect(),
-            date1904: workbook.date1904,
-            iterate: workbook.iterate,
+        let mut engine = Self::empty();
+        engine.sheet_names = workbook.sheets.iter().map(|s| s.name.clone()).collect();
+        engine.date1904 = workbook.date1904;
+        engine.iterate = workbook.iterate;
+        engine.defined = defined;
+        engine.bounds_cache = vec![None; sheets.len()];
+        engine.sheets = sheets;
+        engine.formula_locs = formula_locs;
+        Ok(engine)
+    }
+
+    pub(crate) fn from_book(seed: CalcBookSeed) -> Self {
+        let mut engine = Self::empty();
+        engine.replace_book(seed);
+        engine
+    }
+
+    fn empty() -> Self {
+        Self {
+            sheet_names: Vec::new(),
+            date1904: false,
+            iterate: None,
             warnings: Vec::new(),
-            defined,
-            bounds_cache: vec![None; sheets.len()],
-            sheets,
+            defined: Vec::new(),
+            bounds_cache: Vec::new(),
+            sheets: Vec::new(),
             nodes: Vec::new(),
             by_cell: HashMap::new(),
-            formula_locs,
+            formula_locs: Vec::new(),
             reverse: ReverseIndex::new(),
             prep_at: 0,
             dynamic_ids: Vec::new(),
@@ -426,7 +440,7 @@ impl CalcEngine {
             footprint_changes: Vec::new(),
             parsed: HashMap::new(),
             rand_seed: Cell::new(42),
-        })
+        }
     }
 
     /// Build the dependency graph. `time_remaining` pauses the walk the way an idle deadline does.

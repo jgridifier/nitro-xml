@@ -97,19 +97,6 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .rb[hidden]{display:none}
 .rd{align-self:center;min-width:44px;padding:0 6px;text-align:center;font-variant-numeric:tabular-nums;color:var(--fg);font-size:12px}
 .rd[hidden]{display:none}
-/* ribbon combo-box (font name / font size inputs) */
-.rcb{display:inline-flex;align-items:center;position:relative;height:26px;border:1px solid var(--bd);border-radius:var(--r);background:var(--bg);flex:none;overflow:hidden;align-self:center}
-.rcb:focus-within{outline:2px solid var(--acc);outline-offset:-1px;border-color:var(--acc);overflow:visible}
-.rcb input{all:unset;box-sizing:border-box;height:100%;padding:0 4px;font:12px/1 var(--fnt);cursor:text}
-.rcb .rcb-caret{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:16px;height:100%;border-left:1px solid var(--bd);cursor:pointer;flex:none}
-.rcb .rcb-caret svg{width:10px;height:10px;stroke-width:2;stroke:var(--mut)}
-.rcb .rcb-caret:hover{background:var(--hov)}
-.rcb[aria-disabled=true]{opacity:.42;pointer-events:none}
-#ox-cb-lb{position:fixed;z-index:40;min-width:120px;max-height:200px;overflow-y:auto;padding:4px 0;margin:0;list-style:none;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r2);box-shadow:var(--sh);scrollbar-width:thin}
-#ox-cb-lb[hidden]{display:none}
-#ox-cb-lb li{padding:4px 12px;font-size:12px;cursor:pointer;white-space:nowrap}
-#ox-cb-lb li:hover,#ox-cb-lb li[data-focused=true]{background:var(--hov)}
-#ox-cb-lb li[aria-selected=true]{background:var(--sel);color:var(--acc)}
 .rn{display:flex;align-items:center;gap:8px;align-self:center;margin-left:auto;max-width:340px;padding:8px 12px;border:1px solid var(--bd);border-radius:var(--r2);background:color-mix(in srgb,var(--acc) 6%,var(--bg));color:var(--mut);font-size:12px;line-height:1.35}
 .rn b{color:var(--fg);font-weight:600}
 .rn svg{width:18px;height:18px}
@@ -196,8 +183,6 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .rb.sm{min-width:44px;height:44px}
 .rb.lg{min-width:56px;height:72px}
 .rb.sm.wide{min-width:132px}
-.rcb{height:44px}
-.rcb .rcb-caret{width:28px}
 .rgc{height:44px}
 .dm button,.fm button{padding:12px 16px}
 .btn{min-height:44px;display:inline-flex;align-items:center}

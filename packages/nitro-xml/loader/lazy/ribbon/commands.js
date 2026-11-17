@@ -72,17 +72,14 @@ const editorClip = {
 };
 
 
-const FONT_SIZE_LIST = ["8","9","10","11","12","14","16","18","20","22","24","28","32","36","48","72"];
-const FONT_NAME_LIST = ["Calibri","Cambria","Arial","Times New Roman","Verdana","Georgia","Courier New","Trebuchet MS","Impact","Comic Sans MS","Palatino Linotype","Garamond","Book Antiqua","Century Gothic"];
-
 // Word / PowerPoint Font: at most two rows (face/size, then emphasis).
 // Less-common effects go in a dropdown. Alignment is not a Font command.
 const wordFont = {
   g: "Font",
   rows: [
     [
-      { cb: 1, c: "home.font-name", l: "Font name", t: "Set the font name", list: FONT_NAME_LIST, w: 130 },
-      { cb: 1, c: "home.font-size", l: "Font size", t: "Set the font size", list: FONT_SIZE_LIST, w: 52 },
+      it("home.font-name", "font", "Font", "Set the font name"),
+      it("home.font-size", "grow", "Font size", "Set the font size"),
       it("home.grow-font", "grow", "Grow font", "Increase the font size"),
       it("home.shrink-font", "shrink", "Shrink font", "Decrease the font size"),
     ],
@@ -149,8 +146,8 @@ const pptxFont = {
   g: "Font",
   rows: [
     [
-      { cb: 1, c: "home.font-name", l: "Font name", t: "Set the font name", list: FONT_NAME_LIST, w: 130 },
-      { cb: 1, c: "home.font-size", l: "Font size", t: "Set the font size", list: FONT_SIZE_LIST, w: 52 },
+      it("home.font-name", "font", "Font", "Set the font name"),
+      it("home.font-size", "grow", "Font size", "Set the font size"),
       it("home.grow-font", "grow", "Grow font", "Increase the font size"),
       it("home.shrink-font", "shrink", "Shrink font", "Decrease the font size"),
     ],
@@ -252,7 +249,7 @@ const XLSX_HOME = [
   {
     g: "Font",
     rows: [
-      [{ cb: 1, ck: "home.font-name", l: "Font name", t: "Set the font name", list: FONT_NAME_LIST, w: 130 }, { cb: 1, ck: "home.font-size", l: "Font size", t: "Set the font size", list: FONT_SIZE_LIST, w: 52 }, it("home.bold", "bold", "Bold", "Bold (Ctrl+B)"), it("home.italic", "italic", "Italic", "Italic (Ctrl+I)"), it("home.underline", "underline", "Underline", "Underline (Ctrl+U)"), it("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)")],
+      [it("home.bold", "bold", "Bold", "Bold (Ctrl+B)"), it("home.italic", "italic", "Italic", "Italic (Ctrl+I)"), it("home.underline", "underline", "Underline", "Underline (Ctrl+U)"), it("home.strikethrough", "strike", "Strikethrough", "Strikethrough (Ctrl+5)")],
       [it("home.grow-font", "grow", "Increase font size"), it("home.shrink-font", "shrink", "Decrease font size")],
     ],
   },

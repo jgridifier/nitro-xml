@@ -45,28 +45,30 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .tb a{white-space:nowrap;color:inherit;text-decoration:none;font-size:12px;padding:6px 8px;border-radius:var(--r)}
 .tb a:hover{background:color-mix(in srgb,var(--tbf) 18%,transparent)}
 /* tabs */
-.tabs{display:flex;align-items:stretch;height:34px;padding:0 8px;background:var(--tabs);border-bottom:1px solid var(--bd)}
-.tabs [role=tab],.tabs .file{all:unset;box-sizing:border-box;position:relative;display:flex;align-items:center;padding:0 12px;font-size:13px;cursor:pointer;color:var(--fg)}
-.tabs [role=tab]:hover,.tabs .file:hover{background:var(--hov)}
-.tabs [role=tab][aria-selected=true]{color:var(--acc);font-weight:600}
-.tabs [role=tab][aria-selected=true]::after{content:"";position:absolute;left:10px;right:10px;bottom:0;height:3px;border-radius:2px 2px 0 0;background:var(--acc)}
-.tabs .file{font-weight:600;color:var(--acf);background:var(--acc);margin-right:6px;padding:0 16px;border-radius:0}
+.tabs{display:flex;align-items:stretch;height:36px;padding:0 8px;background:var(--tabs);border-bottom:1px solid var(--bd)}
+.tabs [role=tab],.tabs .file{all:unset;box-sizing:border-box;position:relative;display:flex;align-items:center;padding:0 14px;font-size:13px;cursor:pointer;color:var(--mut)}
+.tabs [role=tab]:hover{background:var(--hov);color:var(--fg)}
 .tabs .file:hover{background:color-mix(in srgb,var(--acc) 88%,#000)}
+.tabs [role=tab][aria-selected=true]{color:var(--acc);font-weight:600}
+.tabs [role=tab][aria-selected=true]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2.5px;border-radius:2px 2px 0 0;background:var(--acc)}
+.tabs .file{font-weight:600;color:var(--acf);background:var(--acc);margin-right:8px;padding:0 16px;border-radius:0;align-self:stretch}
 .tabs .file[aria-expanded=true]{background:color-mix(in srgb,var(--acc) 80%,#000)}
 .tabs .grow{flex:1}
 .tabs .col{all:unset;display:grid;place-items:center;width:30px;cursor:pointer;border-radius:var(--r);align-self:center;height:28px}
 .tabs .col:hover{background:var(--hov)}
 .tabs .col svg{width:16px;height:16px}
-.fm{position:absolute;z-index:30;min-width:240px;padding:4px 0;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r2);box-shadow:var(--sh)}
+.fm{position:absolute;z-index:30;min-width:260px;padding:4px 0;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r2);box-shadow:var(--sh)}
 .fm[hidden]{display:none}
 .dm{position:absolute;z-index:30;min-width:176px;padding:4px 0;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r2);box-shadow:var(--sh)}
 .dm[hidden]{display:none}
 .dm button{all:unset;box-sizing:border-box;display:block;width:100%;padding:6px 14px;font-size:12.5px;cursor:pointer}
 .dm button:hover{background:var(--hov)}
 .dm button:focus-visible{outline:0;background:var(--sel);box-shadow:inset 3px 0 0 var(--acc)}
-.fm button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:12px;width:100%;padding:8px 16px;font-size:13px;cursor:pointer}
+/* file-menu card items: icon + title on row 1, description on row 2 */
+.fm button{all:unset;box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;width:100%;padding:9px 16px;font-size:13px;cursor:pointer}
+.fm button svg{flex:none;align-self:flex-start;margin-top:1px}
 .fm button:hover,.fm button:focus-visible{background:var(--hov)}
-.fm small{margin-left:auto;color:var(--mut);font-size:11px}
+.fm small{flex-basis:100%;padding-left:32px;color:var(--mut);font-size:11.5px;line-height:1.3;margin-top:1px}
 /* ribbon */
 .rbn{display:flex;align-items:stretch;gap:0;min-height:92px;padding:4px 8px 0;background:var(--rbn);border-bottom:1px solid var(--bd);overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
 .rbn[hidden]{display:none}
@@ -142,16 +144,23 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .sheets button:hover{background:var(--hov)}
 .sheets button[aria-current=true]{background:var(--bg);color:var(--acc);font-weight:600;box-shadow:inset 0 -2px 0 var(--acc)}
 /* status bar */
-.sb{display:flex;align-items:center;gap:14px;height:26px;padding:0 10px;background:var(--st);border-top:1px solid var(--bd);color:var(--mut);font-size:12px}
+.sb{display:flex;align-items:center;gap:12px;height:26px;padding:0 10px;background:var(--st);border-top:1px solid var(--bd);color:var(--mut);font-size:12px}
 .sb .grow{flex:1}
 .sb .ib{all:unset;display:grid;place-items:center;width:22px;height:22px;border-radius:3px;cursor:pointer}
 .sb .ib:hover{background:var(--hov)}
 .sb svg{width:14px;height:14px}
-.sb input[type=range]{width:120px;accent-color:var(--acc);margin:0}
+/* custom zoom range: thin track + refined circular thumb */
+.sb input[type=range]{-webkit-appearance:none;appearance:none;width:112px;height:16px;background:transparent;cursor:pointer;margin:0;flex:none}
+.sb input[type=range]:focus{outline:none}
+.sb input[type=range]:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:3px}
+.sb input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:color-mix(in srgb,var(--fg) 22%,transparent)}
+.sb input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;margin-top:-4.5px;background:var(--fg);box-shadow:0 0 0 1.5px var(--st),0 1px 3px rgba(0,0,0,.18)}
+.sb input[type=range]::-moz-range-track{height:3px;border-radius:2px;background:color-mix(in srgb,var(--fg) 22%,transparent);border:none}
+.sb input[type=range]::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--fg);box-shadow:0 0 0 1.5px var(--st),0 1px 3px rgba(0,0,0,.18)}
 .sb .pct{min-width:40px;text-align:right;color:var(--fg);font-variant-numeric:tabular-nums}
-.sb .zl{all:unset;cursor:pointer;min-width:40px;text-align:right;color:var(--fg);font-variant-numeric:tabular-nums;padding:2px 4px;border-radius:3px}
+.sb .zl{all:unset;cursor:pointer;min-width:36px;text-align:right;color:var(--fg);font-variant-numeric:tabular-nums;padding:2px 4px;border-radius:3px;font-size:12px}
 .sb .zl:hover{background:var(--hov)}
-.sb .zr{display:flex;align-items:center;gap:6px}
+.sb .zr{display:flex;align-items:center;gap:4px}
 .rgc{display:none}
 @media(max-width:820px){.tb .srch,.tb .doc i,.tb .lnks{display:none}.sb input[type=range]{width:70px}.pane{width:132px}}
 /* narrow frames: ribbon groups collapse to chips that open as popups (like Office's collapsed groups) */

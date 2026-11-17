@@ -99,10 +99,10 @@ ${
         .map((n, i) => `<button type="button" role="tab" id="ox-t-${n}" aria-controls="ox-p" aria-selected="${i === 0}" tabindex="${i ? -1 : 0}" data-t="${n}">${n}</button>`)
         .join("")}</div><span class="grow"></span><button type="button" class="col" aria-label="Collapse the ribbon" aria-expanded="true" title="Collapse the ribbon">${svg("chevUp")}</button></div>
 <div class="fm" role="menu" hidden aria-label="File">
-  <button type="button" role="menuitem" data-f="open">${svg("open")}Open…<small>from your device</small></button>
-  <button type="button" role="menuitem" data-f="sample">${svg("sample")}Open sample ${app.noun}</button>
-  ${edit ? `<button type="button" role="menuitem" data-f="save">${svg("save")}Save a copy<small>download</small></button>` : ""}
-  <button type="button" role="menuitem" data-f="close">${svg("close")}Close</button>
+  <button type="button" role="menuitem" data-f="open">${svg("open")}Open…<small>Browse for a ${app.ext.split(",")[0]} file on your device</small></button>
+  <button type="button" role="menuitem" data-f="sample">${svg("sample")}Open sample ${app.noun}<small>Load the built-in example ${app.noun}</small></button>
+  ${edit ? `<button type="button" role="menuitem" data-f="save">${svg("save")}Save a copy<small>Download an edited copy to your device</small></button>` : ""}
+  <button type="button" role="menuitem" data-f="close">${svg("close")}Close<small>Return to the empty drop area</small></button>
 </div>
 <div class="dm" role="menu" hidden></div>
 <div class="rbn" id="ox-p" role="tabpanel" aria-labelledby="ox-t-Home"><div class="rbn-in" style="display:contents"></div></div></div>`

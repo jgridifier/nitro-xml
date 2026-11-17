@@ -13,6 +13,7 @@ import { runCaretChecks } from '../interaction/caret.mjs';
 import { runInputProxyChecks } from '../interaction/inputproxy.mjs';
 import { runKeyPathChecks } from '../interaction/keypath.mjs';
 import { runXlsxEditChecks } from '../interaction/xlsxedit.mjs';
+import { runXlsxStatusSumChecks } from '../interaction/xlsx-status-sum.mjs';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), 'out');
 
@@ -51,12 +52,16 @@ async function main() {
 		(process.env.SELECTION_BROWSERS || 'chromium,webkit,firefox').split(',').map((b) => b.trim()).filter(Boolean),
 	);
 	console.log(xlsxEdit.summary);
+	const xlsxStatusSum = await runXlsxStatusSumChecks(
+		(process.env.SELECTION_BROWSERS || 'chromium,webkit,firefox').split(',').map((b) => b.trim()).filter(Boolean),
+	);
+	console.log(xlsxStatusSum.summary);
 
 	const deferred = deferredCases().map(
 		(c) => `${c.id}: allowList ${c.allowList || '—'} — ${c.todo || ''}`,
 	);
-	const rows = [...shell.rows, ...live.rows, ...caret.rows, ...proxy.rows, ...keypath.rows, ...xlsxEdit.rows];
-	const ok = shell.ok && live.ok && caret.ok && proxy.ok && keypath.ok && xlsxEdit.ok;
+	const rows = [...shell.rows, ...live.rows, ...caret.rows, ...proxy.rows, ...keypath.rows, ...xlsxEdit.rows, ...xlsxStatusSum.rows];
+	const ok = shell.ok && live.ok && caret.ok && proxy.ok && keypath.ok && xlsxEdit.ok && xlsxStatusSum.ok;
 	const breakdown = formatBreakdown(rows);
 	const summary = [
 		`selection: ${ok ? 'PASS' : 'FAIL'}`,
@@ -67,6 +72,7 @@ async function main() {
 		proxy.summary,
 		keypath.summary,
 		xlsxEdit.summary,
+		xlsxStatusSum.summary,
 		...(deferred.length
 			? ['deferred / allow-listed:', ...deferred.map((d) => `  - ${d}`)]
 			: []),

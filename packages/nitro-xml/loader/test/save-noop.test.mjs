@@ -92,9 +92,9 @@ describe("noop save (worker dirty tracking)", () => {
     const idle = new Function("self", "initCore", "isSupportedExtension",
       "applyFontSourceToHandle", "loadModule", source + "\nreturn () => chain;")(
       worker, async () => ({ glue: { Handle } }), () => true, () => {},
-      async (path) => path.endsWith("save.js") ? { postSave } : {
-        buildAndPostFrame: async () => {},
-      },
+      async (path) => path.endsWith("save.js") ? { postSave }
+        : path.endsWith("worker-extra.js") ? { v: (h, m) => { if (m.type === "editor-key") h.editorKey(m.key || ""); return { type: m.type, result: undefined }; } }
+        : { buildAndPostFrame: async () => {} },
     );
     async function send(msg) {
       worker.onmessage({ data: msg });

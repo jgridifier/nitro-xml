@@ -1,0 +1,1639 @@
+{
+  "schema": 1,
+  "race": "m1-wasm-vs-ts-comparison",
+  "sha": "0e046de7266fc884937582693981ca982158bce4",
+  "when": "2026-11-17T17:40:51Z",
+  "host": {
+    "os": "Linux",
+    "arch": "x86_64",
+    "node": "v24.22.1"
+  },
+  "method": {
+    "cold_open": "ts-vs-wasm.mjs: median(WASM)/median(TS) cold openDocument, same Node process, N=21 runs (8 warmup-discarded). Performance.now() timer; fresh Uint8Array copy outside timed span.",
+    "peak_mem": "peak-mem.mjs: VmHWM growth over post-init baseline (MiB), fresh Node process per (engine, fixture, run). N=7 runs per sample.",
+    "bundle": "sizes.mjs: raw+gzip(9)+brotli(11) for TS bundles (perf/dist/ts/<fmt>.js) and WASM pkg (nitro_xml_wasm_bg.wasm + nitro_xml_wasm.js) and WASM loader JS (packages/nitro-xml/loader/**/*.js incl. lazy/)",
+    "save": "NOT MEASURED — WASM save path not yet available at M1 viewer stage; see draft issue",
+    "ci": "95% bootstrap CI of median ratio, unpaired resample (B=2000, seed=20261019); WIN = median < 1 AND CI upper < 1 (PRODUCT_SPEC §5)",
+    "spread": "p95, stdev, IQR computed from raw sample arrays",
+    "seed": 20261019,
+    "runs_open": 21,
+    "warmup_open": 8,
+    "runs_mem": 7,
+    "bootstrap": 2000
+  },
+  "fixtures": {
+    "xlsx-S": {
+      "path": "fixtures/generated/xlsx/cells_1k.xlsx",
+      "sha256": "651f8c8c648ec4d4b0624d433f407e92f2e9922b1c14508fb26d33ad2c6944aa",
+      "bytes": 8012
+    },
+    "xlsx-M": {
+      "path": "fixtures/generated/xlsx/cells_100k.xlsx",
+      "sha256": "e02df5dec0145afc3ccd9335fc912536c5fd7e3d275129b41581dfd7a77bf634",
+      "bytes": 503874
+    },
+    "xlsx-L": {
+      "path": "fixtures/generated/xlsx/cells_1m.xlsx",
+      "sha256": "a84be17f31e994e8eae427083f5d385c2bf285f79fa4771274f7e05f42f922fc",
+      "bytes": 5047589
+    },
+    "xlsx-XL": {
+      "path": "fixtures/generated/xlsx/xl_a.xlsx",
+      "sha256": "9593100fcf2dad245d6725fa80c88cebf1d82051562f8f9173b160e92a9f26e4",
+      "bytes": 17156808
+    },
+    "docx-S": {
+      "path": "fixtures/generated/docx/pages_10.docx",
+      "sha256": "0343ad9d9e7cc45befa7571ca6561dcb8161494b3c842b839849f5bc5b187a62",
+      "bytes": 2945
+    },
+    "docx-M": {
+      "path": "fixtures/generated/docx/pages_100.docx",
+      "sha256": "56f9c6710b5ef07e55e395b3a323c63a6b622f990dcc54af10338b5c7d373772",
+      "bytes": 403491
+    },
+    "docx-L": {
+      "path": "fixtures/generated/docx/pages_500.docx",
+      "sha256": "090162d98ce61fa10880ebf4c4c1c153c715e432add7875bc75cc75084e7d3ef",
+      "bytes": 2461324
+    },
+    "docx-XL": {
+      "path": "fixtures/generated/docx/xl_a.docx",
+      "sha256": "0957d18421ea7a75e347f699b43be46227d611b4c534cf9240408137fe675621",
+      "bytes": 11773330
+    },
+    "pptx-S": {
+      "path": "fixtures/generated/pptx/slides_10.pptx",
+      "sha256": "132bf63c0d40a08ae84dc9d8d634eb2a4dc48a95db3d1b3d660ede143379b731",
+      "bytes": 11993
+    },
+    "pptx-M": {
+      "path": "fixtures/generated/pptx/slides_50.pptx",
+      "sha256": "51edf489d8dfe27cf4f3b2473b271372afb0a3c524b0bea6acc4e02ad557b32b",
+      "bytes": 442863
+    },
+    "pptx-L": {
+      "path": "fixtures/generated/pptx/slides_200.pptx",
+      "sha256": "5c87d47fa9fec45be89b40ba51b7bd789a5197c78baa9e1a07fd8d934d8af97e",
+      "bytes": 2683951
+    },
+    "pptx-XL": {
+      "path": "fixtures/generated/pptx/xl_a.pptx",
+      "sha256": "689ceef7681e204717d4ec61e280652523618df4974951133ce713ff23ce742a",
+      "bytes": 12453351
+    }
+  },
+  "sizes": {
+    "ts": {
+      "files": [
+        {
+          "file": "perf/dist/ts/xlsx.js",
+          "raw": 12366574,
+          "gzip": 3897792,
+          "brotli": 2979915
+        },
+        {
+          "file": "perf/dist/ts/docx.js",
+          "raw": 1887689,
+          "gzip": 574329,
+          "brotli": 469026
+        },
+        {
+          "file": "perf/dist/ts/pptx.js",
+          "raw": 13309264,
+          "gzip": 4027979,
+          "brotli": 2953045
+        }
+      ],
+      "total": {
+        "raw": 27563527,
+        "gzip": 8500100,
+        "brotli": 6401986
+      }
+    },
+    "wasm": {
+      "files": [
+        {
+          "file": "packages/nitro-xml/pkg/nitro_xml_wasm_bg.wasm",
+          "raw": 8294055,
+          "gzip": 2870845,
+          "brotli": 1918231
+        },
+        {
+          "file": "packages/nitro-xml/pkg/nitro_xml_wasm.js",
+          "raw": 32165,
+          "gzip": 5243,
+          "brotli": 4589
+        }
+      ],
+      "total": {
+        "raw": 8326220,
+        "gzip": 2876088,
+        "brotli": 1922820
+      }
+    },
+    "wasm_loader": {
+      "files": [
+        {
+          "file": "packages/nitro-xml/loader/apply.js",
+          "raw": 5914,
+          "gzip": 1538,
+          "brotli": 1356
+        },
+        {
+          "file": "packages/nitro-xml/loader/bootstrap.js",
+          "raw": 4466,
+          "gzip": 1341,
+          "brotli": 1194
+        },
+        {
+          "file": "packages/nitro-xml/loader/docx-element.js",
+          "raw": 529,
+          "gzip": 344,
+          "brotli": 300
+        },
+        {
+          "file": "packages/nitro-xml/loader/element.js",
+          "raw": 12431,
+          "gzip": 4099,
+          "brotli": 3558
+        },
+        {
+          "file": "packages/nitro-xml/loader/events.js",
+          "raw": 3611,
+          "gzip": 1101,
+          "brotli": 1012
+        },
+        {
+          "file": "packages/nitro-xml/loader/font-source.js",
+          "raw": 395,
+          "gzip": 194,
+          "brotli": 168
+        },
+        {
+          "file": "packages/nitro-xml/loader/formats.js",
+          "raw": 2438,
+          "gzip": 1050,
+          "brotli": 842
+        },
+        {
+          "file": "packages/nitro-xml/loader/index.js",
+          "raw": 1598,
+          "gzip": 682,
+          "brotli": 575
+        },
+        {
+          "file": "packages/nitro-xml/loader/layout-readback.js",
+          "raw": 2987,
+          "gzip": 1170,
+          "brotli": 996
+        },
+        {
+          "file": "packages/nitro-xml/loader/measure.js",
+          "raw": 2463,
+          "gzip": 1009,
+          "brotli": 910
+        },
+        {
+          "file": "packages/nitro-xml/loader/metafile-resolve.js",
+          "raw": 639,
+          "gzip": 429,
+          "brotli": 377
+        },
+        {
+          "file": "packages/nitro-xml/loader/pptx-element.js",
+          "raw": 321,
+          "gzip": 233,
+          "brotli": 207
+        },
+        {
+          "file": "packages/nitro-xml/loader/session.js",
+          "raw": 4823,
+          "gzip": 1594,
+          "brotli": 1418
+        },
+        {
+          "file": "packages/nitro-xml/loader/worker-host.js",
+          "raw": 8552,
+          "gzip": 2688,
+          "brotli": 2395
+        },
+        {
+          "file": "packages/nitro-xml/loader/worker.js",
+          "raw": 5012,
+          "gzip": 1478,
+          "brotli": 1316
+        },
+        {
+          "file": "packages/nitro-xml/loader/xlsx-element.js",
+          "raw": 418,
+          "gzip": 288,
+          "brotli": 240
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/chrome-patch.js",
+          "raw": 418,
+          "gzip": 283,
+          "brotli": 237
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/docx-caret.js",
+          "raw": 13362,
+          "gzip": 4624,
+          "brotli": 4007
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/download.js",
+          "raw": 428,
+          "gzip": 295,
+          "brotli": 222
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/frame-build.js",
+          "raw": 5407,
+          "gzip": 2006,
+          "brotli": 1710
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/glyph-outline.js",
+          "raw": 12179,
+          "gzip": 4074,
+          "brotli": 3618
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/input-proxy.js",
+          "raw": 13327,
+          "gzip": 4945,
+          "brotli": 4229
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/journal.js",
+          "raw": 2656,
+          "gzip": 948,
+          "brotli": 819
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/outline-worker.js",
+          "raw": 708,
+          "gzip": 378,
+          "brotli": 341
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/paint-frame.js",
+          "raw": 3849,
+          "gzip": 1353,
+          "brotli": 1182
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/preload.js",
+          "raw": 1173,
+          "gzip": 667,
+          "brotli": 564
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/recovery.js",
+          "raw": 2651,
+          "gzip": 998,
+          "brotli": 859
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/save.js",
+          "raw": 560,
+          "gzip": 378,
+          "brotli": 295
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/shortcut.js",
+          "raw": 398,
+          "gzip": 276,
+          "brotli": 251
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/theme.js",
+          "raw": 3280,
+          "gzip": 1503,
+          "brotli": 1270
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/worker-host-tick.js",
+          "raw": 3956,
+          "gzip": 1497,
+          "brotli": 1309
+        },
+        {
+          "file": "packages/nitro-xml/loader/lazy/wp.js",
+          "raw": 10034,
+          "gzip": 3321,
+          "brotli": 2921
+        }
+      ],
+      "total": {
+        "raw": 130983,
+        "gzip": 46784,
+        "brotli": 40698
+      }
+    }
+  },
+  "cold_open_rows": [
+    {
+      "format": "xlsx",
+      "tier": "S",
+      "fixture": "fixtures/generated/xlsx/cells_1k.xlsx",
+      "file_bytes": 8012,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 8.97,
+        "p95": 11.33,
+        "stdev": 1.09,
+        "iqr": 1.04,
+        "samples": [
+          9.876,
+          9.663,
+          9.339,
+          8.193,
+          7.435,
+          8.41,
+          9.302,
+          10.095,
+          9.065,
+          8.604,
+          8.692,
+          8.519,
+          8.191,
+          8.487,
+          8.992,
+          9.449,
+          8.971,
+          11.404,
+          7.065,
+          8.007,
+          11.332
+        ],
+        "entry": "ooxml-core/xlsx/load loadWorkbook"
+      },
+      "wasm": {
+        "median": 1.86,
+        "p95": 2.19,
+        "stdev": 0.13,
+        "iqr": 0.09,
+        "samples": [
+          1.935,
+          1.864,
+          1.824,
+          1.846,
+          1.887,
+          1.883,
+          1.857,
+          1.937,
+          1.801,
+          1.711,
+          1.923,
+          1.815,
+          2.189,
+          1.808,
+          1.884,
+          2.26,
+          1.87,
+          1.745,
+          1.745,
+          1.738,
+          1.793
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.207,
+      "wasm_over_ts_ci95": {
+        "lo": 0.19515534033291937,
+        "hi": 0.22100000316932492,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": "TS loadWorkbook is a full workbook parse; WASM openDocument uses open_first_view (viewport) + first process_frame — not identical work, especially at L/XL after #283."
+    },
+    {
+      "format": "xlsx",
+      "tier": "M",
+      "fixture": "fixtures/generated/xlsx/cells_100k.xlsx",
+      "file_bytes": 503874,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 253.84,
+        "p95": 272.42,
+        "stdev": 13.61,
+        "iqr": 22.09,
+        "samples": [
+          260.512,
+          272.219,
+          254.245,
+          262.318,
+          260.32,
+          253.173,
+          244.749,
+          253.88,
+          263.937,
+          239.691,
+          240.225,
+          240.618,
+          267.25,
+          234.241,
+          241.743,
+          253.839,
+          230.103,
+          238.67,
+          235.552,
+          272.502,
+          272.416
+        ],
+        "entry": "ooxml-core/xlsx/load loadWorkbook"
+      },
+      "wasm": {
+        "median": 14.17,
+        "p95": 15.64,
+        "stdev": 4.19,
+        "iqr": 0.67,
+        "samples": [
+          13.938,
+          14.027,
+          14.151,
+          14.268,
+          14.202,
+          33.479,
+          15.641,
+          15.261,
+          15.12,
+          14.782,
+          14.912,
+          14.249,
+          13.956,
+          14.111,
+          14.016,
+          14.12,
+          14.131,
+          14.171,
+          14.054,
+          14.677,
+          14.162
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.056,
+      "wasm_over_ts_ci95": {
+        "lo": 0.05428484476397539,
+        "hi": 0.05929810107669006,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": "TS loadWorkbook is a full workbook parse; WASM openDocument uses open_first_view (viewport) + first process_frame — not identical work, especially at L/XL after #283."
+    },
+    {
+      "format": "xlsx",
+      "tier": "L",
+      "fixture": "fixtures/generated/xlsx/cells_1m.xlsx",
+      "file_bytes": 5047589,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 1503.17,
+        "p95": 1572.56,
+        "stdev": 63.52,
+        "iqr": 90.11,
+        "samples": [
+          1572.563,
+          1565.005,
+          1418.899,
+          1564.569,
+          1652.381,
+          1412.008,
+          1450.538,
+          1522.156,
+          1493.023,
+          1468.206,
+          1503.174,
+          1496.529,
+          1455.967,
+          1496.66,
+          1564.763,
+          1546.079,
+          1527.637,
+          1537.587,
+          1447.418,
+          1388.666,
+          1519.784
+        ],
+        "entry": "ooxml-core/xlsx/load loadWorkbook"
+      },
+      "wasm": {
+        "median": 9.73,
+        "p95": 11.99,
+        "stdev": 18.57,
+        "iqr": 0.73,
+        "samples": [
+          9.726,
+          9.751,
+          9.575,
+          9.735,
+          9.859,
+          9.598,
+          9.375,
+          9.549,
+          9.439,
+          94.957,
+          9.758,
+          9.649,
+          9.504,
+          9.475,
+          9.646,
+          10.307,
+          10.46,
+          10.46,
+          10.377,
+          11.992,
+          10.017
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.006,
+      "wasm_over_ts_ci95": {
+        "lo": 0.0062962551762631635,
+        "hi": 0.006697372798626786,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": "TS loadWorkbook is a full workbook parse; WASM openDocument uses open_first_view (viewport) + first process_frame — not identical work, especially at L/XL after #283."
+    },
+    {
+      "format": "xlsx",
+      "tier": "XL",
+      "fixture": "fixtures/generated/xlsx/xl_a.xlsx",
+      "file_bytes": 17156808,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 5069.06,
+        "p95": 5317.32,
+        "stdev": 161.77,
+        "iqr": 156.21,
+        "samples": [
+          5000.252,
+          5151.401,
+          5387.937,
+          5071.134,
+          4840.62,
+          5076.097,
+          5042.053,
+          5317.321,
+          4995.195,
+          4996.04,
+          5281.274,
+          5150.7,
+          5105.062,
+          5069.064,
+          4845.004,
+          5273.401,
+          4852.158,
+          5261.503,
+          4867.671,
+          4958.663,
+          5009.94
+        ],
+        "entry": "ooxml-core/xlsx/load loadWorkbook"
+      },
+      "wasm": {
+        "median": 48.72,
+        "p95": 50.2,
+        "stdev": 0.71,
+        "iqr": 0.64,
+        "samples": [
+          49.79,
+          48.062,
+          49.138,
+          48.611,
+          49.229,
+          50.032,
+          48.977,
+          48.256,
+          48.094,
+          48.715,
+          48.369,
+          48.771,
+          49.148,
+          48.513,
+          50.63,
+          48.694,
+          48.652,
+          48.856,
+          48.153,
+          48.625,
+          50.198
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.01,
+      "wasm_over_ts_ci95": {
+        "lo": 0.009456698762765841,
+        "hi": 0.009794821204914289,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": "TS loadWorkbook is a full workbook parse; WASM openDocument uses open_first_view (viewport) + first process_frame — not identical work, especially at L/XL after #283."
+    },
+    {
+      "format": "docx",
+      "tier": "S",
+      "fixture": "fixtures/generated/docx/pages_10.docx",
+      "file_bytes": 2945,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 4.3,
+        "p95": 5.35,
+        "stdev": 0.52,
+        "iqr": 0.49,
+        "samples": [
+          5.018,
+          4.448,
+          4.364,
+          4.189,
+          4.19,
+          4.085,
+          6.134,
+          4.79,
+          4.021,
+          4.154,
+          4.669,
+          4.285,
+          4.337,
+          5.065,
+          4.17,
+          4.233,
+          4.646,
+          4.178,
+          4.305,
+          4.181,
+          5.348
+        ],
+        "entry": "ooxml-core/docx/load loadDocument"
+      },
+      "wasm": {
+        "median": 1.08,
+        "p95": 1.9,
+        "stdev": 0.38,
+        "iqr": 0.21,
+        "samples": [
+          1.162,
+          1.896,
+          1.215,
+          1.19,
+          1.031,
+          1.608,
+          2.508,
+          1.126,
+          1.361,
+          1.078,
+          1.031,
+          1.004,
+          1.042,
+          0.945,
+          0.961,
+          1.105,
+          0.989,
+          1.024,
+          0.961,
+          0.987,
+          1.256
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.25,
+      "wasm_over_ts_ci95": {
+        "lo": 0.22811240838245378,
+        "hi": 0.2774273243843992,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": null
+    },
+    {
+      "format": "docx",
+      "tier": "M",
+      "fixture": "fixtures/generated/docx/pages_100.docx",
+      "file_bytes": 403491,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 12.24,
+        "p95": 12.99,
+        "stdev": 0.69,
+        "iqr": 0.96,
+        "samples": [
+          12.722,
+          12.971,
+          12.455,
+          13.286,
+          12.107,
+          12.986,
+          12.297,
+          12.924,
+          12.238,
+          11.131,
+          12.815,
+          11.758,
+          11.795,
+          12.37,
+          11.929,
+          10.935,
+          12.642,
+          11.566,
+          11.157,
+          12.09,
+          11.24
+        ],
+        "entry": "ooxml-core/docx/load loadDocument"
+      },
+      "wasm": {
+        "median": 1.22,
+        "p95": 1.35,
+        "stdev": 0.14,
+        "iqr": 0.07,
+        "samples": [
+          1.284,
+          1.224,
+          1.355,
+          1.212,
+          1.219,
+          1.223,
+          1.838,
+          1.165,
+          1.205,
+          1.216,
+          1.318,
+          1.202,
+          1.187,
+          1.256,
+          1.258,
+          1.322,
+          1.254,
+          1.201,
+          1.245,
+          1.212,
+          1.344
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.1,
+      "wasm_over_ts_ci95": {
+        "lo": 0.09671820854753685,
+        "hi": 0.10586512870165735,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": null
+    },
+    {
+      "format": "docx",
+      "tier": "L",
+      "fixture": "fixtures/generated/docx/pages_500.docx",
+      "file_bytes": 2461324,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 1121.49,
+        "p95": 1367.58,
+        "stdev": 118.8,
+        "iqr": 165.11,
+        "samples": [
+          1239.213,
+          1182.748,
+          1074.624,
+          1074.101,
+          1124.625,
+          1053.326,
+          1088.162,
+          1245.745,
+          1254.944,
+          1256.42,
+          1041.514,
+          1117.169,
+          1367.579,
+          1442.24,
+          1205.245,
+          1097.78,
+          1152.98,
+          1121.487,
+          1035.657,
+          991.513,
+          988.429
+        ],
+        "entry": "ooxml-core/docx/load loadDocument"
+      },
+      "wasm": {
+        "median": 449.75,
+        "p95": 473.9,
+        "stdev": 9.96,
+        "iqr": 11.33,
+        "samples": [
+          458.998,
+          451.609,
+          448.818,
+          458.386,
+          447.584,
+          443.497,
+          450.193,
+          462.454,
+          473.899,
+          445.375,
+          449.754,
+          453.704,
+          483.135,
+          448.668,
+          460.442,
+          454.64,
+          447.054,
+          446.415,
+          445.672,
+          447.395,
+          447.006
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.401,
+      "wasm_over_ts_ci95": {
+        "lo": 0.3713638573282297,
+        "hi": 0.4189302676998057,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": null
+    },
+    {
+      "format": "docx",
+      "tier": "XL",
+      "fixture": "fixtures/generated/docx/xl_a.docx",
+      "file_bytes": 11773330,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": null,
+        "p95": null,
+        "stdev": null,
+        "iqr": null,
+        "samples": [],
+        "entry": "ooxml-core/docx/load loadDocument"
+      },
+      "wasm": {
+        "median": null,
+        "p95": null,
+        "stdev": null,
+        "iqr": null,
+        "samples": [],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": null,
+      "wasm_over_ts_ci95": null,
+      "verdict": "BLOCKED",
+      "note": "TS oracle (ooxml-core loadDocument) rejects word/document.xml > 25 MiB; xl_a.docx word/document.xml exceeds this limit. Blocker for TS-side measurement only. WASM can open the file. See draft issue."
+    },
+    {
+      "format": "pptx",
+      "tier": "S",
+      "fixture": "fixtures/generated/pptx/slides_10.pptx",
+      "file_bytes": 11993,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 20.8,
+        "p95": 22.8,
+        "stdev": 10.48,
+        "iqr": 1.37,
+        "samples": [
+          21.219,
+          68.383,
+          19.883,
+          22.797,
+          20.801,
+          21.569,
+          20.386,
+          21.156,
+          18.539,
+          21.989,
+          20.21,
+          18.016,
+          21.767,
+          20.587,
+          20.032,
+          20.63,
+          21.36,
+          18.472,
+          21.581,
+          22.182,
+          20.236
+        ],
+        "entry": "ooxml-core/pptx PptxHandler.load"
+      },
+      "wasm": {
+        "median": 0.73,
+        "p95": 0.81,
+        "stdev": 0.05,
+        "iqr": 0.08,
+        "samples": [
+          0.802,
+          0.882,
+          0.809,
+          0.76,
+          0.79,
+          0.754,
+          0.693,
+          0.736,
+          0.709,
+          0.734,
+          0.714,
+          0.772,
+          0.81,
+          0.791,
+          0.708,
+          0.708,
+          0.696,
+          0.691,
+          0.732,
+          0.678,
+          0.67
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.035,
+      "wasm_over_ts_ci95": {
+        "lo": 0.033190670488527294,
+        "hi": 0.0374150114927332,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": null
+    },
+    {
+      "format": "pptx",
+      "tier": "M",
+      "fixture": "fixtures/generated/pptx/slides_50.pptx",
+      "file_bytes": 442863,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 75.05,
+        "p95": 126.78,
+        "stdev": 26.38,
+        "iqr": 4.08,
+        "samples": [
+          75.314,
+          68.575,
+          73.454,
+          76.864,
+          69.599,
+          73.34,
+          65.898,
+          182.824,
+          75.993,
+          77.56,
+          75.048,
+          63.363,
+          73.84,
+          75.498,
+          71.111,
+          74.264,
+          71.912,
+          75.086,
+          76.449,
+          126.78,
+          75.532
+        ],
+        "entry": "ooxml-core/pptx PptxHandler.load"
+      },
+      "wasm": {
+        "median": 0.98,
+        "p95": 1.02,
+        "stdev": 0.02,
+        "iqr": 0.03,
+        "samples": [
+          1.005,
+          0.984,
+          1.021,
+          1.025,
+          1.018,
+          1.013,
+          1.011,
+          1.009,
+          0.966,
+          0.95,
+          0.974,
+          0.976,
+          1.022,
+          0.995,
+          0.959,
+          0.976,
+          0.957,
+          1.008,
+          0.98,
+          0.982,
+          0.98
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.013,
+      "wasm_over_ts_ci95": {
+        "lo": 0.012959092819818748,
+        "hi": 0.013708215979791919,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": null
+    },
+    {
+      "format": "pptx",
+      "tier": "L",
+      "fixture": "fixtures/generated/pptx/slides_200.pptx",
+      "file_bytes": 2683951,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 1449.1,
+        "p95": 1532.87,
+        "stdev": 49.87,
+        "iqr": 34.36,
+        "samples": [
+          1532.867,
+          1468.677,
+          1450.407,
+          1488.969,
+          1432.929,
+          1445.155,
+          1427.873,
+          1491.157,
+          1435.987,
+          1447.709,
+          1433.17,
+          1457.274,
+          1399.672,
+          1392.939,
+          1435.301,
+          1469.662,
+          1439.206,
+          1531.2,
+          1616.918,
+          1449.103,
+          1456.367
+        ],
+        "entry": "ooxml-core/pptx PptxHandler.load"
+      },
+      "wasm": {
+        "median": 6.69,
+        "p95": 6.82,
+        "stdev": 0.1,
+        "iqr": 0.08,
+        "samples": [
+          6.774,
+          6.64,
+          6.679,
+          6.72,
+          6.704,
+          6.779,
+          6.647,
+          6.641,
+          6.643,
+          6.747,
+          7.087,
+          6.701,
+          6.692,
+          6.724,
+          6.67,
+          6.637,
+          6.635,
+          6.816,
+          6.637,
+          6.627,
+          6.686
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.005,
+      "wasm_over_ts_ci95": {
+        "lo": 0.004552113812239881,
+        "hi": 0.00466040586184788,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": null
+    },
+    {
+      "format": "pptx",
+      "tier": "XL",
+      "fixture": "fixtures/generated/pptx/xl_a.pptx",
+      "file_bytes": 12453351,
+      "metric": "cold_open_ms",
+      "ts": {
+        "median": 4935.57,
+        "p95": 5179.69,
+        "stdev": 161.88,
+        "iqr": 223.28,
+        "samples": [
+          5056.086,
+          5136.395,
+          5122.838,
+          4935.567,
+          4746.982,
+          5022.649,
+          4888.489,
+          4750.887,
+          4813.424,
+          5003.347,
+          5070.903,
+          5184.334,
+          4893.104,
+          4872.934,
+          4924.812,
+          4756.917,
+          4978.544,
+          5162.518,
+          5179.689,
+          4847.62,
+          4617.153
+        ],
+        "entry": "ooxml-core/pptx PptxHandler.load"
+      },
+      "wasm": {
+        "median": 28.88,
+        "p95": 31.21,
+        "stdev": 2.65,
+        "iqr": 4.9,
+        "samples": [
+          25.276,
+          25.255,
+          25.322,
+          24.848,
+          30.567,
+          30.832,
+          24.909,
+          24.89,
+          29.989,
+          29.985,
+          24.775,
+          25.151,
+          29.746,
+          28.66,
+          28.875,
+          31.681,
+          30.159,
+          30.745,
+          30.062,
+          31.207,
+          26.074
+        ],
+        "entry": "Handle.openDocument"
+      },
+      "wasm_over_ts_median": 0.006,
+      "wasm_over_ts_ci95": {
+        "lo": 0.005051783441092251,
+        "hi": 0.006149537846327988,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN",
+      "note": null
+    }
+  ],
+  "peak_mem_rows": [
+    {
+      "format": "xlsx",
+      "tier": "S",
+      "fixture": "fixtures/generated/xlsx/cells_1k.xlsx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": 6.45,
+        "p95": 6.71,
+        "stdev": 0.24,
+        "samples": [
+          6.453,
+          6.34,
+          6.039,
+          6.719,
+          6.316,
+          6.695,
+          6.59
+        ]
+      },
+      "wasm": {
+        "median": 13.58,
+        "p95": 14.66,
+        "stdev": 0.59,
+        "samples": [
+          13.121,
+          13.629,
+          14.867,
+          14.172,
+          13.582,
+          13.391,
+          13.43
+        ]
+      },
+      "wasm_over_ts_mem": 2.105,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 2.005974607916355,
+        "hi": 2.235331230283912,
+        "bootstrap": 2000
+      },
+      "verdict": "LOSS"
+    },
+    {
+      "format": "xlsx",
+      "tier": "M",
+      "fixture": "fixtures/generated/xlsx/cells_100k.xlsx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": 239.3,
+        "p95": 240.38,
+        "stdev": 1.86,
+        "samples": [
+          236.852,
+          239.961,
+          240.563,
+          239.836,
+          235.488,
+          239.297,
+          239.266
+        ]
+      },
+      "wasm": {
+        "median": 16.16,
+        "p95": 17.19,
+        "stdev": 0.83,
+        "samples": [
+          16.184,
+          15.355,
+          16.16,
+          17.359,
+          15.605,
+          14.977,
+          16.781
+        ]
+      },
+      "wasm_over_ts_mem": 0.068,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 0.06402291565903367,
+        "hi": 0.07013533055260672,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN"
+    },
+    {
+      "format": "xlsx",
+      "tier": "L",
+      "fixture": "fixtures/generated/xlsx/cells_1m.xlsx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": 741.81,
+        "p95": 743.94,
+        "stdev": 4.91,
+        "samples": [
+          743.5,
+          741.813,
+          733.926,
+          743.109,
+          732.887,
+          744.133,
+          735.699
+        ]
+      },
+      "wasm": {
+        "median": 22.73,
+        "p95": 24.17,
+        "stdev": 1.25,
+        "samples": [
+          24.539,
+          22.105,
+          23.32,
+          22.512,
+          22.73,
+          20.422,
+          22.941
+        ]
+      },
+      "wasm_over_ts_mem": 0.031,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 0.029746645512300347,
+        "hi": 0.03169774595316835,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN"
+    },
+    {
+      "format": "xlsx",
+      "tier": "XL",
+      "fixture": "fixtures/generated/xlsx/xl_a.xlsx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": null,
+        "p95": null,
+        "stdev": null,
+        "samples": []
+      },
+      "wasm": {
+        "median": null,
+        "p95": null,
+        "stdev": null,
+        "samples": []
+      },
+      "wasm_over_ts_mem": null,
+      "wasm_over_ts_mem_ci95": null,
+      "verdict": "NOT_MEASURED",
+      "note": "peak-mem.mjs does not enumerate XL fixtures; add xl_a.* to its FIXTURES array to measure. See draft issue."
+    },
+    {
+      "format": "docx",
+      "tier": "S",
+      "fixture": "fixtures/generated/docx/pages_10.docx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": 1.96,
+        "p95": 2.29,
+        "stdev": 0.21,
+        "samples": [
+          2.129,
+          1.707,
+          1.965,
+          1.91,
+          2.363,
+          1.887,
+          2.039
+        ]
+      },
+      "wasm": {
+        "median": 12.4,
+        "p95": 12.94,
+        "stdev": 0.86,
+        "samples": [
+          11.098,
+          11.746,
+          13.023,
+          12.523,
+          12.762,
+          10.785,
+          12.402
+        ]
+      },
+      "wasm_over_ts_mem": 6.312,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 5.442864149092692,
+        "hi": 6.681675392670158,
+        "bootstrap": 2000
+      },
+      "verdict": "LOSS"
+    },
+    {
+      "format": "docx",
+      "tier": "M",
+      "fixture": "fixtures/generated/docx/pages_100.docx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": 9.25,
+        "p95": 9.78,
+        "stdev": 1.02,
+        "samples": [
+          9.426,
+          9.789,
+          9.25,
+          7.418,
+          9.773,
+          7.527,
+          8.301
+        ]
+      },
+      "wasm": {
+        "median": 12.13,
+        "p95": 12.63,
+        "stdev": 0.42,
+        "samples": [
+          12.594,
+          12.543,
+          11.641,
+          12.133,
+          11.961,
+          12.652,
+          11.734
+        ]
+      },
+      "wasm_over_ts_mem": 1.312,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 1.2238821242197893,
+        "hi": 1.6664009565563969,
+        "bootstrap": 2000
+      },
+      "verdict": "LOSS"
+    },
+    {
+      "format": "docx",
+      "tier": "L",
+      "fixture": "fixtures/generated/docx/pages_500.docx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": 273.05,
+        "p95": 279.37,
+        "stdev": 3.37,
+        "samples": [
+          272.387,
+          271.352,
+          278.996,
+          279.527,
+          272.148,
+          273.047,
+          273.813
+        ]
+      },
+      "wasm": {
+        "median": 209,
+        "p95": 210.59,
+        "stdev": 1.6,
+        "samples": [
+          207.652,
+          207.355,
+          209.422,
+          209,
+          210.367,
+          210.688,
+          206.453
+        ]
+      },
+      "wasm_over_ts_mem": 0.765,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 0.7442830721587407,
+        "hi": 0.7723092511757169,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN"
+    },
+    {
+      "format": "docx",
+      "tier": "XL",
+      "fixture": "fixtures/generated/docx/xl_a.docx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": null,
+        "p95": null,
+        "stdev": null,
+        "samples": []
+      },
+      "wasm": {
+        "median": null,
+        "p95": null,
+        "stdev": null,
+        "samples": []
+      },
+      "wasm_over_ts_mem": null,
+      "wasm_over_ts_mem_ci95": null,
+      "verdict": "NOT_MEASURED",
+      "note": "peak-mem.mjs does not enumerate XL fixtures; add xl_a.* to its FIXTURES array to measure. See draft issue."
+    },
+    {
+      "format": "pptx",
+      "tier": "S",
+      "fixture": "fixtures/generated/pptx/slides_10.pptx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": 14.78,
+        "p95": 16.06,
+        "stdev": 1.14,
+        "samples": [
+          13.121,
+          15.742,
+          13.535,
+          15.512,
+          16.191,
+          14.777,
+          14.707
+        ]
+      },
+      "wasm": {
+        "median": 8.77,
+        "p95": 9.46,
+        "stdev": 0.39,
+        "samples": [
+          8.766,
+          8.859,
+          8.488,
+          8.773,
+          8.727,
+          9.711,
+          8.805
+        ]
+      },
+      "wasm_over_ts_mem": 0.594,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 0.5568542751873967,
+        "hi": 0.6545253047654229,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN"
+    },
+    {
+      "format": "pptx",
+      "tier": "M",
+      "fixture": "fixtures/generated/pptx/slides_50.pptx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": 25.91,
+        "p95": 30.93,
+        "stdev": 3.46,
+        "samples": [
+          26.051,
+          30.902,
+          22.793,
+          25.914,
+          30.941,
+          23.328,
+          23.48
+        ]
+      },
+      "wasm": {
+        "median": 10.02,
+        "p95": 11.11,
+        "stdev": 0.53,
+        "samples": [
+          9.961,
+          11.223,
+          9.895,
+          9.883,
+          10.082,
+          10.016,
+          10.836
+        ]
+      },
+      "wasm_over_ts_mem": 0.386,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 0.322341596013203,
+        "hi": 0.4614991482112436,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN"
+    },
+    {
+      "format": "pptx",
+      "tier": "L",
+      "fixture": "fixtures/generated/pptx/slides_200.pptx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": 146.56,
+        "p95": 149.42,
+        "stdev": 3.15,
+        "samples": [
+          147.656,
+          146.559,
+          141.676,
+          141.598,
+          150.18,
+          145.02,
+          146.863
+        ]
+      },
+      "wasm": {
+        "median": 24.02,
+        "p95": 26.38,
+        "stdev": 1.72,
+        "samples": [
+          25.668,
+          25.32,
+          26.684,
+          21.742,
+          24.023,
+          22.762,
+          23.875
+        ]
+      },
+      "wasm_over_ts_mem": 0.164,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 0.15498798199682698,
+        "hi": 0.17871763742624017,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN"
+    },
+    {
+      "format": "pptx",
+      "tier": "XL",
+      "fixture": "fixtures/generated/pptx/xl_a.pptx",
+      "metric": "peak_rss_mib",
+      "ts": {
+        "median": null,
+        "p95": null,
+        "stdev": null,
+        "samples": []
+      },
+      "wasm": {
+        "median": null,
+        "p95": null,
+        "stdev": null,
+        "samples": []
+      },
+      "wasm_over_ts_mem": null,
+      "wasm_over_ts_mem_ci95": null,
+      "verdict": "NOT_MEASURED",
+      "note": "peak-mem.mjs does not enumerate XL fixtures; add xl_a.* to its FIXTURES array to measure. See draft issue."
+    }
+  ],
+  "caveats": [
+    "WASM openDocument is Handle.openDocument after Node-side initSync — not browser first-paint. Browser adds WASM fetch+compile+instantiate time on cold page load.",
+    "xlsx asymmetry: TS=full loadWorkbook; WASM=open_first_view + process_frame (lazy per-sheet parse; not identical work, especially at L/XL after #283)",
+    "docx XL (xl_a.docx): TS oracle rejects word/document.xml > 25 MiB — BLOCKED for fair comparison. WASM opens the file; a one-sided WASM-only time is not useful. See draft issue.",
+    "XL peak memory: peak-mem.mjs does not enumerate XL fixtures; xl_a.* rows show NOT_MEASURED. See draft issue.",
+    "Save latency: not measured at M1 viewer stage — WASM save path not yet available. See draft issue.",
+    "Node-only benchmarks (not browser first-paint / scroll / scroll-query); those metrics remain TODO(#8).",
+    "Platform: Linux x86_64 CI box; results may differ on macOS/Apple Silicon. The spec gates perf in Chromium.",
+    "Known-loss exceptions per Jared #30: xlsx S peak_mem, docx S/M peak_mem — stay LOSS with numbers; they are not gate-blocking.",
+    "Perf gate is in REPORT MODE (PERF_GATE_MODE=report). WASM-beats-TS is tracked but not enforced. Jared sets PERF_GATE_MODE=enforce when READY (see #8)."
+  ]
+}

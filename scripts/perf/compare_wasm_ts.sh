@@ -220,6 +220,24 @@ for fmt in "${FMT_ARR[@]}"; do
     --json > "$MEM_DIR/$fmt.json"
 done
 
+# --- Browser e2e (Playwright, optional — skipped if Python/Playwright unavailable) ---
+BROWSER_E2E_JSON="$OUT_DIR/browser-e2e.json"
+PLAYWRIGHT_PYTHON="${COMPARE_PLAYWRIGHT_PYTHON:-/workspace/pw-venv/bin/python}"
+if command -v "$PLAYWRIGHT_PYTHON" >/dev/null 2>&1 \
+   && [ -f "$ROOT/scripts/perf/browser_e2e.py" ]; then
+  echo "compare_wasm_ts.sh: browser e2e Playwright (runs=${COMPARE_BROWSER_RUNS:-7})"
+  mkdir -p "$OUT_DIR"
+  "$PLAYWRIGHT_PYTHON" "$ROOT/scripts/perf/browser_e2e.py" \
+    --formats "$FORMATS" \
+    --tiers "$TIERS" \
+    --runs "${COMPARE_BROWSER_RUNS:-7}" \
+    --bootstrap "$BOOTSTRAP" \
+    --out "$BROWSER_E2E_JSON" 2>&1 \
+  || echo "compare_wasm_ts.sh: WARNING browser_e2e.py failed; browser e2e section will be absent"
+else
+  echo "compare_wasm_ts.sh: Playwright Python not at $PLAYWRIGHT_PYTHON or browser_e2e.py missing; skipping browser e2e"
+fi
+
 # --- Bundle sizes (perf/sizes.mjs) ---
 SIZES_JSON="$TMP_DIR/sizes.json"
 echo "compare_wasm_ts.sh: bundle sizes"
@@ -281,11 +299,11 @@ OUT_JSON="$OUT_DIR/wasm-vs-ts.json"
 mkdir -p "$OUT_DIR"
 
 node - "$TMP_DIR" "$FORMATS" "$TIERS" "$SHA" "$WHEN" "$HOST_OS" "$HOST_ARCH" "$NODE_VER" \
-     "$OUT_JSON" "$OUT_MD" <<'JS'
+     "$OUT_JSON" "$OUT_MD" "$BROWSER_E2E_JSON" <<'JS'
 const { readFileSync, writeFileSync, existsSync } = require("fs");
 const { join } = require("path");
 
-const [tmpDir, fmtsArg, tiersArg, sha, when, hostOs, hostArch, nodeVer, outJson, outMd] =
+const [tmpDir, fmtsArg, tiersArg, sha, when, hostOs, hostArch, nodeVer, outJson, outMd, browserE2eJson] =
   process.argv.slice(2);
 const formats = fmtsArg.split(",");
 const tiers = tiersArg.split(",");
@@ -316,6 +334,7 @@ function f3(n) { return Number.isFinite(n) ? +n.toFixed(3) : null; }
 
 const hashes = tryRead(join(tmpDir, "hashes.json")) || {};
 const sizes = tryRead(join(tmpDir, "sizes.json"));
+const browserE2e = tryRead(browserE2eJson);
 
 // Gather open + mem rows
 const openRows = [];
@@ -399,14 +418,18 @@ const report = {
   sizes_missing: sizes ? sizes.missing : ["perf/dist/ts/* (not built)", "packages/nitro-xml/pkg/* (not built)"],
   cold_open_rows: openRows,
   peak_mem_rows: memRows,
+  browser_e2e_rows: browserE2e ? browserE2e.rows : null,
+  browser_e2e_meta: browserE2e ? { description: browserE2e.description, chromium_bin: browserE2e.chromium_bin, runs_per_fixture: browserE2e.runs_per_fixture } : null,
   caveats: [
-    "WASM openDocument is Handle.openDocument (viewer open path; not browser first-paint including wasm fetch+compile+instantiate time, which adds latency on cold page load)",
-    "xlsx asymmetry: TS=full loadWorkbook; WASM=open_first_view + process_frame (not identical work, especially at L/XL after #283)",
+    "xlsx metric = 'time to first view' (not full load): TS loadWorkbook loads the entire workbook; WASM openDocument calls open_first_view (lazy per-sheet parse, only the first visible sheet is parsed). Both timings reflect first-sheet availability, not full-workbook completion. Rows are labeled 'time-to-first-view' in the cold-open table. See #283.",
+    "Node cold-open numbers start after initSync — they do not include WASM fetch, compile, or instantiate. See the 'Browser e2e' section for timings that include the full cold-start path.",
+    "docx XL cold open: TS oracle rejects word/document.xml > 25 MiB — BLOCKED for fair comparison (see #550).",
+    "docx XL peak memory: same TS oracle limit applies — BLOCKED.",
     "XL tier benchmarks run with COMPARE_ALLOW_LARGE_XL=0 by default; large fixtures (>50 MiB) are skipped to avoid OOM on constrained runners",
     "Save latency: not measured — WASM save path not yet available at M1 viewer stage",
-    "Node benchmarks only (not browser first-paint); browser first-paint adds WASM fetch/compile/instantiate overhead not captured here",
     "Platform: Linux x86_64 (not macOS/Apple Silicon); results may differ on other hardware",
     "Perf gate (perf_beats_ts.sh) is in REPORT MODE; WASM-beats-TS is not yet ENFORCED (see #8)",
+    "CI reproduction: compare_wasm_ts.sh runs automatically from scripts/ci/perf.sh record (record mode added in this PR).",
   ],
 };
 
@@ -432,35 +455,72 @@ lines.push(``);
 for (const c of report.caveats) lines.push(`- ${c}`);
 lines.push(``);
 
-lines.push(`## Cold openDocument latency (ms)`);
+lines.push(`## Cold open (Node.js) — ms`);
 lines.push(``);
-lines.push(`N≥${openRows[0]?.wasm?.samples?.length ?? "?"} timed runs (${openRows[0]?.wasm?.samples?.length ? "after warmup" : ""}). Metric: \`performance.now()\` around \`openDocument\`; fresh \`Uint8Array\` copy outside timed span.`);
+lines.push(`xlsx metric = **time to first view** (WASM: open_first_view; TS: full loadWorkbook — both timed to first-sheet availability). docx/pptx: cold openDocument. These numbers start after initSync and do **not** include WASM fetch, compile, or instantiate — see the Browser e2e section below.`);
 lines.push(``);
-lines.push(`| Format | Tier | File (bytes) | TS median | TS p95 | TS stdev | WASM median | WASM p95 | WASM stdev | WASM/TS | 95% CI | Verdict |`);
-lines.push(`|--------|------|-------------:|----------:|-------:|---------:|------------:|---------:|-----------:|--------:|-------:|---------|`);
+lines.push(`N≥${openRows[0]?.wasm?.samples?.length ?? "?"} timed runs (after warmup). Metric: \`performance.now()\` around \`openDocument\`; fresh \`Uint8Array\` copy outside timed span.`);
+lines.push(``);
+lines.push(`| Format | Metric | Tier | File (bytes) | TS median | TS p95 | TS stdev | WASM median | WASM p95 | WASM stdev | WASM/TS | 95% CI | Verdict |`);
+lines.push(`|--------|--------|------|-------------:|----------:|-------:|---------:|------------:|---------:|-----------:|--------:|-------:|---------|`);
 for (const r of openRows) {
   const ci = r.wasm_over_ts_ci95 || {};
   const lo = ci.lo != null ? ci.lo.toFixed(3) : "—";
   const hi = ci.hi != null ? ci.hi.toFixed(3) : "—";
+  const metricLabel = r.format === "xlsx" ? "time-to-first-view" : "cold-open";
   lines.push(
-    `| ${r.format} | ${r.tier} | ${r.file_bytes?.toLocaleString() ?? "—"} | ${fN(r.ts.median)} | ${fN(r.ts.p95)} | ${fN(r.ts.stdev)} | ${fN(r.wasm.median)} | ${fN(r.wasm.p95)} | ${fN(r.wasm.stdev)} | ${fN(r.wasm_over_ts_median, 3)} | [${lo}, ${hi}] | **${ver(r.verdict)}** |`
+    `| ${r.format} | ${metricLabel} | ${r.tier} | ${r.file_bytes?.toLocaleString() ?? "—"} | ${fN(r.ts.median)} | ${fN(r.ts.p95)} | ${fN(r.ts.stdev)} | ${fN(r.wasm.median)} | ${fN(r.wasm.p95)} | ${fN(r.wasm.stdev)} | ${fN(r.wasm_over_ts_median, 3)} | [${lo}, ${hi}] | **${ver(r.verdict)}** |`
   );
 }
 lines.push(``);
 
 lines.push(`## Peak memory — VmHWM growth (MiB)`);
 lines.push(``);
-lines.push(`Fresh Node process per (engine, fixture, run); baseline subtracted (post-init VmHWM).`);
+lines.push(`N=7 runs; fresh Node process per (engine, fixture, run); baseline subtracted (post-init VmHWM). XL tier: xlsx and pptx measured; docx XL BLOCKED (#550 — TS oracle limit). Every measured cell shows the absolute median value and 95% CI.`);
 lines.push(``);
-lines.push(`| Format | Tier | TS median | TS p95 | TS stdev | WASM median | WASM p95 | WASM stdev | WASM/TS | 95% CI | Verdict |`);
-lines.push(`|--------|------|----------:|-------:|---------:|------------:|---------:|-----------:|--------:|-------:|---------|`);
+lines.push(`| Format | Tier | TS median (MiB) | TS p95 | TS stdev | WASM median (MiB) | WASM p95 | WASM stdev | WASM/TS | 95% CI | Verdict |`);
+lines.push(`|--------|------|----------------:|-------:|---------:|------------------:|---------:|-----------:|--------:|-------:|---------|`);
 for (const r of memRows) {
   const ci = r.wasm_over_ts_mem_ci95 || {};
   const lo = ci.lo != null ? ci.lo.toFixed(3) : "—";
   const hi = ci.hi != null ? ci.hi.toFixed(3) : "—";
+  const tsMed = r.ts && r.ts.blocked ? "BLOCKED" : fN(r.ts ? r.ts.median : null, 1);
+  const wasmMed = r.wasm && r.wasm.blocked ? "BLOCKED" : fN(r.wasm ? r.wasm.median : null, 1);
   lines.push(
-    `| ${r.format} | ${r.tier} | ${fN(r.ts.median, 1)} | ${fN(r.ts.p95, 1)} | ${fN(r.ts.stdev, 1)} | ${fN(r.wasm.median, 1)} | ${fN(r.wasm.p95, 1)} | ${fN(r.wasm.stdev, 1)} | ${fN(r.wasm_over_ts_mem, 3)} | [${lo}, ${hi}] | **${ver(r.verdict)}** |`
+    `| ${r.format} | ${r.tier} | ${tsMed} | ${fN(r.ts && !r.ts.blocked ? r.ts.p95 : null, 1)} | ${fN(r.ts && !r.ts.blocked ? r.ts.stdev : null, 1)} | ${wasmMed} | ${fN(r.wasm && !r.wasm.blocked ? r.wasm.p95 : null, 1)} | ${fN(r.wasm && !r.wasm.blocked ? r.wasm.stdev : null, 1)} | ${fN(r.wasm_over_ts_mem, 3)} | [${lo}, ${hi}] | **${r.verdict === "BLOCKED" ? "🚫 BLOCKED" : ver(r.verdict)}** |`
   );
+}
+lines.push(``);
+// docx L callout against previous 1.151× loss
+const docxL = memRows.find(r => r.format === "docx" && r.tier === "L");
+if (docxL && docxL.wasm_over_ts_mem != null) {
+  const prevRatio = 1.151;
+  const curRatio = docxL.wasm_over_ts_mem;
+  const ci = docxL.wasm_over_ts_mem_ci95 || {};
+  const isWin = docxL.verdict === "WIN";
+  lines.push(`> **docx L peak memory vs prior run:** previous ratio = ${prevRatio.toFixed(3)}× (LOSS). Current ratio = ${curRatio.toFixed(3)}× (CI ${ci.lo != null ? ci.lo.toFixed(3) : "—"}–${ci.hi != null ? ci.hi.toFixed(3) : "—"}) → now a **${isWin ? "WIN" : "LOSS"}** (TS median ${fN(docxL.ts ? docxL.ts.median : null, 1)} MiB; WASM median ${fN(docxL.wasm ? docxL.wasm.median : null, 1)} MiB).`);
+}
+lines.push(``);
+
+lines.push(``);
+lines.push(`## Browser end-to-end first paint (ms)`);
+lines.push(``);
+if (browserE2e && browserE2e.rows && browserE2e.rows.length) {
+  lines.push(`Chromium headless shell. Timing: navigationStart → first shadow-DOM content paint. Includes WASM fetch, compile, and instantiate. Fresh browser instance per run (no HTTP cache, no V8 code cache). N=${browserE2e.runs_per_fixture} runs per fixture.`);
+  lines.push(``);
+  lines.push(`| Format | Tier | median (ms) | p95 (ms) | stdev (ms) | spread (ms) | 95% CI |`);
+  lines.push(`|--------|------|------------:|---------:|-----------:|------------:|--------|`);
+  for (const r of browserE2e.rows) {
+    if (r.status !== "OK") {
+      lines.push(`| ${r.format} | ${r.tier} | — | — | — | — | ${r.status} |`);
+      continue;
+    }
+    lines.push(
+      `| ${r.format} | ${r.tier} | ${r.median_ms.toFixed(0)} | ${r.p95_ms.toFixed(0)} | ${r.stdev_ms.toFixed(0)} | ${r.spread_ms.toFixed(0)} | [${r.ci95_lo_ms.toFixed(0)}, ${r.ci95_hi_ms.toFixed(0)}] |`
+    );
+  }
+} else {
+  lines.push(`_Not measured in this run. Run \`/workspace/pw-venv/bin/python scripts/perf/browser_e2e.py\` to generate \`docs/perf/browser-e2e.json\`, then re-run compare_wasm_ts.sh._`);
 }
 lines.push(``);
 
@@ -500,12 +560,13 @@ lines.push(``);
 
 lines.push(`## Method`);
 lines.push(``);
-lines.push(`- **Cold open:** \`perf/large/ts-vs-wasm.mjs\` — TS: upstream ooxml-core \`loadWorkbook\` / \`loadDocument\` / \`PptxHandler.load\`; WASM: \`Handle.openDocument\` after \`initSync\`. Node.js only (not browser first-paint).`);
-lines.push(`- **Peak memory:** \`perf/large/peak-mem.mjs\` — VmHWM from \`/proc/self/status\`, growth over post-init baseline; fresh process per sample.`);
+lines.push(`- **Cold open (Node):** \`perf/large/ts-vs-wasm.mjs\` — xlsx: TS=\`loadWorkbook\` (full), WASM=\`openDocument\` (open_first_view, time-to-first-view). docx/pptx: cold open. After \`initSync\`; does not include WASM fetch/compile.`);
+lines.push(`- **Browser e2e:** \`scripts/perf/browser_e2e.py\` — Playwright headless Chromium; navigationStart to first shadow-DOM content paint; fresh browser per run. Includes WASM fetch, compile, instantiate.`);
+lines.push(`- **Peak memory:** \`perf/large/peak-mem.mjs\` — VmHWM from \`/proc/self/status\`, growth over post-init baseline; fresh process per sample. XL: xlsx + pptx measured; docx XL BLOCKED (#550).`);
 lines.push(`- **Bundle size:** \`perf/sizes.mjs\` — raw + gzip (level 9) + brotli (quality 11); TS bundles from \`perf/dist/ts/\`, WASM from \`packages/nitro-xml/pkg/\`.`);
 lines.push(`- **Statistics:** median, p95, stdev, IQR from raw sample arrays. WASM/TS ratio = median(WASM)/median(TS). 95% CI via unpaired bootstrap (B=2000, deterministic seed).`);
 lines.push(`- **WIN rule:** median ratio < 1 AND 95% CI upper < 1 (PRODUCT_SPEC §5). A tie is a fail.`);
-lines.push(`- **Concurrency:** 1 benchmark at a time (--concurrency is always 1; box shared with other work).`);
+lines.push(`- **CI:** \`scripts/ci/perf.sh record\` calls \`compare_wasm_ts.sh\` automatically (added in this PR).`);
 lines.push(``);
 
 lines.push(`## How to reproduce`);

@@ -1,0 +1,72 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Browser e2e perf harness — copied to _site/demo/perf-e2e.html during _site assembly.
+     Timing: performance.now() at module start (≈navigationStart) to first content DOM paint.
+     Includes WASM fetch + compile + instantiate (fresh context, no HTTP cache).
+     Query params: ?f=xlsx|docx|pptx  &src=/path/to/fixture.xlsx -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Nitro XML · browser e2e perf harness</title>
+  <style>
+    body { margin: 0; }
+    #el { position: absolute; width: 800px; height: 600px; top: 0; left: 0; }
+  </style>
+</head>
+<body>
+<script type="module">
+  const params = new URLSearchParams(location.search);
+  const format = params.get('f') || 'xlsx';
+  const src    = params.get('src'); // e.g. /fixtures/generated/xlsx/cells_1k.xlsx
+
+  // t0 ≈ 0 (time since navigationStart); module starts executing after HTML parse.
+  const t0 = performance.now();
+
+  try {
+    const { initCore, defineNitroXlsx, defineNitroDocx, defineNitroPptx } =
+      await import('./nitro-xml/loader/index.js');
+
+    // Trigger WASM fetch + compile + instantiate in the main thread and worker.
+    await initCore({ fontSource: false });
+
+    if (format === 'xlsx')      defineNitroXlsx();
+    else if (format === 'docx') defineNitroDocx();
+    else                        defineNitroPptx();
+
+    const el = document.createElement('nitro-' + format);
+    el.id = 'el';
+    el.setAttribute('readonly', '');
+    // Set src before connecting so connectedCallback triggers loadUrl.
+    el.setAttribute('src', src);
+    document.body.appendChild(el);
+
+    // Poll shadow DOM for first content paint (open shadow root, format-agnostic).
+    let pollId = setInterval(() => {
+      const sr = el.shadowRoot;
+      if (!sr) return;
+      const painted =
+        sr.querySelector('.dve-print-page') ||   // docx
+        sr.querySelector('.xg-root')           || // xlsx
+        sr.querySelector('[aria-roledescription=slide]') || // pptx
+        (sr.querySelector('.dom') && sr.querySelector('.dom').childElementCount > 0);
+      if (painted) {
+        clearInterval(pollId);
+        clearTimeout(safetyId);
+        window.__perfPaintMs = performance.now() - t0;
+      }
+    }, 50);
+
+    const safetyId = setTimeout(() => {
+      clearInterval(pollId);
+      if (window.__perfPaintMs === undefined) {
+        window.__perfPaintMs = null; // null = timeout / no paint
+      }
+    }, 120000);
+
+  } catch (err) {
+    window.__perfPaintMs = null;
+    window.__perfError = String(err);
+  }
+</script>
+</body>
+</html>

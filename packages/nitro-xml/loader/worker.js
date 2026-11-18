@@ -29,7 +29,7 @@ await compileWasmModule(msg.module);
 msg.module = null;
 }
 await initCore();
-self.postMessage({ type: "ready" });
+self.postMessage({type:"ready"});
 break;
 }
 case "open": {
@@ -69,18 +69,13 @@ throw e;
 }
 handle.setReadOnly(true);
 self._pendingEditorChrome = msg.readonly === false ? 1 : 0;
-self.postMessage({
-type: "opened",
-byteLength: handle.byteLength,
-format: handle.documentFormat(),
-t: handle.t !== false,
-});
+self.postMessage({type:"opened",byteLength:handle.byteLength,format:handle.documentFormat(),t:handle.t!==false});
 break;
 }
 case "events": {
 if (!handle) throw new Error("no document");
 const n = handle.pushEventBatch(msg.bytes);
-self.postMessage({ type: "events-acked", count: n });
+self.postMessage({type:"events-acked",count:n});
 break;
 }
 case "take-frame": {
@@ -98,14 +93,7 @@ else unlockChrome(msg.sa || "ui");
 let result;
 if (op === "a") result = handle.applyEdit(msg.spec || "");
 else if (op === "k")
-result = handle.editorKey(
-msg.key || "",
-!!msg.ctrl,
-!!msg.meta,
-!!msg.alt,
-!!msg.shift,
-!!msg.mac,
-);
+result = handle.editorKey(msg.key||"",!!msg.ctrl,!!msg.meta,!!msg.alt,!!msg.shift,!!msg.mac);
 else result = handle.shellAction(msg.sa || "ui", msg.arg || "");
 const { buildAndPostFrame } = await import("./lazy/frame-build.js");
 await buildAndPostFrame(handle, self, { type: "mut-frame", result });
@@ -115,19 +103,19 @@ break;
 case "measure-results": {
 if (!handle) throw new Error("no document");
 handle.setMeasureResults(msg.widths);
-self.postMessage({ type: "measure-acked", count: msg.widths.length });
+self.postMessage({type:"measure-acked",count:msg.widths.length});
 break;
 }
 case "outline-results": {
 if (!handle) throw new Error("no document");
 const ow = await import("./lazy/outline-worker.js");
-self.postMessage({ type: "outline-acked", count: ow.applyOutlineResults(handle, msg) });
+self.postMessage({type:"outline-acked",count:ow.applyOutlineResults(handle,msg)});
 break;
 }
 case "layout-results": {
 if (!handle) throw new Error("no document");
 handle.setLayoutResults(msg.values);
-self.postMessage({ type: "layout-acked", count: msg.values.length });
+self.postMessage({type:"layout-acked",count:msg.values.length});
 break;
 }
 case "sa":
@@ -135,23 +123,15 @@ if (!handle) throw new Error("no document");
 {
 const op = msg.op || "ui";
 unlockChrome(op);
-self.postMessage({ type: "sa", result: handle.shellAction(op, msg.arg || "") });
+self.postMessage({type:"sa",result:handle.shellAction(op,msg.arg||"")});
 }
 break;
+case "editor-key":
 case "match-shortcut":
+case "cell-text":
 if (!handle) throw new Error("no document");
-self.postMessage({
-type: "match-shortcut",
-result: handle.matchShortcut(
-msg.key || "",
-msg.code || "",
-!!msg.ctrl,
-!!msg.meta,
-!!msg.alt,
-!!msg.shift,
-!!msg.mac,
-),
-});
+if (msg.type === "editor-key") unlockChrome();
+{const{v}=await import("./lazy/worker-extra.js");self.postMessage(v(handle,msg));}
 break;
 case "editor-chrome":
 if (!handle) throw new Error("no document");
@@ -161,11 +141,6 @@ handle.setReadOnly(false);
 }
 handle.loadEditorChrome();
 self.postMessage({ type: "editor-chrome", ok: true });
-break;
-case "editor-key":
-if (!handle) throw new Error("no document");
-unlockChrome();
-self.postMessage({type:"editor-key",result:handle.editorKey(msg.key||"",!!msg.ctrl,!!msg.meta,!!msg.alt,!!msg.shift,!!msg.mac)});
 break;
 case "original-bytes":
 case "save": {
@@ -190,7 +165,7 @@ handle.free();
 handle = null;
 }
 glue = null;
-self.postMessage({ type: "disposed" });
+self.postMessage({type:"disposed"});
 break;
 }
 default:
@@ -198,13 +173,6 @@ self.postMessage({ type: "error", message: `unknown message ${msg.type}` });
 }
 })
 .catch((e) => {
-self.postMessage({
-type: "error",
-code: e && e.code,
-limit: e && e.limit,
-actual: e && e.actual,
-part: e && e.part,
-message: (e && e.message) || String(e),
-});
+self.postMessage({type:"error",code:e&&e.code,limit:e&&e.limit,actual:e&&e.actual,part:e&&e.part,message:(e&&e.message)||String(e)});
 });
 };

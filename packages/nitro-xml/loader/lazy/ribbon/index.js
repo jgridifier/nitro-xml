@@ -117,6 +117,7 @@ ${o.format === "xlsx" && full ? `<div class="sheets" role="tablist" aria-label="
 ${
   full
     ? `<div class="sb"><span data-pos></span><span data-find></span><span class="grow"></span>
+${o.format === "xlsx" ? `<span data-sel-stats hidden></span>` : ""}
 <span class="zr"><button type="button" class="ib" data-z="zoom-out" aria-label="Zoom out" title="Zoom out">${svg("zoomOut")}</button>
 <input type="range" min="10" max="400" step="10" value="100" aria-label="Zoom" />
 <button type="button" class="ib" data-z="zoom-in" aria-label="Zoom in" title="Zoom in">${svg("zoomIn")}</button>
@@ -219,6 +220,10 @@ ${
   };
   const poll = setInterval(watch, 400);
   watch();
+
+  if (o.format === "xlsx" && full) {
+    import("../xlsx-status-sum.js").then(({ mountSelStats }) => mountSelStats(o.el, $("[data-sel-stats]"), ch));
+  }
 
   // ---- events ----
   root.addEventListener("click", (e) => {

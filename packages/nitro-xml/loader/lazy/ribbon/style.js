@@ -152,6 +152,7 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .sb .zl{all:unset;cursor:pointer;min-width:40px;text-align:right;color:var(--fg);font-variant-numeric:tabular-nums;padding:2px 4px;border-radius:3px}
 .sb .zl:hover{background:var(--hov)}
 .sb .zr{display:flex;align-items:center;gap:6px}
+[data-sel-stats]{color:var(--fg);font-variant-numeric:tabular-nums;white-space:nowrap}
 .rgc{display:none}
 @media(max-width:820px){.tb .srch,.tb .doc i,.tb .lnks{display:none}.sb input[type=range]{width:70px}.pane{width:132px}}
 /* narrow frames: ribbon groups collapse to chips that open as popups (like Office's collapsed groups) */

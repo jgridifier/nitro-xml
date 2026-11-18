@@ -7,7 +7,7 @@
 // nothing in the element's default mode changes.
 import { applyTheme } from "../theme.js";
 import { ICONS } from "./icons.js";
-import { CANVAS_CSS, CSS, SHADOW_CSS } from "./style.js";
+import { CANVAS_CSS, CSS, PPTX_SHADOW_CSS, SHADOW_CSS } from "./style.js";
 import { QAT, officeCommandHidden, tabsFor } from "./commands.js";
 import { trackDirty } from "./dirty.js";
 import { createThumbs } from "./thumbs.js";
@@ -110,7 +110,7 @@ ${
 }
 <div class="body" role="main" aria-label="${esc(app.name)} document">
   ${o.format === "pptx" && full ? `<aside class="pane" aria-label="Slide thumbnails" hidden><h2>Slides</h2><div class="pl" role="list"></div></aside>` : ""}
-  <div class="stage"><div class="over" hidden></div></div>
+  <div class="stage"><div class="over" hidden></div>${o.format === "pptx" && full ? '<div class="sv"></div>' : ""}</div>
 </div>
 <div class="foot" role="region" aria-label="Status">
 ${o.format === "xlsx" && full ? `<div class="sheets" role="tablist" aria-label="Sheets" hidden></div>` : ""}
@@ -128,7 +128,8 @@ ${
   const $ = (s) => root.querySelector(s);
   const $$ = (s) => [...root.querySelectorAll(s)];
   const stage = $(".stage");
-  stage.prepend(o.el);
+  const sv = o.format === "pptx" && full ? $(".sv") : null;
+  sv ? sv.append(o.el) : stage.prepend(o.el);
 
   const host = () => o.el;
   const act = (op, arg) => host().shellAction && host().shellAction(op, arg || "");
@@ -139,7 +140,7 @@ ${
     const sr = o.el.shadowRoot;
     if (!sr || !full || shadowStyle?.isConnected) return;
     shadowStyle = document.createElement("style");
-    shadowStyle.textContent = SHADOW_CSS + (o.format === "docx" ? CANVAS_CSS : "");
+    shadowStyle.textContent = SHADOW_CSS + (o.format === "docx" ? CANVAS_CSS : "") + (o.format === "pptx" ? PPTX_SHADOW_CSS : "");
     sr.appendChild(shadowStyle);
   }
 

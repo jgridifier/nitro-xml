@@ -28,11 +28,11 @@ const find = { g: "Editing", big: [{ i: "find", l: "Find", t: "Find (Ctrl+F)", o
 const menu = (i, l, items, t) => ({ i, l, t: t || l, m: items });
 const drawing = {
   g: "Drawing",
-  rows: [[
-    it("home.shape-fill", "fill", "Fill", "Shape fill"),
-    it("home.shape-outline", "outline", "Outline", "Shape outline"),
-    it("home.shape-dash", "borderDash", "Dashed outline", "Dashed shape outline"),
-  ]],
+  rows: [
+    [it("home.shape-fill", "fill", "Fill", "Shape fill", { wide: true })],
+    [it("home.shape-outline", "outline", "Outline", "Shape outline", { wide: true })],
+    [it("home.shape-dash", "borderDash", "Dashed", "Dashed shape outline", { wide: true })],
+  ],
 };
 const arrange = {
   g: "Arrange",
@@ -191,14 +191,12 @@ const pptxSlides = {
   g: "Slides",
   big: [it("insert.slide", "slide", "New Slide")],
   rows: [
+    [it("insert.duplicate-slide", "duplicate", "Duplicate", "Duplicate slide", { wide: true })],
+    [it("home.layout", "layout", "Layout", "Change slide layout", { wide: true })],
+    [it("home.delete-slide", "trash", "Delete", "Delete slide", { wide: true })],
     [
-      it("insert.duplicate-slide", "duplicate", "Duplicate Slide"),
-      it("home.layout", "layout", "Layout", "Change slide layout"),
-      it("home.delete-slide", "trash", "Delete Slide"),
-    ],
-    [
-      it("insert.move-slide-up", "chevUp", "Move Slide Up"),
-      it("insert.move-slide-down", "chevDown", "Move Slide Down"),
+      it("insert.move-slide-up", "chevUp", "Move Up", "Move slide up"),
+      it("insert.move-slide-down", "chevDown", "Move Down", "Move slide down"),
     ],
   ],
 };

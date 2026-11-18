@@ -105,11 +105,12 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .rn a{color:var(--acc);text-decoration:underline}
 /* body */
 .body{flex:1;display:flex;min-height:0;min-width:0;background:var(--canvas);position:relative}
-.pane{flex:none;width:176px;overflow-y:auto;background:var(--tabs);border-right:1px solid var(--bd);padding:8px 0}
+.pane{flex:none;width:200px;overflow-y:auto;background:var(--tabs);border-right:1px solid var(--bd);padding:8px 0}
 .pane[hidden]{display:none}
 .pane h2{margin:0 12px 6px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
 .pane button{all:unset;box-sizing:border-box;display:flex;align-items:flex-start;gap:8px;width:100%;padding:6px 10px;cursor:pointer}
 .pane button:hover{background:var(--hov)}
+.pane button:hover .th{border-color:color-mix(in srgb,var(--acc) 40%,#c8c6c4)}
 .pane button .n{width:18px;text-align:right;color:var(--mut);padding-top:2px;font-variant-numeric:tabular-nums}
 .pane button .th{position:relative;flex:1;min-width:0;aspect-ratio:16/9;display:grid;place-items:center;background:#fff;color:#605e5c;border:1px solid #c8c6c4;border-radius:2px;font-size:11px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .pane button .ph{padding:0 6px;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -119,6 +120,10 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .pane button[aria-current=true] .n{color:var(--acc);font-weight:600}
 .stage{flex:1;min-width:0;min-height:0;display:flex;position:relative}
 .stage>*:not(.over){flex:1;min-width:0}
+.sv{container-type:size;container-name:sv;flex:1;min-width:0;min-height:0;overflow:hidden;background:var(--canvas);display:flex;align-items:center;justify-content:center}
+@container sv (aspect-ratio > 16/9){nitro-pptx{height:max(100px,calc(100cqh - 56px));width:max(178px,calc((100cqh - 56px) * 16 / 9))}}
+@container sv (aspect-ratio <= 16/9){nitro-pptx{width:max(200px,calc(100cqw - 56px));height:max(113px,calc((100cqw - 56px) * 9 / 16))}}
+.sv nitro-pptx{flex:none;box-shadow:0 4px 20px rgba(0,0,0,.18),0 1px 4px rgba(0,0,0,.12);outline:1px solid rgba(0,0,0,.12);outline-offset:-1px}
 .over{position:absolute;inset:0;z-index:20;display:grid;place-items:center;padding:24px;background:var(--canvas);overflow:auto}
 .over[hidden]{display:none}
 .drop{width:min(640px,100%);display:flex;flex-direction:column;align-items:center;gap:10px;padding:44px 24px 36px;text-align:center;background:var(--bg);border:1.5px dashed var(--bd);border-radius:12px;transition:border-color .15s,background .15s}
@@ -223,3 +228,5 @@ export const SHADOW_CSS = `
 // .dve-print-pages width:fit-content lets margin:0 auto (set by WASM) center pages in the scroll host.
 // Without it, the flex container stretches to 100% and auto margins have no effect.
 export const CANVAS_CSS = ":host{background:var(--ox-canvas,#e6e6e6)}.v{background:var(--ox-canvas,#e6e6e6)}canvas{background:transparent!important}.dve-print-pages{width:fit-content;padding:24px 48px;box-sizing:content-box}";
+/** Injected into the pptx shadow root so the viewport shows the canvas gray and clips zoomed content. */
+export const PPTX_SHADOW_CSS = ":host{background:var(--ox-canvas,#dddbd9);overflow:hidden}.v{background:var(--ox-canvas,#dddbd9);overflow:hidden}";

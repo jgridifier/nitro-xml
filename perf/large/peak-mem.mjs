@@ -32,12 +32,15 @@ const FIXTURES = [
   ["xlsx", "S", "fixtures/generated/xlsx/cells_1k.xlsx"],
   ["xlsx", "M", "fixtures/generated/xlsx/cells_100k.xlsx"],
   ["xlsx", "L", "fixtures/generated/xlsx/cells_1m.xlsx"],
+  ["xlsx", "XL", "fixtures/generated/xlsx/xl_a.xlsx"],
   ["docx", "S", "fixtures/generated/docx/pages_10.docx"],
   ["docx", "M", "fixtures/generated/docx/pages_100.docx"],
   ["docx", "L", "fixtures/generated/docx/pages_500.docx"],
+  // docx XL: TS oracle rejects word/document.xml > 25 MiB — BLOCKED (#550)
   ["pptx", "S", "fixtures/generated/pptx/slides_10.pptx"],
   ["pptx", "M", "fixtures/generated/pptx/slides_50.pptx"],
   ["pptx", "L", "fixtures/generated/pptx/slides_200.pptx"],
+  ["pptx", "XL", "fixtures/generated/pptx/xl_a.pptx"],
 ];
 
 function vmHwmMiB() {
@@ -160,23 +163,38 @@ if (args.child) {
     for (const engine of ["ts", "wasm"]) {
       const ms = [];
       const mem = [];
+      let blocked = false;
       for (let i = 0; i < runs; i++) {
-        const out = execFileSync(
-          process.execPath,
-          [fileURLToPath(import.meta.url), `--child=${engine}:${rel}`, `--pkg=${PKG_DIR}`],
-          { encoding: "utf8" },
-        );
-        const j = JSON.parse(out.trim().split("\n").pop());
-        ms.push(j.ms);
-        mem.push(j.peakMiB);
+        try {
+          const out = execFileSync(
+            process.execPath,
+            [fileURLToPath(import.meta.url), `--child=${engine}:${rel}`, `--pkg=${PKG_DIR}`],
+            { encoding: "utf8", timeout: 180000 },
+          );
+          const j = JSON.parse(out.trim().split("\n").pop());
+          ms.push(j.ms);
+          mem.push(j.peakMiB);
+        } catch (e) {
+          blocked = true;
+          if (!args.json) process.stderr.write(`  BLOCKED ${engine} ${format}-${tier}: ${String(e).slice(0, 120)}\n`);
+          break;
+        }
       }
-      row[engine] = {
-        ms: median(ms),
-        mem: median(mem),
-        ms_samples: ms.map((x) => +x.toFixed(3)),
-        mem_samples: mem.map((x) => +x.toFixed(3)),
-      };
+      row[engine] = blocked
+        ? { blocked: true, mem: null, ms: null, mem_samples: [], ms_samples: [] }
+        : {
+            ms: median(ms),
+            mem: median(mem),
+            ms_samples: ms.map((x) => +x.toFixed(3)),
+            mem_samples: mem.map((x) => +x.toFixed(3)),
+          };
     }
+    if (row.ts.blocked || row.wasm.blocked) {
+      row.verdict = "BLOCKED";
+      row.wasm_over_ts_ms = null;
+      row.wasm_over_ts_mem = null;
+      row.wasm_over_ts_mem_ci95 = null;
+    } else {
     const memRatio = row.wasm.mem / row.ts.mem;
     const memCi = bootstrapRatioCi(
       row.wasm.mem_samples,
@@ -188,6 +206,7 @@ if (args.child) {
     row.wasm_over_ts_mem = memRatio;
     row.wasm_over_ts_mem_ci95 = { lo: memCi.lo, hi: memCi.hi, bootstrap: memCi.B };
     row.verdict = verdict(memRatio, memCi);
+    }
     rows.push(row);
     rowIdx++;
   }
@@ -219,8 +238,12 @@ if (args.child) {
     console.log("|---|---|--:|--:|--:|--:|--:|--:|--:|---------|");
     for (const r of rows) {
       const ci = r.wasm_over_ts_mem_ci95;
+      const f2n = (v) => (v == null ? "—" : v.toFixed(2));
+      const f3n = (v) => (v == null ? "—" : v.toFixed(3));
+      const f1n = (v) => (v == null ? "—" : v.toFixed(1));
+      const ciStr = ci ? `[${ci.lo.toFixed(3)}, ${ci.hi.toFixed(3)}]` : "[—, —]";
       console.log(
-        `| ${r.format} | ${r.tier} | ${r.ts.ms.toFixed(2)} | ${r.wasm.ms.toFixed(2)} | ${r.wasm_over_ts_ms.toFixed(3)} | ${r.ts.mem.toFixed(1)} | ${r.wasm.mem.toFixed(1)} | ${r.wasm_over_ts_mem.toFixed(3)} | [${ci.lo.toFixed(3)}, ${ci.hi.toFixed(3)}] | **${r.verdict}** |`,
+        `| ${r.format} | ${r.tier} | ${f2n(r.ts.ms)} | ${f2n(r.wasm.ms)} | ${f3n(r.wasm_over_ts_ms)} | ${f1n(r.ts.mem)} | ${f1n(r.wasm.mem)} | ${f3n(r.wasm_over_ts_mem)} | ${ciStr} | **${r.verdict}** |`,
       );
     }
   }

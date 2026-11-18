@@ -1,0 +1,238 @@
+{
+  "schema": 1,
+  "metric": "browser_e2e_first_paint_ms",
+  "description": "Time from navigationStart to first DOM content paint in Chromium headless shell, measured inside the page with performance.now(). Includes WASM fetch, compile, and instantiate. Fresh browser instance per run (no HTTP cache, no V8 code cache). Start: performance.now() at module script start (\u2248navigationStart+HTML-parse). End: shadow-DOM paint selector detected (.dve-print-page / .xg-root / [aria-roledescription=slide] / .dom childElementCount>0).",
+  "chromium_bin": "chrome-headless-shell",
+  "runs_per_fixture": 5,
+  "bootstrap": 2000,
+  "seed": 20261019,
+  "rows": [
+    {
+      "format": "xlsx",
+      "tier": "S",
+      "status": "OK",
+      "fixture": "fixtures/generated/xlsx/cells_1k.xlsx",
+      "n": 5,
+      "median_ms": 230.0,
+      "p95_ms": 238.0,
+      "stdev_ms": 4.4,
+      "spread_ms": 8.7,
+      "ci95_lo_ms": 229.4,
+      "ci95_hi_ms": 238.1,
+      "samples_ms": [
+        237.5,
+        238.1,
+        230.0,
+        229.7,
+        229.4
+      ]
+    },
+    {
+      "format": "xlsx",
+      "tier": "M",
+      "status": "OK",
+      "fixture": "fixtures/generated/xlsx/cells_100k.xlsx",
+      "n": 5,
+      "median_ms": 244.1,
+      "p95_ms": 277.0,
+      "stdev_ms": 19.8,
+      "spread_ms": 51.5,
+      "ci95_lo_ms": 230.6,
+      "ci95_hi_ms": 282.1,
+      "samples_ms": [
+        240.9,
+        244.1,
+        256.8,
+        282.1,
+        230.6
+      ]
+    },
+    {
+      "format": "xlsx",
+      "tier": "L",
+      "status": "OK",
+      "fixture": "fixtures/generated/xlsx/cells_1m.xlsx",
+      "n": 5,
+      "median_ms": 266.1,
+      "p95_ms": 322.0,
+      "stdev_ms": 33.8,
+      "spread_ms": 90.1,
+      "ci95_lo_ms": 242.3,
+      "ci95_hi_ms": 332.4,
+      "samples_ms": [
+        266.1,
+        280.5,
+        332.4,
+        264.3,
+        242.3
+      ]
+    },
+    {
+      "format": "xlsx",
+      "tier": "XL",
+      "status": "OK",
+      "fixture": "fixtures/generated/xlsx/xl_a.xlsx",
+      "n": 5,
+      "median_ms": 398.7,
+      "p95_ms": 658.2,
+      "stdev_ms": 157.0,
+      "spread_ms": 395.1,
+      "ci95_lo_ms": 326.3,
+      "ci95_hi_ms": 721.4,
+      "samples_ms": [
+        378.7,
+        326.3,
+        721.4,
+        405.4,
+        398.7
+      ]
+    },
+    {
+      "format": "docx",
+      "tier": "S",
+      "status": "OK",
+      "fixture": "fixtures/generated/docx/pages_10.docx",
+      "n": 5,
+      "median_ms": 230.5,
+      "p95_ms": 240.4,
+      "stdev_ms": 6.4,
+      "spread_ms": 13.8,
+      "ci95_lo_ms": 226.7,
+      "ci95_hi_ms": 240.5,
+      "samples_ms": [
+        240.0,
+        240.5,
+        230.5,
+        229.1,
+        226.7
+      ]
+    },
+    {
+      "format": "docx",
+      "tier": "M",
+      "status": "OK",
+      "fixture": "fixtures/generated/docx/pages_100.docx",
+      "n": 5,
+      "median_ms": 230.0,
+      "p95_ms": 246.6,
+      "stdev_ms": 9.3,
+      "spread_ms": 22.4,
+      "ci95_lo_ms": 228.0,
+      "ci95_hi_ms": 250.4,
+      "samples_ms": [
+        228.0,
+        250.4,
+        229.8,
+        230.0,
+        231.3
+      ]
+    },
+    {
+      "format": "docx",
+      "tier": "L",
+      "status": "OK",
+      "fixture": "fixtures/generated/docx/pages_500.docx",
+      "n": 5,
+      "median_ms": 980.0,
+      "p95_ms": 1028.7,
+      "stdev_ms": 25.6,
+      "spread_ms": 59.6,
+      "ci95_lo_ms": 978.7,
+      "ci95_hi_ms": 1038.3,
+      "samples_ms": [
+        1038.3,
+        979.2,
+        990.4,
+        978.7,
+        980.0
+      ]
+    },
+    {
+      "format": "docx",
+      "tier": "XL",
+      "status": "FAILED",
+      "fixture": "fixtures/generated/docx/xl_a.docx",
+      "samples_ms": []
+    },
+    {
+      "format": "pptx",
+      "tier": "S",
+      "status": "OK",
+      "fixture": "fixtures/generated/pptx/slides_10.pptx",
+      "n": 5,
+      "median_ms": 255.0,
+      "p95_ms": 305.6,
+      "stdev_ms": 34.2,
+      "spread_ms": 90.7,
+      "ci95_lo_ms": 226.1,
+      "ci95_hi_ms": 316.8,
+      "samples_ms": [
+        316.8,
+        226.1,
+        260.6,
+        243.1,
+        255.0
+      ]
+    },
+    {
+      "format": "pptx",
+      "tier": "M",
+      "status": "OK",
+      "fixture": "fixtures/generated/pptx/slides_50.pptx",
+      "n": 5,
+      "median_ms": 227.9,
+      "p95_ms": 245.9,
+      "stdev_ms": 19.5,
+      "spread_ms": 52.9,
+      "ci95_lo_ms": 195.5,
+      "ci95_hi_ms": 248.4,
+      "samples_ms": [
+        227.9,
+        248.4,
+        227.4,
+        195.5,
+        235.8
+      ]
+    },
+    {
+      "format": "pptx",
+      "tier": "L",
+      "status": "OK",
+      "fixture": "fixtures/generated/pptx/slides_200.pptx",
+      "n": 5,
+      "median_ms": 261.3,
+      "p95_ms": 286.4,
+      "stdev_ms": 14.6,
+      "spread_ms": 37.0,
+      "ci95_lo_ms": 255.0,
+      "ci95_hi_ms": 292.0,
+      "samples_ms": [
+        292.0,
+        255.0,
+        260.4,
+        261.3,
+        264.1
+      ]
+    },
+    {
+      "format": "pptx",
+      "tier": "XL",
+      "status": "OK",
+      "fixture": "fixtures/generated/pptx/xl_a.pptx",
+      "n": 5,
+      "median_ms": 360.1,
+      "p95_ms": 398.2,
+      "stdev_ms": 43.4,
+      "spread_ms": 92.1,
+      "ci95_lo_ms": 308.2,
+      "ci95_hi_ms": 400.3,
+      "samples_ms": [
+        400.3,
+        389.7,
+        308.2,
+        309.4,
+        360.1
+      ]
+    }
+  ]
+}

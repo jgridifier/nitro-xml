@@ -9,8 +9,9 @@
     "node": "v24.22.1"
   },
   "method": {
-    "cold_open": "ts-vs-wasm.mjs: median(WASM)/median(TS) cold openDocument, same Node process, N=21 runs (8 warmup-discarded). Performance.now() timer; fresh Uint8Array copy outside timed span.",
-    "peak_mem": "peak-mem.mjs: VmHWM growth over post-init baseline (MiB), fresh Node process per (engine, fixture, run). N=7 runs per sample.",
+    "cold_open": "ts-vs-wasm.mjs: median(WASM)/median(TS) cold openDocument, same Node process, N=21 runs (8 warmup-discarded). performance.now() timer; fresh Uint8Array copy outside timed span. xlsx metric = time-to-first-view.",
+    "browser_e2e": "browser_e2e.py: Playwright headless Chromium; navigationStart to first shadow-DOM content paint (includes WASM fetch+compile+instantiate). Fresh browser instance per run (no HTTP cache, no V8 code cache). N=5 runs per fixture.",
+    "peak_mem": "peak-mem.mjs: VmHWM growth over post-init baseline (MiB), fresh Node process per (engine, fixture, run). N=7 runs per sample. XL: xlsx + pptx measured; docx XL BLOCKED (#550).",
     "bundle": "sizes.mjs: raw+gzip(9)+brotli(11) for TS bundles (perf/dist/ts/<fmt>.js) and WASM pkg (nitro_xml_wasm_bg.wasm + nitro_xml_wasm.js) and WASM loader JS (packages/nitro-xml/loader/**/*.js incl. lazy/)",
     "save": "NOT MEASURED — WASM save path not yet available at M1 viewer stage; see draft issue",
     "ci": "95% bootstrap CI of median ratio, unpaired resample (B=2000, seed=20261019); WIN = median < 1 AND CI upper < 1 (PRODUCT_SPEC §5)",
@@ -19,6 +20,7 @@
     "runs_open": 21,
     "warmup_open": 8,
     "runs_mem": 7,
+    "runs_browser_e2e": 5,
     "bootstrap": 2000
   },
   "fixtures": {
@@ -1318,21 +1320,40 @@
       "fixture": "fixtures/generated/xlsx/xl_a.xlsx",
       "metric": "peak_rss_mib",
       "ts": {
-        "median": null,
-        "p95": null,
-        "stdev": null,
-        "samples": []
+        "median": 1682.66,
+        "p95": 1685.45,
+        "stdev": 20.59,
+        "samples": [
+          1682.734,
+          1682.66,
+          1627.762,
+          1670.082,
+          1684.762,
+          1670.102,
+          1685.742
+        ]
       },
       "wasm": {
-        "median": null,
-        "p95": null,
-        "stdev": null,
-        "samples": []
+        "median": 44.55,
+        "p95": 46.88,
+        "stdev": 1.33,
+        "samples": [
+          43.973,
+          44.555,
+          43.906,
+          46.746,
+          46.934,
+          45,
+          43.805
+        ]
       },
-      "wasm_over_ts_mem": null,
-      "wasm_over_ts_mem_ci95": null,
-      "verdict": "NOT_MEASURED",
-      "note": "peak-mem.mjs does not enumerate XL fixtures; add xl_a.* to its FIXTURES array to measure. See draft issue."
+      "wasm_over_ts_mem": 0.026,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 0.026092062084678864,
+        "hi": 0.027989907203272615,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN"
     },
     {
       "format": "docx",
@@ -1476,8 +1497,8 @@
       },
       "wasm_over_ts_mem": null,
       "wasm_over_ts_mem_ci95": null,
-      "verdict": "NOT_MEASURED",
-      "note": "peak-mem.mjs does not enumerate XL fixtures; add xl_a.* to its FIXTURES array to measure. See draft issue."
+      "verdict": "BLOCKED",
+      "note": "TS oracle rejects word/document.xml > 25 MiB (#550). Same blocker as cold open BLOCKED row."
     },
     {
       "format": "pptx",
@@ -1608,32 +1629,287 @@
       "fixture": "fixtures/generated/pptx/xl_a.pptx",
       "metric": "peak_rss_mib",
       "ts": {
-        "median": null,
-        "p95": null,
-        "stdev": null,
-        "samples": []
+        "median": 363.84,
+        "p95": 368.83,
+        "stdev": 5.75,
+        "samples": [
+          352.273,
+          367.801,
+          362.332,
+          361.82,
+          363.836,
+          369.273,
+          367.547
+        ]
       },
       "wasm": {
-        "median": null,
-        "p95": null,
-        "stdev": null,
-        "samples": []
+        "median": 41.51,
+        "p95": 42,
+        "stdev": 0.62,
+        "samples": [
+          42.164,
+          41.512,
+          41.617,
+          40.27,
+          41.629,
+          40.797,
+          41.316
+        ]
       },
-      "wasm_over_ts_mem": null,
-      "wasm_over_ts_mem_ci95": null,
-      "verdict": "NOT_MEASURED",
-      "note": "peak-mem.mjs does not enumerate XL fixtures; add xl_a.* to its FIXTURES array to measure. See draft issue."
+      "wasm_over_ts_mem": 0.114,
+      "wasm_over_ts_mem_ci95": {
+        "lo": 0.11099804922907817,
+        "hi": 0.11502128130009397,
+        "bootstrap": 2000
+      },
+      "verdict": "WIN"
     }
   ],
   "caveats": [
-    "WASM openDocument is Handle.openDocument after Node-side initSync — not browser first-paint. Browser adds WASM fetch+compile+instantiate time on cold page load.",
-    "xlsx asymmetry: TS=full loadWorkbook; WASM=open_first_view + process_frame (lazy per-sheet parse; not identical work, especially at L/XL after #283)",
-    "docx XL (xl_a.docx): TS oracle rejects word/document.xml > 25 MiB — BLOCKED for fair comparison. WASM opens the file; a one-sided WASM-only time is not useful. See draft issue.",
-    "XL peak memory: peak-mem.mjs does not enumerate XL fixtures; xl_a.* rows show NOT_MEASURED. See draft issue.",
-    "Save latency: not measured at M1 viewer stage — WASM save path not yet available. See draft issue.",
-    "Node-only benchmarks (not browser first-paint / scroll / scroll-query); those metrics remain TODO(#8).",
+    "xlsx metric = 'time to first view' (not full load): TS loadWorkbook loads the entire workbook; WASM openDocument calls open_first_view (lazy per-sheet parse, only the first visible sheet is parsed). Both timings reflect first-sheet availability. Rows labeled 'time-to-first-view' in the cold-open table. See #283.",
+    "Node cold-open numbers start after initSync — they do not include WASM fetch, compile, or instantiate. See the 'Browser e2e' section for timings that include the full cold-start path in Chromium.",
+    "docx XL cold open: TS oracle rejects word/document.xml > 25 MiB — BLOCKED for fair comparison (see #550).",
+    "docx XL peak memory: same TS oracle limit applies — BLOCKED.",
+    "Save latency: not measured — WASM save path not yet available at M1 viewer stage.",
     "Platform: Linux x86_64 CI box; results may differ on macOS/Apple Silicon. The spec gates perf in Chromium.",
     "Known-loss exceptions per Jared #30: xlsx S peak_mem, docx S/M peak_mem — stay LOSS with numbers; they are not gate-blocking.",
-    "Perf gate is in REPORT MODE (PERF_GATE_MODE=report). WASM-beats-TS is tracked but not enforced. Jared sets PERF_GATE_MODE=enforce when READY (see #8)."
-  ]
+    "Perf gate is in REPORT MODE (PERF_GATE_MODE=report). WASM-beats-TS is tracked but not enforced. Jared sets PERF_GATE_MODE=enforce when READY (see #8).",
+    "CI reproduction: scripts/ci/perf.sh record now calls compare_wasm_ts.sh automatically (added in this follow-up PR)."
+  ],
+  "browser_e2e_rows": [
+    {
+      "format": "xlsx",
+      "tier": "S",
+      "status": "OK",
+      "fixture": "fixtures/generated/xlsx/cells_1k.xlsx",
+      "n": 5,
+      "median_ms": 230,
+      "p95_ms": 238,
+      "stdev_ms": 4.4,
+      "spread_ms": 8.7,
+      "ci95_lo_ms": 229.4,
+      "ci95_hi_ms": 238.1,
+      "samples_ms": [
+        237.5,
+        238.1,
+        230,
+        229.7,
+        229.4
+      ]
+    },
+    {
+      "format": "xlsx",
+      "tier": "M",
+      "status": "OK",
+      "fixture": "fixtures/generated/xlsx/cells_100k.xlsx",
+      "n": 5,
+      "median_ms": 244.1,
+      "p95_ms": 277,
+      "stdev_ms": 19.8,
+      "spread_ms": 51.5,
+      "ci95_lo_ms": 230.6,
+      "ci95_hi_ms": 282.1,
+      "samples_ms": [
+        240.9,
+        244.1,
+        256.8,
+        282.1,
+        230.6
+      ]
+    },
+    {
+      "format": "xlsx",
+      "tier": "L",
+      "status": "OK",
+      "fixture": "fixtures/generated/xlsx/cells_1m.xlsx",
+      "n": 5,
+      "median_ms": 266.1,
+      "p95_ms": 322,
+      "stdev_ms": 33.8,
+      "spread_ms": 90.1,
+      "ci95_lo_ms": 242.3,
+      "ci95_hi_ms": 332.4,
+      "samples_ms": [
+        266.1,
+        280.5,
+        332.4,
+        264.3,
+        242.3
+      ]
+    },
+    {
+      "format": "xlsx",
+      "tier": "XL",
+      "status": "OK",
+      "fixture": "fixtures/generated/xlsx/xl_a.xlsx",
+      "n": 5,
+      "median_ms": 398.7,
+      "p95_ms": 658.2,
+      "stdev_ms": 157,
+      "spread_ms": 395.1,
+      "ci95_lo_ms": 326.3,
+      "ci95_hi_ms": 721.4,
+      "samples_ms": [
+        378.7,
+        326.3,
+        721.4,
+        405.4,
+        398.7
+      ]
+    },
+    {
+      "format": "docx",
+      "tier": "S",
+      "status": "OK",
+      "fixture": "fixtures/generated/docx/pages_10.docx",
+      "n": 5,
+      "median_ms": 230.5,
+      "p95_ms": 240.4,
+      "stdev_ms": 6.4,
+      "spread_ms": 13.8,
+      "ci95_lo_ms": 226.7,
+      "ci95_hi_ms": 240.5,
+      "samples_ms": [
+        240,
+        240.5,
+        230.5,
+        229.1,
+        226.7
+      ]
+    },
+    {
+      "format": "docx",
+      "tier": "M",
+      "status": "OK",
+      "fixture": "fixtures/generated/docx/pages_100.docx",
+      "n": 5,
+      "median_ms": 230,
+      "p95_ms": 246.6,
+      "stdev_ms": 9.3,
+      "spread_ms": 22.4,
+      "ci95_lo_ms": 228,
+      "ci95_hi_ms": 250.4,
+      "samples_ms": [
+        228,
+        250.4,
+        229.8,
+        230,
+        231.3
+      ]
+    },
+    {
+      "format": "docx",
+      "tier": "L",
+      "status": "OK",
+      "fixture": "fixtures/generated/docx/pages_500.docx",
+      "n": 5,
+      "median_ms": 980,
+      "p95_ms": 1028.7,
+      "stdev_ms": 25.6,
+      "spread_ms": 59.6,
+      "ci95_lo_ms": 978.7,
+      "ci95_hi_ms": 1038.3,
+      "samples_ms": [
+        1038.3,
+        979.2,
+        990.4,
+        978.7,
+        980
+      ]
+    },
+    {
+      "format": "docx",
+      "tier": "XL",
+      "status": "FAILED",
+      "fixture": "fixtures/generated/docx/xl_a.docx",
+      "samples_ms": []
+    },
+    {
+      "format": "pptx",
+      "tier": "S",
+      "status": "OK",
+      "fixture": "fixtures/generated/pptx/slides_10.pptx",
+      "n": 5,
+      "median_ms": 255,
+      "p95_ms": 305.6,
+      "stdev_ms": 34.2,
+      "spread_ms": 90.7,
+      "ci95_lo_ms": 226.1,
+      "ci95_hi_ms": 316.8,
+      "samples_ms": [
+        316.8,
+        226.1,
+        260.6,
+        243.1,
+        255
+      ]
+    },
+    {
+      "format": "pptx",
+      "tier": "M",
+      "status": "OK",
+      "fixture": "fixtures/generated/pptx/slides_50.pptx",
+      "n": 5,
+      "median_ms": 227.9,
+      "p95_ms": 245.9,
+      "stdev_ms": 19.5,
+      "spread_ms": 52.9,
+      "ci95_lo_ms": 195.5,
+      "ci95_hi_ms": 248.4,
+      "samples_ms": [
+        227.9,
+        248.4,
+        227.4,
+        195.5,
+        235.8
+      ]
+    },
+    {
+      "format": "pptx",
+      "tier": "L",
+      "status": "OK",
+      "fixture": "fixtures/generated/pptx/slides_200.pptx",
+      "n": 5,
+      "median_ms": 261.3,
+      "p95_ms": 286.4,
+      "stdev_ms": 14.6,
+      "spread_ms": 37,
+      "ci95_lo_ms": 255,
+      "ci95_hi_ms": 292,
+      "samples_ms": [
+        292,
+        255,
+        260.4,
+        261.3,
+        264.1
+      ]
+    },
+    {
+      "format": "pptx",
+      "tier": "XL",
+      "status": "OK",
+      "fixture": "fixtures/generated/pptx/xl_a.pptx",
+      "n": 5,
+      "median_ms": 360.1,
+      "p95_ms": 398.2,
+      "stdev_ms": 43.4,
+      "spread_ms": 92.1,
+      "ci95_lo_ms": 308.2,
+      "ci95_hi_ms": 400.3,
+      "samples_ms": [
+        400.3,
+        389.7,
+        308.2,
+        309.4,
+        360.1
+      ]
+    }
+  ],
+  "browser_e2e_meta": {
+    "description": "Time from navigationStart to first DOM content paint in Chromium headless shell, measured inside the page with performance.now(). Includes WASM fetch, compile, and instantiate. Fresh browser instance per run (no HTTP cache, no V8 code cache). Start: performance.now() at module script start (≈navigationStart+HTML-parse). End: shadow-DOM paint selector detected (.dve-print-page / .xg-root / [aria-roledescription=slide] / .dom childElementCount>0).",
+    "chromium_bin": "chrome-headless-shell",
+    "runs_per_fixture": 5,
+    "bootstrap": 2000,
+    "seed": 20261019
+  }
 }

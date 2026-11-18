@@ -222,5 +222,23 @@ if [ "$overall_status" -ne 0 ]; then
   exit 1
 fi
 
+# On record runs, produce the full M1 WASM-vs-TS comparison (all tiers, all formats).
+# compare_wasm_ts.sh writes docs/perf/wasm-vs-ts.{md,json} and appends to the CI step summary.
+if [ "$mode" = "record" ]; then
+  echo "perf.sh: compare_wasm_ts.sh (M1 closeout, record mode)"
+  if ! COMPARE_TIERS=S,M,L,XL \
+       COMPARE_SKIP_WASM_BUILD=1 \
+       COMPARE_SKIP_TS_BUILD=1 \
+       bash "$ROOT/scripts/perf/compare_wasm_ts.sh"; then
+    echo "perf.sh: compare_wasm_ts.sh failed" >&2
+    overall_status=1
+  fi
+fi
+
+if [ "$overall_status" -ne 0 ]; then
+  echo "perf.sh: compare_wasm_ts.sh failed (mode=$mode)" >&2
+  exit 1
+fi
+
 echo "perf.sh: done (mode=$mode gate_mode=$MODE)"
 exit 0

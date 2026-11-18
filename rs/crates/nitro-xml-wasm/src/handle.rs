@@ -1637,6 +1637,12 @@ impl Handle {
         Self::insert_chrome_delta(&mut out, delta);
         out.insert("ui".into(), ui);
         out.insert("save".into(), serde_json::json!(save));
+        if let Some(edit) = self.docx.as_ref().and_then(|d| d.edit.as_ref()) {
+            out.insert(
+                "replaced".into(),
+                serde_json::json!(edit.commands.search.last_replaced),
+            );
+        }
         out.insert(
             "ribbonAction".into(),
             serde_json::json!(self.editor.commands.last_ribbon_action),

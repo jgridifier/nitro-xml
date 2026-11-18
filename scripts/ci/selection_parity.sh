@@ -105,6 +105,9 @@ if [ "$zoom_rc" -ne 0 ]; then
   exit 1
 fi
 
+echo "selection: Word find/replace save and undo"
+node tests/interaction/find-replace.mjs
+
 echo "selection: PASS"
 echo "Please add the \`selection-parity\` job to branch-protection required checks (Jared / Chief of Staff)."
 exit 0

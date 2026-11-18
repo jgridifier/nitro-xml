@@ -12,6 +12,7 @@
  * the docx caret wrapper sees it). The textarea is parked at the caret / active cell so the IME
  * candidate window opens next to the text being edited.
  */
+import { attachReplace } from "./find-replace.js";
 import { applyChromePatch } from "./chrome-patch.js";
 
 const STYLE =
@@ -55,6 +56,7 @@ export function rangeOf(ref) {
 }
 
 export function attach(el) {
+  attachReplace(el);
   if (el._nxp) return;
   const sr = el.shadowRoot;
   const v = sr && sr.querySelector(".v");

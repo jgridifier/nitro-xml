@@ -248,30 +248,46 @@ impl DocxCommandSurface {
                 self.search.find_previous(&session.host, cursor);
                 Ok(())
             }
-            "search.replaceOne" => {
-                let replacement = args
-                    .get("replacement")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let cursor = args
-                    .get("cursor")
-                    .and_then(|v| v.as_u64())
-                    .map(|n| n as usize);
-                if self
-                    .search
-                    .replace_one(&mut session.host, replacement, cursor)
-                {
-                    schedule_relayout(print_edit);
+            "search.replaceOne" | "search.replaceAll" => {
+                if let Some(query) = args.get("query").and_then(Value::as_str) {
+                    self.search.whole_word = args
+                        .get("wholeWord")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                    self.search.search(
+                        &session.host,
+                        query,
+                        args.get("caseSensitive")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                    );
+                    if id == "search.replaceOne" {
+                        let index = args.get("index").and_then(Value::as_u64).unwrap_or(0);
+                        for _ in 0..=index.min(self.search.status().count as u64) {
+                            self.search.find_next(&session.host, None);
+                        }
+                    }
                 }
-                Ok(())
-            }
-            "search.replaceAll" => {
                 let replacement = args
                     .get("replacement")
-                    .and_then(|v| v.as_str())
+                    .and_then(Value::as_str)
                     .unwrap_or("");
-                let n = self.search.replace_all(&mut session.host, replacement);
-                if n > 0 {
+                self.search.last_replaced = 0;
+                self.search.refresh(&session.host);
+                if !self.search.status().read_only && self.search.status().count > 0 {
+                    let (count, _) = session.run(
+                        "Replace",
+                        ChangeKind::Batch,
+                        vec![EditScope::Workbook],
+                        |host| {
+                            Ok(if id == "search.replaceAll" {
+                                self.search.replace_all(host, replacement)
+                            } else {
+                                usize::from(self.search.replace_one(host, replacement, None))
+                            })
+                        },
+                    )?;
+                    self.search.last_replaced = count;
                     schedule_relayout(print_edit);
                 }
                 Ok(())

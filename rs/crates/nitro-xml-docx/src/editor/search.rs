@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 //! Find/replace over [`DocxHost`] paragraph plain text (#83).
 
-use serde_json::Map;
+use serde_json::Value;
 
 use crate::edit::host::DocxHost;
-use crate::edit::text::set_paragraph_text;
 
 /// A match inside one top-level paragraph block.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchMatch {
     pub block_index: usize,
+    pub path: String,
     /// UTF-8 byte range in the paragraph's plain text (concatenated runs).
     pub start: usize,
     pub end: usize,
@@ -30,6 +30,8 @@ pub struct SearchController {
     matches: Vec<SearchMatch>,
     active_index: isize,
     read_only: bool,
+    pub last_replaced: usize,
+    pub whole_word: bool,
 }
 
 impl SearchController {
@@ -40,6 +42,8 @@ impl SearchController {
             matches: Vec::new(),
             active_index: -1,
             read_only,
+            last_replaced: 0,
+            whole_word: false,
         }
     }
 
@@ -63,13 +67,13 @@ impl SearchController {
     pub fn search(&mut self, host: &DocxHost, query: &str, case_sensitive: bool) -> SearchStatus {
         self.query = query.to_string();
         self.case_sensitive = case_sensitive;
-        self.matches = collect_matches(host, &self.query, self.case_sensitive);
+        self.matches = collect_matches(host, &self.query, self.case_sensitive, self.whole_word);
         self.active_index = -1;
         self.status()
     }
 
     pub fn refresh(&mut self, host: &DocxHost) -> SearchStatus {
-        self.matches = collect_matches(host, &self.query, self.case_sensitive);
+        self.matches = collect_matches(host, &self.query, self.case_sensitive, self.whole_word);
         if self.active_index >= self.matches.len() as isize {
             self.active_index = -1;
         }
@@ -184,88 +188,141 @@ pub fn paragraph_plain_text(block: &serde_json::Value) -> String {
         .unwrap_or_default()
 }
 
-fn collect_matches(host: &DocxHost, query: &str, case_sensitive: bool) -> Vec<SearchMatch> {
-    if query.is_empty() {
-        return Vec::new();
+fn collect_matches(
+    host: &DocxHost,
+    query: &str,
+    case_sensitive: bool,
+    whole_word: bool,
+) -> Vec<SearchMatch> {
+    fn visit(
+        block: &Value,
+        path: String,
+        bi: usize,
+        query: &str,
+        case: bool,
+        word: bool,
+        out: &mut Vec<SearchMatch>,
+    ) {
+        if block.get("runs").and_then(Value::as_array).is_some() {
+            let text = paragraph_plain_text(block);
+            // Map folded character boundaries back to original UTF-8 offsets (İ expands).
+            let mut hay = String::new();
+            let mut boundaries = std::collections::BTreeMap::new();
+            for (i, ch) in text.char_indices() {
+                boundaries.insert(hay.len(), i);
+                if case {
+                    hay.push(ch);
+                } else {
+                    hay.extend(ch.to_lowercase());
+                }
+            }
+            boundaries.insert(hay.len(), text.len());
+            let needle = if case {
+                query.to_owned()
+            } else {
+                query.to_lowercase()
+            };
+            if !needle.is_empty() {
+                for (start, _) in hay.match_indices(&needle) {
+                    if let (Some(&s), Some(&e)) = (
+                        boundaries.get(&start),
+                        boundaries.get(&(start + needle.len())),
+                    ) {
+                        let is_word = |c: char| c.is_alphanumeric() || c == '_';
+                        if !word
+                            || (!text[..s].chars().next_back().is_some_and(is_word)
+                                && !text[e..].chars().next().is_some_and(is_word))
+                        {
+                            out.push(SearchMatch {
+                                block_index: bi,
+                                path: path.clone(),
+                                start: s,
+                                end: e,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        // Table rows are arrays of cells; cells contain paragraphs, including nested tables.
+        if let Some(rows) = block.get("rows").and_then(Value::as_array) {
+            for (ri, row) in rows.iter().enumerate() {
+                if let Some(cells) = row.as_array() {
+                    for (ci, cell) in cells.iter().enumerate() {
+                        if let Some(paras) = cell.get("paragraphs").and_then(Value::as_array) {
+                            for (pi, para) in paras.iter().enumerate() {
+                                visit(
+                                    para,
+                                    format!("{path}/rows/{ri}/{ci}/paragraphs/{pi}"),
+                                    bi,
+                                    query,
+                                    case,
+                                    word,
+                                    out,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     let mut out = Vec::new();
     for (bi, block) in host.blocks.iter().enumerate() {
-        if block.get("type").and_then(|t| t.as_str()) != Some("paragraph") {
-            continue;
-        }
-        let text = paragraph_plain_text(block);
-        let hay = if case_sensitive {
-            text.clone()
-        } else {
-            text.to_lowercase()
-        };
-        let needle = if case_sensitive {
-            query.to_string()
-        } else {
-            query.to_lowercase()
-        };
-        if needle.is_empty() {
-            continue;
-        }
-        let mut start = 0usize;
-        while let Some(rel) = hay[start..].find(&needle) {
-            let s = start + rel;
-            let e = s + needle.len();
-            if text.is_char_boundary(s) && text.is_char_boundary(e) {
-                out.push(SearchMatch {
-                    block_index: bi,
-                    start: s,
-                    end: e,
-                });
-            }
-            start = s + 1;
-            if start >= hay.len() {
-                break;
-            }
-        }
+        visit(
+            block,
+            String::new(),
+            bi,
+            query,
+            case_sensitive,
+            whole_word,
+            &mut out,
+        );
     }
     out
 }
 
-fn run_attrs_at_offset(block: &serde_json::Value, offset: usize) -> Map<String, serde_json::Value> {
-    let mut pos = 0usize;
-    let runs = block
-        .get("runs")
-        .and_then(|r| r.as_array())
-        .cloned()
-        .unwrap_or_default();
-    for run in runs {
-        let t = run.get("text").and_then(|x| x.as_str()).unwrap_or("");
-        let end = pos + t.len();
-        if offset <= end {
-            let mut attrs = Map::new();
-            for key in ["bold", "italic", "fontSize", "color", "underline"] {
-                if let Some(v) = run.get(key) {
-                    attrs.insert(key.into(), v.clone());
-                }
+fn apply_replacement(host: &mut DocxHost, m: &SearchMatch, replacement: &str) -> bool {
+    host.ensure_base_blocks();
+    let Some(block) = host
+        .blocks
+        .get_mut(m.block_index)
+        .and_then(|b| b.pointer_mut(&m.path))
+    else {
+        return false;
+    };
+    let Some(runs) = block.get_mut("runs").and_then(Value::as_array_mut) else {
+        return false;
+    };
+    let mut output = Vec::new();
+    let mut pos = 0;
+    let mut inserted = false;
+    for run in runs.iter() {
+        let text = run.get("text").and_then(Value::as_str).unwrap_or("");
+        let end = pos + text.len();
+        if end <= m.start || pos >= m.end {
+            output.push(run.clone());
+        } else {
+            let mut piece = run.clone();
+            let left = m.start.saturating_sub(pos).min(text.len());
+            let right = m.end.saturating_sub(pos).min(text.len());
+            let mut value = text[..left].to_owned();
+            if !inserted {
+                value.push_str(replacement);
+                inserted = true;
             }
-            return attrs;
+            value.push_str(&text[right..]);
+            piece["text"] = Value::String(value);
+            output.push(piece);
         }
         pos = end;
     }
-    Map::new()
-}
-
-fn apply_replacement(host: &mut DocxHost, m: &SearchMatch, replacement: &str) -> bool {
-    let block = match host.paragraph(m.block_index) {
-        Ok(b) => b.clone(),
-        Err(_) => return false,
-    };
-    let text = paragraph_plain_text(&block);
-    if m.end > text.len() || !text.is_char_boundary(m.start) || !text.is_char_boundary(m.end) {
+    if !inserted {
         return false;
     }
-    let attrs = run_attrs_at_offset(&block, m.start);
-    let mut new_text = String::new();
-    new_text.push_str(&text[..m.start]);
-    new_text.push_str(replacement);
-    new_text.push_str(&text[m.end..]);
-    set_paragraph_text(host, m.block_index, &new_text, &attrs).is_ok()
+    *runs = output;
+    host.mark_touched(m.block_index);
+    true
 }
 
 #[cfg(test)]

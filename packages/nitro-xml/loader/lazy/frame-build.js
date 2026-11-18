@@ -19,6 +19,7 @@ export function lightMutResult(result) {
       save: !!o.save,
       ribbonAction: o.ribbonAction ?? null,
       handled: o.handled,
+      replaced: o.replaced,
       k: o.k,
       c: o.c ?? o.copyText ?? null,
       p: o.p ?? o.pendingHyperlink ?? null,

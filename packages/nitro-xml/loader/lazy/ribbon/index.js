@@ -101,8 +101,8 @@ ${
 <div class="fm" role="menu" hidden aria-label="File">
   <button type="button" role="menuitem" data-f="open">${svg("open")}Open…<small>Browse for a ${app.ext.split(",")[0]} file on your device</small></button>
   <button type="button" role="menuitem" data-f="sample">${svg("sample")}Open sample ${app.noun}<small>Load the built-in example ${app.noun}</small></button>
-  ${edit ? `<button type="button" role="menuitem" data-f="save">${svg("save")}Save a copy<small>Download an edited copy to your device</small></button>` : ""}
-  <button type="button" role="menuitem" data-f="close">${svg("close")}Close<small>Return to the empty drop area</small></button>
+  ${edit ? `<button type="button" role="menuitem" data-f="save">${svg("save")}Save a copy<small>Download a copy to your device</small></button>` : ""}
+  <button type="button" role="menuitem" data-f="close">${svg("close")}Close<small>Close this file</small></button>
 </div>
 <div class="dm" role="menu" hidden></div>
 <div class="rbn" id="ox-p" role="tabpanel" aria-labelledby="ox-t-Home"><div class="rbn-in" style="display:contents"></div></div></div>`

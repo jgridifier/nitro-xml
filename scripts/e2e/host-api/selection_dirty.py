@@ -1,236 +1,185 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
+"""Real-input host API checks (#561/#562); any missing capability exits nonzero.
+
+Assemble _site as described in the host-api brief, then run with pw-venv Python.
+An optional positional port defaults to 7892. No synthetic input or model edits.
 """
-E2E: host-api selection + dirty (#561 / #562 / #571)
-
-Serves _site with python http.server, drives demo/host-api/selection-dirty.html
-in headless Chrome, and asserts the definition-of-done for each format.
-
-Exit 0 = all assertions passed.
-Exit 1 = at least one assertion failed.
-
-Usage:
-  /workspace/pw-venv/bin/python scripts/e2e/host-api/selection_dirty.py [port]
-"""
-import sys
-import os
-import subprocess
-import time
-import threading
+import functools
 import http.server
 import json
-import traceback
+from pathlib import Path
+import sys
+import threading
+from playwright.sync_api import sync_playwright
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 7892
-BASE = os.path.join(os.path.dirname(__file__), "..", "..", "..")
-SITE = os.path.join(BASE, "_site")
+SITE = Path(__file__).resolve().parents[3] / "_site"
 CHROME = "/home/box/.cache/ms-playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell"
 
-# ---------------------------------------------------------------------------
-# Serve _site
-# ---------------------------------------------------------------------------
-class _Handler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *a, **kw):
-        super().__init__(*a, directory=SITE, **kw)
+
+class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
-def _serve():
-    with http.server.HTTPServer(("127.0.0.1", PORT), _Handler) as httpd:
-        httpd.serve_forever()
 
-server_thread = threading.Thread(target=_serve, daemon=True)
-server_thread.start()
-time.sleep(0.5)
+def expect(actual, expected, message):
+    assert actual == expected, f"{message}: expected {expected!r}, got {actual!r}"
 
-# ---------------------------------------------------------------------------
-# Playwright
-# ---------------------------------------------------------------------------
-from playwright.sync_api import sync_playwright
 
-LOAD_TIMEOUT = 30_000  # ms
+def events(page):
+    return page.evaluate("window.hostChanges")
 
-failures = []
 
-def fail(msg):
-    failures.append(msg)
-    print(f"  FAIL: {msg}", flush=True)
-
-def ok(msg):
-    print(f"  PASS: {msg}", flush=True)
-
-def run_format(playwright, fmt):
-    print(f"\n=== {fmt.upper()} ===", flush=True)
-    browser = playwright.chromium.launch(
-        executable_path=CHROME,
-        args=["--no-sandbox", "--disable-dev-shm-usage"],
-    )
-    page = browser.new_page()
-    # Collect nitro-change events fired from the element
-    change_events = []
-    page.expose_function("__recordChange", lambda detail: change_events.append(detail))
-
-    url = f"http://127.0.0.1:{PORT}/demo/host-api/selection-dirty.html?f={fmt}"
-    page.goto(url, wait_until="domcontentloaded")
-
-    # Inject listener before load completes (races are OK; we clear events after load)
-    page.evaluate("""() => {
-        const el = document.getElementById('viewer');
-        if (el) el.addEventListener('nitro-change', e => window.__recordChange(e.detail));
-    }""")
-
-    # Wait for the "loaded" log line to appear
-    try:
-        page.wait_for_function(
-            "() => document.getElementById('log').textContent.includes('loaded')",
-            timeout=LOAD_TIMEOUT,
-        )
-    except Exception:
-        fail(f"{fmt}: document did not load within {LOAD_TIMEOUT}ms")
-        browser.close()
-        return
-
-    # Give lazy modules a moment to attach
+def open_page(browser, port, fmt):
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    # Install before the module creates/loads the element; never clear load events.
+    page.add_init_script("""window.hostChanges = [];
+        document.addEventListener('nitro-change', e => {
+            if (e.target.id === 'viewer') window.hostChanges.push(e.detail);
+        }, true);""")
+    page.goto(f"http://127.0.0.1:{port}/demo/host-api/selection-dirty.html?f={fmt}")
+    page.wait_for_function("document.querySelector('#log').textContent.includes('loaded')")
+    page.wait_for_function("typeof document.querySelector('#viewer').getSelection === 'function'")
+    page.wait_for_function("typeof document.querySelector('#viewer').document.whenEditReady === 'function'")
+    page.evaluate("document.querySelector('#viewer').document.whenEditReady()")
+    page.locator('#viewer .nxp').wait_for(state='attached')
     page.wait_for_timeout(500)
+    box = page.locator('#viewer .v').bounding_box()
+    assert box and box['width'] > 100 and box['height'] > 100, f"editor has no usable surface: {box}"
+    expect(events(page), [], "events during load")
+    expect(page.evaluate("document.querySelector('#viewer').dirty"), False, "dirty on load")
+    return page
 
-    # Clear any change events that fired during load (must be 0 per DoD, but allow defensive check)
-    events_at_load = list(change_events)
-    if events_at_load:
-        fail(f"{fmt}: nitro-change fired {len(events_at_load)} time(s) during load: {events_at_load}")
+
+def click_text(page, fmt):
+    selector = '#viewer [data-bid="p0"] span' if fmt == 'docx' else '#viewer .pptxv-para span'
+    target = page.locator(selector).first
+    target.click()
+    return target
+
+
+def assert_focus(page):
+    expect(page.evaluate("""() => {
+        const el = document.querySelector('#viewer');
+        return document.activeElement === el && el.shadowRoot.activeElement?.matches('.nxp');
+    }"""), True, "real click must focus editor input")
+
+
+def cell_point(page, row, col):
+    # Grid header and default cell dimensions in demo/samples/sample.xlsx.
+    box = page.locator('#viewer .xg-root').bounding_box()
+    assert box, 'spreadsheet grid missing'
+    return box['x'] + 33 + col * 64 + 32, box['y'] + 20 + row * 20 + 10
+
+
+def check_dirty(page, fmt):
+    # Catches: unfocused keystrokes and cancelled cell edits passing as dirty-event proof.
+    page.locator('#chat-area').click()
+    if fmt == 'xlsx':
+        page.mouse.click(*cell_point(page, 1, 1))
     else:
-        ok(f"{fmt}: no nitro-change events during open/load")
+        click_text(page, fmt)
+    assert_focus(page)
+    page.wait_for_timeout(500)
+    expect(events(page), [], 'selection/focus must not mark dirty')
+    page.keyboard.type('x')
+    if fmt == 'xlsx':
+        page.keyboard.press('Enter')  # Commit; Escape cancels the edit.
+    page.wait_for_function("document.querySelector('#viewer').dirty === true", timeout=3000)
+    page.wait_for_timeout(500)
+    expect(events(page), [{'dirty': True}], 'exactly one first-edit event')
+    expect(page.evaluate("document.querySelector('#viewer').dirty"), True, 'dirty after edit')
+    page.keyboard.type('y')
+    if fmt == 'xlsx':
+        page.keyboard.press('Enter')
+    page.wait_for_timeout(700)
+    expect(events(page), [{'dirty': True}], 'additional edits must not repeat dirty=true')
+    page.locator('#btn-save').click()
+    page.wait_for_function("document.querySelector('#viewer').dirty === false", timeout=3000)
+    page.wait_for_timeout(500)
+    expect(events(page), [{'dirty': True}, {'dirty': False}], 'save resets exactly once')
+    page.locator('#btn-save').click()
+    page.wait_for_timeout(500)
+    expect(events(page), [{'dirty': True}, {'dirty': False}], 'clean save must not emit')
+    page.locator('#viewer [data-a="zoom-out"]').click()
+    page.locator('#viewer [data-a="zoom-in"]').click()
+    page.locator('#viewer .v').hover()
+    page.mouse.wheel(0, 100)
+    if fmt == 'pptx':
+        page.locator('#viewer [data-a="sheet"][data-g="1"]').click()
+        page.locator('#viewer [data-a="sheet"][data-g="0"]').click()
+    page.wait_for_timeout(700)
+    expect(events(page), [{'dirty': True}, {'dirty': False}], 'zoom/scroll/navigation must not emit')
+    print(f'  PASS {fmt}: focus; no load/selection event; first edit exactly once; dirty=true; save resets; clean save and zoom/scroll/navigation silent', flush=True)
 
-    # Reset event collector
-    change_events.clear()
 
-    # ---- dirty getter should start false ----
-    is_dirty = page.evaluate("() => document.getElementById('viewer').dirty")
-    if is_dirty:
-        fail(f"{fmt}: dirty=true before any edit")
+def check_selection(page, fmt):
+    # Catches: placeholder payloads passing without selecting text, cells or a shape.
+    if fmt == 'xlsx':
+        page.mouse.move(*cell_point(page, 1, 1))
+        page.mouse.down()
+        page.mouse.move(*cell_point(page, 2, 2), steps=12)
+        page.mouse.up()
     else:
-        ok(f"{fmt}: dirty=false before any edit")
-
-    # ---- getSelection() returns correct format ----
-    sel = page.evaluate("""async () => {
-        const el = document.getElementById('viewer');
-        return el.getSelection ? await el.getSelection() : null;
-    }""")
-    if sel is None:
-        fail(f"{fmt}: getSelection() returned null — no document or attach failed")
-    elif sel.get("format") != fmt:
-        fail(f"{fmt}: getSelection() format={sel.get('format')} expected {fmt}")
+        # A real double-click selects the first word, if text selection is supported.
+        selector = '#viewer [data-bid="p0"] span' if fmt == 'docx' else '#viewer .pptxv-para span'
+        page.locator(selector).first.dblclick()
+    page.wait_for_timeout(500)
+    selection = page.evaluate("document.querySelector('#viewer').getSelection()")
+    print(f'  {fmt} selection: {json.dumps(selection)}', flush=True)
+    assert selection is not None, 'selection must not be null'
+    if fmt == 'docx':
+        expect(selection, {
+            'format': 'docx', 'text': 'Quarterly', 'page': 0,
+            'start': {'paragraph': 0, 'run': 0, 'offset': 0},
+            'end': {'paragraph': 0, 'run': 0, 'offset': 9}, 'collapsed': False,
+        }, 'DOCX selected word and paragraph offsets')
+    elif fmt == 'xlsx':
+        expect(selection, {
+            'format': 'xlsx', 'sheet': 'Sheet1', 'sheetIndex': 0,
+            'range': 'B2:C3', 'anchor': 'B2', 'values': [[4, 6], [6, 9]], 'truncated': False,
+        }, 'XLSX multi-cell range and numeric values')
     else:
-        ok(f"{fmt}: getSelection() returns format={sel['format']}")
-
-    # Format-specific field checks
-    if fmt == "xlsx":
-        if sel:
-            ok(f"xlsx: sheet={sel.get('sheet')!r} sheetIndex={sel.get('sheetIndex')} range={sel.get('range')!r} anchor={sel.get('anchor')!r}")
-            if "truncated" not in sel:
-                fail("xlsx: getSelection() missing 'truncated' field")
-            else:
-                ok("xlsx: 'truncated' field present")
-    elif fmt == "docx":
-        if sel:
-            ok(f"docx: page={sel.get('page')} collapsed={sel.get('collapsed')}")
-            for field in ("text", "collapsed"):
-                if field not in sel:
-                    fail(f"docx: missing field {field!r}")
-    elif fmt == "pptx":
-        if sel:
-            ok(f"pptx: slide={sel.get('slide')} shapeId={sel.get('shapeId')!r}")
-
-    # ---- save() with no edits → no nitro-change events (issue #571) ----
-    change_events.clear()
-    page.evaluate("""async () => {
-        const el = document.getElementById('viewer');
-        await el.save();
-    }""")
-    page.wait_for_timeout(200)
-    if change_events:
-        fail(f"{fmt}: save() with no edits fired nitro-change: {change_events}")
-    else:
-        ok(f"{fmt}: save() with no edits fires no nitro-change (#571)")
-
-    # ---- save() twice with no edits → dirty stays false ----
-    page.evaluate("""async () => { const el = document.getElementById('viewer'); await el.save(); }""")
-    page.wait_for_timeout(200)
-    dirty_after_save = page.evaluate("() => document.getElementById('viewer').dirty")
-    if dirty_after_save:
-        fail(f"{fmt}: dirty=true after save() with no edits")
-    else:
-        ok(f"{fmt}: dirty=false after save() with no edits")
-
-    # ---- Trigger a first edit ----
-    change_events.clear()
-    if fmt == "docx":
-        # Click inside the document viewer and type
-        viewer = page.locator("#viewer")
-        box = viewer.bounding_box()
-        if box:
-            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-        page.keyboard.type("x")
-    elif fmt == "xlsx":
-        viewer = page.locator("#viewer")
-        box = viewer.bounding_box()
-        if box:
-            page.mouse.click(box["x"] + 60, box["y"] + 60)
-        page.keyboard.type("x")
-        page.keyboard.press("Escape")
-    elif fmt == "pptx":
-        viewer = page.locator("#viewer")
-        box = viewer.bounding_box()
-        if box:
-            page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-        page.keyboard.type("x")
-
-    # Wait for the dirty flip (up to 1 s — the timer fires at 350 ms)
-    deadline = time.time() + 1.5
-    while time.time() < deadline and not change_events:
-        page.wait_for_timeout(100)
-
-    dirty_events = [e for e in change_events if e.get("dirty")]
-    if not dirty_events:
-        # May be in read-only or the editor didn't receive the keystroke; mark as warning not hard failure
-        print(f"  WARN: {fmt}: no dirty=true event within 1.5s of typing (editor may need focus or keystroke routing)")
-    else:
-        ok(f"{fmt}: nitro-change dirty=true fired after first edit")
-        # Must be exactly one dirty=true event
-        if len(dirty_events) > 1:
-            fail(f"{fmt}: dirty=true fired {len(dirty_events)} times (expected 1)")
-        else:
-            ok(f"{fmt}: exactly one dirty=true event on first edit")
-
-    # ---- save() after edit → dirty resets to false ----
-    if dirty_events:
-        change_events.clear()
-        page.evaluate("""async () => { const el = document.getElementById('viewer'); await el.save(); }""")
-        page.wait_for_timeout(400)
-        clean_events = [e for e in change_events if not e.get("dirty")]
-        if not clean_events:
-            fail(f"{fmt}: no nitro-change dirty=false after save()")
-        else:
-            ok(f"{fmt}: nitro-change dirty=false fired after save()")
-        dirty_post_save = page.evaluate("() => document.getElementById('viewer').dirty")
-        if dirty_post_save:
-            fail(f"{fmt}: dirty=true after save()")
-        else:
-            ok(f"{fmt}: dirty=false after save()")
-
-    browser.close()
+        expect(selection, {
+            'format': 'pptx', 'slide': 0, 'shapeId': 'ppt/slides/slide1.xml-shape-0',
+            'shapeName': 'TextBox 1', 'text': 'Nitro', 'textRange': {'start': 0, 'end': 5},
+        }, 'PPTX selected shape and text range')
+    expect(events(page), [], 'selection must not mark dirty')
+    print(f'  PASS {fmt}: real selection payload', flush=True)
 
 
-with sync_playwright() as playwright:
-    for fmt in ("docx", "xlsx", "pptx"):
+def main():
+    failures = []
+    handler = functools.partial(Handler, directory=str(SITE))
+    # Bind synchronously: an occupied port is a hard failure, never an unrelated server.
+    with http.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1]) if len(sys.argv) > 1 else 7892), handler) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
         try:
-            run_format(playwright, fmt)
-        except Exception as exc:
-            fail(f"{fmt}: unexpected exception: {exc}")
-            traceback.print_exc()
+            with sync_playwright() as p:
+                browser = p.chromium.launch(executable_path=CHROME, args=['--no-sandbox', '--disable-dev-shm-usage'])
+                try:
+                    for fmt in ('docx', 'xlsx', 'pptx'):
+                        for name, check in [('dirty', check_dirty), ('selection', check_selection)]:
+                            page = None
+                            try:
+                                page = open_page(browser, server.server_port, fmt)
+                                check(page, fmt)
+                            except Exception as error:
+                                failure = f'{fmt} {name}: {error}'
+                                failures.append(failure)
+                                print(f'  FAIL {failure}', flush=True)
+                            finally:
+                                if page:
+                                    page.close()
+                finally:
+                    browser.close()
+        finally:
+            server.shutdown()
+            thread.join()
+    print(f'\nfailures: {len(failures)}', flush=True)
+    return 1 if failures else 0
 
-# ---------------------------------------------------------------------------
-print("\n--- summary ---")
-print(f"failures: {len(failures)}")
-for f in failures:
-    print(f"  FAIL: {f}")
-sys.exit(1 if failures else 0)
+
+if __name__ == '__main__':
+    sys.exit(main())

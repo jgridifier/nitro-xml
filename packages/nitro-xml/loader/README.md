@@ -223,14 +223,17 @@ const sel = await viewer.getSelection();
 | xlsx | `{ format, sheet, sheetIndex, range, anchor, values[][], truncated }` — values always `[]` in this release (see note below); `truncated:true` when the range spans >10 000 cells |
 | pptx | `{ format, slide, shapeId, shapeName, text, textRange:{start,end} }` — `shapeId`/`shapeName`/`text`/`textRange` are `null` until pptx shape-selection is surfaced from Rust |
 
+DOCX currently reports only a collapsed caret and the entire paragraph text,
+not a selected text range. No `nitro-selectionchange` event is emitted.
+These selection limitations remain open in #561.
+
 **Copy-paste example (docx):**
 
 ```js
 const el = document.querySelector("nitro-docx");
-el.addEventListener("nitro-selectionchange", async () => {
-  const sel = await el.getSelection();
-  if (sel) console.log("paragraph", sel.start?.paragraph, "text", sel.text);
-});
+// After loading completes and the user makes a selection:
+const sel = await el.getSelection();
+if (sel) console.log("paragraph", sel.start?.paragraph, "text", sel.text);
 ```
 
 ### `dirty: boolean` (read-only getter)

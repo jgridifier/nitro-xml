@@ -282,6 +282,66 @@ el.addEventListener("nitro-change", (e) => {
 preserves untouched parts) and fires no `nitro-change` or other host-visible
 events. Host autosave loops can call `save()` freely.
 
+### Font supply without Google Fonts (`fonts`, `fontSource`) — #566
+
+By default Nitro may request webfont stylesheets from `fonts.googleapis.com`.
+Supply fonts explicitly to prevent this:
+
+```js
+await initCore({
+  fontSource: "off",        // no Google Fonts fallback
+  fonts: [
+    { family: "Inter", url: "/fonts/Inter.woff2", weight: "400", style: "normal" },
+    { family: "NitroMono", url: "local(monospace)" },
+    "/fonts/custom.css",    // stylesheet URL — all @font-face rules injected
+  ],
+});
+```
+
+**Per-element override** — set `el.fonts` before `loadBuffer`/`loadFile`/`loadUrl`:
+
+```js
+el.fonts = [{ family: "Inter", url: "/fonts/Inter.woff2" }];
+await el.loadBuffer(buf, "doc.docx");
+```
+
+**Reuse fonts the host page already loaded:**
+
+```js
+await initCore({ fontSource: "page" });
+// Nitro forwards families from document.fonts to the WASM worker.
+```
+
+**`fontSource` values:**
+
+| Value | Behaviour |
+|---|---|
+| omitted | CSS2 base URL (`https://fonts.googleapis.com/css2`) |
+| `"off"` / `false` | No remote fetch; unknown families get substitution diagnostics |
+| `"page"` | Reuse families already in `document.fonts`; forward to worker |
+| `string` (URL) | CSS2 mirror base URL (alternative CDN) |
+
+The `fonts` array is loaded via `FontFace` on the main thread **and** forwarded
+to the WASM worker. No request to `fonts.googleapis.com` or `fonts.gstatic.com`
+is made when `fonts` is set or `fontSource` is `"off"` / `"page"`.
+
+### Focus — load never steals focus (`autofocus`, `{focus:true}`) — #567
+
+`loadBuffer` / `loadFile` / `loadUrl` **never move focus** by default. The editor
+only receives focus on explicit user interaction (pointer click on the document).
+
+**Opt-in focus after load:**
+
+```js
+// Attribute form (declarative):
+<nitro-docx autofocus></nitro-docx>
+
+// loadBuffer option form:
+await el.loadBuffer(buf, "doc.docx", { focus: true });
+```
+
+User clicks on the document always focus the editor regardless of these options.
+
 ## Size budget
 
 Hand-written loader JS plus generated `pkg/nitro_xml_wasm.js`, brotli-compressed,

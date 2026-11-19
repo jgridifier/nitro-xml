@@ -131,7 +131,8 @@ function build(host, spec) {
     sig = s;
     const a = root.activeElement;
     layout();
-    a && a.isConnected && a.offsetParent && a.focus();
+    // Only restore focus if layout() moved the element out of the toolbar, losing focus.
+    if (a && a !== root.activeElement && a.isConnected && a.offsetParent) a.focus();
   }
 
   // ---- roving tabindex ----

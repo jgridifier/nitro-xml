@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 let defaultFontSource = undefined;
+export const _fd = {};
 export function setDefaultFontSource(fontSource) {
   defaultFontSource = fontSource;
 }

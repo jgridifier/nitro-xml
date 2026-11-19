@@ -4,7 +4,7 @@ UNSUPPORTED_BROWSER_MESSAGE,
 isSupportedExtension,
 UNSUPPORTED_FORMAT_MESSAGE,
 } from "./formats.js";
-import { setDefaultFontSource } from "./font-source.js";
+import { setDefaultFontSource, _fd } from "./font-source.js";
 const CACHE_NAME = "nitro-xml-wasm-v1";
 let cachedModule = null;
 let initPromise = null;
@@ -72,6 +72,7 @@ throw unsupportedBrowserError();
 if (opts.fontSource !== undefined) {
 setDefaultFontSource(opts.fontSource);
 }
+if(opts.fonts)_fd.f=opts.fonts;
 if (initPromise) return initPromise;
 initPromise = (async () => {
 try {

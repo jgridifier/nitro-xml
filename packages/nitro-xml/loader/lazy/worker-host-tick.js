@@ -37,6 +37,7 @@ export async function tickBody(doc) {
     strings,
   } = frame;
   doc._strings = strings || doc._strings;
+    if (frame.position) { doc._position = frame.position; doc._positionReady = frame.positionReady; }
   doc._measureCount = measureCount | 0;
   doc._outlineCount = outlineCount | 0;
   doc._t = frame.t !== false;
@@ -62,7 +63,7 @@ export async function tickBody(doc) {
   // cells_1m even after apply-before-measure. Fire-and-forget + bounded re-tick.
   const needRefine = (measureCount > 0 && measureReqs) || (outlineCount > 0 && outlineReqs);
   if (needRefine) {
-    void (async () => {
+    doc._refining = (async () => {
       try {
         if (measureCount > 0 && measureReqs) {
           const ctx = doc._measureCtx();

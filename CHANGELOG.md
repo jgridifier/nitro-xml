@@ -19,6 +19,8 @@
   `NitroPptxSelection` in `loader/index.d.ts`.
 - Docs: `loader/README.md` and `packages/nitro-xml/README.md` both have a "Host
   API" section with signatures, event tables, and copy-paste examples.
+- Add host position capture/navigation and open-at-position, in-place reload, and
+  live readonly toggling with `nitro-mode` on DOCX/XLSX/PPTX elements.
 
 ## 0.1.0 — release candidate
 

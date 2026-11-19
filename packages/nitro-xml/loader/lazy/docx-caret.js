@@ -19,6 +19,10 @@ export function attach(el) {
   const dom = sr && sr.querySelector(".dom");
   if (!v || !dom) return;
   el._nxc = 1;
+  const listeners = new AbortController();
+  const listen = (target, type, fn, opts = {}) => target.addEventListener(type, fn, { ...(typeof opts === 'boolean' ? {capture:opts} : opts), signal:listeners.signal });
+  const originalAction = el.shellAction;
+
   const st = document.createElement("style");
   st.textContent = STYLE;
   sr.appendChild(st);
@@ -180,6 +184,7 @@ export function attach(el) {
   // `fresh` starts a new budget (a new caret, a replaced page, a resize).
   let placeTries = 0;
   const place = (fresh) => {
+    if (el.readonly || listeners.signal.aborted) { bar.style.display = "none"; return; }
     if (fresh) placeTries = 0;
     const r = rectOf();
     const d = dom.getBoundingClientRect();
@@ -241,7 +246,7 @@ export function attach(el) {
 
   const editable = () => el.readonly === false && el.document;
 
-  v.addEventListener(
+  listen(v,
     "pointerdown",
     (e) => {
       if (e.button !== 0 || !editable()) return;
@@ -257,11 +262,13 @@ export function attach(el) {
     true,
   );
 
+  let restoreKey;
   const wrapDoc = () => {
     const d = el.document;
     if (!d || d._nxc) return;
     d._nxc = 1;
     const orig = d.editorKey.bind(d);
+    restoreKey = () => { d.editorKey = orig; d._nxc = 0; d._nxReCaret = null; };
     // The key result arrives before the measured frame replaces the page. Placing
     // against that pre-measure root hides the bar; the follow-up tick calls
     // _nxReCaret once the spans exist so the caret survives the repaint.
@@ -295,7 +302,7 @@ export function attach(el) {
     };
   };
 
-  v.addEventListener(
+  listen(v,
     "keydown",
     (e) => {
       if (!editable()) return;
@@ -338,8 +345,9 @@ export function attach(el) {
 
   const mo = new MutationObserver(() => place(true));
   mo.observe(dom, { childList: true });
-  dom.addEventListener("scroll", () => place(true), { passive: true });
-  if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => place(true)).observe(v);
+  listen(dom, "scroll", () => place(true), { passive: true });
+  const resize = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => place(true)) : null;
+  resize?.observe(v);
   // Focus moves between .v and the input proxy without leaving the viewer. WebKit often
   // reports relatedTarget as null for that move, and for a frame the shadow active element
   // is null too. One rAF that treated null as "focus left" hid the caret after place() had
@@ -353,11 +361,11 @@ export function attach(el) {
     const host = root && root.host;
     return !!(host && document.activeElement === host);
   };
-  v.addEventListener("focusin", () => {
+  listen(v, "focusin", () => {
     focusGen++;
     place(true);
   });
-  v.addEventListener("focusout", () => {
+  listen(v, "focusout", () => {
     const gen = ++focusGen;
     let left = 0;
     const step = () => {
@@ -383,5 +391,10 @@ export function attach(el) {
       setFromK(c && c.k, false);
     }
     return r;
+  };
+
+  el._detachCaret = () => {
+    listeners.abort(); mo.disconnect(); resize?.disconnect(); restoreKey?.();
+    st.remove(); bar.remove(); el.shellAction = originalAction; el._nxc = 0;
   };
 }

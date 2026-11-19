@@ -109,6 +109,51 @@ await el.save(); // resets dirty → false, fires nitro-change {dirty:false}
 Fires only when `dirty` flips. Never fires during load, scroll, zoom, navigation,
 or `save()` on an unedited document.
 
+### Position, reload, and live readonly
+
+The following APIs apply to `<nitro-docx>`, `<nitro-xlsx>` and `<nitro-pptx>`.
+Indices are zero-based, zoom is a percentage, and scroll offsets use CSS pixels.
+
+- `getPosition(): NitroPosition` synchronously returns the last painted
+  `{page?, sheet?, sheetName?, slide?, scrollTop, scrollLeft, zoom?}`. Only the
+  current format's index is present. Before open it returns zero scroll offsets.
+- `setPosition(pos: NitroPositionInput): Promise<void>`
+  applies supplied fields, clamps numeric indices/scroll/zoom, and leaves omitted
+  fields unchanged. `sheet` accepts an index or exact sheet name; an unknown name
+  or non-finite number rejects. It neither focuses the editor nor emits `nitro-change`.
+- `loadBuffer(bytes: ArrayBuffer | Uint8Array, name?: string, opts?: {position?: NitroPositionInput}): Promise<void>`,
+  `loadFile(file: Blob, name?: string, opts?: {position?: NitroPositionInput}): Promise<void>`,
+  and `loadUrl(url: string, opts?: {position?: NitroPositionInput}): Promise<void>`
+  apply the optional position at the opening frame. Omit `position` for the file's
+  default location. These calls do not emit `nitro-change` or request focus.
+- `reload(bytes: ArrayBuffer | Uint8Array, opts?: {keepPosition?: boolean, name?: string}): Promise<void>`
+  replaces the file in the existing worker and retains the element and shadowRoot.
+  `keepPosition` defaults to `true`; restored indices and scroll clamp to the new
+  file. `false` opens at the default location. `name` defaults to the previous name.
+  Mode stays unchanged; dirty resets silently to false and the edit journal starts clean. No `nitro-change` or focus change.
+- `readonly: boolean` is writable. `el.readonly = false` enables editing in place;
+  `true` disables editing and makes `save()` reject. Attribute changes work too:
+  `readonly="false"` enables editing; absent, empty and other values mean readonly
+  (the existing default). Changes preserve the document, position, and host focus.
+- `nitro-mode: CustomEvent<{readonly: boolean}>` bubbles and is composed. It fires
+  after a live mode transition finishes, not on initial open or a redundant assignment.
+  Mode switches do not emit `nitro-change`.
+
+```js
+const editor = document.querySelector('nitro-docx');
+await editor.loadUrl('/report.docx', { position: { page: 1, zoom: 100 } });
+const position = editor.getPosition();
+await editor.setPosition({ page: 2, scrollTop: 40 });
+await editor.loadFile(fileInput.files[0], 'report.docx', { position });
+await editor.loadBuffer(bytes, 'report.docx', { position });
+await editor.reload(updatedBytes); // keep position and mode
+await editor.reload(updatedBytes, { keepPosition: false, name: 'updated.docx' });
+editor.addEventListener('nitro-mode', ({ detail }) => console.log(detail.readonly));
+editor.readonly = false; // async transition; nitro-mode signals completion
+editor.setAttribute('readonly', 'true');
+// Spreadsheet example: await sheetEditor.setPosition({ sheet: 'Budget' });
+```
+
 ## Loader size gate
 
 ```bash

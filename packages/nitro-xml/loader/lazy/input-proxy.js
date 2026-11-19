@@ -60,6 +60,10 @@ export function attach(el) {
   const v = sr && sr.querySelector(".v");
   if (!v) return;
   el._nxp = 1;
+  const listeners = new AbortController();
+  const listen = (target, type, fn, opts = {}) => target.addEventListener(type, fn, { ...(typeof opts === 'boolean' ? {capture:opts} : opts), signal:listeners.signal });
+  const originalAction = el.shellAction;
+
   const st = document.createElement("style");
   st.textContent = STYLE;
   sr.appendChild(st);
@@ -125,15 +129,15 @@ export function attach(el) {
     park();
     if (el.shadowRoot.activeElement !== ta) ta.focus({ preventScroll: true });
   };
-  v.addEventListener("pointerdown", (e) => e.button === 0 && e.pointerType !== "touch" && focus(false));
+  listen(v, "pointerdown", (e) => e.button === 0 && e.pointerType !== "touch" && focus(false));
   // Mobile keyboards only open from a gesture end (click), not from pointerdown.
-  v.addEventListener("click", (e) => focus(e.pointerType === "touch"));
-  v.addEventListener("focus", () => focus(false));
+  listen(v, "click", (e) => focus(e.pointerType === "touch"));
+  listen(v, "focus", () => focus(false));
 
   // Excel: double-clicking a cell edits it in place with the caret after the existing text (the second
   // click only re-selects the cell, so it must not replace the content). Same path as F2.
   if (el.localName === "nitro-xlsx") {
-    v.addEventListener("dblclick", (e) => {
+    listen(v, "dblclick", (e) => {
       if (!editable() || e.button !== 0) return;
       // Cells sit under the pointer-transparent grid layer, so hit-test by point (headers are not cells).
       const onCell = sr.elementsFromPoint(e.clientX, e.clientY).some((n) => n.classList.contains("xg-c") || n.classList.contains("xg-tx"));
@@ -142,7 +146,7 @@ export function attach(el) {
   }
 
   // ---- keys: stop the textarea double-inserting what the keydown path already handles ----
-  ta.addEventListener("keydown", (e) => {
+  listen(ta, "keydown", (e) => {
     if (composing || e.isComposing || e.keyCode === 229) {
       keyOwned = false;
       return;
@@ -159,7 +163,7 @@ export function attach(el) {
   });
 
   // ---- beforeinput: soft keyboards, dictation, autocorrect, native edit commands ----
-  ta.addEventListener("beforeinput", (e) => {
+  listen(ta, "beforeinput", (e) => {
     if (!editable()) return;
     const t = e.inputType;
     if (e.isComposing || composing) return; // composition is committed at compositionend
@@ -192,17 +196,17 @@ export function attach(el) {
       pre = next;
       el._tick();
     });
-  ta.addEventListener("compositionstart", () => {
+  listen(ta, "compositionstart", () => {
     composing = true;
     pre = "";
     park();
   });
-  ta.addEventListener("compositionupdate", (e) => {
+  listen(ta, "compositionupdate", (e) => {
     if (!editable()) return;
     park();
     void replacePre(e.data || "");
   });
-  ta.addEventListener("compositionend", (e) => {
+  listen(ta, "compositionend", (e) => {
     composing = false;
     ta.value = "";
     if (editable()) void replacePre(e.data || "").then(() => (pre = ""));
@@ -249,12 +253,12 @@ export function attach(el) {
       const rows = Array.from({ length: rg.r1 - rg.r0 + 1 }, () => Array(rg.c1 - rg.c0 + 1).fill(""));
       await writeBlock(sheet, rg.r0, rg.c0, rows);
     });
-  ta.addEventListener("copy", (e) => {
+  listen(ta, "copy", (e) => {
     if (!editable()) return;
     e.preventDefault();
     void copyOut();
   });
-  ta.addEventListener("cut", (e) => {
+  listen(ta, "cut", (e) => {
     if (!editable()) return;
     e.preventDefault();
     if (isXlsx) {
@@ -265,7 +269,7 @@ export function attach(el) {
     const viaKey = performance.now() - cutKeyAt < 400; // Ctrl+X already reached the keydown path
     void copyOut().then(() => !viaKey && enqueue(() => key("Delete").then(() => el._tick())));
   });
-  ta.addEventListener("paste", (e) => {
+  listen(ta, "paste", (e) => {
     if (!editable()) return;
     e.preventDefault();
     const text = (e.clipboardData && e.clipboardData.getData("text/plain")) || (isXlsx ? lastCopy : "");
@@ -304,4 +308,10 @@ export function attach(el) {
       return shell(op, arg);
     };
   }
+
+  el._detachInput = () => {
+    listeners.abort(); st.remove(); ta.remove();
+    el.shellAction = originalAction;
+    el._nxp = 0; el._nxpTa = null; el._nxpPaste = null;
+  };
 }

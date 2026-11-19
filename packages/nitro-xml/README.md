@@ -109,6 +109,71 @@ await el.save(); // resets dirty → false, fires nitro-change {dirty:false}
 Fires only when `dirty` flips. Never fires during load, scroll, zoom, navigation,
 or `save()` on an unedited document.
 
+### Font supply without Google Fonts (`fonts`, `fontSource`) — #566
+
+By default Nitro may request webfont stylesheets from `fonts.googleapis.com`.
+To avoid that, supply fonts explicitly:
+
+```js
+// Global default — applies to all future WorkerDocument / element loads.
+await initCore({
+  fontSource: "off",          // stop any Google Fonts fallback
+  fonts: [
+    // Load from an explicit URL (served from your CDN / bundle):
+    { family: "Inter", url: "/fonts/Inter.woff2", weight: "400", style: "normal" },
+    // Or reuse a system font under a custom family name:
+    { family: "NitroMono", url: "local(monospace)" },
+    // Stylesheet URL — all @font-face rules inside are injected:
+    "/fonts/custom.css",
+  ],
+});
+```
+
+**Per-element override** (set before `loadBuffer`/`loadFile`/`loadUrl`):
+
+```js
+el.fonts = [{ family: "Inter", url: "/fonts/Inter.woff2" }];
+await el.loadBuffer(buf, "doc.docx");
+```
+
+**Reuse fonts the host page already loaded** (`fontSource: "page"`):
+
+```js
+await initCore({ fontSource: "page" });
+// Nitro forwards families from document.fonts to the WASM worker — no Google request.
+```
+
+**`fontSource` values:**
+
+| Value | Behaviour |
+|---|---|
+| omitted | CSS2 base URL (`https://fonts.googleapis.com/css2`) |
+| `"off"` / `false` | No remote fetch; unknown families get substitution diagnostics |
+| `"page"` | Reuse families already in `document.fonts`; forward to worker |
+| `string` (URL) | CSS2 mirror base URL (alternative CDN) |
+
+The `fonts` array is loaded via `FontFace` on the main thread **and** forwarded to
+the WASM worker (where text is measured). No request to `fonts.googleapis.com` or
+`fonts.gstatic.com` is made when `fonts` is set or `fontSource` is `"off"` / `"page"`.
+
+### Focus — load never steals focus (`autofocus`, `{focus:true}`) — #567
+
+By default, `loadBuffer` / `loadFile` / `loadUrl` **never move focus** away from
+whatever the host page has focused (e.g. a chat textarea). The editor only receives
+focus on explicit user interaction (pointer click on the document area).
+
+**Opt-in focus after load:**
+
+```js
+// Option A: attribute (declarative)
+<nitro-docx autofocus></nitro-docx>
+
+// Option B: loadBuffer option
+await el.loadBuffer(buf, "doc.docx", { focus: true });
+```
+
+User clicks on the document always focus the editor regardless of these options.
+
 ## Loader size gate
 
 ```bash

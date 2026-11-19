@@ -15,8 +15,22 @@ export function extensionOf(name: string): string;
 export function isSupportedExtension(name: string): boolean;
 export function viewerOpenErrorMessage(err: unknown): string;
 
+/** An explicit font entry: a font file/source URL with family metadata, or a stylesheet URL string. */
+export type FontEntry =
+  | { family: string; url: string; weight?: string; style?: string }
+  | string;
+
 export function initCore(opts?: {
-  fontSource?: string | false | ((families: string[]) => string | null);
+  /** Where to load webfont stylesheets from.
+   * - omitted / string: CSS2 mirror base URL (default: fonts.googleapis.com/css2)
+   * - `false` / `"off"`: no remote fetch; substitutions recorded as diagnostics
+   * - `"page"`: reuse families already in document.fonts; no Google request
+   * - function: main-thread resolver `(families) => href | null` (openDocument only)
+   */
+  fontSource?: string | false | "page" | ((families: string[]) => string | null);
+  /** Explicit font list loaded via FontFace on the main thread and in the worker.
+   * No request to fonts.googleapis.com / fonts.gstatic.com is made when this is set. */
+  fonts?: FontEntry[];
   glueUrl?: string | URL;
   wasmUrl?: string | URL;
 }): Promise<void>;
@@ -69,7 +83,15 @@ export interface NitroError extends Error {
   part?: string;
 }
 export class WorkerDocument {
-  constructor(opts: { canvas?: HTMLCanvasElement | null; root?: Element | null; name?: string });
+  constructor(opts: {
+    canvas?: HTMLCanvasElement | null;
+    root?: Element | null;
+    name?: string;
+    /** Per-document font list; overrides the process default from initCore. */
+    fonts?: FontEntry[];
+    /** Per-document font source; overrides the process default from initCore. */
+    fontSource?: string | false | "page";
+  });
   onChrome: ((html: string) => void) | null;
   onError?: (error: NitroError) => void;
   open(
@@ -121,7 +143,9 @@ export function defineTag(tag: string, ctor: CustomElementConstructor): void;
 export class ViewerElement extends HTMLElement {
   loadFile(file: Blob, name?: string): Promise<void>;
   loadUrl(url: string): Promise<void>;
-  loadBuffer(bytes: ArrayBuffer | Uint8Array, name?: string): Promise<void>;
+  /** Open bytes in the element. Pass `{ focus: true }` to focus the editor after load,
+   *  or set the `autofocus` attribute on the element for the same opt-in. */
+  loadBuffer(bytes: ArrayBuffer | Uint8Array, name?: string, opts?: { focus?: boolean }): Promise<void>;
   save(): Promise<Uint8Array>;
   readonly document: WorkerDocument | null;
   mode: string;
@@ -143,6 +167,10 @@ export class ShellViewerElement extends ViewerElement {
    * Works in both read-only and edit mode.
    */
   getSelection(): Promise<NitroSelection | null>;
+  /** Explicit font list; overrides the process default set via initCore({ fonts }).
+   * No request to fonts.googleapis.com / fonts.gstatic.com is made when set.
+   * Set before calling loadBuffer / loadFile / loadUrl. */
+  fonts: FontEntry[] | null;
 }
 export class NitroXmlElement extends ShellViewerElement {}
 

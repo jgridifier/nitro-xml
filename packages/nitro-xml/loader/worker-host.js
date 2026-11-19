@@ -13,6 +13,7 @@ this._canvas = opts.canvas || null;
 this._root = opts.root || null;
 this._name = opts.name || "";
 this._fontSource = opts.fontSource;
+this._fonts = opts.fonts;
 this._workerUrl = opts.workerUrl;
 this._nodes = new Map();
 this._images = new Map();
@@ -106,13 +107,12 @@ async _openBytes(buffer, name, opts = {}) {
 const n = name || this._name;
 const fontSource =
 this._fontSource !== undefined ? this._fontSource : getDefaultFontSource();
-const serializable =
-typeof fontSource === "function" ? undefined : fontSource;
+const[f,s]=await(await import("./lazy/load-fonts.js")).prep(this._fonts,fontSource);
 const readonly = opts.readonly !== false;
 const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
 const opened = await this._request("opened", () => {
 this._worker.postMessage(
-{ type: "open", bytes: u8, name: n, fontSource: serializable, readonly },
+{ type: "open", bytes: u8, name: n, fontSource: s, fonts: f, readonly },
 [u8.buffer],
 );
 });

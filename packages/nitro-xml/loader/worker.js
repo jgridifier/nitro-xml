@@ -57,6 +57,7 @@ applyFontSourceToHandle(handle, msg.fontSource);
 } else {
 applyFontSourceToHandle(handle, undefined);
 }
+await(await import("./lazy/load-fonts.js")).wof(msg);
 self._openFrameApplied = false;
 if (msg.name) {
 try {

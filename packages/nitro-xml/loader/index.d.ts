@@ -139,8 +139,10 @@ export class ShellViewerElement extends ViewerElement {
    */
   readonly dirty: boolean;
   /**
-   * Returns a snapshot of the current selection, or null when no document is loaded.
-   * Works in both read-only and edit mode.
+   * Selection snapshot (incomplete; #561): DOCX reports a collapsed caret and
+   * paragraph text; XLSX values are currently empty; PPTX shape/text fields are null.
+   * Call after load completes. No nitro-selectionchange event is emitted.
+   * Do not use the current placeholders as comment anchors.
    */
   getSelection(): Promise<NitroSelection | null>;
 }

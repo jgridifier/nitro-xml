@@ -88,20 +88,30 @@ For hosts embedding Nitro inside a chat UI or agent harness — full docs in
 
 ### `getSelection(): Promise<NitroSelection | null>`
 
-Returns a snapshot of the current selection (docx paragraph/offset, xlsx
-sheet+range, pptx slide/shape). Works in read-only and edit mode.
+Returns `Promise<NitroSelection | null>`. The current implementation is incomplete
+(#561): DOCX returns the caret paragraph's text and equal `start`/`end`
+`{paragraph, run, offset}` positions with `collapsed: true`; XLSX returns
+`{format, sheet, sheetIndex, range, anchor, values: [], truncated}` (values are
+not populated); PPTX returns `{format, slide, shapeId: null, shapeName: null,
+text: null, textRange: null}`. Do not use these placeholders to anchor comments.
+No `nitro-selectionchange` event is emitted. Call after loading completes and
+after the user's selection gesture:
 
 ```js
-const sel = await viewer.getSelection();
-// { format: "xlsx", sheet: "Sheet1", sheetIndex: 0, range: "B2:D5",
-//   anchor: "B2", values: [], truncated: false }
+const selection = await viewer.getSelection();
+console.log(selection); // Snapshot only; see the limitations above.
 ```
 
-### `dirty` getter + `nitro-change` event
+### `dirty: boolean` getter + `nitro-change` event
+
+For `readonly="false"`, real typing (and committed XLSX cell edits) sets the
+read-only getter to `true`. The bubbling, composed event has
+`detail: { dirty: boolean }`. `save(): Promise<Uint8Array>` returns the package
+bytes and resets dirty after success.
 
 ```js
 el.addEventListener("nitro-change", (e) => {
-  console.log("dirty:", e.detail.dirty); // true on first edit, false after save()
+  console.log("dirty:", e.detail.dirty, el.dirty); // true on first edit, false after save()
 });
 await el.save(); // resets dirty → false, fires nitro-change {dirty:false}
 ```

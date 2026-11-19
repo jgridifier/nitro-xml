@@ -125,7 +125,9 @@ Indices are zero-based, zoom is a percentage, and scroll offsets use CSS pixels.
   `loadFile(file: Blob, name?: string, opts?: {position?: NitroPositionInput}): Promise<void>`,
   and `loadUrl(url: string, opts?: {position?: NitroPositionInput}): Promise<void>`
   apply the optional position at the opening frame. Omit `position` for the file's
-  default location. These calls do not emit `nitro-change` or request focus.
+  default location (xlsx `topLeftCell`, saved scroll/zoom). The viewport is stabilised
+  before the saved position is applied, so chrome layout during open does not shift it.
+  These calls do not emit `nitro-change` or request focus.
 - `reload(bytes: ArrayBuffer | Uint8Array, opts?: {keepPosition?: boolean, name?: string}): Promise<void>`
   replaces the file in the existing worker and retains the element and shadowRoot.
   `keepPosition` defaults to `true`; restored indices and scroll clamp to the new

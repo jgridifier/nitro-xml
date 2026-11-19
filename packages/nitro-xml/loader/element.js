@@ -82,7 +82,7 @@ if (this._ch && h) this._ch.innerHTML = h;
 try { await d.open(b, n, { readonly: ro }); }
 catch (e) { d.dispose(); throw e; }
 this._d = d;
-this._openingPosition = !!opts.position;
+this._openingPosition = true;
 try {
 await this._ao();
 if (opts.position && this.setPosition) await this.setPosition(opts.position);
@@ -192,6 +192,7 @@ this._tick();
 if (typeof ResizeObserver !== "undefined") {
 this._ro = new ResizeObserver(() => {
 if (!this._d) return;
+if (this._openingPosition) return;
 const d = window.devicePixelRatio || 1;
 const el = this._v === this ? this : this._v;
 const w = el.clientWidth;

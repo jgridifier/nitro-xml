@@ -86,6 +86,34 @@ export class WorkerDocument {
   whenEditReady(): Promise<void>;
 }
 
+/** Selection snapshot returned by `getSelection()` on each element type. */
+export type NitroDocxSelection = {
+  format: "docx";
+  text: string;
+  page: number;
+  start: { paragraph: number; run: number; offset: number } | null;
+  end: { paragraph: number; run: number; offset: number } | null;
+  collapsed: boolean;
+};
+export type NitroXlsxSelection = {
+  format: "xlsx";
+  sheet: string;
+  sheetIndex: number;
+  range: string | null;
+  anchor: string | null;
+  values: (string | number | boolean | null)[][];
+  truncated: boolean;
+};
+export type NitroPptxSelection = {
+  format: "pptx";
+  slide: number;
+  shapeId: string | null;
+  shapeName: string | null;
+  text: string | null;
+  textRange: { start: number; end: number } | null;
+};
+export type NitroSelection = NitroDocxSelection | NitroXlsxSelection | NitroPptxSelection;
+
 export function defineNitroXml(): void;
 export function defineTag(tag: string, ctor: CustomElementConstructor): void;
 /** Emits bubbling, composed `error` CustomEvents with NitroError in detail.
@@ -104,6 +132,17 @@ export type NitroTheme = "office" | "quiet" | "dark" | Record<string, string>;
 export class ShellViewerElement extends ViewerElement {
   /** Sets `data-theme` and the `--nx-*` variables on the element. A string attribute may also hold JSON tokens. */
   theme: NitroTheme | null;
+  /**
+   * True when the loaded document has unsaved edits; false in read-only mode.
+   * Flips emit a bubbling, composed `nitro-change` CustomEvent `{ detail: { dirty: boolean } }`.
+   * Resets to false after `save()` succeeds or a new document is loaded.
+   */
+  readonly dirty: boolean;
+  /**
+   * Returns a snapshot of the current selection, or null when no document is loaded.
+   * Works in both read-only and edit mode.
+   */
+  getSelection(): Promise<NitroSelection | null>;
 }
 export class NitroXmlElement extends ShellViewerElement {}
 

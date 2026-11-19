@@ -200,6 +200,85 @@ resolver; substitutions are recorded as `font_substitution` diagnostics.
 drops the last reference without `dispose()` (wasm-bindgen also registers the
 raw `Handle`).
 
+## Host API
+
+Methods and events on `<nitro-docx>`, `<nitro-xlsx>`, `<nitro-pptx>` for host
+applications that embed the editor inside a chat UI or agent harness.
+
+### `getSelection(): Promise<NitroSelection | null>`
+
+Returns a snapshot of the current selection, or `null` when no document is
+loaded. Works in both read-only and edit mode.
+
+```js
+const sel = await viewer.getSelection();
+// sel.format is "docx" | "xlsx" | "pptx"
+```
+
+**Return shapes** (see `NitroSelection` in `index.d.ts`):
+
+| Format | Shape |
+|---|---|
+| docx | `{ format, text, page, start:{paragraph,run,offset}, end:{paragraph,run,offset}, collapsed }` |
+| xlsx | `{ format, sheet, sheetIndex, range, anchor, values[][], truncated }` — values always `[]` in this release (see note below); `truncated:true` when the range spans >10 000 cells |
+| pptx | `{ format, slide, shapeId, shapeName, text, textRange:{start,end} }` — `shapeId`/`shapeName`/`text`/`textRange` are `null` until pptx shape-selection is surfaced from Rust |
+
+**Copy-paste example (docx):**
+
+```js
+const el = document.querySelector("nitro-docx");
+el.addEventListener("nitro-selectionchange", async () => {
+  const sel = await el.getSelection();
+  if (sel) console.log("paragraph", sel.start?.paragraph, "text", sel.text);
+});
+```
+
+### `dirty: boolean` (read-only getter)
+
+`true` when the loaded document has unsaved edits; `false` in read-only mode or
+after a successful `save()` / new document load. Only available in edit mode
+(`readonly="false"`); always `false` in view-only mode.
+
+### `nitro-change` event
+
+Fired on the element when `dirty` flips. Bubbles and is composed (crosses shadow
+DOM). Never fires during `loadBuffer` / `loadFile` / `loadUrl`, or for
+scroll / zoom / selection / navigation — only on a first user edit and after
+`save()` resets it.
+
+```js
+el.addEventListener("nitro-change", (e) => {
+  console.log("dirty:", e.detail.dirty); // boolean
+});
+```
+
+**When it fires / does not fire:**
+
+| Event | Fires? |
+|---|---|
+| First keystroke / cell edit after load | ✅ `{dirty:true}` |
+| Subsequent edits (already dirty) | ❌ no duplicate |
+| `save()` success | ✅ `{dirty:false}` |
+| `loadBuffer` / open | ❌ never |
+| Scroll / zoom / nav / selection | ❌ never |
+| `save()` with no edits (no-op) | ❌ never |
+
+**Copy-paste example:**
+
+```js
+const el = document.querySelector("nitro-xlsx");
+el.setAttribute("readonly", "false");
+el.addEventListener("nitro-change", (e) => {
+  document.getElementById("save-btn").disabled = !e.detail.dirty;
+});
+```
+
+### `save()` no-op when unedited (#571)
+
+`save()` on an unedited document returns byte-identical content (the engine
+preserves untouched parts) and fires no `nitro-change` or other host-visible
+events. Host autosave loops can call `save()` freely.
+
 ## Size budget
 
 Hand-written loader JS plus generated `pkg/nitro_xml_wasm.js`, brotli-compressed,

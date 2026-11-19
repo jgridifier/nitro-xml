@@ -338,7 +338,7 @@ if (this._d && this._ch) this._d._chromeEl = this._ch;
 await this.shellAction("ui");
 const z=this.getAttribute("zoom");if(z)await this.shellAction("zoom-set",z);
 void this._em();
-if (!this._readonly) import("./lazy/input-proxy.js").then((m) => m.attach(this)).catch(() => {});
+import("./lazy/ha.js").then((m) => m.attach(this)).catch(() => {});
 }
 _css() {
 return ":host{display:flex;flex-direction:column;min-height:12rem;background:#fff}.v{position:relative;flex:1;min-height:0;outline:none;background:#fff}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}canvas{background:#fff}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";
@@ -409,7 +409,7 @@ return (await import("./lazy/download.js")).downloadBytes.call(this, bytes, name
 async save() {
 try {
 if (this._readonly) throw new Error("read-only");
-if (!this._d || !this._d.save) throw new Error("no document");
+if (!this._d?.save) throw new Error("no document");
 return await this._d.save();
 } catch (e) { this._fail(e); throw e; }
 }
@@ -422,7 +422,7 @@ async shellAction(op, arg = "") {
 if (!this._d) return null;
 const r = await this._d.shellAction(op, arg);
 if (this._ch && r.h != null) this._ch.innerHTML = r.h;
-if (r.save && !this._readonly && this._d && this._d.save) {
+if (r.save && !this._readonly && this._d?.save) {
 const bytes = await this.save();
 this.dispatchEvent(new CustomEvent("nitro-save", { detail: bytes, bubbles: !0 }));
 await this._downloadBytes(bytes);

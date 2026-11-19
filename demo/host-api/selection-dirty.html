@@ -1,0 +1,111 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nitro XML · Host API — selection + dirty</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+    #top { display: flex; gap: 8px; align-items: center; padding: 6px 8px; background: #f0f0f0; border-bottom: 1px solid #ccc; flex-wrap: wrap; }
+    #top h1 { font-size: 14px; margin: 0; }
+    button { padding: 4px 10px; cursor: pointer; }
+    #dirty-badge { padding: 3px 8px; border-radius: 3px; font-size: 12px; background: #e0e0e0; color: #555; }
+    #dirty-badge.dirty { background: #ffd700; color: #000; }
+    #main { display: flex; flex: 1; min-height: 0; }
+    #viewer-wrap { flex: 2; display: flex; flex-direction: column; min-height: 0; }
+    nitro-docx, nitro-xlsx, nitro-pptx { flex: 1; min-height: 0; display: block; }
+    #side { flex: 1; display: flex; flex-direction: column; border-left: 1px solid #ccc; padding: 8px; gap: 6px; min-width: 220px; max-width: 340px; }
+    #side h2 { font-size: 13px; margin: 0; }
+    #chat-area { flex: 1; resize: none; font: 13px/1.4 system-ui; border: 1px solid #ccc; padding: 6px; }
+    #log { font: 12px/1.4 monospace; white-space: pre-wrap; overflow-y: auto; flex: 1; border: 1px solid #ddd; padding: 6px; background: #fafafa; }
+    #sel-out { font: 12px/1.4 monospace; white-space: pre-wrap; overflow: auto; max-height: 120px; border: 1px solid #ddd; padding: 6px; background: #f5f5ff; }
+  </style>
+</head>
+<body>
+  <div id="top">
+    <h1>Host API · selection + dirty</h1>
+    <button id="btn-sel">Get selection</button>
+    <button id="btn-save">Save</button>
+    <span id="dirty-badge">clean</span>
+    <small id="fmt-label"></small>
+  </div>
+  <div id="main">
+    <div id="viewer-wrap"><!-- element injected here --></div>
+    <div id="side">
+      <h2>Host chat <textarea></h2>
+      <textarea id="chat-area" placeholder="Type a message to the AI agent…"></textarea>
+      <h2>getSelection() result</h2>
+      <div id="sel-out">(none)</div>
+      <h2>Event log</h2>
+      <div id="log">(no events yet)</div>
+    </div>
+  </div>
+
+  <script type="module">
+    const LOADER = "../nitro-xml/loader/";
+    const FORMATS = {
+      docx: { tag: "nitro-docx", define: "defineNitroDocx", sample: "../samples/notes.docx" },
+      xlsx: { tag: "nitro-xlsx", define: "defineNitroXlsx", sample: "../samples/sample.xlsx" },
+      pptx: { tag: "nitro-pptx", define: "defineNitroPptx", sample: "../samples/deck.pptx" },
+    };
+
+    const params = new URLSearchParams(location.search);
+    const fmt = FORMATS[params.get("f")] ? params.get("f") : "docx";
+    const info = FORMATS[fmt];
+
+    document.getElementById("fmt-label").textContent = fmt.toUpperCase();
+
+    const loader = await import(LOADER + "index.js");
+    await loader.initCore({ fontSource: false });
+    loader[info.define]();
+
+    // Also load the ribbon so the editor chrome is wired up.
+    import(LOADER + "lazy/ribbon/index.js").catch(() => {});
+
+    const el = document.createElement(info.tag);
+    el.setAttribute("readonly", "false");
+    el.id = "viewer";
+    document.getElementById("viewer-wrap").appendChild(el);
+
+    const badge = document.getElementById("dirty-badge");
+    const log = document.getElementById("log");
+    const selOut = document.getElementById("sel-out");
+
+    function logLine(msg) {
+      log.textContent += new Date().toISOString().slice(11, 23) + " " + msg + "\n";
+      log.scrollTop = log.scrollHeight;
+    }
+
+    el.addEventListener("nitro-change", (e) => {
+      const d = e.detail.dirty;
+      badge.textContent = d ? "dirty" : "clean";
+      badge.className = d ? "dirty" : "";
+      logLine("nitro-change dirty=" + d);
+    });
+
+    el.addEventListener("error", (e) => logLine("error: " + (e.detail && e.detail.message)));
+
+    logLine("loading " + fmt + "…");
+    const resp = await fetch(info.sample);
+    const buf = await resp.arrayBuffer();
+    await el.loadBuffer(buf, info.sample.split("/").pop());
+    logLine("loaded");
+
+    document.getElementById("btn-sel").onclick = async () => {
+      const sel = await el.getSelection();
+      selOut.textContent = JSON.stringify(sel, null, 2);
+      logLine("getSelection() → " + (sel ? sel.format : "null"));
+    };
+
+    document.getElementById("btn-save").onclick = async () => {
+      try {
+        await el.save();
+        logLine("save() ok  dirty=" + el.dirty);
+      } catch (e) {
+        logLine("save() error: " + e.message);
+      }
+    };
+  </script>
+</body>
+</html>

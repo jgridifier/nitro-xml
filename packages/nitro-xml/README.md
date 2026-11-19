@@ -81,6 +81,34 @@ export default defineConfig({ worker: { format: "es" } });
 The host owns persistence; `save()` returns bytes and `onChange` reports saves.
 See [0.1.0 release notes](https://github.com/jgridifier/nitro-xml/blob/main/docs/releases/0.1.0.md) for limits and known losses.
 
+## Host API
+
+For hosts embedding Nitro inside a chat UI or agent harness — full docs in
+[`loader/README.md#host-api`](loader/README.md#host-api).
+
+### `getSelection(): Promise<NitroSelection | null>`
+
+Returns a snapshot of the current selection (docx paragraph/offset, xlsx
+sheet+range, pptx slide/shape). Works in read-only and edit mode.
+
+```js
+const sel = await viewer.getSelection();
+// { format: "xlsx", sheet: "Sheet1", sheetIndex: 0, range: "B2:D5",
+//   anchor: "B2", values: [], truncated: false }
+```
+
+### `dirty` getter + `nitro-change` event
+
+```js
+el.addEventListener("nitro-change", (e) => {
+  console.log("dirty:", e.detail.dirty); // true on first edit, false after save()
+});
+await el.save(); // resets dirty → false, fires nitro-change {dirty:false}
+```
+
+Fires only when `dirty` flips. Never fires during load, scroll, zoom, navigation,
+or `save()` on an unedited document.
+
 ## Loader size gate
 
 ```bash

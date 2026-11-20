@@ -72,6 +72,54 @@ pub fn cell_text_tsv(
     Ok(lines.join("\n"))
 }
 
+/// Stored cell values of `range` as JSON rows for a host selection snapshot (#561):
+/// numbers stay numbers, booleans stay booleans, errors are their `#...` text and empty cells are
+/// `null`. At most `cap` cells are read; whole rows are dropped past the cap (at least one row is
+/// kept, clipped to `cap` columns). Returns `(rows, truncated)`.
+pub fn cell_values_json(
+    sheet: &ActiveWorksheet,
+    range_ref: &str,
+    cap: usize,
+) -> Result<(Value, bool), String> {
+    use crate::model::DumpCellValue as V;
+    let range = parse_range(range_ref).ok_or_else(|| format!("invalid range {}", range_ref))?;
+    let (rows, cols) = clipped_dims(&range, cap);
+    let full = (range.end.row - range.start.row) as u64 + 1;
+    let full_cols = (range.end.col - range.start.col) as u64 + 1;
+    let truncated = rows as u64 != full || cols as u64 != full_cols;
+    let index = CellIndex::build(sheet);
+    let mut out = Vec::with_capacity(rows);
+    for r in 0..rows as u32 {
+        let mut line = Vec::with_capacity(cols);
+        for c in 0..cols as u32 {
+            let cell = crate::sheet_access::get_cell(
+                sheet,
+                &index,
+                range.start.row + r,
+                range.start.col + c,
+            );
+            line.push(match cell.map(|c| &c.value) {
+                None | Some(V::Null) => Value::Null,
+                Some(V::Number(n)) => json!(n),
+                Some(V::NumberRaw(s)) => s.parse::<f64>().map(|n| json!(n)).unwrap_or(json!(s)),
+                Some(V::String(s)) | Some(V::Error(s)) => json!(s),
+                Some(V::Bool(b)) => json!(b),
+            });
+        }
+        out.push(Value::Array(line));
+    }
+    Ok((Value::Array(out), truncated))
+}
+
+/// Rows and columns of `range` that fit in `cap` cells (whole rows first).
+pub fn clipped_dims(range: &crate::model::CellRange, cap: usize) -> (usize, usize) {
+    let rows = (range.end.row.saturating_sub(range.start.row) as usize).saturating_add(1);
+    let cols = (range.end.col.saturating_sub(range.start.col) as usize).saturating_add(1);
+    let cap = cap.max(1);
+    let cols = cols.min(cap);
+    (rows.min((cap / cols).max(1)), cols)
+}
+
 fn link_allowed(target: &Option<String>, location: &Option<String>) -> bool {
     if location.as_ref().is_some_and(|l| !l.is_empty()) {
         return true;

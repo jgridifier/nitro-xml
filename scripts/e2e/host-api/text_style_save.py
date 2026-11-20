@@ -63,14 +63,15 @@ try:
             page.evaluate('viewer._nxpTa.focus()')
             assert page.evaluate('viewer.shadowRoot.activeElement === viewer._nxpTa'), f'{fmt}: no input focus'
             if fmt == 'pptx':
-                style_js = "n => {const s=getComputedStyle(n);return [s.fontFamily,s.fontSize,s.color,s.fontWeight,s.fontStyle]}"
-                body_style = page.locator('#viewer .pptxv-para span').filter(has_text='Inherited').evaluate(style_js)
+                style_of = "text => { const sp = [...viewer.shadowRoot.querySelectorAll('.pptxv-para span')].find(n => n.textContent.includes(text)); if (!sp) return null; const s = getComputedStyle(sp); return [s.fontFamily,s.fontSize,s.color,s.fontWeight,s.fontStyle]; }"
+                body_style = page.evaluate(style_of, "Inherited")
+                assert body_style is not None, 'Inherited body span not found'
                 assert 'Arial' in body_style[0], body_style
                 assert body_style[1:] == ['32px', 'rgb(21, 74, 130)', '700', 'italic'], body_style
             page.keyboard.type('HostPending')
             if fmt == 'pptx':
                 page.wait_for_function("expected => [...viewer.shadowRoot.querySelectorAll('.pptxv-para span')].some(n=>{const s=getComputedStyle(n); return n.textContent.includes('HostPending') && JSON.stringify([s.fontFamily,s.fontSize,s.color,s.fontWeight,s.fontStyle]) === JSON.stringify(expected)})", arg=body_style)
-                live_style = page.locator('#viewer .pptxv-para span').filter(has_text='HostPending').first.evaluate(style_js)
+                live_style = page.evaluate(style_of, "HostPending")
                 assert live_style == body_style, ('live typing style changed', live_style, body_style)
             page.evaluate('saveReopen()')
             data = bytes(page.evaluate('saved'))
@@ -80,8 +81,8 @@ try:
             assert not page.evaluate('savedDirty || viewer.dirty'), f'{fmt}: dirty after save'
             print(f'PASS {fmt}: pending typing saved, reopened, dirty false', flush=True)
             if fmt == 'pptx':
-                typed = page.locator('#viewer .pptxv-para span').filter(has_text='HostPending')
-                assert typed.first.evaluate(style_js) == body_style, 'existing run style changed'
+                typed_style = page.evaluate(style_of, "HostPending")
+                assert typed_style == body_style, 'existing run style changed'
                 page.locator('#viewer [data-element-id="ppt/slides/slide1.xml-shape-0"]').click()
                 assert page.evaluate('viewer.shadowRoot.activeElement === viewer._nxpTa'), 'empty title lacks focus'
                 page.keyboard.type('TitlePending')
@@ -97,12 +98,12 @@ try:
                 assert all(r.find('a:latin', ns) is None and r.find('a:solidFill', ns) is None for r in title_runs), 'saved XML hardcodes inherited font/color'
                 body_text = ''.join(n.text or '' for n in shapes[1].findall('.//a:t', ns))
                 assert body_text == 'Inherited bodyHostPending', body_text
-                title = page.locator('#viewer .pptxv-para span').filter(has_text='TitlePending').first
-                title_style = title.evaluate(style_js)
+                title_style = page.evaluate(style_of, "TitlePending")
+                assert title_style is not None, 'TitlePending not found'
                 assert 'Arial' in title_style[0], title_style
                 assert title_style[1:] == ['42.6667px', 'rgb(21, 74, 130)', '700', 'italic'], title_style
                 page.wait_for_function("[...viewer.shadowRoot.querySelectorAll('.pptxv-para span')].some(n=>n.textContent.includes('NextParagraph') && getComputedStyle(n).fontSize === '42.6667px')")
-                next_style = page.locator('#viewer .pptxv-para span').filter(has_text='NextParagraph').first.evaluate(style_js)
+                next_style = page.evaluate(style_of, "NextParagraph")
                 assert next_style == title_style, (title_style, next_style)
                 print('PASS pptx: empty title, existing run, new paragraph font/size/color/bold/italic', flush=True)
             # Catches: an active native composition being discarded or doubled by save().

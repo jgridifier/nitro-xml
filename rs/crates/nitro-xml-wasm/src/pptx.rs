@@ -120,6 +120,23 @@ impl PptxState {
             .unwrap_or_default()
     }
 
+    /// Host selection snapshot of one top-level element on the active slide (#561):
+    /// `{ "shapeId", "shapeName", "shapeText" }`, or `{}` when the id is not on the slide.
+    pub fn host_shape(&mut self, id: &str) -> Value {
+        let active = self.active;
+        let Ok(slide) = self.pres.slide(active) else {
+            return json!({});
+        };
+        let Some(el) = slide.elements.iter().find(|el| el.id == id) else {
+            return json!({});
+        };
+        json!({
+            "shapeId": el.id,
+            "shapeName": el.name,
+            "shapeText": copy_text(slide, &[id.to_owned()]),
+        })
+    }
+
     fn select_all(&mut self) {
         let active = self.active;
         self.selected_ids = self

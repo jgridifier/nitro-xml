@@ -2,7 +2,9 @@
 # Catches: host navigation/reload/mode changes remounting editors or taking chat focus.
 """Run after assembling _site. Test variants derive only from MIT demo/samples files."""
 import functools
+import io
 import http.server
+import os
 import pathlib
 import re
 import threading
@@ -38,6 +40,16 @@ def variants(fmt):
                 z.writestr(n, data.replace(b'HOST ORIGINAL', b'HOST RELOADED') if version == 'changed' else data)
 
 
+def chrome_path():
+    # Same rule as the other host-api drivers: HOST_API_CHROME, else the box-local headless
+    # shell when present, else Playwright's bundled Chromium (CI / ubuntu-latest).
+    env = os.environ.get('HOST_API_CHROME')
+    if env:
+        return env
+    default = '/home/box/.cache/ms-playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell'
+    return default if os.path.exists(default) else None
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *_):
         pass
@@ -49,7 +61,8 @@ server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Han
 threading.Thread(target=server.serve_forever, daemon=True).start()
 try:
     with sync_playwright() as p:
-        browser = p.chromium.launch(executable_path='/home/box/.cache/ms-playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell', args=['--no-sandbox'])
+        chrome = chrome_path()
+        browser = p.chromium.launch(**({'executable_path': chrome} if chrome else {}), args=['--no-sandbox', '--disable-dev-shm-usage'])
         for fmt in ['docx', 'xlsx', 'pptx']:
             page = browser.new_page()
             page.set_default_timeout(20000)
@@ -127,8 +140,32 @@ try:
             assert page.evaluate('key=>el.getPosition()[key]', key) == 0
             assert page.evaluate('el.getPosition().scrollTop') == 0
             assert page.evaluate('document.activeElement === chat')
+            # Catches: a live readonly round trip that reparses or remounts and drops unsaved edits (#565).
+            # Proof is the saved package, so it does not depend on how each format repaints.
+            page.evaluate('''async()=>{await new Promise(resolve=>{el.addEventListener('nitro-mode',resolve,{once:true});el.readonly=false})}''')
+            if fmt == 'docx':
+                page.locator('nitro-docx .dve-print-line span').first.click()
+            elif fmt == 'xlsx':
+                page.evaluate('el.shellAction("select", "A1")')
+                page.locator('nitro-xlsx .v').click(position={'x':90,'y':45})
+            else:
+                page.locator('nitro-pptx [data-element-id]').first.click()
+            page.keyboard.type('KEEPME')
+            if fmt == 'xlsx':
+                page.keyboard.press('Enter')
+            page.wait_for_function('el.dirty === true')
+            page.evaluate('window.keepChanges=changes')
+            page.evaluate('''async()=>{await new Promise(resolve=>{el.addEventListener('nitro-mode',resolve,{once:true});el.readonly=true})}''')
+            assert page.evaluate('el.readonly && el===before && el.shadowRoot===shadow'), (fmt, 'readonly toggle remounted')
+            page.evaluate('''async()=>{await new Promise(resolve=>{el.addEventListener('nitro-mode',resolve,{once:true});el.readonly=false})}''')
+            assert page.evaluate('!el.readonly && el===before && el.shadowRoot===shadow'), (fmt, 'writable toggle remounted')
+            assert page.evaluate('el.dirty === true && changes === keepChanges'), (fmt, 'readonly round trip lost dirty or emitted nitro-change')
+            saved = bytes(page.evaluate('async()=>Array.from(await el.save())'))
+            with zipfile.ZipFile(io.BytesIO(saved)) as z:
+                assert any(b'KEEPME' in z.read(n) for n in z.namelist()), (fmt, 'readonly round trip dropped unsaved edits')
+            print(fmt, 'live readonly round trip kept unsaved edits', flush=True)
             assert not errors, (fmt, errors)
-            print(f'PASS {fmt}: open position; round-trip; reload content/identity/position; live readonly typing; chat focus; bounds', flush=True)
+            print(f'PASS {fmt}: open position; round-trip; reload content/identity/position; readonly typing blocked; live readonly keeps edits; chat focus; bounds', flush=True)
             page.close()
         browser.close()
 finally:

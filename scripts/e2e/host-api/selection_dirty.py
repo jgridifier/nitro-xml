@@ -9,12 +9,21 @@ import functools
 import http.server
 import json
 from pathlib import Path
+import os
 import sys
 import threading
 from playwright.sync_api import sync_playwright
 
 SITE = Path(__file__).resolve().parents[3] / "_site"
-CHROME = "/home/box/.cache/ms-playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell"
+def _chrome_path():
+    env = os.environ.get("HOST_API_CHROME")
+    if env:
+        return env
+    default = "/home/box/.cache/ms-playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell"
+    return default if os.path.exists(default) else None
+
+
+CHROME = _chrome_path()
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -157,7 +166,7 @@ def main():
         thread.start()
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch(executable_path=CHROME, args=['--no-sandbox', '--disable-dev-shm-usage'])
+                browser = p.chromium.launch(**({} if not CHROME else {"executable_path": CHROME}), args=['--no-sandbox', '--disable-dev-shm-usage'])
                 try:
                     for fmt in ('docx', 'xlsx', 'pptx'):
                         for name, check in [('dirty', check_dirty), ('selection', check_selection)]:

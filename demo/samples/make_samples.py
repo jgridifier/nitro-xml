@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: MIT
-"""Regenerates notes.docx and deck.pptx (original content; needs python-pptx + python-docx).
+"""Regenerates notes.docx, paged.docx and deck.pptx (original content; needs python-pptx + python-docx).
 
     python3 -I demo/samples/make_samples.py
 """
 import os
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor
 from pptx import Presentation
 from pptx.dml.color import RGBColor as PC
@@ -53,6 +55,19 @@ q.add_run(" runs, plus a numbered list:")
 for t in ("Collect feedback from embedders", "Land the editing commands", "Publish the benchmark report"):
     d.add_paragraph(t, style="List Number")
 d.save(os.path.join(HERE, "notes.docx"))
+
+# ---- paged.docx: minimal two-page fixture with an explicit page break (#593) ----
+pd = Document()
+pst = pd.styles["Normal"]
+pst.font.name = "Calibri"
+pd.add_paragraph("Visible paragraph one")
+pd.add_paragraph("Second paragraph on page one")
+br = OxmlElement("w:br")
+br.set(qn("w:type"), "page")
+pd.add_paragraph()._p.append(br)
+pd.add_paragraph("Page two content follows the break")
+pd.add_paragraph("More text on page two")
+pd.save(os.path.join(HERE, "paged.docx"))
 
 # ---- pptx ----
 prs = Presentation()

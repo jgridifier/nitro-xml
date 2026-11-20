@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **docx typing repaint (#593)**: typed text now appears in the rendered page of
+  a multi-page Word document immediately after typing. The deferred body
+  re-parse in `refresh_view` now uses the edited bytes, preventing the original
+  bytes from overwriting the view session.
+
 ### Added
 
 - **Font supply without Google Fonts** (`fonts`, `fontSource: "page"`) — #566

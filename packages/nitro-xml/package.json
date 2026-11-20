@@ -1,6 +1,6 @@
 {
   "name": "nitro-xml",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Open, view, edit and save .xlsx, .docx and .pptx in the browser, in Rust/WebAssembly.",
   "license": "MIT",
   "author": "Nitro XML contributors",

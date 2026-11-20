@@ -1,6 +1,6 @@
 {
   "name": "@nitro-xml/react",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "SSR-safe React <NitroViewer> for Nitro XML (xlsx/docx/pptx).",
   "license": "MIT",
   "author": "Nitro XML contributors",
@@ -61,6 +61,6 @@
     "prepack": "npm run build"
   },
   "dependencies": {
-    "nitro-xml": "^0.1.0"
+    "nitro-xml": "^0.2.0"
   }
 }

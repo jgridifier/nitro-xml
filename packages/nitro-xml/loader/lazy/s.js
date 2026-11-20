@@ -1,10 +1,22 @@
 // SPDX-License-Identifier: MIT
+// getSelection() (#561). Lazy chunk: off the first-load budget.
+// - xlsx: range from the shell UI, typed cell values from the engine ("host-selection").
+// - docx: the caret only (collapsed). pptx: the clicked shape only (collapsed).
+//   Text-range selection is not implemented yet (#561).
+// Host reads go straight to the worker like host-position: they never paint, edit or unlock
+// editor chrome, so getSelection() cannot mark the document dirty.
 import { rangeOf } from "./input-proxy.js";
 
 const VALUES_CAP = 10000;
 
-function esc(s) {
-  return window.CSS && CSS.escape ? CSS.escape(s) : s.replace(/["\\]/g, "\\$&");
+function hostAction(el, op, arg = "") {
+  const d = el.document;
+  if (!d) return Promise.resolve({});
+  if (!d._worker || typeof d._request !== "function") return Promise.resolve(d.shellAction(op, arg));
+  d._events && d._events.flushNow && d._events.flushNow();
+  return d
+    ._request("sa", () => d._worker.postMessage({ type: "sa", op, arg: String(arg) }))
+    .then((m) => JSON.parse(m.result || "{}"));
 }
 
 async function xlsxSel(el) {
@@ -14,21 +26,21 @@ async function xlsxSel(el) {
   const rangeStr = ui.selection || null;
   const rg = rangeOf(rangeStr || "");
   const anchor = rangeStr ? rangeStr.split(":")[0] : null;
+  const sheetIndex = tab ? tab.index : 0;
   const count = rg ? (rg.r1 - rg.r0 + 1) * (rg.c1 - rg.c0 + 1) : 0;
-  return {
-    format: "xlsx",
-    sheet: tab ? tab.name : "",
-    sheetIndex: tab ? tab.index : 0,
-    range: rangeStr,
-    anchor,
-    values: [],
-    truncated: count > VALUES_CAP,
-  };
+  let values = [];
+  let truncated = count > VALUES_CAP;
+  if (rg) {
+    const v = await hostAction(el, "host-selection", `${sheetIndex}\t${rangeStr}`);
+    values = v.values || [];
+    truncated = !!v.truncated;
+  }
+  return { format: "xlsx", sheet: tab ? tab.name : "", sheetIndex, range: rangeStr, anchor, values, truncated };
 }
 
 async function docxSel(el) {
   const [cr, ur] = await Promise.all([
-    el.shellAction("docx-caret", ""),
+    hostAction(el, "docx-caret", ""),
     el.shellAction("ui"),
   ]);
   const k = cr && cr.k;
@@ -41,7 +53,6 @@ async function docxSel(el) {
   const sr = el.shadowRoot;
   const dom = sr && sr.querySelector(".dom");
   let paragraph = 0;
-  let text = "";
   if (dom) {
     const seen = new Set();
     const uniq = [];
@@ -50,11 +61,10 @@ async function docxSel(el) {
     }
     const idx = uniq.indexOf(String(bid));
     if (idx >= 0) paragraph = idx;
-    const block = dom.querySelector(`[data-bid="${esc(bid)}"]`);
-    if (block) text = block.textContent || "";
   }
+  // Caret only: no text is selected, so `text` is empty and start === end.
   const pos = { paragraph, run: 0, offset: chars };
-  return { format: "docx", text, page, start: pos, end: pos, collapsed: true };
+  return { format: "docx", text: "", page, start: pos, end: { ...pos }, collapsed: true };
 }
 
 async function pptxSel(el) {
@@ -63,7 +73,14 @@ async function pptxSel(el) {
   const tabs = ui.tabs || [];
   const tab = tabs.find((t) => t.active) || tabs[0] || null;
   const slide = tab ? tab.index : 0;
-  return { format: "pptx", slide, shapeId: null, shapeName: null, text: null, textRange: null };
+  // A multi-shape selection reports its first shape; "A1" means nothing is selected.
+  const id = ui.selection && ui.selection !== "A1" ? ui.selection.split(",")[0] : null;
+  const s = id ? await hostAction(el, "host-selection", id) : {};
+  if (!s.shapeId) return { format: "pptx", slide, shapeId: null, shapeName: null, text: null, textRange: null, collapsed: true };
+  return {
+    format: "pptx", slide, shapeId: s.shapeId, shapeName: s.shapeName || null,
+    text: s.shapeText || "", textRange: null, collapsed: true,
+  };
 }
 
 async function getSel(el) {

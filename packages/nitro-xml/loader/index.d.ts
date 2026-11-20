@@ -109,6 +109,7 @@ export class WorkerDocument {
 }
 
 /** Selection snapshot returned by `getSelection()` on each element type. */
+/** v0.2.0: the caret only; `text` is "" and `start` equals `end` (text ranges: #561). */
 export type NitroDocxSelection = {
   format: "docx";
   text: string;
@@ -126,6 +127,7 @@ export type NitroXlsxSelection = {
   values: (string | number | boolean | null)[][];
   truncated: boolean;
 };
+/** v0.2.0: the clicked shape only; `text` is its whole text, `textRange` is null (text ranges: #561). */
 export type NitroPptxSelection = {
   format: "pptx";
   slide: number;
@@ -133,6 +135,7 @@ export type NitroPptxSelection = {
   shapeName: string | null;
   text: string | null;
   textRange: { start: number; end: number } | null;
+  collapsed: true;
 };
 export type NitroSelection = NitroDocxSelection | NitroXlsxSelection | NitroPptxSelection;
 
@@ -182,10 +185,10 @@ export class ShellViewerElement extends ViewerElement {
    */
   readonly dirty: boolean;
   /**
-   * Selection snapshot (incomplete; #561): DOCX reports a collapsed caret and
-   * paragraph text; XLSX values are currently empty; PPTX shape/text fields are null.
-   * Call after load completes. No nitro-selectionchange event is emitted.
-   * Do not use the current placeholders as comment anchors.
+   * Selection snapshot (#561). v0.2.0: DOCX returns the caret only and PPTX the clicked
+   * shape only, both `collapsed: true` with no selected text range (text ranges: #561).
+   * XLSX: stored cell values of the range, at most 10,000 cells (`truncated` past it).
+   * Call after load completes. Never marks the document dirty; no nitro-selectionchange event.
    */
   getSelection(): Promise<NitroSelection | null>;
   /** Last painted position, synchronously. Before open: zero scroll offsets. */

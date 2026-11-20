@@ -24,6 +24,8 @@ def _chrome_path():
 
 
 CHROME = _chrome_path()
+# Full text of the first shape on slide 1 of demo/samples/deck.pptx.
+PPTX_SHAPE_TEXT = 'Nitro XML'
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -76,7 +78,13 @@ def assert_focus(page):
 
 def cell_point(page, row, col):
     # Grid header and default cell dimensions in demo/samples/sample.xlsx.
-    box = page.locator('#viewer .xg-root').bounding_box()
+    # Read the rect in one page turn: every painted frame rebuilds the grid DOM, so a
+    # two-step locator lookup can land on a just-detached node mid-drag (flaky None).
+    box = page.evaluate("""() => {
+        const grid = document.querySelector('#viewer').shadowRoot.querySelector('.xg-root');
+        const r = grid && grid.isConnected ? grid.getBoundingClientRect() : null;
+        return r && r.width > 0 && r.height > 0 ? {x: r.x, y: r.y} : null;
+    }""")
     assert box, 'spreadsheet grid missing'
     return box['x'] + 33 + col * 64 + 32, box['y'] + 20 + row * 20 + 10
 
@@ -123,26 +131,36 @@ def check_dirty(page, fmt):
 
 
 def check_selection(page, fmt):
-    # Catches: placeholder payloads passing without selecting text, cells or a shape.
+    # Catches: placeholder payloads passing without a real caret, cell range or clicked shape.
+    # v0.2.0 reports only what is real: docx caret, xlsx range + values, pptx clicked shape.
+    # Text-range selection in docx/pptx is not implemented yet (#561), so both are collapsed.
     if fmt == 'xlsx':
         page.mouse.move(*cell_point(page, 1, 1))
         page.mouse.down()
         page.mouse.move(*cell_point(page, 2, 2), steps=12)
         page.mouse.up()
+    elif fmt == 'docx':
+        # A real click at the left edge of "Quarterly" puts the caret at 0; three engine
+        # ArrowRight moves must then report offset 3 (catches a stale or click-only caret).
+        target = page.locator('#viewer [data-bid="p0"] span').first
+        box = target.bounding_box()
+        assert box, 'docx first run missing'
+        page.mouse.click(box['x'] + 1, box['y'] + box['height'] / 2)
+        page.wait_for_timeout(300)
+        for _ in range(3):
+            page.keyboard.press('ArrowRight')
     else:
-        # A real double-click selects the first word, if text selection is supported.
-        selector = '#viewer [data-bid="p0"] span' if fmt == 'docx' else '#viewer .pptxv-para span'
-        page.locator(selector).first.dblclick()
+        page.locator('#viewer .pptxv-para span').first.click()
     page.wait_for_timeout(500)
     selection = page.evaluate("document.querySelector('#viewer').getSelection()")
     print(f'  {fmt} selection: {json.dumps(selection)}', flush=True)
     assert selection is not None, 'selection must not be null'
     if fmt == 'docx':
         expect(selection, {
-            'format': 'docx', 'text': 'Quarterly', 'page': 0,
-            'start': {'paragraph': 0, 'run': 0, 'offset': 0},
-            'end': {'paragraph': 0, 'run': 0, 'offset': 9}, 'collapsed': False,
-        }, 'DOCX selected word and paragraph offsets')
+            'format': 'docx', 'text': '', 'page': 0,
+            'start': {'paragraph': 0, 'run': 0, 'offset': 3},
+            'end': {'paragraph': 0, 'run': 0, 'offset': 3}, 'collapsed': True,
+        }, 'DOCX caret position (collapsed, no selected text)')
     elif fmt == 'xlsx':
         expect(selection, {
             'format': 'xlsx', 'sheet': 'Sheet1', 'sheetIndex': 0,
@@ -151,9 +169,10 @@ def check_selection(page, fmt):
     else:
         expect(selection, {
             'format': 'pptx', 'slide': 0, 'shapeId': 'ppt/slides/slide1.xml-shape-0',
-            'shapeName': 'TextBox 1', 'text': 'Nitro', 'textRange': {'start': 0, 'end': 5},
-        }, 'PPTX selected shape and text range')
+            'shapeName': 'TextBox 1', 'text': PPTX_SHAPE_TEXT, 'textRange': None, 'collapsed': True,
+        }, 'PPTX clicked shape (collapsed, no text range)')
     expect(events(page), [], 'selection must not mark dirty')
+    expect(page.evaluate("document.querySelector('#viewer').dirty"), False, 'selection must not set dirty')
     print(f'  PASS {fmt}: real selection payload', flush=True)
 
 

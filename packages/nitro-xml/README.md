@@ -88,18 +88,28 @@ For hosts embedding Nitro inside a chat UI or agent harness — full docs in
 
 ### `getSelection(): Promise<NitroSelection | null>`
 
-Returns `Promise<NitroSelection | null>`. The current implementation is incomplete
-(#561): DOCX returns the caret paragraph's text and equal `start`/`end`
-`{paragraph, run, offset}` positions with `collapsed: true`; XLSX returns
-`{format, sheet, sheetIndex, range, anchor, values: [], truncated}` (values are
-not populated); PPTX returns `{format, slide, shapeId: null, shapeName: null,
-text: null, textRange: null}`. Do not use these placeholders to anchor comments.
-No `nitro-selectionchange` event is emitted. Call after loading completes and
-after the user's selection gesture:
+Returns a snapshot of the current selection (#561). Call after loading
+completes and after the user's selection gesture. No `nitro-selectionchange`
+event is emitted, and reading the selection never marks the document dirty.
+
+- **DOCX**: the caret only. Returns `start`/`end` `{paragraph, run, offset}` at
+  the caret (`offset` counts code points from the paragraph start, `run` is `0`),
+  `text: ""` and `collapsed: true`. With no caret, `start`/`end` are `null`.
+- **XLSX**: `{format, sheet, sheetIndex, range, anchor, values, truncated}`.
+  `values` holds the stored cell values row by row: numbers, strings, booleans,
+  error text such as `"#DIV/0!"`, or `null` for an empty cell. At most 10,000
+  cells are returned; past that, whole rows are dropped and `truncated` is `true`.
+- **PPTX**: the clicked shape only. Returns its `shapeId`, `shapeName` and whole
+  `text`, with `textRange: null` and `collapsed: true`. With nothing selected,
+  the shape fields are `null`.
+
+**v0.2.0 limit:** in Word and PowerPoint, `getSelection()` returns the caret or the
+clicked shape only. It never reports a selected text range. Text-range selection
+is tracked in #561.
 
 ```js
 const selection = await viewer.getSelection();
-console.log(selection); // Snapshot only; see the limitations above.
+console.log(selection); // e.g. { format: "xlsx", range: "B2:C3", values: [[4, 6], [6, 9]], ... }
 ```
 
 ### `dirty: boolean` getter + `nitro-change` event

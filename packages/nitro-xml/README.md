@@ -79,7 +79,7 @@ export default defineConfig({ worker: { format: "es" } });
 
 
 The host owns persistence; `save()` returns bytes and `onChange` reports saves.
-See [0.1.0 release notes](https://github.com/jgridifier/nitro-xml/blob/main/docs/releases/0.1.0.md) for limits and known losses.
+See the [0.2.0 changes and known limits](https://github.com/jgridifier/nitro-xml/blob/main/CHANGELOG.md#020--2026-11-20) in the CHANGELOG, and the [0.1.0 release notes](https://github.com/jgridifier/nitro-xml/blob/main/docs/releases/0.1.0.md) for earlier limits and known losses.
 
 ## Host API
 

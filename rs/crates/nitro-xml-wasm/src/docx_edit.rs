@@ -441,6 +441,11 @@ impl DocxState {
                 return Err(e);
             }
         };
+        // process_frame calls flush_pending_body with handle.bytes (the original pre-edit
+        // bytes), which would overwrite the edited view session.  Complete the body now
+        // using the edited bytes so the deferred load never fires with wrong bytes.
+        // flush_pending_body is a no-op when body_truncated is already false.
+        let _ = next.flush_pending_body(&bytes);
         next.edit = edit;
         next.typing = typing;
         next.text_clip = clip;

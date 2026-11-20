@@ -3,6 +3,12 @@
 
 ## Unreleased
 
+- Host API browser checks now require real focus, committed edits and exact
+  selection payloads; missing events or selection data fail the run (#561, #562).
+  Fixed the demo host's zero-height editing surface and malformed chat heading.
+  Documented that text ranges, XLSX values and PPTX selection fields remain
+  incomplete; the strict selection checks currently fail. No runtime API change.
+
 ### Host API additions
 
 - **`getSelection(): Promise<NitroSelection | null>`** on `<nitro-docx>`,

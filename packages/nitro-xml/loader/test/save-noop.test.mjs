@@ -92,7 +92,7 @@ describe("noop save (worker dirty tracking)", () => {
     const idle = new Function("self", "initCore", "isSupportedExtension",
       "applyFontSourceToHandle", "loadModule", source + "\nreturn () => chain;")(
       worker, async () => ({ glue: { Handle } }), () => true, () => {},
-      async (path) => path.endsWith("save.js") ? { postSave } : {
+      async (path) => path.endsWith("save.js") ? { postSave } : path.endsWith("load-fonts.js") ? { wof: async () => {} } : {
         buildAndPostFrame: async () => {},
       },
     );

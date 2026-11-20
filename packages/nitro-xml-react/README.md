@@ -69,4 +69,8 @@ edit / save for xlsx, docx, pptx).
 
 Failed imperative saves reject as well as notifying `onError`. Element `loadBuffer`, `loadFile`, and `loadUrl` reject on open failure and emit an `error` CustomEvent (`detail` is the error). Size limits use the existing `input_too_large`, `part_too_large`, `total_too_large`, `too_many_parts`, and `compression_ratio` codes. Worker requests exceeding the existing 120-second harness ceiling terminate the worker and reject with `NITRO_TIMEOUT` (milliseconds). VBA parts are preserved as opaque package data and are never executed.
 
-Host integration: see the [Nitro Host API](https://github.com/jgridifier/nitro-xml/blob/main/packages/nitro-xml/README.md#host-api) for position, reload and live readonly APIs.
+## Host API
+
+See the [Nitro XML Host API](../nitro-xml/README.md#host-api) for element
+signatures, event details, examples, and current selection limitations,
+including position, reload and live readonly APIs.

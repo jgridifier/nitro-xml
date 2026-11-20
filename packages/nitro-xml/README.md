@@ -88,20 +88,30 @@ For hosts embedding Nitro inside a chat UI or agent harness — full docs in
 
 ### `getSelection(): Promise<NitroSelection | null>`
 
-Returns a snapshot of the current selection (docx paragraph/offset, xlsx
-sheet+range, pptx slide/shape). Works in read-only and edit mode.
+Returns `Promise<NitroSelection | null>`. The current implementation is incomplete
+(#561): DOCX returns the caret paragraph's text and equal `start`/`end`
+`{paragraph, run, offset}` positions with `collapsed: true`; XLSX returns
+`{format, sheet, sheetIndex, range, anchor, values: [], truncated}` (values are
+not populated); PPTX returns `{format, slide, shapeId: null, shapeName: null,
+text: null, textRange: null}`. Do not use these placeholders to anchor comments.
+No `nitro-selectionchange` event is emitted. Call after loading completes and
+after the user's selection gesture:
 
 ```js
-const sel = await viewer.getSelection();
-// { format: "xlsx", sheet: "Sheet1", sheetIndex: 0, range: "B2:D5",
-//   anchor: "B2", values: [], truncated: false }
+const selection = await viewer.getSelection();
+console.log(selection); // Snapshot only; see the limitations above.
 ```
 
-### `dirty` getter + `nitro-change` event
+### `dirty: boolean` getter + `nitro-change` event
+
+For `readonly="false"`, real typing (and committed XLSX cell edits) sets the
+read-only getter to `true`. The bubbling, composed event has
+`detail: { dirty: boolean }`. `save(): Promise<Uint8Array>` returns the package
+bytes and resets dirty after success.
 
 ```js
 el.addEventListener("nitro-change", (e) => {
-  console.log("dirty:", e.detail.dirty); // true on first edit, false after save()
+  console.log("dirty:", e.detail.dirty, el.dirty); // true on first edit, false after save()
 });
 await el.save(); // resets dirty → false, fires nitro-change {dirty:false}
 ```
@@ -155,6 +165,71 @@ editor.readonly = false; // async transition; nitro-mode signals completion
 editor.setAttribute('readonly', 'true');
 // Spreadsheet example: await sheetEditor.setPosition({ sheet: 'Budget' });
 ```
+
+### Font supply without Google Fonts (`fonts`, `fontSource`) — #566
+
+By default Nitro may request webfont stylesheets from `fonts.googleapis.com`.
+To avoid that, supply fonts explicitly:
+
+```js
+// Global default — applies to all future WorkerDocument / element loads.
+await initCore({
+  fontSource: "off",          // stop any Google Fonts fallback
+  fonts: [
+    // Load from an explicit URL (served from your CDN / bundle):
+    { family: "Inter", url: "/fonts/Inter.woff2", weight: "400", style: "normal" },
+    // Or reuse a system font under a custom family name:
+    { family: "NitroMono", url: "local(monospace)" },
+    // Stylesheet URL — all @font-face rules inside are injected:
+    "/fonts/custom.css",
+  ],
+});
+```
+
+**Per-element override** (set before `loadBuffer`/`loadFile`/`loadUrl`):
+
+```js
+el.fonts = [{ family: "Inter", url: "/fonts/Inter.woff2" }];
+await el.loadBuffer(buf, "doc.docx");
+```
+
+**Reuse fonts the host page already loaded** (`fontSource: "page"`):
+
+```js
+await initCore({ fontSource: "page" });
+// Nitro forwards families from document.fonts to the WASM worker — no Google request.
+```
+
+**`fontSource` values:**
+
+| Value | Behaviour |
+|---|---|
+| omitted | CSS2 base URL (`https://fonts.googleapis.com/css2`) |
+| `"off"` / `false` | No remote fetch; unknown families get substitution diagnostics |
+| `"page"` | Reuse families already in `document.fonts`; forward to worker |
+| `string` (URL) | CSS2 mirror base URL (alternative CDN) |
+
+The `fonts` array is loaded via `FontFace` on the main thread **and** forwarded to
+the WASM worker (where text is measured). No request to `fonts.googleapis.com` or
+`fonts.gstatic.com` is made when `fonts` is set or `fontSource` is `"off"` / `"page"`.
+
+### Focus — load never steals focus (`autofocus`, `{focus:true}`) — #567
+
+By default, `loadBuffer` / `loadFile` / `loadUrl` **never move focus** away from
+whatever the host page has focused (e.g. a chat textarea). The editor only receives
+focus on explicit user interaction (pointer click on the document area).
+
+**Opt-in focus after load:**
+
+```js
+// Option A: attribute (declarative)
+<nitro-docx autofocus></nitro-docx>
+
+// Option B: loadBuffer option
+await el.loadBuffer(buf, "doc.docx", { focus: true });
+```
+
+User clicks on the document always focus the editor regardless of these options.
 
 ## Loader size gate
 

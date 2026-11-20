@@ -1,0 +1,132 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nitro XML · Host API — fonts + focus (#566 / #567)</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+    #top { display: flex; gap: 8px; align-items: center; padding: 6px 8px; background: #f0f0f0; border-bottom: 1px solid #ccc; flex-wrap: wrap; }
+    #top h1 { font-size: 14px; margin: 0; }
+    button { padding: 4px 10px; cursor: pointer; }
+    #main { display: flex; flex: 1; min-height: 0; }
+    #viewer-wrap { flex: 2; display: flex; flex-direction: column; min-height: 0; }
+    nitro-docx, nitro-xlsx, nitro-pptx { flex: 1; min-height: 0; display: block; }
+    #side { flex: 1; display: flex; flex-direction: column; border-left: 1px solid #ccc; padding: 8px; gap: 6px; min-width: 220px; max-width: 340px; }
+    #side h2 { font-size: 13px; margin: 0; }
+    #chat-area { flex: 0 0 80px; resize: none; font: 13px/1.4 system-ui; border: 1px solid #ccc; padding: 6px; }
+    #log { font: 12px/1.4 monospace; white-space: pre-wrap; overflow-y: auto; flex: 1; border: 1px solid #ddd; padding: 6px; background: #fafafa; max-height: 300px; }
+    #font-status { font: 12px/1.4 monospace; padding: 4px 6px; background: #f5fff5; border: 1px solid #ccc; }
+    #focus-status { font: 12px/1.4 monospace; padding: 4px 6px; background: #f5f5ff; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <div id="top">
+    <h1>Host API · fonts + focus</h1>
+    <button id="btn-open">Open</button>
+    <small id="fmt-label"></small>
+  </div>
+  <div id="main">
+    <div id="viewer-wrap"><!-- element injected here --></div>
+    <div id="side">
+      <h2>Host chat textarea (keep focus here)</h2>
+      <textarea id="chat-area" placeholder="Type here — focus must not be stolen…" autofocus></textarea>
+      <div id="focus-status">activeElement: (not tracked yet)</div>
+      <div id="font-status">NitroTestFont loaded: (pending)</div>
+      <h2>Event log</h2>
+      <div id="log">(no events yet)</div>
+    </div>
+  </div>
+
+  <script type="module">
+    const LOADER = "../nitro-xml/loader/";
+    const FORMATS = {
+      docx: { tag: "nitro-docx", define: "defineNitroDocx", sample: "../samples/notes.docx" },
+      xlsx: { tag: "nitro-xlsx", define: "defineNitroXlsx", sample: "../samples/sample.xlsx" },
+      pptx: { tag: "nitro-pptx", define: "defineNitroPptx", sample: "../samples/deck.pptx" },
+    };
+
+    const params = new URLSearchParams(location.search);
+    const fmt = FORMATS[params.get("f")] ? params.get("f") : "docx";
+    const info = FORMATS[fmt];
+    document.getElementById("fmt-label").textContent = fmt.toUpperCase();
+
+    // Count requests to Google Fonts / gstatic.
+    window.__googleFontRequests = 0;
+
+    const log = document.getElementById("log");
+    const focusStatus = document.getElementById("focus-status");
+    const fontStatus = document.getElementById("font-status");
+
+    function logLine(msg) {
+      log.textContent += new Date().toISOString().slice(11, 23) + " " + msg + "\n";
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function trackFocus() {
+      const ae = document.activeElement;
+      const name = ae ? (ae.id || ae.tagName.toLowerCase()) : "none";
+      focusStatus.textContent = "activeElement: " + name;
+      focusStatus.dataset.active = name;
+    }
+
+    document.addEventListener("focusin", trackFocus);
+    document.addEventListener("focusout", () => setTimeout(trackFocus, 0));
+    trackFocus();
+
+    // Intercept fetch to count Google Font requests.
+    const _origFetch = window.fetch;
+    window.fetch = function(url, ...rest) {
+      const s = String(url);
+      if (s.includes("fonts.googleapis.com") || s.includes("fonts.gstatic.com")) {
+        window.__googleFontRequests++;
+        logLine("GOOGLE FONT REQUEST: " + s);
+      }
+      return _origFetch.call(this, url, ...rest);
+    };
+
+    // Font list: a local font (uses system monospace, no network request).
+    const FONTS = [
+      { family: "NitroTestFont", url: "local(monospace)", weight: "400", style: "normal" },
+    ];
+
+    const loader = await import(LOADER + "index.js");
+    // fontSource:"off" + explicit fonts list → no Google request.
+    await loader.initCore({ fontSource: "off", fonts: FONTS });
+    loader[info.define]();
+
+    import(LOADER + "lazy/ribbon/index.js").catch(() => {});
+
+    const el = document.createElement(info.tag);
+    el.setAttribute("readonly", "false");
+    // Supply per-element font list as well.
+    el.fonts = FONTS;
+    el.id = "viewer";
+    document.getElementById("viewer-wrap").appendChild(el);
+
+    el.addEventListener("error", (e) => logLine("error: " + (e.detail?.message || e.detail)));
+
+    document.getElementById("btn-open").addEventListener("click", async () => {
+      logLine("fetching sample…");
+      const resp = await fetch(info.sample);
+      const buf = await resp.arrayBuffer();
+      logLine("calling loadBuffer (no focus option)…");
+      trackFocus();
+      const before = document.activeElement?.id || document.activeElement?.tagName;
+      await el.loadBuffer(buf, fmt === "docx" ? "notes.docx" : fmt === "xlsx" ? "sample.xlsx" : "deck.pptx");
+      trackFocus();
+      const after = document.activeElement?.id || document.activeElement?.tagName;
+      logLine("before=" + before + " after=" + after + (before === after ? " ✓ focus kept" : " ✗ focus stolen!"));
+      logLine("loaded (" + fmt + ")");
+
+      // Check font loaded.
+      const loaded = document.fonts.check("16px NitroTestFont");
+      fontStatus.textContent = "NitroTestFont loaded: " + (loaded ? "YES ✓" : "NO ✗");
+      fontStatus.dataset.loaded = loaded ? "yes" : "no";
+      logLine("document.fonts.check NitroTestFont: " + (loaded ? "YES" : "NO"));
+      logLine("google font requests so far: " + window.__googleFontRequests);
+    });
+  </script>
+</body>
+</html>

@@ -13,8 +13,8 @@
     #dirty-badge { padding: 3px 8px; border-radius: 3px; font-size: 12px; background: #e0e0e0; color: #555; }
     #dirty-badge.dirty { background: #ffd700; color: #000; }
     #main { display: flex; flex: 1; min-height: 0; }
-    #viewer-wrap { flex: 2; display: flex; flex-direction: column; min-height: 0; }
-    nitro-docx, nitro-xlsx, nitro-pptx { flex: 1; min-height: 0; display: block; }
+    #viewer-wrap { flex: 2; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    nitro-docx, nitro-xlsx, nitro-pptx { flex: 1; min-height: 0; display: flex; }
     #side { flex: 1; display: flex; flex-direction: column; border-left: 1px solid #ccc; padding: 8px; gap: 6px; min-width: 220px; max-width: 340px; }
     #side h2 { font-size: 13px; margin: 0; }
     #chat-area { flex: 1; resize: none; font: 13px/1.4 system-ui; border: 1px solid #ccc; padding: 6px; }
@@ -33,7 +33,7 @@
   <div id="main">
     <div id="viewer-wrap"><!-- element injected here --></div>
     <div id="side">
-      <h2>Host chat <textarea></h2>
+      <h2>Host chat</h2>
       <textarea id="chat-area" placeholder="Type a message to the AI agent…"></textarea>
       <h2>getSelection() result</h2>
       <div id="sel-out">(none)</div>
@@ -59,9 +59,6 @@
     const loader = await import(LOADER + "index.js");
     await loader.initCore({ fontSource: false });
     loader[info.define]();
-
-    // Also load the ribbon so the editor chrome is wired up.
-    import(LOADER + "lazy/ribbon/index.js").catch(() => {});
 
     const el = document.createElement(info.tag);
     el.setAttribute("readonly", "false");

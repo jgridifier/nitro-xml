@@ -5,7 +5,6 @@ UNSUPPORTED_FORMAT_MESSAGE as UF,
 viewerOpenErrorMessage as openMsg,
 isSupportedExtension as ok,
 ACCEPT,
-checkInputSize,
 } from "./formats.js";
 import {
 prewarmWorker as pw,
@@ -40,25 +39,8 @@ this._d = null;
 get document() {
 return this._d;
 }
-async loadFile(f, n, opts) {
-try {
-checkInputSize(f.size);
-n = n || f.name || "";
-if (!this._ok(n)) throw Object.assign(new Error(UF), { code: "unsupported_format" });
-await this.loadBuffer(await f.arrayBuffer(), n, opts);
-} catch (e) { this._fail(e); throw e; }
-}
-async loadUrl(u, opts) {
-try {
-if (!ws()) throw ube();
-const n = u.split("?")[0].split("#")[0].split("/").pop() || "";
-if (!this._ok(n)) throw Object.assign(new Error(UF), { code: "unsupported_format" });
-const r = await fetch(u);
-if (!r.ok) throw new Error("fetch failed: " + r.status);
-checkInputSize(Number(r.headers.get("content-length")));
-await this.loadBuffer(await r.arrayBuffer(), n, opts);
-} catch (e) { this._fail(e); throw e; }
-}
+async loadFile(f,n,opts){return(await import("./lazy/load-url.js")).loadFile(this,f,n,opts);}
+async loadUrl(u,opts){return(await import("./lazy/load-url.js")).loadUrl(this,u,opts);}
 async loadBuffer(b, n = "", opts = {}) {
 try {
 if (!ws()) {
@@ -74,7 +56,7 @@ this._surf();
 this._d && this._d.dispose();
 this._d = null;
 const ro = this._readonly !== false;
-const d = new WD({ canvas: this._c, root: this._r, name: n });
+const d = new WD({ canvas: this._c, root: this._r, name: n, fonts: this.fonts });
 d.onError = (e) => { if (d === this._d) this._fail(e); };
 d.onChrome = (h) => {
 if (this._ch && h) this._ch.innerHTML = h;
@@ -88,6 +70,7 @@ await this._ao();
 if (opts.position && this.setPosition) await this.setPosition(opts.position);
 } finally { this._openingPosition = false; }
 this._tick();
+if (opts.focus || this.autofocus) this._v?.focus();
 } catch (e) { this._fail(e); throw e; }
 }
 _ok(n) {

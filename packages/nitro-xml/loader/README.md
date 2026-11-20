@@ -223,14 +223,17 @@ const sel = await viewer.getSelection();
 | xlsx | `{ format, sheet, sheetIndex, range, anchor, values[][], truncated }` — values always `[]` in this release (see note below); `truncated:true` when the range spans >10 000 cells |
 | pptx | `{ format, slide, shapeId, shapeName, text, textRange:{start,end} }` — `shapeId`/`shapeName`/`text`/`textRange` are `null` until pptx shape-selection is surfaced from Rust |
 
+DOCX currently reports only a collapsed caret and the entire paragraph text,
+not a selected text range. No `nitro-selectionchange` event is emitted.
+These selection limitations remain open in #561.
+
 **Copy-paste example (docx):**
 
 ```js
 const el = document.querySelector("nitro-docx");
-el.addEventListener("nitro-selectionchange", async () => {
-  const sel = await el.getSelection();
-  if (sel) console.log("paragraph", sel.start?.paragraph, "text", sel.text);
-});
+// After loading completes and the user makes a selection:
+const sel = await el.getSelection();
+if (sel) console.log("paragraph", sel.start?.paragraph, "text", sel.text);
 ```
 
 ### `dirty: boolean` (read-only getter)
@@ -323,6 +326,66 @@ editor.readonly = false; // async transition; nitro-mode signals completion
 editor.setAttribute('readonly', 'true');
 // Spreadsheet example: await sheetEditor.setPosition({ sheet: 'Budget' });
 ```
+
+### Font supply without Google Fonts (`fonts`, `fontSource`) — #566
+
+By default Nitro may request webfont stylesheets from `fonts.googleapis.com`.
+Supply fonts explicitly to prevent this:
+
+```js
+await initCore({
+  fontSource: "off",        // no Google Fonts fallback
+  fonts: [
+    { family: "Inter", url: "/fonts/Inter.woff2", weight: "400", style: "normal" },
+    { family: "NitroMono", url: "local(monospace)" },
+    "/fonts/custom.css",    // stylesheet URL — all @font-face rules injected
+  ],
+});
+```
+
+**Per-element override** — set `el.fonts` before `loadBuffer`/`loadFile`/`loadUrl`:
+
+```js
+el.fonts = [{ family: "Inter", url: "/fonts/Inter.woff2" }];
+await el.loadBuffer(buf, "doc.docx");
+```
+
+**Reuse fonts the host page already loaded:**
+
+```js
+await initCore({ fontSource: "page" });
+// Nitro forwards families from document.fonts to the WASM worker.
+```
+
+**`fontSource` values:**
+
+| Value | Behaviour |
+|---|---|
+| omitted | CSS2 base URL (`https://fonts.googleapis.com/css2`) |
+| `"off"` / `false` | No remote fetch; unknown families get substitution diagnostics |
+| `"page"` | Reuse families already in `document.fonts`; forward to worker |
+| `string` (URL) | CSS2 mirror base URL (alternative CDN) |
+
+The `fonts` array is loaded via `FontFace` on the main thread **and** forwarded
+to the WASM worker. No request to `fonts.googleapis.com` or `fonts.gstatic.com`
+is made when `fonts` is set or `fontSource` is `"off"` / `"page"`.
+
+### Focus — load never steals focus (`autofocus`, `{focus:true}`) — #567
+
+`loadBuffer` / `loadFile` / `loadUrl` **never move focus** by default. The editor
+only receives focus on explicit user interaction (pointer click on the document).
+
+**Opt-in focus after load:**
+
+```js
+// Attribute form (declarative):
+<nitro-docx autofocus></nitro-docx>
+
+// loadBuffer option form:
+await el.loadBuffer(buf, "doc.docx", { focus: true });
+```
+
+User clicks on the document always focus the editor regardless of these options.
 
 ## Size budget
 

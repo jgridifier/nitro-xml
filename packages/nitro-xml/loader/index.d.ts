@@ -15,8 +15,22 @@ export function extensionOf(name: string): string;
 export function isSupportedExtension(name: string): boolean;
 export function viewerOpenErrorMessage(err: unknown): string;
 
+/** An explicit font entry: a font file/source URL with family metadata, or a stylesheet URL string. */
+export type FontEntry =
+  | { family: string; url: string; weight?: string; style?: string }
+  | string;
+
 export function initCore(opts?: {
-  fontSource?: string | false | ((families: string[]) => string | null);
+  /** Where to load webfont stylesheets from.
+   * - omitted / string: CSS2 mirror base URL (default: fonts.googleapis.com/css2)
+   * - `false` / `"off"`: no remote fetch; substitutions recorded as diagnostics
+   * - `"page"`: reuse families already in document.fonts; no Google request
+   * - function: main-thread resolver `(families) => href | null` (openDocument only)
+   */
+  fontSource?: string | false | "page" | ((families: string[]) => string | null);
+  /** Explicit font list loaded via FontFace on the main thread and in the worker.
+   * No request to fonts.googleapis.com / fonts.gstatic.com is made when this is set. */
+  fonts?: FontEntry[];
   glueUrl?: string | URL;
   wasmUrl?: string | URL;
 }): Promise<void>;
@@ -69,7 +83,15 @@ export interface NitroError extends Error {
   part?: string;
 }
 export class WorkerDocument {
-  constructor(opts: { canvas?: HTMLCanvasElement | null; root?: Element | null; name?: string });
+  constructor(opts: {
+    canvas?: HTMLCanvasElement | null;
+    root?: Element | null;
+    name?: string;
+    /** Per-document font list; overrides the process default from initCore. */
+    fonts?: FontEntry[];
+    /** Per-document font source; overrides the process default from initCore. */
+    fontSource?: string | false | "page";
+  });
   onChrome: ((html: string) => void) | null;
   onError?: (error: NitroError) => void;
   open(
@@ -119,11 +141,12 @@ export function defineTag(tag: string, ctor: CustomElementConstructor): void;
 /** Emits bubbling, composed `error` CustomEvents with NitroError in detail.
  * Failed load/save calls also reject with that error. */
 export class ViewerElement extends HTMLElement {
-  /** Open a file, optionally at position; no nitro-change or focus change. */
+  /** Open a file, optionally at position. Does not steal focus unless `{ focus: true }` or `autofocus`. */
   loadFile(file: Blob, name?: string, opts?: NitroOpenOptions): Promise<void>;
-  /** Fetch and open a URL, optionally at position; no nitro-change or focus change. */
+  /** Fetch and open a URL, optionally at position. Does not steal focus unless `{ focus: true }` or `autofocus`. */
   loadUrl(url: string, opts?: NitroOpenOptions): Promise<void>;
-  /** Open bytes, optionally at position before the requested frame; no nitro-change or focus change. */
+  /** Open bytes, optionally at position before the requested frame.
+   *  Pass `{ focus: true }` to focus the editor after load, or set the `autofocus` attribute. */
   loadBuffer(bytes: ArrayBuffer | Uint8Array, name?: string, opts?: NitroOpenOptions): Promise<void>;
   save(): Promise<Uint8Array>;
   readonly document: WorkerDocument | null;
@@ -146,6 +169,8 @@ export type NitroPositionInput = Omit<Partial<NitroPosition>, "sheet"> & { sheet
 export interface NitroOpenOptions {
   /** Applied before the requested frame; does not focus or emit nitro-change. */
   position?: NitroPositionInput;
+  /** Opt-in: focus the editor after load. Same as the `autofocus` attribute. */
+  focus?: boolean;
 }
 export class ShellViewerElement extends ViewerElement {
   /** Sets `data-theme` and the `--nx-*` variables on the element. A string attribute may also hold JSON tokens. */
@@ -157,8 +182,10 @@ export class ShellViewerElement extends ViewerElement {
    */
   readonly dirty: boolean;
   /**
-   * Returns a snapshot of the current selection, or null when no document is loaded.
-   * Works in both read-only and edit mode.
+   * Selection snapshot (incomplete; #561): DOCX reports a collapsed caret and
+   * paragraph text; XLSX values are currently empty; PPTX shape/text fields are null.
+   * Call after load completes. No nitro-selectionchange event is emitted.
+   * Do not use the current placeholders as comment anchors.
    */
   getSelection(): Promise<NitroSelection | null>;
   /** Last painted position, synchronously. Before open: zero scroll offsets. */
@@ -172,6 +199,10 @@ export class ShellViewerElement extends ViewerElement {
    * absent/empty/other attribute values mean readonly. Emits nitro-mode after completion,
    * detail {readonly:boolean}; no nitro-change. save() rejects while readonly. */
   readonly: boolean;
+  /** Explicit font list; overrides the process default set via initCore({ fonts }).
+   * No request to fonts.googleapis.com / fonts.gstatic.com is made when set.
+   * Set before calling loadBuffer / loadFile / loadUrl. */
+  fonts: FontEntry[] | null;
 }
 export class NitroXmlElement extends ShellViewerElement {}
 

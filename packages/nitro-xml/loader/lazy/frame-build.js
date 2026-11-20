@@ -125,7 +125,8 @@ export async function buildAndPostFrame(handle, workerSelf, extra = {}) {
   const type = frameType;
   const result =
     type === "mut-frame" ? lightMutResult(extra.result) : extra.result;
-  const snapshot = JSON.parse(handle.shellAction?.("host-position", "") || "null");
+  let snapshot = null;
+  try { snapshot = JSON.parse(handle.shellAction?.("host-position", "") || "null"); } catch {}
   const positionReady = snapshot?._ready;
   if (snapshot) delete snapshot._ready;
   workerSelf.postMessage(

@@ -92,7 +92,7 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .rb.sm.dd>span{font-size:11px}
 .rb.dd[aria-expanded=true]{background:var(--sel);border-color:var(--acc)}
 .rg .col2{gap:2px;justify-content:flex-start;padding-top:1px}
-.rg .r1{display:flex;align-items:center;gap:1px;min-height:26px}
+.rg .r1{display:flex;align-items:center;gap:1px;min-height:22px}
 .rb span{white-space:nowrap;font-size:12px}
 .rb:hover:not(:disabled){background:var(--hov);border-color:var(--bd)}
 .rb.labeled:hover:not(:disabled){border-color:transparent}

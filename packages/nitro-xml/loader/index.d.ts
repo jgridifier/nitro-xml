@@ -20,20 +20,28 @@ export type FontEntry =
   | { family: string; url: string; weight?: string; style?: string }
   | string;
 
+/** Initialized WASM core; hosts usually only await readiness. */
+export interface NitroCore {
+  glue: unknown;
+  exports: WebAssembly.Exports;
+  memory: WebAssembly.Memory | null;
+}
 export function initCore(opts?: {
   /** Where to load webfont stylesheets from.
    * - omitted / string: CSS2 mirror base URL (default: fonts.googleapis.com/css2)
    * - `false` / `"off"`: no remote fetch; substitutions recorded as diagnostics
    * - `"page"`: reuse families already in document.fonts; no Google request
    * - function: main-thread resolver `(families) => href | null` (openDocument only)
-   */
+   * false disables automatic remote font requests; explicit fonts still load.
+   * Same-origin CSP: script-src 'self' 'wasm-unsafe-eval'; worker-src 'self';
+   * style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:. No inline scripts needed. */
   fontSource?: string | false | "page" | ((families: string[]) => string | null);
   /** Explicit font list loaded via FontFace on the main thread and in the worker.
    * No request to fonts.googleapis.com / fonts.gstatic.com is made when this is set. */
   fonts?: FontEntry[];
   glueUrl?: string | URL;
   wasmUrl?: string | URL;
-}): Promise<void>;
+}): Promise<NitroCore>;
 export function compileWasmModule(source: unknown): Promise<WebAssembly.Module>;
 export function loadFormatModule(ext: string): Promise<unknown>;
 export function loadEditorModule(): Promise<unknown>;
@@ -172,6 +180,13 @@ export interface NitroOpenOptions {
   /** Opt-in: focus the editor after load. Same as the `autofocus` attribute. */
   focus?: boolean;
 }
+/** Host-controlled link activation. Clicks include rendered text; shell-only actions may use "". */
+export interface NitroHyperlinkDetail { href: string; text: string; }
+/** Bubbles and is composed. Fires on hyperlink activation, never on load or ordinary selection.
+ * Nitro does not navigate/open windows; hosts decide what to do with href. */
+export type NitroHyperlinkEvent = CustomEvent<NitroHyperlinkDetail>;
+/** Emits nitro-hyperlink with NitroHyperlinkDetail. Stable data-testid selectors are
+ * documented in the package README Host API section; renames/removals are breaking. */
 export class ShellViewerElement extends ViewerElement {
   /** Sets `data-theme` and the `--nx-*` variables on the element. A string attribute may also hold JSON tokens. */
   theme: NitroTheme | null;

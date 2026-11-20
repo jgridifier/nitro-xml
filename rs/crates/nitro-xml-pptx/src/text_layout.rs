@@ -397,6 +397,8 @@ pub struct TextPaintRun {
     /// `a:rPr/a:hlinkClick` — paint as themed hyperlink styling.
     pub hyperlink_click: bool,
     pub hyperlink_tooltip: Option<String>,
+    /// Relationship id during parse, resolved URL before paint.
+    pub hyperlink_target: Option<String>,
     /// Soft line break from `a:br` (paint as `<br>`, not a text run).
     pub line_break: bool,
     /// `a:rPr/@baseline` super/subscript shift ('super' or 'sub', or None).
@@ -924,6 +926,7 @@ fn collect_paint_runs(
                         equation_mathml: Some(mathml),
                         hyperlink_click: false,
                         hyperlink_tooltip: None,
+                        hyperlink_target: None,
                         line_break: false,
                         baseline_shift: None,
                     });
@@ -967,6 +970,7 @@ fn collect_paint_runs(
                     equation_mathml: None,
                     hyperlink_click: false,
                     hyperlink_tooltip: None,
+                    hyperlink_target: None,
                     line_break: true,
                     baseline_shift: resolve_baseline_shift(resolved.baseline_hundredths),
                 });
@@ -1038,6 +1042,14 @@ fn collect_paint_runs(
                     equation_mathml: None,
                     hyperlink_click,
                     hyperlink_tooltip,
+                    hyperlink_target: r_pr
+                        .and_then(|rp| child_local(rp, "hlinkClick", ns::A))
+                        .and_then(|h| {
+                            h.attrs
+                                .iter()
+                                .find(|a| a.local == "id" && a.ns.as_deref() == Some(ns::R))
+                        })
+                        .map(|a| a.value.clone()),
                     line_break: false,
                     baseline_shift: resolve_baseline_shift(resolved.baseline_hundredths),
                 });

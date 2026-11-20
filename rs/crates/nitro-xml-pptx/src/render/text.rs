@@ -1614,6 +1614,9 @@ fn paint_hyperlink_run<I: StringIntern>(
     set_attr(ctx, link, "class", "pptxv-link");
     set_attr(ctx, link, "role", "link");
     set_attr(ctx, link, "data-pptx-hyperlink", "true");
+    if let Some(target) = &run_model.hyperlink_target {
+        set_attr(ctx, link, "data-nitro-href", target);
+    }
     set_attr(ctx, link, "target", "_blank");
     set_attr(ctx, link, "rel", "noopener noreferrer");
     if let Some(tip) = &run_model.hyperlink_tooltip {

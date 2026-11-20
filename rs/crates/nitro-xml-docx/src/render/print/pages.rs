@@ -303,6 +303,7 @@ fn paint_line<I: StringIntern>(
             continue;
         }
         let span = dom.el(line_el, "span");
+        dom.attr(span, "data-run", &fragment.run_index.to_string());
         style_fragment(dom, span, fragment);
     }
 }

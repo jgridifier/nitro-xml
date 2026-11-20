@@ -697,6 +697,17 @@ impl Handle {
         if op == "cmd" {
             return self.dispatch_chrome_command(arg);
         }
+        if op == "hyperlink-block" {
+            let hit = arg.rsplit_once(',').and_then(|(block, run)| {
+                self.docx
+                    .as_ref()?
+                    .hyperlink_block_at(block, run.parse().ok()?)
+            });
+            return Ok(serde_json::json!({ "p": hit.map(|h| serde_json::json!({
+                "target": h.pending.target, "location": h.pending.location
+            })) })
+            .to_string());
+        }
         if op == "docx-caret" {
             return self.docx_caret(arg);
         }

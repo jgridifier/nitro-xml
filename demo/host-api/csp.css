@@ -1,0 +1,2 @@
+/* SPDX-License-Identifier: MIT */
+body { margin:0; font:14px system-ui; } header { height:36px; } main { display:flex; height:calc(100vh - 36px); } #editor { flex:1; min-width:0; } aside { width:240px; padding:8px; } textarea { width:95%; height:100px; } nitro-docx,nitro-xlsx,nitro-pptx { display:flex; height:100%; } pre { white-space:pre-wrap; } .ox { height:100%; }

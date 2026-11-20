@@ -3,6 +3,16 @@
 
 ## Unreleased
 
+- **Breaking:** hyperlink activation emits bubbling, composed `nitro-hyperlink`
+  `{href, text}` instead of opening a window. Replaces the old `{target, open, ...}`
+  event detail; navigation is owned by the host (#573).
+- Corrected the `initCore()` return type to `Promise<NitroCore>` matching its
+  existing `{glue, exports, memory}` result.
+- Stable `data-testid` selectors for host automation, guarded across all formats
+  and full/embedded modes. Selector renames/removals require a breaking release (#574).
+- Six self-generated MIT fixtures from Python/npm Office generators, real browser
+  edit/save/reopen checks, and a strict-CSP host sample with request allowlisting (#570).
+
 - Host API browser checks now require real focus, committed edits and exact
   selection payloads; missing events or selection data fail the run (#561, #562).
   Fixed the demo host's zero-height editing surface and malformed chat heading.

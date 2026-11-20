@@ -182,6 +182,12 @@ impl DocxState {
     }
 
     /// Safe-href / bookmark target at paragraph ordinal `row`, run `col`.
+    pub(crate) fn hyperlink_block_at(&self, block: &str, run: u32) -> Option<DocxHyperlinkHit> {
+        let paras = body_paragraphs(&self.session.model.blocks);
+        let row = paras.iter().find(|p| p.block_id == block)?.ordinal;
+        self.hyperlink_at(row, run)
+    }
+
     pub(crate) fn hyperlink_at(&self, row: u32, col: u32) -> Option<DocxHyperlinkHit> {
         let paras = body_paragraphs(&self.session.model.blocks);
         let para = paras.iter().find(|p| p.ordinal == row)?;

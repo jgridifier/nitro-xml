@@ -1092,6 +1092,30 @@ impl<'a> Presentation<'a> {
         self.attach_graphic_payloads(owner, elements);
         self.attach_image_payloads(owner, elements);
         self.attach_content_part_ink(owner, elements);
+        self.attach_hyperlink_targets(owner, elements);
+    }
+
+    fn attach_hyperlink_targets(&mut self, owner: &str, elements: &mut [DumpElement]) {
+        for el in elements {
+            if let Some(paragraphs) = &mut el.text_paint_paragraphs {
+                for run in paragraphs.iter_mut().flat_map(|p| &mut p.runs) {
+                    if let Some(id) = run.hyperlink_target.take() {
+                        run.hyperlink_target = self
+                            .package
+                            .rels(owner)
+                            .ok()
+                            .and_then(|rels| rels.get(&id))
+                            .filter(|rel| {
+                                nitro_xml_opc::opc::hyperlink_policy(Some(&rel.target)).store
+                            })
+                            .map(|rel| rel.target.clone());
+                    }
+                }
+            }
+            if let Some(children) = &mut el.children {
+                self.attach_hyperlink_targets(owner, children);
+            }
+        }
     }
 
     fn attach_content_part_ink(&mut self, owner: &str, elements: &mut [DumpElement]) {

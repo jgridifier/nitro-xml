@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- DOCX `scrollToText(text, opts)` reveals a match without taking focus (#568).
+- PPTX appended text inherits existing run and placeholder/layout/master styles (#569).
+- Element `save()` drains pending typing and active IME composition before serialization (#572).
+
 ### Added
 
 - **Font supply without Google Fonts** (`fonts`, `fontSource: "page"`) — #566

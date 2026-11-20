@@ -207,6 +207,7 @@ export function attach(el) {
     void replacePre(e.data || "");
   });
   listen(ta, "compositionend", (e) => {
+    if (!composing) return;
     composing = false;
     ta.value = "";
     if (editable()) void replacePre(e.data || "").then(() => (pre = ""));
@@ -222,6 +223,22 @@ export function attach(el) {
   };
   const isXlsx = el.localName === "nitro-xlsx";
   const editingCell = () => !!sr.querySelector(".xfb-editing");
+  el._nxpCommit = async () => {
+    if (!editable()) return;
+    // Preedit already goes through the engine. End the browser session before
+    // draining it so a later compositionend cannot remove the saved text.
+    if (composing) {
+      composing = false;
+      ta.blur();
+      ta.value = "";
+    }
+    await queue;
+    await el.document._hostInput;
+    pre = "";
+    el._d?._events?.flushNow?.();
+    if (isXlsx) await el.shellAction("formula-commit");
+    else await el.shellAction("ui");
+  };
   /** Active sheet index and selection range of the workbook, from the shell UI snapshot. */
   const sel = async () => {
     // A click/drag just before Ctrl+V or Cut is still queued in the loader until the next frame.
@@ -312,6 +329,6 @@ export function attach(el) {
   el._detachInput = () => {
     listeners.abort(); st.remove(); ta.remove();
     el.shellAction = originalAction;
-    el._nxp = 0; el._nxpTa = null; el._nxpPaste = null;
+    el._nxp = 0; el._nxpTa = null; el._nxpPaste = null; el._nxpCommit = null;
   };
 }

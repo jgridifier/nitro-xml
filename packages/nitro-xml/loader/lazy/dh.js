@@ -19,6 +19,7 @@ export async function attach(el) {
   }
   const origSave = proto.save;
   el.save = async function() {
+    await this._nxpCommit?.();
     const bytes = await origSave.call(this);
     this._dT?.saved(bytes);
     return bytes;

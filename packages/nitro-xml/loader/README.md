@@ -387,6 +387,47 @@ await el.loadBuffer(buf, "doc.docx", { focus: true });
 
 User clicks on the document always focus the editor regardless of these options.
 
+### Find DOCX text without moving focus
+
+`docx.scrollToText(text: string, opts?: { occurrence?: number; matchCase?: boolean; select?: boolean }): Promise<(NitroPosition & { paragraph: number }) | null>`
+
+Scrolls the matching text into view without opening Find or moving keyboard focus.
+`occurrence` is zero-based (default `0`), `matchCase` defaults to `false`, and
+`select` defaults to `false`. Set `select: true` to select the rendered text.
+Returns `{ page, paragraph, scrollTop, scrollLeft, zoom? }`: page and paragraph
+are zero-based, scroll offsets are CSS pixels. Empty or missing text, an
+out-of-range occurrence, or no document returns `null`. Invalid occurrence
+values reject with `RangeError`. Navigation emits no `nitro-change` or
+`nitro-save`.
+
+```js
+const docx = document.querySelector('nitro-docx');
+document.querySelector('#chat').focus();
+const position = await docx.scrollToText('Quarterly results', {
+  occurrence: 1, matchCase: true, select: true,
+});
+console.log(position); // second match, or null; chat still has focus
+```
+
+### Save pending input
+
+`el.save(): Promise<Uint8Array>` commits the active XLSX cell edit and drains
+pending DOCX/PPTX text input and the current IME composition before serializing.
+It resolves to the saved OOXML bytes. A successful save resets `dirty`; a
+`nitro-change` event with `{ detail: { dirty: false } }` fires only if dirty
+changes. `save()` does not download a file or fire `nitro-save`. Read-only,
+unopened, and failed saves reject. An unedited save preserves the original bytes.
+
+```js
+const el = document.querySelector('nitro-xlsx'); // also nitro-docx/nitro-pptx
+const bytes = await el.save(); // no Enter or click outside the cell required
+const file = new Blob([bytes]); // send to host storage or offer a download
+```
+
+PPTX typing into empty placeholders, existing runs and new paragraphs preserves
+the authored run properties and layout/master inheritance in saved XML.
+
+
 ## Size budget
 
 Hand-written loader JS plus generated `pkg/nitro_xml_wasm.js`, brotli-compressed,

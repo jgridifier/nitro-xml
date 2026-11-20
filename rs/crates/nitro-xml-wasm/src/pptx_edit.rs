@@ -672,6 +672,11 @@ impl PptxState {
 }
 
 fn shape_plain(el: &nitro_xml_pptx::edit::host::EditableElement) -> String {
+    // The viewer's flattened text includes painted bullet markers. Authored
+    // segments contain the actual runs and paragraph breaks used for typing.
+    if !el.text_segments.is_empty() {
+        return el.text_segments.iter().map(|s| s.text.as_str()).collect();
+    }
     if let Some(text) = el.text.as_deref() {
         return text.to_owned();
     }

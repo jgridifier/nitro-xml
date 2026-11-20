@@ -173,6 +173,10 @@ export interface NitroOpenOptions {
   focus?: boolean;
 }
 export class ShellViewerElement extends ViewerElement {
+  /** Commits pending cell/text input and current IME composition, then returns OOXML bytes.
+   * Resets dirty on success (nitro-change only on a dirty flip). Does not download or emit
+   * nitro-save. Unedited saves preserve bytes. Read-only/unopened/failed saves reject. */
+  save(): Promise<Uint8Array>;
   /** Sets `data-theme` and the `--nx-*` variables on the element. A string attribute may also hold JSON tokens. */
   theme: NitroTheme | null;
   /**
@@ -211,7 +215,13 @@ export class NitroXlsxElement extends ShellViewerElement {}
 export function defineNitroPptx(): void;
 export class NitroPptxElement extends ShellViewerElement {}
 export function defineNitroDocx(): void;
-export class NitroDocxElement extends ShellViewerElement {}
+export class NitroDocxElement extends ShellViewerElement {
+  /** Reveals the zero-based occurrence (default 0), without opening Find or taking focus.
+   * matchCase and select default to false. Returns null for empty/missing text or no document.
+   * Invalid occurrence rejects with RangeError. Does not emit nitro-change/nitro-save;
+   * page and paragraph in the result are zero-based. */
+  scrollToText(text: string, opts?: { occurrence?: number; matchCase?: boolean; select?: boolean }): Promise<(NitroPosition & { paragraph: number }) | null>;
+}
 
 export function applyFontSourceToHandle(...args: unknown[]): unknown;
 export function setDefaultFontSource(...args: unknown[]): void;

@@ -1,0 +1,61 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<meta charset="utf-8">
+<title>Host text, style and save</title>
+<style>
+body { font: 16px system-ui; margin: 16px; }
+main { display: flex; height: 700px; gap: 20px; }
+#viewer { width: 900px; height: 700px; }
+textarea { width: 240px; height: 200px; }
+</style>
+<button id="save">Save and reopen</button>
+<button id="find">Find page three</button>
+<output id="status">Loading</output>
+<main><section id="mount"></section><aside><label>Host chat<textarea id="chat"></textarea></label><pre id="result"></pre></aside></main>
+<script type="module">
+import {initCore, defineNitroDocx, defineNitroXlsx, defineNitroPptx} from '../nitro-xml/loader/index.js';
+await initCore({fontSource:false});
+defineNitroDocx(); defineNitroXlsx(); defineNitroPptx();
+const format = new URLSearchParams(location.search).get('f') || 'docx';
+const sample = {docx:'host-text.docx',xlsx:'sample.xlsx',pptx:'host-style.pptx'}[format];
+const el = window.viewer = document.createElement('nitro-' + format);
+el.id = 'viewer'; el.setAttribute('readonly','false');
+document.querySelector('#mount').append(el);
+window.changes = [];
+el.addEventListener('nitro-change', e => changes.push(e.detail));
+async function settled() {
+ const deadline = performance.now() + 10000;
+ let quiet = 0;
+ while (quiet < 2) {
+   if (performance.now() > deadline) throw new Error('Editor paint did not settle');
+   await new Promise(requestAnimationFrame);
+   quiet = el._raf || el.document._pending.size || el.document._nxPoke ? 0 : quiet + 1;
+ }
+}
+await el.loadUrl('../samples/' + sample);
+while (!el.document.whenEditReady) await new Promise(requestAnimationFrame);
+await el.document.whenEditReady();
+await settled();
+window.saveReopen = async () => {
+ const bytes = await el.save();
+ window.saved = Array.from(bytes);
+ window.savedDirty = el.dirty;
+ // Let the old frame finish before disposing its worker during reopen.
+ const deadline = performance.now() + 5000;
+ while (el._raf) {
+   if (performance.now() > deadline) throw new Error("Editor paint did not settle before reopen");
+   await new Promise(requestAnimationFrame);
+ }
+ await el.loadBuffer(bytes, sample);
+ while (!el.document.whenEditReady) await new Promise(requestAnimationFrame);
+ await el.document.whenEditReady();
+ await settled();
+};
+document.querySelector('#save').onclick = () => saveReopen();
+document.querySelector('#find').disabled = format !== 'docx';
+document.querySelector('#find').onclick = async () => {
+ document.querySelector('#chat').focus();
+ document.querySelector('#result').textContent = JSON.stringify(await el.scrollToText('Unique destination 3'));
+};
+document.querySelector('#status').textContent = 'Ready';
+</script>

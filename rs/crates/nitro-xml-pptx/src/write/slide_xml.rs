@@ -292,7 +292,15 @@ fn apply_element(shape: &mut Element, el: &EditableElement) {
     }
     let authored = el.text_style.as_ref().is_some_and(style_authored);
     if el.text.is_some() || authored {
-        update_text(shape, el.text.as_deref(), el.text_style.as_ref());
+        if append_typed_text(shape, el.text.as_deref(), el.text_style.as_ref()) {
+            // Keep existing-run styling in sync with authored text_style (saves start
+            // from original bytes, so previous style updates don't carry forward).
+            if authored {
+                update_text(shape, None, el.text_style.as_ref());
+            }
+        } else {
+            update_text(shape, el.text.as_deref(), el.text_style.as_ref());
+        }
     }
     apply_paragraph_align(shape, el);
     apply_paragraph_bullet(shape, el);
@@ -520,6 +528,107 @@ fn insert_before_line(sp_pr: &mut Element, node: Element) {
         Some(i) => sp_pr.children.insert(i, Node::Element(node)),
         None => sp_pr.children.push(Node::Element(node)),
     }
+}
+
+/// Typing extends the authored XML instead of replacing the first run. Keep
+/// absent properties absent: layout/master defaults must still resolve on open.
+fn append_typed_text(
+    shape: &mut Element,
+    text: Option<&str>,
+    style: Option<&TextStyleSnap>,
+) -> bool {
+    let Some(text) = text else { return false };
+    let Some(tx) = child_mut(shape, "txBody", ns::P) else {
+        return false;
+    };
+    let paras: Vec<Element> = tx
+        .children
+        .iter()
+        .filter_map(|n| match n {
+            Node::Element(e) if e.ns.as_deref() == Some(ns::A) && e.local == "p" => Some(e.clone()),
+            _ => None,
+        })
+        .collect();
+    fn plain(e: &Element, out: &mut String) {
+        for n in &e.children {
+            match n {
+                Node::Element(c) if c.local == "br" => out.push('\n'),
+                Node::Element(c) => plain(c, out),
+                Node::Text(t) if e.local == "t" => out.push_str(t),
+                _ => {}
+            }
+        }
+    }
+    let old = paras
+        .iter()
+        .map(|p| {
+            let mut s = String::new();
+            plain(p, &mut s);
+            s
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    if text == old {
+        // A sibling edit must not flatten this shape into its first run.
+        update_text(shape, None, style);
+        return true;
+    }
+    let Some(tail) = text.strip_prefix(&old).filter(|s| !s.is_empty()) else {
+        return false;
+    };
+    let Some(mut p) = paras.last().cloned() else {
+        return false;
+    };
+    let last_run = p.children.iter().rev().find_map(|n| match n {
+        Node::Element(e) if e.local == "r" && e.ns.as_deref() == Some(ns::A) => Some(e),
+        _ => None,
+    });
+    let props = last_run
+        .and_then(|r| child_ref(r, "rPr", ns::A))
+        .or_else(|| child_ref(&p, "endParaRPr", ns::A))
+        .cloned();
+    let ppr = child_ref(&p, "pPr", ns::A).cloned();
+    let end = child_ref(&p, "endParaRPr", ns::A).cloned();
+    let mut added = Vec::new();
+    for (i, part) in tail.split('\n').enumerate() {
+        if i > 0 {
+            added.push(p);
+            p = elem(ns::A, "p");
+            if let Some(pr) = &ppr {
+                p.children.push(Node::Element(pr.clone()));
+            }
+            if let Some(pr) = &end {
+                p.children.push(Node::Element(pr.clone()));
+            }
+        }
+        if !part.is_empty() {
+            let mut run = elem(ns::A, "r");
+            if let Some(pr) = &props {
+                let mut pr = pr.clone();
+                pr.local = "rPr".into();
+                run.children.push(Node::Element(pr));
+            } else if style.is_some_and(style_authored) {
+                // No existing run props: stamp the authored style so the new run matches.
+                upsert_rpr(&mut run, style.expect("checked"));
+            }
+            let mut t = elem(ns::A, "t");
+            set_text(&mut t, part);
+            run.children.push(Node::Element(t));
+            let at = child_index(&p, "endParaRPr", ns::A).unwrap_or(p.children.len());
+            p.children.insert(at, Node::Element(run));
+        }
+    }
+    added.push(p);
+    let last = tx
+        .children
+        .iter()
+        .rposition(
+            |n| matches!(n, Node::Element(e) if e.local == "p" && e.ns.as_deref() == Some(ns::A)),
+        )
+        .expect("paragraph");
+    tx.children
+        .splice(last..=last, added.into_iter().map(Node::Element));
+    true
 }
 
 fn update_text(shape: &mut Element, text: Option<&str>, style: Option<&TextStyleSnap>) -> bool {

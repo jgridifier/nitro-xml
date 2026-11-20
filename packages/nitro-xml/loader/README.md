@@ -220,12 +220,17 @@ const sel = await viewer.getSelection();
 | Format | Shape |
 |---|---|
 | docx | `{ format, text, page, start:{paragraph,run,offset}, end:{paragraph,run,offset}, collapsed }` |
-| xlsx | `{ format, sheet, sheetIndex, range, anchor, values[][], truncated }` — values always `[]` in this release (see note below); `truncated:true` when the range spans >10 000 cells |
-| pptx | `{ format, slide, shapeId, shapeName, text, textRange:{start,end} }` — `shapeId`/`shapeName`/`text`/`textRange` are `null` until pptx shape-selection is surfaced from Rust |
+| xlsx | `{ format, sheet, sheetIndex, range, anchor, values[][], truncated }` — stored values (number, string, boolean, error text, `null`); at most 10 000 cells, whole rows dropped past that with `truncated:true` |
+| pptx | `{ format, slide, shapeId, shapeName, text, textRange:{start,end} }` — selected shape: whole shape `text`, `textRange:null`; double-clicked word: that word and its range; nothing selected: `null` fields |
 
-DOCX currently reports only a collapsed caret and the entire paragraph text,
-not a selected text range. No `nitro-selectionchange` event is emitted.
-These selection limitations remain open in #561.
+DOCX and PPTX text ranges come from a double-click, which selects the word under
+the pointer. Offsets count code points (DOCX: from the paragraph start, `run` is
+`0`; PPTX: in the shape text with paragraphs joined by `"\n"`). A single click,
+a key press or a change to that text clears it. Without one, DOCX reports the
+collapsed caret and its paragraph text. The word selection is not highlighted,
+typing inserts at the caret instead of replacing it, and drag or Shift+arrow
+ranges are not reported. Reading the selection never marks the document dirty.
+No `nitro-selectionchange` event is emitted.
 
 **Copy-paste example (docx):**
 
@@ -233,7 +238,7 @@ These selection limitations remain open in #561.
 const el = document.querySelector("nitro-docx");
 // After loading completes and the user makes a selection:
 const sel = await el.getSelection();
-if (sel) console.log("paragraph", sel.start?.paragraph, "text", sel.text);
+if (sel) console.log("paragraph", sel.start?.paragraph, "text", sel.text); // double-click "Quarterly" -> text "Quarterly", offsets 0..9
 ```
 
 ### `dirty: boolean` (read-only getter)

@@ -182,10 +182,11 @@ export class ShellViewerElement extends ViewerElement {
    */
   readonly dirty: boolean;
   /**
-   * Selection snapshot (incomplete; #561): DOCX reports a collapsed caret and
-   * paragraph text; XLSX values are currently empty; PPTX shape/text fields are null.
-   * Call after load completes. No nitro-selectionchange event is emitted.
-   * Do not use the current placeholders as comment anchors.
+   * Selection snapshot (#561). DOCX/PPTX: a double-click selects the word under the
+   * pointer (code-point offsets; no highlight, typing still inserts at the caret);
+   * otherwise DOCX reports the collapsed caret and PPTX the selected shape.
+   * XLSX: stored cell values of the range, at most 10,000 cells (`truncated` past it).
+   * Call after load completes. Never marks the document dirty; no nitro-selectionchange event.
    */
   getSelection(): Promise<NitroSelection | null>;
   /** Last painted position, synchronously. Before open: zero scroll offsets. */

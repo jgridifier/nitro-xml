@@ -76,7 +76,13 @@ def assert_focus(page):
 
 def cell_point(page, row, col):
     # Grid header and default cell dimensions in demo/samples/sample.xlsx.
-    box = page.locator('#viewer .xg-root').bounding_box()
+    # Read the rect in one page turn: every painted frame rebuilds the grid DOM, so a
+    # two-step locator lookup can land on a just-detached node mid-drag (flaky None).
+    box = page.evaluate("""() => {
+        const grid = document.querySelector('#viewer').shadowRoot.querySelector('.xg-root');
+        const r = grid && grid.isConnected ? grid.getBoundingClientRect() : null;
+        return r && r.width > 0 && r.height > 0 ? {x: r.x, y: r.y} : null;
+    }""")
     assert box, 'spreadsheet grid missing'
     return box['x'] + 33 + col * 64 + 32, box['y'] + 20 + row * 20 + 10
 

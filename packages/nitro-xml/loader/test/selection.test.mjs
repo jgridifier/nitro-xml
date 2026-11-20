@@ -56,3 +56,31 @@ describe("getSelection() shape mapping", () => {
     assert.equal(count2 > VALUES_CAP, true, "11000 cells MUST be truncated");
   });
 });
+
+describe("getSelection() double-click word selection (#561)", async () => {
+  const { wordAt, cpLen } = await import("../lazy/s.js");
+  it("selects the whole word around any character of it", () => {
+    // Catches: a double-click reporting a collapsed caret (or the whole paragraph) instead of the word.
+    const t = "Quarterly field notes";
+    for (const i of [0, 4, 8]) assert.deepEqual(wordAt(t, i), [0, 9]);
+    assert.deepEqual(wordAt(t, 10), [10, 15]);
+    assert.deepEqual(wordAt(t, 20), [16, 21]);
+  });
+  it("selects a lone space or punctuation mark, not its neighbours", () => {
+    // Catches: whitespace hits growing into the next word.
+    assert.deepEqual(wordAt("Nitro XML", 5), [5, 6]);
+    assert.deepEqual(wordAt("a, b", 1), [1, 2]);
+  });
+  it("returns null outside the text", () => {
+    assert.equal(wordAt("", 0), null);
+    assert.equal(wordAt("abc", 3), null);
+    assert.equal(wordAt("abc", -1), null);
+  });
+  it("counts offsets in code points like the engine caret", () => {
+    // Catches: UTF-16 offsets drifting from the engine's char offsets after an emoji.
+    assert.equal(cpLen("😀ab"), 3);
+    const t = "😀 Nitro";
+    const [a, b] = wordAt(t, 4);
+    assert.deepEqual([cpLen(t.slice(0, a)), cpLen(t.slice(0, b))], [2, 7]);
+  });
+});

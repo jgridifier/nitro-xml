@@ -65,6 +65,9 @@ use nitro_xml_render::{
 };
 use wasm_bindgen::prelude::*;
 
+/// Most cells `getSelection()` reads for an xlsx range; the loader reports `truncated` past it.
+const HOST_SELECTION_CELL_CAP: usize = 10_000;
+
 /// Typed engine error surfaced to JS. Stable `code` strings are the machine API;
 /// `message` is for humans; `part` names an OPC part when the failure is part-local.
 #[wasm_bindgen]
@@ -668,6 +671,22 @@ impl Handle {
                 }
             }
             return Ok(p.to_string());
+        }
+        if op == "host-selection" {
+            // Read-only snapshot for getSelection() (#561): xlsx `sheet<TAB>range` -> typed
+            // values; pptx element id -> name and text. Never edits or changes the selection.
+            if let Some(x) = self.xlsx.as_mut() {
+                let (sheet, range) = arg.split_once('\t').unwrap_or(("0", arg));
+                let sheet = sheet.parse::<usize>().unwrap_or(0);
+                return x
+                    .cell_values(&self.bytes, sheet, range, HOST_SELECTION_CELL_CAP)
+                    .map(|v| v.to_string())
+                    .map_err(|e| JsValue::from(OoxmlError::with_code("bad_range", e)));
+            }
+            if let Some(p) = self.pptx.as_mut() {
+                return Ok(p.host_shape(arg).to_string());
+            }
+            return Ok("{}".into());
         }
         if op == "host-scroll" {
             let p: serde_json::Value =
@@ -2311,5 +2330,46 @@ mod tests {
         assert!(h.xlsx.is_none() && h.pptx.is_none() && h.docx.is_some());
         h.prepare_frame();
         assert!(h.shell.diagnostics.paint_ms >= 0.0);
+    }
+    #[test]
+    fn catches_host_selection_values_empty_or_stringly() {
+        // Catches: getSelection() xlsx values left as a placeholder [] or numbers sent as text (#561).
+        let mut h = Handle::new(include_bytes!("../../../../demo/samples/sample.xlsx").to_vec());
+        h.open_document("sample.xlsx").expect("open");
+        let v: serde_json::Value =
+            serde_json::from_str(&h.shell_action("host-selection", "0\tB2:C3").expect("sel"))
+                .expect("json");
+        assert_eq!(
+            v,
+            serde_json::json!({"values": [[4.0, 6.0], [6.0, 9.0]], "truncated": false})
+        );
+        let big: serde_json::Value = serde_json::from_str(
+            &h.shell_action("host-selection", "0\tA1:K1000")
+                .expect("sel"),
+        )
+        .expect("json");
+        assert_eq!(big["truncated"], serde_json::json!(true));
+        let rows = big["values"].as_array().expect("rows");
+        assert_eq!(rows.len() * rows[0].as_array().expect("cols").len(), 9999);
+        let bytes = h.bytes.clone();
+        let x = h.xlsx.as_mut().expect("xlsx");
+        assert!(x.cell_values(&bytes, 0, "not a range", 10).is_err());
+        assert!(x.cell_values(&bytes, 9, "A1", 10).is_err());
+    }
+
+    #[test]
+    fn catches_host_selection_shape_name_missing() {
+        // Catches: getSelection() pptx shapeId/shapeName left null for a selected shape (#561).
+        let mut h = Handle::new(include_bytes!("../../../../demo/samples/deck.pptx").to_vec());
+        h.open_document("deck.pptx").expect("open");
+        let v: serde_json::Value = serde_json::from_str(
+            &h.shell_action("host-selection", "ppt/slides/slide1.xml-shape-0")
+                .expect("sel"),
+        )
+        .expect("json");
+        assert_eq!(v["shapeId"], "ppt/slides/slide1.xml-shape-0");
+        assert_eq!(v["shapeName"], "TextBox 1");
+        assert!(v["shapeText"].as_str().expect("text").starts_with("Nitro"));
+        assert_eq!(h.shell_action("host-selection", "nope").expect("sel"), "{}");
     }
 }

@@ -3,11 +3,21 @@
 
 ## Unreleased
 
+- `getSelection()` now returns complete payloads (#561). XLSX returns the stored
+  values of the selected range (numbers stay numbers, capped at 10,000 cells
+  with `truncated`). PPTX returns the selected shape's id, name and text. In
+  DOCX and PPTX, a double-click selects the word under the pointer and reports
+  it with code-point offsets. Reading the selection goes straight to the worker,
+  so it never repaints or marks the document dirty. The host-API browser
+  harness now runs `position_reload_readonly.py` on CI's bundled Chromium, and
+  checks that a live readonly round trip keeps unsaved edits in the saved
+  package (#565).
+
 - Host API browser checks now require real focus, committed edits and exact
   selection payloads; missing events or selection data fail the run (#561, #562).
   Fixed the demo host's zero-height editing surface and malformed chat heading.
-  Documented that text ranges, XLSX values and PPTX selection fields remain
-  incomplete; the strict selection checks currently fail. No runtime API change.
+  Documented that text ranges, XLSX values and PPTX selection fields remained
+  incomplete at that point (completed above). No runtime API change.
 
 ### Host API additions
 

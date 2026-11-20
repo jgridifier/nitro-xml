@@ -47,8 +47,8 @@ pub mod xml_util;
 pub use address::{format_address, format_range, parse_address, parse_range};
 pub use display_text::{display_text, Cell};
 pub use engine_api::{
-    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, search_workbook, visible_sheets_json,
-    SearchOptions,
+    cell_text_tsv, cell_values_json, clipped_dims, hyperlink_at, hyperlinks_in_sheet,
+    search_workbook, visible_sheets_json, SearchOptions,
 };
 pub use lazy::{open_first_view, open_first_view_arc, FirstView, ViewportRect};
 pub use model::{stringify_json, WorkbookSlice};

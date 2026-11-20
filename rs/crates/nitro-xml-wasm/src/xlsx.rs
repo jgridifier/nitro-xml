@@ -16,10 +16,10 @@ use nitro_xml_xlsx::view::metrics::{create_grid_metrics, GridMetrics, GridMetric
 use std::sync::Arc;
 
 use nitro_xml_xlsx::{
-    cell_text_tsv, hyperlink_at, hyperlinks_in_sheet, load_workbook_meta, open_first_view_arc,
-    paint_grid_frame, paint_grid_frame_host, parse_all_worksheets, parse_range, parse_worksheet_at,
-    search_workbook, visible_sheets_json, FirstView, GridPaintViewport, SearchOptions,
-    ViewportRect, WorkbookSlice,
+    cell_text_tsv, cell_values_json, clipped_dims, hyperlink_at, hyperlinks_in_sheet,
+    load_workbook_meta, open_first_view_arc, paint_grid_frame, paint_grid_frame_host,
+    parse_all_worksheets, parse_range, parse_worksheet_at, search_workbook, visible_sheets_json,
+    FirstView, GridPaintViewport, SearchOptions, ViewportRect, WorkbookSlice,
 };
 use serde_json::Value;
 const DEFAULT_W: i32 = 800;
@@ -923,6 +923,38 @@ impl XlsxState {
         let sheets = &self.sheets;
         let sheet = sheets[sheet_index].as_ref().expect("parsed");
         cell_text_tsv(workbook, sheet, sheet_index, sheets, range)
+    }
+
+    /// Typed values of at most `cap` cells of `range` for `getSelection()` (#561); same cell
+    /// source as copy. Returns `{ "values": [[...]], "truncated": bool }`.
+    pub fn cell_values(
+        &mut self,
+        bytes: &[u8],
+        sheet_index: usize,
+        range: &str,
+        cap: usize,
+    ) -> Result<Value, String> {
+        if sheet_index >= self.sheets.len() {
+            return Err(format!("sheet index {} out of range", sheet_index));
+        }
+        let r = parse_range(range).ok_or_else(|| format!("invalid range {}", range))?;
+        let (rows, cols) = clipped_dims(&r, cap);
+        if self.lazy.is_some() {
+            let rect = ViewportRect {
+                r0: r.start.row,
+                c0: r.start.col,
+                r1: r.start.row + rows as u32 - 1,
+                c1: r.start.col + cols as u32 - 1,
+            };
+            self.sync_lazy_sheet(sheet_index, rect)?;
+        } else {
+            self.ensure_sheet_parsed(bytes, sheet_index)?;
+        }
+        let sheet = self.sheets[sheet_index]
+            .as_ref()
+            .ok_or("sheet not parsed")?;
+        let (values, truncated) = cell_values_json(sheet, range, cap)?;
+        Ok(serde_json::json!({ "values": values, "truncated": truncated }))
     }
 
     pub fn hyperlinks(&mut self, bytes: &[u8], sheet_index: usize) -> Result<Value, String> {

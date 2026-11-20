@@ -419,6 +419,22 @@ impl XlsxState {
         Ok(())
     }
 
+    /// Set absolute host scroll offsets, bounded by the rendered grid extent.
+    pub fn set_host_scroll(&mut self, left: Option<f64>, top: Option<f64>) {
+        if let Some(sheet) = self.sheets[self.active].as_ref() {
+            let m = grid_metrics(sheet, self.zoom_pct);
+            let max_x = (m.col_left(m.last_col + 1) - self.viewport_w).max(0);
+            let max_y = (m.row_top(m.last_row + 1) - self.viewport_h).max(0);
+            if let Some(v) = left {
+                self.scroll_x = (v as i32).clamp(0, max_x);
+            }
+            if let Some(v) = top {
+                self.scroll_y = (v as i32).clamp(0, max_y);
+            }
+            self.pending_view_scroll = false;
+        }
+    }
+
     pub fn viewport(&self) -> GridPaintViewport {
         let sheet = self.sheets[self.active].as_ref();
         let (frozen_rows, frozen_cols) = sheet

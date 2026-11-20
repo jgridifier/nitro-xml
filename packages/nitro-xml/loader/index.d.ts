@@ -141,11 +141,13 @@ export function defineTag(tag: string, ctor: CustomElementConstructor): void;
 /** Emits bubbling, composed `error` CustomEvents with NitroError in detail.
  * Failed load/save calls also reject with that error. */
 export class ViewerElement extends HTMLElement {
-  loadFile(file: Blob, name?: string): Promise<void>;
-  loadUrl(url: string): Promise<void>;
-  /** Open bytes in the element. Pass `{ focus: true }` to focus the editor after load,
-   *  or set the `autofocus` attribute on the element for the same opt-in. */
-  loadBuffer(bytes: ArrayBuffer | Uint8Array, name?: string, opts?: { focus?: boolean }): Promise<void>;
+  /** Open a file, optionally at position. Does not steal focus unless `{ focus: true }` or `autofocus`. */
+  loadFile(file: Blob, name?: string, opts?: NitroOpenOptions): Promise<void>;
+  /** Fetch and open a URL, optionally at position. Does not steal focus unless `{ focus: true }` or `autofocus`. */
+  loadUrl(url: string, opts?: NitroOpenOptions): Promise<void>;
+  /** Open bytes, optionally at position before the requested frame.
+   *  Pass `{ focus: true }` to focus the editor after load, or set the `autofocus` attribute. */
+  loadBuffer(bytes: ArrayBuffer | Uint8Array, name?: string, opts?: NitroOpenOptions): Promise<void>;
   save(): Promise<Uint8Array>;
   readonly document: WorkerDocument | null;
   mode: string;
@@ -153,6 +155,23 @@ export class ViewerElement extends HTMLElement {
 }
 /** Chrome theme: a built-in name, or `--nx-*` tokens (`"--nx-accent"` or short `accent`). See docs/theme.md. */
 export type NitroTheme = "office" | "quiet" | "dark" | Record<string, string>;
+/** Position indices are zero-based; zoom is percent and scroll offsets are CSS pixels. */
+export interface NitroPosition {
+  page?: number;
+  sheet?: number;
+  sheetName?: string;
+  slide?: number;
+  scrollTop: number;
+  scrollLeft: number;
+  zoom?: number;
+}
+export type NitroPositionInput = Omit<Partial<NitroPosition>, "sheet"> & { sheet?: number | string };
+export interface NitroOpenOptions {
+  /** Applied before the requested frame; does not focus or emit nitro-change. */
+  position?: NitroPositionInput;
+  /** Opt-in: focus the editor after load. Same as the `autofocus` attribute. */
+  focus?: boolean;
+}
 export class ShellViewerElement extends ViewerElement {
   /** Sets `data-theme` and the `--nx-*` variables on the element. A string attribute may also hold JSON tokens. */
   theme: NitroTheme | null;
@@ -169,6 +188,17 @@ export class ShellViewerElement extends ViewerElement {
    * Do not use the current placeholders as comment anchors.
    */
   getSelection(): Promise<NitroSelection | null>;
+  /** Last painted position, synchronously. Before open: zero scroll offsets. */
+  getPosition(): NitroPosition;
+  /** Navigate without focus/change events. Bounds clamp; unknown sheet names reject. */
+  setPosition(position: NitroPositionInput): Promise<void>;
+  /** Replace bytes in the same worker/element/shadowRoot. Keeps position by default;
+   * keeps mode, resets dirty silently and the edit journal, and emits no nitro-change or focus change. */
+  reload(bytes: ArrayBuffer | Uint8Array, opts?: { keepPosition?: boolean; name?: string }): Promise<void>;
+  /** Live mode switch without reparsing. `readonly="false"` enables editing;
+   * absent/empty/other attribute values mean readonly. Emits nitro-mode after completion,
+   * detail {readonly:boolean}; no nitro-change. save() rejects while readonly. */
+  readonly: boolean;
   /** Explicit font list; overrides the process default set via initCore({ fonts }).
    * No request to fonts.googleapis.com / fonts.gstatic.com is made when set.
    * Set before calling loadBuffer / loadFile / loadUrl. */

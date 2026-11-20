@@ -9,7 +9,7 @@ export class NitroDocxElement extends ShellViewerElement {
     return !!n && P.test(n);
   }
   async _ao() {
-    if (!this._readonly) import("./lazy/docx-caret.js").then((m) => m.attach(this)).catch(() => {});
+    if (!this._readonly) (await import("./lazy/docx-caret.js")).attach(this);
     await super._ao();
   }
   _css() {

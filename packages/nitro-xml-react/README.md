@@ -72,4 +72,5 @@ Failed imperative saves reject as well as notifying `onError`. Element `loadBuff
 ## Host API
 
 See the [Nitro XML Host API](../nitro-xml/README.md#host-api) for element
-signatures, event details, examples, and current selection limitations.
+signatures, event details, examples, and current selection limitations,
+including position, reload and live readonly APIs.

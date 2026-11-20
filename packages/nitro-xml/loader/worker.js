@@ -11,7 +11,7 @@ let glue = null;
 let chain = Promise.resolve();
 let _isDirty = false;
 function unlockChrome(op) {
-if (op === "ui" || op === "zoom-set") return;
+if (["ui", "zoom-set", "sheet", "nav-next", "nav-prev", "host-position", "host-scroll"].includes(op)) return;
 _isDirty = true;
 if (!self._pendingEditorChrome) return;
 self._pendingEditorChrome = 0;
@@ -76,6 +76,13 @@ byteLength: handle.byteLength,
 format: handle.documentFormat(),
 t: handle.t !== false,
 });
+break;
+}
+case "host-mode": {
+self._pendingEditorChrome = 0;
+handle.setReadOnly(msg.readonly);
+if (!msg.readonly) handle.loadEditorChrome();
+self.postMessage({ type: "host-mode" });
 break;
 }
 case "events": {

@@ -21,19 +21,21 @@ async function peek(el) {
   }
 }
 
-/** @returns {{ rebase(): Promise<void>, force(): void, touch(): void, saved(bytes: Uint8Array): void, destroy(): void }} */
+/** @returns {{ rebase(silent?: boolean): Promise<void>, pause(): void, force(): void, touch(): void, saved(bytes: Uint8Array): void, destroy(): void }} */
 export function trackDirty(el, onChange) {
   let base = null;
   let dirty = false;
   let timer = 0;
   let live = true;
   let forced = false;
+  let generation = 0;
   const set = (v) => {
     if (v !== dirty) onChange((dirty = v));
   };
   async function check() {
+    const current = generation;
     const now = await peek(el);
-    if (!live || forced || now == null || base == null) return;
+    if (current !== generation || !live || forced || now == null || base == null) return;
     set(now !== base);
   }
   const touch = () => {
@@ -44,10 +46,20 @@ export function trackDirty(el, onChange) {
   const evs = ["keyup", "input", "paste", "cut", "pointerup"];
   for (const e of evs) el.addEventListener(e, touch);
   return {
-    async rebase() {
+    pause() {
+      clearTimeout(timer);
+      generation++;
+      base = null;
+    },
+    async rebase(silent = false) {
+      clearTimeout(timer);
+      const current = ++generation;
       forced = false;
-      base = await peek(el);
-      set(false);
+      const next = await peek(el);
+      if (!live || current !== generation) return;
+      base = next;
+      if (silent) dirty = false;
+      else set(false);
     },
     force() {
       forced = true;

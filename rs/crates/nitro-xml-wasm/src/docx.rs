@@ -489,7 +489,7 @@ pub(crate) fn process_frame(handle: &mut crate::handle::Handle) {
     let mut tabs: Option<(Vec<(u32, String)>, u32)> = None;
     if let Some(ref mut docx) = handle.docx {
         let page_count = docx.page_count();
-        if !was_ready || page_count != prev_page_count {
+        if !was_ready || page_count != prev_page_count || handle.shell.tabs.len() != page_count {
             tabs = Some((docx.page_tabs(), docx.active as u32));
         }
         if !was_ready || body_just_completed {

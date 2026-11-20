@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { trackDirty } from "./ribbon/dirty.js";
 
-export function attach(el) {
+export async function attach(el) {
   const proto = Object.getPrototypeOf(el);
   if (!Object.getOwnPropertyDescriptor(proto, "dirty")) {
     Object.defineProperty(proto, "dirty", {
@@ -10,7 +10,11 @@ export function attach(el) {
     });
   }
   if (el._dT) {
-    el._dT.rebase();
+    if (el._dirtyDoc !== el.document) {
+      el._dirtyDoc = el.document;
+      await el._dT.rebase(true);
+      el._dy = false;
+    }
     return;
   }
   const origSave = proto.save;
@@ -25,5 +29,7 @@ export function attach(el) {
       detail: { dirty: d }, bubbles: true, composed: true,
     }));
   });
-  void el._dT.rebase();
+  el._dirtyDoc = el.document;
+  await el._dT.rebase(true);
+  el._dy = false;
 }

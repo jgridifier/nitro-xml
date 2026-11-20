@@ -641,6 +641,43 @@ impl Handle {
     /// loader apply path tiny; long keys remain for harnesses. Op `ui` is snapshot-only.
     #[wasm_bindgen(js_name = shellAction)]
     pub fn shell_action(&mut self, op: &str, arg: &str) -> Result<String, JsValue> {
+        // Host snapshots are independent of chrome generation and never create edit commands.
+        if op == "host-position" {
+            let mut p =
+                serde_json::json!({"scrollTop": 0, "scrollLeft": 0, "zoom": self.shell.zoom_pct});
+            p["_ready"] =
+                serde_json::json!(self.docx.as_ref().is_none_or(|d| d.viewer_model_complete()
+                    && d.paint_ready()
+                    && d.session.layout_complete()));
+            let key = match self.shell.format.as_str() {
+                "xlsx" => "sheet",
+                "docx" => "page",
+                _ => "slide",
+            };
+            p[key] = serde_json::json!(self.shell.nav_index);
+            if let Some(x) = self.xlsx.as_ref() {
+                p["scrollTop"] = serde_json::json!(x.scroll_y);
+                p["scrollLeft"] = serde_json::json!(x.scroll_x);
+                if let Some((_, name)) = self
+                    .shell
+                    .tabs
+                    .iter()
+                    .find(|(i, _)| *i == self.shell.nav_index)
+                {
+                    p["sheetName"] = serde_json::json!(name);
+                }
+            }
+            return Ok(p.to_string());
+        }
+        if op == "host-scroll" {
+            let p: serde_json::Value =
+                serde_json::from_str(arg).map_err(|e| JsValue::from_str(&e.to_string()))?;
+            if let Some(x) = self.xlsx.as_mut() {
+                x.set_host_scroll(p["scrollLeft"].as_f64(), p["scrollTop"].as_f64());
+                process_frame(self);
+            }
+            return self.shell_action("host-position", "");
+        }
         if matches!(
             op,
             "formula-cancel"

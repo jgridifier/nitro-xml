@@ -74,7 +74,7 @@ async function getSel(el) {
   return null;
 }
 
-export function attach(el) {
+export async function attach(el) {
   el.getSelection = () => getSel(el);
-  if (!el._readonly) import("./dh.js").then((m) => m.attach(el)).catch(() => {});
+  if (!el._readonly) await (await import("./dh.js")).attach(el);
 }

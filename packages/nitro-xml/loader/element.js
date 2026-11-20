@@ -39,8 +39,8 @@ this._d = null;
 get document() {
 return this._d;
 }
-async loadFile(f,n){return(await import("./lazy/load-url.js")).loadFile(this,f,n);}
-async loadUrl(u){return(await import("./lazy/load-url.js")).loadUrl(this,u);}
+async loadFile(f,n,opts){return(await import("./lazy/load-url.js")).loadFile(this,f,n,opts);}
+async loadUrl(u,opts){return(await import("./lazy/load-url.js")).loadUrl(this,u,opts);}
 async loadBuffer(b, n = "", opts = {}) {
 try {
 if (!ws()) {
@@ -57,16 +57,20 @@ this._d && this._d.dispose();
 this._d = null;
 const ro = this._readonly !== false;
 const d = new WD({ canvas: this._c, root: this._r, name: n, fonts: this.fonts });
-d.onError = (e) => this._fail(e);
+d.onError = (e) => { if (d === this._d) this._fail(e); };
 d.onChrome = (h) => {
 if (this._ch && h) this._ch.innerHTML = h;
 };
 try { await d.open(b, n, { readonly: ro }); }
 catch (e) { d.dispose(); throw e; }
 this._d = d;
-this._tick();
+this._openingPosition = true;
+try {
 await this._ao();
-if(opts.focus||this.autofocus)this._v?.focus();
+if (opts.position && this.setPosition) await this.setPosition(opts.position);
+} finally { this._openingPosition = false; }
+this._tick();
+if (opts.focus || this.autofocus) this._v?.focus();
 } catch (e) { this._fail(e); throw e; }
 }
 _ok(n) {
@@ -171,6 +175,7 @@ this._tick();
 if (typeof ResizeObserver !== "undefined") {
 this._ro = new ResizeObserver(() => {
 if (!this._d) return;
+if (this._openingPosition) return;
 const d = window.devicePixelRatio || 1;
 const el = this._v === this ? this : this._v;
 const w = el.clientWidth;
@@ -190,16 +195,18 @@ this._ro.observe(this._v);
 }
 }
 _tick() {
+if (this._openingPosition) return;
 if (this._raf) {
 this._rd = this._rr;
 return;
 }
 this._raf = requestAnimationFrame(async () => {
 this._rr = 1;
+const d = this._d;
 try {
-if (this._d) await this._d.tick();
+if (d) await d.tick();
 } catch (e) {
-this._fail(e);
+if (d === this._d) this._fail(e);
 } finally {
 this._raf = this._rr = 0;
 if (this._rd) {
@@ -282,7 +289,10 @@ static get observedAttributes() {
 return ["src", "readonly", "mode", "theme"];
 }
 attributeChangedCallback(n, _, v) {
-if (n == "readonly") this._readonly = v != "false";
+if (n == "readonly") {
+this._readonly = v != "false";
+if (this._d) this._modeReady = (this._modeReady || Promise.resolve()).then(() => import("./lazy/host-position.js")).then(m => m.setReadonly(this)).catch(e => this._emitError(e));
+}
 if (n == "theme") this._tm(v);
 if (n == "mode") {
 if (v == "embedded") import("./lazy/preload.js").then((m) => m.preload()).catch(() => {});
@@ -316,12 +326,19 @@ super.connectedCallback();
 get readonly() {
 return this._readonly;
 }
+set readonly(v) { this.setAttribute("readonly", String(!!v)); }
+getPosition() {
+return { ...this._d?._position, scrollTop: this.localName === "nitro-xlsx" ? this._d?._position?.scrollTop || 0 : this._r?.scrollTop || 0, scrollLeft: this.localName === "nitro-xlsx" ? this._d?._position?.scrollLeft || 0 : this._r?.scrollLeft || 0 };
+}
+async setPosition(pos) { return (await import("./lazy/host-position.js")).setPosition(this, pos); }
+async reload(bytes, opts) { return (await import("./lazy/host-position.js")).reload(this, bytes, opts); }
 async _ao() {
+await this._boundShell;
 if (this._d && this._ch) this._d._chromeEl = this._ch;
 await this.shellAction("ui");
 const z=this.getAttribute("zoom");if(z)await this.shellAction("zoom-set",z);
 void this._em();
-import("./lazy/ha.js").then((m) => m.attach(this)).catch(() => {});
+await (await import("./lazy/ha.js")).attach(this);
 }
 _css() {
 return ":host{display:flex;flex-direction:column;min-height:12rem;background:#fff}.v{position:relative;flex:1;min-height:0;outline:none;background:#fff}canvas,.dom{position:absolute;inset:0;width:100%;height:100%}canvas{background:#fff}.msg{padding:1rem;font:14px/1.4 system-ui,sans-serif}";
@@ -334,57 +351,7 @@ super._surf();
 this._ch = this._s.querySelector(".chrome");
 }
 _bx() {
-const g = (o, a) => this.shellAction(o, a || "");
-const ch = this._ch;
-ch.onclick = (e) => {
-const b = e.target.closest && e.target.closest("[data-a]");
-b && g(b.dataset.a, b.dataset.g);
-};
-ch.oninput = (e) => {
-e.target.classList.contains("q") && g("find-query", e.target.value);
-};
-const mac=typeof navigator!="undefined"&&/mac|iphone|ipad|ipod/i.test((navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||"");
-this.onkeydown = (e) => {
-if (!this._d) return;
-const q = e.target.classList.contains("q");
-const m = e.ctrlKey || e.metaKey;
-let k = (m ? "m" : "") + e.key;
-if (q && e.key == "Enter") k = e.shiftKey ? "qSEnter" : "qEnter";
-else if (q && e.key == "Escape") k = "qEscape";
-const hkRoot = (ch.querySelector && ch.querySelector("[data-hk]")) || ch.firstElementChild;
-for (const p of ((hkRoot && hkRoot.dataset.hk) || "").split("|")) {
-const i = p.indexOf(":");
-if (p.slice(0, i) === k) {
-if (k == "Escape" && this._d.editorKey) return this._d.editorKey(e, mac).then((x) => (x && x.handled ? paintEdit(x) : g("find-close")));
-e.preventDefault();
-return g(p.slice(i + 1));
-}
-}
-const inFind = (e.composedPath ? e.composedPath() : []).some(
-(n) => n.classList && n.classList.contains("q"),
-);
-const paintEdit = (edit) => {
-if (!edit || !edit.handled) return;
-e.preventDefault();
-if (edit.h != null && this._ch) this._ch.innerHTML = edit.h;
-this._tick();
-};
-if (!this._readonly && (e.ctrlKey || e.metaKey || e.altKey)) {
-void this._d.matchShortcut(e, mac).then((hit) => {
-if (hit && (hit.command || hit.action)) {
-e.preventDefault();
-if (hit.command) g("cmd", hit.command);
-else if (hit.action === "help") g("diagnostics-toggle");
-return;
-}
-if (!inFind && this._d.editorKey) return this._d.editorKey(e, mac).then(paintEdit);
-});
-return;
-}
-if (!this._readonly && !inFind && this._d.editorKey) {
-void this._d.editorKey(e, mac).then(paintEdit);
-}
-};
+this._boundShell = import("./lazy/shell-bind.js").then(m => m.bindShell.call(this));
 }
 async _downloadBytes(bytes, name) {
 return (await import("./lazy/download.js")).downloadBytes.call(this, bytes, name);

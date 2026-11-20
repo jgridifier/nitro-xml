@@ -1,0 +1,19 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html><meta charset="utf-8"><title>Nitro host position, reload and readonly</title>
+<style>body{font:14px system-ui;margin:20px}nitro-docx,nitro-xlsx,nitro-pptx{height:620px;border:1px solid #bbb}textarea{width:95%;height:60px}button,input{margin:6px}pre{white-space:pre-wrap}</style>
+<textarea id="chat" placeholder="Host chat — APIs must leave focus here"></textarea>
+<div><button id="get">Get position</button><input id="position" size="65" value='{"page":1,"sheet":1,"slide":2,"scrollTop":40}'><button id="set">Set position</button><button id="reload">Reload</button><button id="toggle">Toggle readonly</button></div><div id="mount"></div><pre id="log"></pre>
+<script type="module">
+import {defineNitroDocx,defineNitroXlsx,defineNitroPptx} from '../nitro-xml/loader/index.js';
+defineNitroDocx();defineNitroXlsx();defineNitroPptx();
+const f=new URLSearchParams(location.search).get('f')||'docx';
+const sample={docx:'notes.docx',xlsx:'sample.xlsx',pptx:'deck.pptx'}[f];
+window.el=document.createElement('nitro-'+f);el.mode='embedded';mount.append(el);
+window.bytes=async()=>new Uint8Array(await (await fetch('../samples/'+sample)).arrayBuffer());
+const report=x=>log.textContent+=JSON.stringify(x)+'\n';
+for(const b of document.querySelectorAll('button'))b.onpointerdown=e=>e.preventDefault();
+get.onclick=()=>report(el.getPosition());set.onclick=async()=>{await el.setPosition(JSON.parse(position.value));report(el.getPosition())};
+reload.onclick=async()=>{await el.reload(await bytes());report(el.getPosition())};
+toggle.onclick=()=>{el.readonly=!el.readonly};el.addEventListener('nitro-mode',e=>report(e.detail));
+chat.focus();window.ready=(async()=>el.loadBuffer(await bytes(),sample))();
+</script>

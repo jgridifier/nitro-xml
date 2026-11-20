@@ -92,21 +92,20 @@ Returns a snapshot of the current selection (#561). Call after loading
 completes and after the user's selection gesture. No `nitro-selectionchange`
 event is emitted, and reading the selection never marks the document dirty.
 
-- **DOCX**: a double-click selects the word under the pointer and returns its
-  `text` with `start`/`end` `{paragraph, run, offset}` and `collapsed: false`.
-  Offsets count code points from the start of the paragraph (`run` is `0`).
-  Otherwise it returns the caret paragraph's text with equal `start`/`end` and
-  `collapsed: true`. The word selection is not highlighted, and typing inserts
-  at the caret instead of replacing it. Drag and Shift+arrow ranges are not
-  reported.
+- **DOCX**: the caret only. Returns `start`/`end` `{paragraph, run, offset}` at
+  the caret (`offset` counts code points from the paragraph start, `run` is `0`),
+  `text: ""` and `collapsed: true`. With no caret, `start`/`end` are `null`.
 - **XLSX**: `{format, sheet, sheetIndex, range, anchor, values, truncated}`.
   `values` holds the stored cell values row by row: numbers, strings, booleans,
   error text such as `"#DIV/0!"`, or `null` for an empty cell. At most 10,000
   cells are returned; past that, whole rows are dropped and `truncated` is `true`.
-- **PPTX**: a selected shape returns `shapeId`, `shapeName` and its whole `text`
-  with `textRange: null`. A double-click on a word returns that word as `text`
-  and its code-point `textRange` in the shape text, with paragraphs joined by
-  `"\n"`. With nothing selected, the shape fields are `null`.
+- **PPTX**: the clicked shape only. Returns its `shapeId`, `shapeName` and whole
+  `text`, with `textRange: null` and `collapsed: true`. With nothing selected,
+  the shape fields are `null`.
+
+**v0.2.0 limit:** in Word and PowerPoint, `getSelection()` returns the caret or the
+clicked shape only. It never reports a selected text range. Text-range selection
+is tracked in #561.
 
 ```js
 const selection = await viewer.getSelection();

@@ -219,18 +219,15 @@ const sel = await viewer.getSelection();
 
 | Format | Shape |
 |---|---|
-| docx | `{ format, text, page, start:{paragraph,run,offset}, end:{paragraph,run,offset}, collapsed }` |
+| docx | `{ format, text, page, start:{paragraph,run,offset}, end:{paragraph,run,offset}, collapsed }` — caret only: `start` equals `end`, `text:""`, `collapsed:true` |
 | xlsx | `{ format, sheet, sheetIndex, range, anchor, values[][], truncated }` — stored values (number, string, boolean, error text, `null`); at most 10 000 cells, whole rows dropped past that with `truncated:true` |
-| pptx | `{ format, slide, shapeId, shapeName, text, textRange:{start,end} }` — selected shape: whole shape `text`, `textRange:null`; double-clicked word: that word and its range; nothing selected: `null` fields |
+| pptx | `{ format, slide, shapeId, shapeName, text, textRange, collapsed }` — clicked shape only: whole shape `text`, `textRange:null`, `collapsed:true`; nothing selected: `null` shape fields |
 
-DOCX and PPTX text ranges come from a double-click, which selects the word under
-the pointer. Offsets count code points (DOCX: from the paragraph start, `run` is
-`0`; PPTX: in the shape text with paragraphs joined by `"\n"`). A single click,
-a key press or a change to that text clears it. Without one, DOCX reports the
-collapsed caret and its paragraph text. The word selection is not highlighted,
-typing inserts at the caret instead of replacing it, and drag or Shift+arrow
-ranges are not reported. Reading the selection never marks the document dirty.
-No `nitro-selectionchange` event is emitted.
+**v0.2.0 limit:** in Word and PowerPoint, `getSelection()` returns the caret or the
+clicked shape only, always with `collapsed: true` and no selected text range.
+Text-range selection is tracked in #561. DOCX offsets count code points from the
+paragraph start (`run` is `0`). Reading the selection never marks the document
+dirty. No `nitro-selectionchange` event is emitted.
 
 **Copy-paste example (docx):**
 
@@ -238,7 +235,7 @@ No `nitro-selectionchange` event is emitted.
 const el = document.querySelector("nitro-docx");
 // After loading completes and the user makes a selection:
 const sel = await el.getSelection();
-if (sel) console.log("paragraph", sel.start?.paragraph, "text", sel.text); // double-click "Quarterly" -> text "Quarterly", offsets 0..9
+if (sel) console.log("caret paragraph", sel.start?.paragraph, "offset", sel.start?.offset); // collapsed: true
 ```
 
 ### `dirty: boolean` (read-only getter)

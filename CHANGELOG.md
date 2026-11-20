@@ -3,21 +3,26 @@
 
 ## Unreleased
 
-- `getSelection()` now returns complete payloads (#561). XLSX returns the stored
-  values of the selected range (numbers stay numbers, capped at 10,000 cells
-  with `truncated`). PPTX returns the selected shape's id, name and text. In
-  DOCX and PPTX, a double-click selects the word under the pointer and reports
-  it with code-point offsets. Reading the selection goes straight to the worker,
-  so it never repaints or marks the document dirty. The host-API browser
-  harness now runs `position_reload_readonly.py` on CI's bundled Chromium, and
-  checks that a live readonly round trip keeps unsaved edits in the saved
-  package (#565).
-
+- `getSelection()` payloads (Part of #561). XLSX returns the stored values of
+  the selected range (numbers stay numbers, capped at 10,000 cells with
+  `truncated`). PPTX returns the clicked shape's id, name and text. Reading the
+  selection goes straight to the worker, so it never repaints or marks the
+  document dirty. The host-API browser harness now runs
+  `position_reload_readonly.py` on CI's bundled Chromium, and checks that a live
+  readonly round trip keeps unsaved edits in the saved package (#565).
 - Host API browser checks now require real focus, committed edits and exact
   selection payloads; missing events or selection data fail the run (#561, #562).
   Fixed the demo host's zero-height editing surface and malformed chat heading.
-  Documented that text ranges, XLSX values and PPTX selection fields remained
-  incomplete at that point (completed above). No runtime API change.
+  At that point text ranges, XLSX values and PPTX shape fields were incomplete;
+  XLSX values and PPTX shape fields are now filled (above), and text ranges
+  remain open in #561. No runtime API change.
+
+### Known limits (v0.2.0)
+
+- In Word and PowerPoint, `getSelection()` returns the caret or the clicked shape
+  only, with `collapsed: true` and no selected text range. Text-range selection
+  is tracked in #561.
+- In multi-page Word documents, typed text is saved but does not repaint (#593).
 
 ### Host API additions
 

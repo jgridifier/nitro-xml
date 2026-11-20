@@ -81,10 +81,12 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .rb{all:unset;box-sizing:border-box;display:flex;align-items:center;border:1px solid transparent;border-radius:var(--r);cursor:pointer;color:var(--fg)}
 .rb.lg{flex-direction:column;justify-content:flex-start;gap:3px;min-width:54px;height:66px;padding:5px 6px 2px;text-align:center}
 .rb.lg svg{width:32px;height:32px;stroke-width:1.3}
-.rb.sm{justify-content:center;gap:4px;min-width:26px;height:26px;padding:0 3px}
+.rb.sm{justify-content:center;gap:4px;min-width:26px;height:22px;padding:0 3px}
 .rb.sm svg{width:18px;height:18px}
-.rb.sm.wide{justify-content:space-between;width:100%;min-width:118px;padding:0 6px 0 8px;border-color:var(--bd);background:var(--bg)}
+.rb.sm.wide{justify-content:space-between;width:100%;min-width:118px;padding:0 6px 0 8px}
 .rb.sm.wide span{flex:1;text-align:left}
+.rb.sm.labeled{gap:4px;min-width:auto;padding:0 5px}
+.rb.sm.labeled span{font-size:11.5px}
 .rb.dd svg:last-child{width:12px;height:12px;stroke-width:2}
 .rb.sm.dd{padding:0 4px 0 5px;gap:2px;min-width:auto}
 .rb.sm.dd>span{font-size:11px}
@@ -93,6 +95,7 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .rg .r1{display:flex;align-items:center;gap:1px;min-height:26px}
 .rb span{white-space:nowrap;font-size:12px}
 .rb:hover:not(:disabled){background:var(--hov);border-color:var(--bd)}
+.rb.labeled:hover:not(:disabled){border-color:transparent}
 .rb:active:not(:disabled){background:color-mix(in srgb,var(--hov) 70%,var(--acc))}
 .rb[aria-pressed=true]{background:var(--sel);border-color:var(--acc)}
 .rb:disabled{opacity:.42;cursor:default}
@@ -112,7 +115,7 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .pane button:hover{background:var(--hov)}
 .pane button:hover .th{border-color:color-mix(in srgb,var(--acc) 40%,#c8c6c4)}
 .pane button .n{width:18px;text-align:right;color:var(--mut);padding-top:2px;font-variant-numeric:tabular-nums}
-.pane button .th{position:relative;flex:1;min-width:0;aspect-ratio:16/9;display:grid;place-items:center;background:#fff;color:#605e5c;border:1px solid #c8c6c4;border-radius:2px;font-size:11px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.pane button .th{position:relative;flex:1;min-width:0;aspect-ratio:var(--slide-ar,16/9);display:grid;place-items:center;background:#fff;color:#605e5c;border:1px solid #c8c6c4;border-radius:2px;font-size:11px;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .pane button .ph{padding:0 6px;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .pane .pl{user-select:none}.pane button[data-drag]{opacity:.55}.pane button[data-ins=before]{box-shadow:inset 0 3px 0 var(--acc)}.pane button[data-ins=after]{box-shadow:inset 0 -3px 0 var(--acc)}
 .pane button[aria-current=true]{background:color-mix(in srgb,var(--acc) 12%,transparent)}
@@ -120,9 +123,7 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .pane button[aria-current=true] .n{color:var(--acc);font-weight:600}
 .stage{flex:1;min-width:0;min-height:0;display:flex;position:relative}
 .stage>*:not(.over){flex:1;min-width:0}
-.sv{container-type:size;container-name:sv;flex:1;min-width:0;min-height:0;overflow:hidden;background:var(--canvas);display:flex;align-items:center;justify-content:center}
-@container sv (aspect-ratio > 16/9){nitro-pptx{height:max(100px,calc(100cqh - 56px));width:max(178px,calc((100cqh - 56px) * 16 / 9))}}
-@container sv (aspect-ratio <= 16/9){nitro-pptx{width:max(200px,calc(100cqw - 56px));height:max(113px,calc((100cqw - 56px) * 9 / 16))}}
+.sv{flex:1;min-width:0;min-height:0;overflow:auto;background:var(--canvas);display:flex;align-items:center;justify-content:center;padding:28px;box-sizing:border-box}
 .sv nitro-pptx{flex:none;box-shadow:0 4px 20px rgba(0,0,0,.18),0 1px 4px rgba(0,0,0,.12);outline:1px solid rgba(0,0,0,.12);outline-offset:-1px}
 .over{position:absolute;inset:0;z-index:20;display:grid;place-items:center;padding:24px;background:var(--canvas);overflow:auto}
 .over[hidden]{display:none}

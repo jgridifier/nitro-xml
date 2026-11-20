@@ -5,6 +5,7 @@
 // enabled/pressed/readout state is mirrored from the Rust chrome (host._ch), which stays the
 // single source of truth. The frame hides the Rust toolbar/tab strip with injected shadow CSS;
 // nothing in the element's default mode changes.
+import { attachTestIds } from "../testids.js";
 import { applyTheme } from "../theme.js";
 import { ICONS } from "./icons.js";
 import { CANVAS_CSS, CSS, SHADOW_CSS } from "./style.js";
@@ -66,9 +67,10 @@ export function mountOffice(o) {
   const style = document.createElement("style");
   style.textContent = CSS;
 
+  const testId = (x) => "ribbon-command-" + (x.c || x.o || x.l.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
   const lbl = (x) => esc(plain(x.t || x.l));
   const btn = (x, size) =>
-    `<button type="button" class="rb ${size}${x.m ? " dd" : ""}${x.wide ? " wide" : ""}" tabindex="-1" aria-label="${lbl(x)}" title="${esc(x.t || x.l)}" data-k="${x.k}"${x.p ? ' aria-pressed="false"' : ""}${x.m ? ' aria-haspopup="menu" aria-expanded="false"' : ""}>${svg(x.i)}${size === "lg" || x.wide || x.m ? `<span>${esc(x.l)}</span>` : ""}${x.m ? svg("chevDown") : ""}</button>`;
+    `<button type="button" class="rb ${size}${x.m ? " dd" : ""}${x.wide ? " wide" : ""}" tabindex="-1" aria-label="${lbl(x)}" title="${esc(x.t || x.l)}" data-testid="${esc(testId(x))}" data-k="${x.k}"${x.p ? ' aria-pressed="false"' : ""}${x.m ? ' aria-haspopup="menu" aria-expanded="false"' : ""}>${svg(x.i)}${size === "lg" || x.wide || x.m ? `<span>${esc(x.l)}</span>` : ""}${x.m ? svg("chevDown") : ""}</button>`;
   const panel = (name) =>
     tabsSpec[name]
       .map(
@@ -85,7 +87,7 @@ export function mountOffice(o) {
   <span class="tile" aria-hidden="true">${app.tile}</span>
   <button type="button" class="ib" data-q="open" aria-label="Open file" title="Open file">${svg("open")}</button>
   <span class="sep" aria-hidden="true"></span>
-  ${edit ? `<div class="qat" role="toolbar" aria-label="Quick access">${qat.map((x) => `<button type="button" class="ib" data-k="${x.k}" aria-label="${lbl(x)}" title="${esc(x.t)}">${svg(x.i)}</button>`).join("")}</div><span class="sep" aria-hidden="true"></span>` : ""}
+  ${edit ? `<div class="qat" role="toolbar" aria-label="Quick access">${qat.map((x) => `<button type="button" class="ib" data-testid="${esc(testId(x))}" data-k="${x.k}" aria-label="${lbl(x)}" title="${esc(x.t)}">${svg(x.i)}</button>`).join("")}</div><span class="sep" aria-hidden="true"></span>` : ""}
   <div class="doc"><h1 data-doc>${esc(app.name)}</h1><i data-state aria-live="polite"></i></div>
   ${full ? `<span class="srch"><label class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden" for="ox-q">Search in document</label>${svg("find")}<input id="ox-q" type="search" autocomplete="off" placeholder="Search this ${app.noun}" aria-label="Search in document" /></span>` : `<span class="grow"></span>`}
   <div class="seg" role="group" aria-label="Toolbar mode">${seg("full", "Full")}${seg("embedded", "Embedded")}</div>
@@ -125,6 +127,7 @@ ${
 }
 </div>`;
   o.container.replaceChildren(style, root);
+  attachTestIds(root, o.format);
   const $ = (s) => root.querySelector(s);
   const $$ = (s) => [...root.querySelectorAll(s)];
   const stage = $(".stage");
@@ -287,7 +290,7 @@ ${
       b && b.setAttribute("aria-expanded", "false");
       return void (focus && b && b.focus());
     }
-    dm.innerHTML = it.m.map((m) => `<button type="button" role="menuitem" tabindex="-1" data-k="${m.k}">${esc(m.l)}</button>`).join("");
+    dm.innerHTML = it.m.map((m) => `<button type="button" role="menuitem" tabindex="-1" data-testid="${esc(testId(m))}" data-k="${m.k}">${esc(m.l)}</button>`).join("");
     dm.setAttribute("aria-label", it.l);
     const r = btn.getBoundingClientRect();
     const b = root.getBoundingClientRect();

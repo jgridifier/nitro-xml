@@ -382,8 +382,7 @@ navigator.clipboard && navigator.clipboard.writeText && navigator.clipboard.writ
 this.dispatchEvent(new CustomEvent("nitro-copy", { detail: r.c, bubbles: !0 }));
 }
 if (r.p) {
-r.p.open && r.p.target && window.open(r.p.target, "_blank", "noopener,noreferrer");
-this.dispatchEvent(new CustomEvent("nitro-hyperlink", { detail: r.p, bubbles: !0 }));
+(await import("./lazy/hyperlink.js")).emit(this, r.p);
 }
 r.ui&&r.ui.find&&!op.indexOf("find")&&this.dispatchEvent(new CustomEvent("nitro-find",{detail:r.ui.find,bubbles:!0}));
 this._tick();

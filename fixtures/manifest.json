@@ -6114,6 +6114,138 @@
       ],
       "redistributable": true,
       "on_demand": false
+    },
+    {
+      "id": "agent-docx",
+      "format": "docx",
+      "path": "fixtures/agent-generated/docx.docx",
+      "sha256": "52a29eb98a8e0245617bd6a179d18a57269e81a4d41b9d16ad93b722275cf44a",
+      "bytes": 10548,
+      "tier": "S",
+      "source": "self-generated with docx",
+      "licence": "MIT",
+      "features": [
+        "agent-generated",
+        "text",
+        "styles",
+        "tables"
+      ],
+      "redistributable": true,
+      "on_demand": false,
+      "generator": {
+        "tool": "fixtures/agent-generated/generate.cjs",
+        "id": "docx"
+      }
+    },
+    {
+      "id": "agent-exceljs",
+      "format": "xlsx",
+      "path": "fixtures/agent-generated/exceljs.xlsx",
+      "sha256": "93ac466fd61561484081067e9e89fd60aab2ac316b75d5299f258aa914cd8e9c",
+      "bytes": 7172,
+      "tier": "S",
+      "source": "self-generated with exceljs",
+      "licence": "MIT",
+      "features": [
+        "agent-generated",
+        "text",
+        "styles",
+        "tables"
+      ],
+      "redistributable": true,
+      "on_demand": false,
+      "generator": {
+        "tool": "fixtures/agent-generated/generate.cjs",
+        "id": "exceljs"
+      }
+    },
+    {
+      "id": "agent-openpyxl",
+      "format": "xlsx",
+      "path": "fixtures/agent-generated/openpyxl.xlsx",
+      "sha256": "aeae19b445bf51d49af93cd55515ad7c20fca07ed1b38b6b18c93aa7e0745b46",
+      "bytes": 5824,
+      "tier": "S",
+      "source": "self-generated with openpyxl",
+      "licence": "MIT",
+      "features": [
+        "agent-generated",
+        "text",
+        "styles",
+        "tables"
+      ],
+      "redistributable": true,
+      "on_demand": false,
+      "generator": {
+        "tool": "fixtures/agent-generated/generate.py",
+        "id": "openpyxl"
+      }
+    },
+    {
+      "id": "agent-pptxgenjs",
+      "format": "pptx",
+      "path": "fixtures/agent-generated/pptxgenjs.pptx",
+      "sha256": "7a4861865289ddc6127ccf5156a7dc0bd6c78dd96e214acca11ff86493fc4141",
+      "bytes": 54260,
+      "tier": "S",
+      "source": "self-generated with pptxgenjs",
+      "licence": "MIT",
+      "features": [
+        "agent-generated",
+        "text",
+        "styles",
+        "tables"
+      ],
+      "redistributable": true,
+      "on_demand": false,
+      "generator": {
+        "tool": "fixtures/agent-generated/generate.cjs",
+        "id": "pptxgenjs"
+      }
+    },
+    {
+      "id": "agent-python-docx",
+      "format": "docx",
+      "path": "fixtures/agent-generated/python-docx.docx",
+      "sha256": "5972dcde4e8ae980a5ed02e8600401fceaf28da9b5c3844a0597054d695768c7",
+      "bytes": 37462,
+      "tier": "S",
+      "source": "self-generated with python-docx",
+      "licence": "MIT",
+      "features": [
+        "agent-generated",
+        "text",
+        "styles",
+        "tables"
+      ],
+      "redistributable": true,
+      "on_demand": false,
+      "generator": {
+        "tool": "fixtures/agent-generated/generate.py",
+        "id": "python-docx"
+      }
+    },
+    {
+      "id": "agent-python-pptx",
+      "format": "pptx",
+      "path": "fixtures/agent-generated/python-pptx.pptx",
+      "sha256": "e5a019786e6d17e759ba7e13112d70e6c8b7fba5da7fd12daaeaa1691cb8f21e",
+      "bytes": 29747,
+      "tier": "S",
+      "source": "self-generated with python-pptx",
+      "licence": "MIT",
+      "features": [
+        "agent-generated",
+        "text",
+        "styles",
+        "tables"
+      ],
+      "redistributable": true,
+      "on_demand": false,
+      "generator": {
+        "tool": "fixtures/agent-generated/generate.py",
+        "id": "python-pptx"
+      }
     }
   ]
 }

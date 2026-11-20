@@ -248,6 +248,18 @@ fn paint_one_cell<I: StringIntern>(
     let fill = fill_paint(item.view.fill.as_ref());
     let has_fill = fill.is_some() || item.merged;
     buf.create_element(cell_id, div, parent);
+    let test_id = intern.intern("data-testid");
+    set_attr_v(
+        buf,
+        intern,
+        cell_id,
+        test_id,
+        &format!(
+            "cell-{}{}",
+            crate::address::column_label(item.col),
+            item.row + 1
+        ),
+    );
     set_attr_v(
         buf,
         intern,

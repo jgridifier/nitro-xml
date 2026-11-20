@@ -238,3 +238,83 @@ bash scripts/ci/bundle_budget.sh   # must stay ≤ 17408 B brotli (eager path)
 ```
 
 `loader/lazy/**` is excluded from the eager measure (dynamic `import()` only).
+
+### CSP and host-controlled hyperlinks
+
+`initCore({ fontSource: false }): Promise<NitroCore>` disables automatic remote font
+fetches. It resolves to `{glue, exports, memory}` (the loaded module, WASM exports,
+and WASM memory or `null`); hosts normally only await readiness. Call it before creating viewers. With no explicit `fonts` list, opening
+a document requests only same-origin loader modules, module workers, WASM and the
+document bytes. Explicit font URLs still request the resources the host supplied.
+No font or hyperlink event fires merely because a document opens.
+
+Serve the loader, worker and WASM from the same origin. No inline script, blob
+worker, `eval` or `new Function` is required. The renderer currently requires
+inline styles; document images use data/blob URLs. The tested CSP is:
+
+```http
+Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:
+```
+
+Use an external module (for example `<script type="module" src="host.js"></script>`):
+
+```js
+// host.js
+import { initCore, defineNitroDocx } from 'nitro-xml/loader';
+await initCore({ fontSource: false });
+defineNitroDocx();
+const viewer = document.querySelector('nitro-docx');
+viewer.addEventListener('nitro-hyperlink', event => {
+  const { href, text } = event.detail;
+  // Display a host-owned confirmation or route internally; Nitro never opens it.
+  document.querySelector('#link-preview').textContent = `${text}: ${href}`;
+});
+await viewer.loadUrl('/documents/report.docx');
+```
+
+**Breaking change:** `nitro-hyperlink: CustomEvent<{ href: string; text: string }>`
+now bubbles and crosses shadow boundaries (`composed: true`). It fires when a
+rendered document hyperlink is clicked or a shell hyperlink action returns a
+link. Nitro does not navigate or open a window. The event does not fire on load,
+ordinary text clicks or selection. `href` is the target (or `#bookmark` for an
+internal link); `text` is the clicked rendered text. Programmatic shell actions
+without rendered text return `text: ""`. Hosts must choose whether/how to navigate.
+The former `{target, open, ...}` detail is replaced by `{href, text}`.
+
+### Stable `data-testid` contract
+
+These attributes add no visible UI. Additions are compatible; renames/removals
+are breaking changes. Query inside `viewer.shadowRoot` for the element surface
+and shell, or the Office frame container for its chrome. IDs are scoped to that
+container, not globally unique. Only mounted controls and painted cells exist;
+offscreen virtualized cells, inactive ribbon panels and unopened menus may be absent.
+Sheet/page/slide indices are zero-based; cell references are one-based A1.
+
+| Control | Stable ID |
+| --- | --- |
+| Editing surface | `nitro-surface` |
+| Find bar/input | `find-bar`, `find-input`, `find-status` |
+| Ribbon tab | `ribbon-tab-home`, `ribbon-tab-view`, and `ribbon-tab-<lowercase tab>` |
+| Ribbon command | `ribbon-command-<engine command or shell operation>`; menu-only controls use their lowercase hyphenated label |
+| File menu/items | `file-menu`, `file-items`, `file-open`, `file-sample`, `file-save`, `file-close` |
+| Status and items (Office frame) | `status`, `status-bar`, `status-position`, `status-find`, `status-<readout>` |
+| Zoom (Office frame) | `zoom-control`, `zoom-input`, `zoom-zoom-in`, `zoom-zoom-out`, `zoom-reset` |
+| Shell actions/zoom readout | `shell-<operation>`, `zoom-value` |
+| Sheet tabs | `sheet-tabs` (Office frame), `sheet-tab-<index>` |
+| Painted spreadsheet cell | `cell-A1`, `cell-B2`, etc. |
+| Slide thumbnails/page tabs | `slide-thumb-<index>`, `page-tab-<index>` |
+| Embedded toolbar/buttons | `embedded-toolbar`, `embedded-<lowercase hyphenated accessible label>` |
+
+```js
+const surface = viewer.shadowRoot.querySelector('[data-testid="nitro-surface"]');
+const firstCell = viewer.shadowRoot.querySelector('[data-testid="cell-A1"]');
+// Playwright pierces open shadow roots automatically:
+// await page.getByTestId('cell-A1').click();
+// await page.getByTestId('ribbon-tab-view').click();
+```
+
+The checked-in `scripts/e2e/host-api/testids.json` lists the required selectors
+and ribbon commands by format/tab. `testids.py` guards all three formats in full
+and embedded modes, including chrome replacement. The sample host is
+`demo/host-api/csp.html`; its external scripts also drive the generated-fixture
+round trips. `agent_fixtures.py` and `csp.py` exit non-zero on any failed check.

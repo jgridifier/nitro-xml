@@ -7,11 +7,64 @@
 // nothing in the element's default mode changes.
 import { applyTheme } from "../theme.js";
 import { ICONS } from "./icons.js";
-import { CANVAS_CSS, CSS, SHADOW_CSS } from "./style.js";
+import { CANVAS_CSS, CSS, PPTX_SHADOW_CSS, SHADOW_CSS } from "./style.js";
 import { QAT, officeCommandHidden, tabsFor } from "./commands.js";
 import { trackDirty } from "./dirty.js";
 import { createThumbs } from "./thumbs.js";
 import { attachThumbDrag } from "./thumb-drag.js";
+
+/** Read ppt/presentation.xml from a PPTX buffer and return { cx, cy } slide size in EMU, or null. */
+async function readSldSz(buf) {
+  try {
+    const dv = new DataView(buf);
+    const u8 = new Uint8Array(buf);
+    const len = buf.byteLength;
+    // Find end-of-central-directory (PK\x05\x06)
+    let eocd = -1;
+    for (let i = len - 22; i >= Math.max(0, len - 65558); i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) return null;
+    const cdOff = dv.getUint32(eocd + 16, true);
+    const cdSize = dv.getUint32(eocd + 12, true);
+    // Scan central directory for ppt/presentation.xml
+    const target = "ppt/presentation.xml";
+    let pos = cdOff;
+    while (pos < cdOff + cdSize) {
+      if (dv.getUint32(pos, true) !== 0x02014b50) break;
+      const method = dv.getUint16(pos + 10, true);
+      const compSz = dv.getUint32(pos + 20, true);
+      const fnLen = dv.getUint16(pos + 28, true);
+      const exLen = dv.getUint16(pos + 30, true);
+      const cmLen = dv.getUint16(pos + 32, true);
+      const lfhOff = dv.getUint32(pos + 42, true);
+      const name = new TextDecoder().decode(u8.slice(pos + 46, pos + 46 + fnLen));
+      if (name === target) {
+        const lfhExLen = dv.getUint16(lfhOff + 28, true);
+        const dataOff = lfhOff + 30 + fnLen + lfhExLen;
+        const compressed = u8.slice(dataOff, dataOff + compSz);
+        let xmlBytes;
+        if (method === 0) {
+          xmlBytes = compressed;
+        } else if (method === 8) {
+          const ds = new DecompressionStream("deflate-raw");
+          const w = ds.writable.getWriter();
+          w.write(compressed); w.close();
+          const chunks = []; const reader = ds.readable.getReader();
+          for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
+          let off = 0, tot = chunks.reduce((a, c) => a + c.length, 0);
+          xmlBytes = new Uint8Array(tot);
+          for (const c of chunks) { xmlBytes.set(c, off); off += c.length; }
+        } else { return null; }
+        const xml = new TextDecoder().decode(xmlBytes);
+        const m = xml.match(/sldSz[^>]+cx="(\d+)"[^>]+cy="(\d+)"/);
+        return m ? { cx: parseInt(m[1]), cy: parseInt(m[2]) } : null;
+      }
+      pos += 46 + fnLen + exLen + cmLen;
+    }
+  } catch {}
+  return null;
+}
 
 const APPS = {
   xlsx: { name: "Excel", tile: "X", unit: "Sheet", noun: "workbook", ext: ".xlsx,.xlsm,.xltx,.xltm" },
@@ -68,7 +121,7 @@ export function mountOffice(o) {
 
   const lbl = (x) => esc(plain(x.t || x.l));
   const btn = (x, size) =>
-    `<button type="button" class="rb ${size}${x.m ? " dd" : ""}${x.wide ? " wide" : ""}" tabindex="-1" aria-label="${lbl(x)}" title="${esc(x.t || x.l)}" data-k="${x.k}"${x.p ? ' aria-pressed="false"' : ""}${x.m ? ' aria-haspopup="menu" aria-expanded="false"' : ""}>${svg(x.i)}${size === "lg" || x.wide || x.m ? `<span>${esc(x.l)}</span>` : ""}${x.m ? svg("chevDown") : ""}</button>`;
+    `<button type="button" class="rb ${size}${x.m ? " dd" : ""}${x.wide ? " wide" : ""}${x.labeled ? " labeled" : ""}" tabindex="-1" aria-label="${lbl(x)}" title="${esc(x.t || x.l)}" data-k="${x.k}"${x.p ? ' aria-pressed="false"' : ""}${x.m ? ' aria-haspopup="menu" aria-expanded="false"' : ""}>${svg(x.i)}${size === "lg" || x.wide || x.labeled || x.m ? `<span>${esc(x.l)}</span>` : ""}${x.m ? svg("chevDown") : ""}</button>`;
   const panel = (name) =>
     tabsSpec[name]
       .map(
@@ -110,7 +163,7 @@ ${
 }
 <div class="body" role="main" aria-label="${esc(app.name)} document">
   ${o.format === "pptx" && full ? `<aside class="pane" aria-label="Slide thumbnails" hidden><h2>Slides</h2><div class="pl" role="list"></div></aside>` : ""}
-  <div class="stage"><div class="over" hidden></div></div>
+  <div class="stage"><div class="over" hidden></div>${o.format === "pptx" && full ? '<div class="sv"></div>' : ""}</div>
 </div>
 <div class="foot" role="region" aria-label="Status">
 ${o.format === "xlsx" && full ? `<div class="sheets" role="tablist" aria-label="Sheets" hidden></div>` : ""}
@@ -128,7 +181,32 @@ ${
   const $ = (s) => root.querySelector(s);
   const $$ = (s) => [...root.querySelectorAll(s)];
   const stage = $(".stage");
-  stage.prepend(o.el);
+  const sv = o.format === "pptx" && full ? $(".sv") : null;
+  sv ? sv.append(o.el) : stage.prepend(o.el);
+
+  // ---- JS-based slide sizing (replaces CSS container queries) ----
+  let slideAr = 16 / 9;
+  let currentZoom = 100;
+  function applySlideSize() {
+    if (!sv) return;
+    const avW = Math.max(100, sv.clientWidth - 56);
+    const avH = Math.max(80, sv.clientHeight - 56);
+    let fitW, fitH;
+    if (avW / avH > slideAr) { fitH = avH; fitW = avH * slideAr; }
+    else { fitW = avW; fitH = avW / slideAr; }
+    const factor = currentZoom / 100;
+    const w = Math.round(fitW * factor);
+    const h = Math.round(fitH * factor);
+    o.el.style.width = w + "px";
+    o.el.style.height = h + "px";
+    const overflows = factor > 1.001;
+    sv.style.alignItems = overflows ? "flex-start" : "center";
+    sv.style.justifyContent = overflows ? "flex-start" : "center";
+  }
+  if (sv && typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(applySlideSize).observe(sv);
+  }
+  applySlideSize();
 
   const host = () => o.el;
   const act = (op, arg) => host().shellAction && host().shellAction(op, arg || "");
@@ -139,7 +217,7 @@ ${
     const sr = o.el.shadowRoot;
     if (!sr || !full || shadowStyle?.isConnected) return;
     shadowStyle = document.createElement("style");
-    shadowStyle.textContent = SHADOW_CSS + (o.format === "docx" ? CANVAS_CSS : "");
+    shadowStyle.textContent = SHADOW_CSS + (o.format === "docx" ? CANVAS_CSS : "") + (o.format === "pptx" ? PPTX_SHADOW_CSS : "");
     sr.appendChild(shadowStyle);
   }
 
@@ -160,6 +238,7 @@ ${
     const diagOpen = !!q(".d") && !q(".d").hidden;
     const zoomTxt = (q(".z") || {}).textContent || "100%";
     const zoom = parseInt(zoomTxt, 10) || 100;
+    if (zoom !== currentZoom) { currentZoom = zoom; applySlideSize(); }
     for (const b of [...$$(".rbn .rb"), ...$$(".qat .ib")]) {
       const it = byKey.get(b.dataset.k);
       let dis = !ch();
@@ -631,8 +710,15 @@ ${
         track.rebase();
       } else setState(status, status === "Read-only" ? "ro" : "");
     },
-    /** Hand the opened file to the thumbnail renderer (pptx pane). */
+    /** Hand the opened file to the thumbnail renderer (pptx pane) and update slide AR. */
     opened(bytes, name) {
+      if (sv) readSldSz(bytes.slice ? bytes.slice(0) : bytes.buffer?.slice ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) : bytes).then((sz) => {
+        if (!sz) return;
+        slideAr = sz.cx / sz.cy;
+        const pane = $(".pane");
+        if (pane) pane.style.setProperty("--slide-ar", sz.cx + "/" + sz.cy);
+        applySlideSize();
+      });
       if (!thumbs) return;
       docName = name;
       thumbs.start(bytes, name);

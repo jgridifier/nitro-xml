@@ -31,7 +31,15 @@ import traceback
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 7893
 BASE = os.path.join(os.path.dirname(__file__), "..", "..", "..")
 SITE = os.path.join(BASE, "_site")
-CHROME = "/home/box/.cache/ms-playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell"
+def _chrome_path():
+    env = os.environ.get("HOST_API_CHROME")
+    if env:
+        return env
+    default = "/home/box/.cache/ms-playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell"
+    return default if os.path.exists(default) else None
+
+
+CHROME = _chrome_path()
 
 # ---------------------------------------------------------------------------
 # Serve _site
@@ -75,7 +83,7 @@ def run_format(playwright, fmt):
     google_requests = []
 
     browser = playwright.chromium.launch(
-        executable_path=CHROME,
+        **({} if not CHROME else {"executable_path": CHROME}),
         args=["--no-sandbox", "--disable-dev-shm-usage"],
     )
     context = browser.new_context()

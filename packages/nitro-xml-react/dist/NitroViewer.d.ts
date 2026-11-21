@@ -11,6 +11,8 @@ export type NitroViewerProps = {
     onReady?: (el: HTMLElement) => void;
     /** Fired when `nitro-save` / programmatic save produces bytes. */
     onChange?: (bytes: Uint8Array) => void;
+    /** Fired when `dirty` flips — true on first edit, false after save() or undo to saved state. */
+    onDirtyChange?: (dirty: boolean) => void;
     /** Open, paint, and save failures, including typed security limits. */
     onError?: (error: Error & {
         code?: string;
@@ -26,6 +28,8 @@ export type NitroViewerHandle = {
     element: HTMLElement | null;
     save: () => Promise<Uint8Array>;
     applyEdit: (spec: string | object) => Promise<string>;
+    /** True when the document has unsaved edits; false before load, in read-only mode, or after save(). */
+    isDirty: () => boolean;
 };
 /**
  * SSR-safe React host for Nitro XML custom elements.

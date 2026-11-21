@@ -116,7 +116,7 @@ ${
 ${o.format === "xlsx" && full ? `<div class="sheets" role="tablist" aria-label="Sheets" hidden></div>` : ""}
 ${
   full
-    ? `<div class="sb"><span data-pos></span><span data-find></span><span class="grow"></span>
+    ? `<div class="sb"><span data-pos></span>${o.format === "docx" ? `<button type="button" class="wc" data-wc hidden aria-label="Word count"></button>` : ""}<span data-find></span><span class="grow"></span>
 <span class="zr"><button type="button" class="ib" data-z="zoom-out" aria-label="Zoom out" title="Zoom out">${svg("zoomOut")}</button>
 <input type="range" min="10" max="400" step="10" value="100" aria-label="Zoom" />
 <button type="button" class="ib" data-z="zoom-in" aria-label="Zoom in" title="Zoom in">${svg("zoomIn")}</button>
@@ -129,6 +129,12 @@ ${
   const $$ = (s) => [...root.querySelectorAll(s)];
   const stage = $(".stage");
   stage.prepend(o.el);
+
+  if (o.format === "docx" && full) {
+    import("../docx-word-count.js")
+      .then((m) => m.attach(o.el, root))
+      .catch(() => {});
+  }
 
   const host = () => o.el;
   const act = (op, arg) => host().shellAction && host().shellAction(op, arg || "");
@@ -666,6 +672,7 @@ ${
       removeEventListener("beforeunload", warn);
       mo.disconnect();
       rv.disconnect();
+      o.el._nxWcDetach && o.el._nxWcDetach();
       root.remove();
       style.remove();
     },

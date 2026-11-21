@@ -162,6 +162,22 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .sb .zl{all:unset;cursor:pointer;min-width:36px;text-align:right;color:var(--fg);font-variant-numeric:tabular-nums;padding:2px 4px;border-radius:3px;font-size:12px}
 .sb .zl:hover{background:var(--hov)}
 .sb .zr{display:flex;align-items:center;gap:4px}
+/* word count button (docx only) */
+.sb .wc{all:unset;box-sizing:border-box;cursor:pointer;padding:2px 6px;border-radius:3px;font-variant-numeric:tabular-nums;color:var(--mut)}
+.sb .wc:hover{background:var(--hov);color:var(--fg)}
+.sb .wc:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+/* Word Count dialog */
+.wcd-trap{position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35)}
+.wcd{background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:var(--r2);box-shadow:var(--sh);padding:20px 24px;min-width:300px;max-width:380px}
+.wcd-h{margin:0 0 14px;font-size:14px;font-weight:600}
+.wcd-rows{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
+.wcd-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.wcd-lbl{color:var(--mut);font-size:12px}
+.wcd-val{font-variant-numeric:tabular-nums;font-size:12px;font-weight:500;min-width:60px;text-align:right;color:var(--fg)}
+.wcd-foot{display:flex;justify-content:flex-end}
+.wcd-close{all:unset;box-sizing:border-box;cursor:pointer;padding:5px 20px;background:var(--acc);color:var(--acf);border-radius:var(--r);font-size:13px;font-weight:500}
+.wcd-close:hover{background:color-mix(in srgb,var(--acc) 85%,#000)}
+.wcd-close:focus-visible{outline:2px solid var(--acf);outline-offset:-2px}
 .rgc{display:none}
 @media(max-width:820px){.tb .srch,.tb .doc i,.tb .lnks{display:none}.sb input[type=range]{width:70px}.pane{width:132px}}
 /* narrow frames: ribbon groups collapse to chips that open as popups (like Office's collapsed groups) */

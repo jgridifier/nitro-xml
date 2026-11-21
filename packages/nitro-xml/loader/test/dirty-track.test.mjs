@@ -2,6 +2,49 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { trackDirty } from "../lazy/ribbon/dirty.js";
+import { attach } from "../lazy/dh.js";
+
+describe("dh.js attach (nitro-dirty + nitro-change dispatch)", () => {
+  it("fires nitro-dirty and nitro-change on first edit after attach", async () => {
+    // Catches: dh.js only dispatching nitro-change and not adding the nitro-dirty alias.
+    const original = new Uint8Array([1, 2, 3]);
+    const edited = new Uint8Array([1, 2, 3, 4]);
+    const fired = [];
+    const el = makeDhEl(original);
+    el.addEventListener = (type, fn) => { el._listeners.push({ type, fn }); };
+    el.removeEventListener = () => {};
+    el.dispatchEvent = (ev) => { fired.push(ev.type); };
+    await attach(el);
+    // Simulate an edit: change the bytes that the worker returns
+    el._d._bytes = edited;
+    el._dT.touch();
+    await tick(400);
+    assert.ok(fired.includes("nitro-dirty"), "nitro-dirty must be dispatched on first edit");
+    assert.ok(fired.includes("nitro-change"), "nitro-change must still fire as deprecated alias");
+    el._dT.destroy();
+  });
+
+  it("nitro-dirty detail.dirty is true on edit, false after save", async () => {
+    // Catches: detail payload missing or carrying wrong value.
+    const original = new Uint8Array([10, 20]);
+    const edited = new Uint8Array([10, 20, 30]);
+    const details = [];
+    const el = makeDhEl(original);
+    el.addEventListener = (type, fn) => { el._listeners.push({ type, fn }); };
+    el.removeEventListener = () => {};
+    el.dispatchEvent = (ev) => {
+      if (ev.type === "nitro-dirty") details.push(ev.detail.dirty);
+    };
+    await attach(el);
+    el._d._bytes = edited;
+    el._dT.touch();
+    await tick(400);
+    assert.deepEqual(details, [true], "detail.dirty must be true after edit");
+    await el.save();
+    assert.deepEqual(details, [true, false], "detail.dirty must be false after save");
+    el._dT.destroy();
+  });
+});
 
 describe("trackDirty (dirty getter + nitro-change)", () => {
   it("rebase sets baseline; subsequent identical hash does not fire onChange", async () => {
@@ -90,6 +133,31 @@ function makeEl(bytes) {
     addEventListener() {},
     removeEventListener() {},
   };
+  return el;
+}
+
+function makeDhEl(bytes) {
+  // dh.js reads proto.save via Object.getPrototypeOf(el).save, so save must be on the prototype.
+  const proto = {
+    async save() {
+      const msg = await this._d._request("saved");
+      return new Uint8Array(msg.bytes);
+    },
+  };
+  const el = Object.create(proto);
+  el._readonly = false;
+  el._listeners = [];
+  el._d = {
+    _bytes: bytes,
+    _worker: { postMessage() {} },
+    _request: async (expect) => {
+      if (expect === "saved") return { type: "saved", bytes: el._d._bytes };
+      return {};
+    },
+  };
+  el.addEventListener = function () {};
+  el.removeEventListener = function () {};
+  el.dispatchEvent = function () {};
   return el;
 }
 

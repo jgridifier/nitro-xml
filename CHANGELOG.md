@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-11-20
 
 - `getSelection()` payloads (Part of #561). XLSX returns the stored values of
   the selected range (numbers stay numbers, capped at 10,000 cells with
@@ -23,6 +23,9 @@
   only, with `collapsed: true` and no selected text range. Text-range selection
   is tracked in #561.
 - In multi-page Word documents, typed text is saved but does not repaint (#593).
+- The host-API browser checks (`scripts/ci/host_api_e2e.sh`) do not run in CI yet;
+  the `ci.yml` job is pending. For this release they were run once on the
+  tagged commit and passed (see #575).
 
 ### Host API additions
 

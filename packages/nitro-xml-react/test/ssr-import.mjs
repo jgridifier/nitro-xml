@@ -45,6 +45,8 @@ test("package dependencies constrain the matching engine release", () => {
   // Catches: installing an incompatible engine version alongside the React binding.
   const require = createRequire(import.meta.url);
   const pkg = require("../package.json");
-  assert.equal(pkg.dependencies["nitro-xml"], "^0.1.0");
+  const core = require("../../nitro-xml/package.json");
+  assert.equal(pkg.version, core.version);
+  assert.equal(pkg.dependencies["nitro-xml"], `^${core.version}`);
   assert.equal(pkg.sideEffects, false);
 });

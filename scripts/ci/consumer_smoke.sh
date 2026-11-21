@@ -11,9 +11,12 @@ mkdir -p "$NITRO_CONSUMER_OUT" "$WORK/app/public/fixtures" "$WORK/packs"
 node scripts/ci/npm_pack_check.mjs "$NITRO_CONSUMER_OUT"
 (cd packages/nitro-xml && npm pack --pack-destination "$WORK/packs" --json > "$WORK/core-pack.json")
 (cd packages/nitro-xml-react && npm pack --pack-destination "$WORK/packs" --json > "$WORK/react-pack.json")
+# Tarball names come from npm pack's own JSON so they track the package version.
+CORE_TGZ=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1]))[0].filename)' "$WORK/core-pack.json")
+REACT_TGZ=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1]))[0].filename)' "$WORK/react-pack.json")
 cp examples/consumer-smoke/* "$WORK/app/"
 node scripts/ci/consumer_cases.mjs "$WORK/app" "$NITRO_CONSUMER_OUT"
-(cd "$WORK/app" && npm install --no-fund --no-audit "$WORK/packs/nitro-xml-0.1.0.tgz" "$WORK/packs/nitro-xml-react-0.1.0.tgz" && npm run check:types && npm run build && npx playwright install chromium && npm test -- --max-failures=1)
+(cd "$WORK/app" && npm install --no-fund --no-audit "$WORK/packs/$CORE_TGZ" "$WORK/packs/$REACT_TGZ" && npm run check:types && npm run build && npx playwright install chromium && npm test -- --max-failures=1)
 ( cd parity/edit && bun install )
 bun scripts/ci/consumer_validate.mjs "$NITRO_CONSUMER_OUT"
 echo "consumer-smoke: PASS (packed packages, production Vite, real React save, Open XML SDK + LibreOffice)"

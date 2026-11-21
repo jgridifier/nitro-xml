@@ -3,7 +3,7 @@
 
 SSR-safe React binding for [`nitro-xml`](../nitro-xml/README.md).
 
-After publication: `npm install @nitro-xml/react@0.1.0 nitro-xml@0.1.0 react react-dom`.
+After publication: `npm install @nitro-xml/react@0.2.0 nitro-xml@0.2.0 react react-dom`.
 
 ```tsx
 import { useRef, useState } from "react";
@@ -60,7 +60,7 @@ RSC / SSR bundles (no `window` at module top level).
 
 ## Peer deps
 
-`react`, `react-dom` (≥18). Runtime dependency: `nitro-xml ^0.1.0`.
+`react`, `react-dom` (≥18). Runtime dependency: `nitro-xml ^0.2.0`.
 
 ## Example
 

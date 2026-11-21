@@ -6,6 +6,9 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
 const out = resolve(process.argv[2] || '/tmp/nitro-pack-check');
+// Both packages release in lockstep; the core package.json is the single source of the version.
+const coreVersion = JSON.parse(readFileSync(resolve('packages', 'nitro-xml', 'package.json'))).version;
+assert.match(coreVersion, /^\d+\.\d+\.\d+$/, `nitro-xml version is not a plain release semver: ${coreVersion}`);
 mkdirSync(out, { recursive: true });
 for (const dir of ['nitro-xml', 'nitro-xml-react']) {
   const cwd = resolve('packages', dir);
@@ -28,12 +31,13 @@ for (const dir of ['nitro-xml', 'nitro-xml-react']) {
   check(pkg.exports);
   for (const key of ['main', 'module', 'types']) check(pkg[key]);
   for (const file of ['README.md', 'LICENSE']) assert.ok(files.has(file), file);
-  assert.equal(pkg.version, '0.1.0');
+  assert.equal(pkg.version, coreVersion, `${dir} version must match nitro-xml ${coreVersion}`);
+  assert.equal(pack.version, pkg.version, `${dir} packed version differs from package.json`);
   if (dir === 'nitro-xml') {
     for (const file of ['NOTICE', 'LICENSE-THIRD-PARTY', 'pkg/nitro_xml_wasm_bg.wasm']) assert.ok(files.has(file), file);
     assert.ok(pack.unpackedSize < 15 * 1024 * 1024, 'Unexpected package growth (pack sanity check, not loader budget)');
   } else {
-    assert.equal(pkg.dependencies['nitro-xml'], '^0.1.0');
+    assert.equal(pkg.dependencies['nitro-xml'], `^${coreVersion}`);
     assert.equal(pkg.peerDependencies.react, '>=18');
     assert.equal(pkg.peerDependencies['react-dom'], '>=18');
     assert.ok(pack.unpackedSize < 100 * 1024, 'Unexpected React package growth');

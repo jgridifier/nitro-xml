@@ -105,6 +105,13 @@ if [ "$zoom_rc" -ne 0 ]; then
   exit 1
 fi
 
+# PPTX rail must follow structural edits, including keyboard undo/redo (#516).
+echo "selection: pptx thumbnail rail after slide edits (chromium)"
+if ! node tests/interaction/pptx-thumbs.mjs; then
+  echo "selection: pptx thumbnails FAIL" >&2
+  exit 1
+fi
+
 echo "selection: PASS"
 echo "Please add the \`selection-parity\` job to branch-protection required checks (Jared / Chief of Staff)."
 exit 0

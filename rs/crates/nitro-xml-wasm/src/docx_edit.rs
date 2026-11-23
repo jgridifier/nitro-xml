@@ -2,6 +2,7 @@
 //! Wasm glue for the docx editor session: open, chrome commands, headless edits, save.
 
 use nitro_xml_docx::edit::host::DocxHost;
+use nitro_xml_docx::edit::{join_paragraph, text::delete_text};
 use nitro_xml_docx::{save_docx, DocxEditor};
 use serde_json::Value;
 
@@ -422,6 +423,93 @@ impl DocxState {
         self.typing = None;
         self.set_caret(bi, off);
         true
+    }
+
+    /// Convert a view position `(block_id, shown_before, shown_total)` to `(block_index, byte_offset)`.
+    fn view_to_block(&self, bid: &str, shown: usize, total: usize) -> Option<(usize, usize)> {
+        let edit = self.edit.as_ref()?;
+        let bi = edit.session.host.blocks.iter().position(|b| {
+            b.get("id").and_then(|v| v.as_str()) == Some(bid)
+                && b.get("type").and_then(|t| t.as_str()) == Some("paragraph")
+        })?;
+        let text = paragraph_text(&edit.session.host.blocks[bi]);
+        let n = text.chars().count();
+        let chars = shown.saturating_sub(total.saturating_sub(n)).min(n);
+        let off = text
+            .char_indices()
+            .nth(chars)
+            .map(|(i, _)| i)
+            .unwrap_or(text.len());
+        Some((bi, off))
+    }
+
+    /// Delete the range between two view positions as a single undo step (#561).
+    /// Each position is `(block_id, shown_before, shown_total)`. Returns the new caret JSON.
+    pub fn delete_range(
+        &mut self,
+        bid1: &str,
+        shown1: usize,
+        total1: usize,
+        bid2: &str,
+        shown2: usize,
+        total2: usize,
+    ) -> Option<serde_json::Value> {
+        let (bi1, off1) = self.view_to_block(bid1, shown1, total1)?;
+        let (bi2, off2) = self.view_to_block(bid2, shown2, total2)?;
+        // Normalise direction: from < to
+        let (bi_from, off_from, bi_to, off_to) = if bi1 < bi2 || (bi1 == bi2 && off1 <= off2) {
+            (bi1, off1, bi2, off2)
+        } else {
+            (bi2, off2, bi1, off1)
+        };
+        if bi_from == bi_to && off_from == off_to {
+            return self.caret_json(); // collapsed — nothing to delete
+        }
+        self.typing = None;
+        if bi_from == bi_to {
+            // Single paragraph: one deleteText step.
+            let spec = serde_json::json!({
+                "command": "deleteText",
+                "blockIndex": bi_from,
+                "start": off_from,
+                "end": off_to,
+            });
+            self.apply_edit_spec(&spec.to_string()).ok()?;
+        } else {
+            // Multi-paragraph: use a batch so the whole deletion is one undo step.
+            let edit = self.edit.as_mut()?;
+            edit.session
+                .batch("deleteRange", |host: &mut DocxHost| {
+                    // 1. Delete prefix of last paragraph [0, off_to).
+                    let len_to = paragraph_text(&host.blocks[bi_to]).len();
+                    let off_to_c = off_to.min(len_to);
+                    if off_to_c > 0 {
+                        delete_text(host, bi_to, 0, off_to_c)?;
+                    }
+                    // 2. Delete suffix of first paragraph [off_from, len).
+                    let len_from = paragraph_text(&host.blocks[bi_from]).len();
+                    let off_from_c = off_from.min(len_from);
+                    if off_from_c < len_from {
+                        delete_text(host, bi_from, off_from_c, len_from)?;
+                    }
+                    // 3. For every block between bi_from+1 and bi_to (inclusive):
+                    //    clear its text, then join it into bi_from.
+                    for _ in bi_from..bi_to {
+                        let next = bi_from + 1;
+                        let len_next = paragraph_text(&host.blocks[next]).len();
+                        if len_next > 0 {
+                            delete_text(host, next, 0, len_next)?;
+                        }
+                        join_paragraph(host, bi_from)?;
+                    }
+                    Ok(())
+                })
+                .ok()?;
+            edit.set_caret_block(bi_from, off_from);
+            return self.caret_json();
+        }
+        self.set_caret(bi_from, off_from);
+        self.caret_json()
     }
 
     /// Re-layout the painted document from the bytes a save would produce.

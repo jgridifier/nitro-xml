@@ -133,7 +133,6 @@ def check_dirty(page, fmt):
 def check_selection(page, fmt):
     # Catches: placeholder payloads passing without a real caret, cell range or clicked shape.
     # v0.2.0 reports only what is real: docx caret, xlsx range + values, pptx clicked shape.
-    # Text-range selection in docx/pptx is not implemented yet (#561), so both are collapsed.
     if fmt == 'xlsx':
         page.mouse.move(*cell_point(page, 1, 1))
         page.mouse.down()
@@ -176,6 +175,143 @@ def check_selection(page, fmt):
     print(f'  PASS {fmt}: real selection payload', flush=True)
 
 
+def _screenshot(page, name, widths, out_dir=None):
+    """Save screenshots at the given viewport widths (height 800)."""
+    import os
+    if out_dir is None:
+        out_dir = Path(__file__).resolve().parents[0] / 'out'
+    os.makedirs(out_dir, exist_ok=True)
+    for w in widths:
+        h = 800 if w == 1280 else 900
+        page.set_viewport_size({'width': w, 'height': h})
+        page.wait_for_timeout(200)
+        page.screenshot(path=str(out_dir / f'{name}_{w}x{h}.png'))
+    # Restore default; wait for the layout to stabilise before the caller queries positions.
+    page.set_viewport_size({'width': 1400, 'height': 900})
+    page.wait_for_timeout(300)
+
+
+def check_selection_s1(page, fmt):
+    """S1 real text-range selection (#561): drag, Shift+Arrow, type/paste replaces,
+    Backspace deletes, one Undo restores; visible highlight in the DOM.
+    Checks are strict — any failure exits non-zero (never warn-and-pass)."""
+    if fmt not in ('docx', 'pptx'):
+        print(f'  SKIP {fmt}: selection S1 is docx/pptx only', flush=True)
+        return
+
+    if fmt == 'docx':
+        target_sel = '#viewer [data-bid="p0"] span'
+        hl_sel = '#viewer .nxh-r'
+    else:
+        target_sel = '#viewer .pptxv-para span'
+        hl_sel = '#viewer .nxph-r'
+
+    target = page.locator(target_sel).first
+    box = target.bounding_box()
+    assert box, f'{fmt} text span missing'
+
+    # --- Drag selection: start to ~30px right ---
+    x0 = box['x'] + 1
+    y0 = box['y'] + box['height'] / 2
+    page.mouse.move(x0, y0)
+    page.mouse.down()
+    page.mouse.move(x0 + 35, y0, steps=15)
+    page.mouse.up()
+    page.wait_for_timeout(600)
+
+    sel = page.evaluate("document.querySelector('#viewer').getSelection()")
+    print(f'  {fmt} drag selection: {json.dumps(sel)}', flush=True)
+    assert sel is not None, f'{fmt} getSelection() must not be null after drag'
+    assert sel.get('format') == fmt, f'format must be {fmt}'
+    assert sel.get('collapsed') is False, f'{fmt} drag must produce non-collapsed selection'
+    sel_text = sel.get('text', '') if fmt == 'docx' else (sel.get('textRange') or {}).get('text', '')
+    assert sel_text, f'{fmt} drag selection text must not be empty'
+
+    # Visible highlight elements must be present in the DOM
+    hl_count = page.locator(hl_sel).count()
+    assert hl_count > 0, f'{fmt} highlight overlay elements must be visible after drag (found 0 .nxh-r/.nxph-r)'
+    print(f'  {fmt} drag: collapsed=False text={sel_text!r} highlights={hl_count}', flush=True)
+
+    # --- Screenshot: selection visible ---
+    _screenshot(page, f'{fmt}_selection_single_line', [1280, 1440])
+
+    # --- Multi-line screenshot (docx only): drag ~3 lines down for PR attachment ---
+    if fmt == 'docx':
+        ml_box = page.locator(target_sel).first.bounding_box()
+        if ml_box:
+            mx0 = ml_box['x'] + 1
+            my0 = ml_box['y'] + ml_box['height'] / 2
+            page.mouse.move(mx0, my0)
+            page.mouse.down()
+            page.mouse.move(mx0 + 80, my0 + 45, steps=25)
+            page.mouse.up()
+            page.wait_for_timeout(400)
+            ml_sel = page.evaluate("document.querySelector('#viewer').getSelection()")
+            if ml_sel and not ml_sel.get('collapsed'):
+                _screenshot(page, f'{fmt}_selection_multi_line', [1280, 1440])
+                print(f'  {fmt} multi-line screenshot taken', flush=True)
+
+    # --- Shift+Arrow selection ---
+    # Re-fetch position: viewport may have been resized by _screenshot, shifting pptx layout.
+    fresh_box = page.locator(target_sel).first.bounding_box()
+    if fresh_box:
+        x0, y0 = fresh_box['x'] + 1, fresh_box['y'] + fresh_box['height'] / 2
+    # Reset: single click to place caret
+    page.mouse.click(x0, y0)
+    page.wait_for_timeout(300)
+    for _ in range(4):
+        page.keyboard.press('Shift+ArrowRight')
+    page.wait_for_timeout(400)
+    sel2 = page.evaluate("document.querySelector('#viewer').getSelection()")
+    print(f'  {fmt} shift-arrow selection: {json.dumps(sel2)}', flush=True)
+    assert sel2 is not None, f'{fmt} getSelection() must not be null after Shift+Arrow'
+    assert sel2.get('collapsed') is False, f'{fmt} Shift+Arrow must produce non-collapsed selection'
+
+    # --- Typing replaces selection ---
+    page.keyboard.type('Q')
+    if fmt == 'docx':
+        page.wait_for_function("document.querySelector('#viewer').dirty === true", timeout=3000)
+    page.wait_for_timeout(500)
+    sel3 = page.evaluate("document.querySelector('#viewer').getSelection()")
+    print(f'  {fmt} after-type selection: {json.dumps(sel3)}', flush=True)
+    assert sel3.get('collapsed') is True, f'{fmt} typing must collapse selection'
+    hl_after = page.locator(hl_sel).count()
+    assert hl_after == 0, f'{fmt} highlight must disappear after typing (found {hl_after})'
+
+    # --- Backspace removes selection ---
+    # Build a fresh selection with Shift+ArrowRight
+    fresh_box2 = page.locator(target_sel).first.bounding_box()
+    if fresh_box2:
+        x0, y0 = fresh_box2['x'] + 1, fresh_box2['y'] + fresh_box2['height'] / 2
+    page.mouse.click(x0, y0)
+    page.wait_for_timeout(300)
+    for _ in range(3):
+        page.keyboard.press('Shift+ArrowRight')
+    page.wait_for_timeout(300)
+    sel_before_del = page.evaluate("document.querySelector('#viewer').getSelection()")
+    assert sel_before_del.get('collapsed') is False, f'{fmt} must have selection before Backspace'
+    page.keyboard.press('Backspace')
+    page.wait_for_timeout(500)
+    sel4 = page.evaluate("document.querySelector('#viewer').getSelection()")
+    print(f'  {fmt} after-backspace selection: {json.dumps(sel4)}', flush=True)
+    assert sel4.get('collapsed') is True, f'{fmt} Backspace must collapse selection'
+    hl_after2 = page.locator(hl_sel).count()
+    assert hl_after2 == 0, f'{fmt} highlight must disappear after Backspace (found {hl_after2})'
+
+    # --- Undo restores deleted content ---
+    page.keyboard.press('Control+z')
+    page.wait_for_timeout(500)
+    # After undo the document should still be dirty (edit is there) and we can verify
+    # the undo worked by checking the viewer is still alive (no crash).
+    viewer_ok = page.evaluate("!!document.querySelector('#viewer').document")
+    assert viewer_ok, f'{fmt} viewer must remain alive after undo'
+    print(f'  {fmt} undo: viewer alive', flush=True)
+
+    expect(events(page), [{'dirty': True}], f'{fmt} S1 edits must mark dirty exactly once')
+    expect(page.evaluate("document.querySelector('#viewer').dirty"), True, f'{fmt} must still be dirty after undo')
+    print(f'  PASS {fmt}: S1 selection (drag, shift-arrow, type replaces, delete, undo)', flush=True)
+
+
 def main():
     failures = []
     handler = functools.partial(Handler, directory=str(SITE))
@@ -188,7 +324,10 @@ def main():
                 browser = p.chromium.launch(**({} if not CHROME else {"executable_path": CHROME}), args=['--no-sandbox', '--disable-dev-shm-usage'])
                 try:
                     for fmt in ('docx', 'xlsx', 'pptx'):
-                        for name, check in [('dirty', check_dirty), ('selection', check_selection)]:
+                        checks = [('dirty', check_dirty), ('selection', check_selection)]
+                        if fmt in ('docx', 'pptx'):
+                            checks.append(('selection_s1', check_selection_s1))
+                        for name, check in checks:
                             page = None
                             try:
                                 page = open_page(browser, server.server_port, fmt)

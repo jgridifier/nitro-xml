@@ -678,6 +678,70 @@ fn shape_plain(el: &nitro_xml_pptx::edit::host::EditableElement) -> String {
     el.text_segments.iter().map(|s| s.text.as_str()).collect()
 }
 
+impl PptxState {
+    /// Return the flat text of a shape on the current active slide.
+    pub(crate) fn shape_text_on_slide(&self, slide: u32, shape_id: &str) -> Option<String> {
+        self.edit
+            .as_ref()
+            .and_then(|e| e.session.host.slide(slide).ok())
+            .and_then(|s| s.elements.iter().find(|e| e.id == shape_id))
+            .map(shape_plain)
+    }
+
+    /// Set or update the pptx text caret, clamped to the shape text length.
+    /// Returns `[shape_id, clamped_offset]` as a JSON value.
+    pub(crate) fn set_text_caret(&mut self, shape_id: &str, offset: usize) -> serde_json::Value {
+        let slide = self
+            .edit
+            .as_ref()
+            .map(|e| e.selection.slide_index)
+            .unwrap_or(self.active as u32);
+        let text = self
+            .shape_text_on_slide(slide, shape_id)
+            .unwrap_or_default();
+        let clamped = offset.min(text.chars().count());
+        self.text_caret = Some(crate::pptx::PptxTextCaret {
+            shape_id: shape_id.to_owned(),
+            offset: clamped,
+        });
+        serde_json::json!([shape_id, clamped])
+    }
+
+    /// Delete the character range `[from, to)` within a shape's text.
+    /// Returns the new caret position `[shape_id, from]`.
+    pub(crate) fn delete_text_range(
+        &mut self,
+        shape_id: &str,
+        off1: usize,
+        off2: usize,
+    ) -> Result<serde_json::Value, String> {
+        let slide = self
+            .edit
+            .as_ref()
+            .map(|e| e.selection.slide_index)
+            .unwrap_or(self.active as u32);
+        let text = self
+            .shape_text_on_slide(slide, shape_id)
+            .ok_or_else(|| format!("shape {} not found", shape_id))?;
+        let cps: Vec<char> = text.chars().collect();
+        let from = off1.min(off2).min(cps.len());
+        let to = off1.max(off2).min(cps.len());
+        let new_text: String = cps[..from].iter().chain(&cps[to..]).collect();
+        let spec = serde_json::json!({
+            "command": "setShapeText",
+            "slideIndex": slide,
+            "elementId": shape_id,
+            "text": new_text,
+        });
+        self.apply_raw_edit(&spec.to_string())?;
+        self.text_caret = Some(crate::pptx::PptxTextCaret {
+            shape_id: shape_id.to_owned(),
+            offset: from,
+        });
+        Ok(serde_json::json!([shape_id, from]))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

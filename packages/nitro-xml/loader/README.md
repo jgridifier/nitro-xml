@@ -219,15 +219,12 @@ const sel = await viewer.getSelection();
 
 | Format | Shape |
 |---|---|
-| docx | `{ format, text, page, start:{paragraph,run,offset}, end:{paragraph,run,offset}, collapsed }` — caret only: `start` equals `end`, `text:""`, `collapsed:true` |
+| docx | `{ format, text, page, start:{paragraph,run,offset}, end:{paragraph,run,offset}, collapsed }` — caret: `start` equals `end`, `text:""`, `collapsed:true`; drag/Shift+Arrow: `text` filled, `collapsed:false` |
 | xlsx | `{ format, sheet, sheetIndex, range, anchor, values[][], truncated }` — stored values (number, string, boolean, error text, `null`); at most 10 000 cells, whole rows dropped past that with `truncated:true` |
-| pptx | `{ format, slide, shapeId, shapeName, text, textRange, collapsed }` — clicked shape only: whole shape `text`, `textRange:null`, `collapsed:true`; nothing selected: `null` shape fields |
+| pptx | `{ format, slide, shapeId, shapeName, text, textRange, collapsed }` — clicked shape: whole `text`, `textRange:null`, `collapsed:true`; drag/Shift+Arrow within a text box: `textRange:{text,start,end}`, `collapsed:false`; nothing selected: `null` shape fields |
 
-**v0.2.0 limit:** in Word and PowerPoint, `getSelection()` returns the caret or the
-clicked shape only, always with `collapsed: true` and no selected text range.
-Text-range selection is tracked in #561. DOCX offsets count code points from the
-paragraph start (`run` is `0`). Reading the selection never marks the document
-dirty. No `nitro-selectionchange` event is emitted.
+DOCX offsets count code points from the paragraph start (`run` is `0`). Reading
+the selection never marks the document dirty. No `nitro-selectionchange` event is emitted.
 
 **Copy-paste example (docx):**
 
@@ -235,7 +232,11 @@ dirty. No `nitro-selectionchange` event is emitted.
 const el = document.querySelector("nitro-docx");
 // After loading completes and the user makes a selection:
 const sel = await el.getSelection();
-if (sel) console.log("caret paragraph", sel.start?.paragraph, "offset", sel.start?.offset); // collapsed: true
+if (sel && !sel.collapsed) {
+  console.log("selected text:", sel.text); // the selected string
+} else if (sel) {
+  console.log("caret paragraph", sel.start?.paragraph, "offset", sel.start?.offset);
+}
 ```
 
 ### `dirty: boolean` (read-only getter)

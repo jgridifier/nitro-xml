@@ -22,6 +22,13 @@ impl StringIntern for StringTable {
     }
 }
 
+/// Character-level caret position within a text box shape (#561).
+pub(crate) struct PptxTextCaret {
+    pub shape_id: String,
+    /// Code-point offset within the shape's flat text (paragraphs joined by '\n').
+    pub offset: usize,
+}
+
 pub struct PptxState {
     /// Keeps the package buffer alive for [`Presentation`]'s `Package` borrow.
     #[allow(dead_code)]
@@ -47,6 +54,8 @@ pub struct PptxState {
     pub(crate) live: Vec<nitro_xml_pptx::render::SelectionBox>,
     /// Edit specs queued by a finished drag; `process_frame` applies them.
     pub(crate) pending_edits: Vec<String>,
+    /// Character-level text caret within a shape text box (#561).
+    pub(crate) text_caret: Option<PptxTextCaret>,
 }
 
 impl PptxState {
@@ -82,6 +91,7 @@ impl PptxState {
             drag: None,
             live: Vec::new(),
             pending_edits: Vec::new(),
+            text_caret: None,
         })
     }
 

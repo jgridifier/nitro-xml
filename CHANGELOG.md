@@ -1,6 +1,19 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Changelog
 
+## Unreleased
+
+### Host API additions
+
+- **Real text-range selection in Word body and PowerPoint text boxes** (#561).
+  `getSelection()` now returns `collapsed: false` with `text` and `start`/`end`
+  offsets for drag, Shift+Arrow, double-click (word), and triple-click (paragraph)
+  selections in `<nitro-docx>`. In `<nitro-pptx>`, dragging or using Shift+Arrow
+  inside a text box fills `textRange: { text, start, end }` and sets `collapsed: false`.
+  Typing or paste replaces the selection; Backspace/Delete removes it; Undo restores.
+  Visible highlight overlay uses `Range.getClientRects()` with no simulated selection.
+  The caret-only / clicked-shape-only restriction from v0.2.0 is lifted.
+
 ## 0.2.0 — 2026-11-20
 
 - `getSelection()` payloads (Part of #561). XLSX returns the stored values of

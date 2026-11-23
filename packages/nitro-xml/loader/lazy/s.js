@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // getSelection() (#561). Lazy chunk: off the first-load budget.
 // - xlsx: range from the shell UI, typed cell values from the engine ("host-selection").
-// - docx: the caret only (collapsed). pptx: the clicked shape only (collapsed).
-//   Text-range selection is not implemented yet (#561).
+// - docx: caret or text range; pptx: clicked shape (collapsed) or text range in a text box.
+//   Text-range selection uses el._nxSel set by docx-caret.js / pptx-caret.js.
 // Host reads go straight to the worker like host-position: they never paint, edit or unlock
 // editor chrome, so getSelection() cannot mark the document dirty.
 import { rangeOf } from "./input-proxy.js";
@@ -52,19 +52,37 @@ async function docxSel(el) {
   const [bid, chars] = k;
   const sr = el.shadowRoot;
   const dom = sr && sr.querySelector(".dom");
-  let paragraph = 0;
-  if (dom) {
+  const bidToIdx = (b) => {
+    if (!dom) return 0;
     const seen = new Set();
     const uniq = [];
-    for (const b of dom.querySelectorAll("[data-bid]")) {
-      if (!seen.has(b.dataset.bid)) { seen.add(b.dataset.bid); uniq.push(b.dataset.bid); }
+    for (const el of dom.querySelectorAll("[data-bid]")) {
+      if (!seen.has(el.dataset.bid)) { seen.add(el.dataset.bid); uniq.push(el.dataset.bid); }
     }
-    const idx = uniq.indexOf(String(bid));
-    if (idx >= 0) paragraph = idx;
+    const idx = uniq.indexOf(String(b));
+    return idx >= 0 ? idx : 0;
+  };
+  const caretParaIdx = bidToIdx(bid);
+  const caretPos = { paragraph: caretParaIdx, run: 0, offset: chars };
+
+  // Non-collapsed selection set by docx-caret.js
+  const selState = el._nxSel;
+  if (selState && selState.anchorK) {
+    const [abid, achars] = selState.anchorK;
+    const anchorParaIdx = bidToIdx(abid);
+    const anchorPos = { paragraph: anchorParaIdx, run: 0, offset: achars };
+    const isForward = anchorParaIdx < caretParaIdx ||
+      (anchorParaIdx === caretParaIdx && achars <= chars);
+    const start = isForward ? anchorPos : caretPos;
+    const end = isForward ? caretPos : anchorPos;
+    const collapsed = start.paragraph === end.paragraph && start.offset === end.offset;
+    if (!collapsed) {
+      return { format: "docx", text: selState.text || "", page, start, end, collapsed: false };
+    }
   }
-  // Caret only: no text is selected, so `text` is empty and start === end.
-  const pos = { paragraph, run: 0, offset: chars };
-  return { format: "docx", text: "", page, start: pos, end: { ...pos }, collapsed: true };
+
+  // Caret only
+  return { format: "docx", text: "", page, start: caretPos, end: { ...caretPos }, collapsed: true };
 }
 
 async function pptxSel(el) {
@@ -77,6 +95,25 @@ async function pptxSel(el) {
   const id = ui.selection && ui.selection !== "A1" ? ui.selection.split(",")[0] : null;
   const s = id ? await hostAction(el, "host-selection", id) : {};
   if (!s.shapeId) return { format: "pptx", slide, shapeId: null, shapeName: null, text: null, textRange: null, collapsed: true };
+
+  // Check for non-collapsed text-range selection set by pptx-caret.js.
+  // Use JS-side anchorPos/caretPos directly (available without a WASM round-trip).
+  const selState = el._nxPptxSel;
+  if (selState && selState.text && selState.anchorPos && selState.caretPos) {
+    const ap = selState.anchorPos;
+    const cp = selState.caretPos;
+    if (ap.shapeId === cp.shapeId && ap.offset !== cp.offset) {
+      const isForward = ap.offset <= cp.offset;
+      const start = { paragraph: 0, run: 0, offset: isForward ? ap.offset : cp.offset };
+      const end = { paragraph: 0, run: 0, offset: isForward ? cp.offset : ap.offset };
+      return {
+        format: "pptx", slide, shapeId: s.shapeId, shapeName: s.shapeName || null,
+        text: s.shapeText || "", textRange: { text: selState.text, start, end },
+        collapsed: false,
+      };
+    }
+  }
+
   return {
     format: "pptx", slide, shapeId: s.shapeId, shapeName: s.shapeName || null,
     text: s.shapeText || "", textRange: null, collapsed: true,

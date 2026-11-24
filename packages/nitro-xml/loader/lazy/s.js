@@ -23,19 +23,36 @@ async function xlsxSel(el) {
   const r = await el.shellAction("ui");
   const ui = (r && r.ui) || {};
   const tab = (ui.tabs || []).find((t) => t.active) || (ui.tabs || [])[0] || null;
-  const rangeStr = ui.selection || null;
-  const rg = rangeOf(rangeStr || "");
-  const anchor = rangeStr ? rangeStr.split(":")[0] : null;
   const sheetIndex = tab ? tab.index : 0;
-  const count = rg ? (rg.r1 - rg.r0 + 1) * (rg.c1 - rg.c0 + 1) : 0;
-  let values = [];
-  let truncated = count > VALUES_CAP;
-  if (rg) {
-    const v = await hostAction(el, "host-selection", `${sheetIndex}\t${rangeStr}`);
-    values = v.values || [];
-    truncated = !!v.truncated;
+  const selCtrl = el._nxSel;
+  const refs = selCtrl ? selCtrl.getRangeRefs() : (ui.selection ? ui.selection.split(",").filter(Boolean) : []);
+  const rangeStr = refs.length ? refs.join(",") : null;
+  const ranges = [];
+  for (let i = 0; i < refs.length; i++) {
+    const ref = refs[i];
+    const rg = rangeOf(ref);
+    const anchor = (selCtrl && selCtrl.anchorOf(i)) || ref.split(":")[0];
+    const count = rg ? (rg.r1 - rg.r0 + 1) * (rg.c1 - rg.c0 + 1) : 0;
+    let values = [];
+    let truncated = count > VALUES_CAP;
+    if (rg || /^[A-Za-z]+:[A-Za-z]+$|^\d+:\d+$/.test(ref)) {
+      const v = await hostAction(el, "host-selection", `${sheetIndex}\t${ref}`);
+      values = v.values || [];
+      truncated = !!v.truncated;
+    }
+    ranges.push({ range: ref, anchor, values, truncated });
   }
-  return { format: "xlsx", sheet: tab ? tab.name : "", sheetIndex, range: rangeStr, anchor, values, truncated };
+  const first = ranges[0] || null;
+  return {
+    format: "xlsx",
+    sheet: tab ? tab.name : "",
+    sheetIndex,
+    range: rangeStr,
+    anchor: first ? first.anchor : null,
+    values: first ? first.values : [],
+    truncated: ranges.some((x) => x.truncated),
+    ranges,
+  };
 }
 
 async function docxSel(el) {

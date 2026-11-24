@@ -2,6 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { rangeOf } from "../lazy/input-proxy.js";
+import { parseSelectionString, rangeRef } from "../lazy/xlsx-selection.js";
 
 describe("getSelection() shape mapping", () => {
   it("rangeOf maps single cell to 1×1 block (xlsxSel count gate)", () => {
@@ -54,5 +55,12 @@ describe("getSelection() shape mapping", () => {
     const r2 = rangeOf("A1:K1000"); // 11 cols × 1000 rows = 11000
     const count2 = (r2.r1 - r2.r0 + 1) * (r2.c1 - r2.c0 + 1);
     assert.equal(count2 > VALUES_CAP, true, "11000 cells MUST be truncated");
+  });
+
+  it("parseSelectionString and rangeRef round-trip multi-range and whole-header refs", () => {
+    // Catches: Ctrl+click multi-range or whole-column/row header refs being dropped or misformatted
+    const parsed = parseSelectionString("B12:E19,C:C,3:5,1:1048576");
+    assert.equal(parsed.length, 4);
+    assert.deepEqual(parsed.map(rangeRef), ["B12:E19", "C:C", "3:5", "1:1048576"]);
   });
 });

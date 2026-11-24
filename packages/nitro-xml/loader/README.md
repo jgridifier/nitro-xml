@@ -220,7 +220,7 @@ const sel = await viewer.getSelection();
 | Format | Shape |
 |---|---|
 | docx | `{ format, text, page, start:{paragraph,run,offset}, end:{paragraph,run,offset}, collapsed }` — caret only: `start` equals `end`, `text:""`, `collapsed:true` |
-| xlsx | `{ format, sheet, sheetIndex, range, anchor, values[][], truncated }` — stored values (number, string, boolean, error text, `null`); at most 10 000 cells, whole rows dropped past that with `truncated:true` |
+| xlsx | `{ format, sheet, sheetIndex, range, anchor, values[][], truncated, ranges[] }` — stored values (number, string, boolean, error text, `null`); at most 10 000 cells per range, whole rows dropped past that with `truncated:true`; `ranges` holds `{ range, anchor, values, truncated }` for every selected range (including Ctrl/Cmd+click multi-range) |
 | pptx | `{ format, slide, shapeId, shapeName, text, textRange, collapsed }` — clicked shape only: whole shape `text`, `textRange:null`, `collapsed:true`; nothing selected: `null` shape fields |
 
 **v0.2.0 limit:** in Word and PowerPoint, `getSelection()` returns the caret or the

@@ -328,4 +328,64 @@ mod tests {
         let host: &mut dyn Any = &mut ();
         assert!(chrome.dispatch("home.bold", host).is_err());
     }
+
+    #[test]
+    fn guard_js_command_ids() {
+        // Catches: host-ribbon.js CHROME_META must stay in sync with CHROME_COMMANDS.
+        // If this test fails, update CHROME_META in loader/lazy/host-ribbon.js to match.
+        let js_ids: &[&str] = &[
+            "home.paste", "home.paste-values", "home.paste-formulas", "home.paste-formatting",
+            "home.paste-transpose", "home.paste-special", "home.cut", "home.copy",
+            "home.format-painter", "home.font-name", "home.font-size", "home.grow-font",
+            "home.shrink-font", "home.bold", "home.italic", "home.underline",
+            "home.underline-double", "home.strikethrough", "home.borders", "home.borders-more",
+            "home.fill-color", "home.font-color", "home.font-settings", "home.align-top",
+            "home.align-middle", "home.align-bottom", "home.orientation",
+            "home.alignment-settings", "home.wrap-text", "home.align-left", "home.align-center",
+            "home.align-right", "home.indent-decrease", "home.indent-increase",
+            "home.merge-center", "home.merge-across", "home.merge-cells", "home.unmerge",
+            "home.number-format", "home.number-settings", "home.accounting",
+            "home.accounting-more", "home.percent", "home.comma", "home.decimal-increase",
+            "home.decimal-decrease", "home.cf-quick", "home.cf-data-bar", "home.cf-color-scale",
+            "home.cf-icon-set", "home.cf-new-rule", "home.cf-clear-selection",
+            "home.cf-clear-sheet", "home.cf-manage", "home.format-as-table", "home.cell-styles",
+            "cells.insert-split", "cells.delete-split", "cells.insert", "cells.delete",
+            "cells.insert-rows", "cells.delete-rows", "cells.insert-columns",
+            "cells.delete-columns", "sheet.insert", "sheet.delete", "format.row-height",
+            "format.autofit-rows", "format.column-width", "format.autofit-columns",
+            "format.default-width", "format.hide-rows", "format.hide-columns", "sheet.hide",
+            "format.unhide-rows", "format.unhide-columns", "sheet.unhide", "sheet.rename",
+            "sheet.move-copy", "sheet.tab-color", "review.protect-sheet", "format.lock-cell",
+            "format.cells", "home.autosum", "home.autosum-average", "home.autosum-count",
+            "home.autosum-max", "home.autosum-min", "home.autosum-more", "home.fill-down",
+            "home.fill-right", "home.fill-up", "home.fill-left", "home.fill-series",
+            "home.clear-all", "home.clear-formats", "home.clear-contents",
+            "home.clear-comments", "home.clear-hyperlinks", "data.sort-asc", "data.sort-desc",
+            "data.sort-custom", "data.filter", "data.filter-clear", "data.filter-reapply",
+            "home.find", "home.replace", "home.go-to", "home.go-to-special",
+            "home.select-formulas", "home.select-comments", "home.select-conditional",
+            "home.select-constants", "home.select-validation", "file.save", "file.open",
+            "file.new", "file.print", "edit.undo", "edit.redo", "home.format-general",
+            "home.format-currency", "home.format-percent", "home.format-scientific",
+            "home.format-date", "home.format-time", "home.format-number", "edit.insert-date",
+            "edit.insert-time", "formulas.show-formulas", "edit.select-column",
+            "edit.select-row", "sheet.previous", "sheet.next", "insert.table", "insert.link",
+            "review.new-comment", "formulas.calculate-now",
+        ];
+        for id in js_ids {
+            assert!(
+                CHROME_COMMANDS.iter().any(|m| m.id == *id),
+                "guard_js_command_ids: \"{id}\" in host-ribbon.js but not in CHROME_COMMANDS; \
+                 update one to match the other",
+            );
+        }
+        for m in CHROME_COMMANDS {
+            assert!(
+                js_ids.contains(&m.id),
+                "guard_js_command_ids: \"{}\" in CHROME_COMMANDS but missing from \
+                 host-ribbon.js CHROME_META; add it",
+                m.id,
+            );
+        }
+    }
 }

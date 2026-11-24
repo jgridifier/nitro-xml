@@ -44,15 +44,17 @@ async function bytesFromFile(file, fileName, checkSize) {
  * Module evaluate does not touch `window` / `document`; custom elements and
  * WASM load only inside `useEffect` on the client.
  */
-export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, editable = false, mode = "embedded", onReady, onChange, onError, className, style, }, ref) {
+export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, editable = false, mode = "embedded", ribbon, onReady, onChange, onError, onCommand, className, style, }, ref) {
     const wrapRef = useRef(null);
     const elRef = useRef(null);
     const onReadyRef = useRef(onReady);
     const onChangeRef = useRef(onChange);
     const onErrorRef = useRef(onError);
+    const onCommandRef = useRef(onCommand);
     onReadyRef.current = onReady;
     onChangeRef.current = onChange;
     onErrorRef.current = onError;
+    onCommandRef.current = onCommand;
     useImperativeHandle(ref, () => ({
         get element() {
             return elRef.current;
@@ -89,6 +91,7 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
         };
         const onFailure = (ev) => report(ev.detail);
         let onSave = null;
+        let onCmd = null;
         (async () => {
             const wrap = wrapRef.current;
             if (!wrap || typeof document === "undefined")
@@ -111,6 +114,10 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
             el.style.display = "block";
             el.style.height = "100%";
             el.style.minHeight = "320px";
+            // Apply ribbon config before loadBuffer so the pre-load setter captures it.
+            if (ribbon != null) {
+                el.ribbon = ribbon;
+            }
             wrap.replaceChildren(el);
             elRef.current = el;
             onSave = (ev) => {
@@ -118,7 +125,9 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
                 if (detail)
                     onChangeRef.current?.(detail);
             };
+            onCmd = (ev) => onCommandRef.current?.(ev);
             el.addEventListener("nitro-save", onSave);
+            el.addEventListener("nitro-command", onCmd);
             el.addEventListener("error", onFailure);
             const viewer = el;
             await viewer.loadBuffer(bytes, name);
@@ -138,6 +147,8 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
                 el.removeEventListener("error", onFailure);
             if (el && onSave)
                 el.removeEventListener("nitro-save", onSave);
+            if (el && onCmd)
+                el.removeEventListener("nitro-command", onCmd);
             try {
                 el?.remove();
             }
@@ -148,7 +159,14 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
             if (wrapRef.current)
                 wrapRef.current.replaceChildren();
         };
-    }, [file, fileName, editable, mode]);
+    }, [file, fileName, editable, mode]); // ribbon intentionally excluded: handled below
+    // Keep ribbon config in sync without remounting when it changes.
+    useEffect(() => {
+        const el = elRef.current;
+        if (!el)
+            return;
+        el.ribbon = ribbon ?? null;
+    }, [ribbon]);
     return _jsx("div", { className: className, style: style, ref: wrapRef });
 });
 NitroViewer.displayName = "NitroViewer";

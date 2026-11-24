@@ -18,6 +18,14 @@ export function setMode(host, on) {
   const spec = MANIFEST[host.localName.replace("nitro-", "")];
   if (!spec || !host._ch) return;
   host._emb = build(host, spec);
+  // Inject any ribbon.add host buttons set before or after mount.
+  const cfg = host._ribbonCfg;
+  if (cfg && cfg.add && cfg.add.length) host._emb.addHostBtns(cfg.add, host);
+}
+
+/** Called by ribbon setter to add host buttons to the live embedded toolbar. */
+export function addEmbeddedHostBtns(host, addList) {
+  if (host._emb) host._emb.addHostBtns(addList, host);
 }
 
 function build(host, spec) {
@@ -208,6 +216,54 @@ function build(host, spec) {
       style.remove();
       host.removeAttribute("data-nx");
       host._emb = null;
+    },
+    addHostBtns(addList, host) {
+      let grp = bar.querySelector("[data-host-grp]");
+      if (!grp) {
+        grp = document.createElement("div");
+        grp.className = "nx-g";
+        grp.setAttribute("role", "group");
+        grp.setAttribute("aria-label", "Actions");
+        grp.dataset.hostGrp = "";
+        grp.innerHTML = `<div class="nx-row"></div><span class="nx-cap" aria-hidden="true">Actions</span>`;
+        bar.insertBefore(grp, bar.querySelector(".nx-more") || null);
+        // Wire clicks on host buttons through the existing shellAction wrapper.
+        grp.addEventListener("click", (e) => {
+          const b = e.target.closest("[data-hcmd]");
+          if (b && !b.disabled) host.shellAction("cmd", b.dataset.hcmd);
+        });
+      }
+      const row = grp.querySelector(".nx-row");
+      for (const cmd of addList) {
+        const id = String(cmd.id);
+        if (row.querySelector(`[data-hcmd="${esc(id)}"]`)) continue;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "nx-b";
+        btn.setAttribute("part", "embedded-button");
+        btn.tabIndex = -1;
+        btn.setAttribute("aria-label", esc(String(cmd.label)));
+        btn.setAttribute("title", esc(String(cmd.label)));
+        btn.dataset.hcmd = id;
+        if (cmd.icon) {
+          const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          svgEl.setAttribute("viewBox", "0 0 24 24");
+          svgEl.setAttribute("aria-hidden", "true");
+          const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          p.setAttribute("d", String(cmd.icon));
+          svgEl.appendChild(p);
+          btn.appendChild(svgEl);
+        }
+        const span = document.createElement("span");
+        span.className = "nx-l";
+        span.setAttribute("aria-hidden", "true");
+        span.textContent = String(cmd.label);
+        btn.appendChild(span);
+        if (host._readonly !== false && cmd.editing !== false) btn.disabled = true;
+        row.appendChild(btn);
+      }
+      grp.hidden = !grp.querySelector(".nx-b:not([hidden])");
+      rove();
     },
   };
 }

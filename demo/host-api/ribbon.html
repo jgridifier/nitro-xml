@@ -1,0 +1,150 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nitro XML · Host API — ribbon option, execCommand, nitro-command</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+    #top { display: flex; gap: 8px; align-items: center; padding: 6px 8px; background: #f0f0f0; border-bottom: 1px solid #ccc; flex-wrap: wrap; }
+    #top h1 { font-size: 14px; margin: 0; }
+    button { padding: 4px 10px; cursor: pointer; }
+    #main { display: flex; flex: 1; min-height: 0; }
+    #viewer-wrap { flex: 2; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    nitro-docx, nitro-xlsx, nitro-pptx { flex: 1; min-height: 0; display: flex; }
+    #side { flex: 1; display: flex; flex-direction: column; border-left: 1px solid #ccc; padding: 8px; gap: 6px; min-width: 220px; max-width: 340px; }
+    #side h2 { font-size: 13px; margin: 0; }
+    #log { font: 12px/1.4 monospace; white-space: pre-wrap; overflow-y: auto; flex: 1; border: 1px solid #ddd; padding: 6px; background: #fafafa; }
+    #cmds-out { font: 11px/1.4 monospace; white-space: pre-wrap; overflow: auto; max-height: 120px; border: 1px solid #ddd; padding: 6px; background: #f5f5ff; }
+    #chat-area { resize: none; font: 13px/1.4 system-ui; border: 1px solid #ccc; padding: 6px; }
+    .grp { display: flex; flex-direction: column; gap: 4px; }
+    small { color: #555; }
+  </style>
+</head>
+<body>
+  <div id="top">
+    <h1>Host API · ribbon / execCommand / nitro-command</h1>
+    <button id="btn-hide">Hide file.open + file.new</button>
+    <button id="btn-add">Add host button</button>
+    <button id="btn-clear">Clear ribbon</button>
+    <button id="btn-exec-bold">execCommand(home.bold)</button>
+    <button id="btn-exec-bad">execCommand(bad.id)</button>
+    <button id="btn-commands">List commands</button>
+    <small id="fmt-label"></small>
+  </div>
+  <div id="main">
+    <div id="viewer-wrap"><!-- element injected here --></div>
+    <div id="side">
+      <h2>Host chat (focus guard)</h2>
+      <textarea id="chat-area" placeholder="Type here — focus must NOT be stolen on load"></textarea>
+      <h2>el.commands (first 5)</h2>
+      <div id="cmds-out">(none)</div>
+      <h2>nitro-command events</h2>
+      <div id="log">(no events yet)</div>
+    </div>
+  </div>
+
+  <script>
+    const LOADER = "../nitro-xml/loader/";
+    const FORMATS = {
+      docx: { tag: "nitro-docx", define: "defineNitroDocx", sample: "../samples/notes.docx" },
+      xlsx: { tag: "nitro-xlsx", define: "defineNitroXlsx", sample: "../samples/sample.xlsx" },
+      pptx: { tag: "nitro-pptx", define: "defineNitroPptx", sample: "../samples/deck.pptx" },
+    };
+
+    const params = new URLSearchParams(location.search);
+    const fmt = FORMATS[params.get("f")] ? params.get("f") : "xlsx";
+    const info = FORMATS[fmt];
+    document.getElementById("fmt-label").textContent = fmt.toUpperCase();
+
+    const wrap = document.getElementById("viewer-wrap");
+    const el = document.createElement(info.tag);
+    el.setAttribute("mode", "embedded");
+    el.setAttribute("readonly", "false");
+    el.style.flex = "1";
+    el.style.minHeight = "0";
+    el.style.display = "flex";
+    wrap.appendChild(el);
+
+    // Assign window.el and window.ready synchronously so the e2e driver can
+    // reference them immediately after page.goto() without waiting for async work.
+    window.el = el;
+    window.ready = (async () => {
+      const loader = await import(LOADER + "index.js");
+      await loader.initCore({ fontSource: false });
+      loader[info.define]();
+      const bytes = await fetch(info.sample).then(r => r.arrayBuffer());
+      return el.loadBuffer(bytes, info.sample.split('/').pop());
+    })();
+
+    const log = document.getElementById("log");
+    const cmdsOut = document.getElementById("cmds-out");
+
+    function addLog(msg) {
+      const line = document.createElement("div");
+      line.textContent = new Date().toLocaleTimeString() + " " + msg;
+      log.prepend(line);
+    }
+
+    // Listen for nitro-command events
+    el.addEventListener("nitro-command", (e) => {
+      addLog(`nitro-command id="${e.detail.id}" format="${e.detail.format}"`);
+      // Cancel file.open to demonstrate preventDefault
+      if (e.detail.id === "file.open") {
+        e.preventDefault();
+        addLog("→ file.open cancelled by host (preventDefault)");
+      }
+    });
+
+    el.addEventListener("error", (e) => addLog("error: " + (e.detail?.message || e.detail)));
+
+    document.getElementById("btn-hide").onclick = () => {
+      el.ribbon = { hide: ["file.open", "file.new"] };
+      addLog("ribbon.hide = [file.open, file.new]");
+    };
+
+    document.getElementById("btn-add").onclick = () => {
+      el.ribbon = {
+        ...(el.ribbon || {}),
+        add: [
+          ...(el.ribbon?.add || []),
+          {
+            id: "host.review",
+            label: "Send for review",
+            icon: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
+            editing: false,
+          },
+        ],
+      };
+      addLog("ribbon.add: added host.review button");
+    };
+
+    document.getElementById("btn-clear").onclick = () => {
+      el.ribbon = null;
+      addLog("ribbon = null (cleared)");
+    };
+
+    document.getElementById("btn-exec-bold").onclick = () => {
+      const ok = el.execCommand && el.execCommand("home.bold");
+      addLog("execCommand(home.bold) → " + ok);
+    };
+
+    document.getElementById("btn-exec-bad").onclick = () => {
+      const ok = el.execCommand && el.execCommand("bad.id");
+      addLog("execCommand(bad.id) → " + ok);
+    };
+
+    document.getElementById("btn-commands").onclick = () => {
+      const cmds = el.commands;
+      if (!cmds) { cmdsOut.textContent = "(not ready)"; return; }
+      cmdsOut.textContent = cmds.slice(0, 5).map(c =>
+        `${c.id} enabled=${c.enabled} shortcut=${c.shortcut || "–"}`
+      ).join("\n");
+      addLog("commands: " + cmds.length + " entries");
+    };
+
+    document.getElementById("chat-area").focus();
+  </script>
+</body>
+</html>

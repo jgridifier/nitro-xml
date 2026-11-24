@@ -1,4 +1,16 @@
 export type NitroViewerMode = "embedded" | "full";
+export type NitroRibbonAddEntry = {
+    id: string;
+    label: string;
+    icon?: string;
+    tab?: string;
+    group?: string;
+    editing?: boolean;
+};
+export type NitroRibbonConfig = {
+    hide?: string[];
+    add?: NitroRibbonAddEntry[];
+};
 export type NitroViewerProps = {
     /** File bytes, Blob, File, or URL string. */
     file: ArrayBuffer | Uint8Array | Blob | File | string | null | undefined;
@@ -7,6 +19,11 @@ export type NitroViewerProps = {
     /** When true, sets `readonly="false"` on the custom element. */
     editable?: boolean;
     mode?: NitroViewerMode;
+    /**
+     * Ribbon configuration (#590). `hide` removes built-in commands; `add` injects
+     * host buttons that fire `nitro-command`. Applied after every load.
+     */
+    ribbon?: NitroRibbonConfig | null;
     /** Fired after open + first paint attempt with the host element. */
     onReady?: (el: HTMLElement) => void;
     /** Fired when `nitro-save` / programmatic save produces bytes. */
@@ -18,6 +35,14 @@ export type NitroViewerProps = {
         actual?: number;
         part?: string;
     }) => void;
+    /**
+     * Fired for every command dispatch (ribbon click, shortcut, `execCommand`). Cancelable.
+     * `detail: { id: string, format: string }`. Call `e.preventDefault()` to stop built-ins.
+     */
+    onCommand?: (e: CustomEvent<{
+        id: string;
+        format: string;
+    }>) => void;
     className?: string;
     style?: React.CSSProperties;
 };

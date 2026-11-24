@@ -9,6 +9,20 @@ import {
 
 export type NitroViewerMode = "embedded" | "full";
 
+export type NitroRibbonAddEntry = {
+  id: string;
+  label: string;
+  icon?: string;
+  tab?: string;
+  group?: string;
+  editing?: boolean;
+};
+
+export type NitroRibbonConfig = {
+  hide?: string[];
+  add?: NitroRibbonAddEntry[];
+};
+
 export type NitroViewerProps = {
   /** File bytes, Blob, File, or URL string. */
   file: ArrayBuffer | Uint8Array | Blob | File | string | null | undefined;
@@ -17,12 +31,22 @@ export type NitroViewerProps = {
   /** When true, sets `readonly="false"` on the custom element. */
   editable?: boolean;
   mode?: NitroViewerMode;
+  /**
+   * Ribbon configuration (#590). `hide` removes built-in commands; `add` injects
+   * host buttons that fire `nitro-command`. Applied after every load.
+   */
+  ribbon?: NitroRibbonConfig | null;
   /** Fired after open + first paint attempt with the host element. */
   onReady?: (el: HTMLElement) => void;
   /** Fired when `nitro-save` / programmatic save produces bytes. */
   onChange?: (bytes: Uint8Array) => void;
   /** Open, paint, and save failures, including typed security limits. */
   onError?: (error: Error & { code?: string; limit?: number; actual?: number; part?: string }) => void;
+  /**
+   * Fired for every command dispatch (ribbon click, shortcut, `execCommand`). Cancelable.
+   * `detail: { id: string, format: string }`. Call `e.preventDefault()` to stop built-ins.
+   */
+  onCommand?: (e: CustomEvent<{ id: string; format: string }>) => void;
   className?: string;
   style?: React.CSSProperties;
 };
@@ -90,9 +114,11 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
       fileName,
       editable = false,
       mode = "embedded",
+      ribbon,
       onReady,
       onChange,
       onError,
+      onCommand,
       className,
       style,
     },
@@ -103,9 +129,11 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
     const onReadyRef = useRef(onReady);
     const onChangeRef = useRef(onChange);
     const onErrorRef = useRef(onError);
+    const onCommandRef = useRef(onCommand);
     onReadyRef.current = onReady;
     onChangeRef.current = onChange;
     onErrorRef.current = onError;
+    onCommandRef.current = onCommand;
 
     useImperativeHandle(ref, () => ({
       get element() {
@@ -145,6 +173,7 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
       };
       const onFailure = (ev: Event) => report((ev as CustomEvent<Error>).detail);
       let onSave: ((ev: Event) => void) | null = null;
+      let onCmd: ((ev: Event) => void) | null = null;
 
       (async () => {
         const wrap = wrapRef.current;
@@ -169,6 +198,10 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
         el.style.display = "block";
         el.style.height = "100%";
         el.style.minHeight = "320px";
+        // Apply ribbon config before loadBuffer so the pre-load setter captures it.
+        if (ribbon != null) {
+          (el as HTMLElement & { ribbon?: NitroRibbonConfig | null }).ribbon = ribbon;
+        }
         wrap.replaceChildren(el);
         elRef.current = el;
 
@@ -176,7 +209,9 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
           const detail = (ev as CustomEvent<Uint8Array>).detail;
           if (detail) onChangeRef.current?.(detail);
         };
+        onCmd = (ev: Event) => onCommandRef.current?.(ev as CustomEvent<{ id: string; format: string }>);
         el.addEventListener("nitro-save", onSave);
+        el.addEventListener("nitro-command", onCmd);
         el.addEventListener("error", onFailure);
 
         const viewer = el as HTMLElement & {
@@ -196,6 +231,7 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
         cancelled = true;
         if (el) el.removeEventListener("error", onFailure);
         if (el && onSave) el.removeEventListener("nitro-save", onSave);
+        if (el && onCmd) el.removeEventListener("nitro-command", onCmd);
         try {
           el?.remove();
         } catch {
@@ -204,7 +240,14 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
         elRef.current = null;
         if (wrapRef.current) wrapRef.current.replaceChildren();
       };
-    }, [file, fileName, editable, mode]);
+    }, [file, fileName, editable, mode]); // ribbon intentionally excluded: handled below
+
+    // Keep ribbon config in sync without remounting when it changes.
+    useEffect(() => {
+      const el = elRef.current as HTMLElement & { ribbon?: NitroRibbonConfig | null } | null;
+      if (!el) return;
+      el.ribbon = ribbon ?? null;
+    }, [ribbon]);
 
     return <div className={className} style={style} ref={wrapRef} />;
   },

@@ -1,1 +1,1 @@
-export { NitroViewer, type NitroViewerProps, type NitroViewerHandle, type NitroViewerMode, } from "./NitroViewer.js";
+export { NitroViewer, type NitroViewerProps, type NitroViewerHandle, type NitroViewerMode, type NitroRibbonConfig, type NitroRibbonAddEntry, } from "./NitroViewer.js";

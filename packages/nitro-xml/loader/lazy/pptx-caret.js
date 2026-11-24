@@ -483,12 +483,11 @@ export function attach(el) {
     v.setPointerCapture(e.pointerId);
     place(true);
     void syncModel(hit).then(() => {
+      // After model confirms, anchorK = caretK for accurate selection reporting.
+      // Do NOT set anchor = caret: pointerup already cleared anchor for simple
+      // clicks. Re-setting it here triggers selection-delete on the next typed
+      // char (#561 typing fix). For drags, anchor is maintained by pointermove.
       anchorK = caretK;
-      // Only snap anchor to confirmed caret if no drag happened (pure click).
-      // During a drag, anchor must stay at the click position.
-      if (!dragStarted) {
-        anchor = caret ? { shapeId: caret.shapeId, offset: caret.offset } : anchor;
-      }
     });
   }, true);
 

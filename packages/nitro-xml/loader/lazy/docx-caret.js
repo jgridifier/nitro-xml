@@ -456,10 +456,11 @@ export function attach(el) {
       el._nxSel = null;
       v.setPointerCapture(e.pointerId);
       void commit(hit).then(() => {
-        // After model confirms, update anchorK to match the confirmed caret
+        // After model confirms, anchorK = caretK for accurate selection reporting.
+        // Do NOT set anchor = caret: pointerup already cleared anchor for simple
+        // clicks. Re-setting it here causes the next typed char to see anchor ≠ caret
+        // and trigger a selection-delete on the char just inserted (#561 typing fix).
         anchorK = caretK;
-        anchor = caret ? { bid: caret.bid, shown: caret.shown } : anchor;
-        // Don't draw highlights: anchor === caret = collapsed
       });
     },
     true,

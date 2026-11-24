@@ -1,6 +1,6 @@
 # Nitro XML
 
-**A Rust → WebAssembly engine that views and edits Word (.docx), Excel (.xlsx) and PowerPoint (.pptx) files entirely in the browser.** Bytes never leave the page. Nitro XML is a port of [ChristopherVR/ooxml](https://github.com/ChristopherVR/ooxml) (Apache-2.0), and its goal is to be the fastest, most efficient, highest-quality OOXML renderer and editor available, beating the original TypeScript engine on every format, at every file size.
+**A Rust → WebAssembly engine that views and edits Word (.docx), Excel (.xlsx) and PowerPoint (.pptx) files entirely in the browser.** Bytes never leave the page. Nitro XML began as a Rust port of [ChristopherVR/ooxml](https://github.com/ChristopherVR/ooxml) (Apache-2.0) and is now its own Rust/WebAssembly engine; its goal is to be the fastest, most efficient, highest-quality OOXML renderer and editor available, beating the original TypeScript engine on every format, at every file size.
 
 **Status: 0.1.0 E1 release candidate.** Browser viewing/editing is implemented; publication awaits Head of Product PASS. See [release notes](docs/releases/0.1.0.md) for supported edits, remaining UX limits and known performance losses.
 

@@ -74,6 +74,17 @@ const MERGE_MENU: &[MenuEntry] = &[
     MenuEntry::Cmd("home.merge-cells"),
     MenuEntry::Cmd("home.unmerge"),
 ];
+const BORDERS_MENU: &[MenuEntry] = &[
+    MenuEntry::Cmd("home.border-bottom"),
+    MenuEntry::Cmd("home.border-top"),
+    MenuEntry::Cmd("home.border-left"),
+    MenuEntry::Cmd("home.border-right"),
+    MenuEntry::Sep,
+    MenuEntry::Cmd("home.border-none"),
+    MenuEntry::Cmd("home.border-all"),
+    MenuEntry::Cmd("home.border-outside"),
+    MenuEntry::Cmd("home.border-thick-box"),
+];
 const INSERT_MENU: &[MenuEntry] = &[
     MenuEntry::Cmd("cells.insert"),
     MenuEntry::Cmd("cells.insert-rows"),
@@ -267,7 +278,7 @@ const HOME_GROUPS: &[Group] = &[
                 kind: ControlKind::Split,
                 command: Some("home.borders"),
                 label: None,
-                menu: MENU,
+                menu: BORDERS_MENU,
             },
             Control {
                 kind: ControlKind::Color,
@@ -613,6 +624,10 @@ fn icon_markup(command: &str, label: &str, large: bool) -> String {
         .unwrap_or_default()
 }
 
+fn popup_id(cmd_id: &str) -> String {
+    format!("xve-{}", cmd_id.replace('.', "-"))
+}
+
 fn caret_button() -> String {
     let p = icon_path("caret").unwrap_or("M7 10l5 5 5-5");
     format!(
@@ -712,27 +727,73 @@ fn render_control(chrome: &EditorChrome, c: &Control, out: &mut String) {
         ControlKind::Color => {
             if let Some(id) = c.command {
                 let lbl = c.label.unwrap_or("Color");
-                let bar = if id == "home.font-color" {
-                    // Upstream default swatches (commands/colors.ts): pure red / yellow.
-                    " style=\"--bar:#FF0000\""
+                let is_fill = id == "home.fill-color";
+                let bar_color = if is_fill {
+                    format!("#{}", chrome.last_fill_color)
+                } else if chrome.last_font_color == "auto" {
+                    "transparent".to_string()
                 } else {
-                    " style=\"--bar:#FFFF00\""
+                    format!("#{}", chrome.last_font_color)
                 };
-                // Upstream color control is a split: swatch button + caret (Fill/Font Color options).
+                let pid = popup_id(id);
                 out.push_str("<span class=\"ribbon-split\">");
                 out.push_str(&format!(
-                    "<button type=\"button\" class=\"ribbon-small ribbon-color\" data-a=\"cmd\" data-g=\"{}\" aria-label=\"{}\"{}>{}</button>",
-                    esc(id),
-                    esc(lbl),
-                    bar,
-                    icon_markup(id, lbl, false),
+                    "<button type=\"button\" class=\"ribbon-small ribbon-color\" data-a=\"cmd\" data-g=\"{id}\" aria-label=\"{lbl}\" style=\"--bar:{bar}\">{body}</button>",
+                    id = esc(id),
+                    lbl = esc(lbl),
+                    bar = esc(&bar_color),
+                    body = icon_markup(id, lbl, false),
                 ));
                 out.push_str(&format!(
-                    "<button type=\"button\" class=\"ribbon-caret\" aria-label=\"{} options\" aria-haspopup=\"menu\">{}</button>",
-                    esc(lbl),
-                    ribbon_icon_svg(icon_path("caret").unwrap_or("M7 10l5 5 5-5"), 10, "caret"),
+                    "<button type=\"button\" class=\"ribbon-caret\" aria-label=\"{lbl} options\" aria-haspopup=\"menu\" popovertarget=\"{pid}\">{icon}</button>",
+                    lbl = esc(lbl),
+                    pid = esc(&pid),
+                    icon = ribbon_icon_svg(icon_path("caret").unwrap_or("M7 10l5 5 5-5"), 10, "caret"),
                 ));
                 out.push_str("</span>");
+                let palette_op = if is_fill { "fill-color" } else { "font-color" };
+                out.push_str(&format!(
+                    "<div id=\"{pid}\" popover class=\"rb-palette\">",
+                    pid = esc(&pid)
+                ));
+                const SWATCHES: &[(&str, &str)] = &[
+                    ("FFFFFF", "White"),
+                    ("000000", "Black"),
+                    ("FF0000", "Red"),
+                    ("FF6600", "Orange"),
+                    ("FFFF00", "Yellow"),
+                    ("00FF00", "Lime"),
+                    ("00FFFF", "Cyan"),
+                    ("0000FF", "Blue"),
+                    ("FF00FF", "Magenta"),
+                    ("808080", "Gray"),
+                    ("F2F2F2", "Light Gray"),
+                    ("C00000", "Dark Red"),
+                    ("ED7D31", "Orange2"),
+                    ("FFC000", "Gold"),
+                    ("70AD47", "Green"),
+                    ("00B0F0", "Sky Blue"),
+                    ("0070C0", "Dark Blue"),
+                    ("7030A0", "Purple"),
+                    ("4472C4", "Accent Blue"),
+                    ("A5A5A5", "Medium Gray"),
+                ];
+                out.push_str("<div class=\"rb-palette-swatches\">");
+                for (hex, name) in SWATCHES {
+                    out.push_str(&format!(
+                        "<button type=\"button\" class=\"rb-swatch\" style=\"background:#{hex}\" aria-label=\"{name}\" data-a=\"{op}\" data-g=\"{hex}\" title=\"{name}\"></button>",
+                        hex = hex,
+                        name = esc(name),
+                        op = palette_op,
+                    ));
+                }
+                out.push_str("</div>");
+                if is_fill {
+                    out.push_str("<button type=\"button\" class=\"rb-palette-special\" data-a=\"fill-color\" data-g=\"none\" aria-label=\"No Fill\">No Fill</button>");
+                } else {
+                    out.push_str("<button type=\"button\" class=\"rb-palette-special\" data-a=\"font-color\" data-g=\"auto\" aria-label=\"Automatic\">Automatic</button>");
+                }
+                out.push_str("</div>");
             }
         }
         ControlKind::Select => {
@@ -761,32 +822,41 @@ fn render_control(chrome: &EditorChrome, c: &Control, out: &mut String) {
                 } else {
                     "ribbon-split"
                 };
-                // Upstream uses <div class="ribbon-split">; large caption lives on the caret.
                 out.push_str(&format!("<div class=\"{}\">", split_cls));
-                // Only toggles carry aria-pressed; split mains (Paste/Borders/…) omit it.
                 out.push_str(&cmd_button(chrome, id, None, large, false));
                 let label = chrome.commands.label(id).unwrap_or(id);
                 let caret_path = icon_path("caret").unwrap_or("M7 10l5 5 5-5");
+                let pid = popup_id(id);
+                let pt = if !c.menu.is_empty() {
+                    format!(" popovertarget=\"{}\"", esc(&pid))
+                } else {
+                    String::new()
+                };
                 if large {
                     out.push_str(&format!(
-                        "<button type=\"button\" class=\"ribbon-caret\" aria-label=\"{lbl} options\" title=\"{lbl} options\" aria-haspopup=\"true\"><span class=\"ribbon-caption\">{lbl}</span>{icon}</button>",
+                        "<button type=\"button\" class=\"ribbon-caret\" aria-label=\"{lbl} options\" title=\"{lbl} options\" aria-haspopup=\"true\"{pt}><span class=\"ribbon-caption\">{lbl}</span>{icon}</button>",
                         lbl = esc(label),
                         icon = ribbon_icon_svg(caret_path, 12, "caret"),
+                        pt = pt,
                     ));
                 } else {
                     out.push_str(&format!(
-                        "<button type=\"button\" class=\"ribbon-caret\" aria-label=\"{lbl} options\" title=\"{lbl} options\" aria-haspopup=\"true\">{icon}</button>",
+                        "<button type=\"button\" class=\"ribbon-caret\" aria-label=\"{lbl} options\" title=\"{lbl} options\" aria-haspopup=\"true\"{pt}>{icon}</button>",
                         lbl = esc(label),
                         icon = ribbon_icon_svg(caret_path, 10, "caret"),
+                        pt = pt,
                     ));
                 }
                 out.push_str("</div>");
                 if !c.menu.is_empty() {
-                    out.push_str("<span class=\"rb-menu-stub\" hidden>");
+                    out.push_str(&format!(
+                        "<div id=\"{}\" popover class=\"rb-popup-menu\">",
+                        esc(&pid)
+                    ));
                     for entry in c.menu {
                         render_menu_entry(chrome, entry, out);
                     }
-                    out.push_str("</span>");
+                    out.push_str("</div>");
                 }
             }
         }

@@ -47,6 +47,10 @@ pub struct EditorChrome {
     formula_html: String,
     /// Pptx/docx command strip. Empty for xlsx, which keeps [`Self::ribbon_html`].
     office_ribbon: String,
+    /// Last-applied fill colour hex (e.g. "FFFF00"). Used to colour the face swatch.
+    pub last_fill_color: String,
+    /// Last-applied font colour hex or "auto" for automatic.
+    pub last_font_color: String,
 }
 
 impl EditorChrome {
@@ -60,6 +64,8 @@ impl EditorChrome {
             focus: focus::FocusStack::new(),
             formula_html: String::new(),
             office_ribbon: String::new(),
+            last_fill_color: "FFFF00".to_string(),
+            last_font_color: "FF0000".to_string(),
         }
     }
 

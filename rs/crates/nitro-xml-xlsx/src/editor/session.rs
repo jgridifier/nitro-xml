@@ -12,8 +12,8 @@ use std::sync::Mutex;
 
 use crate::address::{format_address, format_range};
 use crate::edit::{
-    fill_area, register_cell_commands, register_fill_commands, register_shift_commands,
-    register_structure_commands, XlsxHost,
+    fill_area, register_cell_commands, register_fill_commands, register_merge_commands,
+    register_shift_commands, register_structure_commands, XlsxHost,
 };
 use crate::model::CellAddress;
 use crate::write::save_xlsx;
@@ -53,6 +53,7 @@ impl EditorSession {
         register_fill_commands(&mut registry);
         register_structure_commands(&mut registry);
         register_shift_commands(&mut registry);
+        register_merge_commands(&mut registry);
         Self {
             session: EditSession::new(host, EditHistory::new()),
             registry,
@@ -190,6 +191,8 @@ impl EditorSession {
                 | "deleteRows"
                 | "insertColumns"
                 | "deleteColumns"
+                | "mergeCells"
+                | "unmerge"
         );
         self.apply_op(id, args, id, structure)
     }

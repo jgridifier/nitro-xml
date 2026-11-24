@@ -5,6 +5,7 @@
 pub mod cells;
 pub mod fill;
 pub mod host;
+pub mod merge;
 pub mod shift;
 pub mod structure;
 pub mod style_patch;
@@ -12,6 +13,7 @@ pub mod style_patch;
 pub use cells::register_cell_commands;
 pub use fill::{fill_area, register_fill_commands};
 pub use host::XlsxHost;
+pub use merge::register_merge_commands;
 pub use shift::register_shift_commands;
 pub use structure::register_structure_commands;
 
@@ -125,6 +127,7 @@ fn open_xlsx_edit(
     register_cell_commands(&mut registry);
     register_structure_commands(&mut registry);
     register_shift_commands(&mut registry);
+    register_merge_commands(&mut registry);
     Ok((EditSession::new(host, EditHistory::new()), registry, calc))
 }
 

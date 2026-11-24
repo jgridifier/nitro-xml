@@ -403,3 +403,86 @@
 .ribbon-icon[data-accent='orange'] {
 	color: var(--ribbon-accent-orange);
 }
+/* Popup menus triggered by Split/Color caret popover buttons (#588). */
+[popover].rb-popup-menu {
+	display: none;
+	flex-direction: column;
+	gap: 1px;
+	padding: 4px;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	background: var(--surface);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+	min-width: 160px;
+	margin: 0;
+}
+[popover].rb-popup-menu:popover-open {
+	display: flex;
+}
+[popover].rb-popup-menu button {
+	all: unset;
+	box-sizing: border-box;
+	padding: 5px 12px;
+	border-radius: 3px;
+	color: var(--ink);
+	font: 13px 'Segoe UI', Arial, sans-serif;
+	cursor: pointer;
+	white-space: nowrap;
+	width: 100%;
+}
+[popover].rb-popup-menu button:hover {
+	background: var(--accent-soft);
+}
+[popover].rb-popup-menu .rb-menu-sep {
+	height: 1px;
+	background: var(--line);
+	margin: 2px 0;
+}
+/* Colour palette popup (#588). */
+[popover].rb-palette {
+	display: none;
+	flex-direction: column;
+	gap: 4px;
+	padding: 8px;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	background: var(--surface);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+	margin: 0;
+}
+[popover].rb-palette:popover-open {
+	display: flex;
+}
+.rb-palette-swatches {
+	display: grid;
+	grid-template-columns: repeat(10, 20px);
+	gap: 2px;
+}
+.rb-swatch {
+	all: unset;
+	display: block;
+	width: 18px;
+	height: 18px;
+	border: 1px solid var(--line);
+	border-radius: 2px;
+	cursor: pointer;
+}
+.rb-swatch:hover {
+	outline: 2px solid var(--xl);
+	outline-offset: 1px;
+}
+.rb-palette-special {
+	all: unset;
+	box-sizing: border-box;
+	display: block;
+	padding: 4px 8px;
+	border-radius: 3px;
+	color: var(--ink);
+	font: 12px 'Segoe UI', Arial, sans-serif;
+	cursor: pointer;
+	border: 1px solid var(--line);
+	text-align: center;
+}
+.rb-palette-special:hover {
+	background: var(--accent-soft);
+}

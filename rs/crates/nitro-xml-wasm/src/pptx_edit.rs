@@ -366,9 +366,27 @@ impl PptxState {
                 .unwrap_or_default();
             (slide, id, text)
         };
-        let Some(next) = edit_plain(&text, text.len(), key) else {
+        // Use text_caret position for this shape; fall back to end of text (#561 insertion fix).
+        let caret_cp = self
+            .text_caret
+            .as_ref()
+            .filter(|tc| tc.shape_id == id)
+            .map(|tc| tc.offset)
+            .unwrap_or_else(|| text.chars().count());
+        let byte_off = text
+            .char_indices()
+            .nth(caret_cp)
+            .map(|(i, _)| i)
+            .unwrap_or(text.len());
+        let Some(next) = edit_plain(&text, byte_off, key) else {
             return Ok(false);
         };
+        let new_cp = match key {
+            "Backspace" => caret_cp.saturating_sub(1),
+            "Delete" => caret_cp.min(next.chars().count()),
+            _ => caret_cp + 1,
+        };
+        let id_for_caret = id.clone();
         let spec = serde_json::json!({
             "command": "setShapeText",
             "slideIndex": slide,
@@ -376,7 +394,52 @@ impl PptxState {
             "text": next,
         });
         self.apply_raw_edit(&spec.to_string())?;
+        self.text_caret = Some(crate::pptx::PptxTextCaret {
+            shape_id: id_for_caret,
+            offset: new_cp,
+        });
         Ok(true)
+    }
+
+    /// Replace the range [min(off1,off2), max(off1,off2)) in a shape's text with `ch`,
+    /// atomically as a single undo step (#561).
+    /// Returns the new caret position `[shape_id, from+1]`.
+    pub(crate) fn replace_range_with_char(
+        &mut self,
+        shape_id: &str,
+        off1: usize,
+        off2: usize,
+        ch: char,
+    ) -> Result<serde_json::Value, String> {
+        let slide = self
+            .edit
+            .as_ref()
+            .map(|e| e.selection.slide_index)
+            .unwrap_or(self.active as u32);
+        let text = self
+            .shape_text_on_slide(slide, shape_id)
+            .ok_or_else(|| format!("shape {} not found", shape_id))?;
+        let cps: Vec<char> = text.chars().collect();
+        let from = off1.min(off2).min(cps.len());
+        let to = off1.max(off2).min(cps.len());
+        let new_text: String = cps[..from]
+            .iter()
+            .chain(std::iter::once(&ch))
+            .chain(&cps[to..])
+            .collect();
+        let spec = serde_json::json!({
+            "command": "setShapeText",
+            "slideIndex": slide,
+            "elementId": shape_id,
+            "text": new_text,
+        });
+        self.apply_raw_edit(&spec.to_string())?;
+        let new_offset = from + 1;
+        self.text_caret = Some(crate::pptx::PptxTextCaret {
+            shape_id: shape_id.to_owned(),
+            offset: new_offset,
+        });
+        Ok(serde_json::json!([shape_id, new_offset]))
     }
 
     pub fn ribbon_html(&self) -> String {

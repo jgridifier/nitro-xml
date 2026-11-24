@@ -147,7 +147,7 @@ export function attach(el) {
       el._nxSel = null;
       return;
     }
-    el._nxSel = { anchorK, text: selText() };
+    el._nxSel = { anchorK, caretK, text: selText() };
   };
 
   /** Build the sel-delete arg string "bid1:shown1:total1:bid2:shown2:total2". */
@@ -282,6 +282,11 @@ export function attach(el) {
   let placeTries = 0;
   const place = (fresh) => {
     if (el.readonly || listeners.signal.aborted) { bar.style.display = "none"; return; }
+    // Hide caret bar during non-collapsed selection (#561 highlight clarity).
+    if (anchor && caret && (anchor.bid !== caret.bid || anchor.shown !== caret.shown)) {
+      bar.style.display = "none";
+      return;
+    }
     if (fresh) placeTries = 0;
     const r = rectOf();
     const d = dom.getBoundingClientRect();
@@ -495,6 +500,8 @@ export function attach(el) {
   );
 
   let restoreKey;
+  // Saved pre-replace state for single-step undo restoration (#561).
+  let preReplaceState = null;
   const wrapDoc = () => {
     const d = el.document;
     if (!d || d._nxc) return;
@@ -523,17 +530,56 @@ export function attach(el) {
       const isTyping = !ev.ctrlKey && !ev.metaKey && !ev.altKey && ev.key.length === 1;
       const isDelete = ev.key === "Backspace" || ev.key === "Delete";
       const isEnter = ev.key === "Enter";
+      const isUndo = !ev.shiftKey && (ev.ctrlKey || ev.metaKey) && (ev.key === "z" || ev.key === "Z");
 
-      // Selection replace: delete selection before typing/deleting
-      if (hasSelection && (isTyping || isDelete || isEnter)) {
+      // Undo: restore pre-replace selection state if available (#561).
+      if (isUndo && preReplaceState) {
+        const saved = preReplaceState;
+        preReplaceState = null;
+        const r = await orig(ev, mac);
+        if (r && r.handled) {
+          anchor = saved.anchor;
+          caret = saved.caret;
+          anchorK = saved.anchorK;
+          caretK = saved.caretK;
+          el._nxSel = saved.nxSel;
+          updateSel();
+          drawHighlights();
+          place(true);
+        }
+        return r;
+      }
+
+      // Atomic typing replace: delete selection + insert char in one undo step (#561).
+      if (hasSelection && isTyping) {
         const arg = selArg();
         if (arg) {
+          preReplaceState = {
+            anchor: anchor ? { ...anchor } : null,
+            caret: caret ? { ...caret } : null,
+            anchorK,
+            caretK,
+            nxSel: el._nxSel ? { ...el._nxSel } : null,
+          };
+          const cr = await el.shellAction("docx-sel-replace", `${arg}:${ev.key.codePointAt(0)}`);
+          anchor = null; anchorK = null; el._nxSel = null;
+          drawHighlights();
+          if (cr && cr.k) { caretK = cr.k; setFromK(cr.k, false); }
+          return { handled: true, k: cr && cr.k };
+        }
+      }
+
+      // Selection replace for delete/enter: delete selection before typing/deleting
+      if (hasSelection && (isDelete || isEnter)) {
+        const arg = selArg();
+        if (arg) {
+          preReplaceState = null;
           const dr = await el.shellAction("docx-sel-delete", arg);
           anchor = null; anchorK = null; el._nxSel = null;
           drawHighlights();
           if (dr && dr.k) { caretK = dr.k; setFromK(dr.k, false); }
           if (isDelete) return { handled: true, k: dr && dr.k };
-          // For typing/enter: fall through so the char is inserted at the new caret
+          // For enter: fall through so Enter creates a paragraph break at the new caret
         }
       }
 
@@ -555,6 +601,7 @@ export function attach(el) {
         d._nxCaretTries = 0;
         setFromK(r.k, isShiftArrow && (ev.key === "ArrowUp" || ev.key === "ArrowDown"));
         if (bar.style.display === "block") d._nxCaretK = null;
+        if (!isTyping && !isUndo) preReplaceState = null;
       }
       return r;
     };

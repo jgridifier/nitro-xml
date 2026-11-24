@@ -71,10 +71,15 @@ async function docxSel(el) {
     const [abid, achars] = selState.anchorK;
     const anchorParaIdx = bidToIdx(abid);
     const anchorPos = { paragraph: anchorParaIdx, run: 0, offset: achars };
-    const isForward = anchorParaIdx < caretParaIdx ||
-      (anchorParaIdx === caretParaIdx && achars <= chars);
-    const start = isForward ? anchorPos : caretPos;
-    const end = isForward ? caretPos : anchorPos;
+    // Prefer caretK from selState over WASM caret (accurate for undo-restored selections).
+    const ck = selState.caretK || k;
+    const [cbid, cchars] = ck;
+    const selCaretParaIdx = bidToIdx(cbid);
+    const selCaretPos = { paragraph: selCaretParaIdx, run: 0, offset: cchars };
+    const isForward = selCaretParaIdx > anchorParaIdx ||
+      (selCaretParaIdx === anchorParaIdx && achars <= cchars);
+    const start = isForward ? anchorPos : selCaretPos;
+    const end = isForward ? selCaretPos : anchorPos;
     const collapsed = start.paragraph === end.paragraph && start.offset === end.offset;
     if (!collapsed) {
       return { format: "docx", text: selState.text || "", page, start, end, collapsed: false };

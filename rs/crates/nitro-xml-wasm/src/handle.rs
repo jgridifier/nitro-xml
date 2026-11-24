@@ -728,6 +728,12 @@ impl Handle {
         if op == "pptx-sel-delete" {
             return self.pptx_sel_delete_op(arg);
         }
+        if op == "pptx-sel-replace" {
+            return self.pptx_sel_replace_op(arg);
+        }
+        if op == "docx-sel-replace" {
+            return self.docx_sel_replace_op(arg);
+        }
         if op == "ui" || op.is_empty() {
             self.refresh_formula_bar();
             let ui = ShellUi::to_json(&self.shell, &self.editor);
@@ -1631,6 +1637,12 @@ impl Handle {
                 obj.insert("k".into(), k);
             }
         }
+        // Return pptx text-caret position so the JS overlay can advance (#561).
+        if let (Some(pptx), Some(obj)) = (self.pptx.as_ref(), payload.as_object_mut()) {
+            if let Some(tc) = &pptx.text_caret {
+                obj.insert("k".into(), serde_json::json!([tc.shape_id, tc.offset]));
+            }
+        }
         Ok(payload.to_string())
     }
 
@@ -1871,6 +1883,97 @@ impl Handle {
             obj.insert("k".into(), k);
         }
         Ok(payload.to_string())
+    }
+
+    /// Replace a pptx shape text range with a single char, atomically (#561).
+    /// arg: `element_id:off1:off2:codepoint`  — codepoint avoids colon ambiguity.
+    fn pptx_sel_replace_op(&mut self, arg: &str) -> Result<String, JsValue> {
+        if self.editor.read_only() {
+            return Ok("{}".into());
+        }
+        let Some(pptx) = self.pptx.as_mut() else {
+            return Ok("{}".into());
+        };
+        pptx.ensure_edit(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+        // arg: "element_id:off1:off2:codepoint" — rsplitn 4 gives [codepoint, off2, off1, shape_id]
+        let parts: Vec<&str> = arg.rsplitn(4, ':').collect();
+        if parts.len() < 4 {
+            return Ok("{}".into());
+        }
+        let cp: u32 = parts[0].parse().unwrap_or(0);
+        let ch = char::from_u32(cp).ok_or_else(|| JsValue::from("invalid codepoint"))?;
+        let off2: usize = parts[1].parse().unwrap_or(0);
+        let off1: usize = parts[2].parse().unwrap_or(0);
+        let shape_id = parts[3];
+        let Some(pptx) = self.pptx.as_mut() else {
+            return Ok("{}".into());
+        };
+        let k = pptx
+            .replace_range_with_char(shape_id, off1, off2, ch)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?;
+        self.refresh_office_view()?;
+        self.sync_office_tabs();
+        process_frame(self);
+        self.shell.touch_chrome_rest();
+        let mut payload = serde_json::from_str::<serde_json::Value>(&self.chrome_payload(false))
+            .unwrap_or_else(|_| serde_json::json!({}));
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("k".into(), k);
+        }
+        Ok(payload.to_string())
+    }
+
+    /// Replace a docx text range with a single char, atomically as one undo step (#561).
+    /// arg: `bid1:shown1:total1:bid2:shown2:total2:codepoint`
+    fn docx_sel_replace_op(&mut self, arg: &str) -> Result<String, JsValue> {
+        let Some(docx) = self.docx.as_mut() else {
+            return Ok("{}".into());
+        };
+        if self.editor.read_only() {
+            return Ok("{}".into());
+        }
+        docx.ensure_edit(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+        // arg: "bid1:shown1:total1:bid2:shown2:total2:codepoint"
+        let parts: Vec<&str> = arg.splitn(8, ':').collect();
+        if parts.len() < 7 {
+            return Ok("{}".into());
+        }
+        let (shown1, total1) = match (parts[1].parse::<usize>(), parts[2].parse::<usize>()) {
+            (Ok(s), Ok(t)) => (s, t),
+            _ => return Ok("{}".into()),
+        };
+        let (shown2, total2) = match (parts[4].parse::<usize>(), parts[5].parse::<usize>()) {
+            (Ok(s), Ok(t)) => (s, t),
+            _ => return Ok("{}".into()),
+        };
+        let cp: u32 = parts[6].parse().unwrap_or(0);
+        let ch_str = char::from_u32(cp)
+            .map(|c| c.to_string())
+            .unwrap_or_default();
+        if ch_str.is_empty() {
+            return Ok("{}".into());
+        }
+        let Some(docx) = self.docx.as_mut() else {
+            return Ok("{}".into());
+        };
+        let k = docx.delete_range_and_type(parts[0], shown1, total1, parts[3], shown2, total2, &ch_str);
+        if k.is_some() {
+            self.refresh_office_view()?;
+            self.sync_office_tabs();
+            process_frame(self);
+            self.shell.touch_chrome_rest();
+            let mut payload =
+                serde_json::from_str::<serde_json::Value>(&self.chrome_payload(false))
+                    .unwrap_or_else(|_| serde_json::json!({}));
+            if let (Some(k_val), Some(obj)) = (k, payload.as_object_mut()) {
+                obj.insert("k".into(), k_val);
+            }
+            Ok(payload.to_string())
+        } else {
+            Ok("{}".into())
+        }
     }
 
     fn dispatch_chrome_command(&mut self, id: &str) -> Result<String, JsValue> {

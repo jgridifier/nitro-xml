@@ -260,6 +260,11 @@ export function attach(el) {
   let placeTries = 0;
   const place = (fresh) => {
     if (el.readonly || listeners.signal.aborted) { bar.style.display = "none"; return; }
+    // Hide caret bar during non-collapsed selection (#561 highlight clarity).
+    if (anchor && caret && anchor.shapeId === caret.shapeId && anchor.offset !== caret.offset) {
+      bar.style.display = "none";
+      return;
+    }
     if (fresh) placeTries = 0;
     const r = caretRect();
     if (!r || !r.h) {
@@ -507,6 +512,9 @@ export function attach(el) {
 
   // ---- Keyboard handling ----
 
+  // Saved pre-replace state for single-step undo restoration (#561).
+  let preReplaceState = null;
+
   const wrapDoc = () => {
     const d = el.document;
     if (!d || d._nxpc) return;
@@ -518,10 +526,49 @@ export function attach(el) {
       const isTyping = !ev.ctrlKey && !ev.metaKey && !ev.altKey && ev.key.length === 1;
       const isDelete = ev.key === "Backspace" || ev.key === "Delete";
       const isEnter = ev.key === "Enter";
+      const isUndo = !ev.shiftKey && (ev.ctrlKey || ev.metaKey) && (ev.key === "z" || ev.key === "Z");
 
-      if (hasSelection && (isTyping || isDelete || isEnter)) {
+      // Undo: restore pre-replace selection state if available (#561).
+      if (isUndo && preReplaceState) {
+        const saved = preReplaceState;
+        preReplaceState = null;
+        const r = await orig(ev, mac);
+        if (r && r.handled) {
+          anchor = saved.anchor;
+          caret = saved.caret;
+          anchorK = saved.anchorK;
+          caretK = saved.caretK;
+          el._nxPptxSel = saved.pptxSel;
+          updateSel();
+          drawHighlights();
+          place(true);
+        }
+        return r;
+      }
+
+      if (hasSelection && isTyping) {
+        // Atomic replace: delete selection + insert char in one undo step (#561).
         const arg = selArg();
         if (arg) {
+          preReplaceState = {
+            anchor: anchor ? { ...anchor } : null,
+            caret: caret ? { ...caret } : null,
+            anchorK,
+            caretK,
+            pptxSel: el._nxPptxSel ? { ...el._nxPptxSel, anchorPos: el._nxPptxSel.anchorPos && { ...el._nxPptxSel.anchorPos }, caretPos: el._nxPptxSel.caretPos && { ...el._nxPptxSel.caretPos } } : null,
+          };
+          const cr = await el.shellAction("pptx-sel-replace", `${arg}:${ev.key.codePointAt(0)}`);
+          anchor = null; anchorK = null; el._nxPptxSel = null;
+          drawHighlights();
+          if (cr && cr.k) setFromK(cr.k);
+          return { handled: true, k: cr && cr.k };
+        }
+      }
+
+      if (hasSelection && (isDelete || isEnter)) {
+        const arg = selArg();
+        if (arg) {
+          preReplaceState = null;
           const dr = await el.shellAction("pptx-sel-delete", arg);
           anchor = null; anchorK = null; el._nxPptxSel = null;
           drawHighlights();
@@ -531,8 +578,10 @@ export function attach(el) {
       }
       const r = await orig(ev, mac);
       if (r && r.handled) {
-        // Clear selection on any handled key
+        if (r.k) setFromK(r.k);
+        // Clear selection on any handled non-typing key
         if (anchor) { anchor = null; anchorK = null; el._nxPptxSel = null; drawHighlights(); }
+        if (!isTyping && !isUndo) preReplaceState = null;
       }
       return r;
     };

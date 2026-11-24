@@ -37,6 +37,10 @@ def expect(actual, expected, message):
     assert actual == expected, f"{message}: expected {expected!r}, got {actual!r}"
 
 
+def dirty_events(page):
+    return page.evaluate("window.hostDirty")
+
+
 def events(page):
     return page.evaluate("window.hostChanges")
 
@@ -44,7 +48,15 @@ def events(page):
 def open_page(browser, port, fmt):
     page = browser.new_page(viewport={"width": 1400, "height": 900})
     # Install before the module creates/loads the element; never clear load events.
-    page.add_init_script("""window.hostChanges = [];
+    page.add_init_script("""window.hostDirty = [];
+        window.hostChanges = [];
+        document.addEventListener('nitro-dirty', e => {
+            if (e.target.id === 'viewer') window.hostDirty.push({
+                dirty: e.detail.dirty,
+                bubbles: e.bubbles,
+                composed: e.composed,
+            });
+        }, true);
         document.addEventListener('nitro-change', e => {
             if (e.target.id === 'viewer') window.hostChanges.push(e.detail);
         }, true);""")
@@ -57,8 +69,10 @@ def open_page(browser, port, fmt):
     page.wait_for_timeout(500)
     box = page.locator('#viewer .v').bounding_box()
     assert box and box['width'] > 100 and box['height'] > 100, f"editor has no usable surface: {box}"
+    expect(dirty_events(page), [], "nitro-dirty events during load")
     expect(events(page), [], "events during load")
     expect(page.evaluate("document.querySelector('#viewer').dirty"), False, "dirty on load")
+    expect(page.locator('#dirty-badge').text_content(), 'clean', "dirty badge on load")
     return page
 
 
@@ -98,25 +112,34 @@ def check_dirty(page, fmt):
         click_text(page, fmt)
     assert_focus(page)
     page.wait_for_timeout(500)
+    expect(dirty_events(page), [], 'selection/focus must not emit nitro-dirty')
     expect(events(page), [], 'selection/focus must not mark dirty')
     page.keyboard.type('x')
     if fmt == 'xlsx':
         page.keyboard.press('Enter')  # Commit; Escape cancels the edit.
     page.wait_for_function("document.querySelector('#viewer').dirty === true", timeout=3000)
     page.wait_for_timeout(500)
+    first_dirty = [{'dirty': True, 'bubbles': True, 'composed': True}]
+    expect(dirty_events(page), first_dirty, 'exactly one first-edit nitro-dirty event')
     expect(events(page), [{'dirty': True}], 'exactly one first-edit event')
     expect(page.evaluate("document.querySelector('#viewer').dirty"), True, 'dirty after edit')
+    expect(page.locator('#dirty-badge').text_content(), 'dirty', 'dirty badge after edit')
     page.keyboard.type('y')
     if fmt == 'xlsx':
         page.keyboard.press('Enter')
     page.wait_for_timeout(700)
+    expect(dirty_events(page), first_dirty, 'additional edits must not repeat nitro-dirty=true')
     expect(events(page), [{'dirty': True}], 'additional edits must not repeat dirty=true')
     page.locator('#btn-save').click()
     page.wait_for_function("document.querySelector('#viewer').dirty === false", timeout=3000)
     page.wait_for_timeout(500)
+    both_dirty = first_dirty + [{'dirty': False, 'bubbles': True, 'composed': True}]
+    expect(dirty_events(page), both_dirty, 'save resets nitro-dirty exactly once')
     expect(events(page), [{'dirty': True}, {'dirty': False}], 'save resets exactly once')
+    expect(page.locator('#dirty-badge').text_content(), 'clean', 'dirty badge after save')
     page.locator('#btn-save').click()
     page.wait_for_timeout(500)
+    expect(dirty_events(page), both_dirty, 'clean save must not emit nitro-dirty')
     expect(events(page), [{'dirty': True}, {'dirty': False}], 'clean save must not emit')
     page.locator('#viewer [data-a="zoom-out"]').click()
     page.locator('#viewer [data-a="zoom-in"]').click()
@@ -126,8 +149,9 @@ def check_dirty(page, fmt):
         page.locator('#viewer [data-a="sheet"][data-g="1"]').click()
         page.locator('#viewer [data-a="sheet"][data-g="0"]').click()
     page.wait_for_timeout(700)
+    expect(dirty_events(page), both_dirty, 'zoom/scroll/navigation must not emit nitro-dirty')
     expect(events(page), [{'dirty': True}, {'dirty': False}], 'zoom/scroll/navigation must not emit')
-    print(f'  PASS {fmt}: focus; no load/selection event; first edit exactly once; dirty=true; save resets; clean save and zoom/scroll/navigation silent', flush=True)
+    print(f'  PASS {fmt}: focus; no load/selection event; nitro-dirty + nitro-change first edit exactly once; dirty=true; save resets; clean save and zoom/scroll/navigation silent', flush=True)
 
 
 def check_selection(page, fmt):
@@ -171,6 +195,7 @@ def check_selection(page, fmt):
             'format': 'pptx', 'slide': 0, 'shapeId': 'ppt/slides/slide1.xml-shape-0',
             'shapeName': 'TextBox 1', 'text': PPTX_SHAPE_TEXT, 'textRange': None, 'collapsed': True,
         }, 'PPTX clicked shape (collapsed, no text range)')
+    expect(dirty_events(page), [], 'selection must not emit nitro-dirty')
     expect(events(page), [], 'selection must not mark dirty')
     expect(page.evaluate("document.querySelector('#viewer').dirty"), False, 'selection must not set dirty')
     print(f'  PASS {fmt}: real selection payload', flush=True)

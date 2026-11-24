@@ -13,35 +13,49 @@ describe("dh.js attach (nitro-dirty + nitro-change dispatch)", () => {
     const el = makeDhEl(original);
     el.addEventListener = (type, fn) => { el._listeners.push({ type, fn }); };
     el.removeEventListener = () => {};
-    el.dispatchEvent = (ev) => { fired.push(ev.type); };
+    el.dispatchEvent = (ev) => {
+      fired.push({ type: ev.type, bubbles: ev.bubbles, composed: ev.composed, dirty: ev.detail?.dirty });
+    };
     await attach(el);
+    assert.deepEqual(fired, [], "attach must not emit dirty events");
     // Simulate an edit: change the bytes that the worker returns
     el._d._bytes = edited;
     el._dT.touch();
     await tick(400);
-    assert.ok(fired.includes("nitro-dirty"), "nitro-dirty must be dispatched on first edit");
-    assert.ok(fired.includes("nitro-change"), "nitro-change must still fire as deprecated alias");
+    assert.deepEqual(fired, [
+      { type: "nitro-dirty", bubbles: true, composed: true, dirty: true },
+      { type: "nitro-change", bubbles: true, composed: true, dirty: true },
+    ]);
     el._dT.destroy();
   });
 
-  it("nitro-dirty detail.dirty is true on edit, false after save", async () => {
-    // Catches: detail payload missing or carrying wrong value.
+  it("nitro-dirty and nitro-change detail.dirty is true on edit, false after save", async () => {
+    // Catches: detail payload missing, carrying wrong value, or save failing to reset both events.
     const original = new Uint8Array([10, 20]);
     const edited = new Uint8Array([10, 20, 30]);
-    const details = [];
+    const dirtyDetails = [];
+    const changeDetails = [];
     const el = makeDhEl(original);
     el.addEventListener = (type, fn) => { el._listeners.push({ type, fn }); };
     el.removeEventListener = () => {};
     el.dispatchEvent = (ev) => {
-      if (ev.type === "nitro-dirty") details.push(ev.detail.dirty);
+      if (ev.type === "nitro-dirty") dirtyDetails.push(ev.detail.dirty);
+      if (ev.type === "nitro-change") changeDetails.push(ev.detail.dirty);
     };
     await attach(el);
     el._d._bytes = edited;
     el._dT.touch();
     await tick(400);
-    assert.deepEqual(details, [true], "detail.dirty must be true after edit");
+    assert.deepEqual(dirtyDetails, [true], "nitro-dirty detail.dirty must be true after edit");
+    assert.deepEqual(changeDetails, [true], "nitro-change detail.dirty must be true after edit");
+    assert.equal(el.dirty, true);
     await el.save();
-    assert.deepEqual(details, [true, false], "detail.dirty must be false after save");
+    assert.deepEqual(dirtyDetails, [true, false], "nitro-dirty detail.dirty must be false after save");
+    assert.deepEqual(changeDetails, [true, false], "nitro-change detail.dirty must be false after save");
+    assert.equal(el.dirty, false);
+    await el.save();
+    assert.deepEqual(dirtyDetails, [true, false], "clean save must not emit nitro-dirty");
+    assert.deepEqual(changeDetails, [true, false], "clean save must not emit nitro-change");
     el._dT.destroy();
   });
 });

@@ -69,15 +69,21 @@ test("onDirtyChange fires when nitro-dirty event is dispatched", async () => {
   cleanup();
 });
 
-test("isDirty() reflects the element dirty getter", async () => {
-  // Catches: isDirty() not reading from the live element, or missing from the handle.
+test("isDirty() reflects the element dirty getter and returns false before load", async () => {
+  // Catches: isDirty() not reading from the live element, throwing before load, or missing from the handle.
+  const preLoad = await mount({ file: null });
+  assert.equal(preLoad.handle.isDirty(), false, "isDirty() must return false before load");
+  preLoad.cleanup?.();
+
   const { el, handle, cleanup } = await mount();
   assert.equal(handle.isDirty(), false, "isDirty() must return false before any edit");
   el._dirty = true;
   assert.equal(handle.isDirty(), true, "isDirty() must return true when element.dirty is true");
   el._dirty = false;
   assert.equal(handle.isDirty(), false, "isDirty() must return false after reset");
+  el._dirty = true;
   cleanup();
+  assert.equal(handle.isDirty(), false, "isDirty() must return false after unmount cleanup");
 });
 
 test("nitro-dirty listener is removed on cleanup", async () => {

@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: MIT
-"""Regenerates notes.docx and deck.pptx (original content; needs python-pptx + python-docx).
+"""Regenerates notes.docx, paged.docx, paged-overflow.docx and deck.pptx (original content; needs python-pptx + python-docx).
 
     python3 -I demo/samples/make_samples.py
 """
 import os
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor
 from pptx import Presentation
 from pptx.dml.color import RGBColor as PC
@@ -53,6 +55,49 @@ q.add_run(" runs, plus a numbered list:")
 for t in ("Collect feedback from embedders", "Land the editing commands", "Publish the benchmark report"):
     d.add_paragraph(t, style="List Number")
 d.save(os.path.join(HERE, "notes.docx"))
+
+# ---- paged.docx: minimal two-page fixture with an explicit page break (#593) ----
+pd = Document()
+pst = pd.styles["Normal"]
+pst.font.name = "Calibri"
+pd.add_paragraph("Visible paragraph one")
+pd.add_paragraph("Second paragraph on page one")
+br = OxmlElement("w:br")
+br.set(qn("w:type"), "page")
+pd.add_paragraph()._p.append(br)
+pd.add_paragraph("Page two content follows the break")
+pd.add_paragraph("More text on page two")
+pd.save(os.path.join(HERE, "paged.docx"))
+
+# ---- paged-overflow.docx: two-page fixture that BOTH triggers the #593 bug AND
+# overflows to page 2.
+#
+# Design rationale:
+#   - An explicit w:br page break before the overflow content makes
+#     open_first_view() stop early (body_truncated=True), which is the exact
+#     precondition for the #593 bug (flush_pending_body later runs with the wrong
+#     bytes if the fix is absent).
+#   - The page break itself does NOT yet render as a page boundary (issue #627),
+#     so the 50 paragraphs after it produce page 2 via text overflow instead.
+#   - Together: the fixture exercises the repaint bug AND reliably shows
+#     page_count >= 2 before any typing.
+pdo = Document()
+pdo_st = pdo.styles["Normal"]
+pdo_st.font.name = "Calibri"
+pdo_st.font.size = Pt(11)
+pdo.add_paragraph("Repaint test fixture — paragraph one (edit target for page 1).")
+pdo.add_paragraph("Repaint test fixture — paragraph two.")
+# Explicit page break: causes open_first_view to stop here (body_truncated=True),
+# which arms the flush_pending_body path that #593 fixes.
+br = OxmlElement("w:br")
+br.set(qn("w:type"), "page")
+pdo.add_paragraph()._p.append(br)
+# 50 paragraphs after the break overflow page 1 → page 2 (via text height, not
+# the break, because the renderer does not yet honour explicit breaks: issue #627).
+for i in range(1, 51):
+    pdo.add_paragraph(f"Overflow paragraph {i}: filling the page so subsequent text overflows.")
+pdo.add_paragraph("Overflow to page 2 — this paragraph is the repaint target for page 2.")
+pdo.save(os.path.join(HERE, "paged-overflow.docx"))
 
 # ---- pptx ----
 prs = Presentation()

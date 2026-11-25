@@ -3,6 +3,15 @@
 
 ## 0.2.0 — 2026-11-20
 
+- **docx repaint after edit**: typed text now appears in the rendered page of a
+  multi-page Word document immediately after typing (#593). The root cause was
+  `refresh_view` opening a fresh view on the edited bytes and then
+  `flush_pending_body` re-loading from the original (pre-edit) handle bytes,
+  wiping the edit from the view session. Fix: eagerly complete the deferred body
+  parse inside `refresh_view` using the edited bytes so the deferred load never
+  fires with the wrong bytes. Covered by a new Playwright e2e check that
+  asserts the typed sentinel is visible in a rendered span.
+
 - `getSelection()` payloads (Part of #561). XLSX returns the stored values of
   the selected range (numbers stay numbers, capped at 10,000 cells with
   `truncated`). PPTX returns the clicked shape's id, name and text. Reading the
@@ -22,7 +31,7 @@
 - In Word and PowerPoint, `getSelection()` returns the caret or the clicked shape
   only, with `collapsed: true` and no selected text range. Text-range selection
   is tracked in #561.
-- In multi-page Word documents, typed text is saved but does not repaint (#593).
+- ~~In multi-page Word documents, typed text is saved but does not repaint~~ — fixed (#593).
 - The host-API browser checks (`scripts/ci/host_api_e2e.sh`) do not run in CI yet;
   the `ci.yml` job is pending. For this release they were run once on the
   tagged commit and passed (see #575).

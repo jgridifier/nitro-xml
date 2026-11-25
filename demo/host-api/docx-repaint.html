@@ -1,0 +1,64 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nitro XML · Host API — docx repaint overflow (#593)</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+    #top { display: flex; gap: 8px; align-items: center; padding: 6px 8px; background: #f0f0f0; border-bottom: 1px solid #ccc; flex-wrap: wrap; }
+    #top h1 { font-size: 14px; margin: 0; }
+    button { padding: 4px 10px; cursor: pointer; }
+    #main { display: flex; flex: 1; min-height: 0; }
+    #viewer-wrap { flex: 2; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    nitro-docx { flex: 1; min-height: 0; display: flex; }
+    #log { font: 12px/1.4 monospace; white-space: pre-wrap; overflow-y: auto; flex: 1; border: 1px solid #ddd; padding: 6px; background: #fafafa; max-width: 320px; }
+  </style>
+</head>
+<body>
+  <div id="top">
+    <h1>Host API · docx repaint overflow (#593)</h1>
+    <button id="btn-save">Save</button>
+  </div>
+  <div id="main">
+    <div id="viewer-wrap"><!-- element injected here --></div>
+    <div id="log">(no events yet)</div>
+  </div>
+
+  <script type="module">
+    const LOADER = "../nitro-xml/loader/";
+
+    const loader = await import(LOADER + "index.js");
+    await loader.initCore({ fontSource: false });
+    loader.defineNitroDocx();
+
+    const el = document.createElement("nitro-docx");
+    el.setAttribute("readonly", "false");
+    el.id = "viewer";
+    document.getElementById("viewer-wrap").appendChild(el);
+
+    const log = document.getElementById("log");
+    function logLine(msg) {
+      log.textContent += new Date().toISOString().slice(11, 23) + " " + msg + "\n";
+      log.scrollTop = log.scrollHeight;
+    }
+
+    el.addEventListener("nitro-change", (e) => logLine("nitro-change dirty=" + e.detail.dirty));
+    el.addEventListener("error", (e) => logLine("error: " + (e.detail && e.detail.message)));
+
+    // paged-overflow.docx: overflow-based two-page fixture (#593).
+    // paged.docx (explicit page break) only renders one page — see issue #627.
+    logLine("loading paged-overflow.docx…");
+    const resp = await fetch("../samples/paged-overflow.docx");
+    const buf = await resp.arrayBuffer();
+    await el.loadBuffer(buf, "paged-overflow.docx");
+    logLine("loaded");
+
+    document.getElementById("btn-save").onclick = async () => {
+      try { await el.save(); logLine("save() ok"); }
+      catch (e) { logLine("save() error: " + e.message); }
+    };
+  </script>
+</body>
+</html>

@@ -104,6 +104,11 @@ export async function tickBody(doc) {
     })();
   } else {
     doc._rt = 0;
+    // Drive lazy layout to completion for multi-page overflow documents.
+    // After first paint, page 0 commits on the first no-measure tick; subsequent
+    // pages need more ticks with no new measures. positionReady stays false until
+    // layout_complete; without this, the rAF loop stalls on first no-measure tick.
+    if (frame.positionReady === false) void doc.tick().catch(e => console.error("[nitro] layout-tick:", e));
   }
   return {
     ...result,

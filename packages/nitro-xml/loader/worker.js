@@ -11,7 +11,7 @@ let glue = null;
 let chain = Promise.resolve();
 let _isDirty = false;
 function unlockChrome(op) {
-if (/^(ui|zoom-set|sheet|nav-next|nav-prev|host-.*)$/.test(op)) return;
+if (/^(ui|zoom-set|sheet|nav-next|nav-prev|select|host-.*)$/.test(op)) return;
 _isDirty = true;
 if (!self._pendingEditorChrome) return;
 self._pendingEditorChrome = 0;

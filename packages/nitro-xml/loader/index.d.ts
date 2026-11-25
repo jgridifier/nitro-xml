@@ -118,6 +118,12 @@ export type NitroDocxSelection = {
   end: { paragraph: number; run: number; offset: number } | null;
   collapsed: boolean;
 };
+export type NitroXlsxSelectionRange = {
+  range: string;
+  anchor: string | null;
+  values: (string | number | boolean | null)[][];
+  truncated: boolean;
+};
 export type NitroXlsxSelection = {
   format: "xlsx";
   sheet: string;
@@ -126,6 +132,8 @@ export type NitroXlsxSelection = {
   anchor: string | null;
   values: (string | number | boolean | null)[][];
   truncated: boolean;
+  /** All selected ranges in order (single-range and Ctrl/Cmd+click multi-range). */
+  ranges: NitroXlsxSelectionRange[];
 };
 /** v0.2.0: the clicked shape only; `text` is its whole text, `textRange` is null (text ranges: #561). */
 export type NitroPptxSelection = {

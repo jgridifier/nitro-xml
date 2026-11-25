@@ -165,7 +165,30 @@ def check_selection(page, fmt):
         expect(selection, {
             'format': 'xlsx', 'sheet': 'Sheet1', 'sheetIndex': 0,
             'range': 'B2:C3', 'anchor': 'B2', 'values': [[4, 6], [6, 9]], 'truncated': False,
+            'ranges': [{
+                'range': 'B2:C3', 'anchor': 'B2', 'values': [[4, 6], [6, 9]], 'truncated': False,
+            }],
         }, 'XLSX multi-cell range and numeric values')
+        # Ctrl+drag a second range E2:E3 and verify additive ranges[] on getSelection()
+        page.keyboard.down('Control')
+        page.mouse.move(*cell_point(page, 1, 4))
+        page.mouse.down()
+        page.mouse.move(*cell_point(page, 2, 4), steps=6)
+        page.mouse.up()
+        page.keyboard.up('Control')
+        page.wait_for_timeout(400)
+        page.locator('#btn-sel').click()
+        page.wait_for_function("document.querySelector('#sel-out').textContent.includes('E2:E3')", timeout=3000)
+        multi = page.evaluate("document.querySelector('#viewer').getSelection()")
+        print(f'  xlsx multi-selection: {json.dumps(multi)}', flush=True)
+        expect(multi, {
+            'format': 'xlsx', 'sheet': 'Sheet1', 'sheetIndex': 0,
+            'range': 'B2:C3,E2:E3', 'anchor': 'B2', 'values': [[4, 6], [6, 9]], 'truncated': False,
+            'ranges': [
+                {'range': 'B2:C3', 'anchor': 'B2', 'values': [[4, 6], [6, 9]], 'truncated': False},
+                {'range': 'E2:E3', 'anchor': 'E2', 'values': [[10], [15]], 'truncated': False},
+            ],
+        }, 'XLSX Ctrl+click multi-range getSelection payload')
     else:
         expect(selection, {
             'format': 'pptx', 'slide': 0, 'shapeId': 'ppt/slides/slide1.xml-shape-0',

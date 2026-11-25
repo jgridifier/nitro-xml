@@ -181,10 +181,13 @@ event is emitted, and reading the selection never marks the document dirty.
 - **DOCX**: the caret only. Returns `start`/`end` `{paragraph, run, offset}` at
   the caret (`offset` counts code points from the paragraph start, `run` is `0`),
   `text: ""` and `collapsed: true`. With no caret, `start`/`end` are `null`.
-- **XLSX**: `{format, sheet, sheetIndex, range, anchor, values, truncated}`.
-  `values` holds the stored cell values row by row: numbers, strings, booleans,
-  error text such as `"#DIV/0!"`, or `null` for an empty cell. At most 10,000
-  cells are returned; past that, whole rows are dropped and `truncated` is `true`.
+- **XLSX**: `{format, sheet, sheetIndex, range, anchor, values, truncated, ranges}`.
+  `values` holds the stored cell values row by row of the first selected range:
+  numbers, strings, booleans, error text such as `"#DIV/0!"`, or `null` for an
+  empty cell. At most 10,000 cells are returned per range; past that, whole rows
+  are dropped and `truncated` is `true`. `ranges` lists every selected range
+  (`{range, anchor, values, truncated}`), including extra ranges added with
+  Ctrl/Cmd+click or Ctrl/Cmd+drag (when `range` is comma-separated).
 - **PPTX**: the clicked shape only. Returns its `shapeId`, `shapeName` and whole
   `text`, with `textRange: null` and `collapsed: true`. With nothing selected,
   the shape fields are `null`.

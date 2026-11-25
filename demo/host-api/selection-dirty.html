@@ -92,7 +92,8 @@
     document.getElementById("btn-sel").onclick = async () => {
       const sel = await el.getSelection();
       selOut.textContent = JSON.stringify(sel, null, 2);
-      logLine("getSelection() → " + (sel ? sel.format : "null"));
+      const extra = sel && Array.isArray(sel.ranges) ? ` (${sel.ranges.length} ranges: ${sel.range || ""})` : "";
+      logLine("getSelection() → " + (sel ? sel.format + extra : "null"));
     };
 
     document.getElementById("btn-save").onclick = async () => {

@@ -246,16 +246,15 @@ after a successful `save()` / new document load. Only available in edit mode
 document to its last-saved bytes also resets `dirty` to `false` (handled by the
 hash probe).
 
-### `nitro-dirty` event
+### `nitro-change` event
 
 Fired on the element when `dirty` flips. Bubbles and is composed (crosses shadow
 DOM). Never fires during `loadBuffer` / `loadFile` / `loadUrl`, or for
 scroll / zoom / selection / navigation — only on a first user edit, undo back to
-the saved bytes, and after `save()` resets it. `nitro-change` continues to fire
-alongside it with the same payload as a deprecated compatibility alias.
+the saved bytes, and after `save()` resets it.
 
 ```js
-el.addEventListener("nitro-dirty", (e) => {
+el.addEventListener("nitro-change", (e) => {
   console.log("dirty:", e.detail.dirty); // boolean
 });
 ```
@@ -277,7 +276,7 @@ el.addEventListener("nitro-dirty", (e) => {
 ```js
 const el = document.querySelector("nitro-xlsx");
 el.setAttribute("readonly", "false");
-el.addEventListener("nitro-dirty", (e) => {
+el.addEventListener("nitro-change", (e) => {
   document.getElementById("save-btn").disabled = !e.detail.dirty;
 });
 ```
@@ -285,7 +284,7 @@ el.addEventListener("nitro-dirty", (e) => {
 ### `save()` no-op when unedited (#571)
 
 `save()` on an unedited document returns byte-identical content (the engine
-preserves untouched parts) and fires no `nitro-dirty` or other host-visible
+preserves untouched parts) and fires no `nitro-change` or other host-visible
 events. Host autosave loops can call `save()` freely.
 
 ### Position, reload, and live readonly
@@ -299,24 +298,24 @@ Indices are zero-based, zoom is a percentage, and scroll offsets use CSS pixels.
 - `setPosition(pos: NitroPositionInput): Promise<void>`
   applies supplied fields, clamps numeric indices/scroll/zoom, and leaves omitted
   fields unchanged. `sheet` accepts an index or exact sheet name; an unknown name
-  or non-finite number rejects. It neither focuses the editor nor emits `nitro-dirty`.
+  or non-finite number rejects. It neither focuses the editor nor emits `nitro-change`.
 - `loadBuffer(bytes: ArrayBuffer | Uint8Array, name?: string, opts?: {position?: NitroPositionInput}): Promise<void>`,
   `loadFile(file: Blob, name?: string, opts?: {position?: NitroPositionInput}): Promise<void>`,
   and `loadUrl(url: string, opts?: {position?: NitroPositionInput}): Promise<void>`
   apply the optional position at the opening frame. Omit `position` for the file's
-  default location. These calls do not emit `nitro-dirty` or request focus.
+  default location. These calls do not emit `nitro-change` or request focus.
 - `reload(bytes: ArrayBuffer | Uint8Array, opts?: {keepPosition?: boolean, name?: string}): Promise<void>`
   replaces the file in the existing worker and retains the element and shadowRoot.
   `keepPosition` defaults to `true`; restored indices and scroll clamp to the new
   file. `false` opens at the default location. `name` defaults to the previous name.
-  Mode stays unchanged; dirty resets silently to false and the edit journal starts clean. No `nitro-dirty` or focus change.
+  Mode stays unchanged; dirty resets silently to false and the edit journal starts clean. No `nitro-change` or focus change.
 - `readonly: boolean` is writable. `el.readonly = false` enables editing in place;
   `true` disables editing and makes `save()` reject. Attribute changes work too:
   `readonly="false"` enables editing; absent, empty and other values mean readonly
   (the existing default). Changes preserve the document, position, and host focus.
 - `nitro-mode: CustomEvent<{readonly: boolean}>` bubbles and is composed. It fires
   after a live mode transition finishes, not on initial open or a redundant assignment.
-  Mode switches do not emit `nitro-dirty`.
+  Mode switches do not emit `nitro-change`.
 
 ```js
 const editor = document.querySelector('nitro-docx');

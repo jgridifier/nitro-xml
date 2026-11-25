@@ -26,7 +26,6 @@ export async function attach(el) {
   el._dT = trackDirty(el, (d) => {
     el._dy = d;
     const ev = { detail: { dirty: d }, bubbles: true, composed: true };
-    el.dispatchEvent(new CustomEvent("nitro-dirty", ev));
     el.dispatchEvent(new CustomEvent("nitro-change", ev));
   });
   el._dirtyDoc = el.document;

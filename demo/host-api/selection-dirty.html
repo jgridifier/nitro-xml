@@ -74,15 +74,11 @@
       log.scrollTop = log.scrollHeight;
     }
 
-    el.addEventListener("nitro-dirty", (e) => {
+    el.addEventListener("nitro-change", (e) => {
       const d = e.detail.dirty;
       badge.textContent = d ? "dirty" : "clean";
       badge.className = d ? "dirty" : "";
-      logLine("nitro-dirty dirty=" + d);
-    });
-
-    el.addEventListener("nitro-change", (e) => {
-      logLine("nitro-change dirty=" + e.detail.dirty);
+      logLine("nitro-change dirty=" + d);
     });
 
     el.addEventListener("error", (e) => logLine("error: " + (e.detail && e.detail.message)));

@@ -57,14 +57,14 @@ async function mount(props = {}) {
   }
 }
 
-test("onDirtyChange fires when nitro-dirty event is dispatched", async () => {
-  // Catches: onDirtyChange prop not wired to the nitro-dirty listener on the element.
+test("onDirtyChange fires when nitro-change event is dispatched", async () => {
+  // Catches: onDirtyChange prop not wired to the nitro-change listener on the element.
   const { listeners, dirtyEvents, cleanup } = await mount();
-  const handler = listeners.get("nitro-dirty");
-  assert.ok(handler, "nitro-dirty listener must be registered on the element");
-  handler(new CustomEvent("nitro-dirty", { detail: { dirty: true } }));
+  const handler = listeners.get("nitro-change");
+  assert.ok(handler, "nitro-change listener must be registered on the element");
+  handler(new CustomEvent("nitro-change", { detail: { dirty: true } }));
   assert.deepEqual(dirtyEvents, [true], "onDirtyChange must receive dirty=true");
-  handler(new CustomEvent("nitro-dirty", { detail: { dirty: false } }));
+  handler(new CustomEvent("nitro-change", { detail: { dirty: false } }));
   assert.deepEqual(dirtyEvents, [true, false], "onDirtyChange must receive dirty=false");
   cleanup();
 });
@@ -86,10 +86,10 @@ test("isDirty() reflects the element dirty getter and returns false before load"
   assert.equal(handle.isDirty(), false, "isDirty() must return false after unmount cleanup");
 });
 
-test("nitro-dirty listener is removed on cleanup", async () => {
-  // Catches: memory leak from leaving the nitro-dirty listener on the element after unmount.
+test("nitro-change listener is removed on cleanup", async () => {
+  // Catches: memory leak from leaving the nitro-change listener on the element after unmount.
   const { listeners, cleanup } = await mount();
-  assert.ok(listeners.has("nitro-dirty"), "listener added before cleanup");
+  assert.ok(listeners.has("nitro-change"), "listener added before cleanup");
   cleanup();
-  assert.ok(!listeners.has("nitro-dirty"), "listener removed after cleanup");
+  assert.ok(!listeners.has("nitro-change"), "listener removed after cleanup");
 });

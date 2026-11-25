@@ -193,7 +193,7 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
           onDirtyChangeRef.current?.(dirty);
         };
         el.addEventListener("nitro-save", onSave);
-        el.addEventListener("nitro-dirty", onDirty);
+        el.addEventListener("nitro-change", onDirty);
         el.addEventListener("error", onFailure);
 
         const viewer = el as HTMLElement & {
@@ -213,7 +213,7 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
         cancelled = true;
         if (el) el.removeEventListener("error", onFailure);
         if (el && onSave) el.removeEventListener("nitro-save", onSave);
-        if (el && onDirty) el.removeEventListener("nitro-dirty", onDirty);
+        if (el && onDirty) el.removeEventListener("nitro-change", onDirty);
         try {
           el?.remove();
         } catch {

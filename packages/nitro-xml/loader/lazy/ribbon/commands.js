@@ -28,26 +28,28 @@ const find = { g: "Editing", big: [{ i: "find", l: "Find", t: "Find (Ctrl+F)", o
 const menu = (i, l, items, t) => ({ i, l, t: t || l, m: items });
 const drawing = {
   g: "Drawing",
-  rows: [[
-    it("home.shape-fill", "fill", "Fill", "Shape fill"),
-    it("home.shape-outline", "outline", "Outline", "Shape outline"),
-    it("home.shape-dash", "borderDash", "Dashed outline", "Dashed shape outline"),
-  ]],
+  rows: [
+    [it("home.shape-fill", "fill", "Fill", "Shape fill", { labeled: true })],
+    [it("home.shape-outline", "outline", "Outline", "Shape outline", { labeled: true })],
+    [it("home.shape-dash", "borderDash", "Dashed", "Dashed shape outline", { labeled: true })],
+  ],
 };
 const arrange = {
   g: "Arrange",
   rows: [
     [
-      it("home.duplicate", "duplicate", "Duplicate", "Duplicate shape"),
-      it("home.delete", "trash", "Delete", "Delete shape"),
-      it("home.group", "group", "Group", "Group the selected shapes"),
-      it("home.ungroup", "ungroup", "Ungroup", "Ungroup the selected shapes"),
+      it("home.duplicate", "duplicate", "Duplicate", "Duplicate shape", { labeled: true }),
+      it("home.delete", "trash", "Delete", "Delete shape", { labeled: true }),
+      it("home.group", "group", "Group", "Group the selected shapes", { labeled: true }),
+      it("home.ungroup", "ungroup", "Ungroup", "Ungroup the selected shapes", { labeled: true }),
     ],
     [
-      it("home.bring-forward", "forward", "Bring Forward"),
-      it("home.send-backward", "back", "Send Backward"),
-      it("home.bring-to-front", "front", "Bring to Front"),
-      it("home.send-to-back", "toBack", "Send to Back"),
+      it("home.bring-forward", "forward", "Bring forward", "Bring forward", { labeled: true }),
+      it("home.bring-to-front", "front", "Bring to front", "Bring to front", { labeled: true }),
+    ],
+    [
+      it("home.send-backward", "back", "Send backward", "Send backward", { labeled: true }),
+      it("home.send-to-back", "toBack", "Send to back", "Send to back", { labeled: true }),
     ],
   ],
 };
@@ -189,17 +191,10 @@ const pptxParagraph = {
 };
 const pptxSlides = {
   g: "Slides",
-  big: [it("insert.slide", "slide", "New Slide")],
   rows: [
-    [
-      it("insert.duplicate-slide", "duplicate", "Duplicate Slide"),
-      it("home.layout", "layout", "Layout", "Change slide layout"),
-      it("home.delete-slide", "trash", "Delete Slide"),
-    ],
-    [
-      it("insert.move-slide-up", "chevUp", "Move Slide Up"),
-      it("insert.move-slide-down", "chevDown", "Move Slide Down"),
-    ],
+    [it("insert.slide", "slide", "New Slide", "New Slide", { labeled: true }), it("insert.duplicate-slide", "duplicate", "Duplicate", "Duplicate slide", { labeled: true })],
+    [it("home.layout", "layout", "Layout", "Change slide layout", { labeled: true }), it("home.delete-slide", "trash", "Delete", "Delete slide", { labeled: true })],
+    [it("insert.move-slide-up", "chevUp", "Move up", "Move slide up", { labeled: true }), it("insert.move-slide-down", "chevDown", "Move down", "Move slide down", { labeled: true })],
   ],
 };
 

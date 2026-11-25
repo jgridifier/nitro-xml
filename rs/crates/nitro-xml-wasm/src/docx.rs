@@ -181,6 +181,20 @@ impl DocxState {
             .any(|p| p.block_id == id)
     }
 
+    /// Host selection run lengths for paragraph `bid` (#561): `{ "runs": [len0, ...] }`
+    /// or `{}` when `bid` is not found. Read-only; never mutates document or dirty state.
+    pub(crate) fn host_paragraph_runs(&self, bid: &str) -> Value {
+        let blocks = self
+            .edit
+            .as_ref()
+            .map(|e| e.session.host.blocks.as_slice())
+            .unwrap_or(self.session.model.blocks.as_slice());
+        let Some(block) = find_paragraph_by_id(blocks, bid) else {
+            return serde_json::json!({});
+        };
+        serde_json::json!({ "runs": paragraph_run_lens(block) })
+    }
+
     /// Safe-href / bookmark target at paragraph ordinal `row`, run `col`.
     pub(crate) fn hyperlink_at(&self, row: u32, col: u32) -> Option<DocxHyperlinkHit> {
         let paras = body_paragraphs(&self.session.model.blocks);
@@ -301,6 +315,57 @@ fn walk_blocks(blocks: &[Value], out: &mut Vec<ParaRec>) {
             }
         }
     }
+}
+
+pub(crate) fn paragraph_run_lens(block: &Value) -> Vec<usize> {
+    block
+        .get("runs")
+        .and_then(|r| r.as_array())
+        .map(|rs| {
+            rs.iter()
+                .map(|r| {
+                    r.get("text")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("")
+                        .chars()
+                        .count()
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn find_paragraph_by_id<'a>(blocks: &'a [Value], bid: &str) -> Option<&'a Value> {
+    for block in blocks {
+        let ty = block.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        if ty == "paragraph" {
+            if block.get("id").and_then(|v| v.as_str()) == Some(bid) {
+                return Some(block);
+            }
+        } else if ty == "table" {
+            let Some(rows) = block.get("rows").and_then(|v| v.as_array()) else {
+                continue;
+            };
+            for row in rows {
+                let Some(cells) = row.as_array() else {
+                    continue;
+                };
+                for cell in cells {
+                    if let Some(paras) = cell.get("paragraphs").and_then(|v| v.as_array()) {
+                        if let Some(found) = find_paragraph_by_id(paras, bid) {
+                            return Some(found);
+                        }
+                    }
+                    if let Some(nested) = cell.get("nestedTables").and_then(|v| v.as_array()) {
+                        if let Some(found) = find_paragraph_by_id(nested, bid) {
+                            return Some(found);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn paragraph_plain(block: &Value) -> String {

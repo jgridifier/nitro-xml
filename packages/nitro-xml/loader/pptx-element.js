@@ -8,4 +8,8 @@ export class NitroPptxElement extends ShellViewerElement {
   _ok(n) {
     return !!n && P.test(n);
   }
+  async _ao() {
+    if (!this._readonly) (await import("./lazy/pptx-caret.js")).attach(this);
+    await super._ao();
+  }
 }

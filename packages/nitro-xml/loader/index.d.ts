@@ -109,13 +109,14 @@ export class WorkerDocument {
 }
 
 /** Selection snapshot returned by `getSelection()` on each element type. */
-/** v0.2.0: the caret only; `text` is "" and `start` equals `end` (text ranges: #561). */
 export type NitroDocxSelection = {
   format: "docx";
+  /** Selected text; empty string when collapsed. */
   text: string;
   page: number;
   start: { paragraph: number; run: number; offset: number } | null;
   end: { paragraph: number; run: number; offset: number } | null;
+  /** `true` when no text is selected (caret only). */
   collapsed: boolean;
 };
 export type NitroXlsxSelection = {
@@ -127,15 +128,21 @@ export type NitroXlsxSelection = {
   values: (string | number | boolean | null)[][];
   truncated: boolean;
 };
-/** v0.2.0: the clicked shape only; `text` is its whole text, `textRange` is null (text ranges: #561). */
 export type NitroPptxSelection = {
   format: "pptx";
   slide: number;
   shapeId: string | null;
   shapeName: string | null;
+  /** Whole shape text; null when nothing is selected. */
   text: string | null;
-  textRange: { start: number; end: number } | null;
-  collapsed: true;
+  /** Text-range selection within a text box; null when only the shape is selected (collapsed). */
+  textRange: {
+    text: string;
+    start: { paragraph: number; run: number; offset: number };
+    end: { paragraph: number; run: number; offset: number };
+  } | null;
+  /** `true` when no text range is selected (shape selected / caret only). */
+  collapsed: boolean;
 };
 export type NitroSelection = NitroDocxSelection | NitroXlsxSelection | NitroPptxSelection;
 
@@ -185,8 +192,9 @@ export class ShellViewerElement extends ViewerElement {
    */
   readonly dirty: boolean;
   /**
-   * Selection snapshot (#561). v0.2.0: DOCX returns the caret only and PPTX the clicked
-   * shape only, both `collapsed: true` with no selected text range (text ranges: #561).
+   * Selection snapshot (#561). DOCX returns the caret position or a text range
+   * (`collapsed: false`, `text` filled, `start`/`end` offsets). PPTX returns the
+   * clicked shape and, when text is drag-selected, a `textRange` with text and offsets.
    * XLSX: stored cell values of the range, at most 10,000 cells (`truncated` past it).
    * Call after load completes. Never marks the document dirty; no nitro-selectionchange event.
    */

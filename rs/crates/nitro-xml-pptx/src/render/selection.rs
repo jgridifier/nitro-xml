@@ -40,6 +40,60 @@ pub fn copy_text(slide: &Slide, ids: &[String]) -> String {
     parts.join("\n")
 }
 
+/// Code-point length of each run in each paragraph of element `id` (#561).
+pub fn shape_paragraph_run_lens(slide: &Slide, id: &str) -> Vec<Vec<usize>> {
+    let Some(el) = slide.elements.iter().find(|el| el.id == id) else {
+        return Vec::new();
+    };
+    if let Some(paras) = &el.text_paint_paragraphs {
+        return paras
+            .iter()
+            .map(|p| {
+                p.runs
+                    .iter()
+                    .map(|r| {
+                        if r.line_break {
+                            0
+                        } else {
+                            r.text.chars().count()
+                        }
+                    })
+                    .collect()
+            })
+            .collect();
+    }
+    if let Some(editor) = &el.editor_text {
+        let mut out = vec![Vec::new()];
+        for seg in &editor.segments {
+            if seg.is_paragraph_break {
+                out.push(Vec::new());
+            } else {
+                let len = if seg.is_line_break {
+                    0
+                } else {
+                    seg.text.chars().count()
+                };
+                if let Some(last) = out.last_mut() {
+                    last.push(len);
+                }
+            }
+        }
+        return out;
+    }
+    el.text
+        .as_deref()
+        .unwrap_or("")
+        .split('\n')
+        .map(|line| {
+            if line.is_empty() {
+                Vec::new()
+            } else {
+                vec![line.chars().count()]
+            }
+        })
+        .collect()
+}
+
 fn element_text(el: &DumpElement) -> String {
     if let Some(text) = el.text.as_deref() {
         let trimmed = text.trim();

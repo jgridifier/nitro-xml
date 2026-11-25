@@ -674,7 +674,8 @@ impl Handle {
         }
         if op == "host-selection" {
             // Read-only snapshot for getSelection() (#561): xlsx `sheet<TAB>range` -> typed
-            // values; pptx element id -> name and text. Never edits or changes the selection.
+            // values; pptx element id -> name, text and run lengths; docx bid -> run lengths.
+            // Never edits or changes the selection.
             if let Some(x) = self.xlsx.as_mut() {
                 let (sheet, range) = arg.split_once('\t').unwrap_or(("0", arg));
                 let sheet = sheet.parse::<usize>().unwrap_or(0);
@@ -685,6 +686,9 @@ impl Handle {
             }
             if let Some(p) = self.pptx.as_mut() {
                 return Ok(p.host_shape(arg).to_string());
+            }
+            if let Some(d) = self.docx.as_ref() {
+                return Ok(d.host_paragraph_runs(arg).to_string());
             }
             return Ok("{}".into());
         }
@@ -718,6 +722,21 @@ impl Handle {
         }
         if op == "docx-caret" {
             return self.docx_caret(arg);
+        }
+        if op == "docx-sel-delete" {
+            return self.docx_sel_delete(arg);
+        }
+        if op == "pptx-caret" {
+            return self.pptx_caret_op(arg);
+        }
+        if op == "pptx-sel-delete" {
+            return self.pptx_sel_delete_op(arg);
+        }
+        if op == "pptx-sel-replace" {
+            return self.pptx_sel_replace_op(arg);
+        }
+        if op == "docx-sel-replace" {
+            return self.docx_sel_replace_op(arg);
         }
         if op == "ui" || op.is_empty() {
             self.refresh_formula_bar();
@@ -1622,6 +1641,12 @@ impl Handle {
                 obj.insert("k".into(), k);
             }
         }
+        // Return pptx text-caret position so the JS overlay can advance (#561).
+        if let (Some(pptx), Some(obj)) = (self.pptx.as_ref(), payload.as_object_mut()) {
+            if let Some(tc) = &pptx.text_caret {
+                obj.insert("k".into(), serde_json::json!([tc.shape_id, tc.offset]));
+            }
+        }
         Ok(payload.to_string())
     }
 
@@ -1750,7 +1775,216 @@ impl Handle {
         if let (Some(total), Some(before), Some(bid)) = (total, before, it.next()) {
             docx.set_caret_from_view(bid, before, total);
         }
-        Ok(serde_json::json!({ "k": docx.caret_json() }).to_string())
+        Ok(
+            serde_json::json!({ "k": docx.caret_json(), "runs": docx.caret_runs_json() })
+                .to_string(),
+        )
+    }
+
+    /// Delete the selected range (anchor..focus) as a single undo step and repaint (#561).
+    /// arg: `bid1:shown1:total1:bid2:shown2:total2`
+    fn docx_sel_delete(&mut self, arg: &str) -> Result<String, JsValue> {
+        let Some(docx) = self.docx.as_mut() else {
+            return Ok("{}".into());
+        };
+        if self.editor.read_only() {
+            return Ok("{}".into());
+        }
+        docx.ensure_edit(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+        // arg: "bid1:shown1:total1:bid2:shown2:total2" — block IDs are alphanumeric, no colons.
+        let parts: Vec<&str> = arg.splitn(6, ':').collect();
+        if parts.len() < 6 {
+            return Ok("{}".into());
+        }
+        let (shown1, total1) = match (parts[1].parse::<usize>(), parts[2].parse::<usize>()) {
+            (Ok(s), Ok(t)) => (s, t),
+            _ => return Ok("{}".into()),
+        };
+        let (shown2, total2) = match (parts[4].parse::<usize>(), parts[5].parse::<usize>()) {
+            (Ok(s), Ok(t)) => (s, t),
+            _ => return Ok("{}".into()),
+        };
+        let Some(docx) = self.docx.as_mut() else {
+            return Ok("{}".into());
+        };
+        let k = docx.delete_range((parts[0], shown1, total1), (parts[3], shown2, total2));
+        if k.is_some() {
+            self.refresh_office_view()?;
+            self.sync_office_tabs();
+            process_frame(self);
+            self.shell.touch_chrome_rest();
+            let mut payload =
+                serde_json::from_str::<serde_json::Value>(&self.chrome_payload(false))
+                    .unwrap_or_else(|_| serde_json::json!({}));
+            if let (Some(k_val), Some(obj)) = (k, payload.as_object_mut()) {
+                obj.insert("k".into(), k_val);
+            }
+            Ok(payload.to_string())
+        } else {
+            Ok("{}".into())
+        }
+    }
+
+    /// Get or set the pptx text caret position within a shape (#561).
+    /// arg: "" → return current; "element_id:offset" → set and return.
+    fn pptx_caret_op(&mut self, arg: &str) -> Result<String, JsValue> {
+        let Some(pptx) = self.pptx.as_mut() else {
+            return Ok("{}".into());
+        };
+        if arg.is_empty() {
+            let k = pptx
+                .text_caret
+                .as_ref()
+                .map(|c| serde_json::json!([c.shape_id, c.offset]));
+            return Ok(serde_json::json!({ "k": k }).to_string());
+        }
+        // "element_id:offset" — element IDs contain "ppt/slides/slideN.xml-shape-N" (no colons after the last hyphen)
+        // Split on the last ':' to get offset.
+        let colon = arg.rfind(':');
+        let (shape_id, offset_str) = match colon {
+            Some(i) => (&arg[..i], &arg[i + 1..]),
+            None => return Ok("{}".into()),
+        };
+        let offset: usize = offset_str.parse().unwrap_or(0);
+        pptx.ensure_edit(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+        let k = pptx.set_text_caret(shape_id, offset);
+        Ok(serde_json::json!({ "k": k }).to_string())
+    }
+
+    /// Delete the selected range within a pptx shape and repaint (#561).
+    /// arg: `element_id:off1:off2`
+    fn pptx_sel_delete_op(&mut self, arg: &str) -> Result<String, JsValue> {
+        if self.editor.read_only() {
+            return Ok("{}".into());
+        }
+        let Some(pptx) = self.pptx.as_mut() else {
+            return Ok("{}".into());
+        };
+        pptx.ensure_edit(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+        // Split on last two colons to get off2, then off1, then shape_id.
+        // element IDs are "ppt/slides/slideN.xml-shape-N" — no trailing colons.
+        let parts: Vec<&str> = arg.rsplitn(3, ':').collect();
+        if parts.len() < 3 {
+            return Ok("{}".into());
+        }
+        // rsplitn reverses: [off2, off1, shape_id]
+        let off2: usize = parts[0].parse().unwrap_or(0);
+        let off1: usize = parts[1].parse().unwrap_or(0);
+        let shape_id = parts[2];
+        let Some(pptx) = self.pptx.as_mut() else {
+            return Ok("{}".into());
+        };
+        let k = pptx
+            .delete_text_range(shape_id, off1, off2)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?;
+        self.refresh_office_view()?;
+        self.sync_office_tabs();
+        process_frame(self);
+        self.shell.touch_chrome_rest();
+        let mut payload = serde_json::from_str::<serde_json::Value>(&self.chrome_payload(false))
+            .unwrap_or_else(|_| serde_json::json!({}));
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("k".into(), k);
+        }
+        Ok(payload.to_string())
+    }
+
+    /// Replace a pptx shape text range with a single char, atomically (#561).
+    /// arg: `element_id:off1:off2:codepoint`  — codepoint avoids colon ambiguity.
+    fn pptx_sel_replace_op(&mut self, arg: &str) -> Result<String, JsValue> {
+        if self.editor.read_only() {
+            return Ok("{}".into());
+        }
+        let Some(pptx) = self.pptx.as_mut() else {
+            return Ok("{}".into());
+        };
+        pptx.ensure_edit(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+        // arg: "element_id:off1:off2:codepoint" — rsplitn 4 gives [codepoint, off2, off1, shape_id]
+        let parts: Vec<&str> = arg.rsplitn(4, ':').collect();
+        if parts.len() < 4 {
+            return Ok("{}".into());
+        }
+        let cp: u32 = parts[0].parse().unwrap_or(0);
+        let ch = char::from_u32(cp).ok_or_else(|| JsValue::from("invalid codepoint"))?;
+        let off2: usize = parts[1].parse().unwrap_or(0);
+        let off1: usize = parts[2].parse().unwrap_or(0);
+        let shape_id = parts[3];
+        let Some(pptx) = self.pptx.as_mut() else {
+            return Ok("{}".into());
+        };
+        let k = pptx
+            .replace_range_with_char(shape_id, off1, off2, ch)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("edit_failed", e)))?;
+        self.refresh_office_view()?;
+        self.sync_office_tabs();
+        process_frame(self);
+        self.shell.touch_chrome_rest();
+        let mut payload = serde_json::from_str::<serde_json::Value>(&self.chrome_payload(false))
+            .unwrap_or_else(|_| serde_json::json!({}));
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("k".into(), k);
+        }
+        Ok(payload.to_string())
+    }
+
+    /// Replace a docx text range with a single char, atomically as one undo step (#561).
+    /// arg: `bid1:shown1:total1:bid2:shown2:total2:codepoint`
+    fn docx_sel_replace_op(&mut self, arg: &str) -> Result<String, JsValue> {
+        let Some(docx) = self.docx.as_mut() else {
+            return Ok("{}".into());
+        };
+        if self.editor.read_only() {
+            return Ok("{}".into());
+        }
+        docx.ensure_edit(&self.bytes)
+            .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+        // arg: "bid1:shown1:total1:bid2:shown2:total2:codepoint"
+        let parts: Vec<&str> = arg.splitn(8, ':').collect();
+        if parts.len() < 7 {
+            return Ok("{}".into());
+        }
+        let (shown1, total1) = match (parts[1].parse::<usize>(), parts[2].parse::<usize>()) {
+            (Ok(s), Ok(t)) => (s, t),
+            _ => return Ok("{}".into()),
+        };
+        let (shown2, total2) = match (parts[4].parse::<usize>(), parts[5].parse::<usize>()) {
+            (Ok(s), Ok(t)) => (s, t),
+            _ => return Ok("{}".into()),
+        };
+        let cp: u32 = parts[6].parse().unwrap_or(0);
+        let ch_str = char::from_u32(cp)
+            .map(|c| c.to_string())
+            .unwrap_or_default();
+        if ch_str.is_empty() {
+            return Ok("{}".into());
+        }
+        let Some(docx) = self.docx.as_mut() else {
+            return Ok("{}".into());
+        };
+        let k = docx.delete_range_and_type(
+            (parts[0], shown1, total1),
+            (parts[3], shown2, total2),
+            &ch_str,
+        );
+        if k.is_some() {
+            self.refresh_office_view()?;
+            self.sync_office_tabs();
+            process_frame(self);
+            self.shell.touch_chrome_rest();
+            let mut payload =
+                serde_json::from_str::<serde_json::Value>(&self.chrome_payload(false))
+                    .unwrap_or_else(|_| serde_json::json!({}));
+            if let (Some(k_val), Some(obj)) = (k, payload.as_object_mut()) {
+                obj.insert("k".into(), k_val);
+            }
+            Ok(payload.to_string())
+        } else {
+            Ok("{}".into())
+        }
     }
 
     fn dispatch_chrome_command(&mut self, id: &str) -> Result<String, JsValue> {
@@ -2370,6 +2604,33 @@ mod tests {
         assert_eq!(v["shapeId"], "ppt/slides/slide1.xml-shape-0");
         assert_eq!(v["shapeName"], "TextBox 1");
         assert!(v["shapeText"].as_str().expect("text").starts_with("Nitro"));
+        assert_eq!(v["paragraphs"], serde_json::json!([[9]]));
         assert_eq!(h.shell_action("host-selection", "nope").expect("sel"), "{}");
+    }
+
+    #[test]
+    fn catches_host_selection_docx_and_pptx_multi_run_lengths_missing() {
+        // Catches: docx and pptx getSelection() flattening all runs to run=0 (#615).
+        let mut hd = Handle::new(include_bytes!("../../../../demo/samples/notes.docx").to_vec());
+        hd.open_document("notes.docx").expect("open docx");
+        let dr: serde_json::Value =
+            serde_json::from_str(&hd.shell_action("host-selection", "p10").expect("docx sel"))
+                .expect("json");
+        assert_eq!(dr["runs"], serde_json::json!([4, 2, 6, 5, 10, 28]));
+
+        let mut hp = Handle::new(
+            include_bytes!("../../../../fixtures/real/pptx/poi-with_japanese.pptx").to_vec(),
+        );
+        hp.open_document("poi-with_japanese.pptx")
+            .expect("open pptx");
+        let pr: serde_json::Value = serde_json::from_str(
+            &hp.shell_action("host-selection", "ppt/slides/slide1.xml-shape-4")
+                .expect("pptx sel"),
+        )
+        .expect("json");
+        assert_eq!(
+            pr["paragraphs"].as_array().expect("paragraphs")[2],
+            serde_json::json!([4, 1, 6, 1, 9, 1, 11, 1, 9])
+        );
     }
 }

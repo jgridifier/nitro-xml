@@ -2,6 +2,7 @@
 //! Wasm glue for the docx editor session: open, chrome commands, headless edits, save.
 
 use nitro_xml_docx::edit::host::DocxHost;
+use nitro_xml_docx::edit::{join_paragraph, text::delete_text};
 use nitro_xml_docx::{save_docx, DocxEditor};
 use serde_json::Value;
 
@@ -391,6 +392,14 @@ impl DocxState {
         ]))
     }
 
+    /// Code-point length of each run in the caret's paragraph (`getSelection()` run mapping).
+    pub fn caret_runs_json(&mut self) -> Option<Vec<usize>> {
+        let (bi, _, _) = self.caret_paragraph()?;
+        let edit = self.edit.as_ref()?;
+        let block = edit.session.host.blocks.get(bi)?;
+        Some(crate::docx::paragraph_run_lens(block))
+    }
+
     /// Place the caret from a pointer hit: `shown_before` rendered chars precede the click inside
     /// the block `block_id`, whose rendered text has `shown_total` chars. Rendered text can carry
     /// a list label ahead of the model text, which the length difference accounts for.
@@ -422,6 +431,121 @@ impl DocxState {
         self.typing = None;
         self.set_caret(bi, off);
         true
+    }
+
+    /// Convert a view position `(block_id, shown_before, shown_total)` to `(block_index, byte_offset)`.
+    fn view_to_block(&self, bid: &str, shown: usize, total: usize) -> Option<(usize, usize)> {
+        let edit = self.edit.as_ref()?;
+        let bi = edit.session.host.blocks.iter().position(|b| {
+            b.get("id").and_then(|v| v.as_str()) == Some(bid)
+                && b.get("type").and_then(|t| t.as_str()) == Some("paragraph")
+        })?;
+        let text = paragraph_text(&edit.session.host.blocks[bi]);
+        let n = text.chars().count();
+        let chars = shown.saturating_sub(total.saturating_sub(n)).min(n);
+        let off = text
+            .char_indices()
+            .nth(chars)
+            .map(|(i, _)| i)
+            .unwrap_or(text.len());
+        Some((bi, off))
+    }
+
+    /// Delete the range between two view positions as a single undo step (#561).
+    /// Each position is `(block_id, shown_before, shown_total)`. Returns the new caret JSON.
+    pub fn delete_range(
+        &mut self,
+        start: (&str, usize, usize),
+        end: (&str, usize, usize),
+    ) -> Option<serde_json::Value> {
+        let (bi1, off1) = self.view_to_block(start.0, start.1, start.2)?;
+        let (bi2, off2) = self.view_to_block(end.0, end.1, end.2)?;
+        // Normalise direction: from < to
+        let (bi_from, off_from, bi_to, off_to) = if bi1 < bi2 || (bi1 == bi2 && off1 <= off2) {
+            (bi1, off1, bi2, off2)
+        } else {
+            (bi2, off2, bi1, off1)
+        };
+        if bi_from == bi_to && off_from == off_to {
+            return self.caret_json(); // collapsed — nothing to delete
+        }
+        self.typing = None;
+        if bi_from == bi_to {
+            // Single paragraph: one deleteText step.
+            let spec = serde_json::json!({
+                "command": "deleteText",
+                "blockIndex": bi_from,
+                "start": off_from,
+                "end": off_to,
+            });
+            self.apply_edit_spec(&spec.to_string()).ok()?;
+        } else {
+            // Multi-paragraph: use a batch so the whole deletion is one undo step.
+            let edit = self.edit.as_mut()?;
+            edit.session
+                .batch("deleteRange", |host: &mut DocxHost| {
+                    // 1. Delete prefix of last paragraph [0, off_to).
+                    let len_to = paragraph_text(&host.blocks[bi_to]).len();
+                    let off_to_c = off_to.min(len_to);
+                    if off_to_c > 0 {
+                        delete_text(host, bi_to, 0, off_to_c)?;
+                    }
+                    // 2. Delete suffix of first paragraph [off_from, len).
+                    let len_from = paragraph_text(&host.blocks[bi_from]).len();
+                    let off_from_c = off_from.min(len_from);
+                    if off_from_c < len_from {
+                        delete_text(host, bi_from, off_from_c, len_from)?;
+                    }
+                    // 3. For every block between bi_from+1 and bi_to (inclusive):
+                    //    clear its text, then join it into bi_from.
+                    for _ in bi_from..bi_to {
+                        let next = bi_from + 1;
+                        let len_next = paragraph_text(&host.blocks[next]).len();
+                        if len_next > 0 {
+                            delete_text(host, next, 0, len_next)?;
+                        }
+                        join_paragraph(host, bi_from)?;
+                    }
+                    Ok(())
+                })
+                .ok()?;
+            edit.set_caret_block(bi_from, off_from);
+            return self.caret_json();
+        }
+        self.set_caret(bi_from, off_from);
+        self.caret_json()
+    }
+
+    /// Delete the selected range and insert `key`, atomically as a single undo step (#561).
+    /// Returns the new caret JSON, or None on failure.
+    pub fn delete_range_and_type(
+        &mut self,
+        start: (&str, usize, usize),
+        end: (&str, usize, usize),
+        key: &str,
+    ) -> Option<serde_json::Value> {
+        let len_before = self
+            .edit
+            .as_ref()
+            .map(|e| e.session.history.done().len())
+            .unwrap_or(0);
+        self.delete_range(start, end)?;
+        let outcome = self.type_key(key, false, false, false).ok()?;
+        if !matches!(outcome, KeyOutcome::Edited) {
+            return self.caret_json();
+        }
+        let len_after = self
+            .edit
+            .as_ref()
+            .map(|e| e.session.history.done().len())
+            .unwrap_or(0);
+        // Merge the type entry with the delete entry into one undo step.
+        if len_after == len_before + 2 {
+            if let Some(edit) = self.edit.as_mut() {
+                edit.session.history.merge_last_into_previous();
+            }
+        }
+        self.caret_json()
     }
 
     /// Re-layout the painted document from the bytes a save would produce.

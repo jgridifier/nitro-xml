@@ -290,11 +290,13 @@ impl PptxState {
         let interactive = self.interactive;
         let clip = self.text_clip.clone();
         let shape_clip = self.shape_clip.clone();
+        let text_caret = self.text_caret.take();
         let opened = Self::open(std::sync::Arc::<[u8]>::from(bytes));
         let mut next = match opened {
             Ok(state) => state,
             Err(e) => {
                 self.edit = edit;
+                self.text_caret = text_caret;
                 return Err(e);
             }
         };
@@ -310,6 +312,15 @@ impl PptxState {
             next.active = active.min(n - 1);
         }
         next.selected_ids = selected;
+        next.text_caret = text_caret.and_then(|mut tc| {
+            let slide = next.active as u32;
+            let len = next
+                .shape_text_on_slide(slide, &tc.shape_id)?
+                .chars()
+                .count();
+            tc.offset = tc.offset.min(len);
+            Some(tc)
+        });
         *self = next;
         Ok(())
     }
@@ -366,9 +377,27 @@ impl PptxState {
                 .unwrap_or_default();
             (slide, id, text)
         };
-        let Some(next) = edit_plain(&text, text.len(), key) else {
+        // Use text_caret position for this shape; fall back to end of text (#561 insertion fix).
+        let caret_cp = self
+            .text_caret
+            .as_ref()
+            .filter(|tc| tc.shape_id == id)
+            .map(|tc| tc.offset)
+            .unwrap_or_else(|| text.chars().count());
+        let byte_off = text
+            .char_indices()
+            .nth(caret_cp)
+            .map(|(i, _)| i)
+            .unwrap_or(text.len());
+        let Some(next) = edit_plain(&text, byte_off, key) else {
             return Ok(false);
         };
+        let new_cp = match key {
+            "Backspace" => caret_cp.saturating_sub(1),
+            "Delete" => caret_cp.min(next.chars().count()),
+            _ => caret_cp + 1,
+        };
+        let id_for_caret = id.clone();
         let spec = serde_json::json!({
             "command": "setShapeText",
             "slideIndex": slide,
@@ -376,7 +405,52 @@ impl PptxState {
             "text": next,
         });
         self.apply_raw_edit(&spec.to_string())?;
+        self.text_caret = Some(crate::pptx::PptxTextCaret {
+            shape_id: id_for_caret,
+            offset: new_cp,
+        });
         Ok(true)
+    }
+
+    /// Replace the range [min(off1,off2), max(off1,off2)) in a shape's text with `ch`,
+    /// atomically as a single undo step (#561).
+    /// Returns the new caret position `[shape_id, from+1]`.
+    pub(crate) fn replace_range_with_char(
+        &mut self,
+        shape_id: &str,
+        off1: usize,
+        off2: usize,
+        ch: char,
+    ) -> Result<serde_json::Value, String> {
+        let slide = self
+            .edit
+            .as_ref()
+            .map(|e| e.selection.slide_index)
+            .unwrap_or(self.active as u32);
+        let text = self
+            .shape_text_on_slide(slide, shape_id)
+            .ok_or_else(|| format!("shape {} not found", shape_id))?;
+        let cps: Vec<char> = text.chars().collect();
+        let from = off1.min(off2).min(cps.len());
+        let to = off1.max(off2).min(cps.len());
+        let new_text: String = cps[..from]
+            .iter()
+            .chain(std::iter::once(&ch))
+            .chain(&cps[to..])
+            .collect();
+        let spec = serde_json::json!({
+            "command": "setShapeText",
+            "slideIndex": slide,
+            "elementId": shape_id,
+            "text": new_text,
+        });
+        self.apply_raw_edit(&spec.to_string())?;
+        let new_offset = from + 1;
+        self.text_caret = Some(crate::pptx::PptxTextCaret {
+            shape_id: shape_id.to_owned(),
+            offset: new_offset,
+        });
+        Ok(serde_json::json!([shape_id, new_offset]))
     }
 
     pub fn ribbon_html(&self) -> String {
@@ -678,6 +752,70 @@ fn shape_plain(el: &nitro_xml_pptx::edit::host::EditableElement) -> String {
     el.text_segments.iter().map(|s| s.text.as_str()).collect()
 }
 
+impl PptxState {
+    /// Return the flat text of a shape on the current active slide.
+    pub(crate) fn shape_text_on_slide(&self, slide: u32, shape_id: &str) -> Option<String> {
+        self.edit
+            .as_ref()
+            .and_then(|e| e.session.host.slide(slide).ok())
+            .and_then(|s| s.elements.iter().find(|e| e.id == shape_id))
+            .map(shape_plain)
+    }
+
+    /// Set or update the pptx text caret, clamped to the shape text length.
+    /// Returns `[shape_id, clamped_offset]` as a JSON value.
+    pub(crate) fn set_text_caret(&mut self, shape_id: &str, offset: usize) -> serde_json::Value {
+        let slide = self
+            .edit
+            .as_ref()
+            .map(|e| e.selection.slide_index)
+            .unwrap_or(self.active as u32);
+        let text = self
+            .shape_text_on_slide(slide, shape_id)
+            .unwrap_or_default();
+        let clamped = offset.min(text.chars().count());
+        self.text_caret = Some(crate::pptx::PptxTextCaret {
+            shape_id: shape_id.to_owned(),
+            offset: clamped,
+        });
+        serde_json::json!([shape_id, clamped])
+    }
+
+    /// Delete the character range `[from, to)` within a shape's text.
+    /// Returns the new caret position `[shape_id, from]`.
+    pub(crate) fn delete_text_range(
+        &mut self,
+        shape_id: &str,
+        off1: usize,
+        off2: usize,
+    ) -> Result<serde_json::Value, String> {
+        let slide = self
+            .edit
+            .as_ref()
+            .map(|e| e.selection.slide_index)
+            .unwrap_or(self.active as u32);
+        let text = self
+            .shape_text_on_slide(slide, shape_id)
+            .ok_or_else(|| format!("shape {} not found", shape_id))?;
+        let cps: Vec<char> = text.chars().collect();
+        let from = off1.min(off2).min(cps.len());
+        let to = off1.max(off2).min(cps.len());
+        let new_text: String = cps[..from].iter().chain(&cps[to..]).collect();
+        let spec = serde_json::json!({
+            "command": "setShapeText",
+            "slideIndex": slide,
+            "elementId": shape_id,
+            "text": new_text,
+        });
+        self.apply_raw_edit(&spec.to_string())?;
+        self.text_caret = Some(crate::pptx::PptxTextCaret {
+            shape_id: shape_id.to_owned(),
+            offset: from,
+        });
+        Ok(serde_json::json!([shape_id, from]))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -710,5 +848,35 @@ mod tests {
             refs_after_open + 1,
             "ensure_edit must retain one more Arc ref on the package, not a duplicate Vec"
         );
+    }
+
+    #[test]
+    fn catches_refresh_view_dropping_pptx_text_caret() {
+        // Catches: refresh_view resetting text_caret to None so typing/Backspace after
+        // replace_range_with_char or mid-box type_key jumps to the end of the shape (#561).
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../demo/samples/deck.pptx");
+        let bytes: Arc<[u8]> = Arc::from(std::fs::read(&path).expect("deck.pptx"));
+        let mut state = PptxState::open(Arc::clone(&bytes)).expect("open");
+        state.ensure_edit(&bytes).expect("ensure_edit");
+        let shape_id = "ppt/slides/slide1.xml-shape-0";
+        state.selected_ids = vec![shape_id.to_owned()];
+        state
+            .replace_range_with_char(shape_id, 0, 4, 'Q')
+            .expect("replace");
+        state.refresh_view(&bytes).expect("refresh_view");
+        assert_eq!(
+            state.shape_text_on_slide(0, shape_id).as_deref(),
+            Some("Qo XML")
+        );
+        assert_eq!(state.text_caret.as_ref().map(|c| c.offset), Some(1));
+        assert!(state
+            .type_key("Backspace", false, false, false)
+            .expect("bs"));
+        state.refresh_view(&bytes).expect("refresh_view 2");
+        assert_eq!(
+            state.shape_text_on_slide(0, shape_id).as_deref(),
+            Some("o XML")
+        );
+        assert_eq!(state.text_caret.as_ref().map(|c| c.offset), Some(0));
     }
 }

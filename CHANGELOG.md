@@ -16,6 +16,9 @@
   At that point text ranges, XLSX values and PPTX shape fields were incomplete;
   XLSX values and PPTX shape fields are now filled (above), and text ranges
   remain open in #561. No runtime API change.
+- DOCX `scrollToText(text, { occurrence, matchCase, select })` finds and reveals text without taking focus (#568).
+- `save()` commits pending cell/text input and IME composition before serialization (#572).
+- PPTX typing extends authored runs and empty placeholders without replacing inherited styles with defaults (#569).
 
 ### Known limits (v0.2.0)
 

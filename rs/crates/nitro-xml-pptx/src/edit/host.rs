@@ -435,7 +435,11 @@ fn editable_from_dump(el: &DumpElement) -> EditableElement {
         y_emu: el.y_emu,
         width_emu: el.width_emu,
         height_emu: el.height_emu,
-        text: el.text.clone(),
+        // Viewer text includes painted bullet markers. Seed editing from the
+        // authored runs so typing and sibling edits cannot serialize markers.
+        text: editor
+            .map(|e| e.segments.iter().map(|s| s.text.as_str()).collect())
+            .or_else(|| el.text.clone()),
         text_style,
         text_segments,
         // Resolved theme paints stay off the editor model (gen-pptx has no authored

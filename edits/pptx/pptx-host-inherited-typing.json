@@ -1,0 +1,10 @@
+{
+  "id": "pptx-host-inherited-typing",
+  "format": "pptx",
+  "fixture": "host-inherited-style",
+  "description": "Typing into an empty placeholder and continuing an existing paragraph preserves inherited run styling (#569)",
+  "ops": [
+    { "op": "setShapeText", "slideIndex": 0, "elementIndex": 0, "text": "Typed title" },
+    { "op": "setShapeText", "slideIndex": 0, "elementIndex": 1, "text": "Inherited body extended\nNew paragraph" }
+  ]
+}

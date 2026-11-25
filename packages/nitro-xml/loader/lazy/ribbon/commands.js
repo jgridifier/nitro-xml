@@ -217,6 +217,7 @@ const view = (format) => [
   {
     g: "Show",
     big: [
+      ...(format === "docx" ? [{ i: "navPane", l: "Navigation", t: "Show or hide the Navigation pane (Ctrl+F)", p: 1, nv: 1 }] : []),
       ...(format === "pptx" ? [{ i: "slides", l: "Slide pane", t: "Show or hide the slide pane", s: 1, p: 1 }] : []),
       { i: "diag", l: "Diagnostics", t: "Show or hide load diagnostics", o: "diagnostics-toggle", p: 1, d: 1 },
     ],

@@ -110,6 +110,7 @@ ${
 }
 <div class="body" role="main" aria-label="${esc(app.name)} document">
   ${o.format === "pptx" && full ? `<aside class="pane" aria-label="Slide thumbnails" hidden><h2>Slides</h2><div class="pl" role="list"></div></aside>` : ""}
+  ${o.format === "docx" && full ? `<aside class="nav-pane" aria-label="Navigation" hidden></aside>` : ""}
   <div class="stage"><div class="over" hidden></div></div>
 </div>
 <div class="foot" role="region" aria-label="Status">
@@ -177,6 +178,7 @@ ${
       } else if (it.x) on = findOpen;
       else if (it.d) on = diagOpen;
       else if (it.s) on = !$(".pane").dataset.off;
+      else if (it.nv) on = !($(".nav-pane")?.hidden ?? true);
       b.disabled = dis;
       if (it.p) b.setAttribute("aria-pressed", String(on));
     }
@@ -242,6 +244,7 @@ ${
     if (t.dataset.k) {
       const it = byKey.get(t.dataset.k);
       if (it.m) return dropdown(dm.hidden || dm._for !== t, false, t, it);
+      if (it.nv) return void navToggle();
       if (it.s) return paneToggle();
       if (it.c) return void (group(null), act("cmd", it.c));
       return void (group(null), act(it.x && t.getAttribute("aria-pressed") === "true" ? it.x : it.o, it.a));
@@ -322,6 +325,27 @@ ${
     if (!pane) return;
     if (pane.dataset.off) delete pane.dataset.off;
     else pane.dataset.off = "1";
+    sync();
+  }
+  let navController = null;
+  async function navToggle(openToTab) {
+    const np = $(".nav-pane");
+    if (!np) return;
+    const opening = np.hidden;
+    np.hidden = !opening;
+    if (opening) {
+      if (!navController) {
+        const { mountNavPane } = await import("../docx-nav.js");
+        const actNav = async (op, arg) => {
+          const r = await act(op, arg);
+          if (!r) return null;
+          try { return typeof r === "string" ? JSON.parse(r) : r; } catch { return null; }
+        };
+        navController = mountNavPane({ pane: np, el: o.el, act: actNav });
+      }
+      if (openToTab === "Results") navController.focusSearch();
+      else if (openToTab) navController.switchTo(openToTab, true);
+    }
     sync();
   }
   function selectTab(name, focus) {
@@ -405,6 +429,17 @@ ${
       n.focus();
     }
   });
+  if (o.format === "docx" && full) {
+    const ctrlFHandler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f" && root.isConnected) {
+        e.preventDefault();
+        e.stopPropagation();
+        void navToggle("Results");
+      }
+    };
+    document.addEventListener("keydown", ctrlFHandler, true);
+    root._ctrlFCleanup = () => document.removeEventListener("keydown", ctrlFHandler, true);
+  }
   let cur = null;
   function rove() {
     const l = $$(".rbn .rb").filter((b) => !b.hidden && !b.disabled && b.offsetParent);
@@ -664,6 +699,8 @@ ${
       thumbSize && thumbSize.disconnect();
       thumbs && thumbs.stop();
       removeEventListener("beforeunload", warn);
+      root._ctrlFCleanup && root._ctrlFCleanup();
+      navController && navController.destroy();
       mo.disconnect();
       rv.disconnect();
       root.remove();

@@ -64,4 +64,5 @@ export const ICONS = {
   font: '<path d="M5 19L11 5h2l6 14M7.5 14h9"/><path class="a" d="M16 5h3"/>',
   style: '<path d="M6 18l4-12h2l4 12"/><path class="a" d="M8 13h6"/>',
   pageBreak: '<path d="M6 4h12v7H6zM6 13h12v7H6z"/><path class="a" d="M4 12h16"/>',
+  navPane: '<rect x="3" y="4" width="18" height="16" rx="2"/><path class="a" d="M3 9h8v11H3z" fill="none"/><path d="M14 12h4M14 15.5h4M14 8.5h4"/>',
 };

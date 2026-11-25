@@ -41,6 +41,8 @@ pub enum ShellAction {
         row: u32,
         col: u32,
     },
+    /// Return heading list for docx Navigation pane (#607). Intercepted in handle.rs match after apply_action.
+    NavHeadings,
 }
 
 impl ShellAction {
@@ -92,6 +94,7 @@ impl ShellAction {
                 let col = parts.next()?.parse().ok()?;
                 Some(Self::HyperlinkAt { sheet, row, col })
             }
+            "nav-headings" => Some(Self::NavHeadings),
             _ => None,
         }
     }
@@ -205,6 +208,9 @@ pub fn apply_action(state: &mut ShellState, action: &ShellAction) -> ShellAction
         ShellAction::HyperlinkAt { .. } => {
             // Pending link filled by handle.
             state.touch_ui();
+        }
+        ShellAction::NavHeadings => {
+            // No chrome mutation; result returned by handle.rs match arm after apply_action.
         }
     }
     out

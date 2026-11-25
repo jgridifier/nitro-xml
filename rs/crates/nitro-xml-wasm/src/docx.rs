@@ -211,6 +211,13 @@ impl DocxState {
         })
     }
 
+    /// Heading list for the Navigation pane (#607). Returns paragraphs with style Title/Heading1-3.
+    pub(crate) fn nav_headings_json(&self) -> serde_json::Value {
+        let mut out = Vec::new();
+        nav_walk_blocks(&self.session.model.blocks, &mut out);
+        serde_json::json!(out)
+    }
+
     pub(crate) fn hyperlinks_json(&self) -> Vec<serde_json::Value> {
         let paras = body_paragraphs(&self.session.model.blocks);
         let mut out = Vec::new();
@@ -296,6 +303,37 @@ fn walk_blocks(blocks: &[Value], out: &mut Vec<ParaRec>) {
                     }
                     if let Some(nested) = cell.get("nestedTables").and_then(|v| v.as_array()) {
                         walk_blocks(nested, out);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn nav_walk_blocks(blocks: &[Value], out: &mut Vec<serde_json::Value>) {
+    for block in blocks {
+        let ty = block.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        if ty == "paragraph" {
+            let style = block.get("style").and_then(|v| v.as_str()).unwrap_or("");
+            let level: i64 = match style {
+                "Title" => 0,
+                "Heading1" => 1,
+                "Heading2" => 2,
+                "Heading3" => 3,
+                _ => continue,
+            };
+            let id = block.get("id").and_then(|v| v.as_str()).unwrap_or("").to_owned();
+            let text = paragraph_plain(block);
+            out.push(serde_json::json!({ "id": id, "level": level, "text": text }));
+        } else if ty == "table" {
+            if let Some(rows) = block.get("rows").and_then(|v| v.as_array()) {
+                for row in rows {
+                    if let Some(cells) = row.as_array() {
+                        for cell in cells {
+                            if let Some(paras) = cell.get("paragraphs").and_then(|v| v.as_array()) {
+                                nav_walk_blocks(paras, out);
+                            }
+                        }
                     }
                 }
             }

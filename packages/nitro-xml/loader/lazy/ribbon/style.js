@@ -117,6 +117,51 @@ display:flex;flex-direction:column;width:100%;height:100%;min-height:0;backgroun
 .pane button[aria-current=true]{background:color-mix(in srgb,var(--acc) 12%,transparent)}
 .pane button[aria-current=true] .th{border:2px solid var(--acc)}
 .pane button[aria-current=true] .n{color:var(--acc);font-weight:600}
+.nav-pane{flex:none;width:230px;display:flex;flex-direction:column;min-height:0;background:var(--tabs);border-right:1px solid var(--bd);overflow:hidden}
+.nav-pane[hidden]{display:none}
+.nav-tabs{display:flex;flex:none;border-bottom:1px solid var(--bd)}
+.nav-tab{all:unset;box-sizing:border-box;flex:1;padding:8px 4px;text-align:center;font-size:12px;cursor:pointer;color:var(--mut);white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
+.nav-tab:hover{color:var(--fg)}
+.nav-tab[aria-selected=true]{color:var(--acc);font-weight:600;border-bottom-color:var(--acc)}
+.nav-tab:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.nav-panels{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.nav-panel{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+.nav-panel[hidden]{display:none}
+.nav-panel[hidden]{display:none}
+.nav-empty{padding:16px 12px;color:var(--mut);font-size:12px;line-height:1.5;text-align:center}
+.nav-h-item{all:unset;box-sizing:border-box;display:flex;align-items:center;width:100%;padding:5px 10px;cursor:pointer;font-size:12.5px;color:var(--fg);line-height:1.4}
+.nav-h-item:hover{background:var(--hov)}
+.nav-h-item[aria-current=true]{background:color-mix(in srgb,var(--acc) 10%,transparent);color:var(--acc);font-weight:600}
+.nav-h-item:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.nav-h-item[data-lv="0"]{font-size:13px;font-weight:600}
+.nav-h-item[data-lv="1"]{padding-left:10px}
+.nav-h-item[data-lv="2"]{padding-left:22px;font-size:12px}
+.nav-h-item[data-lv="3"]{padding-left:34px;font-size:11.5px;color:var(--mut)}
+.nav-h-item[data-lv="3"][aria-current=true]{color:var(--acc)}
+.nav-pg-item{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;cursor:pointer;font-size:12.5px;color:var(--fg)}
+.nav-pg-item:hover{background:var(--hov)}
+.nav-pg-item[aria-current=true]{background:color-mix(in srgb,var(--acc) 10%,transparent);font-weight:600;color:var(--acc)}
+.nav-pg-item:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.nav-pg-item .n{width:22px;text-align:right;color:var(--mut);font-variant-numeric:tabular-nums;font-size:11.5px;flex:none}
+.nav-pg-item[aria-current=true] .n{color:var(--acc)}
+.nav-srch{padding:8px}
+.nav-srch input{all:unset;box-sizing:border-box;width:100%;height:28px;padding:0 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--bg);color:var(--fg);font:12.5px/1 var(--fnt)}
+.nav-srch input::placeholder{color:var(--mut)}
+.nav-srch input:focus{outline:2px solid var(--acc);outline-offset:1px}
+.nav-srch-row{display:flex;align-items:center;gap:4px;padding:0 8px 4px}
+.nav-srch-row button{all:unset;box-sizing:border-box;display:grid;place-items:center;width:24px;height:24px;border-radius:var(--r);cursor:pointer;color:var(--mut)}
+.nav-srch-row button:hover:not(:disabled){background:var(--hov);color:var(--fg)}
+.nav-srch-row button:disabled{opacity:.4;cursor:default}
+.nav-srch-row button:focus-visible{outline:2px solid var(--acc);outline-offset:-1px}
+.nav-srch-row svg{width:16px;height:16px}
+.nav-srch-st{flex:1;font-size:11.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-res-list{padding:4px 0}
+.nav-res-item{all:unset;box-sizing:border-box;display:block;width:100%;padding:5px 10px;cursor:pointer;font-size:12px;color:var(--fg);line-height:1.4}
+.nav-res-item:hover{background:var(--hov)}
+.nav-res-item[aria-current=true]{background:color-mix(in srgb,var(--acc) 10%,transparent)}
+.nav-res-item:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.nav-res-item mark{background:color-mix(in srgb,var(--acc) 20%,transparent);color:inherit;border-radius:2px}
+@container ox (max-width:560px){.nav-pane{display:none}}
 .stage{flex:1;min-width:0;min-height:0;display:flex;position:relative}
 .stage>*:not(.over){flex:1;min-width:0}
 .over{position:absolute;inset:0;z-index:20;display:grid;place-items:center;padding:24px;background:var(--canvas);overflow:auto}
@@ -222,4 +267,4 @@ export const SHADOW_CSS = `
 /** Page-style formats sit on a gray canvas like Word's; slides and grids keep the document background. */
 // .dve-print-pages width:fit-content lets margin:0 auto (set by WASM) center pages in the scroll host.
 // Without it, the flex container stretches to 100% and auto margins have no effect.
-export const CANVAS_CSS = ":host{background:var(--ox-canvas,#e6e6e6)}.v{background:var(--ox-canvas,#e6e6e6)}canvas{background:transparent!important}.dve-print-pages{width:fit-content;padding:24px 48px;box-sizing:content-box}";
+export const CANVAS_CSS = ":host{background:var(--ox-canvas,#e6e6e6)}.v{background:var(--ox-canvas,#e6e6e6)}canvas{background:transparent!important}.dve-print-pages{width:fit-content;padding:24px 48px;box-sizing:content-box}.chrome .f{display:none!important}";

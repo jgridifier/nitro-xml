@@ -796,6 +796,16 @@ impl Handle {
             | ShellAction::ZoomIn
             | ShellAction::ZoomOut
             | ShellAction::ZoomSet(_) => {}
+            ShellAction::NavHeadings => {
+                let headings = if let Some(docx) = self.docx.as_ref() {
+                    docx.nav_headings_json()
+                } else {
+                    serde_json::json!([])
+                };
+                let mut out = serde_json::Map::new();
+                out.insert("headings".into(), headings);
+                return Ok(serde_json::Value::Object(out).to_string());
+            }
             _ => {}
         }
         if let Some(idx) = result.navigate_sheet {

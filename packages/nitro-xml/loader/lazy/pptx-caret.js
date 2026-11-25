@@ -54,16 +54,16 @@ export function attach(el) {
   // ---- DOM helpers ----
 
   const shapeOf = (node) => {
-    const el = node.closest && node.closest('[data-pptx-kind="text"]');
-    return dom.contains(el) ? el : null;
+    const el = node.closest && node.closest('[data-pptx-kind="text"], [data-pptx-kind="shape"]');
+    return el && dom.contains(el) ? el : null;
   };
 
   const parasOf = (shapeEl) => Array.from(shapeEl.querySelectorAll(".pptxv-para"));
 
-  /** All text spans in a paragraph. */
+  /** All text spans in a paragraph (excluding generated bullet markers). */
   const spansOf = (paraEl) =>
     Array.from(paraEl.querySelectorAll("span")).filter(
-      (s) => s.firstChild && s.firstChild.nodeType === 3
+      (s) => !s.hasAttribute("data-pptx-bullet-marker") && s.firstChild && s.firstChild.nodeType === 3
     );
 
   /** Count code points in UTF-16 string s up to utf16Off. */
@@ -141,7 +141,7 @@ export function attach(el) {
     }
     // After all text: end of last span
     const allSpans = Array.from(shapeEl.querySelectorAll(".pptxv-para span")).filter(
-      (s) => s.firstChild && s.firstChild.nodeType === 3
+      (s) => !s.hasAttribute("data-pptx-bullet-marker") && s.firstChild && s.firstChild.nodeType === 3
     );
     if (!allSpans.length) return null;
     const last = allSpans[allSpans.length - 1];
@@ -194,7 +194,8 @@ export function attach(el) {
     const hits = sr.elementsFromPoint(x, y);
     for (const el of hits) {
       if (!dom.contains(el)) continue;
-      const actualSpan = el.tagName === "SPAN" && el.firstChild && el.firstChild.nodeType === 3 ? el : null;
+      const actualSpan = el.tagName === "SPAN" && !el.hasAttribute("data-pptx-bullet-marker") &&
+        el.firstChild && el.firstChild.nodeType === 3 ? el : null;
       if (!actualSpan) continue;
       const shapeEl = shapeOf(actualSpan);
       if (!shapeEl) continue;
@@ -208,8 +209,9 @@ export function attach(el) {
     }
     // Fallback: find nearest span by Y distance, breaking ties on the same line by X distance.
     let best = null, bd = Infinity;
-    for (const shapeEl of dom.querySelectorAll('[data-pptx-kind="text"]')) {
-      for (const span of shapeEl.querySelectorAll('.pptxv-para > span')) {
+    for (const shapeEl of dom.querySelectorAll('[data-pptx-kind="text"], [data-pptx-kind="shape"]')) {
+      for (const span of shapeEl.querySelectorAll('.pptxv-para span')) {
+        if (span.hasAttribute("data-pptx-bullet-marker")) continue;
         const tn = span.firstChild;
         if (!tn || tn.nodeType !== 3) continue;
         const r = span.getBoundingClientRect();
@@ -233,7 +235,7 @@ export function attach(el) {
 
   /** Find the shape element for a given shapeId. */
   const shapeElOf = (shapeId) =>
-    dom.querySelector(`[data-pptx-kind="text"][data-element-id="${CSS.escape(shapeId)}"]`);
+    dom.querySelector(`[data-element-id="${CSS.escape(shapeId)}"]`);
 
   // ---- Caret placement ----
 
@@ -372,15 +374,40 @@ export function attach(el) {
     if (!shapeEl) return "";
     const from = Math.min(anchor.offset, caret.offset);
     const to = Math.max(anchor.offset, caret.offset);
-    const sp = shapeToDomPos(shapeEl, from);
-    const ep = shapeToDomPos(shapeEl, to);
-    if (!sp || !ep) return "";
-    try {
-      const r = document.createRange();
-      r.setStart(sp.node, sp.utf16Off);
-      r.setEnd(ep.node, ep.utf16Off);
-      return r.toString();
-    } catch (_) { return ""; }
+    const parts = [];
+    let off = 0;
+    for (const para of parasOf(shapeEl)) {
+      const spans = spansOf(para);
+      let pLen = 0;
+      for (const s of spans) pLen += cpLen(s.firstChild.data);
+      const pStart = off;
+      const pEnd = off + pLen;
+      off = pEnd + 1;
+      if (pEnd < from || pStart > to) continue;
+      if (pLen === 0) {
+        if (from <= pStart && to > pStart) parts.push("");
+        continue;
+      }
+      if ((pEnd === from && to > pEnd) || (pStart === to && from < pStart)) {
+        parts.push("");
+        continue;
+      }
+      let chunk = "";
+      let sOff = pStart;
+      for (const s of spans) {
+        const t = s.firstChild.data;
+        const n = cpLen(t);
+        if (sOff + n > from && sOff < to) {
+          chunk += t.slice(
+            cpToUtf16(t, Math.max(0, from - sOff)),
+            cpToUtf16(t, Math.min(n, to - sOff)),
+          );
+        }
+        sOff += n;
+      }
+      parts.push(chunk);
+    }
+    return parts.join("\n");
   };
 
   const selArg = () => {

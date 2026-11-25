@@ -2,6 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { rangeOf } from "../lazy/input-proxy.js";
+import { charOffsetToRunPos, shapeOffsetToParaRunPos } from "../lazy/s.js";
 
 describe("getSelection() shape mapping", () => {
   it("rangeOf maps single cell to 1×1 block (xlsxSel count gate)", () => {
@@ -54,5 +55,31 @@ describe("getSelection() shape mapping", () => {
     const r2 = rangeOf("A1:K1000"); // 11 cols × 1000 rows = 11000
     const count2 = (r2.r1 - r2.r0 + 1) * (r2.c1 - r2.c0 + 1);
     assert.equal(count2 > VALUES_CAP, true, "11000 cells MUST be truncated");
+  });
+
+  it("charOffsetToRunPos maps docx cross-run offsets to run-local indices", () => {
+    // Catches: docx getSelection() hardcoding run=0 instead of mapping across runs (#615).
+    const runs = [4, 2, 6, 5, 10, 28]; // "Bold" ", " "italic" " and " "underlined" " runs..."
+    assert.deepEqual(charOffsetToRunPos(0, runs, true), { run: 0, offset: 0 });
+    assert.deepEqual(charOffsetToRunPos(27, runs, false), { run: 4, offset: 10 });
+    // Internal boundary attaches start to the following run and end to the preceding run.
+    assert.deepEqual(charOffsetToRunPos(4, runs, true), { run: 1, offset: 0 });
+    assert.deepEqual(charOffsetToRunPos(4, runs, false), { run: 0, offset: 4 });
+    assert.deepEqual(charOffsetToRunPos(6, runs, true), { run: 2, offset: 0 });
+    assert.deepEqual(charOffsetToRunPos(12, runs, false), { run: 2, offset: 6 });
+    // Empty runs are skipped cleanly.
+    assert.deepEqual(charOffsetToRunPos(0, [0, 4, 2], true), { run: 1, offset: 0 });
+    assert.deepEqual(charOffsetToRunPos(4, [0, 4, 2], false), { run: 1, offset: 4 });
+  });
+
+  it("shapeOffsetToParaRunPos maps pptx multi-paragraph cross-run offsets", () => {
+    // Catches: pptx getSelection() hardcoding paragraph=0 and run=0 (#615).
+    const paras = [[], [21, 1, 2], [4, 1, 6, 1, 9, 1, 11, 1, 9]];
+    // Paragraph 2 starts at offset 0 + 1('\n') + 24 + 1('\n') = 26.
+    assert.deepEqual(shapeOffsetToParaRunPos(26, paras, true), { paragraph: 2, run: 0, offset: 0 });
+    // "Bold italic underline" ends at 26 + 4 + 1 + 6 + 1 + 9 = 47 -> run 4, offset 9.
+    assert.deepEqual(shapeOffsetToParaRunPos(47, paras, false), { paragraph: 2, run: 4, offset: 9 });
+    // Single-paragraph single-run shape ("Nitro XML").
+    assert.deepEqual(shapeOffsetToParaRunPos(4, [[9]], false), { paragraph: 0, run: 0, offset: 4 });
   });
 });

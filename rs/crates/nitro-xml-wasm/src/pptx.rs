@@ -7,8 +7,8 @@ use crate::events::{Event, MOD_CTRL, MOD_META, MOD_SHIFT};
 use crate::shell::{push_text_hits, FindMatch};
 use crate::transport::StringTable;
 use nitro_xml_pptx::render::{
-    contains_id, copy_text, fit_slide_scale, hit_top_level, top_level_ids, SpAutofitPaintState,
-    StringIntern,
+    contains_id, copy_text, fit_slide_scale, hit_top_level, shape_paragraph_run_lens,
+    top_level_ids, SpAutofitPaintState, StringIntern,
 };
 use nitro_xml_pptx::{paint_slide_frame, Presentation, SlidePaintViewport};
 use serde_json::{json, Value};
@@ -132,7 +132,8 @@ impl PptxState {
     }
 
     /// Host selection snapshot of one top-level element on the active slide (#561):
-    /// `{ "shapeId", "shapeName", "shapeText" }`, or `{}` when the id is not on the slide.
+    /// `{ "shapeId", "shapeName", "shapeText", "paragraphs" }`, or `{}` when the id is not on the slide.
+    /// `paragraphs` is `[[runLen, ...], ...]` (code-point length per run per paragraph).
     pub fn host_shape(&mut self, id: &str) -> Value {
         let active = self.active;
         let Ok(slide) = self.pres.slide(active) else {
@@ -145,6 +146,7 @@ impl PptxState {
             "shapeId": el.id,
             "shapeName": el.name,
             "shapeText": copy_text(slide, &[id.to_owned()]),
+            "paragraphs": shape_paragraph_run_lens(slide, id),
         })
     }
 

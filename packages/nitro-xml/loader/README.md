@@ -223,8 +223,10 @@ const sel = await viewer.getSelection();
 | xlsx | `{ format, sheet, sheetIndex, range, anchor, values[][], truncated }` — stored values (number, string, boolean, error text, `null`); at most 10 000 cells, whole rows dropped past that with `truncated:true` |
 | pptx | `{ format, slide, shapeId, shapeName, text, textRange, collapsed }` — clicked shape: whole `text`, `textRange:null`, `collapsed:true`; drag/Shift+Arrow within a text box: `textRange:{text,start,end}`, `collapsed:false`; nothing selected: `null` shape fields |
 
-DOCX offsets count code points from the paragraph start (`run` is `0`). Reading
-the selection never marks the document dirty. No `nitro-selectionchange` event is emitted.
+DOCX and PPTX `start`/`end` positions report `{ paragraph, run, offset }` with
+zero-based `paragraph`, `run` within that paragraph, and code-point `offset`
+within that run. Reading the selection never marks the document dirty. No
+`nitro-selectionchange` event is emitted.
 
 **Copy-paste example (docx):**
 

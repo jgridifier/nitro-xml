@@ -58,8 +58,8 @@ pub use field_substitution::FieldSubstitutionContext;
 pub use print::print_slide_html;
 pub use raster_export::export_slide_png;
 pub use selection::{
-    contains_id, copy_text, handle_centers, hit_top_level, rotate_about, top_level_ids,
-    SelectionBox, HANDLE_PX, RESIZE_HANDLES, ROTATE_STEM_PX,
+    contains_id, copy_text, handle_centers, hit_top_level, rotate_about, shape_paragraph_run_lens,
+    top_level_ids, SelectionBox, HANDLE_PX, RESIZE_HANDLES, ROTATE_STEM_PX,
 };
 pub use smartart3d::paint as paint_smartart3d;
 pub use svg_export::export_slide_svg;

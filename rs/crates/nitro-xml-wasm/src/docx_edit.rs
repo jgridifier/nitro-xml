@@ -392,6 +392,14 @@ impl DocxState {
         ]))
     }
 
+    /// Code-point length of each run in the caret's paragraph (`getSelection()` run mapping).
+    pub fn caret_runs_json(&mut self) -> Option<Vec<usize>> {
+        let (bi, _, _) = self.caret_paragraph()?;
+        let edit = self.edit.as_ref()?;
+        let block = edit.session.host.blocks.get(bi)?;
+        Some(crate::docx::paragraph_run_lens(block))
+    }
+
     /// Place the caret from a pointer hit: `shown_before` rendered chars precede the click inside
     /// the block `block_id`, whose rendered text has `shown_total` chars. Rendered text can carry
     /// a list label ahead of the model text, which the length difference accounts for.

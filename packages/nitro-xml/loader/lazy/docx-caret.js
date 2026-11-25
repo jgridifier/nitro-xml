@@ -42,6 +42,8 @@ export function attach(el) {
   let anchor = null; // { bid, shown } - null = collapsed/no selection; same as caret = collapsed
   let caretK = null; // [bid, chars, model] from most recent Rust caret response
   let anchorK = null; // [bid, chars, model] when anchor was last synced
+  let caretRuns = null; // [len0, ...] code-point run lengths for caretK paragraph
+  let anchorRuns = null; // [len0, ...] code-point run lengths for anchorK paragraph
   let syncSeq = 0; // generation counter; stale async caret responses are discarded
   let lastDownAt = 0;
   let lastDownX = 0;
@@ -158,7 +160,7 @@ export function attach(el) {
       el._nxSel = null;
       return;
     }
-    el._nxSel = { anchorK, caretK, text: selText() };
+    el._nxSel = { anchorK, caretK, anchorRuns, caretRuns, text: selText() };
   };
 
   /** Build the sel-delete arg string "bid1:shown1:total1:bid2:shown2:total2". */
@@ -172,7 +174,7 @@ export function attach(el) {
 
   /** Clear selection, keeping just the caret. */
   const clearSel = () => {
-    anchor = null; anchorK = null; el._nxSel = null;
+    anchor = null; anchorK = null; anchorRuns = null; el._nxSel = null;
     drawHighlights();
   };
 
@@ -369,8 +371,10 @@ export function attach(el) {
     for (const a of bar.getAnimations()) { a.cancel(); a.play(); }
   };
 
-  const setFromK = (k, keepGoal) => {
+  const setFromK = (k, keepGoal, runs) => {
     caretK = k || null;
+    if (runs !== undefined) caretRuns = runs || null;
+    else if (!k || (caret && caret.bid !== k[0])) caretRuns = null;
     if (!keepGoal) goalX = null;
     if (!k) {
       caret = null;
@@ -391,8 +395,8 @@ export function attach(el) {
     const mySeq = ++syncSeq;
     const r = await el.shellAction("docx-caret", `${hit.bid}:${hit.shown}:${hit.total}`);
     const k = r && r.k;
-    if (syncSeq === mySeq) setFromK(k, true);
-    return k;
+    if (syncSeq === mySeq) setFromK(k, true, r && r.runs);
+    return r;
   };
 
   /** Move the caret to a hit result: optimistic overlay first, then the model. */
@@ -425,8 +429,10 @@ export function attach(el) {
     if (start === end && start < cps.length) end = start + 1;
     anchor = { bid: hit.bid, shown: start };
     anchorK = null;
+    anchorRuns = null;
     caret = { bid: hit.bid, shown: end };
     caretK = null;
+    caretRuns = null;
     lineStart = false;
     updateSel();
     place(true);
@@ -437,6 +443,7 @@ export function attach(el) {
     ]);
     if (syncSeq !== mySeq) return;
     anchorK = ra && ra.k;
+    anchorRuns = (ra && ra.runs) || null;
     if (ra && ra.k) {
       const [bid, chars, model] = ra.k;
       const { total: t } = shownIndex(bid);
@@ -444,6 +451,7 @@ export function attach(el) {
     }
     if (rc && rc.k) {
       caretK = rc.k;
+      caretRuns = (rc && rc.runs) || null;
       const [bid, chars, model] = rc.k;
       const { total: t } = shownIndex(bid);
       caret = { bid, shown: Math.max(0, t - model) + chars };
@@ -489,8 +497,10 @@ export function attach(el) {
         const { total } = shownIndex(hit.bid);
         anchor = { bid: hit.bid, shown: 0 };
         anchorK = null;
+        anchorRuns = null;
         caret = { bid: hit.bid, shown: total };
         caretK = null;
+        caretRuns = null;
         lineStart = false;
         updateSel();
         place(true);
@@ -503,7 +513,8 @@ export function attach(el) {
           ]);
           if (syncSeq !== mySeq) return;
           anchorK = ra && ra.k;
-          if (rc && rc.k) { caretK = rc.k; }
+          anchorRuns = (ra && ra.runs) || null;
+          if (rc && rc.k) { caretK = rc.k; caretRuns = (rc && rc.runs) || null; }
           updateSel();
           drawHighlights();
         })();
@@ -520,7 +531,7 @@ export function attach(el) {
 
       if (e.shiftKey && caret) {
         // Shift+click: extend selection, keep existing anchor (or pin at current caret)
-        if (!anchor) { anchor = { bid: caret.bid, shown: caret.shown }; anchorK = caretK; }
+        if (!anchor) { anchor = { bid: caret.bid, shown: caret.shown }; anchorK = caretK; anchorRuns = caretRuns; }
         caret = { bid: hit.bid, shown: hit.shown };
         updateSel(); drawHighlights(); place(true);
         void commit(hit).then(() => { drawHighlights(); updateSel(); });
@@ -531,11 +542,13 @@ export function attach(el) {
       const myAnchor = { bid: hit.bid, shown: hit.shown };
       anchor = myAnchor;
       anchorK = null;
+      anchorRuns = null;
       el._nxSel = null;
       v.setPointerCapture(e.pointerId);
-      void commit(hit).then((k) => {
-        if (anchor === myAnchor && k) {
-          anchorK = k;
+      void commit(hit).then((r) => {
+        if (anchor === myAnchor && r && r.k) {
+          anchorK = r.k;
+          anchorRuns = r.runs || null;
           updateSel();
         }
       });
@@ -570,7 +583,7 @@ export function attach(el) {
       v.releasePointerCapture(e.pointerId);
       // Simple click (no drag): anchor === caret, clear selection
       if (anchor && caret && anchor.bid === caret.bid && anchor.shown === caret.shown) {
-        anchor = null; anchorK = null; el._nxSel = null;
+        anchor = null; anchorK = null; anchorRuns = null; el._nxSel = null;
         drawHighlights();
       }
     },
@@ -625,6 +638,8 @@ export function attach(el) {
           caret = saved.caret;
           anchorK = saved.anchorK;
           caretK = saved.caretK;
+          anchorRuns = saved.anchorRuns;
+          caretRuns = saved.caretRuns;
           el._nxSel = saved.nxSel;
           updateSel();
           drawHighlights();
@@ -642,10 +657,12 @@ export function attach(el) {
             caret: caret ? { ...caret } : null,
             anchorK,
             caretK,
+            anchorRuns,
+            caretRuns,
             nxSel: el._nxSel ? { ...el._nxSel } : null,
           };
           const cr = await el.shellAction("docx-sel-replace", `${arg}:${ev.key.codePointAt(0)}`);
-          anchor = null; anchorK = null; el._nxSel = null;
+          anchor = null; anchorK = null; anchorRuns = null; el._nxSel = null;
           drawHighlights();
           if (cr && cr.k) { caretK = cr.k; setFromK(cr.k, false); }
           return { handled: true, k: cr && cr.k };
@@ -661,10 +678,12 @@ export function attach(el) {
             caret: caret ? { ...caret } : null,
             anchorK,
             caretK,
+            anchorRuns,
+            caretRuns,
             nxSel: el._nxSel ? { ...el._nxSel } : null,
           } : null;
           const dr = await el.shellAction("docx-sel-delete", arg);
-          anchor = null; anchorK = null; el._nxSel = null;
+          anchor = null; anchorK = null; anchorRuns = null; el._nxSel = null;
           drawHighlights();
           if (dr && dr.k) { caretK = dr.k; setFromK(dr.k, false); }
           if (isDelete) return { handled: true, k: dr && dr.k };
@@ -679,10 +698,11 @@ export function attach(el) {
 
       // Plain nav: clear selection; Shift+nav: set anchor before move
       if (isNavKey && anchor) {
-        anchor = null; anchorK = null; el._nxSel = null; drawHighlights();
+        anchor = null; anchorK = null; anchorRuns = null; el._nxSel = null; drawHighlights();
       } else if (isShiftArrow && caret && !anchor) {
         anchor = { bid: caret.bid, shown: caret.shown };
         anchorK = caretK;
+        anchorRuns = caretRuns;
       }
 
       const r = await orig(ev, mac);
@@ -734,7 +754,7 @@ export function attach(el) {
       const vertical = e.key === "ArrowUp" || e.key === "ArrowDown";
       reveal = true;
       // Clear selection on plain nav keys
-      if (anchor) { anchor = null; anchorK = null; el._nxSel = null; drawHighlights(); }
+      if (anchor) { anchor = null; anchorK = null; anchorRuns = null; el._nxSel = null; drawHighlights(); }
       void commit(hitLine(target, x)).then(() => {
         goalX = vertical ? x : null;
       });
@@ -783,6 +803,8 @@ export function attach(el) {
       caret = saved.caret;
       anchorK = saved.anchorK;
       caretK = saved.caretK;
+      anchorRuns = saved.anchorRuns;
+      caretRuns = saved.caretRuns;
       el._nxSel = saved.nxSel;
       drawHighlights();
       place(true);
@@ -795,9 +817,9 @@ export function attach(el) {
     if (op === "cmd" && editable()) preReplaceState = null;
     const r = await origAction(op, arg);
     if (op === "cmd" && editable()) {
-      anchor = null; anchorK = null; el._nxSel = null;
+      anchor = null; anchorK = null; anchorRuns = null; el._nxSel = null;
       const c = await origAction("docx-caret", "");
-      setFromK(c && c.k, false);
+      setFromK(c && c.k, false, c && c.runs);
     }
     return r;
   };

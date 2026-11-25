@@ -93,10 +93,10 @@ completes and after the user's selection gesture. No `nitro-selectionchange`
 event is emitted, and reading the selection never marks the document dirty.
 
 - **DOCX**: the caret position or a text range. Returns `start`/`end`
-  `{paragraph, run, offset}` (`offset` counts code points from paragraph start,
-  `run` is `0`). `collapsed: true` = caret only, `text: ""`; `collapsed: false`
-  = drag / Shift+Arrow selection with `text` filled. With no caret, `start`/`end`
-  are `null`.
+  `{paragraph, run, offset}` (zero-based paragraph, run within that paragraph,
+  and code-point offset within that run). `collapsed: true` = caret only,
+  `text: ""`; `collapsed: false` = drag / Shift+Arrow selection with `text`
+  filled. With no caret, `start`/`end` are `null`.
 - **XLSX**: `{format, sheet, sheetIndex, range, anchor, values, truncated}`.
   `values` holds the stored cell values row by row: numbers, strings, booleans,
   error text such as `"#DIV/0!"`, or `null` for an empty cell. At most 10,000

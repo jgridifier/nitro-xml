@@ -12,9 +12,12 @@ from pathlib import Path
 import os
 import sys
 import threading
+import xml.etree.ElementTree as ET
+import zipfile
 from playwright.sync_api import sync_playwright
 
-SITE = Path(__file__).resolve().parents[3] / "_site"
+ROOT = Path(__file__).resolve().parents[3]
+SITE = ROOT / "_site"
 def _chrome_path():
     env = os.environ.get("HOST_API_CHROME")
     if env:
@@ -250,6 +253,41 @@ def _hl_rects(page, hl_sel):
     }""", hl_sel)
 
 
+def _docx_para_runs(docx_path, para_index):
+    """Return [(text, frozenset_of_rPr_tags), ...] for the para_index-th <w:p> in document order."""
+    ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+    with zipfile.ZipFile(docx_path) as z:
+        doc = ET.fromstring(z.read('word/document.xml'))
+    all_ps = doc.findall('.//w:body//w:p', ns)
+    p = all_ps[para_index]
+    runs = []
+    for r in p.findall('.//w:r', ns):
+        txt = ''.join(t.text or '' for t in r.findall('w:t', ns))
+        rpr = r.find('w:rPr', ns)
+        fmt = frozenset(k.tag.split('}')[-1] for k in rpr) if rpr is not None else frozenset()
+        runs.append((txt, fmt))
+    return runs
+
+
+def _pptx_shape_para_runs(pptx_path, slide_xml, shape_index, para_index):
+    """Return [(text, {'b':..., 'i':..., 'u':...}), ...] for shape_index / para_index."""
+    ns = {
+        'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+        'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
+    }
+    with zipfile.ZipFile(pptx_path) as z:
+        slide = ET.fromstring(z.read(slide_xml))
+    sp = slide.findall('.//p:sp', ns)[shape_index]
+    p = sp.findall('.//a:p', ns)[para_index]
+    runs = []
+    for r in p.findall('a:r', ns):
+        txt = ''.join(t.text or '' for t in r.findall('a:t', ns))
+        rpr = r.find('a:rPr', ns)
+        attrs = dict(rpr.attrib) if rpr is not None else {}
+        runs.append((txt, {k: attrs.get(k) for k in ('b', 'i', 'u')}))
+    return runs
+
+
 def _assert_no_overlap_highlights(rects, context_label):
     assert len(rects) > 0, f'{context_label}: expected >= 1 highlight rect'
     for i in range(len(rects)):
@@ -425,7 +463,9 @@ def check_selection_s1(page, fmt):
         expect(tc_sel['textRange']['start']['offset'], 0, 'pptx triple-click start')
         expect(tc_sel['textRange']['end']['offset'], len('Nitro XML'), 'pptx triple-click end')
 
-    # --- 7. Selection crossing runs with different formatting (docx p10: bold + plain + italic + underlined) ---
+    # --- 7. Selection crossing runs with different formatting ---
+    # In notes.docx, block data-bid="p10" (11th top-level body block after p0..p7, table t8, p9)
+    # is the 22nd <w:p> in document order (paragraph index 21, counting the 12 table-cell <w:p>s).
     if fmt == 'docx':
         page.evaluate("""() => {
             const sr = document.querySelector('#viewer').shadowRoot;
@@ -450,7 +490,24 @@ def check_selection_s1(page, fmt):
         xr_sel = page.evaluate("document.querySelector('#viewer').getSelection()")
         print(f'  docx cross-run selection: {json.dumps(xr_sel)}', flush=True)
         assert xr_sel and xr_sel.get('collapsed') is False, 'docx cross-run selection must be non-collapsed'
-        assert 'Bold, italic and underlined' in xr_sel['text'], f'docx cross-run text mismatch: {xr_sel["text"]!r}'
+        expect(xr_sel['text'], 'Bold, italic and underlined', 'docx cross-run selected text')
+        expect(xr_sel['start']['paragraph'], 21, 'docx cross-run start paragraph (data-bid="p10" == document <w:p> 21)')
+        expect(xr_sel['end']['paragraph'], 21, 'docx cross-run end paragraph (data-bid="p10" == document <w:p> 21)')
+        assert xr_sel['start']['run'] != xr_sel['end']['run'], (
+            f'docx cross-run selection must cross runs: {xr_sel}'
+        )
+        docx_runs = _docx_para_runs(ROOT / 'demo/samples/notes.docx', 21)
+        s_run_txt, s_run_fmt = docx_runs[xr_sel['start']['run']]
+        e_run_txt, e_run_fmt = docx_runs[xr_sel['end']['run']]
+        expect(s_run_txt, 'Bold', 'docx cross-run start run text in notes.docx')
+        assert 'b' in s_run_fmt, f'docx start run must be bold, got {s_run_fmt}'
+        expect(xr_sel['start']['offset'], 0, 'docx cross-run start offset within Bold run')
+        expect(e_run_txt, 'underlined', 'docx cross-run end run text in notes.docx')
+        assert 'u' in e_run_fmt, f'docx end run must be underlined, got {e_run_fmt}'
+        expect(xr_sel['end']['offset'], len('underlined'), 'docx cross-run end offset within underlined run')
+        spanned = docx_runs[xr_sel['start']['run']:xr_sel['end']['run'] + 1]
+        expect(''.join(t for t, _ in spanned), 'Bold, italic and underlined', 'docx spanned fixture runs')
+        assert any('i' in f for _, f in spanned), f'docx spanned runs must include italic run: {spanned}'
         _assert_no_overlap_highlights(_hl_rects(page, hl_sel), 'docx cross-run')
         page.evaluate("""() => {
             const dom = document.querySelector('#viewer').shadowRoot.querySelector('.dom');
@@ -544,6 +601,65 @@ def check_selection_s1(page, fmt):
         f'{fmt} S1 dirty transitions unexpected: {ev_list}'
     )
     expect(page.evaluate("document.querySelector('#viewer').dirty"), True, f'{fmt} must still be dirty')
+
+    # --- 11. PPTX cross-run selection with different formatting (underlined '[' + '1]' -> plain ' This is a footnote.') ---
+    if fmt == 'pptx':
+        multi_pptx = ROOT / 'fixtures/real/pptx/poi-with_japanese.pptx'
+        page.evaluate(
+            """async (bytes) => {
+                const v = document.querySelector('#viewer');
+                await v.loadBuffer(new Uint8Array(bytes), 'poi-with_japanese.pptx');
+                await v.document.whenEditReady();
+            }""",
+            list(multi_pptx.read_bytes()),
+        )
+        page.locator('#viewer .dom [data-element-id="ppt/slides/slide1.xml-shape-6"] .pptxv-para span').first.wait_for(state='attached')
+        page.wait_for_timeout(300)
+        p_open = page.evaluate("""() => {
+            const sr = document.querySelector('#viewer').shadowRoot;
+            const sh = sr.querySelector('.dom [data-element-id="ppt/slides/slide1.xml-shape-6"]');
+            const el = sh && [...sh.querySelectorAll('.pptxv-para span')].find(s => s.textContent === '[');
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            return {x: r.left, y: r.top, width: r.width, height: r.height};
+        }""")
+        p_note = page.evaluate("""() => {
+            const sr = document.querySelector('#viewer').shadowRoot;
+            const sh = sr.querySelector('.dom [data-element-id="ppt/slides/slide1.xml-shape-6"]');
+            const el = sh && [...sh.querySelectorAll('.pptxv-para span')].find(s => s.textContent.includes('footnote'));
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            return {x: r.left, y: r.top, width: r.width, height: r.height};
+        }""")
+        assert p_open and p_note, 'pptx multi-run spans missing in poi-with_japanese.pptx shape-6'
+        page.mouse.move(p_open['x'] + 0.5, p_open['y'] + p_open['height'] / 2)
+        page.mouse.down()
+        page.mouse.move(p_note['x'] + p_note['width'] - 1, p_note['y'] + p_note['height'] / 2, steps=15)
+        page.mouse.up()
+        page.wait_for_timeout(500)
+        pxr_sel = page.evaluate("document.querySelector('#viewer').getSelection()")
+        print(f'  pptx cross-run selection: {json.dumps(pxr_sel)}', flush=True)
+        assert pxr_sel and pxr_sel.get('collapsed') is False, 'pptx cross-run selection must be non-collapsed'
+        expect(pxr_sel['shapeId'], 'ppt/slides/slide1.xml-shape-6', 'pptx cross-run shapeId')
+        tr = pxr_sel['textRange']
+        assert tr, f'pptx cross-run textRange missing: {pxr_sel}'
+        expect(tr['text'], '[1] This is a footnote.', 'pptx cross-run selected text')
+        expect(tr['start']['paragraph'], 0, 'pptx cross-run start paragraph')
+        expect(tr['end']['paragraph'], 0, 'pptx cross-run end paragraph')
+        assert tr['start']['run'] != tr['end']['run'], f'pptx cross-run must cross runs: {pxr_sel}'
+        pptx_runs = _pptx_shape_para_runs(multi_pptx, 'ppt/slides/slide1.xml', 6, 0)
+        ps_txt, ps_fmt = pptx_runs[tr['start']['run']]
+        pe_txt, pe_fmt = pptx_runs[tr['end']['run']]
+        expect(ps_txt, '[', 'pptx cross-run start run text')
+        expect(ps_fmt.get('u'), 'sng', 'pptx start run must be underlined')
+        expect(tr['start']['offset'], 0, 'pptx cross-run start offset within [ run')
+        expect(pe_txt, ' This is a footnote.', 'pptx cross-run end run text')
+        expect(pe_fmt.get('u'), 'none', 'pptx end run must be un-underlined')
+        expect(tr['end']['offset'], len(' This is a footnote.'), 'pptx cross-run end offset within footnote run')
+        spanned = pptx_runs[tr['start']['run']:tr['end']['run'] + 1]
+        expect(''.join(t for t, _ in spanned), '[1] This is a footnote.', 'pptx spanned fixture runs')
+        _assert_no_overlap_highlights(_hl_rects(page, hl_sel), 'pptx cross-run')
+
     print(f'  PASS {fmt}: S1 selection + HoP strict asserts', flush=True)
 
 

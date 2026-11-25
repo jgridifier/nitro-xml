@@ -232,6 +232,8 @@ These are upstream JS dependencies of M1 painters. Decisions live in `docs/adr/0
 | `rs/crates/nitro-xml-xlsx/src/view/number_fit.rs` | `src/core/xlsx/ui/grid/number-fit.ts` @ e66aaec | `fitNumber` via `format_value` width option. |
 | `rs/crates/nitro-xml-xlsx/src/view/css_font_family.rs` | `src/core/text/css-font-family.ts` @ e66aaec | Font fallback stacks for measure/CSS. |
 | `parity/visual/xlsx-grid-css.js` | `src/ui/src/xlsx/grid/styles.ts` (`GRID_CSS`) @ e66aaec | Visual-gate stylesheet for `<nitro-xlsx>` host (#150); not shipped in the loader. |
+| `packages/nitro-xml/styles/xlsx-grid.css` | `src/ui/src/xlsx/grid/styles.ts` (`GRID_CSS`) @ e66aaec | Shipped grid stylesheet (`nitro-xml/xlsx-grid.css`); same rules as the visual-gate copy. Not imported by the eager loader. |
+| `packages/nitro-xml/styles/xlsx-grid-css.js` | `src/ui/src/xlsx/grid/styles.ts` (`GRID_CSS`) @ e66aaec | Shipped ESM `GRID_CSS` export (`nitro-xml/xlsx-grid-css.js`); same content. Not imported by the eager loader. |
 | `rs/crates/nitro-xml-xlsx/src/render/drawings.rs` | `src/ui/src/xlsx/grid/drawings.ts` @ e66aaec | `.xg-drawings` layer: unsupported placeholders + chart SVG; image object-URL paint deferred to loader. |
 | `rs/crates/nitro-xml-xlsx/src/render/grid.rs` | `src/ui/src/xlsx/grid/grid-view.ts`, `grid-a11y.ts` @ e66aaec | Frame shell + `role=grid`/aria counts/live region (#42); full quadrants TODO(#19). |
 | `rs/crates/nitro-xml-xlsx/src/render/cells.rs` | `src/ui/src/xlsx/grid/cell-layer.ts` @ e66aaec | Cell DOM command buffer (`paintCell` parity); text geometry packed into one `style` attr; border/editor px via `intern_px` (#30). |

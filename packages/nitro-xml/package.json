@@ -42,6 +42,8 @@
       "import": "./pkg/nitro_xml_wasm.js"
     },
     "./nitro_xml_wasm_bg.wasm": "./pkg/nitro_xml_wasm_bg.wasm",
+    "./xlsx-grid.css": "./styles/xlsx-grid.css",
+    "./xlsx-grid-css.js": "./styles/xlsx-grid-css.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -54,6 +56,8 @@
     "loader/**/*.js",
     "loader/**/*.d.ts",
     "loader/README.md",
+    "styles/xlsx-grid.css",
+    "styles/xlsx-grid-css.js",
     "README.md",
     "LICENSE",
     "LICENSE-THIRD-PARTY",

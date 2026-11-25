@@ -45,6 +45,9 @@ npm install @nitro-xml/react react react-dom   # optional React host
   [`examples/vite-react/`](examples/vite-react/)
 - Eager loader must stay ≤ **17 408 B** brotli (`bash scripts/ci/bundle_budget.sh`).
   React code is a separate package so it cannot grow that budget.
+- Styling: the elements ship their own shadow CSS; optional Excel grid stylesheet
+  (`nitro-xml/xlsx-grid.css` / `GRID_CSS`) and theming notes are in
+  [`packages/nitro-xml/README.md#styling`](packages/nitro-xml/README.md#styling).
 
 ### React editing and host save
 

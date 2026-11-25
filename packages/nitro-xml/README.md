@@ -81,6 +81,92 @@ export default defineConfig({ worker: { format: "es" } });
 The host owns persistence; `save()` returns bytes and `onChange` reports saves.
 See the [0.2.0 changes and known limits](https://github.com/jgridifier/nitro-xml/blob/main/CHANGELOG.md#020--2026-11-20) in the CHANGELOG, and the [0.1.0 release notes](https://github.com/jgridifier/nitro-xml/blob/main/docs/releases/0.1.0.md) for earlier limits and known losses.
 
+## Styling
+
+`<nitro-docx>`, `<nitro-xlsx>` and `<nitro-pptx>` style themselves inside an
+open shadow root. There is no stylesheet the eager loader imports, and you do
+not need one for the element chrome to appear:
+
+- Base CSS is inlined from `_css()` in `loader/element.js` (shell elements use
+  `:host { display: flex; flex-direction: column; min-height: 12rem; }`).
+- The Rust/WASM renderer emits grid classes (`xg-*`) and inline styles.
+- The ribbon skin is compiled into the WASM chrome from
+  `rs/crates/nitro-xml-wasm/src/chrome/ribbon_skin.css`.
+
+Give the element an explicit height (or a flex parent). The `:host` rule only
+sets a `min-height` of `12rem`.
+
+### Excel grid stylesheet (optional export)
+
+The full `.xg-*` grid stylesheet is **not** in the eager loader (the 17 408 B
+brotli budget must stay). It is shipped as a separate package export, matching
+the visual-gate / demo `GRID_CSS` string:
+
+```js
+import { GRID_CSS } from "nitro-xml/xlsx-grid-css.js";
+
+const el = document.querySelector("nitro-xlsx");
+if (el?.shadowRoot && !el.shadowRoot.querySelector("style[data-nitro-grid]")) {
+  const style = document.createElement("style");
+  style.dataset.nitroGrid = "";
+  style.textContent = GRID_CSS;
+  el.shadowRoot.appendChild(style);
+}
+```
+
+```js
+import "nitro-xml/xlsx-grid.css"; // bundler / document stylesheet
+```
+
+A document-level import does **not** pierce the shadow root. For `<nitro-xlsx>`,
+inject `GRID_CSS` into `el.shadowRoot` as in the first example (the demo does
+the same). `demo/xlsx-grid-css.js` and `parity/visual/xlsx-grid-css.js` are
+demo and test copies of the same stylesheet; they are not the package path.
+
+### Theming
+
+Set the `theme` attribute or property to `"office"`, `"quiet"`, `"dark"`, or a
+token object. That sets `data-theme` and the `--nx-*` variables on the element
+(lazy-loaded; see [`docs/theme.md`](../../docs/theme.md)). Themes restyle
+**chrome only** — the painted document stays document-faithful.
+
+```html
+<style>
+  nitro-xlsx {
+    height: 600px;
+    --nx-accent: #0b6e4f;
+    --xve-sheet-bg: #fafafa;
+  }
+  nitro-xlsx::part(formula-bar) { font-size: 13px; }
+</style>
+<nitro-xlsx src="model.xlsx" theme="quiet"></nitro-xlsx>
+```
+
+You can also set tokens in CSS on the element or an ancestor, or assign
+`el.theme = { "--nx-accent": "#0b6e4f", fontSans: "Georgia, serif" }`.
+
+Chrome tokens (`--nx-*`): `--nx-ink`, `--nx-ink-muted`, `--nx-bg`,
+`--nx-bg-subtle`, `--nx-border`, `--nx-accent`, `--nx-accent-contrast`,
+`--nx-sel`, `--nx-font-sans`, `--nx-radius`, `--nx-space`, `--nx-titlebar`,
+`--nx-titlebar-ink`, `--nx-canvas`, `--nx-shadow`. `--nx-fg` still works as a
+fallback for `--nx-ink`.
+
+Excel grid tokens (`--xve-*`, used by the shipped grid stylesheet and a cell
+paint fallback; they inherit into the shadow tree): `--xve-sheet-bg`,
+`--xve-grid-line`, `--xve-selection`, `--xve-selection-border`, `--xve-font`,
+`--xve-header-bg`, `--xve-header-fg`, `--xve-header-line`,
+`--xve-header-active-bg`, `--xve-header-full-bg`, `--xve-freeze-line`,
+`--xve-popover`, `--xve-popover-foreground`, `--xve-border`, `--xve-accent`,
+`--xve-secondary`.
+
+`::part()` names that exist in the shipped tree:
+
+- Always: `canvas`, `dom`, `message`
+- Embedded mode: `embedded-toolbar`, `embedded-group`, `embedded-button`
+- Shell chrome (when it is rendered): `toolbar`, `zoom`, `find`, `find-status`,
+  `tabs`, `diagnostics`
+- Excel formula bar: `formula-bar`, `name-box`, `formula-input`
+
 ## Host API
 
 For hosts embedding Nitro inside a chat UI or agent harness — full docs in

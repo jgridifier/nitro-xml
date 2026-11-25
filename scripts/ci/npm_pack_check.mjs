@@ -17,7 +17,7 @@ for (const dir of ['nitro-xml', 'nitro-xml-react']) {
   const [pack] = JSON.parse(raw);
   const files = new Set(pack.files.map(f => f.path));
   const allowed = dir === 'nitro-xml'
-    ? /^(?:package\.json|index\.(?:js|d\.ts)|README\.md|LICENSE(?:-THIRD-PARTY)?|NOTICE|pkg\/nitro_xml_wasm(?:_bg\.wasm)?\.(?:js|d\.ts)|pkg\/nitro_xml_wasm_bg\.wasm|loader\/(?:[\w/-]+\.(?:js|d\.ts)|(?:lazy\/)?README\.md))$/
+    ? /^(?:package\.json|index\.(?:js|d\.ts)|README\.md|LICENSE(?:-THIRD-PARTY)?|NOTICE|pkg\/nitro_xml_wasm(?:_bg\.wasm)?\.(?:js|d\.ts)|pkg\/nitro_xml_wasm_bg\.wasm|loader\/(?:[\w/-]+\.(?:js|d\.ts)|(?:lazy\/)?README\.md)|styles\/xlsx-grid(?:-css\.js|\.css))$/
     : /^(?:package\.json|README\.md|LICENSE|dist\/[\w-]+\.(?:js|d\.ts))$/;
   for (const file of files) {
     assert.ok(allowed.test(file), `Unexpected package file: ${file}`);

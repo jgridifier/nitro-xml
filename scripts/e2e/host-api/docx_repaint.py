@@ -5,8 +5,18 @@
 Catches: refresh_view calling open_first_view on edited bytes and then flush_pending_body
 reloading from the original (unedited) handle.bytes, which wiped the edit from the view.
 
+Fixture: paged-overflow.docx — 50+ paragraphs overflow page 1 onto page 2.
+(paged.docx uses an explicit w:br page break that the renderer does not yet honour as a
+page boundary; see issue #627. The overflow fixture is used here instead.)
+
+Checks (all three must pass):
+  1. page_count >= 2 BEFORE any typing (fixture really paginates).
+  2. Sentinel typed on page 1 appears in page 1's rendered spans.
+  3. Sentinel typed on page 2 appears in page 2's rendered spans (and page 1
+     sentinel is still present — proves the repaint did not wipe either page).
+
 Assemble _site as described in the host-api brief, then run with pw-venv Python.
-An optional positional port defaults to 7893. No synthetic input or model edits.
+An optional positional port defaults to 7894. No synthetic input or model edits.
 """
 import functools
 import http.server
@@ -52,9 +62,32 @@ def check_repaint(page):
     # Catches: typed text visible in rendered DOM after editing a multi-page docx;
     # the bug caused flush_pending_body to overwrite the view with pre-edit bytes.
 
-    # Click on the first paragraph span on page 1.
-    target = page.locator('#viewer [data-bid="p0"] span').first
-    target.click()
+    # --- 1. Assert page count >= 2 BEFORE typing (fixture must really paginate). ---
+    page.wait_for_function(
+        """() => {
+            const root = document.querySelector('#viewer').shadowRoot;
+            const c = root && root.querySelector('[data-page-count]');
+            return c && parseInt(c.getAttribute('data-page-count'), 10) >= 2;
+        }""",
+        timeout=10000,
+    )
+    page_count = page.evaluate("""() => {
+        const root = document.querySelector('#viewer').shadowRoot;
+        const c = root.querySelector('[data-page-count]');
+        return c ? parseInt(c.getAttribute('data-page-count'), 10) : 0;
+    }""")
+    assert page_count >= 2, (
+        f"fixture must render >= 2 pages before any typing, got {page_count}. "
+        "If using the explicit-page-break fixture (paged.docx), that break does not "
+        "currently render; use paged-overflow.docx instead (see issue #627)."
+    )
+    print(f"  PASS page count before typing: {page_count} pages", flush=True)
+
+    # --- 2. Type on page 1, assert sentinel visible in page 1 spans. ---
+    SENT_P1 = "ZPAGE1"
+    # Click the first editable block in page 1.
+    p1_target = page.locator('#viewer .dve-print-page[data-page-index="0"] [data-bid]').first
+    p1_target.click()
     page.wait_for_timeout(300)
 
     # Verify focus reached the editor input.
@@ -62,36 +95,63 @@ def check_repaint(page):
         const el = document.querySelector('#viewer');
         return document.activeElement === el && el.shadowRoot.activeElement?.matches('.nxp');
     }""")
-    assert focused, "real click must focus editor input"
+    assert focused, "click on page 1 must focus editor input"
 
-    # Type a distinctive sentinel character.
-    SENTINEL = "Z"
-    page.keyboard.type(SENTINEL)
-
-    # Wait for dirty (proves the keystroke reached the model).
+    page.keyboard.type(SENT_P1)
     page.wait_for_function(
         "document.querySelector('#viewer').dirty === true",
         timeout=4000,
     )
-
     # Give the repaint pipeline time to settle (measure→layout→paint rounds).
     page.wait_for_timeout(1500)
 
-    # The sentinel MUST appear in a rendered span inside the shadow DOM.
-    # Checking textContent rather than innerText catches invisible-but-present glyphs.
-    visible = page.evaluate(f"""() => {{
+    p1_visible = page.evaluate(f"""() => {{
         const root = document.querySelector('#viewer').shadowRoot;
-        const spans = root ? Array.from(root.querySelectorAll('span')) : [];
-        return spans.some(s => s.textContent.includes('{SENTINEL}'));
+        const pg = root && root.querySelector('.dve-print-page[data-page-index="0"]');
+        const spans = pg ? Array.from(pg.querySelectorAll('span')) : [];
+        return spans.some(s => s.textContent.includes('{SENT_P1}'));
     }}""")
-    assert visible, (
-        f"typed character '{SENTINEL}' not visible in rendered spans after edit "
+    assert p1_visible, (
+        f"typed '{SENT_P1}' on page 1 not visible in page 1 rendered spans after edit "
         "— repaint did not propagate the edit (issue #593)"
     )
-    print(
-        f"  PASS docx repaint: sentinel '{SENTINEL}' visible in rendered span after typing",
-        flush=True,
+    print(f"  PASS page 1 repaint: '{SENT_P1}' visible in page 1 spans", flush=True)
+
+    # --- 3. Type on page 2, assert sentinel visible in page 2 spans. ---
+    SENT_P2 = "ZPAGE2"
+    # Click the first editable block in page 2 (all pages are in the DOM simultaneously).
+    p2_target = page.locator('#viewer .dve-print-page[data-page-index="1"] [data-bid]').first
+    p2_target.click()
+    page.wait_for_timeout(300)
+
+    page.keyboard.type(SENT_P2)
+    # dirty stays true; wait for repaint to settle.
+    page.wait_for_timeout(2000)
+
+    p2_visible = page.evaluate(f"""() => {{
+        const root = document.querySelector('#viewer').shadowRoot;
+        const pg = root && root.querySelector('.dve-print-page[data-page-index="1"]');
+        const spans = pg ? Array.from(pg.querySelectorAll('span')) : [];
+        return spans.some(s => s.textContent.includes('{SENT_P2}'));
+    }}""")
+    assert p2_visible, (
+        f"typed '{SENT_P2}' on page 2 not visible in page 2 rendered spans after edit "
+        "— repaint did not propagate the edit (issue #593)"
     )
+    print(f"  PASS page 2 repaint: '{SENT_P2}' visible in page 2 spans", flush=True)
+
+    # Also verify page 1 sentinel survived the page-2 edit (proves no cross-page wipe).
+    p1_still = page.evaluate(f"""() => {{
+        const root = document.querySelector('#viewer').shadowRoot;
+        const pg = root && root.querySelector('.dve-print-page[data-page-index="0"]');
+        const spans = pg ? Array.from(pg.querySelectorAll('span')) : [];
+        return spans.some(s => s.textContent.includes('{SENT_P1}'));
+    }}""")
+    assert p1_still, (
+        f"'{SENT_P1}' on page 1 disappeared after editing page 2 "
+        "— cross-page repaint wipe (issue #593)"
+    )
+    print(f"  PASS cross-page check: '{SENT_P1}' still present on page 1 after page-2 edit", flush=True)
 
 
 def main():

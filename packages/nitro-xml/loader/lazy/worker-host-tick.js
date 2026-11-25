@@ -104,6 +104,10 @@ export async function tickBody(doc) {
     })();
   } else {
     doc._rt = 0;
+    // Drive lazy layout to completion (e.g. docx multi-page overflow: page 0 commits
+    // on the first no-measure tick; subsequent pages need more ticks with no new measures).
+    // positionReady is false while layout_complete = false; true once fully done.
+    if (frame.positionReady === false) void doc.tick().catch(() => {});
   }
   return {
     ...result,

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Regenerates notes.docx, paged.docx and deck.pptx (original content; needs python-pptx + python-docx).
+"""Regenerates notes.docx, paged.docx, paged-overflow.docx and deck.pptx (original content; needs python-pptx + python-docx).
 
     python3 -I demo/samples/make_samples.py
 """
@@ -68,6 +68,23 @@ pd.add_paragraph()._p.append(br)
 pd.add_paragraph("Page two content follows the break")
 pd.add_paragraph("More text on page two")
 pd.save(os.path.join(HERE, "paged.docx"))
+
+# ---- paged-overflow.docx: two-page fixture via text overflow (no explicit break).
+# The page-break variant (paged.docx) does not currently render multiple pages;
+# see issue #627. This overflow-based fixture reliably produces page_count >= 2
+# and is used by the repaint e2e test (#593).
+# US Letter (8.5" x 11") with default 1" margins → ~648pt usable height.
+# Calibri 11pt at default line spacing → ~18pt/line → ~36 lines/page.
+# 50 short paragraphs safely overflows page 1 onto page 2.
+pdo = Document()
+pdo_st = pdo.styles["Normal"]
+pdo_st.font.name = "Calibri"
+pdo_st.font.size = Pt(11)
+for i in range(1, 51):
+    pdo.add_paragraph(f"Page one paragraph {i}: filling the first page so the next block overflows.")
+pdo.add_paragraph("Page two start: this paragraph overflows to the second page.")
+pdo.add_paragraph("More content on the second page of the overflow fixture.")
+pdo.save(os.path.join(HERE, "paged-overflow.docx"))
 
 # ---- pptx ----
 prs = Presentation()

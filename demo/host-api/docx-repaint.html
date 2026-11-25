@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Nitro XML · Host API — docx repaint (#593)</title>
+  <title>Nitro XML · Host API — docx repaint overflow (#593)</title>
   <style>
     body { font: 14px/1.5 system-ui, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
     #top { display: flex; gap: 8px; align-items: center; padding: 6px 8px; background: #f0f0f0; border-bottom: 1px solid #ccc; flex-wrap: wrap; }
@@ -18,7 +18,7 @@
 </head>
 <body>
   <div id="top">
-    <h1>Host API · docx repaint (#593)</h1>
+    <h1>Host API · docx repaint overflow (#593)</h1>
     <button id="btn-save">Save</button>
   </div>
   <div id="main">
@@ -47,10 +47,12 @@
     el.addEventListener("nitro-change", (e) => logLine("nitro-change dirty=" + e.detail.dirty));
     el.addEventListener("error", (e) => logLine("error: " + (e.detail && e.detail.message)));
 
-    logLine("loading paged.docx…");
-    const resp = await fetch("../samples/paged.docx");
+    // paged-overflow.docx: overflow-based two-page fixture (#593).
+    // paged.docx (explicit page break) only renders one page — see issue #627.
+    logLine("loading paged-overflow.docx…");
+    const resp = await fetch("../samples/paged-overflow.docx");
     const buf = await resp.arrayBuffer();
-    await el.loadBuffer(buf, "paged.docx");
+    await el.loadBuffer(buf, "paged-overflow.docx");
     logLine("loaded");
 
     document.getElementById("btn-save").onclick = async () => {

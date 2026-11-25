@@ -44,14 +44,16 @@ async function bytesFromFile(file, fileName, checkSize) {
  * Module evaluate does not touch `window` / `document`; custom elements and
  * WASM load only inside `useEffect` on the client.
  */
-export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, editable = false, mode = "embedded", onReady, onChange, onError, className, style, }, ref) {
+export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, editable = false, mode = "embedded", onReady, onChange, onDirtyChange, onError, className, style, }, ref) {
     const wrapRef = useRef(null);
     const elRef = useRef(null);
     const onReadyRef = useRef(onReady);
     const onChangeRef = useRef(onChange);
+    const onDirtyChangeRef = useRef(onDirtyChange);
     const onErrorRef = useRef(onError);
     onReadyRef.current = onReady;
     onChangeRef.current = onChange;
+    onDirtyChangeRef.current = onDirtyChange;
     onErrorRef.current = onError;
     useImperativeHandle(ref, () => ({
         get element() {
@@ -74,6 +76,10 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
             const s = typeof spec === "string" ? spec : JSON.stringify(spec);
             return d.applyEdit(s);
         },
+        isDirty() {
+            const el = elRef.current;
+            return el?.dirty ?? false;
+        },
     }));
     useEffect(() => {
         if (file == null)
@@ -89,6 +95,7 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
         };
         const onFailure = (ev) => report(ev.detail);
         let onSave = null;
+        let onDirty = null;
         (async () => {
             const wrap = wrapRef.current;
             if (!wrap || typeof document === "undefined")
@@ -118,7 +125,12 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
                 if (detail)
                     onChangeRef.current?.(detail);
             };
+            onDirty = (ev) => {
+                const { dirty } = ev.detail;
+                onDirtyChangeRef.current?.(dirty);
+            };
             el.addEventListener("nitro-save", onSave);
+            el.addEventListener("nitro-dirty", onDirty);
             el.addEventListener("error", onFailure);
             const viewer = el;
             await viewer.loadBuffer(bytes, name);
@@ -138,6 +150,8 @@ export const NitroViewer = forwardRef(function NitroViewer({ file, fileName, edi
                 el.removeEventListener("error", onFailure);
             if (el && onSave)
                 el.removeEventListener("nitro-save", onSave);
+            if (el && onDirty)
+                el.removeEventListener("nitro-dirty", onDirty);
             try {
                 el?.remove();
             }

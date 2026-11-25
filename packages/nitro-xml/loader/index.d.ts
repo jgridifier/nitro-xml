@@ -170,7 +170,7 @@ export interface NitroPosition {
 }
 export type NitroPositionInput = Omit<Partial<NitroPosition>, "sheet"> & { sheet?: number | string };
 export interface NitroOpenOptions {
-  /** Applied before the requested frame; does not focus or emit nitro-change. */
+  /** Applied before the requested frame; does not focus or emit nitro-dirty. */
   position?: NitroPositionInput;
   /** Opt-in: focus the editor after load. Same as the `autofocus` attribute. */
   focus?: boolean;
@@ -180,8 +180,10 @@ export class ShellViewerElement extends ViewerElement {
   theme: NitroTheme | null;
   /**
    * True when the loaded document has unsaved edits; false in read-only mode.
-   * Flips emit a bubbling, composed `nitro-change` CustomEvent `{ detail: { dirty: boolean } }`.
+   * Flips emit a bubbling, composed `nitro-dirty` CustomEvent `{ detail: { dirty: boolean } }`.
+   * `nitro-change` fires at the same time as a deprecated alias.
    * Resets to false after `save()` succeeds or a new document is loaded.
+   * Undo that returns the document to its last-saved bytes also resets to false (via the hash probe).
    */
   readonly dirty: boolean;
   /**
@@ -196,11 +198,11 @@ export class ShellViewerElement extends ViewerElement {
   /** Navigate without focus/change events. Bounds clamp; unknown sheet names reject. */
   setPosition(position: NitroPositionInput): Promise<void>;
   /** Replace bytes in the same worker/element/shadowRoot. Keeps position by default;
-   * keeps mode, resets dirty silently and the edit journal, and emits no nitro-change or focus change. */
+   * keeps mode, resets dirty silently and the edit journal, and emits no nitro-dirty or focus change. */
   reload(bytes: ArrayBuffer | Uint8Array, opts?: { keepPosition?: boolean; name?: string }): Promise<void>;
   /** Live mode switch without reparsing. `readonly="false"` enables editing;
    * absent/empty/other attribute values mean readonly. Emits nitro-mode after completion,
-   * detail {readonly:boolean}; no nitro-change. save() rejects while readonly. */
+   * detail {readonly:boolean}; no nitro-dirty. save() rejects while readonly. */
   readonly: boolean;
   /** Explicit font list; overrides the process default set via initCore({ fonts }).
    * No request to fonts.googleapis.com / fonts.gstatic.com is made when set.
@@ -219,3 +221,10 @@ export class NitroDocxElement extends ShellViewerElement {}
 export function applyFontSourceToHandle(...args: unknown[]): unknown;
 export function setDefaultFontSource(...args: unknown[]): void;
 export function getDefaultFontSource(): unknown;
+
+declare global {
+  interface HTMLElementEventMap {
+    /** Fires when `dirty` flips. `nitro-change` is a deprecated alias that fires at the same time. */
+    "nitro-dirty": CustomEvent<{ dirty: boolean }>;
+  }
+}

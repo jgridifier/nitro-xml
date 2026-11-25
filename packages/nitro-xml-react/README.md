@@ -54,9 +54,37 @@ The host persists returned bytes. `onChange` reports saves, not every keystroke.
 | `onReady` | `(el) => void` | After open + first tick |
 | `onError` | `(error) => void` | Open, paint, and save failures; `code`, `limit`, `actual`, and `part` when available |
 | `onChange` | `(bytes) => void` | `nitro-save` / save path |
+| `onDirtyChange` | `(dirty: boolean) => void` | Fires when `dirty` flips — true on first edit, false after save() or undo to saved state |
 
 WASM and custom elements load only inside `useEffect` — safe to import from
 RSC / SSR bundles (no `window` at module top level).
+
+The ref handle exposes `save()`, `applyEdit()`, and `isDirty()`. `isDirty()` returns
+the current value of the element's `dirty` getter synchronously (false before load,
+in read-only mode, or after save()).
+
+#### Autosave + leave warning
+
+```tsx
+import { useEffect, useRef } from "react";
+import { NitroViewer, type NitroViewerHandle } from "@nitro-xml/react";
+
+function Editor({ file, fileName, persist }: {
+  file: File; fileName: string; persist: (b: Uint8Array) => Promise<void>;
+}) {
+  const ref = useRef<NitroViewerHandle>(null);
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => { if (ref.current?.isDirty()) e.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+  return (
+    <NitroViewer ref={ref} file={file} fileName={fileName} editable
+      onDirtyChange={async (dirty) => { if (dirty) await persist(await ref.current!.save()); }}
+      style={{ height: 600 }} />
+  );
+}
+```
 
 ## Peer deps
 

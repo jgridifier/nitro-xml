@@ -716,6 +716,9 @@ impl Handle {
         if op == "cmd" {
             return self.dispatch_chrome_command(arg);
         }
+        if op == "fill-color" || op == "font-color" {
+            return self.dispatch_color_pick(op, arg);
+        }
         if op == "docx-caret" {
             return self.docx_caret(arg);
         }
@@ -1751,6 +1754,32 @@ impl Handle {
             docx.set_caret_from_view(bid, before, total);
         }
         Ok(serde_json::json!({ "k": docx.caret_json() }).to_string())
+    }
+
+    /// Palette pick from the Fill/Font Color popover (#588). `color` is 6-char hex, "none" or "auto".
+    fn dispatch_color_pick(&mut self, op: &str, color: &str) -> Result<String, JsValue> {
+        let cmd_id = if op == "fill-color" {
+            "home.fill-color"
+        } else {
+            "home.font-color"
+        };
+        if !self.editor.read_only() {
+            if let Some(xlsx) = self.xlsx.as_mut() {
+                xlsx.ensure_edit(&self.bytes)
+                    .map_err(|e| JsValue::from(OoxmlError::with_code("open_failed", e)))?;
+                if op == "fill-color" {
+                    xlsx.last_fill_color = color.to_string();
+                    self.editor.last_fill_color = color.to_string();
+                } else {
+                    xlsx.last_font_color = color.to_string();
+                    self.editor.last_font_color = color.to_string();
+                }
+                let _ = xlsx.apply_color_command(cmd_id, Some(color));
+            }
+        }
+        process_frame(self);
+        self.shell.touch_chrome_rest();
+        Ok(self.chrome_payload(false))
     }
 
     fn dispatch_chrome_command(&mut self, id: &str) -> Result<String, JsValue> {

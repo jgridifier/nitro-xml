@@ -98,6 +98,57 @@ pub fn map_chrome_command(id: &str, target: &SelectionTarget, host: &XlsxHost) -
         _ => {}
     }
 
+    match id {
+        "home.merge-center" => {
+            return op(
+                "mergeCells",
+                json!({
+                    "sheet": target.sheet,
+                    "range": style_range(target),
+                    "mode": "merge-center",
+                }),
+                true,
+                "Merge & Center",
+            );
+        }
+        "home.merge-across" => {
+            return op(
+                "mergeCells",
+                json!({
+                    "sheet": target.sheet,
+                    "range": style_range(target),
+                    "mode": "merge-across",
+                }),
+                true,
+                "Merge Across",
+            );
+        }
+        "home.merge-cells" => {
+            return op(
+                "mergeCells",
+                json!({
+                    "sheet": target.sheet,
+                    "range": style_range(target),
+                    "mode": "merge",
+                }),
+                true,
+                "Merge Cells",
+            );
+        }
+        "home.unmerge" => {
+            return op(
+                "unmerge",
+                json!({
+                    "sheet": target.sheet,
+                    "range": style_range(target),
+                }),
+                true,
+                "Unmerge Cells",
+            );
+        }
+        _ => {}
+    }
+
     let Some(patch) = style_patch(id, target, host) else {
         return MappedCommand::Unmapped;
     };
@@ -221,6 +272,45 @@ fn style_patch(id: &str, target: &SelectionTarget, host: &XlsxHost) -> Option<Va
         "home.format-scientific" => Some(num_fmt("0.00E+00")),
         "home.format-date" => Some(num_fmt("d-mmm-yy")),
         "home.format-time" => Some(num_fmt("h:mm AM/PM")),
+        "home.border-bottom" => Some(json!({
+            "border": { "bottom": { "style": "thin" } }
+        })),
+        "home.border-top" => Some(json!({
+            "border": { "top": { "style": "thin" } }
+        })),
+        "home.border-left" => Some(json!({
+            "border": { "left": { "style": "thin" } }
+        })),
+        "home.border-right" => Some(json!({
+            "border": { "right": { "style": "thin" } }
+        })),
+        "home.border-none" => Some(json!({
+            "border": { "top": null, "bottom": null, "left": null, "right": null }
+        })),
+        "home.border-all" => Some(json!({
+            "border": {
+                "top": { "style": "thin" },
+                "bottom": { "style": "thin" },
+                "left": { "style": "thin" },
+                "right": { "style": "thin" }
+            }
+        })),
+        "home.border-outside" => Some(json!({
+            "border": {
+                "top": { "style": "thin" },
+                "bottom": { "style": "thin" },
+                "left": { "style": "thin" },
+                "right": { "style": "thin" }
+            }
+        })),
+        "home.border-thick-box" => Some(json!({
+            "border": {
+                "top": { "style": "thick" },
+                "bottom": { "style": "thick" },
+                "left": { "style": "thick" },
+                "right": { "style": "thick" }
+            }
+        })),
         _ => None,
     }
 }

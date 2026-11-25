@@ -166,6 +166,10 @@ impl XlsxState {
 
     pub fn dispatch_chrome(&mut self, id: &str) -> Result<ChromeEffect, String> {
         let target = self.selection_target();
+        // Fill / font colour: apply last-used colour stored on XlsxState (face button).
+        if matches!(id, "home.fill-color" | "home.font-color") {
+            return self.apply_color_command(id, None);
+        }
         // Insert/Delete Rows/Columns keep the selection on the same cells (the engine shifts it with the content).
         let keep_selection = id
             .starts_with("cells.")
@@ -200,6 +204,54 @@ impl XlsxState {
         Ok(effect)
     }
 
+    /// Apply a fill or font colour. `override_color` is from a palette pick; `None` = last-used.
+    pub fn apply_color_command(
+        &mut self,
+        id: &str,
+        override_color: Option<&str>,
+    ) -> Result<ChromeEffect, String> {
+        let target = self.selection_target();
+        let color = override_color.map(str::to_owned).unwrap_or_else(|| {
+            if id == "home.fill-color" {
+                self.last_fill_color.clone()
+            } else {
+                self.last_font_color.clone()
+            }
+        });
+        let patch = if id == "home.fill-color" {
+            if color == "none" {
+                serde_json::json!({ "fill": { "type": "pattern", "pattern": "none" } })
+            } else {
+                serde_json::json!({
+                    "fill": {
+                        "type": "pattern",
+                        "pattern": "solid",
+                        "fgColor": { "rgb": format!("FF{}", color) }
+                    }
+                })
+            }
+        } else if color == "auto" {
+            serde_json::json!({ "font": { "color": null } })
+        } else {
+            serde_json::json!({ "font": { "color": { "rgb": format!("FF{}", color) } } })
+        };
+        let edit = self
+            .edit
+            .as_mut()
+            .ok_or_else(|| "no edit session".to_string())?;
+        edit.apply_raw(
+            "applyStyle",
+            serde_json::json!({
+                "sheet": target.sheet,
+                "range": target.range,
+                "patch": patch,
+            }),
+        )
+        .map_err(|e| e.to_string())?;
+        self.sync_cells_from_edit(target.sheet, &[(target.row, target.col)]);
+        Ok(ChromeEffect::Applied { structure: false })
+    }
+
     pub fn apply_raw_edit(&mut self, spec: &str) -> Result<ChromeEffect, String> {
         let v: Value = serde_json::from_str(spec).map_err(|e| e.to_string())?;
         let command = v
@@ -224,7 +276,12 @@ impl XlsxState {
         if structure
             || matches!(
                 command.as_str(),
-                "insertRows" | "deleteRows" | "insertColumns" | "deleteColumns"
+                "insertRows"
+                    | "deleteRows"
+                    | "insertColumns"
+                    | "deleteColumns"
+                    | "mergeCells"
+                    | "unmerge"
             )
         {
             self.sync_model_from_edit();

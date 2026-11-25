@@ -76,6 +76,10 @@ pub struct XlsxState {
     /// `(origin col, row, col)` of the last Tab move. Enter returns to the origin column while
     /// the active cell is still where that Tab left it (Excel's type-across-a-row-then-Enter).
     pub(crate) tab_trail: Option<(u32, u32, u32)>,
+    /// Last fill colour applied from the ribbon, as 6-char hex or "none". Synced to chrome render.
+    pub last_fill_color: String,
+    /// Last font colour applied from the ribbon, as 6-char hex or "auto".
+    pub last_font_color: String,
 }
 
 impl XlsxState {
@@ -117,6 +121,8 @@ impl XlsxState {
                 pending_tail_complete: false,
                 grid_in_host: false,
                 tab_trail: None,
+                last_fill_color: "FFFF00".to_string(),
+                last_font_color: "FF0000".to_string(),
             },
             warnings,
         ))

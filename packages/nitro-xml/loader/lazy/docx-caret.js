@@ -42,6 +42,11 @@ export function attach(el) {
   let anchor = null; // { bid, shown } - null = collapsed/no selection; same as caret = collapsed
   let caretK = null; // [bid, chars, model] from most recent Rust caret response
   let anchorK = null; // [bid, chars, model] when anchor was last synced
+  let syncSeq = 0; // generation counter; stale async caret responses are discarded
+  let lastDownAt = 0;
+  let lastDownX = 0;
+  let lastDownY = 0;
+  let clickCount = 0;
   let lineStart = false;
   let goalX = null;
   let reveal = false;
@@ -90,55 +95,61 @@ export function attach(el) {
     return { x: b.right, top: b.top, h: b.height };
   };
 
-  /** Convert (bid, shown) to a DOM Range endpoint {node, offset} in UTF-16 units. */
-  const domPosOf = (bid, shown) => {
-    const { list, total } = shownIndex(bid);
-    if (!list.length) return null;
-    const t = Math.min(shown, total);
-    for (const e of list) {
-      if (t >= e.start && t <= e.start + e.n) {
-        const ci = t - e.start;
-        const node = e.s.firstChild;
-        if (!node) return null;
-        const cps = Array.from(node.data);
-        let u = 0;
-        for (let i = 0; i < ci; i++) u += cps[i].length;
-        return { node, offset: u };
-      }
+  /** Ordered unique block ids currently in the DOM. */
+  const domBids = () => {
+    const bids = [];
+    const seen = new Set();
+    for (const node of dom.querySelectorAll("[data-bid]")) {
+      const id = node.dataset.bid;
+      if (!seen.has(id)) { seen.add(id); bids.push(id); }
     }
-    // After all spans: use end of last span
-    const last = list[list.length - 1];
-    const node = last.s.firstChild;
-    if (!node) return null;
-    return { node, offset: node.data.length };
+    return bids;
   };
 
   /** Compare two (bid, shown) positions by DOM order. Returns negative/0/positive. */
   const posCompare = (a, b) => {
     if (a.bid === b.bid) return a.shown - b.shown;
-    const bids = [];
-    const seen = new Set();
-    for (const el of dom.querySelectorAll("[data-bid]")) {
-      if (!seen.has(el.dataset.bid)) { seen.add(el.dataset.bid); bids.push(el.dataset.bid); }
-    }
+    const bids = domBids();
     return bids.indexOf(a.bid) - bids.indexOf(b.bid);
   };
 
-  /** Extract selected text using a DOM Range. */
+  /** Convert code-point offset in s to UTF-16 offset. */
+  const cpToUtf16 = (s, cpOff) => {
+    let u = 0;
+    for (let cps = 0; cps < cpOff && u < s.length; cps++) {
+      const cp = s.codePointAt(u);
+      u += cp > 0xffff ? 2 : 1;
+    }
+    return u;
+  };
+
+  /** Extract selected text across paragraphs using DOM order (paragraphs joined by '\n'). */
   const selText = () => {
     if (!anchor || !caret) return "";
     if (anchor.bid === caret.bid && anchor.shown === caret.shown) return "";
     const cmp = posCompare(anchor, caret);
     const [from, to] = cmp <= 0 ? [anchor, caret] : [caret, anchor];
-    const sp = domPosOf(from.bid, from.shown);
-    const ep = domPosOf(to.bid, to.shown);
-    if (!sp || !ep) return "";
-    try {
-      const r = document.createRange();
-      r.setStart(sp.node, sp.offset);
-      r.setEnd(ep.node, ep.offset);
-      return r.toString();
-    } catch (_) { return ""; }
+    const bids = domBids();
+    const i0 = bids.indexOf(from.bid);
+    const i1 = bids.indexOf(to.bid);
+    if (i0 < 0 || i1 < 0) return "";
+    const parts = [];
+    for (let i = i0; i <= i1; i++) {
+      const bid = bids[i];
+      const { list, total } = shownIndex(bid);
+      const pStart = bid === from.bid ? from.shown : 0;
+      const pEnd = bid === to.bid ? to.shown : total;
+      let chunk = "";
+      for (const e of list) {
+        if (e.start + e.n <= pStart || e.start >= pEnd) continue;
+        const t = spanText(e.s);
+        const s0 = cpToUtf16(t, Math.max(0, pStart - e.start));
+        const s1 = cpToUtf16(t, Math.min(e.n, pEnd - e.start));
+        chunk += t.slice(s0, s1);
+      }
+      parts.push(chunk);
+    }
+    return parts.join("\n");
   };
 
   /** Update el._nxSel for s.js. */
@@ -165,33 +176,75 @@ export function attach(el) {
     drawHighlights();
   };
 
-  /** Draw highlight rects between anchor and caret using Range.getClientRects(). */
+  /** Merge text-node rects on the same visual line so multi-span lines get one even highlight. */
+  const mergeLineRects = (rects) => {
+    const sorted = [...rects].sort((a, b) => a.left - b.left);
+    const merged = [];
+    for (const r of sorted) {
+      const last = merged[merged.length - 1];
+      if (last && r.left <= last.right + 2 && last.left <= r.right + 2) {
+        last.left = Math.min(last.left, r.left);
+        last.top = Math.min(last.top, r.top);
+        last.right = Math.max(last.right, r.right);
+        last.bottom = Math.max(last.bottom, r.bottom);
+      } else {
+        merged.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+      }
+    }
+    return merged;
+  };
+
+  /** Draw one even highlight rect per visual line between anchor and caret. */
   const drawHighlights = () => {
     hl.textContent = "";
     if (!anchor || !caret) return;
     if (anchor.bid === caret.bid && anchor.shown === caret.shown) return;
     const cmp = posCompare(anchor, caret);
     const [from, to] = cmp <= 0 ? [anchor, caret] : [caret, anchor];
-    const sp = domPosOf(from.bid, from.shown);
-    const ep = domPosOf(to.bid, to.shown);
-    if (!sp || !ep) return;
-    try {
-      const range = document.createRange();
-      range.setStart(sp.node, sp.offset);
-      range.setEnd(ep.node, ep.offset);
-      const rects = range.getClientRects();
-      const vr = v.getBoundingClientRect();
-      for (const r of rects) {
-        if (r.width < 1) continue;
-        const d = document.createElement("div");
-        d.className = "nxh-r";
-        d.style.left = r.left - vr.left + "px";
-        d.style.top = r.top - vr.top + "px";
-        d.style.width = r.width + "px";
-        d.style.height = r.height + "px";
-        hl.appendChild(d);
+    const bids = domBids();
+    const i0 = bids.indexOf(from.bid);
+    const i1 = bids.indexOf(to.bid);
+    if (i0 < 0 || i1 < 0) return;
+    const vr = v.getBoundingClientRect();
+    for (let i = i0; i <= i1; i++) {
+      const bid = bids[i];
+      const { list, total } = shownIndex(bid);
+      const pStart = bid === from.bid ? from.shown : 0;
+      const pEnd = bid === to.bid ? to.shown : total;
+      if (pStart >= pEnd) continue;
+      // Group overlapping text-node rects per .dve-print-line to avoid duplicate/overlapping boxes.
+      const byLine = new Map();
+      for (const e of list) {
+        if (e.start + e.n <= pStart || e.start >= pEnd) continue;
+        const tn = e.s.firstChild;
+        if (!tn || tn.nodeType !== 3) continue;
+        const lineEl = e.s.parentNode;
+        const s0 = cpToUtf16(tn.data, Math.max(0, pStart - e.start));
+        const s1 = cpToUtf16(tn.data, Math.min(e.n, pEnd - e.start));
+        if (s1 <= s0) continue;
+        try {
+          const rng = document.createRange();
+          rng.setStart(tn, s0);
+          rng.setEnd(tn, s1);
+          let arr = byLine.get(lineEl);
+          if (!arr) { arr = []; byLine.set(lineEl, arr); }
+          for (const r of rng.getClientRects()) {
+            if (r.width >= 0.5 && r.height >= 1) arr.push(r);
+          }
+        } catch (_) {}
       }
-    } catch (_) {}
+      for (const rects of byLine.values()) {
+        for (const m of mergeLineRects(rects)) {
+          const d = document.createElement("div");
+          d.className = "nxh-r";
+          d.style.left = m.left - vr.left + "px";
+          d.style.top = m.top - vr.top + "px";
+          d.style.width = m.right - m.left + "px";
+          d.style.height = m.bottom - m.top + "px";
+          hl.appendChild(d);
+        }
+      }
+    }
   };
 
   /** Hit-test inside one line at client x -> { bid, shown, lineStart, x }. */
@@ -335,8 +388,11 @@ export function attach(el) {
   };
 
   const syncModel = async (hit) => {
+    const mySeq = ++syncSeq;
     const r = await el.shellAction("docx-caret", `${hit.bid}:${hit.shown}:${hit.total}`);
-    setFromK(r && r.k, true);
+    const k = r && r.k;
+    if (syncSeq === mySeq) setFromK(k, true);
+    return k;
   };
 
   /** Move the caret to a hit result: optimistic overlay first, then the model. */
@@ -349,6 +405,7 @@ export function attach(el) {
 
   /** Select the word around the given hit position. */
   const selectWord = async (hit) => {
+    const mySeq = ++syncSeq;
     const { list, total } = shownIndex(hit.bid);
     const text = list.map((e) => spanText(e.s)).join("");
     const cps = Array.from(text);
@@ -371,12 +428,14 @@ export function attach(el) {
     caret = { bid: hit.bid, shown: end };
     caretK = null;
     lineStart = false;
+    updateSel();
     place(true);
     drawHighlights();
     const [ra, rc] = await Promise.all([
       el.shellAction("docx-caret", `${hit.bid}:${start}:${total}`),
       el.shellAction("docx-caret", `${hit.bid}:${end}:${total}`),
     ]);
+    if (syncSeq !== mySeq) return;
     anchorK = ra && ra.k;
     if (ra && ra.k) {
       const [bid, chars, model] = ra.k;
@@ -400,6 +459,19 @@ export function attach(el) {
     "pointerdown",
     (e) => {
       if (e.button !== 0 || !editable()) return;
+      wrapDoc();
+      preReplaceState = null;
+      const now = performance.now();
+      if (now - lastDownAt < 500 && Math.hypot(e.clientX - lastDownX, e.clientY - lastDownY) <= 5) {
+        clickCount++;
+      } else {
+        clickCount = 1;
+      }
+      lastDownAt = now;
+      lastDownX = e.clientX;
+      lastDownY = e.clientY;
+      const detail = e.detail || clickCount;
+
       if (el.document) el.document._nxCaretK = null;
       const d = dom.getBoundingClientRect();
       if (e.clientX - d.left > dom.clientWidth || e.clientY - d.top > dom.clientHeight) return;
@@ -410,15 +482,17 @@ export function attach(el) {
 
       const hit = hitLine(line, e.clientX);
 
-      if (e.detail >= 3) {
+      if (detail >= 3) {
         // Triple-click: select entire paragraph
         e.preventDefault();
+        const mySeq = ++syncSeq;
         const { total } = shownIndex(hit.bid);
         anchor = { bid: hit.bid, shown: 0 };
         anchorK = null;
         caret = { bid: hit.bid, shown: total };
         caretK = null;
         lineStart = false;
+        updateSel();
         place(true);
         drawHighlights();
         v.setPointerCapture(e.pointerId);
@@ -427,6 +501,7 @@ export function attach(el) {
             el.shellAction("docx-caret", `${hit.bid}:0:${total}`),
             el.shellAction("docx-caret", `${hit.bid}:${total}:${total}`),
           ]);
+          if (syncSeq !== mySeq) return;
           anchorK = ra && ra.k;
           if (rc && rc.k) { caretK = rc.k; }
           updateSel();
@@ -435,7 +510,7 @@ export function attach(el) {
         return;
       }
 
-      if (e.detail === 2) {
+      if (detail === 2) {
         // Double-click: select word
         e.preventDefault();
         v.setPointerCapture(e.pointerId);
@@ -446,21 +521,23 @@ export function attach(el) {
       if (e.shiftKey && caret) {
         // Shift+click: extend selection, keep existing anchor (or pin at current caret)
         if (!anchor) { anchor = { bid: caret.bid, shown: caret.shown }; anchorK = caretK; }
+        caret = { bid: hit.bid, shown: hit.shown };
+        updateSel(); drawHighlights(); place(true);
         void commit(hit).then(() => { drawHighlights(); updateSel(); });
         return;
       }
 
       // Single click: set anchor optimistically, then commit caret
-      anchor = { bid: hit.bid, shown: hit.shown };
+      const myAnchor = { bid: hit.bid, shown: hit.shown };
+      anchor = myAnchor;
       anchorK = null;
       el._nxSel = null;
       v.setPointerCapture(e.pointerId);
-      void commit(hit).then(() => {
-        // After model confirms, anchorK = caretK for accurate selection reporting.
-        // Do NOT set anchor = caret: pointerup already cleared anchor for simple
-        // clicks. Re-setting it here causes the next typed char to see anchor ≠ caret
-        // and trigger a selection-delete on the char just inserted (#561 typing fix).
-        anchorK = caretK;
+      void commit(hit).then((k) => {
+        if (anchor === myAnchor && k) {
+          anchorK = k;
+          updateSel();
+        }
       });
     },
     true,
@@ -514,6 +591,11 @@ export function attach(el) {
     d._nxReCaret = () => {
       const k = d._nxCaretK;
       if (!k) return;
+      if (anchor && caret && (anchor.bid !== caret.bid || anchor.shown !== caret.shown)) {
+        d._nxCaretK = null;
+        bar.style.display = "none";
+        return;
+      }
       setFromK(k, false);
       if (bar.style.display === "block") {
         d._nxCaretK = null;
@@ -574,7 +656,13 @@ export function attach(el) {
       if (hasSelection && (isDelete || isEnter)) {
         const arg = selArg();
         if (arg) {
-          preReplaceState = null;
+          preReplaceState = isDelete ? {
+            anchor: anchor ? { ...anchor } : null,
+            caret: caret ? { ...caret } : null,
+            anchorK,
+            caretK,
+            nxSel: el._nxSel ? { ...el._nxSel } : null,
+          } : null;
           const dr = await el.shellAction("docx-sel-delete", arg);
           anchor = null; anchorK = null; el._nxSel = null;
           drawHighlights();
@@ -582,6 +670,11 @@ export function attach(el) {
           if (isDelete) return { handled: true, k: dr && dr.k };
           // For enter: fall through so Enter creates a paragraph break at the new caret
         }
+      }
+
+      // Any non-replace, non-undo key clears saved pre-replace undo state.
+      if (!hasSelection && !isUndo && (isTyping || isDelete || isEnter)) {
+        preReplaceState = null;
       }
 
       // Plain nav: clear selection; Shift+nav: set anchor before move
@@ -602,7 +695,6 @@ export function attach(el) {
         d._nxCaretTries = 0;
         setFromK(r.k, isShiftArrow && (ev.key === "ArrowUp" || ev.key === "ArrowDown"));
         if (bar.style.display === "block") d._nxCaretK = null;
-        if (!isTyping && !isUndo) preReplaceState = null;
       }
       return r;
     };
@@ -651,8 +743,8 @@ export function attach(el) {
     true,
   );
 
-  const mo = new MutationObserver(() => { place(true); drawHighlights(); });
-  mo.observe(dom, { childList: true });
+  const mo = new MutationObserver(() => { updateSel(); place(true); drawHighlights(); });
+  mo.observe(dom, { childList: true, subtree: true });
   listen(dom, "scroll", () => { place(true); drawHighlights(); }, { passive: true });
   const resize = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => { place(true); drawHighlights(); }) : null;
   resize?.observe(v);
@@ -683,8 +775,27 @@ export function attach(el) {
 
   const origAction = el.shellAction.bind(el);
   el.shellAction = async (op, arg) => {
+    if (op === "cmd" && editable() && arg === "edit.undo" && preReplaceState) {
+      const saved = preReplaceState;
+      preReplaceState = null;
+      const r = await origAction(op, arg);
+      anchor = saved.anchor;
+      caret = saved.caret;
+      anchorK = saved.anchorK;
+      caretK = saved.caretK;
+      el._nxSel = saved.nxSel;
+      drawHighlights();
+      place(true);
+      if (caret) {
+        const { total } = shownIndex(caret.bid);
+        void origAction("docx-caret", `${caret.bid}:${caret.shown}:${total}`);
+      }
+      return r;
+    }
+    if (op === "cmd" && editable()) preReplaceState = null;
     const r = await origAction(op, arg);
     if (op === "cmd" && editable()) {
+      anchor = null; anchorK = null; el._nxSel = null;
       const c = await origAction("docx-caret", "");
       setFromK(c && c.k, false);
     }

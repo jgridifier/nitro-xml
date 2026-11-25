@@ -44,7 +44,12 @@ export function attach(el) {
   let caretK = null; // [shapeId, offset] from last Rust response
   let anchorK = null;
   let dragStarted = false; // true once pointermove fires during a drag
+  let textDragActive = false; // true when drag started directly on text (suppresses shape move)
   let syncSeq = 0; // generation counter; stale syncModel responses are discarded
+  let lastDownAt = 0;
+  let lastDownX = 0;
+  let lastDownY = 0;
+  let clickCount = 0;
 
   // ---- DOM helpers ----
 
@@ -199,9 +204,9 @@ export function attach(el) {
       if (ci === null) continue;
       const utf16Off = cpToUtf16(actualSpan.firstChild.data, ci);
       const off = domToShapeOffset(shapeEl, actualSpan.firstChild, utf16Off);
-      return { shapeId, offset: off };
+      return { shapeId, offset: off, direct: true };
     }
-    // Fallback: find nearest span by Y distance
+    // Fallback: find nearest span by Y distance, breaking ties on the same line by X distance.
     let best = null, bd = Infinity;
     for (const shapeEl of dom.querySelectorAll('[data-pptx-kind="text"]')) {
       for (const span of shapeEl.querySelectorAll('.pptxv-para > span')) {
@@ -209,7 +214,9 @@ export function attach(el) {
         if (!tn || tn.nodeType !== 3) continue;
         const r = span.getBoundingClientRect();
         if (!r.height) continue;
-        const d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+        const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+        const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
+        const d = dy * 10000 + dx;
         if (d < bd) { bd = d; best = { span, shapeEl }; }
       }
     }
@@ -221,7 +228,7 @@ export function attach(el) {
     const ci = x <= r.left ? 0 : x >= r.right ? cpLen(span.firstChild.data) : hitSpanAt(span, x) ?? cpLen(span.firstChild.data);
     const utf16Off = cpToUtf16(span.firstChild.data, ci);
     const off = domToShapeOffset(shapeEl, span.firstChild, utf16Off);
-    return { shapeId, offset: off };
+    return { shapeId, offset: off, direct: false };
   };
 
   /** Find the shape element for a given shapeId. */
@@ -289,6 +296,27 @@ export function attach(el) {
 
   // ---- Highlight overlay ----
 
+  const mergeLineRects = (rects) => {
+    const out = [];
+    for (const r of rects) {
+      let merged = false;
+      for (const g of out) {
+        const vOverlap = Math.min(r.bottom, g.bottom) - Math.max(r.top, g.top);
+        const minH = Math.min(r.bottom - r.top, g.bottom - g.top);
+        if (vOverlap > minH * 0.4 && r.left <= g.right + 2 && g.left <= r.right + 2) {
+          g.left = Math.min(g.left, r.left);
+          g.top = Math.min(g.top, r.top);
+          g.right = Math.max(g.right, r.right);
+          g.bottom = Math.max(g.bottom, r.bottom);
+          merged = true;
+          break;
+        }
+      }
+      if (!merged) out.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+    }
+    return out;
+  };
+
   const drawHighlights = () => {
     hl.textContent = "";
     if (!anchor || !caret) return;
@@ -298,26 +326,41 @@ export function attach(el) {
     if (!shapeEl) return;
     const from = anchor.offset < caret.offset ? anchor.offset : caret.offset;
     const to = anchor.offset < caret.offset ? caret.offset : anchor.offset;
-    const sp = shapeToDomPos(shapeEl, from);
-    const ep = shapeToDomPos(shapeEl, to);
-    if (!sp || !ep) return;
-    try {
-      const range = document.createRange();
-      range.setStart(sp.node, sp.utf16Off);
-      range.setEnd(ep.node, ep.utf16Off);
-      const rects = range.getClientRects();
-      const vr = v.getBoundingClientRect();
-      for (const r of rects) {
-        if (r.width < 1) continue;
+    const vr = v.getBoundingClientRect();
+    let off = 0;
+    for (const para of parasOf(shapeEl)) {
+      const rects = [];
+      for (const span of spansOf(para)) {
+        const tn = span.firstChild;
+        const n = cpLen(tn.data);
+        if (off + n > from && off < to) {
+          const s0 = cpToUtf16(tn.data, Math.max(0, from - off));
+          const s1 = cpToUtf16(tn.data, Math.min(n, to - off));
+          if (s1 > s0) {
+            try {
+              const rng = document.createRange();
+              rng.setStart(tn, s0);
+              rng.setEnd(tn, s1);
+              for (const r of rng.getClientRects()) {
+                if (r.width >= 0.5 && r.height >= 1) rects.push(r);
+              }
+            } catch (_) {}
+          }
+        }
+        off += n;
+      }
+      off += 1; // '\n'
+      rects.sort((a, b) => a.left - b.left);
+      for (const m of mergeLineRects(rects)) {
         const d = document.createElement("div");
         d.className = "nxph-r";
-        d.style.left = r.left - vr.left + "px";
-        d.style.top = r.top - vr.top + "px";
-        d.style.width = r.width + "px";
-        d.style.height = r.height + "px";
+        d.style.left = m.left - vr.left + "px";
+        d.style.top = m.top - vr.top + "px";
+        d.style.width = m.right - m.left + "px";
+        d.style.height = m.bottom - m.top + "px";
         hl.appendChild(d);
       }
-    } catch (_) {}
+    }
   };
 
   // ---- Selection state ----
@@ -402,14 +445,27 @@ export function attach(el) {
     // Wrap editorKey now so the selection-aware path is live before any
     // beforeinput/insertText event that follows a click (soft keyboard, IME).
     wrapDoc();
+    preReplaceState = null;
+    const now = performance.now();
+    if (now - lastDownAt < 500 && Math.hypot(e.clientX - lastDownX, e.clientY - lastDownY) <= 5) {
+      clickCount++;
+    } else {
+      clickCount = 1;
+    }
+    lastDownAt = now;
+    lastDownX = e.clientX;
+    lastDownY = e.clientY;
+    const detail = e.detail || clickCount;
+
     const hit = hitAt(e.clientX, e.clientY);
     if (!hit) { clearSel(); caret = null; caretK = null; place(true); return; }
 
     dragStarted = false; // reset for this new click/drag sequence
 
-    if (e.detail >= 3) {
+    if (detail >= 3) {
       // Triple-click: select entire shape text
       e.preventDefault();
+      const mySeq = ++syncSeq;
       const shapeEl = shapeElOf(hit.shapeId);
       if (!shapeEl) return;
       let total = 0;
@@ -423,12 +479,13 @@ export function attach(el) {
       caret = { shapeId: hit.shapeId, offset: total };
       caretK = null;
       v.setPointerCapture(e.pointerId);
-      place(true); drawHighlights();
+      updateSel(); place(true); drawHighlights();
       void (async () => {
         const [ra, rc] = await Promise.all([
           el.shellAction("pptx-caret", `${hit.shapeId}:0`),
           el.shellAction("pptx-caret", `${hit.shapeId}:${total}`),
         ]);
+        if (syncSeq !== mySeq) return;
         anchorK = ra && ra.k;
         if (rc && rc.k) { caretK = rc.k; const [, o] = rc.k; caret = { shapeId: hit.shapeId, offset: o }; }
         updateSel(); drawHighlights();
@@ -436,34 +493,36 @@ export function attach(el) {
       return;
     }
 
-    if (e.detail === 2) {
+    if (detail === 2) {
       // Double-click: select word
       e.preventDefault();
+      const mySeq = ++syncSeq;
+      const shapeEl = shapeElOf(hit.shapeId);
+      if (!shapeEl) return;
+      const text = shapeTextOf(hit.shapeId);
+      const cps = [...text];
+      const pos = Math.min(hit.offset, cps.length);
+      const isW = (ch) => /\w/.test(ch);
+      let start = pos, end = pos;
+      const inW = (pos < cps.length && isW(cps[pos])) || (pos > 0 && isW(cps[pos - 1]));
+      if (inW) {
+        start = pos > 0 && isW(cps[pos - 1]) ? pos - 1 : pos;
+        while (start > 0 && isW(cps[start - 1])) start--;
+        while (end < cps.length && isW(cps[end])) end++;
+      }
+      if (start === end && start < cps.length) end = start + 1;
+      anchor = { shapeId: hit.shapeId, offset: start };
+      anchorK = null;
+      caret = { shapeId: hit.shapeId, offset: end };
+      caretK = null;
       v.setPointerCapture(e.pointerId);
+      updateSel(); place(true); drawHighlights();
       void (async () => {
-        const shapeEl = shapeElOf(hit.shapeId);
-        if (!shapeEl) return;
-        const text = shapeTextOf(hit.shapeId);
-        const cps = [...text];
-        const pos = Math.min(hit.offset, cps.length);
-        const isW = (ch) => /\w/.test(ch);
-        let start = pos, end = pos;
-        const inW = (pos < cps.length && isW(cps[pos])) || (pos > 0 && isW(cps[pos - 1]));
-        if (inW) {
-          start = pos > 0 && isW(cps[pos - 1]) ? pos - 1 : pos;
-          while (start > 0 && isW(cps[start - 1])) start--;
-          while (end < cps.length && isW(cps[end])) end++;
-        }
-        if (start === end && start < cps.length) end = start + 1;
-        anchor = { shapeId: hit.shapeId, offset: start };
-        anchorK = null;
-        caret = { shapeId: hit.shapeId, offset: end };
-        caretK = null;
-        place(true); drawHighlights();
         const [ra, rc] = await Promise.all([
           el.shellAction("pptx-caret", `${hit.shapeId}:${start}`),
           el.shellAction("pptx-caret", `${hit.shapeId}:${end}`),
         ]);
+        if (syncSeq !== mySeq) return;
         anchorK = ra && ra.k;
         if (rc && rc.k) { caretK = rc.k; const [, o] = rc.k; caret = { shapeId: hit.shapeId, offset: o }; }
         updateSel(); drawHighlights();
@@ -472,20 +531,28 @@ export function attach(el) {
     }
 
     if (e.shiftKey && caret && caret.shapeId === hit.shapeId) {
-      // Shift+click: extend selection
+      // Shift+click: extend text selection without letting pptx_drag toggle-deselect the shape.
+      e.stopPropagation();
+      e.preventDefault();
+      el._nxpTa?.focus({ preventScroll: true });
       if (!anchor) { anchor = { shapeId: caret.shapeId, offset: caret.offset }; anchorK = caretK; }
+      caret = { shapeId: hit.shapeId, offset: hit.offset };
+      updateSel(); drawHighlights(); place(true);
       void syncModel(hit).then(() => { drawHighlights(); updateSel(); });
       return;
     }
 
     // Single click: set anchor optimistically
+    textDragActive = !!hit.direct;
     anchor = { shapeId: hit.shapeId, offset: hit.offset };
     anchorK = null;
     el._nxPptxSel = null;
     caret = { shapeId: hit.shapeId, offset: hit.offset };
     v.setPointerCapture(e.pointerId);
     place(true);
+    const clickSeq = syncSeq + 1;
     void syncModel(hit).then(() => {
+      if (syncSeq !== clickSeq) return;
       // After model confirms, anchorK = caretK for accurate selection reporting.
       // Do NOT set anchor = caret: pointerup already cleared anchor for simple
       // clicks. Re-setting it here triggers selection-delete on the next typed
@@ -496,6 +563,7 @@ export function attach(el) {
 
   listen(v, "pointermove", (e) => {
     if (!v.hasPointerCapture(e.pointerId) || !editable()) return;
+    if (textDragActive) e.stopPropagation();
     dragStarted = true; // a drag is in progress
     const hit = hitAt(e.clientX, e.clientY);
     if (!hit || !anchor || hit.shapeId !== anchor.shapeId) return;
@@ -506,6 +574,7 @@ export function attach(el) {
 
   listen(v, "pointerup", (e) => {
     if (!v.hasPointerCapture(e.pointerId)) return;
+    textDragActive = false;
     v.releasePointerCapture(e.pointerId);
     if (anchor && caret && anchor.shapeId === caret.shapeId && anchor.offset === caret.offset) {
       anchor = null; anchorK = null; el._nxPptxSel = null; drawHighlights();
@@ -570,7 +639,13 @@ export function attach(el) {
       if (hasSelection && (isDelete || isEnter)) {
         const arg = selArg();
         if (arg) {
-          preReplaceState = null;
+          preReplaceState = isDelete ? {
+            anchor: anchor ? { ...anchor } : null,
+            caret: caret ? { ...caret } : null,
+            anchorK,
+            caretK,
+            pptxSel: el._nxPptxSel ? { ...el._nxPptxSel, anchorPos: el._nxPptxSel.anchorPos && { ...el._nxPptxSel.anchorPos }, caretPos: el._nxPptxSel.caretPos && { ...el._nxPptxSel.caretPos } } : null,
+          } : null;
           const dr = await el.shellAction("pptx-sel-delete", arg);
           anchor = null; anchorK = null; el._nxPptxSel = null;
           drawHighlights();
@@ -578,12 +653,14 @@ export function attach(el) {
           if (isDelete) return { handled: true, k: dr && dr.k };
         }
       }
+      if (!hasSelection && !isUndo && (isTyping || isDelete || isEnter)) {
+        preReplaceState = null;
+      }
       const r = await orig(ev, mac);
       if (r && r.handled) {
         if (r.k) setFromK(r.k);
         // Clear selection on any handled non-typing key
         if (anchor) { anchor = null; anchorK = null; el._nxPptxSel = null; drawHighlights(); }
-        if (!isTyping && !isUndo) preReplaceState = null;
       }
       return r;
     };
@@ -627,7 +704,7 @@ export function attach(el) {
 
   // ---- Observers ----
 
-  const mo = new MutationObserver(() => { place(true); drawHighlights(); });
+  const mo = new MutationObserver(() => { updateSel(); place(true); drawHighlights(); });
   mo.observe(dom, { childList: true, subtree: true });
   listen(dom, "scroll", () => { place(true); drawHighlights(); }, { passive: true });
   const resize = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => { place(true); drawHighlights(); }) : null;
@@ -651,6 +728,34 @@ export function attach(el) {
     };
     requestAnimationFrame(step);
   });
+
+  // ---- Shell action interception (undo selection restoration + caret sync) ----
+
+  const origAction = el.shellAction.bind(el);
+  el.shellAction = async (op, arg) => {
+    if (op === "cmd" && editable() && arg === "edit.undo" && preReplaceState) {
+      const saved = preReplaceState;
+      preReplaceState = null;
+      const r = await origAction(op, arg);
+      anchor = saved.anchor;
+      caret = saved.caret;
+      anchorK = saved.anchorK;
+      caretK = saved.caretK;
+      el._nxPptxSel = saved.pptxSel;
+      drawHighlights();
+      place(true);
+      if (caret) void origAction("pptx-caret", `${caret.shapeId}:${caret.offset}`);
+      return r;
+    }
+    if (op === "cmd" && editable()) preReplaceState = null;
+    const r = await origAction(op, arg);
+    if (op === "cmd" && editable()) {
+      anchor = null; anchorK = null; el._nxPptxSel = null;
+      const c = await origAction("pptx-caret", "");
+      setFromK(c && c.k);
+    }
+    return r;
+  };
 
   // ---- Detach ----
 

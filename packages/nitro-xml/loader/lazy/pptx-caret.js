@@ -399,6 +399,9 @@ export function attach(el) {
 
   listen(v, "pointerdown", (e) => {
     if (e.button !== 0 || !editable()) return;
+    // Wrap editorKey now so the selection-aware path is live before any
+    // beforeinput/insertText event that follows a click (soft keyboard, IME).
+    wrapDoc();
     const hit = hitAt(e.clientX, e.clientY);
     if (!hit) { clearSel(); caret = null; caretK = null; place(true); return; }
 

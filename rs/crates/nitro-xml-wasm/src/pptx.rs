@@ -101,6 +101,7 @@ impl PptxState {
         }
         if self.active != index {
             self.selected_ids.clear();
+            self.text_caret = None;
         }
         self.active = index;
         Ok(())

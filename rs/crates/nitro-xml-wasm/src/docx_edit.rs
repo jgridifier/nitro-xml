@@ -447,15 +447,11 @@ impl DocxState {
     /// Each position is `(block_id, shown_before, shown_total)`. Returns the new caret JSON.
     pub fn delete_range(
         &mut self,
-        bid1: &str,
-        shown1: usize,
-        total1: usize,
-        bid2: &str,
-        shown2: usize,
-        total2: usize,
+        start: (&str, usize, usize),
+        end: (&str, usize, usize),
     ) -> Option<serde_json::Value> {
-        let (bi1, off1) = self.view_to_block(bid1, shown1, total1)?;
-        let (bi2, off2) = self.view_to_block(bid2, shown2, total2)?;
+        let (bi1, off1) = self.view_to_block(start.0, start.1, start.2)?;
+        let (bi2, off2) = self.view_to_block(end.0, end.1, end.2)?;
         // Normalise direction: from < to
         let (bi_from, off_from, bi_to, off_to) = if bi1 < bi2 || (bi1 == bi2 && off1 <= off2) {
             (bi1, off1, bi2, off2)
@@ -516,12 +512,8 @@ impl DocxState {
     /// Returns the new caret JSON, or None on failure.
     pub fn delete_range_and_type(
         &mut self,
-        bid1: &str,
-        shown1: usize,
-        total1: usize,
-        bid2: &str,
-        shown2: usize,
-        total2: usize,
+        start: (&str, usize, usize),
+        end: (&str, usize, usize),
         key: &str,
     ) -> Option<serde_json::Value> {
         let len_before = self
@@ -529,7 +521,7 @@ impl DocxState {
             .as_ref()
             .map(|e| e.session.history.done().len())
             .unwrap_or(0);
-        self.delete_range(bid1, shown1, total1, bid2, shown2, total2)?;
+        self.delete_range(start, end)?;
         let outcome = self.type_key(key, false, false, false).ok()?;
         if !matches!(outcome, KeyOutcome::Edited) {
             return self.caret_json();

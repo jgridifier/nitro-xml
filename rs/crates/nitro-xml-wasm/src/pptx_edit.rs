@@ -290,11 +290,13 @@ impl PptxState {
         let interactive = self.interactive;
         let clip = self.text_clip.clone();
         let shape_clip = self.shape_clip.clone();
+        let text_caret = self.text_caret.take();
         let opened = Self::open(std::sync::Arc::<[u8]>::from(bytes));
         let mut next = match opened {
             Ok(state) => state,
             Err(e) => {
                 self.edit = edit;
+                self.text_caret = text_caret;
                 return Err(e);
             }
         };
@@ -310,6 +312,15 @@ impl PptxState {
             next.active = active.min(n - 1);
         }
         next.selected_ids = selected;
+        next.text_caret = text_caret.and_then(|mut tc| {
+            let slide = next.active as u32;
+            let len = next
+                .shape_text_on_slide(slide, &tc.shape_id)?
+                .chars()
+                .count();
+            tc.offset = tc.offset.min(len);
+            Some(tc)
+        });
         *self = next;
         Ok(())
     }
@@ -837,5 +848,35 @@ mod tests {
             refs_after_open + 1,
             "ensure_edit must retain one more Arc ref on the package, not a duplicate Vec"
         );
+    }
+
+    #[test]
+    fn catches_refresh_view_dropping_pptx_text_caret() {
+        // Catches: refresh_view resetting text_caret to None so typing/Backspace after
+        // replace_range_with_char or mid-box type_key jumps to the end of the shape (#561).
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../demo/samples/deck.pptx");
+        let bytes: Arc<[u8]> = Arc::from(std::fs::read(&path).expect("deck.pptx"));
+        let mut state = PptxState::open(Arc::clone(&bytes)).expect("open");
+        state.ensure_edit(&bytes).expect("ensure_edit");
+        let shape_id = "ppt/slides/slide1.xml-shape-0";
+        state.selected_ids = vec![shape_id.to_owned()];
+        state
+            .replace_range_with_char(shape_id, 0, 4, 'Q')
+            .expect("replace");
+        state.refresh_view(&bytes).expect("refresh_view");
+        assert_eq!(
+            state.shape_text_on_slide(0, shape_id).as_deref(),
+            Some("Qo XML")
+        );
+        assert_eq!(state.text_caret.as_ref().map(|c| c.offset), Some(1));
+        assert!(state
+            .type_key("Backspace", false, false, false)
+            .expect("bs"));
+        state.refresh_view(&bytes).expect("refresh_view 2");
+        assert_eq!(
+            state.shape_text_on_slide(0, shape_id).as_deref(),
+            Some("o XML")
+        );
+        assert_eq!(state.text_caret.as_ref().map(|c| c.offset), Some(0));
     }
 }

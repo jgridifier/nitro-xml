@@ -1801,7 +1801,7 @@ impl Handle {
         let Some(docx) = self.docx.as_mut() else {
             return Ok("{}".into());
         };
-        let k = docx.delete_range(parts[0], shown1, total1, parts[3], shown2, total2);
+        let k = docx.delete_range((parts[0], shown1, total1), (parts[3], shown2, total2));
         if k.is_some() {
             self.refresh_office_view()?;
             self.sync_office_tabs();
@@ -1958,7 +1958,11 @@ impl Handle {
         let Some(docx) = self.docx.as_mut() else {
             return Ok("{}".into());
         };
-        let k = docx.delete_range_and_type(parts[0], shown1, total1, parts[3], shown2, total2, &ch_str);
+        let k = docx.delete_range_and_type(
+            (parts[0], shown1, total1),
+            (parts[3], shown2, total2),
+            &ch_str,
+        );
         if k.is_some() {
             self.refresh_office_view()?;
             self.sync_office_tabs();

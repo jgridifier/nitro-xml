@@ -182,6 +182,7 @@ export class ShellViewerElement extends ViewerElement {
    * True when the loaded document has unsaved edits; false in read-only mode.
    * Flips emit a bubbling, composed `nitro-change` CustomEvent `{ detail: { dirty: boolean } }`.
    * Resets to false after `save()` succeeds or a new document is loaded.
+   * Undo that returns the document to its last-saved bytes also resets to false (via the hash probe).
    */
   readonly dirty: boolean;
   /**
@@ -219,3 +220,4 @@ export class NitroDocxElement extends ShellViewerElement {}
 export function applyFontSourceToHandle(...args: unknown[]): unknown;
 export function setDefaultFontSource(...args: unknown[]): void;
 export function getDefaultFontSource(): unknown;
+

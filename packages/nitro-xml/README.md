@@ -203,7 +203,8 @@ console.log(selection); // e.g. { format: "xlsx", range: "B2:C3", values: [[4, 6
 For `readonly="false"`, real typing (and committed XLSX cell edits) sets the
 read-only getter to `true`. The bubbling, composed event has
 `detail: { dirty: boolean }`. `save(): Promise<Uint8Array>` returns the package
-bytes and resets dirty after success.
+bytes and resets dirty after success. Undo that returns the document to its
+last-saved bytes also resets dirty to false.
 
 ```js
 el.addEventListener("nitro-change", (e) => {
@@ -214,6 +215,26 @@ await el.save(); // resets dirty → false, fires nitro-change {dirty:false}
 
 Fires only when `dirty` flips. Never fires during load, scroll, zoom, navigation,
 or `save()` on an unedited document.
+
+#### Autosave + leave warning
+
+```js
+// Autosave 2 s after the last edit burst
+let autosaveTimer = 0;
+el.addEventListener("nitro-change", async (e) => {
+  if (!e.detail.dirty) return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(async () => {
+    const bytes = await el.save();
+    await myBackend.upload(bytes);
+  }, 2000);
+});
+
+// Warn before the tab closes
+window.addEventListener("beforeunload", (e) => {
+  if (el.dirty) e.preventDefault();
+});
+```
 
 ### Position, reload, and live readonly
 

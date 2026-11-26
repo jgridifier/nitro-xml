@@ -242,14 +242,16 @@ if (sel) console.log("caret paragraph", sel.start?.paragraph, "offset", sel.star
 
 `true` when the loaded document has unsaved edits; `false` in read-only mode or
 after a successful `save()` / new document load. Only available in edit mode
-(`readonly="false"`); always `false` in view-only mode.
+(`readonly="false"`); always `false` in view-only mode. Undo that returns the
+document to its last-saved bytes also resets `dirty` to `false` (handled by the
+hash probe).
 
 ### `nitro-change` event
 
 Fired on the element when `dirty` flips. Bubbles and is composed (crosses shadow
 DOM). Never fires during `loadBuffer` / `loadFile` / `loadUrl`, or for
-scroll / zoom / selection / navigation — only on a first user edit and after
-`save()` resets it.
+scroll / zoom / selection / navigation — only on a first user edit, undo back to
+the saved bytes, and after `save()` resets it.
 
 ```js
 el.addEventListener("nitro-change", (e) => {
@@ -263,8 +265,9 @@ el.addEventListener("nitro-change", (e) => {
 |---|---|
 | First keystroke / cell edit after load | ✅ `{dirty:true}` |
 | Subsequent edits (already dirty) | ❌ no duplicate |
-| `save()` success | ✅ `{dirty:false}` |
-| `loadBuffer` / open | ❌ never |
+| `save()` success (when dirty) | ✅ `{dirty:false}` |
+| Undo back to last-saved bytes | ✅ `{dirty:false}` |
+| `loadBuffer` / open / `reload` | ❌ never |
 | Scroll / zoom / nav / selection | ❌ never |
 | `save()` with no edits (no-op) | ❌ never |
 

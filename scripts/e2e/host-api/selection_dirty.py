@@ -59,6 +59,7 @@ def open_page(browser, port, fmt):
     assert box and box['width'] > 100 and box['height'] > 100, f"editor has no usable surface: {box}"
     expect(events(page), [], "events during load")
     expect(page.evaluate("document.querySelector('#viewer').dirty"), False, "dirty on load")
+    expect(page.locator('#dirty-badge').text_content(), 'clean', "dirty badge on load")
     return page
 
 
@@ -104,8 +105,9 @@ def check_dirty(page, fmt):
         page.keyboard.press('Enter')  # Commit; Escape cancels the edit.
     page.wait_for_function("document.querySelector('#viewer').dirty === true", timeout=3000)
     page.wait_for_timeout(500)
-    expect(events(page), [{'dirty': True}], 'exactly one first-edit event')
+    expect(events(page), [{'dirty': True}], 'exactly one first-edit nitro-change event')
     expect(page.evaluate("document.querySelector('#viewer').dirty"), True, 'dirty after edit')
+    expect(page.locator('#dirty-badge').text_content(), 'dirty', 'dirty badge after edit')
     page.keyboard.type('y')
     if fmt == 'xlsx':
         page.keyboard.press('Enter')
@@ -114,7 +116,8 @@ def check_dirty(page, fmt):
     page.locator('#btn-save').click()
     page.wait_for_function("document.querySelector('#viewer').dirty === false", timeout=3000)
     page.wait_for_timeout(500)
-    expect(events(page), [{'dirty': True}, {'dirty': False}], 'save resets exactly once')
+    expect(events(page), [{'dirty': True}, {'dirty': False}], 'save resets nitro-change exactly once')
+    expect(page.locator('#dirty-badge').text_content(), 'clean', 'dirty badge after save')
     page.locator('#btn-save').click()
     page.wait_for_timeout(500)
     expect(events(page), [{'dirty': True}, {'dirty': False}], 'clean save must not emit')
@@ -127,7 +130,7 @@ def check_dirty(page, fmt):
         page.locator('#viewer [data-a="sheet"][data-g="0"]').click()
     page.wait_for_timeout(700)
     expect(events(page), [{'dirty': True}, {'dirty': False}], 'zoom/scroll/navigation must not emit')
-    print(f'  PASS {fmt}: focus; no load/selection event; first edit exactly once; dirty=true; save resets; clean save and zoom/scroll/navigation silent', flush=True)
+    print(f'  PASS {fmt}: focus; no load/selection event; nitro-change first edit exactly once; dirty=true; save resets; clean save and zoom/scroll/navigation silent', flush=True)
 
 
 def check_selection(page, fmt):

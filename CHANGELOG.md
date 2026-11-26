@@ -1,6 +1,24 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Changelog
 
+## Unreleased
+
+- **`@nitro-xml/react` dirty tracking via `nitro-change`** (Part of #548):
+  - `<nitro-docx>`, `<nitro-xlsx>`, and `<nitro-pptx>` dispatch the existing
+    bubbling, composed `nitro-change` `CustomEvent<{ dirty: boolean }>` on
+    every `dirty` flip (`true` on first edit, `false` after `save()` or undo
+    that returns the package to its last-saved bytes via the hash probe).
+    Never fires on load, reload, scroll, zoom, selection, mode toggle, or
+    clean `save()`.
+  - `@nitro-xml/react`: `<NitroViewer>` adds `onDirtyChange?: (dirty: boolean) => void`
+    (wired to `nitro-change`, listener removed on unmount) and `NitroViewerHandle`
+    adds `isDirty(): boolean` (reads the element's live `dirty` getter; `false`
+    before load).
+  - Docs & types: `ShellViewerElement` JSDoc updated in `loader/index.d.ts`;
+    Host API docs updated in `packages/nitro-xml/README.md`,
+    `packages/nitro-xml/loader/README.md`, and `packages/nitro-xml-react/README.md`
+    (autosave + `beforeunload` examples).
+
 ## 0.2.0 — 2026-11-20
 
 - `getSelection()` payloads (Part of #561). XLSX returns the stored values of

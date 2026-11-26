@@ -21,6 +21,8 @@ export type NitroViewerProps = {
   onReady?: (el: HTMLElement) => void;
   /** Fired when `nitro-save` / programmatic save produces bytes. */
   onChange?: (bytes: Uint8Array) => void;
+  /** Fired when `dirty` flips — true on first edit, false after save() or undo to saved state. */
+  onDirtyChange?: (dirty: boolean) => void;
   /** Open, paint, and save failures, including typed security limits. */
   onError?: (error: Error & { code?: string; limit?: number; actual?: number; part?: string }) => void;
   className?: string;
@@ -32,6 +34,8 @@ export type NitroViewerHandle = {
   element: HTMLElement | null;
   save: () => Promise<Uint8Array>;
   applyEdit: (spec: string | object) => Promise<string>;
+  /** True when the document has unsaved edits; false before load, in read-only mode, or after save(). */
+  isDirty: () => boolean;
 };
 
 type LoaderMod = typeof import("nitro-xml/loader");
@@ -92,6 +96,7 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
       mode = "embedded",
       onReady,
       onChange,
+      onDirtyChange,
       onError,
       className,
       style,
@@ -102,9 +107,11 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
     const elRef = useRef<HTMLElement | null>(null);
     const onReadyRef = useRef(onReady);
     const onChangeRef = useRef(onChange);
+    const onDirtyChangeRef = useRef(onDirtyChange);
     const onErrorRef = useRef(onError);
     onReadyRef.current = onReady;
     onChangeRef.current = onChange;
+    onDirtyChangeRef.current = onDirtyChange;
     onErrorRef.current = onError;
 
     useImperativeHandle(ref, () => ({
@@ -131,6 +138,10 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
         const s = typeof spec === "string" ? spec : JSON.stringify(spec);
         return d.applyEdit(s);
       },
+      isDirty() {
+        const el = elRef.current as (HTMLElement & { dirty?: boolean }) | null;
+        return el?.dirty ?? false;
+      },
     }));
 
     useEffect(() => {
@@ -145,6 +156,7 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
       };
       const onFailure = (ev: Event) => report((ev as CustomEvent<Error>).detail);
       let onSave: ((ev: Event) => void) | null = null;
+      let onDirty: ((ev: Event) => void) | null = null;
 
       (async () => {
         const wrap = wrapRef.current;
@@ -176,7 +188,12 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
           const detail = (ev as CustomEvent<Uint8Array>).detail;
           if (detail) onChangeRef.current?.(detail);
         };
+        onDirty = (ev: Event) => {
+          const { dirty } = (ev as CustomEvent<{ dirty: boolean }>).detail;
+          onDirtyChangeRef.current?.(dirty);
+        };
         el.addEventListener("nitro-save", onSave);
+        el.addEventListener("nitro-change", onDirty);
         el.addEventListener("error", onFailure);
 
         const viewer = el as HTMLElement & {
@@ -196,6 +213,7 @@ export const NitroViewer = forwardRef<NitroViewerHandle, NitroViewerProps>(
         cancelled = true;
         if (el) el.removeEventListener("error", onFailure);
         if (el && onSave) el.removeEventListener("nitro-save", onSave);
+        if (el && onDirty) el.removeEventListener("nitro-change", onDirty);
         try {
           el?.remove();
         } catch {

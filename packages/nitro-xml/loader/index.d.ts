@@ -158,6 +158,72 @@ export class ViewerElement extends HTMLElement {
 }
 /** Chrome theme: a built-in name, or `--nx-*` tokens (`"--nx-accent"` or short `accent`). See docs/theme.md. */
 export type NitroTheme = "office" | "quiet" | "dark" | Record<string, string>;
+
+/**
+ * All built-in command ids registered in CHROME_COMMANDS (commands.rs) and the office editors.
+ * Guard-tested against the Rust registry in chrome/commands.rs#guard_js_command_ids.
+ * Pass any `string` to `execCommand` / `ribbon.hide` for forward-compat with ids added in later releases.
+ */
+export type NitroCommandId =
+  | "home.paste" | "home.paste-values" | "home.paste-formulas" | "home.paste-formatting"
+  | "home.paste-transpose" | "home.paste-special" | "home.cut" | "home.copy"
+  | "home.format-painter" | "home.font-name" | "home.font-size" | "home.grow-font"
+  | "home.shrink-font" | "home.bold" | "home.italic" | "home.underline"
+  | "home.underline-double" | "home.strikethrough" | "home.borders" | "home.borders-more"
+  | "home.fill-color" | "home.font-color" | "home.font-settings"
+  | "home.align-top" | "home.align-middle" | "home.align-bottom" | "home.orientation"
+  | "home.alignment-settings" | "home.wrap-text" | "home.align-left" | "home.align-center"
+  | "home.align-right" | "home.indent-decrease" | "home.indent-increase"
+  | "home.merge-center" | "home.merge-across" | "home.merge-cells" | "home.unmerge"
+  | "home.number-format" | "home.number-settings" | "home.accounting" | "home.accounting-more"
+  | "home.percent" | "home.comma" | "home.decimal-increase" | "home.decimal-decrease"
+  | "home.cf-quick" | "home.cf-data-bar" | "home.cf-color-scale" | "home.cf-icon-set"
+  | "home.cf-new-rule" | "home.cf-clear-selection" | "home.cf-clear-sheet" | "home.cf-manage"
+  | "home.format-as-table" | "home.cell-styles"
+  | "cells.insert-split" | "cells.delete-split" | "cells.insert" | "cells.delete"
+  | "cells.insert-rows" | "cells.delete-rows" | "cells.insert-columns" | "cells.delete-columns"
+  | "sheet.insert" | "sheet.delete"
+  | "format.row-height" | "format.autofit-rows" | "format.column-width"
+  | "format.autofit-columns" | "format.default-width" | "format.hide-rows"
+  | "format.hide-columns" | "sheet.hide" | "format.unhide-rows" | "format.unhide-columns"
+  | "sheet.unhide" | "sheet.rename" | "sheet.move-copy" | "sheet.tab-color"
+  | "review.protect-sheet" | "format.lock-cell" | "format.cells"
+  | "home.autosum" | "home.autosum-average" | "home.autosum-count" | "home.autosum-max"
+  | "home.autosum-min" | "home.autosum-more" | "home.fill-down" | "home.fill-right"
+  | "home.fill-up" | "home.fill-left" | "home.fill-series" | "home.clear-all"
+  | "home.clear-formats" | "home.clear-contents" | "home.clear-comments" | "home.clear-hyperlinks"
+  | "data.sort-asc" | "data.sort-desc" | "data.sort-custom" | "data.filter"
+  | "data.filter-clear" | "data.filter-reapply"
+  | "home.find" | "home.replace" | "home.go-to" | "home.go-to-special"
+  | "home.select-formulas" | "home.select-comments" | "home.select-conditional"
+  | "home.select-constants" | "home.select-validation"
+  | "file.save" | "file.open" | "file.new" | "file.print" | "edit.undo" | "edit.redo"
+  | "home.format-general" | "home.format-currency" | "home.format-percent"
+  | "home.format-scientific" | "home.format-date" | "home.format-time" | "home.format-number"
+  | "edit.insert-date" | "edit.insert-time" | "formulas.show-formulas"
+  | "edit.select-column" | "edit.select-row" | "sheet.previous" | "sheet.next"
+  | "insert.table" | "insert.link" | "review.new-comment" | "formulas.calculate-now"
+  | "home.shape-fill" | "home.shape-outline" | "home.shape-dash"
+  | "home.duplicate" | "home.delete" | "home.group" | "home.ungroup"
+  | "home.bring-forward" | "home.send-backward" | "home.bring-to-front" | "home.send-to-back"
+  | "home.subscript" | "home.superscript" | "home.highlight"
+  | "home.double-underline" | "home.double-strike" | "home.caps" | "home.small-caps"
+  | "home.hidden" | "home.expand-spacing" | "home.condense-spacing"
+  | "home.scale-up" | "home.scale-down"
+  | "home.bullets" | "home.numbering" | "home.outdent" | "home.indent" | "home.align-justify"
+  | "home.line-spacing" | "home.space-before" | "home.space-after"
+  | "home.hanging-indent" | "home.first-line" | "home.indent-right" | "home.outdent-right"
+  | "home.shading" | "home.border-bottom" | "home.border-top" | "home.border-left"
+  | "home.border-right" | "home.border-double" | "home.border-dash" | "home.border-dot"
+  | "home.style-normal" | "home.style-title" | "home.style-heading-1"
+  | "home.style-heading-2" | "home.style-heading-3"
+  | "insert.slide" | "insert.duplicate-slide" | "home.layout" | "home.delete-slide"
+  | "insert.move-slide-up" | "insert.move-slide-down"
+  | "table.insert-row" | "table.delete-row" | "table.insert-column" | "table.delete-column"
+  | "table.cell-text" | "table.delete"
+  | "insert.picture" | "insert.shape" | "insert.text-box" | "insert.page-break"
+  | "home.landscape" | "home.narrow-margins" | "home.moderate-margins" | "home.wide-margins"
+  | "home.page-a4" | "home.page-legal" | "home.page-break-before";
 /** Position indices are zero-based; zoom is percent and scroll offsets are CSS pixels. */
 export interface NitroPosition {
   page?: number;
@@ -175,6 +241,38 @@ export interface NitroOpenOptions {
   /** Opt-in: focus the editor after load. Same as the `autofocus` attribute. */
   focus?: boolean;
 }
+/** One entry in the `el.commands` snapshot. */
+export interface NitroCommandEntry {
+  id: NitroCommandId | string;
+  label: string;
+  shortcut: string | null;
+  enabled: boolean;
+}
+
+/** Descriptor for a host-added ribbon command. */
+export interface NitroRibbonAddEntry {
+  /** Unique command id for this host button; fires as `nitro-command` detail.id. */
+  id: string;
+  /** Button label (text only; no HTML). */
+  label: string;
+  /** SVG path data for the button icon (the `d` attribute only; no HTML injection). */
+  icon?: string;
+  /** Tab name to place the button in (not yet routed; reserved for future use). */
+  tab?: string;
+  /** Group label (not yet routed; reserved for future use). */
+  group?: string;
+  /** When true the button is disabled in read-only mode. Default: true. */
+  editing?: boolean;
+}
+
+/** Ribbon configuration set on `el.ribbon`. */
+export interface NitroRibbonConfig {
+  /** Command ids to hide from the ribbon, menus, and shortcut dispatch. */
+  hide?: NitroCommandId[];
+  /** Host-added buttons appended at the end of the ribbon / embedded toolbar. */
+  add?: NitroRibbonAddEntry[];
+}
+
 export class ShellViewerElement extends ViewerElement {
   /** Sets `data-theme` and the `--nx-*` variables on the element. A string attribute may also hold JSON tokens. */
   theme: NitroTheme | null;
@@ -206,6 +304,25 @@ export class ShellViewerElement extends ViewerElement {
    * No request to fonts.googleapis.com / fonts.gstatic.com is made when set.
    * Set before calling loadBuffer / loadFile / loadUrl. */
   fonts: FontEntry[] | null;
+  /**
+   * Ribbon configuration (#590). Set before or after `loadBuffer`/`loadFile`/`loadUrl`.
+   * `hide` removes commands from the ribbon, menus, and shortcut dispatch.
+   * `add` injects host buttons at the end of the ribbon / embedded toolbar; they fire
+   * `nitro-command` and do not reach the built-in command registry.
+   */
+  ribbon: NitroRibbonConfig | null;
+  /**
+   * Run a registered command by id (#590). Returns `false` and logs valid ids when `id`
+   * is unknown. Fires a cancelable `nitro-command` event before dispatch; `preventDefault()`
+   * stops execution. Available after the first `loadBuffer`/`loadFile`/`loadUrl`.
+   */
+  execCommand(id: NitroCommandId | string): boolean;
+  /**
+   * Snapshot of all known commands with their current enabled state (#590).
+   * Includes built-in commands and any `ribbon.add` host commands.
+   * Available after the first `loadBuffer`/`loadFile`/`loadUrl`.
+   */
+  readonly commands: NitroCommandEntry[];
 }
 export class NitroXmlElement extends ShellViewerElement {}
 

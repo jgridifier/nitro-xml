@@ -309,6 +309,109 @@ The `fonts` array is loaded via `FontFace` on the main thread **and** forwarded 
 the WASM worker (where text is measured). No request to `fonts.googleapis.com` or
 `fonts.gstatic.com` is made when `fonts` is set or `fontSource` is `"off"` / `"page"`.
 
+### Ribbon option, `execCommand`, and `nitro-command` event — #590
+
+#### `el.ribbon = { hide?, add? }`
+
+Control which commands appear in the ribbon and inject custom host buttons.
+
+```js
+el.ribbon = {
+  // Hide built-in commands by id (removes button from ribbon, shortcuts still work
+  // unless the host also cancels the event).
+  hide: ["file.open", "file.new"],
+
+  // Inject host-defined buttons. These fire `nitro-command` only; Rust has no
+  // handler for them. SVG icon is a path `d` string (strict-CSP safe, no innerHTML).
+  add: [
+    {
+      id:      "host.review",        // must be unique; returned in el.commands
+      label:   "Send for review",    // visible label
+      icon:    "M12 2L2 7l10 5…",    // optional SVG path data
+      tab:     "Home",               // optional (reserved for future full-mode tab routing)
+      group:   "Actions",            // optional
+      editing: false,                // true = disabled when el.readonly; default true
+    },
+  ],
+};
+
+// Clear all ribbon overrides:
+el.ribbon = null;
+```
+
+The React `NitroViewer` component accepts a matching `ribbon` prop and a `onCommand`
+handler; both are synchronised without remounting:
+
+```tsx
+<NitroViewer
+  file={buf} fileName="report.xlsx" editable
+  ribbon={{ hide: ["file.open"], add: [{ id: "host.review", label: "Review" }] }}
+  onCommand={e => { if (e.detail.id === "host.review") openReviewPanel(); }}
+/>
+```
+
+#### `el.commands → NitroCommandEntry[]`
+
+Returns a snapshot of all commands (built-in + host-added) with their current state:
+
+```ts
+interface NitroCommandEntry {
+  id:        string;         // e.g. "home.bold"
+  label:     string;         // e.g. "Bold"
+  shortcut:  string | null;  // e.g. "Ctrl+B"
+  enabled:   boolean;        // false when el.readonly and editing:true
+}
+```
+
+#### `el.execCommand(id: NitroCommandId | string): boolean`
+
+Programmatically dispatch any registered command. Returns `false` for unknown ids
+and logs the full list to the console.
+
+```js
+el.execCommand("home.bold");        // true — dispatches the command
+el.execCommand("host.review");      // true — fires nitro-command only (host-added)
+el.execCommand("bad.id");           // false — console.error with valid ids listed
+```
+
+#### `nitro-command` event (cancelable)
+
+Fires **before** every command dispatch: ribbon clicks, keyboard shortcuts,
+`execCommand`, and host-added button clicks.
+
+```js
+el.addEventListener("nitro-command", (e) => {
+  console.log(e.detail.id, e.detail.format); // e.g. "home.bold", "xlsx"
+
+  // Prevent the built-in handler (e.g. replace file.save with your own):
+  if (e.detail.id === "file.save") {
+    e.preventDefault();
+    myCustomSave(el);
+  }
+});
+```
+
+`e.detail.format` is `"xlsx"`, `"docx"`, or `"pptx"`.
+
+#### Built-in command ids (`NitroCommandId`)
+
+A representative sample — the full union is in `loader/index.d.ts`:
+
+| id | Label | Shortcut | editing |
+|----|-------|----------|---------|
+| `home.bold` | Bold | Ctrl+B | ✓ |
+| `home.italic` | Italic | Ctrl+I | ✓ |
+| `home.copy` | Copy | Ctrl+C | — |
+| `home.find` | Find… | Ctrl+F | — |
+| `edit.undo` | Undo | Ctrl+Z | ✓ |
+| `edit.redo` | Redo | Ctrl+Y | ✓ |
+| `file.save` | Save | Ctrl+S | ✓ |
+| `insert.link` | Insert link | Ctrl+K | ✓ |
+
+Editing commands (`editing: true`) are **disabled** (`enabled: false` in `el.commands`)
+while `el.readonly` is `true`. Host-added buttons with `editing: true` follow the same
+rule and are rendered as `disabled` in the toolbar.
+
 ### Focus — load never steals focus (`autofocus`, `{focus:true}`) — #567
 
 By default, `loadBuffer` / `loadFile` / `loadUrl` **never move focus** away from
